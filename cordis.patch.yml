@@ -1,0 +1,8 @@
+# dsh-zhizhang bundle patch: insert the 织章 engineering-tools plugin.
+# Row name is the npm package so Node resolves from the profile's node_modules.
+# config.rootDir defaults under the session cwd; override in profile cordis.patch.yml.
+- insert:
+    - id: zhizhang
+      name: 'dsh-zhizhang'
+      config:
+        rootDir: '.zhizhang'

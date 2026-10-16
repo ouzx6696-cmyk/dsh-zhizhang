@@ -1,0 +1,47 @@
+{
+  "name": "dsh-zhizhang",
+  "version": "0.10.3",
+  "description": "织章 DSH 插件：Scheduler 调度（默认最短合格 vs 显式旁路）；双轴 craft|mind；lean 写作闭环；当前小说状态连续性（续章读前章正文）；ports-only。",
+  "type": "module",
+  "main": "./dist/index.js",
+  "exports": {
+    ".": "./dist/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "cordis.patch.yml",
+    "README.md",
+    "docs"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepare": "npm run build",
+    "test": "bun test test/",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "zhizhang",
+    "novel-writing",
+    "writing-workflow",
+    "style-linter",
+    "ai-writing"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "bun-types": "^1.2.0",
+    "typescript": "^5.8.0"
+  }
+}

@@ -1,0 +1,3 @@
+[test]
+# Only first-party tests under ./test
+root = "./test"
