@@ -15,8 +15,8 @@ describe("product loop holistic contract", () => {
   test("one loop line shared by Scheduler + ProductMap + SYSTEM_BRIEF", async () => {
     const pkg = await import("../../package.json");
     expect(ProductMap.version).toBe(pkg.version);
-    expect(ProductMap.version).toBe("0.10.3");
-    expect(Scheduler.version).toBe("0.10.3");
+    expect(ProductMap.version).toBe("0.10.5");
+    expect(Scheduler.version).toBe("0.10.5");
 
     const line = ProductMap.loopLine();
     expect(line).toBe(CREATIVE_LOOP_LINE);

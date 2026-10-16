@@ -30,6 +30,7 @@
 - **卡契约（0.7+；0.8 叙事统合）**：硬字段 `axis: craft|mind`；craft→`humanFeel`+`bookCraft`；mind→`MindSpec`；`kind` 次标签；百科/声纹硬拒
 - **0.7.1 产品面**：`listCards`/`searchCards` 可按 `sourceId`/`sourceIds`/`sourceTitle`/`axis` 过滤；`suggestCombo` → **1 mind + ≤N craft**（可跨书）`card_ids`
 - **bookCraft**：`continueWhy` / `adjacentChange?` / `failAsShortStory?`；只迁「继续」过程，不抄情节链
+- **反僵硬（craft）**：打碎逻辑 + 本书载体；`allowedEdges`「本场应落纸」；lean 可追加一行；`stiffness_tidy` 软雷达（卡承诺打碎才扫）
 - **dissect**：人味 + **进入→兑现→为什么继续**；mechanisms 仍须 failWhen；只迁技巧不抄剧情
 - **硬规则**：空 body 拒；stage 不写 `cards/`；须显式 accept 才入库
 - **勿改**：与 MethodRegistry 方法包混为一谈；在写作闸里塞拆书
@@ -52,7 +53,7 @@
 - **调用**：`candidate_accept` 用 outline.ending 自动追加；工具 `zhizhang_foundation_append_happened` 精修
 - **勿改**：从正文杜撰长篇 happened；与 NovelSenseGate 混为一谈
 
-### `port.scheduler` — Scheduler（**live** · 0.10.0）
+### `port.scheduler` — Scheduler（**live** · 0.10.5）
 
 - **文件**：`src/lib/ports/scheduler.ts`
 - **契约**：`defaultLine` / `writeLine` / `bypasses` / `nextHint` / `formatDiagram`；默认路径与旁路单源
@@ -62,12 +63,12 @@
 ### `port.product` — ProductMap
 
 - **文件**：`src/lib/ports/product.ts`
-- **契约**：只读**一条创作闭环** + **Scheduler 调度图** + 三阶段 + MethodRegistry；`CREATIVE_LOOP_LINE` ≡ `Scheduler.defaultLine()`；`version` 与 package 对齐（0.10.0）
+- **契约**：只读**一条创作闭环** + **Scheduler 调度图** + 三阶段 + MethodRegistry；`CREATIVE_LOOP_LINE` ≡ `Scheduler.defaultLine()`；`version` 与 package 对齐（0.10.5）
 - **勿改**：把三阶段写成三个互不交接的产品；在地图里声明未实现能力为 live
 
 ---
 
-## 质量面端口（live · 0.10.0）
+## 质量面端口（live · 0.10.5）
 
 - lean brief：`brief_mode` 默认 lean；卡 `formatTechniqueCardBlockLean`；方法默认仅 style_contract
 
@@ -130,14 +131,14 @@
 ### `port.human_feel_gate` — HumanFeelGate
 
 - **文件**：`src/lib/ports/human-feel-gate.ts`
-- **契约**：范文腔 + 毒点软雷达（过齐 / 任务句连排 / 器物清单 / **设定清单** / **账本流水** / **家长里短**）；默认 warn `human_feel_hits`；`strictHuman` → deny
+- **契约**：范文腔 + 毒点软雷达（过齐 / 任务句连排 / 器物清单 / **设定清单** / **记账流水** / **家长里短**）+ **`stiffness_tidy`**（卡承诺打碎才扫）；默认 warn；`strictHuman` → deny
 - **勿改**：当作质量法或禁词洗衣单；默认硬拒；为每一句文案加微测；与 QualityPolicy 毒点政策分叉两套文案
 
 ### `port.novel_sense_gate` — NovelSenseGate（**live** · 0.3.7）
 
 - **文件**：`src/lib/ports/novel-sense-gate.ts`
 - **契约**：书感软雷达（同构再演示 / 无书债 / 过闭环）；默认 warn `novel_sense_hits`；`strictNovel` → deny；续写可对照 `prevBody`
-- **勿改**：当作质量法；与人味闸默认叠硬拒；用对账流水词冒充书债成功（书债线索归 QualityPolicy；连续性勿称「账本」）
+- **勿改**：当作质量法；与人味闸默认叠硬拒；用对账流水词冒充书债成功（书债线索归 QualityPolicy；连续性用「当前小说状态」）
 
 ### `port.audit` — StyleLinterPort · PayoffAuditorPort · HumanFeelAuditorPort · NovelSenseAuditorPort
 

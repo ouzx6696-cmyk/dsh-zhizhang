@@ -12,6 +12,8 @@ import {
   admitCardContent,
   formatTechniqueCardBlockLean,
   formatTechniqueCardBlock,
+  hasShatterCraftCue,
+  ANTI_STIFFNESS_BRIEF_LINE,
 } from "../../src/lib/ports/index.ts";
 import { ensureStorage } from "../../src/lib/store.ts";
 import { ZhizhangError } from "../../src/lib/errors.ts";
@@ -74,6 +76,9 @@ describe("Library pillar · dual axis 0.7.0", () => {
     expect(brief).toContain("准入样子");
     expect(brief).toContain("sellIntoCost");
     expect(brief).toContain("毒点");
+    expect(brief).toContain("打碎僵硬");
+    expect(brief).toContain("本场应落纸");
+    expect(brief).not.toContain("必须骂");
 
     const craftStaged = await LibraryPort.stageCard(p, {
       title: "craft卡",
@@ -120,6 +125,7 @@ describe("Library pillar · dual axis 0.7.0", () => {
 
     const leanCraft = formatTechniqueCardBlockLean(craft);
     expect(leanCraft).toContain("写法：");
+    expect(leanCraft).toContain("本场不完美（应落纸）");
     expect(leanCraft).not.toContain("sellIntoCost");
     const leanMind = formatTechniqueCardBlockLean(mind);
     expect(leanMind).toContain("不注入 lean");
@@ -442,5 +448,21 @@ describe("Library pillar · multi-source filter + combo 0.7.1", () => {
     expect(noMind.ok).toBe(false);
     expect(noMind.cardIds).toEqual([]);
     expect(noMind.emptyReason).toContain("无 mind");
+  });
+});
+
+describe("Library · anti-stiffness 0.10.5", () => {
+  test("permission allowedEdges soft-warns; shatter helpers", async () => {
+    const perm = normalizeHumanFeel({
+      writerCraft: "信息从误认里漏",
+      characterState: "第一下会急",
+      stateOnPage: "手先动",
+      allowedEdges: "可以留毛边",
+      failAsTemplate: "句句收齐即失败",
+    });
+    expect(perm.warnings.some((w) => w.includes("许可句") || w.includes("应落纸"))).toBe(true);
+    expect(hasShatterCraftCue("本场应落纸：半截；信息侧漏")).toBe(true);
+    expect(hasShatterCraftCue("气味先行")).toBe(false);
+    expect(ANTI_STIFFNESS_BRIEF_LINE).toContain("反僵硬");
   });
 });

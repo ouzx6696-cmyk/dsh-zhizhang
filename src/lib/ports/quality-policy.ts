@@ -20,8 +20,8 @@ export const QUALITY_AXES: readonly QualityAxis[] = [
   {
     id: "feel",
     title: "人味",
-    craft: "craft 卡写法+状态（writerCraft + characterState + 毛边/failAsTemplate；场面状态，非台词范本）",
-    sensor: "HumanFeelGate（过齐/任务句/冷清单 + 毒点码）",
+    craft: "craft 卡写法+状态（writerCraft + characterState + 本场不完美/failAsTemplate；反僵硬=打碎完美收齐，迁逻辑+本书载体）",
+    sensor: "HumanFeelGate（过齐/任务句/冷清单 + 毒点码 + stiffness_tidy）",
   },
   {
     id: "book",
@@ -82,7 +82,7 @@ export const QualityPolicy = {
 
   /** Compact line for reader contract / brief engineering. */
   surfaceLine(): string {
-    return "质量面（一体）：人味←技法卡写法+状态+HumanFeel；书感←读者合同+novel_sense+NovelSense；毒点←本政策+人味软雷达码；兑付←ending/payoff；AI腔←style_contract/lint。雷达 0 ≠ 质量过关。";
+    return "质量面（一体）：人味←技法卡写法+状态+HumanFeel（反僵硬）；书感←读者合同+novel_sense+NovelSense；毒点←本政策+人味软雷达码；兑付←ending/payoff；AI腔←style_contract/lint。雷达 0 ≠ 质量过关。";
   },
 
   poisonPolicyLine(): string {

@@ -28,7 +28,7 @@
 | systemPrompt | 可选 `systemPrompt.section` 轻量引导 |
 | 边界 | 「真正的文字由模型生成；工具只负责可靠落盘」——与产品决策一致 |
 
-**未照搬：** 模板八套、节审校回写 revised_content（织章改为 candidate_stage/accept + 四维账本）。
+**未照搬：** 模板八套、节审校回写 revised_content（织章改为 candidate_stage/accept + 审校留痕（ledger））。
 
 ## siweina/dsh-novel-writer（元数据快照）
 

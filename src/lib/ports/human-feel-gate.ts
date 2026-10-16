@@ -6,6 +6,7 @@
  */
 import { allow, deny, warn, info, type GateDecision, type GateMessage } from "./types.js";
 import { QUALITY_WOBBLE_RE } from "./quality-policy.js";
+import { hasShatterCraftCue } from "./library.js";
 
 export type HumanFeelHitCode =
   | "uniform_short_run"
@@ -13,7 +14,8 @@ export type HumanFeelHitCode =
   | "object_list_cold"
   | "setting_enum_dump"
   | "ledger_dump"
-  | "domestic_trivia";
+  | "domestic_trivia"
+  | "stiffness_tidy";
 
 export interface HumanFeelHit {
   code: HumanFeelHitCode;
@@ -38,7 +40,10 @@ const DIALOGUE_PAIR = /([“「])([\s\S]*?)([”」])/g;
 
 const MIN_CHARS = 120;
 
-export function auditHumanFeel(text: string): HumanFeelAuditResult {
+export function auditHumanFeel(
+  text: string,
+  opts?: { craftCue?: string | null },
+): HumanFeelAuditResult {
   const body = String(text ?? "").trim();
   const hits: HumanFeelHit[] = [];
   if (body.length < MIN_CHARS) {
@@ -66,6 +71,9 @@ export function auditHumanFeel(text: string): HumanFeelAuditResult {
 
   const domestic = detectDomesticTrivia(body);
   if (domestic) hits.push(domestic);
+
+  const stiff = detectStiffnessTidy(body, opts?.craftCue);
+  if (stiff) hits.push(stiff);
 
   const summary =
     hits.length === 0
@@ -242,6 +250,49 @@ function detectDomesticTrivia(text: string): HumanFeelHit | null {
   };
 }
 
+/**
+ * Soft radar: promised shatter on craft, but prose still tidies meaning / lectures.
+ * Skip entirely when craftCue has no shatter markers (清水不误杀).
+ * Does NOT count dirty words. Default warn only.
+ */
+const TIDY_MEANING_RE =
+  /他明白了|她明白了|众人震惊|众人折服|恍然大悟|心中一清|一切都清楚了|终于懂了|顿时明白|心下了然/;
+const LECTURE_RE =
+  /这说明|由此可见|规则如下|总共有|具体来说|换句话说|总而言之|综上所述|可以得出/;
+
+function detectStiffnessTidy(
+  text: string,
+  craftCue?: string | null,
+): HumanFeelHit | null {
+  if (!craftCue || !hasShatterCraftCue(craftCue)) return null;
+
+  const sentences = splitSentences(text).filter((s) => s.length >= 4);
+  if (sentences.length < 5) return null;
+
+  let tidyHits = 0;
+  let lectureHits = 0;
+  let sample = "";
+  for (const s of sentences) {
+    if (WOBBLE_RE.test(s)) continue;
+    if (TIDY_MEANING_RE.test(s)) {
+      tidyHits += 1;
+      if (!sample) sample = s.slice(0, 72);
+    }
+    if (LECTURE_RE.test(s)) {
+      lectureHits += 1;
+      if (!sample) sample = s.slice(0, 72);
+    }
+  }
+  // Need clear evidence: ≥2 tidy closers OR ≥3 lecture sentences without wobble
+  if (tidyHits < 2 && lectureHits < 3) return null;
+
+  return {
+    code: "stiffness_tidy",
+    text: "本场偏僵硬收齐：按卡把信息侧漏或错半拍写进动作；打断后先留半截；功能拍后留一点余震；别写成合格范文收束。",
+    evidence: sample || `tidy≈${tidyHits} lecture≈${lectureHits}`,
+  };
+}
+
 function splitSentences(text: string): string[] {
   const cleaned = text.replace(/[“「][\s\S]*?[”」]/g, " ");
   return cleaned
@@ -271,8 +322,10 @@ export const HumanFeelGate = {
   evaluateAccept(opts: {
     body: string;
     strictHuman: boolean;
+    /** When craft cards promise shatter logics; enables stiffness_tidy. */
+    craftCue?: string | null;
   }): GateDecision {
-    const result = auditHumanFeel(opts.body);
+    const result = auditHumanFeel(opts.body, { craftCue: opts.craftCue });
     if (opts.strictHuman && result.hitCount > 0) {
       return deny(
         "human_feel_strict",

@@ -29,7 +29,7 @@ export const CREATIVE_LOOP_LINE = SCHEDULER_DEFAULT_LINE;
 
 export const ProductMap = {
   id: "port.product" as const,
-  version: "0.10.3",
+  version: "0.10.5",
 
   loopLine(): string {
     return Scheduler.defaultLine();

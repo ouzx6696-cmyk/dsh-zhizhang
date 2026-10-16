@@ -90,7 +90,7 @@ const NEXT_HINTS: Record<string, string> = {
 
 export const Scheduler = {
   id: "port.scheduler" as const,
-  version: "0.10.3",
+  version: "0.10.5",
 
   defaultLine(): string {
     return SCHEDULER_DEFAULT_LINE;

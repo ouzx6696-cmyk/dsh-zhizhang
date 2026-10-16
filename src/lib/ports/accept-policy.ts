@@ -30,6 +30,8 @@ export interface AcceptPolicyInput {
   strictNovel?: boolean;
   /** Previous chapter body for isomorphic re-demo check (optional). */
   prevBody?: string | null;
+  /** Craft humanFeel blob; enables stiffness_tidy when shatter cues present. */
+  craftCue?: string | null;
 }
 
 export interface AcceptGateResult extends GateDecision {
@@ -54,6 +56,7 @@ export const AcceptPolicy = {
     const humanD = HumanFeelGate.evaluateAccept({
       body: input.candidate.body ?? "",
       strictHuman,
+      craftCue: input.craftCue,
     });
     const novelD = NovelSenseGate.evaluateAccept({
       body: input.candidate.body ?? "",

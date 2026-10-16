@@ -21,10 +21,11 @@
 
 ### 卡字段要点（craft）
 
-- `writerCraft`：场面取舍 / 信息怎么漏 / 节奏或小物  
-- `characterState`：**这一刻**场面状态（慌、赖皮、在算账…）— **非**人设墙、**非**声纹  
-- `stateOnPage` / `allowedEdges` / `failAsTemplate`  
-- `bookCraft.continueWhy`：收束后为何还想翻；`failAsShortStory`
+- `writerCraft`：场面取舍 / 信息怎么漏 / 节奏或小物；可写**打碎逻辑名** + 本书载体  
+- `characterState`：**这一刻**场面状态（慌、赖、在算…）— **非**人设墙、**非**声纹  
+- `stateOnPage` / `allowedEdges`（**本场应落纸**的不完美）/ `failAsTemplate`（僵硬范文版）  
+- `bookCraft.continueWhy`：收束后为何还想翻；`failAsShortStory`  
+- **反僵硬**：迁打碎逻辑，不迁场面外壳；不同书载体各自不同（见 [QUALITY.md](./QUALITY.md)）
 
 ### 卡字段要点（mind）
 

@@ -38,7 +38,7 @@ const sampleCard: TechniqueCard = {
     craftRange: "ch1",
     characterState: "怂、嘴心打架",
     stateOnPage: "半截话、递烟式赖皮（手法证据，勿学嘴）",
-    allowedEdges: "怂、半截话",
+    allowedEdges: "本场应落纸：半截话留下；功能拍后留余震",
     failAsTemplate: "每句都在推进信息即失败",
   },
   bookCraft: {
@@ -71,6 +71,8 @@ describe("brief-lean contract", () => {
     expect(leanCard).toContain("绳索还在");
     expect(leanCard).toContain("写法");
     expect(leanCard).toContain("状态");
+    expect(leanCard).toContain("本场不完美");
+    expect(leanCard).toContain("僵硬即失败");
     expect(leanCard).not.toContain("长分析正文");
     expect(leanCard).not.toContain("价码试探");
     expect(fullCard.length).toBeGreaterThan(leanCard.length * 2);
@@ -83,6 +85,7 @@ describe("brief-lean contract", () => {
     expect(sectionLean).toContain("lean");
     expect(sectionLean).toContain("craft");
     expect(sectionLean).toContain("写法");
+    expect(sectionLean).toContain("本场反僵硬");
     expect(sectionLean).not.toContain("口气正例");
     expect(sectionLean).not.toContain("#### 机制");
 
@@ -145,7 +148,7 @@ describe("brief-lean contract", () => {
     expect(SYSTEM_BRIEF).toMatch(/audit 仅诊断旁路|旁路/);
     expect(SYSTEM_BRIEF).not.toMatch(/建议 zhizhang_payoff_audit \/ zhizhang_human_feel_audit/);
 
-    expect(ProductMap.version).toBe("0.10.3");
+    expect(ProductMap.version).toBe("0.10.5");
     const map = ProductMap.formatForAgent();
     expect(map).toContain("chapter_brief");
     expect(map).toMatch(/旁路|软传感|diagnose\.audit|仅诊断旁路/);

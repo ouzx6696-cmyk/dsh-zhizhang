@@ -84,4 +84,30 @@ describe("HumanFeelGate suite", () => {
     const text = HumanFeelAuditorPort.format("fixture", HumanFeelAuditorPort.audit(TIDY));
     expect(text).toContain("人味软雷达");
   });
+
+  test("stiffness_tidy only when craft promises shatter; warn not deny", () => {
+    const tidyMeaning = padBody(`
+主角走进房间。他看见桌上的刀。他数了数刀痕。他明白了对方的计划。众人震惊地看着他。
+他心中一清，一切都清楚了。这说明规则已经生效。由此可见对方在骗他。总而言之他赢了。
+店里灯还亮着，他准备交班离开这里继续下一场。
+`, 2);
+    // no craftCue → skip stiffness_tidy
+    const plain = auditHumanFeel(tidyMeaning);
+    expect(plain.hits.some((h) => h.code === "stiffness_tidy")).toBe(false);
+
+    const withCue = auditHumanFeel(tidyMeaning, {
+      craftCue: "本场应落纸：信息侧漏；打断后留半截；别收成合格聪明主角",
+    });
+    expect(withCue.hits.some((h) => h.code === "stiffness_tidy")).toBe(true);
+    const hit = withCue.hits.find((h) => h.code === "stiffness_tidy")!;
+    expect(hit.text).toContain("偏僵硬收齐");
+
+    const soft = HumanFeelGate.evaluateAccept({
+      body: tidyMeaning,
+      strictHuman: false,
+      craftCue: "呼吸不齐；功能拍后留余震",
+    });
+    expect(soft.ok).toBe(true);
+    expect(soft.messages.some((m) => m.text.includes("stiffness_tidy") || m.text.includes("偏僵硬"))).toBe(true);
+  });
 });

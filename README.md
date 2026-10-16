@@ -1,6 +1,6 @@
 # dsh-zhizhang · 织章（DSH 插件）
 
-**0.10.3**：三柱一环 + Scheduler 最短合格；续章 lean 注入前章正文全文；Agent 提示正向调教。迷路先 `zhizhang_product_map`。
+**0.10.5**：三柱一环 + 反僵硬（打碎逻辑 / 应落纸 / 软雷达）+ 续章前章正文。迷路先 `zhizhang_product_map`。
 
 DeepSeek Harness **工具型**网文工程层：**一条创作闭环**（库 → combo → 灵感 → lean 写作）。
 
@@ -73,4 +73,4 @@ npm run typecheck
 npm run build
 ```
 
-版本 **0.10.3**。不默认发布 zip。安装后 `npm install` 会 prepare→build 出 `dist/`（git 不跟踪 dist）。
+版本 **0.10.5**。不默认发布 zip。安装后 `npm install` 会 prepare→build 出 `dist/`（git 不跟踪 dist）。

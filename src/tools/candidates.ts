@@ -13,6 +13,10 @@ import {
 import {
   AcceptPolicy,
   FoundationPort,
+  InspirationPort,
+  coerceAxis,
+  coerceHumanFeel,
+  craftCueFromHumanFeel,
   firstDenyCode,
   firstDenyText,
 } from "../lib/ports/index.js";
@@ -80,11 +84,28 @@ export function candidatesTools(): ToolDef[] {
         const requirePayoff = Boolean(args.require_payoff);
         const strictHuman = Boolean(args.strict_human);
         const strictNovel = Boolean(args.strict_novel);
-        const { dir } = await openWork(exec, args);
+        const { paths, dir, key } = await openWork(exec, args);
         const candMeta = await readCandidate(dir, candidateId);
 
         const brief = await getRecentBrief(dir, candMeta.chapterId);
         const payoff = await getRecentPayoffAudit(dir, candMeta.chapterId);
+        let craftCue = "";
+        try {
+          const resolved = await InspirationPort.resolveCardsForBrief(paths, {
+            workKey: key,
+            limit: 5,
+          });
+          craftCue = resolved.cards
+            .filter((c) => coerceAxis(c) === "craft")
+            .map((c) =>
+              craftCueFromHumanFeel(
+                coerceHumanFeel(c.humanFeel as Record<string, unknown> | undefined),
+              ),
+            )
+            .join("\n");
+        } catch {
+          craftCue = "";
+        }
         let prevBody: string | null = null;
         try {
           const chapters = await listChapters(dir);
@@ -113,6 +134,7 @@ export function candidatesTools(): ToolDef[] {
           strictHuman,
           strictNovel,
           prevBody,
+          craftCue,
         });
         if (!gate.ok) fail(firstDenyText(gate), firstDenyCode(gate));
 

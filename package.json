@@ -1,7 +1,7 @@
 {
   "name": "dsh-zhizhang",
-  "version": "0.10.3",
-  "description": "织章 DSH 插件：Scheduler 调度（默认最短合格 vs 显式旁路）；双轴 craft|mind；lean 写作闭环；当前小说状态连续性（续章读前章正文）；ports-only。",
+  "version": "0.10.5",
+  "description": "织章 DSH 插件：Scheduler 调度（默认最短合格 vs 显式旁路）；双轴 craft|mind；lean 写作闭环；当前小说状态连续性；反僵硬（打碎逻辑/应落纸/软雷达）；ports-only。",
   "type": "module",
   "main": "./dist/index.js",
   "exports": {

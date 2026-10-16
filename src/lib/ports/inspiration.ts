@@ -20,9 +20,13 @@ import {
 import type { Foundation, Outline } from "../types.js";
 import {
   LibraryPort,
+  ANTI_STIFFNESS_BRIEF_LINE,
   coerceAxis,
+  coerceHumanFeel,
+  craftCueFromHumanFeel,
   formatTechniqueCardBlock,
   formatTechniqueCardBlockLean,
+  hasShatterCraftCue,
   type TechniqueCard,
 } from "./library.js";
 import { MethodRegistry } from "./methods.js";
@@ -687,7 +691,7 @@ export const InspirationPort = {
       `- 分轴：craft ${craftCards.length} · mind ${mindCards.length}` +
         (lean ? "（lean 只注入 craft）" : ""),
       lean
-        ? "- 模式：lean（写法/状态/毛边/fail + continueWhy；无机制/分析；mind 不灌）"
+        ? "- 模式：lean（写法/状态/本场不完美/僵硬失败 + continueWhy；无机制/分析；mind 不灌）"
         : "- 模式：full",
       craftCards.length === 0
         ? "- （无 craft）"
@@ -702,6 +706,14 @@ export const InspirationPort = {
     for (const c of inject) {
       lines.push(lean ? formatTechniqueCardBlockLean(c) : formatTechniqueCardBlock(c));
       lines.push("");
+    }
+    if (lean) {
+      const cue = craftCards
+        .map((c) => craftCueFromHumanFeel(coerceHumanFeel(c.humanFeel as never)))
+        .join("\n");
+      if (hasShatterCraftCue(cue)) {
+        lines.push(`> ${ANTI_STIFFNESS_BRIEF_LINE}`, "");
+      }
     }
     if (lean && mindCards.length > 0) {
       lines.push(

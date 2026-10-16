@@ -71,26 +71,11 @@ npm run typecheck
 
 ---
 
-## 0.10.3 注意
+## 当前（0.10.5）
 
-- 全量梳理小步：style_contract 加「句长有起伏」；lean 开篇正向句；lean 读者合同不再重复本章 ending（处境区保留一处）。
-- HumanFeel 过齐回显正向化；README 对齐版本与「审校留痕」。
-- 版本号 → 0.10.3。续章前章正文全文（0.10.2）不变。
+- **反僵硬**：拆书 craft 抽打碎逻辑（书无关）+ 本书载体；`allowedEdges` 写「本场应落纸」；有打碎向 craft 时 lean brief 追加一行正向；软雷达 `stiffness_tidy`（默认 warn，清水不误杀）。
+- **连续性**：lean n≥2 注入前章正文全文；对外叫「当前小说状态」；`ledger.json` 仅审校留痕。
+- **调教**：Agent 可见提示写「要写成什么样」；少叠否定清单。
+- 版本号与 ProductMap / Scheduler `version` 对齐 **0.10.5**。
+- 更早小步说明见 [archive/CHANGE_NOTES_0.10.x.md](./archive/CHANGE_NOTES_0.10.x.md)。
 
-## 0.10.2 注意
-
-- 续章（n≥2）lean `chapter_brief` **注入前章正文全文**（软顶 16000）；ending / happened 只作索引。
-- 不再用短文末/章末摘录省 token；旧 `bodyTail` / `include_prev_tail` 仍兼容。
-- 版本号 → 0.10.2。
-
-## 0.10.1 注意
-
-- **Agent 可见提示正向调教**：brief / SYSTEM_BRIEF / 方法包 / 毒点提醒 / forge·dissect 文案写「要写成什么样」；少叠「不要xx」。
-- 改版本时**不要**把「旧版不要那样」写进 Agent 视野（会提醒旧坏法）。工程硬闸与拒收回显改法可保留。
-- 版本号文案大修 → 0.10.1（结构仍接 0.10.0 小说状态）。
-
-## 0.10.0 注意
-
-- Agent 可见勿再写「账本/书账/book_ledger」作连续性正面词；用 **当前小说状态**。
-- `ledger.json` / `review_ledger` 工具 id 可留；展示名用「审校留痕」。
-- 毒点 `ledger_dump` 检测保留（罚记账体，不是把状态叫账本）。

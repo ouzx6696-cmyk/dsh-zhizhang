@@ -39,21 +39,44 @@ export type CardAxis = "craft" | "mind";
 /**
  * 活人证据（归 craft）：作家写法 + 场面角色状态。
  * characterState = 场面状态（写法+状态）；非台词范本/人设墙。
+ * 0.10.5：反僵硬 = 抽打碎逻辑(A–G)+本书载体（迁逻辑不迁场面外壳）。
  */
 export interface HumanFeelSpec {
-  /** 作家写法：叙述口吻、场面取舍、信息怎么漏、节奏/小物 */
+  /** 作家写法：叙述口吻、场面取舍、信息怎么漏、节奏/小物；可写打碎逻辑名+本书载体 */
   writerCraft: string;
   /** 写法证据出处 / 阅读范围 */
   craftRange: string;
-  /** 这一刻场面状态（慌、赖皮、在算账…），非声纹、非人设清单 */
+  /** 这一刻场面状态（慌、赖皮、在算账、会错半拍…），非声纹、非人设清单 */
   characterState: string;
   /** 状态落到纸上的手法（身体、偏题、半截话等）——写法层 */
   stateOnPage: string;
-  /** 重造到新作时允许的毛边 */
+  /** 本场应落纸的不完美（打碎正向句 + 本书载体）；勿写「可以/允许…」许可句 */
   allowedEdges: string;
-  /** 写成齐整范文腔 / 说明书腔即失败 */
+  /** 僵硬范文版即失败：句句收齐 / 反应全对 / 讲义说明 / 意义被收完 */
   failAsTemplate: string;
 }
+
+/** Shatter-logic cues (A–G) — book-agnostic anti-stiffness language on craft cards. */
+export const SHATTER_CRAFT_CUE_RE =
+  /打碎|反僵硬|僵硬|呼吸不齐|半截|侧漏|错半拍|先错|余震|拧着|不收齐|信息从.{0,16}漏|打断后|第一反应.{0,12}(错|一半)|功能拍后|应落纸|本场不完美|本场打碎|别收成合格|别写成说明|长短起伏|意义不必/;
+
+/** Soft-warn: allowedEdges still written as permission ("可以/允许…"). */
+export const PERMISSION_EDGE_RE = /^(可以|允许)/;
+
+export const DEFAULT_FAIL_AS_TEMPLATE =
+  "写成句句收齐、反应全对、说明段讲义、意义被作者收完的僵硬范文即失败";
+
+/** One-line anti-stiffness cue appended to lean brief when craft promises shatter. */
+export const ANTI_STIFFNESS_BRIEF_LINE =
+  "本场反僵硬：按卡上的打碎逻辑写——呼吸可不一、念头可留半截、信息可侧漏、反应可先错；功能拍后可留余震；别把意义收成合格范文。";
+
+export function hasShatterCraftCue(
+  ...parts: Array<string | undefined | null>
+): boolean {
+  const blob = parts.filter(Boolean).join("\n");
+  return blob.length > 0 && SHATTER_CRAFT_CUE_RE.test(blob);
+}
+
 
 /**
  * 书感/续写面（归 craft · 方案 A）：章级「继续为何」。
@@ -361,11 +384,16 @@ export function normalizeHumanFeel(
     warnings.push("humanFeel.stateOnPage 为空：未写状态落到纸上的手法");
   }
   if (!allowedEdges) {
-    warnings.push("humanFeel.allowedEdges 为空：未写允许的毛边");
+    warnings.push("humanFeel.allowedEdges 为空：未写本场应落纸的不完美（打碎正向）");
   }
   if (!failAsTemplate) {
     warnings.push(
-      "humanFeel.failAsTemplate 为空：建议写「写成齐整范文腔即失败」",
+      "humanFeel.failAsTemplate 为空：建议点名僵硬版（句句收齐/反应全对/讲义/意义收完）",
+    );
+  }
+  if (allowedEdges && PERMISSION_EDGE_RE.test(allowedEdges.trim())) {
+    warnings.push(
+      "humanFeel.allowedEdges 像许可句（可以/允许…）：请改成「本场应落纸：…」打碎正向句",
     );
   }
 
@@ -376,8 +404,7 @@ export function normalizeHumanFeel(
       characterState: characterState || "（未填）",
       stateOnPage: stateOnPage || "（未填）",
       allowedEdges: allowedEdges || "（未填）",
-      failAsTemplate:
-        failAsTemplate || "写成齐整范文腔、说明书腔、任务句连排即失败",
+      failAsTemplate: failAsTemplate || DEFAULT_FAIL_AS_TEMPLATE,
     },
     warnings,
   };
@@ -397,7 +424,7 @@ export function coerceHumanFeel(raw: HumanFeelSpec | Record<string, unknown> | u
       allowedEdges: String(h.allowedEdges ?? "").trim() || "（未填）",
       failAsTemplate:
         String(h.failAsTemplate ?? "").trim() ||
-        "写成齐整范文腔、说明书腔、任务句连排即失败",
+        DEFAULT_FAIL_AS_TEMPLATE,
     };
   }
   // pure legacy
@@ -410,10 +437,20 @@ export function coerceHumanFeel(raw: HumanFeelSpec | Record<string, unknown> | u
       allowedEdges: String(h.allowedEdges ?? "").trim() || "（未填）",
       failAsTemplate:
         String(h.failAsTemplate ?? "").trim() ||
-        "写成齐整范文腔、说明书腔、任务句连排即失败",
+        DEFAULT_FAIL_AS_TEMPLATE,
     };
   }
   return undefined;
+}
+
+export function craftCueFromHumanFeel(
+  hf: HumanFeelSpec | Record<string, unknown> | undefined,
+): string {
+  const c = coerceHumanFeel(hf as HumanFeelSpec | undefined);
+  if (!c) return "";
+  return [c.writerCraft, c.characterState, c.stateOnPage, c.allowedEdges, c.failAsTemplate]
+    .filter(Boolean)
+    .join("\n");
 }
 
 /** Format humanFeel for forge / brief / card_get. Missing → thin craft/state note. */
@@ -433,8 +470,8 @@ export function formatHumanFeelBlock(
     `- 出处范围（craftRange）：${c.craftRange}`,
     `- 角色状态（characterState）：${c.characterState}`,
     `- 落纸手法（stateOnPage）：${c.stateOnPage}`,
-    `- 允许毛边（allowedEdges）：${c.allowedEdges}`,
-    `- 范文腔失败（failAsTemplate）：${c.failAsTemplate}`,
+    `- 本场不完美·应落纸（allowedEdges）：${c.allowedEdges}`,
+    `- 僵硬范文失败（failAsTemplate）：${c.failAsTemplate}`,
   ].join("\n");
 }
 
@@ -929,8 +966,8 @@ export function formatTechniqueCardBlockLean(card: TechniqueCard): string {
   const craft = hf?.writerCraft?.trim() || "（无写法 — 偏薄）";
   const state = hf?.characterState?.trim() || "（无状态 — 偏薄）";
   const onPage = hf?.stateOnPage?.trim();
-  const edges = hf?.allowedEdges?.trim() || "（未填毛边）";
-  const failVoice = hf?.failAsTemplate?.trim() || "写成齐整范文腔即失败";
+  const edges = hf?.allowedEdges?.trim() || "（未填本场不完美）";
+  const failVoice = hf?.failAsTemplate?.trim() || DEFAULT_FAIL_AS_TEMPLATE;
   const continueWhy = bc?.continueWhy?.trim() || "（无 continueWhy）";
   const adjacent = bc?.adjacentChange?.trim();
   const lines = [
@@ -939,7 +976,11 @@ export function formatTechniqueCardBlockLean(card: TechniqueCard): string {
     `- 状态：${state}`,
   ];
   if (onPage) lines.push(`- 落纸手法：${onPage}`);
-  lines.push(`- 毛边：${edges}`, `- 范文失败：${failVoice}`, `- 继续：${continueWhy}`);
+  lines.push(
+    `- 本场不完美（应落纸）：${edges}`,
+    `- 僵硬即失败：${failVoice}`,
+    `- 继续：${continueWhy}`,
+  );
   if (adjacent) lines.push(`- 相邻换戏：${adjacent}`);
   return lines.join("\n");
 }
@@ -1178,7 +1219,13 @@ export const LibraryPort = {
       "算：场面取舍、信息怎么漏、节奏/小物、状态如何落纸、失败边界可迁到**另一本书的正文**。",
       "必填：`axis=craft` + **humanFeel**（writerCraft / craftRange / characterState / stateOnPage / allowedEdges / failAsTemplate）。",
       "另填：**bookCraft**（章级续写面 continueWhy / adjacentChange / failAsShortStory）——≠ 完整创作思维。",
-      "`characterState` = 这一刻场面状态（慌/赖/在算）；写法+状态，不是人设墙或台词范本。",
+      "`characterState` = 这一刻场面状态（慌/赖/在算/会错半拍）；写法+状态，不是人设墙或台词范本。",
+      "",
+      "#### craft · 打碎僵硬（反完美感；书无关逻辑 + 本书载体）",
+      "对原文另问四句：①呼吸哪里故意不齐？②哪里半截、作者也没立刻补课？③关键信息从讲义出还是从误认/失手/身体/跑题漏？载体是什么？④第一反应哪里不对？戏完纸上还留什么？",
+      "逻辑名（可并列）：呼吸不齐 / 念头半截 / 信息侧漏 / 先错半拍 / 局部余震 / 口气拧着 / 意义不收齐——每条只记**逻辑名 + 本书载体**。",
+      "`allowedEdges` 写成「本场应落纸：…」（打碎正向句 + 本书载体）。`failAsTemplate` 点名僵硬版（句句收齐、反应全对、讲义说明、意义被收完）。",
+      "迁的是打碎逻辑名 + 本书载体；不同书的场面外壳各自不同，只记这一本自己怎么把文字写散。",
       "",
       "### B. mind（创作思维）→ 指点 **设定层 / 章纲 / 卷纲**（inspire）",
       "算：能力与代价如何设计、冲突飞轮、信息分期、章/卷压力如何换、读者合同如何立——可迁到**另一本书的设定/纲**。",
