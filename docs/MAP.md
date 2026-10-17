@@ -14,7 +14,7 @@
   → library_combo_suggest（1 mind + N craft，可跨书）
   → inspire 落根基/纲
   → chapter_brief(lean，只吃 craft）
-  → candidate_stage → style_lint → candidate_accept
+  → candidate_stage → style_lint →（可选 edit）→ candidate_accept
 ```
 
 ### 三段工序
@@ -23,15 +23,16 @@
 |----|-----|------|
 | **库** | `library_import → dissect_brief → card_stage → card_accept → combo_suggest` | 双轴卡入库；combo 交出 `card_ids` |
 | **灵感** | `inspire_start(card_ids) → forge_brief → stage → accept(apply=true)` | 须至少一张 mind（或旁路 craft_only） |
-| **写作** | `chapter_brief(lean) → 创作 → candidate_stage → style_lint → candidate_accept` | Accept **内嵌**软传感；勿每章例行三 audit |
+| **写作** | `chapter_brief(lean) → 创作 → candidate_stage → style_lint →（可选 edit）→ candidate_accept` | Accept **内嵌**软传感；**编辑非必经**；若走编辑须用户 A/B/C；勿每章例行三 audit |
 
 ### 写作段硬闸（默认）
 
 1. 近期 `chapter_brief`（无则 deny；`skip_brief` 为旁路）
 2. `style_lint` 签发的 `lintPassToken`（已扫过 ≠ 质量过关）
 3. 显式 `candidate_accept` 才写章
+4. **可选编辑**：lint 后可 `edit_brief`→改写→`edit_stage`；用户选 A（`confirm_accept_after_edit`）/ B / C；未表态按 B；禁止静默验收
 
-Accept 一次扫：Brief → Lint → Payoff → HumanFeel → NovelSense。命中默认 **warn**；`strict_*` / `require_payoff` 才硬拒（旁路）。
+Accept 一次扫：Brief → Lint → Payoff → HumanFeel → NovelSense → EditFlags（路径 A）。命中默认 **warn**；`strict_*` / `require_payoff` 才硬拒（旁路）。
 
 **当前小说状态**：accept 将 happened 与正文末拍对齐；lean brief n≥2 **注入前章正文全文**（ending/happened 作索引，不只吃纲末/章末）。工程 `ledger.json` / `review_ledger` = 审校留痕，不是小说状态。
 
@@ -43,7 +44,9 @@ Accept 一次扫：Brief → Lint → Payoff → HumanFeel → NovelSense。命�
 | card_accept | combo_suggest → inspire 或 chapter_brief |
 | combo | inspire_start(card_ids) 或 chapter_brief(card_ids) |
 | inspire apply | 写作段默认链 |
-| chapter_brief | 创作 → stage → lint → accept |
+| chapter_brief | 创作 → stage → lint →（可选 edit）→ accept |
+| style_lint | 可选 edit_brief→edit_stage；或直接 accept |
+| edit_stage | 用户选 A/B/C（未表态按 B） |
 | candidate_accept | 续章再 brief；定稿 / 诊断见旁路 |
 
 新建作品：有卡则 combo → inspire → 写作段；无卡则 outline_set → 写作段。

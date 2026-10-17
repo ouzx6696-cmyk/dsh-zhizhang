@@ -1,6 +1,6 @@
 # 织章插件 · 框架索引
 
-**产品**：`dsh-zhizhang`（DSH 插件）· **版本**：0.10.5  
+**产品**：`dsh-zhizhang`（DSH 插件）· **版本**：0.11.1  
 
 完整认知请读 **[COGNITION.md](./COGNITION.md)**（总入口）。本页只留最小锚点，避免与分册重复。
 
@@ -14,13 +14,13 @@
 ## 闭环一句
 
 ```text
-书进库（craft|mind）→ combo → inspire → chapter_brief(lean）→ stage → lint → accept
+书进库（craft|mind）→ combo → inspire → chapter_brief(lean）→ stage → lint →（可选 edit）→ accept
 ```
 
 ## 分层一句
 
 ```text
-Host → Tools（薄）→ Ports（Scheduler·三柱·Gates·Quality·Methods）→ Store → .zhizhang/
+Host → Tools（薄）→ Ports（Scheduler·三柱·Edit·Gates·Quality·Methods）→ Store → .zhizhang/
 ```
 
 ## 分册

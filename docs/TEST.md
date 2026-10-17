@@ -1,4 +1,4 @@
-# 测试说明 · dsh-zhizhang 0.10.5
+# 测试说明 · dsh-zhizhang 0.11.1
 
 > 加测纪律也写在 [CHANGE.md](./CHANGE.md)。认知入口：[COGNITION.md](./COGNITION.md)。
 
@@ -8,7 +8,7 @@
 |----|------|--------|
 | **产品闭环** | `test/contracts/product-loop.test.ts` | 同一句闭环、分喂纪律、ProductMap 交接、SYSTEM_BRIEF 硬点、version |
 | **调度** | `test/contracts/scheduler.test.ts` 等 | 默认路径不含例行 audit；旁路表；工具 description 标签 |
-| 契约 | `test/contracts/` | PortConfig、AcceptPolicy、MethodRegistry、QualityPolicy、brief-lean、前章正文 |
+| 契约 | `test/contracts/` | PortConfig、AcceptPolicy、**edit-port（A/B/C）**、MethodRegistry、QualityPolicy、brief-lean、前章正文 |
 | 门禁 | `test/gates/` | HumanFeel（含 stiffness_tidy）/ NovelSense / Brief·Lint·Payoff·Save / linter |
 | 支柱工序 | `test/pillars/` | Library / Inspiration / Writing 工序（仍属同一闭环） |
 | 工具 | `test/tools/` | 注册烟测 + SYSTEM_BRIEF 硬点（不断言逐句文案） |

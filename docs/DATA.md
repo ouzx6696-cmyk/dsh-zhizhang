@@ -87,9 +87,9 @@
 
 ## 写作侧
 
-作品 `meta.json`、章节 markdown front matter、`candidates/cand-*.json`（含 `lintPassToken` 等门禁字段）。
+作品 `meta.json`、章节 markdown front matter、`candidates/cand-*.json`（含 `lintPassToken`；编辑产物可带 `editOf` / `editMode`）。
 
 - Accept 组合 HumanFeelGate + NovelSenseGate；三 audit **只诊断不签发** lint token  
 - `chapter_brief` 顶部「本书读者合同」；lean 默认方法仅 `style_contract`  
-- accept 后 happened 按章短追加（`[c00x]` 去重）；brief n≥2 强制前章落点  
+- accept 后 happened 按章短追加（`[c00x]` 去重）；brief n≥2 **注入前章正文全文**（ending/happened 作索引；旧 `bodyTail` 兼容）  
 - Outline：`stateLens` 写场面状态/写法取舍（旧 `voiceTone` 可读兼容）

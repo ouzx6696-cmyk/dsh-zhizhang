@@ -53,7 +53,7 @@ describe("QualityPolicy surface contract", () => {
     expect(ProductMap.formatForAgent()).toContain("质量面");
     expect(QualityPolicy.surfaceLine()).toContain("质量面");
 
-    expect(ProductMap.version).toBe("0.10.5");
+    expect(ProductMap.version).toBe("0.11.1");
   });
 
   test("book-debt cues exclude ledger inventory; ledger-flat ending → no_book_debt", () => {

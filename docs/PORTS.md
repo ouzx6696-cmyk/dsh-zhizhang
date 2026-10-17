@@ -53,7 +53,17 @@
 - **调用**：`candidate_accept` 用 outline.ending 自动追加；工具 `zhizhang_foundation_append_happened` 精修
 - **勿改**：从正文杜撰长篇 happened；与 NovelSenseGate 混为一谈
 
-### `port.scheduler` — Scheduler（**live** · 0.10.5）
+
+### `port.edit` — EditPort（**live** · 0.11.1）
+
+- **文件**：`src/lib/ports/edit.ts`
+- **契约**：润色模式（默认 `polish-depolish`）；`formatEditBrief`（保留毛边/反齐刷）；`resolveChoice` A/B/C；`evaluateAcceptFlags`（A 须 `confirm_accept_after_edit`，禁止静默）；edit_stage 可挂人味软提示
+- **工具**：`zhizhang_candidate_edit_brief` / `_edit_stage` / `_edit_decide`；`candidate_accept` 可带 `accept_after_edit`+confirm
+- **落盘**：编辑结果仍是 `candidates/`（`editOf` / `editMode`）；正式章仅 accept
+- **技能**： [skills/web-novel-master-optimizer.md](./skills/web-novel-master-optimizer.md)
+- **勿改**：编辑跑完自动 accept；把脏话配额当编辑目标；未确认当路径 A
+
+### `port.scheduler` — Scheduler（**live** · 0.11.1）
 
 - **文件**：`src/lib/ports/scheduler.ts`
 - **契约**：`defaultLine` / `writeLine` / `bypasses` / `nextHint` / `formatDiagram`；默认路径与旁路单源
@@ -63,13 +73,14 @@
 ### `port.product` — ProductMap
 
 - **文件**：`src/lib/ports/product.ts`
-- **契约**：只读**一条创作闭环** + **Scheduler 调度图** + 三阶段 + MethodRegistry；`CREATIVE_LOOP_LINE` ≡ `Scheduler.defaultLine()`；`version` 与 package 对齐（0.10.5）
+- **契约**：只读**一条创作闭环** + **Scheduler 调度图** + 三阶段 + MethodRegistry；`CREATIVE_LOOP_LINE` ≡ `Scheduler.defaultLine()`；`version` 与 package 对齐（0.11.1）
 - **勿改**：把三阶段写成三个互不交接的产品；在地图里声明未实现能力为 live
 
 ---
 
-## 质量面端口（live · 0.10.5）
+## 质量面端口（live · 0.11.1）
 
+- 编辑过稿：`port.edit` + 技能 [skills/web-novel-master-optimizer.md](./skills/web-novel-master-optimizer.md) — lint 后可选；A=编辑+accept（须确认）/ B=仅候选 / C=拒；禁止静默验收
 - lean brief：`brief_mode` 默认 lean；卡 `formatTechniqueCardBlockLean`；方法默认仅 style_contract
 
 
@@ -87,7 +98,7 @@
 ### `port.config` — PortConfig
 
 - **文件**：`src/lib/ports/config.ts`
-- **契约**：窗口与默认策略开关（brief、旁路字数、`defaultStrictLint`、`defaultRequirePayoff`、`defaultStrictHuman`）
+- **契约**：窗口与默认策略开关（brief、旁路字数、`defaultStrictLint`、`defaultRequirePayoff`、`defaultStrictHuman`、`defaultStrictNovel`、`defaultEditMode`）；**无** forceEdit——编辑仍须显式调用工具
 - **勿改**：Store 路径约定；工具名
 
 ### `port.lint_gate` — LintGate
@@ -117,7 +128,7 @@
 ### `port.accept_policy` — AcceptPolicy
 
 - **文件**：`src/lib/ports/accept-policy.ts`
-- **契约**：组合 Brief → Lint → Payoff → HumanFeel → NovelSense
+- **契约**：组合 Brief → Lint → Payoff → HumanFeel → NovelSense → EditFlags（路径 A）
 - **勿改**：在工具里旁路组合器直接 accept
 
 ### `port.methods` — MethodRegistry

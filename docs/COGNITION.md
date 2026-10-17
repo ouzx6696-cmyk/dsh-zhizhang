@@ -1,4 +1,4 @@
-# 织章认知总览 · dsh-zhizhang 0.10.5
+# 织章认知总览 · dsh-zhizhang 0.11.1
 
 > **从这一份开始读懂全局。**  
 > 产品/工程对齐用；不含开发流水账。细节分册见文末导航。
@@ -17,7 +17,7 @@
 一句话：
 
 ```text
-书进库（双轴卡）→ combo → 灵感落根基/纲 → lean 开写 → 候选门禁兑付
+书进库（双轴卡）→ combo → 灵感落根基/纲 → lean 开写 → stage→lint→（可选 edit）→ accept
 ```
 
 迷路先调工具：`zhizhang_product_map`。
@@ -40,12 +40,13 @@
 三阶段是**同一条链上的工序**，不是三个独立产品。
 
 ```text
-┌─────────────┐     combo      ┌─────────────┐    apply     ┌─────────────┐
-│  ① 拆书库    │ ────────────► │  ② 灵感推演  │ ──────────► │  ③ 写作工程  │
-│ Library     │  1 mind+N craft│ Inspiration │  根基/章纲   │ Writing     │
-│ craft|mind  │                │ mind 主粮    │              │ lean→stage  │
-│ → card_ids  │                │ craft 辅     │              │ →lint→accept│
-└─────────────┘                └─────────────┘              └─────────────┘
+┌─────────────┐     combo      ┌─────────────┐    apply     ┌──────────────┐
+│  ① 拆书库    │ ────────────► │  ② 灵感推演  │ ──────────► │  ③ 写作工程   │
+│ Library     │  1 mind+N craft│ Inspiration │  根基/章纲   │ Writing      │
+│ craft|mind  │                │ mind 主粮    │              │ lean→stage   │
+│ → card_ids  │                │ craft 辅     │              │ →lint→可选edit│
+│             │                │              │              │ →accept      │
+└─────────────┘                └─────────────┘              └──────────────┘
         ▲                                                         │
         │              MethodRegistry（共享方法包 ≠ 拆书卡）         │
         └──────────────────── 按需注入；lean 默认仅 style_contract ─┘
@@ -55,14 +56,14 @@
 |------|----------|--------------|
 | ① 库 | 已采纳双轴卡；combo 包 `card_ids` | inspire 或（有根基时）直接 brief |
 | ② 灵感 | foundation / outline（显式 apply） | chapter_brief(lean) |
-| ③ 写作 | 候选正文经门禁入章 | 续章再 brief；定稿走旁路 |
+| ③ 写作 | 候选正文经门禁入章（可选编辑 A/B/C） | 续章再 brief；定稿走旁路 |
 
 默认全链（与代码 `Scheduler.defaultLine()` 一致）：
 
 ```text
 书进库（craft|mind）→ library_combo_suggest（1 mind + N craft，可跨书）
   → inspire 落根基/纲 → chapter_brief(lean，只吃 craft）
-  → candidate_stage → style_lint → candidate_accept
+  → candidate_stage → style_lint →（可选 edit）→ candidate_accept
 ```
 
 ---
@@ -73,7 +74,7 @@
 Host (DSH)
   → tools.register + SYSTEM_BRIEF
   → Tools（薄：校验 · 开存储 · 调 Port · 拼回执）
-  → Ports（Scheduler · ProductMap · Library · Inspiration · Gates · QualityPolicy · Methods）
+  → Ports（Scheduler · ProductMap · Library · Inspiration · Edit · Gates · QualityPolicy · Methods）
   → Store + Sensors
   → .zhizhang/{works,library,inspiration,manuscripts}/
 ```

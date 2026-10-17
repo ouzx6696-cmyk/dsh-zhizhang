@@ -15,8 +15,8 @@ describe("product loop holistic contract", () => {
   test("one loop line shared by Scheduler + ProductMap + SYSTEM_BRIEF", async () => {
     const pkg = await import("../../package.json");
     expect(ProductMap.version).toBe(pkg.version);
-    expect(ProductMap.version).toBe("0.10.5");
-    expect(Scheduler.version).toBe("0.10.5");
+    expect(ProductMap.version).toBe("0.11.1");
+    expect(Scheduler.version).toBe("0.11.1");
 
     const line = ProductMap.loopLine();
     expect(line).toBe(CREATIVE_LOOP_LINE);
@@ -25,6 +25,7 @@ describe("product loop holistic contract", () => {
     expect(line).toContain("inspire");
     expect(line).toContain("chapter_brief");
     expect(line).toContain("candidate_accept");
+    expect(line).toMatch(/可选 edit/);
 
     expect(SYSTEM_BRIEF).toContain("默认路径");
     expect(SYSTEM_BRIEF).toContain("library_combo_suggest");
@@ -69,6 +70,7 @@ describe("scheduler default vs bypass", () => {
     const w = Scheduler.writeLine();
     expect(w).toContain("chapter_brief");
     expect(w).toContain("candidate_accept");
+    expect(w).toMatch(/可选 edit/);
     expect(w).not.toMatch(/payoff_audit|human_feel_audit|novel_sense_audit/);
   });
 

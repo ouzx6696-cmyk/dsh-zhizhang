@@ -512,7 +512,14 @@ export async function appendLedger(dir: string, entry: Omit<LedgerEntry, "id" | 
 // —— § candidates ——
 export async function stageCandidate(
   dir: string,
-  input: { chapterId: string; body: string; note?: string; source?: "agent" | "import" },
+  input: {
+    chapterId: string;
+    body: string;
+    note?: string;
+    source?: "agent" | "import" | "edit";
+    editOf?: string;
+    editMode?: string;
+  },
 ): Promise<CandidateFile> {
   if (!String(input.body ?? "").trim()) {
     throw new ZhizhangError("candidate_empty", "候选正文为空，拒绝暂存");
@@ -522,17 +529,23 @@ export async function stageCandidate(
   const bodyFile = `${id}.md`;
   await atomicWrite(path.join(candidatesDir(dir), bodyFile), input.body);
   const meta = await readWorkMeta(dir);
+  const stagedAt = nowIso();
   const cand: CandidateFile = {
     schemaVersion: SCHEMA_VERSION,
     id,
     workKey: meta.key,
     chapterId: input.chapterId,
-    stagedAt: nowIso(),
+    stagedAt,
     source: input.source ?? "agent",
     note: input.note ?? "",
     body: input.body,
     bodyFile,
   };
+  if (input.editOf) {
+    cand.editOf = input.editOf;
+    cand.editedAt = stagedAt;
+  }
+  if (input.editMode) cand.editMode = input.editMode;
   const { body: _omit, ...disk } = cand;
   await atomicWrite(path.join(candidatesDir(dir), `${id}.json`), JSON.stringify(disk, null, 2) + "\n");
   return cand;
@@ -565,7 +578,7 @@ export async function markCandidateLinted(
     }
     const token = `lint-${randomUUID().replace(/-/g, "").slice(0, 16)}`;
     const lintedAt = nowIso();
-    const diskMeta = {
+    const diskMeta: Record<string, unknown> = {
       schemaVersion: cand.schemaVersion,
       id: cand.id,
       workKey: cand.workKey,
@@ -578,6 +591,9 @@ export async function markCandidateLinted(
       lintedAt,
       lintHitCount: hitCount,
     };
+    if (cand.editOf) diskMeta.editOf = cand.editOf;
+    if (cand.editMode) diskMeta.editMode = cand.editMode;
+    if (cand.editedAt) diskMeta.editedAt = cand.editedAt;
     await atomicWrite(
       path.join(candidatesDir(dir), `${candidateId}.json`),
       JSON.stringify(diskMeta, null, 2) + "\n",
@@ -677,7 +693,7 @@ export async function acceptCandidate(
   });
 
   const acceptedAt = nowIso();
-  const diskMeta = {
+  const diskMeta: Record<string, unknown> = {
     schemaVersion: cand.schemaVersion,
     id: cand.id,
     workKey: cand.workKey,
@@ -692,6 +708,9 @@ export async function acceptCandidate(
     acceptedAt,
     acceptedMode: mode,
   };
+  if (cand.editOf) diskMeta.editOf = cand.editOf;
+  if (cand.editMode) diskMeta.editMode = cand.editMode;
+  if (cand.editedAt) diskMeta.editedAt = cand.editedAt;
   await atomicWrite(
     path.join(candidatesDir(dir), `${candidateId}.json`),
     JSON.stringify(diskMeta, null, 2) + "\n",

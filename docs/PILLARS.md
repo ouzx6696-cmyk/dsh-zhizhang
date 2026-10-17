@@ -91,15 +91,16 @@ inspire_start(card_ids) → inspire_forge_brief → inspire_stage
 ### 默认工序
 
 ```text
-chapter_brief(lean) → 创作 → candidate_stage → style_lint → candidate_accept
+chapter_brief(lean) → 创作 → candidate_stage → style_lint →（可选 edit）→ candidate_accept
 ```
 
 | 能力 | 说明 |
 |------|------|
 | works / foundation | 作品与根基；**当前小说状态**·已发生（accept 按纲末/正文末拍对齐短追加） |
 | outline | 章纲处境（situationLens / livedScene / stateLens / ending） |
-| candidates | stage → accept；token 与 brief 门禁 |
-| gates | Brief / Lint + Accept 内嵌软传感 |
+| candidates | stage → lint →（可选 edit）→ accept；token 与 brief 门禁 |
+| edit（可选） | `edit_brief` → 改写 → `edit_stage` → 用户选 **A**（确认=编辑+验收）/ **B**（仅候选）/ **C**（拒/换模式）；未表态按 B；禁止静默验收 |
+| gates | Brief / Lint / EditFlags + Accept 内嵌软传感 |
 | assemble | 汇编成稿（**旁路** finalize.ship） |
 
 ### lean brief 吃什么

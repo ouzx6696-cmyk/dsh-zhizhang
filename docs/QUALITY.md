@@ -90,7 +90,7 @@ NovelSense 软雷达：同构再演示 / 无书债 / 过闭环；默认 warn；`
 
 ## Accept 一次扫（默认）
 
-顺序：BriefGate → LintGate → PayoffGate → HumanFeelGate → NovelSenseGate。
+顺序：BriefGate → LintGate → PayoffGate → HumanFeelGate → NovelSenseGate → EditPort（路径 A 双旗标）。
 
 | 默认 | 旁路硬拒 |
 |------|----------|
@@ -98,5 +98,8 @@ NovelSense 软雷达：同构再演示 / 无书债 / 过闭环；默认 warn；`
 | 人味/书感命中 → warn | `strict_human` / `strict_novel` |
 | 兑付软警告 | `require_payoff` |
 | 无近期 brief → deny | `skip_brief` 才跳过 |
+| 路径 A 无 confirm → deny | `accept_after_edit` + `confirm_accept_after_edit` |
+
+写后可选编辑见 `port.edit`：默认 polish-depolish；结果进候选；A/B/C；未表态按 B；禁止静默验收。
 
 诊断细看：三 audit 工具（旁路 diagnose.audit），**不签发** lint token，不替代默认链。

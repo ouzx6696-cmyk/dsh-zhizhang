@@ -149,7 +149,7 @@ export interface CandidateFile {
   workKey: string;
   chapterId: string;
   stagedAt: string;
-  source: "agent" | "import";
+  source: "agent" | "import" | "edit";
   note: string;
   body: string;
   /** Relative path of body snapshot under candidates/. */
@@ -165,6 +165,12 @@ export interface CandidateFile {
   lintPassToken?: string;
   lintedAt?: string;
   lintHitCount?: number;
+  /** Parent writer candidate id when this body is an edit pass result. */
+  editOf?: string;
+  /** Edit mode id (e.g. polish-depolish). */
+  editMode?: string;
+  /** When this edit candidate was staged. */
+  editedAt?: string;
 }
 
 export const EMPTY_FOUNDATION = (): Foundation => ({

@@ -10,6 +10,7 @@ import { PayoffGate } from "./payoff-gate.js";
 import { HumanFeelGate } from "./human-feel-gate.js";
 import { NovelSenseGate } from "./novel-sense-gate.js";
 import { getPortConfig } from "./config.js";
+import { EditPort } from "./edit.js";
 import {
   formatGateMessages,
   mergeDecisions,
@@ -32,6 +33,10 @@ export interface AcceptPolicyInput {
   prevBody?: string | null;
   /** Craft humanFeel blob; enables stiffness_tidy when shatter cues present. */
   craftCue?: string | null;
+  /** Path A: accept this edit result as formal chapter (requires confirm). */
+  acceptAfterEdit?: boolean;
+  /** Path A one-shot confirm — never silent. */
+  confirmAcceptAfterEdit?: boolean;
 }
 
 export interface AcceptGateResult extends GateDecision {
@@ -63,8 +68,13 @@ export const AcceptPolicy = {
       prevBody: input.prevBody,
       strictNovel,
     });
+    const editD = EditPort.evaluateAcceptFlags({
+      acceptAfterEdit: input.acceptAfterEdit,
+      confirmAcceptAfterEdit: input.confirmAcceptAfterEdit,
+      candidateIsEdit: Boolean(input.candidate.editOf),
+    });
 
-    const merged = mergeDecisions(briefD, lintD, payoffD, humanD, novelD);
+    const merged = mergeDecisions(briefD, lintD, payoffD, humanD, novelD, editD);
     const receiptLines: string[] = [...LintGate.echoLines(hitCount)];
 
     // Soft/info messages always useful on success; on deny, tool shows error via fail().
@@ -73,6 +83,15 @@ export const AcceptPolicy = {
     }
     // brief_ok / payoff_ok already formatted as "code：text" via info — normalize brief/payoff info to plain lines tests expect
     normalizeReceipt(receiptLines);
+
+    if (
+      merged.ok &&
+      input.acceptAfterEdit &&
+      input.confirmAcceptAfterEdit &&
+      input.candidate.editOf
+    ) {
+      receiptLines.push(...EditPort.acceptPathAReceiptLines());
+    }
 
     return { ...merged, hitCount, receiptLines };
   },
@@ -98,6 +117,9 @@ function normalizeReceipt(lines: string[]): void {
     }
     if (line.startsWith("novel_sense_ok：")) {
       lines[i] = line.slice("novel_sense_ok：".length);
+    }
+    if (line.startsWith("edit_accept_confirmed：")) {
+      lines[i] = line.slice("edit_accept_confirmed：".length);
     }
     if (line.startsWith("save_meta_only：") || line.startsWith("save_bypass_confirmed：")) {
       // unused on accept

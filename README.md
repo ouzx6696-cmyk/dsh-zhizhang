@@ -1,11 +1,11 @@
 # dsh-zhizhang · 织章（DSH 插件）
 
-**0.10.5**：三柱一环 + 反僵硬（打碎逻辑 / 应落纸 / 软雷达）+ 续章前章正文。迷路先 `zhizhang_product_map`。
+**0.11.1**：三柱一环 + 反僵硬 + 写后可选编辑（去空转留毛边，A/B/C，禁止静默验收）+ 续章前章正文。迷路先 `zhizhang_product_map`。
 
 DeepSeek Harness **工具型**网文工程层：**一条创作闭环**（库 → combo → 灵感 → lean 写作）。
 
 ```text
-书进库（craft|mind）→ combo（1 mind+N craft）→ inspire 根基/纲 → brief(lean) → stage→lint→accept
+书进库（craft|mind）→ combo（1 mind+N craft）→ inspire 根基/纲 → brief(lean) → stage→lint→（可选 edit）→ accept
 ```
 
 | 阶段 | 状态 | 交接 |
@@ -34,7 +34,7 @@ dsh plugin --profile web add link:$(pwd)
 ```text
 库：import → dissect_brief → card_stage(axis) → card_accept → combo_suggest
 灵感：inspire_start(card_ids) → forge_brief → stage → accept(apply?)
-写作：chapter_brief(lean) → candidate_stage → style_lint → candidate_accept
+写作：chapter_brief(lean) → candidate_stage → style_lint →（可选 edit）→ candidate_accept
 ```
 
 迷路先看：`zhizhang_product_map`。
@@ -73,4 +73,4 @@ npm run typecheck
 npm run build
 ```
 
-版本 **0.10.5**。不默认发布 zip。安装后 `npm install` 会 prepare→build 出 `dist/`（git 不跟踪 dist）。
+版本 **0.11.1**。不默认发布 zip。安装后 `npm install` 会 prepare→build 出 `dist/`（git 不跟踪 dist）。

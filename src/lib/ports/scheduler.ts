@@ -15,11 +15,11 @@ export interface BypassRoute {
 
 /** Canonical default loop — same semantics as CREATIVE_LOOP_LINE; keep in sync via ProductMap. */
 export const SCHEDULER_DEFAULT_LINE =
-  "书进库（craft|mind）→ library_combo_suggest（1 mind + N craft，可跨书）→ inspire 落根基/纲 → chapter_brief(lean，只吃 craft）→ candidate_stage → style_lint → candidate_accept";
+  "书进库（craft|mind）→ library_combo_suggest（1 mind + N craft，可跨书）→ inspire 落根基/纲 → chapter_brief(lean，只吃 craft）→ candidate_stage → style_lint →（可选 edit）→ candidate_accept";
 
 /** Writing segment only (after foundation/outline ready). */
 export const SCHEDULER_WRITE_LINE =
-  "chapter_brief(lean) → 创作 → candidate_stage → style_lint → candidate_accept";
+  "chapter_brief(lean) → 创作 → candidate_stage → style_lint →（可选 edit）→ candidate_accept";
 
 /** Library segment. */
 export const SCHEDULER_LIBRARY_LINE =
@@ -58,7 +58,7 @@ export const SCHEDULER_BYPASSES: readonly BypassRoute[] = [
     id: "accept.flags",
     title: "采纳硬开关",
     when: "测试或作者显式收紧/跳过",
-    via: "skip_brief / strict_lint / require_payoff / strict_human / strict_novel / force",
+    via: "skip_brief / strict_lint / require_payoff / strict_human / strict_novel / force / accept_after_edit+confirm",
   },
   {
     id: "finalize.ship",
@@ -77,8 +77,14 @@ const NEXT_HINTS: Record<string, string> = {
   inspire_start: "zhizhang_inspire_forge_brief → stage → accept(apply=true)",
   inspire_stage: "zhizhang_inspire_accept(apply=true) → chapter_brief",
   inspire_accept_applied: SCHEDULER_WRITE_LINE,
-  chapter_brief: "创作 → candidate_stage → style_lint → candidate_accept",
-  candidate_stage: "zhizhang_style_lint(candidate=…) → candidate_accept",
+  chapter_brief: "创作 → candidate_stage → style_lint →（可选 edit）→ candidate_accept",
+  candidate_stage: "zhizhang_style_lint(candidate=…) →（可选 edit）→ candidate_accept",
+  style_lint:
+    "可选 zhizhang_candidate_edit_brief → edit_stage；或直接 candidate_accept。编辑后须用户选 A/B/C，禁止静默验收",
+  candidate_edit_stage:
+    "请用户选 A 编辑+一次确认验收 / B 仅候选再验 / C 拒编辑或换模式；未表态按 B",
+  candidate_edit_decide_b: "zhizhang_style_lint(candidate=编辑候选) → candidate_accept",
+  candidate_edit_decide_c: "保留写手候选；或换 mode 重跑 edit_brief → edit_stage",
   candidate_accept: "续章再 chapter_brief；定稿旁路见 finalize.ship；诊断旁路见 diagnose.audit",
   project_create:
     "有卡：combo → inspire → " +
@@ -90,7 +96,7 @@ const NEXT_HINTS: Record<string, string> = {
 
 export const Scheduler = {
   id: "port.scheduler" as const,
-  version: "0.10.5",
+  version: "0.11.1",
 
   defaultLine(): string {
     return SCHEDULER_DEFAULT_LINE;
@@ -127,6 +133,7 @@ export const Scheduler = {
       `- 库段：${SCHEDULER_LIBRARY_LINE}`,
       `- 灵感段：${SCHEDULER_INSPIRE_LINE}`,
       `- 写作段：${SCHEDULER_WRITE_LINE}`,
+      "- 可选 edit（去空转留毛边）：lint 后 edit_brief→改写→edit_stage；用户选 A（确认=编辑+accept）/ B（仅候选）/ C（拒/换模式）；未表态按 B；禁止静默验收",
       "- Accept 内嵌软传感（人味/书感/兑付/AI腔）；三 audit 仅诊断旁路",
       "",
       "### 旁路 BYPASS — 显式进入",

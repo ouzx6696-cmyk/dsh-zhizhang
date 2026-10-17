@@ -30,6 +30,7 @@
 | 拆书双轴 / 准入 / combo / lean 卡块 | `ports/library.ts` |
 | 灵感分喂 / forge / apply | `ports/inspiration.ts` |
 | Accept 组合顺序与旗标默认 | `ports/accept-policy.ts` + `ports/config.ts` |
+| 写后可选编辑 / A·B·C | `ports/edit.ts` + `tools/candidates.ts`；技能 `docs/skills/web-novel-master-optimizer.md` |
 | 各闸软硬行为 | `*-gate.ts` |
 | lean/full 方法包列表 | `ports/methods.ts` + `method-assets.ts` |
 | 常驻硬规则短文 | `tools/brief.ts`（`SYSTEM_BRIEF`；保持短，细节指 product_map） |
@@ -71,11 +72,23 @@ npm run typecheck
 
 ---
 
-## 当前（0.10.5）
+## 当前（0.11.1）
 
-- **反僵硬**：拆书 craft 抽打碎逻辑（书无关）+ 本书载体；`allowedEdges` 写「本场应落纸」；有打碎向 craft 时 lean brief 追加一行正向；软雷达 `stiffness_tidy`（默认 warn，清水不误杀）。
-- **连续性**：lean n≥2 注入前章正文全文；对外叫「当前小说状态」；`ledger.json` 仅审校留痕。
-- **调教**：Agent 可见提示写「要写成什么样」；少叠否定清单。
-- 版本号与 ProductMap / Scheduler `version` 对齐 **0.10.5**。
+- **编辑深度优化（仍可选）**：`polish-depolish` brief / MODE_INFO 正向写成「保留呼吸与毛边」；明确去AI味 ≠ 磨成范文齐句；禁止为去味熨平句长、主语砍光。
+- **技能** `web-novel-master-optimizer` 对齐同一口径；齐刷短句优先退回写手或换 `polish-rhythm`。
+- **edit_stage 软提示**：对人味 `uniform_short_run` 等挂回执（不阻断 A/B/C）。
+- A/B/C 契约不变；写手 lint 后仍可直 accept。
+- 版本号与 ProductMap / Scheduler / EditPort `version` 对齐 **0.11.1**。
+
+---
+
+## 0.11.0
+
+
+- **写后可选编辑**：`port.edit`；默认模式 `polish-depolish`；链上 lint 后可选 edit_brief→edit_stage→用户选 A/B/C。
+- **路径 A**：一次确认 `confirm_accept_after_edit` = 应用编辑 + accept；未确认硬拒；未表态按 B；禁止静默验收。
+- **反僵硬**：拆书 craft 抽打碎逻辑 + 本书载体；`allowedEdges` 应落纸；lean 一行正向；`stiffness_tidy` 默认 warn（非脏话配额）。
+- **连续性**：lean n≥2 注入前章正文全文；对外「当前小说状态」。
+- 版本号与 ProductMap / Scheduler / EditPort `version` 对齐 **0.11.0**。
 - 更早小步说明见 [archive/CHANGE_NOTES_0.10.x.md](./archive/CHANGE_NOTES_0.10.x.md)。
 

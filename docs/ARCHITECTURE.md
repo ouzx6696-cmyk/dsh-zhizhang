@@ -11,7 +11,7 @@
 ```text
 Host (DSH) → apply / tools.register
      → src/tools/*（按域薄接线）
-     → Ports（Scheduler + 三柱 + Gates + Quality + Methods）
+     → Ports（Scheduler + 三柱 + Edit(可选) + Gates + Quality + Methods）
      → Store + Sensors
      → .zhizhang/{works,library,inspiration,manuscripts}/
 ```
@@ -24,6 +24,7 @@ Host (DSH) → apply / tools.register
 | 拆书库 | `ports/library.ts` |
 | 灵感会话/推演/可选 apply | `ports/inspiration.ts` |
 | 默认路径 vs 旁路 | `ports/scheduler.ts` |
+| 可选编辑过稿（A/B/C） | `ports/edit.ts` |
 | 采纳/旁路/brief/payoff 策略 | `src/lib/ports/*` |
 | 质量面 | `ports/quality-policy.ts` |
 | 闭环产品地图 | `ports/product.ts` ← `zhizhang_product_map` |

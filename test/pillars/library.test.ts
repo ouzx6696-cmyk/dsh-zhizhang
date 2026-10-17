@@ -451,7 +451,7 @@ describe("Library pillar · multi-source filter + combo 0.7.1", () => {
   });
 });
 
-describe("Library · anti-stiffness 0.10.5", () => {
+describe("Library · anti-stiffness 0.10.5+", () => {
   test("permission allowedEdges soft-warns; shatter helpers", async () => {
     const perm = normalizeHumanFeel({
       writerCraft: "信息从误认里漏",

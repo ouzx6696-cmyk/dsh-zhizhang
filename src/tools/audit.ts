@@ -14,6 +14,7 @@ import {
   StyleLinterPort,
   HumanFeelAuditorPort,
   NovelSenseAuditorPort,
+  Scheduler,
 } from "../lib/ports/index.js";
 import { REVIEW_EVIDENCE_KINDS, type ReviewDim } from "../lib/types.js";
 import { asString, fail, openWork } from "./context.js";
@@ -36,7 +37,7 @@ export function auditTools(): ToolDef[] {
     defineTool({
       name: "zhizhang_style_lint",
       description:
-        "【默认链·工程闸】语感雷达：传 candidate 时扫正文并签发 lintPassToken（accept 必经；已扫过≠质量过关）。扫 chapter/text 仅诊断。",
+        "【默认链·工程闸】语感雷达：传 candidate 时扫正文并签发 lintPassToken（accept 必经；已扫过≠质量过关）。下一步可直接 accept，或可选 edit_brief→edit_stage 后再由用户选 A/B/C。扫 chapter/text 仅诊断。",
       properties: {
         work: WORK_OPT,
         working_dir: WORKING_DIR,
@@ -59,6 +60,7 @@ export function auditTools(): ToolDef[] {
             `lintPassToken：${pass.token}`,
             `lintHitCount：${pass.hitCount}（命中数；token 只证明已扫过，扫过≠过关）`,
             `（已写入候选；accept 可不传 token，或显式传此值）`,
+            `下一步：${Scheduler.nextHint("style_lint")}`,
           ].join("\n");
         }
 

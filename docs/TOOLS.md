@@ -12,7 +12,7 @@
 library_import → dissect_brief → card_stage → card_accept
   → library_combo_suggest
   → inspire_start(card_ids) → forge_brief → stage → accept(apply=true)
-  → chapter_brief(lean) → 创作 → candidate_stage → style_lint → candidate_accept
+  → chapter_brief(lean) → 创作 → candidate_stage → style_lint →（可选 edit）→ candidate_accept
 ```
 
 Accept 内嵌软传感；**不要**每章跑三 audit。
@@ -54,6 +54,8 @@ Accept 内嵌软传感；**不要**每章跑三 audit。
 | `project_*` / `foundation_*` / `outline_*` / `chapter_*` | 作品工程 |
 | `chapter_brief` | lean 开写（只吃 craft） |
 | `candidate_stage` / `_accept` | 候选链 |
+| `candidate_edit_brief` / `_edit_stage` / `_edit_decide` | 可选编辑过稿；A 须 confirm；B 仅候选；C 拒 |
+| `candidate_accept` 旗标 `accept_after_edit`+`confirm_accept_after_edit` | 路径 A 一次确认=编辑+验收 |
 | `style_lint` | **默认链工程闸**（lintPassToken） |
 
 ### 旁路（显式，非每章）
@@ -63,7 +65,7 @@ Accept 内嵌软传感；**不要**每章跑三 audit。
 | `payoff_audit` / `human_feel_audit` / `novel_sense_audit` | accept 警告后细看 |
 | `brief_mode=full` | 要厚 brief |
 | `chapter_save` + `confirm_bypass` | 作者直写大正文 |
-| `craft_only` / `skip_brief` / `strict_*` / `require_payoff` / `force` | 显式开关 |
+| `craft_only` / `skip_brief` / `strict_*` / `require_payoff` / `force` / `accept_after_edit`+confirm | 显式开关（含编辑路径 A） |
 | `review_ledger` / `assemble` / `export` / `final` | 定稿与汇编 |
 | `method_list` / `method_get` | 按需方法包（≠拆书卡） |
 

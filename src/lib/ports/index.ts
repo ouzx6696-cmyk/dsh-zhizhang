@@ -1,6 +1,6 @@
 /**
- * Improvement ports — stable extension surface for dsh-zhizhang 0.9+.
- * One creative loop + Scheduler (default vs bypass). New policy → edit a port; tools stay thin.
+ * Improvement ports — stable extension surface for dsh-zhizhang 0.11+.
+ * One creative loop + Scheduler (default vs bypass) + optional EditPort. New policy → edit a port; tools stay thin.
  */
 export { getPortConfig, setPortConfig, resetPortConfig, type PortConfig } from "./config.js";
 export {
@@ -29,6 +29,17 @@ export {
   type AcceptPolicyInput,
   type AcceptGateResult,
 } from "./accept-policy.js";
+export {
+  EditPort,
+  EDIT_MODE_IDS,
+  type EditModeId,
+  type EditMode,
+  type EditUserChoice,
+  type EditModeInfo,
+  type EditBriefInput,
+  type EditAcceptFlagsInput,
+  type EditSoftHit,
+} from "./edit.js";
 export {
   MethodRegistry,
   METHOD_ASSET_IDS,

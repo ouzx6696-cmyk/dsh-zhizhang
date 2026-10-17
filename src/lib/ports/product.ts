@@ -29,7 +29,7 @@ export const CREATIVE_LOOP_LINE = SCHEDULER_DEFAULT_LINE;
 
 export const ProductMap = {
   id: "port.product" as const,
-  version: "0.10.5",
+  version: "0.11.1",
 
   loopLine(): string {
     return Scheduler.defaultLine();
@@ -67,6 +67,7 @@ export const ProductMap = {
           { id: "works", title: "作品与根基 / 当前小说状态（happened）", ready: true },
           { id: "outline", title: "章纲处境", ready: true },
           { id: "candidates", title: "候选 stage/accept", ready: true },
+          { id: "edit", title: "可选编辑过稿（A 确认验收 / B 仅候选 / C 拒）", ready: true },
           { id: "gates", title: "Brief/Lint + Accept 内嵌软传感", ready: true },
           { id: "assemble", title: "汇编成稿（旁路 finalize）", ready: true },
         ],
@@ -117,6 +118,7 @@ export const ProductMap = {
     lines.push("- **mind** → inspire_forge / 根基·章纲");
     lines.push("- **craft** → chapter_brief(lean) 写法+场面状态");
     lines.push("- combo 的 card_ids 可整包给 inspire；lean brief 自动只吃 craft");
+    lines.push("- 写后可选 edit（去空转留毛边，不磨齐刷）：用户选 A/B/C；A 须 confirm；禁止静默验收；技能见 docs/skills/web-novel-master-optimizer.md");
     lines.push("");
     lines.push("## 质量面（QualityPolicy）");
     lines.push(QualityPolicy.surfaceLine());

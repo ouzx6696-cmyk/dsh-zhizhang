@@ -20,6 +20,8 @@ export interface PortConfig {
   defaultStrictHuman: boolean;
   /** Default for accept strict_novel (书感 soft radar as hard law). Keep false. */
   defaultStrictNovel: boolean;
+  /** Default polish mode for optional edit pass. */
+  defaultEditMode: string;
 }
 
 const DEFAULTS: PortConfig = {
@@ -29,6 +31,7 @@ const DEFAULTS: PortConfig = {
   defaultRequirePayoff: false,
   defaultStrictHuman: false,
   defaultStrictNovel: false,
+  defaultEditMode: "polish-depolish",
 };
 
 let current: PortConfig = { ...DEFAULTS };
