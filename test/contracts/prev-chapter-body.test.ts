@@ -9,8 +9,8 @@ import { SYSTEM_BRIEF } from "../../src/tools/brief.ts";
 
 describe("prev chapter body 0.10.x", () => {
   test("versions + SYSTEM_BRIEF say full prev body", () => {
-    expect(ProductMap.version).toBe("0.11.1");
-    expect(Scheduler.version).toBe("0.11.1");
+    expect(ProductMap.version).toBe("0.15.0");
+    expect(Scheduler.version).toBe("0.15.0");
     expect(SYSTEM_BRIEF).toMatch(/前章.*正文全文|正文全文/);
     expect(SYSTEM_BRIEF).not.toContain("短文末");
   });

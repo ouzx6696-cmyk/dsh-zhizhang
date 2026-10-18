@@ -77,7 +77,7 @@ const ASSETS: MethodAsset[] = [
   {
     id: "draft",
     title: "正文起草方法",
-    whenToUse: "写本章正文前按需加载；默认 lean brief 不含本包；交稿 brief→stage→lint→accept",
+    whenToUse: "写本章正文前按需加载；默认 lean brief 不含本包；交稿 brief→stage→lint→（可选 edit）→accept",
     body: [
       "【任务：draft · 写作方法】文风契约见同 brief 的 style_contract；质量面见 QualityPolicy。",
       "只交付所请求边界内的完整散文正文。有已采纳依据则用之；新开设定须与已确立事实咬合。",
@@ -92,7 +92,7 @@ const ASSETS: MethodAsset[] = [
       "- **证据边界人物化**：证明范围用人物追问、止步或换办法显露。",
       "- **先读体验再对雷达**：写完先读实际体验（在等什么/主角做了什么/收到什么），再对照承诺；雷达与禁词只拦腔调。",
       "",
-      "工程交稿：未保存候选走 zhizhang_chapter_brief → candidate_stage → style_lint → candidate_accept。*_audit 仅诊断。持久化只经显式 accept。",
+      "工程交稿：未保存候选走 zhizhang_chapter_brief → candidate_stage → style_lint →（可选 edit）→ candidate_accept。*_audit 仅诊断旁路。持久化只经显式 accept。",
       "尊重当前章纲处境三字段与 ending 兑付；环境细节经 situationLens 过滤；亲历冲突优先；已确立事实保持一致。",
       "- **文风**：见同 brief 已载的 style_contract；禁词/雷达 ≠ 兑付过关。",
       "- **质量面**：人味吃技法卡；书感吃读者合同+novel_sense；毒点见 QualityPolicy。",

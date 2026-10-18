@@ -16,6 +16,7 @@ describe("PortConfig + ProductMap contract", () => {
     expect(c.defaultStrictHuman).toBe(false);
     expect(c.defaultStrictNovel).toBe(false);
     expect(c.saveBypassWordThreshold).toBe(200);
+    expect(c.multiDraftEnabled).toBe(false);
   });
 
   test("ProductMap: three pillars live; version matches package", async () => {

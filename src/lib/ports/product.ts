@@ -29,7 +29,7 @@ export const CREATIVE_LOOP_LINE = SCHEDULER_DEFAULT_LINE;
 
 export const ProductMap = {
   id: "port.product" as const,
-  version: "0.11.1",
+  version: "0.15.0",
 
   loopLine(): string {
     return Scheduler.defaultLine();
@@ -68,6 +68,7 @@ export const ProductMap = {
           { id: "outline", title: "章纲处境", ready: true },
           { id: "candidates", title: "候选 stage/accept", ready: true },
           { id: "edit", title: "可选编辑过稿（A 确认验收 / B 仅候选 / C 拒）", ready: true },
+          { id: "multi_draft", title: "可选多草稿+统一整理（默认关）", ready: true },
           { id: "gates", title: "Brief/Lint + Accept 内嵌软传感", ready: true },
           { id: "assemble", title: "汇编成稿（旁路 finalize）", ready: true },
         ],
@@ -119,6 +120,8 @@ export const ProductMap = {
     lines.push("- **craft** → chapter_brief(lean) 写法+场面状态");
     lines.push("- combo 的 card_ids 可整包给 inspire；lean brief 自动只吃 craft");
     lines.push("- 写后可选 edit（去空转留毛边，不磨齐刷）：用户选 A/B/C；A 须 confirm；禁止静默验收；技能见 docs/skills/web-novel-master-optimizer.md");
+    lines.push("- 可选·多草稿（默认关）：同章多候选 → unify_brief → unify_stage；开 DSH_ZHIZHANG_MULTI_DRAFT=1 或 config.multiDraft.enabled；默认链不加负重");
+    lines.push("- Web 面板：侧栏织章默认三栏阅读工作台；管线可切；真采纳同 Accept；产文仍归 Agent");
     lines.push("");
     lines.push("## 质量面（QualityPolicy）");
     lines.push(QualityPolicy.surfaceLine());

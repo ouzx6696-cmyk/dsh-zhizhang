@@ -27,7 +27,7 @@ describe("EditPort + A/B/C accept contract", () => {
     expect(brief).toMatch(/齐刷短句|熨平|主语砍光|匀速吐字/);
     expect(brief).toMatch(/退回写手|polish-rhythm/);
     expect(EditPort.modeInfo("polish-depolish").focus).toMatch(/毛边|禁止.*熨平|主语砍光/);
-    expect(EditPort.version).toBe("0.11.1");
+    expect(EditPort.version).toBe("0.15.0");
   });
 
   test("edit soft hints surface uniform_short_run without blocking A/B/C", () => {

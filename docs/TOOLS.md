@@ -75,3 +75,15 @@ Accept 内嵌软传感；**不要**每章跑三 audit。
 - 持久化均须显式 accept
 - 禁止 bash/Write 直改 `.zhizhang/**`
 - mind ≠ lean brief 主粮；audit ≠ 默认工序
+
+
+## 旁路·多草稿（0.14，默认关）
+
+| 工具 | 说明 |
+|------|------|
+| `zhizhang_candidate_stage` | 可选 `draft_label` / `variant_group`；同章可多次 |
+| `zhizhang_chapter_drafts` | 列某章待采纳（关着也能用） |
+| `zhizhang_candidate_unify_brief` | 须开启；≥2 同章待采纳 → 整理 brief |
+| `zhizhang_candidate_unify_stage` | 须开启；暂存 `source=unify` + `unifyOf`；不写正式章 |
+
+开启：`config.multiDraft.enabled=true` 或 env `DSH_ZHIZHANG_MULTI_DRAFT=1`。默认链 nextHint **不含** unify。

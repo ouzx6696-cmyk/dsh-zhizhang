@@ -36,4 +36,16 @@ describe("Scheduler port", () => {
     expect(hint).not.toMatch(/review_ledger/);
     expect(SCHEDULER_BYPASSES.some((b) => b.id === "diagnose.audit")).toBe(true);
   });
+
+  test("panelRouteHints uses writeLine and never puts audit on default path", () => {
+    const hints = Scheduler.panelRouteHints();
+    expect(hints.length).toBeGreaterThanOrEqual(1);
+    const joined = hints.join("\n");
+    expect(joined).toContain(Scheduler.writeLine());
+    expect(joined).toMatch(/可选 edit/);
+    expect(joined).not.toMatch(/→\s*payoff_audit/);
+    expect(joined).not.toMatch(/candidate_accept\s*→\s*payoff_audit/);
+    expect(joined).toMatch(/diagnose\.audit|诊断旁路/);
+  });
+
 });

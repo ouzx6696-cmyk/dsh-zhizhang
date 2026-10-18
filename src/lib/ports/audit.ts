@@ -61,8 +61,9 @@ export const PayoffAuditorPort = {
 };
 
 export const HumanFeelAuditorPort = {
-  audit(text: string): HumanFeelAuditResult {
-    return auditHumanFeel(text);
+  /** Pass craftCue so stiffness_tidy matches Accept (shatter cues from craft cards). */
+  audit(text: string, opts?: { craftCue?: string | null }): HumanFeelAuditResult {
+    return auditHumanFeel(text, opts);
   },
   format(label: string, result: HumanFeelAuditResult): string {
     return formatHumanFeelAudit(label, result);

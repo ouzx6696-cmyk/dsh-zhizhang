@@ -4,6 +4,7 @@ import {
   countWords,
   getRecentBrief,
   getRecentPayoffAudit,
+  listCandidates,
   listChapters,
   readCandidate,
   readChapter,
@@ -16,11 +17,9 @@ import {
   EditPort,
   FoundationPort,
   InspirationPort,
+  MultiDraftPort,
   Scheduler,
   auditHumanFeel,
-  coerceAxis,
-  coerceHumanFeel,
-  craftCueFromHumanFeel,
   firstDenyCode,
   firstDenyText,
   getPortConfig,
@@ -33,22 +32,7 @@ async function resolveCraftCue(
   paths: StoragePaths,
   key: string,
 ): Promise<string> {
-  try {
-    const resolved = await InspirationPort.resolveCardsForBrief(paths, {
-      workKey: key,
-      limit: 5,
-    });
-    return resolved.cards
-      .filter((c) => coerceAxis(c) === "craft")
-      .map((c) =>
-        craftCueFromHumanFeel(
-          coerceHumanFeel(c.humanFeel as Record<string, unknown> | undefined),
-        ),
-      )
-      .join("\n");
-  } catch {
-    return "";
-  }
+  return InspirationPort.resolveCraftCue(paths, { workKey: key, limit: 5 });
 }
 
 async function resolvePrevBody(dir: string, chapterId: string): Promise<string | null> {
@@ -159,13 +143,15 @@ export function candidatesTools(): ToolDef[] {
     defineTool({
       name: "zhizhang_candidate_stage",
       description:
-        "【默认链】暂存候选到 candidates/（不写 chapters/）。下一步：style_lint(candidate) →（可选 edit）→ candidate_accept。",
+        "【默认链】暂存候选到 candidates/（不写 chapters/）。可同章多次 stage（多草稿）；可选 draft_label / variant_group。下一步：style_lint →（可选 edit）→ accept。统一整理见旁路 unify_*（须 multiDraft 开启）。",
       properties: {
         work: WORK_OPT,
         working_dir: WORKING_DIR,
         chapter: S("目标章节 id"),
         content: S("候选全文"),
         note: S("可选说明"),
+        draft_label: S("可选：多草稿标签，如 口气A / v2（不改变默认链）"),
+        variant_group: S("可选：同批多草稿分组 id"),
       },
       required: ["chapter", "content"],
       async execute(args, exec) {
@@ -173,19 +159,29 @@ export function candidatesTools(): ToolDef[] {
         const content = asString(args, "content", { required: true, trim: false })!;
         if (!content.trim()) fail("content 不能为空");
         const { dir } = await openWork(exec, args);
+        const draftLabel = asString(args, "draft_label");
+        const variantGroup = asString(args, "variant_group");
         const cand = await stageCandidate(dir, {
           chapterId,
           body: content,
           note: asString(args, "note") ?? "",
           source: "agent",
+          draftLabel: draftLabel || undefined,
+          variantGroup: variantGroup || undefined,
         });
+        const labelLine = cand.draftLabel ? `- 标签：${cand.draftLabel}` : null;
+        const groupLine = cand.variantGroup ? `- 分组：${cand.variantGroup}` : null;
         return [
           `候选已暂存：${cand.id}`,
           `- 目标章：${cand.chapterId}`,
           `- 约 ${countWords(cand.body)} 字`,
+          labelLine,
+          groupLine,
           `- 尚未写入章节；确认后调用 zhizhang_candidate_accept`,
           `下一步：${Scheduler.nextHint("candidate_stage")}`,
-        ].join("\n");
+        ]
+          .filter(Boolean)
+          .join("\n");
       },
     }),
 
@@ -366,6 +362,204 @@ export function candidatesTools(): ToolDef[] {
           acceptAfterEdit: true,
           confirmAcceptAfterEdit: true,
         });
+      },
+    }),
+
+    defineTool({
+      name: "zhizhang_chapter_drafts",
+      description:
+        "【旁路·多草稿】列出某章待采纳候选（含 draftLabel）；可选带近期已采纳。不要求 multiDraft 开启。下一步：选稿 lint/accept，或开启后 unify_brief。",
+      properties: {
+        work: WORK_OPT,
+        working_dir: WORKING_DIR,
+        chapter: S("章节 id"),
+        include_accepted: B("是否列出本章近期已采纳候选（默认 false）"),
+      },
+      required: ["chapter"],
+      async execute(args, exec) {
+        const chapterId = asString(args, "chapter", { required: true })!;
+        const includeAccepted = Boolean(args.include_accepted);
+        const { dir, key } = await openWork(exec, args);
+        const all = await listCandidates(dir);
+        const forCh = all.filter((c) => c.chapterId === chapterId);
+        const pending = forCh.filter((c) => c.pending);
+        const accepted = includeAccepted
+          ? forCh.filter((c) => !c.pending).slice(-5)
+          : [];
+        const lines = [
+          `章 ${chapterId} · 作品 ${key}`,
+          `待采纳 ${pending.length} 条` +
+            (MultiDraftPort.isEnabled() ? " · 多草稿统一整理：已开启" : " · 多草稿统一整理：关闭（默认）"),
+        ];
+        if (pending.length === 0) {
+          lines.push("（无待采纳）");
+        } else {
+          for (const c of pending) {
+            lines.push(
+              `- ${c.id}` +
+                (c.draftLabel ? `「${c.draftLabel}」` : "") +
+                ` · ${c.wordCount} 字` +
+                (c.lintPassToken && c.lintedAt ? " · lint✓" : " · 缺 lint") +
+                (c.source ? ` · ${c.source}` : "") +
+                (c.editOf ? ` · editOf=${c.editOf}` : "") +
+                (c.unifyOf?.length ? ` · unifyOf=${c.unifyOf.join(",")}` : "") +
+                (c.note ? ` · ${c.note}` : ""),
+            );
+          }
+        }
+        if (accepted.length) {
+          lines.push("近期已采纳：");
+          for (const c of accepted) {
+            lines.push(`- ${c.id} · ${c.wordCount} 字 · accepted`);
+          }
+        }
+        if (pending.length >= 2 && MultiDraftPort.isEnabled()) {
+          lines.push(
+            `旁路下一步：zhizhang_candidate_unify_brief(chapter=${chapterId}) → 整理 → unify_stage`,
+          );
+        } else if (pending.length >= 2 && !MultiDraftPort.isEnabled()) {
+          lines.push(`同章多稿可用；统一整理需开启：${MultiDraftPort.enableHint()}`);
+        } else if (pending.length === 1) {
+          lines.push(`下一步：${Scheduler.nextHint("candidate_stage")}`);
+        }
+        return lines.join("\n");
+      },
+    }),
+
+    defineTool({
+      name: "zhizhang_candidate_unify_brief",
+      description:
+        "【旁路·多草稿】取出统一整理 brief（须 multiDraft 开启）。合并 ≥2 条同章待采纳；省略 candidate_ids 则取本章全部待采纳。下一步：整理正文 → unify_stage。",
+      properties: {
+        work: WORK_OPT,
+        working_dir: WORKING_DIR,
+        chapter: S("章节 id（与 candidate_ids 二选一必填一侧；有 ids 时可从父稿推断章）"),
+        candidate_ids: {
+          type: "array",
+          items: { type: "string" },
+          description: "可选：要合并的待采纳候选 id（≥2）；省略则用本章全部待采纳",
+        },
+      },
+      required: [],
+      async execute(args, exec) {
+        try {
+          MultiDraftPort.requireEnabled();
+        } catch (err) {
+          const e = err as Error & { code?: string };
+          fail(e.message, e.code || MultiDraftPort.disabledCode);
+        }
+        const { dir, key } = await openWork(exec, args);
+        let ids = Array.isArray(args.candidate_ids)
+          ? (args.candidate_ids as unknown[]).map((x) => String(x).trim()).filter(Boolean)
+          : [];
+        const chapterArg = asString(args, "chapter");
+        if (ids.length === 0) {
+          if (!chapterArg) fail("请传 chapter，或传 candidate_ids（≥2）");
+          const pending = (await listCandidates(dir)).filter(
+            (c) => c.pending && c.chapterId === chapterArg,
+          );
+          ids = pending.map((c) => c.id);
+        }
+        if (ids.length < 2) {
+          fail(
+            `统一整理至少需要 2 条待采纳候选，当前 ${ids.length} 条。可先多次 candidate_stage(draft_label)。`,
+            "unify_need_two",
+          );
+        }
+        const parents = [];
+        for (const id of ids) {
+          const cand = await readCandidate(dir, id);
+          if (cand.acceptedAt) {
+            fail(`候选 ${id} 已采纳，不能参与统一整理`, "unify_parent_accepted");
+          }
+          parents.push(cand);
+        }
+        const chapterId = parents[0]!.chapterId;
+        for (const p of parents) {
+          if (p.chapterId !== chapterId) {
+            fail(
+              `候选不在同一章：${parents.map((x) => `${x.id}=${x.chapterId}`).join("、")}`,
+              "unify_chapter_mismatch",
+            );
+          }
+        }
+        if (chapterArg && chapterArg !== chapterId) {
+          fail(`chapter=${chapterArg} 与候选章 ${chapterId} 不一致`, "unify_chapter_mismatch");
+        }
+        const brief = MultiDraftPort.formatUnifyBrief({
+          chapterId,
+          workKey: key,
+          parents: parents.map((p) => MultiDraftPort.parentView(p)),
+        });
+        return [
+          brief,
+          "",
+          `父 ids：${ids.join(", ")}`,
+          `下一步：${Scheduler.nextHint("candidate_unify_brief")}`,
+        ].join("\n");
+      },
+    }),
+
+    defineTool({
+      name: "zhizhang_candidate_unify_stage",
+      description:
+        "【旁路·多草稿】将统一整理正文暂存为新候选（source=unify，unifyOf=父 ids；不写正式章）。须 multiDraft 开启。下一步：style_lint → candidate_accept。",
+      properties: {
+        work: WORK_OPT,
+        working_dir: WORKING_DIR,
+        content: S("整理后的本章全文"),
+        candidate_ids: {
+          type: "array",
+          items: { type: "string" },
+          description: "父候选 id 列表（≥2，须同章待采纳）",
+        },
+        note: S("可选说明"),
+        draft_label: S("可选：整理稿标签，默认「统一整理」"),
+      },
+      required: ["content", "candidate_ids"],
+      async execute(args, exec) {
+        try {
+          MultiDraftPort.requireEnabled();
+        } catch (err) {
+          const e = err as Error & { code?: string };
+          fail(e.message, e.code || MultiDraftPort.disabledCode);
+        }
+        const content = asString(args, "content", { required: true, trim: false })!;
+        if (!content.trim()) fail("content 不能为空");
+        const ids = Array.isArray(args.candidate_ids)
+          ? (args.candidate_ids as unknown[]).map((x) => String(x).trim()).filter(Boolean)
+          : [];
+        if (ids.length < 2) fail("candidate_ids 至少 2 个", "unify_need_two");
+        const { dir } = await openWork(exec, args);
+        const parents = [];
+        for (const id of ids) {
+          const cand = await readCandidate(dir, id);
+          if (cand.acceptedAt) {
+            fail(`父候选 ${id} 已采纳`, "unify_parent_accepted");
+          }
+          parents.push(cand);
+        }
+        const chapterId = parents[0]!.chapterId;
+        for (const p of parents) {
+          if (p.chapterId !== chapterId) {
+            fail("父候选必须同章", "unify_chapter_mismatch");
+          }
+        }
+        const label = asString(args, "draft_label") || "统一整理";
+        const cand = await stageCandidate(dir, {
+          chapterId,
+          body: content,
+          note: asString(args, "note") ?? `unify of ${ids.join(",")}`,
+          source: "unify",
+          unifyOf: ids,
+          draftLabel: label,
+        });
+        return MultiDraftPort.afterUnifyStageLines({
+          unifyCandId: cand.id,
+          parentIds: ids,
+          chapterId,
+          wordCount: countWords(cand.body),
+        }).join("\n");
       },
     }),
 

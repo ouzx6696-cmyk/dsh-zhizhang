@@ -1,5 +1,5 @@
 /**
- * Improvement ports — stable extension surface for dsh-zhizhang 0.11+.
+ * Improvement ports — stable extension surface for dsh-zhizhang 0.11+ (0.14 multi-draft).
  * One creative loop + Scheduler (default vs bypass) + optional EditPort. New policy → edit a port; tools stay thin.
  */
 export { getPortConfig, setPortConfig, resetPortConfig, type PortConfig } from "./config.js";
@@ -123,6 +123,14 @@ export {
   type ResolveHappenedTextResult,
 } from "./foundation.js";
 export { ProductMap, CREATIVE_LOOP_LINE, type ProductPillarView, type PillarLiveStatus } from "./product.js";
+export {
+  MultiDraftPort,
+  isMultiDraftEnabled,
+  envMultiDraftFlag,
+  MULTI_DRAFT_DISABLED_CODE,
+  type UnifyParentView,
+  type UnifyBriefInput,
+} from "./multi-draft.js";
 export {
   Scheduler,
   SCHEDULER_DEFAULT_LINE,

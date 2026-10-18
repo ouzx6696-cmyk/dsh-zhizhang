@@ -10,12 +10,26 @@ import {
   type StoragePaths,
 } from "../lib/store.js";
 
-export let config: { rootDir?: string; storageRoot?: string } = {};
+export let config: {
+  rootDir?: string;
+  storageRoot?: string;
+  allowLanPanel?: boolean;
+  multiDraftEnabled?: boolean;
+  multiDraft?: { enabled?: boolean };
+} = {};
 
 const lastWorkBySession = new Map<string, string>();
 const MAX_SESSIONS = 500;
 
-export function setPluginConfig(next: { rootDir?: string; storageRoot?: string }): void {
+export function setPluginConfig(
+  next: {
+    rootDir?: string;
+    storageRoot?: string;
+    allowLanPanel?: boolean;
+    multiDraftEnabled?: boolean;
+    multiDraft?: { enabled?: boolean };
+  },
+): void {
   config = { ...next };
 }
 

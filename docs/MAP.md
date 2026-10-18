@@ -47,6 +47,7 @@ Accept 一次扫：Brief → Lint → Payoff → HumanFeel → NovelSense → Ed
 | chapter_brief | 创作 → stage → lint →（可选 edit）→ accept |
 | style_lint | 可选 edit_brief→edit_stage；或直接 accept |
 | edit_stage | 用户选 A/B/C（未表态按 B） |
+| unify_brief / unify_stage | 仅 multi.draft 开启；整理稿仍须 lint → accept |
 | candidate_accept | 续章再 brief；定稿 / 诊断见旁路 |
 
 新建作品：有卡则 combo → inspire → 写作段；无卡则 outline_set → 写作段。
@@ -63,7 +64,8 @@ Accept 一次扫：Brief → Lint → Payoff → HumanFeel → NovelSense → Ed
 | `brief.full` | 厚 brief | 要卡全文 + 四方法包 + 节拍 | `chapter_brief brief_mode=full` |
 | `save.direct` | 直写章节 | 作者显式旁路候选链（大正文） | `chapter_save` + `confirm_bypass` |
 | `inspire.craft_only` | 仅技法灵感 | 无 mind 卡仍要开 inspire | `inspire_start craft_only=true` |
-| `accept.flags` | 采纳硬开关 | 测试或作者显式收紧/跳过 | `skip_brief` / `strict_lint` / `require_payoff` / `strict_human` / `strict_novel` / `force` |
+| `accept.flags` | 采纳硬开关 | 测试或作者显式收紧/跳过 | `skip_brief` / `strict_lint` / `require_payoff` / `strict_human` / `strict_novel` / `force` / `accept_after_edit`+confirm |
+| `multi.draft` | 多草稿统一整理 | **默认关**；config.multiDraft.enabled 或 env `DSH_ZHIZHANG_MULTI_DRAFT=1`；同章≥2 待采纳 | `candidate_stage(draft_label)×N` → `unify_brief` → `unify_stage` → lint → accept |
 | `finalize.ship` | 定稿与汇编 | 章末或完书 | `chapter_save status=final` · `review_ledger` · `assemble` / `export` |
 
 ---
@@ -82,3 +84,12 @@ Accept 一次扫：Brief → Lint → Payoff → HumanFeel → NovelSense → Ed
 - 不把 diagnose.audit 画进默认路径  
 - 不在工具里另写一套「推荐链」绕过 Scheduler  
 - 不声明未实现能力为 live  
+
+
+---
+
+## 面板（Web）
+
+- 侧栏 **织章**：默认「小说」三栏（读正文 / 对照 / 真采纳）；顶栏切「管线」看库·灵感·写作仪表。
+- 写回只经面板二次确认采纳或 `zhizhang_*` 工具；与 AcceptPolicy 同源。
+- 多草稿开启后可点「统一整理」（只出 brief，不写盘）。

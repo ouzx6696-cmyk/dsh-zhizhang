@@ -37,6 +37,13 @@ import {
   type WorkMeta,
 } from "./types.js";
 import { ZhizhangError } from "./errors.js";
+import { Scheduler } from "./ports/scheduler.js";
+import { renderPanelHtml } from "./panel-html.js";
+import type {
+  PanelInspirationView,
+  PanelLibraryView,
+  PanelProductView,
+} from "./panel-enrich.js";
 
 const locks = new Map<string, Promise<unknown>>();
 let tmpSeq = 0;
@@ -510,15 +517,44 @@ export async function appendLedger(dir: string, entry: Omit<LedgerEntry, "id" | 
 
 
 // —— § candidates ——
+/** Persist candidate JSON without dropping optional multi-draft / edit fields. */
+export function candidateToDiskMeta(cand: CandidateFile): Record<string, unknown> {
+  const disk: Record<string, unknown> = {
+    schemaVersion: cand.schemaVersion,
+    id: cand.id,
+    workKey: cand.workKey,
+    chapterId: cand.chapterId,
+    stagedAt: cand.stagedAt,
+    source: cand.source,
+    note: cand.note,
+    bodyFile: cand.bodyFile,
+  };
+  if (cand.lintPassToken) disk.lintPassToken = cand.lintPassToken;
+  if (cand.lintedAt) disk.lintedAt = cand.lintedAt;
+  if (cand.lintHitCount !== undefined) disk.lintHitCount = cand.lintHitCount;
+  if (cand.acceptedAt) disk.acceptedAt = cand.acceptedAt;
+  if (cand.acceptedMode) disk.acceptedMode = cand.acceptedMode;
+  if (cand.editOf) disk.editOf = cand.editOf;
+  if (cand.editMode) disk.editMode = cand.editMode;
+  if (cand.editedAt) disk.editedAt = cand.editedAt;
+  if (cand.draftLabel) disk.draftLabel = cand.draftLabel;
+  if (cand.variantGroup) disk.variantGroup = cand.variantGroup;
+  if (cand.unifyOf && cand.unifyOf.length) disk.unifyOf = cand.unifyOf;
+  return disk;
+}
+
 export async function stageCandidate(
   dir: string,
   input: {
     chapterId: string;
     body: string;
     note?: string;
-    source?: "agent" | "import" | "edit";
+    source?: "agent" | "import" | "edit" | "unify";
     editOf?: string;
     editMode?: string;
+    draftLabel?: string;
+    variantGroup?: string;
+    unifyOf?: string[];
   },
 ): Promise<CandidateFile> {
   if (!String(input.body ?? "").trim()) {
@@ -546,7 +582,10 @@ export async function stageCandidate(
     cand.editedAt = stagedAt;
   }
   if (input.editMode) cand.editMode = input.editMode;
-  const { body: _omit, ...disk } = cand;
+  if (input.draftLabel?.trim()) cand.draftLabel = input.draftLabel.trim();
+  if (input.variantGroup?.trim()) cand.variantGroup = input.variantGroup.trim();
+  if (input.unifyOf?.length) cand.unifyOf = [...input.unifyOf];
+  const disk = candidateToDiskMeta(cand);
   await atomicWrite(path.join(candidatesDir(dir), `${id}.json`), JSON.stringify(disk, null, 2) + "\n");
   return cand;
 }
@@ -578,22 +617,12 @@ export async function markCandidateLinted(
     }
     const token = `lint-${randomUUID().replace(/-/g, "").slice(0, 16)}`;
     const lintedAt = nowIso();
-    const diskMeta: Record<string, unknown> = {
-      schemaVersion: cand.schemaVersion,
-      id: cand.id,
-      workKey: cand.workKey,
-      chapterId: cand.chapterId,
-      stagedAt: cand.stagedAt,
-      source: cand.source,
-      note: cand.note,
-      bodyFile: cand.bodyFile,
+    const diskMeta = candidateToDiskMeta({
+      ...cand,
       lintPassToken: token,
       lintedAt,
       lintHitCount: hitCount,
-    };
-    if (cand.editOf) diskMeta.editOf = cand.editOf;
-    if (cand.editMode) diskMeta.editMode = cand.editMode;
-    if (cand.editedAt) diskMeta.editedAt = cand.editedAt;
+    });
     await atomicWrite(
       path.join(candidatesDir(dir), `${candidateId}.json`),
       JSON.stringify(diskMeta, null, 2) + "\n",
@@ -693,24 +722,11 @@ export async function acceptCandidate(
   });
 
   const acceptedAt = nowIso();
-  const diskMeta: Record<string, unknown> = {
-    schemaVersion: cand.schemaVersion,
-    id: cand.id,
-    workKey: cand.workKey,
-    chapterId: cand.chapterId,
-    stagedAt: cand.stagedAt,
-    source: cand.source,
-    note: cand.note,
-    bodyFile: cand.bodyFile,
-    lintPassToken: cand.lintPassToken,
-    lintedAt: cand.lintedAt,
-    lintHitCount: cand.lintHitCount,
+  const diskMeta = candidateToDiskMeta({
+    ...cand,
     acceptedAt,
     acceptedMode: mode,
-  };
-  if (cand.editOf) diskMeta.editOf = cand.editOf;
-  if (cand.editMode) diskMeta.editMode = cand.editMode;
-  if (cand.editedAt) diskMeta.editedAt = cand.editedAt;
+  });
   await atomicWrite(
     path.join(candidatesDir(dir), `${candidateId}.json`),
     JSON.stringify(diskMeta, null, 2) + "\n",
@@ -886,6 +902,7 @@ export interface PanelSnapshot {
   title: string;
   genre: string;
   dir: string;
+  storageBase?: string;
   totals: { chapters: number; words: number; final: number; drafted: number; planned: number };
   foundation: { locks: string; happened: string; threads: string; style: string };
   chapters: Array<{
@@ -900,16 +917,57 @@ export interface PanelSnapshot {
     briefRecent: boolean;
   }>;
   ledgerRecent: Array<{ id: string; at: string; kind: string; chapterId: string; summary: string; styleHitCount?: number }>;
-  candidates: Array<{ id: string; chapterId: string; stagedAt: string; pending: boolean; wordCount: number; note: string }>;
+  candidates: Array<{
+    id: string;
+    chapterId: string;
+    stagedAt: string;
+    pending: boolean;
+    wordCount: number;
+    note: string;
+    editOf?: string;
+    editMode?: string;
+    draftLabel?: string;
+    variantGroup?: string;
+    unifyOf?: string[];
+    hasLintPass: boolean;
+    lintHitCount: number;
+    source?: string;
+  }>;
+  /** Optional multi-draft feature flag (default false). */
+  multiDraftEnabled: boolean;
   briefCrumbsRecent: BriefBreadcrumb[];
   lastPayoffByChapter: Record<string, PayoffAuditStored>;
   nextHints: string[];
+  product: PanelProductView;
+  library: PanelLibraryView;
+  inspiration: PanelInspirationView;
   html: string;
+}
+
+function pathsFromWorkDir(dir: string): StoragePaths {
+  const works = path.dirname(dir);
+  const base = path.dirname(works);
+  return {
+    base,
+    works,
+    manuscripts: path.join(base, "manuscripts"),
+    library: path.join(base, "library"),
+    inspiration: path.join(base, "inspiration"),
+  };
 }
 
 
 // —— § panel snapshot ——
-export async function buildPanelSnapshot(dir: string): Promise<PanelSnapshot> {
+export async function buildPanelSnapshot(
+  dir: string,
+  pathsHint?: StoragePaths,
+): Promise<PanelSnapshot> {
+  const paths = pathsHint ?? pathsFromWorkDir(dir);
+  const {
+    buildLibraryView,
+    buildInspirationView,
+    buildProductView,
+  } = await import("./panel-enrich.js");
   const meta = await readWorkMeta(dir);
   const ledger = await readLedger(dir);
   const cands = await listCandidates(dir);
@@ -958,14 +1016,25 @@ export async function buildPanelSnapshot(dir: string): Promise<PanelSnapshot> {
       briefRecent: recentBriefChapterIds.has(ch.id),
     });
   }
-  const pending = cands.filter((c) => c.pending).length;
+  const pendingCands = cands.filter((c) => c.pending);
+  const pending = pendingCands.length;
+  const { isMultiDraftEnabled } = await import("./ports/multi-draft.js");
+  const multiDraftEnabledEarly = isMultiDraftEnabled();
   const nextHints = [
-    "创作路径：chapter_brief → candidate_stage → style_lint(candidate=…) → candidate_accept → payoff_audit",
+    ...Scheduler.panelRouteHints(),
     "accept 硬闸：须 lintPassToken（仅证明已扫过）+ 近期 chapter_brief（可用 skip_brief 跳过）",
     "lint 命中>0 软警告 lint_hits_present；扫过≠过关。strict_lint / require_payoff / strict_human 可选硬拒",
     "chapter_save 大正文须 confirm_bypass；定稿：review_ledger + chapter_save status=final",
   ];
-  if (pending > 0) nextHints.unshift(`有 ${pending} 条待采纳候选，用 zhizhang_candidate_accept`);
+  if (pending > 0) nextHints.unshift(`有 ${pending} 条待采纳候选，可在面板点「采纳」或用 zhizhang_candidate_accept`);
+  if (pendingCands.some((c) => c.editOf)) {
+    nextHints.unshift("有编辑稿待定：面板可正式采纳（路径 A 须确认）；A/B/C 抉择用 zhizhang_candidate_edit_decide");
+  }
+  if (multiDraftEnabledEarly && pending >= 2) {
+    nextHints.unshift("多草稿已开启：同章≥2 待采纳可用面板「统一整理」或 unify_brief → unify_stage");
+  } else if (!multiDraftEnabledEarly && pending >= 2) {
+    nextHints.unshift("同章多份待采纳：开启 multiDraft 后可统一整理（默认关，不进主链）");
+  }
   if (chapters.some((c) => !c.situationLens)) nextHints.unshift("部分章节缺 situationLens，建议 zhizhang_outline_set");
   if (chapters.some((c) => c.wordCount > 0 && !c.briefRecent)) {
     nextHints.unshift("有章节正文但无近期 chapter_brief 留痕（accept 将硬拒 unless skip_brief）");
@@ -975,71 +1044,101 @@ export async function buildPanelSnapshot(dir: string): Promise<PanelSnapshot> {
     nextHints.unshift(`兑付审计有 ${payoffWarn.length} 章未过：${payoffWarn.map((p) => p.chapterId).join("、")}`);
   }
 
-  const esc = (s: string) =>
-    String(s ?? "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
-
   const recentBriefs = briefs.entries.filter((e) => {
     const at = Date.parse(e.at);
     return Number.isFinite(at) && now - at <= BRIEF_RECENT_MS;
   });
 
-  const html = [
-    `<article class="zhizhang-panel" data-work="${esc(meta.key)}">`,
-    `<h1>${esc(meta.title)}</h1>`,
-    `<p class="meta">key=${esc(meta.key)} · ${chapters.length} 章 · 约 ${words} 字 · 定稿 ${final} · 待采纳候选 ${pending}</p>`,
-    `<h2>章节</h2>`,
-    `<ol>`,
-    ...chapters.map(
-      (c) =>
-        `<li data-id="${esc(c.id)}" data-status="${esc(c.status)}">[${esc(c.status)}] ${esc(c.title)}（${c.wordCount} 字）` +
-        (c.briefRecent ? ` · brief✓` : "") +
-        (c.situationLens ? `<br/><small>处境：${esc(c.situationLens.slice(0, 80))}</small>` : "") +
-        `</li>`,
-    ),
-    `</ol>`,
-    `<h2>待采纳候选</h2>`,
-    pending === 0
-      ? `<p>无</p>`
-      : `<ul>` +
-        cands
-          .filter((c) => c.pending)
-          .map((c) => `<li>${esc(c.id)} → ${esc(c.chapterId)}（${c.wordCount} 字）</li>`)
-          .join("") +
-        `</ul>`,
-    `<h2>审校留痕（最近）</h2>`,
-    `<ul>`,
-    ...ledger.entries
-      .slice(-8)
-      .reverse()
-      .map((e) => `<li>[${esc(e.at)}] ${esc(e.kind)} · ${esc(e.chapterId)} · ${esc(e.summary)}</li>`),
-    `</ul>`,
-    `<h2>brief 留痕（近期）</h2>`,
-    recentBriefs.length === 0
-      ? `<p>无</p>`
-      : `<ul>` +
-        recentBriefs
-          .slice(-8)
-          .reverse()
-          .map((e) => `<li>${esc(e.chapterId)} @ ${esc(e.at)} · ${esc(e.assetIds.join(","))}</li>`)
-          .join("") +
-        `</ul>`,
-    `<h2>兑付审计（每章最近）</h2>`,
-    Object.keys(lastPayoffByChapter).length === 0
-      ? `<p>无</p>`
-      : `<ul>` +
-        Object.values(lastPayoffByChapter)
-          .map(
-            (e) =>
-              `<li>${esc(e.chapterId)} · ${e.ok ? "ok" : "warn:" + e.warningCount} · ${esc(e.summary.slice(0, 80))}</li>`,
-          )
-          .join("") +
-        `</ul>`,
-    `</article>`,
-  ].join("\n");
+  const product = buildProductView();
+  let library: PanelLibraryView;
+  let inspiration: PanelInspirationView;
+  try {
+    library = await buildLibraryView(paths);
+  } catch {
+    library = {
+      sourcesCount: 0,
+      sources: [],
+      craftCount: 0,
+      mindCount: 0,
+      acceptedCount: 0,
+      draftedCount: 0,
+      combo: null,
+      summary: "拆书库暂不可读",
+    };
+  }
+  try {
+    inspiration = await buildInspirationView(paths, {
+      workKey: meta.key,
+      foundation: meta.foundation,
+      chapters,
+    });
+  } catch {
+    inspiration = {
+      sessionsCount: 0,
+      sessions: [],
+      pendingEmits: 0,
+      acceptedEmits: 0,
+      appliedToWork: false,
+      appliedCandIds: [],
+      foundationFilled: false,
+      foundationFilledFields: [],
+      outlineProgress: {
+        total: chapters.length,
+        withSituation: 0,
+        withLived: 0,
+        withState: 0,
+        complete: 0,
+      },
+      summary: "灵感支柱暂不可读",
+    };
+  }
+
+  const candidateRows: PanelSnapshot["candidates"] = cands.map((c) => ({
+    id: c.id,
+    chapterId: c.chapterId,
+    stagedAt: c.stagedAt,
+    pending: c.pending,
+    wordCount: c.wordCount,
+    note: c.note,
+    editOf: c.editOf,
+    editMode: c.editMode,
+    draftLabel: c.draftLabel,
+    variantGroup: c.variantGroup,
+    unifyOf: c.unifyOf,
+    hasLintPass: Boolean(c.lintPassToken && c.lintedAt),
+    lintHitCount: c.lintHitCount ?? 0,
+    source: c.source,
+  }));
+  const multiDraftEnabled = multiDraftEnabledEarly;
+
+  const htmlInput = {
+    workKey: meta.key,
+    title: meta.title,
+    genre: meta.genre,
+    totals: { chapters: chapters.length, words, final, drafted, planned },
+    foundation: {
+      locks: meta.foundation.locks,
+      happened: meta.foundation.happened,
+      threads: meta.foundation.threads,
+      style: meta.foundation.style,
+    },
+    chapters,
+    candidates: candidateRows,
+    ledgerRecent: ledger.entries.slice(-12).map((e) => ({
+      id: e.id,
+      at: e.at,
+      kind: e.kind,
+      chapterId: e.chapterId,
+      summary: e.summary,
+    })),
+    briefCrumbsRecent: recentBriefs.slice(-12),
+    lastPayoffByChapter,
+    nextHints,
+    product,
+    library,
+    inspiration,
+  };
+  const html = renderPanelHtml(htmlInput);
 
   return {
     schemaVersion: SCHEMA_VERSION,
@@ -1048,6 +1147,7 @@ export async function buildPanelSnapshot(dir: string): Promise<PanelSnapshot> {
     title: meta.title,
     genre: meta.genre,
     dir,
+    storageBase: paths.base,
     totals: { chapters: chapters.length, words, final, drafted, planned },
     foundation: {
       locks: meta.foundation.locks,
@@ -1064,17 +1164,14 @@ export async function buildPanelSnapshot(dir: string): Promise<PanelSnapshot> {
       summary: e.summary,
       styleHitCount: e.styleHitCount,
     })),
-    candidates: cands.map((c) => ({
-      id: c.id,
-      chapterId: c.chapterId,
-      stagedAt: c.stagedAt,
-      pending: c.pending,
-      wordCount: c.wordCount,
-      note: c.note,
-    })),
+    candidates: candidateRows,
+    multiDraftEnabled,
     briefCrumbsRecent: recentBriefs.slice(-12),
     lastPayoffByChapter,
     nextHints,
+    product,
+    library,
+    inspiration,
     html,
   };
 }

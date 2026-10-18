@@ -2,7 +2,7 @@
  * EditPort — optional post-draft edit pass (去AI味/润色) before accept.
  * Aligns with docs/skills/web-novel-master-optimizer.md §0.5 A/B/C.
  * Never silent-accept: A requires confirm_accept_after_edit; unset → B safety default.
- * 0.11.1: depolish brief keeps breath/rough edges; forbids flattening for “去AI味”.
+ * 0.11.1+: depolish brief keeps breath/rough edges; forbids flattening for “去AI味”.
  */
 import { allow, deny, info, warn, type GateDecision } from "./types.js";
 
@@ -101,7 +101,7 @@ export interface EditSoftHit {
 
 export const EditPort = {
   id: "port.edit" as const,
-  version: "0.11.1",
+  version: "0.15.0",
   defaultMode: "polish-depolish" as EditModeId,
   skillDoc: "docs/skills/web-novel-master-optimizer.md",
 
@@ -173,9 +173,8 @@ export const EditPort = {
         "",
         "【去AI味 ≠ 磨成范文齐句】",
         "- 要去的是：空转连接词、万能动作套话、心理标签、辩证「不是A而是B」、段尾升华。",
-        "- 不要为去AI味：把长短熨平、主语省略成流水账、句句压到差不多短。",
-        "- 写手稿里有起伏的长句、口癖、半截念头，能留则留；只动真正出戏的地方。",
-        "- 编完若自己读来短句齐刷，优先退回写手稿或换 polish-rhythm，不要再往短压。",
+        "- 要留的是：长短呼吸、口癖、半截念头与局部毛边；只动真正出戏的地方。",
+        "- 读来齐刷短句时，优先退回写手稿或换 polish-rhythm，而不是继续往短压。",
       );
     }
     if (land) {

@@ -1,80 +1,91 @@
-# 轻量面板路径
+# 织章 Web · 小说工作台（0.15.0）
 
-首期：**无 React 客户端**。用 `zhizhang_panel_snapshot` 导出 JSON + HTML，供 Agent 或未来侧栏只读渲染。写回仍只走 `zhizhang_*` 工具。
+侧栏 **织章** 默认进入**三栏小说阅读工作台**（左章节 / 中正文 / 右状态与闸）；可切「管线」看原五 Tab。真采纳仍二次确认 + AcceptPolicy。`zhizhang_panel_snapshot` HTML 对齐管线信息架构，并与客户端同源字段（含 draftLabel / multiDraftEnabled）。
 
-## 当前数据源（已实现）
+写回仍只走：**面板二次确认采纳** 或 `zhizhang_*` 工具。禁止静默写 `chapters/`。正文**不**塞进默认 snapshot（按需 GET，轮询保持轻量）。
 
-| 字段 | 来源 |
+## 小说模式（默认）
+
+| 栏 | 内容 |
+|----|------|
+| **左** | 章节列表（色点、字数、brief✓）；章下挂待采纳摘要（可含 draftLabel） |
+| **中** | 正式章全文（轻量 Markdown 只读）；有待采纳可切「候选对照」 |
+| **右** | 当前小说状态；本章闸；Scheduler nextHints；采纳；**编辑抉择说明**（A/B/C）；多草稿开启时「统一整理」 |
+
+顶栏：作品下拉 · **小说|管线** · 自动刷新 · 手动刷新。`localStorage` 记上次作品与章节。
+
+空章：中栏引导走对话 Agent（brief→stage→lint→accept）；面板不产文。
+
+## 管线模式（次级）
+
+| 区 | 内容 |
+|----|------|
+| **总览** | 徽章、product 闭环、三柱卡、nextHints |
+| **Library** | sources / craft\|mind、草稿卡、combo |
+| **Inspiration** | 会话、根基 apply、三纲进度 |
+| **Writing** | 章节 meta、当前小说状态、待采纳 |
+| **工程留痕** | 审校 / brief / 兑付（折叠） |
+
+## 真采纳
+
+1. 小说右栏或 Writing 区点「采纳」→ 二次确认对话框。  
+2. `POST /api/dsh-zhizhang/candidate/accept`，须 `confirm: true`。  
+3. 与 `zhizhang_candidate_accept` **同一套** AcceptPolicy。  
+4. 缺 confirm / 缺 lint / brief 闸失败 → **明确错误**，禁止静默成功。  
+5. 编辑 A/B/C：**说明在面板**；`edit_decide` 仍走工具（避免第二套写语义）。
+
+## 可选·多草稿（默认关）
+
+- Snapshot 字段 `multiDraftEnabled`；待采纳可带 `draftLabel` / `unifyOf`。
+- 开启后右侧「统一整理」→ `POST|GET /api/dsh-zhizhang/unify/prepare`（只返回 brief，不写盘）。
+- 关闭时不显示该按钮（或多稿提示「默认关」）。
+
+## 交互
+
+- **自动刷新**：~6s 刷 snapshot meta；不可见 ~30s；正文仅在选章 / 采纳成功后重拉  
+- **空态 / 加载 / 错误 / 重试** 齐全  
+- **settings.plugin.item**：说明 + 根目录提示  
+
+## HTTP API
+
+| 路由 | 说明 |
 |------|------|
-| 章节进度 / 字数 / status | `meta.json` + chapters |
-| 处境三字段 | 各章 outline |
-| 待采纳候选 | `candidates/*.json`（`pending=!acceptedAt`） |
-| 审校留痕最近条 | `ledger.json`（工程轨；≠小说状态） |
-| 下一步提示 | 代码规则拼装 |
-| `html` | 同内容的无样式片段，可嵌入宿主 |
-| `briefCrumbsRecent` | 近 12h 内 `chapter_brief` 留痕 |
-| `lastPayoffByChapter` | 每章最近一次 `payoff_audit` 摘要 |
-| 章节 `briefRecent` | 该章是否有近期 brief |
+| `GET /api/dsh-zhizhang/health` | 存活 + base + routes + version |
+| `GET /api/dsh-zhizhang/works` | 作品列表 |
+| `GET /api/dsh-zhizhang/snapshot?work=` | 完整 snapshot meta（**无**章/候选全文）+ html |
+| `GET /api/dsh-zhizhang/library` | 拆书库摘要 |
+| `GET /api/dsh-zhizhang/inspiration?work=` | 灵感摘要 |
+| `GET /api/dsh-zhizhang/chapter?work=&id=` | 章 meta + body（禁穿越；约 400KB 可截断标 `truncated`） |
+| `GET /api/dsh-zhizhang/candidate?work=&id=` | 候选 meta + body（已采纳仍可读，便于对照） |
+| `POST /api/dsh-zhizhang/candidate/accept` | 真采纳（须 confirm） |
+| `GET|POST /api/dsh-zhizhang/unify/prepare` | 多草稿 brief 包（须开启；不写盘） |
 
-调用：
+- 默认 **loopback only**；`config.allowLanPanel: true` 可放宽。  
+- 写路径：accept POST（唯一正式章写入口 via Accept）。
 
-```text
-zhizhang_panel_snapshot  format=json|html|both
-```
+### 存储根解析（HTTP）
 
-## DSH Web 挂钩点（调研结论，二期接线）
+优先级：`config.storageRoot` → `DSH_ZHIZHANG_ROOT` → `cwd/.zhizhang` → 向上 walk → `ensureStorage(cwd)`。  
+HTTP 根**不**自动跟每个 Agent 会话 workspace（另议）。
 
-对标 `dsh-novel-writer` v5.2+ / v6（见 `docs/research/` 与 `/tmp/novel-writer/lib/client.js`）：
+## 官方席位
 
-### 官方席位（推荐，DSH ≥ 0.2.0）
+| 席位 | 用途 |
+|------|------|
+| `sidebar.panellist` + `main` | 侧栏「织章」+ 主栏工作台 |
+| `settings.plugin.item` | 设置卡（可选） |
 
-| 席位名 | API | 用途 |
-|--------|-----|------|
-| `sidebar.panellist` | `ctx.slots.inject("sidebar.panellist", () => ctx.slots.register({ name, id, order, label }, Icon))` | 侧栏主导航一行 |
-| `main` | `ctx.slots.inject("main", () => ctx.slots.register({ name: "main", key: sameId, inject }, Page))` | 主栏页面，**与 panellist 同 id** |
-| `settings.plugin.item` | `ctx.slots.inject("settings.plugin.item", …)` | 设置页插件卡片（宿主须 serve 对应 namespace） |
+## 刻意不做
 
-**安全铁律（novel-writer 真机事故）：**
+- 第二套 Tiptap / Word 编辑器  
+- 静默写 chapters、静默 accept  
+- 面板自带模型产文 / 页内静默起草  
+- 面板完整 `edit_decide` 写回（说明卡即可）  
+- payoff_audit 进默认链  
 
-- 用 **`ctx.slots.inject`（槽位等待）**，不要用 **`ctx.inject(['sidebarRightTabs', …])`（cordis 服务等待）**——后者会让宿主判定插件 did not activate，桌面端启动失败。
-- 注册前用 `ctx.slots.specDynamic?.(name)` / `spec?.(name)` 探测席位是否已声明；未声明则跳过，保留无 UI。
-- `package.json` 将来增加：
+## 真机怎么看
 
-```json
-"exports": { ".": "./dist/index.js", "./client": "./dist/client.js" },
-"dsh": {
-  "bundle": { "patch": "./cordis.patch.yml" },
-  "client": {
-    "inject": [
-      "@deepseek-ai/dsh-client-runtime",
-      "@deepseek-ai/dsh-client-connection",
-      "@deepseek-ai/dsh-client-ui-settings"
-    ],
-    "platform": "web"
-  }
-}
-```
-
-### 可选：宿主 HTTP 读状态（novel-writer 模式）
-
-- Node 半：`ctx.inject(["webServer"], wctx => wctx.webServer.register(route))`
-- 路由只读：例如 `GET /api/dsh-zhizhang/snapshot` → 内部调 `buildPanelSnapshot`
-- **禁止**在 HTTP 路由里静默写 `chapters/`；写回必须触发与 `candidate_accept` 同等的显式路径
-
-### 已废弃/勿用
-
-| 旧写法 | 原因 |
-|--------|------|
-| `ctx.sidebarRightTabs` + `sidebar.right.pane.tab` | 服务就绪时序不稳，易静默退回；且曾用 `ctx.inject` 拖垮启动 |
-| 自建 DOM 注入宿主侧栏列 | 主题/布局一改就碎；仅作无官方席位时的遗留回退 |
-
-## 二期面板职责（刻意做小）
-
-- 只读：进度、处境摘要、雷达/审校留痕计数、待采纳列表
-- 按钮若做「采纳」：必须调用与工具相同的 `acceptCandidate` 路径（含 final 拒绝 / 双采纳拒绝）
-- **不做**第二套编辑器，避免工程 UI 与创作缠死
-
-
-## React 席位
-
-数据座已含 brief / 兑付字段。**未**接线 `ctx.slots.inject("sidebar.panellist")` / `main`。二期按官方席位表接只读页即可；禁止 HTTP 静默写库。
+1. `npm run build` 后重启 web profile（已 link 则重启即可）  
+2. DSH Web 侧栏点 **织章** → 默认三栏  
+3. 点有字数的章 → 中栏读全文；有待采纳可对照并采纳  
+4. 顶栏切「管线」仍可看 Library / Inspiration  

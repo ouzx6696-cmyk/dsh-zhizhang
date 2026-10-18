@@ -662,6 +662,34 @@ export const InspirationPort = {
   },
 
   /**
+   * Craft shatter/feel cue blob for Accept + human_feel_audit (same source).
+   * Empty string when no craft cards or cues.
+   */
+  async resolveCraftCue(
+    paths: StoragePaths,
+    opts: { workKey?: string; cardIds?: string[]; genre?: string; limit?: number } = {},
+  ): Promise<string> {
+    try {
+      const resolved = await InspirationPort.resolveCardsForBrief(paths, {
+        workKey: opts.workKey,
+        cardIds: opts.cardIds,
+        genre: opts.genre,
+        limit: opts.limit ?? 5,
+      });
+      return resolved.cards
+        .filter((c) => coerceAxis(c) === "craft")
+        .map((c) =>
+          craftCueFromHumanFeel(
+            coerceHumanFeel(c.humanFeel as Record<string, unknown> | undefined),
+          ),
+        )
+        .join("\n");
+    } catch {
+      return "";
+    }
+  },
+
+  /**
    * Markdown section for chapter_brief.
    * lean：只主注 craft（写法+状态）；mind 不整段灌句式。
    */

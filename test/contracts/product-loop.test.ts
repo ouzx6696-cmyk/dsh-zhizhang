@@ -15,8 +15,8 @@ describe("product loop holistic contract", () => {
   test("one loop line shared by Scheduler + ProductMap + SYSTEM_BRIEF", async () => {
     const pkg = await import("../../package.json");
     expect(ProductMap.version).toBe(pkg.version);
-    expect(ProductMap.version).toBe("0.11.1");
-    expect(Scheduler.version).toBe("0.11.1");
+    expect(ProductMap.version).toBe("0.15.0");
+    expect(Scheduler.version).toBe("0.15.0");
 
     const line = ProductMap.loopLine();
     expect(line).toBe(CREATIVE_LOOP_LINE);
@@ -82,6 +82,7 @@ describe("scheduler default vs bypass", () => {
     expect(ids).toContain("brief.full");
     expect(ids).toContain("save.direct");
     expect(ids).toContain("finalize.ship");
+    expect(ids).toContain("multi.draft");
     const diagram = Scheduler.formatDiagram();
     expect(diagram).toContain("DEFAULT");
     expect(diagram).toContain("BYPASS");

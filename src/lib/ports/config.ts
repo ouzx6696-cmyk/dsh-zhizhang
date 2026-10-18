@@ -22,6 +22,12 @@ export interface PortConfig {
   defaultStrictNovel: boolean;
   /** Default polish mode for optional edit pass. */
   defaultEditMode: string;
+  /**
+   * Optional multi-draft + unify. Default false.
+   * Staging N candidates always OK; unify_brief / unify_stage require true
+   * (or env DSH_ZHIZHANG_MULTI_DRAFT=1).
+   */
+  multiDraftEnabled: boolean;
 }
 
 const DEFAULTS: PortConfig = {
@@ -32,6 +38,7 @@ const DEFAULTS: PortConfig = {
   defaultStrictHuman: false,
   defaultStrictNovel: false,
   defaultEditMode: "polish-depolish",
+  multiDraftEnabled: false,
 };
 
 let current: PortConfig = { ...DEFAULTS };

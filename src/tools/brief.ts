@@ -5,8 +5,10 @@ export const SYSTEM_BRIEF = `【织章 / zhizhang 硬规则 — 调度一眼看�
 0. **默认路径（最短合格）**：${Scheduler.defaultLine()}
    写作段：zhizhang_chapter_brief(lean) → 创作 → zhizhang_candidate_stage → zhizhang_style_lint(candidate) →（可选 edit）→ zhizhang_candidate_accept。
    可选编辑：edit_brief → 改写 → edit_stage → 用户选 A（confirm=编辑+验收）/ B（仅候选）/ C（拒/换模式）；未表态按 B；禁止静默验收。
+   可选多草稿（默认关）：同章多次 stage(draft_label) → unify_brief → unify_stage → lint → accept；开 config.multiDraft.enabled 或 DSH_ZHIZHANG_MULTI_DRAFT=1。
+   Web：侧栏织章默认小说工作台（读/对照/真采纳）；产文仍归 Agent 工具。
    Accept 已内嵌软传感；audit 仅诊断旁路（accept 回执有 warn 或作者要细看时再用）。
-1. **旁路（显式）**：diagnose.audit · brief.full · save.direct · inspire.craft_only · accept.flags · finalize.ship。细则：zhizhang_product_map。
+1. **旁路（显式）**：diagnose.audit · brief.full · save.direct · inspire.craft_only · accept.flags · multi.draft（默认关）· finalize.ship。细则：zhizhang_product_map。
 2. **落盘**：正文与卡/灵感经 stage→lint→accept 落盘；.zhizhang 创作树只经本插件工具写入；大正文旁路 chapter_save 须 confirm_bypass。
 3. **双轴**：craft=写作技法（写法+场面状态→lean brief）；mind=创作思维（→inspire 设定/纲）。技法卡 ≠ MethodRegistry。入库写可迁移的写法或创作思维。
 4. **库→灵感**：library_* → combo_suggest → inspire_*（须 mind 或 craft_only）→ 再开写。lean brief 只吃 craft。开写走 brief→stage→lint→（可选 edit）→accept。

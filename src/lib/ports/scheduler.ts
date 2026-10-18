@@ -61,6 +61,12 @@ export const SCHEDULER_BYPASSES: readonly BypassRoute[] = [
     via: "skip_brief / strict_lint / require_payoff / strict_human / strict_novel / force / accept_after_edit+confirm",
   },
   {
+    id: "multi.draft",
+    title: "多草稿统一整理",
+    when: "config.multiDraftEnabled 或 DSH_ZHIZHANG_MULTI_DRAFT=1；同章≥2 待采纳要对齐口气",
+    via: "candidate_stage(draft_label)×N → chapter_drafts → unify_brief → 整理 → unify_stage → style_lint → accept（默认链不进）",
+  },
+  {
     id: "finalize.ship",
     title: "定稿与汇编",
     when: "章末或完书",
@@ -86,6 +92,9 @@ const NEXT_HINTS: Record<string, string> = {
   candidate_edit_decide_b: "zhizhang_style_lint(candidate=编辑候选) → candidate_accept",
   candidate_edit_decide_c: "保留写手候选；或换 mode 重跑 edit_brief → edit_stage",
   candidate_accept: "续章再 chapter_brief；定稿旁路见 finalize.ship；诊断旁路见 diagnose.audit",
+  candidate_unify_brief:
+    "整理合并正文 → zhizhang_candidate_unify_stage(candidate_ids=…, content=…) → style_lint → accept",
+  candidate_unify_stage: "zhizhang_style_lint(candidate=整理稿) → candidate_accept",
   project_create:
     "有卡：combo → inspire → " +
     SCHEDULER_WRITE_LINE +
@@ -96,7 +105,7 @@ const NEXT_HINTS: Record<string, string> = {
 
 export const Scheduler = {
   id: "port.scheduler" as const,
-  version: "0.11.1",
+  version: "0.15.0",
 
   defaultLine(): string {
     return SCHEDULER_DEFAULT_LINE;
@@ -123,6 +132,14 @@ export const Scheduler = {
     return NEXT_HINTS[after] ?? SCHEDULER_WRITE_LINE;
   },
 
+  /** Panel / status default-route lines — single source; audits never listed as default. */
+  panelRouteHints(): string[] {
+    return [
+      `创作路径：${SCHEDULER_WRITE_LINE}`,
+      `accept 后：${NEXT_HINTS.candidate_accept}`,
+    ];
+  },
+
   formatDiagram(): string {
     const lines = [
       "## 调度（默认 vs 旁路）",
@@ -134,6 +151,7 @@ export const Scheduler = {
       `- 灵感段：${SCHEDULER_INSPIRE_LINE}`,
       `- 写作段：${SCHEDULER_WRITE_LINE}`,
       "- 可选 edit（去空转留毛边）：lint 后 edit_brief→改写→edit_stage；用户选 A（确认=编辑+accept）/ B（仅候选）/ C（拒/换模式）；未表态按 B；禁止静默验收",
+      "- 可选·多草稿（默认关）：同章多 stage → unify_brief → unify_stage → lint → accept；见旁路 multi.draft",
       "- Accept 内嵌软传感（人味/书感/兑付/AI腔）；三 audit 仅诊断旁路",
       "",
       "### 旁路 BYPASS — 显式进入",

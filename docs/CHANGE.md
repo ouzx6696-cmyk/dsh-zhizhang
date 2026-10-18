@@ -5,6 +5,40 @@
 
 ---
 
+## 当前（0.15.0）
+
+- **统合切片**：COGNITION/MAP/PORTS/PANEL/STATUS/FRAMEWORK/README 与 package / ProductMap / Scheduler / EditPort / MultiDraftPort 全部钉 **0.15.0**。
+- 面板↔工具：snapshot nextHints 含编辑稿/多草稿提示；panel-html 展示 draftLabel/unifyOf；右栏编辑抉择说明卡。
+- 前端美化：工作台层次、阅读区、模式切换、空态/徽章（同主题变量）。
+- **不改**：默认链；multi-draft 默认关；无 Tiptap；无静默写章；audit 不进默认链。
+
+## 此前（0.14.0）
+
+- **可选多草稿 + 统一整理（默认关）**：`PortConfig.multiDraftEnabled` / 插件 `multiDraft.enabled` / env `DSH_ZHIZHANG_MULTI_DRAFT=1`。
+- 同章可多次 `candidate_stage(draft_label)`（关着也能 stage）；`unify_brief` / `unify_stage` 须开启。
+- 整理稿 `source=unify` + `unifyOf`；仍走 lint → accept；**不进默认 nextHint**。
+- 面板：列出全部待采纳标签；开启后「统一整理」→ `POST …/unify/prepare` 只返回 brief。
+- 默认链负重与 0.13 相同。
+
+详见 [PORTS.md](./PORTS.md) · [TOOLS.md](./TOOLS.md) · [PANEL.md](./PANEL.md)。
+
+## 此前（0.13.0）
+
+- **小说阅读工作台（默认）**：三栏（章节 / 正式章正文 / 状态与闸）；轻量 MD 只读；候选对照；`localStorage` 记作品+章。
+- **按需读正文**：`GET …/chapter`、`GET …/candidate`；snapshot **仍无**全文。
+- **管线五 Tab** 保留为顶栏「管线」次级视图。
+- **真采纳**不变（confirm + AcceptPolicy）。
+- 当时未做：Tiptap、页内起草、面板 A/B/C、静默写库。
+
+
+## 此前（0.12.0）
+
+- 完整 Web 控制台五 Tab + 真采纳 + 自动刷新 + settings 卡。
+- `GET …/library`、`GET …/inspiration`；HTML 对齐。
+
+---
+
+
 ## 总则
 
 | 可以 | 不可以 |
@@ -38,6 +72,7 @@
 | 库准入（声纹假阳） | `ports/library.ts` `admitCardContent` / `neutralizeVoiceNegations` |
 | 工具名与参数壳 | `src/tools/*`（只接线，不藏策略） |
 | 落盘路径与原子写 | `lib/store.ts`（谨慎；DATA.md 同步） |
+| 面板 UI / HTTP | `src/client/client.js` + `lib/panel-html.ts` + `lib/http-api.ts`；见 [PANEL.md](./PANEL.md) |
 
 Compose 入口：`src/index.ts` 只注册工具 + apply，不塞业务 if。
 
@@ -72,7 +107,7 @@ npm run typecheck
 
 ---
 
-## 当前（0.11.1）
+## 0.11.1
 
 - **编辑深度优化（仍可选）**：`polish-depolish` brief / MODE_INFO 正向写成「保留呼吸与毛边」；明确去AI味 ≠ 磨成范文齐句；禁止为去味熨平句长、主语砍光。
 - **技能** `web-novel-master-optimizer` 对齐同一口径；齐刷短句优先退回写手或换 `polish-rhythm`。

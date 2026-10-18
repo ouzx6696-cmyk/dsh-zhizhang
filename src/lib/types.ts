@@ -149,7 +149,7 @@ export interface CandidateFile {
   workKey: string;
   chapterId: string;
   stagedAt: string;
-  source: "agent" | "import" | "edit";
+  source: "agent" | "import" | "edit" | "unify";
   note: string;
   body: string;
   /** Relative path of body snapshot under candidates/. */
@@ -171,6 +171,12 @@ export interface CandidateFile {
   editMode?: string;
   /** When this edit candidate was staged. */
   editedAt?: string;
+  /** Optional human label for multi-draft (e.g. 口气A). */
+  draftLabel?: string;
+  /** Optional batch id grouping sibling drafts for one chapter. */
+  variantGroup?: string;
+  /** Parent candidate ids when this body is a unify merge. */
+  unifyOf?: string[];
 }
 
 export const EMPTY_FOUNDATION = (): Foundation => ({

@@ -54,7 +54,7 @@
 - **勿改**：从正文杜撰长篇 happened；与 NovelSenseGate 混为一谈
 
 
-### `port.edit` — EditPort（**live** · 0.11.1）
+### `port.edit` — EditPort（**live** · 0.15.0）
 
 - **文件**：`src/lib/ports/edit.ts`
 - **契约**：润色模式（默认 `polish-depolish`）；`formatEditBrief`（保留毛边/反齐刷）；`resolveChoice` A/B/C；`evaluateAcceptFlags`（A 须 `confirm_accept_after_edit`，禁止静默）；edit_stage 可挂人味软提示
@@ -63,7 +63,7 @@
 - **技能**： [skills/web-novel-master-optimizer.md](./skills/web-novel-master-optimizer.md)
 - **勿改**：编辑跑完自动 accept；把脏话配额当编辑目标；未确认当路径 A
 
-### `port.scheduler` — Scheduler（**live** · 0.11.1）
+### `port.scheduler` — Scheduler（**live** · 0.15.0）
 
 - **文件**：`src/lib/ports/scheduler.ts`
 - **契约**：`defaultLine` / `writeLine` / `bypasses` / `nextHint` / `formatDiagram`；默认路径与旁路单源
@@ -73,12 +73,12 @@
 ### `port.product` — ProductMap
 
 - **文件**：`src/lib/ports/product.ts`
-- **契约**：只读**一条创作闭环** + **Scheduler 调度图** + 三阶段 + MethodRegistry；`CREATIVE_LOOP_LINE` ≡ `Scheduler.defaultLine()`；`version` 与 package 对齐（0.11.1）
+- **契约**：只读**一条创作闭环** + **Scheduler 调度图** + 三阶段 + MethodRegistry；`CREATIVE_LOOP_LINE` ≡ `Scheduler.defaultLine()`；`version` 与 package 对齐（0.15.0）
 - **勿改**：把三阶段写成三个互不交接的产品；在地图里声明未实现能力为 live
 
 ---
 
-## 质量面端口（live · 0.11.1）
+## 质量面端口（live · 0.15.0）
 
 - 编辑过稿：`port.edit` + 技能 [skills/web-novel-master-optimizer.md](./skills/web-novel-master-optimizer.md) — lint 后可选；A=编辑+accept（须确认）/ B=仅候选 / C=拒；禁止静默验收
 - lean brief：`brief_mode` 默认 lean；卡 `formatTechniqueCardBlockLean`；方法默认仅 style_contract
@@ -155,3 +155,11 @@
 
 - **文件**：`src/lib/ports/audit.ts`
 - **契约**：封装 style-linter / payoff-audit / human-feel / novel-sense 传感器
+
+
+## port.multi_draft（0.14）
+
+- **默认关** `PortConfig.multiDraftEnabled=false`；env `DSH_ZHIZHANG_MULTI_DRAFT=1` 亦开启。
+- `stage` N 稿始终允许；`unify_brief` / `unify_stage` 未开启 → `multi_draft_disabled`。
+- 整理稿为普通候选（`source:"unify"`），accept 走既有 AcceptPolicy；不静默写 chapters/。
+- Scheduler 旁路 id：`multi.draft`；默认 `writeLine` / `nextHint(chapter_brief|candidate_stage)` 不加 unify。

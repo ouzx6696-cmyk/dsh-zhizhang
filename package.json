@@ -1,11 +1,12 @@
 {
   "name": "dsh-zhizhang",
-  "version": "0.11.1",
-  "description": "织章 DSH 插件：Scheduler 调度（默认最短合格 vs 显式旁路）；双轴 craft|mind；lean 写作闭环；当前小说状态连续性；反僵硬（打碎逻辑/应落纸/软雷达）；写后可选编辑 A/B/C；ports-only。",
+  "version": "0.15.0",
+  "description": "织章 DSH 插件：Scheduler 调度；双轴 craft|mind；lean 写作闭环；反僵硬；写后可选编辑 A/B/C；小说阅读工作台；可选多草稿+统一整理（默认关）；统合认知与小说工作台；ports-only。",
   "type": "module",
   "main": "./dist/index.js",
   "exports": {
     ".": "./dist/index.js",
+    "./client": "./dist/client.js",
     "./package.json": "./package.json"
   },
   "files": [
@@ -18,7 +19,9 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/build-client.mjs",
+    "build:client": "node scripts/build-client.mjs",
+    "build:check": "tsc -p tsconfig.json --noEmit && node scripts/build-client.mjs --check",
     "prepare": "npm run build",
     "test": "bun test test/",
     "typecheck": "tsc -p tsconfig.json --noEmit"
@@ -26,6 +29,14 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ],
+      "platform": "web"
     }
   },
   "keywords": [
@@ -43,5 +54,13 @@
     "@types/node": "^22.10.0",
     "bun-types": "^1.2.0",
     "typescript": "^5.8.0"
+  },
+  "peerDependencies": {
+    "react": "^18.2.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
   }
 }

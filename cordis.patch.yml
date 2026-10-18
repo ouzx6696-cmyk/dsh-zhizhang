@@ -6,3 +6,5 @@
       name: 'dsh-zhizhang'
       config:
         rootDir: '.zhizhang'
+        # multiDraft:
+        #   enabled: false  # 可选：同章多草稿统一整理；默认关

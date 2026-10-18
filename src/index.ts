@@ -3,8 +3,10 @@
  *
  * Product: one creative loop (Library → Inspiration → Writing) with Scheduler
  * (default vs bypass) + MethodRegistry. Tools under src/tools/; this file only applies.
+ * Optional: Web console HTTP (GET snapshot/library/inspiration + POST candidate/accept).
  */
 import { formatToolError } from "./lib/errors.js";
+import { registerPanelHttpRoutes } from "./lib/http-api.js";
 import {
   AcceptPolicy,
   BriefGate,
@@ -13,6 +15,7 @@ import {
   LintGate,
   METHOD_ASSET_IDS,
   MethodRegistry,
+  MultiDraftPort,
   HumanFeelAuditorPort,
   HumanFeelGate,
   NovelSenseAuditorPort,
@@ -22,6 +25,8 @@ import {
   Scheduler,
   SaveBypassGate,
   StyleLinterPort,
+  setPortConfig,
+  envMultiDraftFlag,
 } from "./lib/ports/index.js";
 import {
   SYSTEM_BRIEF,
@@ -40,10 +45,23 @@ export function apply(
   ctx: {
     tools: { register: (tool: ToolDef) => void };
     get?: (name: string) => unknown;
+    inject?: (deps: string[], fn: (wctx: never) => void) => void;
+    effect?: (fn: () => unknown, name?: string) => void;
   },
-  pluginConfig: { rootDir?: string; storageRoot?: string } = {},
+  pluginConfig: {
+    rootDir?: string;
+    storageRoot?: string;
+    allowLanPanel?: boolean;
+    multiDraftEnabled?: boolean;
+    multiDraft?: { enabled?: boolean };
+  } = {},
 ) {
   setPluginConfig(pluginConfig);
+  const multiOn =
+    pluginConfig.multiDraftEnabled === true ||
+    pluginConfig.multiDraft?.enabled === true ||
+    envMultiDraftFlag();
+  setPortConfig({ multiDraftEnabled: multiOn });
   for (const tool of tools) ctx.tools.register(tool);
 
   const systemPrompt = ctx.get?.("systemPrompt") as
@@ -56,6 +74,9 @@ export function apply(
       text: () => SYSTEM_BRIEF,
     });
   }
+
+  // Web console HTTP (GET + accept POST). Missing webServer is fine — headless / tools-only.
+  registerPanelHttpRoutes(ctx as Parameters<typeof registerPanelHttpRoutes>[0], pluginConfig);
 }
 
 export { SYSTEM_BRIEF };
@@ -86,5 +107,6 @@ export const __testing = {
     InspirationPort,
     ProductMap,
     Scheduler,
+    MultiDraftPort,
   },
 };

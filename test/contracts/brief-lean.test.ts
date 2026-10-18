@@ -148,7 +148,7 @@ describe("brief-lean contract", () => {
     expect(SYSTEM_BRIEF).toMatch(/audit 仅诊断旁路|旁路/);
     expect(SYSTEM_BRIEF).not.toMatch(/建议 zhizhang_payoff_audit \/ zhizhang_human_feel_audit/);
 
-    expect(ProductMap.version).toBe("0.11.1");
+    expect(ProductMap.version).toBe("0.15.0");
     const map = ProductMap.formatForAgent();
     expect(map).toContain("chapter_brief");
     expect(map).toMatch(/旁路|软传感|diagnose\.audit|仅诊断旁路/);

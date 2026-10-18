@@ -1,6 +1,6 @@
 # dsh-zhizhang · 织章（DSH 插件）
 
-**0.11.1**：三柱一环 + 反僵硬 + 写后可选编辑（去空转留毛边，A/B/C，禁止静默验收）+ 续章前章正文。迷路先 `zhizhang_product_map`。
+**0.15.0**：三柱一环 + 反僵硬 + 可选编辑 A/B/C + 小说阅读工作台 + 可选多草稿（默认关）+ **认知/面板/文档统合与前端美化**。迷路先 `zhizhang_product_map`。
 
 DeepSeek Harness **工具型**网文工程层：**一条创作闭环**（库 → combo → 灵感 → lean 写作）。
 
@@ -17,6 +17,10 @@ DeepSeek Harness **工具型**网文工程层：**一条创作闭环**（库 →
 共享 **MethodRegistry** 按需注入（≠拆书卡）。人味 = 写法+状态，不灌角色声纹。
 
 **工程归代码；AI 只负责创作内容并把成稿作为工具参数提交；显式 accept 才持久化。**
+
+## 侧栏面板（Web）
+
+DSH Web 侧栏点 **织章**：默认**三栏小说工作台**（读正式章全文、对照候选、真采纳）；可切「管线」看 Library / Inspiration 等。正文按需 `GET …/chapter`，不塞进 snapshot。写回仍用显式采纳或 `zhizhang_*`。细节：[docs/PANEL.md](docs/PANEL.md)
 
 ## 安装
 
@@ -73,4 +77,4 @@ npm run typecheck
 npm run build
 ```
 
-版本 **0.11.1**。不默认发布 zip。安装后 `npm install` 会 prepare→build 出 `dist/`（git 不跟踪 dist）。
+版本 **0.15.0**。不默认发布 zip。安装后 `npm install` 会 prepare→build 出 `dist/`（git 不跟踪 dist）。

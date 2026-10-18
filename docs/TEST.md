@@ -1,4 +1,4 @@
-# 测试说明 · dsh-zhizhang 0.11.1
+# 测试说明 · dsh-zhizhang 0.15.0
 
 > 加测纪律也写在 [CHANGE.md](./CHANGE.md)。认知入口：[COGNITION.md](./COGNITION.md)。
 
@@ -35,3 +35,13 @@
 bun test
 npm run typecheck
 ```
+
+## 面板（0.15.0）
+
+- `test/contracts/panel-ui.test.ts`：三柱 HTML、HTTP GET（snapshot/library/inspiration/**chapter/candidate**）、traversal 拒、snapshot 无 body、**accept POST**、client 席位 + **zz-workbench / zz-reader** 契约
+- `test/contracts/panel-scheduler.test.ts`：nextHints 与 Scheduler 单源
+
+
+## 多草稿（0.14）
+
+`test/contracts/multi-draft.test.ts`：默认关拒绝 unify；开启后 brief→stage→lint→accept；Scheduler 默认 hint 无 unify。
