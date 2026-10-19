@@ -15,14 +15,14 @@
 | DSH 版本 | **0.2.1-rc.2**（`dsh --version`；2026-10-18 实测） |
 | CLI | `E:\dsh\resources\runtime\cli\bin\dsh.cmd`（Electron `ELECTRON_RUN_AS_NODE` 跑 `app.asar\dsh\...\cli.js`） |
 | profile | `C:\Users\Administrator\.dsh\profiles\desktop` |
-| 插件目录 | `E:\dsh cj\dsh-zhizhang-0.15.0`（link 名以目录为准，包内 version 为 0.15.3） |
+| 插件目录 | `E:\dsh cj\dsh-zhizhang-0.15.3`（目录名与包内 version 一致） |
 | Node | 用宿主自带运行时即可；插件声明 `node >= 22` |
 
 ## 安装
 
 ```bash
 # 1) 挂依赖（pnpm link；只装依赖，不改 loader）
-dsh plugin --profile desktop add link:"E:/dsh cj/dsh-zhizhang-0.15.0"
+dsh plugin --profile desktop add link:"E:/dsh cj/dsh-zhizhang-0.15.3"
 
 # 2) 启用（关键！CLI 不会自动加 bundle）
 #    编辑 C:\Users\Administrator\.dsh\profiles\desktop\package.json：
@@ -75,6 +75,6 @@ dsh plugin --profile desktop add link:"E:/dsh cj/dsh-zhizhang-0.15.0"
 ## 冒烟（不依赖 DSH）
 
 ```bash
-cd "E:/dsh cj/dsh-zhizhang-0.15.0"
+cd "E:/dsh cj/dsh-zhizhang-0.15.3"
 npm run smoke
 ```

@@ -22,6 +22,6 @@
 复现：
 
 ```bash
-cd "E:/dsh cj/dsh-zhizhang-0.15.0"
+cd "E:/dsh cj/dsh-zhizhang-0.15.3"
 npm run smoke
 ```
