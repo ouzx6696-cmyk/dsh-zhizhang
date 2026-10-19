@@ -63,6 +63,11 @@ npm run typecheck
 
 本发行包只有：`npm run smoke`。
 
+**状态隔离**：`bunfig.toml` 的 `preload = ["./test/setup.ts"]` 会把 `DSH_HOME` 指向一次性临时目录。
+工具调用会往 `$DSH_HOME/zhizhang-projects.json`（项目索引）与 `zhizhang-last-root.json`（HTTP 根标记）
+写东西——不隔离的话每跑一次测试就往**真实** `~/.dsh` 里塞一批 Temp 工作区，还会把面板的根指到已删除的临时目录。
+`scripts/smoke.mjs` 自己也会隔离，两处一致。
+
 ## 面板（0.15.3）
 
 - `test/contracts/panel-ui.test.ts`：三柱 HTML、HTTP GET（snapshot/library/inspiration/**chapter/candidate**）、traversal 拒、snapshot 无 body、**accept POST**、client 席位 + **zz-workbench / zz-reader** 契约
