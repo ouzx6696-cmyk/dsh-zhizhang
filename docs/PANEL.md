@@ -54,6 +54,19 @@
 - **空态 / 加载 / 错误 / 重试** 齐全  
 - **settings.plugin.item**：说明 + 根目录提示  
 
+## 视觉与可访问性
+
+- **配色派生**：所有线/面/次要色由 `currentColor` 经 `color-mix()` 派生（`--zz-line`、`--zz-surface`、
+  `--zz-muted`、`--zz-accent` …），跟随 DSH 明暗主题，无第二套色表。
+- **阅读优先**：中栏正文衬线字体、段首缩进 2em、列宽 `40rem` 居中、工具栏粘顶；`text-wrap:pretty`。
+- **章节列表**：标题单行省略（悬停看全），字数右对齐，选中项左侧竖条；≤1100px 隐藏字数。
+- **候选对照**：工具栏只读身份 chip（稿名 / id / 字数 / lint 状态），采纳仍只在右栏，避免第二套入口。
+- **状态色**：`zz-gate-ok / zz-gate-bad / zz-gate-idle`；无待采纳时 lint 行走中性色，不误标红。
+- **加载与动效**：骨架屏 `.zz-skel`；`prefers-reduced-motion` 关闭过渡与动画。
+- **可访问性**：tab `aria-selected`、章节/候选 `aria-current` + `role=button` + Enter/Space、
+  错误/成功条 `role=alert|status` + `aria-live`、`:focus-visible` 焦点环、确认框 `role=dialog aria-modal`。
+- **断点**：≤1100px 两栏（右栏整行）· ≤720px 单栏（左 40vh / 中 56vh）· ≤520px 收边距。
+
 ## HTTP API
 
 | 路由 | 说明 |

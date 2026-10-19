@@ -33,141 +33,206 @@ window.__ModuleLoader__.load({
 
     var STYLE_ID = "zz-panel-css";
     var CSS = [
-      ".zz-root{height:100%;overflow:auto;padding:16px 18px 36px;box-sizing:border-box;",
-      "font:14px/1.55 system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;",
+      ".zz-root{height:100%;overflow:auto;padding:18px 20px 40px;box-sizing:border-box;",
+      "font:14px/1.6 system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;",
       "color:var(--color-text,var(--ds-fg,#e8eaed));background:transparent;",
-      "-webkit-font-smoothing:antialiased}",
+      "-webkit-font-smoothing:antialiased;",
+      "--zz-line:color-mix(in srgb,currentColor 16%,transparent);",
+      "--zz-line-2:color-mix(in srgb,currentColor 26%,transparent);",
+      "--zz-surface:color-mix(in srgb,currentColor 4%,transparent);",
+      "--zz-surface-2:color-mix(in srgb,currentColor 8%,transparent);",
+      "--zz-muted:color-mix(in srgb,currentColor 58%,transparent);",
+      "--zz-accent:color-mix(in srgb,#4285f4 80%,currentColor);",
+      "--zz-accent-weak:color-mix(in srgb,#4285f4 15%,transparent);",
+      "--zz-ok:color-mix(in srgb,#1e8e3e 72%,currentColor);",
+      "--zz-warn:color-mix(in srgb,#b06000 70%,currentColor);",
+      "--zz-bad:color-mix(in srgb,#c5221f 72%,currentColor);",
+      "--zz-radius:12px;",
+      "scrollbar-width:thin;",
+      "scrollbar-color:color-mix(in srgb,currentColor 20%,transparent) transparent}",
       ".zz-root *{box-sizing:border-box}",
-      ".zz-top{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;justify-content:space-between;margin-bottom:14px}",
-      ".zz-title{font-size:1.28rem;font-weight:700;margin:0;letter-spacing:.01em}",
-      ".zz-sub{margin:6px 0 0;font-size:.78rem;line-height:1.45;color:var(--color-text-secondary,#9aa0a6);max-width:42rem}",
+      ".zz-root :is(button,select,[role=\"button\"]):focus-visible{outline:2px solid var(--zz-accent);outline-offset:2px;border-radius:8px}",
+      ".zz-top{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;justify-content:space-between;margin-bottom:16px}",
+      ".zz-title{font-size:1.3rem;font-weight:700;margin:0;letter-spacing:.01em;line-height:1.25}",
+      ".zz-sub{margin:6px 0 0;font-size:.78rem;line-height:1.45;color:var(--zz-muted);max-width:42rem;font-variant-numeric:tabular-nums}",
       ".zz-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}",
-      ".zz-btn{appearance:none;border:1px solid rgba(127,127,127,.32);background:rgba(127,127,127,.07);",
-      "color:inherit;border-radius:9px;padding:6px 12px;font-size:.8rem;cursor:pointer;transition:background .12s,border-color .12s}",
-      ".zz-btn:hover{background:rgba(127,127,127,.14)}",
-      ".zz-btn:disabled{opacity:.45;cursor:default}",
-      ".zz-btn-primary{background:rgba(66,133,244,.2);border-color:rgba(66,133,244,.42)}",
-      ".zz-btn-primary:hover{background:rgba(66,133,244,.3)}",
-      ".zz-btn-danger{background:rgba(234,67,53,.14);border-color:rgba(234,67,53,.38)}",
-      ".zz-select{border-radius:9px;border:1px solid rgba(127,127,127,.32);background:rgba(0,0,0,.12);",
-      "color:inherit;padding:5px 10px;font-size:.8rem;max-width:220px}",
+      ".zz-btn{appearance:none;border:1px solid var(--zz-line-2);background:var(--zz-surface);",
+      "color:inherit;border-radius:9px;padding:6px 12px;min-height:30px;font-size:.8rem;cursor:pointer;",
+      "transition:background .12s,border-color .12s,transform .06s}",
+      ".zz-btn:hover{background:var(--zz-surface-2)}",
+      ".zz-btn:active{transform:translateY(1px)}",
+      ".zz-btn:disabled{opacity:.45;cursor:default;transform:none}",
+      ".zz-btn-primary{background:var(--zz-accent-weak);border-color:color-mix(in srgb,var(--zz-accent) 45%,transparent);color:var(--zz-accent)}",
+      ".zz-btn-primary:hover{background:color-mix(in srgb,#4285f4 24%,transparent)}",
+      ".zz-btn-danger{background:color-mix(in srgb,#c5221f 14%,transparent);",
+      "border-color:color-mix(in srgb,#c5221f 40%,transparent);color:var(--zz-bad)}",
+      ".zz-select{border-radius:9px;border:1px solid var(--zz-line-2);background:var(--zz-surface);",
+      "color:inherit;padding:5px 10px;min-height:30px;font-size:.8rem;max-width:220px}",
+      ".zz-select:hover{background:var(--zz-surface-2)}",
       ".zz-badges{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 14px}",
-      ".zz-badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;font-size:.7rem;",
-      "font-weight:650;letter-spacing:.02em;background:rgba(127,127,127,.09);border:1px solid rgba(127,127,127,.18);",
-      "color:var(--color-text-secondary,#9aa0a6)}",
-      ".zz-badge-ok{background:rgba(52,168,83,.14);border-color:rgba(52,168,83,.32);color:#81c995}",
-      ".zz-badge-warn{background:rgba(251,188,5,.11);border-color:rgba(251,188,5,.32);color:#fdd663}",
-      ".zz-badge-info{background:rgba(66,133,244,.11);border-color:rgba(66,133,244,.32);color:#8ab4f8}",
-      ".zz-tabs{display:flex;flex-wrap:wrap;gap:4px;margin:0 0 14px;border-bottom:1px solid rgba(127,127,127,.18);padding-bottom:8px}",
-      ".zz-tab{appearance:none;border:none;background:transparent;color:var(--color-text-secondary,#9aa0a6);",
-      "padding:7px 12px;border-radius:9px 9px 0 0;font-size:.82rem;cursor:pointer;font-weight:600}",
-      ".zz-tab:hover{background:rgba(127,127,127,.08);color:inherit}",
-      ".zz-tab-on{background:rgba(66,133,244,.12);color:inherit;box-shadow:inset 0 -2px 0 #8ab4f8}",
+      ".zz-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:999px;font-size:.7rem;",
+      "font-weight:650;letter-spacing:.02em;background:var(--zz-surface);border:1px solid var(--zz-line);",
+      "color:var(--zz-muted);font-variant-numeric:tabular-nums}",
+      ".zz-badge-ok{background:color-mix(in srgb,#1e8e3e 12%,transparent);",
+      "border-color:color-mix(in srgb,#1e8e3e 30%,transparent);color:var(--zz-ok)}",
+      ".zz-badge-warn{background:color-mix(in srgb,#b06000 12%,transparent);",
+      "border-color:color-mix(in srgb,#b06000 32%,transparent);color:var(--zz-warn)}",
+      ".zz-badge-info{background:var(--zz-accent-weak);",
+      "border-color:color-mix(in srgb,var(--zz-accent) 32%,transparent);color:var(--zz-accent)}",
+      ".zz-tabs{display:flex;flex-wrap:wrap;gap:4px;margin:0 0 14px;border-bottom:1px solid var(--zz-line);padding-bottom:8px}",
+      ".zz-tab{appearance:none;border:none;background:transparent;color:var(--zz-muted);",
+      "padding:7px 12px;border-radius:9px 9px 0 0;font-size:.82rem;cursor:pointer;font-weight:600;",
+      "transition:background .12s,color .12s}",
+      ".zz-tab:hover{background:var(--zz-surface);color:inherit}",
+      ".zz-tab-on{background:var(--zz-accent-weak);color:inherit;box-shadow:inset 0 -2px 0 var(--zz-accent)}",
       ".zz-sec{margin:16px 0 8px;font-size:.68rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;",
-      "color:var(--color-text-secondary,#9aa0a6)}",
-      ".zz-card{padding:12px 14px;border-radius:12px;border:1px solid rgba(127,127,127,.2);",
-      "background:rgba(127,127,127,.045);margin-bottom:10px}",
-      ".zz-muted{color:var(--color-text-secondary,#9aa0a6);font-size:.82rem;line-height:1.45}",
-      ".zz-loop{padding:12px 14px;border-radius:12px;border-left:3px solid #8ab4f8;",
-      "background:rgba(66,133,244,.07);margin-bottom:10px;font-size:.86rem;line-height:1.5}",
-      ".zz-hint{padding:9px 12px;border-radius:10px;border-left:3px solid #8ab4f8;",
-      "background:rgba(66,133,244,.07);margin-bottom:7px;font-size:.84rem;line-height:1.45}",
-      ".zz-hint-urgent{border-left-color:#fbbc05;background:rgba(251,188,5,.09)}",
-      ".zz-ch{display:grid;grid-template-columns:10px 1fr auto;gap:8px;align-items:start;",
-      "padding:9px 11px;border-radius:11px;border:1px solid rgba(127,127,127,.18);",
-      "background:rgba(127,127,127,.035);margin-bottom:7px}",
-      ".zz-dot{width:8px;height:8px;border-radius:50%;margin-top:6px;background:#9aa0a6}",
-      ".zz-dot-final{background:#34a853}",
-      ".zz-dot-reviewed{background:#4285f4}",
-      ".zz-dot-drafted,.zz-dot-draft{background:#fbbc05}",
-      ".zz-dot-planned{background:#9aa0a6}",
-      ".zz-ch-title{font-weight:650;font-size:.9rem}",
-      ".zz-ch-sub{font-size:.76rem;color:var(--color-text-secondary,#9aa0a6);margin-top:3px}",
-      ".zz-cand{padding:12px 14px;border-radius:12px;border:1px dashed rgba(251,188,5,.4);",
-      "background:rgba(251,188,5,.055);margin-bottom:10px;font-size:.86rem}",
+      "color:var(--zz-muted)}",
+      ".zz-card{padding:12px 14px;border-radius:var(--zz-radius);border:1px solid var(--zz-line);",
+      "background:var(--zz-surface);margin-bottom:10px}",
+      ".zz-muted{color:var(--zz-muted);font-size:.82rem;line-height:1.5}",
+      ".zz-path{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92em;",
+      "padding:1px 5px;border-radius:5px;background:var(--zz-surface-2);overflow-wrap:anywhere}",
+      ".zz-loop{padding:12px 14px;border-radius:var(--zz-radius);border-left:3px solid var(--zz-accent);",
+      "background:var(--zz-accent-weak);margin-bottom:10px;font-size:.86rem;line-height:1.55}",
+      ".zz-hint{padding:9px 12px;border-radius:10px;border-left:3px solid var(--zz-accent);",
+      "background:var(--zz-accent-weak);margin-bottom:7px;font-size:.84rem;line-height:1.5}",
+      ".zz-hint-urgent{border-left-color:var(--zz-warn);background:color-mix(in srgb,#b06000 10%,transparent)}",
+      ".zz-ch{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:8px;align-items:start;",
+      "padding:9px 11px;border-radius:11px;border:1px solid var(--zz-line);",
+      "background:var(--zz-surface);margin-bottom:7px}",
+      ".zz-dot{width:8px;height:8px;border-radius:50%;margin-top:6px;background:var(--zz-muted)}",
+      ".zz-dot-final{background:var(--zz-ok)}",
+      ".zz-dot-reviewed{background:var(--zz-accent)}",
+      ".zz-dot-drafted,.zz-dot-draft{background:var(--zz-warn)}",
+      ".zz-dot-planned{background:var(--zz-muted)}",
+      ".zz-ch-title{font-weight:650;font-size:.9rem;min-width:0;white-space:nowrap;",
+      "overflow:hidden;text-overflow:ellipsis}",
+      ".zz-ch-sub{font-size:.76rem;color:var(--zz-muted);margin-top:3px;min-width:0;",
+      "overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+      ".zz-cand{padding:12px 14px;border-radius:var(--zz-radius);",
+      "border:1px dashed color-mix(in srgb,#b06000 42%,transparent);",
+      "background:color-mix(in srgb,#b06000 6%,transparent);margin-bottom:10px;font-size:.86rem}",
       ".zz-cand-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}",
-      ".zz-empty{color:var(--color-text-secondary,#9aa0a6);font-size:.88rem;padding:18px 8px;text-align:center;line-height:1.55}",
-      ".zz-empty-card{border:1px dashed rgba(127,127,127,.28);border-radius:12px;background:rgba(127,127,127,.03);margin:8px 0}",
-      ".zz-err{padding:11px 13px;border-radius:11px;background:rgba(234,67,53,.11);",
-      "border:1px solid rgba(234,67,53,.32);color:#f28b82;margin-bottom:12px;font-size:.86rem;white-space:pre-wrap}",
-      ".zz-ok{padding:11px 13px;border-radius:11px;background:rgba(52,168,83,.11);",
-      "border:1px solid rgba(52,168,83,.32);color:#81c995;margin-bottom:12px;font-size:.86rem;white-space:pre-wrap}",
-      ".zz-banner{padding:10px 12px;border-radius:10px;background:rgba(66,133,244,.08);",
-      "border:1px solid rgba(66,133,244,.22);margin-bottom:14px;font-size:.82rem;line-height:1.45}",
+      ".zz-empty{color:var(--zz-muted);font-size:.88rem;padding:18px 8px;text-align:center;line-height:1.6;",
+      "max-width:34rem;margin:0 auto}",
+      ".zz-empty-card{border:1px dashed var(--zz-line-2);border-radius:var(--zz-radius);",
+      "background:var(--zz-surface);margin:8px 0}",
+      ".zz-err{padding:11px 13px;border-radius:11px;background:color-mix(in srgb,#c5221f 11%,transparent);",
+      "border:1px solid color-mix(in srgb,#c5221f 32%,transparent);color:var(--zz-bad);margin-bottom:12px;",
+      "font-size:.86rem;white-space:pre-wrap}",
+      ".zz-ok{padding:11px 13px;border-radius:11px;background:color-mix(in srgb,#1e8e3e 11%,transparent);",
+      "border:1px solid color-mix(in srgb,#1e8e3e 32%,transparent);color:var(--zz-ok);margin-bottom:12px;",
+      "font-size:.86rem;white-space:pre-wrap}",
+      ".zz-banner{padding:10px 12px;border-radius:10px;background:var(--zz-accent-weak);",
+      "border:1px solid color-mix(in srgb,var(--zz-accent) 22%,transparent);margin-bottom:14px;",
+      "font-size:.82rem;line-height:1.5}",
       ".zz-fold{margin-top:8px}",
-      ".zz-fold summary{cursor:pointer;color:var(--color-text-secondary,#9aa0a6);font-size:.8rem}",
-      ".zz-fold ul{margin:6px 0 0;padding-left:1.1rem;font-size:.8rem;color:var(--color-text-secondary,#9aa0a6)}",
-      ".zz-foot{margin-top:20px;font-size:.7rem;color:var(--color-text-secondary,#9aa0a6)}",
+      ".zz-fold summary{cursor:pointer;color:var(--zz-muted);font-size:.8rem}",
+      ".zz-fold ul{margin:6px 0 0;padding-left:1.1rem;font-size:.8rem;color:var(--zz-muted)}",
+      ".zz-foot{margin-top:20px;font-size:.7rem;color:var(--zz-muted)}",
       ".zz-grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}",
-      ".zz-poll{font-size:.72rem;color:var(--color-text-secondary,#9aa0a6)}",
+      ".zz-poll{font-size:.72rem;color:var(--zz-muted)}",
       ".zz-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;",
       "justify-content:center;z-index:9999;padding:16px;backdrop-filter:blur(2px)}",
-      ".zz-modal{max-width:440px;width:100%;border-radius:14px;padding:18px;background:var(--color-bg,var(--ds-bg,#202124));",
-      "border:1px solid rgba(127,127,127,.32);box-shadow:0 16px 48px rgba(0,0,0,.4);color:inherit}",
+      ".zz-modal{max-width:440px;width:100%;border-radius:14px;padding:18px;",
+      "background:var(--color-bg,var(--ds-bg,#202124));border:1px solid var(--zz-line-2);",
+      "box-shadow:0 16px 48px rgba(0,0,0,.4);color:inherit}",
       ".zz-modal h3{margin:0 0 8px;font-size:1.05rem}",
       ".zz-check{display:flex;gap:8px;align-items:flex-start;font-size:.86rem;margin:10px 0}",
-      ".zz-settings{padding:14px;border-radius:12px;border:1px solid rgba(127,127,127,.22);background:rgba(127,127,127,.04)}",
-      ".zz-mode{display:inline-flex;border:1px solid rgba(127,127,127,.3);border-radius:10px;overflow:hidden;",
-      "background:rgba(127,127,127,.05);padding:2px;gap:2px}",
-      ".zz-mode button{appearance:none;border:none;background:transparent;color:var(--color-text-secondary,#9aa0a6);",
-      "padding:6px 14px;font-size:.8rem;cursor:pointer;font-weight:650;border-radius:8px;transition:background .12s,color .12s}",
-      ".zz-mode button.zz-mode-on{background:rgba(66,133,244,.22);color:inherit;box-shadow:0 1px 2px rgba(0,0,0,.12)}",
-      ".zz-workbench{display:grid;grid-template-columns:232px minmax(0,1fr) 292px;gap:14px;",
+      ".zz-check input{flex:0 0 auto;width:15px;height:15px;margin:3px 0 0;accent-color:var(--zz-accent);cursor:pointer}",
+      ".zz-settings{padding:14px;border-radius:var(--zz-radius);border:1px solid var(--zz-line);background:var(--zz-surface)}",
+      ".zz-mode{display:inline-flex;border:1px solid var(--zz-line-2);border-radius:10px;overflow:hidden;",
+      "background:var(--zz-surface);padding:2px;gap:2px}",
+      ".zz-mode button{appearance:none;border:none;background:transparent;color:var(--zz-muted);",
+      "padding:6px 14px;min-height:28px;font-size:.8rem;cursor:pointer;font-weight:650;border-radius:8px;",
+      "transition:background .12s,color .12s}",
+      ".zz-mode button:hover:not(:disabled){color:inherit}",
+      ".zz-mode button:disabled{opacity:.5;cursor:default}",
+      ".zz-mode button.zz-mode-on{background:color-mix(in srgb,var(--zz-accent) 22%,transparent);color:inherit;",
+      "box-shadow:0 1px 2px rgba(0,0,0,.12)}",
+      ".zz-workbench{display:grid;grid-template-columns:236px minmax(0,1fr) 300px;gap:14px;",
       "min-height:min(72vh,760px);align-items:stretch}",
-      ".zz-wb-col{border:1px solid rgba(127,127,127,.2);border-radius:14px;",
-      "background:linear-gradient(180deg,rgba(127,127,127,.055),rgba(127,127,127,.025));",
-      "display:flex;flex-direction:column;min-height:0;overflow:hidden;box-shadow:0 1px 0 rgba(255,255,255,.03) inset}",
+      ".zz-wb-col{border:1px solid var(--zz-line);border-radius:14px;",
+      "background:linear-gradient(180deg,var(--zz-surface-2),var(--zz-surface));",
+      "display:flex;flex-direction:column;min-height:0;overflow:hidden}",
       ".zz-wb-head{padding:10px 12px;font-size:.68rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;",
-      "color:var(--color-text-secondary,#9aa0a6);border-bottom:1px solid rgba(127,127,127,.16);flex:0 0 auto;",
-      "background:rgba(127,127,127,.04)}",
-      ".zz-wb-body{padding:10px;overflow:auto;flex:1 1 auto}",
-      ".zz-wb-center .zz-wb-body{padding:12px 16px 28px}",
-      ".zz-ch-item{display:grid;grid-template-columns:10px 1fr auto;gap:8px;align-items:start;",
-      "padding:9px 9px;border-radius:10px;cursor:pointer;border:1px solid transparent;margin-bottom:5px;",
+      "color:var(--zz-muted);border-bottom:1px solid var(--zz-line);flex:0 0 auto;",
+      "background:var(--zz-surface);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+      ".zz-wb-body{padding:10px;overflow:auto;flex:1 1 auto;min-height:0;",
+      "scrollbar-width:thin;scrollbar-color:color-mix(in srgb,currentColor 20%,transparent) transparent}",
+      ".zz-wb-center .zz-wb-body{padding:12px 16px 28px;position:relative}",
+      ".zz-ch-item{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:8px;align-items:start;",
+      "padding:9px;border-radius:10px;cursor:pointer;border:1px solid transparent;margin-bottom:5px;",
+      "transition:background .1s,border-color .1s;position:relative}",
+      ".zz-ch-item:hover{background:var(--zz-surface-2)}",
+      ".zz-ch-item.zz-ch-on{background:var(--zz-accent-weak);",
+      "border-color:color-mix(in srgb,var(--zz-accent) 34%,transparent)}",
+      ".zz-ch-item.zz-ch-on::before{content:\"\";position:absolute;left:0;top:9px;bottom:9px;width:2px;",
+      "border-radius:2px;background:var(--zz-accent)}",
+      ".zz-ch-item>div{min-width:0}",
+      ".zz-cand-mini{margin:0 0 5px 18px;padding:7px 9px;border-radius:9px;",
+      "border:1px dashed color-mix(in srgb,#b06000 40%,transparent);",
+      "background:color-mix(in srgb,#b06000 6%,transparent);font-size:.76rem;cursor:pointer;",
       "transition:background .1s,border-color .1s}",
-      ".zz-ch-item:hover{background:rgba(127,127,127,.08)}",
-      ".zz-ch-item.zz-ch-on{background:rgba(66,133,244,.12);border-color:rgba(66,133,244,.32)}",
-      ".zz-cand-mini{margin:0 0 5px 18px;padding:7px 9px;border-radius:9px;border:1px dashed rgba(251,188,5,.38);",
-      "background:rgba(251,188,5,.055);font-size:.76rem;cursor:pointer;transition:background .1s}",
-      ".zz-cand-mini.zz-ch-on{border-style:solid;background:rgba(251,188,5,.13)}",
-      ".zz-reader-toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px;",
-      "padding-bottom:10px;border-bottom:1px solid rgba(127,127,127,.12)}",
-      ".zz-reader{padding:2px 4px 32px;font-size:1.02rem;line-height:1.85;max-width:40rem;",
+      ".zz-cand-mini:hover{background:color-mix(in srgb,#b06000 11%,transparent)}",
+      ".zz-cand-mini.zz-ch-on{border-style:solid;background:color-mix(in srgb,#b06000 15%,transparent)}",
+      ".zz-cand-row{padding:4px 6px;border-radius:8px;cursor:pointer;color:var(--zz-muted);",
+      "font-size:.82rem;line-height:1.45;transition:background .1s,color .1s}",
+      ".zz-cand-row:hover{background:var(--zz-surface-2);color:inherit}",
+      ".zz-cand-row.zz-cand-row-on{color:inherit;font-weight:600;background:var(--zz-surface-2)}",
+      ".zz-cand-tag{display:inline-flex;align-items:center;padding:2px 9px;border-radius:999px;font-size:.7rem;",
+      "font-weight:650;font-variant-numeric:tabular-nums;color:var(--zz-warn);",
+      "background:color-mix(in srgb,#b06000 12%,transparent);",
+      "border:1px solid color-mix(in srgb,#b06000 32%,transparent)}",
+      ".zz-reader-toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;position:sticky;top:0;z-index:3;",
+      "margin:-12px -16px 14px;padding:10px 16px;border-bottom:1px solid var(--zz-line);",
+      "background:color-mix(in srgb,currentColor 5%,transparent);backdrop-filter:blur(8px)}",
+      ".zz-reader{padding:2px 4px 32px;font-size:1.02rem;line-height:1.9;max-width:40rem;margin:0 auto;",
       "font-family:\"Source Han Serif SC\",\"Noto Serif SC\",\"Songti SC\",Georgia,\"Times New Roman\",serif;",
-      "letter-spacing:.01em}",
+      "letter-spacing:.01em;text-wrap:pretty;overflow-wrap:anywhere}",
       ".zz-reader h1,.zz-reader h2,.zz-reader h3{font-weight:700;margin:1.25em 0 .55em;line-height:1.35;",
-      "font-family:system-ui,-apple-system,sans-serif}",
+      "font-family:system-ui,-apple-system,sans-serif;text-indent:0}",
       ".zz-reader h1{font-size:1.35rem}.zz-reader h2{font-size:1.15rem}.zz-reader h3{font-size:1.02rem}",
-      ".zz-reader p{margin:0 0 1em}",
+      ".zz-reader p{margin:0 0 1em;text-indent:2em}",
       ".zz-reader strong{font-weight:700}",
       ".zz-reader em{font-style:italic}",
       ".zz-reader code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.84em;",
-      "padding:1px 5px;border-radius:5px;background:rgba(127,127,127,.12)}",
-      ".zz-reader pre{padding:12px;border-radius:10px;overflow:auto;background:rgba(127,127,127,.1);font-size:.82rem}",
-      ".zz-reader blockquote{margin:0 0 1em;padding:6px 0 6px 14px;border-left:3px solid rgba(66,133,244,.4);",
-      "color:var(--color-text-secondary,#9aa0a6)}",
-      ".zz-reader hr{border:none;border-top:1px solid rgba(127,127,127,.22);margin:1.4em 0}",
-      ".zz-gate{font-size:.82rem;margin-bottom:7px;line-height:1.4}",
-      ".zz-gate-ok{color:#81c995}.zz-gate-bad{color:#f28b82}",
-      ".zz-edit-card{padding:12px 14px;border-radius:12px;border:1px solid rgba(66,133,244,.28);",
-      "background:rgba(66,133,244,.07);margin-bottom:10px;font-size:.82rem;line-height:1.5}",
+      "padding:1px 5px;border-radius:5px;background:var(--zz-surface-2)}",
+      ".zz-reader pre{padding:12px;border-radius:10px;overflow:auto;background:var(--zz-surface-2);font-size:.82rem;text-indent:0}",
+      ".zz-reader blockquote{margin:0 0 1em;padding:6px 0 6px 14px;",
+      "border-left:3px solid color-mix(in srgb,var(--zz-accent) 40%,transparent);color:var(--zz-muted)}",
+      ".zz-reader blockquote p{text-indent:0}",
+      ".zz-reader hr{border:none;border-top:1px solid var(--zz-line-2);margin:1.4em 0}",
+      ".zz-reader ::selection{background:var(--zz-accent-weak)}",
+      ".zz-gate{font-size:.82rem;margin-bottom:7px;line-height:1.45;display:flex;gap:7px;align-items:baseline}",
+      ".zz-gate::before{content:\"·\";flex:0 0 auto;opacity:.55}",
+      ".zz-gate-ok{color:var(--zz-ok)}.zz-gate-bad{color:var(--zz-bad)}",
+      ".zz-gate-idle{color:var(--zz-muted)}",
+      ".zz-edit-card{padding:12px 14px;border-radius:var(--zz-radius);",
+      "border:1px solid color-mix(in srgb,var(--zz-accent) 28%,transparent);",
+      "background:var(--zz-accent-weak);margin-bottom:10px;font-size:.82rem;line-height:1.5}",
       ".zz-edit-card strong{display:block;margin-bottom:6px;font-size:.78rem;letter-spacing:.04em}",
       ".zz-edit-card ol{margin:6px 0 0;padding-left:1.15rem}",
       ".zz-edit-card li{margin-bottom:4px}",
-      "@media (max-width:1100px){.zz-workbench{grid-template-columns:180px minmax(0,1fr);}",
-      ".zz-wb-right{grid-column:1 / -1;max-height:300px}}",
-      "@media (max-width:720px){.zz-workbench{grid-template-columns:1fr}.zz-wb-left{max-height:220px}}",
-      "@media (max-width:520px){.zz-root{padding:12px}.zz-ch{grid-template-columns:8px 1fr}.zz-grid{grid-template-columns:1fr}}",
+      ".zz-skel{height:13px;border-radius:7px;margin-bottom:10px;",
+      "background:linear-gradient(90deg,var(--zz-surface) 25%,var(--zz-surface-2) 37%,var(--zz-surface) 63%);",
+      "background-size:400% 100%;animation:zz-shimmer 1.5s ease infinite}",
+      ".zz-skel-sm{height:10px;width:60%}",
+      "@keyframes zz-shimmer{0%{background-position:100% 0}100%{background-position:0 0}}",
+      "@media (max-width:1100px){.zz-workbench{grid-template-columns:210px minmax(0,1fr);}",
+      ".zz-ch-words{display:none}",
+      ".zz-wb-right{grid-column:1 / -1;max-height:min(46vh,340px)}}",
+      "@media (max-width:720px){.zz-workbench{grid-template-columns:1fr;min-height:0}",
+      ".zz-ch-words{display:block}",
+      ".zz-wb-left{max-height:min(40vh,300px)}.zz-wb-center{min-height:min(56vh,520px)}}",
+      "@media (max-width:520px){.zz-root{padding:12px}.zz-ch{grid-template-columns:8px minmax(0,1fr) auto}",
+      ".zz-grid{grid-template-columns:1fr}.zz-workbench{gap:10px}}",
+      "@media (prefers-reduced-motion:reduce){.zz-root *{transition:none!important;animation:none!important}}",
       "@media (prefers-color-scheme:light){",
-      ".zz-root{color:#202124}",
-      ".zz-badge{color:#5f6368}",
-      ".zz-badge-ok{color:#137333}.zz-badge-warn{color:#b06000}.zz-badge-info{color:#1a73e8}",
-      ".zz-err{color:#c5221f}.zz-ok{color:#137333}",
-      ".zz-gate-ok{color:#137333}.zz-gate-bad{color:#c5221f}",
-      ".zz-wb-col{background:linear-gradient(180deg,rgba(0,0,0,.02),rgba(0,0,0,.01))}",
-      ".zz-mode button.zz-mode-on{background:rgba(26,115,232,.14)}",
+      ".zz-root{color:var(--color-text,var(--ds-fg,#202124))}",
+      ".zz-modal{background:var(--color-bg,var(--ds-bg,#fff))}",
       "}",
-        ].join("");
+    ].join("");
 
     function ensureCss() {
       if (typeof document === "undefined") return;
@@ -324,6 +389,16 @@ window.__ModuleLoader__.load({
 
     function Badge(props) {
       return h("span", { className: "zz-badge " + (props.tone || "") }, props.children);
+    }
+
+    /** Shimmer placeholder used while chapter / candidate bodies load. */
+    function Skeleton(props) {
+      var n = typeof props.lines === "number" ? props.lines : 6;
+      var rows = [];
+      for (var i = 0; i < n; i++) {
+        rows.push(h("div", { key: i, className: "zz-skel" + (i === n - 1 ? " zz-skel-sm" : "") }));
+      }
+      return h("div", { "aria-hidden": "true" }, rows);
     }
 
     function AcceptDialog(props) {
@@ -1048,6 +1123,7 @@ window.__ModuleLoader__.load({
               key: pair[0],
               type: "button",
               role: "tab",
+              "aria-selected": tab === pair[0] ? "true" : "false",
               className: "zz-tab" + (tab === pair[0] ? " zz-tab-on" : ""),
               onClick: function () {
                 setState(function (s) {
@@ -1129,9 +1205,9 @@ window.__ModuleLoader__.load({
               ? h(
                   "p",
                   { className: "zz-muted" },
-                  "本地书源 " +
-                    library.sourceRoot +
-                    " · 待导入 " +
+                  "本地书源 ",
+                  h("code", { className: "zz-path" }, library.sourceRoot),
+                  " · 待导入 " +
                     (library.pendingCount || 0) +
                     (library.pending && library.pending.length
                       ? "（" +
@@ -1147,18 +1223,22 @@ window.__ModuleLoader__.load({
             h("p", { className: "zz-muted" }, clip(library.summary, 200)),
             (library.sources || []).length === 0
               ? h("p", { className: "zz-empty" }, "暂无来源。Agent：zhizhang_library_import")
-              : (library.sources || []).map(function (s) {
-                  return h(
-                    "div",
-                    { key: s.id, className: "zz-card" },
-                    h("div", { className: "zz-ch-title" }, s.title || s.id),
-                    h(
+              : h(
+                  "div",
+                  { className: "zz-grid" },
+                  (library.sources || []).map(function (s) {
+                    return h(
                       "div",
-                      { className: "zz-ch-sub" },
-                      (s.author ? s.author + " · " : "") + s.id,
-                    ),
-                  );
-                }),
+                      { key: s.id, className: "zz-card" },
+                      h("div", { className: "zz-ch-title" }, s.title || s.id),
+                      h(
+                        "div",
+                        { className: "zz-ch-sub" },
+                        (s.author ? s.author + " · " : "") + s.id,
+                      ),
+                    );
+                  }),
+                ),
             library.combo
               ? library.combo.ok
                 ? h(
@@ -1437,6 +1517,24 @@ window.__ModuleLoader__.load({
         });
       }
 
+      function selectCandidate(chId, candId) {
+        var sameChapter = state.chapterId === chId;
+        setState(function (s) {
+          return Object.assign({}, s, {
+            chapterId: chId,
+            readerView: "candidate",
+            selectedCandidateId: candId,
+            candidateBody: null,
+            candidateMeta: null,
+            candError: null,
+          });
+        });
+        if (sameChapter && state.work) loadCand(state.work, chId, candId);
+        try {
+          localStorage.setItem(LS_CHAPTER, chId);
+        } catch (e) {}
+      }
+
       var leftList =
         chapters.length === 0
           ? h("p", { className: "zz-empty" }, "暂无章节。用 Agent 创建后再来读。")
@@ -1451,6 +1549,7 @@ window.__ModuleLoader__.load({
                     className: "zz-ch-item" + (state.chapterId === c.id ? " zz-ch-on" : ""),
                     role: "button",
                     tabIndex: 0,
+                    "aria-current": state.chapterId === c.id ? "true" : undefined,
                     onClick: function () {
                       selectChapter(c.id);
                     },
@@ -1465,20 +1564,16 @@ window.__ModuleLoader__.load({
                   h(
                     "div",
                     null,
-                    h(
-                      "div",
-                      { className: "zz-ch-title" },
-                      c.title,
-                      c.briefRecent ? " · brief✓" : "",
-                    ),
+                    h("div", { className: "zz-ch-title", title: c.title }, c.title),
                     h(
                       "div",
                       { className: "zz-ch-sub" },
                       statusLabel(c.status) +
+                        (c.briefRecent ? " · brief✓" : "") +
                         (c.situationLens ? " · " + clip(c.situationLens, 36) : ""),
                     ),
                   ),
-                  h("div", { className: "zz-muted" }, (c.wordCount || 0) + " 字"),
+                  h("div", { className: "zz-ch-words" }, (c.wordCount || 0) + " 字"),
                 ),
                 pcs.map(function (pc) {
                   var on =
@@ -1490,22 +1585,17 @@ window.__ModuleLoader__.load({
                     {
                       key: pc.id,
                       className: "zz-cand-mini" + (on ? " zz-ch-on" : ""),
+                      role: "button",
+                      tabIndex: 0,
+                      "aria-current": on ? "true" : undefined,
                       onClick: function () {
-                        var sameChapter = state.chapterId === c.id;
-                        setState(function (s) {
-                          return Object.assign({}, s, {
-                            chapterId: c.id,
-                            readerView: "candidate",
-                            selectedCandidateId: pc.id,
-                            candidateBody: null,
-                            candidateMeta: null,
-                            candError: null,
-                          });
-                        });
-                        if (sameChapter && state.work) loadCand(state.work, c.id, pc.id);
-                        try {
-                          localStorage.setItem(LS_CHAPTER, c.id);
-                        } catch (e) {}
+                        selectCandidate(c.id, pc.id);
+                      },
+                      onKeyDown: function (e) {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          selectCandidate(c.id, pc.id);
+                        }
                       },
                     },
                     (pc.draftLabel ? "「" + pc.draftLabel + "」 " : "待采纳 ") +
@@ -1622,6 +1712,19 @@ window.__ModuleLoader__.load({
         state.chapterTruncated && state.readerView === "official"
           ? h("span", { className: "zz-muted" }, "正文已截断（约 400KB）")
           : null,
+        state.readerView === "candidate" && activeCand
+          ? h(
+              "span",
+              { className: "zz-cand-tag" },
+              (activeCand.draftLabel ? "「" + activeCand.draftLabel + "」" : "待采纳") +
+                " " +
+                activeCand.id +
+                " · " +
+                (activeCand.wordCount || 0) +
+                " 字 · " +
+                (activeCand.hasLintPass ? "lint✓" : "缺 lint"),
+            )
+          : null,
       );
 
       var readerContent;
@@ -1633,7 +1736,12 @@ window.__ModuleLoader__.load({
           h("p", { className: "zz-muted", style: { marginTop: 8 } }, "有正文即可点开；空章请先让 Agent 起草再刷新。"),
         );
       } else if (state.bodyLoading && state.readerView === "official" && state.chapterBody == null) {
-        readerContent = h("p", { className: "zz-muted" }, "加载正文…");
+        readerContent = h(
+          "div",
+          null,
+          h("p", { className: "zz-muted" }, "加载正文…"),
+          h(Skeleton, { lines: 7 }),
+        );
       } else if (state.bodyError && state.readerView === "official") {
         readerContent = h("div", { className: "zz-err" }, state.bodyError);
       } else if (state.readerView === "candidate") {
@@ -1642,7 +1750,12 @@ window.__ModuleLoader__.load({
         } else if (state.candError) {
           readerContent = h("div", { className: "zz-err" }, state.candError);
         } else if (state.candidateBody == null) {
-          readerContent = h("p", { className: "zz-muted" }, "加载候选正文…");
+          readerContent = h(
+            "div",
+            null,
+            h("p", { className: "zz-muted" }, "加载候选正文…"),
+            h(Skeleton, { lines: 6 }),
+          );
         } else {
           var emptyCand = !String(state.candidateBody).trim();
           readerContent = emptyCand
@@ -1702,7 +1815,8 @@ window.__ModuleLoader__.load({
                     "div",
                     {
                       className:
-                        "zz-gate " + (activeCand && activeCand.hasLintPass ? "zz-gate-ok" : "zz-gate-bad"),
+                        "zz-gate " +
+                        (activeCand ? (activeCand.hasLintPass ? "zz-gate-ok" : "zz-gate-bad") : "zz-gate-idle"),
                     },
                     activeCand
                       ? activeCand.hasLintPass
@@ -1729,23 +1843,19 @@ window.__ModuleLoader__.load({
                   "div",
                   {
                     key: pc.id,
-                    className: "zz-muted",
-                    style: {
-                      marginTop: 4,
-                      cursor: "pointer",
-                      fontWeight: activeCand && activeCand.id === pc.id ? 600 : 400,
-                    },
+                    className:
+                      "zz-cand-row" + (activeCand && activeCand.id === pc.id ? " zz-cand-row-on" : ""),
+                    role: "button",
+                    tabIndex: 0,
+                    "aria-current": activeCand && activeCand.id === pc.id ? "true" : undefined,
                     onClick: function () {
-                      setState(function (s) {
-                        return Object.assign({}, s, {
-                          readerView: "candidate",
-                          selectedCandidateId: pc.id,
-                          candidateBody: null,
-                          candidateMeta: null,
-                          candError: null,
-                        });
-                      });
-                      if (state.work && state.chapterId) loadCand(state.work, state.chapterId, pc.id);
+                      selectCandidate(state.chapterId, pc.id);
+                    },
+                    onKeyDown: function (e) {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        selectCandidate(state.chapterId, pc.id);
+                      }
                     },
                   },
                   (pc.draftLabel ? "「" + pc.draftLabel + "」 " : "") +
@@ -1924,10 +2034,18 @@ window.__ModuleLoader__.load({
         },
         header,
         !state.hostOk
-          ? h("div", { className: "zz-err" }, "宿主 API 异常，显示的是上次成功数据。")
+          ? h(
+              "div",
+              { className: "zz-err", role: "alert" },
+              "宿主 API 异常，显示的是上次成功数据。",
+            )
           : null,
-        state.acceptMsg ? h("div", { className: "zz-ok" }, state.acceptMsg) : null,
-        state.acceptErr ? h("div", { className: "zz-err" }, state.acceptErr) : null,
+        state.acceptMsg
+          ? h("div", { className: "zz-ok", role: "status", "aria-live": "polite" }, state.acceptMsg)
+          : null,
+        state.acceptErr
+          ? h("div", { className: "zz-err", role: "alert", "aria-live": "assertive" }, state.acceptErr)
+          : null,
         state.mode === "novel" ? badges : null,
         main,
         h(

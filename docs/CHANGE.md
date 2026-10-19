@@ -32,6 +32,17 @@
   - Web 面板仍常驻（读正式章 / 候选 / 真采纳），不依赖工具启用。
 - **版本**：`src/lib/version.ts` 单源 `PLUGIN_VERSION`；package / ProductMap / Scheduler / EditPort /
   MultiDraftPort / 面板页脚都引用它（测试断言 0.15.3）。
+- **面板视觉**（`src/client/client.js`，只动样式与结构，不动语义）：
+  - 颜色全部由 `currentColor` 经 `color-mix()` 派生（`--zz-line / --zz-surface / --zz-muted / --zz-accent …`），
+    跟随 DSH 明暗主题自动适配；去掉硬编码明暗两套色值。
+  - 阅读器：中文段落 `text-indent:2em`、衬线字体、`text-wrap:pretty`、正文列居中；工具栏 `position:sticky`。
+  - 章节列表：标题单行省略（`title` 悬停看全）、字数右对齐、选中左侧竖条；窄栏（≤1100px）隐藏字数让标题呼吸。
+  - 候选对照：工具栏显示只读身份 chip（`「稿名」id · 字数 · lint`）——**不新增采纳入口**。
+  - 无待采纳时「本章闸」的 lint 行改中性色（`zz-gate-idle`），不再误标红。
+  - 骨架屏 `.zz-skel` + `@keyframes zz-shimmer`；Library 书源改自适应网格；`prefers-reduced-motion` 关动效。
+  - 可访问性：tab `aria-selected`、章节 `aria-current`、候选行 `role=button`+Enter/Space、
+    `zz-err`/`zz-ok` 加 `role=alert/status`、`:focus-visible` 焦点环、确认框复选框 `accent-color`。
+  - 断点：≤1100px 两栏（右栏整行）、≤720px 单栏（左栏 40vh / 中栏 56vh）、≤520px 收边距。
 
 ## 此前（0.15.2）
 
