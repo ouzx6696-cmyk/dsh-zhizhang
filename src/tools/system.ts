@@ -46,8 +46,8 @@ export function systemTools(): ToolDef[] {
       },
       required: [],
       async execute(args, exec) {
-        const { dir } = await openWork(exec, args);
-        const snap = await buildPanelSnapshot(dir);
+        const { paths, dir } = await openWork(exec, args);
+        const snap = await buildPanelSnapshot(dir, paths);
         const fmt = (asString(args, "format") as "json" | "html" | "both" | undefined) ?? "both";
         if (fmt === "html") return snap.html;
         if (fmt === "json") {

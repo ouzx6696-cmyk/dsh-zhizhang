@@ -5,7 +5,58 @@
 
 ---
 
-## 当前（0.15.0）
+## 当前（0.15.3）· 按需启用 + 面板多项目
+
+- **作品目录可见化**：新增 `worksRoot`（或 `DSH_ZHIZHANG_WORKS`），作品直接落在
+  `<worksRoot>/<书名>/`（meta/chapters/candidates），不再是隐藏的 `<base>/works/`；
+  索引与面板摘要记录 works 路径。本机默认布局见 `cordis.patch.yml`（D:/织章）。
+- **本地书源目录**：新增 `sourceRoot`（或 `DSH_ZHIZHANG_SOURCE_ROOT`）指向一个书文件夹；
+  `library_list` 列出该目录的 `.txt/.md`（已导入/未导入），`library_import` 可用裸文件名导入；
+  面板 Library 区显示待导入数量与文件名。只读扫描，不自动导入。
+- **拆书库复用**：新增 `libraryRoot` 配置（或 `DSH_ZHIZHANG_LIBRARY`），把 `library`
+  指到共享目录；`works / manuscripts / inspiration` 仍按项目隔离。工具与面板读取同一份库。
+- **面板多项目**：工具在 `ensureStorage` 时把工作区登记进 `$DSH_HOME/zhizhang-projects.json`
+  （只存指针 + 时间，不复制正文）；面板新增 **项目下拉**（`GET …/projects`），
+  顶栏 `项目 ▸ 作品` 两级切换。`?base=<项目 id>` 只接受**已登记且存在**的根，
+  未知根一律 `400 bad_base`——面板不会退化成任意路径浏览器。
+  - 项目摘要（作品数 / 章节 / 字数）每次都从各项目自己的 `.zhizhang` 现算（5s 缓存），
+    可重算、可删索引、**不再是权威副本**；项目不可达时保留 `exists:false` 行并标「不可达」。
+  - 采纳 / 读章 / 读候选 / 统一整理都跟随面板当前项目（POST body 的 `base` 字段）。
+
+
+- **按需加载**：profile 挂载只注册一个 `zhizhang_enable`（+ 只读面板 HTTP），
+  **不再**每会话注入 46 个工具与 SYSTEM_BRIEF。
+  - 触发后按 **Agent 作用域** 挂载 46 tools + 硬规则；仅该会话可见
+    （宿主不支持作用域时退化为进程内全局）。
+  - 同一 Agent 重复调用幂等；换会话 / 重启后需重新启用。
+  - Web 面板仍常驻（读正式章 / 候选 / 真采纳），不依赖工具启用。
+- **版本**：`src/lib/version.ts` 单源 `PLUGIN_VERSION`；package / ProductMap / Scheduler / EditPort /
+  MultiDraftPort / 面板页脚都引用它（测试断言 0.15.3）。
+
+## 此前（0.15.2）
+
+- **按需启用**：profile 挂载只注册 `zhizhang_enable` + 只读面板 HTTP；触发后按 Agent 作用域
+  挂 46 tools + 硬规则。回执直接带 `ProductMap.formatForAgent()`，省一次往返。
+
+## 此前（0.15.1）
+
+- **工程加固（不改默认链 / 不改旁路表）**：
+  - **id 沙箱**：章节 / 候选 id 统一在 store 校验（禁 `/`、`\`、`.`、`..`、控制字符、Windows 保留名；允许中文），
+    工具与 HTTP 同源；新错误码 `bad_id`。`candidate_stage` / `chapter_save` / `chapter_read` 等全部覆盖。
+  - **面板轮询降载**：`GET …/snapshot` 默认**不**返回 HTML（显式 `?html=1` 才带）；
+    候选 `wordCount` 在 stage 时落盘（旧数据回退读正文）；章节透镜按 mtime+size 缓存；
+    候选正文按 id 加载，不再每 6s 重拉。
+  - **面板根对齐**：HTTP 面板跟随最近一次 Agent 工具使用的存储根（`last-agent-tool`），
+    不再固定读宿主 cwd（之前会「工具写 workspace、面板看 profile」两套根）。
+  - **Web 修复**：切章清空旧正文/标题；snapshot 的 `ok:false` 不再被当成空态；
+    `load` 加请求序号防乱序；采纳后强制刷新（防「已采纳仍显示待采纳」导致二次采纳）；
+    采纳超时后自动对账；候选轮询不再丢失阅读选区；剪贴板 Promise 兜底；`escapeHtml` 补 `'`。
+  - **包**：新增 `scripts/smoke.mjs`（`npm run smoke`，node ≥22，无需 DSH/bun）；
+    补 `types`；移除指向不存在源码的 `build/prepare/typecheck/test` 脚本与 devDependencies
+    （本目录是发行形态，构建请回源码仓）。
+- **版本**：package / ProductMap / Scheduler / EditPort / MultiDraftPort 统一 **0.15.1**。
+
+## 此前（0.15.0）
 
 - **统合切片**：COGNITION/MAP/PORTS/PANEL/STATUS/FRAMEWORK/README 与 package / ProductMap / Scheduler / EditPort / MultiDraftPort 全部钉 **0.15.0**。
 - 面板↔工具：snapshot nextHints 含编辑稿/多草稿提示；panel-html 展示 draftLabel/unifyOf；右栏编辑抉择说明卡。
@@ -98,9 +149,13 @@ Compose 入口：`src/index.ts` 只注册工具 + apply，不塞业务 if。
 ## 改完自检
 
 ```bash
+# 源码仓：
 bun test
 npm run typecheck
 # 需要 dist 时再 npm run build
+
+# 本发行包：
+npm run smoke
 ```
 
 确认：默认链仍最短合格；旁路仍显式；mind/craft 分喂未破；雷达默认仍软。

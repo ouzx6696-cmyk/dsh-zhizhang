@@ -1,8 +1,13 @@
-# 织章 Web · 小说工作台（0.15.0）
+# 织章 Web · 小说工作台（0.15.3）
 
 侧栏 **织章** 默认进入**三栏小说阅读工作台**（左章节 / 中正文 / 右状态与闸）；可切「管线」看原五 Tab。真采纳仍二次确认 + AcceptPolicy。`zhizhang_panel_snapshot` HTML 对齐管线信息架构，并与客户端同源字段（含 draftLabel / multiDraftEnabled）。
 
-写回仍只走：**面板二次确认采纳** 或 `zhizhang_*` 工具。禁止静默写 `chapters/`。正文**不**塞进默认 snapshot（按需 GET，轮询保持轻量）。
+**工具按需**：面板本身常驻（HTTP 只读 + 采纳）；46 个 `zhizhang_*` 工具要在会话里先调 `zhizhang_enable`。
+
+**接口**：`GET …/projects`（项目列表 + 当前 id）、`GET …/snapshot?base=<id>&work=<key>`；
+`base` 白名单只含已登记工作区。
+
+写回仍只走：**面板二次确认采纳** 或 `zhizhang_*` 工具。禁止静默写 `chapters/`。正文**不**塞进默认 snapshot（按需 GET，轮询保持轻量）；HTML 也改为显式 `?html=1` 才返回。
 
 ## 小说模式（默认）
 
@@ -12,7 +17,9 @@
 | **中** | 正式章全文（轻量 Markdown 只读）；有待采纳可切「候选对照」 |
 | **右** | 当前小说状态；本章闸；Scheduler nextHints；采纳；**编辑抉择说明**（A/B/C）；多草稿开启时「统一整理」 |
 
-顶栏：作品下拉 · **小说|管线** · 自动刷新 · 手动刷新。`localStorage` 记上次作品与章节。
+顶栏：**项目下拉 ▸ 作品下拉** · **小说|管线** · 自动刷新 · 手动刷新。`localStorage` 记上次作品与章节。
+
+项目维度来自跨工作区索引（`$DSH_HOME/zhizhang-projects.json`，工具调用时自动登记）：默认选中「当前项目」（最近被工具写过的工作区）；切换项目后所有请求带 `?base=<项目 id>` / POST `base`，采纳也落在该项目。未登记或已删除的根会被拒绝（`bad_base`），下拉里显示为「（不可达）」。
 
 空章：中栏引导走对话 Agent（brief→stage→lint→accept）；面板不产文。
 
@@ -43,6 +50,7 @@
 ## 交互
 
 - **自动刷新**：~6s 刷 snapshot meta；不可见 ~30s；正文仅在选章 / 采纳成功后重拉  
+- **轮询降载**：snapshot 默认不渲染 HTML；候选正文按 id 缓存，同一候选不会每轮重拉；章节透镜按 mtime 缓存
 - **空态 / 加载 / 错误 / 重试** 齐全  
 - **settings.plugin.item**：说明 + 根目录提示  
 
@@ -52,7 +60,8 @@
 |------|------|
 | `GET /api/dsh-zhizhang/health` | 存活 + base + routes + version |
 | `GET /api/dsh-zhizhang/works` | 作品列表 |
-| `GET /api/dsh-zhizhang/snapshot?work=` | 完整 snapshot meta（**无**章/候选全文）+ html |
+| `GET /api/dsh-zhizhang/snapshot?work=` | 完整 snapshot meta（**无**章/候选全文）；默认**不含** HTML |
+| `GET /api/dsh-zhizhang/snapshot?work=&html=1` | 同上 + 面板 HTML（嵌入用，轮询不必取） |
 | `GET /api/dsh-zhizhang/library` | 拆书库摘要 |
 | `GET /api/dsh-zhizhang/inspiration?work=` | 灵感摘要 |
 | `GET /api/dsh-zhizhang/chapter?work=&id=` | 章 meta + body（禁穿越；约 400KB 可截断标 `truncated`） |
@@ -65,8 +74,10 @@
 
 ### 存储根解析（HTTP）
 
-优先级：`config.storageRoot` → `DSH_ZHIZHANG_ROOT` → `cwd/.zhizhang` → 向上 walk → `ensureStorage(cwd)`。  
-HTTP 根**不**自动跟每个 Agent 会话 workspace（另议）。
+优先级：`config.storageRoot` → `DSH_ZHIZHANG_ROOT` → **最近一次 Agent 工具使用的存储根** → `cwd/.zhizhang` → 向上 walk → `ensureStorage(cwd)`。  
+工具与 HTTP 在同一宿主进程：`ensureStorage(exec)` 会记住会话根（`last-agent-tool`），面板轮询随之切换；
+根同时写到 `$DSH_HOME/zhizhang-last-root.json`（默认 `~/.dsh/`），宿主重启后仍能直接指向上次工作区；
+标记缺失/目录不存在时才回退宿主 cwd。多会话并发时以最近一次工具调用为准。
 
 ## 官方席位
 
@@ -85,7 +96,7 @@ HTTP 根**不**自动跟每个 Agent 会话 workspace（另议）。
 
 ## 真机怎么看
 
-1. `npm run build` 后重启 web profile（已 link 则重启即可）  
+1. 已 link 且 **bundle 已启用** 后重启 profile（发行包无构建步骤）  
 2. DSH Web 侧栏点 **织章** → 默认三栏  
 3. 点有字数的章 → 中栏读全文；有待采纳可对照并采纳  
 4. 顶栏切「管线」仍可看 Library / Inspiration  

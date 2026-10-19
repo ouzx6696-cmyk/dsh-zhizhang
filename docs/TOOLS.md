@@ -2,7 +2,10 @@
 
 > 认知入口：[COGNITION.md](./COGNITION.md) · 地图：[MAP.md](./MAP.md) · 策略：[PORTS.md](./PORTS.md)
 
-调度主入口：`zhizhang_product_map`（默认 vs 旁路）。
+**按需启用**：挂载时只有 `zhizhang_enable`；调用后才注入下面全部工具与硬规则（仅本会话）。
+未启用时普通会话不加载织章工具。
+
+启用后调度主入口：`zhizhang_product_map`（默认 vs 旁路）。
 
 错误对 Agent 只回短中文；本插件不内置 chat/completion。
 
@@ -19,11 +22,12 @@ Accept 内嵌软传感；**不要**每章跑三 audit。
 
 ## 按闭环排列
 
-### 0. 定位 / 调度
+### 0. 启用 / 定位 / 调度
 
 | 工具 | 作用 |
 |------|------|
-| `zhizhang_product_map` | **调度主入口**：默认路径 + 旁路 + 三阶段 |
+| `zhizhang_enable` | **唯一常驻**：按需挂载 46 tools + 硬规则到本会话（幂等） |
+| `zhizhang_product_map` | **启用后**的调度主入口：默认路径 + 旁路 + 三阶段 |
 | `zhizhang_system_brief` | 硬规则钉死 |
 | `zhizhang_status` | 作品进度 + 默认下一步 |
 | `zhizhang_panel_snapshot` | 面板数据口 |
@@ -32,10 +36,10 @@ Accept 内嵌软传感；**不要**每章跑三 audit。
 
 | 工具 | 下一步 |
 |------|--------|
-| `library_import` | dissect_brief |
+| `library_import` | dissect_brief（`file` 可写 `sourceRoot` 里的文件名） |
 | `library_dissect_brief` | card_stage |
 | `library_card_stage` / `_accept` | combo_suggest |
-| `library_list` / `_search` / `_card_get` | combo 或 brief |
+| `library_list`（含本地书源目录）/ `_search` / `_card_get` | combo 或 brief |
 | `library_combo_suggest` | inspire_start 或 chapter_brief |
 
 ### 2. 灵感段（默认）

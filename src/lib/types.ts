@@ -154,6 +154,8 @@ export interface CandidateFile {
   body: string;
   /** Relative path of body snapshot under candidates/. */
   bodyFile: string;
+  /** Word count persisted at stage time (legacy rows omit it). */
+  wordCount?: number;
   /** Set when candidate_accept succeeds; blocks double-accept. */
   acceptedAt?: string;
   acceptedMode?: "replace" | "append";

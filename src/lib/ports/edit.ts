@@ -5,6 +5,7 @@
  * 0.11.1+: depolish brief keeps breath/rough edges; forbids flattening for “去AI味”.
  */
 import { allow, deny, info, warn, type GateDecision } from "./types.js";
+import { PLUGIN_VERSION } from "../version.js";
 
 /** Canonical polish modes from the optimizer skill; default = polish-depolish. */
 export const EDIT_MODE_IDS = [
@@ -101,7 +102,7 @@ export interface EditSoftHit {
 
 export const EditPort = {
   id: "port.edit" as const,
-  version: "0.15.0",
+  version: PLUGIN_VERSION,
   defaultMode: "polish-depolish" as EditModeId,
   skillDoc: "docs/skills/web-novel-master-optimizer.md",
 

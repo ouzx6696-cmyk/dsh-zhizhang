@@ -88,13 +88,19 @@ describe("panel HTTP · GET + accept POST", () => {
       const body = (await snapRes.json()) as {
         ok: boolean;
         snapshot: { workKey: string; nextHints: string[]; library: unknown; product: unknown };
-        html: string;
+        html?: string;
       };
       expect(body.ok).toBe(true);
       expect(body.snapshot.workKey).toBe(meta.key);
       expect(body.snapshot.library).toBeTruthy();
       expect(body.snapshot.product).toBeTruthy();
-      expect(body.html).toContain("zz-panel");
+      // 0.15.3: HTML is opt-in; the default snapshot stays JSON-only for cheap polling.
+      expect(body.html).toBeUndefined();
+      const htmlRes = await fetch(
+        `http://127.0.0.1:${port}${ZZ_API_PREFIX}/snapshot?work=${encodeURIComponent(meta.key)}&html=1`,
+      );
+      const htmlBody = (await htmlRes.json()) as { html?: string };
+      expect(htmlBody.html).toContain("zz-panel");
 
       const lib = await fetch(`http://127.0.0.1:${port}${ZZ_API_PREFIX}/library`);
       expect(((await lib.json()) as { ok: boolean }).ok).toBe(true);
@@ -308,7 +314,7 @@ describe("panel HTTP · chapter + candidate body (0.13)", () => {
       const h = (await health.json()) as { routes: string[]; version: string };
       expect(h.routes.some((r) => r.includes("/chapter"))).toBe(true);
       expect(h.routes.some((r) => r.endsWith("/candidate") || r.includes("/candidate"))).toBe(true);
-      expect(h.version).toBe("0.15.0");
+      expect(h.version).toBe("0.15.3");
     } finally {
       await new Promise<void>((resolve, reject) => server.close((e) => (e ? reject(e) : resolve())));
       await cleanup();
@@ -341,8 +347,8 @@ describe("client.js ModuleLoader contract", () => {
     expect(src).toContain("zz-wb-left");
     expect(src).toContain("zz-wb-center");
     expect(src).toContain("zz-wb-right");
-    expect(src).toContain('/chapter?work=');
-    expect(src).toContain('/candidate?work=');
+    expect(src).toContain('"/chapter?"');
+    expect(src).toContain('"/candidate?"');
     expect(src).toContain("lightMdToHtml");
     expect(src).toContain("正式章");
     expect(src).toContain("候选对照");

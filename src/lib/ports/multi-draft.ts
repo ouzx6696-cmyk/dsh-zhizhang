@@ -6,6 +6,7 @@
 import type { CandidateFile } from "../types.js";
 import { getPortConfig } from "./config.js";
 import { Scheduler } from "./scheduler.js";
+import { PLUGIN_VERSION } from "../version.js";
 
 export const MULTI_DRAFT_DISABLED_CODE = "multi_draft_disabled";
 
@@ -54,7 +55,7 @@ function clipPreview(body: string, max = 280): string {
 
 export const MultiDraftPort = {
   id: "port.multi_draft" as const,
-  version: "0.15.0",
+  version: PLUGIN_VERSION,
   disabledCode: MULTI_DRAFT_DISABLED_CODE,
 
   isEnabled: isMultiDraftEnabled,

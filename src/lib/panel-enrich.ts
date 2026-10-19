@@ -8,11 +8,14 @@ import { LibraryPort, coerceAxis } from "./ports/library.js";
 import { InspirationPort } from "./ports/inspiration.js";
 import { ProductMap } from "./ports/product.js";
 import { Scheduler } from "./ports/scheduler.js";
-import type { StoragePaths } from "./store.js";
+import { listLocalBooks, type StoragePaths } from "./store.js";
 import type { Foundation } from "./types.js";
 
 export interface PanelLibraryView {
   sourcesCount: number;
+  sourceRoot: string;
+  pendingCount: number;
+  pending: Array<{ name: string; bytes: number }>;
   sources: Array<{ id: string; title: string; author: string }>;
   craftCount: number;
   mindCount: number;
@@ -116,8 +119,23 @@ export async function buildLibraryView(paths: StoragePaths): Promise<PanelLibrar
     combo = null;
   }
 
+  const sourceRoot = paths.sourceRoot || "";
+  let pending: Array<{ name: string; bytes: number }> = [];
+  if (sourceRoot) {
+    try {
+      const local = await listLocalBooks(sourceRoot, { limit: 40 });
+      const titles = new Set(sources.map((s) => s.title));
+      pending = local.filter((b) => !titles.has(b.title));
+    } catch {
+      pending = [];
+    }
+  }
+
   return {
     sourcesCount: sources.length,
+    sourceRoot,
+    pendingCount: pending.length,
+    pending: pending.slice(0, 12).map((b) => ({ name: b.name, bytes: b.bytes })),
     sources: sources.slice(0, 12).map((s) => ({
       id: s.id,
       title: s.title,

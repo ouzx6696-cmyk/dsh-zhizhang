@@ -14,8 +14,9 @@
  * Patterns: atomic write, path sandbox, process-local locks, CJK-aware word count.
  * Strategy decisions stay in ports/; this module only persists and queries.
  */
-import { mkdir, open, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, open, readdir, readFile, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
+import { homedir } from "node:os";
 import { randomUUID } from "node:crypto";
 import {
   CHAPTER_STATUSES,
@@ -92,10 +93,308 @@ export function slugify(title: string): string {
   return RESERVED_NAME.test(cleaned) ? `_${cleaned}` : cleaned;
 }
 
+/** One safe path segment for chapter / candidate ids (no separators, no traversal). */
+const SAFE_RESOURCE_ID = /^[^/\\\u0000-\u001f]{1,64}$/;
+const WINDOWS_RESERVED_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
+
+export function assertResourceId(id: unknown, label = "id"): string {
+  const t = String(id ?? "").trim();
+  if (
+    !t ||
+    !SAFE_RESOURCE_ID.test(t) ||
+    t === "." ||
+    t === ".." ||
+    WINDOWS_RESERVED_NAME.test(t) ||
+    /[. ]$/.test(t)
+  ) {
+    throw new ZhizhangError("bad_id", `${label} 非法（禁止目录穿越 / 保留名）：${t.slice(0, 80)}`);
+  }
+  return t;
+}
+
 export function sessionCwd(exec: unknown): string {
   const cwd = (exec as { agent?: { session?: { header?: { cwd?: string } } } })?.agent?.session?.header
     ?.cwd;
   return typeof cwd === "string" && cwd.length > 0 ? cwd : process.cwd();
+}
+
+/**
+ * Last storage root touched by an agent tool. The Web panel has no session, so it
+ * follows this instead of the host process cwd. Persisted under the DSH home so a
+ * restarted host still points at the workspace the Agent was writing to.
+ */
+let lastToolBase = "";
+let lastWorksRoot = "";
+let lastMarkerReadAt = 0;
+
+function dshHome(): string {
+  return (process.env.DSH_HOME ?? "").trim() || path.join(homedir(), ".dsh");
+}
+
+function toolBaseMarker(): string {
+  return path.join(dshHome(), "zhizhang-last-root.json");
+}
+
+async function persistToolBase(base: string, works?: string): Promise<void> {
+  try {
+    const file = toolBaseMarker();
+    await mkdir(path.dirname(file), { recursive: true });
+    const body = works ? { base, works, at: nowIso() } : { base, at: nowIso() };
+    await atomicWrite(file, JSON.stringify(body, null, 2) + "\n");
+  } catch {
+    /* memory value still works for this process */
+  }
+}
+
+export function rememberToolBase(base: string, works?: string): void {
+  if (!base || base === lastToolBase) return;
+  lastToolBase = base;
+  lastWorksRoot = works || "";
+  void persistToolBase(base, works);
+}
+
+export function getLastToolBase(): string {
+  return lastToolBase;
+}
+
+/** Read the persisted marker (cached in memory after the first hit). */
+export async function loadLastToolBase(): Promise<string> {
+  if (lastToolBase) return lastToolBase;
+  // In a multi-process host the marker may appear later; re-check at most every 5s.
+  if (Date.now() - lastMarkerReadAt < 5000) return "";
+  lastMarkerReadAt = Date.now();
+  try {
+    const raw = JSON.parse(await readFile(toolBaseMarker(), "utf8")) as {
+      base?: unknown;
+      works?: unknown;
+    };
+    const base = typeof raw?.base === "string" ? raw.base : "";
+    if (base && path.isAbsolute(base)) {
+      const worksRaw = typeof raw?.works === "string" ? raw.works : "";
+      const worksDir = worksRaw && path.isAbsolute(worksRaw) ? worksRaw : path.join(base, "works");
+      const st = await stat(worksDir);
+      if (st.isDirectory()) {
+        lastToolBase = base;
+        lastWorksRoot = worksDir;
+        return base;
+      }
+    }
+  } catch {
+    /* no marker yet */
+  }
+  return "";
+}
+
+// —— § projects index (cross-workspace panel) ——
+interface ProjectIndexEntry {
+  id?: string;
+  base: string;
+  works?: string;
+  name?: string;
+  lastUsedAt?: string;
+}
+
+function projectsFile(): string {
+  return path.join(dshHome(), "zhizhang-projects.json");
+}
+
+/** Stable id for a workspace storage root (case/sep-insensitive). */
+export function projectIdOf(base: string): string {
+  return path.resolve(base).replaceAll("\\", "/").toLowerCase();
+}
+
+function projectNameOf(base: string): string {
+  const root = path.dirname(path.resolve(base));
+  const parts = root.split(/[\\/]/).filter(Boolean);
+  const tail = parts.slice(-2).join("/");
+  return tail || root;
+}
+
+let lastProjectBase = "";
+let lastProjectWorks = "";
+let projectsChain: Promise<void> = Promise.resolve();
+
+async function readProjectsIndex(): Promise<ProjectIndexEntry[]> {
+  try {
+    const raw = JSON.parse(await readFile(projectsFile(), "utf8")) as { projects?: unknown };
+    const list = Array.isArray(raw?.projects) ? (raw.projects as ProjectIndexEntry[]) : [];
+    return list.filter((p) => p && typeof p.base === "string" && path.isAbsolute(p.base));
+  } catch {
+    return [];
+  }
+}
+
+async function upsertProjectFile(base: string, works?: string): Promise<void> {
+  const list = await readProjectsIndex();
+  const id = projectIdOf(base);
+  const existing = list.find((p) => projectIdOf(p.base) === id);
+  const entry: ProjectIndexEntry = {
+    id,
+    base: path.resolve(base),
+    works: works ? path.resolve(works) : existing?.works,
+    name: existing?.name || projectNameOf(base),
+    lastUsedAt: nowIso(),
+  };
+  const next = existing ? list.map((p) => (p === existing ? { ...p, ...entry } : p)) : [...list, entry];
+  next.sort((a, b) => String(b.lastUsedAt ?? "").localeCompare(String(a.lastUsedAt ?? "")));
+  await atomicWrite(projectsFile(), JSON.stringify({ version: 1, projects: next }, null, 2) + "\n");
+}
+
+/**
+ * Record this workspace in the cross-project index (best-effort, serialized).
+ * Called from ensureStorage for tool calls only, so the panel can list projects.
+ */
+export function rememberProject(base: string, works?: string): void {
+  if (!base || (base === lastProjectBase && (works ? works === lastProjectWorks : true))) return;
+  lastProjectBase = base;
+  if (works) lastProjectWorks = works;
+  projectsChain = projectsChain.then(() => upsertProjectFile(base, works)).catch(() => {});
+}
+
+const LOCAL_BOOK_EXTS = new Set([".txt", ".md", ".markdown"]);
+
+export interface LocalBook {
+  name: string;
+  title: string;
+  path: string;
+  bytes: number;
+}
+
+/** List candidate book files in a local shelf folder (read-only, no import). */
+export async function listLocalBooks(
+  sourceRoot: string | undefined,
+  opts: { limit?: number } = {},
+): Promise<LocalBook[]> {
+  const root = String(sourceRoot ?? "").trim();
+  if (!root) return [];
+  let names: string[];
+  try {
+    names = await readdir(root);
+  } catch {
+    return [];
+  }
+  const limit = typeof opts.limit === "number" ? opts.limit : 200;
+  const rows: LocalBook[] = [];
+  for (const name of names.sort()) {
+    if (!LOCAL_BOOK_EXTS.has(path.extname(name).toLowerCase())) continue;
+    const full = path.join(root, name);
+    try {
+      const st = await stat(full);
+      if (!st.isFile()) continue;
+      rows.push({
+        name,
+        title: path.basename(name, path.extname(name)),
+        path: full,
+        bytes: st.size,
+      });
+    } catch {
+      /* unreadable entry — skip */
+    }
+    if (rows.length >= limit) break;
+  }
+  return rows;
+}
+
+export interface ProjectSummary {
+  id: string;
+  base: string;
+  name: string;
+  lastUsedAt: string;
+  exists: boolean;
+  works: Array<{
+    key: string;
+    title: string;
+    genre: string;
+    chapters: number;
+    wordCount: number;
+    updatedAt: string;
+  }>;
+  worksCount: number;
+  chapters: number;
+  words: number;
+}
+
+let projectsSummaryAt = 0;
+let projectsSummaryCache: ProjectSummary[] | null = null;
+
+/**
+ * Known workspaces with a cheap per-project summary (works/chapters/words).
+ * Summaries are derived from each project's own .zhizhang — never authoritative copies.
+ */
+export async function listProjects(
+  opts: { ttl?: number; refresh?: boolean } = {},
+): Promise<ProjectSummary[]> {
+  const ttl = typeof opts.ttl === "number" ? opts.ttl : 5000;
+  if (!opts.refresh && projectsSummaryCache && Date.now() - projectsSummaryAt < ttl) {
+    return projectsSummaryCache;
+  }
+  const list = await readProjectsIndex();
+  const knownIds = new Set(list.map((p) => projectIdOf(p.base)));
+  const markerBase = await loadLastToolBase();
+  if (markerBase && !knownIds.has(projectIdOf(markerBase))) {
+    list.push({
+      id: projectIdOf(markerBase),
+      base: markerBase,
+      works: lastWorksRoot || undefined,
+      name: projectNameOf(markerBase),
+      lastUsedAt: "",
+    });
+  }
+  const rows: ProjectSummary[] = [];
+  for (const entry of list) {
+    const base = path.resolve(entry.base);
+    const worksDir =
+      typeof entry.works === "string" && path.isAbsolute(entry.works)
+        ? entry.works
+        : path.join(base, "works");
+    let existsFlag = false;
+    try {
+      existsFlag = (await stat(worksDir)).isDirectory();
+    } catch {
+      existsFlag = false;
+    }
+    let works: WorkMeta[] = [];
+    if (existsFlag) {
+      try {
+        works = await listWorks({
+          base,
+          works: worksDir,
+          manuscripts: path.join(base, "manuscripts"),
+          library: path.join(base, "library"),
+          inspiration: path.join(base, "inspiration"),
+          sourceRoot: "",
+        });
+      } catch {
+        works = [];
+      }
+    }
+    const rowsWorks = works.map((w) => {
+      const chapters = Array.isArray(w.chapters) ? w.chapters : [];
+      return {
+        key: w.key,
+        title: w.title,
+        genre: w.genre ?? "",
+        chapters: chapters.length,
+        wordCount: chapters.reduce((x, c) => x + (c.wordCount || 0), 0),
+        updatedAt: w.updatedAt ?? "",
+      };
+    });
+    rows.push({
+      id: entry.id || projectIdOf(base),
+      base,
+      name: entry.name || projectNameOf(base),
+      lastUsedAt: entry.lastUsedAt ?? "",
+      exists: existsFlag,
+      works: rowsWorks,
+      worksCount: rowsWorks.length,
+      chapters: rowsWorks.reduce((x, w) => x + w.chapters, 0),
+      words: rowsWorks.reduce((x, w) => x + w.wordCount, 0),
+    });
+  }
+  rows.sort((a, b) => String(b.lastUsedAt ?? "").localeCompare(String(a.lastUsedAt ?? "")));
+  projectsSummaryCache = rows;
+  projectsSummaryAt = Date.now();
+  return rows;
 }
 
 
@@ -106,11 +405,21 @@ export interface StoragePaths {
   manuscripts: string;
   library: string;
   inspiration: string;
+  /** Optional local book shelf (config.sourceRoot / DSH_ZHIZHANG_SOURCE_ROOT). */
+  sourceRoot: string;
+}
+
+export interface StorageConfig {
+  rootDir?: string;
+  storageRoot?: string;
+  worksRoot?: string;
+  libraryRoot?: string;
+  sourceRoot?: string;
 }
 
 export function storagePaths(
   exec: unknown,
-  config: { rootDir?: string; storageRoot?: string } | undefined,
+  config: StorageConfig | undefined,
   workingDir?: string,
 ): StoragePaths {
   const cwd = sessionCwd(exec);
@@ -122,18 +431,41 @@ export function storagePaths(
   } else {
     base = path.resolve(cwd, config?.rootDir ?? ".zhizhang");
   }
+  // Optional novels folder: one visible directory per book, instead of <base>/works.
+  const worksRaw = (config?.worksRoot ?? process.env.DSH_ZHIZHANG_WORKS ?? "").trim();
+  const works = worksRaw
+    ? path.isAbsolute(worksRaw)
+      ? worksRaw
+      : path.resolve(cwd, worksRaw)
+    : path.join(base, "works");
+  // Optional shared library: cards/sources live in one root shared by every project.
+  // Works / manuscripts / inspiration stay per-project.
+  const libRaw = (config?.libraryRoot ?? process.env.DSH_ZHIZHANG_LIBRARY ?? "").trim();
+  const library = libRaw
+    ? path.isAbsolute(libRaw)
+      ? libRaw
+      : path.resolve(cwd, libRaw)
+    : path.join(base, "library");
+  // Optional local book shelf: a folder the Agent may import from by file name.
+  const srcRaw = (config?.sourceRoot ?? process.env.DSH_ZHIZHANG_SOURCE_ROOT ?? "").trim();
+  const sourceRoot = srcRaw
+    ? path.isAbsolute(srcRaw)
+      ? srcRaw
+      : path.resolve(cwd, srcRaw)
+    : "";
   return {
     base,
-    works: path.join(base, "works"),
+    works,
     manuscripts: path.join(base, "manuscripts"),
-    library: path.join(base, "library"),
+    library,
     inspiration: path.join(base, "inspiration"),
+    sourceRoot,
   };
 }
 
 export async function ensureStorage(
   exec: unknown,
-  config: { rootDir?: string; storageRoot?: string } | undefined,
+  config: StorageConfig | undefined,
   workingDir?: string,
 ): Promise<StoragePaths> {
   const paths = storagePaths(exec, config, workingDir);
@@ -141,6 +473,12 @@ export async function ensureStorage(
   await mkdir(paths.manuscripts, { recursive: true });
   await mkdir(paths.library, { recursive: true });
   await mkdir(paths.inspiration, { recursive: true });
+  // Tools pass exec; HTTP passes null. Remembering only tool roots lets the
+  // Web panel follow the workspace the Agent is actually writing to.
+  if (exec) {
+    rememberToolBase(paths.base, paths.works);
+    rememberProject(paths.base, paths.works);
+  }
   return paths;
 }
 
@@ -158,8 +496,11 @@ export async function atomicWrite(file: string, content: string): Promise<void> 
 }
 
 function assertInside(base: string, target: string, label: string): string {
+  // Normalize both sides: config paths often use forward slashes (D:/x/y),
+  // while path.join produces backslashes on Windows.
+  const baseResolved = path.resolve(base);
   const resolved = path.resolve(target);
-  if (resolved !== base && !resolved.startsWith(base + path.sep)) {
+  if (resolved !== baseResolved && !resolved.startsWith(baseResolved + path.sep)) {
     throw new Error(`${label} 越界：${target}`);
   }
   return resolved;
@@ -167,7 +508,9 @@ function assertInside(base: string, target: string, label: string): string {
 
 export function workDir(paths: StoragePaths, key: string): string {
   const safe = slugify(key);
-  if (safe.includes("..") || path.isAbsolute(safe)) throw new Error("作品 key 非法");
+  if (safe.includes("..") || path.isAbsolute(safe)) {
+    throw new ZhizhangError("bad_id", "作品 key 非法");
+  }
   return assertInside(paths.works, path.join(paths.works, safe), "作品目录");
 }
 
@@ -238,7 +581,7 @@ function normalizeFoundation(raw: Partial<Foundation> | null | undefined): Found
 }
 
 function chapterFile(dir: string, id: string): string {
-  return path.join(chaptersDir(dir), `${id}.md`);
+  return path.join(chaptersDir(dir), `${assertResourceId(id, "章节 id")}.md`);
 }
 
 function serializeChapterMarkdown(record: ChapterRecord): string {
@@ -392,6 +735,38 @@ export async function readChapter(dir: string, chapterId: string): Promise<Chapt
   return parseChapterMarkdown(raw, chapterId);
 }
 
+/**
+ * Panel-only lens read with an mtime+size cache. The Web workbench polls every
+ * ~6s; without this it re-reads every chapter file per poll.
+ */
+const CHAPTER_LENS_CACHE_MAX = 400;
+const chapterLensCache = new Map<
+  string,
+  { mtimeMs: number; size: number; lens: { situationLens: string; livedScene: string; stateLens: string } }
+>();
+
+async function readChapterLens(
+  dir: string,
+  chapterId: string,
+): Promise<{ situationLens: string; livedScene: string; stateLens: string }> {
+  const file = chapterFile(dir, chapterId);
+  const st = await stat(file);
+  const hit = chapterLensCache.get(file);
+  if (hit && hit.mtimeMs === st.mtimeMs && hit.size === st.size) return hit.lens;
+  const record = parseChapterMarkdown(await readFile(file, "utf8"), chapterId);
+  const lens = {
+    situationLens: record.outline.situationLens,
+    livedScene: record.outline.livedScene,
+    stateLens: record.outline.stateLens,
+  };
+  chapterLensCache.set(file, { mtimeMs: st.mtimeMs, size: st.size, lens });
+  if (chapterLensCache.size > CHAPTER_LENS_CACHE_MAX) {
+    const oldest = chapterLensCache.keys().next().value;
+    if (oldest !== undefined) chapterLensCache.delete(oldest);
+  }
+  return lens;
+}
+
 export async function saveChapter(
   dir: string,
   input: {
@@ -540,6 +915,13 @@ export function candidateToDiskMeta(cand: CandidateFile): Record<string, unknown
   if (cand.draftLabel) disk.draftLabel = cand.draftLabel;
   if (cand.variantGroup) disk.variantGroup = cand.variantGroup;
   if (cand.unifyOf && cand.unifyOf.length) disk.unifyOf = cand.unifyOf;
+  const words =
+    typeof cand.wordCount === "number"
+      ? cand.wordCount
+      : typeof cand.body === "string"
+        ? countWords(cand.body)
+        : undefined;
+  if (typeof words === "number") disk.wordCount = words;
   return disk;
 }
 
@@ -560,6 +942,7 @@ export async function stageCandidate(
   if (!String(input.body ?? "").trim()) {
     throw new ZhizhangError("candidate_empty", "候选正文为空，拒绝暂存");
   }
+  const chapterId = assertResourceId(input.chapterId, "章节 id");
   const id = `cand-${Date.now().toString(36)}`;
   await mkdir(candidatesDir(dir), { recursive: true });
   const bodyFile = `${id}.md`;
@@ -570,12 +953,13 @@ export async function stageCandidate(
     schemaVersion: SCHEMA_VERSION,
     id,
     workKey: meta.key,
-    chapterId: input.chapterId,
+    chapterId,
     stagedAt,
     source: input.source ?? "agent",
     note: input.note ?? "",
     body: input.body,
     bodyFile,
+    wordCount: countWords(input.body),
   };
   if (input.editOf) {
     cand.editOf = input.editOf;
@@ -591,9 +975,14 @@ export async function stageCandidate(
 }
 
 export async function readCandidate(dir: string, candidateId: string): Promise<CandidateFile> {
-  const raw = await readFile(path.join(candidatesDir(dir), `${candidateId}.json`), "utf8");
+  const id = assertResourceId(candidateId, "候选 id");
+  const raw = await readFile(path.join(candidatesDir(dir), `${id}.json`), "utf8");
   const disk = JSON.parse(raw) as Omit<CandidateFile, "body">;
-  const body = await readFile(path.join(candidatesDir(dir), disk.bodyFile), "utf8");
+  const bodyFile =
+    typeof disk.bodyFile === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]*\.md$/.test(disk.bodyFile)
+      ? disk.bodyFile
+      : `${id}.md`;
+  const body = await readFile(path.join(candidatesDir(dir), bodyFile), "utf8");
   return { ...disk, body };
 }
 
@@ -607,12 +996,13 @@ export async function markCandidateLinted(
   candidateId: string,
   hitCount: number,
 ): Promise<{ token: string; lintedAt: string; hitCount: number; chapterId: string }> {
-  return withLock(`${dir}:cand:${candidateId}`, async () => {
-    const cand = await readCandidate(dir, candidateId);
+  const id = assertResourceId(candidateId, "候选 id");
+  return withLock(`${dir}:cand:${id}`, async () => {
+    const cand = await readCandidate(dir, id);
     if (cand.acceptedAt) {
       throw new ZhizhangError(
         "candidate_already_accepted",
-        `候选 ${candidateId} 已采纳，无需再扫；请重新 stage 新候选后再 lint。`,
+        `候选 ${id} 已采纳，无需再扫；请重新 stage 新候选后再 lint。`,
       );
     }
     const token = `lint-${randomUUID().replace(/-/g, "").slice(0, 16)}`;
@@ -624,13 +1014,13 @@ export async function markCandidateLinted(
       lintHitCount: hitCount,
     });
     await atomicWrite(
-      path.join(candidatesDir(dir), `${candidateId}.json`),
+      path.join(candidatesDir(dir), `${id}.json`),
       JSON.stringify(diskMeta, null, 2) + "\n",
     );
     await appendLedger(dir, {
       chapterId: cand.chapterId,
       kind: "style_lint",
-      summary: `语感雷达候选 ${candidateId}：${hitCount} 处命中 · token=${token}`,
+      summary: `语感雷达候选 ${id}：${hitCount} 处命中 · token=${token}`,
       styleHitCount: hitCount,
     });
     return { token, lintedAt, hitCount, chapterId: cand.chapterId };
@@ -659,15 +1049,16 @@ export async function acceptCandidate(
   mode: "replace" | "append" = "replace",
   opts: { force?: boolean; lintPassToken?: string } = {},
 ): Promise<ChapterRecord> {
-  const cand = await readCandidate(dir, candidateId);
+  const id = assertResourceId(candidateId, "候选 id");
+  const cand = await readCandidate(dir, id);
   if (cand.acceptedAt) {
     throw new ZhizhangError(
       "candidate_already_accepted",
-      `候选 ${candidateId} 已于 ${cand.acceptedAt} 采纳（${cand.acceptedMode ?? "replace"}），禁止重复写回。请重新 zhizhang_candidate_stage 新候选。`,
+      `候选 ${id} 已于 ${cand.acceptedAt} 采纳（${cand.acceptedMode ?? "replace"}），禁止重复写回。请重新 zhizhang_candidate_stage 新候选。`,
     );
   }
   if (!cand.body.trim()) {
-    throw new ZhizhangError("candidate_empty", `候选 ${candidateId} 正文为空，拒绝采纳`);
+    throw new ZhizhangError("candidate_empty", `候选 ${id} 正文为空，拒绝采纳`);
   }
 
   const provided = opts.lintPassToken?.trim();
@@ -675,19 +1066,19 @@ export async function acceptCandidate(
     if (!cand.lintPassToken || cand.lintPassToken !== provided) {
       throw new ZhizhangError(
         "lint_token_mismatch",
-        `lintPassToken 无效或不匹配。请对候选 ${candidateId} 重新调用 zhizhang_style_lint（传 candidate），使用返回的 lintPassToken。`,
+        `lintPassToken 无效或不匹配。请对候选 ${id} 重新调用 zhizhang_style_lint（传 candidate），使用返回的 lintPassToken。`,
       );
     }
     if (!candidateHasLintPass(cand)) {
       throw new ZhizhangError(
         "lint_required",
-        `候选 ${candidateId} 的语感扫描已过期（须在 stage 之后）。请重新 zhizhang_style_lint。`,
+        `候选 ${id} 的语感扫描已过期（须在 stage 之后）。请重新 zhizhang_style_lint。`,
       );
     }
   } else if (!candidateHasLintPass(cand)) {
     throw new ZhizhangError(
       "lint_required",
-      `采纳前必须对候选 ${candidateId} 成功执行 zhizhang_style_lint（传 candidate=…）。软提示不够：代码硬拒绝。也可把 style_lint 返回的 lintPassToken 传给 accept。`,
+      `采纳前必须对候选 ${id} 成功执行 zhizhang_style_lint（传 candidate=…）。软提示不够：代码硬拒绝。也可把 style_lint 返回的 lintPassToken 传给 accept。`,
     );
   }
 
@@ -728,7 +1119,7 @@ export async function acceptCandidate(
     acceptedMode: mode,
   });
   await atomicWrite(
-    path.join(candidatesDir(dir), `${candidateId}.json`),
+    path.join(candidatesDir(dir), `${id}.json`),
     JSON.stringify(diskMeta, null, 2) + "\n",
   );
 
@@ -736,8 +1127,8 @@ export async function acceptCandidate(
     chapterId: cand.chapterId,
     kind: "note",
     summary: existingFinal
-      ? `强制采纳候选 ${candidateId}（${mode}，原 final→drafted）→ 本地草稿，未定稿`
-      : `采纳候选 ${candidateId}（${mode}）→ 本地草稿，未定稿`,
+      ? `强制采纳候选 ${id}（${mode}，原 final→drafted）→ 本地草稿，未定稿`
+      : `采纳候选 ${id}（${mode}）→ 本地草稿，未定稿`,
   });
   return saved;
 }
@@ -754,12 +1145,21 @@ export async function listCandidates(dir: string): Promise<Array<Omit<CandidateF
     if (!name.endsWith(".json")) continue;
     try {
       const raw = JSON.parse(await readFile(path.join(candidatesDir(dir), name), "utf8")) as Omit<CandidateFile, "body">;
-      let wordCount = 0;
-      try {
-        const body = await readFile(path.join(candidatesDir(dir), raw.bodyFile), "utf8");
-        wordCount = countWords(body);
-      } catch {
-        /* missing body file */
+      // wordCount is persisted at stage time; only legacy rows re-read the body.
+      let wordCount = typeof raw.wordCount === "number" ? raw.wordCount : 0;
+      if (typeof raw.wordCount !== "number") {
+        try {
+          const bodyFile =
+            typeof raw.bodyFile === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]*\.md$/.test(raw.bodyFile)
+              ? raw.bodyFile
+              : null;
+          if (bodyFile) {
+            const body = await readFile(path.join(candidatesDir(dir), bodyFile), "utf8");
+            wordCount = countWords(body);
+          }
+        } catch {
+          /* missing body file */
+        }
       }
       rows.push({
         ...raw,
@@ -953,6 +1353,7 @@ function pathsFromWorkDir(dir: string): StoragePaths {
     manuscripts: path.join(base, "manuscripts"),
     library: path.join(base, "library"),
     inspiration: path.join(base, "inspiration"),
+    sourceRoot: "",
   };
 }
 
@@ -961,6 +1362,7 @@ function pathsFromWorkDir(dir: string): StoragePaths {
 export async function buildPanelSnapshot(
   dir: string,
   pathsHint?: StoragePaths,
+  opts: { includeHtml?: boolean } = {},
 ): Promise<PanelSnapshot> {
   const paths = pathsHint ?? pathsFromWorkDir(dir);
   const {
@@ -997,10 +1399,10 @@ export async function buildPanelSnapshot(
     let livedScene = "";
     let stateLens = "";
     try {
-      const full = await readChapter(dir, ch.id);
-      situationLens = full.outline.situationLens;
-      livedScene = full.outline.livedScene;
-      stateLens = full.outline.stateLens;
+      const lens = await readChapterLens(dir, ch.id);
+      situationLens = lens.situationLens;
+      livedScene = lens.livedScene;
+      stateLens = lens.stateLens;
     } catch {
       /* index-only */
     }
@@ -1057,6 +1459,9 @@ export async function buildPanelSnapshot(
   } catch {
     library = {
       sourcesCount: 0,
+      sourceRoot: paths.sourceRoot,
+      pendingCount: 0,
+      pending: [],
       sources: [],
       craftCount: 0,
       mindCount: 0,
@@ -1138,7 +1543,9 @@ export async function buildPanelSnapshot(
     library,
     inspiration,
   };
-  const html = renderPanelHtml(htmlInput);
+  // HTML is only for embedding / snapshot tool output; the Web panel polls JSON and
+  // never reads this field, so HTTP passes includeHtml:false to keep polling cheap.
+  const html = opts.includeHtml === false ? "" : renderPanelHtml(htmlInput);
 
   return {
     schemaVersion: SCHEMA_VERSION,

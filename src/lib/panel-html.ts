@@ -4,6 +4,7 @@
  * Info architecture aligned with the Web console: 总览 / Library / Inspiration / Writing / 留痕.
  */
 import type { BriefBreadcrumb, ChapterStatus, PayoffAuditStored } from "./types.js";
+import { PLUGIN_VERSION } from "./version.js";
 import type {
   PanelInspirationView,
   PanelLibraryView,
@@ -341,7 +342,7 @@ export function renderPanelHtml(input: PanelHtmlInput): string {
     `<details class="zz-fold"><summary>审校留痕（最近）</summary>${ledgerHtml}</details>`,
     `<details class="zz-fold"><summary>brief 留痕（近期）</summary>${briefHtml}</details>`,
     `<details class="zz-fold"><summary>兑付摘要（可选）</summary>${payoffHtml}</details>`,
-    `<p class="zz-foot">织章 0.15 · 小说工作台/管线同源 · 写回经显式采纳 · nextHints≡Scheduler · multi.draft 旁路默认关 · 不进默认链 payoff_audit</p>`,
+    `<p class="zz-foot">织章 ${PLUGIN_VERSION} · 小说工作台/管线同源 · 写回经显式采纳 · nextHints≡Scheduler · multi.draft 旁路默认关 · 不进默认链 payoff_audit</p>`,
     `</article>`,
   ].join("\n");
 }

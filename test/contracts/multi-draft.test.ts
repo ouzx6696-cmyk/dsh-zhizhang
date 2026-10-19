@@ -183,8 +183,8 @@ describe("Multi-draft + unify (0.14 optional, default off)", () => {
   });
 
   test("Scheduler default hints still no unify; bypass multi.draft present", () => {
-    expect(Scheduler.version).toBe("0.15.0");
-    expect(ProductMap.version).toBe("0.15.0");
+    expect(Scheduler.version).toBe("0.15.3");
+    expect(ProductMap.version).toBe("0.15.3");
     expect(Scheduler.writeLine()).not.toMatch(/unify/);
     expect(Scheduler.nextHint("chapter_brief")).not.toMatch(/unify/);
     expect(Scheduler.nextHint("candidate_stage")).not.toMatch(/unify/);

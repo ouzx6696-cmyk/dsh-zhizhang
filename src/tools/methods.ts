@@ -258,7 +258,7 @@ export function methodsTools(): ToolDef[] {
             `- lean 意向预算 ~${LEAN_BRIEF_BUDGET} 字（不含前章正文）；前章正文另附全文；节拍/卡全文用 outline_get / library_card_get`,
           );
         } else {
-          const snap = await buildPanelSnapshot(dir);
+          const snap = await buildPanelSnapshot(dir, paths);
           lines.push(readerContract, "");
           lines.push(
             "## 根基（锁定 / 文风）",

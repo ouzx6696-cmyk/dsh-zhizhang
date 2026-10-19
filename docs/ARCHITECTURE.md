@@ -1,6 +1,7 @@
 # 架构：代码 vs AI 边界
 
 > 总览见 [COGNITION.md](./COGNITION.md) · 改动见 [CHANGE.md](./CHANGE.md)
+> 文中的 `src/...` 指**源码仓**路径；本发行包只带编译后的 `dist/`。
 
 ## 一句话
 

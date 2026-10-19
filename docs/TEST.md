@@ -1,8 +1,33 @@
-# 测试说明 · dsh-zhizhang 0.15.0
+# 测试说明 · dsh-zhizhang 0.15.3
 
 > 加测纪律也写在 [CHANGE.md](./CHANGE.md)。认知入口：[COGNITION.md](./COGNITION.md)。
 
-## 结构
+> **本发行包不附 `test/`**（只带 `dist/` + `scripts/smoke.mjs`）。下面的分层是从源码仓
+> 重建时的测试布局；在本包里请用 `npm run smoke`。
+
+## 本包自检（smoke）
+
+```bash
+npm run smoke   # node ≥22；无 DSH / 无 bun
+```
+
+[scripts/smoke.mjs](../scripts/smoke.mjs) 覆盖：
+
+- 按需挂载：`apply()` 只注册 `zhizhang_enable`、不注入硬规则 section；触发后 46 tools + 1 section；
+  重复触发幂等；无 Agent 作用域返回 `no_agent_ctx`
+- 本地书源：`sourceRoot` 解析进 paths；`listLocalBooks` 只收 `.txt/.md`；`library_list` 标已导入/未导入；
+  `library_import` 用裸文件名从书源目录解析；面板 `/library` 带 `sourceRoot/pendingCount`
+- 共享拆书库：`libraryRoot` 生效（工具写入共享根、项目库不进源）；面板 `/library` 读同一份
+- 项目索引：工具调用登记工作区且不重复；`listProjects()` 摘要（works/chapters/words）现算；
+  HTTP `/projects` 当前项目、`?base=<已登记>`可读、未知 `?base=` → `400 bad_base`
+- 46 个工具命名唯一、`applyTools()` 全部注册
+- 默认写作链：`project_create → outline_set → chapter_brief → candidate_stage →
+  style_lint → candidate_accept`
+- 硬闸：未 lint 拒绝、双采纳拒绝、面板 POST 缺 `confirm` 拒绝
+- 沙箱：`chapter`/`candidate` id 目录穿越拒绝（工具与 HTTP）
+- 面板 HTTP：`health` 版本、snapshot 默认无 HTML / `?html=1`、chapter、candidate、`bad_id`
+
+## 源码仓分层（重建时）
 
 | 层 | 目录 | 测什么 |
 |----|------|--------|
@@ -29,14 +54,16 @@
 - combo：按书/按轴过滤与 `suggestCombo`（1 mind + N craft）  
 - `gates/human-feel`：`stiffness_tidy`（卡承诺打碎才扫；默认 warn）
 
-## 命令
+## 命令（源码仓）
 
 ```bash
 bun test
 npm run typecheck
 ```
 
-## 面板（0.15.0）
+本发行包只有：`npm run smoke`。
+
+## 面板（0.15.3）
 
 - `test/contracts/panel-ui.test.ts`：三柱 HTML、HTTP GET（snapshot/library/inspiration/**chapter/candidate**）、traversal 拒、snapshot 无 body、**accept POST**、client 席位 + **zz-workbench / zz-reader** 契约
 - `test/contracts/panel-scheduler.test.ts`：nextHints 与 Scheduler 单源

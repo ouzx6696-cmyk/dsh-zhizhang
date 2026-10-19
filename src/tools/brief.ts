@@ -1,7 +1,7 @@
 /** Resident hard rules — default route from Scheduler; bypasses explicit. */
 import { Scheduler } from "../lib/ports/scheduler.js";
 
-export const SYSTEM_BRIEF = `【织章 / zhizhang 硬规则 — 调度一眼看懂；工程归代码，创作归 AI】
+export const SYSTEM_BRIEF = `【织章 / zhizhang 硬规则 — 调度一眼看懂；工程归代码，创作归 AI；本段仅在 zhizhang_enable 后注入本会话】
 0. **默认路径（最短合格）**：${Scheduler.defaultLine()}
    写作段：zhizhang_chapter_brief(lean) → 创作 → zhizhang_candidate_stage → zhizhang_style_lint(candidate) →（可选 edit）→ zhizhang_candidate_accept。
    可选编辑：edit_brief → 改写 → edit_stage → 用户选 A（confirm=编辑+验收）/ B（仅候选）/ C（拒/换模式）；未表态按 B；禁止静默验收。

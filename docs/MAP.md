@@ -1,7 +1,7 @@
 # 产品地图 · 默认路径与显式旁路
 
-> 与代码单源一致：`src/lib/ports/scheduler.ts` → ProductMap / SYSTEM_BRIEF / 工具回执。  
-> 运行时看：`zhizhang_product_map`。
+> 与代码单源一致：`src/lib/ports/scheduler.ts`（发行包为 `dist/lib/ports/scheduler.js`）→ ProductMap / SYSTEM_BRIEF / 工具回执。  
+> 启用：普通会话先调 `zhizhang_enable`（面板常驻，不依赖启用）；启用后看 `zhizhang_product_map`。
 
 ---
 

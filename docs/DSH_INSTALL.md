@@ -1,55 +1,80 @@
-# DSH CLI 安装备忘（本机验证）
+# DSH 安装与启用（本机实测）
 
-日期：2026-10-15（Asia/Hong_Kong）
+日期：2026-10-18（Asia/Hong_Kong）· 插件 **0.15.3**
 
 ## 目标
 
-把 `dsh-zhizhang` 以 `link:` 挂进 DeepSeek Harness profile，确认 bundle patch 出现在 `--dump-config`。
+把 `dsh-zhizhang` 以 `link:` 挂进 DeepSeek Harness profile，并**真正启用**（bundle + patch），
+确认工具层与 Web 面板都出现。
 
-## 包信息
+## 本机环境
 
-- npm：`@deepseek-ai/dsh@0.2.0-rc.2`
-- bin：`dsh` → `lib/bin.js`
-- 引擎警告：大量依赖声明 `node >= 22` / `>= 22.19`；本机当时为 **Node v20.19.2**。
-- 入口用 `if (import.meta.main) await runCli()`——**Node 20 下 `import.meta.main` 为假**，直接执行 `dsh` / `node …/bin.js` 会**静默退出、无输出**。用 **Bun** 跑同一 bin 正常。
+| 项 | 事实 |
+|----|------|
+| DSH 桌面端 | `E:\dsh\DeepSeek Harness.exe`；更新通道 nightly |
+| DSH 版本 | **0.2.1-rc.2**（`dsh --version`；2026-10-18 实测） |
+| CLI | `E:\dsh\resources\runtime\cli\bin\dsh.cmd`（Electron `ELECTRON_RUN_AS_NODE` 跑 `app.asar\dsh\...\cli.js`） |
+| profile | `C:\Users\Administrator\.dsh\profiles\desktop` |
+| 插件目录 | `E:\dsh cj\dsh-zhizhang-0.15.0`（link 名以目录为准，包内 version 为 0.15.3） |
+| Node | 用宿主自带运行时即可；插件声明 `node >= 22` |
 
-## 推荐命令
+## 安装
 
 ```bash
-npm i -g @deepseek-ai/dsh@0.2.0-rc.2
-export PATH="$HOME/.local/bin:$PATH"   # npm 全局 bin 若不在 PATH
+# 1) 挂依赖（pnpm link；只装依赖，不改 loader）
+dsh plugin --profile desktop add link:"E:/dsh cj/dsh-zhizhang-0.15.0"
 
-# Node ≥22 时可直接：
-dsh --version
+# 2) 启用（关键！CLI 不会自动加 bundle）
+#    编辑 C:\Users\Administrator\.dsh\profiles\desktop\package.json：
+#    "dsh": { "profile": { "bundles": [ ... , "dsh-zhizhang" ] } }
+#
+#    或者不写 bundle，改在 profile 的 cordis.patch.yml 里加一行 insert
+#    （见插件根目录 cordis.patch.yml）
 
-# Node 20 权宜：
-bun "$(npm root -g)/@deepseek-ai/dsh/lib/bin.js" --version
+# 3) 重启 DeepSeek Harness（或重启 profile）
 
-cd /path/to/dsh-zhizhang && npm run build
-bun "$(npm root -g)/@deepseek-ai/dsh/lib/bin.js" plugin --profile web add link:$(pwd)
-bun "$(npm root -g)/@deepseek-ai/dsh/lib/bin.js" --profile web --dump-config | grep -n zhizhang
+# 4) 会话内按需启用（关键）
+#    普通会话只多一个 zhizhang_enable；
+#    让 Agent 调 zhizhang_enable（或说「启用织章」）后，46 个工具 + 硬规则才挂到本会话。
+
+# 5) 验证
+#    桌面 profile 由 Electron 独占，CLI `--dump-config` 会拒绝：
+#    error: profile "desktop" is managed exclusively by the Electron application
+#    改用 GUI 侧栏「织章」/ 会话里的 zhizhang_enable 回执确认。
 ```
 
-## 本环境实测记录
+只出现在 `node_modules` / `dependencies` 里**不算**启用；还要在 `dsh.profile.bundles`（或 patch）里，
+重启后由 `zhizhang_enable` 触发工具层。
 
-| 步骤 | 结果 |
-|------|------|
-| `npm i -g @deepseek-ai/dsh@0.2.0-rc.2` | 成功（542 packages）；大量 `EBADENGINE`（要 Node≥22） |
-| `dsh` 不在默认 PATH | bin 在 `~/.local/bin/dsh` |
-| `node …/bin.js --version` | **空输出 exit 0**（`import.meta.main` 未触发） |
-| `bun …/bin.js --version` | `0.2.0-rc.2` |
-| `plugin --profile web add link:/workspace/dsh-zhizhang`（经 bun） | 成功；初始化 `~/.dsh/profiles/web`；pnpm link 写入依赖 |
-| `--profile web --dump-config` | 出现 `# == dsh-zhizhang` / `id: zhizhang` / `rootDir: .zhizhang` |
+## 配置
 
-### 阻断结论（给父代理）
+插件配置在 bundle 的 `config` 层（`cordis.patch.yml` 或 profile patch）。
+挂载本身只注册 `zhizhang_enable` + 只读面板 HTTP；工具层在会话内触发。
 
-1. **硬阻断（纯 Node 20）**：官方 CLI 入口依赖 `import.meta.main`，Node 20 无法自启动；需 **Node ≥22** 或用 **Bun 调 bin.js**。
-2. **非阻断**：插件 `link:` + dump-config **已验证通过**（经 Bun 跑 CLI）。
-3. 无 CLI 时：`bun test` + `npm run build` 仍可完整验证工具层。
+```yaml
+- insert:
+    - id: zhizhang
+      name: 'dsh-zhizhang'
+      config:
+        rootDir: '.zhizhang'          # 默认：<会话 cwd>/.zhizhang
+        # storageRoot: 'D:/writes'     # 可选：固定存储根（HTTP 面板同用）
+        # libraryRoot: 'D:/writes/shared-library'  # 可选：拆书库复用（见 docs/DATA.md）
+        # sourceRoot: 'D:/books'       # 可选：本地书源目录（按文件名导入）
+        # worksRoot: 'D:/writes/novels'  # 可选：作品目录（一本书一个同名文件夹）
+        # allowLanPanel: false         # 默认仅 loopback
+        # multiDraft:
+        #   enabled: false               # 可选多草稿（默认关）
+```
 
-## 无 dsh 冒烟
+## 本机历史（0.2.0 时代，仅存档）
+
+- 旧 npm 全局 CLI 入口依赖 `import.meta.main`，Node 20 下会静默退出；当时用 Bun 跑 bin.js。
+- 0.2.1 桌面端自带 runtime CLI，上面的绕行已不需要。
+- 当时 `link:` + `--dump-config` 已验证能出现 zhizhang 层；**但只有 bundles/patch 生效后才算加载**。
+
+## 冒烟（不依赖 DSH）
 
 ```bash
-bun test
-npm run build
+cd "E:/dsh cj/dsh-zhizhang-0.15.0"
+npm run smoke
 ```

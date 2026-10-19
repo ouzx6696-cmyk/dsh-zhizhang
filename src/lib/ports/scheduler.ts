@@ -2,6 +2,8 @@
  * Scheduler — single source of truth for default route vs explicit bypasses.
  * ProductMap / SYSTEM_BRIEF / tool receipts must cite this, not invent parallel chains.
  */
+import { PLUGIN_VERSION } from "../version.js";
+
 export type RouteKind = "default" | "bypass";
 
 export interface BypassRoute {
@@ -105,7 +107,7 @@ const NEXT_HINTS: Record<string, string> = {
 
 export const Scheduler = {
   id: "port.scheduler" as const,
-  version: "0.15.0",
+  version: PLUGIN_VERSION,
 
   defaultLine(): string {
     return SCHEDULER_DEFAULT_LINE;

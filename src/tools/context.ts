@@ -10,26 +10,26 @@ import {
   type StoragePaths,
 } from "../lib/store.js";
 
-export let config: {
+export interface PluginConfig {
   rootDir?: string;
   storageRoot?: string;
+  /** Optional novels folder (one visible directory per book). */
+  worksRoot?: string;
+  /** Optional shared library root (cards/sources reused across projects). */
+  libraryRoot?: string;
+  /** Optional local book shelf for library_import by file name. */
+  sourceRoot?: string;
   allowLanPanel?: boolean;
   multiDraftEnabled?: boolean;
   multiDraft?: { enabled?: boolean };
-} = {};
+}
+
+export let config: PluginConfig = {};
 
 const lastWorkBySession = new Map<string, string>();
 const MAX_SESSIONS = 500;
 
-export function setPluginConfig(
-  next: {
-    rootDir?: string;
-    storageRoot?: string;
-    allowLanPanel?: boolean;
-    multiDraftEnabled?: boolean;
-    multiDraft?: { enabled?: boolean };
-  },
-): void {
+export function setPluginConfig(next: PluginConfig): void {
   config = { ...next };
 }
 

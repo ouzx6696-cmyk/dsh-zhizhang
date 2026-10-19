@@ -25,6 +25,7 @@ window.__ModuleLoader__.load({
     var SETTINGS_KEY = "dsh-zhizhang-config";
     var API = "/api/dsh-zhizhang";
     var LS_WORK = "dsh-zhizhang:lastWork";
+    var LS_PROJECT = "dsh-zhizhang:lastProject";
     var LS_CHAPTER = "dsh-zhizhang:lastChapter";
     var LS_MODE = "dsh-zhizhang:uiMode";
     var POLL_MS = 6000;
@@ -195,7 +196,8 @@ window.__ModuleLoader__.load({
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;");
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
     }
 
     /** Extremely light Markdown → HTML (no Tiptap). */
@@ -357,7 +359,9 @@ window.__ModuleLoader__.load({
               checked: state.checked,
               disabled: state.busy,
               onChange: function (e) {
-                setState(Object.assign({}, state, { checked: e.target.checked }));
+                setState(function (s) {
+                  return Object.assign({}, s, { checked: e.target.checked });
+                });
               },
             }),
             h(
@@ -376,7 +380,9 @@ window.__ModuleLoader__.load({
               checked: state.force,
               disabled: state.busy,
               onChange: function (e) {
-                setState(Object.assign({}, state, { force: e.target.checked }));
+                setState(function (s) {
+                  return Object.assign({}, s, { force: e.target.checked });
+                });
               },
             }),
             h("span", null, "force：目标章若为 final 则强制覆盖（降为 drafted）"),
@@ -389,7 +395,9 @@ window.__ModuleLoader__.load({
               checked: state.skipBrief,
               disabled: state.busy,
               onChange: function (e) {
-                setState(Object.assign({}, state, { skipBrief: e.target.checked }));
+                setState(function (s) {
+                  return Object.assign({}, s, { skipBrief: e.target.checked });
+                });
               },
             }),
             h("span", null, "skip_brief：跳过近期 chapter_brief 硬闸（作者旁路）"),
@@ -405,7 +413,9 @@ window.__ModuleLoader__.load({
                 className: "zz-btn zz-btn-primary",
                 disabled: !state.checked || state.busy,
                 onClick: function () {
-                  setState(Object.assign({}, state, { busy: true, err: null }));
+                  setState(function (s) {
+                    return Object.assign({}, s, { busy: true, err: null });
+                  });
                   props
                     .onConfirm({
                       confirm: true,
@@ -478,6 +488,8 @@ window.__ModuleLoader__.load({
         hostOk: false,
         work: "",
         works: [],
+        projectId: "",
+        projects: [],
         snapshot: null,
         base: "",
         empty: false,
@@ -492,6 +504,7 @@ window.__ModuleLoader__.load({
         chapterTruncated: false,
         candidateBody: null,
         candidateMeta: null,
+        candError: null,
         bodyLoading: false,
         bodyError: null,
         acceptFor: null,
@@ -509,26 +522,53 @@ window.__ModuleLoader__.load({
       var setState = st[1];
       var visibleRef = useRef(true);
       var busyRef = useRef(false);
+      var aliveRef = useRef(true);
+      var loadSeqRef = useRef(0);
+      var candSeqRef = useRef(0);
+      var projectIdRef = useRef("");
 
-      var load = useCallback(function (workKey, soft) {
-        if (busyRef.current && soft) return Promise.resolve();
+      var refreshProjects = useCallback(function (opts) {
+        return fetchJson(API + "/projects" + (opts && opts.refresh ? "?refresh=1" : ""), { timeoutMs: 8000 })
+          .then(function (res) {
+            var data = res.data || {};
+            if (!res.ok || !data.ok || !Array.isArray(data.projects)) return;
+            if (!projectIdRef.current && data.current) projectIdRef.current = data.current;
+            setState(function (st2) {
+              return Object.assign({}, st2, {
+                projects: data.projects,
+                projectId: st2.projectId || data.current || "",
+              });
+            });
+          })
+          .catch(function () {});
+      }, []);
+
+      var load = useCallback(function (workKey, soft, force) {
+        if (busyRef.current && soft && !force) return Promise.resolve();
+        var seq = ++loadSeqRef.current;
         busyRef.current = true;
         if (!soft) {
           setState(function (s) {
             return Object.assign({}, s, { loading: true, error: null, acceptErr: null });
           });
         }
-        var q = workKey ? "?work=" + encodeURIComponent(workKey) : "";
+        var qs = [];
+        if (projectIdRef.current) qs.push("base=" + encodeURIComponent(projectIdRef.current));
+        if (workKey) qs.push("work=" + encodeURIComponent(workKey));
+        var q = qs.length ? "?" + qs.join("&") : "";
         return fetchJson(API + "/snapshot" + q, { timeoutMs: 10000 })
           .then(function (res) {
+            if (seq !== loadSeqRef.current) return;
             busyRef.current = false;
             var data = res.data || {};
-            if (!res.ok && !data.snapshot) {
+            if (!res.ok || data.ok === false) {
               throw new Error((data && data.error) || "HTTP " + res.status);
             }
             var works = data.works || [];
             var snap = data.snapshot || null;
+            if (data.projectId) projectIdRef.current = data.projectId;
             var nextWork = (snap && snap.workKey) || workKey || (works[0] && works[0].key) || "";
+            if (!aliveRef.current) return;
             try {
               if (nextWork) localStorage.setItem(LS_WORK, nextWork);
             } catch (e) {}
@@ -552,17 +592,20 @@ window.__ModuleLoader__.load({
                 works: works,
                 snapshot: snap,
                 base: data.base || (snap && snap.storageBase) || s.base || "",
+                projectId: data.projectId || s.projectId || "",
                 empty: !!data.empty,
                 needWork: !!data.needWork,
                 message: data.message || "",
                 lastRefresh: new Date().toISOString(),
                 acceptMsg: soft ? s.acceptMsg : null,
-                chapterId: nextCh || s.chapterId,
+                chapterId: nextCh,
               });
             });
           })
           .catch(function (err) {
+            if (seq !== loadSeqRef.current) return;
             busyRef.current = false;
+            if (!aliveRef.current) return;
             setState(function (s) {
               return Object.assign({}, s, {
                 loading: false,
@@ -571,6 +614,54 @@ window.__ModuleLoader__.load({
               });
             });
           });
+      }, []);
+
+      var loadCand = function (work, chapterId, candId) {
+        if (!work || !chapterId || !candId) return;
+        var seq = ++candSeqRef.current;
+        var url =
+          API +
+          "/candidate?" +
+          (projectIdRef.current ? "base=" + encodeURIComponent(projectIdRef.current) + "&" : "") +
+          "work=" +
+          encodeURIComponent(work) +
+          "&id=" +
+          encodeURIComponent(candId);
+        fetchJson(url, { timeoutMs: 15000 })
+          .then(function (res) {
+            if (!aliveRef.current || seq !== candSeqRef.current) return;
+            var data = res.data || {};
+            if (!res.ok || !data.ok) {
+              throw new Error((data && data.error) || "读候选失败");
+            }
+            setState(function (s) {
+              var body = data.body || "";
+              if (s.selectedCandidateId === candId && s.candidateBody === body && s.candError == null) return s;
+              return Object.assign({}, s, {
+                candidateBody: body,
+                candidateMeta: Object.assign({}, data.meta || {}, { id: candId }),
+                selectedCandidateId: candId,
+                candError: null,
+              });
+            });
+          })
+          .catch(function (err) {
+            if (!aliveRef.current || seq !== candSeqRef.current) return;
+            setState(function (s) {
+              return Object.assign({}, s, {
+                candidateBody: null,
+                candidateMeta: null,
+                candError: (err && err.message) || String(err),
+              });
+            });
+          });
+      };
+
+      useEffect(function () {
+        aliveRef.current = true;
+        return function () {
+          aliveRef.current = false;
+        };
       }, []);
 
       useEffect(function () {
@@ -586,8 +677,10 @@ window.__ModuleLoader__.load({
         setState(function (s) {
           return Object.assign({}, s, { mode: savedMode, chapterId: savedCh });
         });
-        load(saved, false);
-      }, [load]);
+        refreshProjects().then(function () {
+          load(saved, false);
+        });
+      }, [load, refreshProjects]);
 
       useEffect(function () {
         function onVis() {
@@ -625,11 +718,19 @@ window.__ModuleLoader__.load({
         if (!state.work || !state.chapterId || state.mode !== "novel") return;
         var cancelled = false;
         setState(function (s) {
-          return Object.assign({}, s, { bodyLoading: true, bodyError: null });
+          return Object.assign({}, s, {
+            bodyLoading: true,
+            bodyError: null,
+            chapterBody: null,
+            chapterMeta: null,
+            chapterTruncated: false,
+          });
         });
         var chUrl =
           API +
-          "/chapter?work=" +
+          "/chapter?" +
+          (projectIdRef.current ? "base=" + encodeURIComponent(projectIdRef.current) + "&" : "") +
+          "work=" +
           encodeURIComponent(state.work) +
           "&id=" +
           encodeURIComponent(state.chapterId);
@@ -666,88 +767,89 @@ window.__ModuleLoader__.load({
         };
       }, [state.work, state.chapterId, state.mode, state.bodyEpoch]);
 
+      // Pending candidate ids for the current chapter — a stable key so a snapshot
+      // poll does not re-fetch the candidate body (and wipe the reader) every 6s.
+      var pendingKey = ((state.snapshot && state.snapshot.candidates) || [])
+        .filter(function (c) {
+          return c.pending && c.chapterId === state.chapterId;
+        })
+        .map(function (c) {
+          return c.id;
+        })
+        .join("|");
+
       useEffect(function () {
         if (state.mode !== "novel" || state.readerView !== "candidate") return;
-        var snap = state.snapshot;
-        if (!snap || !state.work || !state.chapterId) return;
-        var pending = (snap.candidates || []).filter(function (c) {
+        if (!state.work || !state.chapterId) return;
+        var pendingCands = ((state.snapshot && state.snapshot.candidates) || []).filter(function (c) {
           return c.pending && c.chapterId === state.chapterId;
         });
-        var candId = "";
-        if (state.selectedCandidateId) {
-          for (var i = 0; i < pending.length; i++) {
-            if (pending[i].id === state.selectedCandidateId) {
-              candId = pending[i].id;
-              break;
-            }
-          }
-        }
-        if (!candId && pending.length) candId = pending[0].id;
-        if (!candId) {
+        if (!pendingCands.length) {
+          candSeqRef.current += 1;
           setState(function (s) {
-            return Object.assign({}, s, { candidateBody: null, candidateMeta: null });
+            return Object.assign({}, s, {
+              candidateBody: null,
+              candidateMeta: null,
+              candError: null,
+              selectedCandidateId: "",
+            });
           });
           return;
         }
-        var cancelled = false;
-        var url =
-          API +
-          "/candidate?work=" +
-          encodeURIComponent(state.work) +
-          "&id=" +
-          encodeURIComponent(candId);
-        fetchJson(url, { timeoutMs: 15000 })
-          .then(function (res) {
-            if (cancelled) return;
-            var data = res.data || {};
-            if (!res.ok || !data.ok) {
-              throw new Error((data && data.error) || "读候选失败");
-            }
-            setState(function (s) {
-              return Object.assign({}, s, {
-                candidateBody: data.body || "",
-                candidateMeta: Object.assign({}, data.meta || {}, { id: candId }),
-                selectedCandidateId: candId,
-              });
-            });
-          })
-          .catch(function (err) {
-            if (cancelled) return;
-            setState(function (s) {
-              return Object.assign({}, s, {
-                bodyError: (err && err.message) || String(err),
-                candidateBody: null,
-              });
-            });
-          });
-        return function () {
-          cancelled = true;
-        };
+        var candId = "";
+        for (var i = 0; i < pendingCands.length; i++) {
+          if (pendingCands[i].id === state.selectedCandidateId) {
+            candId = pendingCands[i].id;
+            break;
+          }
+        }
+        if (!candId) candId = pendingCands[0].id;
+        loadCand(state.work, state.chapterId, candId);
       }, [
         state.mode,
         state.readerView,
         state.work,
         state.chapterId,
-        state.selectedCandidateId,
-        state.snapshot,
+        pendingKey,
         state.bodyEpoch,
       ]);
 
       var onRefresh = function () {
-        load(state.work, false);
+        refreshProjects({ refresh: true }).then(function () {
+          load(state.work, false, true);
+        });
       };
       var onPick = function (e) {
         load(e.target.value, false);
+      };
+      var onPickProject = function (e) {
+        var id = e.target.value;
+        projectIdRef.current = id;
+        setState(function (s) {
+          return Object.assign({}, s, {
+            projectId: id,
+            work: "",
+            chapterId: "",
+            chapterBody: null,
+            chapterMeta: null,
+            snapshot: null,
+            empty: false,
+            needWork: false,
+          });
+        });
+        load("", false, true);
       };
 
       var doAccept = function (opts) {
         var cand = state.acceptFor;
         if (!cand) return Promise.reject(new Error("无候选"));
+        if (!state.work) return Promise.reject(new Error("未选择作品"));
         return fetchJson(API + "/candidate/accept", {
           method: "POST",
           timeoutMs: 20000,
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
+            base: projectIdRef.current || undefined,
             work: state.work,
             candidate: cand.id,
             confirm: true,
@@ -758,7 +860,7 @@ window.__ModuleLoader__.load({
           }),
         }).then(function (res) {
           var data = res.data || {};
-          if (!data.ok) {
+          if (!res.ok || !data.ok) {
             var msg = (data.code ? "[" + data.code + "] " : "") + (data.error || "采纳失败");
             return Promise.reject(new Error(msg));
           }
@@ -771,7 +873,13 @@ window.__ModuleLoader__.load({
               bodyEpoch: (s.bodyEpoch || 0) + 1,
             });
           });
-          return load(state.work, true);
+          // Forced refresh so an in-flight poll cannot leave the accepted candidate
+          // listed as 待采纳 (which invited a second accept).
+          return load(state.work, true, true);
+        }).catch(function (err) {
+          // A timeout may still have committed server-side; reconcile before retry.
+          load(state.work, true, true);
+          throw err;
         });
       };
 
@@ -813,6 +921,24 @@ window.__ModuleLoader__.load({
         h(
           "div",
           { className: "zz-actions" },
+          state.projects && state.projects.length > 1
+            ? h(
+                "select",
+                {
+                  className: "zz-select",
+                  title: "项目（存储根目录）",
+                  value: state.projectId || "",
+                  onChange: onPickProject,
+                },
+                state.projects.map(function (p) {
+                  return h(
+                    "option",
+                    { key: p.id, value: p.id, title: p.base },
+                    (p.name || p.base) + (p.exists === false ? "（不可达）" : ""),
+                  );
+                }),
+              )
+            : null,
           state.works && state.works.length > 0
             ? h(
                 "select",
@@ -838,7 +964,9 @@ window.__ModuleLoader__.load({
                   try {
                     localStorage.setItem(LS_MODE, "novel");
                   } catch (e) {}
-                  setState(Object.assign({}, state, { mode: "novel" }));
+                  setState(function (s) {
+                    return Object.assign({}, s, { mode: "novel" });
+                  });
                 },
               },
               "小说",
@@ -852,7 +980,9 @@ window.__ModuleLoader__.load({
                   try {
                     localStorage.setItem(LS_MODE, "pipeline");
                   } catch (e) {}
-                  setState(Object.assign({}, state, { mode: "pipeline" }));
+                  setState(function (s) {
+                    return Object.assign({}, s, { mode: "pipeline" });
+                  });
                 },
               },
               "管线",
@@ -864,7 +994,9 @@ window.__ModuleLoader__.load({
               type: "button",
               className: "zz-btn",
               onClick: function () {
-                setState(Object.assign({}, state, { polling: !state.polling }));
+                setState(function (s) {
+                  return Object.assign({}, s, { polling: !s.polling });
+                });
               },
             },
             state.polling ? "自动刷新开" : "自动刷新关",
@@ -918,7 +1050,9 @@ window.__ModuleLoader__.load({
               role: "tab",
               className: "zz-tab" + (tab === pair[0] ? " zz-tab-on" : ""),
               onClick: function () {
-                setState(Object.assign({}, state, { tab: pair[0] }));
+                setState(function (s) {
+                  return Object.assign({}, s, { tab: pair[0] });
+                });
               },
             },
             pair[1],
@@ -991,6 +1125,25 @@ window.__ModuleLoader__.load({
               h(Badge, { tone: "zz-badge-info" }, "craft " + library.craftCount),
               h(Badge, { tone: "zz-badge-info" }, "mind " + library.mindCount),
             ),
+            library.sourceRoot
+              ? h(
+                  "p",
+                  { className: "zz-muted" },
+                  "本地书源 " +
+                    library.sourceRoot +
+                    " · 待导入 " +
+                    (library.pendingCount || 0) +
+                    (library.pending && library.pending.length
+                      ? "（" +
+                        library.pending
+                          .map(function (b) {
+                            return b.name;
+                          })
+                          .join("、") +
+                        "）"
+                      : ""),
+                )
+              : null,
             h("p", { className: "zz-muted" }, clip(library.summary, 200)),
             (library.sources || []).length === 0
               ? h("p", { className: "zz-empty" }, "暂无来源。Agent：zhizhang_library_import")
@@ -1147,13 +1300,13 @@ window.__ModuleLoader__.load({
                       type: "button",
                       className: "zz-btn zz-btn-primary",
                       onClick: function () {
-                        setState(
-                          Object.assign({}, state, {
+                        setState(function (s) {
+                          return Object.assign({}, s, {
                             acceptFor: c,
                             acceptErr: null,
                             acceptMsg: null,
-                          }),
-                        );
+                          });
+                        });
                       },
                     },
                     "采纳",
@@ -1249,21 +1402,33 @@ window.__ModuleLoader__.load({
 
 
       function selectChapter(id) {
+        if (id === state.chapterId) {
+          if (state.readerView !== "official") {
+            setState(function (s) {
+              return Object.assign({}, s, { readerView: "official" });
+            });
+          }
+          return;
+        }
         try {
           localStorage.setItem(LS_CHAPTER, id);
         } catch (e) {}
-        setState(
-          Object.assign({}, state, {
+        setState(function (s) {
+          return Object.assign({}, s, {
             chapterId: id,
             readerView: "official",
+            chapterBody: null,
+            chapterMeta: null,
+            chapterTruncated: false,
             candidateBody: null,
             candidateMeta: null,
+            candError: null,
             selectedCandidateId: "",
             bodyError: null,
             unifyMsg: null,
             unifyErr: null,
-          }),
-        );
+          });
+        });
       }
 
       function pendingForChapter(chId) {
@@ -1326,6 +1491,7 @@ window.__ModuleLoader__.load({
                       key: pc.id,
                       className: "zz-cand-mini" + (on ? " zz-ch-on" : ""),
                       onClick: function () {
+                        var sameChapter = state.chapterId === c.id;
                         setState(function (s) {
                           return Object.assign({}, s, {
                             chapterId: c.id,
@@ -1333,8 +1499,10 @@ window.__ModuleLoader__.load({
                             selectedCandidateId: pc.id,
                             candidateBody: null,
                             candidateMeta: null,
+                            candError: null,
                           });
                         });
+                        if (sameChapter && state.work) loadCand(state.work, c.id, pc.id);
                         try {
                           localStorage.setItem(LS_CHAPTER, c.id);
                         } catch (e) {}
@@ -1366,7 +1534,9 @@ window.__ModuleLoader__.load({
       var multiDraftOn = !!(snap && snap.multiDraftEnabled);
       var doUnifyPrepare = function () {
         if (!state.work || !state.chapterId || chPending.length < 2) return;
-        setState(Object.assign({}, state, { unifyBusy: true, unifyErr: null, unifyMsg: null }));
+        setState(function (s) {
+          return Object.assign({}, s, { unifyBusy: true, unifyErr: null, unifyMsg: null });
+        });
         var ids = chPending.map(function (c) {
           return c.id;
         });
@@ -1375,6 +1545,7 @@ window.__ModuleLoader__.load({
           timeoutMs: 15000,
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
+            base: projectIdRef.current || undefined,
             work: state.work,
             chapter: state.chapterId,
             candidate_ids: ids,
@@ -1388,7 +1559,8 @@ window.__ModuleLoader__.load({
             var brief = data.brief || "";
             try {
               if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(brief);
+                var p = navigator.clipboard.writeText(brief);
+                if (p && typeof p.catch === "function") p.catch(function () {});
               }
             } catch (e) {}
             setState(function (s) {
@@ -1424,7 +1596,9 @@ window.__ModuleLoader__.load({
               type: "button",
               className: state.readerView === "official" ? "zz-mode-on" : "",
               onClick: function () {
-                setState(Object.assign({}, state, { readerView: "official" }));
+                setState(function (s) {
+                  return Object.assign({}, s, { readerView: "official" });
+                });
               },
             },
             "正式章",
@@ -1437,7 +1611,9 @@ window.__ModuleLoader__.load({
               disabled: !activeCand,
               onClick: function () {
                 if (!activeCand) return;
-                setState(Object.assign({}, state, { readerView: "candidate" }));
+                setState(function (s) {
+                  return Object.assign({}, s, { readerView: "candidate" });
+                });
               },
             },
             activeCand ? "候选对照" : "无待采纳",
@@ -1463,6 +1639,8 @@ window.__ModuleLoader__.load({
       } else if (state.readerView === "candidate") {
         if (!activeCand) {
           readerContent = h("p", { className: "zz-empty" }, "本章无待采纳候选。");
+        } else if (state.candError) {
+          readerContent = h("div", { className: "zz-err" }, state.candError);
         } else if (state.candidateBody == null) {
           readerContent = h("p", { className: "zz-muted" }, "加载候选正文…");
         } else {
@@ -1558,13 +1736,16 @@ window.__ModuleLoader__.load({
                       fontWeight: activeCand && activeCand.id === pc.id ? 600 : 400,
                     },
                     onClick: function () {
-                      setState(
-                        Object.assign({}, state, {
+                      setState(function (s) {
+                        return Object.assign({}, s, {
                           readerView: "candidate",
                           selectedCandidateId: pc.id,
                           candidateBody: null,
-                        }),
-                      );
+                          candidateMeta: null,
+                          candError: null,
+                        });
+                      });
+                      if (state.work && state.chapterId) loadCand(state.work, state.chapterId, pc.id);
                     },
                   },
                   (pc.draftLabel ? "「" + pc.draftLabel + "」 " : "") +
@@ -1585,13 +1766,13 @@ window.__ModuleLoader__.load({
                         type: "button",
                         className: "zz-btn zz-btn-primary",
                         onClick: function () {
-                          setState(
-                            Object.assign({}, state, {
+                          setState(function (s) {
+                            return Object.assign({}, s, {
                               acceptFor: activeCand,
                               acceptErr: null,
                               acceptMsg: null,
-                            }),
-                          );
+                            });
+                          });
                         },
                       },
                       "采纳当前",
@@ -1684,7 +1865,7 @@ window.__ModuleLoader__.load({
         h(
           "p",
           { className: "zz-muted", style: { marginTop: 10 } },
-          "0.15 · 多草稿默认关 · 编辑 A/B/C 可选 · 产文靠对话 Agent",
+          "0.15.3 · 多草稿默认关 · 编辑 A/B/C 可选 · 产文靠对话 Agent",
         ),
       );
 
@@ -1761,7 +1942,9 @@ window.__ModuleLoader__.load({
           ? h(AcceptDialog, {
               cand: state.acceptFor,
               onCancel: function () {
-                setState(Object.assign({}, state, { acceptFor: null }));
+                setState(function (s) {
+                  return Object.assign({}, s, { acceptFor: null });
+                });
               },
               onConfirm: doAccept,
             })

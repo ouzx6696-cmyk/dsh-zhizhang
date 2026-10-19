@@ -9,11 +9,16 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { access } from "node:fs/promises";
 import path from "node:path";
 import {
+  assertResourceId,
   buildPanelSnapshot,
   countWords,
   ensureStorage,
+  getLastToolBase,
   listCandidates,
+  listProjects,
   listWorks,
+  loadLastToolBase,
+  projectIdOf,
   readCandidate,
   readChapter,
   resolveWorkDir,
@@ -25,18 +30,12 @@ import { readWorkMeta } from "./store.js";
 import { ZhizhangError } from "./errors.js";
 import { MultiDraftPort } from "./ports/multi-draft.js";
 
-/** Safe chapter / candidate id: no path segments, no traversal. */
-const SAFE_RESOURCE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
-
 /** Soft body cap for panel reads (~400 KiB). */
 export const PANEL_BODY_BYTE_CAP = 400 * 1024;
 
+/** Safe chapter / candidate id: no path segments, no traversal (delegates to the store). */
 export function assertSafeResourceId(id: string, label: string): string {
-  const t = String(id ?? "").trim();
-  if (!t || !SAFE_RESOURCE_ID.test(t) || t.includes("..")) {
-    throw new ZhizhangError("bad_id", `${label} 非法（禁止目录穿越）`);
-  }
-  return t;
+  return assertResourceId(id, label);
 }
 
 export function capPanelBody(body: string): {
@@ -63,6 +62,9 @@ export const ZZ_API_PREFIX = "/api/dsh-zhizhang";
 export type PluginConfig = {
   rootDir?: string;
   storageRoot?: string;
+  worksRoot?: string;
+  libraryRoot?: string;
+  sourceRoot?: string;
   allowLanPanel?: boolean;
   multiDraftEnabled?: boolean;
   multiDraft?: { enabled?: boolean };
@@ -120,8 +122,24 @@ export async function resolveHttpPaths(config: PluginConfig): Promise<StoragePat
   }
   const envRoot = (process.env.DSH_ZHIZHANG_ROOT ?? "").trim();
   if (envRoot) {
-    const paths = await ensureStorage(null, { storageRoot: path.resolve(envRoot) });
+    const paths = await ensureStorage(null, {
+      storageRoot: path.resolve(envRoot),
+      libraryRoot: config.libraryRoot,
+      worksRoot: config.worksRoot,
+    });
     return { ...paths, resolvedVia: "env.DSH_ZHIZHANG_ROOT" };
+  }
+  // Follow the workspace the Agent last wrote to (tools and HTTP share this process).
+  // Without this the panel resolves process.cwd() — the DSH profile dir — and shows
+  // an empty library while the Agent writes to the session workspace.
+  const lastBase = getLastToolBase() || (await loadLastToolBase());
+  if (lastBase && (await pathExists(lastBase))) {
+    const paths = await ensureStorage(null, {
+      storageRoot: lastBase,
+      libraryRoot: config.libraryRoot,
+      worksRoot: config.worksRoot,
+    });
+    return { ...paths, resolvedVia: "last-agent-tool" };
   }
   const cwdDot = path.resolve(process.cwd(), config.rootDir ?? ".zhizhang");
   if (await pathExists(cwdDot)) {
@@ -275,6 +293,39 @@ export async function prepareUnifyBrief(
   }
 }
 
+/**
+ * Resolve the panel's project selector (`?base=` / `?project=`, or a POST body field)
+ * against the known-workspace index. Only indexed, existing workspaces are readable —
+ * the panel must never turn into an arbitrary file browser.
+ */
+async function panelPaths(
+  url: URL,
+  config: PluginConfig,
+  baseOverride = "",
+): Promise<{ paths?: StoragePaths & { resolvedVia: string }; error?: string }> {
+  const requested = (
+    baseOverride ||
+    url.searchParams.get("base") ||
+    url.searchParams.get("project") ||
+    ""
+  ).trim();
+  if (!requested) {
+    return { paths: await resolveHttpPaths(config) };
+  }
+  const want = projectIdOf(requested);
+  const find = (list: Awaited<ReturnType<typeof listProjects>>) =>
+    list.find((p) => p.id === want || projectIdOf(p.base) === want);
+  let match = find(await listProjects());
+  if (!match) match = find(await listProjects({ refresh: true }));
+  if (!match || !match.exists) return { error: "bad_base" };
+  const paths = await ensureStorage(null, {
+    storageRoot: match.base,
+    libraryRoot: config.libraryRoot,
+    worksRoot: config.worksRoot,
+  });
+  return { paths: { ...paths, resolvedVia: "panel:selected-project" } };
+}
+
 export function createPanelApiHandler(config: PluginConfig = {}) {
   const allowLan = config.allowLanPanel === true;
 
@@ -308,7 +359,11 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
         } catch {
           return writeJson(res, 400, { ok: false, code: "bad_json", error: "请求体须为 JSON" });
         }
-        const paths = await resolveHttpPaths(config);
+        const picked = await panelPaths(url, config, String(parsed.base ?? parsed.project ?? ""));
+        if (picked.error) {
+          return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
+        }
+        const paths = picked.paths!;
         const acceptReq: PanelAcceptRequest = {
           work: String(parsed.work ?? parsed.workKey ?? ""),
           candidate: String(parsed.candidate ?? parsed.candidateId ?? ""),
@@ -334,7 +389,9 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
         const result = await runPanelAccept(paths, acceptReq);
         if (!result.ok) {
           const status =
-            result.code === "confirm_required" || result.code === "edit_accept_confirm_required"
+            result.code === "confirm_required" ||
+            result.code === "edit_accept_confirm_required" ||
+            result.code === "bad_id"
               ? 400
               : result.code === "work_not_found" || result.code === "candidate_not_found"
                 ? 404
@@ -349,7 +406,11 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
         if (method !== "GET" && method !== "HEAD" && method !== "POST") {
           return writeJson(res, 405, { ok: false, error: `method not allowed: ${method}` });
         }
-        const paths = await resolveHttpPaths(config);
+        const picked = await panelPaths(url, config);
+        if (picked.error) {
+          return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
+        }
+        const paths = picked.paths!;
         let work = "";
         let chapter = "";
         let candidateIds: string[] = [];
@@ -401,7 +462,11 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
       }
 
       if (pathOnly === `${ZZ_API_PREFIX}/health` || pathOnly === ZZ_API_PREFIX) {
-        const paths = await resolveHttpPaths(config);
+        const picked = await panelPaths(url, config);
+        if (picked.error) {
+          return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
+        }
+        const paths = picked.paths!;
         return writeJson(res, 200, {
           ok: true,
           plugin: "dsh-zhizhang",
@@ -412,6 +477,7 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
           resolvedVia: paths.resolvedVia,
           routes: [
             `${ZZ_API_PREFIX}/health`,
+            `${ZZ_API_PREFIX}/projects`,
             `${ZZ_API_PREFIX}/works`,
             `${ZZ_API_PREFIX}/snapshot`,
             `${ZZ_API_PREFIX}/library`,
@@ -425,8 +491,38 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
         });
       }
 
-      if (pathOnly === `${ZZ_API_PREFIX}/works`) {
+      if (pathOnly === `${ZZ_API_PREFIX}/projects`) {
         const paths = await resolveHttpPaths(config);
+        const current = projectIdOf(paths.base);
+        const known = await listProjects({ refresh: url.searchParams.get("refresh") === "1" });
+        if (!known.some((p) => p.id === current)) {
+          known.unshift({
+            id: current,
+            base: paths.base,
+            name: "",
+            lastUsedAt: "",
+            exists: true,
+            works: [],
+            worksCount: 0,
+            chapters: 0,
+            words: 0,
+          });
+        }
+        return writeJson(res, 200, {
+          ok: true,
+          base: paths.base,
+          resolvedVia: paths.resolvedVia,
+          current,
+          projects: known,
+        });
+      }
+
+      if (pathOnly === `${ZZ_API_PREFIX}/works`) {
+        const picked = await panelPaths(url, config);
+        if (picked.error) {
+          return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
+        }
+        const paths = picked.paths!;
         const works = await listWorks(paths);
         return writeJson(res, 200, {
           ok: true,
@@ -444,7 +540,11 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
       }
 
       if (pathOnly === `${ZZ_API_PREFIX}/library`) {
-        const paths = await resolveHttpPaths(config);
+        const picked = await panelPaths(url, config);
+        if (picked.error) {
+          return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
+        }
+        const paths = picked.paths!;
         const library = await buildLibraryView(paths);
         return writeJson(res, 200, {
           ok: true,
@@ -455,7 +555,11 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
       }
 
       if (pathOnly === `${ZZ_API_PREFIX}/inspiration`) {
-        const paths = await resolveHttpPaths(config);
+        const picked = await panelPaths(url, config);
+        if (picked.error) {
+          return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
+        }
+        const paths = picked.paths!;
         let workKey = (url.searchParams.get("work") ?? "").trim();
         const works = await listWorks(paths);
         if (!workKey && works.length === 1) workKey = works[0]!.key;
@@ -474,7 +578,7 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
             const dir = await resolveWorkDir(paths, workKey);
             const meta = await readWorkMeta(dir);
             foundation = meta.foundation;
-            const snap = await buildPanelSnapshot(dir, paths);
+            const snap = await buildPanelSnapshot(dir, paths, { includeHtml: false });
             chapters = snap.chapters.map((c) => ({
               situationLens: c.situationLens,
               livedScene: c.livedScene,
@@ -499,7 +603,11 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
       }
 
       if (pathOnly === `${ZZ_API_PREFIX}/snapshot`) {
-        const paths = await resolveHttpPaths(config);
+        const picked = await panelPaths(url, config);
+        if (picked.error) {
+          return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
+        }
+        const paths = picked.paths!;
         const works = await listWorks(paths);
         let workKey = (url.searchParams.get("work") ?? "").trim();
         if (!workKey) {
@@ -509,6 +617,7 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
               empty: true,
               message: "还没有作品。先用 zhizhang_project_create 创建。",
               works: [],
+              projectId: projectIdOf(paths.base),
               base: paths.base,
               resolvedVia: paths.resolvedVia,
               product: buildProductView(),
@@ -521,6 +630,7 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
               needWork: true,
               message: "请选择作品",
               works: works.map((w) => ({ key: w.key, title: w.title })),
+              projectId: projectIdOf(paths.base),
               base: paths.base,
               resolvedVia: paths.resolvedVia,
               product: buildProductView(),
@@ -537,15 +647,19 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
             error: err instanceof Error ? err.message : String(err),
           });
         }
-        const snap = await buildPanelSnapshot(dir, paths);
+        // HTML is opt-in (?html=1): the Web panel only consumes JSON and polls
+        // every ~6s, so rendering the 15KB panel HTML per poll is wasted work.
+        const includeHtml = url.searchParams.get("html") === "1";
+        const snap = await buildPanelSnapshot(dir, paths, { includeHtml });
         const { html, ...rest } = snap;
         return writeJson(res, 200, {
           ok: true,
           empty: false,
           snapshot: rest,
-          html,
+          ...(includeHtml ? { html } : {}),
           multiDraftEnabled: rest.multiDraftEnabled,
           works: works.map((w) => ({ key: w.key, title: w.title })),
+          projectId: projectIdOf(paths.base),
           base: paths.base,
           resolvedVia: paths.resolvedVia,
         });
@@ -553,7 +667,11 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
 
 
       if (pathOnly === `${ZZ_API_PREFIX}/chapter`) {
-        const paths = await resolveHttpPaths(config);
+        const picked = await panelPaths(url, config);
+        if (picked.error) {
+          return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
+        }
+        const paths = picked.paths!;
         const workKey = (url.searchParams.get("work") ?? "").trim();
         let chapterId = (url.searchParams.get("id") ?? url.searchParams.get("chapter") ?? "").trim();
         if (!workKey) {
@@ -615,7 +733,11 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
       }
 
       if (pathOnly === `${ZZ_API_PREFIX}/candidate`) {
-        const paths = await resolveHttpPaths(config);
+        const picked = await panelPaths(url, config);
+        if (picked.error) {
+          return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
+        }
+        const paths = picked.paths!;
         const workKey = (url.searchParams.get("work") ?? "").trim();
         let candidateId = (url.searchParams.get("id") ?? url.searchParams.get("candidate") ?? "").trim();
         if (!workKey) {
@@ -715,6 +837,7 @@ export function registerPanelHttpRoutes(
   const routeList = [
     ZZ_API_PREFIX,
     `${ZZ_API_PREFIX}/health`,
+    `${ZZ_API_PREFIX}/projects`,
     `${ZZ_API_PREFIX}/works`,
     `${ZZ_API_PREFIX}/snapshot`,
     `${ZZ_API_PREFIX}/library`,

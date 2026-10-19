@@ -1,4 +1,6 @@
 /** Library pillar — import / dissect / stage / accept / search technique cards. */
+import path from "node:path";
+import { stat } from "node:fs/promises";
 import {
   LibraryPort,
   coerceAxis,
@@ -7,7 +9,7 @@ import {
   formatMindBlock,
   formatHandoffBlock,
 } from "../lib/ports/index.js";
-import { ensureStorage } from "../lib/store.js";
+import { ensureStorage, listLocalBooks, sessionCwd } from "../lib/store.js";
 import { asString, config, fail } from "./context.js";
 import { S, WORKING_DIR } from "./schema.js";
 import { defineTool, type ToolDef } from "./types.js";
@@ -18,17 +20,41 @@ async function openLibrary(exec: unknown, args: Record<string, unknown>) {
   return paths;
 }
 
+/**
+ * Resolve a book file: absolute as-is, relative against the session cwd first,
+ * then against the configured local shelf (sourceRoot). Unresolved names fall
+ * through so importSource reports its normal file_read_failed.
+ */
+async function resolveBookFile(
+  paths: { sourceRoot: string },
+  exec: unknown,
+  raw: string | undefined,
+): Promise<string | undefined> {
+  if (!raw || path.isAbsolute(raw)) return raw;
+  const cwd = sessionCwd(exec);
+  const candidates = [path.resolve(cwd, raw)];
+  if (paths.sourceRoot) candidates.push(path.resolve(paths.sourceRoot, raw));
+  for (const cand of candidates) {
+    try {
+      if ((await stat(cand)).isFile()) return cand;
+    } catch {
+      /* try next */
+    }
+  }
+  return raw;
+}
+
 export function libraryTools(): ToolDef[] {
   return [
     defineTool({
       name: "zhizhang_library_import",
       description:
-        "【闭环·库】导入小说原文到拆书库。传 text 或 file。不拆书、不写卡。下一步：library_dissect_brief。",
+        "【闭环·库】导入小说原文到拆书库。传 text 或 file（file 可写本地书源目录里的文件名）。不拆书、不写卡。下一步：library_dissect_brief。",
       properties: {
         title: S("书名（必填）"),
         author: S("可选作者"),
         text: S("原文全文（与 file 二选一）"),
-        file: S("原文文件路径（相对 cwd 或绝对路径；与 text 二选一）"),
+        file: S("原文文件路径（相对 cwd / 本地书源 / 绝对路径；与 text 二选一）"),
         reading_range: S("可选：实际阅读范围说明"),
         working_dir: WORKING_DIR,
       },
@@ -36,11 +62,12 @@ export function libraryTools(): ToolDef[] {
       async execute(args, exec) {
         const title = asString(args, "title", { required: true })!;
         const paths = await openLibrary(exec, args);
+        const fileResolved = await resolveBookFile(paths, exec, asString(args, "file"));
         const result = await LibraryPort.importSource(paths, {
           title,
           author: asString(args, "author"),
           text: asString(args, "text", { trim: false }),
-          file: asString(args, "file"),
+          file: fileResolved,
           readingRange: asString(args, "reading_range"),
           exec,
         });
@@ -293,6 +320,21 @@ export function libraryTools(): ToolDef[] {
                 `- ${c.title}（${c.id}）· axis=${c.axis ?? "?"} · tags=${c.tags.join(",") || "—"} · src=${c.sourceId}`,
               );
             }
+          }
+        }
+        if (paths.sourceRoot) {
+          lines.push(`## 本地书源（${paths.sourceRoot}）`);
+          const local = await listLocalBooks(paths.sourceRoot, { limit: 50 });
+          if (local.length === 0) {
+            lines.push("（目录里没有 .txt / .md 文件）");
+          } else {
+            const all = await LibraryPort.listSources(paths);
+            const titles = new Set(all.map((x) => x.title));
+            for (const b of local) {
+              const kb = Math.max(1, Math.round(b.bytes / 1024));
+              lines.push(`- ${b.name} · ${kb} KB · ${titles.has(b.title) ? "已导入" : "未导入"}`);
+            }
+            lines.push('导入：zhizhang_library_import { title, file: "<文件名>" }');
           }
         }
         return lines.join("\n");

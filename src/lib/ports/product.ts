@@ -5,6 +5,7 @@ import { InspirationPort } from "./inspiration.js";
 import { LibraryPort } from "./library.js";
 import { MethodRegistry } from "./methods.js";
 import { QualityPolicy } from "./quality-policy.js";
+import { PLUGIN_VERSION } from "../version.js";
 import {
   SCHEDULER_DEFAULT_LINE,
   Scheduler,
@@ -29,7 +30,7 @@ export const CREATIVE_LOOP_LINE = SCHEDULER_DEFAULT_LINE;
 
 export const ProductMap = {
   id: "port.product" as const,
-  version: "0.15.0",
+  version: PLUGIN_VERSION,
 
   loopLine(): string {
     return Scheduler.defaultLine();
