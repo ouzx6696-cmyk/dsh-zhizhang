@@ -92,6 +92,10 @@ window.__ModuleLoader__.load({
       ".zz-muted{color:var(--zz-muted);font-size:.82rem;line-height:1.5}",
       ".zz-path{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92em;",
       "padding:1px 5px;border-radius:5px;background:var(--zz-surface-2);overflow-wrap:anywhere}",
+      ".zz-code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.9em;",
+      "padding:1px 5px;border-radius:5px;background:var(--zz-surface-2);overflow-wrap:anywhere}",
+      ".zz-steps{margin:6px 0 0;padding-left:1.25rem;font-size:.86rem;line-height:1.7}",
+      ".zz-steps li{margin-bottom:6px}",
       ".zz-loop{padding:12px 14px;border-radius:var(--zz-radius);border-left:3px solid var(--zz-accent);",
       "background:var(--zz-accent-weak);margin-bottom:10px;font-size:.86rem;line-height:1.55}",
       ".zz-hint{padding:9px 12px;border-radius:10px;border-left:3px solid var(--zz-accent);",
@@ -1090,7 +1094,6 @@ window.__ModuleLoader__.load({
           "div",
           { className: "zz-root" },
           header,
-          h("div", { className: "zz-banner" }, state.message || "还没有作品。先用 zhizhang_project_create 创建。"),
           snapProductOnly(state),
           h("p", { className: "zz-foot" }, "写回只走显式采纳 / zhizhang_* 工具 · 面板不静默写库"),
         );
@@ -2072,10 +2075,55 @@ window.__ModuleLoader__.load({
     }
 
     function snapProductOnly(state) {
+      var heading = state && state.empty ? "还没有作品" : "未选择作品";
+      var serverMsg = String((state && state.message) || "");
+      var steps = [
+        [
+          "在对话里说「启用织章」，让 Agent 调 ",
+          ["zhizhang_enable"],
+          " —— 46 个工具才会挂到本会话。",
+        ],
+        [
+          "让 Agent 建作品：" ,
+          ["zhizhang_project_create"],
+          "（书名 / 题材 / 简介）。",
+        ],
+        ["回到这里点「刷新」，左侧章节列就会出现内容。"],
+      ];
       return h(
         "div",
-        { className: "zz-banner" },
-        "创建作品后可在此查看三柱进度、待采纳真采纳与 Scheduler 下一步。",
+        { className: "zz-empty-card", style: { padding: "18px 20px" } },
+        h(
+          "h2",
+          { className: "zz-title", style: { fontSize: "1.05rem", margin: 0 } },
+          heading,
+        ),
+        h(
+          "p",
+          { className: "zz-muted", style: { margin: "6px 0 0" } },
+          serverMsg && serverMsg.indexOf(heading) < 0
+            ? serverMsg
+            : "面板只读：创建与写作都在对话里完成，写回只走显式采纳。",
+        ),
+        h("div", { className: "zz-sec" }, "三步开写"),
+        h(
+          "ol",
+          { className: "zz-steps" },
+          steps.map(function (parts, i) {
+            return h(
+              "li",
+              { key: i },
+              parts.map(function (p, j) {
+                return typeof p === "string" ? p : h("code", { key: j, className: "zz-code" }, p[0]);
+              }),
+            );
+          }),
+        ),
+        h(
+          "p",
+          { className: "zz-muted", style: { marginTop: 10 } },
+          "想先囤素材？切到「管线 → Library」导入书源（只读扫描，不自动入库）。",
+        ),
       );
     }
 
