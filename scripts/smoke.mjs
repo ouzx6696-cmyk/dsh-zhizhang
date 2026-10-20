@@ -27,8 +27,8 @@ try {
 
   // —— 1. tool surface ——
   const tools = plugin.__testing.tools;
-  assert.equal(tools.length, 46, "expected 46 tools");
-  assert.equal(new Set(tools.map((t) => t.name)).size, 46, "tool names must be unique");
+  assert.equal(tools.length, 52, "expected 52 tools");
+  assert.equal(new Set(tools.map((t) => t.name)).size, 52, "tool names must be unique");
   for (const tool of tools) {
     assert.match(tool.name, /^zhizhang_/, `${tool.name} must use the zhizhang_ prefix`);
     assert.equal(tool.parameters.type, "object");
@@ -272,6 +272,8 @@ try {
     const health = await res.json();
     assert.equal(res.status, 200);
     assert.equal(health.version, pkg.version, "health version must match package.json");
+    assert.equal(health.toolCount, tools.length, "health must report the runtime tool count");
+    assert.ok(health.routes.some((r) => r.endsWith("/report")), "health route list must include /report");
     assert.equal(health.ok, true);
 
     res = await fetch(`${base}/projects`);
@@ -408,7 +410,164 @@ try {
     "panel summary reads works from worksRoot",
   );
 
-  console.log(`smoke OK · ${tools.length} tools · chain · gates · sandbox · panel API · projects`);
+  // —— 2f. library analysis pipeline (v0.16) ——
+  const libRoot = path.join(root, "拆书库");
+  setPluginConfig({ storageRoot: path.join(root, ".zhizhang"), libraryRoot: libRoot });
+  const book = [
+    "第0001章 开端",
+    "　　陈默推开门，屋里没有人。他把伞靠在墙边，坐到桌旁。",
+    "　　桌上有张纸条：今晚别回来。",
+    "第0002章 纸条",
+    "　　陈默把纸条翻过来，背面写着一个地址。他出门打车。",
+  ].join("\n");
+  out = await run("zhizhang_library_import", { title: "烟测拆书", text: book });
+  const srcId = /sourceId=(src-[a-z0-9]+)/.exec(out)?.[1];
+  assert.ok(srcId, "library import must return sourceId");
+
+  out = await run("zhizhang_library_dissect_brief", { source: srcId, mode: "opening" });
+  assert.match(out, /拆书批次/);
+  assert.match(out, /第1章/);
+
+  // 抽样计划：Auto（小书全读）→ Full 成本回执 → 明确同意 → 按批取原文
+  out = await run("zhizhang_library_plan", { source: srcId });
+  assert.match(out, /已生成抽样计划/);
+  assert.match(out, /全读（小书）/);
+  out = await run("zhizhang_library_plan", { source: srcId });
+  assert.match(out, /已有计划/);
+  out = await run("zhizhang_library_plan", { source: srcId, mode: "full", reset: true });
+  assert.match(out, /Full 成本回执/);
+  const confirmToken = /confirm_token：(fp-[a-z0-9-]+)/.exec(out)?.[1];
+  assert.ok(confirmToken, "full plan must return confirm_token");
+  out = await run("zhizhang_library_plan", {
+    source: srcId,
+    mode: "full",
+    confirm_full: true,
+    confirm_token: confirmToken,
+    note: "smoke 明确同意",
+  });
+  assert.match(out, /已生成抽样计划/);
+  assert.match(out, /Full 全量/);
+  out = await run("zhizhang_library_dissect_brief", { source: srcId, batch: 0 });
+  assert.match(out, /本批 1\/1/);
+  assert.match(out, /第1章/);
+
+  out = await run("zhizhang_library_facts_stage", {
+    source: srcId,
+    facts: {
+      n: 1,
+      title: "开端",
+      events: [{ desc: "陈默进门发现屋里没人，把伞靠在墙边", quote: "陈默推开门，屋里没有人" }],
+      hook: { type: "悬念", text: "今晚别回来", strength: "强" },
+      value: { situation: "独自回屋" },
+      unknowns: ["谁留的纸条"],
+    },
+  });
+  assert.match(out, /已记录 1 章事实/);
+
+  out = await run("zhizhang_library_facts_stage", {
+    source: srcId,
+    facts: { n: 2, events: [{ desc: "他觉得很奇怪", quote: "纸条" }] },
+  });
+  assert.match(out, /bad_facts/, "补动机必须被拒");
+
+  out = await run("zhizhang_library_structure_stage", {
+    source: srcId,
+    kind: "plot",
+    payload: { title: "纸条", chapters: [1, 2], goal: "弄清纸条来历", obstacle: "无人可问", action: "去地址", result: "找到线索", twist: "纸条是诱饵", turn: "有人跟踪" },
+  });
+  assert.match(out, /已记录剧情条/);
+
+  out = await run("zhizhang_library_structure_stage", {
+    source: srcId,
+    kind: "rhythm",
+    payload: {
+      points: [{ chapter: 1, emotion: -0.3, event: "空屋" }],
+      loops: [{ id: "RH-001", range: [1, 2], setup: "空屋", release: "纸条", reaction: "出门", transition: "地址" }],
+      hooks: [{ chapter: 1, type: "悬念", text: "今晚别回来", strength: "强" }],
+      foreshadowing: [{ name: "纸条", planted: 1 }],
+    },
+  });
+  assert.match(out, /爽点循环/);
+
+  out = await run("zhizhang_library_structure_stage", {
+    source: srcId,
+    kind: "character",
+    payload: { name: "陈默", role: "主角", mask: "普通人", truth: "不肯等", arc: [{ chapter: 2, from: "被动", to: "追查", pressure: "纸条" }], function: "视角" },
+  });
+  assert.match(out, /已记录人物/);
+
+  out = await run("zhizhang_library_card_stage", {
+    title: "用一张纸条推进",
+    source: srcId,
+    body: "不解释来历，只让纸条改变下一步动作。",
+    mechanisms: [{ name: "纸条即钩子", failWhen: "解释纸条来历" }],
+    layer: "scene",
+    dimension: "hook",
+    readerWant: "想知道谁留的",
+    emotionArc: "空屋-纸条-出门",
+    dramaticUnit: "一张无主纸条推动行动",
+    replaceables: ["纸条", "地址", "空屋"],
+    mustNotCopy: ["陈默", "今晚别回来"],
+    transfer: "换成一条短信，主角只看不回",
+    failWhen: "写成解谜说明",
+    evidence: [{ quote: "桌上有张纸条：今晚别回来", chapter: 1 }],
+    steps: ["先让纸条出现", "再让主角改变下一步动作"],
+    bannedDiction: ["空气仿佛凝固"],
+  });
+  const libCand = /lcand-[a-z0-9]+/.exec(out)?.[0];
+  assert.ok(libCand, "card_stage must return candidate id");
+  assert.match(out, /axis：（推断）/);
+
+  out = await run("zhizhang_library_card_accept", { candidate: libCand });
+  const libCard = /card-[a-z0-9]+/.exec(out)?.[0];
+  assert.ok(libCard, "card_accept must return cardId");
+
+  out = await run("zhizhang_library_card_get", { card: libCard });
+  assert.match(out, /操作步骤：/, "card_get must render steps");
+  assert.match(out, /先让纸条出现/, "card_get must render step text");
+  assert.match(out, /禁用词句：空气仿佛凝固/, "card_get must render bannedDiction");
+  assert.doesNotMatch(out, /书感偏薄/, "v2 card must not warn missing bookCraft");
+
+  out = await run("zhizhang_library_report", { source: srcId });
+  assert.match(out, /报告已写入/);
+  const reportPath = path.join(libRoot, "analyses", srcId, "report.md");
+  const reportMd = await readFile(reportPath, "utf8");
+  assert.match(reportMd, /### 1\.1 量化底座/, "report must include L0 survey section");
+  assert.equal((reportMd.match(/^## \d+\./gm) ?? []).length, 19, "report must have exactly 19 sections");
+  assert.doesNotMatch(reportMd, /## 1b\./, "legacy 1b section must be gone");
+  assert.match(reportMd, /### 9\.1 爽点密度/, "report must include hook density");
+  assert.doesNotMatch(reportMd, /Infinity/, "report must not leak -Infinity/Infinity");
+  assert.match(reportMd, /结构完整：/, "report must split confidence into structure");
+  assert.ok((await stat(path.join(libRoot, "analyses", srcId, "survey.json"))).isFile(), "survey.json must be written");
+
+  out = await run("zhizhang_library_audit", { source: srcId });
+  assert.match(out, /证据全部可回溯：1\/1/);
+  assert.match(out, /白描违规：0 条/);
+  assert.match(out, /未发现声称原文的正文引文/, "audit must not print 0/0 for absent body quotes");
+
+  out = await run("zhizhang_library_card_stage", {
+    title: "旧卡带步骤",
+    source: srcId,
+    body: "## 写法\n动作。",
+    mechanisms: [{ name: "m", failWhen: "f" }],
+    steps: ["先让纸条出现"],
+  });
+  assert.match(out, /bad_args/, "v1 steps must be rejected, not silently dropped");
+
+  out = await run("zhizhang_library_card_discard", { card: libCard, confirm: true });
+  assert.match(out, /已删除/);
+
+  const cnBook = ["第一章 开端", "他推门进来。", "第二章 继续", "她走了。"].join("\n");
+  out = await run("zhizhang_library_import", { title: "中文章", text: cnBook });
+  const cnSrc = /sourceId=(src-[a-z0-9]+)/.exec(out)?.[1];
+  assert.ok(cnSrc, "Chinese-heading import must return sourceId");
+  out = await run("zhizhang_library_plan", { source: cnSrc });
+  assert.match(out, /全读（小书）/, "Chinese headings must be counted by plan");
+  out = await run("zhizhang_library_dissect_brief", { source: cnSrc, mode: "opening" });
+  assert.match(out, /2\/2 章/, "Chinese headings must yield 2 chapters");
+  setPluginConfig({});
+
+  console.log(`smoke OK · ${tools.length} tools · chain · gates · sandbox · panel API · projects · library`);
 } finally {
   await rm(root, { recursive: true, force: true });
 }

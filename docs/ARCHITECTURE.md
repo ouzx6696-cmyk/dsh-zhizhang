@@ -22,7 +22,10 @@ Host (DSH) → apply / tools.register
 | 能力 | 位置 |
 |------|------|
 | 作品/章节 CRUD、原子写、路径沙箱 | `src/lib/store.ts` |
-| 拆书库 | `ports/library.ts` |
+| 拆书库 | `ports/library.js` + `ports/library/{schema,audit}.js` |
+| 拆书分析层 | `ports/analysis/*`（facade：`ports/analysis.js`） |
+| 单一事实源 | `domain/{chapter-heading,card-schema,evidence,coverage,report-sections,workflow}.js` |
+| 采纳 / 前章共享服务 | `services/{accept,chapter-context}.js` |
 | 灵感会话/推演/可选 apply | `ports/inspiration.ts` |
 | 默认路径 vs 旁路 | `ports/scheduler.ts` |
 | 可选编辑过稿（A/B/C） | `ports/edit.ts` |

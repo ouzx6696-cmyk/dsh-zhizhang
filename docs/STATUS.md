@@ -1,11 +1,11 @@
-# 状态 · dsh-zhizhang 0.15.3
+# 状态 · dsh-zhizhang 0.17.0
 
 > 完整认知：[COGNITION.md](./COGNITION.md)
 
 | 项 | 事实 |
 |----|------|
-| 版本 | **0.15.3**（按需启用 + 0.15.1 工程加固；能力面同 0.14） |
-| 加载方式 | **默认只注册 `zhizhang_enable`**；触发后按 Agent 作用域挂 46 tools + SYSTEM_BRIEF |
+| 版本 | **0.17.0**（拆书 9 步 + L0 量化底座；Auto 前 10 章 + 后 3 章 + 等距 / Full 须同意；正文引文回溯；52 tools） |
+| 加载方式 | **默认只注册 `zhizhang_enable`**；触发后按 Agent 作用域挂 52 tools + SYSTEM_BRIEF |
 | 运行时 | DeepSeek Harness 插件；Node ≥22；Web client 可选 |
 | 产品形态 | **一条闭环** + **一张调度图** + **小说阅读工作台**（非多轮拼盘） |
 | 调度 | `port.scheduler` → ProductMap / SYSTEM_BRIEF / 面板 nextHints / 回执 |
@@ -13,6 +13,8 @@
 | 旁路·多草稿 | `multiDraft.enabled` / `DSH_ZHIZHANG_MULTI_DRAFT=1` → unify_*；**默认关** |
 | 目录布局 | `worksRoot` → 作品按书名建可见文件夹；`storageRoot` 管组装稿/灵感；`libraryRoot`/`sourceRoot` 管拆书库与书源 |
 | 拆书库 | 默认随项目；`libraryRoot` / `DSH_ZHIZHANG_LIBRARY` 可跨项目共享（含面板） |
+| 拆书管线 | import → dissect(批次) → facts(白描) → structure(plot/rhythm/character) → card(v2，可选 steps/bannedDiction) → accept → report(19 节 + L0) → combo |
+| 拆书落盘 | `library/analyses/<sourceId>/{meta,chapters.jsonl,plots.jsonl,rhythms.json,characters.json,survey.json,report.md}` |
 | 面板 | 三栏阅读默认；管线五区可切；**项目 ▸ 作品两级切换**；编辑抉择说明卡；真采纳二次确认；**常驻，不依赖工具启用** |
 | 编辑抉择 | A 一次确认=编辑+验收 · B 仅候选 · C 拒/换模式；未表态按 B；**禁止静默验收** |
 | 旁路 | diagnose.audit · brief.full · save.direct · inspire.craft_only · accept.flags · **multi.draft** · finalize.ship |
@@ -21,7 +23,7 @@
 | 面板快照 | JSON 轮询默认不含 HTML；`?html=1` 才返回（工具 `panel_snapshot` 仍默认带 HTML） |
 | 发行形态 | **仅 dist + docs + scripts/smoke.mjs**；无 src/tsconfig，不在此目录构建 |
 | 安装 | profile `dsh.profile.bundles` 加 `dsh-zhizhang`（或 patch insert）+ 重启；会话内再调 `zhizhang_enable` |
-| 测试 | `npm run smoke`（46 tools / 写作链 / 闸 / 沙箱 / 面板 HTTP） |
+| 测试 | `npm run smoke`（52 tools / 写作链 / 闸 / 沙箱 / 面板 HTTP / 拆书管线 / 抽样两档 / 19 节报告 / 中文章号 / v2 卡渲染 / v1 steps 拒绝） |
 | 打包 | **未打包** |
 
 ## 质量环

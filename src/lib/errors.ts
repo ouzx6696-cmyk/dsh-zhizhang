@@ -1,20 +1,20 @@
+// @ts-nocheck
 /** User/agent-facing errors: Chinese message only, never stack traces. */
-
 export class ZhizhangError extends Error {
-  readonly code: string;
-  constructor(code: string, message: string) {
-    super(message);
-    this.name = "ZhizhangError";
-    this.code = code;
-  }
+    code;
+    constructor(code, message) {
+        super(message);
+        this.name = "ZhizhangError";
+        this.code = code;
+    }
 }
-
 /** Flatten any thrown value into a short Chinese line for tool output. */
-export function formatToolError(err: unknown): string {
-  if (err instanceof ZhizhangError) return `错误[${err.code}]：${err.message}`;
-  if (err instanceof Error) {
-    const msg = (err.message || "未知错误").split("\n")[0]!.slice(0, 400);
-    return `错误：${msg}`;
-  }
-  return `错误：${String(err).slice(0, 200)}`;
+export function formatToolError(err) {
+    if (err instanceof ZhizhangError)
+        return `错误[${err.code}]：${err.message}`;
+    if (err instanceof Error) {
+        const msg = (err.message || "未知错误").split("\n")[0].slice(0, 400);
+        return `错误：${msg}`;
+    }
+    return `错误：${String(err).slice(0, 200)}`;
 }

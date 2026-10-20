@@ -11,7 +11,7 @@
 
 ```text
 书进库（craft|mind）
-  → library_combo_suggest（1 mind + N craft，可跨书）
+  → library_combo_suggest（1 book + N scene，可跨书）
   → inspire 落根基/纲
   → chapter_brief(lean，只吃 craft）
   → candidate_stage → style_lint →（可选 edit）→ candidate_accept
@@ -21,7 +21,7 @@
 
 | 段 | 链 | 说明 |
 |----|-----|------|
-| **库** | `library_import → dissect_brief → card_stage → card_accept → combo_suggest` | 双轴卡入库；combo 交出 `card_ids` |
+| **库** | `library_import → library_plan（Auto 10% / Full 须同意）→ dissect_brief(batch) → facts → structure → card → accept → report → combo` | 双轴卡入库；combo 交出 `card_ids` |
 | **灵感** | `inspire_start(card_ids) → forge_brief → stage → accept(apply=true)` | 须至少一张 mind（或旁路 craft_only） |
 | **写作** | `chapter_brief(lean) → 创作 → candidate_stage → style_lint →（可选 edit）→ candidate_accept` | Accept **内嵌**软传感；**编辑非必经**；若走编辑须用户 A/B/C；勿每章例行三 audit |
 
@@ -40,7 +40,7 @@ Accept 一次扫：Brief → Lint → Payoff → HumanFeel → NovelSense → Ed
 
 | 刚做完 | 下一步提示 |
 |--------|------------|
-| import | dissect_brief → card_stage → card_accept → combo |
+| import | plan（auto 10% / full 须同意）→ dissect_brief(batch) → facts → structure → card → accept → report → combo |
 | card_accept | combo_suggest → inspire 或 chapter_brief |
 | combo | inspire_start(card_ids) 或 chapter_brief(card_ids) |
 | inspire apply | 写作段默认链 |

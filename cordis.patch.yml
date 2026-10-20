@@ -1,20 +1,20 @@
 # dsh-zhizhang bundle patch: insert the 织章 engineering-tools plugin.
 # Row name is the npm package so Node resolves from the profile's node_modules.
-# Mounting registers only zhizhang_enable (+ read-only panel HTTP); the 46 tools and
-# hard-rules prompt section mount per Agent after that trigger.
-#
-# Paths: every key below is optional. Leave them commented to keep the defaults
-# under the session cwd (<cwd>/.zhizhang). Local installs usually pin them.
+# Mounting registers only zhizhang_enable (+ read-only panel HTTP); the full tool set and
+# hard-rules prompt section mount per Agent after that trigger. rootDir defaults under
+# the session cwd; override in profile cordis.patch.yml.
 - insert:
     - id: zhizhang
       name: 'dsh-zhizhang'
       config:
         rootDir: '.zhizhang'
-        # storageRoot: 'D:/writes/.zhizhang'   # 存储根：稿件组装 / 灵感等
-        # worksRoot: 'D:/writes/小说项目'       # 作品目录：每本书一个同名文件夹
-        # libraryRoot: 'D:/writes/拆书库'       # 拆书库：index.json + sources/ + cards/
-        # sourceRoot: 'D:/writes/拆书库'        # 本地书源：放 .txt/.md，可按文件名导入
-        # allowLanPanel: false                  # 默认仅 loopback；true 才允许局域网
-        # multiDraftEnabled: false              # 等价于 multiDraft.enabled（默认关）
+        # —— 本机默认布局（改这里即可；留空/注释掉则回退到 <会话 cwd>/.zhizhang） ——
+        storageRoot: 'D:/织章/.zhizhang'      # 存储根：稿件组装 / 灵感等
+        worksRoot: 'D:/织章/小说项目'          # 作品目录：每本书一个同名文件夹
+        libraryRoot: 'D:/织章/拆书库'          # 拆书库：index.json + sources/ + cards/
+        sourceRoot: 'D:/织章/拆书库'           # 本地书源：放 .txt/.md，可按文件名导入
+        # 以下为通用可选项（去掉注释即可）
+        # allowLanPanel: false            # 默认仅 loopback；true 才允许局域网
+        # multiDraftEnabled: false        # 等价于 multiDraft.enabled（默认关）
         # multiDraft:
-        #   enabled: false                      # 可选：同章多草稿统一整理；默认关
+        #   enabled: false                # 可选：同章多草稿统一整理；默认关

@@ -6,7 +6,7 @@
 
 ## ① 拆书库 · LibraryPort（live）
 
-**做什么**：用户交书 → 拆书 brief → AI 暂存卡 → 显式 accept → 可检索；再 **combo** 组包。
+**做什么**：用户交书 → 定档（Auto 10% / Full 须同意）→ 分批读 → 白描事实 → 聚合 → 暂存卡 → 显式 accept → 报告；再 **combo** 组包。
 
 **落盘**：`.zhizhang/library/{sources,cards,candidates,index.json}`
 
@@ -43,8 +43,11 @@
 ### 默认工序
 
 ```text
-library_import → library_dissect_brief → library_card_stage(axis)
-  → library_card_accept → library_combo_suggest
+library_import → library_plan（Auto 10% 分层 / Full 须作者同意）
+  → library_dissect_brief(batch)（真读原文）→ library_facts_stage（白描）
+  → library_structure_stage（剧情/节奏/人物）→ library_card_stage(v2)
+  → 读 stage 软警告 → library_card_accept（答判断面）
+  → library_report → library_combo_suggest
 ```
 
 ### combo

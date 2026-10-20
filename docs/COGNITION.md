@@ -1,4 +1,4 @@
-# 织章认知总览 · dsh-zhizhang 0.15.3
+# 织章认知总览 · dsh-zhizhang 0.17.0
 
 > **从这一份开始读懂全局。**  
 > 产品/工程对齐用；不含开发流水账。细节分册见文末导航。
@@ -12,7 +12,7 @@
 - **不调模型**：本插件不内置 chat/completion；AI 只通过工具交创作字符串。
 - **工程归代码**：落盘、锁、门禁、审校留痕、策略 —— 在 TypeScript（经 Ports）。
 - **创作归 AI**：大纲措辞、正文、改稿、拆书分析 —— 作为工具参数提交；**显式 accept 才持久化**。
-- **按需启用**：profile 挂载只注册 `zhizhang_enable`；普通会话不注入 46 工具与硬规则。
+- **按需启用**：profile 挂载只注册 `zhizhang_enable`；普通会话不注入 52 工具与硬规则。
   需要写小说时调用 `zhizhang_enable`，工具与硬规则才按 Agent 作用域挂上（换会话重来）。
 - **面板归读与闸**：侧栏「织章」默认是**小说阅读工作台**（三栏读正文 / 对照候选 / 真采纳）；产文仍靠对话里的 Agent。
 - **目标**：在**质量**（人味·书感·毒点·兑付·AI腔·反僵硬）与**效率**（默认最短合格路径）之间，给 Agent 一条看一眼就懂的链。
@@ -71,7 +71,7 @@ Web：侧栏织章 → 默认「小说」三栏阅读；顶栏切「管线」看
 默认全链（与代码 `Scheduler.defaultLine()` 一致）：
 
 ```text
-书进库（craft|mind）→ library_combo_suggest（1 mind + N craft，可跨书）
+拆书（事实→聚合→模块）→ 书进库（book|scene）→ library_combo_suggest（1 book + N scene，可跨书）
   → inspire 落根基/纲 → chapter_brief(lean，只吃 craft）
   → candidate_stage → style_lint →（可选 edit）→ candidate_accept
 ```
@@ -134,6 +134,7 @@ Host (DSH)
 | [TEST.md](./TEST.md) | 测试分层与加测规则 |
 | [DATA.md](./DATA.md) | 磁盘布局与卡 schema |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | 代码 vs AI 边界（短） |
+| [FRAMEWORK.md](./FRAMEWORK.md) | 最小锚点：原则 / 闭环 / 分层 |
 | [STATUS.md](./STATUS.md) | 当前版本事实快照 |
 | [DSH_INSTALL.md](./DSH_INSTALL.md) | 安装到 DSH |
 | [PANEL.md](./PANEL.md) | 面板 / 小说工作台 |

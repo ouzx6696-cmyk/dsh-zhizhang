@@ -14,7 +14,9 @@ D:/织章/
 │   │   ├── meta.json
 │   │   ├── chapters/
 │   │   ├── candidates/
-│   │   └── ledger.json
+│   │   ├── brief-crumbs.json     # 开写 brief 留痕（accept 硬闸用）
+│   │   ├── payoff-audits.json    # 兑付审计留痕（可选 require_payoff）
+│   │   └── ledger.json           # 审校留痕（非小说状态）
 │   └── 另一本/
 └── 拆书库/                # libraryRoot + sourceRoot
     ├── index.json

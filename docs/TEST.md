@@ -1,4 +1,4 @@
-# 测试说明 · dsh-zhizhang 0.15.3
+# 测试说明 · dsh-zhizhang 0.17.0
 
 > 加测纪律也写在 [CHANGE.md](./CHANGE.md)。认知入口：[COGNITION.md](./COGNITION.md)。
 
@@ -13,19 +13,23 @@ npm run smoke   # node ≥22；无 DSH / 无 bun
 
 [scripts/smoke.mjs](../scripts/smoke.mjs) 覆盖：
 
-- 按需挂载：`apply()` 只注册 `zhizhang_enable`、不注入硬规则 section；触发后 46 tools + 1 section；
+- 按需挂载：`apply()` 只注册 `zhizhang_enable`、不注入硬规则 section；触发后 52 tools + 1 section；
   重复触发幂等；无 Agent 作用域返回 `no_agent_ctx`
 - 本地书源：`sourceRoot` 解析进 paths；`listLocalBooks` 只收 `.txt/.md`；`library_list` 标已导入/未导入；
   `library_import` 用裸文件名从书源目录解析；面板 `/library` 带 `sourceRoot/pendingCount`
 - 共享拆书库：`libraryRoot` 生效（工具写入共享根、项目库不进源）；面板 `/library` 读同一份
 - 项目索引：工具调用登记工作区且不重复；`listProjects()` 摘要（works/chapters/words）现算；
   HTTP `/projects` 当前项目、`?base=<已登记>`可读、未知 `?base=` → `400 bad_base`
-- 46 个工具命名唯一、`applyTools()` 全部注册
+- 52 个工具命名唯一、`applyTools()` 全部注册
 - 默认写作链：`project_create → outline_set → chapter_brief → candidate_stage →
   style_lint → candidate_accept`
 - 硬闸：未 lint 拒绝、双采纳拒绝、面板 POST 缺 `confirm` 拒绝
 - 沙箱：`chapter`/`candidate` id 目录穿越拒绝（工具与 HTTP）
 - 面板 HTTP：`health` 版本、snapshot 默认无 HTML / `?html=1`、chapter、candidate、`bad_id`
+- 拆书报告：固定 19 节、§1.1 量化底座 / §9.1 爽点密度、不泄漏 `Infinity`、v2 卡不误报「书感偏薄」
+- 卡契约：v1 卡带 `steps/bannedDiction` 直接 `bad_args`（不再静默丢）、v2 `card_get` 渲染操作步骤/禁用词句
+- 章号：中文「第一章」可被 plan 计数、批次取原文（`domain/chapter-heading.js`）
+- 机械审计：无正文引文时输出「未发现声称原文的正文引文」，不再打印 `0/0`
 
 ## 源码仓分层（重建时）
 
@@ -51,7 +55,7 @@ npm run smoke   # node ≥22；无 DSH / 无 bun
 ## 双轴 / combo / 反僵硬（仍有效）
 
 - `pillars/library` · `inspiration` · `contracts/brief-lean`：axis / mind 准入 / forge 分喂 / lean 不灌 mind  
-- combo：按书/按轴过滤与 `suggestCombo`（1 mind + N craft）  
+- combo：按书/按轴过滤与 `suggestCombo`（1 book + N scene）  
 - `gates/human-feel`：`stiffness_tidy`（卡承诺打碎才扫；默认 warn）
 
 ## 命令（源码仓）
@@ -68,7 +72,7 @@ npm run typecheck
 写东西——不隔离的话每跑一次测试就往**真实** `~/.dsh` 里塞一批 Temp 工作区，还会把面板的根指到已删除的临时目录。
 `scripts/smoke.mjs` 自己也会隔离，两处一致。
 
-## 面板（0.15.3）
+## 面板（0.17.0）
 
 - `test/contracts/panel-ui.test.ts`：三柱 HTML、HTTP GET（snapshot/library/inspiration/**chapter/candidate**）、traversal 拒、snapshot 无 body、**accept POST**、client 席位 + **zz-workbench / zz-reader** 契约
 - `test/contracts/panel-scheduler.test.ts`：nextHints 与 Scheduler 单源

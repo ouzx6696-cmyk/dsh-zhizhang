@@ -1,6 +1,6 @@
 # DSH 安装与启用（本机实测）
 
-日期：2026-10-18（Asia/Hong_Kong）· 插件 **0.15.3**
+日期：2026-10-20（Asia/Hong_Kong）· 插件 **0.17.0**
 
 ## 目标
 
@@ -12,10 +12,10 @@
 | 项 | 事实 |
 |----|------|
 | DSH 桌面端 | `E:\dsh\DeepSeek Harness.exe`；更新通道 nightly |
-| DSH 版本 | **0.2.1-rc.2**（`dsh --version`；2026-10-18 实测） |
+| DSH 版本 | **0.2.1-rc.2**（`dsh --version`；2026-10-20 实测） |
 | CLI | `E:\dsh\resources\runtime\cli\bin\dsh.cmd`（Electron `ELECTRON_RUN_AS_NODE` 跑 `app.asar\dsh\...\cli.js`） |
 | profile | `C:\Users\Administrator\.dsh\profiles\desktop` |
-| 插件目录 | `E:\dsh cj\dsh-zhizhang-0.15.3`（目录名与包内 version 一致） |
+| 插件目录 | `E:\dsh cj\dsh-zhizhang-0.15.3`（link 名以目录为准，包内 version 为 0.17.0） |
 | Node | 用宿主自带运行时即可；插件声明 `node >= 22` |
 
 ## 安装
@@ -35,7 +35,7 @@ dsh plugin --profile desktop add link:"E:/dsh cj/dsh-zhizhang-0.15.3"
 
 # 4) 会话内按需启用（关键）
 #    普通会话只多一个 zhizhang_enable；
-#    让 Agent 调 zhizhang_enable（或说「启用织章」）后，46 个工具 + 硬规则才挂到本会话。
+#    让 Agent 调 zhizhang_enable（或说「启用织章」）后，52 个工具 + 硬规则才挂到本会话。
 
 # 5) 验证
 #    桌面 profile 由 Electron 独占，CLI `--dump-config` 会拒绝：

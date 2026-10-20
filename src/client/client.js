@@ -1205,6 +1205,28 @@ window.__ModuleLoader__.load({
               h(Badge, { tone: "zz-badge-info" }, "craft " + library.craftCount),
               h(Badge, { tone: "zz-badge-info" }, "mind " + library.mindCount),
             ),
+            (library.analyses || []).length
+              ? h(
+                  "p",
+                  { className: "zz-muted" },
+                  "拆书进度：" +
+                    library.analyses
+                      .map(function (a) {
+                        return (
+                          a.sourceId +
+                          " " +
+                          a.stage +
+                          " " +
+                          a.facts +
+                          "/" +
+                          a.totalChapters +
+                          (a.plots ? " · 剧情条 " + a.plots : "") +
+                          (a.plan ? " · " + a.plan.label + " · 计划 " + a.plan.done + "/" + a.plan.total : "")
+                        );
+                      })
+                      .join(" · "),
+                )
+              : null,
             library.sourceRoot
               ? h(
                   "p",
@@ -1979,7 +2001,7 @@ window.__ModuleLoader__.load({
         h(
           "p",
           { className: "zz-muted", style: { marginTop: 10 } },
-          "0.15.3 · 多草稿默认关 · 编辑 A/B/C 可选 · 产文靠对话 Agent",
+          "拆书（计划→事实→聚合→模块→报告）· Auto 10% / Full 须同意",
         ),
       );
 
@@ -2081,7 +2103,7 @@ window.__ModuleLoader__.load({
         [
           "在对话里说「启用织章」，让 Agent 调 ",
           ["zhizhang_enable"],
-          " —— 46 个工具才会挂到本会话。",
+          " —— 全部工具才会挂到本会话。",
         ],
         [
           "让 Agent 建作品：" ,
@@ -2133,7 +2155,9 @@ window.__ModuleLoader__.load({
 
     function registerOfficialPanel(ctx, disposers) {
       if (!ctx.slots || typeof ctx.slots.inject !== "function") return false;
-      if (!slotDeclared(ctx, "sidebar.panellist") || !slotDeclared(ctx, "main")) return false;
+      // Seats are declared by ui-layout / ui-sidebar, which apply AFTER this plugin
+      // (our only client inject is "slots"). Do not pre-check with slotDeclared():
+      // ctx.slots.inject() waits for the declaration and registers when it lands.
       var pageDispose = null;
       try {
         pageDispose = ctx.slots.inject("main", function () {
@@ -2181,7 +2205,7 @@ window.__ModuleLoader__.load({
 
     function registerSettingsCard(ctx, disposers) {
       if (!ctx.slots || typeof ctx.slots.inject !== "function") return false;
-      if (!slotDeclared(ctx, "settings.plugin.item")) return false;
+      // Same deferred contract as the panel seats: wait for the declaration.
       try {
         var d = ctx.slots.inject("settings.plugin.item", function () {
           return ctx.slots.register(

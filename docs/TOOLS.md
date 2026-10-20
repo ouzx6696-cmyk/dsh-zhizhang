@@ -12,10 +12,26 @@
 ## 默认路径（抄这一条）
 
 ```text
-library_import → dissect_brief → card_stage → card_accept
-  → library_combo_suggest
-  → inspire_start(card_ids) → forge_brief → stage → accept(apply=true)
-  → chapter_brief(lean) → 创作 → candidate_stage → style_lint →（可选 edit）→ candidate_accept
+拆书 9 步（0.17.0；回执里的「下一步 N/9」同号）：
+1. library_import                交书 → sourceId（回执看编码；report 时自动跑 L0 量化测绘）
+2. library_plan                  定档：auto 默认 10% 分层（前 10 章 + 后 3 章 + 等距）；full 须作者明确同意（成本回执 + confirm_token）
+3. library_dissect_brief         source, batch=n → 本批原文（≤3 万字/批）
+4. library_facts_stage           逐章白描：谁做了什么、结果；没写的动机进 unknowns，禁补
+5. library_structure_stage       聚合：kind=plot（六项）/ rhythm（铺垫-释放-反应-衔接）/ character（面具-真相-弧光）
+6. library_card_stage            v2 模块：layer + dimension + 5 项 + evidence（可选 steps 三步公式 / bannedDiction 反AI腔词表）；axis 由层/维度推导
+7. library_card_accept           5 项 + transfer/failWhen + evidence 逐条回溯；缺项/引文未命中直接拒
+8. library_report                19 节报告 + 量化底座（分卷/高频词/热力/锚点/爽点密度）；标 Auto/Full 与覆盖率
+9. library_combo_suggest         1 book + N scene → inspire_start / chapter_brief
+
+> Auto 是抽样：全书结论只作「抽样观察」；Full 才可下全书结论。
+> L0 量化底座（卷界/章长/词频/热力/锚点）是代码全量扫的，不占抽样额度，报告自动带上。
+> 置信度拆三层：覆盖 / 引文证据 / 结构完整；Auto 抽样封顶 0.84。
+
+写作 6 步：
+1. chapter_brief(lean) → 2. 写正文 → 3. candidate_stage → 4. style_lint
+→ 5.（可选）edit_brief → 改写 → edit_stage → A/B/C → 6. candidate_accept
+
+闸：每张卡答得出五条（可操作 / 特异性 / 非梗概 / 状态落纸 / 失败边界）才算拆完；雷达 0 ≠ 质量过关。
 ```
 
 Accept 内嵌软传感；**不要**每章跑三 audit。
@@ -26,7 +42,7 @@ Accept 内嵌软传感；**不要**每章跑三 audit。
 
 | 工具 | 作用 |
 |------|------|
-| `zhizhang_enable` | **唯一常驻**：按需挂载 46 tools + 硬规则到本会话（幂等） |
+| `zhizhang_enable` | **唯一常驻**：按需挂载 52 tools + 硬规则到本会话（幂等） |
 | `zhizhang_product_map` | **启用后**的调度主入口：默认路径 + 旁路 + 三阶段 |
 | `zhizhang_system_brief` | 硬规则钉死 |
 | `zhizhang_status` | 作品进度 + 默认下一步 |
@@ -36,10 +52,17 @@ Accept 内嵌软传感；**不要**每章跑三 audit。
 
 | 工具 | 下一步 |
 |------|--------|
-| `library_import` | dissect_brief（`file` 可写 `sourceRoot` 里的文件名） |
-| `library_dissect_brief` | card_stage |
-| `library_card_stage` / `_accept` | combo_suggest |
+| `library_import` | plan（定档：Auto 10% / Full 须同意） |
+| `library_plan` | dissect_brief(batch=0)（按计划取批） |
+| `library_dissect_brief` | facts_stage（逐章白描） |
+| `library_facts_stage` / `_structure_stage` | card_stage（v2 模块） |
+| `library_card_stage` / `_accept` | 读警告 → audit → report → combo_suggest |
 | `library_list`（含本地书源目录）/ `_search` / `_card_get` | combo 或 brief |
+| `library_audit` | 诊断旁路：引文回溯 / 章号 / 白描违规 / 覆盖率（不改卡） |
+| `library_report` | 报告旁路：19 节 report.md，标 Auto/Full 与覆盖率（不代写分析） |
+| `library_card_discard` | 清理旁路：confirm=true 删卡 |
+
+> 库段验收：`library_audit` 只查机械面（引文/章号/占位）；**机械面通过 ≠ 卡能用**——须真读原文按五条判（可操作 / 特异性 / 非梗概 / 状态落纸 / 失败边界）。
 | `library_combo_suggest` | inspire_start 或 chapter_brief |
 
 ### 2. 灵感段（默认）

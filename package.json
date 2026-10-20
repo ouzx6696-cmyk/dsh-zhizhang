@@ -1,6 +1,6 @@
 {
   "name": "dsh-zhizhang",
-  "version": "0.15.3",
+  "version": "0.17.0",
   "description": "织章 DSH 插件：按需启用（默认只挂 zhizhang_enable）；Scheduler 调度；双轴 craft|mind；lean 写作闭环；反僵硬；写后可选编辑 A/B/C；小说阅读工作台；可选多草稿（默认关）；ports-only。",
   "type": "module",
   "main": "./dist/index.js",

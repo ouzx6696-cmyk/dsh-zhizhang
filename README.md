@@ -1,11 +1,11 @@
 # dsh-zhizhang · 织章（DSH 插件）
 
-**0.15.3**：三柱一环 + 反僵硬 + 可选编辑 A/B/C + 小说阅读工作台 + 可选多草稿（默认关）+ **按需启用（默认只挂 `zhizhang_enable`）** + **工程加固（id 沙箱、面板轮询降载、面板根对齐）**。迷路先 `zhizhang_product_map`。
+**0.17.0**：**拆书 9 步（定档 → 事实 → 聚合 → 模块 → 报告）· Auto 10% 分层 / Full 须作者明确同意** + 三柱一环 + 反僵硬 + 可选编辑 A/B/C + 小说阅读工作台 + 可选多草稿（默认关）+ **按需启用（默认只挂 `zhizhang_enable`）**。迷路先 `zhizhang_product_map`。
 
 DeepSeek Harness **工具型**网文工程层：**一条创作闭环**（库 → combo → 灵感 → lean 写作）。
 
 ```text
-书进库（craft|mind）→ combo（1 mind+N craft）→ inspire 根基/纲 → brief(lean) → stage→lint→（可选 edit）→ accept
+拆书（定档 → 批次 → 白描事实 → 聚合 → 模块/报告）→ 书进库（book/scene）→ combo（1 book+N scene）→ inspire 根基/纲 → brief(lean) → stage→lint→（可选 edit）→ accept
 ```
 
 | 阶段 | 状态 | 交接 |
@@ -17,7 +17,7 @@ DeepSeek Harness **工具型**网文工程层：**一条创作闭环**（库 →
 共享 **MethodRegistry** 按需注入（≠拆书卡）。人味 = 写法+状态，不灌角色声纹。
 
 默认布局可配（`storageRoot / worksRoot / libraryRoot / sourceRoot`），
-留空则回退到 `<会话 cwd>/.zhizhang`。
+本机当前默认：`D:/织章/{.zhizhang, 小说项目, 拆书库}`。
 
 拆书库可跨项目复用：`config.libraryRoot`（或 `DSH_ZHIZHANG_LIBRARY`）指向一个共享目录，
 作品目录保持各自独立。书从哪来也可以固定：`config.sourceRoot`（或 `DSH_ZHIZHANG_SOURCE_ROOT`）
@@ -27,12 +27,12 @@ DeepSeek Harness **工具型**网文工程层：**一条创作闭环**（库 →
 
 ## 按需启用（重要）
 
-插件挂载时**只注册一个** `zhizhang_enable`，不注入 46 个工具与硬规则：
+插件挂载时**只注册一个** `zhizhang_enable`，不注入 52 个工具与硬规则：
 
 ```text
 普通会话 → 只有 zhizhang_enable（面板仍可读，且支持**项目 ▸ 作品**两级切换）
 你说「启用织章」/ Agent 调 zhizhang_enable
-  → 46 tools + SYSTEM_BRIEF 挂到本会话（Agent 作用域）
+  → 52 tools + SYSTEM_BRIEF 挂到本会话（Agent 作用域）
   → 再调 zhizhang_product_map 开始
 ```
 
@@ -44,17 +44,7 @@ DeepSeek Harness **工具型**网文工程层：**一条创作闭环**（库 →
 
 DSH Web 侧栏点 **织章**：默认**三栏小说工作台**（读正式章全文、对照候选、真采纳）；可切「管线」看 Library / Inspiration 等。正文按需 `GET …/chapter`，不塞进 snapshot。写回仍用显式采纳或 `zhizhang_*`。细节：[docs/PANEL.md](docs/PANEL.md)
 
-## 开发与安装
-
-```bash
-npm install            # prepare → tsc → dist/
-npm run build          # 只重建
-npm run typecheck
-npm test               # bun test test/
-npm run smoke          # node scripts/smoke.mjs（不需要 DSH / bun）
-```
-
-装进 profile：
+## 安装
 
 ```bash
 # 1) 以 link: 挂进 profile（只解析依赖，不执行构建）
@@ -65,20 +55,21 @@ dsh plugin --profile web add link:$(pwd)
 #    或按 cordis.patch.yml 的 insert 形态在 profile cordis.patch.yml 里加一层
 
 # 3) 重启 profile；侧栏出现「织章」；普通会话只多一个 zhizhang_enable
-# 4) 要写小说时让 Agent 调 zhizhang_enable（或说「启用织章」），46 个工具才挂载
+# 4) 要写小说时让 Agent 调 zhizhang_enable（或说「启用织章」），52 个工具才挂载
 ```
 
 需要 **Node ≥22**。细节：[docs/DSH_INSTALL.md](docs/DSH_INSTALL.md)
 
-> 源码仓只提交 `src/` 与 `docs/`；`dist/` 由 `npm run build` 生成（git 不跟踪）。
-> 发行包 = `dist/` + `docs/` + `scripts/smoke.mjs` + `cordis.patch.yml`，不含 `src/`。
+> 本目录是**已构建发行包**（`dist/` + `docs/` + `scripts/smoke.mjs`），不含 `src/` 与
+> `tsconfig`，因此**不要**在这里跑 `npm install` / `npm run build`；改代码请在源码仓构建后
+> 同步 `dist/`。自检用 `npm run smoke`。
 
 ## 闭环路径
 
 ```text
-库：import → dissect_brief → card_stage(axis) → card_accept → combo_suggest
+库（9 步）：import → plan（Auto 10% / Full 须同意）→ dissect_brief（batch）→ facts_stage（白描）→ structure_stage（剧情/节奏/人物）→ card_stage（v2 模块）→ card_accept → report → combo_suggest
 灵感：inspire_start(card_ids) → forge_brief → stage → accept(apply?)
-写作：chapter_brief(lean) → candidate_stage → style_lint →（可选 edit）→ candidate_accept
+写作（6 步）：chapter_brief(lean) → 写正文 → candidate_stage → style_lint →（可选 edit）→ candidate_accept
 ```
 
 迷路先看：`zhizhang_product_map`。
@@ -86,7 +77,7 @@ dsh plugin --profile web add link:$(pwd)
 ## 哲学
 
 | 归代码 | 归 AI |
-|--------|-------|
+|--------|--------|
 | 落盘、锁、原子写、路径沙箱 | 大纲措辞、正文、改稿、拆书分析 |
 | 门禁（Ports）、雷达、兑付审计 | 把成稿作为**工具参数**提交 |
 | 候选 stage / accept、审校留痕 | 五类证据**诊断**（写入 ledger） |
@@ -115,8 +106,8 @@ dsh plugin --profile web add link:$(pwd)
 npm run smoke        # node ≥22；不需要 DSH / bun
 ```
 
-覆盖：46 个工具注册、默认写作链（brief→stage→lint→accept）、accept 硬闸、双采纳拒绝、
+覆盖：52 个工具注册、默认写作链（brief→stage→lint→accept）、accept 硬闸、双采纳拒绝、
 章节/候选 id 路径沙箱、面板 HTTP（snapshot JSON / `?html=1` / chapter / candidate /
-confirm 闸 / projects）。
+confirm 闸）。
 
-版本 **0.15.3**。不默认发布 zip。
+版本 **0.17.0**。不默认发布 zip。

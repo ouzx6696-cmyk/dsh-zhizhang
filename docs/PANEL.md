@@ -1,8 +1,8 @@
-# 织章 Web · 小说工作台（0.15.3）
+# 织章 Web · 小说工作台（0.17.0）
 
 侧栏 **织章** 默认进入**三栏小说阅读工作台**（左章节 / 中正文 / 右状态与闸）；可切「管线」看原五 Tab。真采纳仍二次确认 + AcceptPolicy。`zhizhang_panel_snapshot` HTML 对齐管线信息架构，并与客户端同源字段（含 draftLabel / multiDraftEnabled）。
 
-**工具按需**：面板本身常驻（HTTP 只读 + 采纳）；46 个 `zhizhang_*` 工具要在会话里先调 `zhizhang_enable`。
+**工具按需**：面板本身常驻（HTTP 只读 + 采纳）；52 个 `zhizhang_*` 工具要在会话里先调 `zhizhang_enable`。
 
 **接口**：`GET …/projects`（项目列表 + 当前 id）、`GET …/snapshot?base=<id>&work=<key>`；
 `base` 白名单只含已登记工作区。
