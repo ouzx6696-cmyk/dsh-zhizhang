@@ -1,12 +1,12 @@
-// @ts-nocheck
 /** Writing pillar — candidate stage / edit / accept. */
 import { countWords, listCandidates, readCandidate, stageCandidate, } from "../lib/store.js";
 import { EditPort, MultiDraftPort, Scheduler, auditHumanFeel, getPortConfig, } from "../lib/ports/index.js";
 import { runAccept } from "../lib/services/accept.js";
-import { asString, fail, openWork } from "./context.js";
+import { asString, asStringArray, fail, openWork } from "./context.js";
 import { B, E, S, WORK_OPT, WORKING_DIR } from "./schema.js";
 import { defineTool } from "./types.js";
-async function runAcceptPipeline(args, exec, opts) {
+import type { ExecContext } from "./types.js";
+async function runAcceptPipeline(args: any, exec: ExecContext, opts: any) {
     const { paths, dir, key } = await openWork(exec, args);
     const r = await runAccept({
         paths,
@@ -43,7 +43,7 @@ export function candidatesTools() {
                 variant_group: S("可选：同批多草稿分组 id"),
             },
             required: ["chapter", "content"],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const chapterId = asString(args, "chapter", { required: true });
                 const content = asString(args, "content", { required: true, trim: false });
                 if (!content.trim())
@@ -86,7 +86,7 @@ export function candidatesTools() {
                 situation: S("可选：本章处境/冲突摘要"),
             },
             required: [],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const cfg = getPortConfig();
                 const mode = EditPort.normalizeMode(asString(args, "mode") ?? cfg.defaultEditMode);
                 const candidateId = asString(args, "candidate");
@@ -123,7 +123,7 @@ export function candidatesTools() {
                 note: S("可选说明"),
             },
             required: ["parent", "content"],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const parentId = asString(args, "parent", { required: true });
                 const content = asString(args, "content", { required: true, trim: false });
                 if (!content.trim())
@@ -143,8 +143,8 @@ export function candidatesTools() {
                     editOf: parentId,
                     editMode: mode,
                 });
-                const soft = auditHumanFeel(cand.body);
-                const softHits = soft.hits.map((h) => ({ code: h.code, text: h.text }));
+                const soft = auditHumanFeel(cand.body, {});
+                const softHits = soft.hits.map((h: any) => ({ code: h.code, text: h.text }));
                 return [
                     ...EditPort.afterStageLines({
                         editCandId: cand.id,
@@ -177,7 +177,7 @@ export function candidatesTools() {
                 strict_novel: B("A 时书感硬拒"),
             },
             required: ["candidate", "choice"],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const candidateId = asString(args, "candidate", { required: true });
                 const choiceRaw = asString(args, "choice", { required: true });
                 const choice = EditPort.resolveChoice(choiceRaw);
@@ -239,15 +239,15 @@ export function candidatesTools() {
                 include_accepted: B("是否列出本章近期已采纳候选（默认 false）"),
             },
             required: ["chapter"],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const chapterId = asString(args, "chapter", { required: true });
                 const includeAccepted = Boolean(args.include_accepted);
                 const { dir, key } = await openWork(exec, args);
                 const all = await listCandidates(dir);
-                const forCh = all.filter((c) => c.chapterId === chapterId);
-                const pending = forCh.filter((c) => c.pending);
+                const forCh = all.filter((c: any) => c.chapterId === chapterId);
+                const pending = forCh.filter((c: any) => c.pending);
                 const accepted = includeAccepted
-                    ? forCh.filter((c) => !c.pending).slice(-5)
+                    ? forCh.filter((c: any) => !c.pending).slice(-5)
                     : [];
                 const lines = [
                     `章 ${chapterId} · 作品 ${key}`,
@@ -301,24 +301,22 @@ export function candidatesTools() {
                 },
             },
             required: [],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 try {
                     MultiDraftPort.requireEnabled();
                 }
                 catch (err) {
-                    const e = err;
+                    const e = err as any;
                     fail(e.message, e.code || MultiDraftPort.disabledCode);
                 }
                 const { dir, key } = await openWork(exec, args);
-                let ids = Array.isArray(args.candidate_ids)
-                    ? args.candidate_ids.map((x) => String(x).trim()).filter(Boolean)
-                    : [];
+                let ids = asStringArray(args, "candidate_ids") ?? [];
                 const chapterArg = asString(args, "chapter");
                 if (ids.length === 0) {
                     if (!chapterArg)
                         fail("请传 chapter，或传 candidate_ids（≥2）");
-                    const pending = (await listCandidates(dir)).filter((c) => c.pending && c.chapterId === chapterArg);
-                    ids = pending.map((c) => c.id);
+                    const pending = (await listCandidates(dir)).filter((c: any) => c.pending && c.chapterId === chapterArg);
+                    ids = pending.map((c: any) => c.id);
                 }
                 if (ids.length < 2) {
                     fail(`统一整理至少需要 2 条待采纳候选，当前 ${ids.length} 条。可先多次 candidate_stage(draft_label)。`, "unify_need_two");
@@ -334,7 +332,7 @@ export function candidatesTools() {
                 const chapterId = parents[0].chapterId;
                 for (const p of parents) {
                     if (p.chapterId !== chapterId) {
-                        fail(`候选不在同一章：${parents.map((x) => `${x.id}=${x.chapterId}`).join("、")}`, "unify_chapter_mismatch");
+                        fail(`候选不在同一章：${parents.map((x: any) => `${x.id}=${x.chapterId}`).join("、")}`, "unify_chapter_mismatch");
                     }
                 }
                 if (chapterArg && chapterArg !== chapterId) {
@@ -343,7 +341,7 @@ export function candidatesTools() {
                 const brief = MultiDraftPort.formatUnifyBrief({
                     chapterId,
                     workKey: key,
-                    parents: parents.map((p) => MultiDraftPort.parentView(p)),
+                    parents: parents.map((p: string) => MultiDraftPort.parentView(p)),
                 });
                 return [
                     brief,
@@ -369,20 +367,18 @@ export function candidatesTools() {
                 draft_label: S("可选：整理稿标签，默认「统一整理」"),
             },
             required: ["content", "candidate_ids"],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 try {
                     MultiDraftPort.requireEnabled();
                 }
                 catch (err) {
-                    const e = err;
+                    const e = err as any;
                     fail(e.message, e.code || MultiDraftPort.disabledCode);
                 }
                 const content = asString(args, "content", { required: true, trim: false });
                 if (!content.trim())
                     fail("content 不能为空");
-                const ids = Array.isArray(args.candidate_ids)
-                    ? args.candidate_ids.map((x) => String(x).trim()).filter(Boolean)
-                    : [];
+                const ids = asStringArray(args, "candidate_ids") ?? [];
                 if (ids.length < 2)
                     fail("candidate_ids 至少 2 个", "unify_need_two");
                 const { dir } = await openWork(exec, args);
@@ -436,7 +432,7 @@ export function candidatesTools() {
                 confirm_accept_after_edit: B("路径 A 一次确认：采纳本章编辑稿并验收为正式章（无此旗标不得当 A）"),
             },
             required: ["candidate"],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const candidateId = asString(args, "candidate", { required: true });
                 const mode = asString(args, "mode") ?? "replace";
                 return runAcceptPipeline(args, exec, {

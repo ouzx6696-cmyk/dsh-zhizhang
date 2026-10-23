@@ -1,18 +1,17 @@
-// @ts-nocheck
 /** JSON-schema helpers for zhizhang tool parameters (Chinese descriptions). */
-export function S(description) {
+export function S(description: any) {
     return { type: "string", description };
 }
-export function B(description) {
+export function B(description: any) {
     return { type: "boolean", description };
 }
-export function I(description) {
+export function I(description: any) {
     return { type: "integer", description };
 }
-export function E(values, description) {
+export function E(values: any, description: any) {
     return { type: "string", enum: values, description };
 }
-export function O(properties, required = []) {
+export function O(properties: any, required: any = []) {
     return { type: "object", additionalProperties: false, properties, required };
 }
 export const WORKING_DIR = S("可选：织章存储根（绝对路径或相对会话 cwd）。默认 <cwd>/.zhizhang/");

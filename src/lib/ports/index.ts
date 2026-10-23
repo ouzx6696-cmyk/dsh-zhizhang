@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Improvement ports — stable extension surface for dsh-zhizhang 0.11+ (0.14 multi-draft).
  * One creative loop + Scheduler (default vs bypass) + optional EditPort. New policy → edit a port; tools stay thin.

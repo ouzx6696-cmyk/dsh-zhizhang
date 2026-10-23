@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * ProductMap — one creative loop + scheduler surface (default vs bypass).
  */
@@ -17,7 +16,7 @@ export const ProductMap = {
     id: "port.product",
     version: PLUGIN_VERSION,
     /** 运行时由 index.js 注入真实工具数；文档/面板不再硬编码 47/51/52。 */
-    setToolCount(n) {
+    setToolCount(n: number) {
         toolCount = Number(n) || 0;
         return toolCount;
     },

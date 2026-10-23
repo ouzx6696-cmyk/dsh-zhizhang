@@ -1,12 +1,12 @@
-// @ts-nocheck
 /** 聚合层：剧情条 / 节奏表 / 人物。 */
 import { withLock } from "../../store.js";
+import type { StoragePaths } from "../../types.js";
 import { ZhizhangError } from "../../errors.js";
 import { analysisPaths, ensureDir, nowIso, readJson, readJsonl, writeJsonl } from "./paths.js";
 import { writeAnalysisMeta } from "./meta.js";
 import { atomicWrite } from "../../store.js";
 
-export function validatePlot(plot) {
+export function validatePlot(plot: any) {
     const errors = [];
     const p = plot ?? {};
     if (!String(p.title ?? "").trim())
@@ -20,9 +20,9 @@ export function validatePlot(plot) {
     return { errors, warnings: [] };
 }
 
-export function validateRhythm(r) {
+export function validateRhythm(r: any) {
     const errors = [];
-    const warnings = [];
+    const warnings: string[] = [];
     const v = r ?? {};
     if (!Array.isArray(v.points) || !v.points.length)
         errors.push("points 不能为空（情绪折线）");
@@ -53,7 +53,7 @@ export function validateRhythm(r) {
     return { errors, warnings };
 }
 
-export function validateCharacter(c) {
+export function validateCharacter(c: any) {
     const errors = [];
     const v = c ?? {};
     if (!String(v.name ?? "").trim())
@@ -75,7 +75,7 @@ export function validateCharacter(c) {
     return { errors, warnings: [] };
 }
 
-export async function upsertPlot(paths, sourceId, plot) {
+export async function upsertPlot(paths: StoragePaths, sourceId: any, plot: any) {
     const { errors } = validatePlot(plot);
     if (errors.length)
         throw new ZhizhangError("bad_plot", `剧情条未通过：${errors.join("；")}`);
@@ -84,7 +84,7 @@ export async function upsertPlot(paths, sourceId, plot) {
     await withLock(`analysis:${sourceId}`, async () => {
         const rows = await readJsonl(p.plots);
         const rec = { ...plot, id: plot.id || `p${String(rows.length + 1).padStart(3, "0")}`, schemaVersion: 2, updatedAt: nowIso() };
-        const at = rows.findIndex((r) => r.id === rec.id);
+        const at = rows.findIndex((r: any) => r.id === rec.id);
         if (at >= 0)
             rows[at] = rec;
         else
@@ -95,7 +95,7 @@ export async function upsertPlot(paths, sourceId, plot) {
     return { count: (await readJsonl(p.plots)).length };
 }
 
-export async function writeRhythm(paths, sourceId, rhythm) {
+export async function writeRhythm(paths: StoragePaths, sourceId: any, rhythm: any) {
     const { errors, warnings } = validateRhythm(rhythm);
     if (errors.length)
         throw new ZhizhangError("bad_rhythm", `节奏表未通过：${errors.join("；")}`);
@@ -116,7 +116,7 @@ export async function writeRhythm(paths, sourceId, rhythm) {
     return { warnings, loops: rhythm.loops?.length ?? 0 };
 }
 
-export async function upsertCharacter(paths, sourceId, character) {
+export async function upsertCharacter(paths: StoragePaths, sourceId: any, character: any) {
     const { errors } = validateCharacter(character);
     if (errors.length)
         throw new ZhizhangError("bad_character", `人物未通过：${errors.join("；")}`);
@@ -126,7 +126,7 @@ export async function upsertCharacter(paths, sourceId, character) {
         const current = await readJson(p.characters, []);
         const rows = Array.isArray(current) ? current : [];
         const rec = { ...character, schemaVersion: 2, updatedAt: nowIso() };
-        const at = rows.findIndex((r) => r.name === rec.name);
+        const at = rows.findIndex((r: any) => r.name === rec.name);
         if (at >= 0)
             rows[at] = rec;
         else

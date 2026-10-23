@@ -1,4 +1,3 @@
-// @ts-nocheck
 /** Library pillar — import / dissect / stage / accept / search technique cards. */
 import path from "node:path";
 import { stat } from "node:fs/promises";
@@ -6,10 +5,12 @@ import { LibraryPort, coerceAxis, formatHumanFeelBlock, formatBookCraftBlock, fo
 import { readAnalysisBundle, readSurvey, computeCoverage, listAnalyses, WHITE_DESC_HARD_RE, writeAnalysisMeta, buildPlan, estimatePlan, planLabel, writePlan, readPlan, deletePlan, makeConfirmToken, writePendingConfirm, assertFullConsent, clearPendingConfirm, planProgress, planMembership, chapterIndex, chapterText, chapterTitle, PLAN_RATIO_DEFAULT, PLAN_BATCH_DEFAULT, PLAN_BATCH_MIN, PLAN_BATCH_MAX, } from "../lib/ports/analysis.js";
 import { ensureStorage, listLocalBooks, sessionCwd } from "../lib/store.js";
 import { AUTO_SAMPLE_HEAD, AUTO_SAMPLE_RATIO, AUTO_SAMPLE_TAIL } from "../lib/domain/workflow.js";
-import { asString, config, fail } from "./context.js";
+import { asArray, asString, asStringArray, config, fail } from "./context.js";
 import { S, B, WORKING_DIR } from "./schema.js";
 import { defineTool } from "./types.js";
-async function openLibrary(exec, args) {
+import type { ExecContext } from "./types.js";
+import type { StoragePaths } from "../lib/types.js";
+async function openLibrary(exec: ExecContext, args: any) {
     const paths = await ensureStorage(exec, config, asString(args, "working_dir"));
     await LibraryPort.ensureLibrary(paths);
     return paths;
@@ -19,7 +20,7 @@ async function openLibrary(exec, args) {
  * then against the configured local shelf (sourceRoot). Unresolved names fall
  * through so importSource reports its normal file_read_failed.
  */
-async function resolveBookFile(paths, exec, raw) {
+async function resolveBookFile(paths: StoragePaths, exec: ExecContext, raw: string) {
     if (!raw || path.isAbsolute(raw))
         return raw;
     const cwd = sessionCwd(exec);
@@ -51,7 +52,7 @@ export function libraryTools() {
                 working_dir: WORKING_DIR,
             },
             required: ["title"],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const title = asString(args, "title", { required: true });
                 const paths = await openLibrary(exec, args);
                 const fileResolved = await resolveBookFile(paths, exec, asString(args, "file"));
@@ -89,7 +90,7 @@ export function libraryTools() {
                 working_dir: WORKING_DIR,
             },
             required: ["source"],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const sourceId = asString(args, "source", { required: true });
                 const paths = await openLibrary(exec, args);
                 const mode = asString(args, "mode") || "auto";
@@ -133,7 +134,7 @@ export function libraryTools() {
                 }
                 if (plan.mode === "full") {
                     await assertFullConsent(paths, sourceId, asString(args, "confirm_token"));
-                    plan.consent = { at: new Date().toISOString(), note: asString(args, "note") || "作者明确要求全量" };
+                    (plan as any).consent = { at: new Date().toISOString(), note: asString(args, "note") || "作者明确要求全量" };
                     await clearPendingConfirm(paths, sourceId);
                 }
                 await writePlan(paths, plan);
@@ -167,7 +168,7 @@ export function libraryTools() {
                 working_dir: WORKING_DIR,
             },
             required: ["source"],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const sourceId = asString(args, "source", { required: true });
                 const paths = await openLibrary(exec, args);
                 const plan = await readPlan(paths, sourceId);
@@ -321,15 +322,12 @@ export function libraryTools() {
                 working_dir: WORKING_DIR,
             },
             required: ["title", "source", "body", "mechanisms"],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const title = asString(args, "title", { required: true });
                 const sourceId = asString(args, "source", { required: true });
                 const body = asString(args, "body", { required: true, trim: false });
-                if (!Array.isArray(args.mechanisms))
-                    fail("mechanisms 必须是数组");
-                const tags = Array.isArray(args.tags)
-                    ? args.tags.map((t) => String(t))
-                    : undefined;
+                asArray(args, "mechanisms", { required: true });
+                const tags = asStringArray(args, "tags");
                 const humanFeel = args.human_feel && typeof args.human_feel === "object"
                     ? args.human_feel
                     : undefined;
@@ -360,13 +358,13 @@ export function libraryTools() {
                     readerWant: asString(args, "readerWant"),
                     emotionArc: asString(args, "emotionArc"),
                     dramaticUnit: asString(args, "dramaticUnit"),
-                    replaceables: Array.isArray(args.replaceables) ? args.replaceables : undefined,
-                    mustNotCopy: Array.isArray(args.mustNotCopy) ? args.mustNotCopy : undefined,
+                    replaceables: asStringArray(args, "replaceables"),
+                    mustNotCopy: asStringArray(args, "mustNotCopy"),
                     transfer: asString(args, "transfer"),
                     failWhen: asString(args, "failWhen"),
-                    evidence: Array.isArray(args.evidence) ? args.evidence : undefined,
-                    steps: Array.isArray(args.steps) ? args.steps : undefined,
-                    bannedDiction: Array.isArray(args.bannedDiction) ? args.bannedDiction : undefined,
+                    evidence: asArray(args, "evidence"),
+                    steps: asStringArray(args, "steps"),
+                    bannedDiction: asStringArray(args, "bannedDiction"),
                     tags,
                 });
                 const lines = [
@@ -393,7 +391,7 @@ export function libraryTools() {
                 working_dir: WORKING_DIR,
             },
             required: ["candidate"],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const candId = asString(args, "candidate", { required: true });
                 const paths = await openLibrary(exec, args);
                 const { cardId, title, warnings, judgment } = await LibraryPort.acceptCard(paths, candId);
@@ -401,8 +399,8 @@ export function libraryTools() {
                     `已采纳技法卡「${title}」→ cardId=${cardId}`,
                     `- 状态：accepted`,
                     `- 可检索：zhizhang_library_search / library_card_get`,
-                    ...(warnings && warnings.length ? ["", "【入库审计提示】", ...warnings.map((w) => `- ${w}`)] : []),
-                    ...(judgment && judgment.length ? ["", "【判断面（脚本核不了）】", ...judgment.map((j) => `- ${j}`)] : []),
+                    ...(warnings && warnings.length ? ["", "【入库审计提示】", ...warnings.map((w: any) => `- ${w}`)] : []),
+                    ...(judgment && judgment.length ? ["", "【判断面（脚本核不了）】", ...judgment.map((j: any) => `- ${j}`)] : []),
                     "",
                     "下一步 8/9：zhizhang_library_report / library_audit（机械面，通过≠合格）→ 9/9 zhizhang_library_combo_suggest",
                 ].join("\n");
@@ -424,12 +422,10 @@ export function libraryTools() {
                 working_dir: WORKING_DIR,
             },
             required: [],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const what = (asString(args, "what") ?? "all").toLowerCase();
                 const paths = await openLibrary(exec, args);
-                const sourceIds = Array.isArray(args.source_ids)
-                    ? args.source_ids.map((x) => String(x))
-                    : undefined;
+                const sourceIds = asStringArray(args, "source_ids");
                 const axisRaw = asString(args, "axis");
                 const axis = axisRaw === "craft" ? "craft" : axisRaw === "mind" ? "mind" : undefined;
                 const filter = {
@@ -469,7 +465,7 @@ export function libraryTools() {
                         const p = await readPlan(paths, a.sourceId);
                         const prog = p ? planProgress(p, (await readAnalysisBundle(paths, a.sourceId)).chapters) : null;
                         lines.push(`- ${a.sourceId} · stage=${a.stage} · 事实 ${a.facts}/${a.totalChapters} · 剧情条 ${a.plots}` +
-                            (p ? ` · ${planLabel(p)} · 计划进度 ${prog.done}/${prog.total}` : ""));
+                            (p && prog ? ` · ${planLabel(p)} · 计划进度 ${prog.done}/${prog.total}` : ""));
                     }
                 }
                 if (paths.sourceRoot) {
@@ -480,7 +476,7 @@ export function libraryTools() {
                     }
                     else {
                         const all = await LibraryPort.listSources(paths);
-                        const titles = new Set(all.map((x) => x.title));
+                        const titles = new Set(all.map((x: any) => x.title));
                         for (const b of local) {
                             const kb = Math.max(1, Math.round(b.bytes / 1024));
                             lines.push(`- ${b.name} · ${kb} KB · ${titles.has(b.title) ? "已导入" : "未导入"}`);
@@ -508,12 +504,10 @@ export function libraryTools() {
                 working_dir: WORKING_DIR,
             },
             required: [],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const query = asString(args, "query") ?? "";
                 const paths = await openLibrary(exec, args);
-                const sourceIds = Array.isArray(args.source_ids)
-                    ? args.source_ids.map((x) => String(x))
-                    : undefined;
+                const sourceIds = asStringArray(args, "source_ids");
                 const axisRaw = asString(args, "axis");
                 const axis = axisRaw === "craft" ? "craft" : axisRaw === "mind" ? "mind" : undefined;
                 const hits = await LibraryPort.searchCards(paths, query, {
@@ -529,7 +523,7 @@ export function libraryTools() {
                     return `无命中：「${label}」`;
                 return [
                     `检索「${label}」· ${hits.length} 条：`,
-                    ...hits.map((c, i) => `${i + 1}. ${c.title}（${c.id}）· axis=${c.axis ?? "?"} · src=${c.sourceId} · tags=${c.tags.join(",") || "—"}`),
+                    ...hits.map((c: any, i: number) => `${i + 1}. ${c.title}（${c.id}）· axis=${c.axis ?? "?"} · src=${c.sourceId} · tags=${c.tags.join(",") || "—"}`),
                 ].join("\n");
             },
         }),
@@ -543,7 +537,7 @@ export function libraryTools() {
                 working_dir: WORKING_DIR,
             },
             required: [],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const paths = await openLibrary(exec, args);
                 const axisRaw = asString(args, "axis");
                 const axis = axisRaw === "craft" ? "craft" : axisRaw === "mind" ? "mind" : undefined;
@@ -560,8 +554,8 @@ export function libraryTools() {
                 if (srcId) {
                     const bundle = await readAnalysisBundle(paths, srcId);
                     if (bundle.meta) {
-                        const qTotal = rows.reduce((n, r) => n + (r.evidenceQuotes || 0), 0);
-                        const qOk = rows.reduce((n, r) => n + (r.evidenceVerified || 0), 0);
+                        const qTotal = rows.reduce((n: number, r: any) => n + (r.evidenceQuotes || 0), 0);
+                        const qOk = rows.reduce((n: number, r: any) => n + (r.evidenceVerified || 0), 0);
                         const plan = await readPlan(paths, srcId);
                         const survey = await readSurvey(paths, srcId);
                         const coverage = computeCoverage(bundle.meta, bundle.chapters, rows, { total: qTotal, ok: qOk }, {
@@ -586,13 +580,13 @@ export function libraryTools() {
                             analysisLines.push(`- 计划：${planLabel(plan)} · 抽样表见 analyses/${srcId}/plan.md`);
                     }
                 }
-                const hardBad = rows.filter((r) => r.unverifiable.length || r.chapterOk === false || (r.bodyUnverifiable?.length ?? 0) > 0);
-                const soft = rows.filter((r) => r.warnings.length && !hardBad.includes(r));
-                const evOk = rows.filter((r) => r.evidenceQuotes > 0 && r.unverifiable.length === 0).length;
-                const bodyCards = rows.filter((r) => (r.bodyQuotes ?? 0) > 0);
-                const bodyOk = bodyCards.filter((r) => (r.bodyUnverifiable?.length ?? 0) === 0).length;
-                const bodyTotal = bodyCards.reduce((n, r) => n + r.bodyQuotes, 0);
-                const skippedTotal = rows.reduce((a, r) => a + (r.skippedShort?.length ?? 0), 0);
+                const hardBad = rows.filter((r: any) => r.unverifiable.length || r.chapterOk === false || (r.bodyUnverifiable?.length ?? 0) > 0);
+                const soft = rows.filter((r: any) => r.warnings.length && !hardBad.includes(r));
+                const evOk = rows.filter((r: any) => r.evidenceQuotes > 0 && r.unverifiable.length === 0).length;
+                const bodyCards = rows.filter((r: any) => (r.bodyQuotes ?? 0) > 0);
+                const bodyOk = bodyCards.filter((r: any) => (r.bodyUnverifiable?.length ?? 0) === 0).length;
+                const bodyTotal = bodyCards.reduce((n: number, r: any) => n + r.bodyQuotes, 0);
+                const skippedTotal = rows.reduce((a: any, r: any) => a + (r.skippedShort?.length ?? 0), 0);
                 const lines = [
                     `拆书库审计 · ${rows.length} 张卡（机械面）`,
                     `- 证据全部可回溯：${evOk}/${rows.length}`,
@@ -600,7 +594,7 @@ export function libraryTools() {
                         ? `- 正文引文可回溯：${bodyOk}/${bodyCards.length} 张（共 ${bodyTotal} 条声称引文）`
                         : "- 正文引文：未发现声称原文的正文引文（示例引语不核对）",
                     `- 硬问题：${hardBad.length} · 软警告：${soft.length}`,
-                    ...(skippedTotal ? [`- 过短未核对：${skippedTotal} 条（${rows.filter((r) => r.skippedShort?.length).length} 张卡）`] : []),
+                    ...(skippedTotal ? [`- 过短未核对：${skippedTotal} 条（${rows.filter((r: any) => r.skippedShort?.length).length} 张卡）`] : []),
                     ...analysisLines,
                 ];
                 lines.push("", "判断面（脚本核不了）：机制成不成立 / rebuild 能不能迁移 / mind 是否设定复述——必须真读原文按五条判。");
@@ -649,11 +643,9 @@ export function libraryTools() {
                 working_dir: WORKING_DIR,
             },
             required: [],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const paths = await openLibrary(exec, args);
-                const sourceIds = Array.isArray(args.source_ids)
-                    ? args.source_ids.map((x) => String(x))
-                    : undefined;
+                const sourceIds = asStringArray(args, "source_ids");
                 const prefer = asString(args, "prefer_mind_source");
                 const craftCount = typeof args.craft_count === "number" ? args.craft_count : undefined;
                 const queryText = asString(args, "query");
@@ -678,7 +670,7 @@ export function libraryTools() {
                     `- mind：${result.mind.title}（${result.mind.id}）· src=${result.mind.sourceId}`,
                     ...(queryText ? [`- 主题排序：${queryText}`] : []),
                     `- craft ×${result.crafts.length}：`,
-                    ...result.crafts.map((c, i) => `  ${i + 1}. ${c.title}（${c.id}）· src=${c.sourceId}`),
+                    ...result.crafts.map((c: any, i: number) => `  ${i + 1}. ${c.title}（${c.id}）· src=${c.sourceId}`),
                     "",
                     "用法：zhizhang_inspire_start(card_ids=[...]) 或 zhizhang_chapter_brief(card_ids=[...])",
                     "说明：inspire/forge 吃全包（mind 主粮）；lean chapter_brief 只吃其中 craft。",
@@ -699,13 +691,13 @@ export function libraryTools() {
                 working_dir: WORKING_DIR,
             },
             required: ["card"],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const cardId = asString(args, "card", { required: true });
                 const paths = await openLibrary(exec, args);
                 const card = await LibraryPort.getCard(paths, cardId);
                 const axis = coerceAxis(card);
                 const mech = card.mechanisms
-                    .map((m, i) => `${i + 1}. ${m.name}\n   体验：${m.experience}\n   重建：${m.rebuild}\n   可弃：${m.discard}\n   失败：${m.failWhen}`)
+                    .map((m: any, i: number) => `${i + 1}. ${m.name}\n   体验：${m.experience}\n   重建：${m.rebuild}\n   可弃：${m.discard}\n   失败：${m.failWhen}`)
                     .join("\n");
                 const lines = [
                     `# ${card.title}（${card.id}）`,

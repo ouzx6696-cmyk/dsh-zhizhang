@@ -218,3 +218,33 @@ describe("Inspiration pillar · dual axis 0.7.0", () => {
   });
 });
 
+describe("chapter_brief 取卡策略（不做 genre 猜卡）", () => {
+  test("genre 命中卡内文也不注入；只认显式 card_ids", async () => {
+    const p = await paths();
+    const { cardId } = await acceptCraft(p, { craft: "UNIQUE_CRAFT_MARKER_200" });
+
+    // 旧实现按 genre 全文检索，这里会把这唯一一张卡捞出来
+    const byGenre = await InspirationPort.resolveCardsForBrief(p, { genre: "UNIQUE_CRAFT_MARKER_200" });
+    expect(byGenre.source).toBe("none");
+    expect(byGenre.cards.length).toBe(0);
+    // 空结果要指路：先组包拿 card_ids
+    expect(byGenre.note).toContain("library_combo_suggest");
+
+    // 显式路径照常
+    const explicit = await InspirationPort.resolveCardsForBrief(p, { cardIds: [cardId] });
+    expect(explicit.source).toBe("explicit");
+    expect(explicit.cards.length).toBe(1);
+    expect(explicit.cards[0].id).toBe(cardId);
+  });
+
+  test("未 accept 的卡不能注入（显式路径仍有硬拒）", async () => {
+    const p = await paths();
+    let err: unknown;
+    try {
+      await InspirationPort.resolveCardsForBrief(p, { cardIds: ["card-not-exist"] });
+    } catch (e) {
+      err = e;
+    }
+    expect(err instanceof Error).toBe(true);
+  });
+});

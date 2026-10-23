@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * 章 / 卷标题解析 — 全插件唯一来源。
  *
@@ -6,19 +5,19 @@
  * 只认行首标题，避免正文里的「第一章」误切。
  */
 
-const CN_DIGITS = {
+const CN_DIGITS: Record<string, number> = {
     零: 0, 〇: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4,
     五: 5, 六: 6, 七: 7, 八: 8, 九: 9,
 };
-const CN_UNITS = { 十: 10, 百: 100, 千: 1000 };
+const CN_UNITS: Record<string, number> = { 十: 10, 百: 100, 千: 1000 };
 const NUM_CHARS = "0-9０-９一二三四五六七八九十百千万零〇两";
 
-function asciiDigits(s) {
+function asciiDigits(s: string): string {
     return s.replace(/[０-９]/g, (d) => String(d.charCodeAt(0) - 0xff10));
 }
 
 /** 中文数字 / 阿拉伯数字 → number；无法解析返回 NaN。 */
-export function cnNumber(input) {
+export function cnNumber(input: unknown): number {
     const t = String(input ?? "").trim();
     if (!t)
         return NaN;
@@ -74,7 +73,7 @@ export const VOLUME_HEADING_RE = new RegExp(
 export const FRONT_HEADING_RE = /^[ \t]*(序章|序|楔子|引子)[ \t]*(.*)$/gm;
 
 /** 解析一行标题；不是章节标题返回 null。 */
-export function parseChapterHeading(line) {
+export function parseChapterHeading(line: unknown): { n: number; title: string; kind: string } | null {
     const raw = String(line ?? "");
     const m = new RegExp(`^[ \\t]*第([${NUM_CHARS}]+)[章回节][ \\t]*(.*)$`).exec(raw);
     if (m) {
@@ -90,7 +89,7 @@ export function parseChapterHeading(line) {
 }
 
 /** 把「第12章」「第十二章」「12」统一成 number；解析失败返回 NaN。 */
-export function parseChapterNumber(label) {
+export function parseChapterNumber(label: unknown): number {
     const t = String(label ?? "").trim();
     if (!t)
         return NaN;

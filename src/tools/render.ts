@@ -1,13 +1,13 @@
-// @ts-nocheck
 import { Scheduler, StyleLinterPort } from "../lib/ports/index.js";
-export function clip(text, max) {
+import type { StoragePaths } from "../lib/types.js";
+export function clip(text: string, max: any) {
     const t = (text ?? "").trim();
     if (!t)
         return "（空）";
     return t.length <= max ? t : `${t.slice(0, max)}…`;
 }
 /** Lean outline for chapter_brief: no beats list (beats stay on disk via outline_get). */
-export function renderOutlineLean(o) {
+export function renderOutlineLean(o: any) {
     const lines = [
         `- 目标字数：${o.targetWords}`,
         `- 处境透镜：${o.situationLens || "（空）"}`,
@@ -21,7 +21,7 @@ export function renderOutlineLean(o) {
         lines.push(`- 亲历：${clip(o.livedScene, 120)}`);
     return lines.join("\n");
 }
-export function renderOutline(o) {
+export function renderOutline(o: any) {
     const lines = [
         `- 视角：${o.pov || "（空）"}`,
         `- 目标字数：${o.targetWords}`,
@@ -37,9 +37,9 @@ export function renderOutline(o) {
     ];
     return lines.join("\n");
 }
-export function renderStatus(meta, dir) {
-    const total = meta.chapters.reduce((s, c) => s + c.wordCount, 0);
-    const finalN = meta.chapters.filter((c) => c.status === "final").length;
+export function renderStatus(meta: any, dir: string, paths: StoragePaths) {
+    const total = meta.chapters.reduce((s: string, c: any) => s + c.wordCount, 0);
+    const finalN = meta.chapters.filter((c: any) => c.status === "final").length;
     const lines = [
         `# 织章作品：${meta.title}`,
         `- key：${meta.key}`,
@@ -53,14 +53,24 @@ export function renderStatus(meta, dir) {
         `- 已发生：${clip(meta.foundation.happened, 80)}`,
         `- 未结伏笔：${clip(meta.foundation.threads, 80)}`,
         "",
+        ...(paths
+            ? [
+                "",
+                "## 存储根（排查用）",
+                `- 存储：${paths.base}`,
+                `- 作品：${paths.works}`,
+                `- 拆书库：${paths.library}`,
+            ]
+            : []),
+        "",
         "## 章节",
     ];
-    for (const ch of [...meta.chapters].sort((a, b) => a.position - b.position)) {
+    for (const ch of [...meta.chapters].sort((a: any, b: any) => a.position - b.position)) {
         lines.push(`${ch.position}. [${ch.status}] ${ch.title}（${ch.id}，${ch.wordCount} 字）`);
     }
     lines.push("", `下一步（默认）：${Scheduler.nextHint("work_status")}`);
     return lines.join("\n");
 }
-export function formatLint(label, hits, summary) {
+export function formatLint(label: string, hits: any, summary: any) {
     return StyleLinterPort.format(label, hits, summary);
 }

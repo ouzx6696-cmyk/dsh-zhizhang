@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * HumanFeelGate — soft sensor for 人味(写法+状态面) + poison axes of QualityPolicy
  * Not a "must sound like character X" gate.
@@ -14,7 +13,7 @@ const WOBBLE_RE = QUALITY_WOBBLE_RE;
 const TASK_DIALOGUE_RE = /^(?:把|拿|交|查|点|对|补|报|签|请|过来|过去|打开|关上|放回|拿走|核对|登记|确认|盘点|实点|差价|货架|收据|发票|金额|下次|现在|立刻|马上|必须|需要|应该|给我|你把|你去|你来|先|再|然后)/;
 const DIALOGUE_PAIR = /([“「])([\s\S]*?)([”」])/g;
 const MIN_CHARS = 120;
-export function auditHumanFeel(text, opts) {
+export function auditHumanFeel(text: string, opts: any) {
     const body = String(text ?? "").trim();
     const hits = [];
     if (body.length < MIN_CHARS) {
@@ -47,11 +46,11 @@ export function auditHumanFeel(text, opts) {
         hits.push(stiff);
     const summary = hits.length === 0
         ? "人味软雷达未命中（启发式；≠质量过关）"
-        : `人味软雷达命中 ${hits.length} 类：${hits.map((h) => h.code).join("、")}`;
+        : `人味软雷达命中 ${hits.length} 类：${hits.map((h: any) => h.code).join("、")}`;
     return { hitCount: hits.length, hits, summary };
 }
-function detectUniformShortRun(text) {
-    const sentences = splitSentences(text).filter((s) => s.length >= 4);
+function detectUniformShortRun(text: string) {
+    const sentences = splitSentences(text).filter((s: string) => s.length >= 4);
     if (sentences.length < 6)
         return null;
     let bestRun = 0;
@@ -87,7 +86,7 @@ function detectUniformShortRun(text) {
         evidence: sample.slice(0, 80),
     };
 }
-function detectTaskDialogueWall(text) {
+function detectTaskDialogueWall(text: string) {
     const lines = [];
     DIALOGUE_PAIR.lastIndex = 0;
     let m;
@@ -110,14 +109,14 @@ function detectTaskDialogueWall(text) {
     return {
         code: "task_dialogue_wall",
         text: `任务句连排：对白约 ${task}/${lines.length} 句在办事（查/点/交/补…），人味偏薄。可掺半截话、跑题、停顿或没说出口的念头。`,
-        evidence: lines.slice(0, 3).map((l) => `「${l.slice(0, 24)}」`).join(" "),
+        evidence: lines.slice(0, 3).map((l: any) => `「${l.slice(0, 24)}」`).join(" "),
     };
 }
-function detectObjectListCold(text) {
+function detectObjectListCold(text: string) {
     const paras = text
         .split(/\n+/)
-        .map((p) => p.trim())
-        .filter((p) => p.length >= 40);
+        .map((p: string) => p.trim())
+        .filter((p: string) => p.length >= 40);
     for (const para of paras) {
         if (WOBBLE_RE.test(para))
             continue;
@@ -136,8 +135,8 @@ function detectObjectListCold(text) {
 }
 /** Acquire/list dump: 「获得了A、B、C」设定清单腔（结构密度，非禁词表）. */
 const ACQUIRE_RE = /(?:获得了?|拿到了?|得到了?|收入了?|解锁了?|拥有了?|装备了?|携带了?|收获了?)/;
-function detectSettingEnumDump(text) {
-    const sentences = splitSentences(text).filter((s) => s.length >= 8);
+function detectSettingEnumDump(text: string) {
+    const sentences = splitSentences(text).filter((s: string) => s.length >= 8);
     for (const s of sentences) {
         if (!ACQUIRE_RE.test(s))
             continue;
@@ -154,11 +153,11 @@ function detectSettingEnumDump(text) {
     return null;
 }
 /** Ledger/accounting dump without living wobble — 对账记账流水毒点. */
-function detectLedgerDump(text) {
+function detectLedgerDump(text: string) {
     const paras = text
         .split(/\n+/)
-        .map((p) => p.trim())
-        .filter((p) => p.length >= 40);
+        .map((p: string) => p.trim())
+        .filter((p: string) => p.length >= 40);
     for (const para of paras) {
         if (WOBBLE_RE.test(para))
             continue;
@@ -179,8 +178,8 @@ function detectLedgerDump(text) {
 /** Domestic trivia stretch without stakes — 家长里短毒点. */
 const DOMESTIC_RE = /洗碗|拖地|叠衣服|电饭煲|拖鞋|买菜|晾衣服|倒垃圾|刷锅|扫地|擦桌子|热饭|泡茶|围裙|抹布|菜板|洗洁精|垃圾袋|晾衣架/;
 const STAKE_RE = /怎么办|悬着|欠着|门外|门口|钥匙|监控|？|\?\.\.\.|…|还不|还未|会不会|究竟|若是|下次|明天/;
-function detectDomesticTrivia(text) {
-    const sentences = splitSentences(text).filter((s) => s.length >= 4);
+function detectDomesticTrivia(text: string) {
+    const sentences = splitSentences(text).filter((s: string) => s.length >= 4);
     if (sentences.length < 5)
         return null;
     let best = 0;
@@ -220,10 +219,10 @@ function detectDomesticTrivia(text) {
  */
 const TIDY_MEANING_RE = /他明白了|她明白了|众人震惊|众人折服|恍然大悟|心中一清|一切都清楚了|终于懂了|顿时明白|心下了然/;
 const LECTURE_RE = /这说明|由此可见|规则如下|总共有|具体来说|换句话说|总而言之|综上所述|可以得出/;
-function detectStiffnessTidy(text, craftCue) {
+function detectStiffnessTidy(text: string, craftCue: any) {
     if (!craftCue || !hasShatterCraftCue(craftCue))
         return null;
-    const sentences = splitSentences(text).filter((s) => s.length >= 4);
+    const sentences = splitSentences(text).filter((s: string) => s.length >= 4);
     if (sentences.length < 5)
         return null;
     let tidyHits = 0;
@@ -252,14 +251,14 @@ function detectStiffnessTidy(text, craftCue) {
         evidence: sample || `tidy≈${tidyHits} lecture≈${lectureHits}`,
     };
 }
-function splitSentences(text) {
+function splitSentences(text: string) {
     const cleaned = text.replace(/[“「][\s\S]*?[”」]/g, " ");
     return cleaned
         .split(/[。！？!?；;\n]+/)
-        .map((s) => s.replace(/\s+/g, "").trim())
+        .map((s: string) => s.replace(/\s+/g, "").trim())
         .filter(Boolean);
 }
-export function formatHumanFeelAudit(label, result) {
+export function formatHumanFeelAudit(label: string, result: any) {
     const head = [
         `人味软雷达 · ${label}`,
         `- 命中类数：${result.hitCount}`,
@@ -269,18 +268,18 @@ export function formatHumanFeelAudit(label, result) {
     ];
     if (result.hits.length === 0)
         return [...head, "", "未发现范文腔类命中。"].join("\n");
-    const lines = result.hits.map((h, i) => `${i + 1}. [${h.code}] ${h.text}${h.evidence ? `\n   例：${h.evidence}` : ""}`);
+    const lines = result.hits.map((h: any, i: number) => `${i + 1}. [${h.code}] ${h.text}${h.evidence ? `\n   例：${h.evidence}` : ""}`);
     return [...head, "", ...lines].join("\n");
 }
 export const HumanFeelGate = {
     audit: auditHumanFeel,
-    evaluateAccept(opts) {
+    evaluateAccept(opts: any) {
         const result = auditHumanFeel(opts.body, { craftCue: opts.craftCue });
         if (opts.strictHuman && result.hitCount > 0) {
-            return deny("human_feel_strict", `strict_human=true：人味软雷达命中 ${result.hitCount} 类（${result.hits.map((h) => h.code).join("、")}），拒绝采纳。请改稿后重扫，或关闭 strict_human（默认仅警告 human_feel_hits）。`);
+            return deny("human_feel_strict", `strict_human=true：人味软雷达命中 ${result.hitCount} 类（${result.hits.map((h: any) => h.code).join("、")}），拒绝采纳。请改稿后重扫，或关闭 strict_human（默认仅警告 human_feel_hits）。`);
         }
         if (result.hitCount > 0) {
-            const msgs = result.hits.map((h) => warn("human_feel_hits", `${h.code}：${h.text}`));
+            const msgs = result.hits.map((h: any) => warn("human_feel_hits", `${h.code}：${h.text}`));
             return allow(msgs);
         }
         return allow([info("human_feel_ok", result.summary)]);

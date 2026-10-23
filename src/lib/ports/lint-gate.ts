@@ -1,14 +1,13 @@
-// @ts-nocheck
 import { markCandidateLinted } from "../store.js";
 import { allow, deny, warn } from "./types.js";
 export const LintGate = {
-    async issueToken(dir, candidateId, hitCount) {
+    async issueToken(dir: string, candidateId: string, hitCount: any) {
         return markCandidateLinted(dir, candidateId, hitCount);
     },
-    hitCountOf(cand) {
+    hitCountOf(cand: any) {
         return typeof cand.lintHitCount === "number" ? cand.lintHitCount : 0;
     },
-    evaluateAccept(opts) {
+    evaluateAccept(opts: any) {
         const { hitCount, strictLint } = opts;
         if (strictLint && hitCount > 0) {
             return deny("lint_hits_strict", `strict_lint=true：语感雷达命中 ${hitCount} 处，拒绝采纳。扫过≠过关；请改稿后重新 stage→lint，或关闭 strict_lint（默认允许并警告 lint_hits_present）。`);
@@ -21,7 +20,7 @@ export const LintGate = {
         return allow();
     },
     /** Always include on accept receipt. */
-    echoLines(hitCount) {
+    echoLines(hitCount: any) {
         return [
             `lintHitCount：${hitCount}（语感雷达命中数；lintPassToken 仅证明已扫过，扫过≠质量过关）`,
         ];

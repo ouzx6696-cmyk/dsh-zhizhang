@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Audit adapters — style / payoff / human-feel / novel-sense soft radars behind stable ports.
  * Sensors stay pure; this file is the only place tools should import them from
@@ -9,13 +8,13 @@ import { auditPayoff, formatPayoffAudit, } from "../payoff-audit.js";
 import { auditHumanFeel, formatHumanFeelAudit, } from "./human-feel-gate.js";
 import { auditNovelSense, formatNovelSenseAudit, } from "./novel-sense-gate.js";
 export const StyleLinterPort = {
-    lint(text) {
+    lint(text: string) {
         return lintStyle(text);
     },
-    summarize(hits) {
+    summarize(hits: any) {
         return summarizeStyleLint(hits);
     },
-    format(label, hits, summary) {
+    format(label: string, hits: any, summary: any) {
         const head = [
             `语感雷达 · ${label}`,
             `- cliche_syntax：${summary.cliche_syntax}`,
@@ -28,34 +27,34 @@ export const StyleLinterPort = {
             return [...head, "", "未发现命中（对白区已豁免）。"].join("\n");
         const lines = hits
             .slice(0, 40)
-            .map((h, i) => `${i + 1}. [${h.category}] 「${h.match}」 @${h.start}-${h.end} · ${h.hint}`);
+            .map((h: any, i: number) => `${i + 1}. [${h.category}] 「${h.match}」 @${h.start}-${h.end} · ${h.hint}`);
         return [...head, "", ...lines, hits.length > 40 ? `…另有 ${hits.length - 40} 处` : ""]
             .filter(Boolean)
             .join("\n");
     },
 };
 export const PayoffAuditorPort = {
-    audit(outline, body, opts) {
+    audit(outline: any, body: string, opts: any) {
         return auditPayoff(outline, body, opts);
     },
-    format(label, result) {
+    format(label: string, result: any) {
         return formatPayoffAudit(label, result);
     },
 };
 export const HumanFeelAuditorPort = {
     /** Pass craftCue so stiffness_tidy matches Accept (shatter cues from craft cards). */
-    audit(text, opts) {
+    audit(text: string, opts: any) {
         return auditHumanFeel(text, opts);
     },
-    format(label, result) {
+    format(label: string, result: any) {
         return formatHumanFeelAudit(label, result);
     },
 };
 export const NovelSenseAuditorPort = {
-    audit(text, opts) {
+    audit(text: string, opts: any) {
         return auditNovelSense(text, opts);
     },
-    format(label, result) {
+    format(label: string, result: any) {
         return formatNovelSenseAudit(label, result);
     },
 };

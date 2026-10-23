@@ -1,4 +1,3 @@
-// @ts-nocheck
 export const QUALITY_AXES = [
     {
         id: "feel",
@@ -68,7 +67,7 @@ export const QualityPolicy = {
         return CARD_JUDGMENT_LINE;
     },
     cardJudgmentBlock() {
-        return [CARD_JUDGMENT_LINE, ...CARD_JUDGMENT_CRITERIA.map((c, i) => `${i + 1}. ${c}`)].join("\n");
+        return [CARD_JUDGMENT_LINE, ...CARD_JUDGMENT_CRITERIA.map((c: any, i: number) => `${i + 1}. ${c}`)].join("\n");
     },
     surfaceLine() {
         return "质量面（一体）：人味←技法卡写法+状态+HumanFeel（反僵硬）；书感←读者合同+novel_sense+NovelSense；毒点←本政策+人味软雷达码；兑付←ending/payoff；AI腔←style_contract/lint。雷达 0 ≠ 质量过关。";

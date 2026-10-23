@@ -1,4 +1,3 @@
-// @ts-nocheck
 /** Resident hard rules — default route from Scheduler; bypasses explicit. */
 import { Scheduler } from "../lib/ports/scheduler.js";
 import {
@@ -15,8 +14,8 @@ import { PLUGIN_VERSION } from "../lib/version.js";
 
 const WORKFLOW_BLOCK = [
     "【工作流（照做，别跳步；回执里的“下一步 N/9”与此同号）】",
-    `拆书 ${DISSECT_STEP_COUNT} 步（${PLUGIN_VERSION}）：` + DISSECT_STEPS.map((s) => `${s.n}) ${s.tool} —— ${s.do}`).join(" → "),
-    `写作 ${WRITE_STEP_COUNT} 步：` + WRITE_STEPS.map((s) => `${s.n}) ${s.tool} —— ${s.do}`).join(" → "),
+    `拆书 ${DISSECT_STEP_COUNT} 步（${PLUGIN_VERSION}）：` + DISSECT_STEPS.map((s: any) => `${s.n}) ${s.tool} —— ${s.do}`).join(" → "),
+    `写作 ${WRITE_STEP_COUNT} 步：` + WRITE_STEPS.map((s: any) => `${s.n}) ${s.tool} —— ${s.do}`).join(" → "),
     `Auto 是抽样：全书结论只作「抽样观察」；只读开头只出「快速预览」。`,
 ].join("\n");
 

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Panel / HTTP accept — 与 zhizhang_candidate_accept 共用 services/accept.js。
  * 面板额外要求 confirm=true（防误点）；编辑候选按路径 A 自动补确认。
@@ -7,7 +6,7 @@ import { readCandidate, resolveWorkDir } from "./store.js";
 import { runAccept } from "./services/accept.js";
 import { ZhizhangError } from "./errors.js";
 
-function fail(err, fallback) {
+function fail(err: any, fallback: any) {
     return {
         ok: false,
         code: err instanceof ZhizhangError ? err.code : fallback,
@@ -15,7 +14,7 @@ function fail(err, fallback) {
     };
 }
 
-export async function runPanelAccept(paths, req) {
+export async function runPanelAccept(paths: import("./types.js").StoragePaths, req: any) {
     const workKey = String(req.work ?? "").trim();
     const candidateId = String(req.candidate ?? "").trim();
     if (!workKey)

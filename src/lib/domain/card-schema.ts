@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * 卡 schema — v2 模块字段、校验、v1→v2 适配视图。
  *
@@ -26,7 +25,10 @@ export const CARD_V2_FIELDS = [
     { key: "bannedDiction", label: "反AI腔词表", type: "array", required: false },
 ];
 
-export function deriveAxis(layer, dimension) {
+/** 动态 JSON 卡（v1/v2 混用），字段逐个校验，所以用宽松记录类型。 */
+export type AnyRecord = Record<string, any>;
+
+export function deriveAxis(layer: string, dimension: string) {
     if (["book", "arc", "unit"].includes(layer))
         return "mind";
     if (["scene", "chapter", "line"].includes(layer))
@@ -36,16 +38,16 @@ export function deriveAxis(layer, dimension) {
     return "craft";
 }
 
-function text(v) {
+function text(v: unknown) {
     return String(v ?? "").trim();
 }
 
-function arrayOfText(v) {
+function arrayOfText(v: unknown) {
     return Array.isArray(v) && v.some((x) => text(x));
 }
 
 /** v2 模块校验；v1 卡不走这里（用 toCardView 适配后再校验会缺 evidence）。 */
-export function validateModule(card) {
+export function validateModule(card: AnyRecord) {
     const errors = [];
     const warnings = [];
     const c = card ?? {};
@@ -93,7 +95,7 @@ export function validateModule(card) {
         warnings.push("emotionArc 带章号：情绪走向写成了剧情梗概，应改成可迁移的情绪曲线（建立-延迟-触发-兑现-余波）");
     if (/第[0-9０-９]+章/.test(text(c.dramaticUnit)))
         warnings.push("dramaticUnit 带章号：戏剧单元应去专名、去章号，写成「谁对谁做什么」");
-    const evChapters = new Set((c.evidence ?? []).map((e) => text(e?.chapter)).filter(Boolean));
+    const evChapters = new Set((c.evidence ?? []).map((e: any) => text(e?.chapter)).filter(Boolean));
     if (evChapters.size === 1 && (c.evidence ?? []).length > 1)
         warnings.push("证据全部来自同一章：机制可能只是单场景，建议补 1 条跨章证据");
     if (["book", "arc", "unit"].includes(layer) && dimension === "prose")
@@ -102,7 +104,7 @@ export function validateModule(card) {
 }
 
 /** 是否 v2 模块（显式 layer/dimension 或 schemaVersion 2）。 */
-export function isV2Card(card) {
+export function isV2Card(card: AnyRecord | null | undefined) {
     return Boolean(card && (card.schemaVersion === 2 || card.layer || card.dimension));
 }
 
@@ -111,7 +113,7 @@ export function isV2Card(card) {
  * v1 没有 layer/dimension/evidence，按 axis/kind 推断一个最保守的层与维度，
  * 并标 legacy=true；报告/审计必须显式提示「旧卡」。
  */
-export function toCardView(card) {
+export function toCardView(card: AnyRecord | null | undefined) {
     const c = card ?? {};
     if (isV2Card(c))
         return { ...c, legacy: false };

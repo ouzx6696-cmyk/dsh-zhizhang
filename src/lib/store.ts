@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Local on-disk store for dsh-zhizhang (Writing + shared path roots).
  *
@@ -19,17 +18,47 @@ import { mkdir, open, readdir, readFile, rename, rm, stat } from "node:fs/promis
 import path from "node:path";
 import { homedir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { CHAPTER_STATUSES, EMPTY_FOUNDATION, EMPTY_OUTLINE, SCHEMA_VERSION, } from "./types.js";
+import { CHAPTER_STATUSES, EMPTY_FOUNDATION, EMPTY_OUTLINE, SCHEMA_VERSION } from "./types.js";
+import type { Candidate, ExecContext, Foundation, Outline, PluginConfig, StoragePaths } from "./types.js";
+
+/** 跨项目索引（$DSH_HOME/zhizhang-projects.json）里的一行。 */
+interface ProjectEntry {
+    id: string;
+    base: string;
+    works?: string;
+    name?: string;
+    lastUsedAt?: string;
+}
+
+/** 面板用的项目摘要。 */
+interface ProjectSummary {
+    id: string;
+    base: string;
+    name?: string;
+    lastUsedAt?: string;
+    exists?: boolean;
+    works?: {
+        key: string;
+        title: string;
+        genre?: string;
+        chapters: number;
+        wordCount: number;
+        updatedAt?: string;
+    }[];
+    worksCount?: number;
+    chapters?: number;
+    words?: number;
+}
 import { ZhizhangError } from "./errors.js";
 import { Scheduler } from "./ports/scheduler.js";
 import { renderPanelHtml } from "./panel-html.js";
 const locks = new Map();
 let tmpSeq = 0;
 // —— § utilities (lock, count, slug) ——
-export async function withLock(key, fn) {
+export async function withLock(key: string, fn: (...args: any[]) => any) {
     const previous = locks.get(key) ?? Promise.resolve();
-    let release;
-    const gate = new Promise((resolve) => {
+    let release: () => void = () => { };
+    const gate = new Promise((resolve: any) => {
         release = resolve;
     });
     const current = previous.then(() => gate);
@@ -44,7 +73,7 @@ export async function withLock(key, fn) {
             locks.delete(key);
     }
 }
-export function countWords(text) {
+export function countWords(text: string) {
     if (typeof text !== "string" || text.length === 0)
         return 0;
     const cjk = text.match(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/gu)?.length ?? 0;
@@ -52,7 +81,7 @@ export function countWords(text) {
     return cjk + latin;
 }
 const RESERVED_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
-export function slugify(title) {
+export function slugify(title: string) {
     const cleaned = Array.from(String(title ?? "")
         .trim()
         .replace(/[<>:"/\\|?*\u0000-\u001f]/g, " ")
@@ -68,7 +97,7 @@ export function slugify(title) {
 /** One safe path segment for chapter / candidate ids (no separators, no traversal). */
 const SAFE_RESOURCE_ID = /^[^/\\\u0000-\u001f]{1,64}$/;
 const WINDOWS_RESERVED_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
-export function assertResourceId(id, label = "id") {
+export function assertResourceId(id: string, label: string = "id") {
     const t = String(id ?? "").trim();
     if (!t ||
         !SAFE_RESOURCE_ID.test(t) ||
@@ -80,7 +109,7 @@ export function assertResourceId(id, label = "id") {
     }
     return t;
 }
-export function sessionCwd(exec) {
+export function sessionCwd(exec: ExecContext | null) {
     const cwd = exec?.agent?.session?.header
         ?.cwd;
     return typeof cwd === "string" && cwd.length > 0 ? cwd : process.cwd();
@@ -99,7 +128,7 @@ function dshHome() {
 function toolBaseMarker() {
     return path.join(dshHome(), "zhizhang-last-root.json");
 }
-async function persistToolBase(base, works) {
+async function persistToolBase(base: string, works: string) {
     try {
         const file = toolBaseMarker();
         await mkdir(path.dirname(file), { recursive: true });
@@ -110,7 +139,7 @@ async function persistToolBase(base, works) {
         /* memory value still works for this process */
     }
 }
-export function rememberToolBase(base, works) {
+export function rememberToolBase(base: string, works: string) {
     if (!base || base === lastToolBase)
         return;
     lastToolBase = base;
@@ -151,10 +180,10 @@ function projectsFile() {
     return path.join(dshHome(), "zhizhang-projects.json");
 }
 /** Stable id for a workspace storage root (case/sep-insensitive). */
-export function projectIdOf(base) {
+export function projectIdOf(base: string) {
     return path.resolve(base).replaceAll("\\", "/").toLowerCase();
 }
-function projectNameOf(base) {
+function projectNameOf(base: string) {
     const root = path.dirname(path.resolve(base));
     const parts = root.split(/[\\/]/).filter(Boolean);
     const tail = parts.slice(-2).join("/");
@@ -167,16 +196,16 @@ async function readProjectsIndex() {
     try {
         const raw = JSON.parse(await readFile(projectsFile(), "utf8"));
         const list = Array.isArray(raw?.projects) ? raw.projects : [];
-        return list.filter((p) => p && typeof p.base === "string" && path.isAbsolute(p.base));
+        return list.filter((p: ProjectEntry) => p && typeof p.base === "string" && path.isAbsolute(p.base));
     }
     catch {
         return [];
     }
 }
-async function upsertProjectFile(base, works) {
+async function upsertProjectFile(base: string, works: string) {
     const list = await readProjectsIndex();
     const id = projectIdOf(base);
-    const existing = list.find((p) => projectIdOf(p.base) === id);
+    const existing = list.find((p: ProjectEntry) => projectIdOf(p.base) === id);
     const entry = {
         id,
         base: path.resolve(base),
@@ -184,15 +213,17 @@ async function upsertProjectFile(base, works) {
         name: existing?.name || projectNameOf(base),
         lastUsedAt: nowIso(),
     };
-    const next = existing ? list.map((p) => (p === existing ? { ...p, ...entry } : p)) : [...list, entry];
-    next.sort((a, b) => String(b.lastUsedAt ?? "").localeCompare(String(a.lastUsedAt ?? "")));
+    const next: ProjectEntry[] = existing
+        ? list.map((p: ProjectEntry) => (p === existing ? { ...p, ...entry } : p))
+        : [...list, entry];
+    next.sort((a: any, b: any) => String(b.lastUsedAt ?? "").localeCompare(String(a.lastUsedAt ?? "")));
     await atomicWrite(projectsFile(), JSON.stringify({ version: 1, projects: next }, null, 2) + "\n");
 }
 /**
  * Record this workspace in the cross-project index (best-effort, serialized).
  * Called from ensureStorage for tool calls only, so the panel can list projects.
  */
-export function rememberProject(base, works) {
+export function rememberProject(base: string, works: string) {
     if (!base || (base === lastProjectBase && (works ? works === lastProjectWorks : true)))
         return;
     lastProjectBase = base;
@@ -202,7 +233,7 @@ export function rememberProject(base, works) {
 }
 const LOCAL_BOOK_EXTS = new Set([".txt", ".md", ".markdown"]);
 /** List candidate book files in a local shelf folder (read-only, no import). */
-export async function listLocalBooks(sourceRoot, opts = {}) {
+export async function listLocalBooks(sourceRoot: any, opts: any = {}) {
     const root = String(sourceRoot ?? "").trim();
     if (!root)
         return [];
@@ -239,18 +270,18 @@ export async function listLocalBooks(sourceRoot, opts = {}) {
     return rows;
 }
 let projectsSummaryAt = 0;
-let projectsSummaryCache = null;
+let projectsSummaryCache: ProjectSummary[] | null = null;
 /**
  * Known workspaces with a cheap per-project summary (works/chapters/words).
  * Summaries are derived from each project's own .zhizhang — never authoritative copies.
  */
-export async function listProjects(opts = {}) {
+export async function listProjects(opts: any = {}) {
     const ttl = typeof opts.ttl === "number" ? opts.ttl : 5000;
     if (!opts.refresh && projectsSummaryCache && Date.now() - projectsSummaryAt < ttl) {
         return projectsSummaryCache;
     }
     const list = await readProjectsIndex();
-    const knownIds = new Set(list.map((p) => projectIdOf(p.base)));
+    const knownIds = new Set(list.map((p: ProjectEntry) => projectIdOf(p.base)));
     const markerBase = await loadLastToolBase();
     if (markerBase && !knownIds.has(projectIdOf(markerBase))) {
         list.push({
@@ -290,14 +321,14 @@ export async function listProjects(opts = {}) {
                 works = [];
             }
         }
-        const rowsWorks = works.map((w) => {
+        const rowsWorks = works.map((w: any) => {
             const chapters = Array.isArray(w.chapters) ? w.chapters : [];
             return {
                 key: w.key,
                 title: w.title,
                 genre: w.genre ?? "",
                 chapters: chapters.length,
-                wordCount: chapters.reduce((x, c) => x + (c.wordCount || 0), 0),
+                wordCount: chapters.reduce((x: any, c: any) => x + (c.wordCount || 0), 0),
                 updatedAt: w.updatedAt ?? "",
             };
         });
@@ -309,16 +340,16 @@ export async function listProjects(opts = {}) {
             exists: existsFlag,
             works: rowsWorks,
             worksCount: rowsWorks.length,
-            chapters: rowsWorks.reduce((x, w) => x + w.chapters, 0),
-            words: rowsWorks.reduce((x, w) => x + w.wordCount, 0),
+            chapters: rowsWorks.reduce((x: any, w: any) => x + w.chapters, 0),
+            words: rowsWorks.reduce((x: any, w: any) => x + w.wordCount, 0),
         });
     }
-    rows.sort((a, b) => String(b.lastUsedAt ?? "").localeCompare(String(a.lastUsedAt ?? "")));
+    rows.sort((a: any, b: any) => String(b.lastUsedAt ?? "").localeCompare(String(a.lastUsedAt ?? "")));
     projectsSummaryCache = rows;
     projectsSummaryAt = Date.now();
     return rows;
 }
-export function storagePaths(exec, config, workingDir) {
+export function storagePaths(exec: ExecContext | null, config: PluginConfig, workingDir: any) {
     const cwd = sessionCwd(exec);
     let base;
     if (workingDir !== undefined && workingDir !== "") {
@@ -361,7 +392,7 @@ export function storagePaths(exec, config, workingDir) {
         sourceRoot,
     };
 }
-export async function ensureStorage(exec, config, workingDir) {
+export async function ensureStorage(exec: ExecContext | null, config: PluginConfig, workingDir?: any): Promise<StoragePaths> {
     const paths = storagePaths(exec, config, workingDir);
     await mkdir(paths.works, { recursive: true });
     await mkdir(paths.manuscripts, { recursive: true });
@@ -375,7 +406,7 @@ export async function ensureStorage(exec, config, workingDir) {
     }
     return paths;
 }
-export async function atomicWrite(file, content) {
+export async function atomicWrite(file: string, content: string) {
     await mkdir(path.dirname(file), { recursive: true });
     const tmp = `${file}.${process.pid}.${Date.now()}.${tmpSeq++}.tmp`;
     const handle = await open(tmp, "w");
@@ -388,7 +419,7 @@ export async function atomicWrite(file, content) {
     }
     await rename(tmp, file);
 }
-function assertInside(base, target, label) {
+function assertInside(base: string, target: string, label: string) {
     // Normalize both sides: config paths often use forward slashes (D:/x/y),
     // while path.join produces backslashes on Windows.
     const baseResolved = path.resolve(base);
@@ -398,29 +429,29 @@ function assertInside(base, target, label) {
     }
     return resolved;
 }
-export function workDir(paths, key) {
+export function workDir(paths: StoragePaths, key: string) {
     const safe = slugify(key);
     if (safe.includes("..") || path.isAbsolute(safe)) {
         throw new ZhizhangError("bad_id", "作品 key 非法");
     }
     return assertInside(paths.works, path.join(paths.works, safe), "作品目录");
 }
-function metaPath(dir) {
+function metaPath(dir: string) {
     return path.join(dir, "meta.json");
 }
-function chaptersDir(dir) {
+function chaptersDir(dir: string) {
     return path.join(dir, "chapters");
 }
-function ledgerPath(dir) {
+function ledgerPath(dir: string) {
     return path.join(dir, "ledger.json");
 }
-function candidatesDir(dir) {
+function candidatesDir(dir: string) {
     return path.join(dir, "candidates");
 }
-function briefCrumbsPath(dir) {
+function briefCrumbsPath(dir: string) {
     return path.join(dir, "brief-crumbs.json");
 }
-function payoffAuditsPath(dir) {
+function payoffAuditsPath(dir: string) {
     return path.join(dir, "payoff-audits.json");
 }
 /** Recency window for brief / payoff soft·hard checks on accept (12h). */
@@ -430,7 +461,7 @@ export const SAVE_BYPASS_WORD_THRESHOLD = 200;
 function nowIso() {
     return new Date().toISOString();
 }
-function normalizeOutline(raw) {
+function normalizeOutline(raw: any): Outline {
     const base = EMPTY_OUTLINE();
     if (!raw || typeof raw !== "object")
         return base;
@@ -451,7 +482,7 @@ function normalizeOutline(raw) {
             ""),
     };
 }
-function normalizeFoundation(raw) {
+function normalizeFoundation(raw: any): Foundation {
     const base = EMPTY_FOUNDATION();
     if (!raw || typeof raw !== "object")
         return base;
@@ -465,10 +496,10 @@ function normalizeFoundation(raw) {
         style: String(raw.style ?? ""),
     };
 }
-function chapterFile(dir, id) {
+function chapterFile(dir: string, id: string) {
     return path.join(chaptersDir(dir), `${assertResourceId(id, "章节 id")}.md`);
 }
-function serializeChapterMarkdown(record) {
+function serializeChapterMarkdown(record: any) {
     const fm = {
         id: record.id,
         title: record.title,
@@ -480,7 +511,7 @@ function serializeChapterMarkdown(record) {
     };
     return `---\n${JSON.stringify(fm, null, 2)}\n---\n\n${record.body ?? ""}\n`;
 }
-function parseChapterMarkdown(raw, fallbackId) {
+function parseChapterMarkdown(raw: string, fallbackId: any) {
     const match = raw.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
     if (!match) {
         return {
@@ -518,7 +549,7 @@ function parseChapterMarkdown(raw, fallbackId) {
     };
 }
 // —— § works ——
-export async function createWork(paths, input) {
+export async function createWork(paths: StoragePaths, input: any) {
     const key = slugify(input.key?.trim() || input.title);
     let dir = workDir(paths, key);
     let finalKey = path.basename(dir);
@@ -545,7 +576,7 @@ export async function createWork(paths, input) {
         "\n");
     return { meta, dir };
 }
-async function exists(file) {
+async function exists(file: string) {
     try {
         await readFile(file);
         return true;
@@ -554,7 +585,7 @@ async function exists(file) {
         return false;
     }
 }
-export async function listWorks(paths) {
+export async function listWorks(paths: StoragePaths) {
     let names;
     try {
         names = await readdir(paths.works);
@@ -573,36 +604,36 @@ export async function listWorks(paths) {
             /* skip broken */
         }
     }
-    rows.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+    rows.sort((a: any, b: any) => (a.updatedAt < b.updatedAt ? 1 : -1));
     return rows;
 }
-export async function readWorkMeta(dir) {
+export async function readWorkMeta(dir: string) {
     const raw = await readFile(metaPath(dir), "utf8");
     const meta = JSON.parse(raw);
     meta.foundation = normalizeFoundation(meta.foundation);
     meta.chapters = Array.isArray(meta.chapters) ? meta.chapters : [];
     return meta;
 }
-export async function writeWorkMeta(dir, meta) {
+export async function writeWorkMeta(dir: string, meta: any) {
     meta.updatedAt = nowIso();
     await atomicWrite(metaPath(dir), JSON.stringify(meta, null, 2) + "\n");
 }
-export async function resolveWorkDir(paths, keyOrTitle) {
+export async function resolveWorkDir(paths: StoragePaths, keyOrTitle: any) {
     const direct = workDir(paths, keyOrTitle);
     if (await exists(metaPath(direct)))
         return direct;
     const all = await listWorks(paths);
-    const hit = all.find((w) => w.key === keyOrTitle || w.title === keyOrTitle);
+    const hit = all.find((w: any) => w.key === keyOrTitle || w.title === keyOrTitle);
     if (!hit)
         throw new Error(`找不到作品：${keyOrTitle}`);
     return workDir(paths, hit.key);
 }
 // —— § chapters ——
-export async function listChapters(dir) {
+export async function listChapters(dir: string) {
     const meta = await readWorkMeta(dir);
-    return [...meta.chapters].sort((a, b) => a.position - b.position);
+    return [...meta.chapters].sort((a: any, b: any) => a.position - b.position);
 }
-export async function readChapter(dir, chapterId) {
+export async function readChapter(dir: string, chapterId: string) {
     const file = chapterFile(dir, chapterId);
     const raw = await readFile(file, "utf8");
     return parseChapterMarkdown(raw, chapterId);
@@ -613,7 +644,7 @@ export async function readChapter(dir, chapterId) {
  */
 const CHAPTER_LENS_CACHE_MAX = 400;
 const chapterLensCache = new Map();
-async function readChapterLens(dir, chapterId) {
+async function readChapterLens(dir: string, chapterId: string) {
     const file = chapterFile(dir, chapterId);
     const st = await stat(file);
     const hit = chapterLensCache.get(file);
@@ -633,11 +664,11 @@ async function readChapterLens(dir, chapterId) {
     }
     return lens;
 }
-export async function saveChapter(dir, input) {
+export async function saveChapter(dir: string, input: any) {
     return withLock(dir, async () => {
         const meta = await readWorkMeta(dir);
         const id = input.id?.trim() || `c${String(meta.chapters.length + 1).padStart(3, "0")}`;
-        const existingIdx = meta.chapters.findIndex((c) => c.id === id);
+        const existingIdx = meta.chapters.findIndex((c: any) => c.id === id);
         let previous = null;
         if (existingIdx >= 0) {
             try {
@@ -678,12 +709,12 @@ export async function saveChapter(dir, input) {
             meta.chapters[existingIdx] = summary;
         else
             meta.chapters.push(summary);
-        meta.chapters.sort((a, b) => a.position - b.position);
+        meta.chapters.sort((a: any, b: any) => a.position - b.position);
         await writeWorkMeta(dir, meta);
         return record;
     });
 }
-export async function setOutline(dir, chapterId, patch) {
+export async function setOutline(dir: string, chapterId: string, patch: any) {
     let previous = null;
     try {
         previous = await readChapter(dir, chapterId);
@@ -700,7 +731,7 @@ export async function setOutline(dir, chapterId, patch) {
         outline: { ...(previous?.outline ?? EMPTY_OUTLINE()), ...patch },
     });
 }
-export async function setFoundation(dir, patch) {
+export async function setFoundation(dir: string, patch: any) {
     return withLock(dir, async () => {
         const meta = await readWorkMeta(dir);
         meta.foundation = normalizeFoundation({ ...meta.foundation, ...patch });
@@ -709,7 +740,7 @@ export async function setFoundation(dir, patch) {
     });
 }
 // —— § ledger ——
-export async function readLedger(dir) {
+export async function readLedger(dir: string) {
     try {
         const raw = await readFile(ledgerPath(dir), "utf8");
         const data = JSON.parse(raw);
@@ -721,7 +752,7 @@ export async function readLedger(dir) {
         return { schemaVersion: SCHEMA_VERSION, workKey: meta.key, entries: [] };
     }
 }
-export async function appendLedger(dir, entry) {
+export async function appendLedger(dir: string, entry: any) {
     return withLock(`${dir}:ledger`, async () => {
         const ledger = await readLedger(dir);
         const full = {
@@ -741,7 +772,7 @@ export async function appendLedger(dir, entry) {
 }
 // —— § candidates ——
 /** Persist candidate JSON without dropping optional multi-draft / edit fields. */
-export function candidateToDiskMeta(cand) {
+export function candidateToDiskMeta(cand: any) {
     const disk = {
         schemaVersion: cand.schemaVersion,
         id: cand.id,
@@ -751,7 +782,7 @@ export function candidateToDiskMeta(cand) {
         source: cand.source,
         note: cand.note,
         bodyFile: cand.bodyFile,
-    };
+    } as Candidate;
     if (cand.lintPassToken)
         disk.lintPassToken = cand.lintPassToken;
     if (cand.lintedAt)
@@ -783,7 +814,7 @@ export function candidateToDiskMeta(cand) {
         disk.wordCount = words;
     return disk;
 }
-export async function stageCandidate(dir, input) {
+export async function stageCandidate(dir: string, input: any) {
     if (!String(input.body ?? "").trim()) {
         throw new ZhizhangError("candidate_empty", "候选正文为空，拒绝暂存");
     }
@@ -794,7 +825,7 @@ export async function stageCandidate(dir, input) {
     await atomicWrite(path.join(candidatesDir(dir), bodyFile), input.body);
     const meta = await readWorkMeta(dir);
     const stagedAt = nowIso();
-    const cand = {
+    const cand: Candidate = {
         schemaVersion: SCHEMA_VERSION,
         id,
         workKey: meta.key,
@@ -822,7 +853,7 @@ export async function stageCandidate(dir, input) {
     await atomicWrite(path.join(candidatesDir(dir), `${id}.json`), JSON.stringify(disk, null, 2) + "\n");
     return cand;
 }
-export async function readCandidate(dir, candidateId) {
+export async function readCandidate(dir: string, candidateId: string) {
     const id = assertResourceId(candidateId, "候选 id");
     const raw = await readFile(path.join(candidatesDir(dir), `${id}.json`), "utf8");
     const disk = JSON.parse(raw);
@@ -837,7 +868,7 @@ export async function readCandidate(dir, candidateId) {
  * Token proves the sensor ran (hitCount may be > 0) — NOT a quality pass.
  * Clears any prior token. Accept still requires the token; hitCount is echoed / optional strict.
  */
-export async function markCandidateLinted(dir, candidateId, hitCount) {
+export async function markCandidateLinted(dir: string, candidateId: string, hitCount: any) {
     const id = assertResourceId(candidateId, "候选 id");
     return withLock(`${dir}:cand:${id}`, async () => {
         const cand = await readCandidate(dir, id);
@@ -863,7 +894,7 @@ export async function markCandidateLinted(dir, candidateId, hitCount) {
     });
 }
 /** True when candidate has a lint pass recorded at/after stagedAt. */
-export function candidateHasLintPass(cand) {
+export function candidateHasLintPass(cand: any) {
     if (!cand.lintPassToken || !cand.lintedAt)
         return false;
     return cand.lintedAt >= cand.stagedAt;
@@ -878,7 +909,7 @@ export function candidateHasLintPass(cand) {
  * - lintPassToken provided but mismatches → refuse
  * - target chapter status is final → refuse unless force=true
  */
-export async function acceptCandidate(dir, candidateId, mode = "replace", opts = {}) {
+export async function acceptCandidate(dir: string, candidateId: string, mode: any = "replace", opts: any = {}) {
     const id = assertResourceId(candidateId, "候选 id");
     const cand = await readCandidate(dir, id);
     if (cand.acceptedAt) {
@@ -943,7 +974,7 @@ export async function acceptCandidate(dir, candidateId, mode = "replace", opts =
     });
     return saved;
 }
-export async function listCandidates(dir) {
+export async function listCandidates(dir: string) {
     let names;
     try {
         names = await readdir(candidatesDir(dir));
@@ -983,11 +1014,11 @@ export async function listCandidates(dir) {
             /* skip broken */
         }
     }
-    rows.sort((a, b) => (a.stagedAt < b.stagedAt ? 1 : -1));
+    rows.sort((a: any, b: any) => (a.stagedAt < b.stagedAt ? 1 : -1));
     return rows;
 }
 // —— § brief crumbs ——
-export async function readBriefCrumbs(dir) {
+export async function readBriefCrumbs(dir: string) {
     try {
         const raw = await readFile(briefCrumbsPath(dir), "utf8");
         const data = JSON.parse(raw);
@@ -999,7 +1030,7 @@ export async function readBriefCrumbs(dir) {
         return { schemaVersion: SCHEMA_VERSION, workKey: meta.key, entries: [] };
     }
 }
-export async function recordBriefBreadcrumb(dir, input) {
+export async function recordBriefBreadcrumb(dir: string, input: any) {
     return withLock(`${dir}:briefs`, async () => {
         const file = await readBriefCrumbs(dir);
         const crumb = {
@@ -1020,7 +1051,7 @@ export async function recordBriefBreadcrumb(dir, input) {
     });
 }
 /** Most recent brief for chapter within maxAgeMs (default BRIEF_RECENT_MS). */
-export async function getRecentBrief(dir, chapterId, maxAgeMs = BRIEF_RECENT_MS) {
+export async function getRecentBrief(dir: string, chapterId: string, maxAgeMs: any = BRIEF_RECENT_MS) {
     const file = await readBriefCrumbs(dir);
     const now = Date.now();
     for (let i = file.entries.length - 1; i >= 0; i--) {
@@ -1035,7 +1066,7 @@ export async function getRecentBrief(dir, chapterId, maxAgeMs = BRIEF_RECENT_MS)
     return null;
 }
 // —— § payoff audits ——
-export async function readPayoffAudits(dir) {
+export async function readPayoffAudits(dir: string) {
     try {
         const raw = await readFile(payoffAuditsPath(dir), "utf8");
         const data = JSON.parse(raw);
@@ -1047,7 +1078,7 @@ export async function readPayoffAudits(dir) {
         return { schemaVersion: SCHEMA_VERSION, workKey: meta.key, entries: [] };
     }
 }
-export async function storePayoffAudit(dir, entry) {
+export async function storePayoffAudit(dir: string, entry: any) {
     return withLock(`${dir}:payoff`, async () => {
         const file = await readPayoffAudits(dir);
         const full = {
@@ -1066,7 +1097,7 @@ export async function storePayoffAudit(dir, entry) {
         return full;
     });
 }
-export async function getLastPayoffAudit(dir, chapterId) {
+export async function getLastPayoffAudit(dir: string, chapterId: string) {
     const file = await readPayoffAudits(dir);
     for (let i = file.entries.length - 1; i >= 0; i--) {
         const e = file.entries[i];
@@ -1076,7 +1107,7 @@ export async function getLastPayoffAudit(dir, chapterId) {
     return null;
 }
 /** Most recent payoff audit for chapter within maxAgeMs (default BRIEF_RECENT_MS). */
-export async function getRecentPayoffAudit(dir, chapterId, maxAgeMs = BRIEF_RECENT_MS) {
+export async function getRecentPayoffAudit(dir: string, chapterId: string, maxAgeMs: any = BRIEF_RECENT_MS) {
     const file = await readPayoffAudits(dir);
     const now = Date.now();
     for (let i = file.entries.length - 1; i >= 0; i--) {
@@ -1090,7 +1121,7 @@ export async function getRecentPayoffAudit(dir, chapterId, maxAgeMs = BRIEF_RECE
     }
     return null;
 }
-function pathsFromWorkDir(dir) {
+function pathsFromWorkDir(dir: string) {
     const works = path.dirname(dir);
     const base = path.dirname(works);
     return {
@@ -1103,7 +1134,7 @@ function pathsFromWorkDir(dir) {
     };
 }
 // —— § panel snapshot ——
-export async function buildPanelSnapshot(dir, pathsHint, opts = {}) {
+export async function buildPanelSnapshot(dir: string, pathsHint: any, opts: any = {}) {
     const paths = pathsHint ?? pathsFromWorkDir(dir);
     const { buildLibraryView, buildInspirationView, buildProductView, } = await import("./panel-enrich.js");
     const meta = await readWorkMeta(dir);
@@ -1111,7 +1142,7 @@ export async function buildPanelSnapshot(dir, pathsHint, opts = {}) {
     const cands = await listCandidates(dir);
     const briefs = await readBriefCrumbs(dir);
     const payoffs = await readPayoffAudits(dir);
-    const lastPayoffByChapter = {};
+    const lastPayoffByChapter: Record<string, any> = {};
     for (const e of payoffs.entries) {
         lastPayoffByChapter[e.chapterId] = e;
     }
@@ -1127,7 +1158,7 @@ export async function buildPanelSnapshot(dir, pathsHint, opts = {}) {
     let drafted = 0;
     let planned = 0;
     const chapters = [];
-    for (const ch of [...meta.chapters].sort((a, b) => a.position - b.position)) {
+    for (const ch of [...meta.chapters].sort((a: any, b: any) => a.position - b.position)) {
         words += ch.wordCount;
         if (ch.status === "final")
             final += 1;
@@ -1159,7 +1190,7 @@ export async function buildPanelSnapshot(dir, pathsHint, opts = {}) {
             briefRecent: recentBriefChapterIds.has(ch.id),
         });
     }
-    const pendingCands = cands.filter((c) => c.pending);
+    const pendingCands = cands.filter((c: any) => c.pending);
     const pending = pendingCands.length;
     const { isMultiDraftEnabled } = await import("./ports/multi-draft.js");
     const multiDraftEnabledEarly = isMultiDraftEnabled();
@@ -1171,7 +1202,7 @@ export async function buildPanelSnapshot(dir, pathsHint, opts = {}) {
     ];
     if (pending > 0)
         nextHints.unshift(`有 ${pending} 条待采纳候选，可在面板点「采纳」或用 zhizhang_candidate_accept`);
-    if (pendingCands.some((c) => c.editOf)) {
+    if (pendingCands.some((c: any) => c.editOf)) {
         nextHints.unshift("有编辑稿待定：面板可正式采纳（路径 A 须确认）；A/B/C 抉择用 zhizhang_candidate_edit_decide");
     }
     if (multiDraftEnabledEarly && pending >= 2) {
@@ -1180,16 +1211,16 @@ export async function buildPanelSnapshot(dir, pathsHint, opts = {}) {
     else if (!multiDraftEnabledEarly && pending >= 2) {
         nextHints.unshift("同章多份待采纳：开启 multiDraft 后可统一整理（默认关，不进主链）");
     }
-    if (chapters.some((c) => !c.situationLens))
+    if (chapters.some((c: any) => !c.situationLens))
         nextHints.unshift("部分章节缺 situationLens，建议 zhizhang_outline_set");
-    if (chapters.some((c) => c.wordCount > 0 && !c.briefRecent)) {
+    if (chapters.some((c: any) => c.wordCount > 0 && !c.briefRecent)) {
         nextHints.unshift("有章节正文但无近期 chapter_brief 留痕（accept 将硬拒 unless skip_brief）");
     }
-    const payoffWarn = Object.values(lastPayoffByChapter).filter((p) => !p.ok);
+    const payoffWarn = Object.values(lastPayoffByChapter).filter((p: any) => !p.ok);
     if (payoffWarn.length > 0) {
-        nextHints.unshift(`兑付审计有 ${payoffWarn.length} 章未过：${payoffWarn.map((p) => p.chapterId).join("、")}`);
+        nextHints.unshift(`兑付审计有 ${payoffWarn.length} 章未过：${payoffWarn.map((p: any) => p.chapterId).join("、")}`);
     }
-    const recentBriefs = briefs.entries.filter((e) => {
+    const recentBriefs = briefs.entries.filter((e: any) => {
         const at = Date.parse(e.at);
         return Number.isFinite(at) && now - at <= BRIEF_RECENT_MS;
     });
@@ -1241,7 +1272,7 @@ export async function buildPanelSnapshot(dir, pathsHint, opts = {}) {
             summary: "灵感支柱暂不可读",
         };
     }
-    const candidateRows = cands.map((c) => ({
+    const candidateRows = cands.map((c: any) => ({
         id: c.id,
         chapterId: c.chapterId,
         stagedAt: c.stagedAt,
@@ -1271,7 +1302,7 @@ export async function buildPanelSnapshot(dir, pathsHint, opts = {}) {
         },
         chapters,
         candidates: candidateRows,
-        ledgerRecent: ledger.entries.slice(-12).map((e) => ({
+        ledgerRecent: ledger.entries.slice(-12).map((e: any) => ({
             id: e.id,
             at: e.at,
             kind: e.kind,
@@ -1304,7 +1335,7 @@ export async function buildPanelSnapshot(dir, pathsHint, opts = {}) {
             style: meta.foundation.style,
         },
         chapters,
-        ledgerRecent: ledger.entries.slice(-12).map((e) => ({
+        ledgerRecent: ledger.entries.slice(-12).map((e: any) => ({
             id: e.id,
             at: e.at,
             kind: e.kind,
@@ -1324,9 +1355,9 @@ export async function buildPanelSnapshot(dir, pathsHint, opts = {}) {
     };
 }
 // —— § assemble ——
-export async function assembleManuscript(dir, paths, opts = {}) {
+export async function assembleManuscript(dir: string, paths: StoragePaths, opts: any = {}) {
     const meta = await readWorkMeta(dir);
-    const chapters = [...meta.chapters].sort((a, b) => a.position - b.position);
+    const chapters = [...meta.chapters].sort((a: any, b: any) => a.position - b.position);
     const parts = [`# ${meta.title}`, ""];
     if (meta.premise)
         parts.push(`> ${meta.premise}`, "");
@@ -1358,6 +1389,6 @@ export async function assembleManuscript(dir, paths, opts = {}) {
     await atomicWrite(out, parts.join("\n") + "\n");
     return { file: out, words, chapters: included };
 }
-export async function removeWorkDir(dir) {
+export async function removeWorkDir(dir: string) {
     await rm(dir, { recursive: true, force: true });
 }

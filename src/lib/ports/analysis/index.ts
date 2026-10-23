@@ -1,4 +1,3 @@
-// @ts-nocheck
 /** 拆书分析 — 对外聚合（analysis.js 只做 facade）。 */
 import { PLUGIN_VERSION } from "../../version.js";
 import { REPORT_SECTION_COUNT } from "../../domain/report-sections.js";

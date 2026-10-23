@@ -1,6 +1,6 @@
-// @ts-nocheck
 /** 事实层：逐章白描校验与落盘。 */
 import { withLock } from "../../store.js";
+import type { StoragePaths } from "../../types.js";
 import { ZhizhangError } from "../../errors.js";
 import { HOOK_STRENGTHS, HOOK_TYPES } from "../../domain/card-schema.js";
 import { quoteOk } from "../../domain/evidence.js";
@@ -12,12 +12,12 @@ export const WHITE_DESC_HARD_RE = /(心里|心中|内心|觉得|认为|希望|�
 /** 白描软警告：因果/意图词（原文事实可含，提示改写为动作）。 */
 export const WHITE_DESC_SOFT_RE = /(因为|所以|于是|想要|打算|决定)/;
 
-export function validateChapterFacts(facts, sourceText, index) {
+export function validateChapterFacts(facts: any, sourceText: any, index: { n: number; title: string; start: number; end: number }[]) {
     const errors = [];
-    const warnings = [];
+    const warnings: string[] = [];
     const f = facts ?? {};
     const n = Number(f.n);
-    const chapter = index.find((c) => c.n === n);
+    const chapter = index.find((c: any) => c.n === n);
     if (!Number.isInteger(n) || !chapter) {
         errors.push(`章号不存在：${f.n}`);
         return { errors, warnings };
@@ -56,7 +56,7 @@ export function validateChapterFacts(facts, sourceText, index) {
         warnings.push("value 为空：建议记处境/关系/认知/情绪至少两项变化");
     }
     else {
-        const filled = ["situation", "relation", "cognition", "emotion"].filter((k) => String(f.value[k] ?? "").trim());
+        const filled = ["situation", "relation", "cognition", "emotion"].filter((k: any) => String(f.value[k] ?? "").trim());
         if (filled.length < 2)
             warnings.push("value 少于两项变化：本章的价值推进可能没记全");
     }
@@ -65,7 +65,7 @@ export function validateChapterFacts(facts, sourceText, index) {
     return { errors, warnings };
 }
 
-export async function upsertChapter(paths, sourceId, facts, sourceText, index) {
+export async function upsertChapter(paths: StoragePaths, sourceId: any, facts: any, sourceText: any, index: { n: number; title: string; start: number; end: number }[]) {
     const { errors, warnings } = validateChapterFacts(facts, sourceText, index);
     if (errors.length)
         throw new ZhizhangError("bad_facts", `事实未通过：${errors.join("；")}`);
@@ -74,16 +74,16 @@ export async function upsertChapter(paths, sourceId, facts, sourceText, index) {
     await withLock(`analysis:${sourceId}`, async () => {
         const rows = await readJsonl(p.chapters);
         const rec = { ...facts, n: Number(facts.n), schemaVersion: 2, updatedAt: nowIso() };
-        const at = rows.findIndex((r) => Number(r.n) === rec.n);
+        const at = rows.findIndex((r: any) => Number(r.n) === rec.n);
         if (at >= 0)
             rows[at] = rec;
         else
             rows.push(rec);
-        rows.sort((a, b) => Number(a.n) - Number(b.n));
+        rows.sort((a: any, b: any) => Number(a.n) - Number(b.n));
         await writeJsonl(p.chapters, rows);
         const meta = (await readJson(p.meta, null)) ?? {};
         const scope = meta.scope ?? { mode: "none", chapters: 0 };
-        const maxN = rows.reduce((m, r) => Math.max(m, Number(r.n) || 0), 0);
+        const maxN = rows.reduce((m: any, r: any) => Math.max(m, Number(r.n) || 0), 0);
         const planned = scope.mode === "sample" ? rows.length : scope.mode === "auto" || scope.mode === "full" ? 0 : maxN;
         await writeAnalysisMeta(paths, sourceId, {
             stage: "facts",

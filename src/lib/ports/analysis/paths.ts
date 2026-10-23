@@ -1,13 +1,13 @@
-// @ts-nocheck
 /** 拆书分析 — 路径 / JSON IO 基元。 */
 import path from "node:path";
 import { mkdir, readFile } from "node:fs/promises";
 import { atomicWrite } from "../../store.js";
+import type { StoragePaths } from "../../types.js";
 import { ZhizhangError } from "../../errors.js";
 
 const SOURCE_ID_RE = /^src-[A-Za-z0-9_-]{1,64}$/;
 
-export function assertSourceId(id) {
+export function assertSourceId(id: string) {
     const t = String(id ?? "").trim();
     if (!SOURCE_ID_RE.test(t))
         throw new ZhizhangError("bad_args", `sourceId 非法：${t.slice(0, 80)}`);
@@ -18,7 +18,7 @@ export function nowIso() {
     return new Date().toISOString();
 }
 
-export function analysisPaths(paths, sourceId) {
+export function analysisPaths(paths: StoragePaths, sourceId: any) {
     const id = assertSourceId(sourceId);
     const dir = path.join(paths.library, "analyses", id);
     return {
@@ -33,7 +33,7 @@ export function analysisPaths(paths, sourceId) {
     };
 }
 
-export async function readJson(file, fallback) {
+export async function readJson(file: string, fallback: any) {
     try {
         return JSON.parse(await readFile(file, "utf8"));
     }
@@ -42,26 +42,26 @@ export async function readJson(file, fallback) {
     }
 }
 
-export async function readJsonl(file) {
+export async function readJsonl(file: string) {
     try {
         const raw = await readFile(file, "utf8");
         return raw
             .split("\n")
-            .map((l) => l.trim())
+            .map((l: any) => l.trim())
             .filter(Boolean)
-            .map((l) => JSON.parse(l));
+            .map((l: any) => JSON.parse(l));
     }
     catch {
         return [];
     }
 }
 
-export async function writeJsonl(file, rows) {
-    const body = rows.map((r) => JSON.stringify(r)).join("\n");
+export async function writeJsonl(file: string, rows: any) {
+    const body = rows.map((r: any) => JSON.stringify(r)).join("\n");
     await atomicWrite(file, body ? `${body}\n` : "");
 }
 
-export async function ensureDir(dir) {
+export async function ensureDir(dir: string) {
     await mkdir(dir, { recursive: true });
     return dir;
 }

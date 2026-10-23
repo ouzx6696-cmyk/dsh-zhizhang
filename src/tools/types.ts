@@ -1,6 +1,8 @@
-// @ts-nocheck
 import { formatToolError } from "../lib/errors.js";
-export function defineTool(def) {
+import type { ExecContext } from "../lib/types.js";
+
+export type { ExecContext };
+export function defineTool(def: any) {
     const run = def.execute;
     return {
         name: def.name,
@@ -13,9 +15,9 @@ export function defineTool(def) {
         },
         output: {
             schema: { type: "string" },
-            render: (_args, value) => [{ type: "text", text: value }],
+            render: (_args: any, value: string) => [{ type: "text", text: value }],
         },
-        async execute(args, exec) {
+        async execute(args: any, exec: ExecContext) {
             try {
                 return await run(args ?? {}, exec);
             }

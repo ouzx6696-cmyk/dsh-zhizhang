@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Panel console enrichments — Library / Inspiration / Product summaries for snapshot + HTML.
  * Read-only; no writes.
@@ -11,7 +10,8 @@ import { InspirationPort } from "./ports/inspiration.js";
 import { ProductMap } from "./ports/product.js";
 import { Scheduler } from "./ports/scheduler.js";
 import { listLocalBooks } from "./store.js";
-function foundationFilledFields(f) {
+import type { StoragePaths } from "./types.js";
+function foundationFilledFields(f: any) {
     const keys = [
         "locks",
         "happened",
@@ -21,9 +21,9 @@ function foundationFilledFields(f) {
         "threads",
         "style",
     ];
-    return keys.filter((k) => String(f[k] ?? "").trim().length > 0);
+    return keys.filter((k: any) => String(f[k] ?? "").trim().length > 0);
 }
-export async function buildLibraryView(paths) {
+export async function buildLibraryView(paths: StoragePaths) {
     await LibraryPort.ensureLibrary(paths);
     const sources = await LibraryPort.listSources(paths);
     const accepted = await LibraryPort.listCards(paths, { status: "accepted" });
@@ -52,7 +52,7 @@ export async function buildLibraryView(paths) {
             ok: sug.ok,
             cardIds: sug.cardIds ?? [],
             mindTitle: sug.mind?.title ?? null,
-            craftTitles: (sug.crafts ?? []).map((c) => c.title),
+            craftTitles: (sug.crafts ?? []).map((c: any) => c.title),
             emptyReason: sug.emptyReason,
         };
     }
@@ -60,18 +60,18 @@ export async function buildLibraryView(paths) {
         combo = null;
     }
     const sourceRoot = paths.sourceRoot || "";
-    let pending = [];
+    let pending: any[] = [];
     if (sourceRoot) {
         try {
             const local = await listLocalBooks(sourceRoot, { limit: 40 });
-            const titles = new Set(sources.map((s) => s.title));
-            pending = local.filter((b) => !titles.has(b.title));
+            const titles = new Set(sources.map((s: any) => s.title));
+            pending = local.filter((b: any) => !titles.has(b.title));
         }
         catch {
             pending = [];
         }
     }
-    let analyses = [];
+    let analyses: any[] = [];
     try {
         analyses = await listAnalyses(paths);
     }
@@ -82,13 +82,13 @@ export async function buildLibraryView(paths) {
         sourcesCount: sources.length,
         sourceRoot,
         pendingCount: pending.length,
-        pending: pending.slice(0, 12).map((b) => ({ name: b.name, bytes: b.bytes })),
-        sources: sources.slice(0, 12).map((s) => ({
+        pending: pending.slice(0, 12).map((b: any) => ({ name: b.name, bytes: b.bytes })),
+        sources: sources.slice(0, 12).map((s: any) => ({
             id: s.id,
             title: s.title,
             author: s.author ?? "",
         })),
-        analyses: await Promise.all(analyses.map(async (a) => {
+        analyses: await Promise.all(analyses.map(async (a: any) => {
             let plan = null;
             try {
                 const p = await readPlan(paths, a.sourceId);
@@ -110,9 +110,9 @@ export async function buildLibraryView(paths) {
         summary: LibraryPort.summary,
     };
 }
-export async function buildInspirationView(paths, opts) {
+export async function buildInspirationView(paths: StoragePaths, opts: any) {
     const sessionsRaw = await InspirationPort.listSessions(paths);
-    const sessions = sessionsRaw.slice(0, 8).map((s) => ({
+    const sessions = sessionsRaw.slice(0, 8).map((s: any) => ({
         id: s.id,
         goal: s.goal,
         genre: s.genre ?? "",
@@ -190,7 +190,7 @@ export function buildProductView() {
         writeLine: Scheduler.writeLine(),
         version: ProductMap.version,
         toolCount: ProductMap.toolCount(),
-        pillars: ProductMap.pillars().map((p) => ({
+        pillars: ProductMap.pillars().map((p: any) => ({
             id: p.id,
             title: p.title,
             loopStage: p.loopStage,

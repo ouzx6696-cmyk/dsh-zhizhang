@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Single source of truth for the plugin version.
  * Keep in sync with package.json (smoke asserts they match).

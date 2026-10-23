@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * PortConfig — thresholds and default soft/hard policy switches.
  * Change policy knobs here; tools should call getPortConfig().
@@ -19,7 +18,7 @@ export function getPortConfig() {
     return current;
 }
 /** Test / plugin apply hook — shallow replace known keys. */
-export function setPortConfig(patch) {
+export function setPortConfig(patch: any) {
     current = { ...current, ...patch };
     return current;
 }

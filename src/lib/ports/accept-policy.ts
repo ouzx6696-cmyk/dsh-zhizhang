@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { BriefGate } from "./brief-gate.js";
 import { LintGate } from "./lint-gate.js";
 import { PayoffGate } from "./payoff-gate.js";
@@ -8,7 +7,7 @@ import { getPortConfig } from "./config.js";
 import { EditPort } from "./edit.js";
 import { formatGateMessages, mergeDecisions, } from "./types.js";
 export const AcceptPolicy = {
-    evaluate(input) {
+    evaluate(input: any) {
         const cfg = getPortConfig();
         const skipBrief = Boolean(input.skipBrief);
         const strictLint = input.strictLint ?? cfg.defaultStrictLint;
@@ -51,11 +50,11 @@ export const AcceptPolicy = {
         return { ...merged, hitCount, receiptLines };
     },
 };
-function softAndInfo(messages) {
-    return messages.filter((m) => m.severity !== "error");
+function softAndInfo(messages: any) {
+    return messages.filter((m: any) => m.severity !== "error");
 }
 /** Match existing tool receipt phrasing expected by tests. */
-function normalizeReceipt(lines) {
+function normalizeReceipt(lines: any) {
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         // info brief_ok was "brief_ok：..."
@@ -80,11 +79,11 @@ function normalizeReceipt(lines) {
     }
 }
 /** First hard-error code for ZhizhangError. */
-export function firstDenyCode(decision) {
-    const err = decision.messages.find((m) => m.severity === "error");
+export function firstDenyCode(decision: any) {
+    const err = decision.messages.find((m: any) => m.severity === "error");
     return err?.code ?? "gate_denied";
 }
-export function firstDenyText(decision) {
-    const err = decision.messages.find((m) => m.severity === "error");
+export function firstDenyText(decision: any) {
+    const err = decision.messages.find((m: any) => m.severity === "error");
     return err?.text ?? "拒绝";
 }

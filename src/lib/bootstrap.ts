@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Heavy tool layer for zhizhang — mounted on demand (per Agent scope when the host
  * exposes one). Kept out of the plugin entry so a profile mount injects only the
@@ -11,7 +10,7 @@ import { allTools, SYSTEM_BRIEF, setPluginConfig, } from "../tools/index.js";
  * @param pluginConfig Plugin config to apply before tool construction.
  * @returns Disposers for every registration (unwinds a partial mount on failure).
  */
-export function applyTools(ctx, pluginConfig) {
+export function applyTools(ctx: any, pluginConfig: any) {
     if (pluginConfig !== undefined)
         setPluginConfig(pluginConfig);
     const disposers = [];

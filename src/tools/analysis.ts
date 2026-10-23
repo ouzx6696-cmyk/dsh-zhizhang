@@ -1,4 +1,3 @@
-// @ts-nocheck
 /** 拆书分析层工具：事实 / 聚合 / 报告 / 删卡。 */
 import { LibraryPort } from "../lib/ports/library.js";
 import { ZhizhangError } from "../lib/errors.js";
@@ -27,18 +26,19 @@ import {
 import { atomicWrite, ensureStorage } from "../lib/store.js";
 import { REPORT_SECTION_COUNT } from "../lib/domain/report-sections.js";
 import { stepPrefix } from "../lib/domain/workflow.js";
-import { asString, config } from "./context.js";
+import { asArray, asString, config } from "./context.js";
 import { S, B, WORKING_DIR } from "./schema.js";
 import { defineTool } from "./types.js";
+import type { ExecContext } from "./types.js";
 
-async function openLibrary(exec, args) {
+async function openLibrary(exec: ExecContext, args: any) {
     const paths = await ensureStorage(exec, config, asString(args, "working_dir"));
     await LibraryPort.ensureLibrary(paths);
     return paths;
 }
 
 /** 引文通过率：逐条回到该章正文核对，而不是「非空即通过」。 */
-function quoteStatsOf(facts, text, index) {
+function quoteStatsOf(facts: any, text: string, index: { n: number; title: string; start: number; end: number }[]) {
     let total = 0;
     let ok = 0;
     for (const f of facts) {
@@ -64,12 +64,13 @@ export function analysisTools() {
                 working_dir: WORKING_DIR,
             },
             required: ["source"],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const sourceId = asString(args, "source", { required: true });
                 const paths = await openLibrary(exec, args);
                 const { text } = await LibraryPort.getSource(paths, sourceId);
                 const idx = chapterIndex(text);
-                const raw = Array.isArray(args.items) ? args.items : args.facts ? [args.facts] : [];
+                const itemsArg = asArray(args, "items");
+                const raw = itemsArg ?? (args.facts ? [args.facts] : []);
                 if (!raw.length)
                     throw new ZhizhangError("bad_args", "传 facts（单章）或 items（多章）");
                 const receipts = [];
@@ -104,7 +105,7 @@ export function analysisTools() {
                 }
                 const lines = [
                     "已记录 " + receipts.length + " 章事实（累计 " + bundle.chapters.length + " 章）",
-                    ...receipts.map((r) => "- 第" + r.n + "章：" + (r.warnings.length ? r.warnings.join("；") : "通过")),
+                    ...receipts.map((r: any) => "- 第" + r.n + "章：" + (r.warnings.length ? r.warnings.join("；") : "通过")),
                     "",
                     coverageLine,
                     planLine,
@@ -124,7 +125,7 @@ export function analysisTools() {
                 working_dir: WORKING_DIR,
             },
             required: ["source", "kind", "payload"],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const sourceId = asString(args, "source", { required: true });
                 const kind = asString(args, "kind", { required: true });
                 const payload = args.payload ?? {};
@@ -155,7 +156,7 @@ export function analysisTools() {
                 working_dir: WORKING_DIR,
             },
             required: ["source"],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const sourceId = asString(args, "source", { required: true });
                 const paths = await openLibrary(exec, args);
                 const { meta: srcMeta, text } = await LibraryPort.getSource(paths, sourceId);
@@ -172,9 +173,9 @@ export function analysisTools() {
                         /* skip unreadable card */
                     }
                 }
-                const v2Count = modules.filter((m) => !m.legacy).length;
+                const v2Count = modules.filter((m: any) => !m.legacy).length;
                 const stats = bundle.chapters
-                    .map((f) => {
+                    .map((f: any) => {
                         const t = chapterText(text, idx, f.n);
                         return t ? { n: f.n, ...textStats(t) } : null;
                     })
@@ -184,7 +185,7 @@ export function analysisTools() {
                 const coverage = computeCoverage(
                     bundle.meta,
                     bundle.chapters,
-                    modules.filter((m) => !m.legacy),
+                    modules.filter((m: any) => !m.legacy),
                     quoteStatsOf(bundle.chapters, text, idx),
                     {
                         survey,
@@ -232,7 +233,7 @@ export function analysisTools() {
                 working_dir: WORKING_DIR,
             },
             required: ["card"],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const cardId = asString(args, "card", { required: true });
                 if (args.confirm !== true)
                     throw new ZhizhangError("confirm_required", "删卡须 confirm=true");

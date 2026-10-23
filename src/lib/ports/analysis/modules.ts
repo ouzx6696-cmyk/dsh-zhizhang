@@ -1,4 +1,3 @@
-// @ts-nocheck
 /** 模块 schema — 转发到 domain/card-schema（唯一来源）。 */
 export {
     LAYERS,

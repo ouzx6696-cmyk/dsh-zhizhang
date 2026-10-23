@@ -1,11 +1,10 @@
-// @ts-nocheck
 /**
  * SaveBypassGate — large chapter_save body needs confirm_bypass.
  */
 import { getPortConfig } from "./config.js";
 import { allow, deny, info } from "./types.js";
 export const SaveBypassGate = {
-    evaluate(opts) {
+    evaluate(opts: any) {
         if (!opts.contentProvided) {
             return allow([info("save_meta_only", "仅元数据/status")]);
         }

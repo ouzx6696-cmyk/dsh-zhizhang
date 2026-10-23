@@ -1,15 +1,14 @@
-// @ts-nocheck
 /** User/agent-facing errors: Chinese message only, never stack traces. */
 export class ZhizhangError extends Error {
     code;
-    constructor(code, message) {
+    constructor(code: any, message: string) {
         super(message);
         this.name = "ZhizhangError";
         this.code = code;
     }
 }
 /** Flatten any thrown value into a short Chinese line for tool output. */
-export function formatToolError(err) {
+export function formatToolError(err: any) {
     if (err instanceof ZhizhangError)
         return `错误[${err.code}]：${err.message}`;
     if (err instanceof Error) {

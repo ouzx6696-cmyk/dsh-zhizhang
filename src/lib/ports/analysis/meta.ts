@@ -1,12 +1,12 @@
-// @ts-nocheck
 /** 分析 meta / bundle / 列表。 */
 import path from "node:path";
 import { readdir } from "node:fs/promises";
 import { atomicWrite } from "../../store.js";
+import type { StoragePaths } from "../../types.js";
 import { analysisPaths, assertSourceId, ensureDir, nowIso, readJson, readJsonl } from "./paths.js";
 import { chapterIndex, totalChapters } from "./chapters.js";
 
-export async function ensureAnalysis(paths, sourceId, sourceText) {
+export async function ensureAnalysis(paths: StoragePaths, sourceId: any, sourceText: any) {
     const p = analysisPaths(paths, sourceId);
     await ensureDir(p.dir);
     let meta = await readJson(p.meta, null);
@@ -38,7 +38,7 @@ export async function ensureAnalysis(paths, sourceId, sourceText) {
     return meta;
 }
 
-export async function writeAnalysisMeta(paths, sourceId, patch) {
+export async function writeAnalysisMeta(paths: StoragePaths, sourceId: any, patch: any) {
     const p = analysisPaths(paths, sourceId);
     const current = (await readJson(p.meta, null)) ?? { schemaVersion: 2, sourceId, stage: "meta" };
     const next = { ...current, ...patch, updatedAt: nowIso() };
@@ -46,7 +46,7 @@ export async function writeAnalysisMeta(paths, sourceId, patch) {
     return next;
 }
 
-export async function readAnalysisBundle(paths, sourceId) {
+export async function readAnalysisBundle(paths: StoragePaths, sourceId: any) {
     const p = analysisPaths(paths, sourceId);
     const [meta, chapters, plots, rhythms, characters, survey] = await Promise.all([
         readJson(p.meta, null),
@@ -66,11 +66,11 @@ export async function readAnalysisBundle(paths, sourceId) {
     };
 }
 
-export async function listAnalyses(paths) {
+export async function listAnalyses(paths: StoragePaths) {
     const root = path.join(paths.library, "analyses");
     let names = [];
     try {
-        names = (await readdir(root)).filter((x) => x.startsWith("src-"));
+        names = (await readdir(root)).filter((x: any) => x.startsWith("src-"));
     }
     catch {
         return [];

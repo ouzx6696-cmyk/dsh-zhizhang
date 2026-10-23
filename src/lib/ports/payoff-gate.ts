@@ -1,7 +1,6 @@
-// @ts-nocheck
 import { allow, deny, warn, info } from "./types.js";
 export const PayoffGate = {
-    evaluateAccept(opts) {
+    evaluateAccept(opts: any) {
         const { payoff, requirePayoff } = opts;
         if (requirePayoff) {
             if (!payoff) {

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * 拆书 L0 量化测绘（v0.17.0）。
  *
@@ -14,7 +13,7 @@ import { cnNumber, VOLUME_HEADING_RE } from "../domain/chapter-heading.js";
 export { cnNumber };
 
 /** 解析卷标记行：第一卷 / 第二卷 … 返回 [{no,name,title,start,end}]。 */
-export function parseVolumes(text) {
+export function parseVolumes(text: string) {
     const t = String(text ?? "");
     const marks = [];
     const re = new RegExp(VOLUME_HEADING_RE.source, VOLUME_HEADING_RE.flags);
@@ -36,7 +35,7 @@ const STOP_WORDS = new Set(`自己 已经 好像 时候 最后 起来 知道 开
  * 统计高频词（2–4 字 n-gram）。
  * 只做「分布参考」，不做实体识别；人名/地名/概念混排，报告里必须如实标注。
  */
-export function topTerms(text, { minCount = 30, limit = 40 } = {}) {
+export function topTerms(text: string, { minCount = 30, limit = 40 } = {}) {
     const t = String(text ?? "");
     const map = new Map();
     const re = /[\u4e00-\u9fa5]+/g;
@@ -61,7 +60,7 @@ export function topTerms(text, { minCount = 30, limit = 40 } = {}) {
         }
     }
     let rows = [...map.entries()].filter(([k, c]) => c >= minCount && !STOP_WORDS.has(k));
-    rows.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    rows.sort((a: any, b: any) => b[1] - a[1] || a[0].localeCompare(b[0]));
     // 嵌套去重：若短词与更长的词频次完全相同，保留长词（如「升华者」压掉「华者」）。
     const top = rows.slice(0, 500);
     rows = rows.filter(([k, c]) => {
@@ -78,11 +77,19 @@ export function topTerms(text, { minCount = 30, limit = 40 } = {}) {
 
 const ANCHOR_RE = /(决战|真相|牺牲|背叛|晋升|突破|最后|结束|开始|告白|重逢|葬礼|遗产|遗言|决裂|宣战|复仇|死亡|死|杀|救|婚礼|告别)/g;
 
+/** 章节索引行（章节切分产物）。 */
+export interface ChapterIndexRow {
+    n: number;
+    title: string;
+    start: number;
+    end: number;
+}
+
 /** 锚点章：关键词密度 + 事实钩子强度 + 卷首卷末加成。 */
-export function anchorChapters(text, index, { facts = [], volumes = [], limit = 60 } = {}) {
-    const factMap = new Map((facts ?? []).map((f) => [f.n, f]));
-    const firsts = new Set(volumes.map((v) => v.from));
-    const lasts = new Set(volumes.map((v) => v.to));
+export function anchorChapters(text: string, index: ChapterIndexRow[], { facts = [], volumes = [], limit = 60 }: { facts?: any[]; volumes?: any[]; limit?: number } = {}) {
+    const factMap = new Map((facts ?? []).map((f: any) => [f.n, f]));
+    const firsts = new Set(volumes.map((v: any) => v.from));
+    const lasts = new Set(volumes.map((v: any) => v.to));
     const rows = [];
     for (const c of index) {
         if (!(c.n > 0))
@@ -99,19 +106,19 @@ export function anchorChapters(text, index, { facts = [], volumes = [], limit = 
         if (score > 0)
             rows.push({ n: c.n, title: c.title, score: Number(score.toFixed(2)), why: `关键词 ${hits} 次${hook === "强" ? " · 强钩子" : ""}${firsts.has(c.n) ? " · 卷首" : ""}${lasts.has(c.n) ? " · 卷末" : ""}` });
     }
-    rows.sort((a, b) => b.score - a.score || a.n - b.n);
+    rows.sort((a: any, b: any) => b.score - a.score || a.n - b.n);
     return rows.slice(0, limit);
 }
 
 /** 主入口：全书测绘。 */
-export function buildSurvey(text, index, { facts = [], volumeMarkers } = {}) {
+export function buildSurvey(text: string, index: ChapterIndexRow[], { facts = [], volumeMarkers }: { facts?: any[]; volumeMarkers?: any[] } = {}): Record<string, any> {
     const t = String(text ?? "");
     const volumes = volumeMarkers ?? parseVolumes(t);
-    const chapters = index.filter((c) => c.n > 0);
-    const chars = chapters.map((c) => t.slice(c.start, c.end).replace(/\s/g, "").length);
-    const totalChars = chars.reduce((a, b) => a + b, 0);
-    const volRows = volumes.map((v) => {
-        const inside = chapters.filter((c) => c.start >= v.start && c.start < v.end);
+    const chapters = index.filter((c: any) => c.n > 0);
+    const chars = chapters.map((c: any) => t.slice(c.start, c.end).replace(/\s/g, "").length);
+    const totalChars = chars.reduce((a: any, b: any) => a + b, 0);
+    const volRows = volumes.map((v: any) => {
+        const inside = chapters.filter((c: any) => c.start >= v.start && c.start < v.end);
         return {
             no: v.no,
             name: v.name,
@@ -119,7 +126,7 @@ export function buildSurvey(text, index, { facts = [], volumeMarkers } = {}) {
             from: inside[0]?.n ?? null,
             to: inside[inside.length - 1]?.n ?? null,
             chapters: inside.length,
-            chars: inside.reduce((a, c) => a + t.slice(c.start, c.end).replace(/\s/g, "").length, 0),
+            chars: inside.reduce((a: any, c: any) => a + t.slice(c.start, c.end).replace(/\s/g, "").length, 0),
             firstTitle: inside[0]?.title ?? "",
             lastTitle: inside[inside.length - 1]?.title ?? "",
         };

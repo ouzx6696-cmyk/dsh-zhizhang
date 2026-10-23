@@ -1,11 +1,10 @@
-// @ts-nocheck
 const SPEECH_PROMISE = /人声|说话|说出口|不属于[^。；\n]{0,12}话|冒出[^。；\n]{0,12}话|一句[^。；\n]{0,8}话|还没说/;
 const BREATH_REVEAL = /自己的呼吸|呼吸声|是他自己的呼吸|棚里响起[^。]{0,12}呼吸|耳机里[^。]{0,12}呼吸|轨上[^。]{0,20}呼吸/;
 const SPEECH_IN_BODY = /人声|说话|说出口|那[一两三四]个字|清清楚楚/;
 /** Domain unit smell: reverb described with 毫米 (should be 毫秒). */
 const REVERB_MM = /混响[^。！？\n]{0,24}毫米|毫米[^。！？\n]{0,24}混响/;
 /** Extract round/clock tokens and key content nouns from ending text. */
-export function extractEndingTokens(ending) {
+export function extractEndingTokens(ending: any) {
     const text = String(ending ?? "").trim();
     if (!text)
         return [];
@@ -44,7 +43,7 @@ export function extractEndingTokens(ending) {
     }
     return [...tokens];
 }
-function quoteAround(body, needle, max = 48) {
+function quoteAround(body: string, needle: any, max: any = 48) {
     if (typeof needle === "string") {
         const i = body.indexOf(needle);
         if (i < 0)
@@ -60,7 +59,7 @@ function quoteAround(body, needle, max = 48) {
     const end = Math.min(body.length, m.index + m[0].length + 24);
     return body.slice(start, end).replace(/\s+/g, " ").trim();
 }
-function outlinePromiseText(outline, premise) {
+function outlinePromiseText(outline: any, premise: any) {
     return [outline.ending, outline.beats, outline.livedScene, outline.synopsis, outline.conflict, premise ?? ""]
         .filter(Boolean)
         .join("\n");
@@ -69,7 +68,7 @@ function outlinePromiseText(outline, premise) {
  * Audit body against outline promises.
  * ok=true when no warning/error findings (info-only still ok).
  */
-export function auditPayoff(outline, body, opts = {}) {
+export function auditPayoff(outline: any, body: string, opts: any = {}) {
     const findings = [];
     const text = String(body ?? "");
     const promiseBlob = outlinePromiseText(outline, opts.premise);
@@ -78,13 +77,13 @@ export function auditPayoff(outline, body, opts = {}) {
     const endingMisses = [];
     for (const tok of endingTokens) {
         // Normalize 零点四十 ↔ 00:40 soft: if token is clock, also accept Chinese forms later
-        if (text.includes(tok))
+        if (text.includes(String(tok)))
             endingHits.push(tok);
         else
             endingMisses.push(tok);
     }
     // Soft clock alias: 00:40 ↔ 零点四十
-    const softMisses = endingMisses.filter((tok) => {
+    const softMisses = endingMisses.filter((tok: any) => {
         const m = tok.match(/^(\d{1,2}):(\d{2})$/);
         if (!m)
             return true;
@@ -151,8 +150,8 @@ export function auditPayoff(outline, body, opts = {}) {
         });
     }
     // livedScene hook nouns: if livedScene emphasizes 回放/侧窗 etc., soft-check presence
-    const livedHooks = ["回放", "侧窗", "时间戳", "属性", "推子", "底噪"].filter((k) => outline.livedScene.includes(k));
-    const livedMiss = livedHooks.filter((k) => !text.includes(k));
+    const livedHooks = ["回放", "侧窗", "时间戳", "属性", "推子", "底噪"].filter((k: any) => outline.livedScene.includes(k));
+    const livedMiss = livedHooks.filter((k: any) => !text.includes(k));
     if (livedHooks.length >= 2 && livedMiss.length === livedHooks.length) {
         findings.push({
             code: "lived_hooks_missing",
@@ -161,7 +160,7 @@ export function auditPayoff(outline, body, opts = {}) {
             promise: outline.livedScene.slice(0, 100),
         });
     }
-    const warningCount = findings.filter((f) => f.severity === "warning" || f.severity === "error").length;
+    const warningCount = findings.filter((f: any) => f.severity === "warning" || f.severity === "error").length;
     return {
         ok: warningCount === 0,
         warningCount,
@@ -175,7 +174,7 @@ export function auditPayoff(outline, body, opts = {}) {
         },
     };
 }
-export function formatPayoffAudit(label, result) {
+export function formatPayoffAudit(label: string, result: any) {
     const head = [
         `兑付审计 · ${label}`,
         `- 结论：${result.ok ? "ok（无警告）" : `warnings=${result.warningCount}`}`,
@@ -186,7 +185,7 @@ export function formatPayoffAudit(label, result) {
     if (result.findings.length === 0) {
         return [...head, "", "无发现。"].join("\n");
     }
-    const lines = result.findings.map((f, i) => {
+    const lines = result.findings.map((f: any, i: number) => {
         const bits = [`${i + 1}. [${f.severity}/${f.code}] ${f.message}`];
         if (f.promise)
             bits.push(`   承诺：${f.promise}`);

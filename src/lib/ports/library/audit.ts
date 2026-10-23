@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * 单卡机械审计 — 引文回溯 / 章号对齐 / 字段占位 / mind 剧情分段。
  * 只诊断，不改卡；机械面通过 ≠ 卡能用。
@@ -8,13 +7,13 @@ import { parseChapterNumber } from "../../domain/chapter-heading.js";
 
 const EVIDENCE_QUOTE_RE = /[“"]([^”"\n]{4,240})[”"]/g;
 
-export function normForMatch(s) {
+export function normForMatch(s: string) {
     return String(s ?? "").replace(/[^\u4e00-\u9fa5A-Za-z0-9]/g, "");
 }
 
-export function extractEvidence(body) {
+export function extractEvidence(body: string) {
     const lines = String(body ?? "").split("\n");
-    const start = lines.findIndex((line) => /^##\s*证据/.test(line));
+    const start = lines.findIndex((line: string) => /^##\s*证据/.test(line));
     if (start < 0)
         return { heading: null, quotes: [] };
     const quotes = [];
@@ -29,17 +28,17 @@ export function extractEvidence(body) {
     return { heading: lines[start].trim(), quotes };
 }
 
-export function quoteFragments(q) {
-    return String(q).split(/……|——|\.{3,}/).map((x) => x.trim()).filter((x) => x.length >= 4);
+export function quoteFragments(q: any) {
+    return String(q).split(/……|——|\.{3,}/).map((x: any) => x.trim()).filter((x: any) => x.length >= 4);
 }
 
 /** 章号归一：第2章 / 第二章 → "ch2"；序章 → "ch0"。 */
-export function chapterKey(label) {
+export function chapterKey(label: string) {
     const n = parseChapterNumber(label);
     return Number.isFinite(n) ? `ch${n}` : null;
 }
 
-function chapterLabelAt(index, pos) {
+function chapterLabelAt(index: { n: number; title: string; start: number }[], pos: number) {
     let hit = null;
     for (const c of index) {
         if (c.start <= pos)
@@ -52,10 +51,10 @@ function chapterLabelAt(index, pos) {
     return hit.n === 0 ? "序章" : `第${hit.n}章`;
 }
 
-function locateQuoteChapters(q, text, index) {
+function locateQuoteChapters(q: any, text: string, index: { n: number; title: string; start: number }[]) {
     const cands = [String(q), ...String(q).split(/[^\u4e00-\u9fa5A-Za-z0-9]+/)]
-        .filter((x) => x.length >= 8)
-        .sort((a, b) => b.length - a.length);
+        .filter((x: any) => x.length >= 8)
+        .sort((a: any, b: any) => b.length - a.length);
     const found = new Set();
     for (const frag of cands) {
         let from = 0;
@@ -75,7 +74,7 @@ function locateQuoteChapters(q, text, index) {
 }
 
 /** 单卡内容审计：引文能否回溯、章号是否对得上、字段是否占位、mind 是否写成剧情分段。 */
-export function auditCardContent(card, sourceText, normSourceCache) {
+export function auditCardContent(card: any, sourceText: any, normSourceCache: any) {
     const warnings = [];
     const body = String(card.body ?? "");
     const { heading, quotes } = extractEvidence(body);
@@ -87,7 +86,7 @@ export function auditCardContent(card, sourceText, normSourceCache) {
     const skipped = [];
     const located = [];
     for (const q of quotes) {
-        const frags = quoteFragments(q).map(normForMatch).filter((f) => f.length >= 4);
+        const frags = quoteFragments(q).map(normForMatch).filter((f: any) => f.length >= 4);
         if (!normSource) {
             unverifiable.push(q);
             continue;
@@ -96,25 +95,25 @@ export function auditCardContent(card, sourceText, normSourceCache) {
             skipped.push(q);
             continue;
         }
-        if (!frags.every((f) => normSource.includes(f)))
+        if (!frags.every((f: any) => normSource.includes(f)))
             unverifiable.push(q);
         const chs = locateQuoteChapters(q, sourceText, index);
         if (chs.size === 1) {
             const label = [...chs][0];
-            located.push({ key: chapterKey(label) ?? label, label });
+            located.push({ key: chapterKey(String(label)) ?? String(label), label: String(label) });
         }
     }
     let chapterOk = null;
-    const headChs = heading ? [...heading.matchAll(/第\s*[0-9０-９一二三四五六七八九十百千零两]+\s*[章回节]/g)].map((m) => m[0]) : [];
-    const headKeys = new Set(headChs.map((c) => chapterKey(c)).filter(Boolean));
+    const headChs = heading ? [...heading.matchAll(/第\s*[0-9０-９一二三四五六七八九十百千零两]+\s*[章回节]/g)].map((m: any) => m[0]) : [];
+    const headKeys = new Set(headChs.map((c: any) => chapterKey(c)).filter(Boolean));
     if (headChs.length && located.length) {
         const counts = new Map();
         for (const item of located)
             counts.set(item.key, (counts.get(item.key) ?? 0) + 1);
-        const top = [...counts.entries()].sort((x, y) => y[1] - x[1])[0];
-        const label = located.find((l) => l.key === top[0])?.label ?? top[0];
+        const top = [...counts.entries()].sort((x: any, y: any) => y[1] - x[1])[0];
+        const label = located.find((l: any) => l.key === top[0])?.label ?? top[0];
         if (top[1] >= 2) {
-            chapterOk = headKeys.size ? located.some((l) => headKeys.has(l.key)) : heading.includes(label);
+            chapterOk = headKeys.size ? located.some((l: any) => headKeys.has(l.key)) : String(heading ?? "").includes(label);
             if (!chapterOk)
                 warnings.push("证据标题章号「" + headChs.join("、") + "」与引文实际位置「" + label + "」不一致");
         }
@@ -151,7 +150,7 @@ export function auditCardContent(card, sourceText, normSourceCache) {
         evidenceVerified: quotes.length - unverifiable.length - skipped.length,
         skippedShort: skipped,
         unverifiable,
-        located: [...new Set(located.map((l) => l.label))],
+        located: [...new Set(located.map((l: any) => l.label))],
         chapterOk,
         warnings,
     };

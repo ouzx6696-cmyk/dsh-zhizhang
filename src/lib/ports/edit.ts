@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * EditPort — optional post-draft edit pass (去AI味/润色) before accept.
  * Aligns with docs/skills/web-novel-master-optimizer.md §0.5 A/B/C.
@@ -67,9 +66,9 @@ export const EditPort = {
     defaultMode: "polish-depolish",
     skillDoc: "docs/skills/web-novel-master-optimizer.md",
     listModes() {
-        return EDIT_MODE_IDS.map((id) => MODE_INFO[id]);
+        return EDIT_MODE_IDS.map((id: string) => (MODE_INFO as Record<string, any>)[id]);
     },
-    normalizeMode(raw) {
+    normalizeMode(raw: string) {
         const s = String(raw ?? "").trim();
         if (!s)
             return EditPort.defaultMode;
@@ -96,10 +95,10 @@ export const EditPort = {
         }
         return EditPort.defaultMode;
     },
-    modeInfo(mode) {
+    modeInfo(mode: any) {
         const id = EditPort.normalizeMode(mode);
         if (id in MODE_INFO)
-            return MODE_INFO[id];
+            return (MODE_INFO as Record<string, any>)[id];
         if (id.startsWith("polish-depolish-")) {
             const cat = id.slice("polish-depolish-".length);
             return {
@@ -116,7 +115,7 @@ export const EditPort = {
      * Model must NOT claim已定稿; user picks A/B/C after rewrite.
      * Depolish: keep breath & rough edges; forbid flattening for “去AI味”.
      */
-    formatEditBrief(input = {}) {
+    formatEditBrief(input: any = {}) {
         const mode = EditPort.normalizeMode(input.mode);
         const info = EditPort.modeInfo(mode);
         const land = String(input.shouldLandLine ?? "").trim();
@@ -148,7 +147,7 @@ export const EditPort = {
         return lines.join("\n");
     },
     /** Parse user/agent choice; null = unset (safety = B). */
-    resolveChoice(raw) {
+    resolveChoice(raw: string) {
         const s = String(raw ?? "").trim().toUpperCase();
         if (!s)
             return null;
@@ -169,7 +168,7 @@ export const EditPort = {
     /**
      * Soft hints after edit_stage — surface uniform_short_run etc. without blocking.
      */
-    softHintLines(hits) {
+    softHintLines(hits: any) {
         if (!hits.length)
             return [];
         const lines = ["【编辑软提示·不阻断】"];
@@ -182,7 +181,7 @@ export const EditPort = {
         return lines;
     },
     /** Receipt lines right after edit_stage (never accept here). */
-    afterStageLines(opts) {
+    afterStageLines(opts: any) {
         const info = EditPort.modeInfo(opts.mode);
         return [
             `编辑候选已暂存：${opts.editCandId}`,
@@ -203,7 +202,7 @@ export const EditPort = {
      * - acceptAfterEdit + confirm but candidate not an edit → deny
      * - no acceptAfterEdit → allow (normal / B accept)
      */
-    evaluateAcceptFlags(input) {
+    evaluateAcceptFlags(input: any) {
         const wantA = Boolean(input.acceptAfterEdit);
         const confirmed = Boolean(input.confirmAcceptAfterEdit);
         const isEdit = Boolean(input.candidateIsEdit);
@@ -229,7 +228,7 @@ export const EditPort = {
     acceptPathAReceiptLines() {
         return ["已应用编辑", "已验收（编辑后直接验收 · 路径 A）"];
     },
-    decideChoiceLines(choice, opts) {
+    decideChoiceLines(choice: any, opts: any) {
         if (choice === "A") {
             return [
                 `路径 A 已就绪候选 ${opts.candId}：请确保已 style_lint，再带 confirm_accept_after_edit=true 调用 edit_decide 或 candidate_accept(accept_after_edit)。`,

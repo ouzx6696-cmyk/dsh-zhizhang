@@ -8,11 +8,12 @@
       name: 'dsh-zhizhang'
       config:
         rootDir: '.zhizhang'
-        # —— 本机默认布局（改这里即可；留空/注释掉则回退到 <会话 cwd>/.zhizhang） ——
-        storageRoot: 'D:/织章/.zhizhang'      # 存储根：稿件组装 / 灵感等
-        worksRoot: 'D:/织章/小说项目'          # 作品目录：每本书一个同名文件夹
-        libraryRoot: 'D:/织章/拆书库'          # 拆书库：index.json + sources/ + cards/
-        sourceRoot: 'D:/织章/拆书库'           # 本地书源：放 .txt/.md，可按文件名导入
+        # —— 可选：把存储根 / 作品目录 / 拆书库分开放（都留空则全部落在 <会话 cwd>/.zhizhang） ——
+        # 这四行是「本机布局」示例，默认注释；需要时改成自己的绝对路径再取消注释。
+        # storageRoot: '/path/to/zhizhang-store'   # 存储根：稿件组装 / 灵感等
+        # worksRoot:   '/path/to/novels'           # 作品目录：每本书一个同名文件夹
+        # libraryRoot: '/path/to/library'          # 拆书库：index.json + sources/ + cards/
+        # sourceRoot:  '/path/to/library'          # 本地书源：放 .txt/.md，可按文件名导入
         # 以下为通用可选项（去掉注释即可）
         # allowLanPanel: false            # 默认仅 loopback；true 才允许局域网
         # multiDraftEnabled: false        # 等价于 multiDraft.enabled（默认关）

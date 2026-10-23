@@ -1,11 +1,11 @@
-// @ts-nocheck
 /** Inspiration pillar — session / forge / stage / accept (optional apply to work). */
 import { InspirationPort } from "../lib/ports/index.js";
 import { ensureStorage } from "../lib/store.js";
-import { asString, config, fail, rememberWork } from "./context.js";
+import { asString, asStringArray, config, fail, rememberWork } from "./context.js";
 import { B, S, WORKING_DIR } from "./schema.js";
 import { defineTool } from "./types.js";
-async function openInsp(exec, args) {
+import type { ExecContext } from "./types.js";
+async function openInsp(exec: ExecContext, args: any) {
     const paths = await ensureStorage(exec, config, asString(args, "working_dir"));
     return paths;
 }
@@ -26,23 +26,23 @@ export function inspirationTools() {
                 working_dir: WORKING_DIR,
             },
             required: ["goal", "card_ids"],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const goal = asString(args, "goal", { required: true });
-                if (!Array.isArray(args.card_ids) || args.card_ids.length === 0) {
+                const cardIds = asStringArray(args, "card_ids", { required: true });
+                if (!cardIds || cardIds.length === 0)
                     fail("card_ids 至少一张");
-                }
                 const craftOnly = Boolean(args.craft_only);
                 const paths = await openInsp(exec, args);
                 const { sessionId, mindCount, craftCount } = await InspirationPort.startSession(paths, {
                     goal,
                     genre: asString(args, "genre"),
-                    cardIds: args.card_ids.map((x) => String(x)),
+                    cardIds,
                     craftOnly,
                 });
                 return [
                     `灵感会话已开：${sessionId}`,
                     `- goal：${goal}`,
-                    `- cards：${args.card_ids.join("、")}`,
+                    `- cards：${(cardIds ?? []).join("、")}`,
                     `- 分轴：mind ${mindCount} · craft ${craftCount}` + (craftOnly ? " · craft_only" : ""),
                     "",
                     "下一步（闭环）：zhizhang_inspire_forge_brief → inspire_stage → inspire_accept(apply=true) → chapter_brief",
@@ -57,7 +57,7 @@ export function inspirationTools() {
                 working_dir: WORKING_DIR,
             },
             required: ["session"],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const sessionId = asString(args, "session", { required: true });
                 const paths = await openInsp(exec, args);
                 return InspirationPort.forgeBrief(paths, sessionId);
@@ -77,7 +77,7 @@ export function inspirationTools() {
                 working_dir: WORKING_DIR,
             },
             required: ["session", "kind", "payload"],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const sessionId = asString(args, "session", { required: true });
                 const kind = asString(args, "kind", { required: true });
                 if (kind !== "foundation" && kind !== "outline") {
@@ -114,7 +114,7 @@ export function inspirationTools() {
                 working_dir: WORKING_DIR,
             },
             required: ["candidate", "work"],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const candId = asString(args, "candidate", { required: true });
                 const workKey = asString(args, "work", { required: true });
                 const apply = Boolean(args.apply);
@@ -148,7 +148,7 @@ export function inspirationTools() {
                 working_dir: WORKING_DIR,
             },
             required: [],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const paths = await openInsp(exec, args);
                 const sessionId = asString(args, "session");
                 if (sessionId) {
@@ -167,7 +167,7 @@ export function inspirationTools() {
                     return "尚无灵感会话。用 zhizhang_inspire_start 开启。";
                 return [
                     "灵感会话（最近更新在前）：",
-                    ...rows.map((r, i) => `${i + 1}. ${r.id} · ${r.goal.slice(0, 40)}${r.goal.length > 40 ? "…" : ""} · cards=${r.cardIds.length} · forge=${r.forgeAt ? "是" : "否"}`),
+                    ...rows.map((r: any, i: number) => `${i + 1}. ${r.id} · ${r.goal.slice(0, 40)}${r.goal.length > 40 ? "…" : ""} · cards=${r.cardIds.length} · forge=${r.forgeAt ? "是" : "否"}`),
                 ].join("\n");
             },
         }),

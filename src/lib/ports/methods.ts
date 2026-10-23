@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * MethodRegistry — on-demand creative method assets (Contract 4.0 + skill rules).
  */
@@ -10,22 +9,22 @@ export const MethodRegistry = {
     list() {
         return listMethodAssets();
     },
-    get(id) {
+    get(id: string) {
         return getMethodAsset(id);
     },
-    getMany(ids) {
+    getMany(ids: any) {
         return getMethodAssets(ids);
     },
-    formatForAgent(asset) {
+    formatForAgent(asset: any) {
         return formatAssetForAgent(asset);
     },
     /** Default lean pack + extras; pass mode full for legacy four-pack. */
-    resolveBriefAssets(extraIds = [], mode = "lean") {
+    resolveBriefAssets(extraIds: any = [], mode: any = "lean") {
         const base = mode === "full" ? CHAPTER_BRIEF_FULL_ASSET_IDS : CHAPTER_BRIEF_ASSET_IDS;
         return getMethodAssets([...base, ...extraIds]);
     },
     /** Top-of-brief「本书读者合同」. */
-    formatReaderContract(input) {
+    formatReaderContract(input: any) {
         return formatReaderContractText(input);
     },
 };

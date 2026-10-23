@@ -1,4 +1,3 @@
-// @ts-nocheck
 /** System / product map / panel — orient to the single creative loop. */
 import { buildPanelSnapshot } from "../lib/store.js";
 import { ProductMap } from "../lib/ports/index.js";
@@ -6,6 +5,7 @@ import { SYSTEM_BRIEF } from "./brief.js";
 import { asString, openWork } from "./context.js";
 import { E, WORK_OPT, WORKING_DIR } from "./schema.js";
 import { defineTool } from "./types.js";
+import type { ExecContext } from "./types.js";
 export function systemTools() {
     return [
         defineTool({
@@ -40,7 +40,7 @@ export function systemTools() {
                 format: E(["json", "html", "both"], "默认 both"),
             },
             required: [],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const { paths, dir } = await openWork(exec, args);
                 const snap = await buildPanelSnapshot(dir, paths);
                 const fmt = asString(args, "format") ?? "both";

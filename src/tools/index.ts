@@ -1,4 +1,3 @@
-// @ts-nocheck
 /** Compose domain tool arrays — public tool names stay stable. */
 import { auditTools } from "./audit.js";
 import { candidatesTools } from "./candidates.js";

@@ -1,8 +1,7 @@
-// @ts-nocheck
 import { getPortConfig } from "./config.js";
 import { allow, deny, warn, info } from "./types.js";
 export const BriefGate = {
-    evaluateAccept(opts) {
+    evaluateAccept(opts: any) {
         const recentMs = opts.recentMs ?? getPortConfig().briefRecentMs;
         const hours = Math.round(recentMs / 3600000);
         if (!opts.brief && !opts.skipBrief) {

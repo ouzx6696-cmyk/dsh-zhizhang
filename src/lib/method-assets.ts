@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * On-demand creative method assets — Contract 4.0 + writing/review methods.
  * Pure data + getters. Agents pull via zhizhang_method_* / zhizhang_chapter_brief.
@@ -193,18 +192,18 @@ const ASSETS = [
         ].join("\n"),
     },
 ];
-const BY_ID = new Map(ASSETS.map((a) => [a.id, a]));
-export const METHOD_ASSET_IDS = ASSETS.map((a) => a.id);
+const BY_ID = new Map(ASSETS.map((a: any) => [a.id, a]));
+export const METHOD_ASSET_IDS = ASSETS.map((a: any) => a.id);
 export function listMethodAssets() {
     return ASSETS.map(({ id, title, whenToUse }) => ({ id, title, whenToUse }));
 }
-export function getMethodAsset(id) {
+export function getMethodAsset(id: string) {
     const key = id.trim();
     if (!key)
         return undefined;
     return BY_ID.get(key);
 }
-export function getMethodAssets(ids) {
+export function getMethodAssets(ids: any) {
     const found = [];
     const missing = [];
     const seen = new Set();
@@ -226,11 +225,11 @@ export function getMethodAssets(ids) {
 export const CHAPTER_BRIEF_ASSET_IDS = ["style_contract"];
 /** Full brief pack (explicit brief_mode=full). */
 export const CHAPTER_BRIEF_FULL_ASSET_IDS = ["novel_sense", "style_contract", "draft", "tomato_four_q"];
-export function formatAssetForAgent(asset) {
+export function formatAssetForAgent(asset: any) {
     return [`## 方法资产 · ${asset.id} · ${asset.title}`, `适用：${asset.whenToUse}`, "", asset.body].join("\n");
 }
 /** Truncate long foundation fields for brief injection. */
-export function truncateForBrief(text, max = 480) {
+export function truncateForBrief(text: string, max: any = 480) {
     const t = String(text ?? "").trim();
     if (!t)
         return "";
@@ -244,7 +243,7 @@ export const PREV_CHAPTER_BODY_SOFT_MAX = 16000;
  * Resolve previous-chapter prose for brief injection.
  * Prefers `body` (full); falls back to `bodyTail` for legacy callers.
  */
-export function resolvePreviousBody(prev) {
+export function resolvePreviousBody(prev: any) {
     const raw = (prev.body?.trim() || prev.bodyTail?.trim() || "");
     if (!raw)
         return { text: "", clipped: false, source: "empty" };
@@ -262,7 +261,7 @@ export function resolvePreviousBody(prev) {
  * Top-of-brief「本书读者合同」— book identity for the drafting agent.
  * For n≥2, previous chapter **body** is primary; ending + happened are indexes.
  */
-export function formatReaderContract(input) {
+export function formatReaderContract(input: any) {
     const lean = Boolean(input.lean);
     const planMax = lean ? 200 : 480;
     const threadMax = lean ? 200 : 480;
@@ -315,7 +314,7 @@ export function formatReaderContract(input) {
             const end = prev.ending.trim();
             const hay = resolved.text;
             const cjkEnd = end.match(/[\u4e00-\u9fff]{2,}/g) ?? [];
-            const hit = cjkEnd.filter((w) => hay.includes(w)).length;
+            const hit = cjkEnd.filter((w: any) => hay.includes(w)).length;
             if (cjkEnd.length >= 2 && hit === 0) {
                 lines.push("- ⚠️ 前章纲末与正文可能不一致 — 续写以注入的前章正文与状态·已发生为准。");
             }
@@ -328,7 +327,7 @@ export function formatReaderContract(input) {
     else {
         lines.push("- 前章：（本章为开篇或尚无前章）");
     }
-    const warns = (input.warnings ?? []).map((w) => w.trim()).filter(Boolean);
+    const warns = (input.warnings ?? []).map((w: any) => w.trim()).filter(Boolean);
     if (warns.length > 0) {
         lines.push("### 书感软提示");
         for (const w of warns)

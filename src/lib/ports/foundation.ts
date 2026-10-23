@@ -1,20 +1,19 @@
-// @ts-nocheck
 /**
  * FoundationPort — append happened (当前小说状态·已发生) after chapter accept.
  * Does not invent long prose; prefers outline.ending when it aligns with body tail,
  * otherwise short body outcome (0.10.0).
  */
 import { readWorkMeta, setFoundation } from "../store.js";
-const CHAPTER_MARK = (chapterId) => `[${chapterId}]`;
+const CHAPTER_MARK = (chapterId: string) => `[${chapterId}]`;
 /** Last ~1–2 sentences / up to maxLen chars from body — short outcome only. */
-export function extractBodyOutcome(body, maxLen = 120) {
+export function extractBodyOutcome(body: string, maxLen: any = 120) {
     const raw = String(body ?? "").trim().replace(/\s+/g, " ");
     if (!raw)
         return "";
     const slice = raw.length > maxLen * 2 ? raw.slice(-(maxLen * 2)) : raw;
     const parts = slice
         .split(/(?<=[。！？])|(?<=…)|(?<=……)/)
-        .map((s) => s.trim())
+        .map((s: string) => s.trim())
         .filter(Boolean);
     let picked = "";
     if (parts.length === 0) {
@@ -31,7 +30,7 @@ export function extractBodyOutcome(body, maxLen = 120) {
     return picked;
 }
 /** Meaningful tokens (≥2 chars) from ending for overlap check. */
-export function significantTokens(text) {
+export function significantTokens(text: string) {
     const t = String(text ?? "").trim();
     if (!t)
         return [];
@@ -52,10 +51,10 @@ export function significantTokens(text) {
         if (inner.length >= 1)
             out.push(inner);
     }
-    return [...new Set(out.filter((x) => x.length >= 1))];
+    return [...new Set(out.filter((x: any) => x.length >= 1))];
 }
 /** Ratio of ending tokens found in bodyTail (0–1). Empty ending → 1. */
-export function endingBodyOverlap(ending, bodyTail) {
+export function endingBodyOverlap(ending: any, bodyTail: any) {
     const tokens = significantTokens(ending);
     if (tokens.length === 0)
         return 1;
@@ -73,7 +72,7 @@ export function endingBodyOverlap(ending, bodyTail) {
  * Choose short happened text: ending if it aligns with body tail; else body outcome.
  * Never invents long prose from body beyond extractBodyOutcome.
  */
-export function resolveHappenedText(opts) {
+export function resolveHappenedText(opts: any) {
     const ending = String(opts.ending ?? "").trim().replace(/\s+/g, " ");
     const bodyTail = extractBodyOutcome(opts.body);
     const minOverlap = opts.minOverlap ?? 0.35;
@@ -105,7 +104,7 @@ export const FoundationPort = {
     /**
      * Build a one-line happened entry. Returns empty if text is blank.
      */
-    formatChapterOutcomeLine(chapterId, title, text) {
+    formatChapterOutcomeLine(chapterId: string, title: string, text: string) {
         const t = String(text ?? "").trim().replace(/\s+/g, " ");
         if (!t)
             return "";
@@ -117,7 +116,7 @@ export const FoundationPort = {
      * Append a short happened line for a chapter. Idempotent per chapterId marker.
      * Skips when text empty (caller should still remind).
      */
-    async appendHappened(dir, input) {
+    async appendHappened(dir: string, input: any) {
         const chapterId = String(input.chapterId ?? "").trim();
         if (!chapterId) {
             const meta = await readWorkMeta(dir);
@@ -141,7 +140,7 @@ export const FoundationPort = {
     /**
      * Soft receipt lines after candidate_accept — remind model to refresh 当前小说状态.
      */
-    acceptReceiptLines(opts) {
+    acceptReceiptLines(opts: any) {
         const lines = [];
         const ending = String(opts.ending ?? "").trim();
         const threads = String(opts.threads ?? "").trim();

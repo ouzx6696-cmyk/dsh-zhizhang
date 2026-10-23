@@ -1,5 +1,5 @@
-// @ts-nocheck
 import { access, readFile } from "node:fs/promises";
+import type { StoragePaths, PluginConfig } from "./types.js";
 import path from "node:path";
 import { assertResourceId, buildPanelSnapshot, countWords, ensureStorage, getLastToolBase, listCandidates, listProjects, listWorks, loadLastToolBase, projectIdOf, readCandidate, readChapter, resolveWorkDir, } from "./store.js";
 import { buildInspirationView, buildLibraryView, buildProductView } from "./panel-enrich.js";
@@ -10,10 +10,10 @@ import { MultiDraftPort } from "./ports/multi-draft.js";
 /** Soft body cap for panel reads (~400 KiB). */
 export const PANEL_BODY_BYTE_CAP = 400 * 1024;
 /** Safe chapter / candidate id: no path segments, no traversal (delegates to the store). */
-export function assertSafeResourceId(id, label) {
+export function assertSafeResourceId(id: string, label: string) {
     return assertResourceId(id, label);
 }
-export function capPanelBody(body) {
+export function capPanelBody(body: string) {
     const raw = typeof body === "string" ? body : "";
     const buf = Buffer.from(raw, "utf8");
     if (buf.length <= PANEL_BODY_BYTE_CAP) {
@@ -29,7 +29,7 @@ export function capPanelBody(body) {
     };
 }
 export const ZZ_API_PREFIX = "/api/dsh-zhizhang";
-function writeJson(res, status, body) {
+function writeJson(res: any, status: any, body: any) {
     const payload = JSON.stringify(body);
     res.writeHead(status, {
         "content-type": "application/json; charset=utf-8",
@@ -37,11 +37,11 @@ function writeJson(res, status, body) {
     });
     res.end(payload);
 }
-function isLoopback(req) {
+function isLoopback(req: any) {
     const ra = req.socket?.remoteAddress ?? "";
     return ra === "127.0.0.1" || ra === "::1" || ra === "::ffff:127.0.0.1";
 }
-function isAllowed(req, allowLan) {
+function isAllowed(req: any, allowLan: any) {
     if (isLoopback(req))
         return true;
     if (!allowLan)
@@ -59,10 +59,10 @@ function isAllowed(req, allowLan) {
         return false;
     }
 }
-function parseUrl(req) {
+function parseUrl(req: any) {
     return new URL(req.url ?? "/", "http://127.0.0.1");
 }
-async function pathExists(p) {
+async function pathExists(p: any) {
     try {
         await access(p);
         return true;
@@ -75,7 +75,7 @@ async function pathExists(p) {
  * Resolve storage root for HTTP (no agent session).
  * Priority: config.storageRoot → env DSH_ZHIZHANG_ROOT → cwd/.zhizhang if present → ensureStorage default.
  */
-export async function resolveHttpPaths(config) {
+export async function resolveHttpPaths(config: PluginConfig) {
     if (config.storageRoot) {
         const paths = await ensureStorage(null, config);
         return { ...paths, resolvedVia: "config.storageRoot" };
@@ -122,11 +122,11 @@ export async function resolveHttpPaths(config) {
     const paths = await ensureStorage(null, config);
     return { ...paths, resolvedVia: "ensureStorage(cwd)" };
 }
-function readBody(req, limit = 64_000) {
-    return new Promise((resolve, reject) => {
-        const chunks = [];
+function readBody(req: any, limit: number = 64_000) {
+    return new Promise((resolve: any, reject: any) => {
+        const chunks: Buffer[] = [];
         let size = 0;
-        req.on("data", (c) => {
+        req.on("data", (c: any) => {
             size += c.length;
             if (size > limit) {
                 reject(new Error("body too large"));
@@ -140,7 +140,7 @@ function readBody(req, limit = 64_000) {
     });
 }
 /** Read-only unify brief pack — no disk writes. */
-export async function prepareUnifyBrief(paths, opts) {
+export async function prepareUnifyBrief(paths: StoragePaths, opts: any) {
     if (!MultiDraftPort.isEnabled()) {
         return {
             ok: false,
@@ -165,14 +165,14 @@ export async function prepareUnifyBrief(paths, opts) {
             error: err instanceof Error ? err.message : String(err),
         };
     }
-    let ids = (opts.candidateIds ?? []).map((x) => String(x).trim()).filter(Boolean);
+    let ids = (opts.candidateIds ?? []).map((x: any) => String(x).trim()).filter(Boolean);
     const chapterArg = String(opts.chapter ?? "").trim();
     if (ids.length === 0) {
         if (!chapterArg) {
             return { ok: false, enabled: true, code: "bad_args", error: "请传 chapter 或 candidateIds" };
         }
-        const pending = (await listCandidates(dir)).filter((c) => c.pending && c.chapterId === chapterArg);
-        ids = pending.map((c) => c.id);
+        const pending = (await listCandidates(dir)).filter((c: any) => c.pending && c.chapterId === chapterArg);
+        ids = pending.map((c: any) => c.id);
     }
     if (ids.length < 2) {
         return {
@@ -215,7 +215,7 @@ export async function prepareUnifyBrief(paths, opts) {
                 error: `chapter=${chapterArg} 与候选章 ${chapterId} 不一致`,
             };
         }
-        const views = parents.map((p) => MultiDraftPort.parentView(p));
+        const views = parents.map((p: any) => MultiDraftPort.parentView(p));
         const brief = MultiDraftPort.formatUnifyBrief({
             chapterId,
             workKey: work,
@@ -227,7 +227,7 @@ export async function prepareUnifyBrief(paths, opts) {
             chapterId,
             candidateIds: ids,
             brief,
-            parents: views.map((v) => ({
+            parents: views.map((v: any) => ({
                 id: v.id,
                 draftLabel: v.draftLabel,
                 wordCount: v.wordCount,
@@ -249,7 +249,12 @@ export async function prepareUnifyBrief(paths, opts) {
  * against the known-workspace index. Only indexed, existing workspaces are readable —
  * the panel must never turn into an arbitrary file browser.
  */
-async function panelPaths(url, config, baseOverride = "") {
+interface PanelPathsResult {
+    paths?: StoragePaths;
+    error?: string;
+}
+
+async function panelPaths(url: any, config: PluginConfig, baseOverride: any = ""): Promise<PanelPathsResult> {
     const requested = (baseOverride ||
         url.searchParams.get("base") ||
         url.searchParams.get("project") ||
@@ -258,7 +263,7 @@ async function panelPaths(url, config, baseOverride = "") {
         return { paths: await resolveHttpPaths(config) };
     }
     const want = projectIdOf(requested);
-    const find = (list) => list.find((p) => p.id === want || projectIdOf(p.base) === want);
+    const find = (list: any) => list.find((p: any) => p.id === want || projectIdOf(p.base) === want);
     let match = find(await listProjects());
     if (!match)
         match = find(await listProjects({ refresh: true }));
@@ -271,9 +276,9 @@ async function panelPaths(url, config, baseOverride = "") {
     });
     return { paths: { ...paths, resolvedVia: "panel:selected-project" } };
 }
-export function createPanelApiHandler(config = {}) {
+export function createPanelApiHandler(config: PluginConfig = {}) {
     const allowLan = config.allowLanPanel === true;
-    return async function panelApiHandler(req, res) {
+    return async function panelApiHandler(req: any, res: any) {
         try {
             if (!isAllowed(req, allowLan)) {
                 return writeJson(res, 403, { ok: false, error: "forbidden: loopback-only" });
@@ -288,7 +293,7 @@ export function createPanelApiHandler(config = {}) {
                 }
                 let bodyRaw = "";
                 try {
-                    bodyRaw = await readBody(req);
+                    bodyRaw = String(await readBody(req));
                 }
                 catch (err) {
                     return writeJson(res, 413, {
@@ -297,7 +302,7 @@ export function createPanelApiHandler(config = {}) {
                         error: err instanceof Error ? err.message : String(err),
                     });
                 }
-                let parsed = {};
+                let parsed: any = {};
                 try {
                     parsed = bodyRaw ? JSON.parse(bodyRaw) : {};
                 }
@@ -308,7 +313,7 @@ export function createPanelApiHandler(config = {}) {
                 if (picked.error) {
                     return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
                 }
-                const paths = picked.paths;
+                const paths = picked.paths as StoragePaths;
                 const acceptReq = {
                     work: String(parsed.work ?? parsed.workKey ?? ""),
                     candidate: String(parsed.candidate ?? parsed.candidateId ?? ""),
@@ -350,14 +355,14 @@ export function createPanelApiHandler(config = {}) {
                 if (picked.error) {
                     return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
                 }
-                const paths = picked.paths;
+                const paths = picked.paths as StoragePaths;
                 let work = "";
                 let chapter = "";
                 let candidateIds = [];
                 if (method === "POST") {
                     let bodyRaw = "";
                     try {
-                        bodyRaw = await readBody(req);
+                        bodyRaw = String(await readBody(req));
                     }
                     catch (err) {
                         return writeJson(res, 413, {
@@ -366,7 +371,7 @@ export function createPanelApiHandler(config = {}) {
                             error: err instanceof Error ? err.message : String(err),
                         });
                     }
-                    let parsed = {};
+                    let parsed: any = {};
                     try {
                         parsed = bodyRaw ? JSON.parse(bodyRaw) : {};
                     }
@@ -384,7 +389,7 @@ export function createPanelApiHandler(config = {}) {
                     chapter = (url.searchParams.get("chapter") ?? "").trim();
                     const rawIds = url.searchParams.get("candidate_ids") ?? url.searchParams.get("ids") ?? "";
                     if (rawIds.trim()) {
-                        candidateIds = rawIds.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
+                        candidateIds = rawIds.split(/[,\s]+/).map((s: any) => s.trim()).filter(Boolean);
                     }
                 }
                 const result = await prepareUnifyBrief(paths, { work, chapter, candidateIds });
@@ -406,7 +411,7 @@ export function createPanelApiHandler(config = {}) {
                 if (picked.error) {
                     return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
                 }
-                const paths = picked.paths;
+                const paths = picked.paths as StoragePaths;
                 return writeJson(res, 200, {
                     ok: true,
                     plugin: "dsh-zhizhang",
@@ -436,7 +441,7 @@ export function createPanelApiHandler(config = {}) {
                 const paths = await resolveHttpPaths(config);
                 const current = projectIdOf(paths.base);
                 const known = await listProjects({ refresh: url.searchParams.get("refresh") === "1" });
-                if (!known.some((p) => p.id === current)) {
+                if (!known.some((p: any) => p.id === current)) {
                     known.unshift({
                         id: current,
                         base: paths.base,
@@ -462,18 +467,18 @@ export function createPanelApiHandler(config = {}) {
                 if (picked.error) {
                     return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
                 }
-                const paths = picked.paths;
+                const paths = picked.paths as StoragePaths;
                 const works = await listWorks(paths);
                 return writeJson(res, 200, {
                     ok: true,
                     base: paths.base,
                     resolvedVia: paths.resolvedVia,
-                    works: works.map((w) => ({
+                    works: works.map((w: any) => ({
                         key: w.key,
                         title: w.title,
                         genre: w.genre,
                         chapters: w.chapters.length,
-                        words: w.chapters.reduce((s, c) => s + (c.wordCount || 0), 0),
+                        words: w.chapters.reduce((s: string, c: any) => s + (c.wordCount || 0), 0),
                         updatedAt: w.updatedAt,
                     })),
                 });
@@ -483,7 +488,7 @@ export function createPanelApiHandler(config = {}) {
                 if (picked.error) {
                     return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
                 }
-                const paths = picked.paths;
+                const paths = picked.paths as StoragePaths;
                 const library = await buildLibraryView(paths);
                 return writeJson(res, 200, {
                     ok: true,
@@ -501,7 +506,7 @@ export function createPanelApiHandler(config = {}) {
                 if (picked.error) {
                     return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
                 }
-                const reportPath = path.join(picked.paths.library, "analyses", source, "report.md");
+                const reportPath = path.join((picked.paths as StoragePaths).library, "analyses", source, "report.md");
                 try {
                     const report = await readFile(reportPath, "utf8");
                     return writeJson(res, 200, { ok: true, source, report });
@@ -515,7 +520,7 @@ export function createPanelApiHandler(config = {}) {
                 if (picked.error) {
                     return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
                 }
-                const paths = picked.paths;
+                const paths = picked.paths as StoragePaths;
                 let workKey = (url.searchParams.get("work") ?? "").trim();
                 const works = await listWorks(paths);
                 if (!workKey && works.length === 1)
@@ -529,14 +534,14 @@ export function createPanelApiHandler(config = {}) {
                     threads: "",
                     style: "",
                 };
-                let chapters = [];
+                let chapters: any[] = [];
                 if (workKey) {
                     try {
                         const dir = await resolveWorkDir(paths, workKey);
                         const meta = await readWorkMeta(dir);
                         foundation = meta.foundation;
                         const snap = await buildPanelSnapshot(dir, paths, { includeHtml: false });
-                        chapters = snap.chapters.map((c) => ({
+                        chapters = snap.chapters.map((c: any) => ({
                             situationLens: c.situationLens,
                             livedScene: c.livedScene,
                             stateLens: c.stateLens,
@@ -564,7 +569,7 @@ export function createPanelApiHandler(config = {}) {
                 if (picked.error) {
                     return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
                 }
-                const paths = picked.paths;
+                const paths = picked.paths as StoragePaths;
                 const works = await listWorks(paths);
                 let workKey = (url.searchParams.get("work") ?? "").trim();
                 if (!workKey) {
@@ -586,7 +591,7 @@ export function createPanelApiHandler(config = {}) {
                             ok: true,
                             needWork: true,
                             message: "请选择作品",
-                            works: works.map((w) => ({ key: w.key, title: w.title })),
+                            works: works.map((w: any) => ({ key: w.key, title: w.title })),
                             projectId: projectIdOf(paths.base),
                             base: paths.base,
                             resolvedVia: paths.resolvedVia,
@@ -616,7 +621,7 @@ export function createPanelApiHandler(config = {}) {
                     snapshot: rest,
                     ...(includeHtml ? { html } : {}),
                     multiDraftEnabled: rest.multiDraftEnabled,
-                    works: works.map((w) => ({ key: w.key, title: w.title })),
+                    works: works.map((w: any) => ({ key: w.key, title: w.title })),
                     projectId: projectIdOf(paths.base),
                     base: paths.base,
                     resolvedVia: paths.resolvedVia,
@@ -627,7 +632,7 @@ export function createPanelApiHandler(config = {}) {
                 if (picked.error) {
                     return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
                 }
-                const paths = picked.paths;
+                const paths = picked.paths as StoragePaths;
                 const workKey = (url.searchParams.get("work") ?? "").trim();
                 let chapterId = (url.searchParams.get("id") ?? url.searchParams.get("chapter") ?? "").trim();
                 if (!workKey) {
@@ -680,7 +685,7 @@ export function createPanelApiHandler(config = {}) {
                 }
                 catch (err) {
                     const msg = err instanceof Error ? err.message : String(err);
-                    const missing = err?.code === "ENOENT" ||
+                    const missing = (err as any)?.code === "ENOENT" ||
                         /ENOENT|no such file|不存在/i.test(msg);
                     return writeJson(res, missing ? 404 : 500, {
                         ok: false,
@@ -694,7 +699,7 @@ export function createPanelApiHandler(config = {}) {
                 if (picked.error) {
                     return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
                 }
-                const paths = picked.paths;
+                const paths = picked.paths as StoragePaths;
                 const workKey = (url.searchParams.get("work") ?? "").trim();
                 let candidateId = (url.searchParams.get("id") ?? url.searchParams.get("candidate") ?? "").trim();
                 if (!workKey) {
@@ -757,7 +762,7 @@ export function createPanelApiHandler(config = {}) {
                 }
                 catch (err) {
                     const msg = err instanceof Error ? err.message : String(err);
-                    const missing = err?.code === "ENOENT" ||
+                    const missing = (err as any)?.code === "ENOENT" ||
                         /ENOENT|no such file|不存在/i.test(msg);
                     return writeJson(res, missing ? 404 : 500, {
                         ok: false,
@@ -777,7 +782,7 @@ export function createPanelApiHandler(config = {}) {
     };
 }
 /** Register routes on DSH webServer (optional; headless skips). */
-export function registerPanelHttpRoutes(ctx, config) {
+export function registerPanelHttpRoutes(ctx: any, config: PluginConfig) {
     const routeList = [
         ZZ_API_PREFIX,
         `${ZZ_API_PREFIX}/health`,
@@ -794,10 +799,10 @@ export function registerPanelHttpRoutes(ctx, config) {
     ];
     try {
         if (typeof ctx.inject === "function") {
-            ctx.inject(["webServer"], (wctx) => {
+            ctx.inject(["webServer"], (wctx: any) => {
                 const handler = createPanelApiHandler(config);
                 const run = () => {
-                    const disposers = routeList.map((p) => wctx.webServer.register({ kind: "exact", path: p, handler }));
+                    const disposers = routeList.map((p: any) => wctx.webServer.register({ kind: "exact", path: p, handler }));
                     return () => {
                         for (const d of disposers) {
                             if (typeof d === "function")

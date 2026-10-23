@@ -1,9 +1,8 @@
-// @ts-nocheck
 import { getPortConfig } from "./config.js";
 import { Scheduler } from "./scheduler.js";
 import { PLUGIN_VERSION } from "../version.js";
 export const MULTI_DRAFT_DISABLED_CODE = "multi_draft_disabled";
-function countWordsLocal(text) {
+function countWordsLocal(text: string) {
     if (typeof text !== "string" || text.length === 0)
         return 0;
     const cjk = text.match(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/gu)
@@ -22,7 +21,7 @@ export function isMultiDraftEnabled() {
         return true;
     return envMultiDraftFlag();
 }
-function clipPreview(body, max = 280) {
+function clipPreview(body: string, max: any = 280) {
     const t = String(body ?? "").replace(/\s+/g, " ").trim();
     if (t.length <= max)
         return t;
@@ -41,11 +40,11 @@ export const MultiDraftPort = {
     requireEnabled() {
         if (MultiDraftPort.isEnabled())
             return;
-        const err = new Error(`多草稿统一整理未开启（${MULTI_DRAFT_DISABLED_CODE}）。${MultiDraftPort.enableHint()}`);
+        const err = new Error(`多草稿统一整理未开启（${MULTI_DRAFT_DISABLED_CODE}）。${MultiDraftPort.enableHint()}`) as Error & { code?: string };
         err.code = MULTI_DRAFT_DISABLED_CODE;
         throw err;
     },
-    parentView(cand) {
+    parentView(cand: any) {
         return {
             id: cand.id,
             draftLabel: cand.draftLabel,
@@ -58,11 +57,11 @@ export const MultiDraftPort = {
      * Positive merge brief — keep plot/pressure, pick best voice edges, one continuous chapter.
      * No 不要xx stacks.
      */
-    formatUnifyBrief(input) {
+    formatUnifyBrief(input: any) {
         const n = input.parents.length;
-        const words = input.parents.map((p) => p.wordCount);
+        const words = input.parents.map((p: any) => Number(p.wordCount ?? 0));
         const avg = words.length > 0
-            ? Math.round(words.reduce((a, b) => a + b, 0) / words.length)
+            ? Math.round(words.reduce((a: any, b: any) => a + b, 0) / words.length)
             : 0;
         const lo = words.length ? Math.min(...words) : 0;
         const hi = words.length ? Math.max(...words) : 0;
@@ -88,7 +87,7 @@ export const MultiDraftPort = {
         lines.push("", "【硬边界】", "- 只输出合并后的本章正文，无对比报告。", "- 不新增无关支线；不静默写 chapters/。", "- 整理稿经 unify_stage 暂存后，仍须 style_lint → candidate_accept。", "", `下一步：${Scheduler.nextHint("candidate_unify_brief")}`);
         return lines.join("\n");
     },
-    afterUnifyStageLines(opts) {
+    afterUnifyStageLines(opts: any) {
         return [
             `统一整理候选已暂存：${opts.unifyCandId}`,
             `- 章：${opts.chapterId}`,

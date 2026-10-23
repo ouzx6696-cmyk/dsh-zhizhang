@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Scheduler — single source of truth for default route vs explicit bypasses.
  * ProductMap / SYSTEM_BRIEF / tool receipts must cite this, not invent parallel chains.
@@ -101,8 +100,8 @@ export const Scheduler = {
         return SCHEDULER_BYPASSES;
     },
     /** Receipt / status next-step; unknown keys fall back to write line. */
-    nextHint(after) {
-        return NEXT_HINTS[after] ?? SCHEDULER_WRITE_LINE;
+    nextHint(after: string) {
+        return (NEXT_HINTS as Record<string, string>)[after] ?? SCHEDULER_WRITE_LINE;
     },
     /** Panel / status default-route lines — single source; audits never listed as default. */
     panelRouteHints() {

@@ -1,12 +1,12 @@
-// @ts-nocheck
 /** Shared MethodRegistry tools + chapter_brief (writing entry that injects craft packs). */
 import { buildPanelSnapshot, readChapter, readWorkMeta, recordBriefBreadcrumb, } from "../lib/store.js";
 import { resolvePrevChapter } from "../lib/services/chapter-context.js";
 import { InspirationPort, METHOD_ASSET_IDS, MethodRegistry, Scheduler, } from "../lib/ports/index.js";
-import { asString, fail, openWork } from "./context.js";
+import { asString, asStringArray, fail, openWork } from "./context.js";
 import { renderOutline, renderOutlineLean } from "./render.js";
 import { B, S, WORK_OPT, WORKING_DIR } from "./schema.js";
 import { defineTool } from "./types.js";
+import type { ExecContext } from "./types.js";
 /** Soft budget hint for lean brief (chars); not a hard truncate of model context. */
 const LEAN_BRIEF_BUDGET = 2500;
 export function methodsTools() {
@@ -37,7 +37,7 @@ export function methodsTools() {
                 id: S("单个资产 id（与 ids 二选一或并用）"),
             },
             required: [],
-            async execute(args) {
+            async execute(args: any) {
                 const raw = [];
                 const idsArg = asString(args, "ids");
                 const idArg = asString(args, "id");
@@ -45,11 +45,9 @@ export function methodsTools() {
                     raw.push(...idsArg.split(/[,，\s]+/));
                 if (idArg)
                     raw.push(idArg);
-                if (Array.isArray(args.ids)) {
-                    for (const x of args.ids)
-                        raw.push(String(x));
-                }
-                const cleaned = raw.map((s) => s.trim()).filter(Boolean);
+                for (const x of asStringArray(args, "ids") ?? [])
+                    raw.push(x);
+                const cleaned = raw.map((s: string) => s.trim()).filter(Boolean);
                 if (cleaned.length === 0) {
                     fail(`请传 ids 或 id。可用：${METHOD_ASSET_IDS.join("、")}。先 zhizhang_method_list 查看说明。`);
                 }
@@ -57,7 +55,7 @@ export function methodsTools() {
                 if (found.length === 0) {
                     fail(`未知方法资产：${missing.join("、")}。可用：${METHOD_ASSET_IDS.join("、")}`);
                 }
-                const parts = found.map((a) => MethodRegistry.formatForAgent(a));
+                const parts = found.map((a: any) => MethodRegistry.formatForAgent(a));
                 if (missing.length > 0) {
                     parts.push(`\n（未找到：${missing.join("、")}；已返回其余 ${found.length} 项）`);
                 }
@@ -83,13 +81,13 @@ export function methodsTools() {
                 skip_cards: B("跳过技法卡注入（仅方法包；默认 false）"),
             },
             required: ["chapter"],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const chapterId = asString(args, "chapter", { required: true });
                 const modeRaw = (asString(args, "brief_mode") || "lean").trim().toLowerCase();
                 const lean = modeRaw !== "full";
                 const { paths, dir, key } = await openWork(exec, args);
                 const meta = await readWorkMeta(dir);
-                let chapter;
+                let chapter: any;
                 try {
                     chapter = await readChapter(dir, chapterId);
                 }
@@ -99,20 +97,17 @@ export function methodsTools() {
                 const extraRaw = asString(args, "extra_assets") ?? "";
                 const extraIds = extraRaw
                     .split(/[,，\s]+/)
-                    .map((s) => s.trim())
+                    .map((s: string) => s.trim())
                     .filter(Boolean);
                 const { found, missing } = MethodRegistry.resolveBriefAssets(extraIds, lean ? "lean" : "full");
                 const skipCards = Boolean(args.skip_cards);
                 let cardSection = "";
-                let cardIdsForCrumb = [];
+                let cardIdsForCrumb: string[] = [];
                 if (!skipCards) {
-                    const explicitIds = Array.isArray(args.card_ids)
-                        ? args.card_ids.map((x) => String(x).trim()).filter(Boolean)
-                        : [];
+                    const explicitIds = asStringArray(args, "card_ids") ?? [];
                     const resolved = await InspirationPort.resolveCardsForBrief(paths, {
                         cardIds: explicitIds,
                         workKey: key,
-                        genre: meta.genre || undefined,
                         limit: lean ? 3 : 5,
                     });
                     cardSection = InspirationPort.formatCardsSection(resolved.cards, {
@@ -120,7 +115,7 @@ export function methodsTools() {
                         note: resolved.note,
                         lean,
                     });
-                    cardIdsForCrumb = resolved.cardIds.map((id) => `card:${id}`);
+                    cardIdsForCrumb = resolved.cardIds.map((id: string) => `card:${id}`);
                 }
                 else {
                     cardSection = [
@@ -211,7 +206,7 @@ export function methodsTools() {
                 else {
                     const snap = await buildPanelSnapshot(dir, paths);
                     lines.push(readerContract, "");
-                    lines.push("## 根基（锁定 / 文风）", `- 锁定：${f.locks || "（空）"}`, `- 文风根基：${f.style || "（空）"}`, "", "## 本章章纲与处境", renderOutline(o), "", "## 下一步提示", `- 默认：${Scheduler.nextHint("chapter_brief")}`, ...snap.nextHints.map((h) => `- ${h}`), "", "## 工程提醒", `- 默认交稿：${Scheduler.writeLine()}`, "- brief.full 为本模式；*_audit / assemble 为旁路", "- lintPassToken 只证明已扫过，不是质量过关");
+                    lines.push("## 根基（锁定 / 文风）", `- 锁定：${f.locks || "（空）"}`, `- 文风根基：${f.style || "（空）"}`, "", "## 本章章纲与处境", renderOutline(o), "", "## 下一步提示", `- 默认：${Scheduler.nextHint("chapter_brief")}`, ...snap.nextHints.map((h: any) => `- ${h}`), "", "## 工程提醒", `- 默认交稿：${Scheduler.writeLine()}`, "- brief.full 为本模式；*_audit / assemble 为旁路", "- lintPassToken 只证明已扫过，不是质量过关");
                     if (Boolean(args.include_body) && chapter.body.trim()) {
                         lines.push("", "## 已存正文（只读）", chapter.body.trim());
                     }
@@ -235,7 +230,7 @@ export function methodsTools() {
                 if (missing.length > 0) {
                     lines.push("", `（额外资产未找到：${missing.join("、")}）`);
                 }
-                const usedIds = [...found.map((a) => a.id), ...cardIdsForCrumb];
+                const usedIds = [...found.map((a: any) => a.id), ...cardIdsForCrumb];
                 await recordBriefBreadcrumb(dir, { chapterId, assetIds: usedIds });
                 lines.push("", `（已留痕 brief-crumbs：${chapterId} · ${usedIds.join(",") || "(none)"} · mode=${lean ? "lean" : "full"}）`);
                 return lines.join("\n");

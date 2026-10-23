@@ -1,4 +1,3 @@
-// @ts-nocheck
 /** 覆盖率 — 转发到 domain/coverage（唯一公式）。 */
 export {
     COVERAGE_WEIGHTS,

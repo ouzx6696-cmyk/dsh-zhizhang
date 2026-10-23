@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * 卡 schema / 规范化 / 准入 / 格式化 — 从 library.js 拆出的纯逻辑。
  * 不读写磁盘；只依赖 errors.js。
@@ -12,12 +11,12 @@ export const PERMISSION_EDGE_RE = /^(可以|允许)/;
 export const DEFAULT_FAIL_AS_TEMPLATE = "写成句句收齐、反应全对、说明段讲义、意义被作者收完的僵硬范文即失败";
 /** One-line anti-stiffness cue appended to lean brief when craft promises shatter. */
 export const ANTI_STIFFNESS_BRIEF_LINE = "本场反僵硬：按卡上的打碎逻辑写——呼吸可不一、念头可留半截、信息可侧漏、反应可先错；功能拍后可留余震；别把意义收成合格范文。";
-export function hasShatterCraftCue(...parts) {
+export function hasShatterCraftCue(...parts: any[]) {
     const blob = parts.filter(Boolean).join("\n");
     return blob.length > 0 && SHATTER_CRAFT_CUE_RE.test(blob);
 }
 
-export function normalizeMechanism(raw, i) {
+export function normalizeMechanism(raw: any, i: number) {
     if (!raw || typeof raw !== "object") {
         throw new ZhizhangError("bad_mechanism", `mechanisms[${i}] 必须是对象`);
     }
@@ -44,8 +43,8 @@ export function normalizeMechanism(raw, i) {
  * Accepts 0.6 writerCraft/characterState shape AND legacy voice/realness shape.
  * Never hard-reject for migration.
  */
-export function normalizeHumanFeel(raw) {
-    const warnings = [];
+export function normalizeHumanFeel(raw: any) {
+    const warnings: string[] = [];
     if (raw == null) {
         warnings.push("未填 humanFeel（活人证据）：兼容可过；新拆书请补 writerCraft / characterState / allowedEdges / failAsTemplate");
         return { warnings };
@@ -111,7 +110,7 @@ export function normalizeHumanFeel(raw) {
     };
 }
 /** Coerce on-disk / in-memory humanFeel that may still be legacy voice shape. */
-export function coerceHumanFeel(raw) {
+export function coerceHumanFeel(raw: any) {
     if (!raw || typeof raw !== "object")
         return undefined;
     const h = raw;
@@ -140,7 +139,7 @@ export function coerceHumanFeel(raw) {
     }
     return undefined;
 }
-export function craftCueFromHumanFeel(hf) {
+export function craftCueFromHumanFeel(hf: any) {
     const c = coerceHumanFeel(hf);
     if (!c)
         return "";
@@ -149,7 +148,7 @@ export function craftCueFromHumanFeel(hf) {
         .join("\n");
 }
 /** Format humanFeel for forge / brief / card_get. Missing → thin craft/state note. */
-export function formatHumanFeelBlock(hf) {
+export function formatHumanFeelBlock(hf: any) {
     const c = coerceHumanFeel(hf);
     if (!c) {
         return [
@@ -170,8 +169,8 @@ export function formatHumanFeelBlock(hf) {
 /**
  * Normalize optional bookCraft. Missing → soft warn; never hard-reject.
  */
-export function normalizeBookCraft(raw) {
-    const warnings = [];
+export function normalizeBookCraft(raw: any) {
+    const warnings: string[] = [];
     if (raw == null) {
         warnings.push("未填 bookCraft（继续证据）：兼容可过；新拆书请补 continueWhy / failAsShortStory");
         return { warnings };
@@ -190,7 +189,7 @@ export function normalizeBookCraft(raw) {
     if (!failAsShortStory) {
         warnings.push("bookCraft.failAsShortStory 为空：建议写「写成独立短篇闭环即失败」");
     }
-    const bookCraft = {
+    const bookCraft: { continueWhy: string; adjacentChange?: string; failAsShortStory?: string } = {
         continueWhy: continueWhy || "（未填）",
     };
     if (adjacentChange)
@@ -202,7 +201,7 @@ export function normalizeBookCraft(raw) {
     return { bookCraft, warnings };
 }
 /** Format bookCraft for forge / brief / card_get. */
-export function formatBookCraftBlock(bc) {
+export function formatBookCraftBlock(bc: any) {
     if (!bc) {
         return [
             "⚠️ **书感偏薄**：本卡无 bookCraft（旧卡或未填）。",
@@ -225,8 +224,8 @@ export function formatBookCraftBlock(bc) {
 /**
  * Normalize optional handoff four-tuple. Missing → soft warn only.
  */
-export function normalizeHandoff(raw) {
-    const warnings = [];
+export function normalizeHandoff(raw: any) {
+    const warnings: string[] = [];
     if (raw == null) {
         warnings.push("未填 handoff（purpose/experience/rebuild/discard）：可选；有助于交接");
         return { warnings };
@@ -253,7 +252,7 @@ export function normalizeHandoff(raw) {
         warnings,
     };
 }
-export function formatHandoffBlock(h) {
+export function formatHandoffBlock(h: any) {
     if (!h)
         return "（无 handoff）";
     return [
@@ -264,8 +263,8 @@ export function formatHandoffBlock(h) {
     ].join("\n");
 }
 const KIND_SET = new Set(["craft", "scene", "book", "voice"]); // voice=legacy alias → craft
-export function normalizeKind(raw) {
-    const warnings = [];
+export function normalizeKind(raw: any) {
+    const warnings: string[] = [];
     if (raw == null || raw === "") {
         return { warnings };
     }
@@ -284,8 +283,8 @@ export function normalizeKind(raw) {
  * Normalize / infer axis. Missing → soft warn + default craft (compat).
  * kind=book never becomes mind.
  */
-export function normalizeAxis(raw, hints = {}) {
-    const warnings = [];
+export function normalizeAxis(raw: any, hints: any = {}) {
+    const warnings: string[] = [];
     const rawStr = raw == null || raw === "" ? "" : String(raw).trim().toLowerCase();
     if (rawStr === "craft" || rawStr === "mind") {
         return { axis: rawStr, warnings };
@@ -293,8 +292,8 @@ export function normalizeAxis(raw, hints = {}) {
     if (rawStr) {
         warnings.push(`axis 无效「${raw}」（须 craft|mind），已按证据推断`);
     }
-    const tags = (hints.tags ?? []).map((t) => String(t).toLowerCase());
-    const tagMind = tags.some((t) => t === "mind" || t.includes("思维") || t.includes("创作思维") || t === "planning");
+    const tags = (hints.tags ?? []).map((t: any) => String(t).toLowerCase());
+    const tagMind = tags.some((t: any) => t === "mind" || t.includes("思维") || t.includes("创作思维") || t === "planning");
     if (hints.hasMind || tagMind) {
         if (!rawStr)
             warnings.push("未声明 axis：按 mind 证据推断为 mind");
@@ -311,7 +310,7 @@ export function normalizeAxis(raw, hints = {}) {
     return { axis: "craft", warnings };
 }
 /** Coerce on-disk card axis for reads (never throw). */
-export function coerceAxis(card) {
+export function coerceAxis(card: any) {
     const raw = card.axis;
     if (raw === "craft" || raw === "mind")
         return raw;
@@ -324,15 +323,15 @@ export function coerceAxis(card) {
     const tags = Array.isArray(card.tags)
         ? card.tags
         : [];
-    if (tags.some((t) => /mind|思维|planning/i.test(String(t))))
+    if (tags.some((t: any) => /mind|思维|planning/i.test(String(t))))
         return "mind";
     return "craft";
 }
 /**
  * Normalize optional mind block. Missing → soft warn for mind-axis callers.
  */
-export function normalizeMind(raw) {
-    const warnings = [];
+export function normalizeMind(raw: any) {
+    const warnings: string[] = [];
     if (raw == null) {
         warnings.push("未填 mind（创作思维）：mind 轴请补 sellIntoCost / infoStaging / pressureMachine / debtAndSwap / readerContract / failAsEncyclopedia");
         return { warnings };
@@ -373,7 +372,7 @@ export function normalizeMind(raw) {
         warnings,
     };
 }
-export function formatMindBlock(mind) {
+export function formatMindBlock(mind: any) {
     if (!mind) {
         return [
             "⚠️ **创作思维偏薄**：本卡无 mind 块。",
@@ -391,11 +390,11 @@ export function formatMindBlock(mind) {
     ].join("\n");
 }
 /** Soft warn if characterState looks like a personality wall. */
-export function warnCharacterStateWall(state) {
+export function warnCharacterStateWall(state: any) {
     const s = String(state ?? "").trim();
     if (!s || s === "（未填）")
         return [];
-    const warnings = [];
+    const warnings: string[] = [];
     if (/性格[：:]/.test(s) ||
         /人设[：:]/.test(s) ||
         /(MBTI|INFP|INTJ|ENFP)/i.test(s) ||
@@ -409,11 +408,11 @@ export function warnCharacterStateWall(state) {
  * Strip negation / disclaimer contexts that mention 声纹 without teaching voice.
  * Fixes false positive on「非声纹」「≠角色声纹」etc. (0.10.0).
  */
-export function neutralizeVoiceNegations(text) {
+export function neutralizeVoiceNegations(text: string) {
     return String(text ?? "").replace(/非声纹|禁止声纹|勿当[^。\n]{0,16}声纹|不是[^。\n]{0,12}声纹|≠[^。\n]{0,10}声纹|（非声纹）|\(非声纹\)|非角色声纹|勿学嘴|勿[^。\n]{0,8}声纹背诵|拒收[^。\n]{0,8}声纹|禁止[^。\n]{0,8}声纹|勿灌角色声纹|不灌角色声纹/g, " ");
 }
 /** Collect short snippets around regex hits for reject receipts. */
-export function collectAdmitHits(hay, re, limit = 3) {
+export function collectAdmitHits(hay: any, re: any, limit: number = 3) {
     const flags = re.flags.includes("g") ? re.flags : `${re.flags}g`;
     const g = new RegExp(re.source, flags);
     const hits = [];
@@ -429,8 +428,8 @@ export function collectAdmitHits(hay, re, limit = 3) {
     }
     return hits;
 }
-function formatAdmitReject(kind, hits, fix) {
-    const shown = hits.length ? hits.map((h) => `「${h}」`).join(" ") : "（未截到片段）";
+function formatAdmitReject(kind: any, hits: any, fix: any) {
+    const shown = hits.length ? hits.map((h: any) => `「${h}」`).join(" ") : "（未截到片段）";
     return `拒收：${kind}。命中：${shown}。改法：${fix}`;
 }
 /**
@@ -438,7 +437,7 @@ function formatAdmitReject(kind, hits, fix) {
  * Soft path otherwise. Voice checks ignore negation disclaimers (非声纹…).
  */
 /** 读没读的痕迹：证据段、章号、设计决策/检验方法、写法段。只是形状检查，真读仍需人判。 */
-export function readingArtifactWarnings(body, axis) {
+export function readingArtifactWarnings(body: string, axis: any) {
     const w = [];
     const text = String(body ?? "");
     if (!/^##\s*证据/m.test(text))
@@ -457,13 +456,13 @@ export function readingArtifactWarnings(body, axis) {
     return w;
 }
 
-export function admitCardContent(input) {
-    const warnings = [];
+export function admitCardContent(input: any) {
+    const warnings: string[] = [];
     const title = input.title.trim();
     const body = input.body.trim();
     const raw = `${title}\n${body}`;
     const hay = raw.toLowerCase();
-    const mechNames = input.mechanisms.map((m) => m.name).join(" ");
+    const mechNames = input.mechanisms.map((m: any) => m.name).join(" ");
     // Hard reject patterns — voice: scrub negations first (避免「非声纹」假阳)
     const voiceHay = neutralizeVoiceNegations(raw);
     const voiceRe = /声纹|台词范本|角色口气正例|模仿.{0,8}对白|背诵.{0,8}台词|专属声音/;
@@ -524,9 +523,9 @@ export function admitCardContent(input) {
  * craft: humanFeel + bookCraft + mechanisms
  * mind: mind + mechanisms（规划向）
  */
-export function formatModuleBlockV2(card) {
+export function formatModuleBlockV2(card: any) {
     const ev = (card.evidence ?? [])
-        .map((e) => `${String(e.chapter ?? "").trim()}「${String(e.quote ?? "").slice(0, 40)}…」`)
+        .map((e: any) => `${String(e.chapter ?? "").trim()}「${String(e.quote ?? "").slice(0, 40)}…」`)
         .join("；");
     return [
         `- 层/维度：${card.layer ?? "—"}/${card.dimension ?? "—"}`,
@@ -538,14 +537,14 @@ export function formatModuleBlockV2(card) {
         `- 迁移：${card.transfer ?? "（未填）"}`,
         `- 失败边界：${card.failWhen ?? "（未填）"}`,
         `- 证据：${ev || "（未填）"}`,
-        ...(Array.isArray(card.steps) && card.steps.length ? [`- 操作步骤：${card.steps.map((x, i) => `${i + 1}) ${x}`).join(" ")}`] : []),
+        ...(Array.isArray(card.steps) && card.steps.length ? [`- 操作步骤：${card.steps.map((x: any, i: number) => `${i + 1}) ${x}`).join(" ")}`] : []),
         ...(Array.isArray(card.bannedDiction) && card.bannedDiction.length ? [`- 禁用词句：${card.bannedDiction.join("、")}`] : []),
     ].join("\n");
 }
-export function formatTechniqueCardBlock(card) {
+export function formatTechniqueCardBlock(card: any) {
     const axis = coerceAxis(card);
     const mech = card.mechanisms
-        .map((m, i) => `${i + 1}. **${m.name}**\n   - 体验：${m.experience}\n   - 重建：${m.rebuild}\n   - 可弃：${m.discard}\n   - 失败边界：${m.failWhen}`)
+        .map((m: any, i: number) => `${i + 1}. **${m.name}**\n   - 体验：${m.experience}\n   - 重建：${m.rebuild}\n   - 可弃：${m.discard}\n   - 失败边界：${m.failWhen}`)
         .join("\n");
     const kindLine = card.kind
         ? `- kind（次标签）：${card.kind}`
@@ -611,7 +610,7 @@ export function formatTechniqueCardBlock(card) {
  * Lean block for chapter_brief：**仅 craft**。
  * mind 卡返回一行提示，不整段灌句式/规划正文。
  */
-export function formatTechniqueCardBlockLean(card) {
+export function formatTechniqueCardBlockLean(card: any) {
     const axis = coerceAxis(card);
     if (axis === "mind") {
         return [

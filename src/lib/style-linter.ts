@@ -1,8 +1,7 @@
-// @ts-nocheck
 /** Client-only style diagnostics for AI-ish / lazy prose. Zero network. */
 const DIALOGUE_PAIR = /([“「])([\s\S]*?)([”」])/g;
 /** Ranges of quoted dialogue that should not trigger narrative style rules. */
-export function dialogueRanges(text) {
+export function dialogueRanges(text: string) {
     const ranges = [];
     DIALOGUE_PAIR.lastIndex = 0;
     let match;
@@ -11,8 +10,8 @@ export function dialogueRanges(text) {
     }
     return ranges;
 }
-function inDialogue(index, ranges) {
-    return ranges.some(([start, end]) => index >= start && index < end);
+function inDialogue(index: number, ranges: any) {
+    return ranges.some(([start, end]: [number, number]) => index >= start && index < end);
 }
 const RULES = [
     {
@@ -72,7 +71,7 @@ const RULES = [
         endingOnly: true,
     },
 ];
-function lastParagraphSpan(text) {
+function lastParagraphSpan(text: string) {
     const parts = text.split(/\n+/);
     for (let i = parts.length - 1; i >= 0; i--) {
         const part = parts[i];
@@ -84,7 +83,7 @@ function lastParagraphSpan(text) {
     return null;
 }
 /** Scan manuscript text; dialogue in “…” / 「…」 is exempt. */
-export function lintStyle(text) {
+export function lintStyle(text: string) {
     if (!text)
         return [];
     const ranges = dialogueRanges(text);
@@ -119,10 +118,10 @@ export function lintStyle(text) {
             }
         }
     }
-    hits.sort((a, b) => a.start - b.start || a.end - b.end);
+    hits.sort((a: any, b: any) => a.start - b.start || a.end - b.end);
     return hits;
 }
-export function summarizeStyleLint(hits) {
+export function summarizeStyleLint(hits: any) {
     const summary = {
         cliche_syntax: 0,
         lazy_emotion: 0,
@@ -130,6 +129,6 @@ export function summarizeStyleLint(hits) {
         slogan_ending: 0,
     };
     for (const hit of hits)
-        summary[hit.category]++;
+        (summary as Record<string, number>)[hit.category]++;
     return summary;
 }

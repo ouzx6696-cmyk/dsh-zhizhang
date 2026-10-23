@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * InspirationPort — 灵感推演支柱（live）。
  * Session + Library cards + MethodRegistry develop/plan → stage foundation/outline → explicit accept (optional apply to work).
@@ -11,15 +10,16 @@ import { atomicWrite, createWork, resolveWorkDir, saveChapter, setFoundation, re
 import { LibraryPort, ANTI_STIFFNESS_BRIEF_LINE, coerceAxis, coerceHumanFeel, craftCueFromHumanFeel, formatTechniqueCardBlock, formatTechniqueCardBlockLean, hasShatterCraftCue, } from "./library.js";
 import { MethodRegistry } from "./methods.js";
 import { QualityPolicy } from "./quality-policy.js";
+import type { StoragePaths } from "../types.js";
 function nowIso() {
     return new Date().toISOString();
 }
 let idSeq = 0;
-function newId(prefix) {
+function newId(prefix: string) {
     idSeq += 1;
     return `${prefix}-${Date.now().toString(36)}${idSeq.toString(36)}`;
 }
-async function fileExists(p) {
+async function fileExists(p: string) {
     try {
         await access(p);
         return true;
@@ -28,14 +28,14 @@ async function fileExists(p) {
         return false;
     }
 }
-function inspDirs(paths) {
+function inspDirs(paths: StoragePaths) {
     return {
         root: paths.inspiration,
         sessions: path.join(paths.inspiration, "sessions"),
         candidates: path.join(paths.inspiration, "candidates"),
     };
 }
-async function ensureInsp(paths) {
+async function ensureInsp(paths: StoragePaths) {
     const d = inspDirs(paths);
     await mkdir(d.sessions, { recursive: true });
     await mkdir(d.candidates, { recursive: true });
@@ -54,13 +54,13 @@ export const InspirationPort = {
             { id: "accept_apply", title: "显式采纳（可选写入作品）", ready: true },
         ];
     },
-    async startSession(paths, input) {
+    async startSession(paths: StoragePaths, input: any) {
         await ensureInsp(paths);
         await LibraryPort.ensureLibrary(paths);
         const goal = String(input.goal ?? "").trim();
         if (!goal)
             throw new ZhizhangError("bad_args", "goal 不能为空");
-        const cardIds = (input.cardIds ?? []).map((id) => String(id).trim()).filter(Boolean);
+        const cardIds = (input.cardIds ?? []).map((id: string) => String(id).trim()).filter(Boolean);
         if (cardIds.length === 0) {
             throw new ZhizhangError("bad_args", "cardIds 至少一张已采纳卡");
         }
@@ -83,7 +83,7 @@ export const InspirationPort = {
         }
         const sessionId = newId("insp");
         const now = nowIso();
-        const session = {
+        const session: Record<string, any> = {
             schemaVersion: 1,
             id: sessionId,
             goal,
@@ -98,7 +98,7 @@ export const InspirationPort = {
         await atomicWrite(path.join(d.sessions, `${sessionId}.json`), JSON.stringify(session, null, 2) + "\n");
         return { sessionId, craftOnly, mindCount, craftCount };
     },
-    async getSession(paths, sessionId) {
+    async getSession(paths: StoragePaths, sessionId: any) {
         await ensureInsp(paths);
         const d = inspDirs(paths);
         const p = path.join(d.sessions, `${sessionId}.json`);
@@ -107,7 +107,7 @@ export const InspirationPort = {
         }
         return JSON.parse(await readFile(p, "utf8"));
     },
-    async listSessions(paths) {
+    async listSessions(paths: StoragePaths) {
         await ensureInsp(paths);
         const d = inspDirs(paths);
         const { readdir } = await import("node:fs/promises");
@@ -131,10 +131,10 @@ export const InspirationPort = {
                 /* skip */
             }
         }
-        rows.sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
+        rows.sort((a: any, b: any) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
         return rows;
     },
-    async forgeBrief(paths, sessionId) {
+    async forgeBrief(paths: StoragePaths, sessionId: any) {
         const session = await InspirationPort.getSession(paths, sessionId);
         const cards = [];
         for (const id of session.cardIds) {
@@ -143,10 +143,10 @@ export const InspirationPort = {
         const develop = MethodRegistry.get("develop");
         const plan = MethodRegistry.get("plan");
         const tomato = MethodRegistry.get("tomato_four_q");
-        const mindCards = cards.filter((c) => coerceAxis(c) === "mind");
-        const craftCards = cards.filter((c) => coerceAxis(c) !== "mind");
-        const thinMind = mindCards.filter((c) => !c.mind && !c.layer).length;
-        const thinFeel = craftCards.filter((c) => !c.humanFeel && !c.layer).length;
+        const mindCards = cards.filter((c: any) => coerceAxis(c) === "mind");
+        const craftCards = cards.filter((c: any) => coerceAxis(c) !== "mind");
+        const thinMind = mindCards.filter((c: any) => !c.mind && !c.layer).length;
+        const thinFeel = craftCards.filter((c: any) => !c.humanFeel && !c.layer).length;
         const craftOnly = Boolean(session.craftOnly);
         const lines = [
             `# 灵感推演简报 · ${sessionId}`,
@@ -231,7 +231,7 @@ export const InspirationPort = {
         await atomicWrite(path.join(d.sessions, `${sessionId}.json`), JSON.stringify(updated, null, 2) + "\n");
         return brief;
     },
-    async stageEmit(paths, sessionId, input) {
+    async stageEmit(paths: StoragePaths, sessionId: any, input: any) {
         const session = await InspirationPort.getSession(paths, sessionId);
         const kind = input.kind;
         if (kind !== "foundation" && kind !== "outline") {
@@ -309,7 +309,7 @@ export const InspirationPort = {
                 "。相邻章换压力/场面推进。";
         return { candId, kind, styleReminder };
     },
-    async acceptEmit(paths, candId, opts) {
+    async acceptEmit(paths: StoragePaths, candId: any, opts: any) {
         await ensureInsp(paths);
         const d = inspDirs(paths);
         const candPath = path.join(d.candidates, `${candId}.json`);
@@ -342,7 +342,7 @@ export const InspirationPort = {
             }
             if (cand.kind === "foundation") {
                 const p = cand.payload;
-                const patch = {};
+                const patch: Record<string, any> = {};
                 for (const key of [
                     "locks",
                     "happened",
@@ -352,8 +352,8 @@ export const InspirationPort = {
                     "threads",
                     "style",
                 ]) {
-                    if (typeof p[key] === "string" && String(p[key]).trim()) {
-                        patch[key] = String(p[key]);
+                    if (typeof (p as any)[key] === "string" && String((p as any)[key]).trim()) {
+                        (patch as any)[key] = String((p as any)[key]);
                     }
                 }
                 if (Object.keys(patch).length === 0) {
@@ -365,7 +365,7 @@ export const InspirationPort = {
             else {
                 const p = cand.payload;
                 const chapterId = String(p.chapter ?? p.chapterId ?? "").trim();
-                const outlinePatch = {};
+                const outlinePatch: Record<string, any> = {};
                 for (const key of [
                     "pov",
                     "locks",
@@ -378,16 +378,17 @@ export const InspirationPort = {
                     "livedScene",
                     "stateLens",
                 ]) {
-                    if (typeof p[key] === "string")
-                        outlinePatch[key] = String(p[key]);
+                    if (typeof (p as any)[key] === "string")
+                        (outlinePatch as any)[key] = String((p as any)[key]);
                 }
                 // legacy alias
-                if (typeof p.voiceTone === "string" && String(p.voiceTone).trim()) {
+                const legacy = p as any;
+                if (typeof legacy.voiceTone === "string" && String(legacy.voiceTone).trim()) {
                     if (!outlinePatch.stateLens)
-                        outlinePatch.stateLens = String(p.voiceTone);
+                        outlinePatch.stateLens = String(legacy.voiceTone);
                 }
-                if (typeof p.targetWords === "number")
-                    outlinePatch.targetWords = p.targetWords;
+                if (typeof legacy.targetWords === "number")
+                    outlinePatch.targetWords = legacy.targetWords;
                 let title = typeof p.title === "string" ? p.title : undefined;
                 let body = "";
                 let position;
@@ -431,13 +432,14 @@ export const InspirationPort = {
     },
     /**
      * Resolve technique cards for chapter_brief / writing path.
-     * Priority: explicit cardIds → inspire sessions applied to work → genre tag search → none.
+     * Priority: explicit cardIds → inspire sessions applied to work → none.
+     * 不做「按 genre 猜卡」：技法卡不含题材词，猜出来也是无关卡。
      */
-    async resolveCardsForBrief(paths, opts = {}) {
+    async resolveCardsForBrief(paths: StoragePaths, opts: any = {}) {
         await ensureInsp(paths);
         await LibraryPort.ensureLibrary(paths);
         const limit = Math.max(1, Math.min(opts.limit ?? 5, 12));
-        const explicit = (opts.cardIds ?? []).map((id) => String(id).trim()).filter(Boolean);
+        const explicit = (opts.cardIds ?? []).map((id: string) => String(id).trim()).filter(Boolean);
         if (explicit.length > 0) {
             const cards = [];
             for (const id of explicit.slice(0, limit)) {
@@ -447,7 +449,7 @@ export const InspirationPort = {
                 }
                 cards.push(card);
             }
-            cards.sort((a, b) => {
+            cards.sort((a: any, b: any) => {
                 const aa = coerceAxis(a) === "craft" ? 0 : 1;
                 const bb = coerceAxis(b) === "craft" ? 0 : 1;
                 return aa - bb;
@@ -456,7 +458,7 @@ export const InspirationPort = {
                 cards,
                 source: "explicit",
                 note: `显式 card_ids（${cards.length}；craft 优先）`,
-                cardIds: cards.map((c) => c.id),
+                cardIds: cards.map((c: any) => c.id),
             };
         }
         const workKey = String(opts.workKey ?? "").trim();
@@ -481,7 +483,7 @@ export const InspirationPort = {
                     /* skip */
                 }
             }
-            hits.sort((a, b) => (b.at || "").localeCompare(a.at || ""));
+            hits.sort((a: any, b: any) => (b.at || "").localeCompare(a.at || ""));
             const seen = new Set();
             const cardIds = [];
             for (const h of hits) {
@@ -519,36 +521,19 @@ export const InspirationPort = {
                         cards,
                         source: "inspire_apply",
                         note: `作品「${workKey}」最近灵感 apply 绑定的技法卡（${cards.length}）`,
-                        cardIds: cards.map((c) => c.id),
+                        cardIds: cards.map((c: any) => c.id),
                     };
                 }
             }
         }
-        const genre = String(opts.genre ?? "").trim();
-        if (genre) {
-            const rows = await LibraryPort.searchCards(paths, genre);
-            const cards = [];
-            for (const row of rows.slice(0, limit)) {
-                try {
-                    cards.push(await LibraryPort.getCard(paths, row.id));
-                }
-                catch {
-                    /* skip */
-                }
-            }
-            if (cards.length > 0) {
-                return {
-                    cards,
-                    source: "genre_tags",
-                    note: `按题材/标签「${genre}」检索（${cards.length}）`,
-                    cardIds: cards.map((c) => c.id),
-                };
-            }
-        }
+        // 未发布：删掉「按 genre 检索」这条分支。技法卡是写法卡，不含题材词，
+        // 实测任何作品 genre 都命中 0 条；留着只会让人以为有自动注入。
+        // 注入只走两条明确路径：显式 card_ids（推荐先用 library_combo_suggest 组包），
+        // 或本作品 inspire_accept(apply) 绑定过的卡。
         return {
             cards: [],
             source: "none",
-            note: "未绑定技法卡（可传 card_ids，或先 inspire_accept apply 到本作品）",
+            note: "未绑定技法卡：先跑 library_combo_suggest 取「1 book + N scene」的 card_ids 再传 card_ids；或先 inspire_accept(apply=true) 把卡绑到本作品，之后自动继承",
             cardIds: [],
         };
     },
@@ -556,17 +541,16 @@ export const InspirationPort = {
      * Craft shatter/feel cue blob for Accept + human_feel_audit (same source).
      * Empty string when no craft cards or cues.
      */
-    async resolveCraftCue(paths, opts = {}) {
+    async resolveCraftCue(paths: StoragePaths, opts: any = {}) {
         try {
             const resolved = await InspirationPort.resolveCardsForBrief(paths, {
                 workKey: opts.workKey,
                 cardIds: opts.cardIds,
-                genre: opts.genre,
                 limit: opts.limit ?? 5,
             });
             return resolved.cards
-                .filter((c) => coerceAxis(c) === "craft")
-                .map((c) => craftCueFromHumanFeel(coerceHumanFeel(c.humanFeel)))
+                .filter((c: any) => coerceAxis(c) === "craft")
+                .map((c: any) => craftCueFromHumanFeel(coerceHumanFeel(c.humanFeel)))
                 .join("\n");
         }
         catch {
@@ -577,10 +561,10 @@ export const InspirationPort = {
      * Markdown section for chapter_brief.
      * lean：只主注 craft（写法+状态）；mind 不整段灌句式。
      */
-    formatCardsSection(cards, meta) {
+    formatCardsSection(cards: any, meta: any) {
         const lean = Boolean(meta.lean);
-        const craftCards = cards.filter((c) => coerceAxis(c) === "craft");
-        const mindCards = cards.filter((c) => coerceAxis(c) === "mind");
+        const craftCards = cards.filter((c: any) => coerceAxis(c) === "craft");
+        const mindCards = cards.filter((c: any) => coerceAxis(c) === "mind");
         const inject = lean ? craftCards : cards;
         const title = lean
             ? "## 技法卡（lean · craft 写法+状态）"
@@ -591,7 +575,7 @@ export const InspirationPort = {
                 : "（无卡注入；方法包只管流程纪律。）";
             return [title, meta.note, extra].join("\n");
         }
-        const thinFeel = craftCards.filter((c) => !c.humanFeel && !c.layer).length;
+        const thinFeel = craftCards.filter((c: any) => !c.humanFeel && !c.layer).length;
         const lines = [
             title,
             `- 来源：${meta.note}`,
@@ -617,14 +601,14 @@ export const InspirationPort = {
         }
         if (lean) {
             const cue = craftCards
-                .map((c) => craftCueFromHumanFeel(coerceHumanFeel(c.humanFeel)))
+                .map((c: any) => craftCueFromHumanFeel(coerceHumanFeel(c.humanFeel)))
                 .join("\n");
             if (hasShatterCraftCue(cue)) {
                 lines.push(`> ${ANTI_STIFFNESS_BRIEF_LINE}`, "");
             }
         }
         if (lean && mindCards.length > 0) {
-            lines.push(`- （另有 mind ${mindCards.length} 张未注入 lean：${mindCards.map((c) => c.id).join("、")}）`);
+            lines.push(`- （另有 mind ${mindCards.length} 张未注入 lean：${mindCards.map((c: any) => c.id).join("、")}）`);
         }
         return lines.join("\n").trimEnd();
     },

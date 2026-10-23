@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * 采纳管线 — tool / panel 共用一套硬闸与落盘。
  * 只负责「候选 → 正式章 + happened」；不处理面板 confirm 文案，也不 openWork。
@@ -8,7 +7,7 @@ import { AcceptPolicy, FoundationPort, InspirationPort, Scheduler, firstDenyCode
 import { ZhizhangError } from "../errors.js";
 import { resolvePrevBody } from "./chapter-context.js";
 
-function errResult(err, fallback) {
+function errResult(err: any, fallback: any) {
     return {
         ok: false,
         code: err instanceof ZhizhangError ? err.code : fallback,
@@ -16,7 +15,7 @@ function errResult(err, fallback) {
     };
 }
 
-export async function runAccept(input) {
+export async function runAccept(input: any) {
     const {
         paths,
         dir,

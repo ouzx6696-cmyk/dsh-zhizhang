@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * NovelSenseGate — soft sensor for 「不像一本小说」:
  * same-skeleton re-demo vs prev chapter, no book-debt at end, overly closed short-story ending.
@@ -21,7 +20,7 @@ const RITUAL_MOTIFS = [
 const DEBT_CUE_RE = QUALITY_BOOK_DEBT_CUE_RE;
 /** Strong short-story closure cues. */
 const CLOSED_CUE_RE = /就像什么都没发生|一切(?:又)?恢复|一切如常|故事到此|就此结束|圆满|完整闭环|睡了个好觉|终于安心|尘埃落定|画上了句号|像从没发生过|岁月静好/;
-export function auditNovelSense(text, opts) {
+export function auditNovelSense(text: string, opts: any) {
     const body = String(text ?? "").trim();
     const hits = [];
     if (body.length < MIN_CHARS) {
@@ -48,13 +47,13 @@ export function auditNovelSense(text, opts) {
     }
     const summary = hits.length === 0
         ? "书感软雷达未命中（启发式；≠质量过关）"
-        : `书感软雷达命中 ${hits.length} 类：${hits.map((h) => h.code).join("、")}`;
+        : `书感软雷达命中 ${hits.length} 类：${hits.map((h: any) => h.code).join("、")}`;
     return { hitCount: hits.length, hits, summary };
 }
-function detectSameSkeletonRedemo(curr, prev) {
-    const prevHits = RITUAL_MOTIFS.filter((m) => m.re.test(prev)).map((m) => m.id);
-    const currHits = RITUAL_MOTIFS.filter((m) => m.re.test(curr)).map((m) => m.id);
-    const shared = prevHits.filter((id) => currHits.includes(id));
+function detectSameSkeletonRedemo(curr: any, prev: any) {
+    const prevHits = RITUAL_MOTIFS.filter((m: any) => m.re.test(prev)).map((m: any) => m.id);
+    const currHits = RITUAL_MOTIFS.filter((m: any) => m.re.test(curr)).map((m: any) => m.id);
+    const shared = prevHits.filter((id: string) => currHits.includes(id));
     // Need a real ritual chain in both, not a single motif mention
     if (shared.length < 4) {
         // Fallback: dense shared 4-gram reuse of content phrases
@@ -73,8 +72,8 @@ function detectSameSkeletonRedemo(curr, prev) {
         evidence: `前章母题=${prevHits.join(",")}；本章=${currHits.join(",")}`,
     };
 }
-function sharedPhraseReuse(curr, prev) {
-    const grams = (t) => {
+function sharedPhraseReuse(curr: any, prev: any) {
+    const grams = (t: any) => {
         const clean = t.replace(/\s+/g, "");
         const out = new Set();
         for (let i = 0; i + 4 <= clean.length; i++) {
@@ -107,13 +106,13 @@ function sharedPhraseReuse(curr, prev) {
     }
     return { count, samples };
 }
-function endingSlice(text) {
+function endingSlice(text: string) {
     const clean = text.trim();
     const byRatio = Math.floor(clean.length * 0.18);
     const n = Math.max(180, Math.min(360, byRatio || 220));
     return clean.slice(-n);
 }
-function detectNoBookDebt(text) {
+function detectNoBookDebt(text: string) {
     const end = endingSlice(text);
     if (DEBT_CUE_RE.test(end))
         return null;
@@ -127,7 +126,7 @@ function detectNoBookDebt(text) {
         evidence: end.slice(-72),
     };
 }
-function detectClosedShortStory(text) {
+function detectClosedShortStory(text: string) {
     // Use a tight tail so mid-chapter 账/数字不误伤「回报后留债」判断
     const clean = text.trim();
     const tail = clean.slice(-Math.min(140, Math.max(80, Math.floor(clean.length * 0.12))));
@@ -143,7 +142,7 @@ function detectClosedShortStory(text) {
         evidence: tail.match(CLOSED_CUE_RE)?.[0] ?? tip.slice(0, 48),
     };
 }
-export function formatNovelSenseAudit(label, result) {
+export function formatNovelSenseAudit(label: string, result: any) {
     const head = [
         `书感软雷达 · ${label}`,
         `- 命中类数：${result.hitCount}`,
@@ -153,18 +152,18 @@ export function formatNovelSenseAudit(label, result) {
     ];
     if (result.hits.length === 0)
         return [...head, "", "未发现书感类命中。"].join("\n");
-    const lines = result.hits.map((h, i) => `${i + 1}. [${h.code}] ${h.text}${h.evidence ? `\n   例：${h.evidence}` : ""}`);
+    const lines = result.hits.map((h: any, i: number) => `${i + 1}. [${h.code}] ${h.text}${h.evidence ? `\n   例：${h.evidence}` : ""}`);
     return [...head, "", ...lines].join("\n");
 }
 export const NovelSenseGate = {
     audit: auditNovelSense,
-    evaluateAccept(opts) {
+    evaluateAccept(opts: any) {
         const result = auditNovelSense(opts.body, { prevBody: opts.prevBody });
         if (opts.strictNovel && result.hitCount > 0) {
-            return deny("novel_sense_strict", `strict_novel=true：书感软雷达命中 ${result.hitCount} 类（${result.hits.map((h) => h.code).join("、")}），拒绝采纳。请改稿后重扫，或关闭 strict_novel（默认仅警告 novel_sense_hits）。`);
+            return deny("novel_sense_strict", `strict_novel=true：书感软雷达命中 ${result.hitCount} 类（${result.hits.map((h: any) => h.code).join("、")}），拒绝采纳。请改稿后重扫，或关闭 strict_novel（默认仅警告 novel_sense_hits）。`);
         }
         if (result.hitCount > 0) {
-            const msgs = result.hits.map((h) => warn("novel_sense_hits", `${h.code}：${h.text}`));
+            const msgs = result.hits.map((h: any) => warn("novel_sense_hits", `${h.code}：${h.text}`));
             return allow(msgs);
         }
         return allow([info("novel_sense_ok", result.summary)]);

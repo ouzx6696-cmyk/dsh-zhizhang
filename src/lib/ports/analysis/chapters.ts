@@ -1,4 +1,3 @@
-// @ts-nocheck
 /** 章节目录 — 支持阿拉伯/中文数字与序章。 */
 import {
     CHAPTER_HEADING_RE,
@@ -6,12 +5,12 @@ import {
     parseChapterHeading,
 } from "../../domain/chapter-heading.js";
 
-function fresh(re) {
+function fresh(re: any) {
     return new RegExp(re.source, re.flags);
 }
 
 /** 解析章节目录：第1章 / 第一章 / 序章。返回 [{n,title,start,end}]。 */
-export function chapterIndex(text) {
+export function chapterIndex(text: string) {
     const t = String(text ?? "").replace(/^\uFEFF/, "");
     const out = [];
     const re = fresh(CHAPTER_HEADING_RE);
@@ -28,30 +27,30 @@ export function chapterIndex(text) {
         if (parsed)
             out.push({ n: parsed.n, title: parsed.title, start: front.index, end: t.length });
     }
-    out.sort((a, b) => a.start - b.start);
+    out.sort((a: any, b: any) => a.start - b.start);
     for (let i = 0; i < out.length; i++)
         out[i].end = i + 1 < out.length ? out[i + 1].start : t.length;
     return out;
 }
 
-export function totalChapters(index) {
-    return index.filter((c) => c.n > 0).length;
+export function totalChapters(index: { n: number; title: string; start: number; end: number }[]) {
+    return index.filter((c: any) => c.n > 0).length;
 }
 
-export function chapterText(text, index, n) {
-    const hit = index.find((c) => c.n === Number(n));
+export function chapterText(text: string, index: { n: number; title: string; start: number; end: number }[], n: number) {
+    const hit = index.find((c: any) => c.n === Number(n));
     if (!hit)
         return null;
     return String(text).slice(hit.start, hit.end);
 }
 
-export function chapterTitle(index, n) {
-    return index.find((c) => c.n === Number(n))?.title ?? "";
+export function chapterTitle(index: { n: number; title: string; start: number; end: number }[], n: number) {
+    return index.find((c: any) => c.n === Number(n))?.title ?? "";
 }
 
 /** 百分比位置最近的章（用于 30/60/85 抽样）。 */
-export function nearestChapter(index, ratio) {
-    const chapters = index.filter((c) => c.n > 0);
+export function nearestChapter(index: { n: number; title: string; start: number; end: number }[], ratio: any) {
+    const chapters = index.filter((c: any) => c.n > 0);
     if (!chapters.length)
         return null;
     const target = chapters[0].start + (chapters[chapters.length - 1].start - chapters[0].start) * ratio;

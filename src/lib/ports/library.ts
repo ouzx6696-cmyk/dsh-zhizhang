@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * LibraryPort — 拆书库支柱（live）。
  * User submits a novel → dissect brief → AI stages cards → explicit accept → searchable.
@@ -13,6 +12,7 @@ import { atomicWrite, sessionCwd, withLock, } from "../store.js";
 import { MethodRegistry } from "./methods.js";
 import { REPORT_SECTION_COUNT } from "../domain/report-sections.js";
 import { QualityPolicy } from "./quality-policy.js";
+import type { StoragePaths } from "../types.js";
 import { chapterIndex, chapterText, chapterTitle, nearestChapter, totalChapters, ensureAnalysis, writeAnalysisMeta, readAnalysisBundle, deriveAxis, validateModule, verifyModuleEvidence, verifyBodyQuotes, } from "./analysis.js";
 import {
     SHATTER_CRAFT_CUE_RE,
@@ -84,7 +84,7 @@ export const LibraryPort = {
             { id: "card_audit", title: "审计：引文回溯 / 白描违规 / 覆盖率", ready: true },
         ];
     },
-    async ensureLibrary(paths) {
+    async ensureLibrary(paths: StoragePaths) {
         const d = libraryDirs(paths);
         await mkdir(d.sources, { recursive: true });
         await mkdir(d.cards, { recursive: true });
@@ -95,7 +95,7 @@ export const LibraryPort = {
         await reconcileIndex(paths);
         return paths;
     },
-    async importSource(paths, input) {
+    async importSource(paths: StoragePaths, input: any) {
         await LibraryPort.ensureLibrary(paths);
         const title = String(input.title ?? "").trim();
         if (!title)
@@ -162,7 +162,7 @@ export const LibraryPort = {
                 : undefined,
         };
     },
-    async getSource(paths, sourceId) {
+    async getSource(paths: StoragePaths, sourceId: any) {
         await LibraryPort.ensureLibrary(paths);
         const d = libraryDirs(paths);
         const metaPath = path.join(d.sources, `${sourceId}.json`);
@@ -174,11 +174,11 @@ export const LibraryPort = {
         const text = (await fileExists(textPath)) ? await readFile(textPath, "utf8") : "";
         return { meta, text };
     },
-    async listSources(paths) {
+    async listSources(paths: StoragePaths) {
         await LibraryPort.ensureLibrary(paths);
         return (await readIndex(paths)).sources;
     },
-    async dissectBrief(paths, sourceId, opts = {}) {
+    async dissectBrief(paths: StoragePaths, sourceId: any, opts: any = {}) {
         const { meta, text } = await LibraryPort.getSource(paths, sourceId);
         const mode = String(opts.mode ?? "").trim();
         if (mode) {
@@ -186,12 +186,12 @@ export const LibraryPort = {
             const total = totalChapters(idx);
             await ensureAnalysis(paths, sourceId, text);
             const prevScope = (await readAnalysisBundle(paths, sourceId)).meta?.scope ?? { mode: "none", chapters: 0 };
-            let picked = [];
+            let picked: number[] = [];
             if (mode === "opening") {
-                picked = [1, 2, 3].filter((n) => idx.some((c) => c.n === n));
+                picked = [1, 2, 3].filter((n: number) => idx.some((c: any) => c.n === n));
             }
             else if (mode === "sample") {
-                picked = [...new Set([0.1, 0.3, 0.6, 0.85].map((r) => nearestChapter(idx, r)).filter((n) => n != null))];
+                picked = [...new Set([0.1, 0.3, 0.6, 0.85].map((r: any) => Number(nearestChapter(idx, r))).filter((n: number) => Number.isFinite(n) && n > 0))];
             }
             else {
                 const from = Math.max(1, Math.floor(Number(opts.from ?? 1) || 1));
@@ -200,7 +200,7 @@ export const LibraryPort = {
                     picked.push(n);
             }
             const scopeMode = mode === "opening" ? "opening" : mode === "sample" ? "sample" : mode === "full" ? "full" : "chapters";
-            const planned = mode === "sample" ? picked.length : picked.length ? Math.max(...picked) : 0;
+            const planned = mode === "sample" ? picked.length : picked.length ? Math.max(...picked.map((x: any) => Number(x))) : 0;
             await writeAnalysisMeta(paths, sourceId, { scope: { mode: scopeMode, chapters: Math.max(planned, Number(prevScope.chapters ?? 0)) } });
             const budget = Math.max(4000, Math.min(Number(opts.maxChars ?? 15000), 30000));
             const batch = [];
@@ -223,7 +223,7 @@ export const LibraryPort = {
                 `# 拆书批次 · ${meta.title}${meta.author ? `（${meta.author}）` : ""}`,
                 `- sourceId：${meta.id}`,
                 `- 全书章数：${total} · 已拆：${facts.length}`,
-                `- 本批：${batch.map((b) => `第${b.n}章`).join("、") || "（无）"}`,
+                `- 本批：${batch.map((b: any) => `第${b.n}章`).join("、") || "（无）"}`,
                 "",
                 "【纪律】只记白描：谁做了什么、结果怎样；原文没写的动机/身份/后果写进 unknowns，禁止补。",
                 "【禁】desc 里出现 心里/觉得/认为/希望/害怕/后悔/其实/精彩/感人/震撼 等心理评价词会被拒。",
@@ -312,7 +312,7 @@ export const LibraryPort = {
         lines.push("完成后：为每张卡填 axis +（craft: humanFeel+bookCraft | mind: mind）+ mechanisms + body，再 card_stage → card_accept。");
         return lines.join("\n");
     },
-    async stageCard(paths, input) {
+    async stageCard(paths: StoragePaths, input: any) {
         await LibraryPort.ensureLibrary(paths);
         const title = String(input.title ?? "").trim();
         const body = String(input.body ?? "");
@@ -327,23 +327,23 @@ export const LibraryPort = {
             throw new ZhizhangError("bad_args", "mechanisms 至少一条");
         }
         await LibraryPort.getSource(paths, sourceId);
-        const mechanisms = input.mechanisms.map((m, i) => normalizeMechanism(m, i));
+        const mechanisms = input.mechanisms.map((m: any, i: number) => normalizeMechanism(m, i));
         const { handoff, warnings: w3 } = normalizeHandoff(input.handoff);
         const { kind, warnings: w4 } = normalizeKind(input.kind);
-        const tags = (input.tags ?? []).map((t) => String(t).trim()).filter(Boolean);
+        const tags = (input.tags ?? []).map((t: any) => String(t).trim()).filter(Boolean);
         const v2 = {
             layer: String(input.layer ?? "").trim(),
             dimension: String(input.dimension ?? "").trim(),
             readerWant: String(input.readerWant ?? "").trim(),
             emotionArc: String(input.emotionArc ?? "").trim(),
             dramaticUnit: String(input.dramaticUnit ?? "").trim(),
-            replaceables: Array.isArray(input.replaceables) ? input.replaceables.map((x) => String(x).trim()).filter(Boolean) : [],
-            mustNotCopy: Array.isArray(input.mustNotCopy) ? input.mustNotCopy.map((x) => String(x).trim()).filter(Boolean) : [],
+            replaceables: Array.isArray(input.replaceables) ? input.replaceables.map((x: any) => String(x).trim()).filter(Boolean) : [],
+            mustNotCopy: Array.isArray(input.mustNotCopy) ? input.mustNotCopy.map((x: any) => String(x).trim()).filter(Boolean) : [],
             transfer: String(input.transfer ?? "").trim(),
             failWhen: String(input.failWhen ?? "").trim(),
             evidence: Array.isArray(input.evidence) ? input.evidence : [],
-            steps: Array.isArray(input.steps) ? input.steps.map((x) => String(x).trim()).filter(Boolean) : [],
-            bannedDiction: Array.isArray(input.bannedDiction) ? input.bannedDiction.map((x) => String(x).trim()).filter(Boolean) : [],
+            steps: Array.isArray(input.steps) ? input.steps.map((x: any) => String(x).trim()).filter(Boolean) : [],
+            bannedDiction: Array.isArray(input.bannedDiction) ? input.bannedDiction.map((x: any) => String(x).trim()).filter(Boolean) : [],
         };
         const hasV2 = Boolean(v2.layer || v2.dimension || v2.readerWant || v2.emotionArc || v2.dramaticUnit || v2.transfer || v2.failWhen || v2.replaceables.length || v2.mustNotCopy.length || v2.evidence.length);
         if (!hasV2 && (v2.steps.length > 0 || v2.bannedDiction.length > 0)) {
@@ -440,7 +440,7 @@ export const LibraryPort = {
         }
         const candId = newId("lcand");
         const now = nowIso();
-        const card = {
+        const card: Record<string, any> = {
             schemaVersion: 1,
             id: candId,
             title,
@@ -485,7 +485,7 @@ export const LibraryPort = {
         await atomicWrite(path.join(d.candidates, `${candId}.json`), JSON.stringify(card, null, 2) + "\n");
         return { candId, title, warnings };
     },
-    async acceptCard(paths, candId) {
+    async acceptCard(paths: StoragePaths, candId: any) {
         await LibraryPort.ensureLibrary(paths);
         const d = libraryDirs(paths);
         const candPath = path.join(d.candidates, `${candId}.json`);
@@ -496,7 +496,7 @@ export const LibraryPort = {
         if (!staged.body?.trim()) {
             throw new ZhizhangError("empty_body", "候选 body 为空，拒绝采纳");
         }
-        let moduleWarnings = [];
+        let moduleWarnings: string[] = [];
         if (staged.schemaVersion === 2 || staged.layer) {
             const check = validateModule(staged);
             if (check.errors.length)
@@ -513,11 +513,11 @@ export const LibraryPort = {
                     throw e;
             }
         }
-        let auditWarnings = [];
+        let auditWarnings: string[] = [];
         if (!(staged.schemaVersion === 2 || staged.layer)) {
             try {
                 const src = await LibraryPort.getSource(paths, staged.sourceId);
-                const audit = auditCardContent({ ...staged, axis: coerceAxis(staged) }, src.text);
+                const audit = auditCardContent({ ...staged, axis: coerceAxis(staged) }, src.text, undefined);
                 auditWarnings = audit.warnings;
                 if (audit.unverifiable.length > 0) {
                     auditWarnings.unshift(`证据引文 ${audit.evidenceVerified}/${audit.evidenceQuotes} 可在原文中核对，${audit.unverifiable.length} 条未命中`);
@@ -530,7 +530,7 @@ export const LibraryPort = {
         auditWarnings.unshift(...moduleWarnings);
         const cardId = newId("card");
         const now = nowIso();
-        const card = {
+        const card: Record<string, any> = {
             ...staged,
             id: cardId,
             status: "accepted",
@@ -564,17 +564,17 @@ export const LibraryPort = {
             ],
         };
     },
-    async discardCard(paths, cardId) {
+    async discardCard(paths: StoragePaths, cardId: any) {
         await LibraryPort.ensureLibrary(paths);
         const d = libraryDirs(paths);
         const idx = await readIndex(paths);
-        const hit = idx.cards.find((c) => c.id === cardId);
+        const hit = idx.cards.find((c: any) => c.id === cardId);
         if (!hit) {
             throw new ZhizhangError("card_not_found", `找不到卡 ${cardId}`);
         }
         await withLock(`library:${paths.library}`, async () => {
             const fresh = await readIndex(paths);
-            fresh.cards = fresh.cards.filter((c) => c.id !== cardId);
+            fresh.cards = fresh.cards.filter((c: any) => c.id !== cardId);
             await writeIndex(paths, fresh);
             const file = path.join(d.cards, `${cardId}.json`);
             if (await fileExists(file)) {
@@ -584,7 +584,7 @@ export const LibraryPort = {
         });
         return { cardId, title: hit.title, remaining: idx.cards.length - 1 };
     },
-    async listCards(paths, opts = {}) {
+    async listCards(paths: StoragePaths, opts: any = {}) {
         await LibraryPort.ensureLibrary(paths);
         const idx = await readIndex(paths);
         return filterCardRows(paths, idx.cards, {
@@ -595,7 +595,7 @@ export const LibraryPort = {
             axis: opts.axis,
         });
     },
-    async searchCards(paths, query, opts = {}) {
+    async searchCards(paths: StoragePaths, query: any, opts: any = {}) {
         await LibraryPort.ensureLibrary(paths);
         const tokens = tokenizeQuery(query);
         const tag = String(opts.tag ?? "").trim().toLowerCase();
@@ -616,20 +616,20 @@ export const LibraryPort = {
             axis: opts.axis,
         });
         if (tag) {
-            pool = pool.filter((row) => (row.tags ?? []).some((t) => String(t).toLowerCase() === tag));
+            pool = pool.filter((row: any) => (row.tags ?? []).some((t: any) => String(t).toLowerCase() === tag));
         }
         if (!tokens.length)
             return pool;
         const hits = [];
         for (const row of pool) {
             const shallow = `${row.title} ${(row.tags ?? []).join(" ")} ${row.sourceId} ${row.axis ?? ""}`.toLowerCase();
-            if (tokens.every((t) => shallow.includes(t))) {
+            if (tokens.every((t: any) => shallow.includes(t))) {
                 hits.push(row);
                 continue;
             }
             try {
                 const card = await LibraryPort.getCard(paths, row.id);
-                if (tokens.every((t) => cardDeepHay(card).includes(t)))
+                if (tokens.every((t: any) => cardDeepHay(card).includes(t)))
                     hits.push({ ...row, axis: coerceAxis(card) });
             }
             catch {
@@ -642,7 +642,7 @@ export const LibraryPort = {
      * 推荐组合包：恰好 1 mind + 最多 N craft（可跨 source）。
      * 缺 mind → ok=false + emptyReason（不抛，便于产品面展示）。
      */
-    async suggestCombo(paths, input = {}) {
+    async suggestCombo(paths: StoragePaths, input: any = {}) {
         await LibraryPort.ensureLibrary(paths);
         const warnings = [];
         const nRaw = input.craftCount ?? 2;
@@ -651,7 +651,7 @@ export const LibraryPort = {
             warnings.push(`craftCount 已夹紧为 ${craftCount}（允许 1–8）`);
         }
         const query = String(input.query ?? "").trim();
-        const preferMind = new Set((input.preferMindSourceIds ?? []).map((x) => String(x).trim()).filter(Boolean));
+        const preferMind = new Set((input.preferMindSourceIds ?? []).map((x: any) => String(x).trim()).filter(Boolean));
         const pool = await LibraryPort.listCards(paths, {
             status: "accepted",
             sourceIds: input.sourceIds,
@@ -708,7 +708,7 @@ export const LibraryPort = {
                 score += 50;
             mindScored.push({ row, score, matched: cs.matched });
         }
-        mindScored.sort((a, b) => b.score - a.score);
+        mindScored.sort((a: any, b: any) => b.score - a.score);
         const mindRow = mindScored[0].row;
         // score crafts; prefer source diversity after mind's source
         const craftScored = [];
@@ -731,8 +731,8 @@ export const LibraryPort = {
                 score += 5;
             craftScored.push({ row, score, matched: cs.matched });
         }
-        craftScored.sort((a, b) => b.score - a.score);
-        if (query && !mindScored.some((s) => s.matched > 0) && !craftScored.some((s) => s.matched > 0)) {
+        craftScored.sort((a: any, b: any) => b.score - a.score);
+        if (query && !mindScored.some((s: any) => s.matched > 0) && !craftScored.some((s: any) => s.matched > 0)) {
             warnings.push(`主题词「${query}」在候选池无命中：已按更新时间兜底`);
         }
         const pickedCrafts = [];
@@ -749,7 +749,7 @@ export const LibraryPort = {
         }
         // fill remaining
         if (pickedCrafts.length < craftCount) {
-            const have = new Set(pickedCrafts.map((c) => c.id));
+            const have = new Set(pickedCrafts.map((c: any) => c.id));
             for (const { row } of craftScored) {
                 if (pickedCrafts.length >= craftCount)
                     break;
@@ -771,14 +771,14 @@ export const LibraryPort = {
             axis: "mind",
             tags: mindRow.tags,
         };
-        const craftRefs = pickedCrafts.map((c) => ({
+        const craftRefs = pickedCrafts.map((c: any) => ({
             id: c.id,
             title: c.title,
             sourceId: c.sourceId,
             axis: "craft",
             tags: c.tags,
         }));
-        const cardIds = [mindRef.id, ...craftRefs.map((c) => c.id)];
+        const cardIds = [mindRef.id, ...craftRefs.map((c: any) => c.id)];
         return {
             ok: true,
             cardIds,
@@ -787,7 +787,7 @@ export const LibraryPort = {
             warnings,
         };
     },
-    async auditCards(paths, opts = {}) {
+    async auditCards(paths: StoragePaths, opts: any = {}) {
         await LibraryPort.ensureLibrary(paths);
         const idx = await readIndex(paths);
         let rows = await filterCardRows(paths, idx.cards, {
@@ -796,7 +796,7 @@ export const LibraryPort = {
             axis: opts.axis,
         });
         if (opts.cardId)
-            rows = rows.filter((r) => r.id === opts.cardId);
+            rows = rows.filter((r: any) => r.id === opts.cardId);
         const srcCache = new Map();
         const out = [];
         for (const row of rows) {
@@ -817,7 +817,7 @@ export const LibraryPort = {
                 const check = validateModule(card);
                 const bad = entry.text
                     ? verifyModuleEvidence(card, entry.text, chapterIndex(entry.text))
-                    : (card.evidence ?? []).map((e, i) => `evidence[${i}] 来源缺失，无法核对`);
+                    : (card.evidence ?? []).map((e: any, i: number) => `evidence[${i}] 来源缺失，无法核对`);
                 const quotes = (card.evidence ?? []).length;
                 const bodyCheck = entry.text
                     ? verifyBodyQuotes(card, entry.text)
@@ -836,7 +836,7 @@ export const LibraryPort = {
                     bodyVerified: bodyCheck.ok,
                     bodyUnverifiable: bodyCheck.bad,
                     bodySkipped: bodyCheck.skipped ?? 0,
-                    warnings: [...check.errors, ...check.warnings.filter((w) => !w.includes("mechanisms 为空"))],
+                    warnings: [...check.errors, ...check.warnings.filter((w: any) => !w.includes("mechanisms 为空"))],
                     chapterOk: bad.length || bodyCheck.bad.length ? false : true,
                 });
                 continue;
@@ -846,7 +846,7 @@ export const LibraryPort = {
         }
         return out;
     },
-    async getCard(paths, cardId) {
+    async getCard(paths: StoragePaths, cardId: any) {
         await LibraryPort.ensureLibrary(paths);
         const d = libraryDirs(paths);
         const cardPath = path.join(d.cards, `${cardId}.json`);
@@ -856,7 +856,7 @@ export const LibraryPort = {
         const raw = JSON.parse(await readFile(cardPath, "utf8"));
         return { ...raw, axis: coerceAxis(raw) };
     },
-    async getCandidate(paths, candId) {
+    async getCandidate(paths: StoragePaths, candId: any) {
         await LibraryPort.ensureLibrary(paths);
         const d = libraryDirs(paths);
         const candPath = path.join(d.candidates, `${candId}.json`);

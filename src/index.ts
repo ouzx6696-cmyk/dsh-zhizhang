@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * dsh-zhizhang — DeepSeek Harness plugin entry (on-demand).
  *
@@ -8,6 +7,7 @@
  * Agent scope when the host exposes one — standard sessions stay clean.
  */
 import { formatToolError } from "./lib/errors.js";
+import type { ExecContext } from "./lib/types.js";
 import { registerPanelHttpRoutes } from "./lib/http-api.js";
 import { applyTools } from "./lib/bootstrap.js";
 import { AcceptPolicy, BriefGate, InspirationPort, LibraryPort, LintGate, METHOD_ASSET_IDS, MethodRegistry, MultiDraftPort, HumanFeelAuditorPort, HumanFeelGate, NovelSenseAuditorPort, NovelSenseGate, PayoffAuditorPort, ProductMap, Scheduler, SaveBypassGate, StyleLinterPort, setPortConfig, envMultiDraftFlag, } from "./lib/ports/index.js";
@@ -27,16 +27,16 @@ function enabledReceipt() {
     return [receipt, "", ProductMap.formatForAgent()].join("\n");
 }
 const loadedAgents = new WeakSet();
-function makeEnableTool(pluginConfig) {
+function makeEnableTool(pluginConfig: any) {
     return {
         name: "zhizhang_enable",
         description: `【按需启用】把织章小说工具（${tools.length} 个）与硬规则加载到当前会话。只有需要拆书 / 写小说 / 改稿时才调用；未调用前这些工具与系统提示都不会注入。启用后调用 zhizhang_product_map 看默认链。`,
         parameters: { type: "object", additionalProperties: false, properties: {}, required: [] },
         output: {
             schema: { type: "string" },
-            render: (_args, value) => [{ type: "text", text: value }],
+            render: (_args: any, value: string) => [{ type: "text", text: value }],
         },
-        async execute(_args, exec) {
+        async execute(_args: any, exec: ExecContext) {
             try {
                 const agentCtx = exec?.agent?.ctx;
                 if (!agentCtx || typeof agentCtx.tools?.register !== "function") {
@@ -54,7 +54,7 @@ function makeEnableTool(pluginConfig) {
         },
     };
 }
-export function apply(ctx, pluginConfig = {}) {
+export function apply(ctx: any, pluginConfig: any = {}) {
     setPluginConfig(pluginConfig);
     const multiOn = pluginConfig.multiDraftEnabled === true ||
         pluginConfig.multiDraft?.enabled === true ||
@@ -73,7 +73,7 @@ export const __testing = {
     formatToolError,
     METHOD_ASSET_IDS,
     listMethodAssets: () => MethodRegistry.list(),
-    getMethodAssets: (ids) => MethodRegistry.getMany(ids),
+    getMethodAssets: (ids: any) => MethodRegistry.getMany(ids),
     auditPayoff: PayoffAuditorPort.audit,
     formatPayoffAudit: PayoffAuditorPort.format,
     ports: {

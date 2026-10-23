@@ -1,4 +1,3 @@
-// @ts-nocheck
 /** Writing pillar — works, foundation, outline, chapters. */
 import { appendLedger, countWords, createWork, ensureStorage, listChapters, listWorks, readChapter, readWorkMeta, saveChapter, setFoundation, } from "../lib/store.js";
 import { firstDenyCode, firstDenyText, FoundationPort, SAVE_BYPASS_WORD_THRESHOLD, SaveBypassGate, Scheduler, } from "../lib/ports/index.js";
@@ -7,6 +6,7 @@ import { asString, config, fail, openWork, rememberWork } from "./context.js";
 import { renderOutline, renderStatus } from "./render.js";
 import { B, E, I, OUTLINE_PROPS, S, WORK_OPT, WORKING_DIR } from "./schema.js";
 import { defineTool } from "./types.js";
+import type { ExecContext } from "./types.js";
 export function worksTools() {
     return [
         defineTool({
@@ -20,7 +20,7 @@ export function worksTools() {
                 working_dir: WORKING_DIR,
             },
             required: ["title"],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const title = asString(args, "title", { required: true });
                 const paths = await ensureStorage(exec, config, asString(args, "working_dir"));
                 const { meta, dir } = await createWork(paths, {
@@ -45,11 +45,11 @@ export function worksTools() {
             description: "打开一部作品并记住为本会话当前作品，返回状态摘要。",
             properties: { work: WORK_OPT, working_dir: WORKING_DIR },
             required: [],
-            async execute(args, exec) {
-                const { dir, key } = await openWork(exec, { ...args, work: args.work ?? args.project });
+            async execute(args: any, exec: ExecContext) {
+                const { dir, key, paths } = await openWork(exec, { ...args, work: args.work ?? args.project });
                 const meta = await readWorkMeta(dir);
                 rememberWork(exec, key);
-                return renderStatus(meta, dir);
+                return renderStatus(meta, dir, paths);
             },
         }),
         defineTool({
@@ -57,15 +57,15 @@ export function worksTools() {
             description: "列出存储根下全部织章作品（key、标题、章节数、字数、更新时间）。",
             properties: { working_dir: WORKING_DIR },
             required: [],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const paths = await ensureStorage(exec, config, asString(args, "working_dir"));
                 const rows = await listWorks(paths);
                 if (rows.length === 0)
                     return "还没有作品。用 zhizhang_project_create 创建第一部。";
                 return [
                     "作品列表（最近更新在前）：",
-                    ...rows.map((w, i) => {
-                        const words = w.chapters.reduce((s, c) => s + c.wordCount, 0);
+                    ...rows.map((w: any, i: number) => {
+                        const words = w.chapters.reduce((s: string, c: any) => s + c.wordCount, 0);
                         return `${i + 1}. ${w.title}（${w.key}）· ${w.chapters.length} 章 · 约 ${words} 字 · ${w.updatedAt}`;
                     }),
                 ].join("\n");
@@ -76,9 +76,9 @@ export function worksTools() {
             description: "查看当前作品状态：根基摘要、章节进度与字数、下一步建议。上下文压缩后先调它恢复现场。",
             properties: { work: WORK_OPT, working_dir: WORKING_DIR },
             required: [],
-            async execute(args, exec) {
-                const { dir } = await openWork(exec, args);
-                return renderStatus(await readWorkMeta(dir), dir);
+            async execute(args: any, exec: ExecContext) {
+                const { dir, paths } = await openWork(exec, args);
+                return renderStatus(await readWorkMeta(dir), dir, paths);
             },
         }),
         defineTool({
@@ -86,7 +86,7 @@ export function worksTools() {
             description: "读取作品根基（锁定/已发生/人物/读者知情/计划/未结伏笔/文风）。",
             properties: { work: WORK_OPT, working_dir: WORKING_DIR },
             required: [],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const { dir } = await openWork(exec, args);
                 const f = (await readWorkMeta(dir)).foundation;
                 return [
@@ -116,9 +116,9 @@ export function worksTools() {
                 style: S("全书文风约束"),
             },
             required: [],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const { dir } = await openWork(exec, args);
-                const patch = {};
+                const patch: Record<string, any> = {};
                 for (const key of ["locks", "happened", "characters", "readerKnowledge", "planned", "threads", "style"]) {
                     const v = asString(args, key);
                     if (v !== undefined)
@@ -141,7 +141,7 @@ export function worksTools() {
                 title: S("可选章节标题"),
             },
             required: ["chapter", "text"],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const chapterId = asString(args, "chapter", { required: true });
                 const textLine = asString(args, "text", { required: true });
                 const { dir } = await openWork(exec, args);
@@ -171,7 +171,7 @@ export function worksTools() {
                 chapter: S("章节 id（如 c001）"),
             },
             required: ["chapter"],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const chapterId = asString(args, "chapter", { required: true });
                 const { dir } = await openWork(exec, args);
                 const ch = await readChapter(dir, chapterId);
@@ -189,10 +189,10 @@ export function worksTools() {
                 ...OUTLINE_PROPS,
             },
             required: ["chapter"],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const chapterId = asString(args, "chapter", { required: true });
                 const { dir } = await openWork(exec, args);
-                const patch = {};
+                const patch: Record<string, any> = {};
                 for (const key of Object.keys(OUTLINE_PROPS)) {
                     if (args[key] === undefined || args[key] === null)
                         continue;
@@ -245,12 +245,12 @@ export function worksTools() {
             description: "列出作品章节清单（id、标题、状态、字数）。",
             properties: { work: WORK_OPT, working_dir: WORKING_DIR },
             required: [],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const { dir } = await openWork(exec, args);
                 const rows = await listChapters(dir);
                 if (rows.length === 0)
                     return "尚无章节。用 zhizhang_outline_set 或 zhizhang_chapter_save 创建。";
-                return rows.map((c) => `${c.position}. [${c.status}] ${c.title}（${c.id}，${c.wordCount} 字）`).join("\n");
+                return rows.map((c: any) => `${c.position}. [${c.status}] ${c.title}（${c.id}，${c.wordCount} 字）`).join("\n");
             },
         }),
         defineTool({
@@ -262,7 +262,7 @@ export function worksTools() {
                 chapter: S("章节 id"),
             },
             required: ["chapter"],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const chapterId = asString(args, "chapter", { required: true });
                 const { dir } = await openWork(exec, args);
                 const ch = await readChapter(dir, chapterId);
@@ -292,7 +292,7 @@ export function worksTools() {
                 confirm_bypass: B(`大正文旁路确认：正文超过 ${SAVE_BYPASS_WORD_THRESHOLD} 字直写时必须为 true；短稿/仅改状态可不传`),
             },
             required: ["chapter"],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const chapterId = asString(args, "chapter", { required: true });
                 const contentArg = asString(args, "content", { trim: false });
                 const confirmBypass = Boolean(args.confirm_bypass);
@@ -337,7 +337,7 @@ export function worksTools() {
                     });
                     if (!gate.ok)
                         fail(firstDenyText(gate), firstDenyCode(gate));
-                    bypassNoted = gate.messages.some((m) => m.code === "save_bypass_confirmed");
+                    bypassNoted = gate.messages.some((m: any) => m.code === "save_bypass_confirmed");
                 }
                 const status = asString(args, "status");
                 if (status && !CHAPTER_STATUSES.includes(status))

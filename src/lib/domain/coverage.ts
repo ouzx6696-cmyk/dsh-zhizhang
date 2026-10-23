@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * 覆盖率 / 置信度 — 全插件唯一公式。
  *
@@ -23,7 +22,7 @@ export const AUTO_CONFIDENCE_CAP = 0.84;
 export const REVIEW_THRESHOLD = 0.85;
 export const COVERAGE_DIMENSION_MAX = DIMENSIONS.length;
 
-export function textStats(text) {
+export function textStats(text: unknown) {
     const raw = String(text ?? "");
     const chars = raw.replace(/\s/g, "").length;
     const sentences = raw.match(/[^。！？!?…]+[。！？!?…]+/g) ?? [];
@@ -39,12 +38,26 @@ export function textStats(text) {
     };
 }
 
-export function computeCoverage(meta, facts, modules, quoteStats, extra = {}) {
+export interface CoverageExtra {
+    survey?: unknown;
+    plots?: unknown;
+    rhythms?: { points?: unknown } | null;
+    characters?: unknown;
+    autoCap?: boolean;
+}
+
+export function computeCoverage(
+    meta: any,
+    facts: any[],
+    modules: any[],
+    quoteStats: { total: number; ok: number } | null | undefined,
+    extra: CoverageExtra = {},
+) {
     const scope = Number(meta?.scope?.chapters ?? 0) || Number(meta?.totalChapters ?? 0);
     const ratio = scope > 0 ? Math.min(1, facts.length / scope) : 0;
     const quotePass = quoteStats && quoteStats.total > 0 ? quoteStats.ok / quoteStats.total : 0;
     const dims = new Set(modules.map((m) => m.dimension).filter(Boolean)).size;
-    const has = (x) => (Array.isArray(x) ? x.length > 0 : Boolean(x));
+    const has = (x: unknown) => (Array.isArray(x) ? x.length > 0 : Boolean(x));
     const structure = STRUCTURE_WEIGHTS.survey * (extra.survey ? 1 : 0)
         + STRUCTURE_WEIGHTS.plots * (has(extra.plots) ? 1 : 0)
         + STRUCTURE_WEIGHTS.rhythms * (has(extra.rhythms?.points) ? 1 : 0)

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /** Writing pillar — style lint, review ledger, payoff audit. */
 import { appendLedger, readCandidate, readChapter, readLedger, readWorkMeta, storePayoffAudit, } from "../lib/store.js";
 import { resolvePrevChapter } from "../lib/services/chapter-context.js";
@@ -8,6 +7,7 @@ import { asString, fail, openWork } from "./context.js";
 import { formatLint } from "./render.js";
 import { B, E, S, WORK_OPT, WORKING_DIR } from "./schema.js";
 import { defineTool } from "./types.js";
+import type { ExecContext } from "./types.js";
 export function auditTools() {
     return [
         defineTool({
@@ -21,7 +21,7 @@ export function auditTools() {
                 text: S("可选：直接扫描这段文本（诊断；不过 accept 闸，除非同时传 candidate）"),
             },
             required: [],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const candidateId = asString(args, "candidate");
                 if (candidateId) {
                     const { dir } = await openWork(exec, args);
@@ -87,12 +87,12 @@ export function auditTools() {
                 issues_json: S("可选：JSON 数组 [{category,finding,evidence,suggestion}]，category 建议用五类证据名"),
             },
             required: ["action"],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const action = asString(args, "action", { required: true });
                 if (action === "evidence_kinds") {
                     return [
                         "审校五类证据范畴（供 Agent 诊断分类，非生成许可）：",
-                        ...REVIEW_EVIDENCE_KINDS.map((k, i) => `${i + 1}. ${k}`),
+                        ...REVIEW_EVIDENCE_KINDS.map((k: any, i: number) => `${i + 1}. ${k}`),
                     ].join("\n");
                 }
                 const { dir } = await openWork(exec, args);
@@ -101,7 +101,7 @@ export function auditTools() {
                     if (ledger.entries.length === 0)
                         return "审校留痕为空。";
                     return ledger.entries
-                        .map((e, i) => `${i + 1}. [${e.at}] ${e.kind} · ${e.chapterId} · ${e.summary}${e.styleHitCount != null ? ` · lint=${e.styleHitCount}` : ""}`)
+                        .map((e: any, i: number) => `${i + 1}. [${e.at}] ${e.kind} · ${e.chapterId} · ${e.summary}${e.styleHitCount != null ? ` · lint=${e.styleHitCount}` : ""}`)
                         .join("\n");
                 }
                 if (action !== "append")
@@ -109,7 +109,7 @@ export function auditTools() {
                 const chapterId = asString(args, "chapter", { required: true });
                 const kind = (asString(args, "kind") ?? "note");
                 const summary = asString(args, "summary", { required: true });
-                const dims = {};
+                const dims: Record<string, boolean> = {};
                 if (typeof args.dim_locks_ledger === "boolean")
                     dims.locks_ledger = args.dim_locks_ledger;
                 if (typeof args.dim_pov_situation === "boolean")
@@ -143,17 +143,19 @@ export function auditTools() {
                 persist: B("是否写入 payoff-audits.json + ledger（默认 true）"),
             },
             required: ["chapter"],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const chapterId = asString(args, "chapter", { required: true });
                 const { dir } = await openWork(exec, args);
                 const meta = await readWorkMeta(dir);
-                let chapter;
+                let chapter: any;
                 try {
                     chapter = await readChapter(dir, chapterId);
                 }
                 catch {
                     fail(`章节不存在：${chapterId}`, "not_found");
                 }
+                if (!chapter)
+                    fail(`章节不存在：${chapterId}`, "not_found");
                 const candidateId = asString(args, "candidate");
                 let body = asString(args, "text", { trim: false });
                 let source = "chapter";
@@ -185,7 +187,7 @@ export function auditTools() {
                 });
                 const persist = args.persist === undefined ? true : Boolean(args.persist);
                 if (persist) {
-                    const codes = result.findings.filter((f) => f.severity !== "info").map((f) => f.code);
+                    const codes = result.findings.filter((f: any) => f.severity !== "info").map((f: any) => f.code);
                     await storePayoffAudit(dir, {
                         chapterId,
                         source,
@@ -212,7 +214,7 @@ export function auditTools() {
                 text: S("可选：直接扫描这段文本"),
             },
             required: [],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const candidateId = asString(args, "candidate");
                 let text = asString(args, "text", { trim: false });
                 let label = "传入文本";
@@ -263,7 +265,7 @@ export function auditTools() {
                 prev_text: S("可选：前章正文（与 prev_chapter 二选一）"),
             },
             required: [],
-            async execute(args, exec) {
+            async execute(args: any, exec: ExecContext) {
                 const candidateId = asString(args, "candidate");
                 let text = asString(args, "text", { trim: false });
                 let label = "传入文本";

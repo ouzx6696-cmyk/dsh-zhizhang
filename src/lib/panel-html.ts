@@ -1,19 +1,18 @@
-// @ts-nocheck
 import { PLUGIN_VERSION } from "./version.js";
-function esc(s) {
+function esc(s: any) {
     return String(s ?? "")
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;");
 }
-function clip(s, n) {
+function clip(s: string, n: number) {
     const t = String(s ?? "").trim();
     if (t.length <= n)
         return t;
     return t.slice(0, n) + "…";
 }
-function statusLabel(status) {
+function statusLabel(status: any) {
     if (status === "final")
         return "定稿";
     if (status === "reviewed")
@@ -65,8 +64,8 @@ const PANEL_CSS = `
 .zz-note{font-size:.78rem;color:var(--zz-muted,#9aa0a6);margin:4px 0 0}
 @media (max-width:480px){.zz-panel{padding:10px}.zz-hero{padding:10px}.zz-chapter{grid-template-columns:8px 1fr}.zz-pillar-grid{grid-template-columns:1fr}}
 `.trim();
-export function renderPanelHtml(input) {
-    const pending = input.candidates.filter((c) => c.pending);
+export function renderPanelHtml(input: any) {
+    const pending = input.candidates.filter((c: any) => c.pending);
     const { totals, foundation } = input;
     const product = input.product;
     const library = input.library;
@@ -93,7 +92,7 @@ export function renderPanelHtml(input) {
     const pillarsHtml = product
         ? `<div class="zz-pillar-grid">` +
             product.pillars
-                .map((p) => `<div class="zz-card" data-pillar="${esc(p.id)}"><div class="zz-ch-title">${p.loopStage}. ${esc(p.title)}</div>` +
+                .map((p: any) => `<div class="zz-card" data-pillar="${esc(p.id)}"><div class="zz-ch-title">${p.loopStage}. ${esc(p.title)}</div>` +
                 `<div class="zz-ch-sub">${esc(clip(p.summary, 120))}</div>` +
                 `<div class="zz-note">交接：${esc(clip(p.handsOffTo, 80))}</div></div>`)
                 .join("") +
@@ -114,7 +113,7 @@ export function renderPanelHtml(input) {
             ? `<ul class="zz-muted">` +
                 library.sources
                     .slice(0, 6)
-                    .map((s) => `<li>${esc(s.title)}${s.author ? " · " + esc(s.author) : ""} <code>${esc(s.id)}</code></li>`)
+                    .map((s: any) => `<li>${esc(s.title)}${s.author ? " · " + esc(s.author) : ""} <code>${esc(s.id)}</code></li>`)
                     .join("") +
                 `</ul>`
             : `<p class="zz-empty">暂无来源。可用 zhizhang_library_import</p>`}
@@ -139,7 +138,7 @@ export function renderPanelHtml(input) {
             ? `<ul class="zz-muted">` +
                 inspiration.sessions
                     .slice(0, 4)
-                    .map((s) => `<li>${esc(clip(s.goal, 48))} · ${s.cardCount} 卡 <code>${esc(s.id)}</code></li>`)
+                    .map((s: any) => `<li>${esc(clip(s.goal, 48))} · ${s.cardCount} 卡 <code>${esc(s.id)}</code></li>`)
                     .join("") +
                 `</ul>`
             : `<p class="zz-empty">暂无灵感会话</p>`}
@@ -148,7 +147,7 @@ export function renderPanelHtml(input) {
         ? `<p class="zz-empty">暂无章节</p>`
         : `<ol class="zz-chapters">` +
             input.chapters
-                .map((c) => {
+                .map((c: any) => {
                 const sit = clip(c.situationLens, 72);
                 return (`<li class="zz-chapter" data-id="${esc(c.id)}" data-status="${esc(c.status)}">` +
                     `<span class="zz-dot" data-status="${esc(c.status)}" title="${esc(statusLabel(c.status))}"></span>` +
@@ -167,7 +166,7 @@ export function renderPanelHtml(input) {
         ? `<p class="zz-empty">无待采纳。Web 面板可点「采纳」（须二次确认 + 同硬闸）；或用工具 zhizhang_candidate_accept。</p>`
         : `<ul class="zz-cand">` +
             pending
-                .map((c) => {
+                .map((c: any) => {
                 const label = c.draftLabel ? `「${c.draftLabel}」 ` : "";
                 const flags = [
                     c.hasLintPass ? "lint✓" : "缺 lint",
@@ -188,7 +187,7 @@ export function renderPanelHtml(input) {
         ? `<p class="zz-empty">暂无提示</p>`
         : `<ul class="zz-hints">` +
             input.nextHints
-                .map((h, i) => {
+                .map((h: any, i: number) => {
                 const urgent = i < 2 && (h.includes("待采纳") || h.includes("硬拒") || h.includes("缺"));
                 return `<li class="zz-hint${urgent ? " zz-hint-urgent" : ""}">${esc(h)}</li>`;
             })
@@ -206,7 +205,7 @@ export function renderPanelHtml(input) {
         ? `<p class="zz-empty">无</p>`
         : `<ul>` +
             ledgerItems
-                .map((e) => `<li>[${esc(e.at)}] ${esc(e.kind)} · ${esc(e.chapterId)} · ${esc(clip(e.summary, 72))}</li>`)
+                .map((e: any) => `<li>[${esc(e.at)}] ${esc(e.kind)} · ${esc(e.chapterId)} · ${esc(clip(e.summary, 72))}</li>`)
                 .join("") +
             `</ul>`;
     const briefItems = input.briefCrumbsRecent.slice(-8).reverse();
@@ -214,7 +213,7 @@ export function renderPanelHtml(input) {
         ? `<p class="zz-empty">无</p>`
         : `<ul>` +
             briefItems
-                .map((e) => `<li>${esc(e.chapterId)} @ ${esc(e.at)} · ${esc((e.assetIds ?? []).join(",") || "—")}</li>`)
+                .map((e: any) => `<li>${esc(e.chapterId)} @ ${esc(e.at)} · ${esc((e.assetIds ?? []).join(",") || "—")}</li>`)
                 .join("") +
             `</ul>`;
     const payoffEntries = Object.values(input.lastPayoffByChapter);
@@ -222,7 +221,7 @@ export function renderPanelHtml(input) {
         ? `<p class="zz-empty">无（例行三 audit 不在默认创作路径）</p>`
         : `<ul>` +
             payoffEntries
-                .map((e) => `<li>${esc(e.chapterId)} · ${e.ok ? "ok" : "warn:" + e.warningCount} · ${esc(clip(e.summary, 72))}</li>`)
+                .map((e: any) => `<li>${esc(e.chapterId)} · ${e.ok ? "ok" : "warn:" + e.warningCount} · ${esc(clip(e.summary, 72))}</li>`)
                 .join("") +
             `</ul>`;
     return [
