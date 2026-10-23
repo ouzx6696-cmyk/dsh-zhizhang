@@ -1,5 +1,0 @@
-[test]
-# Only first-party tests under ./test
-root = "./test"
-# Isolate $DSH_HOME so tests never write the real ~/.dsh project index.
-preload = ["./test/setup.ts"]

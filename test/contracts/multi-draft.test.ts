@@ -1,4 +1,6 @@
-import { describe, expect, test, afterEach } from "bun:test";
+import { PLUGIN_VERSION } from "../plugin-version.ts";
+import { describe, test, afterEach } from "node:test";
+import { expect } from "../_compat/expect.ts";
 import {
   MultiDraftPort,
   ProductMap,
@@ -183,8 +185,8 @@ describe("Multi-draft + unify (0.14 optional, default off)", () => {
   });
 
   test("Scheduler default hints still no unify; bypass multi.draft present", () => {
-    expect(Scheduler.version).toBe("0.15.3");
-    expect(ProductMap.version).toBe("0.15.3");
+    expect(Scheduler.version).toBe(PLUGIN_VERSION);
+    expect(ProductMap.version).toBe(PLUGIN_VERSION);
     expect(Scheduler.writeLine()).not.toMatch(/unify/);
     expect(Scheduler.nextHint("chapter_brief")).not.toMatch(/unify/);
     expect(Scheduler.nextHint("candidate_stage")).not.toMatch(/unify/);

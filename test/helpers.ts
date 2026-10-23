@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { createWork, ensureStorage, type StoragePaths } from "../src/lib/store.ts";
 
-export const FIXTURES = path.join(import.meta.dir, "fixtures");
+export const FIXTURES = path.join(import.meta.dirname, "fixtures");
 
 export async function withTempRoot(prefix = "zhizhang-"): Promise<{
   base: string;

@@ -1,4 +1,6 @@
-import { describe, expect, test } from "bun:test";
+import { PLUGIN_VERSION } from "../plugin-version.ts";
+import { describe, test } from "node:test";
+import { expect } from "../_compat/expect.ts";
 import {
   AcceptPolicy,
   EditPort,
@@ -27,7 +29,7 @@ describe("EditPort + A/B/C accept contract", () => {
     expect(brief).toMatch(/齐刷短句|熨平|主语砍光|匀速吐字/);
     expect(brief).toMatch(/退回写手|polish-rhythm/);
     expect(EditPort.modeInfo("polish-depolish").focus).toMatch(/毛边|禁止.*熨平|主语砍光/);
-    expect(EditPort.version).toBe("0.15.3");
+    expect(EditPort.version).toBe(PLUGIN_VERSION);
   });
 
   test("edit soft hints surface uniform_short_run without blocking A/B/C", () => {

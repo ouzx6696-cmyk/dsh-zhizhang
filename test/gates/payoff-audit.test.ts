@@ -1,4 +1,5 @@
-import { describe, expect, test } from "bun:test";
+import { describe, test } from "node:test";
+import { expect } from "../_compat/expect.ts";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { auditPayoff } from "../../src/lib/payoff-audit.ts";

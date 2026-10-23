@@ -1,4 +1,5 @@
-import { describe, expect, test } from "bun:test";
+import { describe, test } from "node:test";
+import { expect } from "../_compat/expect.ts";
 import { Scheduler, MethodRegistry, HumanFeelAuditorPort } from "../../src/lib/ports/index.ts";
 import { buildPanelSnapshot } from "../../src/lib/store.ts";
 import { withTempWork, padBody } from "../helpers.ts";

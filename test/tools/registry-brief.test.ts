@@ -1,4 +1,6 @@
-import { describe, expect, test } from "bun:test";
+import { describe, test } from "node:test";
+import { readFile } from "node:fs/promises";
+import { expect } from "../_compat/expect.ts";
 import { formatToolError, ZhizhangError } from "../../src/lib/errors.ts";
 import { SYSTEM_BRIEF, __testing } from "../../src/index.ts";
 
@@ -31,7 +33,7 @@ describe("Tool registry + SYSTEM_BRIEF hard points", () => {
     expect(out).toContain("已上线");
     expect(out).toContain("一条创作闭环");
     expect(__testing.ports.ProductMap.version).toBe(
-      (await import("../../package.json")).version,
+      (JSON.parse(await readFile(new URL("../../package.json", import.meta.url), "utf8"))).version,
     );
   });
 

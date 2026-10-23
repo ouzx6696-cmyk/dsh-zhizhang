@@ -1,4 +1,5 @@
-import { describe, expect, test } from "bun:test";
+import { describe, test } from "node:test";
+import { expect } from "../_compat/expect.ts";
 import { dialogueRanges, lintStyle, summarizeStyleLint } from "../../src/lib/style-linter.ts";
 
 describe("style-linter sensor", () => {

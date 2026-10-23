@@ -1,4 +1,6 @@
-import { describe, expect, test } from "bun:test";
+import { PLUGIN_VERSION } from "../plugin-version.ts";
+import { describe, test } from "node:test";
+import { expect } from "../_compat/expect.ts";
 import {
   QualityPolicy,
   QUALITY_AXES,
@@ -53,7 +55,7 @@ describe("QualityPolicy surface contract", () => {
     expect(ProductMap.formatForAgent()).toContain("质量面");
     expect(QualityPolicy.surfaceLine()).toContain("质量面");
 
-    expect(ProductMap.version).toBe("0.15.3");
+    expect(ProductMap.version).toBe(PLUGIN_VERSION);
   });
 
   test("book-debt cues exclude ledger inventory; ledger-flat ending → no_book_debt", () => {

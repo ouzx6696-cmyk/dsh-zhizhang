@@ -1,8 +1,8 @@
 /**
- * Test preload (see bunfig.toml).
+ * Test preload (see the "test" script in package.json).
  *
  * Tool calls register their workspace in `$DSH_HOME/zhizhang-projects.json` and
- * `$DSH_HOME/zhizhang-last-root.json`. Without isolation every `bun test` run
+ * `$DSH_HOME/zhizhang-last-root.json`. Without isolation every `npm test` run
  * pollutes the real `~/.dsh` index with throwaway temp roots, and can also
  * repoint the panel's HTTP storage root at a directory that no longer exists.
  *

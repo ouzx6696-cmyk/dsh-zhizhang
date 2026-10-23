@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, test } from "node:test";
+import { expect } from "../_compat/expect.ts";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -216,3 +217,4 @@ describe("Inspiration pillar · dual axis 0.7.0", () => {
     expect((await listWorks(p)).length).toBe(1);
   });
 });
+

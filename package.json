@@ -24,13 +24,14 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && node scripts/build-client.mjs",
+    "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/build-client.mjs",
     "build:client": "node scripts/build-client.mjs",
-    "build:check": "tsc -p tsconfig.json --noEmit && node scripts/build-client.mjs --check",
+    "build:check": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit && node scripts/build-client.mjs --check",
     "prepare": "npm run build",
-    "test": "bun test test/",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "smoke": "node scripts/smoke.mjs"
+    "test": "node --test --import ./test/_compat/ts-resolve.mjs --import ./test/setup.ts \"test/**/*.test.ts\"",
+    "typecheck": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+    "smoke": "node scripts/smoke.mjs",
+    "guard": "node scripts/ts-nocheck-guard.mjs && node scripts/type-import-guard.mjs"
   },
   "dsh": {
     "bundle": {

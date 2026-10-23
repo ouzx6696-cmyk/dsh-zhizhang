@@ -1,4 +1,6 @@
-import { describe, expect, test } from "bun:test";
+import { describe, test } from "node:test";
+import { readFile } from "node:fs/promises";
+import { expect } from "../_compat/expect.ts";
 import {
   InspirationPort,
   LibraryPort,
@@ -20,7 +22,7 @@ describe("PortConfig + ProductMap contract", () => {
   });
 
   test("ProductMap: three pillars live; version matches package", async () => {
-    const pkg = await import("../../package.json");
+    const pkg = JSON.parse(await readFile(new URL("../../package.json", import.meta.url), "utf8"));
     expect(ProductMap.version).toBe(pkg.version);
     expect(LibraryPort.status).toBe("live");
     expect(InspirationPort.status).toBe("live");

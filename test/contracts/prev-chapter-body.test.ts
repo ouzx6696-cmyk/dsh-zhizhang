@@ -1,4 +1,6 @@
-import { describe, expect, test } from "bun:test";
+import { PLUGIN_VERSION } from "../plugin-version.ts";
+import { describe, test } from "node:test";
+import { expect } from "../_compat/expect.ts";
 import {
   formatReaderContract,
   PREV_CHAPTER_BODY_SOFT_MAX,
@@ -9,8 +11,8 @@ import { SYSTEM_BRIEF } from "../../src/tools/brief.ts";
 
 describe("prev chapter body 0.10.x", () => {
   test("versions + SYSTEM_BRIEF say full prev body", () => {
-    expect(ProductMap.version).toBe("0.15.3");
-    expect(Scheduler.version).toBe("0.15.3");
+    expect(ProductMap.version).toBe(PLUGIN_VERSION);
+    expect(Scheduler.version).toBe(PLUGIN_VERSION);
     expect(SYSTEM_BRIEF).toMatch(/前章.*正文全文|正文全文/);
     expect(SYSTEM_BRIEF).not.toContain("短文末");
   });

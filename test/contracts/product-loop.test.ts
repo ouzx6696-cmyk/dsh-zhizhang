@@ -1,4 +1,7 @@
-import { describe, expect, test } from "bun:test";
+import { PLUGIN_VERSION } from "../plugin-version.ts";
+import { readFile } from "node:fs/promises";
+import { describe, test } from "node:test";
+import { expect } from "../_compat/expect.ts";
 import {
   CREATIVE_LOOP_LINE,
   ProductMap,
@@ -13,10 +16,10 @@ import { SYSTEM_BRIEF } from "../../src/tools/brief.ts";
 
 describe("product loop holistic contract", () => {
   test("one loop line shared by Scheduler + ProductMap + SYSTEM_BRIEF", async () => {
-    const pkg = await import("../../package.json");
+    const pkg = JSON.parse(await readFile(new URL("../../package.json", import.meta.url), "utf8"));
     expect(ProductMap.version).toBe(pkg.version);
-    expect(ProductMap.version).toBe("0.15.3");
-    expect(Scheduler.version).toBe("0.15.3");
+    expect(ProductMap.version).toBe(PLUGIN_VERSION);
+    expect(Scheduler.version).toBe(PLUGIN_VERSION);
 
     const line = ProductMap.loopLine();
     expect(line).toBe(CREATIVE_LOOP_LINE);

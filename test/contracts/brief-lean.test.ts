@@ -1,4 +1,6 @@
-import { describe, expect, test } from "bun:test";
+import { PLUGIN_VERSION } from "../plugin-version.ts";
+import { describe, test } from "node:test";
+import { expect } from "../_compat/expect.ts";
 import {
   InspirationPort,
   MethodRegistry,
@@ -148,7 +150,7 @@ describe("brief-lean contract", () => {
     expect(SYSTEM_BRIEF).toMatch(/audit 仅诊断旁路|旁路/);
     expect(SYSTEM_BRIEF).not.toMatch(/建议 zhizhang_payoff_audit \/ zhizhang_human_feel_audit/);
 
-    expect(ProductMap.version).toBe("0.15.3");
+    expect(ProductMap.version).toBe(PLUGIN_VERSION);
     const map = ProductMap.formatForAgent();
     expect(map).toContain("chapter_brief");
     expect(map).toMatch(/旁路|软传感|diagnose\.audit|仅诊断旁路/);

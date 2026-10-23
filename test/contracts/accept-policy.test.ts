@@ -1,4 +1,5 @@
-import { describe, expect, test } from "bun:test";
+import { describe, test } from "node:test";
+import { expect } from "../_compat/expect.ts";
 import { AcceptPolicy } from "../../src/lib/ports/index.ts";
 import type { CandidateFile } from "../../src/lib/types.ts";
 

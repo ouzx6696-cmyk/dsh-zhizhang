@@ -1,4 +1,6 @@
-import { describe, expect, test } from "bun:test";
+import { PLUGIN_VERSION } from "../plugin-version.ts";
+import { describe, test } from "node:test";
+import { expect } from "../_compat/expect.ts";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -94,7 +96,7 @@ describe("panel HTTP · GET + accept POST", () => {
       expect(body.snapshot.workKey).toBe(meta.key);
       expect(body.snapshot.library).toBeTruthy();
       expect(body.snapshot.product).toBeTruthy();
-      // 0.15.3: HTML is opt-in; the default snapshot stays JSON-only for cheap polling.
+      // HTML is opt-in; the default snapshot stays JSON-only for cheap polling.
       expect(body.html).toBeUndefined();
       const htmlRes = await fetch(
         `http://127.0.0.1:${port}${ZZ_API_PREFIX}/snapshot?work=${encodeURIComponent(meta.key)}&html=1`,
@@ -314,7 +316,7 @@ describe("panel HTTP · chapter + candidate body (0.13)", () => {
       const h = (await health.json()) as { routes: string[]; version: string };
       expect(h.routes.some((r) => r.includes("/chapter"))).toBe(true);
       expect(h.routes.some((r) => r.endsWith("/candidate") || r.includes("/candidate"))).toBe(true);
-      expect(h.version).toBe("0.15.3");
+      expect(h.version).toBe(PLUGIN_VERSION);
     } finally {
       await new Promise<void>((resolve, reject) => server.close((e) => (e ? reject(e) : resolve())));
       await cleanup();
@@ -324,7 +326,7 @@ describe("panel HTTP · chapter + candidate body (0.13)", () => {
 
 describe("client.js ModuleLoader contract", () => {
   test("full console seats + accept API + no ctx.inject seat wait", async () => {
-    const src = await readFile(path.join(import.meta.dir, "../../src/client/client.js"), "utf8");
+    const src = await readFile(path.join(import.meta.dirname, "../../src/client/client.js"), "utf8");
     expect(src).toContain("window.__ModuleLoader__.load");
     expect(src).toContain("sidebar.panellist");
     expect(src).toContain('ctx.slots.inject("main"');
@@ -341,7 +343,7 @@ describe("client.js ModuleLoader contract", () => {
   });
 
   test("0.13 novel workbench markers", async () => {
-    const src = await readFile(path.join(import.meta.dir, "../../src/client/client.js"), "utf8");
+    const src = await readFile(path.join(import.meta.dirname, "../../src/client/client.js"), "utf8");
     expect(src).toContain("zz-workbench");
     expect(src).toContain("zz-reader");
     expect(src).toContain("zz-wb-left");
@@ -357,7 +359,7 @@ describe("client.js ModuleLoader contract", () => {
   });
 
   test("0.14 multi-draft client markers", async () => {
-    const src = await readFile(path.join(import.meta.dir, "../../src/client/client.js"), "utf8");
+    const src = await readFile(path.join(import.meta.dirname, "../../src/client/client.js"), "utf8");
     expect(src).toContain("unify/prepare");
     expect(src).toContain("multiDraftEnabled");
     expect(src).toContain("统一整理");
@@ -366,7 +368,7 @@ describe("client.js ModuleLoader contract", () => {
   });
 
   test("0.15 unify UI markers", async () => {
-    const src = await readFile(path.join(import.meta.dir, "../../src/client/client.js"), "utf8");
+    const src = await readFile(path.join(import.meta.dirname, "../../src/client/client.js"), "utf8");
     expect(src).toContain("zz-edit-card");
     expect(src).toContain("编辑抉择");
     expect(src).toContain("zz-empty-card");
