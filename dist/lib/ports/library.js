@@ -13,55 +13,11 @@ import { MethodRegistry } from "./methods.js";
 import { REPORT_SECTION_COUNT } from "../domain/report-sections.js";
 import { QualityPolicy } from "./quality-policy.js";
 import { chapterIndex, chapterText, chapterTitle, nearestChapter, totalChapters, ensureAnalysis, writeAnalysisMeta, readAnalysisBundle, deriveAxis, validateModule, verifyModuleEvidence, verifyBodyQuotes, } from "./analysis.js";
-import {
-    SHATTER_CRAFT_CUE_RE,
-    PERMISSION_EDGE_RE,
-    DEFAULT_FAIL_AS_TEMPLATE,
-    ANTI_STIFFNESS_BRIEF_LINE,
-    hasShatterCraftCue,
-    normalizeMechanism,
-    normalizeHumanFeel,
-    coerceHumanFeel,
-    craftCueFromHumanFeel,
-    formatHumanFeelBlock,
-    normalizeBookCraft,
-    formatBookCraftBlock,
-    normalizeHandoff,
-    formatHandoffBlock,
-    normalizeKind,
-    normalizeAxis,
-    coerceAxis,
-    normalizeMind,
-    formatMindBlock,
-    warnCharacterStateWall,
-    neutralizeVoiceNegations,
-    collectAdmitHits,
-    readingArtifactWarnings,
-    admitCardContent,
-    formatModuleBlockV2,
-    formatTechniqueCardBlock,
-    formatTechniqueCardBlockLean,
-} from "./library/schema.js";
+import { normalizeMechanism, normalizeHumanFeel, coerceHumanFeel, normalizeBookCraft, normalizeHandoff, normalizeKind, normalizeAxis, coerceAxis, normalizeMind, warnCharacterStateWall, readingArtifactWarnings, admitCardContent, } from "./library/schema.js";
 export * from "./library/schema.js";
 import { auditCardContent, normForMatch } from "./library/audit.js";
 export { auditCardContent, normForMatch } from "./library/audit.js";
-import {
-    nowIso,
-    newId,
-    fileExists,
-    libraryDirs,
-    emptyIndex,
-    readIndex,
-    writeIndex,
-    resolveSourceIdFilter,
-    filterCardRows,
-    comboScore,
-    decodeBookBuffer,
-    normalizeUserPath,
-    tokenizeQuery,
-    cardDeepHay,
-    reconcileIndex,
-} from "./library/store.js";
+import { nowIso, newId, fileExists, libraryDirs, emptyIndex, readIndex, writeIndex, filterCardRows, comboScore, decodeBookBuffer, normalizeUserPath, tokenizeQuery, cardDeepHay, reconcileIndex, } from "./library/store.js";
 export const LibraryPort = {
     id: "port.library",
     status: "live",
@@ -190,7 +146,7 @@ export const LibraryPort = {
                 picked = [1, 2, 3].filter((n) => idx.some((c) => c.n === n));
             }
             else if (mode === "sample") {
-                picked = [...new Set([0.1, 0.3, 0.6, 0.85].map((r) => nearestChapter(idx, r)).filter((n) => n != null))];
+                picked = [...new Set([0.1, 0.3, 0.6, 0.85].map((r) => Number(nearestChapter(idx, r))).filter((n) => Number.isFinite(n) && n > 0))];
             }
             else {
                 const from = Math.max(1, Math.floor(Number(opts.from ?? 1) || 1));
@@ -199,7 +155,7 @@ export const LibraryPort = {
                     picked.push(n);
             }
             const scopeMode = mode === "opening" ? "opening" : mode === "sample" ? "sample" : mode === "full" ? "full" : "chapters";
-            const planned = mode === "sample" ? picked.length : picked.length ? Math.max(...picked) : 0;
+            const planned = mode === "sample" ? picked.length : picked.length ? Math.max(...picked.map((x) => Number(x))) : 0;
             await writeAnalysisMeta(paths, sourceId, { scope: { mode: scopeMode, chapters: Math.max(planned, Number(prevScope.chapters ?? 0)) } });
             const budget = Math.max(4000, Math.min(Number(opts.maxChars ?? 15000), 30000));
             const batch = [];
@@ -516,7 +472,7 @@ export const LibraryPort = {
         if (!(staged.schemaVersion === 2 || staged.layer)) {
             try {
                 const src = await LibraryPort.getSource(paths, staged.sourceId);
-                const audit = auditCardContent({ ...staged, axis: coerceAxis(staged) }, src.text);
+                const audit = auditCardContent({ ...staged, axis: coerceAxis(staged) }, src.text, undefined);
                 auditWarnings = audit.warnings;
                 if (audit.unverifiable.length > 0) {
                     auditWarnings.unshift(`证据引文 ${audit.evidenceVerified}/${audit.evidenceQuotes} 可在原文中核对，${audit.unverifiable.length} 条未命中`);

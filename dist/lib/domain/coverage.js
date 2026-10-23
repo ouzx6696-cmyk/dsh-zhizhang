@@ -5,7 +5,6 @@
  * Auto 抽样封顶，避免「读 10% 却给全书 0.95」的假自信。
  */
 import { DIMENSIONS } from "./card-schema.js";
-
 export const COVERAGE_WEIGHTS = {
     ratio: 0.4,
     quote: 0.3,
@@ -21,7 +20,6 @@ export const STRUCTURE_WEIGHTS = {
 export const AUTO_CONFIDENCE_CAP = 0.84;
 export const REVIEW_THRESHOLD = 0.85;
 export const COVERAGE_DIMENSION_MAX = DIMENSIONS.length;
-
 export function textStats(text) {
     const raw = String(text ?? "");
     const chars = raw.replace(/\s/g, "").length;
@@ -37,7 +35,6 @@ export function textStats(text) {
         dialogueRatio: chars ? Number((dialogue / chars).toFixed(2)) : 0,
     };
 }
-
 export function computeCoverage(meta, facts, modules, quoteStats, extra = {}) {
     const scope = Number(meta?.scope?.chapters ?? 0) || Number(meta?.totalChapters ?? 0);
     const ratio = scope > 0 ? Math.min(1, facts.length / scope) : 0;

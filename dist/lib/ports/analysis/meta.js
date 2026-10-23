@@ -4,7 +4,6 @@ import { readdir } from "node:fs/promises";
 import { atomicWrite } from "../../store.js";
 import { analysisPaths, assertSourceId, ensureDir, nowIso, readJson, readJsonl } from "./paths.js";
 import { chapterIndex, totalChapters } from "./chapters.js";
-
 export async function ensureAnalysis(paths, sourceId, sourceText) {
     const p = analysisPaths(paths, sourceId);
     await ensureDir(p.dir);
@@ -36,7 +35,6 @@ export async function ensureAnalysis(paths, sourceId, sourceText) {
     }
     return meta;
 }
-
 export async function writeAnalysisMeta(paths, sourceId, patch) {
     const p = analysisPaths(paths, sourceId);
     const current = (await readJson(p.meta, null)) ?? { schemaVersion: 2, sourceId, stage: "meta" };
@@ -44,7 +42,6 @@ export async function writeAnalysisMeta(paths, sourceId, patch) {
     await atomicWrite(p.meta, `${JSON.stringify(next, null, 2)}\n`);
     return next;
 }
-
 export async function readAnalysisBundle(paths, sourceId) {
     const p = analysisPaths(paths, sourceId);
     const [meta, chapters, plots, rhythms, characters, survey] = await Promise.all([
@@ -64,7 +61,6 @@ export async function readAnalysisBundle(paths, sourceId) {
         survey: survey ?? null,
     };
 }
-
 export async function listAnalyses(paths) {
     const root = path.join(paths.library, "analyses");
     let names = [];

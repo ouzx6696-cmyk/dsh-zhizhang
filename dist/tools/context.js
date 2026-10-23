@@ -39,6 +39,32 @@ export function asString(args, key, opts = {}) {
         fail(`参数 ${key} 不能为空`);
     return opts.trim === false ? value : value.trim();
 }
+/**
+ * 字符串数组参数（如 card_ids / source_ids / tags）。
+ *
+ * 与 asString 保持同一口径：类型不对就硬拒，绝不静默降级成空数组——
+ * 静默降级会让调用方拿到"没卡/没结果"的正常回执，排查成本极高。
+ */
+export function asArray(args, key, opts = {}) {
+    const value = args?.[key];
+    if (value === undefined || value === null) {
+        if (opts.required)
+            fail(`参数 ${key} 必填`);
+        return undefined;
+    }
+    if (!Array.isArray(value))
+        fail(`参数 ${key} 必须是${opts.kind ?? "数组"}，收到 ${typeof value}`);
+    return value;
+}
+export function asStringArray(args, key, opts = {}) {
+    const value = asArray(args, key, { ...opts, kind: "字符串数组" });
+    if (value === undefined)
+        return undefined;
+    const out = value.map((x) => String(x).trim()).filter(Boolean);
+    if (opts.required && out.length === 0)
+        fail(`参数 ${key} 不能为空`);
+    return out;
+}
 export async function openWork(exec, args) {
     const paths = await ensureStorage(exec, config, asString(args, "working_dir"));
     let key = asString(args, "work");

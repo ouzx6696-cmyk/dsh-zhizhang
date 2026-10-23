@@ -2,7 +2,7 @@
 import { countWords, listCandidates, readCandidate, stageCandidate, } from "../lib/store.js";
 import { EditPort, MultiDraftPort, Scheduler, auditHumanFeel, getPortConfig, } from "../lib/ports/index.js";
 import { runAccept } from "../lib/services/accept.js";
-import { asString, fail, openWork } from "./context.js";
+import { asString, asStringArray, fail, openWork } from "./context.js";
 import { B, E, S, WORK_OPT, WORKING_DIR } from "./schema.js";
 import { defineTool } from "./types.js";
 async function runAcceptPipeline(args, exec, opts) {
@@ -142,7 +142,7 @@ export function candidatesTools() {
                     editOf: parentId,
                     editMode: mode,
                 });
-                const soft = auditHumanFeel(cand.body);
+                const soft = auditHumanFeel(cand.body, {});
                 const softHits = soft.hits.map((h) => ({ code: h.code, text: h.text }));
                 return [
                     ...EditPort.afterStageLines({
@@ -309,9 +309,7 @@ export function candidatesTools() {
                     fail(e.message, e.code || MultiDraftPort.disabledCode);
                 }
                 const { dir, key } = await openWork(exec, args);
-                let ids = Array.isArray(args.candidate_ids)
-                    ? args.candidate_ids.map((x) => String(x).trim()).filter(Boolean)
-                    : [];
+                let ids = asStringArray(args, "candidate_ids") ?? [];
                 const chapterArg = asString(args, "chapter");
                 if (ids.length === 0) {
                     if (!chapterArg)
@@ -379,9 +377,7 @@ export function candidatesTools() {
                 const content = asString(args, "content", { required: true, trim: false });
                 if (!content.trim())
                     fail("content 不能为空");
-                const ids = Array.isArray(args.candidate_ids)
-                    ? args.candidate_ids.map((x) => String(x).trim()).filter(Boolean)
-                    : [];
+                const ids = asStringArray(args, "candidate_ids") ?? [];
                 if (ids.length < 2)
                     fail("candidate_ids 至少 2 个", "unify_need_two");
                 const { dir } = await openWork(exec, args);

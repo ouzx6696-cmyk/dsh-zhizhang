@@ -1,6 +1,5 @@
 /** 前章解析 — brief / accept / audit / panel 共用，避免四份实现漂移。 */
 import { listChapters, readChapter } from "../store.js";
-
 /**
  * 取当前章的前一章（按章序）。章不存在时退回最后一章（与旧行为一致）。
  * 返回 { meta, body, outline } 或 null。
@@ -29,7 +28,6 @@ export async function resolvePrevChapter(dir, chapterId) {
         return null;
     }
 }
-
 export async function resolvePrevBody(dir, chapterId) {
     const prev = await resolvePrevChapter(dir, chapterId);
     return prev?.body || null;

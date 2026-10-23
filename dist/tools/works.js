@@ -45,10 +45,10 @@ export function worksTools() {
             properties: { work: WORK_OPT, working_dir: WORKING_DIR },
             required: [],
             async execute(args, exec) {
-                const { dir, key } = await openWork(exec, { ...args, work: args.work ?? args.project });
+                const { dir, key, paths } = await openWork(exec, { ...args, work: args.work ?? args.project });
                 const meta = await readWorkMeta(dir);
                 rememberWork(exec, key);
-                return renderStatus(meta, dir);
+                return renderStatus(meta, dir, paths);
             },
         }),
         defineTool({
@@ -76,8 +76,8 @@ export function worksTools() {
             properties: { work: WORK_OPT, working_dir: WORKING_DIR },
             required: [],
             async execute(args, exec) {
-                const { dir } = await openWork(exec, args);
-                return renderStatus(await readWorkMeta(dir), dir);
+                const { dir, paths } = await openWork(exec, args);
+                return renderStatus(await readWorkMeta(dir), dir, paths);
             },
         }),
         defineTool({

@@ -1,36 +1,80 @@
-/**
- * Audit adapters — style / payoff / human-feel / novel-sense soft radars behind stable ports.
- * Sensors stay pure; this file is the only place tools should import them from
- * when wiring (gates/tests may still import sensors for unit isolation).
- */
-import { summarizeStyleLint, type StyleLintHit } from "../style-linter.js";
-import { type PayoffAuditResult } from "../payoff-audit.js";
-import { type HumanFeelAuditResult } from "./human-feel-gate.js";
-import { type NovelSenseAuditResult } from "./novel-sense-gate.js";
-import type { Outline } from "../types.js";
 export declare const StyleLinterPort: {
-    lint(text: string): StyleLintHit[];
-    summarize(hits: StyleLintHit[]): Record<import("../style-linter.js").StyleLintCategory, number>;
-    format(label: string, hits: StyleLintHit[], summary: ReturnType<typeof summarizeStyleLint>): string;
+    lint(text: string): {
+        category: string;
+        start: number;
+        end: number;
+        match: string;
+        hint: string;
+    }[];
+    summarize(hits: any): {
+        cliche_syntax: number;
+        lazy_emotion: number;
+        process_skip: number;
+        slogan_ending: number;
+    };
+    format(label: string, hits: any, summary: any): string;
 };
 export declare const PayoffAuditorPort: {
-    audit(outline: Outline, body: string, opts?: {
-        premise?: string;
-        title?: string;
-    }): PayoffAuditResult;
-    format(label: string, result: PayoffAuditResult): string;
+    audit(outline: any, body: string, opts: any): {
+        ok: boolean;
+        warningCount: number;
+        findings: ({
+            code: string;
+            severity: string;
+            message: string;
+            promise: any;
+            evidence: string;
+        } | {
+            code: string;
+            severity: string;
+            message: string;
+            promise: any;
+            evidence?: undefined;
+        } | {
+            code: string;
+            severity: string;
+            message: string;
+            promise: string;
+            evidence: string | undefined;
+        } | {
+            code: string;
+            severity: string;
+            message: string;
+            evidence: string | undefined;
+            promise?: undefined;
+        })[];
+        checked: {
+            endingTokens: unknown[];
+            endingHits: unknown[];
+            endingMisses: unknown[];
+            speechPromise: boolean;
+            breathReveal: boolean;
+        };
+    };
+    format(label: string, result: any): string;
 };
 export declare const HumanFeelAuditorPort: {
     /** Pass craftCue so stiffness_tidy matches Accept (shatter cues from craft cards). */
-    audit(text: string, opts?: {
-        craftCue?: string | null;
-    }): HumanFeelAuditResult;
-    format(label: string, result: HumanFeelAuditResult): string;
+    audit(text: string, opts: any): {
+        hitCount: number;
+        hits: {
+            code: string;
+            text: string;
+            evidence: string;
+        }[];
+        summary: string;
+    };
+    format(label: string, result: any): string;
 };
 export declare const NovelSenseAuditorPort: {
-    audit(text: string, opts?: {
-        prevBody?: string | null;
-    }): NovelSenseAuditResult;
-    format(label: string, result: NovelSenseAuditResult): string;
+    audit(text: string, opts: any): {
+        hitCount: number;
+        hits: {
+            code: string;
+            text: string;
+            evidence: string;
+        }[];
+        summary: string;
+    };
+    format(label: string, result: any): string;
 };
-export type { StyleLintHit, PayoffAuditResult, HumanFeelAuditResult, NovelSenseAuditResult };

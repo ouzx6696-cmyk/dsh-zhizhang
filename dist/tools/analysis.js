@@ -1,41 +1,18 @@
 /** 拆书分析层工具：事实 / 聚合 / 报告 / 删卡。 */
 import { LibraryPort } from "../lib/ports/library.js";
 import { ZhizhangError } from "../lib/errors.js";
-import {
-    analysisPaths,
-    buildReport,
-    chapterIndex,
-    chapterText,
-    computeCoverage,
-    ensureAnalysis,
-    ensureSurvey,
-    planLabel,
-    planMembership,
-    planProgress,
-    quoteOk,
-    readAnalysisBundle,
-    readPlan,
-    textStats,
-    toCardView,
-    upsertChapter,
-    upsertPlot,
-    upsertCharacter,
-    writePlan,
-    writeRhythm,
-} from "../lib/ports/analysis.js";
+import { analysisPaths, buildReport, chapterIndex, chapterText, computeCoverage, ensureAnalysis, ensureSurvey, planLabel, planMembership, planProgress, quoteOk, readAnalysisBundle, readPlan, textStats, toCardView, upsertChapter, upsertPlot, upsertCharacter, writePlan, writeRhythm, } from "../lib/ports/analysis.js";
 import { atomicWrite, ensureStorage } from "../lib/store.js";
 import { REPORT_SECTION_COUNT } from "../lib/domain/report-sections.js";
 import { stepPrefix } from "../lib/domain/workflow.js";
-import { asString, config } from "./context.js";
+import { asArray, asString, config } from "./context.js";
 import { S, B, WORKING_DIR } from "./schema.js";
 import { defineTool } from "./types.js";
-
 async function openLibrary(exec, args) {
     const paths = await ensureStorage(exec, config, asString(args, "working_dir"));
     await LibraryPort.ensureLibrary(paths);
     return paths;
 }
-
 /** 引文通过率：逐条回到该章正文核对，而不是「非空即通过」。 */
 function quoteStatsOf(facts, text, index) {
     let total = 0;
@@ -50,7 +27,6 @@ function quoteStatsOf(facts, text, index) {
     }
     return { total, ok };
 }
-
 export function analysisTools() {
     return [
         defineTool({
@@ -68,7 +44,8 @@ export function analysisTools() {
                 const paths = await openLibrary(exec, args);
                 const { text } = await LibraryPort.getSource(paths, sourceId);
                 const idx = chapterIndex(text);
-                const raw = Array.isArray(args.items) ? args.items : args.facts ? [args.facts] : [];
+                const itemsArg = asArray(args, "items");
+                const raw = itemsArg ?? (args.facts ? [args.facts] : []);
                 if (!raw.length)
                     throw new ZhizhangError("bad_args", "传 facts（单章）或 items（多章）");
                 const receipts = [];
@@ -174,25 +151,19 @@ export function analysisTools() {
                 const v2Count = modules.filter((m) => !m.legacy).length;
                 const stats = bundle.chapters
                     .map((f) => {
-                        const t = chapterText(text, idx, f.n);
-                        return t ? { n: f.n, ...textStats(t) } : null;
-                    })
+                    const t = chapterText(text, idx, f.n);
+                    return t ? { n: f.n, ...textStats(t) } : null;
+                })
                     .filter(Boolean);
                 const plan = await readPlan(paths, sourceId);
                 const survey = await ensureSurvey(paths, sourceId, text, bundle.chapters, idx);
-                const coverage = computeCoverage(
-                    bundle.meta,
-                    bundle.chapters,
-                    modules.filter((m) => !m.legacy),
-                    quoteStatsOf(bundle.chapters, text, idx),
-                    {
-                        survey,
-                        plots: bundle.plots,
-                        rhythms: bundle.rhythms,
-                        characters: bundle.characters,
-                        autoCap: plan?.mode === "auto" && plan.planChapters < (bundle.meta?.totalChapters ?? 0),
-                    },
-                );
+                const coverage = computeCoverage(bundle.meta, bundle.chapters, modules.filter((m) => !m.legacy), quoteStatsOf(bundle.chapters, text, idx), {
+                    survey,
+                    plots: bundle.plots,
+                    rhythms: bundle.rhythms,
+                    characters: bundle.characters,
+                    autoCap: plan?.mode === "auto" && plan.planChapters < (bundle.meta?.totalChapters ?? 0),
+                });
                 const md = buildReport({
                     sourceTitle: srcMeta.title,
                     plan,

@@ -1,4 +1,9 @@
-/** On-disk + in-memory types for dsh-zhizhang. No Postgres. */
+/**
+ * On-disk + in-memory types for dsh-zhizhang. No Postgres.
+ *
+ * 这些是「落盘契约」的类型：meta.json / ledger.json / 候选文件都按这里的形状读写。
+ * 需要动态 JSON 的地方（拆书产物、卡模块）显式用 Record<string, any>，不要用隐式 any。
+ */
 export const SCHEMA_VERSION = 1;
 /** Five diagnostic evidence kinds for AI review *output* (agent-side; ledger stores them). */
 export const REVIEW_EVIDENCE_KINDS = [

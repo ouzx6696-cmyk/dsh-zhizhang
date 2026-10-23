@@ -1,27 +1,22 @@
-export type ToolDef = {
-    name: string;
-    description: string;
+import type { ExecContext } from "../lib/types.js";
+export type { ExecContext };
+export declare function defineTool(def: any): {
+    name: any;
+    description: any;
     parameters: {
-        type: "object";
-        additionalProperties?: boolean;
-        properties: Record<string, unknown>;
-        required: string[];
+        type: string;
+        additionalProperties: boolean;
+        properties: any;
+        required: any;
     };
     output: {
         schema: {
-            type: "string";
+            type: string;
         };
-        render: (args: unknown, value: string) => Array<{
-            type: "text";
+        render: (_args: any, value: string) => {
+            type: string;
             text: string;
-        }>;
+        }[];
     };
-    execute: (args: Record<string, unknown>, exec: unknown) => Promise<string>;
+    execute(args: any, exec: ExecContext): Promise<any>;
 };
-export declare function defineTool(def: {
-    name: string;
-    description: string;
-    properties: Record<string, unknown>;
-    required?: string[];
-    execute: (args: Record<string, unknown>, exec: unknown) => Promise<string>;
-}): ToolDef;

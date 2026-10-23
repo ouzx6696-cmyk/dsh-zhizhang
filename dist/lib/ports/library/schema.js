@@ -3,7 +3,6 @@
  * 不读写磁盘；只依赖 errors.js。
  */
 import { ZhizhangError } from "../../errors.js";
-
 /** Shatter-logic cues (A–G) — book-agnostic anti-stiffness language on craft cards. */
 export const SHATTER_CRAFT_CUE_RE = /打碎|反僵硬|僵硬|呼吸不齐|半截|侧漏|错半拍|先错|余震|拧着|不收齐|信息从.{0,16}漏|打断后|第一反应.{0,12}(错|一半)|功能拍后|应落纸|本场不完美|本场打碎|别收成合格|别写成说明|长短起伏|意义不必/;
 /** Soft-warn: allowedEdges still written as permission ("可以/允许…"). */
@@ -15,7 +14,6 @@ export function hasShatterCraftCue(...parts) {
     const blob = parts.filter(Boolean).join("\n");
     return blob.length > 0 && SHATTER_CRAFT_CUE_RE.test(blob);
 }
-
 export function normalizeMechanism(raw, i) {
     if (!raw || typeof raw !== "object") {
         throw new ZhizhangError("bad_mechanism", `mechanisms[${i}] 必须是对象`);
@@ -455,7 +453,6 @@ export function readingArtifactWarnings(body, axis) {
     }
     return w;
 }
-
 export function admitCardContent(input) {
     const warnings = [];
     const title = input.title.trim();

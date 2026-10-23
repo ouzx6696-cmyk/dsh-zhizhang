@@ -59,7 +59,7 @@ export const MultiDraftPort = {
      */
     formatUnifyBrief(input) {
         const n = input.parents.length;
-        const words = input.parents.map((p) => p.wordCount);
+        const words = input.parents.map((p) => Number(p.wordCount ?? 0));
         const avg = words.length > 0
             ? Math.round(words.reduce((a, b) => a + b, 0) / words.length)
             : 0;

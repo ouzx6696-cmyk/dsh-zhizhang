@@ -5,12 +5,10 @@
  * v1 旧卡在边界处由 toCardView() 补齐字段并标记 legacy，不再到处写
  * `schemaVersion === 2 || layer` 的分支。
  */
-
 export const LAYERS = ["book", "arc", "unit", "chapter", "scene", "line"];
 export const DIMENSIONS = ["structure", "character", "rhythm", "hook", "prose", "commercial"];
 export const HOOK_TYPES = ["悬念", "冲突", "反差", "代入", "信息差", "反转", "新角色", "代价", "决定", "发现"];
 export const HOOK_STRENGTHS = ["弱", "中", "强"];
-
 /** v2 模块必填/可选字段的单一描述（校验、文档、工具 schema 都从这里读）。 */
 export const CARD_V2_FIELDS = [
     { key: "readerWant", label: "读者想看什么", type: "string", required: true },
@@ -24,7 +22,6 @@ export const CARD_V2_FIELDS = [
     { key: "steps", label: "操作步骤", type: "array", required: false, min: 2 },
     { key: "bannedDiction", label: "反AI腔词表", type: "array", required: false },
 ];
-
 export function deriveAxis(layer, dimension) {
     if (["book", "arc", "unit"].includes(layer))
         return "mind";
@@ -34,15 +31,12 @@ export function deriveAxis(layer, dimension) {
         return "mind";
     return "craft";
 }
-
 function text(v) {
     return String(v ?? "").trim();
 }
-
 function arrayOfText(v) {
     return Array.isArray(v) && v.some((x) => text(x));
 }
-
 /** v2 模块校验；v1 卡不走这里（用 toCardView 适配后再校验会缺 evidence）。 */
 export function validateModule(card) {
     const errors = [];
@@ -54,7 +48,6 @@ export function validateModule(card) {
         errors.push(`layer 非法：${layer || "（空）"}（可用：${LAYERS.join("/")}）`);
     if (!DIMENSIONS.includes(dimension))
         errors.push(`dimension 非法：${dimension || "（空）"}（可用：${DIMENSIONS.join("/")}）`);
-
     for (const f of CARD_V2_FIELDS) {
         if (f.required) {
             if (f.type === "array") {
@@ -76,7 +69,6 @@ export function validateModule(card) {
         if (f.type === "array" && f.min && c[f.key].length > 0 && c[f.key].length < f.min)
             warnings.push(`${f.key} 应为 ≥${f.min} 项（${f.label}）`);
     }
-
     if (Array.isArray(c.evidence)) {
         for (const [i, e] of c.evidence.entries()) {
             if (!text(e?.quote))
@@ -85,7 +77,6 @@ export function validateModule(card) {
                 errors.push(`evidence[${i}].chapter 为空`);
         }
     }
-
     if (!Array.isArray(c.mechanisms) || c.mechanisms.length === 0)
         warnings.push("mechanisms 为空：brief 注入时会少「机制名 + 失败边界」");
     if (/第[0-9０-９]+章/.test(text(c.emotionArc)))
@@ -99,12 +90,10 @@ export function validateModule(card) {
         warnings.push("book 层配 prose 维度：像是场景技巧写进了全书结论");
     return { errors, warnings };
 }
-
 /** 是否 v2 模块（显式 layer/dimension 或 schemaVersion 2）。 */
 export function isV2Card(card) {
     return Boolean(card && (card.schemaVersion === 2 || card.layer || card.dimension));
 }
-
 /**
  * v1→v2 适配视图。下游只读这个视图；原卡不变。
  * v1 没有 layer/dimension/evidence，按 axis/kind 推断一个最保守的层与维度，

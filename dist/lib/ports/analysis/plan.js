@@ -5,7 +5,6 @@ import { atomicWrite } from "../../store.js";
 import { ZhizhangError } from "../../errors.js";
 import { AUTO_SAMPLE_HEAD, AUTO_SAMPLE_RATIO, AUTO_SAMPLE_TAIL } from "../../domain/workflow.js";
 import { assertSourceId, ensureDir, nowIso } from "./paths.js";
-
 export const PLAN_RATIO_DEFAULT = AUTO_SAMPLE_RATIO;
 export const PLAN_RATIO_MIN = 0.05;
 export const PLAN_RATIO_MAX = 1;
@@ -17,7 +16,6 @@ export const PLAN_SMALL_BOOK_CHARS = 30000;
 /** 估算：中文约 1.4 字/token；每批 5 分钟（含读 + 白描）。 */
 export const PLAN_CHARS_PER_TOKEN = 1.4;
 export const PLAN_MINUTES_PER_BATCH = 5;
-
 function planFiles(paths, sourceId) {
     const id = assertSourceId(sourceId);
     const dir = path.join(paths.library, "analyses", id);
@@ -28,7 +26,6 @@ function planFiles(paths, sourceId) {
         pending: path.join(dir, "plan-confirm.json"),
     };
 }
-
 export function buildPlan(input) {
     const { sourceId, title, index, mode = "auto", ratio = PLAN_RATIO_DEFAULT, batchChars = PLAN_BATCH_DEFAULT } = input;
     const full = mode === "full";
@@ -119,7 +116,6 @@ export function buildPlan(input) {
         createdAt: nowIso(),
     };
 }
-
 export function estimatePlan(plan) {
     const tokens = Math.round(plan.planChars / PLAN_CHARS_PER_TOKEN);
     const batches = plan.batches.length;
@@ -134,7 +130,6 @@ export function estimatePlan(plan) {
         ratio: plan.totalChars > 0 ? Number((plan.planChars / plan.totalChars).toFixed(3)) : 0,
     };
 }
-
 export function planLabel(plan) {
     if (!plan)
         return "未建计划（旧模式：按 from/count 取批）";
@@ -145,14 +140,12 @@ export function planLabel(plan) {
     const pct = Math.round((plan.planChars / Math.max(1, plan.totalChars)) * 100);
     return `Auto ${Math.round(plan.ratio * 100)}%（实取 ${pct}%：${plan.planChapters}/${plan.totalChapters} 章 / ${plan.planChars} 字）`;
 }
-
 export async function writePlan(paths, plan) {
     const f = planFiles(paths, plan.sourceId);
     await ensureDir(f.dir);
     await atomicWrite(f.json, JSON.stringify(plan, null, 2));
     await atomicWrite(f.md, renderPlanMarkdown(plan));
 }
-
 export async function readPlan(paths, sourceId) {
     const f = planFiles(paths, sourceId);
     try {
@@ -162,7 +155,6 @@ export async function readPlan(paths, sourceId) {
         return null;
     }
 }
-
 export function renderPlanMarkdown(plan) {
     const est = estimatePlan(plan);
     const lines = [
@@ -188,7 +180,6 @@ export function renderPlanMarkdown(plan) {
     ];
     return lines.join("\n");
 }
-
 export async function deletePlan(paths, sourceId) {
     const f = planFiles(paths, sourceId);
     for (const p of [f.json, f.md, f.pending]) {
@@ -200,11 +191,9 @@ export async function deletePlan(paths, sourceId) {
         }
     }
 }
-
 export function makeConfirmToken() {
     return `fp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
-
 export async function writePendingConfirm(paths, sourceId, token, estimate) {
     const f = planFiles(paths, sourceId);
     await ensureDir(f.dir);
@@ -212,7 +201,6 @@ export async function writePendingConfirm(paths, sourceId, token, estimate) {
     await atomicWrite(f.pending, JSON.stringify(body, null, 2));
     return body;
 }
-
 export async function readPendingConfirm(paths, sourceId) {
     const f = planFiles(paths, sourceId);
     try {
@@ -222,7 +210,6 @@ export async function readPendingConfirm(paths, sourceId) {
         return null;
     }
 }
-
 /** Full 闸：token 必须存在、未过期、来源一致。 */
 export async function assertFullConsent(paths, sourceId, token) {
     const pending = await readPendingConfirm(paths, sourceId);
@@ -236,7 +223,6 @@ export async function assertFullConsent(paths, sourceId, token) {
         throw new ZhizhangError("bad_confirm_token", "确认 token 不正确：须原样回传 library_plan(mode=full) 回执里的 confirm_token");
     return pending;
 }
-
 export async function clearPendingConfirm(paths, sourceId) {
     try {
         await unlink(planFiles(paths, sourceId).pending);
@@ -245,7 +231,6 @@ export async function clearPendingConfirm(paths, sourceId) {
         /* ignore */
     }
 }
-
 export function planProgress(plan, facts) {
     const have = new Set(facts.map((f) => Number(f.n)));
     const done = plan.chapters.filter((c) => have.has(Number(c.n))).length;
@@ -265,7 +250,6 @@ export function planProgress(plan, facts) {
         nextBatch: cursor < plan.batches.length ? plan.batches[cursor] : null,
     };
 }
-
 /** 事实章号是否在计划内；不在则返回提示（不硬拒，允许作者手补）。 */
 export function planMembership(plan, n) {
     if (!plan)

@@ -5,7 +5,6 @@
 import { readCandidate, resolveWorkDir } from "./store.js";
 import { runAccept } from "./services/accept.js";
 import { ZhizhangError } from "./errors.js";
-
 function fail(err, fallback) {
     return {
         ok: false,
@@ -13,7 +12,6 @@ function fail(err, fallback) {
         error: err instanceof Error ? err.message : String(err),
     };
 }
-
 export async function runPanelAccept(paths, req) {
     const workKey = String(req.work ?? "").trim();
     const candidateId = String(req.candidate ?? "").trim();

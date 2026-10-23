@@ -2,13 +2,10 @@
  * 工作流 — 全插件唯一来源。
  * SYSTEM_BRIEF / ProductMap / 工具 description / 回执 "N/9" / 文档都从这里读。
  */
-
 import { REPORT_SECTION_COUNT } from "./report-sections.js";
-
 export const AUTO_SAMPLE_HEAD = 10;
 export const AUTO_SAMPLE_TAIL = 3;
 export const AUTO_SAMPLE_RATIO = 0.1;
-
 export const DISSECT_STEPS = [
     { n: 1, tool: "library_import", do: "交书（file 或 text）→ sourceId；回执看编码" },
     { n: 2, tool: "library_plan", do: "定档：auto 默认 10% 分层（前 10 章 + 后 3 章 + 等距）；full 须作者明确同意（成本回执 + confirm_token）" },
@@ -20,7 +17,6 @@ export const DISSECT_STEPS = [
     { n: 8, tool: "library_report", do: `${REPORT_SECTION_COUNT} 节报告 + L0 量化底座（分卷/词频/热力/锚点/爽点密度）；标 Auto/Full 与覆盖率；Auto 的全书结论只作抽样观察` },
     { n: 9, tool: "library_combo_suggest", do: "1 book + N scene 组包 → inspire_start 或 chapter_brief" },
 ];
-
 export const WRITE_STEPS = [
     { n: 1, tool: "chapter_brief(lean)", do: "只吃 craft + 前章正文 + 处境；full 是旁路" },
     { n: 2, tool: "（创作）", do: "按 brief 写正文；不写梗概" },
@@ -29,10 +25,8 @@ export const WRITE_STEPS = [
     { n: 5, tool: "（可选）edit_brief → 改写 → edit_stage → A/B/C", do: "A=编辑+验收；B=仅候选；C=拒；未表态按 B" },
     { n: 6, tool: "candidate_accept", do: "落盘正式章；回执含软传感" },
 ];
-
 export const DISSECT_STEP_COUNT = DISSECT_STEPS.length;
 export const WRITE_STEP_COUNT = WRITE_STEPS.length;
-
 export const WORKFLOWS = {
     library: {
         title: `拆书入库（${DISSECT_STEP_COUNT} 步，照做）`,
@@ -45,7 +39,6 @@ export const WORKFLOWS = {
         gate: "验收：雷达 0 ≠ 质量过关；人读一遍再定稿。",
     },
 };
-
 /** 回执/描述里的 "N/9"；未知 kind 返回空串。 */
 export function stepLabel(kind, n) {
     const wf = WORKFLOWS[kind];
@@ -53,7 +46,6 @@ export function stepLabel(kind, n) {
         return "";
     return `${n}/${wf.steps.length}`;
 }
-
 /** 工具 description 的 "【拆书 4/9 事实层】" 前缀。 */
 export function stepPrefix(kind, n, label) {
     const tag = stepLabel(kind, n);

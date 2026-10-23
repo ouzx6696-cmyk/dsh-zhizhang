@@ -18,7 +18,7 @@ import { mkdir, open, readdir, readFile, rename, rm, stat } from "node:fs/promis
 import path from "node:path";
 import { homedir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { CHAPTER_STATUSES, EMPTY_FOUNDATION, EMPTY_OUTLINE, SCHEMA_VERSION, } from "./types.js";
+import { CHAPTER_STATUSES, EMPTY_FOUNDATION, EMPTY_OUTLINE, SCHEMA_VERSION } from "./types.js";
 import { ZhizhangError } from "./errors.js";
 import { Scheduler } from "./ports/scheduler.js";
 import { renderPanelHtml } from "./panel-html.js";
@@ -27,7 +27,7 @@ let tmpSeq = 0;
 // —— § utilities (lock, count, slug) ——
 export async function withLock(key, fn) {
     const previous = locks.get(key) ?? Promise.resolve();
-    let release;
+    let release = () => { };
     const gate = new Promise((resolve) => {
         release = resolve;
     });
@@ -183,7 +183,9 @@ async function upsertProjectFile(base, works) {
         name: existing?.name || projectNameOf(base),
         lastUsedAt: nowIso(),
     };
-    const next = existing ? list.map((p) => (p === existing ? { ...p, ...entry } : p)) : [...list, entry];
+    const next = existing
+        ? list.map((p) => (p === existing ? { ...p, ...entry } : p))
+        : [...list, entry];
     next.sort((a, b) => String(b.lastUsedAt ?? "").localeCompare(String(a.lastUsedAt ?? "")));
     await atomicWrite(projectsFile(), JSON.stringify({ version: 1, projects: next }, null, 2) + "\n");
 }

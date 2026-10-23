@@ -2,12 +2,10 @@
  * 拆书库存储层 — 索引 / 路径 / 导入解码 / 过滤 / 排序。
  * 不包含卡 schema（见 schema.js）与机械审计（见 audit.js）。
  */
-import { mkdir, readFile, access } from "node:fs/promises";
+import { readFile, access } from "node:fs/promises";
 import path from "node:path";
-import { ZhizhangError } from "../../errors.js";
-import { atomicWrite, withLock } from "../../store.js";
-import { coerceAxis } from "./schema.js";
-
+import { atomicWrite } from "../../store.js";
+import { coerceAxis, coerceHumanFeel } from "./schema.js";
 export function nowIso() {
     return new Date().toISOString();
 }
@@ -151,9 +149,7 @@ export function comboScore(row, query, deepHay) {
         score += (t % 10000) / 1e6;
     return { score, matched };
 }
-
 // ===== 拆书库实测补丁（0.15.4）：编码 / 路径 / 查询分词 / 证据审计 =====
-
 /** 解码书籍文件：UTF-8 严格校验 → GB18030 回退；避免 GBK 书导入成乱码。 */
 export function decodeBookBuffer(buf) {
     if (buf.length >= 2 && buf[0] === 0xff && buf[1] === 0xfe) {
@@ -176,7 +172,6 @@ export function decodeBookBuffer(buf) {
     }
     return { text: buf.toString("utf8"), encoding: "utf-8-lossy", converted: true };
 }
-
 /** 兼容 MSYS 风格 /d/foo/bar 与带引号路径。 */
 export function normalizeUserPath(raw) {
     let p = String(raw ?? "").trim().replace(/^["']|["']$/g, "");
@@ -185,7 +180,6 @@ export function normalizeUserPath(raw) {
         p = `${msys[1].toUpperCase()}:/${msys[2]}`;
     return p;
 }
-
 /** 查询分词：空格 / 逗号 / 顿号 / 分号 / 加号 都算分隔符。 */
 export function tokenizeQuery(query) {
     return String(query ?? "")
@@ -194,7 +188,6 @@ export function tokenizeQuery(query) {
         .map((t) => t.trim())
         .filter((t) => /[一-龥A-Za-z0-9]/.test(t));
 }
-
 export function cardDeepHay(card) {
     const coerced = coerceHumanFeel(card.humanFeel);
     const hf = coerced
@@ -206,12 +199,35 @@ export function cardDeepHay(card) {
     const md = card.mind
         ? `${card.mind.sellIntoCost} ${card.mind.infoStaging} ${card.mind.pressureMachine} ${card.mind.debtAndSwap} ${card.mind.readerContract} ${card.mind.failAsEncyclopedia ?? ""}`
         : "";
-    const mech = (card.mechanisms ?? []).map((m) => `${m.name} ${m.failWhen} ${m.rebuild}`).join(" ");
-    return `${card.body} ${mech} ${hf} ${bc} ${md} ${card.kind ?? ""}`.toLowerCase();
+    const mech = (card.mechanisms ?? [])
+        .map((m) => `${m.name} ${m.failWhen} ${m.rebuild} ${m.experience ?? ""} ${m.discard ?? ""}`)
+        .join(" ");
+    const ho = card.handoff
+        ? `${card.handoff.purpose ?? ""} ${card.handoff.experience ?? ""} ${card.handoff.rebuild ?? ""} ${card.handoff.discard ?? ""}`
+        : "";
+    // v2 模块层：读者想要 / 情绪走向 / 戏剧单元 / 可替换项 / 不可照搬 / 迁移 / 失败边界
+    const v2 = [
+        card.layer,
+        card.dimension,
+        card.readerWant,
+        card.emotionArc,
+        card.dramaticUnit,
+        ...(card.replaceables ?? []),
+        ...(card.mustNotCopy ?? []),
+        card.transfer,
+        card.failWhen,
+        ...(card.steps ?? []),
+        ...(card.bannedDiction ?? []),
+    ]
+        .filter(Boolean)
+        .join(" ");
+    // 证据引文：按「第 N 章 + 引文」入库，检索时也要能命中
+    const ev = (card.evidence ?? [])
+        .map((e) => `${e.chapter ?? ""} ${e.quote ?? ""}`)
+        .join(" ");
+    return `${card.body} ${mech} ${hf} ${bc} ${md} ${ho} ${v2} ${ev} ${card.kind ?? ""} ${card.readingRange ?? ""}`.toLowerCase();
 }
-
 const reconciledLibs = new Set();
-
 /** 索引与卡文件对齐：tags/axis/title/updatedAt 以卡文件为准（防止改了卡、索引还是旧的）。 */
 export async function reconcileIndex(paths) {
     const key = paths.library;
@@ -250,4 +266,3 @@ export async function reconcileIndex(paths) {
         await writeIndex(paths, idx);
     return changed;
 }
-

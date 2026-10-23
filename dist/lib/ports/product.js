@@ -11,7 +11,6 @@ import { WORKFLOWS } from "../domain/workflow.js";
 /** Canonical one-liner — identical to Scheduler.defaultLine(). */
 export const CREATIVE_LOOP_LINE = SCHEDULER_DEFAULT_LINE;
 let toolCount = 0;
-
 export const ProductMap = {
     id: "port.product",
     version: PLUGIN_VERSION,

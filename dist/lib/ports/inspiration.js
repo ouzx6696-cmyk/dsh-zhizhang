@@ -381,12 +381,13 @@ export const InspirationPort = {
                         outlinePatch[key] = String(p[key]);
                 }
                 // legacy alias
-                if (typeof p.voiceTone === "string" && String(p.voiceTone).trim()) {
+                const legacy = p;
+                if (typeof legacy.voiceTone === "string" && String(legacy.voiceTone).trim()) {
                     if (!outlinePatch.stateLens)
-                        outlinePatch.stateLens = String(p.voiceTone);
+                        outlinePatch.stateLens = String(legacy.voiceTone);
                 }
-                if (typeof p.targetWords === "number")
-                    outlinePatch.targetWords = p.targetWords;
+                if (typeof legacy.targetWords === "number")
+                    outlinePatch.targetWords = legacy.targetWords;
                 let title = typeof p.title === "string" ? p.title : undefined;
                 let body = "";
                 let position;
@@ -430,7 +431,8 @@ export const InspirationPort = {
     },
     /**
      * Resolve technique cards for chapter_brief / writing path.
-     * Priority: explicit cardIds → inspire sessions applied to work → genre tag search → none.
+     * Priority: explicit cardIds → inspire sessions applied to work → none.
+     * 不做「按 genre 猜卡」：技法卡不含题材词，猜出来也是无关卡。
      */
     async resolveCardsForBrief(paths, opts = {}) {
         await ensureInsp(paths);
@@ -523,31 +525,14 @@ export const InspirationPort = {
                 }
             }
         }
-        const genre = String(opts.genre ?? "").trim();
-        if (genre) {
-            const rows = await LibraryPort.searchCards(paths, genre);
-            const cards = [];
-            for (const row of rows.slice(0, limit)) {
-                try {
-                    cards.push(await LibraryPort.getCard(paths, row.id));
-                }
-                catch {
-                    /* skip */
-                }
-            }
-            if (cards.length > 0) {
-                return {
-                    cards,
-                    source: "genre_tags",
-                    note: `按题材/标签「${genre}」检索（${cards.length}）`,
-                    cardIds: cards.map((c) => c.id),
-                };
-            }
-        }
+        // 未发布：删掉「按 genre 检索」这条分支。技法卡是写法卡，不含题材词，
+        // 实测任何作品 genre 都命中 0 条；留着只会让人以为有自动注入。
+        // 注入只走两条明确路径：显式 card_ids（推荐先用 library_combo_suggest 组包），
+        // 或本作品 inspire_accept(apply) 绑定过的卡。
         return {
             cards: [],
             source: "none",
-            note: "未绑定技法卡（可传 card_ids，或先 inspire_accept apply 到本作品）",
+            note: "未绑定技法卡：先跑 library_combo_suggest 取「1 book + N scene」的 card_ids 再传 card_ids；或先 inspire_accept(apply=true) 把卡绑到本作品，之后自动继承",
             cardIds: [],
         };
     },
@@ -560,7 +545,6 @@ export const InspirationPort = {
             const resolved = await InspirationPort.resolveCardsForBrief(paths, {
                 workKey: opts.workKey,
                 cardIds: opts.cardIds,
-                genre: opts.genre,
                 limit: opts.limit ?? 5,
             });
             return resolved.cards

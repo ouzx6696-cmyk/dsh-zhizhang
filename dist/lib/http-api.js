@@ -243,11 +243,6 @@ export async function prepareUnifyBrief(paths, opts) {
         };
     }
 }
-/**
- * Resolve the panel's project selector (`?base=` / `?project=`, or a POST body field)
- * against the known-workspace index. Only indexed, existing workspaces are readable —
- * the panel must never turn into an arbitrary file browser.
- */
 async function panelPaths(url, config, baseOverride = "") {
     const requested = (baseOverride ||
         url.searchParams.get("base") ||
@@ -287,7 +282,7 @@ export function createPanelApiHandler(config = {}) {
                 }
                 let bodyRaw = "";
                 try {
-                    bodyRaw = await readBody(req);
+                    bodyRaw = String(await readBody(req));
                 }
                 catch (err) {
                     return writeJson(res, 413, {
@@ -356,7 +351,7 @@ export function createPanelApiHandler(config = {}) {
                 if (method === "POST") {
                     let bodyRaw = "";
                     try {
-                        bodyRaw = await readBody(req);
+                        bodyRaw = String(await readBody(req));
                     }
                     catch (err) {
                         return writeJson(res, 413, {

@@ -153,6 +153,8 @@ export function auditTools() {
                 catch {
                     fail(`章节不存在：${chapterId}`, "not_found");
                 }
+                if (!chapter)
+                    fail(`章节不存在：${chapterId}`, "not_found");
                 const candidateId = asString(args, "candidate");
                 let body = asString(args, "text", { trim: false });
                 let source = "chapter";

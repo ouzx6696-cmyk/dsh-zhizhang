@@ -77,7 +77,7 @@ export function auditPayoff(outline, body, opts = {}) {
     const endingMisses = [];
     for (const tok of endingTokens) {
         // Normalize 零点四十 ↔ 00:40 soft: if token is clock, also accept Chinese forms later
-        if (text.includes(tok))
+        if (text.includes(String(tok)))
             endingHits.push(tok);
         else
             endingMisses.push(tok);

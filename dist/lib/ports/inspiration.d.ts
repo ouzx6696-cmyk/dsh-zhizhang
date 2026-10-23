@@ -1,109 +1,60 @@
-import { type StoragePaths } from "../store.js";
-import { type TechniqueCard } from "./library.js";
-import type { PillarStatus } from "./library.js";
-export interface InspirationCapability {
-    id: string;
-    title: string;
-    ready: boolean;
-}
-export interface InspirationSession {
-    schemaVersion: 1;
-    id: string;
-    goal: string;
-    genre: string;
-    cardIds: string[];
-    /** 0.7.0：仅技法试写（无 mind 卡时须显式） */
-    craftOnly?: boolean;
-    createdAt: string;
-    updatedAt: string;
-    forgeAt?: string;
-    lastBriefPreview?: string;
-}
-export type InspireEmitKind = "foundation" | "outline";
-export interface InspirationCandidate {
-    schemaVersion: 1;
-    id: string;
-    sessionId: string;
-    kind: InspireEmitKind;
-    payload: Record<string, unknown>;
-    status: "staged" | "accepted";
-    createdAt: string;
-    updatedAt: string;
-    acceptedAt?: string;
-    appliedWorkKey?: string;
-}
+import type { StoragePaths } from "../types.js";
 export declare const InspirationPort: {
-    id: "port.inspiration";
-    status: PillarStatus;
+    id: string;
+    status: string;
     title: string;
     summary: string;
-    capabilities(): InspirationCapability[];
-    startSession(paths: StoragePaths, input: {
-        goal: string;
-        genre?: string;
-        cardIds: string[];
-        craftOnly?: boolean;
-    }): Promise<{
+    capabilities(): {
+        id: string;
+        title: string;
+        ready: boolean;
+    }[];
+    startSession(paths: StoragePaths, input: any): Promise<{
         sessionId: string;
         craftOnly: boolean;
         mindCount: number;
         craftCount: number;
     }>;
-    getSession(paths: StoragePaths, sessionId: string): Promise<InspirationSession>;
-    listSessions(paths: StoragePaths): Promise<Array<Pick<InspirationSession, "id" | "goal" | "genre" | "cardIds" | "forgeAt" | "updatedAt">>>;
-    forgeBrief(paths: StoragePaths, sessionId: string): Promise<string>;
-    stageEmit(paths: StoragePaths, sessionId: string, input: {
-        kind: InspireEmitKind;
-        payload: Record<string, unknown>;
-    }): Promise<{
+    getSession(paths: StoragePaths, sessionId: any): Promise<any>;
+    listSessions(paths: StoragePaths): Promise<{
+        id: any;
+        goal: any;
+        genre: any;
+        cardIds: any;
+        forgeAt: any;
+        updatedAt: any;
+    }[]>;
+    forgeBrief(paths: StoragePaths, sessionId: any): Promise<string>;
+    stageEmit(paths: StoragePaths, sessionId: any, input: any): Promise<{
         candId: string;
-        kind: InspireEmitKind;
+        kind: any;
         styleReminder: string;
     }>;
-    acceptEmit(paths: StoragePaths, candId: string, opts: {
-        workKey: string;
-        apply?: boolean;
-        title?: string;
-        genre?: string;
-        premise?: string;
-    }): Promise<{
-        candId: string;
+    acceptEmit(paths: StoragePaths, candId: any, opts: any): Promise<{
+        candId: any;
         applied: boolean;
         workKey: string;
         detail: string;
     }>;
     /**
      * Resolve technique cards for chapter_brief / writing path.
-     * Priority: explicit cardIds → inspire sessions applied to work → genre tag search → none.
+     * Priority: explicit cardIds → inspire sessions applied to work → none.
+     * 不做「按 genre 猜卡」：技法卡不含题材词，猜出来也是无关卡。
      */
-    resolveCardsForBrief(paths: StoragePaths, opts?: {
-        cardIds?: string[];
-        workKey?: string;
-        genre?: string;
-        limit?: number;
-    }): Promise<{
-        cards: TechniqueCard[];
-        source: "explicit" | "inspire_apply" | "genre_tags" | "none";
+    resolveCardsForBrief(paths: StoragePaths, opts?: any): Promise<{
+        cards: any[];
+        source: string;
         note: string;
-        cardIds: string[];
+        cardIds: any[];
     }>;
     /**
      * Craft shatter/feel cue blob for Accept + human_feel_audit (same source).
      * Empty string when no craft cards or cues.
      */
-    resolveCraftCue(paths: StoragePaths, opts?: {
-        workKey?: string;
-        cardIds?: string[];
-        genre?: string;
-        limit?: number;
-    }): Promise<string>;
+    resolveCraftCue(paths: StoragePaths, opts?: any): Promise<string>;
     /**
      * Markdown section for chapter_brief.
      * lean：只主注 craft（写法+状态）；mind 不整段灌句式。
      */
-    formatCardsSection(cards: TechniqueCard[], meta: {
-        source: string;
-        note: string;
-        lean?: boolean;
-    }): string;
+    formatCardsSection(cards: any, meta: any): string;
 };

@@ -7,244 +7,401 @@
  * Agent scope when the host exposes one — standard sessions stay clean.
  */
 import { formatToolError } from "./lib/errors.js";
+import type { ExecContext } from "./lib/types.js";
 import { applyTools } from "./lib/bootstrap.js";
-import { SYSTEM_BRIEF, formatLint, type PluginConfig, type ToolDef } from "./tools/index.js";
+import { SYSTEM_BRIEF, formatLint } from "./tools/index.js";
 export declare const name = "zhizhang";
 export declare const inject: string[];
-export declare function apply(ctx: {
-    tools: {
-        register: (tool: ToolDef) => void;
-    };
-    get?: (name: string) => unknown;
-    inject?: (deps: string[], fn: (wctx: never) => void) => void;
-    effect?: (fn: () => unknown, name?: string) => void;
-}, pluginConfig?: PluginConfig): void;
+export declare function apply(ctx: any, pluginConfig?: any): void;
 export { applyTools, SYSTEM_BRIEF };
 export declare const __testing: {
-    tools: ToolDef[];
+    tools: {
+        name: any;
+        description: any;
+        parameters: {
+            type: string;
+            additionalProperties: boolean;
+            properties: any;
+            required: any;
+        };
+        output: {
+            schema: {
+                type: string;
+            };
+            render: (_args: any, value: string) => {
+                type: string;
+                text: string;
+            }[];
+        };
+        execute(args: any, exec: ExecContext): Promise<any>;
+    }[];
     applyTools: typeof applyTools;
     formatLint: typeof formatLint;
     SYSTEM_BRIEF: string;
     formatToolError: typeof formatToolError;
-    METHOD_ASSET_IDS: readonly string[];
-    listMethodAssets: () => Pick<import("./lib/method-assets.js").MethodAsset, "id" | "title" | "whenToUse">[];
-    getMethodAssets: (ids: string[]) => {
-        found: import("./lib/method-assets.js").MethodAsset[];
+    METHOD_ASSET_IDS: any[];
+    listMethodAssets: () => {
+        id: string;
+        title: string;
+        whenToUse: string;
+    }[];
+    getMethodAssets: (ids: any) => {
+        found: any[];
         missing: string[];
     };
-    auditPayoff: (outline: import("./lib/types.js").Outline, body: string, opts?: {
-        premise?: string;
-        title?: string;
-    }) => import("./lib/payoff-audit.js").PayoffAuditResult;
-    formatPayoffAudit: (label: string, result: import("./lib/payoff-audit.js").PayoffAuditResult) => string;
+    auditPayoff: (outline: any, body: string, opts: any) => {
+        ok: boolean;
+        warningCount: number;
+        findings: ({
+            code: string;
+            severity: string;
+            message: string;
+            promise: any;
+            evidence: string;
+        } | {
+            code: string;
+            severity: string;
+            message: string;
+            promise: any;
+            evidence?: undefined;
+        } | {
+            code: string;
+            severity: string;
+            message: string;
+            promise: string;
+            evidence: string | undefined;
+        } | {
+            code: string;
+            severity: string;
+            message: string;
+            evidence: string | undefined;
+            promise?: undefined;
+        })[];
+        checked: {
+            endingTokens: unknown[];
+            endingHits: unknown[];
+            endingMisses: unknown[];
+            speechPromise: boolean;
+            breathReveal: boolean;
+        };
+    };
+    formatPayoffAudit: (label: string, result: any) => string;
     ports: {
         AcceptPolicy: {
-            evaluate(input: import("./lib/ports/accept-policy.js").AcceptPolicyInput): import("./lib/ports/accept-policy.js").AcceptGateResult;
+            evaluate(input: any): {
+                hitCount: any;
+                receiptLines: string[];
+                ok: boolean;
+                messages: any[];
+            };
         };
         LintGate: {
-            issueToken(dir: string, candidateId: string, hitCount: number): Promise<{
-                token: string;
-                lintedAt: string;
-                hitCount: number;
-                chapterId: string;
-            }>;
-            hitCountOf(cand: import("./lib/types.js").CandidateFile): number;
-            evaluateAccept(opts: {
-                hitCount: number;
-                strictLint: boolean;
-            }): import("./lib/ports/types.js").GateDecision;
-            echoLines(hitCount: number): string[];
+            issueToken(dir: string, candidateId: string, hitCount: any): Promise<any>;
+            hitCountOf(cand: any): any;
+            evaluateAccept(opts: any): {
+                ok: boolean;
+                messages: any;
+            };
+            echoLines(hitCount: any): string[];
         };
         BriefGate: {
-            evaluateAccept(opts: {
-                brief: import("./lib/types.js").BriefBreadcrumb | null | undefined;
-                skipBrief: boolean;
-                recentMs?: number;
-            }): import("./lib/ports/types.js").GateDecision;
+            evaluateAccept(opts: any): {
+                ok: boolean;
+                messages: any;
+            };
         };
         MethodRegistry: {
-            ids: readonly string[];
-            briefDefaultIds: readonly string[];
-            briefFullIds: readonly string[];
-            list(): Pick<import("./lib/method-assets.js").MethodAsset, "id" | "title" | "whenToUse">[];
-            get(id: string): import("./lib/method-assets.js").MethodAsset | undefined;
-            getMany(ids: string[]): {
-                found: import("./lib/method-assets.js").MethodAsset[];
+            ids: any[];
+            briefDefaultIds: string[];
+            briefFullIds: string[];
+            list(): {
+                id: string;
+                title: string;
+                whenToUse: string;
+            }[];
+            get(id: string): any;
+            getMany(ids: any): {
+                found: any[];
                 missing: string[];
             };
-            formatForAgent(asset: import("./lib/method-assets.js").MethodAsset): string;
-            resolveBriefAssets(extraIds?: string[], mode?: "lean" | "full"): {
-                found: import("./lib/method-assets.js").MethodAsset[];
+            formatForAgent(asset: any): string;
+            resolveBriefAssets(extraIds?: any, mode?: any): {
+                found: any[];
                 missing: string[];
             };
-            formatReaderContract(input: import("./lib/method-assets.js").ReaderContractInput): string;
+            formatReaderContract(input: any): string;
         };
         SaveBypassGate: {
-            evaluate(opts: {
-                contentProvided: boolean;
-                wordCount: number;
-                confirmBypass: boolean;
-                threshold?: number;
-            }): import("./lib/ports/types.js").GateDecision;
+            evaluate(opts: any): {
+                ok: boolean;
+                messages: any;
+            };
         };
         StyleLinterPort: {
-            lint(text: string): import("./lib/style-linter.js").StyleLintHit[];
-            summarize(hits: import("./lib/style-linter.js").StyleLintHit[]): Record<import("./lib/style-linter.js").StyleLintCategory, number>;
-            format(label: string, hits: import("./lib/style-linter.js").StyleLintHit[], summary: ReturnType<typeof import("./lib/style-linter.js").summarizeStyleLint>): string;
+            lint(text: string): {
+                category: string;
+                start: number;
+                end: number;
+                match: string;
+                hint: string;
+            }[];
+            summarize(hits: any): {
+                cliche_syntax: number;
+                lazy_emotion: number;
+                process_skip: number;
+                slogan_ending: number;
+            };
+            format(label: string, hits: any, summary: any): string;
         };
         PayoffAuditorPort: {
-            audit(outline: import("./lib/types.js").Outline, body: string, opts?: {
-                premise?: string;
-                title?: string;
-            }): import("./lib/payoff-audit.js").PayoffAuditResult;
-            format(label: string, result: import("./lib/payoff-audit.js").PayoffAuditResult): string;
+            audit(outline: any, body: string, opts: any): {
+                ok: boolean;
+                warningCount: number;
+                findings: ({
+                    code: string;
+                    severity: string;
+                    message: string;
+                    promise: any;
+                    evidence: string;
+                } | {
+                    code: string;
+                    severity: string;
+                    message: string;
+                    promise: any;
+                    evidence?: undefined;
+                } | {
+                    code: string;
+                    severity: string;
+                    message: string;
+                    promise: string;
+                    evidence: string | undefined;
+                } | {
+                    code: string;
+                    severity: string;
+                    message: string;
+                    evidence: string | undefined;
+                    promise?: undefined;
+                })[];
+                checked: {
+                    endingTokens: unknown[];
+                    endingHits: unknown[];
+                    endingMisses: unknown[];
+                    speechPromise: boolean;
+                    breathReveal: boolean;
+                };
+            };
+            format(label: string, result: any): string;
         };
         HumanFeelAuditorPort: {
-            audit(text: string, opts?: {
-                craftCue?: string | null;
-            }): import("./lib/ports/human-feel-gate.js").HumanFeelAuditResult;
-            format(label: string, result: import("./lib/ports/human-feel-gate.js").HumanFeelAuditResult): string;
+            audit(text: string, opts: any): {
+                hitCount: number;
+                hits: {
+                    code: string;
+                    text: string;
+                    evidence: string;
+                }[];
+                summary: string;
+            };
+            format(label: string, result: any): string;
         };
         HumanFeelGate: {
             audit: typeof import("./lib/ports/human-feel-gate.js").auditHumanFeel;
-            evaluateAccept(opts: {
-                body: string;
-                strictHuman: boolean;
-                craftCue?: string | null;
-            }): import("./lib/ports/types.js").GateDecision;
+            evaluateAccept(opts: any): {
+                ok: boolean;
+                messages: any;
+            };
         };
         NovelSenseAuditorPort: {
-            audit(text: string, opts?: {
-                prevBody?: string | null;
-            }): import("./lib/ports/novel-sense-gate.js").NovelSenseAuditResult;
-            format(label: string, result: import("./lib/ports/novel-sense-gate.js").NovelSenseAuditResult): string;
+            audit(text: string, opts: any): {
+                hitCount: number;
+                hits: {
+                    code: string;
+                    text: string;
+                    evidence: string;
+                }[];
+                summary: string;
+            };
+            format(label: string, result: any): string;
         };
         NovelSenseGate: {
             audit: typeof import("./lib/ports/novel-sense-gate.js").auditNovelSense;
-            evaluateAccept(opts: {
-                body: string;
-                prevBody?: string | null;
-                strictNovel: boolean;
-            }): import("./lib/ports/types.js").GateDecision;
+            evaluateAccept(opts: any): {
+                ok: boolean;
+                messages: any;
+            };
         };
         LibraryPort: {
-            id: "port.library";
-            status: import("./lib/ports/library.js").PillarStatus;
+            id: string;
+            status: string;
             title: string;
             summary: string;
-            capabilities(): import("./lib/ports/library.js").LibraryCapability[];
-            ensureLibrary(paths: import("./lib/store.js").StoragePaths): Promise<import("./lib/store.js").StoragePaths>;
-            importSource(paths: import("./lib/store.js").StoragePaths, input: {
+            capabilities(): {
+                id: string;
                 title: string;
-                author?: string;
-                text?: string;
-                file?: string;
-                readingRange?: string;
-                exec?: unknown;
-            }): Promise<{
+                ready: boolean;
+            }[];
+            ensureLibrary(paths: import("./lib/types.js").StoragePaths): Promise<import("./lib/types.js").StoragePaths>;
+            importSource(paths: import("./lib/types.js").StoragePaths, input: any): Promise<{
                 sourceId: string;
-                charCount: number;
+                charCount: any;
+                encoding: string;
+                converted: boolean;
                 excerptPath: string;
-                encoding?: string;
-                converted?: boolean;
-                warning?: string;
+                warning: string | undefined;
             }>;
-            getSource(paths: import("./lib/store.js").StoragePaths, sourceId: string): Promise<{
-                meta: import("./lib/ports/library.js").LibrarySourceMeta;
+            getSource(paths: import("./lib/types.js").StoragePaths, sourceId: any): Promise<{
+                meta: any;
                 text: string;
             }>;
-            listSources(paths: import("./lib/store.js").StoragePaths): Promise<import("./lib/ports/library.js").LibraryIndex["sources"]>;
-            dissectBrief(paths: import("./lib/store.js").StoragePaths, sourceId: string, opts?: {
-                maxChars?: number;
-                includeRecommend?: boolean;
-            }): Promise<string>;
-            stageCard(paths: import("./lib/store.js").StoragePaths, input: import("./lib/ports/library.js").StageCardInput): Promise<import("./lib/ports/library.js").StageCardResult>;
-            acceptCard(paths: import("./lib/store.js").StoragePaths, candId: string): Promise<{
-                cardId: string;
+            listSources(paths: import("./lib/types.js").StoragePaths): Promise<any>;
+            dissectBrief(paths: import("./lib/types.js").StoragePaths, sourceId: any, opts?: any): Promise<string>;
+            stageCard(paths: import("./lib/types.js").StoragePaths, input: any): Promise<{
+                candId: string;
                 title: string;
-                warnings?: string[];
-                judgment?: string[];
+                warnings: string[];
             }>;
-            listCards(paths: import("./lib/store.js").StoragePaths, opts?: import("./lib/ports/library.js").CardQueryOpts): Promise<import("./lib/ports/library.js").CardRow[]>;
-            searchCards(paths: import("./lib/store.js").StoragePaths, query: string, opts?: import("./lib/ports/library.js").CardQueryOpts): Promise<import("./lib/ports/library.js").CardRow[]>;
-            suggestCombo(paths: import("./lib/store.js").StoragePaths, input?: import("./lib/ports/library.js").ComboSuggestInput): Promise<import("./lib/ports/library.js").ComboSuggestResult>;
-            auditCards(paths: import("./lib/store.js").StoragePaths, opts?: {
-                cardId?: string;
-                sourceId?: string;
-                axis?: import("./lib/ports/library.js").CardAxis;
-                status?: "accepted" | "drafted" | "all";
-            }): Promise<import("./lib/ports/library.js").CardAuditRow[]>;
-            getCard(paths: import("./lib/store.js").StoragePaths, cardId: string): Promise<import("./lib/ports/library.js").TechniqueCard>;
-            getCandidate(paths: import("./lib/store.js").StoragePaths, candId: string): Promise<import("./lib/ports/library.js").TechniqueCard>;
+            acceptCard(paths: import("./lib/types.js").StoragePaths, candId: any): Promise<{
+                cardId: string;
+                title: any;
+                warnings: string[];
+                judgment: string[];
+            }>;
+            discardCard(paths: import("./lib/types.js").StoragePaths, cardId: any): Promise<{
+                cardId: any;
+                title: any;
+                remaining: number;
+            }>;
+            listCards(paths: import("./lib/types.js").StoragePaths, opts?: any): Promise<any>;
+            searchCards(paths: import("./lib/types.js").StoragePaths, query: any, opts?: any): Promise<any>;
+            suggestCombo(paths: import("./lib/types.js").StoragePaths, input?: any): Promise<{
+                ok: boolean;
+                cardIds: never[];
+                mind: null;
+                crafts: never[];
+                warnings: string[];
+                emptyReason: string;
+            } | {
+                ok: boolean;
+                cardIds: any[];
+                mind: {
+                    id: any;
+                    title: any;
+                    sourceId: any;
+                    axis: string;
+                    tags: any;
+                };
+                crafts: {
+                    id: any;
+                    title: any;
+                    sourceId: any;
+                    axis: string;
+                    tags: any;
+                }[];
+                warnings: string[];
+                emptyReason?: undefined;
+            }>;
+            auditCards(paths: import("./lib/types.js").StoragePaths, opts?: any): Promise<({
+                id: any;
+                title: any;
+                axis: any;
+                layer: any;
+                dimension: any;
+                evidenceQuotes: any;
+                evidenceVerified: number;
+                unverifiable: any;
+                skippedShort: never[];
+                bodyQuotes: number;
+                bodyVerified: number;
+                bodyUnverifiable: string[];
+                bodySkipped: number;
+                warnings: string[];
+                chapterOk: boolean;
+            } | {
+                evidenceQuotes: number;
+                evidenceVerified: number;
+                skippedShort: string[];
+                unverifiable: string[];
+                located: any[];
+                chapterOk: boolean | null;
+                warnings: string[];
+                id: any;
+                title: any;
+                axis: any;
+                layer?: undefined;
+                dimension?: undefined;
+                bodyQuotes?: undefined;
+                bodyVerified?: undefined;
+                bodyUnverifiable?: undefined;
+                bodySkipped?: undefined;
+            })[]>;
+            getCard(paths: import("./lib/types.js").StoragePaths, cardId: any): Promise<any>;
+            getCandidate(paths: import("./lib/types.js").StoragePaths, candId: any): Promise<any>;
         };
         InspirationPort: {
-            id: "port.inspiration";
-            status: import("./lib/ports/library.js").PillarStatus;
+            id: string;
+            status: string;
             title: string;
             summary: string;
-            capabilities(): import("./lib/ports/inspiration.js").InspirationCapability[];
-            startSession(paths: import("./lib/store.js").StoragePaths, input: {
-                goal: string;
-                genre?: string;
-                cardIds: string[];
-                craftOnly?: boolean;
-            }): Promise<{
+            capabilities(): {
+                id: string;
+                title: string;
+                ready: boolean;
+            }[];
+            startSession(paths: import("./lib/types.js").StoragePaths, input: any): Promise<{
                 sessionId: string;
                 craftOnly: boolean;
                 mindCount: number;
                 craftCount: number;
             }>;
-            getSession(paths: import("./lib/store.js").StoragePaths, sessionId: string): Promise<import("./lib/ports/inspiration.js").InspirationSession>;
-            listSessions(paths: import("./lib/store.js").StoragePaths): Promise<Array<Pick<import("./lib/ports/inspiration.js").InspirationSession, "id" | "goal" | "genre" | "cardIds" | "forgeAt" | "updatedAt">>>;
-            forgeBrief(paths: import("./lib/store.js").StoragePaths, sessionId: string): Promise<string>;
-            stageEmit(paths: import("./lib/store.js").StoragePaths, sessionId: string, input: {
-                kind: import("./lib/ports/inspiration.js").InspireEmitKind;
-                payload: Record<string, unknown>;
-            }): Promise<{
+            getSession(paths: import("./lib/types.js").StoragePaths, sessionId: any): Promise<any>;
+            listSessions(paths: import("./lib/types.js").StoragePaths): Promise<{
+                id: any;
+                goal: any;
+                genre: any;
+                cardIds: any;
+                forgeAt: any;
+                updatedAt: any;
+            }[]>;
+            forgeBrief(paths: import("./lib/types.js").StoragePaths, sessionId: any): Promise<string>;
+            stageEmit(paths: import("./lib/types.js").StoragePaths, sessionId: any, input: any): Promise<{
                 candId: string;
-                kind: import("./lib/ports/inspiration.js").InspireEmitKind;
+                kind: any;
                 styleReminder: string;
             }>;
-            acceptEmit(paths: import("./lib/store.js").StoragePaths, candId: string, opts: {
-                workKey: string;
-                apply?: boolean;
-                title?: string;
-                genre?: string;
-                premise?: string;
-            }): Promise<{
-                candId: string;
+            acceptEmit(paths: import("./lib/types.js").StoragePaths, candId: any, opts: any): Promise<{
+                candId: any;
                 applied: boolean;
                 workKey: string;
                 detail: string;
             }>;
-            resolveCardsForBrief(paths: import("./lib/store.js").StoragePaths, opts?: {
-                cardIds?: string[];
-                workKey?: string;
-                genre?: string;
-                limit?: number;
-            }): Promise<{
-                cards: import("./lib/ports/library.js").TechniqueCard[];
-                source: "explicit" | "inspire_apply" | "genre_tags" | "none";
-                note: string;
-                cardIds: string[];
-            }>;
-            resolveCraftCue(paths: import("./lib/store.js").StoragePaths, opts?: {
-                workKey?: string;
-                cardIds?: string[];
-                genre?: string;
-                limit?: number;
-            }): Promise<string>;
-            formatCardsSection(cards: import("./lib/ports/library.js").TechniqueCard[], meta: {
+            resolveCardsForBrief(paths: import("./lib/types.js").StoragePaths, opts?: any): Promise<{
+                cards: any[];
                 source: string;
                 note: string;
-                lean?: boolean;
-            }): string;
+                cardIds: any[];
+            }>;
+            resolveCraftCue(paths: import("./lib/types.js").StoragePaths, opts?: any): Promise<string>;
+            formatCardsSection(cards: any, meta: any): string;
         };
         ProductMap: {
-            id: "port.product";
+            id: string;
             version: string;
+            setToolCount(n: number): number;
+            toolCount(): number;
             loopLine(): string;
-            pillars(): import("./lib/ports/product.js").ProductPillarView[];
+            pillars(): {
+                id: string;
+                title: string;
+                status: string;
+                summary: string;
+                capabilities: {
+                    id: string;
+                    title: string;
+                    ready: boolean;
+                }[];
+                loopStage: number;
+                handsOffTo: string;
+            }[];
             methods(): {
                 registry: string;
                 count: number;
@@ -254,33 +411,39 @@ export declare const __testing: {
             formatForAgent(): string;
         };
         Scheduler: {
-            id: "port.scheduler";
+            id: string;
             version: string;
             defaultLine(): string;
             writeLine(): string;
             libraryLine(): string;
             inspireLine(): string;
-            bypasses(): readonly import("./lib/ports/scheduler.js").BypassRoute[];
-            nextHint(after: string | string): string;
+            bypasses(): {
+                id: string;
+                title: string;
+                when: string;
+                via: string;
+            }[];
+            nextHint(after: string): string;
             panelRouteHints(): string[];
             formatDiagram(): string;
             formatForAgent(): string;
         };
         MultiDraftPort: {
-            id: "port.multi_draft";
+            id: string;
             version: string;
             disabledCode: string;
             isEnabled: typeof import("./lib/ports/multi-draft.js").isMultiDraftEnabled;
             enableHint(): string;
             requireEnabled(): void;
-            parentView(cand: Pick<import("./lib/types.js").CandidateFile, "id" | "body" | "draftLabel" | "note">): import("./lib/ports/multi-draft.js").UnifyParentView;
-            formatUnifyBrief(input: import("./lib/ports/multi-draft.js").UnifyBriefInput): string;
-            afterUnifyStageLines(opts: {
-                unifyCandId: string;
-                parentIds: string[];
-                chapterId: string;
+            parentView(cand: any): {
+                id: any;
+                draftLabel: any;
                 wordCount: number;
-            }): string[];
+                note: any;
+                preview: string;
+            };
+            formatUnifyBrief(input: any): string;
+            afterUnifyStageLines(opts: any): string[];
         };
     };
 };

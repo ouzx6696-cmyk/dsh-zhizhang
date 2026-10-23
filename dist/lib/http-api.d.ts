@@ -1,12 +1,4 @@
-/**
- * Panel HTTP surface for the DSH Web console.
- * GET: health / works / snapshot / library / inspiration / chapter / candidate (read-only).
- * POST: candidate/accept — same AcceptPolicy hard gates as zhizhang_candidate_accept;
- *       never silent success (confirm required; gate/store failures return clear errors).
- * Chapter/candidate bodies are on-demand (not embedded in snapshot) for light polling.
- */
-import type { IncomingMessage, ServerResponse } from "node:http";
-import { type StoragePaths } from "./store.js";
+import type { StoragePaths, PluginConfig } from "./types.js";
 /** Soft body cap for panel reads (~400 KiB). */
 export declare const PANEL_BODY_BYTE_CAP: number;
 /** Safe chapter / candidate id: no path segments, no traversal (delegates to the store). */
@@ -17,56 +9,43 @@ export declare function capPanelBody(body: string): {
     bodyBytes: number;
 };
 export declare const ZZ_API_PREFIX = "/api/dsh-zhizhang";
-export type PluginConfig = {
-    rootDir?: string;
-    storageRoot?: string;
-    worksRoot?: string;
-    libraryRoot?: string;
-    sourceRoot?: string;
-    allowLanPanel?: boolean;
-    multiDraftEnabled?: boolean;
-    multiDraft?: {
-        enabled?: boolean;
-    };
-};
 /**
  * Resolve storage root for HTTP (no agent session).
  * Priority: config.storageRoot → env DSH_ZHIZHANG_ROOT → cwd/.zhizhang if present → ensureStorage default.
  */
-export declare function resolveHttpPaths(config: PluginConfig): Promise<StoragePaths & {
+export declare function resolveHttpPaths(config: PluginConfig): Promise<{
     resolvedVia: string;
+    base: string;
+    works: string;
+    manuscripts: string;
+    library: string;
+    inspiration: string;
+    sourceRoot: string;
 }>;
 /** Read-only unify brief pack — no disk writes. */
-export declare function prepareUnifyBrief(paths: StoragePaths, opts: {
-    work: string;
-    chapter?: string;
-    candidateIds?: string[];
-}): Promise<{
-    ok: true;
-    enabled: true;
-    chapterId: string;
-    candidateIds: string[];
-    brief: string;
-    parents: Array<{
-        id: string;
-        draftLabel?: string;
-        wordCount: number;
-    }>;
-} | {
-    ok: false;
-    code: string;
-    error: string;
+export declare function prepareUnifyBrief(paths: StoragePaths, opts: any): Promise<{
+    ok: boolean;
     enabled: boolean;
+    chapterId: any;
+    candidateIds: any;
+    brief: string;
+    parents: {
+        id: any;
+        draftLabel: any;
+        wordCount: any;
+    }[];
+    code?: undefined;
+    error?: undefined;
+} | {
+    ok: boolean;
+    enabled: boolean;
+    code: any;
+    error: string;
+    chapterId?: undefined;
+    candidateIds?: undefined;
+    brief?: undefined;
+    parents?: undefined;
 }>;
-export declare function createPanelApiHandler(config?: PluginConfig): (req: IncomingMessage, res: ServerResponse) => Promise<void>;
+export declare function createPanelApiHandler(config?: PluginConfig): (req: any, res: any) => Promise<void>;
 /** Register routes on DSH webServer (optional; headless skips). */
-export declare function registerPanelHttpRoutes(ctx: {
-    inject?: (deps: string[], fn: (wctx: {
-        webServer: {
-            register: (route: unknown) => unknown;
-        };
-        effect?: (fn: () => unknown, name?: string) => void;
-    }) => void) => void;
-    effect?: (fn: () => unknown, name?: string) => void;
-    get?: (name: string) => unknown;
-}, config: PluginConfig): boolean;
+export declare function registerPanelHttpRoutes(ctx: any, config: PluginConfig): boolean;

@@ -1,7 +1,7 @@
 /** Inspiration pillar — session / forge / stage / accept (optional apply to work). */
 import { InspirationPort } from "../lib/ports/index.js";
 import { ensureStorage } from "../lib/store.js";
-import { asString, config, fail, rememberWork } from "./context.js";
+import { asString, asStringArray, config, fail, rememberWork } from "./context.js";
 import { B, S, WORKING_DIR } from "./schema.js";
 import { defineTool } from "./types.js";
 async function openInsp(exec, args) {
@@ -27,21 +27,21 @@ export function inspirationTools() {
             required: ["goal", "card_ids"],
             async execute(args, exec) {
                 const goal = asString(args, "goal", { required: true });
-                if (!Array.isArray(args.card_ids) || args.card_ids.length === 0) {
+                const cardIds = asStringArray(args, "card_ids", { required: true });
+                if (!cardIds || cardIds.length === 0)
                     fail("card_ids 至少一张");
-                }
                 const craftOnly = Boolean(args.craft_only);
                 const paths = await openInsp(exec, args);
                 const { sessionId, mindCount, craftCount } = await InspirationPort.startSession(paths, {
                     goal,
                     genre: asString(args, "genre"),
-                    cardIds: args.card_ids.map((x) => String(x)),
+                    cardIds,
                     craftOnly,
                 });
                 return [
                     `灵感会话已开：${sessionId}`,
                     `- goal：${goal}`,
-                    `- cards：${args.card_ids.join("、")}`,
+                    `- cards：${(cardIds ?? []).join("、")}`,
                     `- 分轴：mind ${mindCount} · craft ${craftCount}` + (craftOnly ? " · craft_only" : ""),
                     "",
                     "下一步（闭环）：zhizhang_inspire_forge_brief → inspire_stage → inspire_accept(apply=true) → chapter_brief",

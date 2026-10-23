@@ -1,77 +1,76 @@
-import { type StoragePaths } from "./store.js";
-import type { Foundation } from "./types.js";
-export interface PanelLibraryView {
-    sourcesCount: number;
+import type { StoragePaths } from "./types.js";
+export declare function buildLibraryView(paths: StoragePaths): Promise<{
+    sourcesCount: any;
     sourceRoot: string;
     pendingCount: number;
-    pending: Array<{
-        name: string;
-        bytes: number;
-    }>;
-    sources: Array<{
-        id: string;
-        title: string;
-        author: string;
-    }>;
+    pending: {
+        name: any;
+        bytes: any;
+    }[];
+    sources: any;
+    analyses: {
+        sourceId: any;
+        stage: any;
+        facts: any;
+        totalChapters: any;
+        plots: any;
+        plan: {
+            mode: any;
+            ratio: any;
+            label: string;
+            done: any;
+            total: any;
+        } | null;
+    }[];
     craftCount: number;
     mindCount: number;
-    acceptedCount: number;
-    draftedCount: number;
+    acceptedCount: any;
+    draftedCount: any;
     combo: {
         ok: boolean;
-        cardIds: string[];
-        mindTitle: string | null;
-        craftTitles: string[];
-        emptyReason?: string;
+        cardIds: any[] | never[];
+        mindTitle: any;
+        craftTitles: any[];
+        emptyReason: string | undefined;
     } | null;
     summary: string;
-}
-export interface PanelInspirationView {
+}>;
+export declare function buildInspirationView(paths: StoragePaths, opts: any): Promise<{
     sessionsCount: number;
-    sessions: Array<{
-        id: string;
-        goal: string;
-        genre: string;
-        updatedAt: string;
-        forgeAt?: string;
-        cardCount: number;
-    }>;
+    sessions: {
+        id: any;
+        goal: any;
+        genre: any;
+        updatedAt: any;
+        forgeAt: any;
+        cardCount: any;
+    }[];
     pendingEmits: number;
     acceptedEmits: number;
     appliedToWork: boolean;
-    appliedCandIds: string[];
+    appliedCandIds: any[];
     foundationFilled: boolean;
     foundationFilledFields: string[];
     outlineProgress: {
-        total: number;
+        total: any;
         withSituation: number;
         withLived: number;
         withState: number;
         complete: number;
     };
     summary: string;
-}
-export interface PanelProductView {
+}>;
+export declare function buildProductView(): {
     loopLine: string;
     writeLine: string;
     version: string;
-    pillars: Array<{
-        id: string;
-        title: string;
-        loopStage: 1 | 2 | 3;
-        summary: string;
-        handsOffTo: string;
-        status: string;
-    }>;
-}
-export declare function buildLibraryView(paths: StoragePaths): Promise<PanelLibraryView>;
-export declare function buildInspirationView(paths: StoragePaths, opts: {
-    workKey: string;
-    foundation: Foundation;
-    chapters: Array<{
-        situationLens: string;
-        livedScene: string;
-        stateLens: string;
-    }>;
-}): Promise<PanelInspirationView>;
-export declare function buildProductView(): PanelProductView;
+    toolCount: number;
+    pillars: {
+        id: any;
+        title: any;
+        loopStage: any;
+        summary: any;
+        handsOffTo: any;
+        status: any;
+    }[];
+};

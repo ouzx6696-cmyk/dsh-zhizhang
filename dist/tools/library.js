@@ -2,10 +2,10 @@
 import path from "node:path";
 import { stat } from "node:fs/promises";
 import { LibraryPort, coerceAxis, formatHumanFeelBlock, formatBookCraftBlock, formatMindBlock, formatHandoffBlock, formatModuleBlockV2, } from "../lib/ports/index.js";
-import { readAnalysisBundle, readSurvey, computeCoverage, listAnalyses, WHITE_DESC_HARD_RE, writeAnalysisMeta, buildPlan, estimatePlan, planLabel, writePlan, readPlan, deletePlan, makeConfirmToken, writePendingConfirm, assertFullConsent, clearPendingConfirm, planProgress, planMembership, chapterIndex, chapterText, chapterTitle, PLAN_RATIO_DEFAULT, PLAN_BATCH_DEFAULT, PLAN_BATCH_MIN, PLAN_BATCH_MAX, } from "../lib/ports/analysis.js";
+import { readAnalysisBundle, readSurvey, computeCoverage, listAnalyses, WHITE_DESC_HARD_RE, writeAnalysisMeta, buildPlan, estimatePlan, planLabel, writePlan, readPlan, deletePlan, makeConfirmToken, writePendingConfirm, assertFullConsent, clearPendingConfirm, planProgress, chapterIndex, chapterText, chapterTitle, PLAN_RATIO_DEFAULT, PLAN_BATCH_DEFAULT, PLAN_BATCH_MIN, PLAN_BATCH_MAX, } from "../lib/ports/analysis.js";
 import { ensureStorage, listLocalBooks, sessionCwd } from "../lib/store.js";
 import { AUTO_SAMPLE_HEAD, AUTO_SAMPLE_RATIO, AUTO_SAMPLE_TAIL } from "../lib/domain/workflow.js";
-import { asString, config, fail } from "./context.js";
+import { asArray, asString, asStringArray, config } from "./context.js";
 import { S, B, WORKING_DIR } from "./schema.js";
 import { defineTool } from "./types.js";
 async function openLibrary(exec, args) {
@@ -324,11 +324,8 @@ export function libraryTools() {
                 const title = asString(args, "title", { required: true });
                 const sourceId = asString(args, "source", { required: true });
                 const body = asString(args, "body", { required: true, trim: false });
-                if (!Array.isArray(args.mechanisms))
-                    fail("mechanisms 必须是数组");
-                const tags = Array.isArray(args.tags)
-                    ? args.tags.map((t) => String(t))
-                    : undefined;
+                asArray(args, "mechanisms", { required: true });
+                const tags = asStringArray(args, "tags");
                 const humanFeel = args.human_feel && typeof args.human_feel === "object"
                     ? args.human_feel
                     : undefined;
@@ -359,13 +356,13 @@ export function libraryTools() {
                     readerWant: asString(args, "readerWant"),
                     emotionArc: asString(args, "emotionArc"),
                     dramaticUnit: asString(args, "dramaticUnit"),
-                    replaceables: Array.isArray(args.replaceables) ? args.replaceables : undefined,
-                    mustNotCopy: Array.isArray(args.mustNotCopy) ? args.mustNotCopy : undefined,
+                    replaceables: asStringArray(args, "replaceables"),
+                    mustNotCopy: asStringArray(args, "mustNotCopy"),
                     transfer: asString(args, "transfer"),
                     failWhen: asString(args, "failWhen"),
-                    evidence: Array.isArray(args.evidence) ? args.evidence : undefined,
-                    steps: Array.isArray(args.steps) ? args.steps : undefined,
-                    bannedDiction: Array.isArray(args.bannedDiction) ? args.bannedDiction : undefined,
+                    evidence: asArray(args, "evidence"),
+                    steps: asStringArray(args, "steps"),
+                    bannedDiction: asStringArray(args, "bannedDiction"),
                     tags,
                 });
                 const lines = [
@@ -426,9 +423,7 @@ export function libraryTools() {
             async execute(args, exec) {
                 const what = (asString(args, "what") ?? "all").toLowerCase();
                 const paths = await openLibrary(exec, args);
-                const sourceIds = Array.isArray(args.source_ids)
-                    ? args.source_ids.map((x) => String(x))
-                    : undefined;
+                const sourceIds = asStringArray(args, "source_ids");
                 const axisRaw = asString(args, "axis");
                 const axis = axisRaw === "craft" ? "craft" : axisRaw === "mind" ? "mind" : undefined;
                 const filter = {
@@ -468,7 +463,7 @@ export function libraryTools() {
                         const p = await readPlan(paths, a.sourceId);
                         const prog = p ? planProgress(p, (await readAnalysisBundle(paths, a.sourceId)).chapters) : null;
                         lines.push(`- ${a.sourceId} · stage=${a.stage} · 事实 ${a.facts}/${a.totalChapters} · 剧情条 ${a.plots}` +
-                            (p ? ` · ${planLabel(p)} · 计划进度 ${prog.done}/${prog.total}` : ""));
+                            (p && prog ? ` · ${planLabel(p)} · 计划进度 ${prog.done}/${prog.total}` : ""));
                     }
                 }
                 if (paths.sourceRoot) {
@@ -510,9 +505,7 @@ export function libraryTools() {
             async execute(args, exec) {
                 const query = asString(args, "query") ?? "";
                 const paths = await openLibrary(exec, args);
-                const sourceIds = Array.isArray(args.source_ids)
-                    ? args.source_ids.map((x) => String(x))
-                    : undefined;
+                const sourceIds = asStringArray(args, "source_ids");
                 const axisRaw = asString(args, "axis");
                 const axis = axisRaw === "craft" ? "craft" : axisRaw === "mind" ? "mind" : undefined;
                 const hits = await LibraryPort.searchCards(paths, query, {
@@ -650,9 +643,7 @@ export function libraryTools() {
             required: [],
             async execute(args, exec) {
                 const paths = await openLibrary(exec, args);
-                const sourceIds = Array.isArray(args.source_ids)
-                    ? args.source_ids.map((x) => String(x))
-                    : undefined;
+                const sourceIds = asStringArray(args, "source_ids");
                 const prefer = asString(args, "prefer_mind_source");
                 const craftCount = typeof args.craft_count === "number" ? args.craft_count : undefined;
                 const queryText = asString(args, "query");

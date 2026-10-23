@@ -4,7 +4,6 @@ import { ZhizhangError } from "../../errors.js";
 import { analysisPaths, ensureDir, nowIso, readJson, readJsonl, writeJsonl } from "./paths.js";
 import { writeAnalysisMeta } from "./meta.js";
 import { atomicWrite } from "../../store.js";
-
 export function validatePlot(plot) {
     const errors = [];
     const p = plot ?? {};
@@ -18,7 +17,6 @@ export function validatePlot(plot) {
     }
     return { errors, warnings: [] };
 }
-
 export function validateRhythm(r) {
     const errors = [];
     const warnings = [];
@@ -51,7 +49,6 @@ export function validateRhythm(r) {
         errors.push("foreshadowing 必须是数组");
     return { errors, warnings };
 }
-
 export function validateCharacter(c) {
     const errors = [];
     const v = c ?? {};
@@ -73,7 +70,6 @@ export function validateCharacter(c) {
     }
     return { errors, warnings: [] };
 }
-
 export async function upsertPlot(paths, sourceId, plot) {
     const { errors } = validatePlot(plot);
     if (errors.length)
@@ -93,7 +89,6 @@ export async function upsertPlot(paths, sourceId, plot) {
     });
     return { count: (await readJsonl(p.plots)).length };
 }
-
 export async function writeRhythm(paths, sourceId, rhythm) {
     const { errors, warnings } = validateRhythm(rhythm);
     if (errors.length)
@@ -114,7 +109,6 @@ export async function writeRhythm(paths, sourceId, rhythm) {
     });
     return { warnings, loops: rhythm.loops?.length ?? 0 };
 }
-
 export async function upsertCharacter(paths, sourceId, character) {
     const { errors } = validateCharacter(character);
     if (errors.length)

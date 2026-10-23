@@ -2,7 +2,7 @@
 import { buildPanelSnapshot, readChapter, readWorkMeta, recordBriefBreadcrumb, } from "../lib/store.js";
 import { resolvePrevChapter } from "../lib/services/chapter-context.js";
 import { InspirationPort, METHOD_ASSET_IDS, MethodRegistry, Scheduler, } from "../lib/ports/index.js";
-import { asString, fail, openWork } from "./context.js";
+import { asString, asStringArray, fail, openWork } from "./context.js";
 import { renderOutline, renderOutlineLean } from "./render.js";
 import { B, S, WORK_OPT, WORKING_DIR } from "./schema.js";
 import { defineTool } from "./types.js";
@@ -44,10 +44,8 @@ export function methodsTools() {
                     raw.push(...idsArg.split(/[,，\s]+/));
                 if (idArg)
                     raw.push(idArg);
-                if (Array.isArray(args.ids)) {
-                    for (const x of args.ids)
-                        raw.push(String(x));
-                }
+                for (const x of asStringArray(args, "ids") ?? [])
+                    raw.push(x);
                 const cleaned = raw.map((s) => s.trim()).filter(Boolean);
                 if (cleaned.length === 0) {
                     fail(`请传 ids 或 id。可用：${METHOD_ASSET_IDS.join("、")}。先 zhizhang_method_list 查看说明。`);
@@ -105,13 +103,10 @@ export function methodsTools() {
                 let cardSection = "";
                 let cardIdsForCrumb = [];
                 if (!skipCards) {
-                    const explicitIds = Array.isArray(args.card_ids)
-                        ? args.card_ids.map((x) => String(x).trim()).filter(Boolean)
-                        : [];
+                    const explicitIds = asStringArray(args, "card_ids") ?? [];
                     const resolved = await InspirationPort.resolveCardsForBrief(paths, {
                         cardIds: explicitIds,
                         workKey: key,
-                        genre: meta.genre || undefined,
                         limit: lean ? 3 : 5,
                     });
                     cardSection = InspirationPort.formatCardsSection(resolved.cards, {

@@ -54,7 +54,6 @@ export const CARD_JUDGMENT_CRITERIA = [
     "失败边界：failWhen 指向具体写法失误，不是「效果不好」",
 ];
 export const CARD_JUDGMENT_LINE = "拆书验收：引文 100% ≠ 卡能用；字段齐 ≠ 拆完了。脚本只能证明没编、没缺；能不能用要真读原文按五条判：可操作 / 特异性（换书名还成立=没抓到本书）/ 非梗概 / 状态落纸 / 失败边界具体。";
-
 export const QualityPolicy = {
     id: "port.quality",
     axes: QUALITY_AXES,

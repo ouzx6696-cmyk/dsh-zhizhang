@@ -1,18 +1,28 @@
 /** Shared gate decision types for improvement ports. */
-export type GateSeverity = "error" | "warning" | "info";
-export interface GateMessage {
-    code: string;
-    severity: GateSeverity;
-    text: string;
-}
-/** ok===false means hard refuse; warnings still allow when ok===true. */
-export interface GateDecision {
+export declare function deny(code: any, text: string): {
     ok: boolean;
-    messages: GateMessage[];
-}
-export declare function deny(code: string, text: string): GateDecision;
-export declare function allow(messages?: GateMessage[]): GateDecision;
-export declare function warn(code: string, text: string): GateMessage;
-export declare function info(code: string, text: string): GateMessage;
-export declare function mergeDecisions(...parts: GateDecision[]): GateDecision;
-export declare function formatGateMessages(messages: GateMessage[]): string[];
+    messages: {
+        code: any;
+        severity: string;
+        text: string;
+    }[];
+};
+export declare function allow(messages?: any): {
+    ok: boolean;
+    messages: any;
+};
+export declare function warn(code: any, text: string): {
+    code: any;
+    severity: string;
+    text: string;
+};
+export declare function info(code: any, text: string): {
+    code: any;
+    severity: string;
+    text: string;
+};
+export declare function mergeDecisions(...parts: any[]): {
+    ok: boolean;
+    messages: any[];
+};
+export declare function formatGateMessages(messages: any): any;

@@ -1,20 +1,9 @@
-/**
- * QualityPolicy — single product quality surface for 织章.
- * Feel/人味（写法+状态）· Book (书感) · Poison (毒点) · Payoff (兑付) · Style (AI腔)
- * are axes of ONE surface, not three siloed products.
- *
- * Agent-facing tips use positive craft cues; detection lives in HumanFeel / NovelSense gates.
- */
-export type QualityAxisId = "feel" | "book" | "poison" | "payoff" | "style";
-export interface QualityAxis {
-    id: QualityAxisId;
+export declare const QUALITY_AXES: {
+    id: string;
     title: string;
-    /** Where the agent should look for craft input. */
     craft: string;
-    /** Soft sensor / gate (if any). */
     sensor: string;
-}
-export declare const QUALITY_AXES: readonly QualityAxis[];
+}[];
 /**
  * Single poison policy — used by dissect / forge / reader contract / novel_sense tip.
  * Positive craft framing (what TO write); sensors still catch dump patterns in code.
@@ -31,11 +20,16 @@ export declare const QUALITY_BOOK_DEBT_CUE_RE: RegExp;
 /** Living-person wobble shared by soft radars (optional import). */
 export declare const QUALITY_WOBBLE_RE: RegExp;
 /** 拆书验收五条：脚本核不了，只能真读原文回答。 */
-export declare const CARD_JUDGMENT_CRITERIA: readonly string[];
-export declare const CARD_JUDGMENT_LINE: string;
+export declare const CARD_JUDGMENT_CRITERIA: string[];
+export declare const CARD_JUDGMENT_LINE = "\u62C6\u4E66\u9A8C\u6536\uFF1A\u5F15\u6587 100% \u2260 \u5361\u80FD\u7528\uFF1B\u5B57\u6BB5\u9F50 \u2260 \u62C6\u5B8C\u4E86\u3002\u811A\u672C\u53EA\u80FD\u8BC1\u660E\u6CA1\u7F16\u3001\u6CA1\u7F3A\uFF1B\u80FD\u4E0D\u80FD\u7528\u8981\u771F\u8BFB\u539F\u6587\u6309\u4E94\u6761\u5224\uFF1A\u53EF\u64CD\u4F5C / \u7279\u5F02\u6027\uFF08\u6362\u4E66\u540D\u8FD8\u6210\u7ACB=\u6CA1\u6293\u5230\u672C\u4E66\uFF09/ \u975E\u6897\u6982 / \u72B6\u6001\u843D\u7EB8 / \u5931\u8D25\u8FB9\u754C\u5177\u4F53\u3002";
 export declare const QualityPolicy: {
-    id: "port.quality";
-    axes: readonly QualityAxis[];
+    id: string;
+    axes: {
+        id: string;
+        title: string;
+        craft: string;
+        sensor: string;
+    }[];
     poisonPolicy: string;
     poisonHint: string;
     bookDebtCue: RegExp;

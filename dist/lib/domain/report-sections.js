@@ -23,5 +23,4 @@ export const REPORT_SECTIONS = [
     { n: 18, title: "备注" },
     { n: 19, title: "结论与下一步" },
 ];
-
 export const REPORT_SECTION_COUNT = REPORT_SECTIONS.length;

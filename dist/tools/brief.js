@@ -1,24 +1,14 @@
 /** Resident hard rules — default route from Scheduler; bypasses explicit. */
 import { Scheduler } from "../lib/ports/scheduler.js";
-import {
-    AUTO_SAMPLE_HEAD,
-    AUTO_SAMPLE_RATIO,
-    AUTO_SAMPLE_TAIL,
-    DISSECT_STEP_COUNT,
-    DISSECT_STEPS,
-    WRITE_STEP_COUNT,
-    WRITE_STEPS,
-} from "../lib/domain/workflow.js";
+import { AUTO_SAMPLE_HEAD, AUTO_SAMPLE_RATIO, AUTO_SAMPLE_TAIL, DISSECT_STEP_COUNT, DISSECT_STEPS, WRITE_STEP_COUNT, WRITE_STEPS, } from "../lib/domain/workflow.js";
 import { REPORT_SECTION_COUNT } from "../lib/domain/report-sections.js";
 import { PLUGIN_VERSION } from "../lib/version.js";
-
 const WORKFLOW_BLOCK = [
     "【工作流（照做，别跳步；回执里的“下一步 N/9”与此同号）】",
     `拆书 ${DISSECT_STEP_COUNT} 步（${PLUGIN_VERSION}）：` + DISSECT_STEPS.map((s) => `${s.n}) ${s.tool} —— ${s.do}`).join(" → "),
     `写作 ${WRITE_STEP_COUNT} 步：` + WRITE_STEPS.map((s) => `${s.n}) ${s.tool} —— ${s.do}`).join(" → "),
     `Auto 是抽样：全书结论只作「抽样观察」；只读开头只出「快速预览」。`,
 ].join("\n");
-
 export const SYSTEM_BRIEF = `【织章 / zhizhang 硬规则 — 调度一眼看懂；工程归代码，创作归 AI；本段仅在 zhizhang_enable 后注入本会话】
 0. **默认路径（最短合格）**：${Scheduler.defaultLine()}
    写作段：zhizhang_chapter_brief(lean) → 创作 → zhizhang_candidate_stage → zhizhang_style_lint(candidate) →（可选 edit）→ zhizhang_candidate_accept。

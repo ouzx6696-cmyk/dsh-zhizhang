@@ -6,7 +6,6 @@ import { acceptCandidate, getRecentBrief, getRecentPayoffAudit, readCandidate, r
 import { AcceptPolicy, FoundationPort, InspirationPort, Scheduler, firstDenyCode, firstDenyText, } from "../ports/index.js";
 import { ZhizhangError } from "../errors.js";
 import { resolvePrevBody } from "./chapter-context.js";
-
 function errResult(err, fallback) {
     return {
         ok: false,
@@ -14,24 +13,8 @@ function errResult(err, fallback) {
         error: err instanceof Error ? err.message : String(err),
     };
 }
-
 export async function runAccept(input) {
-    const {
-        paths,
-        dir,
-        workKey,
-        candidateId,
-        mode = "replace",
-        force = false,
-        lintPassToken,
-        skipBrief = false,
-        strictLint = false,
-        requirePayoff = false,
-        strictHuman = false,
-        strictNovel = false,
-        acceptAfterEdit = false,
-        confirmAcceptAfterEdit = false,
-    } = input;
+    const { paths, dir, workKey, candidateId, mode = "replace", force = false, lintPassToken, skipBrief = false, strictLint = false, requirePayoff = false, strictHuman = false, strictNovel = false, acceptAfterEdit = false, confirmAcceptAfterEdit = false, } = input;
     let candMeta;
     try {
         candMeta = await readCandidate(dir, candidateId);

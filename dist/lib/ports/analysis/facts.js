@@ -5,12 +5,10 @@ import { HOOK_STRENGTHS, HOOK_TYPES } from "../../domain/card-schema.js";
 import { quoteOk } from "../../domain/evidence.js";
 import { analysisPaths, ensureDir, nowIso, readJson, readJsonl, writeJsonl } from "./paths.js";
 import { writeAnalysisMeta } from "./meta.js";
-
 /** 白描硬禁：心理/评价词。desc 里出现即视为「替人物补动机/下判断」。 */
 export const WHITE_DESC_HARD_RE = /(心里|心中|内心|觉得|认为|希望|害怕|恐惧|愤怒|悲伤|难过|失望|后悔|其实|显然|精彩|感人|震撼)/;
 /** 白描软警告：因果/意图词（原文事实可含，提示改写为动作）。 */
 export const WHITE_DESC_SOFT_RE = /(因为|所以|于是|想要|打算|决定)/;
-
 export function validateChapterFacts(facts, sourceText, index) {
     const errors = [];
     const warnings = [];
@@ -63,7 +61,6 @@ export function validateChapterFacts(facts, sourceText, index) {
         errors.push("unknowns 必须是数组（原文没写的动机/身份/后果写这里）");
     return { errors, warnings };
 }
-
 export async function upsertChapter(paths, sourceId, facts, sourceText, index) {
     const { errors, warnings } = validateChapterFacts(facts, sourceText, index);
     if (errors.length)

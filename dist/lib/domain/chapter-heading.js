@@ -4,18 +4,15 @@
  * 支持：第1章 / 第001章 / 第一章 / 第两百章 / 序章 / 序 / 楔子 / 引子。
  * 只认行首标题，避免正文里的「第一章」误切。
  */
-
 const CN_DIGITS = {
     零: 0, 〇: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4,
     五: 5, 六: 6, 七: 7, 八: 8, 九: 9,
 };
 const CN_UNITS = { 十: 10, 百: 100, 千: 1000 };
 const NUM_CHARS = "0-9０-９一二三四五六七八九十百千万零〇两";
-
 function asciiDigits(s) {
     return s.replace(/[０-９]/g, (d) => String(d.charCodeAt(0) - 0xff10));
 }
-
 /** 中文数字 / 阿拉伯数字 → number；无法解析返回 NaN。 */
 export function cnNumber(input) {
     const t = String(input ?? "").trim();
@@ -56,22 +53,12 @@ export function cnNumber(input) {
     }
     return total + section + number;
 }
-
 /** 行首章节标题：第N章 / 第N回 / 第N节（N 可为中文数字）。 */
-export const CHAPTER_HEADING_RE = new RegExp(
-    `^[ \\t]*第([${NUM_CHARS}]+)[章回节][ \\t]*(.*)$`,
-    "gm",
-);
-
+export const CHAPTER_HEADING_RE = new RegExp(`^[ \\t]*第([${NUM_CHARS}]+)[章回节][ \\t]*(.*)$`, "gm");
 /** 行首卷标题：第N卷。 */
-export const VOLUME_HEADING_RE = new RegExp(
-    `^[ \\t]*第([${NUM_CHARS}]+)卷[ \\t]*(.*)$`,
-    "gm",
-);
-
+export const VOLUME_HEADING_RE = new RegExp(`^[ \\t]*第([${NUM_CHARS}]+)卷[ \\t]*(.*)$`, "gm");
 /** 行首前置章节：序章 / 序 / 楔子 / 引子。 */
 export const FRONT_HEADING_RE = /^[ \t]*(序章|序|楔子|引子)[ \t]*(.*)$/gm;
-
 /** 解析一行标题；不是章节标题返回 null。 */
 export function parseChapterHeading(line) {
     const raw = String(line ?? "");
@@ -87,7 +74,6 @@ export function parseChapterHeading(line) {
         return { n: 0, title: `${front[1]} ${(front[2] ?? "").trim()}`.trim(), kind: "front" };
     return null;
 }
-
 /** 把「第12章」「第十二章」「12」统一成 number；解析失败返回 NaN。 */
 export function parseChapterNumber(label) {
     const t = String(label ?? "").trim();

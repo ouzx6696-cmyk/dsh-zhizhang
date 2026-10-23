@@ -4,13 +4,10 @@
  */
 import { chapterIndex } from "../analysis.js";
 import { parseChapterNumber } from "../../domain/chapter-heading.js";
-
 const EVIDENCE_QUOTE_RE = /[“"]([^”"\n]{4,240})[”"]/g;
-
 export function normForMatch(s) {
     return String(s ?? "").replace(/[^\u4e00-\u9fa5A-Za-z0-9]/g, "");
 }
-
 export function extractEvidence(body) {
     const lines = String(body ?? "").split("\n");
     const start = lines.findIndex((line) => /^##\s*证据/.test(line));
@@ -27,17 +24,14 @@ export function extractEvidence(body) {
     }
     return { heading: lines[start].trim(), quotes };
 }
-
 export function quoteFragments(q) {
     return String(q).split(/……|——|\.{3,}/).map((x) => x.trim()).filter((x) => x.length >= 4);
 }
-
 /** 章号归一：第2章 / 第二章 → "ch2"；序章 → "ch0"。 */
 export function chapterKey(label) {
     const n = parseChapterNumber(label);
     return Number.isFinite(n) ? `ch${n}` : null;
 }
-
 function chapterLabelAt(index, pos) {
     let hit = null;
     for (const c of index) {
@@ -50,7 +44,6 @@ function chapterLabelAt(index, pos) {
         return null;
     return hit.n === 0 ? "序章" : `第${hit.n}章`;
 }
-
 function locateQuoteChapters(q, text, index) {
     const cands = [String(q), ...String(q).split(/[^\u4e00-\u9fa5A-Za-z0-9]+/)]
         .filter((x) => x.length >= 8)
@@ -72,7 +65,6 @@ function locateQuoteChapters(q, text, index) {
     }
     return found;
 }
-
 /** 单卡内容审计：引文能否回溯、章号是否对得上、字段是否占位、mind 是否写成剧情分段。 */
 export function auditCardContent(card, sourceText, normSourceCache) {
     const warnings = [];
@@ -100,7 +92,7 @@ export function auditCardContent(card, sourceText, normSourceCache) {
         const chs = locateQuoteChapters(q, sourceText, index);
         if (chs.size === 1) {
             const label = [...chs][0];
-            located.push({ key: chapterKey(label) ?? label, label });
+            located.push({ key: chapterKey(String(label)) ?? String(label), label: String(label) });
         }
     }
     let chapterOk = null;
@@ -113,12 +105,11 @@ export function auditCardContent(card, sourceText, normSourceCache) {
         const top = [...counts.entries()].sort((x, y) => y[1] - x[1])[0];
         const label = located.find((l) => l.key === top[0])?.label ?? top[0];
         if (top[1] >= 2) {
-            chapterOk = headKeys.size ? located.some((l) => headKeys.has(l.key)) : heading.includes(label);
+            chapterOk = headKeys.size ? located.some((l) => headKeys.has(l.key)) : String(heading ?? "").includes(label);
             if (!chapterOk)
                 warnings.push("证据标题章号「" + headChs.join("、") + "」与引文实际位置「" + label + "」不一致");
         }
     }
-
     const rr = String(card.readingRange ?? "").trim();
     if (!rr || /^见拆书简报$/.test(rr))
         warnings.push("readingRange 仍是占位（见拆书简报）：应写真实抽样范围");

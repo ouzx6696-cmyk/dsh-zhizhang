@@ -1,16 +1,28 @@
-/** On-disk + in-memory types for dsh-zhizhang. No Postgres. */
+/**
+ * On-disk + in-memory types for dsh-zhizhang. No Postgres.
+ *
+ * 这些是「落盘契约」的类型：meta.json / ledger.json / 候选文件都按这里的形状读写。
+ * 需要动态 JSON 的地方（拆书产物、卡模块）显式用 Record<string, any>，不要用隐式 any。
+ */
 export declare const SCHEMA_VERSION = 1;
-export type ChapterStatus = "planned" | "drafting" | "drafted" | "reviewed" | "final";
+/** Five diagnostic evidence kinds for AI review *output* (agent-side; ledger stores them). */
+export declare const REVIEW_EVIDENCE_KINDS: string[];
 export interface Foundation {
+    /** 作者锁定：不得违背的世界/人物设定 */
     locks: string;
+    /** 已发生事实（按章累积） */
     happened: string;
+    /** 人物卡摘要 */
     characters: string;
+    /** 读者已知 */
     readerKnowledge: string;
+    /** 计划中未发生 */
     planned: string;
+    /** 未结伏笔 */
     threads: string;
+    /** 全书文风约束 */
     style: string;
 }
-/** Chapter craft outline — ported from 织章 Outline + situation fields. */
 export interface Outline {
     pov: string;
     targetWords: number;
@@ -20,24 +32,20 @@ export interface Outline {
     conflict: string;
     beats: string;
     ending: string;
-    /** Observer situation / attention bias. */
     situationLens: string;
-    /** Lived conflict vs overview beats. */
     livedScene: string;
-    /** Chapter character-state / craft lens (not a character-voice primer). */
     stateLens: string;
 }
+export type ChapterStatus = "planned" | "drafting" | "drafted" | "reviewed" | "final";
 export interface ChapterMeta {
     id: string;
     title: string;
     position: number;
     status: ChapterStatus;
     wordCount: number;
-    updatedAt: string;
-}
-export interface ChapterRecord extends ChapterMeta {
-    body: string;
     outline: Outline;
+    createdAt: string;
+    updatedAt: string;
 }
 export interface WorkMeta {
     schemaVersion: number;
@@ -50,98 +58,77 @@ export interface WorkMeta {
     updatedAt: string;
     chapters: ChapterMeta[];
 }
-/** Four-dimension author review (local ledger, not AI generation). */
-export type ReviewDim = "locks_ledger" | "pov_situation" | "style_radar" | "continuity_snap";
-/** Five diagnostic evidence kinds for AI review *output* (agent-side; ledger stores them). */
-export declare const REVIEW_EVIDENCE_KINDS: readonly ["结构与锁定/伏笔咬合", "视角处境与注意力偏见", "亲历博弈充实度", "AI腔与心理偷懒诊断", "章末落点质感"];
-export type ReviewEvidenceKind = (typeof REVIEW_EVIDENCE_KINDS)[number];
-export interface LedgerIssue {
-    category: string;
-    finding: string;
-    evidence: string;
-    suggestion: string;
-}
-export type LedgerKind = "style_lint" | "author_checks" | "ai_review_notes" | "finalize" | "note" | "chapter_save_direct" | "brief_seen" | "payoff_audit";
 export interface LedgerEntry {
-    id: string;
     at: string;
-    chapterId: string;
-    kind: LedgerKind;
-    summary: string;
-    dims?: Partial<Record<ReviewDim, boolean>>;
-    issues?: LedgerIssue[];
-    styleHitCount?: number;
+    chapter?: string;
+    kind: string;
+    summary?: string;
+    [key: string]: unknown;
 }
-/** Breadcrumb left by zhizhang_chapter_brief (soft gate for accept). */
-export interface BriefBreadcrumb {
-    chapterId: string;
-    at: string;
-    assetIds: string[];
-}
-export interface BriefCrumbFile {
-    schemaVersion: number;
-    workKey: string;
-    entries: BriefBreadcrumb[];
-}
-/** Last payoff audit snapshot for panel (not a rewrite). */
-export interface PayoffAuditStored {
-    chapterId: string;
-    at: string;
-    source: "chapter" | "candidate" | "text";
-    sourceId?: string;
-    ok: boolean;
-    warningCount: number;
-    codes: string[];
-    summary: string;
-}
-export interface PayoffAuditFile {
-    schemaVersion: number;
-    workKey: string;
-    /** newest first or append-only; panel reads last per chapter */
-    entries: PayoffAuditStored[];
-}
-export interface LedgerFile {
+export interface Ledger {
     schemaVersion: number;
     workKey: string;
     entries: LedgerEntry[];
 }
-/** Staged AI candidate — never auto-written to chapter body. */
-export interface CandidateFile {
+export interface Candidate {
     schemaVersion: number;
     id: string;
     workKey: string;
     chapterId: string;
     stagedAt: string;
-    source: "agent" | "import" | "edit" | "unify";
+    source: string;
     note: string;
     body: string;
-    /** Relative path of body snapshot under candidates/. */
     bodyFile: string;
-    /** Word count persisted at stage time (legacy rows omit it). */
-    wordCount?: number;
-    /** Set when candidate_accept succeeds; blocks double-accept. */
-    acceptedAt?: string;
-    acceptedMode?: "replace" | "append";
-    /**
-     * Issued by zhizhang_style_lint against this candidate (engineering gate).
-     * accept refuses unless lintedAt >= stagedAt and token is present,
-     * or caller passes the same lintPassToken.
-     */
+    wordCount: number;
+    /** 语感雷达命中数（style_lint 写入） */
+    lintHitCount?: number;
+    /** 已扫过的凭据（只证明扫过，不等于过关） */
     lintPassToken?: string;
     lintedAt?: string;
-    lintHitCount?: number;
-    /** Parent writer candidate id when this body is an edit pass result. */
+    /** 编辑稿指向源候选 */
     editOf?: string;
-    /** Edit mode id (e.g. polish-depolish). */
-    editMode?: string;
-    /** When this edit candidate was staged. */
-    editedAt?: string;
-    /** Optional human label for multi-draft (e.g. 口气A). */
-    draftLabel?: string;
-    /** Optional batch id grouping sibling drafts for one chapter. */
-    variantGroup?: string;
-    /** Parent candidate ids when this body is a unify merge. */
+    /** 统一整理稿指向多个父候选 */
     unifyOf?: string[];
+    draftLabel?: string;
+    variantGroup?: string;
+    editMode?: string;
+    editedAt?: string;
+    acceptedAt?: string;
+    acceptedMode?: string;
+}
+export interface StoragePaths {
+    /** 存储根：manuscripts / inspiration / 默认 works、library */
+    base: string;
+    /** 作品目录：一本书一个同名文件夹 */
+    works: string;
+    manuscripts: string;
+    /** 拆书库：index.json + sources/ + cards/ */
+    library: string;
+    inspiration: string;
+    /** 本地书源目录（可空） */
+    sourceRoot: string;
+    /** 内部：解析来源标记（panel / agent 等） */
+    resolvedVia?: string;
+}
+export interface PluginConfig {
+    rootDir?: string;
+    storageRoot?: string;
+    worksRoot?: string;
+    libraryRoot?: string;
+    sourceRoot?: string;
+    allowLanPanel?: boolean;
+    multiDraftEnabled?: boolean;
+    multiDraft?: {
+        enabled?: boolean;
+    };
+    [key: string]: unknown;
+}
+/** 工具执行上下文（DSH 传入；这里只声明插件实际用到的部分）。 */
+export interface ExecContext {
+    /** 宿主 Agent 上下文；结构由 DSH 决定，插件只按需取用（session.cwd / ctx）。 */
+    agent?: any;
+    [key: string]: any;
 }
 export declare const EMPTY_FOUNDATION: () => Foundation;
 export declare const EMPTY_OUTLINE: () => Outline;
