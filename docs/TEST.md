@@ -61,13 +61,18 @@ npm run smoke   # node ≥22；无 DSH / 无 bun
 ## 命令（源码仓）
 
 ```bash
-bun test
-npm run typecheck
+npm test          # node --test（无 bun 依赖）
+npm run typecheck # tsc --noEmit
 ```
+
+**测试运行方式（本轮起）**：套件从 `bun:test` 迁到 `node:test`，不再依赖 bun。
+- `test/_compat/expect.ts`：bun/jest 风格 `expect` 的本地实现（只实现套件用到的匹配器）
+- `test/_compat/ts-resolve.mjs`：把源码里的 `./x.js` 解析到 `./x.ts`（Node 不会像 bun 那样自动改写）
+- `test/setup.ts`：用 `--import` 预载，隔离 `DSH_HOME`
 
 本发行包只有：`npm run smoke`。
 
-**状态隔离**：`bunfig.toml` 的 `preload = ["./test/setup.ts"]` 会把 `DSH_HOME` 指向一次性临时目录。
+**状态隔离**：`npm test` 通过 `--import ./test/setup.ts` 预载，把 `DSH_HOME` 指向一次性临时目录。
 工具调用会往 `$DSH_HOME/zhizhang-projects.json`（项目索引）与 `zhizhang-last-root.json`（HTTP 根标记）
 写东西——不隔离的话每跑一次测试就往**真实** `~/.dsh` 里塞一批 Temp 工作区，还会把面板的根指到已删除的临时目录。
 `scripts/smoke.mjs` 自己也会隔离，两处一致。
@@ -81,3 +86,17 @@ npm run typecheck
 ## 多草稿（0.14）
 
 `test/contracts/multi-draft.test.ts`：默认关拒绝 unify；开启后 brief→stage→lint→accept；Scheduler 默认 hint 无 unify。
+
+## 类型护栏（本轮起）
+
+```bash
+npm run typecheck # tsc --noEmit，strict: true，0 错误；src 已无 @ts-nocheck
+npm run guard     # 两条护栏，npm test 里也会跑（test/contracts/ts-guard.test.ts）
+```
+
+1. **@ts-nocheck 只减不增** —— `scripts/ts-nocheck-guard.mjs` 对照 `scripts/ts-nocheck-baseline.json`（现已清空）。
+   往任何源文件加回 `@ts-nocheck` → 失败；清干净却没从基线删 → 也失败。
+2. **类型不许当值 import** —— `scripts/type-import-guard.mjs`。Node 类型剥离只删注解、不删 import：
+   `import { defineTool, ExecContext } from "./types.js"` 运行时就是
+   `SyntaxError: does not provide an export named 'ExecContext'`，而 tsc 认为合法。
+   类型一律写 `import type`。

@@ -5,7 +5,25 @@
 
 ---
 
-## 当前（0.17.0 重构）· 单一事实源 + 模块化
+## 未发布（基于 0.17.0）· 测试脱离 bun + 参数硬校验 + 类型安全护栏
+
+> 起因：全量审计发现两条质量护栏是虚的——`npm test` 依赖未安装的 bun（23 个测试文件一个都跑不了）；
+> `tsc --noEmit` 恒为 0，因为 74 个源文件全带 `@ts-nocheck`（实际藏着 1137 个类型错误）。
+
+- **测试迁到 node:test**：23 个测试文件改 `node:test`；新增 `test/_compat/expect.ts`（bun/jest 风格 `expect` 的本地实现，含 `arrayContaining`/`objectContaining` 与 `.not`）与 `test/_compat/ts-resolve.mjs`（把源码里的 `./x.js` 解析到 `./x.ts`）。`npm test` 不再需要 bun，81 → 90 个用例全绿。
+- **顺带修掉一个真 bug**：`library/store.ts` 的 `cardDeepHay` 调用了未导入的 `coerceHumanFeel`，抛 ReferenceError 后被 `catch { /* skip */ }` 吞掉——技法卡全文检索（机制名 / 人味字段 / 正文）一直是坏的，只能命中标题、标签、来源、轴。
+- **全文检索补覆盖面**：修好 import 之后又发现 haystack 只到 body/mechanisms/humanFeel/bookCraft/mind。v2 模块的 **不可照搬 / 可替换 / 迁移 / 失败边界 / 读者想要 / 情绪走向 / 戏剧单元 / 三步公式 / 反AI腔词表 / 证据引文（含章号）/ handoff** 全搜不到——现在全部进 haystack，`test/contracts/library-deep-search.test.ts` 逐字段钉住（少一个字段就红）。
+- **构建在 Windows 可用**：`npm run build/typecheck` 改走 `node ./node_modules/typescript/bin/tsc`，不再依赖 `.bin/tsc` 的 `.cmd` 垫片。
+- **参数硬校验**：新增 `asArray` / `asStringArray`（`src/tools/context.ts`），替换 17 处 `Array.isArray(args.*)` 静默兜底。传错类型现在直接报「参数 card_ids 必须是字符串数组」，不再悄悄变成空数组。
+- **删掉「按 genre 猜卡」这条死分支**：`resolveCardsForBrief` 原本第三步是「genre 检索技法卡」，实测永远命中 0 条——技法卡是写法卡（"借场杀人""把信息差押到章末最后一拍"），不含题材词，而作品的 genre 是「玄幻·都市异能」，两边没有交集。留着只会让人以为 lean 简报有自动注入。现在注入只走两条明确路径：**显式 `card_ids`（先用 `library_combo_suggest` 组包）** 或 **本作品 `inspire_accept(apply)` 绑定过的卡**；空结果的提示也改成指路 `library_combo_suggest`。测试 `pillars/inspiration` 钉住：genre 命中卡内文也不注入。
+- **全仓 strict 类型**：74 个源文件的 `@ts-nocheck` 全部摘除（`src/` 现在 0 个），`tsc --noEmit` 在 `strict: true` 下 **0 错误**（原来被 nocheck 藏住 1137 个）。核心数据模型落成类型：`src/lib/types.ts` 的 `Foundation / Outline / ChapterMeta / WorkMeta / Candidate / Ledger / StoragePaths / PluginConfig / ExecContext`；`ProjectEntry / ProjectSummary`、`ChapterIndexRow`、`PanelPathsResult` 等就近声明。
+- **类型安全护栏**（`npm run guard` + `test/contracts/ts-guard.test.ts`）：① `scripts/ts-nocheck-guard.mjs` 以 `scripts/ts-nocheck-baseline.json`（现已清空）为准，新增 `@ts-nocheck` 直接失败；② `scripts/type-import-guard.mjs` 禁止把 `interface`/`type` 当值 import —— 类型剥离只删注解不删 import，写错就是运行时 `SyntaxError: does not provide an export named 'X'`（`tsc` 查不出来，这一轮真的踩到了）。
+- **可移植性**：`cordis.patch.yml` 里的本机绝对路径改为注释示例，默认回退 `<会话 cwd>/.zhizhang`；`zhizhang_status` 增加「存储根（排查用）」一节点名 base/works/library 三条路径。
+- **删除** `bunfig.toml`（preload 已由 `--import ./test/setup.ts` 接管）。
+
+---
+
+## 0.17.0 · 单一事实源 + 模块化
 
 > 起因：同一件事散在多处——工具数 47/51/52、报告 19/22 节、拆书 9/10 步、版本 0.15.6/0.16.0；
 > 分析层与库层是千行单体；accept 与前章解析各有 4 份拷贝。补丁式修改只会让下一处继续漂。
