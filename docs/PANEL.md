@@ -2,7 +2,7 @@
 
 侧栏 **织章** 默认进入**三栏小说阅读工作台**（左章节 / 中正文 / 右状态与闸）；可切「管线」看原五 Tab。真采纳仍二次确认 + AcceptPolicy。`zhizhang_panel_snapshot` HTML 对齐管线信息架构，并与客户端同源字段（含 draftLabel / multiDraftEnabled）。
 
-**工具按需**：面板本身常驻（HTTP 只读 + 采纳）；52 个 `zhizhang_*` 工具要在会话里先调 `zhizhang_enable`。
+**工具按需**：面板本身常驻（HTTP 只读 + 采纳）；51 个 `zhizhang_*` 工具要在会话里先调 `zhizhang_enable`。
 
 **接口**：`GET …/projects`（项目列表 + 当前 id）、`GET …/snapshot?base=<id>&work=<key>`；
 `base` 白名单只含已登记工作区。
@@ -82,8 +82,12 @@
 | `POST /api/dsh-zhizhang/candidate/accept` | 真采纳（须 confirm） |
 | `GET|POST /api/dsh-zhizhang/unify/prepare` | 多草稿 brief 包（须开启；不写盘） |
 
-- 默认 **loopback only**；`config.allowLanPanel: true` 可放宽。  
-- 写路径：accept POST（唯一正式章写入口 via Accept）。
+安全面：
+- 默认 **仅回环**；Origin 若出现必须匹配 Host（DNS rebinding 防护）
+- POST 一律 `application/json`（否则 415）
+- LAN 模式（`allowLanPanel: true`）：Host 须在白名单（`panelHosts`，缺省本机网卡）+ 可选共享令牌（`panelToken`，Bearer / X-zhizhang-token）
+- 限流：120 GET / 20 POST 每分钟每客户端（429）
+- 写路径：accept POST（唯一正式章写入口 via Accept）；confirm/force/严格开关均严格布尔三态
 
 ### 存储根解析（HTTP）
 

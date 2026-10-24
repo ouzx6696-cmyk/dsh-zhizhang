@@ -3,46 +3,16 @@ const BREATH_REVEAL = /自己的呼吸|呼吸声|是他自己的呼吸|棚里响
 const SPEECH_IN_BODY = /人声|说话|说出口|那[一两三四]个字|清清楚楚/;
 /** Domain unit smell: reverb described with 毫米 (should be 毫秒). */
 const REVERB_MM = /混响[^。！？\n]{0,24}毫米|毫米[^。！？\n]{0,24}混响/;
-/** Extract round/clock tokens and key content nouns from ending text. */
-export function extractEndingTokens(ending) {
-    const text = String(ending ?? "").trim();
-    if (!text)
-        return [];
-    const tokens = new Set();
-    for (const m of text.matchAll(/\d{1,2}:\d{2}/g))
-        tokens.add(m[0]);
-    for (const m of text.matchAll(/零点\d{1,2}|凌晨\d{1,2}点?/g))
-        tokens.add(m[0]);
-    const keywords = [
-        "侧窗",
-        "窗框",
-        "回放",
-        "属性",
-        "时间戳",
-        "文件名",
-        "鼠标",
-        "显示器",
-        "屏幕",
-        "墙面",
-        "货架",
-        "雨",
-        "玻璃",
-        "没点开",
-        "刷卡",
-    ];
-    for (const k of keywords) {
-        if (text.includes(k))
-            tokens.add(k);
-    }
-    // Standalone CJK nouns of length 2 from ending (light heuristic)
-    const nounish = text.match(/[\u4e00-\u9fff]{2,4}/g) ?? [];
-    const prefer = ["侧窗", "东墙", "窗框", "回放", "属性", "文件名", "时间戳", "鼠标", "墙面", "货架", "呼吸", "人声"];
-    for (const n of nounish) {
-        if (prefer.includes(n))
-            tokens.add(n);
-    }
-    return [...tokens];
-}
+import { DEFAULT_ENDING_LEXICON, scoreEnding } from "./domain/ending-consistency.js";
+/**
+ * ending 兑付评分阈值（统一口径，见 domain/ending-consistency.ts）：
+ *   无 token 且 ending 非空 → ending_unchecked（warning；require_payoff 不再被空审计满足）
+ *   强证据全 miss            → ending_missing
+ *   有强证据且 score < 0.50  → ending_underdelivered（仅剩弱证据时不判，防同义改写误报）
+ *   score ≥ 0.75             → ending_ok（info）
+ */
+const SCORE_UNDER = 0.5;
+const SCORE_OK = 0.75;
 function quoteAround(body, needle, max = 48) {
     if (typeof needle === "string") {
         const i = body.indexOf(needle);
@@ -67,63 +37,64 @@ function outlinePromiseText(outline, premise) {
 /**
  * Audit body against outline promises.
  * ok=true when no warning/error findings (info-only still ok).
+ * opts.lexicon 可传 per-work 质量词表（quality-lexicon.json 的 endingKeywords）覆盖默认题材词。
  */
 export function auditPayoff(outline, body, opts = {}) {
     const findings = [];
     const text = String(body ?? "");
     const promiseBlob = outlinePromiseText(outline, opts.premise);
-    const endingTokens = extractEndingTokens(outline.ending);
-    const endingHits = [];
-    const endingMisses = [];
-    for (const tok of endingTokens) {
-        // Normalize 零点四十 ↔ 00:40 soft: if token is clock, also accept Chinese forms later
-        if (text.includes(String(tok)))
-            endingHits.push(tok);
-        else
-            endingMisses.push(tok);
-    }
-    // Soft clock alias: 00:40 ↔ 零点四十
-    const softMisses = endingMisses.filter((tok) => {
-        const m = tok.match(/^(\d{1,2}):(\d{2})$/);
-        if (!m)
-            return true;
-        const h = Number(m[1]);
-        const min = m[2];
-        const cn = `零点${Number(min)}`; // rough: only for hour 0
-        if (h === 0 && (text.includes(cn) || text.includes(`零点${min}`))) {
-            endingHits.push(tok);
-            return false;
+    const endingText = String(outline?.ending ?? "").trim();
+    const lexicon = Array.isArray(opts.lexicon) && opts.lexicon.length
+        ? opts.lexicon
+        : DEFAULT_ENDING_LEXICON;
+    const sc = scoreEnding(endingText, text, { lexicon });
+    const hasAnchors = sc.anchorTotal > 0;
+    if (sc.score === null) {
+        if (endingText) {
+            findings.push({
+                code: "ending_unchecked",
+                severity: "warning",
+                message: "章末 ending 提不出可核对的承诺词（时钟/关键词/具体名词），本次兑付审计未真正核对——require_payoff 不应被这种空审计满足",
+                promise: endingText.slice(0, 120),
+            });
         }
-        // also 0点40 / 凌晨0点40
-        if (text.includes(`${h}点${Number(min)}`) || text.includes(`${h}:${min}`)) {
-            endingHits.push(tok);
-            return false;
-        }
-        return true;
-    });
-    if (endingTokens.length >= 2 && softMisses.length > Math.ceil(endingTokens.length / 2)) {
-        findings.push({
-            code: "ending_underdelivered",
-            severity: "warning",
-            message: `章末 ending 关键承诺词多数未在正文出现（缺：${softMisses.slice(0, 6).join("、")}）`,
-            promise: outline.ending.slice(0, 120),
-            evidence: softMisses.slice(0, 3).join("、"),
-        });
     }
-    else if (endingTokens.length >= 1 && softMisses.length === endingTokens.length) {
+    else if (!hasAnchors) {
+        // 无锚点（时钟/词表/引号）的通用 ending：维持旧口径静默，只用弱分供展示；
+        // 过短且 vague 的 ending 提示 unchecked。可用 per-work 词表解锁严格审计。
+        if (endingText.replace(/[。，、；：！？\s]/g, "").length < 6) {
+            findings.push({
+                code: "ending_unchecked",
+                severity: "warning",
+                message: "章末 ending 过短且无可核对的承诺词，本次兑付审计未真正核对——require_payoff 不应被这种空审计满足",
+                promise: endingText.slice(0, 120),
+            });
+        }
+    }
+    else if (sc.anchorHits === 0) {
         findings.push({
             code: "ending_missing",
             severity: "warning",
-            message: "章末 ending 承诺词均未在正文出现",
-            promise: outline.ending.slice(0, 120),
+            message: "章末 ending 强承诺词（时钟/关键词/引语）均未在正文出现",
+            promise: endingText.slice(0, 120),
+            evidence: sc.misses.slice(0, 6).join("、"),
         });
     }
-    else if (endingHits.length > 0 && softMisses.length === 0) {
+    else if (!sc.weak && sc.score < SCORE_UNDER) {
+        findings.push({
+            code: "ending_underdelivered",
+            severity: "warning",
+            message: `章末 ending 承诺兑付不足（加权命中 ${(sc.score ?? 0).toFixed(2)} < ${SCORE_UNDER}；缺：${sc.misses.slice(0, 6).join("、")}）`,
+            promise: endingText.slice(0, 120),
+            evidence: sc.misses.slice(0, 3).join("、"),
+        });
+    }
+    else if (sc.score >= SCORE_OK) {
         findings.push({
             code: "ending_ok",
             severity: "info",
-            message: `章末承诺词已兑付：${endingHits.slice(0, 8).join("、")}`,
-            promise: outline.ending.slice(0, 80),
+            message: `章末承诺词已兑付（加权命中 ${(sc.score ?? 0).toFixed(2)}）：${sc.hits.slice(0, 8).join("、")}`,
+            promise: endingText.slice(0, 80),
         });
     }
     const speechPromise = SPEECH_PROMISE.test(promiseBlob);
@@ -150,14 +121,15 @@ export function auditPayoff(outline, body, opts = {}) {
         });
     }
     // livedScene hook nouns: if livedScene emphasizes 回放/侧窗 etc., soft-check presence
-    const livedHooks = ["回放", "侧窗", "时间戳", "属性", "推子", "底噪"].filter((k) => outline.livedScene.includes(k));
+    const livedScene = String(outline?.livedScene ?? "");
+    const livedHooks = ["回放", "侧窗", "时间戳", "属性", "推子", "底噪"].filter((k) => livedScene.includes(k));
     const livedMiss = livedHooks.filter((k) => !text.includes(k));
     if (livedHooks.length >= 2 && livedMiss.length === livedHooks.length) {
         findings.push({
             code: "lived_hooks_missing",
             severity: "warning",
             message: `livedScene 强调的器物/动作均未出现：${livedMiss.join("、")}`,
-            promise: outline.livedScene.slice(0, 100),
+            promise: livedScene.slice(0, 100),
         });
     }
     const warningCount = findings.filter((f) => f.severity === "warning" || f.severity === "error").length;
@@ -166,9 +138,10 @@ export function auditPayoff(outline, body, opts = {}) {
         warningCount,
         findings,
         checked: {
-            endingTokens,
-            endingHits,
-            endingMisses: softMisses,
+            endingTokens: [...sc.hits, ...sc.misses],
+            endingHits: sc.hits,
+            endingMisses: sc.misses,
+            endingScore: sc.score,
             speechPromise,
             breathReveal,
         },

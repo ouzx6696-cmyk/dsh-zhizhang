@@ -2,7 +2,11 @@
 import { listChapters, readChapter } from "../store.js";
 
 /**
- * 取当前章的前一章（按章序）。章不存在时退回最后一章（与旧行为一致）。
+ * 取当前章的前一章（按章序）。
+ * - idx>0 → 前一章；
+ * - idx===0 或 章未登记（idx<0）→ null。
+ *   此前「未登记」会回退到最后一章：给未创建的章注入错误的 prev，
+ *   续写合同与同构对照都会被带偏。未登记的章应先 outline_set/chapter_save 进 meta。
  * 返回 { meta, body, outline } 或 null。
  */
 export async function resolvePrevChapter(dir: string, chapterId: string) {
@@ -11,17 +15,9 @@ export async function resolvePrevChapter(dir: string, chapterId: string) {
         if (!chapters.length)
             return null;
         const idx = chapters.findIndex((c: any) => c.id === chapterId);
-        let prevMeta = null;
-        if (idx > 0) {
-            prevMeta = chapters[idx - 1];
-        }
-        else if (idx < 0) {
-            const last = chapters[chapters.length - 1];
-            if (last.id !== chapterId)
-                prevMeta = last;
-        }
-        if (!prevMeta)
+        if (idx <= 0)
             return null;
+        const prevMeta = chapters[idx - 1];
         const prev = await readChapter(dir, prevMeta.id);
         return { meta: prevMeta, body: prev.body || "", outline: prev.outline };
     }

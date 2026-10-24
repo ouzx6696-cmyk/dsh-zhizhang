@@ -2,9 +2,9 @@
 import { buildPanelSnapshot, readChapter, readWorkMeta, recordBriefBreadcrumb, } from "../lib/store.js";
 import { resolvePrevChapter } from "../lib/services/chapter-context.js";
 import { InspirationPort, METHOD_ASSET_IDS, MethodRegistry, Scheduler, } from "../lib/ports/index.js";
-import { asString, asStringArray, fail, openWork } from "./context.js";
+import { asString, asStringArray, boolArg, fail, openWork } from "./context.js";
 import { renderOutline, renderOutlineLean } from "./render.js";
-import { B, S, WORK_OPT, WORKING_DIR } from "./schema.js";
+import { B, E, S, WORK_OPT, WORKING_DIR } from "./schema.js";
 import { defineTool } from "./types.js";
 import type { ExecContext } from "./types.js";
 /** Soft budget hint for lean brief (chars); not a hard truncate of model context. */
@@ -31,22 +31,29 @@ export function methodsTools() {
         }),
         defineTool({
             name: "zhizhang_method_get",
-            description: "按 id 拉取创作方法资产全文（Contract 4.0），注入当前上下文。ids 可为逗号分隔或多次传入；未知 id 会列出但不中断已命中项。",
+            description: "按 id 拉取创作方法资产全文（Contract 4.0），注入当前上下文。ids 可为逗号分隔或字符串数组；未知 id 会列出但不中断已命中项。",
             properties: {
-                ids: S(`资产 id，逗号分隔。可选：${METHOD_ASSET_IDS.join("、")}`),
+                ids: { type: "string", description: `资产 id，逗号分隔（也可传字符串数组）。可选：${METHOD_ASSET_IDS.join("、")}` },
                 id: S("单个资产 id（与 ids 二选一或并用）"),
             },
             required: [],
             async execute(args: any) {
+                // ids 兼容「逗号分隔字符串」与「字符串数组」两种形态；
+                // 此前同时按两种类型硬校验，任何一种传法都会被另一种的校验拒绝。
                 const raw = [];
-                const idsArg = asString(args, "ids");
-                const idArg = asString(args, "id");
-                if (idsArg)
+                const idsArg = args?.ids;
+                if (typeof idsArg === "string") {
                     raw.push(...idsArg.split(/[,，\s]+/));
+                }
+                else if (Array.isArray(idsArg)) {
+                    raw.push(...idsArg.map((x: any) => String(x)));
+                }
+                else if (idsArg !== undefined && idsArg !== null) {
+                    fail("参数 ids 必须是字符串（逗号分隔）或字符串数组");
+                }
+                const idArg = asString(args, "id");
                 if (idArg)
                     raw.push(idArg);
-                for (const x of asStringArray(args, "ids") ?? [])
-                    raw.push(x);
                 const cleaned = raw.map((s: string) => s.trim()).filter(Boolean);
                 if (cleaned.length === 0) {
                     fail(`请传 ids 或 id。可用：${METHOD_ASSET_IDS.join("、")}。先 zhizhang_method_list 查看说明。`);
@@ -69,13 +76,12 @@ export function methodsTools() {
                 chapter: S("章节 id，如 c001（必填）"),
                 work: WORK_OPT,
                 working_dir: WORKING_DIR,
-                brief_mode: S("lean（默认）| full（卡全文+四方法包+节拍）"),
+                brief_mode: E(["lean", "full"], "lean（默认）| full（卡全文+四方法包+节拍）"),
                 include_body: B("是否附本章已存正文（默认 false）"),
-                include_prev_tail: B("兼容保留：n≥2 已默认注入前章全文；传 true 无额外效果"),
                 extra_assets: S("额外方法资产 id，逗号分隔（lean 默认仅 style_contract）"),
                 card_ids: {
                     type: "array",
-                    description: "可选：已采纳技法卡 id。省略则尝试本作品最近 inspire_accept(apply) 绑定卡；再按题材检索。",
+                    description: "可选：已采纳技法卡 id（可来自 combo_suggest）。省略则用本作品最近 inspire_accept(apply) 绑定的卡；不做按题材猜卡。",
                     items: { type: "string" },
                 },
                 skip_cards: B("跳过技法卡注入（仅方法包；默认 false）"),
@@ -84,6 +90,8 @@ export function methodsTools() {
             async execute(args: any, exec: ExecContext) {
                 const chapterId = asString(args, "chapter", { required: true });
                 const modeRaw = (asString(args, "brief_mode") || "lean").trim().toLowerCase();
+                if (modeRaw !== "lean" && modeRaw !== "full")
+                    fail("brief_mode 只支持 lean | full", "bad_args");
                 const lean = modeRaw !== "full";
                 const { paths, dir, key } = await openWork(exec, args);
                 const meta = await readWorkMeta(dir);
@@ -100,7 +108,7 @@ export function methodsTools() {
                     .map((s: string) => s.trim())
                     .filter(Boolean);
                 const { found, missing } = MethodRegistry.resolveBriefAssets(extraIds, lean ? "lean" : "full");
-                const skipCards = Boolean(args.skip_cards);
+                const skipCards = boolArg(args, "skip_cards") ?? false;
                 let cardSection = "";
                 let cardIdsForCrumb: string[] = [];
                 if (!skipCards) {
@@ -125,6 +133,7 @@ export function methodsTools() {
                 }
                 const f = meta.foundation;
                 const o = chapter.outline;
+                const includeBody = boolArg(args, "include_body") ?? false;
                 let previousForContract = null;
                 let continuation = false;
                 const contractWarnings = [];
@@ -163,7 +172,6 @@ export function methodsTools() {
                         contractWarnings.push("前章正文为空 — 仅有 ending 索引；续写接着该落点换压力往下推。");
                     }
                 }
-                const includePrevTail = Boolean(args.include_prev_tail);
                 const readerContract = MethodRegistry.formatReaderContract({
                     premise: meta.premise || "",
                     planned: f.planned || "",
@@ -174,7 +182,6 @@ export function methodsTools() {
                     continuation,
                     warnings: contractWarnings,
                     lean,
-                    includePrevTail,
                 });
                 // Assembly order: lean puts craft+state cards early (after contract continuity).
                 const lines = [
@@ -192,9 +199,9 @@ export function methodsTools() {
                     lines.push(cardSection, "");
                     // 3) Situation without beats
                     lines.push("## 本章处境（lean · 无节拍分镜）", renderOutlineLean(o), "");
-                    // 4) Locks one-liner
-                    if (f.locks?.trim()) {
-                        lines.push("## 锁定", `- ${f.locks.trim()}`, "");
+                    // 4) Locks one-liner —— 处境区已含 outline.locks；根基锁只在与章锁不同且非空时补，避免同文双写。
+                    if (f.locks?.trim() && f.locks.trim() !== String(o.locks ?? "").trim()) {
+                        lines.push("## 锁定（根基）", `- ${f.locks.trim()}`, "");
                     }
                     // 5) Slim method pack
                     lines.push("# 方法（lean · 仅 style_contract；其它用 method_get）");
@@ -204,13 +211,14 @@ export function methodsTools() {
                     lines.push("", `- 默认交稿：${Scheduler.writeLine()}（Accept 内嵌软传感；audit 为旁路）`, `- lean 意向预算 ~${LEAN_BRIEF_BUDGET} 字（不含前章正文）；前章正文另附全文；节拍/卡全文用 outline_get / library_card_get`);
                 }
                 else {
-                    const snap = await buildPanelSnapshot(dir, paths);
+                    // 只要 nextHints：hintsOnly 跳过 ledger / library / inspiration / HTML。
+                    const snap = await buildPanelSnapshot(dir, paths, { includeHtml: false, hintsOnly: true });
                     lines.push(readerContract, "");
                     lines.push("## 根基（锁定 / 文风）", `- 锁定：${f.locks || "（空）"}`, `- 文风根基：${f.style || "（空）"}`, "", "## 本章章纲与处境", renderOutline(o), "", "## 下一步提示", `- 默认：${Scheduler.nextHint("chapter_brief")}`, ...snap.nextHints.map((h: any) => `- ${h}`), "", "## 工程提醒", `- 默认交稿：${Scheduler.writeLine()}`, "- brief.full 为本模式；*_audit / assemble 为旁路", "- lintPassToken 只证明已扫过，不是质量过关");
-                    if (Boolean(args.include_body) && chapter.body.trim()) {
+                    if (includeBody && chapter.body.trim()) {
                         lines.push("", "## 已存正文（只读）", chapter.body.trim());
                     }
-                    else if (Boolean(args.include_body)) {
+                    else if (includeBody) {
                         lines.push("", "## 已存正文", "（空）");
                     }
                     lines.push("", cardSection);
@@ -219,7 +227,7 @@ export function methodsTools() {
                         lines.push("", MethodRegistry.formatForAgent(a));
                     }
                 }
-                if (lean && Boolean(args.include_body)) {
+                if (lean && includeBody) {
                     if (chapter.body.trim()) {
                         lines.push("", "## 已存正文（只读）", chapter.body.trim());
                     }

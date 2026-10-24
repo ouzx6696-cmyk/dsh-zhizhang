@@ -22,13 +22,7 @@ export declare const PayoffAuditorPort: {
             code: string;
             severity: string;
             message: string;
-            promise: any;
-            evidence: string;
-        } | {
-            code: string;
-            severity: string;
-            message: string;
-            promise: any;
+            promise: string;
             evidence?: undefined;
         } | {
             code: string;
@@ -44,9 +38,10 @@ export declare const PayoffAuditorPort: {
             promise?: undefined;
         })[];
         checked: {
-            endingTokens: unknown[];
-            endingHits: unknown[];
-            endingMisses: unknown[];
+            endingTokens: string[];
+            endingHits: string[];
+            endingMisses: string[];
+            endingScore: number | null;
             speechPromise: boolean;
             breathReveal: boolean;
         };

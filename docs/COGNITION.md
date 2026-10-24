@@ -12,7 +12,7 @@
 - **不调模型**：本插件不内置 chat/completion；AI 只通过工具交创作字符串。
 - **工程归代码**：落盘、锁、门禁、审校留痕、策略 —— 在 TypeScript（经 Ports）。
 - **创作归 AI**：大纲措辞、正文、改稿、拆书分析 —— 作为工具参数提交；**显式 accept 才持久化**。
-- **按需启用**：profile 挂载只注册 `zhizhang_enable`；普通会话不注入 52 工具与硬规则。
+- **按需启用**：profile 挂载只注册 `zhizhang_enable`；普通会话不注入 51 工具与硬规则。
   需要写小说时调用 `zhizhang_enable`，工具与硬规则才按 Agent 作用域挂上（换会话重来）。
 - **面板归读与闸**：侧栏「织章」默认是**小说阅读工作台**（三栏读正文 / 对照候选 / 真采纳）；产文仍靠对话里的 Agent。
 - **目标**：在**质量**（人味·书感·毒点·兑付·AI腔·反僵硬）与**效率**（默认最短合格路径）之间，给 Agent 一条看一眼就懂的链。
@@ -144,5 +144,3 @@ Host (DSH)
 1. 产品新人：本页 → MAP → PILLARS → PANEL → QUALITY  
 2. 要改行为：CHANGE → PORTS → TEST  
 3. Agent 迷路：工具 `zhizhang_product_map`（运行时地图 ≡ MAP 同源）
-
-`docs/archive/`、`docs/research/` 为历史 IMPL 与调研，**不参与日常对齐**。

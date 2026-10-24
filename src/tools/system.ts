@@ -33,25 +33,24 @@ export function systemTools() {
         }),
         defineTool({
             name: "zhizhang_panel_snapshot",
-            description: "导出当前作品的轻量面板快照：章节进度、处境摘要、待采纳候选、审校留痕最近条、下一步提示；同时给出可嵌入的 HTML。format=json|html|both（默认 both）。不写库、不调模型。",
+            description: "导出当前作品的轻量面板快照：章节进度、处境摘要、待采纳候选、审校留痕最近条、下一步提示。format=json|html|both（默认 json，紧凑无缩进——这是给模型看的；HTML 仅在明确要嵌入网页时才传 html/both）。不写库、不调模型。",
             properties: {
                 work: WORK_OPT,
                 working_dir: WORKING_DIR,
-                format: E(["json", "html", "both"], "默认 both"),
+                format: E(["json", "html", "both"], "默认 json"),
             },
             required: [],
             async execute(args: any, exec: ExecContext) {
                 const { paths, dir } = await openWork(exec, args);
                 const snap = await buildPanelSnapshot(dir, paths);
-                const fmt = asString(args, "format") ?? "both";
+                const fmt = asString(args, "format") ?? "json";
                 if (fmt === "html")
                     return snap.html;
-                if (fmt === "json") {
-                    const { html: _h, ...rest } = snap;
-                    return JSON.stringify(rest, null, 2);
-                }
-                const { html, ...rest } = snap;
-                return [`## 面板 JSON`, "```json", JSON.stringify(rest, null, 2), "```", "", "## 面板 HTML", html].join("\n");
+                // 紧凑序列化：pretty-print 只会双倍 token，对模型没有可读性收益。
+                const { html: _h, ...rest } = snap;
+                if (fmt === "json")
+                    return JSON.stringify(rest);
+                return [`## 面板 JSON`, "```json", JSON.stringify(rest), "```", "", "## 面板 HTML", snap.html].join("\n");
             },
         }),
     ];

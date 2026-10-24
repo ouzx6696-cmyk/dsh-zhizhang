@@ -25,4 +25,6 @@ export declare function mergeDecisions(...parts: any[]): {
     ok: boolean;
     messages: any[];
 };
-export declare function formatGateMessages(messages: any): any;
+export declare function formatGateMessages(messages: any, opts?: {
+    textOnlyInfo?: Set<string>;
+}): any;

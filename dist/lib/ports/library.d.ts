@@ -24,6 +24,16 @@ export declare const LibraryPort: {
         meta: any;
         text: string;
     }>;
+    /**
+     * getSource + 已解析的章索引。整本书（可能数 MB）此前在 dissect / 卡
+     * stage / accept / audit 里被反复整读 + 全文正则重扫；这里按文本文件
+     * mtime+size 缓存文本与章索引，未变时全部命中。
+     */
+    getSourceIndexed(paths: StoragePaths, sourceId: any): Promise<{
+        meta: any;
+        text: string;
+        index: any[];
+    }>;
     listSources(paths: StoragePaths): Promise<any>;
     dissectBrief(paths: StoragePaths, sourceId: any, opts?: any): Promise<string>;
     stageCard(paths: StoragePaths, input: any): Promise<{
@@ -31,14 +41,9 @@ export declare const LibraryPort: {
         title: string;
         warnings: string[];
     }>;
-    acceptCard(paths: StoragePaths, candId: any): Promise<{
-        cardId: string;
-        title: any;
-        warnings: string[];
-        judgment: string[];
-    }>;
+    acceptCard(paths: StoragePaths, candId: any): Promise<any>;
     discardCard(paths: StoragePaths, cardId: any): Promise<{
-        cardId: any;
+        cardId: string;
         title: any;
         remaining: number;
     }>;

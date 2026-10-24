@@ -21,12 +21,14 @@ export function mergeDecisions(...parts: any[]) {
     }
     return { ok, messages };
 }
-export function formatGateMessages(messages: any) {
+export function formatGateMessages(messages: any, opts: { textOnlyInfo?: Set<string> } = {}) {
     return messages.map((m: any) => {
         if (m.severity === "error")
             return `错误[${m.code}]：${m.text}`;
         if (m.severity === "warning")
             return `警告[${m.code}]：${m.text}`;
+        if (opts.textOnlyInfo?.has(m.code))
+            return m.text;
         return `${m.code}：${m.text}`;
     });
 }

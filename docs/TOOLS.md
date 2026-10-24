@@ -42,7 +42,7 @@ Accept 内嵌软传感；**不要**每章跑三 audit。
 
 | 工具 | 作用 |
 |------|------|
-| `zhizhang_enable` | **唯一常驻**：按需挂载 52 tools + 硬规则到本会话（幂等） |
+| `zhizhang_enable` | **唯一常驻**：按需挂载 51 tools + 硬规则到本会话（幂等） |
 | `zhizhang_product_map` | **启用后**的调度主入口：默认路径 + 旁路 + 三阶段 |
 | `zhizhang_system_brief` | 硬规则钉死 |
 | `zhizhang_status` | 作品进度 + 默认下一步 |
@@ -56,10 +56,10 @@ Accept 内嵌软传感；**不要**每章跑三 audit。
 | `library_plan` | dissect_brief(batch=0)（按计划取批） |
 | `library_dissect_brief` | facts_stage（逐章白描） |
 | `library_facts_stage` / `_structure_stage` | card_stage（v2 模块） |
-| `library_card_stage` / `_accept` | 读警告 → audit → report → combo_suggest |
+| `library_card_stage` / `_accept` | 读警告 → 8/9 report → 9/9 combo_suggest（audit 为诊断旁路） |
 | `library_list`（含本地书源目录）/ `_search` / `_card_get` | combo 或 brief |
-| `library_audit` | 诊断旁路：引文回溯 / 章号 / 白描违规 / 覆盖率（不改卡） |
-| `library_report` | 报告旁路：19 节 report.md，标 Auto/Full 与覆盖率（不代写分析） |
+| `library_audit` | **诊断旁路**（勿例行）：引文回溯 / 章号 / 白描违规 / 覆盖率（不改卡） |
+| `library_report` | **8/9 默认链收尾**：19 节 report.md + L0 量化底座，标 Auto/Full 与覆盖率（不代写分析） |
 | `library_card_discard` | 清理旁路：confirm=true 删卡 |
 
 > 库段验收：`library_audit` 只查机械面（引文/章号/占位）；**机械面通过 ≠ 卡能用**——须真读原文按五条判（可操作 / 特异性 / 非梗概 / 状态落纸 / 失败边界）。
@@ -93,7 +93,7 @@ Accept 内嵌软传感；**不要**每章跑三 audit。
 | `brief_mode=full` | 要厚 brief |
 | `chapter_save` + `confirm_bypass` | 作者直写大正文 |
 | `craft_only` / `skip_brief` / `strict_*` / `require_payoff` / `force` / `accept_after_edit`+confirm | 显式开关（含编辑路径 A） |
-| `review_ledger` / `assemble` / `export` / `final` | 定稿与汇编 |
+| `review_ledger` / `assemble` | 定稿与汇编（export 已并入 assemble） |
 | `method_list` / `method_get` | 按需方法包（≠拆书卡） |
 
 ## 硬边界

@@ -31,7 +31,8 @@
     "test": "node --test --import ./test/_compat/ts-resolve.mjs --import ./test/setup.ts \"test/**/*.test.ts\"",
     "typecheck": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
     "smoke": "node scripts/smoke.mjs",
-    "guard": "node scripts/ts-nocheck-guard.mjs && node scripts/type-import-guard.mjs"
+    "guard": "node scripts/ts-nocheck-guard.mjs && node scripts/type-import-guard.mjs",
+    "e2e": "node scripts/e2e-workflow.mjs"
   },
   "dsh": {
     "bundle": {

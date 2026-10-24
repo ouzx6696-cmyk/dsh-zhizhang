@@ -133,6 +133,10 @@ export interface PluginConfig {
     libraryRoot?: string;
     sourceRoot?: string;
     allowLanPanel?: boolean;
+    /** LAN panel: allowed Host values（hostname 或 host:port）；缺省 = 本机各网卡地址。 */
+    panelHosts?: string[];
+    /** LAN panel: 共享令牌；设置后请求须带 Bearer 或 X-zhizhang-token。 */
+    panelToken?: string;
     multiDraftEnabled?: boolean;
     multiDraft?: { enabled?: boolean };
     [key: string]: unknown;

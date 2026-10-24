@@ -2,9 +2,10 @@
  * dsh-zhizhang — DeepSeek Harness plugin entry (on-demand).
  *
  * The profile mount registers exactly one trigger tool (`zhizhang_enable`) plus the
- * read-only Web panel HTTP routes. The 47 织章 tools and the resident hard-rules
- * prompt section are mounted only after the trigger is called, on the calling
- * Agent scope when the host exposes one — standard sessions stay clean.
+ * read-only Web panel HTTP routes. The full 织章 toolset (count reported at runtime,
+ * see allTools()) and the resident hard-rules prompt section are mounted only after
+ * the trigger is called, on the calling Agent scope when the host exposes one —
+ * standard sessions stay clean.
  */
 import { formatToolError } from "./lib/errors.js";
 import type { ExecContext } from "./lib/types.js";
@@ -12,6 +13,7 @@ import { applyTools } from "./lib/bootstrap.js";
 import { SYSTEM_BRIEF, formatLint } from "./tools/index.js";
 export declare const name = "zhizhang";
 export declare const inject: string[];
+declare function enabledReceipt(): string;
 export declare function apply(ctx: any, pluginConfig?: any): void;
 export { applyTools, SYSTEM_BRIEF };
 export declare const __testing: {
@@ -36,6 +38,7 @@ export declare const __testing: {
         execute(args: any, exec: ExecContext): Promise<any>;
     }[];
     applyTools: typeof applyTools;
+    enabledReceipt: typeof enabledReceipt;
     formatLint: typeof formatLint;
     SYSTEM_BRIEF: string;
     formatToolError: typeof formatToolError;
@@ -56,13 +59,7 @@ export declare const __testing: {
             code: string;
             severity: string;
             message: string;
-            promise: any;
-            evidence: string;
-        } | {
-            code: string;
-            severity: string;
-            message: string;
-            promise: any;
+            promise: string;
             evidence?: undefined;
         } | {
             code: string;
@@ -78,9 +75,10 @@ export declare const __testing: {
             promise?: undefined;
         })[];
         checked: {
-            endingTokens: unknown[];
-            endingHits: unknown[];
-            endingMisses: unknown[];
+            endingTokens: string[];
+            endingHits: string[];
+            endingMisses: string[];
+            endingScore: number | null;
             speechPromise: boolean;
             breathReveal: boolean;
         };
@@ -161,13 +159,7 @@ export declare const __testing: {
                     code: string;
                     severity: string;
                     message: string;
-                    promise: any;
-                    evidence: string;
-                } | {
-                    code: string;
-                    severity: string;
-                    message: string;
-                    promise: any;
+                    promise: string;
                     evidence?: undefined;
                 } | {
                     code: string;
@@ -183,9 +175,10 @@ export declare const __testing: {
                     promise?: undefined;
                 })[];
                 checked: {
-                    endingTokens: unknown[];
-                    endingHits: unknown[];
-                    endingMisses: unknown[];
+                    endingTokens: string[];
+                    endingHits: string[];
+                    endingMisses: string[];
+                    endingScore: number | null;
                     speechPromise: boolean;
                     breathReveal: boolean;
                 };
@@ -253,6 +246,11 @@ export declare const __testing: {
                 meta: any;
                 text: string;
             }>;
+            getSourceIndexed(paths: import("./lib/types.js").StoragePaths, sourceId: any): Promise<{
+                meta: any;
+                text: string;
+                index: any[];
+            }>;
             listSources(paths: import("./lib/types.js").StoragePaths): Promise<any>;
             dissectBrief(paths: import("./lib/types.js").StoragePaths, sourceId: any, opts?: any): Promise<string>;
             stageCard(paths: import("./lib/types.js").StoragePaths, input: any): Promise<{
@@ -260,14 +258,9 @@ export declare const __testing: {
                 title: string;
                 warnings: string[];
             }>;
-            acceptCard(paths: import("./lib/types.js").StoragePaths, candId: any): Promise<{
-                cardId: string;
-                title: any;
-                warnings: string[];
-                judgment: string[];
-            }>;
+            acceptCard(paths: import("./lib/types.js").StoragePaths, candId: any): Promise<any>;
             discardCard(paths: import("./lib/types.js").StoragePaths, cardId: any): Promise<{
-                cardId: any;
+                cardId: string;
                 title: any;
                 remaining: number;
             }>;
@@ -368,12 +361,7 @@ export declare const __testing: {
                 kind: any;
                 styleReminder: string;
             }>;
-            acceptEmit(paths: import("./lib/types.js").StoragePaths, candId: any, opts: any): Promise<{
-                candId: any;
-                applied: boolean;
-                workKey: string;
-                detail: string;
-            }>;
+            acceptEmit(paths: import("./lib/types.js").StoragePaths, candId: any, opts: any): Promise<any>;
             resolveCardsForBrief(paths: import("./lib/types.js").StoragePaths, opts?: any): Promise<{
                 cards: any[];
                 source: string;
@@ -427,6 +415,7 @@ export declare const __testing: {
             panelRouteHints(): string[];
             formatDiagram(): string;
             formatForAgent(): string;
+            formatEnableSummary(): string;
         };
         MultiDraftPort: {
             id: string;

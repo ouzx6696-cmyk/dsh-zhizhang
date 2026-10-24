@@ -30,3 +30,6 @@ backups/
 
 # test / eval scratch if ever nested
 .dsh-eval/
+
+# host tool workspace
+.workbuddy/

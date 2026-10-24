@@ -1,19 +1,17 @@
 /**
- * dsh-zhizhang smoke test — no DSH host, no bun.
+ * dsh-zhizhang smoke — dist 加载面冒烟（功能面由 npm test 与 npm run e2e 覆盖）。
  *
  *   npm run smoke        (or: node scripts/smoke.mjs)
  *
- * Covers: tool surface / apply wiring · default writing chain (brief → stage →
- * lint → accept) · accept hard gates · resource-id sandbox · panel HTTP
- * (health / snapshot JSON+HTML / chapter / candidate / bad id / confirm gate).
+ * 只验发行产物本身：dist 可加载、51 工具注册、触发器按需挂载模型、
+ * 面板 HTTP 可服务、版本与 package.json 一致。功能链路不再在此重复。
  */
 import assert from "node:assert/strict";
 import http from "node:http";
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { createPanelApiHandler, resolveHttpPaths } from "../dist/lib/http-api.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const pkgRoot = path.resolve(here, "..");
@@ -25,17 +23,17 @@ try {
   const pkg = JSON.parse(await readFile(path.join(pkgRoot, "package.json"), "utf8"));
   const plugin = await import(pathToFileURL(path.join(pkgRoot, "dist/index.js")).href);
 
-  // —— 1. tool surface ——
+  // —— 工具面 ——
   const tools = plugin.__testing.tools;
-  assert.equal(tools.length, 52, "expected 52 tools");
-  assert.equal(new Set(tools.map((t) => t.name)).size, 52, "tool names must be unique");
+  assert.equal(tools.length, 51, "expected 51 tools");
+  assert.equal(new Set(tools.map((t) => t.name)).size, 51, "tool names must be unique");
   for (const tool of tools) {
     assert.match(tool.name, /^zhizhang_/, `${tool.name} must use the zhizhang_ prefix`);
     assert.equal(tool.parameters.type, "object");
     assert.equal(typeof tool.execute, "function");
   }
 
-  // —— 2. on-demand mount ——
+  // —— 按需挂载模型 ——
   const shell = [];
   const shellSections = [];
   plugin.apply({
@@ -44,7 +42,6 @@ try {
   }, {});
   assert.equal(shell.length, 1, "profile mount must register only the trigger");
   assert.equal(shell[0].name, "zhizhang_enable");
-  assert.match(shell[0].description, /按需启用/);
   assert.equal(shellSections.length, 0, "profile mount must not inject the hard-rules section");
 
   const applied = [];
@@ -54,520 +51,32 @@ try {
     get: () => ({ section: (s) => { sections.push(s); return () => {}; } }),
   };
   const exec = { agent: { ctx: agentCtx, session: { id: "smoke", header: { cwd: root } } } };
-  let enableOut = await shell[0].execute({}, exec);
+  const enableOut = await shell[0].execute({}, exec);
   assert.match(enableOut, /已启用织章/);
   assert.equal(applied.length, tools.length, "trigger must mount every tool");
   assert.equal(sections.length, 1, "trigger must mount the hard-rules section");
-  assert.equal(sections[0].name, "tool:zhizhang");
   assert.match(sections[0].text(), /织章/);
 
-  enableOut = await shell[0].execute({}, exec);
-  assert.match(enableOut, /已启用织章/);
-  assert.equal(applied.length, tools.length, "second enable must not duplicate");
-
-  const noCtx = await shell[0].execute({}, { agent: { session: { id: "x", header: { cwd: root } } } });
-  assert.match(noCtx, /no_agent_ctx/);
-
-  const byName = new Map(applied.map((t) => [t.name, t]));
-  const run = (name, args = {}) => byName.get(name).execute(args, exec);
-
-  // —— 2. default writing chain ——
-  let out = await run("zhizhang_project_create", { title: "烟测小说", genre: "都市" });
-  assert.match(out, /已创建作品/);
-  const workKey = /key=([^）)]+)/.exec(out)?.[1];
-  assert.ok(workKey, "project_create must return key=…");
-
-  // Panel HTTP has no session: it must follow the root the Agent just used.
-  const httpPaths = await resolveHttpPaths({});
-  assert.equal(path.resolve(httpPaths.base), path.join(root, ".zhizhang"), "HTTP must follow last tool root");
-
-  // …and the root marker must survive a host restart (persisted under DSH_HOME).
-  let marker = null;
-  for (let i = 0; i < 20 && !marker; i++) {
-    try {
-      const raw = JSON.parse(await readFile(path.join(root, ".dsh", "zhizhang-last-root.json"), "utf8"));
-      if (raw.base) marker = raw;
-    } catch {
-      await new Promise((r) => setTimeout(r, 25));
-    }
-  }
-  assert.ok(marker, "last-root marker must be persisted");
-  assert.equal(path.resolve(marker.base), path.join(root, ".zhizhang"));
-
-  // A fresh process (empty in-memory state) must resolve from the marker alone.
-  const freshStore = await import(
-    pathToFileURL(path.join(pkgRoot, "dist/lib/store.js")).href + "?fresh=1"
-  );
-  const fromMarker = await freshStore.loadLastToolBase();
-  assert.equal(path.resolve(fromMarker), path.join(root, ".zhizhang"), "marker must survive a restart");
-
-  // —— 2b. cross-project index ——
-  const indexFile = path.join(root, ".dsh", "zhizhang-projects.json");
-  let index = null;
-  for (let i = 0; i < 20 && !index; i++) {
-    try {
-      index = JSON.parse(await readFile(indexFile, "utf8"));
-    } catch {
-      await new Promise((r) => setTimeout(r, 25));
-    }
-  }
-  assert.ok(index, "project index must be written by tool calls");
-  assert.equal(index.projects.length, 1, "index must keep one entry per workspace");
-  assert.equal(path.resolve(index.projects[0].base), path.join(root, ".zhizhang"));
-
-  await run("zhizhang_panel_snapshot", {});
-  const index2 = JSON.parse(await readFile(indexFile, "utf8"));
-  assert.equal(index2.projects.length, 1, "repeat tool call must not duplicate the index");
-
-  const projectId = index2.projects[0].id;
-
-  // A second workspace must stay separate: its own root, its own works.
-  const ws2 = path.join(root, "ws2");
-  const exec2 = { agent: { ctx: agentCtx, session: { id: "smoke-2", header: { cwd: ws2 } } } };
-  const out2 = await byName.get("zhizhang_project_create").execute({ title: "第二本", genre: "悬疑" }, exec2);
-  assert.match(out2, /已创建作品/);
-  const ws2Base = path.join(ws2, ".zhizhang");
-  const index3 = JSON.parse(await readFile(indexFile, "utf8"));
-  assert.equal(index3.projects.length, 2, "second workspace must be indexed separately");
-  const project2 = index3.projects.find((x) => path.resolve(x.base) === ws2Base);
-  assert.ok(project2, "second workspace base recorded");
-
-  // —— 2c. shared library root ——
-  const sharedLib = path.join(root, "shared-lib");
-  const projectLib = await freshStore.ensureStorage(null, { storageRoot: path.join(root, ".zhizhang") });
-  assert.equal(projectLib.library, path.join(root, ".zhizhang", "library"), "default library is per-project");
-  const sharedPaths = await freshStore.ensureStorage(null, { libraryRoot: sharedLib });
-  assert.equal(sharedPaths.library, sharedLib, "libraryRoot overrides the library path");
-  assert.ok((await stat(sharedLib)).isDirectory(), "shared library root is created");
-
-  // —— 2d. local book shelf (sourceRoot) ——
-  const shelfDir = path.join(root, "shelf");
-  await mkdir(shelfDir, { recursive: true });
-  await writeFile(path.join(shelfDir, "本地样书.txt"), "第一章 归途。雨停了他才出门。".repeat(20), "utf8");
-  await writeFile(path.join(shelfDir, "ignore.pdf"), "x", "utf8");
-
-  const shelfPaths = await freshStore.ensureStorage(null, {
-    storageRoot: path.join(root, ".zhizhang"),
-    sourceRoot: shelfDir,
-  });
-  assert.equal(shelfPaths.sourceRoot, shelfDir, "sourceRoot is resolved into paths");
-  const shelfBooks = await freshStore.listLocalBooks(shelfDir, {});
-  assert.equal(shelfBooks.length, 1, "only .txt/.md books are listed");
-  assert.equal(shelfBooks[0].name, "本地样书.txt");
-
-  const { setPluginConfig } = await import(pathToFileURL(path.join(pkgRoot, "dist/tools/index.js")).href);
-
-  // Shared library root: cards/sources live outside the project.
-  setPluginConfig({ libraryRoot: sharedLib });
-  out = await run("zhizhang_library_import", {
-    title: "拆书样本",
-    text: "第一章 雨夜。他把伞收进桶里，没说话。".repeat(20),
-  });
-  assert.match(out, /已导入/);
-  assert.ok((await stat(path.join(sharedLib, "index.json"))).isFile(), "library calls must use the shared root");
-  let projectLibIndex = null;
-  try {
-    projectLibIndex = JSON.parse(await readFile(path.join(root, ".zhizhang", "library", "index.json"), "utf8"));
-  } catch {
-    projectLibIndex = null;
-  }
-  assert.equal(projectLibIndex?.sources?.length ?? 0, 0, "project library must not receive shared sources");
-
-  // Local shelf: library_list shows the folder, import accepts a bare file name.
-  setPluginConfig({ storageRoot: path.join(root, ".zhizhang"), sourceRoot: shelfDir });
-  out = await run("zhizhang_library_list", { what: "sources" });
-  assert.match(out, /本地书源/, "library_list must show the local shelf");
-  assert.ok(out.includes("本地样书.txt"), "library_list must show shelf files");
-  assert.match(out, /未导入/);
-
-  out = await run("zhizhang_library_import", { title: "本地样书", file: "本地样书.txt" });
-  assert.match(out, /已导入/);
-  out = await run("zhizhang_library_list", { what: "sources" });
-  assert.ok(out.includes("本地样书.txt") && out.includes("已导入"), "imported shelf book must be marked 已导入");
-  setPluginConfig({});
-
-  const twoProjects = await freshStore.listProjects({ refresh: true });
-  assert.equal(twoProjects.length, 2);
-  const p2 = twoProjects.find((x) => x.id === project2.id);
-  assert.equal(p2.worksCount, 1, "second project has its own work");
-  const key2 = /key=([^）)]+)/.exec(out2)[1];
-  const firstWorks = twoProjects.find((x) => x.id === projectId).works.map((w) => w.key);
-  assert.ok(!firstWorks.includes(key2), "first project must not see ws2 works");
-
-  out = await run("zhizhang_outline_set", {
-    chapter: "c001",
-    title: "第一章 雨夜",
-    situationLens: "雨夜收摊，欠债压顶",
-    ending: "他把灯关了",
-  });
-  assert.match(out, /已写入章纲/);
-
-  out = await run("zhizhang_chapter_brief", { chapter: "c001" });
-  assert.match(out, /本章处境|内容/);
-
-  const body =
-    "雨声砸在铁皮上。他把伞收进桶里，没说话。\n\n" +
-    "她抬头看了一眼，把钥匙推过来。".repeat(30);
-  out = await run("zhizhang_candidate_stage", { chapter: "c001", content: body, draft_label: "v1" });
-  assert.match(out, /候选已暂存/);
-  const candId = /cand-[a-z0-9]+/.exec(out)?.[0];
-  assert.ok(candId, "candidate_stage must return a cand-… id");
-
-  out = await run("zhizhang_candidate_accept", { candidate: candId });
-  assert.match(out, /错误\[lint_required\]/, "accept without lint must be hard-rejected");
-
-  out = await run("zhizhang_style_lint", { candidate: candId });
-  assert.match(out, /lintPassToken：lint-/);
-
-  out = await run("zhizhang_candidate_accept", { candidate: candId });
-  assert.match(out, /已采纳/);
-  const chapterFile = path.join(root, ".zhizhang", "works", workKey, "chapters", "c001.md");
-  assert.ok((await stat(chapterFile)).isFile(), "accepted candidate must land in chapters/");
-
-  out = await run("zhizhang_candidate_accept", { candidate: candId });
-  assert.match(out, /错误\[candidate_already_accepted\]/, "double accept must be refused");
-
-  // —— 3. resource-id sandbox ——
-  out = await run("zhizhang_chapter_read", { chapter: "../../escape" });
-  assert.match(out, /错误\[bad_id\]/, "chapter traversal must be rejected");
-  out = await run("zhizhang_candidate_stage", { chapter: "../escape", content: "x" });
-  assert.match(out, /错误\[bad_id\]/, "candidate stage traversal must be rejected");
-
-  // Chinese ids stay legal (single path segment), traversal does not.
-  out = await run("zhizhang_chapter_save", { chapter: "第二章", content: "他把门带上。" });
-  assert.match(out, /已保存/);
-  out = await run("zhizhang_chapter_read", { chapter: "第二章" });
-  assert.match(out, /他把门带上/);
-
-  // Project summaries are derived live from each workspace (works/chapters/words).
-  const projects = await freshStore.listProjects({ refresh: true });
-  assert.equal(projects.length, 2, "both workspaces are listed");
-  const mainProject = projects.find((x) => x.id === projectId);
-  assert.equal(mainProject.exists, true);
-  assert.equal(mainProject.worksCount, 1, "project summary must list works");
-  assert.ok(mainProject.chapters >= 2, "project summary must count chapters");
-  assert.ok(mainProject.words > 0, "project summary must count words");
-
-  // —— 4. snapshot + persisted wordCount ——
-  const snapRaw = await run("zhizhang_panel_snapshot", { format: "json" });
-  const snapJson = JSON.parse(snapRaw);
-  assert.equal(snapJson.workKey, workKey);
-  assert.ok(snapJson.candidates.some((c) => c.id === candId && c.wordCount > 0), "candidate wordCount");
-  const snapBoth = await run("zhizhang_panel_snapshot", {});
-  assert.match(snapBoth, /## 面板 HTML/, "panel_snapshot tool still returns HTML by default");
-
-  // —— 5. panel HTTP ——
-  const server = http.createServer(
-    createPanelApiHandler({
-      storageRoot: path.join(root, ".zhizhang"),
-      libraryRoot: sharedLib,
-      sourceRoot: shelfDir,
-    }),
-  );
+  // —— 面板 HTTP 可服务（dist 产物 + 版本一致）——
+  const { createPanelApiHandler } = await import(pathToFileURL(path.join(pkgRoot, "dist/lib/http-api.js")).href);
+  const server = http.createServer(createPanelApiHandler({ storageRoot: path.join(root, ".zhizhang") }));
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address();
-  const base = `http://127.0.0.1:${port}/api/dsh-zhizhang`;
   try {
-    let res = await fetch(`${base}/health`);
+    const res = await fetch(`http://127.0.0.1:${port}/api/dsh-zhizhang/health`);
     const health = await res.json();
     assert.equal(res.status, 200);
+    assert.equal(health.ok, true);
     assert.equal(health.version, pkg.version, "health version must match package.json");
     assert.equal(health.toolCount, tools.length, "health must report the runtime tool count");
-    assert.ok(health.routes.some((r) => r.endsWith("/report")), "health route list must include /report");
-    assert.equal(health.ok, true);
-
-    res = await fetch(`${base}/projects`);
-    const proj = await res.json();
-    assert.equal(res.status, 200);
-    assert.equal(proj.ok, true);
-    assert.equal(proj.current, projectId, "current project is the resolved workspace");
-    assert.ok(proj.projects.some((p) => p.id === projectId), "resolved workspace must be listed");
-
-    res = await fetch(`${base}/snapshot?work=${encodeURIComponent(workKey)}`);
-    const snap = await res.json();
-    assert.equal(snap.ok, true);
-    assert.equal(snap.projectId, projectId, "snapshot must name its project");
-    assert.equal(path.resolve(snap.base), path.join(root, ".zhizhang"));
-    assert.ok(snap.snapshot, "snapshot payload present");
-    assert.ok(!("html" in snap), "HTML is opt-in by default");
-
-    res = await fetch(`${base}/snapshot?work=${encodeURIComponent(workKey)}&html=1`);
-    const withHtml = await res.json();
-    assert.match(withHtml.html, /<article|<html|<!DOCTYPE/i, "?html=1 returns the panel HTML");
-
-    // Explicit project selector: only indexed workspaces are readable.
-    res = await fetch(`${base}/snapshot?base=${encodeURIComponent(projectId)}&work=${encodeURIComponent(workKey)}`);
-    const picked = await res.json();
-    assert.equal(picked.ok, true, "indexed ?base= must be readable");
-    assert.equal(picked.projectId, projectId);
-
-    res = await fetch(`${base}/projects?refresh=1`);
-    const allProjects = await res.json();
-    assert.equal(allProjects.projects.length, 2, "/projects must list every indexed workspace");
-    assert.equal(allProjects.current, projectId, "current stays the server-configured root");
-
-    res = await fetch(`${base}/snapshot?base=${encodeURIComponent(project2.id)}&work=${encodeURIComponent(key2)}`);
-    const other = await res.json();
-    assert.equal(other.ok, true, "switching project must read that project's works");
-    assert.equal(other.projectId, project2.id);
-    assert.equal(path.resolve(other.base), ws2Base);
-
-    res = await fetch(`${base}/snapshot?base=${encodeURIComponent("C:/nope/.zhizhang")}`);
-    const rejected = await res.json();
-    assert.equal(res.status, 400, "unknown ?base= must be rejected");
-    assert.equal(rejected.code, "bad_base");
-
-    res = await fetch(`${base}/library`);
-    const lib = await res.json();
-    assert.equal(lib.ok, true);
-    assert.equal(lib.library.sourcesCount, 1, "panel must read the shared library");
-    assert.equal(lib.library.sourceRoot, shelfDir, "panel must expose the local shelf");
-    assert.equal(lib.library.pendingCount, 1, "panel lists shelf books missing from this library");
-    assert.equal(lib.library.pending[0].name, "本地样书.txt");
-    assert.equal(lib.library.pending[0].bytes, shelfBooks[0].bytes);
-
-    res = await fetch(`${base}/chapter?work=${encodeURIComponent(workKey)}&id=c001`);
-    const chapter = await res.json();
-    assert.equal(chapter.ok, true);
-    assert.ok(chapter.body.length > 0);
-
-    res = await fetch(`${base}/candidate?work=${encodeURIComponent(workKey)}&id=${candId}`);
-    assert.equal((await res.json()).ok, true);
-
-    res = await fetch(`${base}/candidate?work=${encodeURIComponent(workKey)}&id=${encodeURIComponent("../package")}`);
-    const bad = await res.json();
-    assert.equal(res.status, 400);
-    assert.equal(bad.code, "bad_id");
-
-    res = await fetch(`${base}/candidate/accept`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ work: workKey, candidate: candId }),
-    });
-    const noConfirm = await res.json();
-    assert.equal(res.status, 400);
-    assert.equal(noConfirm.code, "confirm_required", "panel accept must require confirm");
-
-    res = await fetch(`${base}/candidate/accept`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ work: workKey, candidate: "../../escape", confirm: true }),
-    });
-    const badAccept = await res.json();
-    assert.equal(res.status, 400);
-    assert.equal(badAccept.code, "bad_id");
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
 
-  // —— 2e. visible novels folder (worksRoot) ——
-  const novelsDir = path.join(root, "小说项目");
-  const worksPaths = await freshStore.ensureStorage(null, {
-    storageRoot: path.join(root, ".zhizhang"),
-    worksRoot: novelsDir,
-  });
-  assert.equal(worksPaths.works, novelsDir, "worksRoot overrides the works path");
-  assert.equal(path.resolve(worksPaths.base), path.join(root, ".zhizhang"), "base is untouched by worksRoot");
+  // —— 客户端资源随包 ——
+  await assert.doesNotReject(() => readFile(path.join(pkgRoot, "dist/client.js"), "utf8"), "dist/client.js ships");
 
-  setPluginConfig({ storageRoot: path.join(root, ".zhizhang"), worksRoot: novelsDir });
-  out = await run("zhizhang_project_create", { title: "夜行记", genre: "悬疑" });
-  assert.match(out, /已创建作品/);
-  const novelDir = path.join(novelsDir, "夜行记");
-  assert.ok((await stat(path.join(novelDir, "meta.json"))).isFile(), "novel folder is named by the book title");
-  assert.ok((await stat(path.join(novelDir, "chapters"))).isDirectory(), "novel folder holds chapters/");
-  setPluginConfig({});
-
-  // The project index must remember the novels folder (panel summaries rely on it).
-  let idxWorks = null;
-  for (let i = 0; i < 20 && !idxWorks; i++) {
-    try {
-      const raw = JSON.parse(await readFile(indexFile, "utf8"));
-      const hit = raw.projects.find((x) => path.resolve(x.base) === path.join(root, ".zhizhang"));
-      if (hit?.works)
-        idxWorks = hit.works;
-    } catch {
-      /* retry */
-    }
-    if (!idxWorks)
-      await new Promise((r) => setTimeout(r, 25));
-  }
-  assert.equal(path.resolve(idxWorks ?? ""), novelsDir, "index records the novels folder");
-
-  // Config paths often use forward slashes; assertInside must normalize them.
-  const slashRoot = novelsDir.split(path.sep).join("/");
-  const slashPaths = await freshStore.ensureStorage(null, {
-    storageRoot: path.join(root, ".zhizhang"),
-    worksRoot: slashRoot,
-  });
-  const slashWork = await freshStore.createWork(slashPaths, { title: "斜杠稿" });
-  assert.ok(path.resolve(slashWork.dir).startsWith(path.resolve(novelsDir)), "forward-slash worksRoot must work");
-
-  const listed = await freshStore.listProjects({ refresh: true });
-  const rootProject = listed.find((x) => path.resolve(x.base) === path.join(root, ".zhizhang"));
-  assert.ok(rootProject, "root project still listed");
-  assert.ok(
-    rootProject.works.some((w) => w.key === "夜行记"),
-    "panel summary reads works from worksRoot",
-  );
-
-  // —— 2f. library analysis pipeline (v0.16) ——
-  const libRoot = path.join(root, "拆书库");
-  setPluginConfig({ storageRoot: path.join(root, ".zhizhang"), libraryRoot: libRoot });
-  const book = [
-    "第0001章 开端",
-    "　　陈默推开门，屋里没有人。他把伞靠在墙边，坐到桌旁。",
-    "　　桌上有张纸条：今晚别回来。",
-    "第0002章 纸条",
-    "　　陈默把纸条翻过来，背面写着一个地址。他出门打车。",
-  ].join("\n");
-  out = await run("zhizhang_library_import", { title: "烟测拆书", text: book });
-  const srcId = /sourceId=(src-[a-z0-9]+)/.exec(out)?.[1];
-  assert.ok(srcId, "library import must return sourceId");
-
-  out = await run("zhizhang_library_dissect_brief", { source: srcId, mode: "opening" });
-  assert.match(out, /拆书批次/);
-  assert.match(out, /第1章/);
-
-  // 抽样计划：Auto（小书全读）→ Full 成本回执 → 明确同意 → 按批取原文
-  out = await run("zhizhang_library_plan", { source: srcId });
-  assert.match(out, /已生成抽样计划/);
-  assert.match(out, /全读（小书）/);
-  out = await run("zhizhang_library_plan", { source: srcId });
-  assert.match(out, /已有计划/);
-  out = await run("zhizhang_library_plan", { source: srcId, mode: "full", reset: true });
-  assert.match(out, /Full 成本回执/);
-  const confirmToken = /confirm_token：(fp-[a-z0-9-]+)/.exec(out)?.[1];
-  assert.ok(confirmToken, "full plan must return confirm_token");
-  out = await run("zhizhang_library_plan", {
-    source: srcId,
-    mode: "full",
-    confirm_full: true,
-    confirm_token: confirmToken,
-    note: "smoke 明确同意",
-  });
-  assert.match(out, /已生成抽样计划/);
-  assert.match(out, /Full 全量/);
-  out = await run("zhizhang_library_dissect_brief", { source: srcId, batch: 0 });
-  assert.match(out, /本批 1\/1/);
-  assert.match(out, /第1章/);
-
-  out = await run("zhizhang_library_facts_stage", {
-    source: srcId,
-    facts: {
-      n: 1,
-      title: "开端",
-      events: [{ desc: "陈默进门发现屋里没人，把伞靠在墙边", quote: "陈默推开门，屋里没有人" }],
-      hook: { type: "悬念", text: "今晚别回来", strength: "强" },
-      value: { situation: "独自回屋" },
-      unknowns: ["谁留的纸条"],
-    },
-  });
-  assert.match(out, /已记录 1 章事实/);
-
-  out = await run("zhizhang_library_facts_stage", {
-    source: srcId,
-    facts: { n: 2, events: [{ desc: "他觉得很奇怪", quote: "纸条" }] },
-  });
-  assert.match(out, /bad_facts/, "补动机必须被拒");
-
-  out = await run("zhizhang_library_structure_stage", {
-    source: srcId,
-    kind: "plot",
-    payload: { title: "纸条", chapters: [1, 2], goal: "弄清纸条来历", obstacle: "无人可问", action: "去地址", result: "找到线索", twist: "纸条是诱饵", turn: "有人跟踪" },
-  });
-  assert.match(out, /已记录剧情条/);
-
-  out = await run("zhizhang_library_structure_stage", {
-    source: srcId,
-    kind: "rhythm",
-    payload: {
-      points: [{ chapter: 1, emotion: -0.3, event: "空屋" }],
-      loops: [{ id: "RH-001", range: [1, 2], setup: "空屋", release: "纸条", reaction: "出门", transition: "地址" }],
-      hooks: [{ chapter: 1, type: "悬念", text: "今晚别回来", strength: "强" }],
-      foreshadowing: [{ name: "纸条", planted: 1 }],
-    },
-  });
-  assert.match(out, /爽点循环/);
-
-  out = await run("zhizhang_library_structure_stage", {
-    source: srcId,
-    kind: "character",
-    payload: { name: "陈默", role: "主角", mask: "普通人", truth: "不肯等", arc: [{ chapter: 2, from: "被动", to: "追查", pressure: "纸条" }], function: "视角" },
-  });
-  assert.match(out, /已记录人物/);
-
-  out = await run("zhizhang_library_card_stage", {
-    title: "用一张纸条推进",
-    source: srcId,
-    body: "不解释来历，只让纸条改变下一步动作。",
-    mechanisms: [{ name: "纸条即钩子", failWhen: "解释纸条来历" }],
-    layer: "scene",
-    dimension: "hook",
-    readerWant: "想知道谁留的",
-    emotionArc: "空屋-纸条-出门",
-    dramaticUnit: "一张无主纸条推动行动",
-    replaceables: ["纸条", "地址", "空屋"],
-    mustNotCopy: ["陈默", "今晚别回来"],
-    transfer: "换成一条短信，主角只看不回",
-    failWhen: "写成解谜说明",
-    evidence: [{ quote: "桌上有张纸条：今晚别回来", chapter: 1 }],
-    steps: ["先让纸条出现", "再让主角改变下一步动作"],
-    bannedDiction: ["空气仿佛凝固"],
-  });
-  const libCand = /lcand-[a-z0-9]+/.exec(out)?.[0];
-  assert.ok(libCand, "card_stage must return candidate id");
-  assert.match(out, /axis：（推断）/);
-
-  out = await run("zhizhang_library_card_accept", { candidate: libCand });
-  const libCard = /card-[a-z0-9]+/.exec(out)?.[0];
-  assert.ok(libCard, "card_accept must return cardId");
-
-  out = await run("zhizhang_library_card_get", { card: libCard });
-  assert.match(out, /操作步骤：/, "card_get must render steps");
-  assert.match(out, /先让纸条出现/, "card_get must render step text");
-  assert.match(out, /禁用词句：空气仿佛凝固/, "card_get must render bannedDiction");
-  assert.doesNotMatch(out, /书感偏薄/, "v2 card must not warn missing bookCraft");
-
-  out = await run("zhizhang_library_report", { source: srcId });
-  assert.match(out, /报告已写入/);
-  const reportPath = path.join(libRoot, "analyses", srcId, "report.md");
-  const reportMd = await readFile(reportPath, "utf8");
-  assert.match(reportMd, /### 1\.1 量化底座/, "report must include L0 survey section");
-  assert.equal((reportMd.match(/^## \d+\./gm) ?? []).length, 19, "report must have exactly 19 sections");
-  assert.doesNotMatch(reportMd, /## 1b\./, "legacy 1b section must be gone");
-  assert.match(reportMd, /### 9\.1 爽点密度/, "report must include hook density");
-  assert.doesNotMatch(reportMd, /Infinity/, "report must not leak -Infinity/Infinity");
-  assert.match(reportMd, /结构完整：/, "report must split confidence into structure");
-  assert.ok((await stat(path.join(libRoot, "analyses", srcId, "survey.json"))).isFile(), "survey.json must be written");
-
-  out = await run("zhizhang_library_audit", { source: srcId });
-  assert.match(out, /证据全部可回溯：1\/1/);
-  assert.match(out, /白描违规：0 条/);
-  assert.match(out, /未发现声称原文的正文引文/, "audit must not print 0/0 for absent body quotes");
-
-  out = await run("zhizhang_library_card_stage", {
-    title: "旧卡带步骤",
-    source: srcId,
-    body: "## 写法\n动作。",
-    mechanisms: [{ name: "m", failWhen: "f" }],
-    steps: ["先让纸条出现"],
-  });
-  assert.match(out, /bad_args/, "v1 steps must be rejected, not silently dropped");
-
-  out = await run("zhizhang_library_card_discard", { card: libCard, confirm: true });
-  assert.match(out, /已删除/);
-
-  const cnBook = ["第一章 开端", "他推门进来。", "第二章 继续", "她走了。"].join("\n");
-  out = await run("zhizhang_library_import", { title: "中文章", text: cnBook });
-  const cnSrc = /sourceId=(src-[a-z0-9]+)/.exec(out)?.[1];
-  assert.ok(cnSrc, "Chinese-heading import must return sourceId");
-  out = await run("zhizhang_library_plan", { source: cnSrc });
-  assert.match(out, /全读（小书）/, "Chinese headings must be counted by plan");
-  out = await run("zhizhang_library_dissect_brief", { source: cnSrc, mode: "opening" });
-  assert.match(out, /2\/2 章/, "Chinese headings must yield 2 chapters");
-  setPluginConfig({});
-
-  console.log(`smoke OK · ${tools.length} tools · chain · gates · sandbox · panel API · projects · library`);
+  console.log(`smoke OK · dist loads · ${tools.length} tools · on-demand mount · panel serves`);
 } finally {
   await rm(root, { recursive: true, force: true });
 }

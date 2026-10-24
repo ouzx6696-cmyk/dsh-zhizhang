@@ -1,18 +1,14 @@
 /** 拆书分析层工具：事实 / 聚合 / 报告 / 删卡。 */
 import { LibraryPort } from "../lib/ports/library.js";
 import { ZhizhangError } from "../lib/errors.js";
-import { analysisPaths, buildReport, chapterIndex, chapterText, computeCoverage, ensureAnalysis, ensureSurvey, planLabel, planMembership, planProgress, quoteOk, readAnalysisBundle, readPlan, textStats, toCardView, upsertChapter, upsertPlot, upsertCharacter, writePlan, writeRhythm, } from "../lib/ports/analysis.js";
-import { atomicWrite, ensureStorage } from "../lib/store.js";
+import { analysisPaths, buildReport, chapterText, computeCoverage, ensureAnalysis, ensureSurvey, planLabel, planMembership, planProgress, quoteOk, readAnalysisBundle, readPlan, textStats, toCardView, upsertChapter, upsertPlot, upsertCharacter, writePlan, writeRhythm, } from "../lib/ports/analysis.js";
+import { atomicWrite } from "../lib/store.js";
 import { REPORT_SECTION_COUNT } from "../lib/domain/report-sections.js";
 import { stepPrefix } from "../lib/domain/workflow.js";
-import { asArray, asString, config } from "./context.js";
+import { asArray, asString } from "./context.js";
+import { openLibrary } from "./library.js";
 import { S, B, WORKING_DIR } from "./schema.js";
 import { defineTool } from "./types.js";
-async function openLibrary(exec, args) {
-    const paths = await ensureStorage(exec, config, asString(args, "working_dir"));
-    await LibraryPort.ensureLibrary(paths);
-    return paths;
-}
 /** 引文通过率：逐条回到该章正文核对，而不是「非空即通过」。 */
 function quoteStatsOf(facts, text, index) {
     let total = 0;
@@ -42,8 +38,7 @@ export function analysisTools() {
             async execute(args, exec) {
                 const sourceId = asString(args, "source", { required: true });
                 const paths = await openLibrary(exec, args);
-                const { text } = await LibraryPort.getSource(paths, sourceId);
-                const idx = chapterIndex(text);
+                const { text, index: idx } = await LibraryPort.getSourceIndexed(paths, sourceId);
                 const itemsArg = asArray(args, "items");
                 const raw = itemsArg ?? (args.facts ? [args.facts] : []);
                 if (!raw.length)
@@ -134,10 +129,9 @@ export function analysisTools() {
             async execute(args, exec) {
                 const sourceId = asString(args, "source", { required: true });
                 const paths = await openLibrary(exec, args);
-                const { meta: srcMeta, text } = await LibraryPort.getSource(paths, sourceId);
+                const { meta: srcMeta, text, index: idx } = await LibraryPort.getSourceIndexed(paths, sourceId);
                 await ensureAnalysis(paths, sourceId, text);
                 const bundle = await readAnalysisBundle(paths, sourceId);
-                const idx = chapterIndex(text);
                 const rows = await LibraryPort.listCards(paths, { sourceId });
                 const modules = [];
                 for (const row of rows) {
@@ -181,7 +175,8 @@ export function analysisTools() {
                 });
                 const p = analysisPaths(paths, sourceId);
                 await atomicWrite(p.report, md);
-                const preview = md.split("\n").slice(0, 40).join("\n");
+                // 报告由已提交数据确定性拼装并已落盘；回执只给 12 行结构预览确认，不再整页复述。
+                const preview = md.split("\n").slice(0, 12).join("\n");
                 return [
                     `报告已写入：library/analyses/${sourceId}/report.md`,
                     `- ${plan ? planLabel(plan) + " · " : ""}事实 ${bundle.chapters.length} 章 · 剧情条 ${bundle.plots.length} · 模块 ${modules.length}（v2 ${v2Count} / v1 ${modules.length - v2Count}）· 置信度 ${coverage.confidence}${coverage.needsReview ? "（needs_review）" : ""}`,

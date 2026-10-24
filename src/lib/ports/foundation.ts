@@ -2,72 +2,16 @@
  * FoundationPort — append happened (当前小说状态·已发生) after chapter accept.
  * Does not invent long prose; prefers outline.ending when it aligns with body tail,
  * otherwise short body outcome (0.10.0).
+ *
+ * 基元（末拍/宽松重叠）来自 domain/ending-consistency：happened 选材是
+ * 「宽松选择」而非质量判定——payoff 审计与读者合同的严格评分同在那个模块。
  */
 import { readWorkMeta, setFoundation } from "../store.js";
+import { bodyTailOf, endingBodyOverlap } from "../domain/ending-consistency.js";
 const CHAPTER_MARK = (chapterId: string) => `[${chapterId}]`;
-/** Last ~1–2 sentences / up to maxLen chars from body — short outcome only. */
-export function extractBodyOutcome(body: string, maxLen: any = 120) {
-    const raw = String(body ?? "").trim().replace(/\s+/g, " ");
-    if (!raw)
-        return "";
-    const slice = raw.length > maxLen * 2 ? raw.slice(-(maxLen * 2)) : raw;
-    const parts = slice
-        .split(/(?<=[。！？])|(?<=…)|(?<=……)/)
-        .map((s: string) => s.trim())
-        .filter(Boolean);
-    let picked = "";
-    if (parts.length === 0) {
-        picked = slice;
-    }
-    else if (parts.length === 1) {
-        picked = parts[0];
-    }
-    else {
-        picked = `${parts[parts.length - 2]} ${parts[parts.length - 1]}`.trim();
-    }
-    if (picked.length > maxLen)
-        picked = `${picked.slice(-maxLen).trim()}`;
-    return picked;
-}
-/** Meaningful tokens (≥2 chars) from ending for overlap check. */
-export function significantTokens(text: string) {
-    const t = String(text ?? "").trim();
-    if (!t)
-        return [];
-    const out = [];
-    const cjk = t.match(/[\u4e00-\u9fff]{2,}/g) ?? [];
-    for (const w of cjk) {
-        out.push(w);
-        // sliding bigrams so「账本」等中段词不被切丢
-        for (let i = 0; i + 2 <= w.length; i += 1) {
-            out.push(w.slice(i, i + 2));
-        }
-    }
-    const latin = t.match(/[A-Za-z0-9]{2,}/g) ?? [];
-    out.push(...latin);
-    const quoted = t.match(/[「『"']([^」』"']{1,12})[」』"']/g) ?? [];
-    for (const q of quoted) {
-        const inner = q.slice(1, -1).trim();
-        if (inner.length >= 1)
-            out.push(inner);
-    }
-    return [...new Set(out.filter((x: any) => x.length >= 1))];
-}
-/** Ratio of ending tokens found in bodyTail (0–1). Empty ending → 1. */
-export function endingBodyOverlap(ending: any, bodyTail: any) {
-    const tokens = significantTokens(ending);
-    if (tokens.length === 0)
-        return 1;
-    const hay = String(bodyTail ?? "");
-    if (!hay.trim())
-        return 0;
-    let hit = 0;
-    for (const tok of tokens) {
-        if (hay.includes(tok))
-            hit += 1;
-    }
-    return hit / tokens.length;
-}
+/** Last ~1–2 sentences / up to maxLen chars from body — short outcome only.（实现移至 domain） */
+export const extractBodyOutcome = bodyTailOf;
+export { endingBodyOverlap };
 /**
  * Choose short happened text: ending if it aligns with body tail; else body outcome.
  * Never invents long prose from body beyond extractBodyOutcome.

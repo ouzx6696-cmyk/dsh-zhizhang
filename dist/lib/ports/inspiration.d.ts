@@ -30,12 +30,7 @@ export declare const InspirationPort: {
         kind: any;
         styleReminder: string;
     }>;
-    acceptEmit(paths: StoragePaths, candId: any, opts: any): Promise<{
-        candId: any;
-        applied: boolean;
-        workKey: string;
-        detail: string;
-    }>;
+    acceptEmit(paths: StoragePaths, candId: any, opts: any): Promise<any>;
     /**
      * Resolve technique cards for chapter_brief / writing path.
      * Priority: explicit cardIds → inspire sessions applied to work → none.

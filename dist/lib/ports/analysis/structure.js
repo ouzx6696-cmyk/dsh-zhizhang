@@ -76,6 +76,8 @@ export async function upsertPlot(paths, sourceId, plot) {
         throw new ZhizhangError("bad_plot", `剧情条未通过：${errors.join("；")}`);
     const p = analysisPaths(paths, sourceId);
     await ensureDir(p.dir);
+    // count 直接取锁内已读的行数，不再为拿个数整读一遍文件。
+    let count = 0;
     await withLock(`analysis:${sourceId}`, async () => {
         const rows = await readJsonl(p.plots);
         const rec = { ...plot, id: plot.id || `p${String(rows.length + 1).padStart(3, "0")}`, schemaVersion: 2, updatedAt: nowIso() };
@@ -86,8 +88,9 @@ export async function upsertPlot(paths, sourceId, plot) {
             rows.push(rec);
         await writeJsonl(p.plots, rows);
         await writeAnalysisMeta(paths, sourceId, { stage: "plots" });
+        count = rows.length;
     });
-    return { count: (await readJsonl(p.plots)).length };
+    return { count };
 }
 export async function writeRhythm(paths, sourceId, rhythm) {
     const { errors, warnings } = validateRhythm(rhythm);
@@ -115,6 +118,7 @@ export async function upsertCharacter(paths, sourceId, character) {
         throw new ZhizhangError("bad_character", `人物未通过：${errors.join("；")}`);
     const p = analysisPaths(paths, sourceId);
     await ensureDir(p.dir);
+    let count = 0;
     await withLock(`analysis:${sourceId}`, async () => {
         const current = await readJson(p.characters, []);
         const rows = Array.isArray(current) ? current : [];
@@ -126,6 +130,7 @@ export async function upsertCharacter(paths, sourceId, character) {
             rows.push(rec);
         await atomicWrite(p.characters, `${JSON.stringify(rows, null, 2)}\n`);
         await writeAnalysisMeta(paths, sourceId, { stage: "characters" });
+        count = rows.length;
     });
-    return { count: ((await readJson(p.characters, [])) ?? []).length };
+    return { count };
 }

@@ -1,7 +1,7 @@
 /** Inspiration pillar — session / forge / stage / accept (optional apply to work). */
 import { InspirationPort } from "../lib/ports/index.js";
 import { ensureStorage } from "../lib/store.js";
-import { asString, asStringArray, config, fail, rememberWork } from "./context.js";
+import { asString, asStringArray, boolArg, config, fail, rememberWork } from "./context.js";
 import { B, S, WORKING_DIR } from "./schema.js";
 import { defineTool } from "./types.js";
 import type { ExecContext } from "./types.js";
@@ -31,7 +31,7 @@ export function inspirationTools() {
                 const cardIds = asStringArray(args, "card_ids", { required: true });
                 if (!cardIds || cardIds.length === 0)
                     fail("card_ids 至少一张");
-                const craftOnly = Boolean(args.craft_only);
+                const craftOnly = boolArg(args, "craft_only") ?? false;
                 const paths = await openInsp(exec, args);
                 const { sessionId, mindCount, craftCount } = await InspirationPort.startSession(paths, {
                     goal,
@@ -117,7 +117,7 @@ export function inspirationTools() {
             async execute(args: any, exec: ExecContext) {
                 const candId = asString(args, "candidate", { required: true });
                 const workKey = asString(args, "work", { required: true });
-                const apply = Boolean(args.apply);
+                const apply = boolArg(args, "apply") ?? false;
                 const paths = await openInsp(exec, args);
                 const result = await InspirationPort.acceptEmit(paths, candId, {
                     workKey,

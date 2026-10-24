@@ -1,19 +1,17 @@
 import { access, readFile } from "node:fs/promises";
+import { timingSafeEqual } from "node:crypto";
+import { networkInterfaces } from "node:os";
 import type { StoragePaths, PluginConfig } from "./types.js";
 import path from "node:path";
-import { assertResourceId, buildPanelSnapshot, countWords, ensureStorage, getLastToolBase, listCandidates, listProjects, listWorks, loadLastToolBase, projectIdOf, readCandidate, readChapter, resolveWorkDir, } from "./store.js";
+import { assertResourceId, buildPanelSnapshot, countWords, ensureStorage, getLastToolBase, listCandidates, listChapterLensRows, listProjects, listWorks, loadLastToolBase, projectIdOf, readCandidate, readChapter, resolveWorkDir, } from "./store.js";
 import { buildInspirationView, buildLibraryView, buildProductView } from "./panel-enrich.js";
 import { runPanelAccept } from "./panel-accept.js";
 import { readWorkMeta } from "./store.js";
 import { ZhizhangError } from "./errors.js";
 import { MultiDraftPort } from "./ports/multi-draft.js";
 /** Soft body cap for panel reads (~400 KiB). */
-export const PANEL_BODY_BYTE_CAP = 400 * 1024;
-/** Safe chapter / candidate id: no path segments, no traversal (delegates to the store). */
-export function assertSafeResourceId(id: string, label: string) {
-    return assertResourceId(id, label);
-}
-export function capPanelBody(body: string) {
+const PANEL_BODY_BYTE_CAP = 400 * 1024;
+function capPanelBody(body: string) {
     const raw = typeof body === "string" ? body : "";
     const buf = Buffer.from(raw, "utf8");
     if (buf.length <= PANEL_BODY_BYTE_CAP) {
@@ -41,22 +39,142 @@ function isLoopback(req: any) {
     const ra = req.socket?.remoteAddress ?? "";
     return ra === "127.0.0.1" || ra === "::1" || ra === "::ffff:127.0.0.1";
 }
-function isAllowed(req: any, allowLan: any) {
-    if (isLoopback(req))
-        return true;
-    if (!allowLan)
+function hostsMatch(origin: any, host: any) {
+    if (typeof origin !== "string" || typeof host !== "string")
         return false;
-    const host = req.headers?.host;
-    if (typeof host !== "string")
-        return false;
-    const origin = req.headers?.origin;
-    if (origin === undefined)
-        return true;
     try {
         return new URL(origin).host === new URL(`http://${host}`).host;
     }
     catch {
         return false;
+    }
+}
+/** LAN allowlist: config.panelHosts (hostname part compared), else this machine's addresses. */
+function lanHostAllowlist(config: PluginConfig) {
+    const hosts = new Set();
+    for (const h of Array.isArray(config.panelHosts) ? config.panelHosts : []) {
+        const raw = String(h ?? "").trim().toLowerCase().replace(/^https?:\/\//, "");
+        if (!raw)
+            continue;
+        try {
+            hosts.add(new URL(`http://${raw}`).hostname);
+        }
+        catch {
+            hosts.add(raw);
+        }
+    }
+    if (hosts.size > 0)
+        return hosts;
+    try {
+        for (const list of Object.values(networkInterfaces())) {
+            for (const ni of list ?? []) {
+                // Skip zone-bearing IPv6 (fe80::1%12) — Host headers can't carry them portably.
+                if (ni.internal || !ni.address || ni.address.includes("%"))
+                    continue;
+                hosts.add(ni.address.toLowerCase());
+            }
+        }
+    }
+    catch {
+        /* no interfaces */
+    }
+    return hosts;
+}
+function tokenOk(req: any, config: PluginConfig) {
+    const expected = (config.panelToken ?? "").trim();
+    if (!expected)
+        return true;
+    const auth = req.headers?.authorization;
+    let got = typeof auth === "string" && auth.toLowerCase().startsWith("bearer ")
+        ? auth.slice(7).trim()
+        : "";
+    if (!got) {
+        const alt = req.headers?.["x-zhizhang-token"];
+        if (typeof alt === "string")
+            got = alt.trim();
+    }
+    if (!got)
+        return false;
+    const a = Buffer.from(got, "utf8");
+    const b = Buffer.from(expected, "utf8");
+    return a.length === b.length && timingSafeEqual(a, b);
+}
+/**
+ * Loopback: trusted, but an explicit Origin (browser) must still match Host —
+ * DNS-rebinding pages post a cross-origin Origin we can reject.
+ * LAN (allowLanPanel): Host must be one of ours and the shared token (if any) must match.
+ */
+function isAllowed(req: any, config: PluginConfig) {
+    const loopback = isLoopback(req);
+    if (!loopback) {
+        if (config.allowLanPanel !== true)
+            return false;
+        const host = req.headers?.host;
+        if (typeof host !== "string")
+            return false;
+        let hostname = "";
+        try {
+            hostname = new URL(`http://${host}`).hostname.toLowerCase();
+        }
+        catch {
+            return false;
+        }
+        const allow = lanHostAllowlist(config);
+        if (allow.size > 0 && !allow.has(hostname))
+            return false;
+        if (!tokenOk(req, config))
+            return false;
+    }
+    const origin = req.headers?.origin;
+    if (typeof origin === "string" && origin !== "null" && !hostsMatch(origin, req.headers?.host))
+        return false;
+    return true;
+}
+/** Per-client rolling minute window: 120 GET / 20 POST — enough for the ~6s poll loop. */
+function createRateLimiter() {
+    const windows = new Map();
+    return function allow(key: string, isPost: boolean) {
+        const now = Date.now();
+        let w = windows.get(key);
+        if (!w || now - w.start >= 60_000) {
+            if (windows.size > 512)
+                windows.clear();
+            w = { start: now, gets: 0, posts: 0 };
+            windows.set(key, w);
+        }
+        if (isPost) {
+            w.posts += 1;
+            return w.posts <= 20;
+        }
+        w.gets += 1;
+        return w.gets <= 120;
+    };
+}
+/** POST body: content-type gate + size cap + JSON parse, shared by accept / unify. */
+async function readJsonBody(req: any) {
+    const ct = String(req.headers?.["content-type"] ?? "").split(";")[0].trim().toLowerCase();
+    if (ct !== "application/json") {
+        return {
+            err: { status: 415, payload: { ok: false, code: "bad_content_type", error: "POST 请求体须为 application/json" } },
+        };
+    }
+    let bodyRaw = "";
+    try {
+        bodyRaw = String(await readBody(req));
+    }
+    catch (err) {
+        return {
+            err: {
+                status: 413,
+                payload: { ok: false, code: "body_too_large", error: err instanceof Error ? err.message : String(err) },
+            },
+        };
+    }
+    try {
+        return { parsed: bodyRaw ? JSON.parse(bodyRaw) : {} };
+    }
+    catch {
+        return { err: { status: 400, payload: { ok: false, code: "bad_json", error: "请求体须为 JSON" } } };
     }
 }
 function parseUrl(req: any) {
@@ -140,7 +258,7 @@ function readBody(req: any, limit: number = 64_000) {
     });
 }
 /** Read-only unify brief pack — no disk writes. */
-export async function prepareUnifyBrief(paths: StoragePaths, opts: any) {
+async function prepareUnifyBrief(paths: StoragePaths, opts: any) {
     if (!MultiDraftPort.isEnabled()) {
         return {
             ok: false,
@@ -272,18 +390,23 @@ async function panelPaths(url: any, config: PluginConfig, baseOverride: any = ""
     const paths = await ensureStorage(null, {
         storageRoot: match.base,
         libraryRoot: config.libraryRoot,
-        worksRoot: config.worksRoot,
+        // 优先用该项目自己记录的作品目录；老索引没记时再回退到全局配置，
+        // 否则面板切到子项目会继续读写顶层项目的作品。
+        worksRoot: match.worksRoot || config.worksRoot,
     });
     return { paths: { ...paths, resolvedVia: "panel:selected-project" } };
 }
 export function createPanelApiHandler(config: PluginConfig = {}) {
-    const allowLan = config.allowLanPanel === true;
+    const allowRate = createRateLimiter();
     return async function panelApiHandler(req: any, res: any) {
         try {
-            if (!isAllowed(req, allowLan)) {
+            if (!isAllowed(req, config)) {
                 return writeJson(res, 403, { ok: false, error: "forbidden: loopback-only" });
             }
             const method = (req.method ?? "GET").toUpperCase();
+            if (!allowRate(String(req.socket?.remoteAddress ?? "?"), method === "POST")) {
+                return writeJson(res, 429, { ok: false, code: "rate_limited", error: "请求过于频繁，请稍后再试" });
+            }
             const url = parseUrl(req);
             const pathOnly = url.pathname.replace(/\/+$/, "") || "/";
             // —— POST accept (only write path on this API) ——
@@ -291,47 +414,40 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
                 if (method !== "POST") {
                     return writeJson(res, 405, { ok: false, error: `method not allowed: ${method}` });
                 }
-                let bodyRaw = "";
-                try {
-                    bodyRaw = String(await readBody(req));
-                }
-                catch (err) {
-                    return writeJson(res, 413, {
-                        ok: false,
-                        code: "body_too_large",
-                        error: err instanceof Error ? err.message : String(err),
-                    });
-                }
-                let parsed: any = {};
-                try {
-                    parsed = bodyRaw ? JSON.parse(bodyRaw) : {};
-                }
-                catch {
-                    return writeJson(res, 400, { ok: false, code: "bad_json", error: "请求体须为 JSON" });
+                const body = await readJsonBody(req);
+                if (body.err)
+                    return writeJson(res, body.err.status, body.err.payload);
+                const parsed = body.parsed;
+                const modeRaw = parsed.mode ?? "replace";
+                if (modeRaw !== "append" && modeRaw !== "replace") {
+                    return writeJson(res, 400, { ok: false, code: "bad_mode", error: "mode 只支持 append / replace" });
                 }
                 const picked = await panelPaths(url, config, String(parsed.base ?? parsed.project ?? ""));
                 if (picked.error) {
                     return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
                 }
                 const paths = picked.paths as StoragePaths;
+                // Booleans are strict: only `true` enables, only `false` disables —
+                // anything else is absent so AcceptPolicy falls back to PortConfig.
+                const boolOrAbsent = (v: any) => (v === true ? true : v === false ? false : undefined);
                 const acceptReq = {
                     work: String(parsed.work ?? parsed.workKey ?? ""),
                     candidate: String(parsed.candidate ?? parsed.candidateId ?? ""),
-                    confirm: Boolean(parsed.confirm),
-                    mode: parsed.mode === "append" ? "append" : "replace",
-                    force: Boolean(parsed.force),
+                    confirm: parsed.confirm === true,
+                    mode: modeRaw,
+                    force: parsed.force === true,
                     lintPassToken: typeof parsed.lintPassToken === "string"
                         ? parsed.lintPassToken
                         : typeof parsed.lint_pass_token === "string"
                             ? parsed.lint_pass_token
                             : undefined,
-                    skipBrief: Boolean(parsed.skipBrief ?? parsed.skip_brief),
-                    strictLint: Boolean(parsed.strictLint ?? parsed.strict_lint),
-                    requirePayoff: Boolean(parsed.requirePayoff ?? parsed.require_payoff),
-                    strictHuman: Boolean(parsed.strictHuman ?? parsed.strict_human),
-                    strictNovel: Boolean(parsed.strictNovel ?? parsed.strict_novel),
-                    acceptAfterEdit: Boolean(parsed.acceptAfterEdit ?? parsed.accept_after_edit),
-                    confirmAcceptAfterEdit: Boolean(parsed.confirmAcceptAfterEdit ?? parsed.confirm_accept_after_edit),
+                    skipBrief: parsed.skipBrief === true || parsed.skip_brief === true,
+                    strictLint: boolOrAbsent(parsed.strictLint) ?? boolOrAbsent(parsed.strict_lint),
+                    requirePayoff: boolOrAbsent(parsed.requirePayoff) ?? boolOrAbsent(parsed.require_payoff),
+                    strictHuman: boolOrAbsent(parsed.strictHuman) ?? boolOrAbsent(parsed.strict_human),
+                    strictNovel: boolOrAbsent(parsed.strictNovel) ?? boolOrAbsent(parsed.strict_novel),
+                    acceptAfterEdit: parsed.acceptAfterEdit === true || parsed.accept_after_edit === true,
+                    confirmAcceptAfterEdit: parsed.confirmAcceptAfterEdit === true || parsed.confirm_accept_after_edit === true,
                 };
                 const result = await runPanelAccept(paths, acceptReq);
                 if (!result.ok) {
@@ -351,37 +467,29 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
                 if (method !== "GET" && method !== "HEAD" && method !== "POST") {
                     return writeJson(res, 405, { ok: false, error: `method not allowed: ${method}` });
                 }
-                const picked = await panelPaths(url, config);
-                if (picked.error) {
+                const paths0 = method === "POST" ? null : (await panelPaths(url, config));
+                if (method !== "POST" && paths0?.error) {
                     return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
                 }
-                const paths = picked.paths as StoragePaths;
+                let paths = paths0?.paths as StoragePaths;
                 let work = "";
                 let chapter = "";
                 let candidateIds = [];
                 if (method === "POST") {
-                    let bodyRaw = "";
-                    try {
-                        bodyRaw = String(await readBody(req));
+                    const body = await readJsonBody(req);
+                    if (body.err)
+                        return writeJson(res, body.err.status, body.err.payload);
+                    const parsed = body.parsed;
+                    // A6: POST body base/project wins, same as accept.
+                    const picked = await panelPaths(url, config, String(parsed.base ?? parsed.project ?? ""));
+                    if (picked.error) {
+                        return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
                     }
-                    catch (err) {
-                        return writeJson(res, 413, {
-                            ok: false,
-                            code: "body_too_large",
-                            error: err instanceof Error ? err.message : String(err),
-                        });
-                    }
-                    let parsed: any = {};
-                    try {
-                        parsed = bodyRaw ? JSON.parse(bodyRaw) : {};
-                    }
-                    catch {
-                        return writeJson(res, 400, { ok: false, code: "bad_json", error: "请求体须为 JSON" });
-                    }
+                    paths = picked.paths as StoragePaths;
                     work = String(parsed.work ?? parsed.workKey ?? "");
                     chapter = String(parsed.chapter ?? parsed.chapterId ?? "");
                     if (Array.isArray(parsed.candidate_ids ?? parsed.candidateIds)) {
-                        candidateIds = (parsed.candidate_ids ?? parsed.candidateIds);
+                        candidateIds = parsed.candidate_ids ?? parsed.candidateIds;
                     }
                 }
                 else {
@@ -392,6 +500,16 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
                         candidateIds = rawIds.split(/[,\s]+/).map((s: any) => s.trim()).filter(Boolean);
                     }
                 }
+                const seenIds = new Set();
+                candidateIds = candidateIds
+                    .map((id: any) => String(id ?? "").trim())
+                    .filter((id: string) => {
+                    if (!id || seenIds.has(id))
+                        return false;
+                    seenIds.add(id);
+                    return true;
+                })
+                    .slice(0, 8);
                 const result = await prepareUnifyBrief(paths, { work, chapter, candidateIds });
                 if (!result.ok) {
                     const status = result.code === MultiDraftPort.disabledCode
@@ -412,11 +530,12 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
                     return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
                 }
                 const paths = picked.paths as StoragePaths;
+                const product = buildProductView();
                 return writeJson(res, 200, {
                     ok: true,
                     plugin: "dsh-zhizhang",
-                    version: buildProductView().version,
-                    toolCount: buildProductView().toolCount,
+                    version: product.version,
+                    toolCount: product.toolCount,
                     readOnlyGets: true,
                     acceptViaPost: true,
                     base: paths.base,
@@ -445,6 +564,7 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
                     known.unshift({
                         id: current,
                         base: paths.base,
+                        worksRoot: paths.works,
                         name: "",
                         lastUsedAt: "",
                         exists: true,
@@ -540,8 +660,10 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
                         const dir = await resolveWorkDir(paths, workKey);
                         const meta = await readWorkMeta(dir);
                         foundation = meta.foundation;
-                        const snap = await buildPanelSnapshot(dir, paths, { includeHtml: false });
-                        chapters = snap.chapters.map((c: any) => ({
+                        // Lens-only rows; a full buildPanelSnapshot would also build the
+                        // library+inspiration views that this route then rebuilds itself.
+                        const rows = await listChapterLensRows(dir);
+                        chapters = rows.map((c: any) => ({
                             situationLens: c.situationLens,
                             livedScene: c.livedScene,
                             stateLens: c.stateLens,
@@ -642,7 +764,7 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
                     return writeJson(res, 400, { ok: false, code: "id_required", error: "缺少章节 id" });
                 }
                 try {
-                    chapterId = assertSafeResourceId(chapterId, "章节 id");
+                    chapterId = assertResourceId(chapterId, "章节 id");
                 }
                 catch (err) {
                     const code = err instanceof ZhizhangError ? err.code : "bad_id";
@@ -709,7 +831,7 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
                     return writeJson(res, 400, { ok: false, code: "id_required", error: "缺少候选 id" });
                 }
                 try {
-                    candidateId = assertSafeResourceId(candidateId, "候选 id");
+                    candidateId = assertResourceId(candidateId, "候选 id");
                 }
                 catch (err) {
                     const code = err instanceof ZhizhangError ? err.code : "bad_id";

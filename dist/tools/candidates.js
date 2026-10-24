@@ -2,7 +2,7 @@
 import { countWords, listCandidates, readCandidate, stageCandidate, } from "../lib/store.js";
 import { EditPort, MultiDraftPort, Scheduler, auditHumanFeel, getPortConfig, } from "../lib/ports/index.js";
 import { runAccept } from "../lib/services/accept.js";
-import { asString, asStringArray, fail, openWork } from "./context.js";
+import { asString, asStringArray, boolArg, fail, openWork } from "./context.js";
 import { B, E, S, WORK_OPT, WORKING_DIR } from "./schema.js";
 import { defineTool } from "./types.js";
 async function runAcceptPipeline(args, exec, opts) {
@@ -208,21 +208,23 @@ export function candidatesTools() {
                     ].join("\n");
                 }
                 // A — require confirm; then full accept pipeline
-                const confirmed = Boolean(args.confirm_accept_after_edit);
+                const confirmed = boolArg(args, "confirm_accept_after_edit") === true;
                 if (!confirmed) {
                     fail("路径 A 须一次显式确认：传 confirm_accept_after_edit=true（确认：采纳本章编辑稿并验收为正式章）。禁止静默验收。", "edit_accept_confirm_required");
                 }
                 const mode = asString(args, "mode") ?? "replace";
+                if (mode !== "append" && mode !== "replace")
+                    fail("mode 只支持 append / replace", "bad_args");
                 return runAcceptPipeline(args, exec, {
                     candidateId,
                     mode,
-                    force: Boolean(args.force),
+                    force: boolArg(args, "force") ?? false,
                     lintPassToken: asString(args, "lint_pass_token") ?? undefined,
-                    skipBrief: Boolean(args.skip_brief),
-                    strictLint: Boolean(args.strict_lint),
-                    requirePayoff: Boolean(args.require_payoff),
-                    strictHuman: Boolean(args.strict_human),
-                    strictNovel: Boolean(args.strict_novel),
+                    skipBrief: boolArg(args, "skip_brief") ?? false,
+                    strictLint: boolArg(args, "strict_lint"),
+                    requirePayoff: boolArg(args, "require_payoff"),
+                    strictHuman: boolArg(args, "strict_human"),
+                    strictNovel: boolArg(args, "strict_novel"),
                     acceptAfterEdit: true,
                     confirmAcceptAfterEdit: true,
                 });
@@ -240,13 +242,14 @@ export function candidatesTools() {
             required: ["chapter"],
             async execute(args, exec) {
                 const chapterId = asString(args, "chapter", { required: true });
-                const includeAccepted = Boolean(args.include_accepted);
+                const includeAccepted = boolArg(args, "include_accepted") === true;
                 const { dir, key } = await openWork(exec, args);
                 const all = await listCandidates(dir);
                 const forCh = all.filter((c) => c.chapterId === chapterId);
                 const pending = forCh.filter((c) => c.pending);
+                // listCandidates 已按 stagedAt 倒序；近期已采纳取头部，不是尾部。
                 const accepted = includeAccepted
-                    ? forCh.filter((c) => !c.pending).slice(-5)
+                    ? forCh.filter((c) => !c.pending).slice(0, 5)
                     : [];
                 const lines = [
                     `章 ${chapterId} · 作品 ${key}`,
@@ -434,18 +437,20 @@ export function candidatesTools() {
             async execute(args, exec) {
                 const candidateId = asString(args, "candidate", { required: true });
                 const mode = asString(args, "mode") ?? "replace";
+                if (mode !== "append" && mode !== "replace")
+                    fail("mode 只支持 append / replace", "bad_args");
                 return runAcceptPipeline(args, exec, {
                     candidateId,
                     mode,
-                    force: Boolean(args.force),
+                    force: boolArg(args, "force") ?? false,
                     lintPassToken: asString(args, "lint_pass_token") ?? undefined,
-                    skipBrief: Boolean(args.skip_brief),
-                    strictLint: Boolean(args.strict_lint),
-                    requirePayoff: Boolean(args.require_payoff),
-                    strictHuman: Boolean(args.strict_human),
-                    strictNovel: Boolean(args.strict_novel),
-                    acceptAfterEdit: Boolean(args.accept_after_edit),
-                    confirmAcceptAfterEdit: Boolean(args.confirm_accept_after_edit),
+                    skipBrief: boolArg(args, "skip_brief") ?? false,
+                    strictLint: boolArg(args, "strict_lint"),
+                    requirePayoff: boolArg(args, "require_payoff"),
+                    strictHuman: boolArg(args, "strict_human"),
+                    strictNovel: boolArg(args, "strict_novel"),
+                    acceptAfterEdit: boolArg(args, "accept_after_edit") ?? false,
+                    confirmAcceptAfterEdit: boolArg(args, "confirm_accept_after_edit") ?? false,
                 });
             },
         }),

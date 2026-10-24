@@ -2,9 +2,10 @@
  * dsh-zhizhang — DeepSeek Harness plugin entry (on-demand).
  *
  * The profile mount registers exactly one trigger tool (`zhizhang_enable`) plus the
- * read-only Web panel HTTP routes. The 47 织章 tools and the resident hard-rules
- * prompt section are mounted only after the trigger is called, on the calling
- * Agent scope when the host exposes one — standard sessions stay clean.
+ * read-only Web panel HTTP routes. The full 织章 toolset (count reported at runtime,
+ * see allTools()) and the resident hard-rules prompt section are mounted only after
+ * the trigger is called, on the calling Agent scope when the host exposes one —
+ * standard sessions stay clean.
  */
 import { formatToolError } from "./lib/errors.js";
 import type { ExecContext } from "./lib/types.js";
@@ -17,14 +18,15 @@ export const inject = ["tools"];
 const tools = allTools();
 ProductMap.setToolCount(tools.length);
 function enabledReceipt() {
-    // Include the map once so the next model step can start even before the new
-    // scoped tool schemas are visible in the request.
+    // Compact orientation only: the full map lives in zhizhang_product_map (tool) and
+    // the resident SYSTEM_BRIEF section. Echoing the whole map here cost ~5K chars
+    // of context on every enable for content the model can fetch on demand.
     const receipt = [
         `已启用织章（${tools.length} 个工具 + 硬规则，仅本会话）。`,
-        "- 写作段：chapter_brief(lean) → candidate_stage → style_lint →（可选 edit）→ candidate_accept",
+        Scheduler.formatEnableSummary(),
         "- 未启用前不注入这些工具与系统提示；换会话需重新调用 zhizhang_enable。",
     ].join("\n");
-    return [receipt, "", ProductMap.formatForAgent()].join("\n");
+    return receipt;
 }
 const loadedAgents = new WeakSet();
 function makeEnableTool(pluginConfig: any) {
@@ -66,11 +68,12 @@ export function apply(ctx: any, pluginConfig: any = {}) {
 }
 export { applyTools, SYSTEM_BRIEF };
 export const __testing = {
-    tools,
-    applyTools,
-    formatLint,
-    SYSTEM_BRIEF,
-    formatToolError,
+  tools,
+  applyTools,
+  enabledReceipt,
+  formatLint,
+  SYSTEM_BRIEF,
+  formatToolError,
     METHOD_ASSET_IDS,
     listMethodAssets: () => MethodRegistry.list(),
     getMethodAssets: (ids: any) => MethodRegistry.getMany(ids),

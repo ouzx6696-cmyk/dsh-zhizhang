@@ -1,8 +1,7 @@
-/** Extract round/clock tokens and key content nouns from ending text. */
-export declare function extractEndingTokens(ending: any): unknown[];
 /**
  * Audit body against outline promises.
  * ok=true when no warning/error findings (info-only still ok).
+ * opts.lexicon 可传 per-work 质量词表（quality-lexicon.json 的 endingKeywords）覆盖默认题材词。
  */
 export declare function auditPayoff(outline: any, body: string, opts?: any): {
     ok: boolean;
@@ -11,13 +10,7 @@ export declare function auditPayoff(outline: any, body: string, opts?: any): {
         code: string;
         severity: string;
         message: string;
-        promise: any;
-        evidence: string;
-    } | {
-        code: string;
-        severity: string;
-        message: string;
-        promise: any;
+        promise: string;
         evidence?: undefined;
     } | {
         code: string;
@@ -33,9 +26,10 @@ export declare function auditPayoff(outline: any, body: string, opts?: any): {
         promise?: undefined;
     })[];
     checked: {
-        endingTokens: unknown[];
-        endingHits: unknown[];
-        endingMisses: unknown[];
+        endingTokens: string[];
+        endingHits: string[];
+        endingMisses: string[];
+        endingScore: number | null;
         speechPromise: boolean;
         breathReveal: boolean;
     };

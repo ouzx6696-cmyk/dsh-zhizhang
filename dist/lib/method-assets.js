@@ -4,6 +4,7 @@
  * Framing: tell the model what TO write; engineering gates live in Ports.
  */
 import { QualityPolicy } from "./ports/quality-policy.js";
+import { scoreEnding } from "./domain/ending-consistency.js";
 /** AI Contract 4.0 STYLE_CONTRACT — positive craft cues for the live agent. */
 const STYLE_CONTRACT_BODY = [
     "【AI Contract 4.0 文风契约】适用于 draft / revise，以及 plan 中与节拍相关的表述：",
@@ -45,6 +46,9 @@ const ASSETS = [
         id: "plan",
         title: "章纲规划方法",
         whenToUse: "写/改章纲（outline）时：产出可用规划候选，不是正文",
+        // 取用本包时自动附带（getMethodAssets 展开 includes），不再整段内嵌：
+        // 此前契约全文在 4 个资产里各复制一份，升级要改 4 处。
+        includes: ["style_contract"],
         body: [
             "【任务：plan · 规划方法 + Contract 4.0】",
             "产出可用的章节规划候选（不是正文）。复用已采纳根基与想法/来源交接；事件链自行重造。",
@@ -57,8 +61,7 @@ const ASSETS = [
             "- **对手已知处境 → 可行回应**：把主角将用的证据放进对手已知或当场可见信息再推；对方按自己所求行动，一贯侥幸须当场付代价。",
             "- **状态四类**：已发生 / 作者锁定 / 当前采纳 / 候选 —— 分清；远端明示未采纳候选。",
             "有助于手感时填 situationLens / livedScene / stateLens（状态/写法透镜）；宁空不编。字数是工作预算不是质量分。入库与定稿只经工具 accept。",
-            "",
-            STYLE_CONTRACT_BODY,
+            "（文风契约见 style_contract——取用本包时自动附在其后。）",
         ].join("\n"),
     },
     {
@@ -89,6 +92,7 @@ const ASSETS = [
         id: "review",
         title: "审校诊断方法",
         whenToUse: "审校已存章/候选时：只诊断，不代写替换段",
+        includes: ["review_evidence_kinds", "style_contract"],
         body: [
             "【任务：review · 审改方法 · 仅诊断】",
             "先完整读实际稿，再核本书承诺：后台写着「主角高光」不能证明读者已看到。",
@@ -105,16 +109,14 @@ const ASSETS = [
             "本任务只诊断：替换段、续写、改源、选定版本、声称批准均须另开授权任务；自审 ≠ 独立编辑 ≠ 读者反馈 ≠ 市场验证。",
             "**雷达 0 命中 ≠ 质量过关**；「没有硬伤」不是审改终点。",
             "可写 zhizhang_review_ledger；落盘正文仍须作者显式工具。建议对照 zhizhang_payoff_audit。",
-            "",
-            REVIEW_EVIDENCE_BODY,
-            "",
-            STYLE_CONTRACT_BODY,
+            "（五类证据见 review_evidence_kinds、文风契约见 style_contract——取用本包时自动附在其后。）",
         ].join("\n"),
     },
     {
         id: "revise",
         title: "改稿方法",
         whenToUse: "在授权范围内实际改稿（polish/restructure）前加载",
+        includes: ["style_contract"],
         body: [
             "【任务：revise · 仅做授权范围内的实际改稿】",
             "先识别主要阅读损失，再在完整改稿正文中落实相应修改（损失层级决定动场面还是动词句）。",
@@ -124,8 +126,7 @@ const ASSETS = [
             "复核谁付出、承诺、因果与已发生事实；改稿理由须与已发生对齐。范围仅限本章；跨章记 unresolved。",
             "删句先辨是复读还是在增偏心/讽刺/情绪；用禁词表磨平声音会伤可读性。",
             "改稿结果仍是未保存候选：brief（若新开写）→ stage → style_lint → accept；持久化只经显式 accept。回读完整版本。",
-            "",
-            STYLE_CONTRACT_BODY,
+            "（文风契约见 style_contract——取用本包时自动附在其后。）",
         ].join("\n"),
     },
     {
@@ -217,6 +218,15 @@ export function getMethodAssets(ids) {
             found.push(asset);
         else
             missing.push(id);
+        // includes 展开：依赖资产插在引用者之后；已显式列出或已展开过的只保留原位。
+        for (const dep of asset?.includes ?? []) {
+            if (seen.has(dep))
+                continue;
+            seen.add(dep);
+            const depAsset = BY_ID.get(dep);
+            if (depAsset)
+                found.push(depAsset);
+        }
     }
     return { found, missing };
 }
@@ -309,14 +319,12 @@ export function formatReaderContract(input) {
             lines.push("### 前章正文（续写必读 · 以正文为准）");
             lines.push("（前章正文为空 — 仅有 ending 索引时，接着该落点换压力往下推）");
         }
-        // soft: ending vs body drift
+        // soft: ending vs body drift —— 与 payoff 审计共用 scoreEnding（domain 单源），
+        // 阈值更宽（0.25，跨章提示口径）：score<0.25 才警并打印分值。
         if (resolved.text && prev.ending?.trim()) {
-            const end = prev.ending.trim();
-            const hay = resolved.text;
-            const cjkEnd = end.match(/[\u4e00-\u9fff]{2,}/g) ?? [];
-            const hit = cjkEnd.filter((w) => hay.includes(w)).length;
-            if (cjkEnd.length >= 2 && hit === 0) {
-                lines.push("- ⚠️ 前章纲末与正文可能不一致 — 续写以注入的前章正文与状态·已发生为准。");
+            const sc = scoreEnding(prev.ending.trim(), resolved.text);
+            if (sc.score !== null && sc.score < 0.25) {
+                lines.push(`- ⚠️ 前章纲末与正文可能不一致（加权命中 ${(sc.score ?? 0).toFixed(2)}）— 续写以注入的前章正文与状态·已发生为准。`);
             }
         }
     }

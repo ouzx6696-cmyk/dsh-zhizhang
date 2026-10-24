@@ -2,7 +2,7 @@
 import path from "node:path";
 import { stat } from "node:fs/promises";
 import { LibraryPort, coerceAxis, formatHumanFeelBlock, formatBookCraftBlock, formatMindBlock, formatHandoffBlock, formatModuleBlockV2, } from "../lib/ports/index.js";
-import { readAnalysisBundle, readSurvey, computeCoverage, listAnalyses, WHITE_DESC_HARD_RE, writeAnalysisMeta, buildPlan, estimatePlan, planLabel, writePlan, readPlan, deletePlan, makeConfirmToken, writePendingConfirm, assertFullConsent, clearPendingConfirm, planProgress, planMembership, chapterIndex, chapterText, chapterTitle, PLAN_RATIO_DEFAULT, PLAN_BATCH_DEFAULT, PLAN_BATCH_MIN, PLAN_BATCH_MAX, } from "../lib/ports/analysis.js";
+import { readAnalysisBundle, readSurvey, computeCoverage, listAnalyses, WHITE_DESC_HARD_RE, writeAnalysisMeta, buildPlan, estimatePlan, planLabel, writePlan, readPlan, deletePlan, makeConfirmToken, writePendingConfirm, assertFullConsent, clearPendingConfirm, planProgress, planMembership, chapterText, chapterTitle, PLAN_RATIO_DEFAULT, PLAN_BATCH_DEFAULT, PLAN_BATCH_MIN, PLAN_BATCH_MAX, } from "../lib/ports/analysis.js";
 import { ensureStorage, listLocalBooks, sessionCwd } from "../lib/store.js";
 import { AUTO_SAMPLE_HEAD, AUTO_SAMPLE_RATIO, AUTO_SAMPLE_TAIL } from "../lib/domain/workflow.js";
 import { asArray, asString, asStringArray, config, fail } from "./context.js";
@@ -10,7 +10,7 @@ import { S, B, WORKING_DIR } from "./schema.js";
 import { defineTool } from "./types.js";
 import type { ExecContext } from "./types.js";
 import type { StoragePaths } from "../lib/types.js";
-async function openLibrary(exec: ExecContext, args: any) {
+export async function openLibrary(exec: ExecContext, args: any) {
     const paths = await ensureStorage(exec, config, asString(args, "working_dir"));
     await LibraryPort.ensureLibrary(paths);
     return paths;
@@ -95,9 +95,11 @@ export function libraryTools() {
                 const paths = await openLibrary(exec, args);
                 const mode = asString(args, "mode") || "auto";
                 if (mode !== "auto" && mode !== "full")
-                    return "mode 只支持 auto | full";
+                    fail(`mode 只支持 auto | full（收到 ${mode}）`, "bad_args");
                 const ratio = typeof args.ratio === "number" ? args.ratio : PLAN_RATIO_DEFAULT;
-                const rawBatch = typeof args.batch_chars === "number" ? args.batch_chars : PLAN_BATCH_DEFAULT;
+                // batch_chars 必须是有穷数：Number.NaN 也能通过 typeof === "number"，
+                // 夹紧后会得到 NaN，分批比较恒为 false（全书挤成一批）。
+                const rawBatch = Number.isFinite(args.batch_chars) ? Number(args.batch_chars) : PLAN_BATCH_DEFAULT;
                 const batchChars = Math.max(PLAN_BATCH_MIN, Math.min(PLAN_BATCH_MAX, rawBatch));
                 if (args.reset === true)
                     await deletePlan(paths, sourceId);
@@ -112,13 +114,17 @@ export function libraryTools() {
                         prog.nextBatch ? "下一步：library_dissect_brief(source, batch=" + prog.cursor + ")" : "计划已全部取完；下一步 structure_stage 聚合。",
                     ].join("\n");
                 }
-                const src = await LibraryPort.getSource(paths, sourceId);
-                const idx = chapterIndex(src.text);
+                const src = await LibraryPort.getSourceIndexed(paths, sourceId);
+                const idx = src.index;
                 const plan = buildPlan({ sourceId, title: src.meta?.title ?? "", index: idx, mode, ratio, batchChars });
                 const est = estimatePlan(plan);
                 if (plan.mode === "full" && args.confirm_full !== true) {
                     const token = makeConfirmToken();
-                    await writePendingConfirm(paths, sourceId, token, est);
+                    await writePendingConfirm(paths, sourceId, token, est, {
+                        batchChars,
+                        totalChapters: plan.totalChapters,
+                        planChapters: est.chapters,
+                    });
                     return [
                         "## Full 成本回执（尚未写入计划）",
                         "- 全书：" + plan.totalChapters + " 章 / " + plan.totalChars + " 字",
@@ -133,7 +139,11 @@ export function libraryTools() {
                     ].join("\n");
                 }
                 if (plan.mode === "full") {
-                    await assertFullConsent(paths, sourceId, asString(args, "confirm_token"));
+                    await assertFullConsent(paths, sourceId, asString(args, "confirm_token"), {
+                        batchChars,
+                        totalChapters: plan.totalChapters,
+                        planChapters: est.chapters,
+                    });
                     (plan as any).consent = { at: new Date().toISOString(), note: asString(args, "note") || "作者明确要求全量" };
                     await clearPendingConfirm(paths, sourceId);
                 }
@@ -176,9 +186,9 @@ export function libraryTools() {
                 if (plan && batchNo !== undefined) {
                     const b = plan.batches[batchNo];
                     if (!b)
-                        return "批号越界：0–" + (plan.batches.length - 1) + "（" + planLabel(plan) + "）";
-                    const src = await LibraryPort.getSource(paths, sourceId);
-                    const idx = chapterIndex(src.text);
+                        fail(`批号越界：0–${plan.batches.length - 1}（${planLabel(plan)}）`, "bad_args");
+                    const src = await LibraryPort.getSourceIndexed(paths, sourceId);
+                    const idx = src.index;
                     const budget = Math.min(typeof args.max_chars === "number" ? args.max_chars : plan.batchChars, plan.batchChars);
                     const parts = [];
                     let used = 0;
@@ -206,11 +216,19 @@ export function libraryTools() {
                 }
                 if (plan && batchNo === undefined) {
                     const prog = planProgress(plan, (await readAnalysisBundle(paths, sourceId)).chapters);
+                    // 有计划时 mode=full 不生效（全量 scope 只来自 library_plan 的作者同意）——
+                    // 但不能静默无视：明确告知 Agent 升级全量的正路，避免它以为在读全量。
+                    const fullAsk = asString(args, "mode") === "full";
                     return [
                         "已有计划：" + planLabel(plan),
                         "- 进度：事实 " + prog.done + "/" + prog.total + " 章 · 游标 " + prog.cursor + "/" + prog.batches,
                         "- 下一批：library_dissect_brief(source, batch=" + prog.cursor + ")",
                         prog.nextBatch ? "- 该批章号：" + prog.nextBatch.chapters.join("、") : "- 计划已全部取完",
+                        ...(fullAsk
+                            ? [
+                                "- 注意：当前计划非 Full，mode=full 不会在这里生效；要全量须 library_plan(source, mode=\"full\", reset=true) 生成成本回执并取得作者同意。",
+                            ]
+                            : []),
                     ].join("\n");
                 }
                 const maxChars = typeof args.max_chars === "number" ? args.max_chars : undefined;
@@ -385,7 +403,7 @@ export function libraryTools() {
         }),
         defineTool({
             name: "zhizhang_library_card_accept",
-            description: "【闭环·库 7/9 采纳】显式采纳卡入库（v2 校验 5 项 + 证据回溯）。未 accept 不得当已入库。下一步 8/9：library_report / library_audit → 9/9 combo。",
+            description: "【闭环·库 7/9 采纳】显式采纳卡入库（v2 校验 5 项 + 证据回溯）。未 accept 不得当已入库。下一步 8/9：library_report → 9/9 combo（audit 为诊断旁路）。",
             properties: {
                 candidate: S("候选 id（lcand-…）"),
                 working_dir: WORKING_DIR,
@@ -402,7 +420,7 @@ export function libraryTools() {
                     ...(warnings && warnings.length ? ["", "【入库审计提示】", ...warnings.map((w: any) => `- ${w}`)] : []),
                     ...(judgment && judgment.length ? ["", "【判断面（脚本核不了）】", ...judgment.map((j: any) => `- ${j}`)] : []),
                     "",
-                    "下一步 8/9：zhizhang_library_report / library_audit（机械面，通过≠合格）→ 9/9 zhizhang_library_combo_suggest",
+                    "下一步 8/9：zhizhang_library_report → 9/9 zhizhang_library_combo_suggest（library_audit 为诊断旁路：机械面通过≠卡能用，勿例行）",
                 ].join("\n");
             },
         }),

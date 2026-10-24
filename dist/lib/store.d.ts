@@ -3,6 +3,8 @@ import type { Candidate, ExecContext, Foundation, Outline, PluginConfig, Storage
 interface ProjectSummary {
     id: string;
     base: string;
+    /** 该项目实际使用的作品根；面板切项目时不能拿全局 config.worksRoot 猜。 */
+    worksRoot?: string;
     name?: string;
     lastUsedAt?: string;
     exists?: boolean;
@@ -48,6 +50,7 @@ export declare function listLocalBooks(sourceRoot: any, opts?: any): Promise<{
 export declare function listProjects(opts?: any): Promise<ProjectSummary[] | {
     id: any;
     base: string;
+    worksRoot: any;
     name: any;
     lastUsedAt: any;
     exists: boolean;
@@ -120,6 +123,8 @@ export declare function saveChapter(dir: string, input: any): Promise<any>;
 export declare function setOutline(dir: string, chapterId: string, patch: any): Promise<any>;
 export declare function setFoundation(dir: string, patch: any): Promise<any>;
 export declare function readLedger(dir: string): Promise<any>;
+/** ledger.json 保留的最大条数：面板/回溯只用最近若干条，超出即裁掉最旧的，防止整文件随章节数无限膨胀。 */
+export declare const LEDGER_MAX_ENTRIES = 1000;
 export declare function appendLedger(dir: string, entry: any): Promise<any>;
 /** Persist candidate JSON without dropping optional multi-draft / edit fields. */
 export declare function candidateToDiskMeta(cand: any): Candidate;
@@ -154,7 +159,42 @@ export declare function storePayoffAudit(dir: string, entry: any): Promise<any>;
 export declare function getLastPayoffAudit(dir: string, chapterId: string): Promise<any>;
 /** Most recent payoff audit for chapter within maxAgeMs (default BRIEF_RECENT_MS). */
 export declare function getRecentPayoffAudit(dir: string, chapterId: string, maxAgeMs?: any): Promise<any>;
+/**
+ * Lens-only chapter rows for /inspiration — skips ledger/candidates/briefs/payoffs
+ * and the library+inspiration views a full buildPanelSnapshot would compute.
+ */
+export declare function listChapterLensRows(dir: string): Promise<{
+    id: any;
+    title: any;
+    position: any;
+    status: any;
+    wordCount: any;
+    situationLens: string;
+    livedScene: string;
+    stateLens: string;
+}[]>;
 export declare function buildPanelSnapshot(dir: string, pathsHint: any, opts?: any): Promise<{
+    nextHints: string[];
+    schemaVersion?: undefined;
+    generatedAt?: undefined;
+    workKey?: undefined;
+    title?: undefined;
+    genre?: undefined;
+    dir?: undefined;
+    storageBase?: undefined;
+    totals?: undefined;
+    foundation?: undefined;
+    chapters?: undefined;
+    ledgerRecent?: undefined;
+    candidates?: undefined;
+    multiDraftEnabled?: undefined;
+    briefCrumbsRecent?: undefined;
+    lastPayoffByChapter?: undefined;
+    product?: undefined;
+    library?: undefined;
+    inspiration?: undefined;
+    html?: undefined;
+} | {
     schemaVersion: number;
     generatedAt: string;
     workKey: any;
@@ -170,10 +210,10 @@ export declare function buildPanelSnapshot(dir: string, pathsHint: any, opts?: a
         planned: number;
     };
     foundation: {
-        locks: any;
-        happened: any;
-        threads: any;
-        style: any;
+        locks: string;
+        happened: string;
+        threads: string;
+        style: string;
     };
     chapters: {
         id: any;

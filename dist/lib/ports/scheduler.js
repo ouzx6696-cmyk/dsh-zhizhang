@@ -52,7 +52,7 @@ export const SCHEDULER_BYPASSES = [
         id: "finalize.ship",
         title: "定稿与汇编",
         when: "章末或完书",
-        via: "chapter_save status=final · review_ledger · assemble / export",
+        via: "chapter_save status=final · review_ledger · assemble",
     },
 ];
 /** Next-step hints keyed by just-finished tool family (for receipts). */
@@ -138,6 +138,17 @@ export const Scheduler = {
             Scheduler.formatDiagram(),
             "",
             "分喂：mind→inspire 设定/纲；craft→lean brief 写法+状态。迷路先看本图或 zhizhang_product_map。",
+        ].join("\n");
+    },
+    /**
+     * 启用回执用的紧凑定向（约 0.5K 字符）。全图留在 zhizhang_product_map
+     * 工具与常驻 SYSTEM_BRIEF 里——启用瞬间不再整页复述调度文本。
+     */
+    formatEnableSummary() {
+        return [
+            `- 全链：${SCHEDULER_DEFAULT_LINE}`,
+            `- 旁路（显式才走）：${SCHEDULER_BYPASSES.map((b) => b.id).join(" / ")}`,
+            "- 迷路先调 zhizhang_product_map（调度全图）；硬规则全文 zhizhang_system_brief",
         ].join("\n");
     },
 };

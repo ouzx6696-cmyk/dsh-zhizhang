@@ -7,6 +7,7 @@ import { mkdir, readFile, access } from "node:fs/promises";
 import path from "node:path";
 import { ZhizhangError } from "../errors.js";
 import { atomicWrite, createWork, resolveWorkDir, saveChapter, setFoundation, readChapter, readWorkMeta, withLock, } from "../store.js";
+import { readJsonCached } from "../file-cache.js";
 import { LibraryPort, ANTI_STIFFNESS_BRIEF_LINE, coerceAxis, coerceHumanFeel, craftCueFromHumanFeel, formatTechniqueCardBlock, formatTechniqueCardBlockLean, hasShatterCraftCue, } from "./library.js";
 import { MethodRegistry } from "./methods.js";
 import { QualityPolicy } from "./quality-policy.js";
@@ -105,7 +106,7 @@ export const InspirationPort = {
         if (!(await fileExists(p))) {
             throw new ZhizhangError("session_not_found", `找不到灵感会话 ${sessionId}`);
         }
-        return JSON.parse(await readFile(p, "utf8"));
+        return readJsonCached(p);
     },
     async listSessions(paths: StoragePaths) {
         await ensureInsp(paths);
@@ -117,7 +118,8 @@ export const InspirationPort = {
             if (!name.endsWith(".json"))
                 continue;
             try {
-                const s = JSON.parse(await readFile(path.join(d.sessions, name), "utf8"));
+                // mtime 缓存：面板每 ~6s 轮询都会全量列会话。
+                const s = await readJsonCached(path.join(d.sessions, name));
                 rows.push({
                     id: s.id,
                     goal: s.goal,
@@ -269,6 +271,8 @@ export const InspirationPort = {
             sessionId,
             kind,
             payload: { ...payload },
+            // 卡组快照：acceptEmit(apply) 据此更新 bindings.json 索引，不必回读 session。
+            cardIds: [...(session.cardIds ?? [])],
             status: "staged",
             createdAt: now,
             updatedAt: now,
@@ -313,122 +317,146 @@ export const InspirationPort = {
         await ensureInsp(paths);
         const d = inspDirs(paths);
         const candPath = path.join(d.candidates, `${candId}.json`);
-        if (!(await fileExists(candPath))) {
-            throw new ZhizhangError("candidate_not_found", `找不到灵感候选 ${candId}`);
-        }
-        const cand = JSON.parse(await readFile(candPath, "utf8"));
-        if (cand.status === "accepted" && cand.appliedWorkKey) {
-            throw new ZhizhangError("already_accepted", `灵感候选 ${candId} 已采纳到 ${cand.appliedWorkKey}`);
-        }
-        const workKey = String(opts.workKey ?? "").trim();
-        if (!workKey)
-            throw new ZhizhangError("bad_args", "workKey 不能为空");
-        const apply = Boolean(opts.apply);
-        let detail = "仅标记采纳，未写入作品（apply=false）";
-        if (apply) {
-            // Ensure work exists
-            let dir;
-            try {
-                dir = await resolveWorkDir(paths, workKey);
+        // 读候选 → 查已采纳 → apply 写作品 → 回写候选状态 全程持锁：
+        // 并发双 accept 只能一个生效，另一个在锁内看到 accepted 硬拒。
+        return withLock(`inspiration:${paths.inspiration}`, async () => {
+            if (!(await fileExists(candPath))) {
+                throw new ZhizhangError("candidate_not_found", `找不到灵感候选 ${candId}`);
             }
-            catch {
-                const created = await createWork(paths, {
-                    title: opts.title || workKey,
-                    genre: opts.genre,
-                    premise: opts.premise,
-                    key: workKey,
-                });
-                dir = created.dir;
+            const cand = JSON.parse(await readFile(candPath, "utf8"));
+            if (cand.status === "accepted" && cand.appliedWorkKey) {
+                throw new ZhizhangError("already_accepted", `灵感候选 ${candId} 已采纳到 ${cand.appliedWorkKey}`);
             }
-            if (cand.kind === "foundation") {
-                const p = cand.payload;
-                const patch: Record<string, any> = {};
-                for (const key of [
-                    "locks",
-                    "happened",
-                    "characters",
-                    "readerKnowledge",
-                    "planned",
-                    "threads",
-                    "style",
-                ]) {
-                    if (typeof (p as any)[key] === "string" && String((p as any)[key]).trim()) {
-                        (patch as any)[key] = String((p as any)[key]);
-                    }
-                }
-                if (Object.keys(patch).length === 0) {
-                    throw new ZhizhangError("empty_body", "foundation payload 无可写入字段");
-                }
-                const meta = await setFoundation(dir, patch);
-                detail = `已 apply foundation → 作品「${meta.title}」（${meta.key}）：${Object.keys(patch).join("、")}`;
-            }
-            else {
-                const p = cand.payload;
-                const chapterId = String(p.chapter ?? p.chapterId ?? "").trim();
-                const outlinePatch: Record<string, any> = {};
-                for (const key of [
-                    "pov",
-                    "locks",
-                    "knowledge",
-                    "synopsis",
-                    "conflict",
-                    "beats",
-                    "ending",
-                    "situationLens",
-                    "livedScene",
-                    "stateLens",
-                ]) {
-                    if (typeof (p as any)[key] === "string")
-                        (outlinePatch as any)[key] = String((p as any)[key]);
-                }
-                // legacy alias
-                const legacy = p as any;
-                if (typeof legacy.voiceTone === "string" && String(legacy.voiceTone).trim()) {
-                    if (!outlinePatch.stateLens)
-                        outlinePatch.stateLens = String(legacy.voiceTone);
-                }
-                if (typeof legacy.targetWords === "number")
-                    outlinePatch.targetWords = legacy.targetWords;
-                let title = typeof p.title === "string" ? p.title : undefined;
-                let body = "";
-                let position;
-                let status;
+            const workKey = String(opts.workKey ?? "").trim();
+            if (!workKey)
+                throw new ZhizhangError("bad_args", "workKey 不能为空");
+            const apply = Boolean(opts.apply);
+            let detail = "仅标记采纳，未写入作品（apply=false）";
+            if (apply) {
+                // Ensure work exists
+                let dir;
                 try {
-                    const existing = await readChapter(dir, chapterId);
-                    title = title ?? existing.title;
-                    body = existing.body;
-                    position = existing.position;
-                    status = existing.status;
-                    Object.assign(outlinePatch, { ...existing.outline, ...outlinePatch });
+                    dir = await resolveWorkDir(paths, workKey);
                 }
                 catch {
-                    title = title ?? chapterId;
-                    status = "planned";
+                    const created = await createWork(paths, {
+                        title: opts.title || workKey,
+                        genre: opts.genre,
+                        premise: opts.premise,
+                        key: workKey,
+                    });
+                    dir = created.dir;
                 }
-                await saveChapter(dir, {
-                    id: chapterId,
-                    title: title,
-                    body,
-                    position,
-                    status: status,
-                    outline: outlinePatch,
-                });
-                const meta = await readWorkMeta(dir);
-                detail = `已 apply outline → 作品「${meta.title}」章 ${chapterId}《${title}》`;
+                if (cand.kind === "foundation") {
+                    const p = cand.payload;
+                    const patch: Record<string, any> = {};
+                    for (const key of [
+                        "locks",
+                        "happened",
+                        "characters",
+                        "readerKnowledge",
+                        "planned",
+                        "threads",
+                        "style",
+                    ]) {
+                        if (typeof (p as any)[key] === "string" && String((p as any)[key]).trim()) {
+                            (patch as any)[key] = String((p as any)[key]);
+                        }
+                    }
+                    if (Object.keys(patch).length === 0) {
+                        throw new ZhizhangError("empty_body", "foundation payload 无可写入字段");
+                    }
+                    const meta = await setFoundation(dir, patch);
+                    detail = `已 apply foundation → 作品「${meta.title}」（${meta.key}）：${Object.keys(patch).join("、")}`;
+                }
+                else {
+                    const p = cand.payload;
+                    const chapterId = String(p.chapter ?? p.chapterId ?? "").trim();
+                    const outlinePatch: Record<string, any> = {};
+                    for (const key of [
+                        "pov",
+                        "locks",
+                        "knowledge",
+                        "synopsis",
+                        "conflict",
+                        "beats",
+                        "ending",
+                        "situationLens",
+                        "livedScene",
+                        "stateLens",
+                    ]) {
+                        if (typeof (p as any)[key] === "string")
+                            (outlinePatch as any)[key] = String((p as any)[key]);
+                    }
+                    // legacy alias
+                    const legacy = p as any;
+                    if (typeof legacy.voiceTone === "string" && String(legacy.voiceTone).trim()) {
+                        if (!outlinePatch.stateLens)
+                            outlinePatch.stateLens = String(legacy.voiceTone);
+                    }
+                    if (typeof legacy.targetWords === "number")
+                        outlinePatch.targetWords = legacy.targetWords;
+                    let title = typeof p.title === "string" ? p.title : undefined;
+                    let body = "";
+                    let position;
+                    let status;
+                    try {
+                        const existing = await readChapter(dir, chapterId);
+                        title = title ?? existing.title;
+                        body = existing.body;
+                        position = existing.position;
+                        status = existing.status;
+                        Object.assign(outlinePatch, { ...existing.outline, ...outlinePatch });
+                    }
+                    catch (e: any) {
+                        // 只有"章文件不存在"才是新建。front matter 损坏时若当新建处理，
+                        // 下面的 saveChapter 会用空 body 覆盖掉原稿。
+                        if (e?.code !== "ENOENT")
+                            throw e;
+                        title = title ?? chapterId;
+                        status = "planned";
+                    }
+                    await saveChapter(dir, {
+                        id: chapterId,
+                        title: title,
+                        body,
+                        position,
+                        status: status,
+                        outline: outlinePatch,
+                    });
+                    const meta = await readWorkMeta(dir);
+                    detail = `已 apply outline → 作品「${meta.title}」章 ${chapterId}《${title}》`;
+                }
+                // workKey→cardIds 索引（bindings.json）：resolveCardsForBrief 先读这里，
+                // 免得每次 brief 都扫 candidates/ 全目录。仍在 acceptEmit 锁内，无并发写。
+                try {
+                    const bPath = path.join(d.root, "bindings.json");
+                    const bindings = (await fileExists(bPath))
+                        ? await readJsonCached(bPath)
+                        : {};
+                    const prev = Array.isArray(bindings?.[workKey]) ? bindings[workKey] : [];
+                    const ids = Array.isArray(cand.cardIds) ? cand.cardIds : [];
+                    const next = [...ids, ...prev].filter((v, i, arr) => arr.indexOf(v) === i).slice(0, 24);
+                    if (next.length > 0) {
+                        bindings[workKey] = next;
+                        await atomicWrite(bPath, JSON.stringify(bindings, null, 2) + "\n");
+                    }
+                }
+                catch {
+                    /* 索引失败不阻断 accept */
+                }
             }
-        }
-        const now = nowIso();
-        const updated = {
-            ...cand,
-            status: "accepted",
-            updatedAt: now,
-            acceptedAt: now,
-            appliedWorkKey: apply ? workKey : cand.appliedWorkKey,
-        };
-        await withLock(`inspiration:${paths.inspiration}`, async () => {
+            const now = nowIso();
+            const updated = {
+                ...cand,
+                status: "accepted",
+                updatedAt: now,
+                acceptedAt: now,
+                appliedWorkKey: apply ? workKey : cand.appliedWorkKey,
+            };
             await atomicWrite(candPath, JSON.stringify(updated, null, 2) + "\n");
+            return { candId, applied: apply, workKey, detail };
         });
-        return { candId, applied: apply, workKey, detail };
     },
     /**
      * Resolve technique cards for chapter_brief / writing path.
@@ -464,6 +492,37 @@ export const InspirationPort = {
         const workKey = String(opts.workKey ?? "").trim();
         if (workKey) {
             const d = inspDirs(paths);
+            // 快路径：bindings.json（acceptEmit apply 时维护的 workKey→cardIds 索引）。
+            try {
+                const bPath = path.join(d.root, "bindings.json");
+                if (await fileExists(bPath)) {
+                    const bindings = await readJsonCached(bPath);
+                    const indexed = Array.isArray(bindings?.[workKey]) ? bindings[workKey] : [];
+                    const cards = [];
+                    for (const id of indexed.slice(0, limit)) {
+                        try {
+                            const card = await LibraryPort.getCard(paths, id);
+                            if (card.status === "accepted")
+                                cards.push(card);
+                        }
+                        catch {
+                            /* skip */
+                        }
+                    }
+                    if (cards.length > 0) {
+                        return {
+                            cards,
+                            source: "inspire_apply",
+                            note: `作品「${workKey}」绑定技法卡（${cards.length}；bindings 索引）`,
+                            cardIds: cards.map((c: any) => c.id),
+                        };
+                    }
+                }
+            }
+            catch {
+                /* fall through to legacy scan */
+            }
+            // 旧数据回退：索引出现前的 accept 记录，仍扫 candidates/ 目录。
             const { readdir } = await import("node:fs/promises");
             const names = await readdir(d.candidates).catch(() => []);
             const hits = [];
@@ -471,7 +530,7 @@ export const InspirationPort = {
                 if (!name.endsWith(".json"))
                     continue;
                 try {
-                    const cand = JSON.parse(await readFile(path.join(d.candidates, name), "utf8"));
+                    const cand = await readJsonCached(path.join(d.candidates, name));
                     if (cand.status === "accepted" && cand.appliedWorkKey === workKey) {
                         hits.push({
                             at: cand.acceptedAt || cand.updatedAt || cand.createdAt,

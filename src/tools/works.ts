@@ -2,7 +2,7 @@
 import { appendLedger, countWords, createWork, ensureStorage, listChapters, listWorks, readChapter, readWorkMeta, saveChapter, setFoundation, } from "../lib/store.js";
 import { firstDenyCode, firstDenyText, FoundationPort, SAVE_BYPASS_WORD_THRESHOLD, SaveBypassGate, Scheduler, } from "../lib/ports/index.js";
 import { CHAPTER_STATUSES, } from "../lib/types.js";
-import { asString, config, fail, openWork, rememberWork } from "./context.js";
+import { asString, boolArg, config, fail, openWork, rememberWork } from "./context.js";
 import { renderOutline, renderStatus } from "./render.js";
 import { B, E, I, OUTLINE_PROPS, S, WORK_OPT, WORKING_DIR } from "./schema.js";
 import { defineTool } from "./types.js";
@@ -197,8 +197,8 @@ export function worksTools() {
                     if (args[key] === undefined || args[key] === null)
                         continue;
                     if (key === "targetWords") {
-                        if (typeof args.targetWords !== "number")
-                            fail("targetWords 必须是整数");
+                        if (!Number.isInteger(args.targetWords) || args.targetWords <= 0)
+                            fail("targetWords 必须是正整数");
                         patch.targetWords = args.targetWords;
                     }
                     else {
@@ -225,7 +225,10 @@ export function worksTools() {
                     status = existing.status;
                     Object.assign(patch, { ...existing.outline, ...patch });
                 }
-                catch {
+                catch (err) {
+                    // 只有「章文件不存在」才建新章；front matter 坏了必须报错，不能覆盖原稿。
+                    if ((err as any)?.code !== "ENOENT")
+                        throw err;
                     title = title ?? chapterId;
                     status = "planned";
                 }
@@ -295,7 +298,7 @@ export function worksTools() {
             async execute(args: any, exec: ExecContext) {
                 const chapterId = asString(args, "chapter", { required: true });
                 const contentArg = asString(args, "content", { trim: false });
-                const confirmBypass = Boolean(args.confirm_bypass);
+                const confirmBypass = boolArg(args, "confirm_bypass") === true;
                 const { dir } = await openWork(exec, args);
                 let title = asString(args, "title");
                 let outline;
@@ -308,7 +311,9 @@ export function worksTools() {
                     title = title ?? prev.title;
                     outline = prev.outline;
                 }
-                catch {
+                catch (err) {
+                    if ((err as any)?.code !== "ENOENT")
+                        throw err;
                     title = title ?? chapterId;
                 }
                 let body;
@@ -342,6 +347,8 @@ export function worksTools() {
                 const status = asString(args, "status");
                 if (status && !CHAPTER_STATUSES.includes(status))
                     fail(`非法 status：${status}`);
+                if (args.position !== undefined && (!Number.isInteger(args.position) || args.position < 1))
+                    fail("position 必须是从 1 开始的整数");
                 const position = typeof args.position === "number" ? args.position : undefined;
                 const saved = await saveChapter(dir, {
                     id: chapterId,

@@ -23,25 +23,32 @@ export function auditHumanFeel(text: string, opts: any) {
             summary: `正文过短（${body.length} 字），人味软雷达跳过`,
         };
     }
-    const uniform = detectUniformShortRun(body);
+    // 分句 / 分段各做一次，全部检测器共用：此前 4 个检测器各自重跑
+    // 对白剥离 + 分句，单次审计等于把全文扫 6 遍。
+    const sentences = splitSentences(body);
+    const paras = body
+        .split(/\n+/)
+        .map((p: string) => p.trim())
+        .filter((p: string) => p.length >= 40);
+    const uniform = detectUniformShortRun(sentences);
     if (uniform)
         hits.push(uniform);
     const taskWall = detectTaskDialogueWall(body);
     if (taskWall)
         hits.push(taskWall);
-    const objectCold = detectObjectListCold(body);
+    const objectCold = detectObjectListCold(paras);
     if (objectCold)
         hits.push(objectCold);
-    const enumDump = detectSettingEnumDump(body);
+    const enumDump = detectSettingEnumDump(sentences);
     if (enumDump)
         hits.push(enumDump);
-    const ledger = detectLedgerDump(body);
+    const ledger = detectLedgerDump(paras);
     if (ledger)
         hits.push(ledger);
-    const domestic = detectDomesticTrivia(body);
+    const domestic = detectDomesticTrivia(sentences);
     if (domestic)
         hits.push(domestic);
-    const stiff = detectStiffnessTidy(body, opts?.craftCue);
+    const stiff = detectStiffnessTidy(sentences, opts?.craftCue);
     if (stiff)
         hits.push(stiff);
     const summary = hits.length === 0
@@ -49,17 +56,17 @@ export function auditHumanFeel(text: string, opts: any) {
         : `人味软雷达命中 ${hits.length} 类：${hits.map((h: any) => h.code).join("、")}`;
     return { hitCount: hits.length, hits, summary };
 }
-function detectUniformShortRun(text: string) {
-    const sentences = splitSentences(text).filter((s: string) => s.length >= 4);
-    if (sentences.length < 6)
+function detectUniformShortRun(sentences: string[]) {
+    const short = sentences.filter((s: string) => s.length >= 4);
+    if (short.length < 6)
         return null;
     let bestRun = 0;
     let bestStart = 0;
     let run = 0;
     let runStart = 0;
     let prevLen = -1;
-    for (let i = 0; i < sentences.length; i++) {
-        const len = sentences[i].length;
+    for (let i = 0; i < short.length; i++) {
+        const len = short[i].length;
         const shortish = len >= 4 && len <= 24;
         const nearPrev = prevLen < 0 || Math.abs(len - prevLen) <= 8;
         if (shortish && nearPrev) {
@@ -79,7 +86,7 @@ function detectUniformShortRun(text: string) {
     }
     if (bestRun < 6)
         return null;
-    const sample = sentences.slice(bestStart, bestStart + Math.min(bestRun, 4)).join(" / ");
+    const sample = short.slice(bestStart, bestStart + Math.min(bestRun, 4)).join(" / ");
     return {
         code: "uniform_short_run",
         text: `过齐：连续 ${bestRun} 句短句长度接近，节奏像说明书。可拆长短、加停顿或半截念头，让节奏有起伏。`,
@@ -112,11 +119,7 @@ function detectTaskDialogueWall(text: string) {
         evidence: lines.slice(0, 3).map((l: any) => `「${l.slice(0, 24)}」`).join(" "),
     };
 }
-function detectObjectListCold(text: string) {
-    const paras = text
-        .split(/\n+/)
-        .map((p: string) => p.trim())
-        .filter((p: string) => p.length >= 40);
+function detectObjectListCold(paras: string[]) {
     for (const para of paras) {
         if (WOBBLE_RE.test(para))
             continue;
@@ -135,9 +138,9 @@ function detectObjectListCold(text: string) {
 }
 /** Acquire/list dump: 「获得了A、B、C」设定清单腔（结构密度，非禁词表）. */
 const ACQUIRE_RE = /(?:获得了?|拿到了?|得到了?|收入了?|解锁了?|拥有了?|装备了?|携带了?|收获了?)/;
-function detectSettingEnumDump(text: string) {
-    const sentences = splitSentences(text).filter((s: string) => s.length >= 8);
-    for (const s of sentences) {
+function detectSettingEnumDump(sentences: string[]) {
+    const fat = sentences.filter((s: string) => s.length >= 8);
+    for (const s of fat) {
         if (!ACQUIRE_RE.test(s))
             continue;
         const commas = (s.match(/、/g) ?? []).length;
@@ -153,11 +156,7 @@ function detectSettingEnumDump(text: string) {
     return null;
 }
 /** Ledger/accounting dump without living wobble — 对账记账流水毒点. */
-function detectLedgerDump(text: string) {
-    const paras = text
-        .split(/\n+/)
-        .map((p: string) => p.trim())
-        .filter((p: string) => p.length >= 40);
+function detectLedgerDump(paras: string[]) {
     for (const para of paras) {
         if (WOBBLE_RE.test(para))
             continue;
@@ -178,16 +177,16 @@ function detectLedgerDump(text: string) {
 /** Domestic trivia stretch without stakes — 家长里短毒点. */
 const DOMESTIC_RE = /洗碗|拖地|叠衣服|电饭煲|拖鞋|买菜|晾衣服|倒垃圾|刷锅|扫地|擦桌子|热饭|泡茶|围裙|抹布|菜板|洗洁精|垃圾袋|晾衣架/;
 const STAKE_RE = /怎么办|悬着|欠着|门外|门口|钥匙|监控|？|\?\.\.\.|…|还不|还未|会不会|究竟|若是|下次|明天/;
-function detectDomesticTrivia(text: string) {
-    const sentences = splitSentences(text).filter((s: string) => s.length >= 4);
-    if (sentences.length < 5)
+function detectDomesticTrivia(sentences: string[]) {
+    const short = sentences.filter((s: string) => s.length >= 4);
+    if (short.length < 5)
         return null;
     let best = 0;
     let run = 0;
     let sampleStart = 0;
     let bestStart = 0;
-    for (let i = 0; i < sentences.length; i++) {
-        const s = sentences[i];
+    for (let i = 0; i < short.length; i++) {
+        const s = short[i];
         const domestic = DOMESTIC_RE.test(s);
         const hasStake = STAKE_RE.test(s) || WOBBLE_RE.test(s);
         if (domestic && !hasStake) {
@@ -205,7 +204,7 @@ function detectDomesticTrivia(text: string) {
     }
     if (best < 4)
         return null;
-    const sample = sentences.slice(bestStart, bestStart + Math.min(best, 4)).join(" / ");
+    const sample = short.slice(bestStart, bestStart + Math.min(best, 4)).join(" / ");
     return {
         code: "domestic_trivia",
         text: `家长里短毒点：连续 ${best} 句家务琐事且无压力/书债线索。改法：留一件有戏的生活细节，接回场面压力。`,
@@ -219,16 +218,16 @@ function detectDomesticTrivia(text: string) {
  */
 const TIDY_MEANING_RE = /他明白了|她明白了|众人震惊|众人折服|恍然大悟|心中一清|一切都清楚了|终于懂了|顿时明白|心下了然/;
 const LECTURE_RE = /这说明|由此可见|规则如下|总共有|具体来说|换句话说|总而言之|综上所述|可以得出/;
-function detectStiffnessTidy(text: string, craftCue: any) {
+function detectStiffnessTidy(sentences: string[], craftCue: any) {
     if (!craftCue || !hasShatterCraftCue(craftCue))
         return null;
-    const sentences = splitSentences(text).filter((s: string) => s.length >= 4);
-    if (sentences.length < 5)
+    const short = sentences.filter((s: string) => s.length >= 4);
+    if (short.length < 5)
         return null;
     let tidyHits = 0;
     let lectureHits = 0;
     let sample = "";
-    for (const s of sentences) {
+    for (const s of short) {
         if (WOBBLE_RE.test(s))
             continue;
         if (TIDY_MEANING_RE.test(s)) {

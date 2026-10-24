@@ -67,6 +67,15 @@ export function asStringArray(args: any, key: string, opts: any = {}) {
         fail(`参数 ${key} 不能为空`);
     return out;
 }
+/**
+ * 严格旗标透传：true/false 原样返回，未传保持 undefined。
+ * AcceptPolicy 用 `?? PortConfig 默认值` 兜底——若调用方先用 Boolean() 把
+ * undefined 抹成 false，配置默认值（defaultStrictLint 等）就永远不会生效。
+ */
+export function boolArg(args: any, key: string): boolean | undefined {
+    const v = args?.[key];
+    return typeof v === "boolean" ? v : undefined;
+}
 
 export async function openWork(exec: ExecContext, args: any) {
     const paths = await ensureStorage(exec, config, asString(args, "working_dir"));

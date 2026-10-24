@@ -1,15 +1,8 @@
 import { getPortConfig } from "./config.js";
 import { Scheduler } from "./scheduler.js";
 import { PLUGIN_VERSION } from "../version.js";
+import { countWords } from "../store.js";
 export const MULTI_DRAFT_DISABLED_CODE = "multi_draft_disabled";
-function countWordsLocal(text: string) {
-    if (typeof text !== "string" || text.length === 0)
-        return 0;
-    const cjk = text.match(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/gu)
-        ?.length ?? 0;
-    const latin = text.match(/[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*/g)?.length ?? 0;
-    return cjk + latin;
-}
 export function envMultiDraftFlag() {
     const raw = String(process.env.DSH_ZHIZHANG_MULTI_DRAFT ?? "")
         .trim()
@@ -48,7 +41,7 @@ export const MultiDraftPort = {
         return {
             id: cand.id,
             draftLabel: cand.draftLabel,
-            wordCount: countWordsLocal(cand.body),
+            wordCount: countWords(cand.body),
             note: cand.note || undefined,
             preview: clipPreview(cand.body),
         };

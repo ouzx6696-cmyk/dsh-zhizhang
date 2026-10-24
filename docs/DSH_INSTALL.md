@@ -35,7 +35,7 @@ dsh plugin --profile desktop add link:"E:/dsh cj/dsh-zhizhang-0.17.0"
 
 # 4) 会话内按需启用（关键）
 #    普通会话只多一个 zhizhang_enable；
-#    让 Agent 调 zhizhang_enable（或说「启用织章」）后，52 个工具 + 硬规则才挂到本会话。
+#    让 Agent 调 zhizhang_enable（或说「启用织章」）后，51 个工具 + 硬规则才挂到本会话。
 
 # 5) 验证
 #    桌面 profile 由 Electron 独占，CLI `--dump-config` 会拒绝：

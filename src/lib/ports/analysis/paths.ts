@@ -1,7 +1,8 @@
 /** 拆书分析 — 路径 / JSON IO 基元。 */
 import path from "node:path";
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { atomicWrite } from "../../store.js";
+import { readJsonCached, readJsonlCached } from "../../file-cache.js";
 import type { StoragePaths } from "../../types.js";
 import { ZhizhangError } from "../../errors.js";
 
@@ -35,7 +36,8 @@ export function analysisPaths(paths: StoragePaths, sourceId: any) {
 
 export async function readJson(file: string, fallback: any) {
     try {
-        return JSON.parse(await readFile(file, "utf8"));
+        // mtime 缓存：分析 bundle 在面板轮询里被反复整读，未变时直接命中。
+        return await readJsonCached(file);
     }
     catch {
         return fallback;
@@ -43,17 +45,7 @@ export async function readJson(file: string, fallback: any) {
 }
 
 export async function readJsonl(file: string) {
-    try {
-        const raw = await readFile(file, "utf8");
-        return raw
-            .split("\n")
-            .map((l: any) => l.trim())
-            .filter(Boolean)
-            .map((l: any) => JSON.parse(l));
-    }
-    catch {
-        return [];
-    }
+    return readJsonlCached(file);
 }
 
 export async function writeJsonl(file: string, rows: any) {

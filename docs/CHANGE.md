@@ -5,6 +5,104 @@
 
 ---
 
+## 未发布（基于 0.17.0）· 全量审查一轮：真 bug / 安全面 / 静默数据损失
+
+> 起因：不再按文档口径核对，而是逐文件读实现 + 构造反例。四条硬缺陷被证实：
+> 拆书卡候选可被重复采纳成两张卡、部分 id 仍能拼出路径穿越、确认旗标被 `"false"`
+> 字符串打开、章节 front matter 损坏时被当成「文件不存在」从而覆盖原稿。另有若干
+> 静默错误（NaN 分批、取成最旧五条、full brief 建整份快照）与文档口径残留。
+> 用例 57 → 68，每条新钉子都对应一条真回归。
+
+- **卡候选只能采纳一次**：`acceptCard` 此前只写卡 + 索引、不回写候选，同一 `lcand` 反复 `card_accept` 会写出多张同源卡（并发下还会互相覆盖索引）。已改为「读候选 → 查已采纳 → 写卡 → 写索引 → 回写 `status=accepted / acceptedCardId`」全程持同一把库锁；重复采纳报 `candidate_already_accepted`。
+- **卡 / 候选 id 沙箱补齐**：`getCard` / `getCandidate` / `discardCard` 原先把入参直接拼进路径，`../../x` 可读写库外文件。三处统一走 `assertResourceId`（`bad_id`）。
+- **确认旗标只认严格 `true`**：`confirm_bypass` / `force` / `skip_brief` / `accept_after_edit` / `confirm_accept_after_edit` / `only_final` / `persist` 等，此前多处 `Boolean(x)` 或真值判断，传字符串 `"false"` 反而**打开**旁路（最严重的是绕过定稿保护）。工具层统一 `boolArg`（非布尔视为未传，PortConfig 默认仍生效），端口层与面板 POST 统一 `=== true`。
+- **损坏章节不再当「不存在」**：`readChapter` 在 front matter 非法时抛错，而 `setOutline` / `saveChapter` / `acceptCandidate` / `chapter_save` / `outline_set` / 灵感 outline apply 都用宽 `catch` 把它当作新建，随后用空正文覆盖原稿。全部收窄为只放行 `ENOENT`（`isMissingFileError`）。
+- **`stageCandidate` id 去碰撞**：`cand-${Date.now().toString(36)}` 在同毫秒并发暂存时互相覆盖候选文件。改为 12 位随机后缀。
+- **`chapter_drafts` 取最近五条**：列表按 `stagedAt` 倒序，`slice(-5)` 取成了最旧五条；改 `slice(0,5)`。
+- **`chapter_brief(full)` 轻量化**：为取 `nextHints` 调 `buildPanelSnapshot`，而它会顺带读 ledger / 库 / 灵感并渲染 HTML。新增 `hintsOnly` 只算 hints（面板路径不变）。
+- **`library_plan` 的 `batch_chars` 兜底**：`Number.NaN` 也能通过 `typeof === "number"`，夹紧后仍是 NaN，分批比较恒 false（整本书挤成一批）。改为 `Number.isFinite` 校验后回退默认。
+- **`meta.excerptPath` 沙箱**：来源 meta 由磁盘读入，被改坏时能把读路径带出 `sources/`。现只接受单段 `*.txt` 文件名，否则回退 `${id}.txt`。
+- **面板切项目不串根**：项目摘要补 `worksRoot`，`panelPaths` 优先用该项目自己的作品根（此前一律用全局 `config.worksRoot`，切到子项目仍读写顶层项目）。
+- **输入硬校验**：`brief_mode` 只认 lean/full、`mode` 只认 append/replace、`targetWords` 须正整数、`position` 须 ≥1 整数、`card_ids` 传错类型给明确错误而非静默空数组。
+- **文档口径**：README / TEST.md 的「52 工具」统一为 51（与 smoke、STATUS 一致）。
+- **验证**：typecheck 0 错 · guard 过 · **68/68 单测** · build + smoke（51 tools）· **e2e 26 步** 全绿（dist 为验证临时构建，验证后已按字节原样还原）。
+
+---
+
+## 未发布（基于 0.17.0）· 业务对齐一轮：从创作业务出发的系统性整理
+
+> 起因：前三轮都从工程/代码视角出发。本轮先精读九份业务文档建立业务认知
+> （项目效果 = 作者交参考书→拆出可迁移写法→灵感长出自己的书→逐章受闸写作→
+> 面板读/采纳→定稿出书），再逐条业务流审计意图与行为的偏差。发现七处业务级
+> 不一致，全部修复；工具面 52 → **51**。
+
+- **回执与调度地图矛盾（真业务 bug）**：`card_accept` 的默认下一步把诊断旁路 `library_audit` 写进主链（「report / audit → combo」），而 MAP 的非目标明文「不把 diagnose.audit 画进默认路径」「勿例行」。已改：主指路只留 8/9 report → 9/9 combo，audit 标注为诊断旁路且「机械面通过≠卡能用，勿例行」。
+- **删 `zhizhang_export` 纯别名工具**：与 `zhizhang_assemble` 完全同义（description 自认「导出别名」），对 Agent 的工具选择面是纯噪音——两个名字指同一动作。已删，assemble 吸收交付语义（description 补完书口径：多数章 final 后跑、only_final 收 reviewed/final、重跑覆盖）。全链单源同步：Scheduler 旁路表、SYSTEM_BRIEF 定稿行、测试与 smoke 计数、五份文档。
+- **完书交付流补全**：定稿此前在文档里只有一行「assemble / export」。MAP 现在写明**完书三步**（review_ledger 留痕 → chapter_save status=final → assemble only_final=true 出 manuscripts/<书名>.md）与**定稿后修订口径**（final 拒覆盖；确需改稿 force=true 降回 drafted 重新定稿）——后者代码里一直有完整业务设计，文档从未讲过。
+- **文档业务口径统一**：TOOLS.md 修库段表格断裂（combo_suggest 行被 blockquote 切出表格外）+ report 定位自相矛盾（9 步表是默认第 8 步、工具表又标「旁路」→ 统一为「8/9 默认链收尾」）；PANEL.md HTTP 安全面补齐第四轮实现（Origin/Host、415、panelHosts 白名单、panelToken、限流、严格布尔三态——此前还写着旧的「loopback only 可放宽」一句）；COGNITION.md 删除对已清理 archive/research 的死引用。
+- **资产清单补全**：DATA.md 目录树补两个在役资产——作品级 `quality-lexicon.json`（单书严格兑付审计开关）与 `inspiration/bindings.json`（workKey→绑定卡索引，brief 取卡先读）；修 code span 笔误。
+- **验证**：build/typecheck/guard · **68/68 单测** · smoke（51 tools）· **e2e 26 步**全绿——业务行为变化（指路文案、export 删除）全部在三层验收内确认无回归。
+
+---
+
+## 未发布（基于 0.17.0）· 结构清理一轮：开发痕迹清除 + 测试系统重建
+
+> 起因：三轮优化后工程面已稳，但仓库里堆着历史开发痕迹（bun 锁、0.x 期实现笔记、
+> 调研残留、历史自检快照），测试系统长成 29 文件/3854 行/122 用例撒在 4 个语义重叠
+> 目录——四成以上用例在互相重复走同一段链路。本轮：清痕迹、并口径、重建测试为
+> 「单测(能力) · e2e(工作流) · smoke(发行)」三层，各层不重复。
+
+- **开发痕迹清除**：删 `bun.lock`（bun 时代锁文件，bunfig 已废而锁文件残留）；删 `docs/archive/`（11 个 0.3.x–0.10.x 实现笔记）、`docs/research/`（调研笔记 + 拷贝的他项目 meta）、`docs/QA_REPORT.md`（0.15.3 自检快照，自declared 历史记录）；`http-api.ts` 删 `assertSafeResourceId` 转发壳、四处多余 `export` 收敛。
+- **文档纠错**：PILLARS.md 取卡口径改为「显式 → bindings 索引 → 旧数据扫描 → none（指路组包）」，删掉已不存在的 genre 检索描述；DISSECT.md 置信度公式对齐实现（0.4×覆盖 + 0.3×引文 + 0.2×结构 + 0.1×维度/6，Auto 封顶 0.84，needs_review <0.85——原文写的 0.5/0.3/0.2 与代码不符）。
+- **测试系统重建**：29 文件/3854 行/122 用例（contracts/gates/pillars/tools 四目录）→ **9 文件/68 用例**（单层，一能力一文件）。行数 -65%，用例 -53%，但每一类载荷行为都有钉子：ending 矛盾矩阵、闸语义+竞态、存储边界、拆书管线、灵感/取卡、写作链、面板安全面、多草稿、挂载模型。合并掉的重复：写作链 6 处重复走查 → 1；HTTP 服务样板 5 处 → helpers.servePanel 1 处；面板 3 文件 → 1。
+- **smoke 瘦身**：578 行功能面全家桶 → **82 行纯发行面**（dist 加载、52 工具注册、按需挂载、面板可服务、版本一致）。功能链路不再与单测/e2e 三处重复——工作流面归 `npm run e2e`（26 步剧本），能力面归 `npm test`。
+- **TEST.md 重写**：三层验收表（单测=能力 / e2e=工作流 / smoke=发行）+ 一能力一文件布局表 + 新加测规则（断言 code/落盘/指路而非文案；每条测试要能说出防的是哪个回归）。
+- **验证**：typecheck 0 错 · guard 过 · **68/68 单测** · smoke 过 · **e2e 26 步过**（重建后立即互证：单测钉能力、e2e 钉工作流，互不依赖也互不掩盖）。
+
+---
+
+## 未发布（基于 0.17.0）· 深度优化二轮：9 个真 bug / ending 一致性统一域 / token 二次减负 / 面板与 HTTP 安全面
+
+> 起因：第二轮全项目认知（5 路并行深读）+ 反例构造复核，确认了 9 个真 bug、
+> 三套互相矛盾的「章末 vs 正文」一致性实现、SYSTEM_BRIEF 37% 重复、面板轮询无字段上界、
+> HTTP 面板缺 Origin/Content-Type/限流约束。107 → 122 用例全绿；所有钉死行为（回执短语、
+> rain 基线、foundation 0.35 选择口径）逐条保住。
+
+- **真 bug ×9**：① `method_get` ids 传数组直接崩（现在字符串/数组皆可，坏类型硬报）；② AcceptPolicy 的 strict_* 形参带 `= false` 默认值，把「未传」吃成「关」，PortConfig 默认严格永远不生效（改为 undefined 三态透传，测试钉住默认真严格）；③ `library_dissect(mode=full)` 无计划也放行全量（现须 library_plan 的 Full 同意，仅 opening/sample/chapters 免）；④ 「00:40」生成中文别名「零点40」漏「四十」（`toCnNumber` 域统一修复）；⑤ 空串 `lintPassToken=""` 被 `token ?` 判为已扫（改显式非空校验）；⑥ unify 系列 POST 不认 body 里的 base（与 accept 不一致，已统一）；⑦ 面板 accept 布尔参数 `Boolean()` 强转——`"false"` 字符串会打开 force（改 `=== true` 严格三态）；⑧ `combo_suggest` 深选漏掉 v2 卡 hay（导入 coerceHumanFeel 修复后接通全文检索）；⑨ 前章解析对未登记章节 id 静默回退到「最后一章」（改返回 null，交由合同告警）。
+- **质量模型统一（B1）**：新建 `src/lib/domain/ending-consistency.ts` 单一事实源——加权 token（锚点 clock/lexicon/quoted 权重 2.0/1.5，长中文串 1.0，bigram 0.25 兜底）、双向时钟别名命中、`scoreEnding` 锚点优先（有锚点时长中文串降级弱证据，避免双重计数）。payoff_audit 与读者合同漂移共用它；foundation 的 0.35 大网只做选择不做裁决，明确分口径。裁决阶梯保持旧行为：无锚点静默（除非 <6 字）、`ending_missing`/`ending_underdelivered`(<0.5)/`ending_ok`(≥0.75)；`quality-lexicon.json`（作品根 `endingKeywords`）可为单书开严格模式。5 个反例矩阵测试钉死（雨夜转写两静、强缺失双报、对齐通过）。
+- **AcceptPolicy 短路 + 回执（B3/B4）**：brief/lint/payoff/edit 四廉价闸先算，全过才跑人味/书感（省一次全文软传感；brief 硬拒时不再付）；`briefRecentMs` 从 PortConfig 真正进 accept 管线（此前写死）；回执 info 码表查 `RECEIPT_TEXT_ONLY` 只出纯文本。书感尾钩检测补强钩词典（强钩 1 个即中，弱钩须 ≥2 类）。
+- **token 二次减负（C）**：SYSTEM_BRIEF 3154 → 2105 字（9 条编号化；旁路清单由 `SCHEDULER_BYPASSES` 生成不手抄；与面板/token 相关的两行合并）；`WORKING_DIR`/`WORK_OPT` 描述压到一行；方法资产 `includes` 机制——`plan`/`review`/`revise` 不再内嵌整段文风契约/审校五类正文（去重 1749 字符），`getMethodAssets` 展开时自动附在包后；`chapter_brief` 删死参数（`include_prev_tail` 兼容保留、`brief_mode` 枚举化、lean 锁定行去重）。
+- **面板/HTTP 安全面（D4+A6/A7）**：回环默认信任但 **Origin 若出现必须匹配 Host**（DNS rebinding 防护）；POST 一律 `application/json`（415）；LAN 模式（`allowLanPanel`）须 Host 白名单（`panelHosts` 或本机网卡自动推导）+ 可选共享令牌（`panelToken`，Bearer/X-zhizhang-token，timingSafeEqual）；简单限流 120 GET / 20 POST 每分钟每客户端（429）；accept 的 mode 非法 400、confirm/force/skip/strict 全部严格布尔三态（`confirm: 1` 不再被当 true）；unify POST 的 base 与 accept 同权生效，candidate_ids 去重截 8。新测试 `panel-http-security.test.ts`（5 例：415 / bad_mode / 非布尔 confirm / 回环 Origin / LAN 白名单+令牌 / 限流）。
+- **面板轮询减负（D2/D3）**：`/inspiration` 路由不再为了三个透镜字段构建整份快照（新增 `listChapterLensRows` 轻量读取，library/inspiration 视图各只建一次）；快照字段上界——foundation 四字段 600 字、每章三透镜 400 字（`capText` 按码点截断）、候选只发「待采纳全量 + 最近 20 条已采纳」、`lastPayoffByChapter` 最近 12 章（nextHints 仍按全量计算）、拆书 analyses 20 条且在昂贵的 bundle 读取之前截断。
+- **取卡索引（E4）**：`inspiration/bindings.json` 维护 workKey→cardIds（`stageEmit` 在候选上快照卡组；`acceptEmit(apply)` 锁内前插更新、上限 24）；`resolveCardsForBrief` 先读索引（免每次 brief 扫全 candidates/ 目录），旧数据回退目录扫描；getSession 与扫描循环换 `readJsonCached`（mtime 缓存接入）。
+- **Full 同意闸参数绑定（E5）**：成本回执留痕参数快照（batchChars/totalChapters/planChapters）；confirm 时比对当前参数，batch_chars 被换或索引变化 → `bad_confirm_token` 指明漂移字段——作者同意的是回执上的数字，不是换参重建的计划。旧留痕（无快照）兼容通过。
+- **测试**：107 → 122（ending-consistency 反例矩阵 5、accept-policy 默认严格+短路 2、HTTP 安全面 5、bindings 索引 2、Full 闸参数绑定 1，另 method_get/严格三态/时钟等修进既有用例）。
+- **端到端工作流验收（`npm run e2e`）**：新增 `scripts/e2e-workflow.mjs`——不是工程冒烟，是一条真实创作剧本连跑 26 步：启用 → 拆《夜班账本》10 章（import→plan→dissect→facts→structure→v2 卡×2→19 节报告→组包）→ 灵感建作品《凌晨账本》（会话→forge→根基/章纲 apply，bindings 落盘）→ 第一章（lean brief 注入绑定卡与文风契约 → 初稿 → 无 lint 拒 → 采纳落盘 → 双采纳拒 → 兑付审计加权命中 1.00 → 审校留痕 → 定稿）→ 第二章（续写 brief 注入前章全文 → 面板 HTTP 采纳，无 confirm 拒）→ 汇编成稿 → 外部架构盘点（8 个落盘工件在位）。每步同时断言「真实落盘」与「回执指路」。验收当场抓到一个真缺口并修复：有计划时 `dissect(mode=full)` 被静默无视，现在回执明确指路全量升级正路（library_plan mode=full + 作者同意）。
+
+---
+
+## 未发布（基于 0.17.0）· 深度优化一轮：双采纳竞态 / 全库 I/O 缓存 / token 减负 / 面板转义加固
+
+> 起因：一次全维度审计（工具层 / 端口层 / 存储层 / 面板层）发现四类问题——
+> 「禁止双采纳」硬闸存在真实竞态窗口；面板每 ~6s 轮询等于全库磁盘树扫描；
+> 启用与快照回执在给 DSH Agent 白付大量重复 token；面板 HTML 有两处廉价转义缺口。
+> 全部按「工程归代码」修在 Ports/Store，工具保持薄；101 → 107 用例全绿。
+
+- **并发·双采纳竞态（真 bug）**：`acceptCandidate`（store.ts）整个「读候选 → 查 acceptedAt → 写章 → 回写候选」原本完全无锁——两个并发 accept 可同时通过幂等检查双写正文，且与持锁的 `markCandidateLinted` 交错写同一份候选 JSON。现在全程持 `${dir}:cand:${id}` 锁；灵感侧 `acceptEmit`（ports/inspiration.ts）的读+检查同样移进 `inspiration:<root>` 锁内。测试：`Promise.allSettled` 双 accept 恰好一个成功、ledger 里只有一条采纳记录。
+- **并发·写路径加固**：`atomicWrite` rename 失败时清理 tmp（不再泄漏临时文件）；`getRecentBrief`/`getRecentPayoffAudit` 遇到坏时间戳条目改为跳过继续往旧找（原来整条查询直接失效）。
+- **I/O·mtime 读缓存**：新增 `src/lib/file-cache.ts`（stat 校验 mtime+size 的进程内近似 LRU；所有写都走 atomicWrite→rename，mtime 必随写变化，stat 比对即可安全判失效）。接入：拆书卡 `getCard`、作品/候选/灵感会话/灵感候选列表、分析 bundle（`analysis/paths.ts` 的 readJson/readJsonl）。面板轮询从「每 6s 全库重读」变为「每 6s 全库 stat」。
+- **I/O·拆书源缓存**：`LibraryPort.getSourceIndexed` 按文本文件 mtime 缓存整书文本 **并派生缓存章索引**（chapterIndex 全文正则扫一次即可）；dissect / facts / structure / report / card stage / card accept / audit 全部改走它——此前每暂存一张 v2 卡都整本重读 + 全文重扫一遍。auditCards 循环里每张卡重算 chapterIndex 的问题一并消除。
+- **I/O·写放大有界**：`appendLedger` 保留最近 `LEDGER_MAX_ENTRIES=1000` 条（面板只用最近 12 条；此前 append-only 永不截断，每次追加 O(n) 整文件重写）；分析层 upsert（facts/plots/characters）不再「写完再整读一遍只为取 count」；`exists()` 由整文件 read 改为 stat。
+- **token·启用回执瘦身**：`zhizhang_enable` 回执不再内嵌整张 ProductMap（实测 ~5.4K 字符），改为 `Scheduler.formatEnableSummary()`（全链一行 + 旁路 id 一行 + product_map 指引，~0.5K）。全图仍在 `zhizhang_product_map` 工具与常驻 SYSTEM_BRIEF，模型按需拉取。
+- **token·快照与报告**：`zhizhang_panel_snapshot` 默认 `format=both`（pretty JSON + 完整 HTML）改为默认 **json 且紧凑无缩进**，html/both 仍可显式选；`chapter_brief` full 模式只为拿 nextHints 却全量渲染 HTML 再丢弃——改传 `includeHtml:false`；`library_report` 回执预览 40 行 → 12 行（报告已落盘，回执只做结构确认）。
+- **面板·转义加固**：`panel-html.ts` 的 `esc()` 补 `'`→`&#39;`（与客户端 escapeHtml 对齐）；所有数字插值（章数/字数/卡数/进度）改经 `num()` 强制数值化——磁盘 JSON 被污染成字符串时不会把标记注入工具输出的 HTML。
+- **面板·客户端**：`lightMdToHtml` 结果按 `chapterBody`/`candidateBody` useMemo（此前每 6s 轮询对最长 400KB 正文重新解析一遍）；localStorage 记忆值未变不写；`/health` 不再构建两次 product view。
+- **门禁·CPU**：`auditHumanFeel` 分句/分段各算一次传给全部检测器（此前 4 个检测器各自全文重扫，单次审计 ≈ 6 遍全文）；style-linter 11 条规则预编译一次（此前每次调用重编译）+ 对白区间二分查找（原线性扫）。
+- **一致性**：删重复实现——`countWordsLocal`（multi-draft，与 store.countWords 逐字相同）、tools/analysis.ts 的 `openLibrary` 副本（改从 tools/library.ts 导出）；`library_plan` 非法 mode 与 `dissect_brief` 批号越界从「正常回执字符串」改为 `错误[bad_args]`（模型此前拿到的是成功结果）；删 audit.ts 不可达分支；index.ts 过时的「47 tools」注释改为运行时口径。
+- **测试**：新增 `test/contracts/perf-hardening.test.ts`（6 例：并发双采纳 / ledger 截断且裁最旧 / mtime 缓存经 atomicWrite 与外部改写均正确失效 / 坏时间戳跳过 / enable 回执紧凑 / panel_snapshot 默认紧凑 json）。
+
+---
+
 ## 未发布（基于 0.17.0）· 测试脱离 bun + 参数硬校验 + 类型安全护栏
 
 > 起因：全量审计发现两条质量护栏是虚的——`npm test` 依赖未安装的 bun（23 个测试文件一个都跑不了）；

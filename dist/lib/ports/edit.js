@@ -203,9 +203,9 @@ export const EditPort = {
      * - no acceptAfterEdit → allow (normal / B accept)
      */
     evaluateAcceptFlags(input) {
-        const wantA = Boolean(input.acceptAfterEdit);
-        const confirmed = Boolean(input.confirmAcceptAfterEdit);
-        const isEdit = Boolean(input.candidateIsEdit);
+        const wantA = input.acceptAfterEdit === true;
+        const confirmed = input.confirmAcceptAfterEdit === true;
+        const isEdit = input.candidateIsEdit === true;
         if (!wantA) {
             if (confirmed) {
                 return allow([

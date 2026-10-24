@@ -31,4 +31,9 @@ export declare const Scheduler: {
     panelRouteHints(): string[];
     formatDiagram(): string;
     formatForAgent(): string;
+    /**
+     * 启用回执用的紧凑定向（约 0.5K 字符）。全图留在 zhizhang_product_map
+     * 工具与常驻 SYSTEM_BRIEF 里——启用瞬间不再整页复述调度文本。
+     */
+    formatEnableSummary(): string;
 };

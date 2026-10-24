@@ -1,9 +1,7 @@
-/** Last ~1–2 sentences / up to maxLen chars from body — short outcome only. */
-export declare function extractBodyOutcome(body: string, maxLen?: any): string;
-/** Meaningful tokens (≥2 chars) from ending for overlap check. */
-export declare function significantTokens(text: string): string[];
-/** Ratio of ending tokens found in bodyTail (0–1). Empty ending → 1. */
-export declare function endingBodyOverlap(ending: any, bodyTail: any): number;
+import { bodyTailOf, endingBodyOverlap } from "../domain/ending-consistency.js";
+/** Last ~1–2 sentences / up to maxLen chars from body — short outcome only.（实现移至 domain） */
+export declare const extractBodyOutcome: typeof bodyTailOf;
+export { endingBodyOverlap };
 /**
  * Choose short happened text: ending if it aligns with body tail; else body outcome.
  * Never invents long prose from body beyond extractBodyOutcome.
@@ -26,7 +24,7 @@ export declare function resolveHappenedText(opts: any): {
 };
 export declare const FoundationPort: {
     id: string;
-    extractBodyOutcome: typeof extractBodyOutcome;
+    extractBodyOutcome: typeof bodyTailOf;
     endingBodyOverlap: typeof endingBodyOverlap;
     resolveHappenedText: typeof resolveHappenedText;
     /**

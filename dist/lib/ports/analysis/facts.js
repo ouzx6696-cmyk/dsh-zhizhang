@@ -67,6 +67,7 @@ export async function upsertChapter(paths, sourceId, facts, sourceText, index) {
         throw new ZhizhangError("bad_facts", `事实未通过：${errors.join("；")}`);
     const p = analysisPaths(paths, sourceId);
     await ensureDir(p.dir);
+    let count = 0;
     await withLock(`analysis:${sourceId}`, async () => {
         const rows = await readJsonl(p.chapters);
         const rec = { ...facts, n: Number(facts.n), schemaVersion: 2, updatedAt: nowIso() };
@@ -86,6 +87,7 @@ export async function upsertChapter(paths, sourceId, facts, sourceText, index) {
             lastRead: Math.max(Number(meta.lastRead ?? 0), rec.n),
             scope: { ...scope, chapters: Math.max(Number(scope.chapters ?? 0), planned) },
         });
+        count = rows.length;
     });
-    return { warnings, count: (await readJsonl(p.chapters)).length };
+    return { warnings, count };
 }

@@ -81,7 +81,7 @@ inspire_start(card_ids) → inspire_forge_brief → inspire_stage
 | 不静默写作品 | 只有 `acceptEmit(apply=true)` 才调 store foundation/outline |
 | 禁止声纹教嘴 | outline `stateLens` = 场面状态/写法取舍，非声纹 |
 
-`resolveCardsForBrief`：explicit cardIds → inspire apply 绑作品 → genre 检索；供 chapter_brief 选卡。
+`resolveCardsForBrief`：explicit cardIds → bindings.json 绑定索引 →（旧数据）目录扫描 → none（指路 library_combo_suggest）；genre 猜卡已删。
 
 ---
 

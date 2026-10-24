@@ -66,7 +66,8 @@ Accept 一次扫：Brief → Lint → Payoff → HumanFeel → NovelSense → Ed
 | `inspire.craft_only` | 仅技法灵感 | 无 mind 卡仍要开 inspire | `inspire_start craft_only=true` |
 | `accept.flags` | 采纳硬开关 | 测试或作者显式收紧/跳过 | `skip_brief` / `strict_lint` / `require_payoff` / `strict_human` / `strict_novel` / `force` / `accept_after_edit`+confirm |
 | `multi.draft` | 多草稿统一整理 | **默认关**；config.multiDraft.enabled 或 env `DSH_ZHIZHANG_MULTI_DRAFT=1`；同章≥2 待采纳 | `candidate_stage(draft_label)×N` → `unify_brief` → `unify_stage` → lint → accept |
-| `finalize.ship` | 定稿与汇编 | 章末或完书 | `chapter_save status=final` · `review_ledger` · `assemble` / `export` |
+表后补：**完书交付三步** = 逐章 `review_ledger`（审校留痕）→ `chapter_save status=final`（定稿）→ `assemble only_final=true`（出 manuscripts/<书名>.md，可反复重跑）。
+**定稿后修订**：final 章拒绝候选覆盖；确需改稿用 `candidate_accept force=true`（采纳后降回 drafted，重新审校定稿）。
 
 ---
 

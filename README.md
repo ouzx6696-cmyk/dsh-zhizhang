@@ -27,12 +27,12 @@ DeepSeek Harness **工具型**网文工程层：**一条创作闭环**（库 →
 
 ## 按需启用（重要）
 
-插件挂载时**只注册一个** `zhizhang_enable`，不注入 52 个工具与硬规则：
+插件挂载时**只注册一个** `zhizhang_enable`，不注入 51 个工具与硬规则：
 
 ```text
 普通会话 → 只有 zhizhang_enable（面板仍可读，且支持**项目 ▸ 作品**两级切换）
 你说「启用织章」/ Agent 调 zhizhang_enable
-  → 52 tools + SYSTEM_BRIEF 挂到本会话（Agent 作用域）
+  → 51 tools + SYSTEM_BRIEF 挂到本会话（Agent 作用域）
   → 再调 zhizhang_product_map 开始
 ```
 
@@ -55,7 +55,7 @@ dsh plugin --profile web add link:$(pwd)
 #    或按 cordis.patch.yml 的 insert 形态在 profile cordis.patch.yml 里加一层
 
 # 3) 重启 profile；侧栏出现「织章」；普通会话只多一个 zhizhang_enable
-# 4) 要写小说时让 Agent 调 zhizhang_enable（或说「启用织章」），52 个工具才挂载
+# 4) 要写小说时让 Agent 调 zhizhang_enable（或说「启用织章」），51 个工具才挂载
 ```
 
 需要 **Node ≥22**。细节：[docs/DSH_INSTALL.md](docs/DSH_INSTALL.md)
@@ -106,8 +106,8 @@ dsh plugin --profile web add link:$(pwd)
 npm run smoke        # node ≥22；不需要 DSH / bun
 ```
 
-覆盖：52 个工具注册、默认写作链（brief→stage→lint→accept）、accept 硬闸、双采纳拒绝、
-章节/候选 id 路径沙箱、面板 HTTP（snapshot JSON / `?html=1` / chapter / candidate /
-confirm 闸）。
+三层验收：`npm test`（9 套/68 用例，能力面）· `npm run e2e`（26 步真实创作剧本全链，
+跑 dist）· `npm run smoke`（发行面：dist 加载、51 工具注册、按需挂载、面板可服务、
+版本一致）。
 
 版本 **0.17.0**。不默认发布 zip。

@@ -4,6 +4,7 @@
  */
 import { acceptCandidate, getRecentBrief, getRecentPayoffAudit, readCandidate, readChapter, readWorkMeta, } from "../store.js";
 import { AcceptPolicy, FoundationPort, InspirationPort, Scheduler, firstDenyCode, firstDenyText, } from "../ports/index.js";
+import { getPortConfig } from "../ports/config.js";
 import { ZhizhangError } from "../errors.js";
 import { resolvePrevBody } from "./chapter-context.js";
 
@@ -22,16 +23,23 @@ export async function runAccept(input: any) {
         workKey,
         candidateId,
         mode = "replace",
-        force = false,
         lintPassToken,
+        // 所有确认/旁路旗标只认严格 true；字符串 "false" 不能打开覆盖或跳过闸。
+        force = false,
         skipBrief = false,
-        strictLint = false,
-        requirePayoff = false,
-        strictHuman = false,
-        strictNovel = false,
+        // 四个严格开关不设解构默认：undefined 时由 AcceptPolicy 落到
+        // PortConfig 的 defaultStrict*（默认 false 的解构会把配置彻底短路）。
+        strictLint,
+        requirePayoff,
+        strictHuman,
+        strictNovel,
         acceptAfterEdit = false,
         confirmAcceptAfterEdit = false,
     } = input;
+    const forceFlag = force === true;
+    const skipBriefFlag = skipBrief === true;
+    const acceptAfterEditFlag = acceptAfterEdit === true;
+    const confirmAcceptAfterEditFlag = confirmAcceptAfterEdit === true;
     let candMeta;
     try {
         candMeta = await readCandidate(dir, candidateId);
@@ -39,23 +47,25 @@ export async function runAccept(input: any) {
     catch (err) {
         return errResult(err, "candidate_not_found");
     }
-    const brief = await getRecentBrief(dir, candMeta.chapterId);
-    const payoff = await getRecentPayoffAudit(dir, candMeta.chapterId);
+    // 留痕窗口走 PortConfig（默认 12h）：BriefGate 文案与实际查询必须同源。
+    const recentMs = getPortConfig().briefRecentMs;
+    const brief = await getRecentBrief(dir, candMeta.chapterId, recentMs);
+    const payoff = await getRecentPayoffAudit(dir, candMeta.chapterId, recentMs);
     const craftCue = await InspirationPort.resolveCraftCue(paths, { workKey, limit: 5 });
     const prevBody = await resolvePrevBody(dir, candMeta.chapterId);
     const gate = AcceptPolicy.evaluate({
         candidate: candMeta,
         brief,
         payoff,
-        skipBrief,
+        skipBrief: skipBriefFlag,
         strictLint,
         requirePayoff,
         strictHuman,
         strictNovel,
         prevBody,
         craftCue,
-        acceptAfterEdit,
-        confirmAcceptAfterEdit,
+        acceptAfterEdit: acceptAfterEditFlag,
+        confirmAcceptAfterEdit: confirmAcceptAfterEditFlag,
     });
     if (!gate.ok) {
         return { ok: false, code: firstDenyCode(gate), error: firstDenyText(gate) };
@@ -63,7 +73,7 @@ export async function runAccept(input: any) {
     let saved;
     try {
         saved = await acceptCandidate(dir, candidateId, mode === "append" ? "append" : "replace", {
-            force,
+            force: forceFlag,
             lintPassToken: String(lintPassToken ?? "").trim() || undefined,
         });
     }

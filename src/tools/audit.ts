@@ -1,9 +1,10 @@
 /** Writing pillar — style lint, review ledger, payoff audit. */
 import { appendLedger, readCandidate, readChapter, readLedger, readWorkMeta, storePayoffAudit, } from "../lib/store.js";
 import { resolvePrevChapter } from "../lib/services/chapter-context.js";
+import { loadEndingLexicon } from "../lib/quality-lexicon.js";
 import { LintGate, PayoffAuditorPort, StyleLinterPort, HumanFeelAuditorPort, NovelSenseAuditorPort, InspirationPort, Scheduler, } from "../lib/ports/index.js";
 import { REVIEW_EVIDENCE_KINDS } from "../lib/types.js";
-import { asString, fail, openWork } from "./context.js";
+import { asString, boolArg, fail, openWork } from "./context.js";
 import { formatLint } from "./render.js";
 import { B, E, S, WORK_OPT, WORKING_DIR } from "./schema.js";
 import { defineTool } from "./types.js";
@@ -154,8 +155,6 @@ export function auditTools() {
                 catch {
                     fail(`章节不存在：${chapterId}`, "not_found");
                 }
-                if (!chapter)
-                    fail(`章节不存在：${chapterId}`, "not_found");
                 const candidateId = asString(args, "candidate");
                 let body = asString(args, "text", { trim: false });
                 let source = "chapter";
@@ -184,8 +183,11 @@ export function auditTools() {
                 const result = PayoffAuditorPort.audit(chapter.outline, body, {
                     premise: meta.premise,
                     title: chapter.title,
+                    // per-work 词表：<作品目录>/quality-lexicon.json 的 endingKeywords
+                    // 覆盖默认题材词（换题材的书可自带锚点词，审计不再静默）。
+                    lexicon: await loadEndingLexicon(dir),
                 });
-                const persist = args.persist === undefined ? true : Boolean(args.persist);
+                const persist = boolArg(args, "persist") ?? true;
                 if (persist) {
                     const codes = result.findings.filter((f: any) => f.severity !== "info").map((f: any) => f.code);
                     await storePayoffAudit(dir, {

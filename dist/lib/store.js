@@ -22,6 +22,7 @@ import { CHAPTER_STATUSES, EMPTY_FOUNDATION, EMPTY_OUTLINE, SCHEMA_VERSION } fro
 import { ZhizhangError } from "./errors.js";
 import { Scheduler } from "./ports/scheduler.js";
 import { renderPanelHtml } from "./panel-html.js";
+import { readJsonCached } from "./file-cache.js";
 const locks = new Map();
 let tmpSeq = 0;
 // —— § utilities (lock, count, slug) ——
@@ -257,6 +258,7 @@ export async function listProjects(opts = {}) {
         list.push({
             id: projectIdOf(markerBase),
             base: markerBase,
+            worksRoot: lastWorksRoot || undefined,
             works: lastWorksRoot || undefined,
             name: projectNameOf(markerBase),
             lastUsedAt: "",
@@ -305,6 +307,7 @@ export async function listProjects(opts = {}) {
         rows.push({
             id: entry.id || projectIdOf(base),
             base,
+            worksRoot: worksDir,
             name: entry.name || projectNameOf(base),
             lastUsedAt: entry.lastUsedAt ?? "",
             exists: existsFlag,
@@ -387,7 +390,14 @@ export async function atomicWrite(file, content) {
     finally {
         await handle.close();
     }
-    await rename(tmp, file);
+    try {
+        await rename(tmp, file);
+    }
+    catch (err) {
+        // rename 目标被占用等失败时清掉 tmp，避免临时文件在磁盘上累积。
+        await rm(tmp, { force: true }).catch(() => { });
+        throw err;
+    }
 }
 function assertInside(base, target, label) {
     // Normalize both sides: config paths often use forward slashes (D:/x/y),
@@ -548,12 +558,16 @@ export async function createWork(paths, input) {
 }
 async function exists(file) {
     try {
-        await readFile(file);
+        await stat(file);
         return true;
     }
     catch {
         return false;
     }
+}
+/** Only "file is absent" is a valid reason to create a fresh chapter record. */
+function isMissingFileError(err) {
+    return err?.code === "ENOENT";
 }
 export async function listWorks(paths) {
     let names;
@@ -567,8 +581,8 @@ export async function listWorks(paths) {
     for (const name of names) {
         const file = metaPath(path.join(paths.works, name));
         try {
-            const meta = JSON.parse(await readFile(file, "utf8"));
-            rows.push(meta);
+            // mtime 缓存：/works 与 /snapshot 每轮轮询都会全量列作品。
+            rows.push(await readJsonCached(file));
         }
         catch {
             /* skip broken */
@@ -644,7 +658,11 @@ export async function saveChapter(dir, input) {
             try {
                 previous = await readChapter(dir, id);
             }
-            catch {
+            catch (err) {
+                // 登记过但读不出来：只有「文件缺失」可以当新建恢复，
+                // front matter 损坏必须报出来，不能让 outline/status 被静默重置。
+                if (!isMissingFileError(err))
+                    throw err;
                 previous = null;
             }
         }
@@ -689,8 +707,11 @@ export async function setOutline(dir, chapterId, patch) {
     try {
         previous = await readChapter(dir, chapterId);
     }
-    catch {
-        previous = null;
+    catch (err) {
+        // 章节文件损坏（front matter 非法等）不能当成「不存在」继续写：
+        // 后续 saveChapter 会用空正文覆盖原文件，直接丢稿。
+        if (!isMissingFileError(err))
+            throw err;
     }
     return saveChapter(dir, {
         id: chapterId,
@@ -722,6 +743,8 @@ export async function readLedger(dir) {
         return { schemaVersion: SCHEMA_VERSION, workKey: meta.key, entries: [] };
     }
 }
+/** ledger.json 保留的最大条数：面板/回溯只用最近若干条，超出即裁掉最旧的，防止整文件随章节数无限膨胀。 */
+export const LEDGER_MAX_ENTRIES = 1000;
 export async function appendLedger(dir, entry) {
     return withLock(`${dir}:ledger`, async () => {
         const ledger = await readLedger(dir);
@@ -736,6 +759,8 @@ export async function appendLedger(dir, entry) {
             styleHitCount: entry.styleHitCount,
         };
         ledger.entries.push(full);
+        if (ledger.entries.length > LEDGER_MAX_ENTRIES)
+            ledger.entries = ledger.entries.slice(-LEDGER_MAX_ENTRIES);
         await atomicWrite(ledgerPath(dir), JSON.stringify(ledger, null, 2) + "\n");
         return full;
     });
@@ -789,7 +814,8 @@ export async function stageCandidate(dir, input) {
         throw new ZhizhangError("candidate_empty", "候选正文为空，拒绝暂存");
     }
     const chapterId = assertResourceId(input.chapterId, "章节 id");
-    const id = `cand-${Date.now().toString(36)}`;
+    // Date.now() 只能到毫秒；并发 stage 会在同一毫秒生成同一个 id 并互相覆盖。
+    const id = `cand-${randomUUID().replace(/-/g, "").slice(0, 12)}`;
     await mkdir(candidatesDir(dir), { recursive: true });
     const bodyFile = `${id}.md`;
     await atomicWrite(path.join(candidatesDir(dir), bodyFile), input.body);
@@ -881,68 +907,76 @@ export function candidateHasLintPass(cand) {
  */
 export async function acceptCandidate(dir, candidateId, mode = "replace", opts = {}) {
     const id = assertResourceId(candidateId, "候选 id");
-    const cand = await readCandidate(dir, id);
-    if (cand.acceptedAt) {
-        throw new ZhizhangError("candidate_already_accepted", `候选 ${id} 已于 ${cand.acceptedAt} 采纳（${cand.acceptedMode ?? "replace"}），禁止重复写回。请重新 zhizhang_candidate_stage 新候选。`);
-    }
-    if (!cand.body.trim()) {
-        throw new ZhizhangError("candidate_empty", `候选 ${id} 正文为空，拒绝采纳`);
-    }
-    const provided = opts.lintPassToken?.trim();
-    if (provided) {
-        if (!cand.lintPassToken || cand.lintPassToken !== provided) {
-            throw new ZhizhangError("lint_token_mismatch", `lintPassToken 无效或不匹配。请对候选 ${id} 重新调用 zhizhang_style_lint（传 candidate），使用返回的 lintPassToken。`);
+    // 整个「读候选 → 查已采纳 → 写章 → 回写候选」串在同一把候选锁里：
+    // 并发 accept 只能一个成功（另一个看到 acceptedAt 硬拒），也不再与
+    // markCandidateLinted（同锁）交错写同一份候选 JSON。
+    return withLock(`${dir}:cand:${id}`, async () => {
+        const cand = await readCandidate(dir, id);
+        if (cand.acceptedAt) {
+            throw new ZhizhangError("candidate_already_accepted", `候选 ${id} 已于 ${cand.acceptedAt} 采纳（${cand.acceptedMode ?? "replace"}），禁止重复写回。请重新 zhizhang_candidate_stage 新候选。`);
         }
-        if (!candidateHasLintPass(cand)) {
-            throw new ZhizhangError("lint_required", `候选 ${id} 的语感扫描已过期（须在 stage 之后）。请重新 zhizhang_style_lint。`);
+        if (!cand.body.trim()) {
+            throw new ZhizhangError("candidate_empty", `候选 ${id} 正文为空，拒绝采纳`);
         }
-    }
-    else if (!candidateHasLintPass(cand)) {
-        throw new ZhizhangError("lint_required", `采纳前必须对候选 ${id} 成功执行 zhizhang_style_lint（传 candidate=…）。软提示不够：代码硬拒绝。也可把 style_lint 返回的 lintPassToken 传给 accept。`);
-    }
-    let body = cand.body;
-    let title;
-    // Accept always lands as drafted: even reviewed chapters must re-review after body change.
-    let status = "drafted";
-    let existingFinal = false;
-    try {
-        const existing = await readChapter(dir, cand.chapterId);
-        title = existing.title;
-        if (existing.status === "final") {
-            existingFinal = true;
-            if (!opts.force) {
-                throw new ZhizhangError("refuse_overwrite_final", `章节 ${cand.chapterId} 已是 final，拒绝用候选取代。确需改稿请传 force=true（采纳后状态降为 drafted，需重新审校定稿）。`);
+        const provided = opts.lintPassToken?.trim();
+        if (provided) {
+            if (!cand.lintPassToken || cand.lintPassToken !== provided) {
+                throw new ZhizhangError("lint_token_mismatch", `lintPassToken 无效或不匹配。请对候选 ${id} 重新调用 zhizhang_style_lint（传 candidate），使用返回的 lintPassToken。`);
+            }
+            if (!candidateHasLintPass(cand)) {
+                throw new ZhizhangError("lint_required", `候选 ${id} 的语感扫描已过期（须在 stage 之后）。请重新 zhizhang_style_lint。`);
             }
         }
-        if (mode === "append")
-            body = `${existing.body.trimEnd()}\n\n${cand.body}`;
-    }
-    catch (err) {
-        if (err instanceof ZhizhangError)
-            throw err;
-        title = cand.chapterId;
-    }
-    const saved = await saveChapter(dir, {
-        id: cand.chapterId,
-        title: title ?? cand.chapterId,
-        body,
-        status,
+        else if (!candidateHasLintPass(cand)) {
+            throw new ZhizhangError("lint_required", `采纳前必须对候选 ${id} 成功执行 zhizhang_style_lint（传 candidate=…）。软提示不够：代码硬拒绝。也可把 style_lint 返回的 lintPassToken 传给 accept。`);
+        }
+        let body = cand.body;
+        let title;
+        // Accept always lands as drafted: even reviewed chapters must re-review after body change.
+        let status = "drafted";
+        let existingFinal = false;
+        try {
+            const existing = await readChapter(dir, cand.chapterId);
+            title = existing.title;
+            if (existing.status === "final") {
+                existingFinal = true;
+                // 只认严格 true：Boolean("false") 也会是真，不能成为覆盖定稿的后门。
+                if (opts.force !== true) {
+                    throw new ZhizhangError("refuse_overwrite_final", `章节 ${cand.chapterId} 已是 final，拒绝用候选取代。确需改稿请传 force=true（采纳后状态降为 drafted，需重新审校定稿）。`);
+                }
+            }
+            if (mode === "append")
+                body = `${existing.body.trimEnd()}\n\n${cand.body}`;
+        }
+        catch (err) {
+            // 只允许「章文件尚不存在」走新建路径；front matter 损坏必须停下，
+            // 否则这次 accept 会把读不出的原稿直接覆盖掉。
+            if (!isMissingFileError(err))
+                throw err;
+            title = cand.chapterId;
+        }
+        const saved = await saveChapter(dir, {
+            id: cand.chapterId,
+            title: title ?? cand.chapterId,
+            body,
+            status,
+        });
+        const acceptedAt = nowIso();
+        const diskMeta = candidateToDiskMeta({
+            ...cand,
+            acceptedAt,
+            acceptedMode: mode,
+        });
+        await atomicWrite(path.join(candidatesDir(dir), `${id}.json`), JSON.stringify(diskMeta, null, 2) + "\n");
+        await appendLedger(dir, {
+            chapterId: cand.chapterId,
+            kind: "note",
+            summary: existingFinal
+                ? `强制采纳候选 ${id}（${mode}，原 final→drafted）→ 本地草稿，未定稿`
+                : `采纳候选 ${id}（${mode}）→ 本地草稿，未定稿`,
+        });
+        return saved;
     });
-    const acceptedAt = nowIso();
-    const diskMeta = candidateToDiskMeta({
-        ...cand,
-        acceptedAt,
-        acceptedMode: mode,
-    });
-    await atomicWrite(path.join(candidatesDir(dir), `${id}.json`), JSON.stringify(diskMeta, null, 2) + "\n");
-    await appendLedger(dir, {
-        chapterId: cand.chapterId,
-        kind: "note",
-        summary: existingFinal
-            ? `强制采纳候选 ${id}（${mode}，原 final→drafted）→ 本地草稿，未定稿`
-            : `采纳候选 ${id}（${mode}）→ 本地草稿，未定稿`,
-    });
-    return saved;
 }
 export async function listCandidates(dir) {
     let names;
@@ -957,7 +991,8 @@ export async function listCandidates(dir) {
         if (!name.endsWith(".json"))
             continue;
         try {
-            const raw = JSON.parse(await readFile(path.join(candidatesDir(dir), name), "utf8"));
+            // mtime 缓存：面板每轮轮询都全量列候选，未变的候选不必重读。
+            const raw = await readJsonCached(path.join(candidatesDir(dir), name));
             // wordCount is persisted at stage time; only legacy rows re-read the body.
             let wordCount = typeof raw.wordCount === "number" ? raw.wordCount : 0;
             if (typeof raw.wordCount !== "number") {
@@ -1029,7 +1064,10 @@ export async function getRecentBrief(dir, chapterId, maxAgeMs = BRIEF_RECENT_MS)
         if (e.chapterId !== chapterId)
             continue;
         const at = Date.parse(e.at);
-        if (Number.isFinite(at) && now - at <= maxAgeMs)
+        // 时间戳损坏的条目跳过继续往旧找，而不是让整个查询失效。
+        if (!Number.isFinite(at))
+            continue;
+        if (now - at <= maxAgeMs)
             return e;
         return null;
     }
@@ -1085,7 +1123,10 @@ export async function getRecentPayoffAudit(dir, chapterId, maxAgeMs = BRIEF_RECE
         if (e.chapterId !== chapterId)
             continue;
         const at = Date.parse(e.at);
-        if (Number.isFinite(at) && now - at <= maxAgeMs)
+        // 同 getRecentBrief：坏时间戳跳过，不让查询整条失效。
+        if (!Number.isFinite(at))
+            continue;
+        if (now - at <= maxAgeMs)
             return e;
         return null;
     }
@@ -1104,11 +1145,54 @@ function pathsFromWorkDir(dir) {
     };
 }
 // —— § panel snapshot ——
+/** Display-only clip: snapshot/lens fields carry working text, not source of truth. */
+function capText(s, n) {
+    const t = String(s ?? "");
+    if (t.length <= n)
+        return t;
+    return `${Array.from(t).slice(0, n).join("")}…`;
+}
+/**
+ * Lens-only chapter rows for /inspiration — skips ledger/candidates/briefs/payoffs
+ * and the library+inspiration views a full buildPanelSnapshot would compute.
+ */
+export async function listChapterLensRows(dir) {
+    const meta = await readWorkMeta(dir);
+    const rows = [];
+    for (const ch of [...meta.chapters].sort((a, b) => a.position - b.position)) {
+        let situationLens = "";
+        let livedScene = "";
+        let stateLens = "";
+        try {
+            const lens = await readChapterLens(dir, ch.id);
+            situationLens = lens.situationLens;
+            livedScene = lens.livedScene;
+            stateLens = lens.stateLens;
+        }
+        catch {
+            /* index-only */
+        }
+        rows.push({
+            id: ch.id,
+            title: ch.title,
+            position: ch.position,
+            status: ch.status,
+            wordCount: ch.wordCount,
+            situationLens,
+            livedScene,
+            stateLens,
+        });
+    }
+    return rows;
+}
 export async function buildPanelSnapshot(dir, pathsHint, opts = {}) {
     const paths = pathsHint ?? pathsFromWorkDir(dir);
     const { buildLibraryView, buildInspirationView, buildProductView, } = await import("./panel-enrich.js");
+    const hintsOnly = opts.hintsOnly === true;
     const meta = await readWorkMeta(dir);
-    const ledger = await readLedger(dir);
+    // hintsOnly 只服务 chapter_brief.full 的 nextHints：不读 ledger，也不构建
+    // library / inspiration / HTML——那些是面板用的重活。
+    const ledger = hintsOnly ? { entries: [] } : await readLedger(dir);
     const cands = await listCandidates(dir);
     const briefs = await readBriefCrumbs(dir);
     const payoffs = await readPayoffAudits(dir);
@@ -1141,9 +1225,9 @@ export async function buildPanelSnapshot(dir, pathsHint, opts = {}) {
         let stateLens = "";
         try {
             const lens = await readChapterLens(dir, ch.id);
-            situationLens = lens.situationLens;
-            livedScene = lens.livedScene;
-            stateLens = lens.stateLens;
+            situationLens = capText(lens.situationLens, 400);
+            livedScene = capText(lens.livedScene, 400);
+            stateLens = capText(lens.stateLens, 400);
         }
         catch {
             /* index-only */
@@ -1190,6 +1274,17 @@ export async function buildPanelSnapshot(dir, pathsHint, opts = {}) {
     if (payoffWarn.length > 0) {
         nextHints.unshift(`兑付审计有 ${payoffWarn.length} 章未过：${payoffWarn.map((p) => p.chapterId).join("、")}`);
     }
+    if (hintsOnly)
+        return { nextHints };
+    // Export only the last 12 chapters' payoffs; hints above already used the full map.
+    const lastPayoffCapped = {};
+    for (const ch of meta.chapters) {
+        if (lastPayoffByChapter[ch.id])
+            lastPayoffCapped[ch.id] = lastPayoffByChapter[ch.id];
+    }
+    const payoffKeys = Object.keys(lastPayoffCapped);
+    for (const k of payoffKeys.slice(0, Math.max(0, payoffKeys.length - 12)))
+        delete lastPayoffCapped[k];
     const recentBriefs = briefs.entries.filter((e) => {
         const at = Date.parse(e.at);
         return Number.isFinite(at) && now - at <= BRIEF_RECENT_MS;
@@ -1242,7 +1337,7 @@ export async function buildPanelSnapshot(dir, pathsHint, opts = {}) {
             summary: "灵感支柱暂不可读",
         };
     }
-    const candidateRows = cands.map((c) => ({
+    const candidateRows = [...pendingCands, ...cands.filter((c) => !c.pending).slice(-20)].map((c) => ({
         id: c.id,
         chapterId: c.chapterId,
         stagedAt: c.stagedAt,
@@ -1259,17 +1354,18 @@ export async function buildPanelSnapshot(dir, pathsHint, opts = {}) {
         source: c.source,
     }));
     const multiDraftEnabled = multiDraftEnabledEarly;
+    const foundationView = {
+        locks: capText(meta.foundation.locks, 600),
+        happened: capText(meta.foundation.happened, 600),
+        threads: capText(meta.foundation.threads, 600),
+        style: capText(meta.foundation.style, 600),
+    };
     const htmlInput = {
         workKey: meta.key,
         title: meta.title,
         genre: meta.genre,
         totals: { chapters: chapters.length, words, final, drafted, planned },
-        foundation: {
-            locks: meta.foundation.locks,
-            happened: meta.foundation.happened,
-            threads: meta.foundation.threads,
-            style: meta.foundation.style,
-        },
+        foundation: foundationView,
         chapters,
         candidates: candidateRows,
         ledgerRecent: ledger.entries.slice(-12).map((e) => ({
@@ -1280,7 +1376,7 @@ export async function buildPanelSnapshot(dir, pathsHint, opts = {}) {
             summary: e.summary,
         })),
         briefCrumbsRecent: recentBriefs.slice(-12),
-        lastPayoffByChapter,
+        lastPayoffByChapter: lastPayoffCapped,
         nextHints,
         product,
         library,
@@ -1298,12 +1394,7 @@ export async function buildPanelSnapshot(dir, pathsHint, opts = {}) {
         dir,
         storageBase: paths.base,
         totals: { chapters: chapters.length, words, final, drafted, planned },
-        foundation: {
-            locks: meta.foundation.locks,
-            happened: meta.foundation.happened,
-            threads: meta.foundation.threads,
-            style: meta.foundation.style,
-        },
+        foundation: foundationView,
         chapters,
         ledgerRecent: ledger.entries.slice(-12).map((e) => ({
             id: e.id,
@@ -1316,7 +1407,7 @@ export async function buildPanelSnapshot(dir, pathsHint, opts = {}) {
         candidates: candidateRows,
         multiDraftEnabled,
         briefCrumbsRecent: recentBriefs.slice(-12),
-        lastPayoffByChapter,
+        lastPayoffByChapter: lastPayoffCapped,
         nextHints,
         product,
         library,

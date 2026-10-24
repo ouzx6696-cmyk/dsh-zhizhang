@@ -11,7 +11,20 @@ export function dialogueRanges(text: string) {
     return ranges;
 }
 function inDialogue(index: number, ranges: any) {
-    return ranges.some(([start, end]: [number, number]) => index >= start && index < end);
+    // ranges 由 dialogueRanges 按出现顺序产出（按 start 升序），二分定位。
+    let lo = 0;
+    let hi = ranges.length - 1;
+    while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        const [start, end] = ranges[mid];
+        if (index < start)
+            hi = mid - 1;
+        else if (index >= end)
+            lo = mid + 1;
+        else
+            return true;
+    }
+    return false;
 }
 const RULES = [
     {
@@ -71,6 +84,12 @@ const RULES = [
         endingOnly: true,
     },
 ];
+// 每条规则预编译一次执行用正则（均带 /g）；使用前重置 lastIndex，
+// 单线程事件循环内不存在交叉执行，无 lastIndex 串扰。
+const COMPILED_RULES = RULES.map((rule) => ({
+    rule,
+    re: new RegExp(rule.pattern.source, rule.pattern.flags.includes("g") ? rule.pattern.flags : `${rule.pattern.flags}g`),
+}));
 function lastParagraphSpan(text: string) {
     const parts = text.split(/\n+/);
     for (let i = parts.length - 1; i >= 0; i--) {
@@ -89,7 +108,7 @@ export function lintStyle(text: string) {
     const ranges = dialogueRanges(text);
     const hits = [];
     const seen = new Set();
-    for (const rule of RULES) {
+    for (const { rule, re } of COMPILED_RULES) {
         const scopes = rule.endingOnly
             ? (() => {
                 const span = lastParagraphSpan(text);
@@ -97,7 +116,7 @@ export function lintStyle(text: string) {
             })()
             : [{ offset: 0, slice: text }];
         for (const scope of scopes) {
-            const re = new RegExp(rule.pattern.source, rule.pattern.flags.includes("g") ? rule.pattern.flags : `${rule.pattern.flags}g`);
+            re.lastIndex = 0;
             let match;
             while ((match = re.exec(scope.slice)) !== null) {
                 const start = scope.offset + match.index;

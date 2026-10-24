@@ -14,8 +14,10 @@ export function E(values, description) {
 export function O(properties, required = []) {
     return { type: "object", additionalProperties: false, properties, required };
 }
-export const WORKING_DIR = S("可选：织章存储根（绝对路径或相对会话 cwd）。默认 <cwd>/.zhizhang/");
-export const WORK_OPT = S("可选：作品 key 或标题；省略时用本会话最近操作的作品");
+// 两个可选参数注入 49+28 个工具 schema（合计约 23% 的注册面字符），
+// 描述压到最短口径；语义不变：都可选、都有默认。
+export const WORKING_DIR = S("可选：存储根（默认 <cwd>/.zhizhang/）");
+export const WORK_OPT = S("可选：作品 key/标题（默认本会话最近作品）");
 export const OUTLINE_PROPS = {
     pov: S("视角人物与限知范围"),
     targetWords: I("本章目标字数"),

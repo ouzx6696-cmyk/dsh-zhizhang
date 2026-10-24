@@ -19,6 +19,7 @@ window.__ModuleLoader__.load({
     var useEffect = react.useEffect;
     var useCallback = react.useCallback;
     var useRef = react.useRef;
+    var useMemo = react.useMemo;
 
     var PANEL_ID = "dsh-zhizhang";
     var PANEL_ORDER = 28;
@@ -606,6 +607,20 @@ window.__ModuleLoader__.load({
       var loadSeqRef = useRef(0);
       var candSeqRef = useRef(0);
       var projectIdRef = useRef("");
+      // 正文/候选可能长达 400KB；轮询每 ~6s 触发整树重渲染，解析结果必须 memo，
+      // 否则同一份正文每次渲染都重新走一遍 markdown→HTML。
+      var chapterHtml = useMemo(
+        function () {
+          return lightMdToHtml(state.chapterBody == null ? "" : state.chapterBody);
+        },
+        [state.chapterBody],
+      );
+      var candHtml = useMemo(
+        function () {
+          return lightMdToHtml(state.candidateBody == null ? "" : state.candidateBody);
+        },
+        [state.candidateBody],
+      );
 
       var refreshProjects = useCallback(function (opts) {
         return fetchJson(API + "/projects" + (opts && opts.refresh ? "?refresh=1" : ""), { timeoutMs: 8000 })
@@ -650,7 +665,9 @@ window.__ModuleLoader__.load({
             var nextWork = (snap && snap.workKey) || workKey || (works[0] && works[0].key) || "";
             if (!aliveRef.current) return;
             try {
-              if (nextWork) localStorage.setItem(LS_WORK, nextWork);
+              // 值没变不写：轮询每 ~6s 回来一次，别把 localStorage 刷成高频 IO。
+              if (nextWork && localStorage.getItem(LS_WORK) !== nextWork)
+                localStorage.setItem(LS_WORK, nextWork);
             } catch (e) {}
             setState(function (s) {
               var chapters = (snap && snap.chapters) || [];
@@ -662,7 +679,8 @@ window.__ModuleLoader__.load({
                 nextCh = chapters[0].id;
               }
               try {
-                if (nextCh) localStorage.setItem(LS_CHAPTER, nextCh);
+                if (nextCh && localStorage.getItem(LS_CHAPTER) !== nextCh)
+                  localStorage.setItem(LS_CHAPTER, nextCh);
               } catch (e2) {}
               return Object.assign({}, s, {
                 loading: false,
@@ -1788,7 +1806,7 @@ window.__ModuleLoader__.load({
             ? h("p", { className: "zz-empty" }, "候选正文为空。")
             : h("div", {
                 className: "zz-reader",
-                dangerouslySetInnerHTML: { __html: lightMdToHtml(state.candidateBody) },
+                dangerouslySetInnerHTML: { __html: candHtml },
               });
         }
       } else {
@@ -1812,7 +1830,7 @@ window.__ModuleLoader__.load({
         } else {
           readerContent = h("div", {
             className: "zz-reader",
-            dangerouslySetInnerHTML: { __html: lightMdToHtml(bodyText) },
+            dangerouslySetInnerHTML: { __html: chapterHtml },
           });
         }
       }

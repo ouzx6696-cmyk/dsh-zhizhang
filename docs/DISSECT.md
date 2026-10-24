@@ -129,7 +129,7 @@ Token 30 分钟有效；未确认不得代作者决定。
 | 迁移/失败边界 | transfer / failWhen 空 → 拒 | `bad_module` |
 | 证据 | 模块 evidence 引文找不到 → 拒 | `bad_evidence` |
 | 层级 | scene 卡写全书结论 → 软警告 | — |
-| 覆盖率 | facts / scope 章数；置信度 = 0.5×覆盖 + 0.3×引文通过 + 0.2×维度/6；<0.85 → needs_review | — |
+| 覆盖率 | facts / scope 章数；置信度 = 0.4×覆盖 + 0.3×引文通过 + 0.2×结构 + 0.1×维度/6；Auto 封顶 0.84；<0.85 → needs_review | — |
 
 `library_audit` 对 v2 模块走模块校验（不再套旧「## 证据」段检查）；旧 v1 卡仍走原审计。
 

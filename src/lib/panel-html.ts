@@ -4,7 +4,13 @@ function esc(s: any) {
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;");
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+/** 数字字段强制数值化再插值：磁盘 JSON 被污染成字符串时也不会把标记注进 HTML。 */
+function num(v: any): number {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
 }
 function clip(s: string, n: number) {
     const t = String(s ?? "").trim();
@@ -71,16 +77,16 @@ export function renderPanelHtml(input: any) {
     const library = input.library;
     const inspiration = input.inspiration;
     const badges = [
-        `<span class="zz-badge zz-badge-info">${totals.chapters} 章</span>`,
-        `<span class="zz-badge">${totals.words.toLocaleString("zh-CN")} 字</span>`,
-        `<span class="zz-badge zz-badge-ok">定稿 ${totals.final}</span>`,
-        `<span class="zz-badge">草稿 ${totals.drafted}</span>`,
-        `<span class="zz-badge">计划 ${totals.planned}</span>`,
+        `<span class="zz-badge zz-badge-info">${num(totals.chapters)} 章</span>`,
+        `<span class="zz-badge">${num(totals.words).toLocaleString("zh-CN")} 字</span>`,
+        `<span class="zz-badge zz-badge-ok">定稿 ${num(totals.final)}</span>`,
+        `<span class="zz-badge">草稿 ${num(totals.drafted)}</span>`,
+        `<span class="zz-badge">计划 ${num(totals.planned)}</span>`,
         pending.length > 0
-            ? `<span class="zz-badge zz-badge-warn">待采纳 ${pending.length}</span>`
+            ? `<span class="zz-badge zz-badge-warn">待采纳 ${num(pending.length)}</span>`
             : `<span class="zz-badge">待采纳 0</span>`,
         library
-            ? `<span class="zz-badge zz-badge-info">craft ${library.craftCount} · mind ${library.mindCount}</span>`
+            ? `<span class="zz-badge zz-badge-info">craft ${num(library.craftCount)} · mind ${num(library.mindCount)}</span>`
             : "",
     ]
         .filter(Boolean)
@@ -102,11 +108,11 @@ export function renderPanelHtml(input: any) {
         ? `<p class="zz-empty">无拆书库摘要</p>`
         : `<div class="zz-card zz-library">
   <div class="zz-badges">
-    <span class="zz-badge">来源 ${library.sourcesCount}</span>
-    <span class="zz-badge zz-badge-ok">已采纳 ${library.acceptedCount}</span>
-    <span class="zz-badge">草稿卡 ${library.draftedCount}</span>
-    <span class="zz-badge zz-badge-info">craft ${library.craftCount}</span>
-    <span class="zz-badge zz-badge-info">mind ${library.mindCount}</span>
+    <span class="zz-badge">来源 ${num(library.sourcesCount)}</span>
+    <span class="zz-badge zz-badge-ok">已采纳 ${num(library.acceptedCount)}</span>
+    <span class="zz-badge">草稿卡 ${num(library.draftedCount)}</span>
+    <span class="zz-badge zz-badge-info">craft ${num(library.craftCount)}</span>
+    <span class="zz-badge zz-badge-info">mind ${num(library.mindCount)}</span>
   </div>
   <p class="zz-muted" style="margin-top:8px">${esc(clip(library.summary, 160))}</p>
   ${library.sources.length
@@ -128,17 +134,17 @@ export function renderPanelHtml(input: any) {
         ? `<p class="zz-empty">无灵感摘要</p>`
         : `<div class="zz-card zz-inspiration">
   <div class="zz-badges">
-    <span class="zz-badge">会话 ${inspiration.sessionsCount}</span>
-    <span class="zz-badge zz-badge-warn">待 emit ${inspiration.pendingEmits}</span>
+    <span class="zz-badge">会话 ${num(inspiration.sessionsCount)}</span>
+    <span class="zz-badge zz-badge-warn">待 emit ${num(inspiration.pendingEmits)}</span>
     <span class="zz-badge ${inspiration.appliedToWork ? "zz-badge-ok" : ""}">${inspiration.appliedToWork ? "已 apply 到本作品" : "未 apply"}</span>
-    <span class="zz-badge ${inspiration.foundationFilled ? "zz-badge-ok" : ""}">根基字段 ${inspiration.foundationFilledFields.length}</span>
+    <span class="zz-badge ${inspiration.foundationFilled ? "zz-badge-ok" : ""}">根基字段 ${num(inspiration.foundationFilledFields.length)}</span>
   </div>
-  <p class="zz-muted" style="margin-top:8px">三纲进度：处境 ${op?.withSituation ?? 0}/${op?.total ?? 0} · 场面 ${op?.withLived ?? 0} · 状态 ${op?.withState ?? 0} · 齐备 ${op?.complete ?? 0}</p>
+  <p class="zz-muted" style="margin-top:8px">三纲进度：处境 ${num(op?.withSituation)}/${num(op?.total)} · 场面 ${num(op?.withLived)} · 状态 ${num(op?.withState)} · 齐备 ${num(op?.complete)}</p>
   ${inspiration.sessions.length
             ? `<ul class="zz-muted">` +
                 inspiration.sessions
                     .slice(0, 4)
-                    .map((s: any) => `<li>${esc(clip(s.goal, 48))} · ${s.cardCount} 卡 <code>${esc(s.id)}</code></li>`)
+                    .map((s: any) => `<li>${esc(clip(s.goal, 48))} · ${num(s.cardCount)} 卡 <code>${esc(s.id)}</code></li>`)
                     .join("") +
                 `</ul>`
             : `<p class="zz-empty">暂无灵感会话</p>`}
@@ -157,7 +163,7 @@ export function renderPanelHtml(input: any) {
                     `<div class="zz-ch-sub">${esc(statusLabel(c.status))}` +
                     (sit ? ` · 处境：${esc(sit)}` : "") +
                     `</div></div>` +
-                    `<div class="zz-ch-words">${c.wordCount} 字</div>` +
+                    `<div class="zz-ch-words">${num(c.wordCount)} 字</div>` +
                     `</li>`);
             })
                 .join("") +
@@ -177,7 +183,7 @@ export function renderPanelHtml(input: any) {
                 ]
                     .filter(Boolean)
                     .join(" · ");
-                return (`<li data-cand="${esc(c.id)}"><strong>${esc(label)}${esc(c.id)}</strong> → ${esc(c.chapterId)} · ${c.wordCount} 字` +
+                return (`<li data-cand="${esc(c.id)}"><strong>${esc(label)}${esc(c.id)}</strong> → ${esc(c.chapterId)} · ${num(c.wordCount)} 字` +
                     (c.note ? `<div class="zz-muted">${esc(clip(c.note, 80))}</div>` : "") +
                     `<div class="zz-muted">${esc(flags)} · 面板采纳须二次确认（同 Accept 硬闸）</div></li>`);
             })
@@ -221,7 +227,7 @@ export function renderPanelHtml(input: any) {
         ? `<p class="zz-empty">无（例行三 audit 不在默认创作路径）</p>`
         : `<ul>` +
             payoffEntries
-                .map((e: any) => `<li>${esc(e.chapterId)} · ${e.ok ? "ok" : "warn:" + e.warningCount} · ${esc(clip(e.summary, 72))}</li>`)
+                .map((e: any) => `<li>${esc(e.chapterId)} · ${e.ok ? "ok" : "warn:" + num(e.warningCount)} · ${esc(clip(e.summary, 72))}</li>`)
                 .join("") +
             `</ul>`;
     return [

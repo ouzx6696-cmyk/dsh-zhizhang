@@ -16,6 +16,7 @@ D:/织章/
 │   │   ├── candidates/
 │   │   ├── brief-crumbs.json     # 开写 brief 留痕（accept 硬闸用）
 │   │   ├── payoff-audits.json    # 兑付审计留痕（可选 require_payoff）
+│   │   ├── quality-lexicon.json  # 可选：本书 ending 词汇表（开单书严格兑付审计）
 │   │   └── ledger.json           # 审校留痕（非小说状态）
 │   └── 另一本/
 └── 拆书库/                # libraryRoot + sourceRoot
@@ -27,7 +28,7 @@ D:/织章/
 ```
 
 `worksRoot` 让作品目录变成**可见的、书名命名的文件夹**，而不是藏在 `.zhizhang/works/` 下；
-`storageRoot` 仍管稿件组装/灵感等共享数据。不改配置时，一切都回退到 `<会话 cwd>/.zhizhang/。
+`storageRoot` 仍管稿件组装/灵感等共享数据。不改配置时，一切都回退到 `<会话 cwd>/.zhizhang/`。
 
 面板跟随：工具会把最近使用的根写到 `$DSH_HOME/zhizhang-last-root.json`（默认 `~/.dsh/`），
 HTTP 面板据此与 Agent 使用同一份 `.zhizhang`；标记缺失时才回退宿主 cwd。
@@ -103,8 +104,9 @@ shared-library/
 └── inspiration/                   # 灵感
     ├── sessions/
     │   └── <sessionId>.json
-    └── candidates/
-        └── <icandId>.json         # foundation / outline 候选
+    ├── candidates/
+    │   └── <icandId>.json         # foundation / outline 候选
+    └── bindings.json              # workKey→绑定技法卡索引（acceptEmit apply 维护，brief 取卡先读）
 ```
 
 ## 多书组合

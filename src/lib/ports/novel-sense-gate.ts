@@ -116,9 +116,14 @@ function detectNoBookDebt(text: string) {
     const end = endingSlice(text);
     if (DEBT_CUE_RE.test(end))
         return null;
-    // Also allow soft openers: unfinished action / unfinished dialogue at very end
+    // 末 40 字的兜底也分强弱：没/还/先/再 单独出现几乎任何中文尾句都命中，
+    // 让 no_book_debt 大量漏报——弱线索需 ≥2 个不同，强线索 1 个即可。
     const tail = end.slice(-40);
-    if (/[…？?]|没|还|先|再|门外|门口|钥匙|条子|悬|欠/.test(tail))
+    const strongTail = /[…？?]|门外|门口|钥匙|条子|悬|欠|未完|未了|下不为例/.test(tail);
+    if (strongTail)
+        return null;
+    const weakHits = ["没", "还", "先", "再", "明天", "下次"].filter((w) => tail.includes(w));
+    if (weakHits.length >= 2)
         return null;
     return {
         code: "no_book_debt",

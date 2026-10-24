@@ -2,8 +2,9 @@
  * Panel console enrichments — Library / Inspiration / Product summaries for snapshot + HTML.
  * Read-only; no writes.
  */
-import { readdir, readFile } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import path from "node:path";
+import { readJsonCached } from "./file-cache.js";
 import { LibraryPort, coerceAxis } from "./ports/library.js";
 import { listAnalyses, readPlan, planProgress, planLabel, readAnalysisBundle } from "./ports/analysis.js";
 import { InspirationPort } from "./ports/inspiration.js";
@@ -88,7 +89,8 @@ export async function buildLibraryView(paths: StoragePaths) {
             title: s.title,
             author: s.author ?? "",
         })),
-        analyses: await Promise.all(analyses.map(async (a: any) => {
+        // Cap before the per-analysis plan/bundle reads — those are the expensive part.
+        analyses: await Promise.all(analyses.slice(0, 20).map(async (a: any) => {
             let plan = null;
             try {
                 const p = await readPlan(paths, a.sourceId);
@@ -130,7 +132,7 @@ export async function buildInspirationView(paths: StoragePaths, opts: any) {
             if (!name.endsWith(".json"))
                 continue;
             try {
-                const raw = JSON.parse(await readFile(path.join(candDir, name), "utf8"));
+                const raw = await readJsonCached(path.join(candDir, name));
                 if (raw.status === "staged")
                     pendingEmits += 1;
                 if (raw.status === "accepted")

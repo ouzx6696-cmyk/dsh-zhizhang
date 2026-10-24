@@ -1,4 +1,6 @@
 import type { ExecContext } from "./types.js";
+import type { StoragePaths } from "../lib/types.js";
+export declare function openLibrary(exec: ExecContext, args: any): Promise<StoragePaths>;
 export declare function libraryTools(): {
     name: any;
     description: any;

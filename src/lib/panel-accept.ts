@@ -44,8 +44,8 @@ export async function runPanelAccept(paths: import("./types.js").StoragePaths, r
         return fail(err, "candidate_not_found");
     }
     const isEdit = Boolean(candMeta.editOf);
-    let acceptAfterEdit = Boolean(req.acceptAfterEdit);
-    let confirmAcceptAfterEdit = Boolean(req.confirmAcceptAfterEdit);
+    let acceptAfterEdit = req.acceptAfterEdit === true;
+    let confirmAcceptAfterEdit = req.confirmAcceptAfterEdit === true;
     if (isEdit && !acceptAfterEdit) {
         acceptAfterEdit = true;
         confirmAcceptAfterEdit = true;
@@ -65,13 +65,15 @@ export async function runPanelAccept(paths: import("./types.js").StoragePaths, r
         workKey,
         candidateId,
         mode: req.mode === "append" ? "append" : "replace",
-        force: Boolean(req.force),
+        force: req.force === true,
         lintPassToken: req.lintPassToken,
-        skipBrief: Boolean(req.skipBrief),
-        strictLint: Boolean(req.strictLint),
-        requirePayoff: Boolean(req.requirePayoff),
-        strictHuman: Boolean(req.strictHuman),
-        strictNovel: Boolean(req.strictNovel),
+        skipBrief: req.skipBrief === true,
+        // 严格旗标只认真 boolean：Boolean("false")===true 的坑在面板同样要防，
+        // 且未传时保持 undefined 让 PortConfig 默认值生效。
+        strictLint: typeof req.strictLint === "boolean" ? req.strictLint : undefined,
+        requirePayoff: typeof req.requirePayoff === "boolean" ? req.requirePayoff : undefined,
+        strictHuman: typeof req.strictHuman === "boolean" ? req.strictHuman : undefined,
+        strictNovel: typeof req.strictNovel === "boolean" ? req.strictNovel : undefined,
         acceptAfterEdit,
         confirmAcceptAfterEdit,
     });

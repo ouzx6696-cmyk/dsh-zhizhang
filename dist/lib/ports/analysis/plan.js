@@ -194,10 +194,21 @@ export async function deletePlan(paths, sourceId) {
 export function makeConfirmToken() {
     return `fp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
-export async function writePendingConfirm(paths, sourceId, token, estimate) {
+/**
+ * Full 闸留痕：estimate + 参数快照（batchChars/totalChapters/planChapters）。
+ * confirm 时断言参数一致——作者同意的是回执上的数字，不是换参后的重建计划。
+ */
+export async function writePendingConfirm(paths, sourceId, token, estimate, params) {
     const f = planFiles(paths, sourceId);
     await ensureDir(f.dir);
-    const body = { sourceId, token, estimate, expiresAt: Date.now() + 30 * 60 * 1000, createdAt: nowIso() };
+    const body = {
+        sourceId,
+        token,
+        estimate,
+        params: params ?? null,
+        expiresAt: Date.now() + 30 * 60 * 1000,
+        createdAt: nowIso(),
+    };
     await atomicWrite(f.pending, JSON.stringify(body, null, 2));
     return body;
 }
@@ -210,8 +221,8 @@ export async function readPendingConfirm(paths, sourceId) {
         return null;
     }
 }
-/** Full 闸：token 必须存在、未过期、来源一致。 */
-export async function assertFullConsent(paths, sourceId, token) {
+/** Full 闸：token 必须存在、未过期、来源一致，且建计划参数与回执一致（若有快照）。 */
+export async function assertFullConsent(paths, sourceId, token, current) {
     const pending = await readPendingConfirm(paths, sourceId);
     if (!pending)
         throw new ZhizhangError("full_needs_consent", "Full 未生成成本回执：先调用 library_plan(mode=full) 看估算，再由作者明确同意");
@@ -221,6 +232,19 @@ export async function assertFullConsent(paths, sourceId, token) {
         throw new ZhizhangError("confirm_expired", "确认已过期（30 分钟）：请重新生成成本回执");
     if (!token || token !== pending.token)
         throw new ZhizhangError("bad_confirm_token", "确认 token 不正确：须原样回传 library_plan(mode=full) 回执里的 confirm_token");
+    if (current && pending.params && typeof pending.params === "object") {
+        const drift = [];
+        for (const key of ["batchChars", "totalChapters", "planChapters"]) {
+            const before = Number(pending.params[key]);
+            const nowVal = Number(current[key]);
+            if (Number.isFinite(before) && Number.isFinite(nowVal) && before !== nowVal) {
+                drift.push(`${key} ${before}→${nowVal}`);
+            }
+        }
+        if (drift.length > 0) {
+            throw new ZhizhangError("bad_confirm_token", `确认参数与成本回执不一致（${drift.join("；")}）：请重新 library_plan(mode=full) 生成回执并再次取得作者同意`);
+        }
+    }
     return pending;
 }
 export async function clearPendingConfirm(paths, sourceId) {
