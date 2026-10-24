@@ -41,7 +41,7 @@ export function inspirationTools() {
                 return [
                     `灵感会话已开：${sessionId}`,
                     `- goal：${goal}`,
-                    `- cards：${(cardIds ?? []).join("、")}`,
+                    `- cards：${[...new Set(cardIds ?? [])].join("、")}`,
                     `- 分轴：mind ${mindCount} · craft ${craftCount}` + (craftOnly ? " · craft_only" : ""),
                     "",
                     "下一步（闭环）：zhizhang_inspire_forge_brief → inspire_stage → inspire_accept(apply=true) → chapter_brief",

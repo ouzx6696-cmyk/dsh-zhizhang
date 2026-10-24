@@ -60,7 +60,7 @@ const NEXT_HINTS = {
     library_import: "zhizhang_library_plan（auto 默认 10%；full 须作者同意）→ dissect_brief(batch) → facts_stage → structure_stage → card_stage → card_accept → report → combo_suggest",
     library_plan: "zhizhang_library_dissect_brief(source, batch=0) → facts_stage → structure_stage",
     library_dissect: "zhizhang_library_facts_stage（逐章白描）→ structure_stage",
-    library_card_accept: "zhizhang_library_report → library_audit（机械面）→ zhizhang_library_combo_suggest",
+    library_card_accept: "zhizhang_library_report → zhizhang_library_combo_suggest（library_audit 为诊断旁路，勿例行）",
     library_combo: "zhizhang_inspire_start(card_ids) 规划，或 chapter_brief(card_ids) 开写",
     library_audit: "zhizhang_library_combo_suggest；或逐卡人读按五条判（机械面通过≠合格）",
     inspire_start: "zhizhang_inspire_forge_brief → stage → accept(apply=true)",

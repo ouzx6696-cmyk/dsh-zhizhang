@@ -847,12 +847,17 @@ export async function stageCandidate(dir: string, input: any) {
         throw new ZhizhangError("candidate_empty", "候选正文为空，拒绝暂存");
     }
     const chapterId = assertResourceId(input.chapterId, "章节 id");
+    // 候选必须指向已存在的章（章纲由 outline_set / inspire apply 建立）——否则 accept 的
+    // brief/兑付闸都无从对照，错误还会迟到且语义不明（先撞 brief_required）。
+    const meta = await readWorkMeta(dir);
+    if (!meta.chapters.some((c: any) => c.id === chapterId)) {
+        throw new ZhizhangError("chapter_not_found", `目标章 ${chapterId} 不存在：先 outline_set（或 inspire_accept apply）建章纲，再交候选`);
+    }
     // Date.now() 只能到毫秒；并发 stage 会在同一毫秒生成同一个 id 并互相覆盖。
     const id = `cand-${randomUUID().replace(/-/g, "").slice(0, 12)}`;
     await mkdir(candidatesDir(dir), { recursive: true });
     const bodyFile = `${id}.md`;
     await atomicWrite(path.join(candidatesDir(dir), bodyFile), input.body);
-    const meta = await readWorkMeta(dir);
     const stagedAt = nowIso();
     const cand: Candidate = {
         schemaVersion: SCHEMA_VERSION,

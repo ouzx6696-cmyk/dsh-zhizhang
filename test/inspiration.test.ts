@@ -53,6 +53,13 @@ describe("inspiration · 会话与 forge", () => {
     const craftOnly = await InspirationPort.startSession(p, { goal: "仅技法", cardIds: [craftId], craftOnly: true });
     expect((await InspirationPort.forgeBrief(p, craftOnly.sessionId))).toContain("仅技法试写");
 
+    // combo 回执里每张卡 id 出现两次，照抄传入必须去重——否则 forge 重复渲染、分轴计数翻倍
+    const dup = await InspirationPort.startSession(p, { goal: "去重", cardIds: [craftId, mindId, craftId, mindId] });
+    expect(dup.mindCount).toBe(1);
+    expect(dup.craftCount).toBe(1);
+    const session = await InspirationPort.getSession(p, dup.sessionId);
+    expect(session.cardIds.length).toBe(2);
+
     const { sessionId } = await InspirationPort.startSession(p, {
       goal: "夜班店员发现冷柜对轨", genre: "都市轻科幻", cardIds: [craftId, mindId],
     });

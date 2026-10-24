@@ -70,7 +70,7 @@ export function analysisTools() {
                     planLine = "计划：事实 " + prog.done + "/" + prog.total + " 章 · 游标 " + prog.cursor + "/" + prog.batches +
                         (warns.length ? "\n- " + warns.join("\n- ") : "");
                     nextLine = prog.nextBatch
-                        ? "下一步：zhizhang_library_dissect_brief(source, batch=" + prog.cursor + ") 取下一批；不要跨批跳读。"
+                        ? "下一步：zhizhang_library_dissect_brief(source, batch=" + prog.cursor + ") 取原文（游标指向未完成的批：本批尚有章未记则回本批继续白描）。"
                         : "计划已全部取完：zhizhang_library_structure_stage 聚合剧情条/节奏/人物。";
                 }
                 const lines = [

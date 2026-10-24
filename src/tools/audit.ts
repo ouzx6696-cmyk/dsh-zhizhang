@@ -110,6 +110,13 @@ export function auditTools() {
                 const chapterId = asString(args, "chapter", { required: true });
                 const kind = (asString(args, "kind") ?? "note");
                 const summary = asString(args, "summary", { required: true });
+                // 留痕指向真实章节：对不存在的章记「定稿」会让 ledger 与小说状态脱钩。
+                try {
+                    await readChapter(dir, chapterId);
+                }
+                catch {
+                    fail(`章节 ${chapterId} 不存在，审校留痕必须指向真实章节`, "not_found");
+                }
                 const dims: Record<string, boolean> = {};
                 if (typeof args.dim_locks_ledger === "boolean")
                     dims.locks_ledger = args.dim_locks_ledger;

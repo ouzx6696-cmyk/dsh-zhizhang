@@ -29,6 +29,7 @@ describe("multidraft · 默认关 / 开启后统一整理", () => {
       expect(MultiDraftPort.isEnabled()).toBe(true);
       const { base, dir, key, cleanup } = await withWork("多稿开");
       try {
+        await saveChapter(dir, { id: "c001", title: "一", body: "原稿。", status: "drafted" });
         const a = await stageCandidate(dir, { chapterId: "c001", body: "甲：柜台后头有人咳嗽，条子压在账本下。", draftLabel: "口气A", variantGroup: "batch-1" });
         await new Promise((r) => setTimeout(r, 2));
         const b = await stageCandidate(dir, { chapterId: "c001", body: "乙：雨砸铁皮棚，他把账本合上，条子还露一角。", draftLabel: "口气B", variantGroup: "batch-1" });

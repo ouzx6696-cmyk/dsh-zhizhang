@@ -77,8 +77,24 @@ export function worksTools() {
             properties: { work: WORK_OPT, working_dir: WORKING_DIR },
             required: [],
             async execute(args: any, exec: ExecContext) {
-                const { dir, paths } = await openWork(exec, args);
-                return renderStatus(await readWorkMeta(dir), dir, paths);
+                let opened;
+                try {
+                    opened = await openWork(exec, args);
+                }
+                catch (err) {
+                    // 起步有两条路（先拆书 / 先建作品）——status 是仪表盘，不该在空库时裸报错。
+                    if (err instanceof Error && err.message.includes("还没有作品")) {
+                        return [
+                            "## 尚无作品（起步两条路）",
+                            "- 有参考书（推荐）：zhizhang_library_import → library_plan → 拆书 9 步 → combo_suggest → inspire_accept(apply=true) 长出根基/章纲",
+                            "- 直接开写：zhizhang_project_create → foundation_set → outline_set → chapter_brief(lean)",
+                            "",
+                            `下一步（默认）：${Scheduler.nextHint("work_status")}`,
+                        ].join("\n");
+                    }
+                    throw err;
+                }
+                return renderStatus(await readWorkMeta(opened.dir), opened.dir, opened.paths);
             },
         }),
         defineTool({

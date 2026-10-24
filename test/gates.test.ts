@@ -108,11 +108,34 @@ describe("gates · 并发双采纳竞态（候选锁）", () => {
   });
 });
 
+describe("gates · 章节存在性校验", () => {
+  test("候选 stage 与审校留痕都拒指不存在的章（错误要早且语义明确）", async () => {
+    const { base, dir, key, cleanup } = await withWork("存在性");
+    try {
+      let threw = "";
+      try {
+        await stageCandidate(dir, { chapterId: "c999", body: "无的放矢。" });
+      }
+      catch (e) {
+        threw = (e as { code?: string }).code ?? "";
+      }
+      expect(threw).toBe("chapter_not_found");
+      const tools = new Map(__testing.tools.map((t) => [t.name, t.execute]));
+      const out = await tools.get("zhizhang_review_ledger")!({ action: "append", chapter: "c999", kind: "finalize", summary: "x", work: key, working_dir: base }, {});
+      expect(out).toContain("不存在");
+    }
+    finally {
+      await cleanup();
+    }
+  });
+});
+
 describe("gates · 编辑 A/B/C 活链", () => {
   test("stage 编辑稿 → B 仅候选；A 无确认拒；A+confirm 采纳并验收", async () => {
     const { base, dir, key, cleanup } = await withWork("编辑环");
     try {
       const tools = new Map(__testing.tools.map((t) => [t.name, t.execute]));
+      await setOutline(dir, "c001", { situationLens: "夜", ending: "她把门带上。" });
       const staged = await tools.get("zhizhang_candidate_stage")!({ chapter: "c001", content: "写手稿：她把条子压进账本，没再关门。雨还在下。", work: key, working_dir: base }, {});
       const parentId = staged.match(/候选已暂存：(cand-\w+)/)?.[1];
       const edited = await tools.get("zhizhang_candidate_edit_stage")!({

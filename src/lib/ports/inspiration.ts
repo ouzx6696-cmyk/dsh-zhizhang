@@ -61,7 +61,9 @@ export const InspirationPort = {
         const goal = String(input.goal ?? "").trim();
         if (!goal)
             throw new ZhizhangError("bad_args", "goal 不能为空");
-        const cardIds = (input.cardIds ?? []).map((id: string) => String(id).trim()).filter(Boolean);
+        // combo 回执里每张卡 id 会出现多次（card_ids 行 + 明细行），照抄传入是常态——
+        // 不去重会让 forge 把同一张卡整段渲染两遍，分轴计数也翻倍。
+        const cardIds = [...new Set((input.cardIds ?? []).map((id: string) => String(id).trim()).filter(Boolean))];
         if (cardIds.length === 0) {
             throw new ZhizhangError("bad_args", "cardIds 至少一张已采纳卡");
         }
