@@ -247,6 +247,17 @@ export function truncateForBrief(text: string, max: any = 480) {
         return t;
     return `${t.slice(0, max).trimEnd()}…`;
 }
+/** Preserve the latest recorded outcomes in a compact brief, and label any omission. */
+function recentHappenedForBrief(value: string, max: number) {
+    const text = value.trim();
+    if (text.length <= max) return text;
+    const tail = text.slice(-max);
+    const boundary = tail.indexOf("\n");
+    if (boundary >= 0 && boundary < tail.length - 1)
+        return `（较早记录省略，以下为近期状态；完整记录可通过根基查看）\n${tail.slice(boundary + 1)}`;
+    const prefix = text.slice(0, Math.min(60, Math.floor(max / 4))).trimEnd();
+    return `（记录过长，中间省略；完整记录可通过根基查看）\n${prefix}…${text.slice(-(max - prefix.length - 1))}`;
+}
 /** Soft max for pathological chapter length; typical chapters inject in full. */
 export const PREV_CHAPTER_BODY_SOFT_MAX = 16000;
 /**
@@ -262,7 +273,7 @@ export function resolvePreviousBody(prev: any) {
         return { text: raw, clipped: false, source };
     }
     return {
-        text: `${raw.slice(0, PREV_CHAPTER_BODY_SOFT_MAX).trimEnd()}…`,
+        text: `${raw.slice(0, PREV_CHAPTER_BODY_SOFT_MAX / 2).trimEnd()}\n\n[中间正文省略；续写前请按需读取完整前章]\n\n${raw.slice(-PREV_CHAPTER_BODY_SOFT_MAX / 2).trimStart()}`,
         clipped: true,
         source,
     };
@@ -294,7 +305,7 @@ export function formatReaderContract(input: any) {
     lines.push(`- 近端计划 planned：${truncateForBrief(input.planned, planMax) || "（空）"}`);
     lines.push(`- 未结伏笔 threads：${truncateForBrief(input.threads, threadMax) || "（空）"}`);
     if (input.happened?.trim()) {
-        lines.push(`- 状态·已发生：${truncateForBrief(input.happened, happenedMax)}`);
+        lines.push(`- 状态·已发生：${recentHappenedForBrief(input.happened, happenedMax)}`);
     }
     // lean：本章 ending 只在处境区（renderOutlineLean）出现一次，避免合同+处境双信号
     if (input.chapterEnding?.trim() && !lean) {
@@ -311,7 +322,7 @@ export function formatReaderContract(input: any) {
         if (resolved.text) {
             lines.push("### 前章正文（续写必读 · 以正文为准）");
             if (resolved.clipped) {
-                lines.push(`（前章较长，已保留近全文前 ${PREV_CHAPTER_BODY_SOFT_MAX} 字；续写以注入正文为准）`);
+                lines.push(`（前章较长，已保留开头和结尾各约 ${PREV_CHAPTER_BODY_SOFT_MAX / 2} 字，中间省略；需要完整上下文时请读取前章。）`);
             }
             lines.push(resolved.text);
         }

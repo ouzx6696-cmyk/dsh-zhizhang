@@ -3,7 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { networkInterfaces } from "node:os";
 import type { StoragePaths, PluginConfig } from "./types.js";
 import path from "node:path";
-import { assertResourceId, buildPanelSnapshot, countWords, ensureStorage, getLastToolBase, listCandidates, listChapterLensRows, listProjects, listWorks, loadLastToolBase, projectIdOf, readCandidate, readChapter, resolveWorkDir, } from "./store.js";
+import { assertResourceId, buildPanelSnapshot, candidateHasLintPass, countWords, ensureStorage, getLastToolBase, listCandidates, listChapterLensRows, listProjects, listWorks, loadLastToolBase, projectIdOf, readCandidate, readChapter, resolveWorkDir, } from "./store.js";
 import { buildInspirationView, buildLibraryView, buildProductView } from "./panel-enrich.js";
 import { runPanelAccept } from "./panel-accept.js";
 import { readWorkMeta } from "./store.js";
@@ -451,7 +451,9 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
                 };
                 const result = await runPanelAccept(paths, acceptReq);
                 if (!result.ok) {
-                    const status = result.code === "confirm_required" ||
+                    const status = result.code === "recovery_required" || result.code === "recovery_conflict"
+                        ? 409
+                        : result.code === "confirm_required" ||
                         result.code === "edit_accept_confirm_required" ||
                         result.code === "bad_id"
                         ? 400
@@ -572,6 +574,7 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
                         worksCount: 0,
                         chapters: 0,
                         words: 0,
+                        recoveryPending: false,
                     });
                 }
                 return writeJson(res, 200, {
@@ -597,8 +600,9 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
                         key: w.key,
                         title: w.title,
                         genre: w.genre,
-                        chapters: w.chapters.length,
-                        words: w.chapters.reduce((s: string, c: any) => s + (c.wordCount || 0), 0),
+                        chapters: w.recoveryPending ? null : w.chapters.length,
+                        words: w.recoveryPending ? null : w.chapters.reduce((s: string, c: any) => s + (c.wordCount || 0), 0),
+                        recoveryPending: w.recoveryPending === true,
                         updatedAt: w.updatedAt,
                     })),
                 });
@@ -669,8 +673,9 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
                             stateLens: c.stateLens,
                         }));
                     }
-                    catch {
-                        /* empty */
+                    catch (err) {
+                        // An unreadable work or pending recovery is not an empty foundation.
+                        throw err;
                     }
                 }
                 const inspiration = await buildInspirationView(paths, {
@@ -696,16 +701,17 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
                 let workKey = (url.searchParams.get("work") ?? "").trim();
                 if (!workKey) {
                     if (works.length === 0) {
+                        const library = await buildLibraryView(paths).catch((err: any) => ({ unavailable: true, recoveryPending: err?.code === "library_recovery_required", summary: err instanceof Error ? err.message : "拆书库暂不可读" }));
                         return writeJson(res, 200, {
                             ok: true,
                             empty: true,
-                            message: "还没有作品。先用 zhizhang_project_create 创建。",
+                            message: (library as any).unavailable ? (library as any).summary : "还没有作品。先用 zhizhang_project_create 创建。",
                             works: [],
                             projectId: projectIdOf(paths.base),
                             base: paths.base,
                             resolvedVia: paths.resolvedVia,
                             product: buildProductView(),
-                            library: await buildLibraryView(paths).catch(() => null),
+                            library,
                         });
                     }
                     if (works.length > 1) {
@@ -713,7 +719,7 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
                             ok: true,
                             needWork: true,
                             message: "请选择作品",
-                            works: works.map((w: any) => ({ key: w.key, title: w.title })),
+                            works: works.map((w: any) => ({ key: w.key, title: w.title, recoveryPending: w.recoveryPending === true })),
                             projectId: projectIdOf(paths.base),
                             base: paths.base,
                             resolvedVia: paths.resolvedVia,
@@ -743,7 +749,7 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
                     snapshot: rest,
                     ...(includeHtml ? { html } : {}),
                     multiDraftEnabled: rest.multiDraftEnabled,
-                    works: works.map((w: any) => ({ key: w.key, title: w.title })),
+                    works: works.map((w: any) => ({ key: w.key, title: w.title, recoveryPending: w.recoveryPending === true })),
                     projectId: projectIdOf(paths.base),
                     base: paths.base,
                     resolvedVia: paths.resolvedVia,
@@ -809,9 +815,10 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
                     const msg = err instanceof Error ? err.message : String(err);
                     const missing = (err as any)?.code === "ENOENT" ||
                         /ENOENT|no such file|不存在/i.test(msg);
-                    return writeJson(res, missing ? 404 : 500, {
+                    const recovering = err instanceof ZhizhangError && err.code === "recovery_required";
+                    return writeJson(res, recovering ? 409 : missing ? 404 : 500, {
                         ok: false,
-                        code: missing ? "chapter_not_found" : "chapter_read_failed",
+                        code: recovering ? "recovery_required" : missing ? "chapter_not_found" : "chapter_read_failed",
                         error: missing ? `章节不存在：${chapterId}` : msg.slice(0, 200),
                     });
                 }
@@ -866,7 +873,7 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
                             source: cand.source,
                             note: cand.note ?? "",
                             acceptedAt: cand.acceptedAt ?? null,
-                            hasLintPass: Boolean(cand.lintPassToken),
+                            hasLintPass: candidateHasLintPass(cand),
                             lintHitCount: cand.lintHitCount ?? null,
                             editOf: cand.editOf ?? null,
                             editMode: cand.editMode ?? null,
@@ -886,9 +893,10 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
                     const msg = err instanceof Error ? err.message : String(err);
                     const missing = (err as any)?.code === "ENOENT" ||
                         /ENOENT|no such file|不存在/i.test(msg);
-                    return writeJson(res, missing ? 404 : 500, {
+                    const recovering = err instanceof ZhizhangError && err.code === "recovery_required";
+                    return writeJson(res, recovering ? 409 : missing ? 404 : 500, {
                         ok: false,
-                        code: missing ? "candidate_not_found" : "candidate_read_failed",
+                        code: recovering ? "recovery_required" : missing ? "candidate_not_found" : "candidate_read_failed",
                         error: missing ? `候选不存在：${candidateId}` : msg.slice(0, 200),
                     });
                 }
@@ -896,8 +904,10 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
             return writeJson(res, 404, { ok: false, error: "not found" });
         }
         catch (err) {
-            return writeJson(res, 500, {
+            const recovering = err instanceof ZhizhangError && (err.code === "recovery_required" || err.code === "library_recovery_required");
+            return writeJson(res, recovering ? 409 : 500, {
                 ok: false,
+                ...(recovering ? { code: (err as ZhizhangError).code } : {}),
                 error: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200),
             });
         }

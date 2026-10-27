@@ -1,7 +1,9 @@
+import { assertNoPendingCard } from "../lib/storage/card-journal.js";
+import { withResourceLock } from "../lib/storage/process-lock.js";
 /** 拆书分析层工具：事实 / 聚合 / 报告 / 删卡。 */
 import { LibraryPort } from "../lib/ports/library.js";
 import { ZhizhangError } from "../lib/errors.js";
-import { analysisPaths, buildReport, chapterText, computeCoverage, ensureAnalysis, ensureSurvey, planLabel, planMembership, planProgress, quoteOk, readAnalysisBundle, readPlan, textStats, toCardView, upsertChapter, upsertPlot, upsertCharacter, writePlan, writeRhythm, } from "../lib/ports/analysis.js";
+import { analysisPaths, buildReport, chapterText, computeCoverage, ensureAnalysis, ensureSurvey, planLabel, planMembership, planProgress, quoteOk, readAnalysisBundle, readPlan, textStats, toCardView, upsertChapter, validateChapterFacts, upsertPlot, upsertCharacter, writePlan, writeRhythm, } from "../lib/ports/analysis.js";
 import { atomicWrite } from "../lib/store.js";
 import { REPORT_SECTION_COUNT } from "../lib/domain/report-sections.js";
 import { stepPrefix } from "../lib/domain/workflow.js";
@@ -30,7 +32,7 @@ export function analysisTools() {
             description: `${stepPrefix("library", 4, "事实层")}提交逐章白描事实（谁做了什么、结果；没写的动机进 unknowns）。校验：引文可回溯、desc 无心理/评价词。下一步：structure_stage 聚合。`,
             properties: {
                 source: S("sourceId"),
-                facts: { type: "object", description: "单章事实：{n,title,events:[{loc,desc,quote}],functions,hook,value,unknowns}" },
+                facts: { type: "object", description: "单章事实：{n,title,events:[{loc,desc,quote}],functions,hook,value,unknowns,readingLevel?}；readingLevel 可显式申报正文已读或深读，省略为未声明" },
                 items: { type: "array", items: { type: "object" }, description: "可选：一批单章事实（与 facts 二选一）" },
                 working_dir: WORKING_DIR,
             },
@@ -38,51 +40,60 @@ export function analysisTools() {
             async execute(args, exec) {
                 const sourceId = asString(args, "source", { required: true });
                 const paths = await openLibrary(exec, args);
-                const { text, index: idx } = await LibraryPort.getSourceIndexed(paths, sourceId);
-                const itemsArg = asArray(args, "items");
-                const raw = itemsArg ?? (args.facts ? [args.facts] : []);
-                if (!raw.length)
-                    throw new ZhizhangError("bad_args", "传 facts（单章）或 items（多章）");
-                const receipts = [];
-                for (const f of raw) {
-                    const r = await upsertChapter(paths, sourceId, f, text, idx);
-                    receipts.push({ n: Number(f.n), warnings: r.warnings, total: r.count });
-                }
-                const bundle = await readAnalysisBundle(paths, sourceId);
-                const coverage = computeCoverage(bundle.meta, bundle.chapters, [], quoteStatsOf(bundle.chapters, text, idx));
-                const plan = await readPlan(paths, sourceId);
-                let planLine = "";
-                let nextLine = "下一步：继续取下一批（dissect_brief mode=chapters）或 zhizhang_library_structure_stage 聚合剧情条/节奏/人物。";
-                let coverageLine = "覆盖：" + coverage.facts + "/" + (coverage.scope || bundle.meta?.totalChapters || "?") + " 章";
-                if (plan) {
-                    const warns = [];
-                    for (const r of receipts) {
-                        const mem = planMembership(plan, r.n);
-                        if (!mem.inPlan)
-                            warns.push(mem.reason);
+                return withResourceLock(paths.library, async () => {
+                    await assertNoPendingCard(paths.library);
+                    const { text, index: idx } = await LibraryPort.getSourceIndexed(paths, sourceId);
+                    const itemsArg = asArray(args, "items");
+                    const raw = itemsArg ?? (args.facts ? [args.facts] : []);
+                    if (!raw.length)
+                        throw new ZhizhangError("bad_args", "传 facts（单章）或 items（多章）");
+                    // Validate the complete submission before writing the first chapter.
+                    for (const f of raw) {
+                        const check = validateChapterFacts(f, text, idx);
+                        if (check.errors.length)
+                            throw new ZhizhangError("bad_facts", `第 ${f?.n ?? "?"} 章事实未通过：${check.errors.join("；")}`);
                     }
-                    const prog = planProgress(plan, bundle.chapters);
-                    if (prog.cursor !== plan.cursor) {
-                        plan.cursor = prog.cursor;
-                        await writePlan(paths, plan);
+                    const receipts = [];
+                    for (const f of raw) {
+                        const r = await upsertChapter(paths, sourceId, f, text, idx);
+                        receipts.push({ n: Number(f.n), warnings: r.warnings, total: r.count, readingLevel: f.readingLevel ?? "未声明" });
                     }
-                    coverageLine = "覆盖：" + prog.done + "/" + prog.total + " 章（" + planLabel(plan) + "）";
-                    planLine = "计划：事实 " + prog.done + "/" + prog.total + " 章 · 游标 " + prog.cursor + "/" + prog.batches +
-                        (warns.length ? "\n- " + warns.join("\n- ") : "");
-                    nextLine = prog.nextBatch
-                        ? "下一步：zhizhang_library_dissect_brief(source, batch=" + prog.cursor + ") 取原文（游标指向未完成的批：本批尚有章未记则回本批继续白描）。"
-                        : "计划已全部取完：zhizhang_library_structure_stage 聚合剧情条/节奏/人物。";
-                }
-                const lines = [
-                    "已记录 " + receipts.length + " 章事实（累计 " + bundle.chapters.length + " 章）",
-                    ...receipts.map((r) => "- 第" + r.n + "章：" + (r.warnings.length ? r.warnings.join("；") : "通过")),
-                    "",
-                    coverageLine,
-                    planLine,
-                    "",
-                    nextLine,
-                ];
-                return lines.join("\n");
+                    const bundle = await readAnalysisBundle(paths, sourceId);
+                    const coverage = computeCoverage(bundle.meta, bundle.chapters, [], quoteStatsOf(bundle.chapters, text, idx));
+                    const plan = await readPlan(paths, sourceId);
+                    let planLine = "";
+                    let nextLine = "下一步：继续取下一批（dissect_brief mode=chapters）或 zhizhang_library_structure_stage 聚合剧情条/节奏/人物。";
+                    let coverageLine = "覆盖：" + coverage.facts + "/" + (coverage.scope || bundle.meta?.totalChapters || "?") + " 章";
+                    if (plan) {
+                        const warns = [];
+                        for (const r of receipts) {
+                            const mem = planMembership(plan, r.n);
+                            if (!mem.inPlan)
+                                warns.push(mem.reason);
+                        }
+                        const prog = planProgress(plan, bundle.chapters);
+                        if (prog.cursor !== plan.cursor) {
+                            plan.cursor = prog.cursor;
+                            await writePlan(paths, plan);
+                        }
+                        coverageLine = "覆盖：" + prog.done + "/" + prog.total + " 章（" + planLabel(plan) + "）";
+                        planLine = "计划：事实 " + prog.done + "/" + prog.total + " 章 · 游标 " + prog.cursor + "/" + prog.batches +
+                            (warns.length ? "\n- " + warns.join("\n- ") : "");
+                        nextLine = prog.nextBatch
+                            ? "下一步：zhizhang_library_dissect_brief(source, batch=" + prog.cursor + ") 取原文（游标指向未完成的批：本批尚有章未记则回本批继续白描）。"
+                            : "计划内章节均已有事实记录；确认阅读范围后用 zhizhang_library_structure_stage 聚合。事实记录本身不证明完整阅读。";
+                    }
+                    const lines = [
+                        "已记录 " + receipts.length + " 章事实（累计 " + bundle.chapters.length + " 章）",
+                        ...receipts.map((r) => "- 第" + r.n + "章：" + (r.warnings.length ? r.warnings.join("；") : "通过") + " · 阅读程度申报：" + r.readingLevel),
+                        "",
+                        coverageLine,
+                        planLine,
+                        "",
+                        nextLine,
+                    ];
+                    return lines.join("\n");
+                });
             },
         }),
         defineTool({
@@ -100,20 +111,23 @@ export function analysisTools() {
                 const kind = asString(args, "kind", { required: true });
                 const payload = args.payload ?? {};
                 const paths = await openLibrary(exec, args);
-                await ensureAnalysis(paths, sourceId, (await LibraryPort.getSource(paths, sourceId)).text);
-                if (kind === "plot") {
-                    const r = await upsertPlot(paths, sourceId, payload);
-                    return `已记录剧情条（共 ${r.count} 条）\n下一步：继续 plot，或 kind=rhythm 记节奏。`;
-                }
-                if (kind === "rhythm") {
-                    const r = await writeRhythm(paths, sourceId, payload);
-                    return `已记录节奏表：${r.loops} 条爽点循环${r.warnings.length ? `\n- 提醒：${r.warnings.join("；")}` : ""}\n下一步：kind=character，或 library_report 出报告。`;
-                }
-                if (kind === "character") {
-                    const r = await upsertCharacter(paths, sourceId, payload);
-                    return `已记录人物（共 ${r.count} 个）\n下一步：继续 character，或 library_report。`;
-                }
-                throw new ZhizhangError("bad_args", `kind 必须是 plot|rhythm|character：${kind}`);
+                return withResourceLock(paths.library, async () => {
+                    await assertNoPendingCard(paths.library);
+                    await ensureAnalysis(paths, sourceId, (await LibraryPort.getSource(paths, sourceId)).text);
+                    if (kind === "plot") {
+                        const r = await upsertPlot(paths, sourceId, payload);
+                        return `已记录剧情条（共 ${r.count} 条）\n下一步：继续 plot，或 kind=rhythm 记节奏。`;
+                    }
+                    if (kind === "rhythm") {
+                        const r = await writeRhythm(paths, sourceId, payload);
+                        return `已记录节奏表：${r.loops} 条爽点循环${r.warnings.length ? `\n- 提醒：${r.warnings.join("；")}` : ""}\n下一步：kind=character，或 library_report 出报告。`;
+                    }
+                    if (kind === "character") {
+                        const r = await upsertCharacter(paths, sourceId, payload);
+                        return `已记录人物（共 ${r.count} 个）\n下一步：继续 character，或 library_report。`;
+                    }
+                    throw new ZhizhangError("bad_args", `kind 必须是 plot|rhythm|character：${kind}`);
+                });
             },
         }),
         defineTool({
@@ -129,63 +143,68 @@ export function analysisTools() {
             async execute(args, exec) {
                 const sourceId = asString(args, "source", { required: true });
                 const paths = await openLibrary(exec, args);
-                const { meta: srcMeta, text, index: idx } = await LibraryPort.getSourceIndexed(paths, sourceId);
-                await ensureAnalysis(paths, sourceId, text);
-                const bundle = await readAnalysisBundle(paths, sourceId);
-                const rows = await LibraryPort.listCards(paths, { sourceId });
-                const modules = [];
-                for (const row of rows) {
-                    try {
-                        modules.push(toCardView(await LibraryPort.getCard(paths, row.id)));
+                return withResourceLock(paths.library, async () => {
+                    await assertNoPendingCard(paths.library);
+                    const { meta: srcMeta, text, index: idx } = await LibraryPort.getSourceIndexed(paths, sourceId);
+                    await ensureAnalysis(paths, sourceId, text);
+                    const bundle = await readAnalysisBundle(paths, sourceId);
+                    const rows = await LibraryPort.listCards(paths, { sourceId });
+                    const modules = [];
+                    for (const row of rows) {
+                        try {
+                            modules.push(toCardView(await LibraryPort.getCard(paths, row.id)));
+                        }
+                        catch {
+                            /* skip unreadable card */
+                        }
                     }
-                    catch {
-                        /* skip unreadable card */
-                    }
-                }
-                const v2Count = modules.filter((m) => !m.legacy).length;
-                const stats = bundle.chapters
-                    .map((f) => {
-                    const t = chapterText(text, idx, f.n);
-                    return t ? { n: f.n, ...textStats(t) } : null;
-                })
-                    .filter(Boolean);
-                const plan = await readPlan(paths, sourceId);
-                const survey = await ensureSurvey(paths, sourceId, text, bundle.chapters, idx);
-                const coverage = computeCoverage(bundle.meta, bundle.chapters, modules.filter((m) => !m.legacy), quoteStatsOf(bundle.chapters, text, idx), {
-                    survey,
-                    plots: bundle.plots,
-                    rhythms: bundle.rhythms,
-                    characters: bundle.characters,
-                    autoCap: plan?.mode === "auto" && plan.planChapters < (bundle.meta?.totalChapters ?? 0),
+                    const v2Count = modules.filter((m) => !m.legacy).length;
+                    const stats = bundle.chapters
+                        .map((f) => {
+                        const t = chapterText(text, idx, f.n);
+                        return t ? { n: f.n, ...textStats(t) } : null;
+                    })
+                        .filter(Boolean);
+                    const plan = await readPlan(paths, sourceId);
+                    const survey = await ensureSurvey(paths, sourceId, text, bundle.chapters, idx);
+                    const planned = plan ? new Set(plan.chapters.map((c) => Number(c.n))) : null;
+                    const scopedFacts = planned ? bundle.chapters.filter((f) => planned.has(Number(f.n))) : bundle.chapters;
+                    const coverage = computeCoverage(bundle.meta, scopedFacts, modules.filter((m) => !m.legacy), quoteStatsOf(scopedFacts, text, idx), {
+                        survey,
+                        plots: bundle.plots,
+                        rhythms: bundle.rhythms,
+                        characters: bundle.characters,
+                        autoCap: plan?.mode === "auto" && plan.planChapters < (bundle.meta?.totalChapters ?? 0),
+                    });
+                    const md = buildReport({
+                        sourceTitle: srcMeta.title,
+                        plan,
+                        meta: bundle.meta,
+                        facts: bundle.chapters,
+                        plots: bundle.plots,
+                        rhythms: bundle.rhythms,
+                        characters: bundle.characters,
+                        modules,
+                        coverage,
+                        stats,
+                        benchmark: asString(args, "benchmark"),
+                        notes: asString(args, "notes"),
+                        survey,
+                    });
+                    const p = analysisPaths(paths, sourceId);
+                    await atomicWrite(p.report, md);
+                    // 报告由已提交数据确定性拼装并已落盘；回执只给 12 行结构预览确认，不再整页复述。
+                    const preview = md.split("\n").slice(0, 12).join("\n");
+                    return [
+                        `报告已写入：library/analyses/${sourceId}/report.md`,
+                        `- ${plan ? planLabel(plan) + " · " : ""}事实 ${bundle.chapters.length} 章 · 剧情条 ${bundle.plots.length} · 模块 ${modules.length}（v2 ${v2Count} / v1 ${modules.length - v2Count}）· 材料完备度 ${coverage.confidence}（机械指标）${coverage.needsReview ? "（needs_review）" : ""}`,
+                        "",
+                        "预览：",
+                        preview,
+                        "",
+                        "下一步：补足覆盖或模块后重跑；写作用 chapter_brief 注入 craft 模块，灵感用 inspire_start 注入 mind 模块。",
+                    ].join("\n");
                 });
-                const md = buildReport({
-                    sourceTitle: srcMeta.title,
-                    plan,
-                    meta: bundle.meta,
-                    facts: bundle.chapters,
-                    plots: bundle.plots,
-                    rhythms: bundle.rhythms,
-                    characters: bundle.characters,
-                    modules,
-                    coverage,
-                    stats,
-                    benchmark: asString(args, "benchmark"),
-                    notes: asString(args, "notes"),
-                    survey,
-                });
-                const p = analysisPaths(paths, sourceId);
-                await atomicWrite(p.report, md);
-                // 报告由已提交数据确定性拼装并已落盘；回执只给 12 行结构预览确认，不再整页复述。
-                const preview = md.split("\n").slice(0, 12).join("\n");
-                return [
-                    `报告已写入：library/analyses/${sourceId}/report.md`,
-                    `- ${plan ? planLabel(plan) + " · " : ""}事实 ${bundle.chapters.length} 章 · 剧情条 ${bundle.plots.length} · 模块 ${modules.length}（v2 ${v2Count} / v1 ${modules.length - v2Count}）· 置信度 ${coverage.confidence}${coverage.needsReview ? "（needs_review）" : ""}`,
-                    "",
-                    "预览：",
-                    preview,
-                    "",
-                    "下一步：补足覆盖或模块后重跑；写作用 chapter_brief 注入 craft 模块，灵感用 inspire_start 注入 mind 模块。",
-                ].join("\n");
             },
         }),
         defineTool({

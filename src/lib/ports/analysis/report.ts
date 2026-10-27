@@ -62,7 +62,7 @@ export function buildReport(input: any) {
     const planOutside = plan ? facts.length - planDone : 0;
     const mark = plan
         ? fullPlan
-            ? facts.length >= plan.planChapters ? "" : "（全量未完成）"
+            ? planDone >= plan.planChapters ? "" : "（全量未完成）"
             : "（抽样观察）"
         : meta?.scope?.mode === "full" ? "" : "（早期观察）";
 
@@ -78,7 +78,7 @@ export function buildReport(input: any) {
     const lines = [];
     lines.push(`# 拆书报告 · ${sourceTitle}`);
     lines.push("");
-    lines.push(`> 生成时间：${nowIso()} · 范围：${plan ? planLabel(plan) : meta?.scope?.mode ?? "none"} · 已拆章节：${facts.length}/${total || "?"}`);
+    lines.push(`> 生成时间：${nowIso()} · 范围：${plan ? planLabel(plan) : meta?.scope?.mode ?? "none"} · 已提交事实章节：${facts.length}/${total || "?"}`);
     lines.push("");
 
     // 1
@@ -87,12 +87,18 @@ export function buildReport(input: any) {
         ["书名", sourceTitle],
         ["总章数", total || "?"],
         ["档位", plan ? planLabel(plan) : "未建计划（旧模式）"],
-        ["已拆章节", `${facts.length} / ${total || "?"}`],
+        ["已提交事实章节", `${facts.length} / ${total || "?"}`],
         [plan ? "覆盖（计划）" : "本批覆盖", plan
             ? `${Math.round((planDone / Math.max(1, plan.planChapters)) * 100)}%（${planDone}/${plan.planChapters}${planOutside > 0 ? ` + ${planOutside} 计划外` : ""}）`
             : `${pct(coverage.ratio)}（${facts.length}/${coverage.scope ?? total}${Number(coverage.scope) < total ? "，样本" : ""}）`],
-        ["置信度", `${coverage.confidence ?? 0}${coverage.needsReview ? " · needs_review" : ""}`],
+        ["材料完备度", `${coverage.confidence ?? 0}${coverage.needsReview ? " · needs_review" : ""}`],
     ]));
+    lines.push("");
+    lines.push("### 阅读程度（提交者申报）");
+    const levelCount = (level: string) => facts.filter((f: any) => f.readingLevel === level).length;
+    const declared = levelCount("正文已读") + levelCount("深读");
+    lines.push(`- 正文已读 ${levelCount("正文已读")} 章 · 深读 ${levelCount("深读")} 章 · 未声明 ${facts.length - declared} 章。`);
+    lines.push("- 阅读程度由提交者申报；旧记录默认未声明。代码测绘、原文交付与事实记录均不能自动证明阅读深度。");
     lines.push("");
     lines.push("### 1.1 量化底座（代码测绘）");
     if (!survey) {
@@ -132,12 +138,13 @@ export function buildReport(input: any) {
         }
     }
     lines.push("");
-    lines.push("### 1.2 覆盖率与置信度");
-    lines.push(`- 事实覆盖：${facts.length}/${coverage.scope ?? total}（${pct(coverage.ratio)}）`);
+    lines.push("### 1.2 覆盖率与材料完备度");
+    lines.push(`- 事实覆盖：${coverage.facts ?? facts.length}/${coverage.scope ?? total}（${pct(coverage.ratio)}）`);
     lines.push(`- 引文通过：${pct(coverage.quotePass)}`);
     lines.push(`- 结构完整：${pct(coverage.structure)}（测绘 / 剧情条 / 节奏 / 人物）`);
     lines.push(`- 模块维度：${coverage.dimensions ?? 0}/6`);
-    lines.push(`- 置信度：${coverage.confidence ?? 0}${coverage.capped ? `（Auto 抽样封顶 ${AUTO_CONFIDENCE_CAP}）` : ""}${coverage.needsReview ? " · needs_review（继续拆或人读复核）" : ""}`);
+    lines.push("- 说明：以下机械指标只衡量已提交材料的覆盖与可核对程度，不证明实际阅读深度、结论正确或技法质量。");
+    lines.push(`- 材料完备度：${coverage.confidence ?? 0}${coverage.capped ? `（Auto 抽样封顶 ${AUTO_CONFIDENCE_CAP}）` : ""}${coverage.needsReview ? " · needs_review（继续拆或人读复核）" : ""}`);
     lines.push("");
 
     // 2
@@ -222,14 +229,14 @@ export function buildReport(input: any) {
     const ratioOf = (v: any) => `${Math.round((cnt(v) / Math.max(1, facts.length)) * 100)}%`;
     lines.push(`- 样本章 ${facts.length} · 强钩子 ${cnt("强")}（${ratioOf("强")}）· 中钩子 ${cnt("中")}（${ratioOf("中")}）· 弱钩子 ${cnt("弱")}（${ratioOf("弱")}）`);
     if (plan && plan.mode === "auto" && plan.planChapters < total)
-        lines.push(`- 抽样章内平均：每 ${(facts.length / Math.max(1, cnt("强"))).toFixed(1)} 个已拆章一个强钩子（Auto 抽样，不能外推全书密度）`);
+        lines.push(`- 抽样章内平均：每 ${(facts.length / Math.max(1, cnt("强"))).toFixed(1)} 个有事实记录的章一个强钩子（Auto 抽样，不能外推全书密度）`);
     else if (span)
         lines.push(`- 平均间隔：强钩子每 ${gap("强")} 章 / 中钩子每 ${gap("中")} 章（区间 ${span} 章）`);
     else
         lines.push("- 无有效章号：先补事实层章号，才能算钩子间隔。");
     if (survey?.volumes?.length) {
         lines.push("");
-        lines.push(mdTable(["卷", "已拆章", "强钩子"], survey.volumes.map((v: any) => {
+        lines.push(mdTable(["卷", "有事实记录的章", "强钩子"], survey.volumes.map((v: any) => {
             const inside = facts.filter((f: any) => Number(f.n) >= v.from && Number(f.n) <= v.to);
             return [v.name, inside.length, inside.filter((f: any) => f.hook?.strength === "强").length];
         })));
@@ -307,22 +314,23 @@ export function buildReport(input: any) {
         lines.push(`- 档位：${planLabel(plan)}；抽样表见 analyses/${plan.sourceId}/plan.md`);
         if (plan.mode === "auto")
             lines.push("- Auto 为抽样：全书节奏/伏笔类结论只作抽样观察；要全书骨架须由作者明确要求 Full。");
-        if (plan.mode === "full" && facts.length < plan.planChapters)
-            lines.push(`- Full 未完成：${facts.length}/${plan.planChapters} 章。`);
+        if (plan.mode === "full" && planDone < plan.planChapters)
+            lines.push(`- Full 未完成：${planDone}/${plan.planChapters} 章（已提交事实）。`);
     }
     if (meta?.scope?.mode !== "full") {
         lines.push(plan && plan.mode === "auto"
-            ? `- 本报告为 Auto 抽样：已读 ${planDone}/${plan.planChapters} 章（计划），全书 ${total || "?"} 章；全书结论只作「抽样观察」。`
-            : `- 本报告只覆盖已读的 ${facts.length} 章（全书 ${total || "?"} 章），全书结论须标「早期观察」。`);
+            ? `- 本报告为 Auto 抽样：计划内 ${planDone}/${plan.planChapters} 章已提交事实，全书 ${total || "?"} 章；全书结论只作「抽样观察」。`
+            : `- 本报告包含 ${facts.length} 章的事实记录（全书 ${total || "?"} 章），全书结论须标「早期观察」。`);
     }
+    lines.push("- 事实已提交不等于全文已读或深读；阅读程度须由阅读者如实确认。机械指标不评判作品或方法质量。");
     if (coverage.needsReview) {
-        lines.push("- 置信度未达 0.85：先补事实与聚合（尤其 30%/60%/85% 抽样章），再决定是否出更多模块卡。");
+        lines.push("- 材料完备度未达 0.85：先补事实与聚合（尤其 30%/60%/85% 抽样章），再决定是否出更多模块卡。");
     }
     else if (modules.length) {
-        lines.push("- 置信度达标且已有模块：可进入 library_combo_suggest（1 book + N scene），再 inspire 或 chapter_brief(lean)。");
+        lines.push("- 材料完备度达标且已有模块：逐卡人读复核后可进入 library_combo_suggest（1 book + N scene），再 inspire 或 chapter_brief(lean)。");
     }
     else {
-        lines.push("- 置信度达标但尚无模块：进入 library_card_stage（v2：layer+dimension+5 项+evidence）→ card_accept。");
+        lines.push("- 材料完备度达标但尚无模块：阅读并核对事实后可进入 library_card_stage（v2：layer+dimension+5 项+evidence）→ card_accept。");
     }
     const unpaid = fsRows.filter((f: any) => !(f.paidOff || f.status === "已兑现")).length;
     if (unpaid)

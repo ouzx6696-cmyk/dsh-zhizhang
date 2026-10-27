@@ -1,8 +1,8 @@
 import { markCandidateLinted } from "../store.js";
 import { allow, deny, warn } from "./types.js";
 export const LintGate = {
-    async issueToken(dir: string, candidateId: string, hitCount: any) {
-        return markCandidateLinted(dir, candidateId, hitCount);
+    async issueToken(dir: string, candidateId: string, hitCount: any, expectedBody?: string) {
+        return markCandidateLinted(dir, candidateId, hitCount, expectedBody);
     },
     hitCountOf(cand: any) {
         return typeof cand.lintHitCount === "number" ? cand.lintHitCount : 0;

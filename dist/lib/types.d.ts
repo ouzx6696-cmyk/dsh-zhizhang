@@ -53,6 +53,8 @@ export interface WorkMeta {
     title: string;
     genre: string;
     premise: string;
+    /** Explicitly selected pacing; absent in legacy or undecided works. */
+    pace?: "快爽" | "稳推" | "慢燃";
     foundation: Foundation;
     createdAt: string;
     updatedAt: string;
@@ -85,6 +87,8 @@ export interface Candidate {
     lintHitCount?: number;
     /** 已扫过的凭据（只证明扫过，不等于过关） */
     lintPassToken?: string;
+    /** Hash of the exact candidate text that was scanned. */
+    lintBodyHash?: string;
     lintedAt?: string;
     /** 编辑稿指向源候选 */
     editOf?: string;

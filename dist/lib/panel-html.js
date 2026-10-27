@@ -86,7 +86,7 @@ export function renderPanelHtml(input) {
             ? `<span class="zz-badge zz-badge-warn">待采纳 ${num(pending.length)}</span>`
             : `<span class="zz-badge">待采纳 0</span>`,
         library
-            ? `<span class="zz-badge zz-badge-info">craft ${num(library.craftCount)} · mind ${num(library.mindCount)}</span>`
+            ? (library.unavailable ? `<span class="zz-badge zz-badge-warn">拆书库暂不可读</span>` : `<span class="zz-badge zz-badge-info">craft ${num(library.craftCount)} · mind ${num(library.mindCount)}</span>`)
             : "",
     ]
         .filter(Boolean)
@@ -106,7 +106,9 @@ export function renderPanelHtml(input) {
         : "";
     const libraryHtml = !library
         ? `<p class="zz-empty">无拆书库摘要</p>`
-        : `<div class="zz-card zz-library">
+        : library.unavailable
+            ? `<p class="zz-err" role="alert">${esc(library.summary || "拆书库暂不可读")}</p>`
+            : `<div class="zz-card zz-library">
   <div class="zz-badges">
     <span class="zz-badge">来源 ${num(library.sourcesCount)}</span>
     <span class="zz-badge zz-badge-ok">已采纳 ${num(library.acceptedCount)}</span>
@@ -116,18 +118,18 @@ export function renderPanelHtml(input) {
   </div>
   <p class="zz-muted" style="margin-top:8px">${esc(clip(library.summary, 160))}</p>
   ${library.sources.length
-            ? `<ul class="zz-muted">` +
-                library.sources
-                    .slice(0, 6)
-                    .map((s) => `<li>${esc(s.title)}${s.author ? " · " + esc(s.author) : ""} <code>${esc(s.id)}</code></li>`)
-                    .join("") +
-                `</ul>`
-            : `<p class="zz-empty">暂无来源。可用 zhizhang_library_import</p>`}
+                ? `<ul class="zz-muted">` +
+                    library.sources
+                        .slice(0, 6)
+                        .map((s) => `<li>${esc(s.title)}${s.author ? " · " + esc(s.author) : ""} <code>${esc(s.id)}</code></li>`)
+                        .join("") +
+                    `</ul>`
+                : `<p class="zz-empty">暂无来源。可用 zhizhang_library_import</p>`}
   ${library.combo
-            ? library.combo.ok
-                ? `<p class="zz-note">最近 combo 建议：mind「${esc(library.combo.mindTitle || "—")}」+ craft ${esc(library.combo.craftTitles.join("、") || "—")}</p>`
-                : `<p class="zz-note">combo：${esc(library.combo.emptyReason || "暂无")}</p>`
-            : ""}
+                ? library.combo.ok
+                    ? `<p class="zz-note">最近 combo 建议：mind「${esc(library.combo.mindTitle || "—")}」+ craft ${esc(library.combo.craftTitles.join("、") || "—")}</p>`
+                    : `<p class="zz-note">combo：${esc(library.combo.emptyReason || "暂无")}</p>`
+                : ""}
 </div>`;
     const op = inspiration?.outlineProgress;
     const inspirationHtml = !inspiration

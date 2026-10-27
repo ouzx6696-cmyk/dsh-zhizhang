@@ -24,13 +24,30 @@ export declare const InspirationPort: {
         forgeAt: any;
         updatedAt: any;
     }[]>;
+    /** Previously applied candidates remain available as an author-readable decision history. */
+    listWorkHistory(paths: StoragePaths, workKey: string): Promise<{
+        total: number;
+        rows: {
+            id: any;
+            kind: any;
+            title: any;
+            at: any;
+        }[];
+    }>;
+    getCandidate(paths: StoragePaths, candidateId: string): Promise<any>;
     forgeBrief(paths: StoragePaths, sessionId: any): Promise<string>;
     stageEmit(paths: StoragePaths, sessionId: any, input: any): Promise<{
         candId: string;
         kind: any;
         styleReminder: string;
     }>;
-    acceptEmit(paths: StoragePaths, candId: any, opts: any): Promise<any>;
+    acceptEmit(paths: StoragePaths, candId: any, opts: any): Promise<{
+        candId: string;
+        applied: boolean;
+        workKey: string;
+        detail: string;
+        bindingWarning: string;
+    }>;
     /**
      * Resolve technique cards for chapter_brief / writing path.
      * Priority: explicit cardIds → inspire sessions applied to work → none.

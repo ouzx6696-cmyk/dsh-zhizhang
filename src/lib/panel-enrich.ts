@@ -10,6 +10,8 @@ import { listAnalyses, readPlan, planProgress, planLabel, readAnalysisBundle } f
 import { InspirationPort } from "./ports/inspiration.js";
 import { ProductMap } from "./ports/product.js";
 import { Scheduler } from "./ports/scheduler.js";
+import { readPlanning } from "./domain/planning.js";
+import { assertNoPendingInspiration } from "./storage/inspiration-journal.js";
 import { listLocalBooks } from "./store.js";
 import type { StoragePaths } from "./types.js";
 function foundationFilledFields(f: any) {
@@ -72,13 +74,7 @@ export async function buildLibraryView(paths: StoragePaths) {
             pending = [];
         }
     }
-    let analyses: any[] = [];
-    try {
-        analyses = await listAnalyses(paths);
-    }
-    catch {
-        analyses = [];
-    }
+    const analyses = await listAnalyses(paths);
     return {
         sourcesCount: sources.length,
         sourceRoot,
@@ -92,15 +88,10 @@ export async function buildLibraryView(paths: StoragePaths) {
         // Cap before the per-analysis plan/bundle reads — those are the expensive part.
         analyses: await Promise.all(analyses.slice(0, 20).map(async (a: any) => {
             let plan = null;
-            try {
-                const p = await readPlan(paths, a.sourceId);
-                if (p) {
-                    const prog = planProgress(p, (await readAnalysisBundle(paths, a.sourceId)).chapters);
-                    plan = { mode: p.mode, ratio: p.ratio, label: planLabel(p), done: prog.done, total: prog.total };
-                }
-            }
-            catch {
-                plan = null;
+            const p = await readPlan(paths, a.sourceId);
+            if (p) {
+                const prog = planProgress(p, (await readAnalysisBundle(paths, a.sourceId)).chapters);
+                plan = { mode: p.mode, ratio: p.ratio, label: planLabel(p), done: prog.done, total: prog.total };
             }
             return { sourceId: a.sourceId, stage: a.stage, facts: a.facts, totalChapters: a.totalChapters, plots: a.plots, plan };
         })),
@@ -113,6 +104,8 @@ export async function buildLibraryView(paths: StoragePaths) {
     };
 }
 export async function buildInspirationView(paths: StoragePaths, opts: any) {
+    await assertNoPendingInspiration(paths.inspiration);
+    const planning = readPlanning({ planning: opts.planning });
     const sessionsRaw = await InspirationPort.listSessions(paths);
     const sessions = sessionsRaw.slice(0, 8).map((s: any) => ({
         id: s.id,
@@ -168,6 +161,13 @@ export async function buildInspirationView(paths: StoragePaths, opts: any) {
             complete += 1;
     }
     return {
+        planning: planning ? {
+            book: planning.book ? { content: planning.book.content.slice(0, 400), truncated: planning.book.content.length > 400 } : null,
+            volumes: planning.volumes.slice(0, 8).map((v: any) => ({ id: v.id, title: v.title || v.id, content: v.content.slice(0, 400), truncated: v.content.length > 400, chapters: v.chapters.slice(0, 30) })),
+            totalVolumes: planning.volumes.length,
+            acts: planning.acts.slice(0, 8).map((a: any) => ({ id: a.id, title: a.title || a.id, volumeId: a.volumeId || "", content: a.content.slice(0, 400), truncated: a.content.length > 400, chapters: a.chapters.slice(0, 30) })),
+            totalActs: planning.acts.length,
+        } : null,
         sessionsCount: sessionsRaw.length,
         sessions,
         pendingEmits,

@@ -1,4 +1,4 @@
-import type { Candidate, ExecContext, Foundation, Outline, PluginConfig, StoragePaths } from "./types.js";
+import type { Candidate, ExecContext, PluginConfig, StoragePaths } from "./types.js";
 /** 面板用的项目摘要。 */
 interface ProjectSummary {
     id: string;
@@ -12,18 +12,21 @@ interface ProjectSummary {
         key: string;
         title: string;
         genre?: string;
-        chapters: number;
-        wordCount: number;
+        chapters: number | null;
+        wordCount: number | null;
         updatedAt?: string;
+        recoveryPending?: boolean;
     }[];
-    worksCount?: number;
-    chapters?: number;
-    words?: number;
+    worksCount?: number | null;
+    error?: string;
+    chapters?: number | null;
+    words?: number | null;
+    recoveryPending?: boolean;
 }
-export declare function withLock(key: string, fn: (...args: any[]) => any): Promise<any>;
-export declare function countWords(text: string): number;
+export { atomicWrite, assertResourceId, countWords, withLock } from "./storage/primitives.js";
+export { listChapters, readChapter, saveChapter, setOutline, updateChapter } from "./storage/chapters.js";
+export { readWorkMeta, writeWorkMeta } from "./storage/work-meta.js";
 export declare function slugify(title: string): string;
-export declare function assertResourceId(id: string, label?: string): string;
 export declare function sessionCwd(exec: ExecContext | null): string;
 export declare function rememberToolBase(base: string, works: string): void;
 export declare function getLastToolBase(): string;
@@ -48,6 +51,7 @@ export declare function listLocalBooks(sourceRoot: any, opts?: any): Promise<{
  * Summaries are derived from each project's own .zhizhang — never authoritative copies.
  */
 export declare function listProjects(opts?: any): Promise<ProjectSummary[] | {
+    error?: string | undefined;
     id: any;
     base: string;
     worksRoot: any;
@@ -61,10 +65,12 @@ export declare function listProjects(opts?: any): Promise<ProjectSummary[] | {
         chapters: any;
         wordCount: any;
         updatedAt: any;
+        recoveryPending: boolean;
     }[];
-    worksCount: number;
-    chapters: any;
-    words: any;
+    worksCount: number | null;
+    chapters: number | null;
+    words: number | null;
+    recoveryPending: boolean;
 }[]>;
 export declare function storagePaths(exec: ExecContext | null, config: PluginConfig, workingDir: any): {
     base: any;
@@ -75,7 +81,6 @@ export declare function storagePaths(exec: ExecContext | null, config: PluginCon
     sourceRoot: string;
 };
 export declare function ensureStorage(exec: ExecContext | null, config: PluginConfig, workingDir?: any): Promise<StoragePaths>;
-export declare function atomicWrite(file: string, content: string): Promise<void>;
 export declare function workDir(paths: StoragePaths, key: string): string;
 /** Recency window for brief / payoff soft·hard checks on accept (12h). */
 export declare const BRIEF_RECENT_MS: number;
@@ -88,7 +93,7 @@ export declare function createWork(paths: StoragePaths, input: any): Promise<{
         title: any;
         genre: any;
         premise: any;
-        foundation: Foundation;
+        foundation: import("./types.js").Foundation;
         createdAt: string;
         updatedAt: string;
         chapters: never[];
@@ -96,36 +101,43 @@ export declare function createWork(paths: StoragePaths, input: any): Promise<{
     dir: string;
 }>;
 export declare function listWorks(paths: StoragePaths): Promise<any[]>;
-export declare function readWorkMeta(dir: string): Promise<any>;
-export declare function writeWorkMeta(dir: string, meta: any): Promise<void>;
 export declare function resolveWorkDir(paths: StoragePaths, keyOrTitle: any): Promise<string>;
-export declare function listChapters(dir: string): Promise<any[]>;
-export declare function readChapter(dir: string, chapterId: string): Promise<{
-    id: any;
-    title: any;
-    position: number;
-    status: string;
-    wordCount: number;
-    updatedAt: string;
-    body: string;
-    outline: Outline;
+export declare function setFoundation(dir: string, patch: any, options?: {
+    pace?: string;
+}): Promise<any>;
+/** Update a chapter outcome under the work lock, preserving all other author-written text. */
+export declare function appendHappenedLine(dir: string, chapterId: string, line: string, replace?: boolean): Promise<{
+    meta: any;
+    appended: boolean;
+    line: string;
+    reason: string;
+    replaced?: undefined;
 } | {
-    id: string;
-    title: string;
-    position: any;
-    status: any;
-    wordCount: number;
-    updatedAt: string;
-    body: string;
-    outline: Outline;
+    meta: any;
+    appended: boolean;
+    replaced: boolean;
+    line: string;
+    reason?: undefined;
+} | {
+    meta: any;
+    appended: boolean;
+    line: string;
+    reason?: undefined;
+    replaced?: undefined;
 }>;
-export declare function saveChapter(dir: string, input: any): Promise<any>;
-export declare function setOutline(dir: string, chapterId: string, patch: any): Promise<any>;
-export declare function setFoundation(dir: string, patch: any): Promise<any>;
 export declare function readLedger(dir: string): Promise<any>;
 /** ledger.json 保留的最大条数：面板/回溯只用最近若干条，超出即裁掉最旧的，防止整文件随章节数无限膨胀。 */
 export declare const LEDGER_MAX_ENTRIES = 1000;
-export declare function appendLedger(dir: string, entry: any): Promise<any>;
+export declare function appendLedger(dir: string, entry: any): Promise<{
+    id: any;
+    at: any;
+    chapterId: any;
+    kind: any;
+    summary: any;
+    dims: any;
+    issues: any;
+    styleHitCount: any;
+}>;
 /** Persist candidate JSON without dropping optional multi-draft / edit fields. */
 export declare function candidateToDiskMeta(cand: any): Candidate;
 export declare function stageCandidate(dir: string, input: any): Promise<Candidate>;
@@ -135,9 +147,16 @@ export declare function readCandidate(dir: string, candidateId: string): Promise
  * Token proves the sensor ran (hitCount may be > 0) — NOT a quality pass.
  * Clears any prior token. Accept still requires the token; hitCount is echoed / optional strict.
  */
-export declare function markCandidateLinted(dir: string, candidateId: string, hitCount: any): Promise<any>;
+export declare function markCandidateLinted(dir: string, candidateId: string, hitCount: any, expectedBody?: string): Promise<{
+    token: string;
+    lintedAt: string;
+    hitCount: any;
+    chapterId: any;
+}>;
 /** True when candidate has a lint pass recorded at/after stagedAt. */
 export declare function candidateHasLintPass(cand: any): boolean;
+/** Bind policy evaluation to the exact candidate later committed. */
+export declare function candidateGateFingerprint(cand: any): string;
 /**
  * Accept a staged candidate into the chapter draft. Explicit tool only —
  * never called implicitly by generation. Replaces or appends body per mode.
@@ -148,10 +167,52 @@ export declare function candidateHasLintPass(cand: any): boolean;
  * - lintPassToken provided but mismatches → refuse
  * - target chapter status is final → refuse unless force=true
  */
-export declare function acceptCandidate(dir: string, candidateId: string, mode?: any, opts?: any): Promise<any>;
+export declare function acceptCandidate(dir: string, candidateId: string, mode?: any, opts?: any): Promise<{
+    stateUpdate: {
+        ending: string;
+        resolved: {
+            text: string;
+            source: string;
+            bodyTail: string | undefined;
+            warn?: undefined;
+        } | {
+            text: string;
+            source: string;
+            bodyTail?: undefined;
+            warn?: undefined;
+        } | {
+            text: string;
+            source: string;
+            bodyTail: string;
+            warn: string;
+        };
+        append: {
+            appended: boolean;
+            line: string;
+            reason: string;
+        } | {
+            appended: boolean;
+            line: string;
+            reason?: undefined;
+        };
+        threads: any;
+    };
+    id: any;
+    title: any;
+    position: any;
+    status: any;
+    wordCount: number;
+    updatedAt: string;
+    body: any;
+    outline: import("./types.js").Outline;
+}>;
 export declare function listCandidates(dir: string): Promise<any[]>;
 export declare function readBriefCrumbs(dir: string): Promise<any>;
-export declare function recordBriefBreadcrumb(dir: string, input: any): Promise<any>;
+export declare function recordBriefBreadcrumb(dir: string, input: any): Promise<{
+    chapterId: any;
+    at: string;
+    assetIds: any[];
+}>;
 /** Most recent brief for chapter within maxAgeMs (default BRIEF_RECENT_MS). */
 export declare function getRecentBrief(dir: string, chapterId: string, maxAgeMs?: any): Promise<any>;
 export declare function readPayoffAudits(dir: string): Promise<any>;
@@ -297,6 +358,8 @@ export declare function buildPanelSnapshot(dir: string, pathsHint: any, opts?: a
         } | null;
         summary: string;
     } | {
+        unavailable: boolean;
+        recoveryPending: boolean;
         sourcesCount: number;
         sourceRoot: any;
         pendingCount: number;
@@ -310,6 +373,16 @@ export declare function buildPanelSnapshot(dir: string, pathsHint: any, opts?: a
         summary: string;
     };
     inspiration: {
+        planning: {
+            book: {
+                content: any;
+                truncated: boolean;
+            } | null;
+            volumes: any;
+            totalVolumes: any;
+            acts: any;
+            totalActs: any;
+        } | null;
         sessionsCount: number;
         sessions: {
             id: any;
@@ -333,6 +406,24 @@ export declare function buildPanelSnapshot(dir: string, pathsHint: any, opts?: a
             complete: number;
         };
         summary: string;
+    } | {
+        unavailable: boolean;
+        sessionsCount: number;
+        sessions: never[];
+        pendingEmits: number;
+        acceptedEmits: number;
+        appliedToWork: boolean;
+        appliedCandIds: never[];
+        foundationFilled: boolean;
+        foundationFilledFields: never[];
+        outlineProgress: {
+            total: number;
+            withSituation: number;
+            withLived: number;
+            withState: number;
+            complete: number;
+        };
+        summary: string;
     };
     html: string;
 }>;
@@ -342,4 +433,3 @@ export declare function assembleManuscript(dir: string, paths: StoragePaths, opt
     chapters: number;
 }>;
 export declare function removeWorkDir(dir: string): Promise<void>;
-export {};

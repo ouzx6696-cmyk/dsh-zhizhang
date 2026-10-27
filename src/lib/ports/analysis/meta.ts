@@ -1,3 +1,8 @@
+import { assertNoPendingCard } from "../../storage/card-journal.js";
+import { withResourceLock } from "../../storage/process-lock.js";
+import { snapshotFile } from "../../storage/accept-journal.js";
+import { createAnalysisJournal, finishAnalysisJournal } from "../../storage/analysis-journal.js";
+import { ZhizhangError } from "../../errors.js";
 /** 分析 meta / bundle / 列表。 */
 import path from "node:path";
 import { readdir } from "node:fs/promises";
@@ -7,9 +12,13 @@ import { analysisPaths, assertSourceId, ensureDir, nowIso, readJson, readJsonl }
 import { chapterIndex, totalChapters } from "./chapters.js";
 
 export async function ensureAnalysis(paths: StoragePaths, sourceId: any, sourceText: any) {
+    return withResourceLock(paths.library, async () => {
+        await assertNoPendingCard(paths.library);
     const p = analysisPaths(paths, sourceId);
     await ensureDir(p.dir);
     let meta = await readJson(p.meta, null);
+    if (meta !== null && (typeof meta !== "object" || Array.isArray(meta)))
+        throw new ZhizhangError("bad_analysis", `分析元数据格式损坏：${p.meta}`);
     if (!meta) {
         const idx = chapterIndex(sourceText);
         meta = {
@@ -36,17 +45,47 @@ export async function ensureAnalysis(paths: StoragePaths, sourceId: any, sourceT
         }
     }
     return meta;
+    });
 }
 
 export async function writeAnalysisMeta(paths: StoragePaths, sourceId: any, patch: any) {
+    return withResourceLock(paths.library, async () => {
+        await assertNoPendingCard(paths.library);
     const p = analysisPaths(paths, sourceId);
     const current = (await readJson(p.meta, null)) ?? { schemaVersion: 2, sourceId, stage: "meta" };
+    if (typeof current !== "object" || Array.isArray(current))
+        throw new ZhizhangError("bad_analysis", `分析元数据格式损坏：${p.meta}`);
     const next = { ...current, ...patch, updatedAt: nowIso() };
     await atomicWrite(p.meta, `${JSON.stringify(next, null, 2)}\n`);
     return next;
+    });
+}
+
+/** Caller holds the library lock and has already captured the data file before reading it. */
+export async function commitAnalysisUpdate(paths: StoragePaths, sourceId: string, dataFile: string, dataBefore: string | null, content: string, patch: (meta: any) => any) {
+    const p = analysisPaths(paths, sourceId);
+    const metaBefore = await snapshotFile(p.meta);
+    const current = (await readJson(p.meta, null)) ?? { schemaVersion: 2, sourceId, stage: "meta" };
+    if (!current || typeof current !== "object" || Array.isArray(current))
+        throw new ZhizhangError("bad_analysis", "拆书分析元数据格式损坏，请保留并核对。");
+    const next = { ...current, ...patch(current), updatedAt: nowIso() };
+    if (await snapshotFile(p.meta) !== metaBefore || await snapshotFile(path.join(p.dir, dataFile)) !== dataBefore)
+        throw new ZhizhangError("library_recovery_conflict", "拆书分析文件在准备期间变化，请重新核对。");
+    const base = `analyses/${assertSourceId(sourceId)}`;
+    const journal = await createAnalysisJournal(paths.library, { sourceId, dataFile, writes: [
+        { file: `${base}/${dataFile}`, before: dataBefore, content },
+        { file: `${base}/meta.json`, before: metaBefore, content: JSON.stringify(next, null, 2) + "\n" },
+    ] });
+    try { await finishAnalysisJournal(paths.library, journal); }
+    catch (err: any) {
+        if (err instanceof ZhizhangError) throw err;
+        throw new ZhizhangError("library_recovery_required", `拆书分析更新未完成（${err?.message ?? String(err)}）。请先检查恢复记录。`);
+    }
 }
 
 export async function readAnalysisBundle(paths: StoragePaths, sourceId: any) {
+    return withResourceLock(paths.library, async () => {
+    await assertNoPendingCard(paths.library);
     const p = analysisPaths(paths, sourceId);
     const [meta, chapters, plots, rhythms, characters, survey] = await Promise.all([
         readJson(p.meta, null),
@@ -56,6 +95,10 @@ export async function readAnalysisBundle(paths: StoragePaths, sourceId: any) {
         readJson(p.characters, null),
         readJson(p.survey, null),
     ]);
+    if (meta !== null && (typeof meta !== "object" || Array.isArray(meta)))
+        throw new ZhizhangError("bad_analysis", `分析元数据格式损坏：${p.meta}`);
+    if (characters !== null && !Array.isArray(characters))
+        throw new ZhizhangError("bad_analysis", `人物分析格式损坏：${p.characters}`);
     return {
         meta,
         chapters,
@@ -64,6 +107,7 @@ export async function readAnalysisBundle(paths: StoragePaths, sourceId: any) {
         characters: Array.isArray(characters) ? characters : [],
         survey: survey ?? null,
     };
+    });
 }
 
 export async function listAnalyses(paths: StoragePaths) {
@@ -72,8 +116,9 @@ export async function listAnalyses(paths: StoragePaths) {
     try {
         names = (await readdir(root)).filter((x: any) => x.startsWith("src-"));
     }
-    catch {
-        return [];
+    catch (err: any) {
+        if (err?.code === "ENOENT") return [];
+        throw err;
     }
     const out = [];
     for (const id of names) {

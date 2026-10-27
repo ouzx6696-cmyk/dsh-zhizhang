@@ -35,7 +35,7 @@
 |------|----------|
 | **效率** | `port.scheduler` 单源：默认最短合格；audit / 厚 brief / 直写 / 硬开关 / 多草稿 / 定稿 全是**显式旁路** |
 | **质量** | `QualityPolicy` 五轴一体（含**反僵硬**）；Accept 内嵌软传感；雷达 0 ≠ 质量过关；Agent 提示写「要写成什么样」 |
-| **分喂** | mind → 设定/章纲；craft → lean brief（写法+状态，**含前章正文全文** n≥2）；不灌角色声纹原句 |
+| **分喂** | mind → 设定/章纲；craft → lean brief（写法+状态，**前章正文，超长时保留头尾并标明省略** n≥2）；不灌角色声纹原句 |
 | **边界** | 工具薄接线；策略只改 Ports；禁止 bash 直改 `.zhizhang/**`；禁止静默写正式章 |
 
 ---
@@ -106,7 +106,7 @@ Host (DSH)
 | 组成 | 说明 |
 |------|------|
 | `foundation.happened` | 状态·已发生（accept 按纲末/正文末拍对齐短追加） |
-| 前章 **正文全文** + ending/happened 索引 | lean n≥2 注入前章正文；ending/happened 只作索引 |
+| 前章正文（超长时保留头尾并标明省略） + ending/happened 索引 | lean n≥2 注入前章正文；ending/happened 只作索引 |
 | planned / threads / locks | 合同骨 |
 | 工程 `ledger.json` | **仅**审校/操作留痕，**不是**小说状态 |
 

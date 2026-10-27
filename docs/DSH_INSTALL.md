@@ -72,9 +72,6 @@ dsh plugin --profile desktop add link:"E:/dsh cj/dsh-zhizhang-0.17.0"
 - 0.2.1 桌面端自带 runtime CLI，上面的绕行已不需要。
 - 当时 `link:` + `--dump-config` 已验证能出现 zhizhang 层；**但只有 bundles/patch 生效后才算加载**。
 
-## 冒烟（不依赖 DSH）
+## 源码仓库校验
 
-```bash
-cd "E:/dsh cj/dsh-zhizhang-0.17.0"
-npm run smoke
-```
+安装依赖后，在源码仓库运行 `npm run check`；此命令不依赖 DSH。发行包只包含构建产物，不包含源码测试；真实宿主加载仍需在 DSH 内验证。

@@ -45,6 +45,7 @@ export function renderStatus(meta: any, dir: string, paths: StoragePaths) {
         `- key：${meta.key}`,
         `- 目录：${dir}`,
         `- 类型：${meta.genre || "（未设）"}`,
+        `- 节奏：${meta.pace || "（未指定）"}`,
         `- 更新：${meta.updatedAt}`,
         `- 章节：${meta.chapters.length}（定稿 ${finalN}），约 ${total} 字`,
         "",

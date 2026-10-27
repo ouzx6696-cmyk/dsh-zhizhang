@@ -1,5 +1,8 @@
 /** Writing pillar — works, foundation, outline, chapters. */
-import { appendLedger, countWords, createWork, ensureStorage, listChapters, listWorks, readChapter, readWorkMeta, saveChapter, setFoundation, } from "../lib/store.js";
+import { appendLedger, countWords, createWork, ensureStorage, listChapters, listWorks, readChapter, readWorkMeta, resolveWorkDir, setFoundation, setOutline, updateChapter, } from "../lib/store.js";
+import { inspectPendingAccept, resumePendingAccept } from "../lib/storage/accept-journal.js";
+import { hasPendingChapterSave, inspectPendingChapterSave, resumePendingChapterSave } from "../lib/storage/chapter-journal.js";
+import { assertNoInspirationMarker } from "../lib/storage/inspiration-journal.js";
 import { firstDenyCode, firstDenyText, FoundationPort, SAVE_BYPASS_WORD_THRESHOLD, SaveBypassGate, Scheduler, } from "../lib/ports/index.js";
 import { CHAPTER_STATUSES, } from "../lib/types.js";
 import { asString, boolArg, config, fail, openWork, rememberWork } from "./context.js";
@@ -65,6 +68,8 @@ export function worksTools() {
                 return [
                     "作品列表（最近更新在前）：",
                     ...rows.map((w: any, i: number) => {
+                        if (w.recoveryPending)
+                            return `${i + 1}. ${w.title}（${w.key}）· 操作待恢复；章节与字数暂不可确认。${w.recoveryHint || "请检查恢复记录。"}`;
                         const words = w.chapters.reduce((s: string, c: any) => s + c.wordCount, 0);
                         return `${i + 1}. ${w.title}（${w.key}）· ${w.chapters.length} 章 · 约 ${words} 字 · ${w.updatedAt}`;
                     }),
@@ -74,9 +79,42 @@ export function worksTools() {
         defineTool({
             name: "zhizhang_status",
             description: "查看当前作品状态：根基摘要、章节进度与字数、下一步建议。上下文压缩后先调它恢复现场。",
-            properties: { work: WORK_OPT, working_dir: WORKING_DIR },
+            properties: { work: WORK_OPT, working_dir: WORKING_DIR, recovery: E(["inspect", "resume"], "采纳中断时：inspect 检查；resume 在校验无冲突后完成原操作（须指定 work）") },
             required: [],
             async execute(args: any, exec: ExecContext) {
+                const recovery = asString(args, "recovery");
+                if (recovery) {
+                    if (recovery !== "inspect" && recovery !== "resume") fail("recovery 只支持 inspect 或 resume");
+                    const work = asString(args, "work", { required: true });
+                    const paths = await ensureStorage(exec, config, asString(args, "working_dir"));
+                    const dir = await resolveWorkDir(paths, work);
+                    await assertNoInspirationMarker(dir);
+                    if (await hasPendingChapterSave(dir)) {
+                        if (recovery === "inspect") {
+                            const r = await inspectPendingChapterSave(dir);
+                            const label = r.kind === "brief" ? "简报留痕" : r.kind === "payoff" ? "兑付留痕" : r.kind === "lint" ? "扫描留痕" : r.kind === "stage" ? "候选暂存" : "章节保存";
+                            return [`${label}恢复记录：${r.id}`, `- 章节 ${r.chapterId || "未指定"}${r.candidateId ? ` · 候选 ${r.candidateId}` : ""} · ${r.createdAt}`,
+                                ...r.writes.map(w => `- ${w.file}：${w.state}`),
+                                r.conflict ? "发现冲突，请保留文件并人工核对。" : "无文件冲突，可在原操作结束或原进程停止后用 recovery=resume 恢复。"].join("\n");
+                        }
+                        const r = await resumePendingChapterSave(dir);
+                        if (r.kind === "stage") return `已恢复候选 ${r.candidateId} 的暂存；候选正文与元数据已对齐。`;
+                        if (r.kind === "lint") return `已恢复候选 ${r.candidateId} 的扫描留痕；凭据与审校账本已对齐。若候选正文已变，请重新扫描。`;
+                        return r.kind ? `已恢复${r.kind === "brief" ? "简报" : "兑付"}留痕；记录与审校账本已对齐。` : `已恢复章节 ${r.chapterId} 的保存；正文和作品目录已对齐。`;
+                    }
+                    if (recovery === "inspect") {
+                        const r = await inspectPendingAccept(dir);
+                        return [
+                            `采纳恢复记录：${r.id}`,
+                            `- 章节 ${r.chapterId} · 候选 ${r.candidateId} · 模式 ${r.mode} · ${r.createdAt}`,
+                            ...r.writes.map((w) => `- ${w.file}：${w.state}`),
+                            ...r.guards.map((g) => `- ${g.file}：${g.state}`),
+                            r.conflict ? "发现冲突；不会自动覆盖，请保留文件并人工核对。" : "无文件冲突；同一进程操作结束后或原进程停止后，可传 recovery=resume 完成原操作。",
+                        ].join("\n");
+                    }
+                    const r = await resumePendingAccept(dir);
+                    return `已恢复原采纳：候选 ${r.candidateId} → 章节 ${r.chapterId}（${r.mode}）。正文、作品目录、候选标记及留痕已对齐；已有的手写状态未被覆盖，请按需核对。不要重复采纳。`;
+                }
                 let opened;
                 try {
                     opened = await openWork(exec, args);
@@ -104,9 +142,11 @@ export function worksTools() {
             required: [],
             async execute(args: any, exec: ExecContext) {
                 const { dir } = await openWork(exec, args);
-                const f = (await readWorkMeta(dir)).foundation;
+                const meta = await readWorkMeta(dir);
+                const f = meta.foundation;
                 return [
                     "## 根基",
+                    `- 节奏：${meta.pace || "未指定"}`,
                     `- locks：${f.locks || "（空）"}`,
                     `- happened：${f.happened || "（空）"}`,
                     `- characters：${f.characters || "（空）"}`,
@@ -130,6 +170,7 @@ export function worksTools() {
                 planned: S("计划中未发生"),
                 threads: S("未结伏笔"),
                 style: S("全书文风约束"),
+                pace: E(["快爽", "稳推", "慢燃"], "可选：本书节奏档位"),
             },
             required: [],
             async execute(args: any, exec: ExecContext) {
@@ -140,21 +181,23 @@ export function worksTools() {
                     if (v !== undefined)
                         patch[key] = v;
                 }
-                if (Object.keys(patch).length === 0)
-                    fail("至少提供一个根基字段");
-                const meta = await setFoundation(dir, patch);
-                return `已更新「${meta.title}」根基：${Object.keys(patch).join("、")}`;
+                const pace = asString(args, "pace");
+                if (Object.keys(patch).length === 0 && !pace)
+                    fail("至少提供一个根基字段或节奏");
+                const meta = await setFoundation(dir, patch, { pace });
+                return `已更新「${meta.title}」根基：${[...Object.keys(patch), ...(pace ? ["pace"] : [])].join("、")}`;
             },
         }),
         defineTool({
             name: "zhizhang_foundation_append_happened",
-            description: "向根基 happened 追加一句本章后果（短行；按 chapter 去重）。accept 已会用 ending 自动短追加；本工具用于精修或 ending 为空时补记。不杜撰长文。",
+            description: "向根基 happened 追加一句本章后果（短行；按 chapter 去重）；修订后可显式 replace=true 更新该章记录。accept 不覆盖作者已有记录。",
             properties: {
                 work: WORK_OPT,
                 working_dir: WORKING_DIR,
                 chapter: S("章节 id（用于去重标记）"),
                 text: S("一句后果（建议≤200字；通常来自 ending 或作者摘要）"),
                 title: S("可选章节标题"),
+                replace: B("显式替换该章已有的唯一记录；不改其他章节或作者手写内容"),
             },
             required: ["chapter", "text"],
             async execute(args: any, exec: ExecContext) {
@@ -165,12 +208,19 @@ export function worksTools() {
                     chapterId,
                     text: textLine,
                     title: asString(args, "title"),
+                    replace: boolArg(args, "replace") === true,
                 });
+                if (result.replaced) {
+                    return `已更新 happened：${result.line}`;
+                }
                 if (result.appended) {
                     return `已追加 happened：${result.line}`;
                 }
                 if (result.reason === "already_recorded") {
-                    return `未追加（${chapterId} 已在 happened 中）。现有条目与本次相同标记；若需改写请用 zhizhang_foundation_set 覆盖 happened 全文。`;
+                    return `未追加（${chapterId} 已在 happened 中）。现有条目与本次相同标记；如需更新请显式传 replace=true。`;
+                }
+                if (result.reason === "ambiguous_record") {
+                    fail(`章节 ${chapterId} 的记录不唯一或嵌在手写段落中，请核对 happened 后用 foundation_set 手动修改。`, "ambiguous_record");
                 }
                 if (result.reason === "empty_text") {
                     fail("text 不能为空");
@@ -229,33 +279,7 @@ export function worksTools() {
                     if (legacy?.trim())
                         patch.stateLens = legacy;
                 }
-                let title = asString(args, "title");
-                let body = "";
-                let position;
-                let status;
-                try {
-                    const existing = await readChapter(dir, chapterId);
-                    title = title ?? existing.title;
-                    body = existing.body;
-                    position = existing.position;
-                    status = existing.status;
-                    Object.assign(patch, { ...existing.outline, ...patch });
-                }
-                catch (err) {
-                    // 只有「章文件不存在」才建新章；front matter 坏了必须报错，不能覆盖原稿。
-                    if ((err as any)?.code !== "ENOENT")
-                        throw err;
-                    title = title ?? chapterId;
-                    status = "planned";
-                }
-                const saved = await saveChapter(dir, {
-                    id: chapterId,
-                    title: title,
-                    body,
-                    position,
-                    status,
-                    outline: patch,
-                });
+                const saved = await setOutline(dir, chapterId, patch, asString(args, "title"));
                 return [`已写入章纲「${saved.title}」`, renderOutline(saved.outline)].join("\n");
             },
         }),
@@ -316,28 +340,9 @@ export function worksTools() {
                 const contentArg = asString(args, "content", { trim: false });
                 const confirmBypass = boolArg(args, "confirm_bypass") === true;
                 const { dir } = await openWork(exec, args);
-                let title = asString(args, "title");
-                let outline;
-                let prevBody;
-                let prevExists = false;
-                try {
-                    const prev = await readChapter(dir, chapterId);
-                    prevExists = true;
-                    prevBody = prev.body;
-                    title = title ?? prev.title;
-                    outline = prev.outline;
-                }
-                catch (err) {
-                    if ((err as any)?.code !== "ENOENT")
-                        throw err;
-                    title = title ?? chapterId;
-                }
-                let body;
+                const title = asString(args, "title");
                 let bypassNoted = false;
                 if (contentArg === undefined) {
-                    if (!prevExists)
-                        fail("新建章节必须提供 content", "bad_args");
-                    body = prevBody ?? "";
                     const metaGate = SaveBypassGate.evaluate({
                         contentProvided: false,
                         wordCount: 0,
@@ -349,8 +354,7 @@ export function worksTools() {
                 else {
                     if (!contentArg.trim())
                         fail("content 不能为空；仅改状态请省略 content 参数");
-                    body = contentArg;
-                    const wc = countWords(body);
+                    const wc = countWords(contentArg);
                     const gate = SaveBypassGate.evaluate({
                         contentProvided: true,
                         wordCount: wc,
@@ -366,13 +370,12 @@ export function worksTools() {
                 if (args.position !== undefined && (!Number.isInteger(args.position) || args.position < 1))
                     fail("position 必须是从 1 开始的整数");
                 const position = typeof args.position === "number" ? args.position : undefined;
-                const saved = await saveChapter(dir, {
+                const saved = await updateChapter(dir, {
                     id: chapterId,
-                    title: title,
-                    body,
+                    title,
+                    body: contentArg,
                     status,
                     position,
-                    outline,
                 });
                 const bypassTag = bypassNoted ? " confirm_bypass=true" : contentArg === undefined ? " 仅元数据/status" : "";
                 await appendLedger(dir, {

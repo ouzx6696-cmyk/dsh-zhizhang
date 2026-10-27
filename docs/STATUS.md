@@ -22,9 +22,9 @@
 | HTTP 根 | 跟随最近一次 Agent 工具的存储根（同进程）；首次工具调用前回退宿主 cwd |
 | HTTP 安全面 | 默认仅回环（Origin 若出现须匹配 Host）；POST 须 `application/json`；`allowLanPanel` 另须 Host 白名单（`panelHosts`）+ 可选 `panelToken`；限流 120 GET / 20 POST 每分钟每客户端 |
 | 面板快照 | JSON 轮询默认不含 HTML；`?html=1` 才返回；工具 `panel_snapshot` 默认 format=json（紧凑），html/both 须显式传；字段有上界（foundation 600 / 透镜 400 / 候选=待采纳+近 20 已采纳 / payoff 近 12 章 / analyses 20） |
-| 发行形态 | **仅 dist + docs + scripts/smoke.mjs**；无 src/tsconfig，不在此目录构建 |
+| 发行形态 | **dist + docs + scripts**；无 src/tsconfig 和源码测试，不在发行包目录构建 |
 | 安装 | profile `dsh.profile.bundles` 加 `dsh-zhizhang`（或 patch insert）+ 重启；会话内再调 `zhizhang_enable` |
-| 测试 | 三层：`npm test`（9 套/68 用例，一能力一文件）+ `npm run e2e`（26 步真实创作剧本全链）+ `npm run smoke`（82 行发行面冲烟） |
+| 测试 | 源码仓库 `npm run check`：构建、静态护栏和一套覆盖主线、资产恢复、并发及面板安全的测试 |
 | 打包 | **未打包** |
 
 ## 质量环

@@ -28,11 +28,10 @@
     "build:client": "node scripts/build-client.mjs",
     "build:check": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit && node scripts/build-client.mjs --check",
     "prepare": "npm run build",
-    "test": "node --test --import ./test/_compat/ts-resolve.mjs --import ./test/setup.ts \"test/**/*.test.ts\"",
+    "test": "npm run build && node --test --import ./test/setup.mjs test/domain.test.mjs test/workflow.test.mjs test/storage.test.mjs test/panel.test.mjs",
+    "check": "npm run guard && npm test",
     "typecheck": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
-    "smoke": "node scripts/smoke.mjs",
-    "guard": "node scripts/ts-nocheck-guard.mjs && node scripts/type-import-guard.mjs",
-    "e2e": "node scripts/e2e-workflow.mjs"
+    "guard": "node scripts/ts-nocheck-guard.mjs && node scripts/type-import-guard.mjs"
   },
   "dsh": {
     "bundle": {

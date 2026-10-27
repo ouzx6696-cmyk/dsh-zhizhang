@@ -5,7 +5,7 @@ export declare const SCHEDULER_WRITE_LINE = "chapter_brief(lean) \u2192 \u521B\u
 /** Library segment. */
 export declare const SCHEDULER_LIBRARY_LINE = "library_import \u2192 library_plan\uFF08auto 10% / full \u987B\u540C\u610F\uFF09\u2192 dissect_brief(batch) \u2192 facts_stage\uFF08\u767D\u63CF\uFF09\u2192 structure_stage\uFF08\u5267\u60C5/\u8282\u594F/\u4EBA\u7269\uFF09\u2192 card_stage\uFF08v2 \u6A21\u5757\uFF09\u2192 card_accept \u2192 report \u2192 combo_suggest";
 /** Inspiration segment. */
-export declare const SCHEDULER_INSPIRE_LINE = "inspire_start(card_ids) \u2192 forge_brief \u2192 stage \u2192 accept(apply=true)";
+export declare const SCHEDULER_INSPIRE_LINE = "inspire_start(goal\uFF0Ccard_ids \u53EF\u9009) \u2192 forge_brief \u2192 stage \u2192 accept(apply=true)";
 export declare const SCHEDULER_BYPASSES: {
     id: string;
     title: string;

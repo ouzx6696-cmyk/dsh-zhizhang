@@ -5,6 +5,7 @@
 
 import { REPORT_SECTION_COUNT } from "./report-sections.js";
 
+export const STORY_PACES = ["快爽", "稳推", "慢燃"] as const;
 export const AUTO_SAMPLE_HEAD = 10;
 export const AUTO_SAMPLE_TAIL = 3;
 export const AUTO_SAMPLE_RATIO = 0.1;

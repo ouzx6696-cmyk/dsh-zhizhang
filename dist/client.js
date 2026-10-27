@@ -430,7 +430,7 @@ window.__ModuleLoader__.load({
             isEdit ? "（编辑稿，路径 A：采纳并验收）" : "",
           ),
           !cand.hasLintPass
-            ? h("div", { className: "zz-err" }, "尚未 lint：采纳将被硬拒。请先让 Agent 跑 zhizhang_style_lint。")
+            ? h("div", { className: "zz-err" }, "未见有效扫描：可能尚未扫描、正文已变或凭据为旧格式；请先让 Agent 重跑 zhizhang_style_lint。")
             : null,
           h(
             "label",
@@ -1032,7 +1032,7 @@ window.__ModuleLoader__.load({
                   return h(
                     "option",
                     { key: p.id, value: p.id, title: p.base },
-                    (p.name || p.base) + (p.exists === false ? "（不可达）" : ""),
+                    (p.name || p.base) + (p.exists === false ? "（不可达）" : p.error ? "（作品列表不可读）" : p.recoveryPending ? "（含待恢复作品）" : ""),
                   );
                 }),
               )
@@ -1046,7 +1046,7 @@ window.__ModuleLoader__.load({
                   onChange: onPick,
                 },
                 state.works.map(function (w) {
-                  return h("option", { key: w.key, value: w.key }, w.title || w.key);
+                  return h("option", { key: w.key, value: w.key }, (w.title || w.key) + (w.recoveryPending ? "（采纳待恢复）" : ""));
                 }),
               )
             : null,
@@ -1167,11 +1167,7 @@ window.__ModuleLoader__.load({
         h(Badge, null, "草稿 " + (totals.drafted || 0)),
         h(Badge, { tone: pending.length ? "zz-badge-warn" : "" }, "待采纳 " + pending.length),
         library
-          ? h(
-              Badge,
-              { tone: "zz-badge-info" },
-              "craft " + library.craftCount + " · mind " + library.mindCount,
-            )
+          ? h(Badge, { tone: "zz-badge-info" }, library.unavailable ? "拆书库暂不可读" : "craft " + library.craftCount + " · mind " + library.mindCount)
           : null,
       );
 
@@ -1211,6 +1207,8 @@ window.__ModuleLoader__.load({
 
       var libraryView = !library
         ? h("p", { className: "zz-empty" }, "无拆书库数据")
+        : library.unavailable
+        ? h("p", { className: "zz-err", role: "alert" }, library.summary || "拆书库暂不可读")
         : h(
             "div",
             null,
@@ -1300,6 +1298,8 @@ window.__ModuleLoader__.load({
       var insp = inspiration;
       var inspirationView = !insp
         ? h("p", { className: "zz-empty" }, "无灵感数据")
+        : insp.unavailable
+        ? h("p", { className: "zz-empty" }, insp.summary || "灵感数据暂不可读")
         : h(
             "div",
             null,
@@ -1319,6 +1319,22 @@ window.__ModuleLoader__.load({
                 "根基字段 " + (insp.foundationFilledFields || []).length,
               ),
             ),
+            insp.planning
+              ? h("div", null,
+                  h("div", { className: "zz-sec" }, "已采纳规划"),
+                  insp.planning.book
+                    ? h("div", { className: "zz-card" }, h("strong", null, "全书"), h("p", null, insp.planning.book.content), insp.planning.book.truncated ? h("p", { className: "zz-muted" }, "内容已截断，可查看完整规划。") : null)
+                    : h("p", { className: "zz-muted" }, "尚无全书规划"),
+                  (insp.planning.volumes || []).map(function (v) {
+                    return h("div", { key: v.id, className: "zz-card" }, h("strong", null, v.title), h("p", { className: "zz-muted" }, "章节：" + ((v.chapters || []).join("、") || "未指定")), h("p", null, v.content), v.truncated ? h("p", { className: "zz-muted" }, "内容已截断，可查看完整规划。") : null);
+                  }),
+                  insp.planning.totalVolumes > (insp.planning.volumes || []).length ? h("p", { className: "zz-muted" }, "还有其他卷规划，可查看完整规划。") : null,
+                  (insp.planning.acts || []).map(function (a) {
+                    return h("div", { key: "act-" + a.id, className: "zz-card" }, h("strong", null, a.title), h("p", { className: "zz-muted" }, "所属卷：" + (a.volumeId || "未指定") + " · 章节：" + ((a.chapters || []).join("、") || "未指定")), h("p", null, a.content), a.truncated ? h("p", { className: "zz-muted" }, "内容已截断，可查看完整规划。") : null);
+                  }),
+                  insp.planning.totalActs > (insp.planning.acts || []).length ? h("p", { className: "zz-muted" }, "还有其他幕规划，可查看完整规划。") : null,
+                  h("p", { className: "zz-muted" }, "完整内容和来源可在对话中查看作品规划。"))
+              : null,
             h(
               "p",
               { className: "zz-muted" },
@@ -1864,8 +1880,8 @@ window.__ModuleLoader__.load({
                     },
                     activeCand
                       ? activeCand.hasLintPass
-                        ? "lint✓ 可走采纳闸"
-                        : "lint：待采纳缺 lint，硬拒"
+                        ? "lint✓ 已扫描，采纳时复核正文"
+                        : "lint：扫描缺失、正文已变或凭据为旧格式，需重扫"
                       : "lint：无待采纳",
                   ),
                   h(

@@ -22,7 +22,7 @@
 | 段 | 链 | 说明 |
 |----|-----|------|
 | **库** | `library_import → library_plan（Auto 10% / Full 须同意）→ dissect_brief(batch) → facts → structure → card → accept → report → combo` | 双轴卡入库；combo 交出 `card_ids` |
-| **灵感** | `inspire_start(card_ids) → forge_brief → stage → accept(apply=true)` | 须至少一张 mind（或旁路 craft_only） |
+| **灵感** | `inspire_start(card_ids) → forge_brief → stage → accept(apply=true)` | 可无参考卡直接规划；有卡但无 mind 时用 craft_only |
 | **写作** | `chapter_brief(lean) → 创作 → candidate_stage → style_lint →（可选 edit）→ candidate_accept` | Accept **内嵌**软传感；**编辑非必经**；若走编辑须用户 A/B/C；勿每章例行三 audit |
 
 ### 写作段硬闸（默认）
@@ -50,7 +50,7 @@ Accept 一次扫：Brief → Lint → Payoff → HumanFeel → NovelSense → Ed
 | unify_brief / unify_stage | 仅 multi.draft 开启；整理稿仍须 lint → accept |
 | candidate_accept | 续章再 brief；定稿 / 诊断见旁路 |
 
-新建作品：有卡则 combo → inspire → 写作段；无卡则 outline_set → 写作段。
+新建作品：有卡则 combo → inspire → 写作段；无卡可 inspire_start(goal) 规划，或 outline_set → 写作段。
 
 ---
 
@@ -63,7 +63,7 @@ Accept 一次扫：Brief → Lint → Payoff → HumanFeel → NovelSense → Ed
 | `diagnose.audit` | 诊断 audit | accept 有 soft warn，或要细看兑付/人味/书感 | `payoff_audit` / `human_feel_audit` / `novel_sense_audit`（**勿例行每章**） |
 | `brief.full` | 厚 brief | 要卡全文 + 四方法包 + 节拍 | `chapter_brief brief_mode=full` |
 | `save.direct` | 直写章节 | 作者显式旁路候选链（大正文） | `chapter_save` + `confirm_bypass` |
-| `inspire.craft_only` | 仅技法灵感 | 无 mind 卡仍要开 inspire | `inspire_start craft_only=true` |
+| `inspire.craft_only` | 仅技法灵感 | 有 craft 但无 mind 卡，仍要仅技法试写 | `inspire_start craft_only=true` |
 | `accept.flags` | 采纳硬开关 | 测试或作者显式收紧/跳过 | `skip_brief` / `strict_lint` / `require_payoff` / `strict_human` / `strict_novel` / `force` / `accept_after_edit`+confirm |
 | `multi.draft` | 多草稿统一整理 | **默认关**；config.multiDraft.enabled 或 env `DSH_ZHIZHANG_MULTI_DRAFT=1`；同章≥2 待采纳 | `candidate_stage(draft_label)×N` → `unify_brief` → `unify_stage` → lint → accept |
 表后补：**完书交付三步** = 逐章 `review_ledger`（审校留痕）→ `chapter_save status=final`（定稿）→ `assemble only_final=true`（出 manuscripts/<书名>.md，可反复重跑）。

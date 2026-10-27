@@ -5,12 +5,19 @@
  * Technique cards ≠ MethodRegistry. 拒收百科/梗概/声纹/人设墙。
  * 兼容：旧卡无 axis 时按 humanFeel/mind 推断；kind 降为次标签。
  */
-import { mkdir, readFile, stat } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { link, mkdir, open, readFile, readdir, stat, unlink } from "node:fs/promises";
 import path from "node:path";
 import { ZhizhangError } from "../errors.js";
-import { atomicWrite, assertResourceId, sessionCwd, withLock, } from "../store.js";
+import { assertNoPendingCard, createCardJournal, finishCardJournal } from "../storage/card-journal.js";
+import { createSourceJournal, finishSourceJournal } from "../storage/source-journal.js";
+import { createDiscardJournal, finishDiscardJournal } from "../storage/discard-journal.js";
+import { snapshotFile } from "../storage/accept-journal.js";
+import { withResourceLock } from "../storage/process-lock.js";
+import { atomicWrite, assertResourceId, sessionCwd, } from "../store.js";
 import { readJsonCached } from "../file-cache.js";
 import { MethodRegistry } from "./methods.js";
+import { parseChapterNumber } from "../domain/chapter-heading.js";
 import { REPORT_SECTION_COUNT } from "../domain/report-sections.js";
 import { QualityPolicy } from "./quality-policy.js";
 import { chapterIndex, chapterText, chapterTitle, nearestChapter, totalChapters, ensureAnalysis, writeAnalysisMeta, readAnalysisBundle, deriveAxis, validateModule, verifyModuleEvidence, verifyBodyQuotes, assertSourceId, } from "./analysis.js";
@@ -18,10 +25,9 @@ import { normalizeMechanism, normalizeHumanFeel, normalizeBookCraft, normalizeHa
 export * from "./library/schema.js";
 import { auditCardContent, normForMatch } from "./library/audit.js";
 export { auditCardContent, normForMatch } from "./library/audit.js";
-import { nowIso, newId, fileExists, libraryDirs, emptyIndex, readIndex, writeIndex, filterCardRows, comboScore, decodeBookBuffer, normalizeUserPath, tokenizeQuery, cardDeepHay, reconcileIndex, } from "./library/store.js";
+import { nowIso, newId, fileExists, libraryDirs, emptyIndex, readIndex, filterCardRows, comboScore, decodeBookBuffer, normalizeUserPath, tokenizeQuery, cardDeepHay, reconcileIndex, } from "./library/store.js";
 // —— § 拆书源缓存（文本 + 章索引派生） ——
-// 源文本文件经 atomicWrite 落盘，mtime/size 必随写变化；stat 校验后即可
-// 跨 dissect / card stage / card accept / audit 复用同一份文本与章索引。
+// 轮询与阅读复用源文本缓存；证据校验单独读取源文件字节，不把缓存当完整性证明。
 const SOURCE_CACHE_MAX = 6;
 const sourceCache = new Map();
 async function getSourceCached(paths, sourceId) {
@@ -44,17 +50,22 @@ async function getSourceCached(paths, sourceId) {
     try {
         st = await stat(textPath);
     }
-    catch {
-        return { meta, text: "", entry: null };
+    catch (err) {
+        if (err?.code === "ENOENT")
+            throw new ZhizhangError("source_not_found", `书源正文缺失：${id}；请检查并保留已有文件。`);
+        throw err;
     }
     const hit = sourceCache.get(textPath);
-    if (hit && hit.mtimeMs === st.mtimeMs && hit.size === st.size) {
+    if (hit && hit.mtimeMs === st.mtimeMs && hit.ctimeMs === st.ctimeMs && hit.ino === st.ino && hit.size === st.size) {
         // meta 与文本同目录同生命周期；命中时顺带刷新缓存里的 meta 引用。
         hit.meta = meta;
         return { meta, text: hit.text, entry: hit };
     }
     const text = await readFile(textPath, "utf8");
-    const entry = { mtimeMs: st.mtimeMs, size: st.size, meta, text };
+    const after = await stat(textPath);
+    if (st.mtimeMs !== after.mtimeMs || st.ctimeMs !== after.ctimeMs || st.ino !== after.ino || st.size !== after.size)
+        throw new ZhizhangError("source_changed", `书源 ${id} 在读取期间发生变化；请重新核对后再试。`);
+    const entry = { mtimeMs: after.mtimeMs, ctimeMs: after.ctimeMs, ino: after.ino, size: after.size, meta, text };
     sourceCache.delete(textPath);
     sourceCache.set(textPath, entry);
     if (sourceCache.size > SOURCE_CACHE_MAX) {
@@ -63,6 +74,28 @@ async function getSourceCached(paths, sourceId) {
             sourceCache.delete(oldest);
     }
     return { meta, text, entry };
+}
+/** Evidence decisions always re-read source bytes; polling caches are not integrity proofs. */
+async function readSourceForEvidence(paths, sourceId) {
+    const id = assertSourceId(sourceId);
+    const d = libraryDirs(paths);
+    const metaBytes = await readFile(path.join(d.sources, `${id}.json`));
+    const meta = JSON.parse(metaBytes.toString("utf8"));
+    const excerptName = typeof meta.excerptPath === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]*\.txt$/.test(meta.excerptPath)
+        ? meta.excerptPath : `${id}.txt`;
+    const bytes = await readFile(path.join(d.sources, excerptName));
+    let text;
+    try {
+        text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
+    }
+    catch {
+        throw new ZhizhangError("bad_source", "书源不是有效 UTF-8，无法安全核对引文；请保留原文件并检查。");
+    }
+    return {
+        text, index: chapterIndex(text), sourceId: id, sourceFile: excerptName,
+        sourceHash: createHash("sha256").update(bytes).digest("hex"),
+        metaHash: createHash("sha256").update(metaBytes).digest("hex"),
+    };
 }
 /** 章索引按需派生一次，挂在缓存条目上；同一本书的多张卡共用。 */
 function sourceIndexOf(entry, text = "") {
@@ -94,15 +127,53 @@ export const LibraryPort = {
         ];
     },
     async ensureLibrary(paths) {
-        const d = libraryDirs(paths);
-        await mkdir(d.sources, { recursive: true });
-        await mkdir(d.cards, { recursive: true });
-        await mkdir(d.candidates, { recursive: true });
-        if (!(await fileExists(d.index))) {
-            await writeIndex(paths, await emptyIndex());
-        }
-        await reconcileIndex(paths);
-        return paths;
+        await mkdir(paths.library, { recursive: true });
+        return withResourceLock(paths.library, async () => {
+            const d = libraryDirs(paths);
+            await assertNoPendingCard(paths.library);
+            await mkdir(d.sources, { recursive: true });
+            await mkdir(d.cards, { recursive: true });
+            await mkdir(d.candidates, { recursive: true });
+            if (!(await fileExists(d.index))) {
+                const managed = [d.sources, d.cards, d.candidates, path.join(d.root, "analyses")];
+                const contents = await Promise.all(managed.map(async (dir) => {
+                    try {
+                        return await readdir(dir);
+                    }
+                    catch (err) {
+                        if (err?.code === "ENOENT")
+                            return [];
+                        throw err;
+                    }
+                }));
+                if (contents.some((items) => items.length > 0) && !(await fileExists(d.index)))
+                    throw new ZhizhangError("library_index_missing", "拆书库索引缺失但目录中仍有资产；请保留原文件并检查，不自动创建空索引。");
+                // Publish a complete initial index without replacing a concurrent creator's file.
+                const tmp = `${d.index}.${randomUUID()}.init.tmp`;
+                try {
+                    const handle = await open(tmp, "wx", 0o600);
+                    try {
+                        await handle.writeFile(JSON.stringify(await emptyIndex(), null, 2) + "\n", "utf8");
+                        await handle.sync();
+                    }
+                    finally {
+                        await handle.close();
+                    }
+                    try {
+                        await link(tmp, d.index);
+                    }
+                    catch (err) {
+                        if (err?.code !== "EEXIST")
+                            throw err;
+                    }
+                }
+                finally {
+                    await unlink(tmp).catch(() => { });
+                }
+            }
+            await reconcileIndex(paths);
+            return paths;
+        });
     },
     async importSource(paths, input) {
         await LibraryPort.ensureLibrary(paths);
@@ -148,17 +219,25 @@ export const LibraryPort = {
             createdAt: now,
             updatedAt: now,
         };
-        await withLock(`library:${paths.library}`, async () => {
-            await atomicWrite(excerptPath, text);
-            await atomicWrite(metaPath, JSON.stringify(meta, null, 2) + "\n");
+        await withResourceLock(paths.library, async () => {
+            const indexBefore = await snapshotFile(d.index);
+            if (!indexBefore)
+                throw new ZhizhangError("library_index_missing", "拆书库索引缺失，请先检查原文件。");
             const idx = await readIndex(paths);
-            idx.sources.unshift({
-                id: sourceId,
-                title: meta.title,
-                author: meta.author,
-                createdAt: now,
-            });
-            await writeIndex(paths, idx);
+            if (await snapshotFile(d.index) !== indexBefore)
+                throw new ZhizhangError("library_recovery_conflict", "拆书库索引在导入准备期间变化，请重新检查。");
+            if (await snapshotFile(excerptPath) !== null || await snapshotFile(metaPath) !== null)
+                throw new ZhizhangError("id_collision", "生成的书源 id 已存在；未覆盖原文件，请重新尝试。");
+            idx.sources.unshift({ id: sourceId, title: meta.title, author: meta.author, createdAt: now });
+            const journal = await createSourceJournal(paths.library, { sourceId, text, metaContent: JSON.stringify(meta, null, 2) + "\n", indexBefore, indexContent: JSON.stringify(idx, null, 2) + "\n" });
+            try {
+                await finishSourceJournal(paths.library, journal);
+            }
+            catch (err) {
+                if (err instanceof ZhizhangError)
+                    throw err;
+                throw new ZhizhangError("library_recovery_required", `书源 ${sourceId} 导入未完成（${err?.message ?? String(err)}）。请用 zhizhang_library_list(recovery=inspect) 检查，不要重复导入。`);
+            }
         });
         return {
             sourceId,
@@ -189,134 +268,137 @@ export const LibraryPort = {
         return (await readIndex(paths)).sources;
     },
     async dissectBrief(paths, sourceId, opts = {}) {
-        const { meta, text, index: idx } = await LibraryPort.getSourceIndexed(paths, sourceId);
-        const mode = String(opts.mode ?? "").trim();
-        if (mode) {
-            const total = totalChapters(idx);
-            await ensureAnalysis(paths, sourceId, text);
-            const prevScope = (await readAnalysisBundle(paths, sourceId)).meta?.scope ?? { mode: "none", chapters: 0 };
-            let picked = [];
-            if (mode === "opening") {
-                picked = [1, 2, 3].filter((n) => idx.some((c) => c.n === n));
-            }
-            else if (mode === "sample") {
-                picked = [...new Set([0.1, 0.3, 0.6, 0.85].map((r) => Number(nearestChapter(idx, r))).filter((n) => Number.isFinite(n) && n > 0))];
-            }
-            else {
-                const from = Math.max(1, Math.floor(Number(opts.from ?? 1) || 1));
-                const count = Math.max(1, Math.min(5, Math.floor(Number(opts.count ?? 3) || 3)));
-                for (let n = from; n < from + count; n++)
-                    picked.push(n);
-            }
-            // 无 plan 的 mode=full 只是「从 from 起 3-5 章」，绝不是全量阅读——
-            // 若在这里写 scope.mode="full"，报告会去掉「抽样观察」标记、覆盖率可到 1.0，
-            // 属可信度造假。全量 scope 只能由 library_plan(mode=full, 经作者同意) 产生。
-            const scopeMode = mode === "opening" ? "opening" : mode === "sample" ? "sample" : "chapters";
-            const planned = mode === "sample" ? picked.length : picked.length ? Math.max(...picked.map((x) => Number(x))) : 0;
-            await writeAnalysisMeta(paths, sourceId, { scope: { mode: scopeMode, chapters: Math.max(planned, Number(prevScope.chapters ?? 0)) } });
-            const budget = Math.max(4000, Math.min(Number(opts.maxChars ?? 15000), 30000));
-            const batch = [];
-            let used = 0;
-            for (const n of picked) {
-                const body = chapterText(text, idx, n);
-                if (!body)
-                    continue;
-                const room = budget - used;
-                if (room <= 800)
-                    break;
-                const chunk = body.length <= room ? body : body.slice(0, room) + `
+        return withResourceLock(paths.library, async () => {
+            await assertNoPendingCard(paths.library);
+            const { meta, text, index: idx } = await LibraryPort.getSourceIndexed(paths, sourceId);
+            const mode = String(opts.mode ?? "").trim();
+            if (mode) {
+                const total = totalChapters(idx);
+                await ensureAnalysis(paths, sourceId, text);
+                const prevScope = (await readAnalysisBundle(paths, sourceId)).meta?.scope ?? { mode: "none", chapters: 0 };
+                let picked = [];
+                if (mode === "opening") {
+                    picked = [1, 2, 3].filter((n) => idx.some((c) => c.n === n));
+                }
+                else if (mode === "sample") {
+                    picked = [...new Set([0.1, 0.3, 0.6, 0.85].map((r) => Number(nearestChapter(idx, r))).filter((n) => Number.isFinite(n) && n > 0))];
+                }
+                else {
+                    const from = Math.max(1, Math.floor(Number(opts.from ?? 1) || 1));
+                    const count = Math.max(1, Math.min(5, Math.floor(Number(opts.count ?? 3) || 3)));
+                    for (let n = from; n < from + count; n++)
+                        picked.push(n);
+                }
+                // 无 plan 的 mode=full 只是「从 from 起 3-5 章」，绝不是全量阅读——
+                // 若在这里写 scope.mode="full"，报告会去掉「抽样观察」标记、覆盖率可到 1.0，
+                // 属可信度造假。全量 scope 只能由 library_plan(mode=full, 经作者同意) 产生。
+                const scopeMode = mode === "opening" ? "opening" : mode === "sample" ? "sample" : "chapters";
+                const planned = mode === "sample" ? picked.length : picked.length ? Math.max(...picked.map((x) => Number(x))) : 0;
+                await writeAnalysisMeta(paths, sourceId, { scope: { mode: scopeMode, chapters: Math.max(planned, Number(prevScope.chapters ?? 0)) } });
+                const budget = Math.max(4000, Math.min(Number(opts.maxChars ?? 15000), 30000));
+                const batch = [];
+                let used = 0;
+                for (const n of picked) {
+                    const body = chapterText(text, idx, n);
+                    if (!body)
+                        continue;
+                    const room = budget - used;
+                    if (room <= 800)
+                        break;
+                    const chunk = body.length <= room ? body : body.slice(0, room) + `
 …（本章截断，完整见 sources/${meta.excerptPath}）`;
-                batch.push({ n, title: chapterTitle(idx, n), text: chunk });
-                used += chunk.length;
-            }
-            const bundle = await readAnalysisBundle(paths, sourceId);
-            const facts = bundle.chapters;
-            const lines = [
-                `# 拆书批次 · ${meta.title}${meta.author ? `（${meta.author}）` : ""}`,
-                `- sourceId：${meta.id}`,
-                `- 全书章数：${total} · 已拆：${facts.length}`,
-                `- 本批：${batch.map((b) => `第${b.n}章`).join("、") || "（无）"}`,
-            ];
-            if (mode === "full") {
-                lines.push("- 注意：无 plan 的 mode=full 只取 from 起数章，不是全量；全量须 library_plan(mode=full)（作者同意后）。本批按 chapters 记 scope。");
-            }
-            lines.push("", "【纪律】只记白描：谁做了什么、结果怎样；原文没写的动机/身份/后果写进 unknowns，禁止补。", "【禁】desc 里出现 心里/觉得/认为/希望/害怕/后悔/其实/精彩/感人/震撼 等心理评价词会被拒。", "", "## 每章提交格式（zhizhang_library_facts_stage）", "```json", JSON.stringify({ source: meta.id, facts: { n: 1, title: "…", events: [{ loc: "P1-P3", desc: "谁做了什么，结果怎样", quote: "原文片段" }], functions: ["入局"], hook: { type: "悬念", text: "章末钩子", strength: "强" }, value: { situation: "…", relation: "…", cognition: "…", emotion: "…" }, unknowns: ["原文没写的动机"] } }, null, 2), "```", "", "## 本批原文");
-            for (const b of batch) {
-                lines.push(`
+                    batch.push({ n, title: chapterTitle(idx, n), text: chunk });
+                    used += chunk.length;
+                }
+                const bundle = await readAnalysisBundle(paths, sourceId);
+                const facts = bundle.chapters;
+                const lines = [
+                    `# 拆书批次 · ${meta.title}${meta.author ? `（${meta.author}）` : ""}`,
+                    `- sourceId：${meta.id}`,
+                    `- 全书章数：${total} · 已拆：${facts.length}`,
+                    `- 本批：${batch.map((b) => `第${b.n}章`).join("、") || "（无）"}`,
+                ];
+                if (mode === "full") {
+                    lines.push("- 注意：无 plan 的 mode=full 只取 from 起数章，不是全量；全量须 library_plan(mode=full)（作者同意后）。本批按 chapters 记 scope。");
+                }
+                lines.push("", "【纪律】只记白描：谁做了什么、结果怎样；原文没写的动机/身份/后果写进 unknowns，禁止补。", "【禁】desc 里出现 心里/觉得/认为/希望/害怕/后悔/其实/精彩/感人/震撼 等心理评价词会被拒。", "", "## 每章提交格式（zhizhang_library_facts_stage；阅读程度须如实申报，未声明可省略）", "```json", JSON.stringify({ source: meta.id, facts: { n: 1, title: "…", events: [{ loc: "P1-P3", desc: "谁做了什么，结果怎样", quote: "原文片段" }], functions: ["入局"], hook: { type: "悬念", text: "章末钩子", strength: "强" }, value: { situation: "…", relation: "…", cognition: "…", emotion: "…" }, unknowns: ["原文没写的动机"], readingLevel: "正文已读" } }, null, 2), "```", "", "## 本批原文");
+                for (const b of batch) {
+                    lines.push(`
 ### 第${b.n}章 ${b.title}`);
-                lines.push("<<<SOURCE");
-                lines.push(b.text);
-                lines.push("SOURCE>>>");
+                    lines.push("<<<SOURCE");
+                    lines.push(b.text);
+                    lines.push("SOURCE>>>");
+                }
+                return lines.join("\n");
             }
+            const maxChars = Math.max(800, Math.min(opts.maxChars ?? 12000, 80000));
+            const excerpt = text.length <= maxChars
+                ? text
+                : text.slice(0, maxChars) + `\n\n…（已截断，原文共 ${text.length} 字；完整在 sources/${meta.excerptPath}）`;
+            const analyze = MethodRegistry.get("analyze");
+            const recommend = opts.includeRecommend !== false ? MethodRegistry.get("recommend") : undefined;
+            const lines = [
+                `# 拆书简报 · ${meta.title}${meta.author ? `（${meta.author}）` : ""}`,
+                `- sourceId：${meta.id}`,
+                `- readingRange：${meta.readingRange}`,
+                `- 导入字数：${meta.charCount}`,
+                "",
+                "【工程说明】本工具只注入摘录与方法包，**不代写分析**。请你按双轴提炼后调用 zhizhang_library_card_stage；须 zhizhang_library_card_accept 才入库。",
+                "",
+                "## 双轴准入（只拆两样）",
+                QualityPolicy.surfaceLine(),
+                "",
+                "## 怎么算拆完（脚本核不了，必须真读）",
+                QualityPolicy.cardJudgmentLine(),
+                "拆完的标志不是字段齐，而是：每张卡都能回答上面五条；mind 卡另有一句「检验方法」（遮住结局，读者能否用已给信息推出___）；craft 卡能说清这一场怎么写。",
+                "禁止用「字段齐全 / 引文能搜到 / 审计通过」冒充合格。",
+                "",
+                "### A. craft（写作技法）→ 指导 **具体写作** / chapter_brief",
+                "算：场面取舍、信息怎么漏、节奏/小物、状态如何落纸、失败边界可迁到**另一本书的正文**。",
+                "必填：`axis=craft` + **humanFeel**（writerCraft / craftRange / characterState / stateOnPage / allowedEdges / failAsTemplate）。",
+                "另填：**bookCraft**（章级续写面 continueWhy / adjacentChange / failAsShortStory）——≠ 完整创作思维。",
+                "`characterState` = 这一刻场面状态（慌/赖/在算/会错半拍）；写法+状态，不是人设墙或台词范本。",
+                "",
+                "#### craft · 打碎僵硬（反完美感；书无关逻辑 + 本书载体）",
+                "对原文另问四句：①呼吸哪里故意不齐？②哪里半截、作者也没立刻补课？③关键信息从讲义出还是从误认/失手/身体/跑题漏？载体是什么？④第一反应哪里不对？戏完纸上还留什么？",
+                "逻辑名（可并列）：呼吸不齐 / 念头半截 / 信息侧漏 / 先错半拍 / 局部余震 / 口气拧着 / 意义不收齐——每条只记**逻辑名 + 本书载体**。",
+                "`allowedEdges` 写成「本场应落纸：…」（打碎正向句 + 本书载体）。`failAsTemplate` 点名僵硬版（句句收齐、反应全对、讲义说明、意义被收完）。",
+                "迁的是打碎逻辑名 + 本书载体；不同书的场面外壳各自不同，只记这一本自己怎么把文字写散。",
+                "",
+                "### B. mind（创作思维）→ 指点 **设定层 / 章纲 / 卷纲**（inspire）",
+                "算：能力与代价如何设计、冲突飞轮、信息分期、章/卷压力如何换、读者合同如何立——可迁到**另一本书的设定/纲**。",
+                "必填：`axis=mind` + **mind**（sellIntoCost / infoStaging / pressureMachine / debtAndSwap / readerContract / failAsEncyclopedia）。",
+                "mind 供 inspire 规划；lean 正文 brief 只吃 craft 写法+状态。",
+                "",
+                "### 准入样子（两轴）",
+                "- craft：可迁到另一本书正文的写法与场面状态",
+                "- mind：可迁到另一本书设定/纲的创作思维",
+                "- kind 是场面粒度次标签（craft|scene|book），axis 才是双轴",
+                "",
+                "### 其它",
+                "1. **mechanisms** 须含 `name` + `failWhen`；discard 写清丢弃的原作剧情与人名。",
+                "2. 可选 **handoff**；可选 **kind**（`craft`|`scene`|`book`）——axis=mind 才进创作思维轨。",
+                "3. 同一 source 宜拆：**多张 craft + 至少一张 mind**（完整迁技）；仅技法试写可后注明。",
+                "4. 缺证据块时 stage 可软警告通过；准入硬闸拦百科表与台词范本教嘴。",
+                "5. **质量面 · 毒点**：" + QualityPolicy.poisonPolicyLine(),
+                "",
+            ];
+            if (analyze) {
+                lines.push(MethodRegistry.formatForAgent(analyze));
+                lines.push("");
+            }
+            if (recommend) {
+                lines.push(MethodRegistry.formatForAgent(recommend));
+                lines.push("");
+            }
+            lines.push("## 原文摘录");
+            lines.push("<<<SOURCE");
+            lines.push(excerpt);
+            lines.push("SOURCE>>>");
+            lines.push("");
+            lines.push("完成后：为每张卡填 axis +（craft: humanFeel+bookCraft | mind: mind）+ mechanisms + body，再 card_stage → card_accept。");
             return lines.join("\n");
-        }
-        const maxChars = Math.max(800, Math.min(opts.maxChars ?? 12000, 80000));
-        const excerpt = text.length <= maxChars
-            ? text
-            : text.slice(0, maxChars) + `\n\n…（已截断，原文共 ${text.length} 字；完整在 sources/${meta.excerptPath}）`;
-        const analyze = MethodRegistry.get("analyze");
-        const recommend = opts.includeRecommend !== false ? MethodRegistry.get("recommend") : undefined;
-        const lines = [
-            `# 拆书简报 · ${meta.title}${meta.author ? `（${meta.author}）` : ""}`,
-            `- sourceId：${meta.id}`,
-            `- readingRange：${meta.readingRange}`,
-            `- 导入字数：${meta.charCount}`,
-            "",
-            "【工程说明】本工具只注入摘录与方法包，**不代写分析**。请你按双轴提炼后调用 zhizhang_library_card_stage；须 zhizhang_library_card_accept 才入库。",
-            "",
-            "## 双轴准入（只拆两样）",
-            QualityPolicy.surfaceLine(),
-            "",
-            "## 怎么算拆完（脚本核不了，必须真读）",
-            QualityPolicy.cardJudgmentLine(),
-            "拆完的标志不是字段齐，而是：每张卡都能回答上面五条；mind 卡另有一句「检验方法」（遮住结局，读者能否用已给信息推出___）；craft 卡能说清这一场怎么写。",
-            "禁止用「字段齐全 / 引文能搜到 / 审计通过」冒充合格。",
-            "",
-            "### A. craft（写作技法）→ 指导 **具体写作** / chapter_brief",
-            "算：场面取舍、信息怎么漏、节奏/小物、状态如何落纸、失败边界可迁到**另一本书的正文**。",
-            "必填：`axis=craft` + **humanFeel**（writerCraft / craftRange / characterState / stateOnPage / allowedEdges / failAsTemplate）。",
-            "另填：**bookCraft**（章级续写面 continueWhy / adjacentChange / failAsShortStory）——≠ 完整创作思维。",
-            "`characterState` = 这一刻场面状态（慌/赖/在算/会错半拍）；写法+状态，不是人设墙或台词范本。",
-            "",
-            "#### craft · 打碎僵硬（反完美感；书无关逻辑 + 本书载体）",
-            "对原文另问四句：①呼吸哪里故意不齐？②哪里半截、作者也没立刻补课？③关键信息从讲义出还是从误认/失手/身体/跑题漏？载体是什么？④第一反应哪里不对？戏完纸上还留什么？",
-            "逻辑名（可并列）：呼吸不齐 / 念头半截 / 信息侧漏 / 先错半拍 / 局部余震 / 口气拧着 / 意义不收齐——每条只记**逻辑名 + 本书载体**。",
-            "`allowedEdges` 写成「本场应落纸：…」（打碎正向句 + 本书载体）。`failAsTemplate` 点名僵硬版（句句收齐、反应全对、讲义说明、意义被收完）。",
-            "迁的是打碎逻辑名 + 本书载体；不同书的场面外壳各自不同，只记这一本自己怎么把文字写散。",
-            "",
-            "### B. mind（创作思维）→ 指点 **设定层 / 章纲 / 卷纲**（inspire）",
-            "算：能力与代价如何设计、冲突飞轮、信息分期、章/卷压力如何换、读者合同如何立——可迁到**另一本书的设定/纲**。",
-            "必填：`axis=mind` + **mind**（sellIntoCost / infoStaging / pressureMachine / debtAndSwap / readerContract / failAsEncyclopedia）。",
-            "mind 供 inspire 规划；lean 正文 brief 只吃 craft 写法+状态。",
-            "",
-            "### 准入样子（两轴）",
-            "- craft：可迁到另一本书正文的写法与场面状态",
-            "- mind：可迁到另一本书设定/纲的创作思维",
-            "- kind 是场面粒度次标签（craft|scene|book），axis 才是双轴",
-            "",
-            "### 其它",
-            "1. **mechanisms** 须含 `name` + `failWhen`；discard 写清丢弃的原作剧情与人名。",
-            "2. 可选 **handoff**；可选 **kind**（`craft`|`scene`|`book`）——axis=mind 才进创作思维轨。",
-            "3. 同一 source 宜拆：**多张 craft + 至少一张 mind**（完整迁技）；仅技法试写可后注明。",
-            "4. 缺证据块时 stage 可软警告通过；准入硬闸拦百科表与台词范本教嘴。",
-            "5. **质量面 · 毒点**：" + QualityPolicy.poisonPolicyLine(),
-            "",
-        ];
-        if (analyze) {
-            lines.push(MethodRegistry.formatForAgent(analyze));
-            lines.push("");
-        }
-        if (recommend) {
-            lines.push(MethodRegistry.formatForAgent(recommend));
-            lines.push("");
-        }
-        lines.push("## 原文摘录");
-        lines.push("<<<SOURCE");
-        lines.push(excerpt);
-        lines.push("SOURCE>>>");
-        lines.push("");
-        lines.push("完成后：为每张卡填 axis +（craft: humanFeel+bookCraft | mind: mind）+ mechanisms + body，再 card_stage → card_accept。");
-        return lines.join("\n");
+        });
     },
     async stageCard(paths, input) {
         await LibraryPort.ensureLibrary(paths);
@@ -356,21 +438,17 @@ export const LibraryPort = {
             throw new ZhizhangError("bad_args", "steps / bannedDiction 仅用于 v2 模块卡：请同时传 layer + dimension，或改用 mechanisms 写操作");
         }
         const v2Warnings = [];
+        let evidenceSourceHash;
         if (hasV2) {
             const check = validateModule({ ...v2, mechanisms: input.mechanisms });
             if (check.errors.length)
                 throw new ZhizhangError("bad_module", `模块未通过：${check.errors.join("；")}`);
             v2Warnings.push(...check.warnings);
-            try {
-                const src = await LibraryPort.getSourceIndexed(paths, sourceId);
-                const bad = verifyModuleEvidence(v2, src.text, src.index);
-                if (bad.length)
-                    throw new ZhizhangError("bad_evidence", `模块证据未通过：${bad.join("；")}`);
-            }
-            catch (e) {
-                if (e instanceof ZhizhangError)
-                    throw e;
-            }
+            const src = await readSourceForEvidence(paths, sourceId);
+            evidenceSourceHash = src.sourceHash;
+            const bad = verifyModuleEvidence(v2, src.text, src.index);
+            if (bad.length)
+                throw new ZhizhangError("bad_evidence", `模块证据未通过：${bad.join("；")}`);
         }
         // Peek presence before full normalize (avoid craft-warn spam on mind cards)
         const peekFeel = input.humanFeel != null;
@@ -482,26 +560,55 @@ export const LibraryPort = {
             card.transfer = v2.transfer;
             card.failWhen = v2.failWhen;
             card.evidence = v2.evidence;
+            // Snapshot only explicit reading declarations for cited chapters; quotes do not prove depth.
+            const analysis = await readAnalysisBundle(paths, sourceId);
+            const byChapter = new Map(analysis.chapters.map((f) => [Number(f.n), f]));
+            const chapterNums = [...new Set(v2.evidence.map((e) => parseChapterNumber(e?.chapter)).filter((n) => Number.isInteger(n) && n > 0))];
+            const chapters = chapterNums.map((n) => {
+                const fact = byChapter.get(n);
+                const level = fact?.readingLevel === "正文已读" || fact?.readingLevel === "深读" ? fact.readingLevel : "未声明";
+                return { chapter: n, readingLevel: level };
+            });
+            card.readingEvidence = {
+                capturedAt: now,
+                sourceHash: evidenceSourceHash,
+                planMode: analysis.meta?.scope?.mode ?? "未建计划",
+                chapters,
+                note: "阅读程度为提交者申报，引用匹配不证明已读或深读",
+            };
+            if (chapters.some((ch) => ch.readingLevel === "未声明"))
+                warnings.push("部分证据章的阅读程度未声明；引文匹配不证明已读或深读。");
             if (v2.steps.length)
                 card.steps = v2.steps;
             if (v2.bannedDiction.length)
                 card.bannedDiction = v2.bannedDiction;
         }
         const d = libraryDirs(paths);
-        await atomicWrite(path.join(d.candidates, `${candId}.json`), JSON.stringify(card, null, 2) + "\n");
+        const candidatePath = path.join(d.candidates, `${candId}.json`);
+        await withResourceLock(paths.library, async () => {
+            await assertNoPendingCard(paths.library);
+            if (await snapshotFile(candidatePath) !== null)
+                throw new ZhizhangError("id_collision", "生成的卡候选 id 已存在；未覆盖原文件，请重新尝试。");
+            await atomicWrite(candidatePath, JSON.stringify(card, null, 2) + "\n");
+        });
         return { candId, title, warnings };
     },
     async acceptCard(paths, candId) {
         const id = assertResourceId(candId, "卡候选 id");
+        await LibraryPort.ensureLibrary(paths);
         // 读候选 → 查已采纳 → 写卡 + 索引 + 回写候选全程持同一把库锁：
         // 并发/重试不能把同一张候选重复采纳成两张卡。
-        return withLock(`library:${paths.library}`, async () => {
-            await LibraryPort.ensureLibrary(paths);
+        return withResourceLock(paths.library, async () => {
+            await assertNoPendingCard(paths.library);
             const d = libraryDirs(paths);
             const candPath = path.join(d.candidates, `${id}.json`);
-            if (!(await fileExists(candPath))) {
+            const candidateBefore = await snapshotFile(candPath);
+            if (candidateBefore === null) {
                 throw new ZhizhangError("candidate_not_found", `找不到技法卡候选 ${id}`);
             }
+            const indexBefore = await snapshotFile(d.index);
+            if (indexBefore === null)
+                throw new ZhizhangError("library_index_missing", "拆书库索引缺失，请先核对原文件。");
             const staged = JSON.parse(await readFile(candPath, "utf8"));
             if (staged.status === "accepted" || staged.acceptedCardId) {
                 throw new ZhizhangError("candidate_already_accepted", `卡候选 ${id} 已采纳${staged.acceptedCardId ? `（${staged.acceptedCardId}）` : ""}，不能重复入库。请重新 card_stage。`);
@@ -510,21 +617,19 @@ export const LibraryPort = {
                 throw new ZhizhangError("empty_body", "候选 body 为空，拒绝采纳");
             }
             let moduleWarnings = [];
+            let sourceGuard;
             if (staged.schemaVersion === 2 || staged.layer) {
                 const check = validateModule(staged);
                 if (check.errors.length)
                     throw new ZhizhangError("bad_module", `模块未通过：${check.errors.join("；")}`);
                 moduleWarnings = check.warnings;
-                try {
-                    const src = await LibraryPort.getSourceIndexed(paths, staged.sourceId);
-                    const bad = verifyModuleEvidence(staged, src.text, src.index);
-                    if (bad.length)
-                        throw new ZhizhangError("bad_evidence", `模块证据未通过：${bad.join("；")}`);
-                }
-                catch (e) {
-                    if (e instanceof ZhizhangError)
-                        throw e;
-                }
+                const src = await readSourceForEvidence(paths, staged.sourceId);
+                if (staged.readingEvidence?.sourceHash && staged.readingEvidence.sourceHash !== src.sourceHash)
+                    throw new ZhizhangError("source_changed", "书源在暂存卡后发生变化；请重新核对原文并暂存卡，避免沿用旧阅读依据。");
+                const bad = verifyModuleEvidence(staged, src.text, src.index);
+                if (bad.length)
+                    throw new ZhizhangError("bad_evidence", `模块证据未通过：${bad.join("；")}`);
+                sourceGuard = { sourceId: src.sourceId, sourceFile: src.sourceFile, metaHash: src.metaHash, sourceHash: src.sourceHash };
             }
             let auditWarnings = [];
             if (!(staged.schemaVersion === 2 || staged.layer)) {
@@ -536,8 +641,8 @@ export const LibraryPort = {
                         auditWarnings.unshift(`证据引文 ${audit.evidenceVerified}/${audit.evidenceQuotes} 可在原文中核对，${audit.unverifiable.length} 条未命中`);
                     }
                 }
-                catch {
-                    /* source 缺失不阻断采纳 */
+                catch (err) {
+                    auditWarnings.push(`旧卡原文未能核对（${err?.message ?? String(err)}）；采纳前须人工检查来源。`);
                 }
             }
             auditWarnings.unshift(...moduleWarnings);
@@ -550,8 +655,10 @@ export const LibraryPort = {
                 updatedAt: now,
                 acceptedAt: now,
             };
-            await atomicWrite(path.join(d.cards, `${cardId}.json`), JSON.stringify(card, null, 2) + "\n");
             const idx = await readIndex(paths);
+            const cardBefore = await snapshotFile(path.join(d.cards, `${cardId}.json`));
+            if (cardBefore !== null)
+                throw new ZhizhangError("id_collision", "生成的卡 id 已存在；未覆盖原卡，请重新尝试。");
             idx.cards.unshift({
                 id: cardId,
                 title: card.title,
@@ -563,14 +670,23 @@ export const LibraryPort = {
                 layer: card.layer,
                 dimension: card.dimension,
             });
-            await writeIndex(paths, idx);
-            // 回写候选：留下 acceptedCardId 作为"已入库"凭据，重复采纳在此被拦下。
-            await atomicWrite(candPath, JSON.stringify({
-                ...staged,
-                status: "accepted",
-                acceptedCardId: cardId,
-                updatedAt: now,
-            }, null, 2) + "\n");
+            const acceptedCandidate = { ...staged, status: "accepted", acceptedCardId: cardId, updatedAt: now };
+            const journalId = await createCardJournal(paths.library, {
+                candidateId: id, cardId, sourceGuard,
+                writes: [
+                    { file: `cards/${cardId}.json`, before: cardBefore, content: JSON.stringify(card, null, 2) + "\n" },
+                    { file: "index.json", before: indexBefore, content: JSON.stringify(idx, null, 2) + "\n" },
+                    { file: `candidates/${id}.json`, before: candidateBefore, content: JSON.stringify(acceptedCandidate, null, 2) + "\n" },
+                ],
+            });
+            try {
+                await finishCardJournal(paths.library, journalId);
+            }
+            catch (err) {
+                if (err instanceof ZhizhangError)
+                    throw err;
+                throw new ZhizhangError("library_recovery_required", `卡采纳未完整提交（${err?.message ?? String(err)}）。请用 zhizhang_library_list(recovery=inspect) 检查；不要重复采纳。`);
+            }
             return {
                 cardId,
                 title: card.title,
@@ -587,22 +703,29 @@ export const LibraryPort = {
         const id = assertResourceId(cardId, "卡 id");
         await LibraryPort.ensureLibrary(paths);
         const d = libraryDirs(paths);
-        const idx = await readIndex(paths);
-        const hit = idx.cards.find((c) => c.id === id);
-        if (!hit) {
-            throw new ZhizhangError("card_not_found", `找不到卡 ${cardId}`);
-        }
-        await withLock(`library:${paths.library}`, async () => {
+        return withResourceLock(paths.library, async () => {
+            const indexBefore = await snapshotFile(d.index);
+            if (!indexBefore)
+                throw new ZhizhangError("library_index_missing", "拆书库索引缺失，请先检查原文件。");
             const fresh = await readIndex(paths);
+            if (await snapshotFile(d.index) !== indexBefore)
+                throw new ZhizhangError("library_recovery_conflict", "索引在删卡准备期间变化，请重新检查。");
+            const hit = fresh.cards.find((c) => c.id === id);
+            if (!hit)
+                throw new ZhizhangError("card_not_found", `找不到卡 ${cardId}`);
             fresh.cards = fresh.cards.filter((c) => c.id !== id);
-            await writeIndex(paths, fresh);
-            const file = path.join(d.cards, `${id}.json`);
-            if (await fileExists(file)) {
-                const { unlink } = await import("node:fs/promises");
-                await unlink(file).catch(() => undefined);
+            const cardBefore = await snapshotFile(path.join(d.cards, `${id}.json`));
+            const journal = await createDiscardJournal(paths.library, { cardId: id, indexBefore, cardBefore, indexContent: JSON.stringify(fresh, null, 2) + "\n" });
+            try {
+                await finishDiscardJournal(paths.library, journal);
             }
+            catch (err) {
+                if (err instanceof ZhizhangError)
+                    throw err;
+                throw new ZhizhangError("library_recovery_required", `删卡 ${id} 未完成（${err?.message ?? String(err)}）。请先检查恢复记录。`);
+            }
+            return { cardId: id, title: hit.title, remaining: fresh.cards.length };
         });
-        return { cardId: id, title: hit.title, remaining: idx.cards.length - 1 };
     },
     async listCards(paths, opts = {}) {
         await LibraryPort.ensureLibrary(paths);

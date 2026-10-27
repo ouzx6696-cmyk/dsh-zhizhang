@@ -12,7 +12,7 @@ export function exportTools() {
                 work: WORK_OPT,
                 working_dir: WORKING_DIR,
                 only_final: B("默认 false（收全部有正文章）"),
-                output: S("可选相对路径，默认 manuscripts/<key>.md"),
+                output: S("可选相对路径，须位于 manuscripts 内，默认 manuscripts/<key>.md"),
             },
             required: [],
             async execute(args, exec) {

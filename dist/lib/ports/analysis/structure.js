@@ -1,9 +1,10 @@
+import { assertNoPendingCard } from "../../storage/card-journal.js";
 /** 聚合层：剧情条 / 节奏表 / 人物。 */
-import { withLock } from "../../store.js";
+import { withResourceLock } from "../../storage/process-lock.js";
 import { ZhizhangError } from "../../errors.js";
-import { analysisPaths, ensureDir, nowIso, readJson, readJsonl, writeJsonl } from "./paths.js";
-import { writeAnalysisMeta } from "./meta.js";
-import { atomicWrite } from "../../store.js";
+import { analysisPaths, ensureDir, nowIso, readJson, readJsonl } from "./paths.js";
+import { commitAnalysisUpdate } from "./meta.js";
+import { snapshotFile } from "../../storage/accept-journal.js";
 export function validatePlot(plot) {
     const errors = [];
     const p = plot ?? {};
@@ -78,7 +79,9 @@ export async function upsertPlot(paths, sourceId, plot) {
     await ensureDir(p.dir);
     // count 直接取锁内已读的行数，不再为拿个数整读一遍文件。
     let count = 0;
-    await withLock(`analysis:${sourceId}`, async () => {
+    await withResourceLock(paths.library, async () => {
+        await assertNoPendingCard(paths.library);
+        const before = await snapshotFile(p.plots);
         const rows = await readJsonl(p.plots);
         const rec = { ...plot, id: plot.id || `p${String(rows.length + 1).padStart(3, "0")}`, schemaVersion: 2, updatedAt: nowIso() };
         const at = rows.findIndex((r) => r.id === rec.id);
@@ -86,8 +89,7 @@ export async function upsertPlot(paths, sourceId, plot) {
             rows[at] = rec;
         else
             rows.push(rec);
-        await writeJsonl(p.plots, rows);
-        await writeAnalysisMeta(paths, sourceId, { stage: "plots" });
+        await commitAnalysisUpdate(paths, sourceId, "plots.jsonl", before, rows.length ? rows.map((r) => JSON.stringify(r)).join("\n") + "\n" : "", () => ({ stage: "plots" }));
         count = rows.length;
     });
     return { count };
@@ -98,7 +100,9 @@ export async function writeRhythm(paths, sourceId, rhythm) {
         throw new ZhizhangError("bad_rhythm", `节奏表未通过：${errors.join("；")}`);
     const p = analysisPaths(paths, sourceId);
     await ensureDir(p.dir);
-    await withLock(`analysis:${sourceId}`, async () => {
+    await withResourceLock(paths.library, async () => {
+        await assertNoPendingCard(paths.library);
+        const before = await snapshotFile(p.rhythms);
         const rec = {
             schemaVersion: 2,
             points: rhythm.points ?? [],
@@ -107,8 +111,7 @@ export async function writeRhythm(paths, sourceId, rhythm) {
             foreshadowing: rhythm.foreshadowing ?? [],
             updatedAt: nowIso(),
         };
-        await atomicWrite(p.rhythms, `${JSON.stringify(rec, null, 2)}\n`);
-        await writeAnalysisMeta(paths, sourceId, { stage: "rhythm" });
+        await commitAnalysisUpdate(paths, sourceId, "rhythms.json", before, `${JSON.stringify(rec, null, 2)}\n`, () => ({ stage: "rhythm" }));
     });
     return { warnings, loops: rhythm.loops?.length ?? 0 };
 }
@@ -119,17 +122,20 @@ export async function upsertCharacter(paths, sourceId, character) {
     const p = analysisPaths(paths, sourceId);
     await ensureDir(p.dir);
     let count = 0;
-    await withLock(`analysis:${sourceId}`, async () => {
+    await withResourceLock(paths.library, async () => {
+        await assertNoPendingCard(paths.library);
+        const before = await snapshotFile(p.characters);
         const current = await readJson(p.characters, []);
-        const rows = Array.isArray(current) ? current : [];
+        if (!Array.isArray(current))
+            throw new ZhizhangError("bad_analysis", `人物记录格式损坏：${p.characters}；请保留原文件并核对。`);
+        const rows = current;
         const rec = { ...character, schemaVersion: 2, updatedAt: nowIso() };
         const at = rows.findIndex((r) => r.name === rec.name);
         if (at >= 0)
             rows[at] = rec;
         else
             rows.push(rec);
-        await atomicWrite(p.characters, `${JSON.stringify(rows, null, 2)}\n`);
-        await writeAnalysisMeta(paths, sourceId, { stage: "characters" });
+        await commitAnalysisUpdate(paths, sourceId, "characters.json", before, `${JSON.stringify(rows, null, 2)}\n`, () => ({ stage: "characters" }));
         count = rows.length;
     });
     return { count };

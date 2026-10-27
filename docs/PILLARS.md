@@ -76,7 +76,8 @@ inspire_start(card_ids) → inspire_forge_brief → inspire_stage
 | 规则 | 说明 |
 |------|------|
 | 卡须已 accept | 未入库卡不能开会话主粮 |
-| 须 mind | 至少一张 `axis=mind`；否则显式 `craft_only=true`（旁路） |
+| 参考卡 | 可无卡直接按作者目标规划；有卡但无 `axis=mind` 时须显式 `craft_only=true`（旁路） |
+| 节奏 | 可选择快爽 / 稳推 / 慢燃；未指定时依据作者目标选择并说明 |
 | 分喂 | **mind 主粮** → planned/locks/threads；**craft 辅** → style/场面，勿当设定替身 |
 | 不静默写作品 | 只有 `acceptEmit(apply=true)` 才调 store foundation/outline |
 | 禁止声纹教嘴 | outline `stateLens` = 场面状态/写法取舍，非声纹 |

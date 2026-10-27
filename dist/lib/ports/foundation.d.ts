@@ -1,27 +1,7 @@
 import { bodyTailOf, endingBodyOverlap } from "../domain/ending-consistency.js";
-/** Last ~1–2 sentences / up to maxLen chars from body — short outcome only.（实现移至 domain） */
+import { formatChapterOutcomeLine, resolveHappenedText } from "../domain/foundation-outcome.js";
 export declare const extractBodyOutcome: typeof bodyTailOf;
-export { endingBodyOverlap };
-/**
- * Choose short happened text: ending if it aligns with body tail; else body outcome.
- * Never invents long prose from body beyond extractBodyOutcome.
- */
-export declare function resolveHappenedText(opts: any): {
-    text: string;
-    source: string;
-    bodyTail: string | undefined;
-    warn?: undefined;
-} | {
-    text: string;
-    source: string;
-    bodyTail?: undefined;
-    warn?: undefined;
-} | {
-    text: string;
-    source: string;
-    bodyTail: string;
-    warn: string;
-};
+export { endingBodyOverlap, resolveHappenedText };
 export declare const FoundationPort: {
     id: string;
     extractBodyOutcome: typeof bodyTailOf;
@@ -30,7 +10,7 @@ export declare const FoundationPort: {
     /**
      * Build a one-line happened entry. Returns empty if text is blank.
      */
-    formatChapterOutcomeLine(chapterId: string, title: string, text: string): string;
+    formatChapterOutcomeLine: typeof formatChapterOutcomeLine;
     /**
      * Append a short happened line for a chapter. Idempotent per chapterId marker.
      * Skips when text empty (caller should still remind).
@@ -40,11 +20,19 @@ export declare const FoundationPort: {
         appended: boolean;
         line: string;
         reason: string;
+        replaced?: undefined;
+    } | {
+        meta: any;
+        appended: boolean;
+        replaced: boolean;
+        line: string;
+        reason?: undefined;
     } | {
         meta: any;
         appended: boolean;
         line: string;
         reason?: undefined;
+        replaced?: undefined;
     }>;
     /**
      * Soft receipt lines after candidate_accept — remind model to refresh 当前小说状态.

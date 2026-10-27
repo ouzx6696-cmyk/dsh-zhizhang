@@ -41,11 +41,16 @@ export declare const LibraryPort: {
         title: string;
         warnings: string[];
     }>;
-    acceptCard(paths: StoragePaths, candId: any): Promise<any>;
+    acceptCard(paths: StoragePaths, candId: any): Promise<{
+        cardId: string;
+        title: any;
+        warnings: string[];
+        judgment: string[];
+    }>;
     discardCard(paths: StoragePaths, cardId: any): Promise<{
         cardId: string;
         title: any;
-        remaining: number;
+        remaining: any;
     }>;
     listCards(paths: StoragePaths, opts?: any): Promise<any>;
     searchCards(paths: StoragePaths, query: any, opts?: any): Promise<any>;

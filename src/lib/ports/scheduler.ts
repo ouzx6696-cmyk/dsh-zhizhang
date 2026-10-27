@@ -10,7 +10,7 @@ export const SCHEDULER_WRITE_LINE = "chapter_brief(lean) → 创作 → candidat
 /** Library segment. */
 export const SCHEDULER_LIBRARY_LINE = "library_import → library_plan（auto 10% / full 须同意）→ dissect_brief(batch) → facts_stage（白描）→ structure_stage（剧情/节奏/人物）→ card_stage（v2 模块）→ card_accept → report → combo_suggest";
 /** Inspiration segment. */
-export const SCHEDULER_INSPIRE_LINE = "inspire_start(card_ids) → forge_brief → stage → accept(apply=true)";
+export const SCHEDULER_INSPIRE_LINE = "inspire_start(goal，card_ids 可选) → forge_brief → stage → accept(apply=true)";
 export const SCHEDULER_BYPASSES = [
     {
         id: "diagnose.audit",
@@ -33,7 +33,7 @@ export const SCHEDULER_BYPASSES = [
     {
         id: "inspire.craft_only",
         title: "仅技法灵感",
-        when: "无 mind 卡仍要开 inspire",
+        when: "有 craft 卡但无 mind 卡，仍要仅技法试写",
         via: "inspire_start craft_only=true",
     },
     {
@@ -77,7 +77,7 @@ const NEXT_HINTS = {
     candidate_unify_stage: "zhizhang_style_lint(candidate=整理稿) → candidate_accept",
     project_create: "有卡：combo → inspire → " +
         SCHEDULER_WRITE_LINE +
-        "；无卡：outline_set → " +
+        "；无卡：inspire_start(goal) 规划，或 outline_set → " +
         SCHEDULER_WRITE_LINE,
     work_status: SCHEDULER_WRITE_LINE + "；audit 仅诊断旁路；定稿用 finalize.ship",
 };

@@ -5,12 +5,19 @@
  * Technique cards ≠ MethodRegistry. 拒收百科/梗概/声纹/人设墙。
  * 兼容：旧卡无 axis 时按 humanFeel/mind 推断；kind 降为次标签。
  */
-import { mkdir, readFile, stat } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { link, mkdir, open, readFile, readdir, stat, unlink } from "node:fs/promises";
 import path from "node:path";
 import { ZhizhangError } from "../errors.js";
-import { atomicWrite, assertResourceId, sessionCwd, withLock, } from "../store.js";
+import { assertNoPendingCard, createCardJournal, finishCardJournal } from "../storage/card-journal.js";
+import { createSourceJournal, finishSourceJournal } from "../storage/source-journal.js";
+import { createDiscardJournal, finishDiscardJournal } from "../storage/discard-journal.js";
+import { snapshotFile } from "../storage/accept-journal.js";
+import { withResourceLock } from "../storage/process-lock.js";
+import { atomicWrite, assertResourceId, sessionCwd, } from "../store.js";
 import { readJsonCached } from "../file-cache.js";
 import { MethodRegistry } from "./methods.js";
+import { parseChapterNumber } from "../domain/chapter-heading.js";
 import { REPORT_SECTION_COUNT } from "../domain/report-sections.js";
 import { QualityPolicy } from "./quality-policy.js";
 import type { StoragePaths } from "../types.js";
@@ -53,7 +60,6 @@ import {
     libraryDirs,
     emptyIndex,
     readIndex,
-    writeIndex,
     resolveSourceIdFilter,
     filterCardRows,
     comboScore,
@@ -64,11 +70,12 @@ import {
     reconcileIndex,
 } from "./library/store.js";
 // —— § 拆书源缓存（文本 + 章索引派生） ——
-// 源文本文件经 atomicWrite 落盘，mtime/size 必随写变化；stat 校验后即可
-// 跨 dissect / card stage / card accept / audit 复用同一份文本与章索引。
+// 轮询与阅读复用源文本缓存；证据校验单独读取源文件字节，不把缓存当完整性证明。
 const SOURCE_CACHE_MAX = 6;
 interface SourceCacheEntry {
     mtimeMs: number;
+    ctimeMs: number;
+    ino: number;
     size: number;
     meta: any;
     text: string;
@@ -95,17 +102,21 @@ async function getSourceCached(paths: StoragePaths, sourceId: any) {
     try {
         st = await stat(textPath);
     }
-    catch {
-        return { meta, text: "", entry: null as SourceCacheEntry | null };
+    catch (err: any) {
+        if (err?.code === "ENOENT") throw new ZhizhangError("source_not_found", `书源正文缺失：${id}；请检查并保留已有文件。`);
+        throw err;
     }
     const hit = sourceCache.get(textPath);
-    if (hit && hit.mtimeMs === st.mtimeMs && hit.size === st.size) {
+    if (hit && hit.mtimeMs === st.mtimeMs && hit.ctimeMs === st.ctimeMs && hit.ino === st.ino && hit.size === st.size) {
         // meta 与文本同目录同生命周期；命中时顺带刷新缓存里的 meta 引用。
         hit.meta = meta;
         return { meta, text: hit.text, entry: hit };
     }
     const text = await readFile(textPath, "utf8");
-    const entry: SourceCacheEntry = { mtimeMs: st.mtimeMs, size: st.size, meta, text };
+    const after = await stat(textPath);
+    if (st.mtimeMs !== after.mtimeMs || st.ctimeMs !== after.ctimeMs || st.ino !== after.ino || st.size !== after.size)
+        throw new ZhizhangError("source_changed", `书源 ${id} 在读取期间发生变化；请重新核对后再试。`);
+    const entry: SourceCacheEntry = { mtimeMs: after.mtimeMs, ctimeMs: after.ctimeMs, ino: after.ino, size: after.size, meta, text };
     sourceCache.delete(textPath);
     sourceCache.set(textPath, entry);
     if (sourceCache.size > SOURCE_CACHE_MAX) {
@@ -114,6 +125,24 @@ async function getSourceCached(paths: StoragePaths, sourceId: any) {
             sourceCache.delete(oldest);
     }
     return { meta, text, entry };
+}
+/** Evidence decisions always re-read source bytes; polling caches are not integrity proofs. */
+async function readSourceForEvidence(paths: StoragePaths, sourceId: string) {
+    const id = assertSourceId(sourceId);
+    const d = libraryDirs(paths);
+    const metaBytes = await readFile(path.join(d.sources, `${id}.json`));
+    const meta = JSON.parse(metaBytes.toString("utf8"));
+    const excerptName = typeof meta.excerptPath === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]*\.txt$/.test(meta.excerptPath)
+        ? meta.excerptPath : `${id}.txt`;
+    const bytes = await readFile(path.join(d.sources, excerptName));
+    let text: string;
+    try { text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes); }
+    catch { throw new ZhizhangError("bad_source", "书源不是有效 UTF-8，无法安全核对引文；请保留原文件并检查。"); }
+    return {
+        text, index: chapterIndex(text), sourceId: id, sourceFile: excerptName,
+        sourceHash: createHash("sha256").update(bytes).digest("hex"),
+        metaHash: createHash("sha256").update(metaBytes).digest("hex"),
+    };
 }
 /** 章索引按需派生一次，挂在缓存条目上；同一本书的多张卡共用。 */
 function sourceIndexOf(entry: SourceCacheEntry | null, text: string = "") {
@@ -145,15 +174,35 @@ export const LibraryPort = {
         ];
     },
     async ensureLibrary(paths: StoragePaths) {
+        await mkdir(paths.library, { recursive: true });
+        return withResourceLock(paths.library, async () => {
         const d = libraryDirs(paths);
+        await assertNoPendingCard(paths.library);
         await mkdir(d.sources, { recursive: true });
         await mkdir(d.cards, { recursive: true });
         await mkdir(d.candidates, { recursive: true });
         if (!(await fileExists(d.index))) {
-            await writeIndex(paths, await emptyIndex());
+            const managed = [d.sources, d.cards, d.candidates, path.join(d.root, "analyses")];
+            const contents = await Promise.all(managed.map(async (dir) => {
+                try { return await readdir(dir); }
+                catch (err: any) { if (err?.code === "ENOENT") return []; throw err; }
+            }));
+            if (contents.some((items) => items.length > 0) && !(await fileExists(d.index)))
+                throw new ZhizhangError("library_index_missing", "拆书库索引缺失但目录中仍有资产；请保留原文件并检查，不自动创建空索引。");
+            // Publish a complete initial index without replacing a concurrent creator's file.
+            const tmp = `${d.index}.${randomUUID()}.init.tmp`;
+            try {
+                const handle = await open(tmp, "wx", 0o600);
+                try { await handle.writeFile(JSON.stringify(await emptyIndex(), null, 2) + "\n", "utf8"); await handle.sync(); }
+                finally { await handle.close(); }
+                try { await link(tmp, d.index); }
+                catch (err: any) { if (err?.code !== "EEXIST") throw err; }
+            }
+            finally { await unlink(tmp).catch(() => {}); }
         }
         await reconcileIndex(paths);
         return paths;
+        });
     },
     async importSource(paths: StoragePaths, input: any) {
         await LibraryPort.ensureLibrary(paths);
@@ -199,17 +248,23 @@ export const LibraryPort = {
             createdAt: now,
             updatedAt: now,
         };
-        await withLock(`library:${paths.library}`, async () => {
-            await atomicWrite(excerptPath, text);
-            await atomicWrite(metaPath, JSON.stringify(meta, null, 2) + "\n");
+        await withResourceLock(paths.library, async () => {
+            const indexBefore = await snapshotFile(d.index);
+            if (!indexBefore) throw new ZhizhangError("library_index_missing", "拆书库索引缺失，请先检查原文件。");
             const idx = await readIndex(paths);
-            idx.sources.unshift({
-                id: sourceId,
-                title: meta.title,
-                author: meta.author,
-                createdAt: now,
-            });
-            await writeIndex(paths, idx);
+            if (await snapshotFile(d.index) !== indexBefore)
+                throw new ZhizhangError("library_recovery_conflict", "拆书库索引在导入准备期间变化，请重新检查。");
+            if (await snapshotFile(excerptPath) !== null || await snapshotFile(metaPath) !== null)
+                throw new ZhizhangError("id_collision", "生成的书源 id 已存在；未覆盖原文件，请重新尝试。");
+            idx.sources.unshift({ id: sourceId, title: meta.title, author: meta.author, createdAt: now });
+            const journal = await createSourceJournal(paths.library, { sourceId, text, metaContent: JSON.stringify(meta, null, 2) + "\n", indexBefore, indexContent: JSON.stringify(idx, null, 2) + "\n" });
+            try {
+                await finishSourceJournal(paths.library, journal);
+            }
+            catch (err: any) {
+                if (err instanceof ZhizhangError) throw err;
+                throw new ZhizhangError("library_recovery_required", `书源 ${sourceId} 导入未完成（${err?.message ?? String(err)}）。请用 zhizhang_library_list(recovery=inspect) 检查，不要重复导入。`);
+            }
         });
         return {
             sourceId,
@@ -240,6 +295,8 @@ export const LibraryPort = {
         return (await readIndex(paths)).sources;
     },
     async dissectBrief(paths: StoragePaths, sourceId: any, opts: any = {}) {
+        return withResourceLock(paths.library, async () => {
+        await assertNoPendingCard(paths.library);
         const { meta, text, index: idx } = await LibraryPort.getSourceIndexed(paths, sourceId);
         const mode = String(opts.mode ?? "").trim();
         if (mode) {
@@ -291,7 +348,7 @@ export const LibraryPort = {
             if (mode === "full") {
                 lines.push("- 注意：无 plan 的 mode=full 只取 from 起数章，不是全量；全量须 library_plan(mode=full)（作者同意后）。本批按 chapters 记 scope。");
             }
-            lines.push("", "【纪律】只记白描：谁做了什么、结果怎样；原文没写的动机/身份/后果写进 unknowns，禁止补。", "【禁】desc 里出现 心里/觉得/认为/希望/害怕/后悔/其实/精彩/感人/震撼 等心理评价词会被拒。", "", "## 每章提交格式（zhizhang_library_facts_stage）", "```json", JSON.stringify({ source: meta.id, facts: { n: 1, title: "…", events: [{ loc: "P1-P3", desc: "谁做了什么，结果怎样", quote: "原文片段" }], functions: ["入局"], hook: { type: "悬念", text: "章末钩子", strength: "强" }, value: { situation: "…", relation: "…", cognition: "…", emotion: "…" }, unknowns: ["原文没写的动机"] } }, null, 2), "```", "", "## 本批原文");
+            lines.push("", "【纪律】只记白描：谁做了什么、结果怎样；原文没写的动机/身份/后果写进 unknowns，禁止补。", "【禁】desc 里出现 心里/觉得/认为/希望/害怕/后悔/其实/精彩/感人/震撼 等心理评价词会被拒。", "", "## 每章提交格式（zhizhang_library_facts_stage；阅读程度须如实申报，未声明可省略）", "```json", JSON.stringify({ source: meta.id, facts: { n: 1, title: "…", events: [{ loc: "P1-P3", desc: "谁做了什么，结果怎样", quote: "原文片段" }], functions: ["入局"], hook: { type: "悬念", text: "章末钩子", strength: "强" }, value: { situation: "…", relation: "…", cognition: "…", emotion: "…" }, unknowns: ["原文没写的动机"], readingLevel: "正文已读" } }, null, 2), "```", "", "## 本批原文");
             for (const b of batch) {
                 lines.push(`
 ### 第${b.n}章 ${b.title}`);
@@ -368,6 +425,7 @@ export const LibraryPort = {
         lines.push("");
         lines.push("完成后：为每张卡填 axis +（craft: humanFeel+bookCraft | mind: mind）+ mechanisms + body，再 card_stage → card_accept。");
         return lines.join("\n");
+        });
     },
     async stageCard(paths: StoragePaths, input: any) {
         await LibraryPort.ensureLibrary(paths);
@@ -407,21 +465,17 @@ export const LibraryPort = {
             throw new ZhizhangError("bad_args", "steps / bannedDiction 仅用于 v2 模块卡：请同时传 layer + dimension，或改用 mechanisms 写操作");
         }
         const v2Warnings = [];
+        let evidenceSourceHash: string | undefined;
         if (hasV2) {
             const check = validateModule({ ...v2, mechanisms: input.mechanisms });
             if (check.errors.length)
                 throw new ZhizhangError("bad_module", `模块未通过：${check.errors.join("；")}`);
             v2Warnings.push(...check.warnings);
-            try {
-                const src = await LibraryPort.getSourceIndexed(paths, sourceId);
-                const bad = verifyModuleEvidence(v2, src.text, src.index);
-                if (bad.length)
-                    throw new ZhizhangError("bad_evidence", `模块证据未通过：${bad.join("；")}`);
-            }
-            catch (e) {
-                if (e instanceof ZhizhangError)
-                    throw e;
-            }
+            const src = await readSourceForEvidence(paths, sourceId);
+            evidenceSourceHash = src.sourceHash;
+            const bad = verifyModuleEvidence(v2, src.text, src.index);
+            if (bad.length)
+                throw new ZhizhangError("bad_evidence", `模块证据未通过：${bad.join("；")}`);
         }
         // Peek presence before full normalize (avoid craft-warn spam on mind cards)
         const peekFeel = input.humanFeel != null;
@@ -533,26 +587,55 @@ export const LibraryPort = {
             card.transfer = v2.transfer;
             card.failWhen = v2.failWhen;
             card.evidence = v2.evidence;
+            // Snapshot only explicit reading declarations for cited chapters; quotes do not prove depth.
+            const analysis = await readAnalysisBundle(paths, sourceId);
+            const byChapter = new Map(analysis.chapters.map((f: any) => [Number(f.n), f]));
+            const chapterNums = [...new Set(v2.evidence.map((e: any) => parseChapterNumber(e?.chapter)).filter((n: any) => Number.isInteger(n) && n > 0))] as number[];
+            const chapters = chapterNums.map((n) => {
+                const fact: any = byChapter.get(n);
+                const level = fact?.readingLevel === "正文已读" || fact?.readingLevel === "深读" ? fact.readingLevel : "未声明";
+                return { chapter: n, readingLevel: level };
+            });
+            card.readingEvidence = {
+                capturedAt: now,
+                sourceHash: evidenceSourceHash,
+                planMode: analysis.meta?.scope?.mode ?? "未建计划",
+                chapters,
+                note: "阅读程度为提交者申报，引用匹配不证明已读或深读",
+            };
+            if (chapters.some((ch) => ch.readingLevel === "未声明"))
+                warnings.push("部分证据章的阅读程度未声明；引文匹配不证明已读或深读。");
             if (v2.steps.length)
                 card.steps = v2.steps;
             if (v2.bannedDiction.length)
                 card.bannedDiction = v2.bannedDiction;
         }
         const d = libraryDirs(paths);
-        await atomicWrite(path.join(d.candidates, `${candId}.json`), JSON.stringify(card, null, 2) + "\n");
+        const candidatePath = path.join(d.candidates, `${candId}.json`);
+        await withResourceLock(paths.library, async () => {
+            await assertNoPendingCard(paths.library);
+            if (await snapshotFile(candidatePath) !== null)
+                throw new ZhizhangError("id_collision", "生成的卡候选 id 已存在；未覆盖原文件，请重新尝试。");
+            await atomicWrite(candidatePath, JSON.stringify(card, null, 2) + "\n");
+        });
         return { candId, title, warnings };
     },
     async acceptCard(paths: StoragePaths, candId: any) {
         const id = assertResourceId(candId, "卡候选 id");
+        await LibraryPort.ensureLibrary(paths);
         // 读候选 → 查已采纳 → 写卡 + 索引 + 回写候选全程持同一把库锁：
         // 并发/重试不能把同一张候选重复采纳成两张卡。
-        return withLock(`library:${paths.library}`, async () => {
-            await LibraryPort.ensureLibrary(paths);
+        return withResourceLock(paths.library, async () => {
+            await assertNoPendingCard(paths.library);
             const d = libraryDirs(paths);
             const candPath = path.join(d.candidates, `${id}.json`);
-            if (!(await fileExists(candPath))) {
+            const candidateBefore = await snapshotFile(candPath);
+            if (candidateBefore === null) {
                 throw new ZhizhangError("candidate_not_found", `找不到技法卡候选 ${id}`);
             }
+            const indexBefore = await snapshotFile(d.index);
+            if (indexBefore === null)
+                throw new ZhizhangError("library_index_missing", "拆书库索引缺失，请先核对原文件。");
             const staged = JSON.parse(await readFile(candPath, "utf8"));
             if (staged.status === "accepted" || staged.acceptedCardId) {
                 throw new ZhizhangError("candidate_already_accepted", `卡候选 ${id} 已采纳${staged.acceptedCardId ? `（${staged.acceptedCardId}）` : ""}，不能重复入库。请重新 card_stage。`);
@@ -561,21 +644,19 @@ export const LibraryPort = {
                 throw new ZhizhangError("empty_body", "候选 body 为空，拒绝采纳");
             }
             let moduleWarnings: string[] = [];
+            let sourceGuard: { sourceId: string; sourceFile: string; metaHash: string; sourceHash: string } | undefined;
             if (staged.schemaVersion === 2 || staged.layer) {
                 const check = validateModule(staged);
                 if (check.errors.length)
                     throw new ZhizhangError("bad_module", `模块未通过：${check.errors.join("；")}`);
                 moduleWarnings = check.warnings;
-                try {
-                    const src = await LibraryPort.getSourceIndexed(paths, staged.sourceId);
-                    const bad = verifyModuleEvidence(staged, src.text, src.index);
-                    if (bad.length)
-                        throw new ZhizhangError("bad_evidence", `模块证据未通过：${bad.join("；")}`);
-                }
-                catch (e) {
-                    if (e instanceof ZhizhangError)
-                        throw e;
-                }
+                const src = await readSourceForEvidence(paths, staged.sourceId);
+                if (staged.readingEvidence?.sourceHash && staged.readingEvidence.sourceHash !== src.sourceHash)
+                    throw new ZhizhangError("source_changed", "书源在暂存卡后发生变化；请重新核对原文并暂存卡，避免沿用旧阅读依据。");
+                const bad = verifyModuleEvidence(staged, src.text, src.index);
+                if (bad.length)
+                    throw new ZhizhangError("bad_evidence", `模块证据未通过：${bad.join("；")}`);
+                sourceGuard = { sourceId: src.sourceId, sourceFile: src.sourceFile, metaHash: src.metaHash, sourceHash: src.sourceHash };
             }
             let auditWarnings: string[] = [];
             if (!(staged.schemaVersion === 2 || staged.layer)) {
@@ -587,8 +668,8 @@ export const LibraryPort = {
                         auditWarnings.unshift(`证据引文 ${audit.evidenceVerified}/${audit.evidenceQuotes} 可在原文中核对，${audit.unverifiable.length} 条未命中`);
                     }
                 }
-                catch {
-                    /* source 缺失不阻断采纳 */
+                catch (err: any) {
+                    auditWarnings.push(`旧卡原文未能核对（${err?.message ?? String(err)}）；采纳前须人工检查来源。`);
                 }
             }
             auditWarnings.unshift(...moduleWarnings);
@@ -601,8 +682,9 @@ export const LibraryPort = {
                 updatedAt: now,
                 acceptedAt: now,
             };
-            await atomicWrite(path.join(d.cards, `${cardId}.json`), JSON.stringify(card, null, 2) + "\n");
             const idx = await readIndex(paths);
+            const cardBefore = await snapshotFile(path.join(d.cards, `${cardId}.json`));
+            if (cardBefore !== null) throw new ZhizhangError("id_collision", "生成的卡 id 已存在；未覆盖原卡，请重新尝试。");
             idx.cards.unshift({
                 id: cardId,
                 title: card.title,
@@ -614,14 +696,20 @@ export const LibraryPort = {
                 layer: card.layer,
                 dimension: card.dimension,
             });
-            await writeIndex(paths, idx);
-            // 回写候选：留下 acceptedCardId 作为"已入库"凭据，重复采纳在此被拦下。
-            await atomicWrite(candPath, JSON.stringify({
-                ...staged,
-                status: "accepted",
-                acceptedCardId: cardId,
-                updatedAt: now,
-            }, null, 2) + "\n");
+            const acceptedCandidate = { ...staged, status: "accepted", acceptedCardId: cardId, updatedAt: now };
+            const journalId = await createCardJournal(paths.library, {
+                candidateId: id, cardId, sourceGuard,
+                writes: [
+                    { file: `cards/${cardId}.json`, before: cardBefore, content: JSON.stringify(card, null, 2) + "\n" },
+                    { file: "index.json", before: indexBefore, content: JSON.stringify(idx, null, 2) + "\n" },
+                    { file: `candidates/${id}.json`, before: candidateBefore, content: JSON.stringify(acceptedCandidate, null, 2) + "\n" },
+                ],
+            });
+            try { await finishCardJournal(paths.library, journalId); }
+            catch (err: any) {
+                if (err instanceof ZhizhangError) throw err;
+                throw new ZhizhangError("library_recovery_required", `卡采纳未完整提交（${err?.message ?? String(err)}）。请用 zhizhang_library_list(recovery=inspect) 检查；不要重复采纳。`);
+            }
             return {
                 cardId,
                 title: card.title,
@@ -638,22 +726,23 @@ export const LibraryPort = {
         const id = assertResourceId(cardId, "卡 id");
         await LibraryPort.ensureLibrary(paths);
         const d = libraryDirs(paths);
-        const idx = await readIndex(paths);
-        const hit = idx.cards.find((c: any) => c.id === id);
-        if (!hit) {
-            throw new ZhizhangError("card_not_found", `找不到卡 ${cardId}`);
-        }
-        await withLock(`library:${paths.library}`, async () => {
+        return withResourceLock(paths.library, async () => {
+            const indexBefore = await snapshotFile(d.index);
+            if (!indexBefore) throw new ZhizhangError("library_index_missing", "拆书库索引缺失，请先检查原文件。");
             const fresh = await readIndex(paths);
+            if (await snapshotFile(d.index) !== indexBefore) throw new ZhizhangError("library_recovery_conflict", "索引在删卡准备期间变化，请重新检查。");
+            const hit = fresh.cards.find((c: any) => c.id === id);
+            if (!hit) throw new ZhizhangError("card_not_found", `找不到卡 ${cardId}`);
             fresh.cards = fresh.cards.filter((c: any) => c.id !== id);
-            await writeIndex(paths, fresh);
-            const file = path.join(d.cards, `${id}.json`);
-            if (await fileExists(file)) {
-                const { unlink } = await import("node:fs/promises");
-                await unlink(file).catch(() => undefined);
+            const cardBefore = await snapshotFile(path.join(d.cards, `${id}.json`));
+            const journal = await createDiscardJournal(paths.library, { cardId: id, indexBefore, cardBefore, indexContent: JSON.stringify(fresh, null, 2) + "\n" });
+            try { await finishDiscardJournal(paths.library, journal); }
+            catch (err: any) {
+                if (err instanceof ZhizhangError) throw err;
+                throw new ZhizhangError("library_recovery_required", `删卡 ${id} 未完成（${err?.message ?? String(err)}）。请先检查恢复记录。`);
             }
+            return { cardId: id, title: hit.title, remaining: fresh.cards.length };
         });
-        return { cardId: id, title: hit.title, remaining: idx.cards.length - 1 };
     },
     async listCards(paths: StoragePaths, opts: any = {}) {
         await LibraryPort.ensureLibrary(paths);

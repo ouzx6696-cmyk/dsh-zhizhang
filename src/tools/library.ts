@@ -1,12 +1,20 @@
+import { assertNoPendingCard } from "../lib/storage/card-journal.js";
+import { withResourceLock } from "../lib/storage/process-lock.js";
 /** Library pillar — import / dissect / stage / accept / search technique cards. */
 import path from "node:path";
+import { ZhizhangError } from "../lib/errors.js";
+import { inspectPendingCard, resumePendingCard } from "../lib/storage/card-journal.js";
+import { hasPendingSource, inspectPendingSource, resumePendingSource } from "../lib/storage/source-journal.js";
+import { hasPendingDiscard, inspectPendingDiscard, resumePendingDiscard } from "../lib/storage/discard-journal.js";
+import { hasPendingAnalysis, inspectPendingAnalysis, resumePendingAnalysis } from "../lib/storage/analysis-journal.js";
+import { hasPendingPlan, inspectPendingPlan, resumePendingPlan } from "../lib/storage/plan-journal.js";
 import { stat } from "node:fs/promises";
 import { LibraryPort, coerceAxis, formatHumanFeelBlock, formatBookCraftBlock, formatMindBlock, formatHandoffBlock, formatModuleBlockV2, } from "../lib/ports/index.js";
-import { readAnalysisBundle, readSurvey, computeCoverage, listAnalyses, WHITE_DESC_HARD_RE, writeAnalysisMeta, buildPlan, estimatePlan, planLabel, writePlan, readPlan, deletePlan, makeConfirmToken, writePendingConfirm, assertFullConsent, clearPendingConfirm, planProgress, planMembership, chapterText, chapterTitle, PLAN_RATIO_DEFAULT, PLAN_BATCH_DEFAULT, PLAN_BATCH_MIN, PLAN_BATCH_MAX, } from "../lib/ports/analysis.js";
+import { readAnalysisBundle, readSurvey, computeCoverage, listAnalyses, WHITE_DESC_HARD_RE, buildPlan, estimatePlan, planLabel, writePlan, readPlan, makeConfirmToken, writePendingConfirm, assertFullConsent, planProgress, planMembership, chapterText, chapterTitle, PLAN_RATIO_DEFAULT, PLAN_BATCH_DEFAULT, PLAN_BATCH_MIN, PLAN_BATCH_MAX, } from "../lib/ports/analysis.js";
 import { ensureStorage, listLocalBooks, sessionCwd } from "../lib/store.js";
 import { AUTO_SAMPLE_HEAD, AUTO_SAMPLE_RATIO, AUTO_SAMPLE_TAIL } from "../lib/domain/workflow.js";
 import { asArray, asString, asStringArray, config, fail } from "./context.js";
-import { S, B, WORKING_DIR } from "./schema.js";
+import { S, B, E, WORKING_DIR } from "./schema.js";
 import { defineTool } from "./types.js";
 import type { ExecContext } from "./types.js";
 import type { StoragePaths } from "../lib/types.js";
@@ -93,6 +101,8 @@ export function libraryTools() {
             async execute(args: any, exec: ExecContext) {
                 const sourceId = asString(args, "source", { required: true });
                 const paths = await openLibrary(exec, args);
+                return withResourceLock(paths.library, async () => {
+                await assertNoPendingCard(paths.library);
                 const mode = asString(args, "mode") || "auto";
                 if (mode !== "auto" && mode !== "full")
                     fail(`mode 只支持 auto | full（收到 ${mode}）`, "bad_args");
@@ -101,17 +111,16 @@ export function libraryTools() {
                 // 夹紧后会得到 NaN，分批比较恒为 false（全书挤成一批）。
                 const rawBatch = Number.isFinite(args.batch_chars) ? Number(args.batch_chars) : PLAN_BATCH_DEFAULT;
                 const batchChars = Math.max(PLAN_BATCH_MIN, Math.min(PLAN_BATCH_MAX, rawBatch));
-                if (args.reset === true)
-                    await deletePlan(paths, sourceId);
+                // Keep the current plan until a replacement has actually been confirmed and saved.
                 const existing = await readPlan(paths, sourceId);
-                if (existing) {
+                if (existing && args.reset !== true && !(mode === "full" && args.confirm_full === true)) {
                     const prog = planProgress(existing, (await readAnalysisBundle(paths, sourceId)).chapters);
                     return [
                         "已有计划：" + planLabel(existing),
                         "- 进度：事实 " + prog.done + "/" + prog.total + " 章 · 游标 " + prog.cursor + "/" + prog.batches,
                         "- 计划文件：library/analyses/" + sourceId + "/plan.md",
                         "要重做或切换档位（Auto↔Full）传 reset=true（会覆盖 plan.json，不删已交事实）。",
-                        prog.nextBatch ? "下一步：library_dissect_brief(source, batch=" + prog.cursor + ")" : "计划已全部取完；下一步 structure_stage 聚合。",
+                        prog.nextBatch ? "下一步：library_dissect_brief(source, batch=" + prog.cursor + ")" : "计划内章节均已有事实记录；请核对阅读情况后再 structure_stage 聚合。",
                     ].join("\n");
                 }
                 const src = await LibraryPort.getSourceIndexed(paths, sourceId);
@@ -135,7 +144,7 @@ export function libraryTools() {
                         "",
                         "Full 须作者明确同意：请作者回复“确认全量”，再由 Agent 调用",
                         "library_plan(source=\"" + sourceId + "\", mode=\"full\", confirm_full=true, confirm_token=\"" + token + "\", note=\"作者原话…\")",
-                        "未确认不会写盘、不会开始读。",
+                        "已保存临时确认凭据；未确认不会替换现有计划或开始全量阅读。",
                     ].join("\n");
                 }
                 if (plan.mode === "full") {
@@ -145,10 +154,8 @@ export function libraryTools() {
                         planChapters: est.chapters,
                     });
                     (plan as any).consent = { at: new Date().toISOString(), note: asString(args, "note") || "作者明确要求全量" };
-                    await clearPendingConfirm(paths, sourceId);
                 }
-                await writePlan(paths, plan);
-                await writeAnalysisMeta(paths, sourceId, { scope: { mode: plan.mode, chapters: plan.planChapters } });
+                await writePlan(paths, plan, { clearConfirm: plan.mode === "full", confirmToken: asString(args, "confirm_token") });
                 const lines = [
                     "已生成抽样计划：" + planLabel(plan),
                     "- 全书：" + plan.totalChapters + " 章 / " + plan.totalChars + " 字",
@@ -163,6 +170,7 @@ export function libraryTools() {
                 if (plan.mode === "auto")
                     lines.push("Auto 是抽样：报告里的全书结论会标「抽样观察」；要全书骨架请由作者明确要求 Full。");
                 return lines.join("\n");
+                });
             },
         }),
         defineTool({
@@ -181,6 +189,8 @@ export function libraryTools() {
             async execute(args: any, exec: ExecContext) {
                 const sourceId = asString(args, "source", { required: true });
                 const paths = await openLibrary(exec, args);
+                return withResourceLock(paths.library, async () => {
+                await assertNoPendingCard(paths.library);
                 const plan = await readPlan(paths, sourceId);
                 const batchNo = typeof args.batch === "number" ? args.batch : undefined;
                 if (plan && batchNo !== undefined) {
@@ -189,21 +199,34 @@ export function libraryTools() {
                         fail(`批号越界：0–${plan.batches.length - 1}（${planLabel(plan)}）`, "bad_args");
                     const src = await LibraryPort.getSourceIndexed(paths, sourceId);
                     const idx = src.index;
-                    const budget = Math.min(typeof args.max_chars === "number" ? args.max_chars : plan.batchChars, plan.batchChars);
-                    const parts = [];
+                    const requestedBudget = typeof args.max_chars === "number" && Number.isFinite(args.max_chars)
+                        ? Math.max(1, Math.floor(args.max_chars)) : plan.batchChars;
+                    const budget = Math.min(requestedBudget, plan.batchChars);
+                    const facts = (await readAnalysisBundle(paths, sourceId)).chapters;
+                    const done = new Set(facts.map((f: any) => Number(f.n)));
+                    const unfinished = b.chapters.filter((n: number) => !done.has(n));
+                    // 重取已完成批次仍可复读；部分完成时优先返回未提交的章节，避免预算较小时反复卡在第一章。
+                    const requested = unfinished.length ? unfinished : b.chapters;
+                    const parts: string[] = [];
+                    const delivered: number[] = [];
                     let used = 0;
-                    for (const n of b.chapters) {
-                        const t = chapterText(src.text, idx, n) ?? "";
-                        if (used + t.length > budget && parts.length)
-                            break;
+                    for (const n of requested) {
+                        const t = chapterText(src.text, idx, n);
+                        if (!t) throw new ZhizhangError("bad_source", `计划中的第 ${n} 章无法读取；请核对书源和章节索引。`);
+                        if (used + t.length > budget && parts.length) break;
                         parts.push("### 第" + n + "章 " + chapterTitle(idx, n), "<<<SOURCE", t, ">>>");
+                        delivered.push(n);
                         used += t.length;
                     }
-                    const prog = planProgress(plan, (await readAnalysisBundle(paths, sourceId)).chapters);
+                    const remaining = requested.filter((n: number) => !delivered.includes(n));
+                    const prog = planProgress(plan, facts);
                     return [
                         "# 拆书批次 · " + (plan.title || sourceId),
                         "- " + planLabel(plan),
-                        "- 本批 " + (batchNo + 1) + "/" + plan.batches.length + " · 章：" + b.chapters.join("、") + " · 约 " + b.chars + " 字",
+                        "- 本批 " + (batchNo + 1) + "/" + plan.batches.length + " · 计划章节：" + b.chapters.join("、") + " · 约 " + b.chars + " 字",
+                        "- 本次实际提供原文：" + (delivered.join("、") || "无") + " · " + used + " 字（提供原文不等于已读或已深读）",
+                        ...(remaining.length ? ["- 本批尚未提供：" + remaining.join("、") + "；提交本次事实后可再次取同一批。"] : []),
+                        ...(used > budget ? ["- 单章超过本次预算，已完整提供该章以免截断。"] : []),
                         "- 进度：事实 " + prog.done + "/" + prog.total + " 章 · 游标 " + prog.cursor + "/" + prog.batches,
                         "",
                         "【纪律】只记白描：谁做了什么、结果怎样；原文没写的动机/身份/后果写进 unknowns，禁止补。",
@@ -211,7 +234,7 @@ export function libraryTools() {
                         "",
                         ...parts,
                         "",
-                        "下一步 4/9：zhizhang_library_facts_stage 提交本批每章一条；不要跨批跳读。",
+                        "下一步 4/9：阅读本次提供的原文，再用 zhizhang_library_facts_stage 提交已读章节事实；不要替未提供章节补写。",
                     ].join("\n");
                 }
                 if (plan && batchNo === undefined) {
@@ -241,6 +264,7 @@ export function libraryTools() {
                     : "下一步 4/9：zhizhang_library_facts_stage。逐章白描（谁做了什么、结果）；没写的动机进 unknowns，禁补。";
                 const out = [brief, "", next];
                 return out.join(String.fromCharCode(10));
+                });
             },
         }),
         defineTool({
@@ -437,10 +461,69 @@ export function libraryTools() {
                 },
                 source_title: S("按书名/作者子串过滤卡"),
                 axis: S("craft | mind"),
+                recovery: E(["inspect", "resume"], "书源导入、拆书分析、卡采纳或删卡中断时检查或恢复原操作"),
                 working_dir: WORKING_DIR,
             },
             required: [],
             async execute(args: any, exec: ExecContext) {
+                const recovery = asString(args, "recovery");
+                if (recovery) {
+                    if (recovery !== "inspect" && recovery !== "resume") fail("recovery 只支持 inspect 或 resume");
+                    const paths = await ensureStorage(exec, config, asString(args, "working_dir"));
+                    if (await hasPendingSource(paths.library)) {
+                        if (recovery === "inspect") {
+                            const r = await inspectPendingSource(paths.library);
+                            return [`书源导入恢复记录：${r.id}`, `- 书源 ${r.sourceId} · ${r.createdAt}`,
+                                ...r.writes.map(w => `- ${w.file}：${w.state}`),
+                                ...r.guards.map(g => `- ${g.file}：${g.state}`),
+                                r.conflict ? "发现冲突，请保留文件并人工核对。" : "无文件冲突；确认原操作结束或原进程停止后可用 recovery=resume。"].join("\n");
+                        }
+                        const r = await resumePendingSource(paths.library);
+                        return `已恢复书源 ${r.sourceId} 的导入；原文、元数据和索引已对齐，请勿重复导入。`;
+                    }
+                    if (await hasPendingDiscard(paths.library)) {
+                        if (recovery === "inspect") {
+                            const r = await inspectPendingDiscard(paths.library);
+                            return [`删卡恢复记录：${r.id}`, `- 卡 ${r.cardId} · ${r.createdAt}`,
+                                ...r.writes.map(w => `- ${w.file}：${w.state}`),
+                                r.conflict ? "发现冲突，请保留文件并人工核对。" : "无文件冲突；确认原操作结束或原进程停止后可用 recovery=resume。"].join("\n");
+                        }
+                        const r = await resumePendingDiscard(paths.library);
+                        return `已恢复卡 ${r.cardId} 的删除，索引与卡文件已对齐。`;
+                    }
+                    if (await hasPendingAnalysis(paths.library)) {
+                        if (recovery === "inspect") {
+                            const r = await inspectPendingAnalysis(paths.library);
+                            return [`拆书分析恢复记录：${r.id}`, `- 书源 ${r.sourceId} · ${r.dataFile} · ${r.createdAt}`,
+                                ...r.writes.map(w => `- ${w.file}：${w.state}`),
+                                r.conflict ? "发现冲突，请保留文件并人工核对。" : "无文件冲突；确认原操作结束或原进程停止后可用 recovery=resume。"].join("\n");
+                        }
+                        const r = await resumePendingAnalysis(paths.library);
+                        return `已恢复书源 ${r.sourceId} 的分析更新（${r.dataFile}），分析内容与进度元数据已对齐。`;
+                    }
+                    if (await hasPendingPlan(paths.library)) {
+                        if (recovery === "inspect") {
+                            const r = await inspectPendingPlan(paths.library);
+                            return [`拆书计划恢复记录：${r.id}`, `- 书源 ${r.sourceId} · ${r.createdAt}`,
+                                ...r.writes.map(w => `- ${w.file}：${w.state}`),
+                                r.conflict ? "发现冲突，请保留文件并人工核对。" : "无文件冲突；确认原操作结束或原进程停止后可用 recovery=resume。"].join("\n");
+                        }
+                        const r = await resumePendingPlan(paths.library);
+                        return `已恢复书源 ${r.sourceId} 的拆书计划与进度元数据。`;
+                    }
+                    if (recovery === "inspect") {
+                        const r = await inspectPendingCard(paths.library);
+                        return [
+                            `卡采纳恢复记录：${r.id}`,
+                            `- 候选 ${r.candidateId} → 卡 ${r.cardId} · ${r.createdAt}`,
+                            ...r.writes.map((w) => `- ${w.file}：${w.state}`),
+                            ...r.guards.map((g) => `- ${g.file}：${g.state}`),
+                            r.conflict ? "发现冲突；不会自动覆盖，请保留文件并人工核对。" : "无文件冲突；同一进程操作结束后或原进程停止后，可传 recovery=resume 完成原操作。",
+                        ].join("\n");
+                    }
+                    const r = await resumePendingCard(paths.library);
+                    return `已恢复原卡采纳：候选 ${r.candidateId} → ${r.cardId}。卡、索引和候选状态已对齐；请阅读卡片并人工判断其可迁移性。不要重复采纳。`;
+                }
                 const what = (asString(args, "what") ?? "all").toLowerCase();
                 const paths = await openLibrary(exec, args);
                 const sourceIds = asStringArray(args, "source_ids");
@@ -576,7 +659,9 @@ export function libraryTools() {
                         const qOk = rows.reduce((n: number, r: any) => n + (r.evidenceVerified || 0), 0);
                         const plan = await readPlan(paths, srcId);
                         const survey = await readSurvey(paths, srcId);
-                        const coverage = computeCoverage(bundle.meta, bundle.chapters, rows, { total: qTotal, ok: qOk }, {
+                        const planned = plan ? new Set(plan.chapters.map((c: any) => Number(c.n))) : null;
+                        const scopedFacts = planned ? bundle.chapters.filter((f: any) => planned.has(Number(f.n))) : bundle.chapters;
+                        const coverage = computeCoverage(bundle.meta, scopedFacts, rows, { total: qTotal, ok: qOk }, {
                             survey,
                             plots: bundle.plots,
                             rhythms: bundle.rhythms,
@@ -593,7 +678,7 @@ export function libraryTools() {
                         analysisLines.push("", "## 分析层（事实/聚合）");
                         analysisLines.push(`- 事实：${bundle.chapters.length} 章 · 剧情条 ${bundle.plots.length} · 人物 ${bundle.characters.length}`);
                         analysisLines.push(`- 白描违规：${white} 条${white ? "（desc 含心理/评价词，需改写为动作）" : ""}`);
-                        analysisLines.push(`- 覆盖：${coverage.facts}/${coverage.scope} · 置信度 ${coverage.confidence}${coverage.needsReview ? " · needs_review" : ""}`);
+                        analysisLines.push(`- 覆盖：${coverage.facts}/${coverage.scope} · 材料完备度 ${coverage.confidence}（机械指标，非阅读或质量证明）${coverage.needsReview ? " · needs_review" : ""}`);
                         if (plan)
                             analysisLines.push(`- 计划：${planLabel(plan)} · 抽样表见 analyses/${srcId}/plan.md`);
                     }

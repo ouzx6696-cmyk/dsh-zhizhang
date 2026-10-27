@@ -534,6 +534,9 @@ export function formatModuleBlockV2(card) {
         `- 迁移：${card.transfer ?? "（未填）"}`,
         `- 失败边界：${card.failWhen ?? "（未填）"}`,
         `- 证据：${ev || "（未填）"}`,
+        ...(Array.isArray(card.readingEvidence?.chapters)
+            ? [`- 引用章阅读程度（提交时申报，非机械证明）：${card.readingEvidence.chapters.map((c) => `第${c.chapter}章 ${c.readingLevel}`).join("；") || "未声明"}`]
+            : ["- 引用章阅读程度：未声明（旧卡无申报快照）"]),
         ...(Array.isArray(card.steps) && card.steps.length ? [`- 操作步骤：${card.steps.map((x, i) => `${i + 1}) ${x}`).join(" ")}`] : []),
         ...(Array.isArray(card.bannedDiction) && card.bannedDiction.length ? [`- 禁用词句：${card.bannedDiction.join("、")}`] : []),
     ].join("\n");

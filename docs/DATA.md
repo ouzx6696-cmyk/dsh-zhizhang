@@ -71,7 +71,7 @@ shared-library/
 
   → 备份 / 迁移 / 换机就是拷这个目录；新项目只改配置，不复制内容。
 
-- 注意：多进程同时写库时同一 `index.json` 只有进程内锁（单用户基本无影响）。
+- 参与资源锁的进程会串行写库；外部编辑仍不受锁保护，遗留锁须核对后处理。
 
 跨项目索引：同一目录下的 `zhizhang-projects.json` 记录**所有**被工具用过的根
 （`{id, base, name, lastUsedAt}`，只存指针不存正文）。面板项目下拉读它；
@@ -108,6 +108,12 @@ shared-library/
     │   └── <icandId>.json         # foundation / outline 候选
     └── bindings.json              # workKey→绑定技法卡索引（acceptEmit apply 维护，brief 取卡先读）
 ```
+
+v2 模块卡可带 `readingEvidence`：包括暂存时源文件校验和、证据章节的阅读程度申报快照。它不证明阅读或卡片质量；旧卡没有该字段时按未声明处理。暂存后书源发生变化时需重新核对并暂存。
+
+## 技法卡采纳中断恢复
+
+拆书库在卡采纳时可能出现 `.zhizhang-card-pending.json`，包含原操作的卡片、索引内容和校验信息。正常完成后会移除；中断后不要删除。使用 `zhizhang_library_list(recovery=inspect)` 检查，无冲突且同一进程的原操作已结束或原进程已停止时用 `recovery=resume`。冲突、记录损坏或书源变化时保留并备份所有文件，人工核对。书源导入、删卡、拆书计划和逐章事实、剧情、节奏及人物分析各有独立恢复记录，使用相同的检查与恢复入口。书源导入、卡暂存、采纳、删除、索引校准及卡采纳恢复使用库目录 `.zhizhang-write-lock` 协调配合的进程；主要拆书分析工具使用同一库锁；底层直接写文件及外部编辑尚不受保护。写锁遗留时不会因超时自动删除，须先确认所有写入进程停止并核对待恢复操作，再人工处理。
 
 ## 多书组合
 
@@ -159,9 +165,13 @@ shared-library/
 - 旧卡无 `axis`：读时按 humanFeel/mind 推断（默认 craft）  
 - 拒收：世界观百科、剧情梗概、声纹/台词范本、泛人设清单、原作名词词条
 
+## 采纳中断恢复
+
+候选采纳期间作品目录可能出现 `.zhizhang-accept-pending.json`，其中有为恢复保存的候选正文和文件校验信息。正常采纳完成后会移除；中断后不要手动删除。先调用 `zhizhang_status(work=作品, recovery=inspect)`，无冲突且同一进程的原操作已结束或原进程已停止时再用 `recovery=resume`。冲突或记录损坏时先保留并备份所有文件，再人工核对。直接保存章节、暂存和扫描候选、简报或兑付留痕另有恢复记录，使用相同的检查与恢复入口；灵感应用使用 `zhizhang_inspire_status(recovery=inspect|resume)`。作品主要写入路径使用作品目录中的 `.zhizhang-write-lock` 协调配合的进程；外部编辑未受保护。异常退出遗留锁时先确认相关写入进程停止并核对记录，处理遗留锁后再检查或恢复采纳；不会仅凭超时自动清锁。
+
 ## 写作侧
 
-作品 `meta.json`、章节 markdown front matter、`candidates/cand-*.json`（含 `lintPassToken`；编辑产物可带 `editOf` / `editMode`；`wordCount` 在 stage 时落盘，面板轮询不再逐条读正文）。
+作品 `meta.json` 可选记录作者明确选择的节奏 `pace`（快爽 / 稳推 / 慢燃；旧作品缺省为未指定）、章节 markdown front matter、`candidates/cand-*.json`（含 `lintPassToken`；编辑产物可带 `editOf` / `editMode`；`wordCount` 在 stage 时落盘，面板轮询不再逐条读正文）。
 
 章节 id / 候选 id 规则：单个路径段（禁 `/`、`\`、`.`、`..`、控制字符、Windows 保留名），允许中文；工具与 HTTP 共用同一校验（`bad_id`）。
 
@@ -169,3 +179,11 @@ shared-library/
 - `chapter_brief` 顶部「本书读者合同」；lean 默认方法仅 `style_contract`  
 - accept 后 happened 按章短追加（`[c00x]` 去重）；brief n≥2 **注入前章正文全文**（ending/happened 作索引；旧 `bodyTail` 兼容）  
 - Outline：`stateLens` 写场面状态/写法取舍（旧 `voiceTone` 可读兼容）
+
+## 离线备份与迁移
+
+停止全部相关写入进程后，可用 `node scripts/backup.mjs --source <目录> [--source <目录> ...] --output <新目录>` 备份作品、灵感及独立配置的拆书库；用 `node scripts/backup.mjs --verify <备份目录>` 校验。符号链接只保留链接本身，不包含目标；备份不保证权限、时间戳或断电持久性。脚本不覆盖目标、不自动恢复、不迁移旧数据；恢复前应人工核对来源、目标及未完成记录。
+
+## 成稿汇编
+
+汇编在作品锁内读取章节；符合筛选条件的章节缺失或损坏时终止，保留已有成稿。自定义输出相对存储根解析，必须位于 `manuscripts/` 内；目录链接也不能指向源资产目录。

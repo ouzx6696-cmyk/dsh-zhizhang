@@ -28,7 +28,7 @@ export function auditTools() {
                     const cand = await readCandidate(dir, candidateId);
                     const hits = StyleLinterPort.lint(cand.body);
                     const summary = StyleLinterPort.summarize(hits);
-                    const pass = await LintGate.issueToken(dir, candidateId, hits.length);
+                    const pass = await LintGate.issueToken(dir, candidateId, hits.length, cand.body);
                     return [
                         formatLint(`候选 ${candidateId} → ${cand.chapterId}`, hits, summary),
                         "",

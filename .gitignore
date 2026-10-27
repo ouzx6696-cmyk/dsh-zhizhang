@@ -1,6 +1,6 @@
 # deps & build
 node_modules/
-dist/
+# dist is the published plugin; generated runtime files are tracked alongside source.
 coverage/
 *.tsbuildinfo
 

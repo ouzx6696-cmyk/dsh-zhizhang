@@ -4,8 +4,12 @@ import { readFile, unlink } from "node:fs/promises";
 import { atomicWrite } from "../../store.js";
 import type { StoragePaths } from "../../types.js";
 import { ZhizhangError } from "../../errors.js";
+import { withResourceLock } from "../../storage/process-lock.js";
+import { assertNoPendingCard } from "../../storage/card-journal.js";
+import { snapshotFile } from "../../storage/accept-journal.js";
+import { createPlanJournal, finishPlanJournal } from "../../storage/plan-journal.js";
 import { AUTO_SAMPLE_HEAD, AUTO_SAMPLE_RATIO, AUTO_SAMPLE_TAIL } from "../../domain/workflow.js";
-import { assertSourceId, ensureDir, nowIso } from "./paths.js";
+import { assertSourceId, ensureDir, nowIso, readJson } from "./paths.js";
 
 export const PLAN_RATIO_DEFAULT = AUTO_SAMPLE_RATIO;
 export const PLAN_RATIO_MIN = 0.05;
@@ -147,21 +151,53 @@ export function planLabel(plan: any) {
     return `Auto ${Math.round(plan.ratio * 100)}%（实取 ${pct}%：${plan.planChapters}/${plan.totalChapters} 章 / ${plan.planChars} 字）`;
 }
 
-export async function writePlan(paths: StoragePaths, plan: any) {
-    const f = planFiles(paths, plan.sourceId);
-    await ensureDir(f.dir);
-    await atomicWrite(f.json, JSON.stringify(plan, null, 2));
-    await atomicWrite(f.md, renderPlanMarkdown(plan));
+export async function writePlan(paths: StoragePaths, plan: any, options: { clearConfirm?: boolean; confirmToken?: string } = {}) {
+    return withResourceLock(paths.library, async () => {
+        await assertNoPendingCard(paths.library);
+        const sourceId = assertSourceId(plan.sourceId);
+        const f = planFiles(paths, sourceId);
+        await ensureDir(f.dir);
+        const metaPath = path.join(f.dir, "meta.json");
+        const [jsonBefore, mdBefore, metaBefore, pendingBefore] = await Promise.all([
+            snapshotFile(f.json), snapshotFile(f.md), snapshotFile(metaPath), options.clearConfirm === true ? snapshotFile(f.pending) : Promise.resolve(null),
+        ]);
+        if (options.clearConfirm === true) {
+            await assertFullConsent(paths, sourceId, options.confirmToken, { batchChars: plan.batchChars, totalChapters: plan.totalChapters, planChapters: plan.planChapters });
+            if (await snapshotFile(f.pending) !== pendingBefore)
+                throw new ZhizhangError("library_recovery_conflict", "全量确认凭据在准备期间变化，请重新检查。");
+        }
+        const meta = (await readJson(metaPath, null)) ?? { schemaVersion: 2, sourceId, stage: "meta" };
+        if (!meta || typeof meta !== "object" || Array.isArray(meta)) throw new ZhizhangError("bad_analysis", "拆书分析元数据损坏，请保留并核对。");
+        const nextMeta = { ...meta, scope: { ...(meta.scope ?? {}), mode: plan.mode, chapters: plan.planChapters }, updatedAt: nowIso() };
+        if (await snapshotFile(metaPath) !== metaBefore) throw new ZhizhangError("library_recovery_conflict", "计划元数据在准备期间变化，请重新检查。");
+        const prefix = `analyses/${sourceId}`;
+        const writes: Array<{file: string; before: string | null; content?: string}> = [
+            { file: `${prefix}/plan.json`, before: jsonBefore, content: JSON.stringify(plan, null, 2) },
+            { file: `${prefix}/plan.md`, before: mdBefore, content: renderPlanMarkdown(plan) },
+            { file: `${prefix}/meta.json`, before: metaBefore, content: JSON.stringify(nextMeta, null, 2) + "\n" },
+        ];
+        if (options.clearConfirm === true) writes.push({ file: `${prefix}/plan-confirm.json`, before: pendingBefore });
+        const journal = await createPlanJournal(paths.library, { sourceId, clearConfirm: options.clearConfirm === true, writes });
+        try { await finishPlanJournal(paths.library, journal); }
+        catch (err: any) {
+            if (err instanceof ZhizhangError) throw err;
+            throw new ZhizhangError("library_recovery_required", `拆书计划更新未完成（${err?.message ?? String(err)}），请先检查恢复记录。`);
+        }
+    });
 }
 
 export async function readPlan(paths: StoragePaths, sourceId: any) {
+    return withResourceLock(paths.library, async () => {
+    await assertNoPendingCard(paths.library);
     const f = planFiles(paths, sourceId);
     try {
         return JSON.parse(await readFile(f.json, "utf8"));
     }
-    catch {
-        return null;
+    catch (err: any) {
+        if (err?.code === "ENOENT") return null;
+        throw err;
     }
+    });
 }
 
 export function renderPlanMarkdown(plan: any) {
@@ -196,8 +232,8 @@ export async function deletePlan(paths: StoragePaths, sourceId: any) {
         try {
             await unlink(p);
         }
-        catch {
-            /* ignore */
+        catch (err: any) {
+            if (err?.code !== "ENOENT") throw err;
         }
     }
 }
@@ -230,8 +266,9 @@ export async function readPendingConfirm(paths: StoragePaths, sourceId: any) {
     try {
         return JSON.parse(await readFile(f.pending, "utf8"));
     }
-    catch {
-        return null;
+    catch (err: any) {
+        if (err?.code === "ENOENT") return null;
+        throw err;
     }
 }
 
@@ -266,8 +303,8 @@ export async function clearPendingConfirm(paths: StoragePaths, sourceId: any) {
     try {
         await unlink(planFiles(paths, sourceId).pending);
     }
-    catch {
-        /* ignore */
+    catch (err: any) {
+        if (err?.code !== "ENOENT") throw err;
     }
 }
 

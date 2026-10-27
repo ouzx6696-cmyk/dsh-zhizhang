@@ -21,7 +21,9 @@ Host (DSH) → apply / tools.register
 
 | 能力 | 位置 |
 |------|------|
-| 作品/章节 CRUD、原子写、路径沙箱 | `src/lib/store.ts` |
+| 作品/章节 CRUD 与公开存储接口 | `src/lib/store.ts`（兼容外观） |
+| 章节格式、读写与锁内更新 | `src/lib/storage/chapters.ts` |
+| 作品元数据、共享锁与原子写 | `src/lib/storage/work-meta.ts`、`src/lib/storage/primitives.ts` |
 | 拆书库 | `ports/library.js` + `ports/library/{schema,audit}.js` |
 | 拆书分析层 | `ports/analysis/*`（facade：`ports/analysis.js`） |
 | 单一事实源 | `domain/{chapter-heading,card-schema,evidence,coverage,report-sections,workflow}.js` |

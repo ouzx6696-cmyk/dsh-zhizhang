@@ -86,7 +86,7 @@ export function renderPanelHtml(input: any) {
             ? `<span class="zz-badge zz-badge-warn">待采纳 ${num(pending.length)}</span>`
             : `<span class="zz-badge">待采纳 0</span>`,
         library
-            ? `<span class="zz-badge zz-badge-info">craft ${num(library.craftCount)} · mind ${num(library.mindCount)}</span>`
+            ? (library.unavailable ? `<span class="zz-badge zz-badge-warn">拆书库暂不可读</span>` : `<span class="zz-badge zz-badge-info">craft ${num(library.craftCount)} · mind ${num(library.mindCount)}</span>`)
             : "",
     ]
         .filter(Boolean)
@@ -106,6 +106,8 @@ export function renderPanelHtml(input: any) {
         : "";
     const libraryHtml = !library
         ? `<p class="zz-empty">无拆书库摘要</p>`
+        : library.unavailable
+        ? `<p class="zz-err" role="alert">${esc(library.summary || "拆书库暂不可读")}</p>`
         : `<div class="zz-card zz-library">
   <div class="zz-badges">
     <span class="zz-badge">来源 ${num(library.sourcesCount)}</span>

@@ -94,7 +94,12 @@ export declare const __testing: {
             };
         };
         LintGate: {
-            issueToken(dir: string, candidateId: string, hitCount: any): Promise<any>;
+            issueToken(dir: string, candidateId: string, hitCount: any, expectedBody?: string): Promise<{
+                token: string;
+                lintedAt: string;
+                hitCount: any;
+                chapterId: any;
+            }>;
             hitCountOf(cand: any): any;
             evaluateAccept(opts: any): {
                 ok: boolean;
@@ -258,11 +263,16 @@ export declare const __testing: {
                 title: string;
                 warnings: string[];
             }>;
-            acceptCard(paths: import("./lib/types.js").StoragePaths, candId: any): Promise<any>;
+            acceptCard(paths: import("./lib/types.js").StoragePaths, candId: any): Promise<{
+                cardId: string;
+                title: any;
+                warnings: string[];
+                judgment: string[];
+            }>;
             discardCard(paths: import("./lib/types.js").StoragePaths, cardId: any): Promise<{
                 cardId: string;
                 title: any;
-                remaining: number;
+                remaining: any;
             }>;
             listCards(paths: import("./lib/types.js").StoragePaths, opts?: any): Promise<any>;
             searchCards(paths: import("./lib/types.js").StoragePaths, query: any, opts?: any): Promise<any>;
@@ -355,13 +365,29 @@ export declare const __testing: {
                 forgeAt: any;
                 updatedAt: any;
             }[]>;
+            listWorkHistory(paths: import("./lib/types.js").StoragePaths, workKey: string): Promise<{
+                total: number;
+                rows: {
+                    id: any;
+                    kind: any;
+                    title: any;
+                    at: any;
+                }[];
+            }>;
+            getCandidate(paths: import("./lib/types.js").StoragePaths, candidateId: string): Promise<any>;
             forgeBrief(paths: import("./lib/types.js").StoragePaths, sessionId: any): Promise<string>;
             stageEmit(paths: import("./lib/types.js").StoragePaths, sessionId: any, input: any): Promise<{
                 candId: string;
                 kind: any;
                 styleReminder: string;
             }>;
-            acceptEmit(paths: import("./lib/types.js").StoragePaths, candId: any, opts: any): Promise<any>;
+            acceptEmit(paths: import("./lib/types.js").StoragePaths, candId: any, opts: any): Promise<{
+                candId: string;
+                applied: boolean;
+                workKey: string;
+                detail: string;
+                bindingWarning: string;
+            }>;
             resolveCardsForBrief(paths: import("./lib/types.js").StoragePaths, opts?: any): Promise<{
                 cards: any[];
                 source: string;

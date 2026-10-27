@@ -2,32 +2,30 @@
  * 拆书库存储层 — 索引 / 路径 / 导入解码 / 过滤 / 排序。
  * 不包含卡 schema（见 schema.js）与机械审计（见 audit.js）。
  */
+import { randomUUID } from "node:crypto";
 import { mkdir, readFile, access } from "node:fs/promises";
 import path from "node:path";
 import { ZhizhangError } from "../../errors.js";
-import { atomicWrite, withLock } from "../../store.js";
+import { atomicWrite, assertResourceId } from "../../store.js";
+import { withResourceLock } from "../../storage/process-lock.js";
+import { assertNoPendingCard } from "../../storage/card-journal.js";
 import { coerceAxis, coerceHumanFeel } from "./schema.js";
 import type { StoragePaths } from "../../types.js";
-import type * as LibraryModule from "../library.js";
-
-/** library 端口反向调用本模块；这里只借它的类型，运行时不产生引用。 */
-declare const LibraryPort: typeof LibraryModule.LibraryPort;
 
 export function nowIso() {
     return new Date().toISOString();
 }
-let idSeq = 0;
 export function newId(prefix: string) {
-    idSeq += 1;
-    return `${prefix}-${Date.now().toString(36)}${idSeq.toString(36)}`;
+    return `${prefix}-${Date.now().toString(36)}${randomUUID().replace(/-/g, "").slice(0, 12)}`;
 }
 export async function fileExists(p: string) {
     try {
         await access(p);
         return true;
     }
-    catch {
-        return false;
+    catch (err: any) {
+        if (err?.code === "ENOENT") return false;
+        throw err;
     }
 }
 export function libraryDirs(paths: StoragePaths) {
@@ -43,22 +41,23 @@ export async function emptyIndex() {
     return { schemaVersion: 1, sources: [], cards: [] };
 }
 export async function readIndex(paths: StoragePaths) {
+    return withResourceLock(paths.library, async () => {
+    await assertNoPendingCard(paths.library);
     const { index } = libraryDirs(paths);
-    if (!(await fileExists(index)))
-        return emptyIndex();
     try {
         const raw = JSON.parse(await readFile(index, "utf8"));
-        return {
-            schemaVersion: 1,
-            sources: Array.isArray(raw.sources) ? raw.sources : [],
-            cards: Array.isArray(raw.cards) ? raw.cards : [],
-        };
+        if (!raw || typeof raw !== "object" || !Array.isArray(raw.sources) || !Array.isArray(raw.cards))
+            throw new Error(`拆书库索引格式损坏：${index}`);
+        return { ...raw, schemaVersion: raw.schemaVersion ?? 1, sources: raw.sources, cards: raw.cards };
     }
-    catch {
-        return emptyIndex();
+    catch (err: any) {
+        if (err?.code === "ENOENT") return emptyIndex();
+        throw err;
     }
+    });
 }
 export async function writeIndex(paths: StoragePaths, idx: any) {
+    await assertNoPendingCard(paths.library);
     const { index } = libraryDirs(paths);
     await atomicWrite(index, JSON.stringify(idx, null, 2) + "\n");
 }
@@ -107,13 +106,9 @@ export async function filterCardRows(paths: StoragePaths, rows: any, opts: any) 
         for (const row of out) {
             let axis = row.axis;
             if (axis !== "craft" && axis !== "mind") {
-                try {
-                    const card = await LibraryPort.getCard(paths, row.id);
-                    axis = coerceAxis(card);
-                }
-                catch {
-                    axis = "craft";
-                }
+                const id = assertResourceId(row.id, "卡 id");
+                const card = JSON.parse(await readFile(path.join(libraryDirs(paths).cards, `${id}.json`), "utf8"));
+                axis = coerceAxis(card);
             }
             if (axis === want)
                 kept.push({ ...row, axis });
@@ -245,17 +240,16 @@ const reconciledLibs = new Set();
 /** 索引与卡文件对齐：tags/axis/title/updatedAt 以卡文件为准（防止改了卡、索引还是旧的）。 */
 export async function reconcileIndex(paths: StoragePaths) {
     const key = paths.library;
-    if (reconciledLibs.has(key))
-        return 0;
-    reconciledLibs.add(key);
-    const d = libraryDirs(paths);
-    const idx = await readIndex(paths);
-    let changed = 0;
-    for (const row of idx.cards) {
-        const p = path.join(d.cards, `${row.id}.json`);
-        if (!(await fileExists(p)))
-            continue;
-        try {
+    if (reconciledLibs.has(key)) return 0;
+    return withResourceLock(paths.library, async () => {
+        if (reconciledLibs.has(key)) return 0;
+        const d = libraryDirs(paths);
+        const idx = await readIndex(paths);
+        let changed = 0;
+        for (const row of idx.cards) {
+            const id = assertResourceId(row.id, "卡 id");
+            const p = path.join(d.cards, `${id}.json`);
+            if (!(await fileExists(p))) continue;
             const card = JSON.parse(await readFile(p, "utf8"));
             const next = {
                 title: card.title ?? row.title,
@@ -272,12 +266,8 @@ export async function reconcileIndex(paths: StoragePaths) {
                 }
             }
         }
-        catch {
-            /* skip broken card */
-        }
-    }
-    if (changed)
-        await writeIndex(paths, idx);
-    return changed;
+        if (changed) await writeIndex(paths, idx);
+        reconciledLibs.add(key);
+        return changed;
+    });
 }
-

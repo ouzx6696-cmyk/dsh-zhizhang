@@ -2,7 +2,7 @@
  * 采纳管线 — tool / panel 共用一套硬闸与落盘。
  * 只负责「候选 → 正式章 + happened」；不处理面板 confirm 文案，也不 openWork。
  */
-import { acceptCandidate, getRecentBrief, getRecentPayoffAudit, readCandidate, readChapter, readWorkMeta, } from "../store.js";
+import { acceptCandidate, candidateGateFingerprint, getRecentBrief, getRecentPayoffAudit, readCandidate, } from "../store.js";
 import { AcceptPolicy, FoundationPort, InspirationPort, Scheduler, firstDenyCode, firstDenyText, } from "../ports/index.js";
 import { getPortConfig } from "../ports/config.js";
 import { ZhizhangError } from "../errors.js";
@@ -59,38 +59,22 @@ export async function runAccept(input) {
     try {
         saved = await acceptCandidate(dir, candidateId, mode === "append" ? "append" : "replace", {
             force: forceFlag,
+            expectedCandidate: candidateGateFingerprint(candMeta),
             lintPassToken: String(lintPassToken ?? "").trim() || undefined,
         });
     }
     catch (err) {
         return errResult(err, "accept_failed");
     }
-    let ending = "";
-    let body = "";
-    try {
-        const ch = await readChapter(dir, saved.id);
-        ending = ch.outline.ending || "";
-        body = ch.body || "";
-    }
-    catch {
-        ending = "";
-        body = "";
-    }
-    const resolved = FoundationPort.resolveHappenedText({ ending, body });
-    const meta = await readWorkMeta(dir);
-    const append = await FoundationPort.appendHappened(dir, {
-        chapterId: saved.id,
-        title: saved.title,
-        text: resolved.text,
-    });
+    const state = saved.stateUpdate;
     const happenedLines = FoundationPort.acceptReceiptLines({
         chapterId: saved.id,
         title: saved.title,
-        ending,
-        threads: meta.foundation.threads,
-        append,
-        happenedSource: resolved.source,
-        endingVsBodyWarn: resolved.warn,
+        ending: state.ending,
+        threads: state.threads,
+        append: state.append,
+        happenedSource: state.resolved.source,
+        endingVsBodyWarn: state.resolved.warn,
     });
     const receipt = [
         `已采纳 ${candidateId} →「${saved.title}」（${saved.id}），${saved.wordCount} 字，状态 ${saved.status}。仍需作者审校/定稿。`,

@@ -1,6 +1,7 @@
 /** Shared MethodRegistry tools + chapter_brief (writing entry that injects craft packs). */
 import { buildPanelSnapshot, readChapter, readWorkMeta, recordBriefBreadcrumb, } from "../lib/store.js";
 import { resolvePrevChapter } from "../lib/services/chapter-context.js";
+import { formatPlanningBrief } from "../lib/domain/planning.js";
 import { InspirationPort, METHOD_ASSET_IDS, MethodRegistry, Scheduler, } from "../lib/ports/index.js";
 import { asString, asStringArray, boolArg, fail, openWork } from "./context.js";
 import { renderOutline, renderOutlineLean } from "./render.js";
@@ -98,7 +99,9 @@ export function methodsTools() {
                 try {
                     chapter = await readChapter(dir, chapterId);
                 }
-                catch {
+                catch (err) {
+                    if (err?.code !== "ENOENT")
+                        throw err;
                     fail(`章节不存在：${chapterId}`, "not_found");
                 }
                 const extraRaw = asString(args, "extra_assets") ?? "";
@@ -161,7 +164,10 @@ export function methodsTools() {
                         // n≥2: inject previous chapter body in full (soft-cap inside formatReaderContract)
                         body: body.length > 0 ? body : undefined,
                     };
-                    if (!previousForContract.ending.trim() && !body) {
+                    if (prev.missing) {
+                        contractWarnings.push(`前章 ${prev.meta.id} 已登记但正文文件缺失；请先恢复或核对，不可当作开篇。`);
+                    }
+                    else if (!previousForContract.ending.trim() && !body) {
                         contractWarnings.push("前章既无 ending 也无正文 — 续写缺少可承接的场面；请先补前章 ending 或正文。");
                     }
                     else if (!previousForContract.ending.trim()) {
@@ -186,11 +192,15 @@ export function methodsTools() {
                 const lines = [
                     `# 章简报 · ${meta.title} · ${chapter.id} ${chapter.title}`,
                     `- 模式：${lean ? "lean" : "full"} · 状态：${chapter.status} · 已存约 ${chapter.wordCount} 字 · 目标 ${o.targetWords || "（未设）"}`,
+                    `- 本书节奏：${meta.pace || "未指定；按作者目标确定"}`,
                     continuation
                         ? "- 续写：通读前章正文后接着往下推，相邻换压力"
                         : "- 开篇：先尝一场小卖点立合同；设定嵌进动作，篇幅跟当场压力走",
                     "",
                 ];
+                const planning = formatPlanningBrief(meta, chapter.id);
+                if (planning)
+                    lines.push(planning, "");
                 if (lean) {
                     // 1) Continuity bone: contract (ending + prev) + poison
                     lines.push(readerContract, "");

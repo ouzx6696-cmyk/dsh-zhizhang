@@ -36,6 +36,16 @@ export declare function buildLibraryView(paths: StoragePaths): Promise<{
     summary: string;
 }>;
 export declare function buildInspirationView(paths: StoragePaths, opts: any): Promise<{
+    planning: {
+        book: {
+            content: any;
+            truncated: boolean;
+        } | null;
+        volumes: any;
+        totalVolumes: any;
+        acts: any;
+        totalActs: any;
+    } | null;
     sessionsCount: number;
     sessions: {
         id: any;

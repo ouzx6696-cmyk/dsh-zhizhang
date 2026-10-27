@@ -21,7 +21,7 @@ export async function runPanelAccept(paths: import("./types.js").StoragePaths, r
         return { ok: false, code: "bad_args", error: "work 不能为空" };
     if (!candidateId)
         return { ok: false, code: "bad_args", error: "candidate 不能为空" };
-    if (!req.confirm) {
+    if (req.confirm !== true) {
         return {
             ok: false,
             code: "confirm_required",

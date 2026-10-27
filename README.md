@@ -60,19 +60,22 @@ dsh plugin --profile web add link:$(pwd)
 
 需要 **Node ≥22**。细节：[docs/DSH_INSTALL.md](docs/DSH_INSTALL.md)
 
-> 本目录是**已构建发行包**（`dist/` + `docs/` + `scripts/smoke.mjs`），不含 `src/` 与
-> `tsconfig`，因此**不要**在这里跑 `npm install` / `npm run build`；改代码请在源码仓构建后
-> 同步 `dist/`。自检用 `npm run smoke`。
+> 本仓库包含 `src/` 和 TypeScript 构建配置。开发时使用 Node ≥22、`npm ci` 和
+> `npm run build`；发行包通过 `dist/` 加载；源码仓库统一使用 `npm run check` 校验。
 
 ## 闭环路径
 
 ```text
 库（9 步）：import → plan（Auto 10% / Full 须同意）→ dissect_brief（batch）→ facts_stage（白描）→ structure_stage（剧情/节奏/人物）→ card_stage（v2 模块）→ card_accept → report → combo_suggest
-灵感：inspire_start(card_ids) → forge_brief → stage → accept(apply?)
+灵感：inspire_start（可选 card_ids）→ forge_brief → stage → accept(apply?)
 写作（6 步）：chapter_brief(lean) → 写正文 → candidate_stage → style_lint →（可选 edit）→ candidate_accept
 ```
 
 迷路先看：`zhizhang_product_map`。
+
+规划可不依赖参考卡。全书、卷和幕分别用 `zhizhang_inspire_stage` 的 `book_plan`、`volume_plan`、`act_plan` 暂存；经 `zhizhang_inspire_accept(apply=true)` 后，关联章节的 brief 和面板会显示已采纳规划。`zhizhang_inspire_status(work=…)` 查看完整内容与来源记录；可带 `history=true` 查看已应用候选，再以 `candidate=…` 查看原内容。
+
+正文采纳或章节保存中断时，使用 `zhizhang_status(work=…, recovery=inspect|resume)`；书源导入、拆书计划或分析、卡采纳或删卡中断时使用 `zhizhang_library_list(recovery=inspect|resume)`；灵感应用中断时使用 `zhizhang_inspire_status(recovery=inspect|resume)`。文件冲突时先保留原文件并核对，不要重复操作。备份与恢复边界见 [docs/DATA.md](docs/DATA.md)。
 
 ## 哲学
 
@@ -99,15 +102,15 @@ dsh plugin --profile web add link:$(pwd)
 | [docs/DATA.md](docs/DATA.md) | 磁盘布局 |
 | [docs/TEST.md](docs/TEST.md) | 测试分层 |
 | [docs/STATUS.md](docs/STATUS.md) | 当前版本事实 |
+| [docs/REVIEW.md](docs/REVIEW.md) | 全局梳理、修正结果与维护重点 |
 
-## 冒烟
+## 校验
 
 ```bash
-npm run smoke        # node ≥22；不需要 DSH / bun
+npm run check  # 构建、静态护栏和测试
+npm test       # 构建并运行测试
 ```
 
-三层验收：`npm test`（9 套/68 用例，能力面）· `npm run e2e`（26 步真实创作剧本全链，
-跑 dist）· `npm run smoke`（发行面：dist 加载、51 工具注册、按需挂载、面板可服务、
-版本一致）。
+测试覆盖一条精简创作主线、资产与恢复、并发和面板安全。详情见 [docs/TEST.md](docs/TEST.md)。
 
 版本 **0.17.0**。不默认发布 zip。

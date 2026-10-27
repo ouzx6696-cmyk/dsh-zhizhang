@@ -6,40 +6,11 @@
  * 基元（末拍/宽松重叠）来自 domain/ending-consistency：happened 选材是
  * 「宽松选择」而非质量判定——payoff 审计与读者合同的严格评分同在那个模块。
  */
-import { readWorkMeta, setFoundation } from "../store.js";
+import { readWorkMeta, appendHappenedLine } from "../store.js";
 import { bodyTailOf, endingBodyOverlap } from "../domain/ending-consistency.js";
-const CHAPTER_MARK = (chapterId) => `[${chapterId}]`;
-/** Last ~1–2 sentences / up to maxLen chars from body — short outcome only.（实现移至 domain） */
+import { formatChapterOutcomeLine, resolveHappenedText } from "../domain/foundation-outcome.js";
 export const extractBodyOutcome = bodyTailOf;
-export { endingBodyOverlap };
-/**
- * Choose short happened text: ending if it aligns with body tail; else body outcome.
- * Never invents long prose from body beyond extractBodyOutcome.
- */
-export function resolveHappenedText(opts) {
-    const ending = String(opts.ending ?? "").trim().replace(/\s+/g, " ");
-    const bodyTail = extractBodyOutcome(opts.body);
-    const minOverlap = opts.minOverlap ?? 0.35;
-    if (!ending && !bodyTail) {
-        return { text: "", source: "empty", bodyTail: bodyTail || undefined };
-    }
-    if (!ending) {
-        return { text: bodyTail, source: "body_tail", bodyTail };
-    }
-    if (!bodyTail) {
-        return { text: ending, source: "ending" };
-    }
-    const overlap = endingBodyOverlap(ending, bodyTail);
-    if (overlap >= minOverlap) {
-        return { text: ending, source: "ending", bodyTail };
-    }
-    return {
-        text: bodyTail,
-        source: "body_tail",
-        bodyTail,
-        warn: `纲末 ending 与正文末拍重叠偏低（${overlap.toFixed(2)}）— 已用正文末拍写入当前小说状态·已发生；可用 foundation_append_happened 精修。`,
-    };
-}
+export { endingBodyOverlap, resolveHappenedText };
 export const FoundationPort = {
     id: "port.foundation",
     extractBodyOutcome,
@@ -48,14 +19,7 @@ export const FoundationPort = {
     /**
      * Build a one-line happened entry. Returns empty if text is blank.
      */
-    formatChapterOutcomeLine(chapterId, title, text) {
-        const t = String(text ?? "").trim().replace(/\s+/g, " ");
-        if (!t)
-            return "";
-        const short = t.length > 200 ? `${t.slice(0, 200).trimEnd()}…` : t;
-        const titleBit = title?.trim() ? `《${title.trim()}》` : "";
-        return `${CHAPTER_MARK(chapterId)}${titleBit} ${short}`;
-    },
+    formatChapterOutcomeLine,
     /**
      * Append a short happened line for a chapter. Idempotent per chapterId marker.
      * Skips when text empty (caller should still remind).
@@ -71,15 +35,7 @@ export const FoundationPort = {
             const meta = await readWorkMeta(dir);
             return { meta, appended: false, line: "", reason: "empty_text" };
         }
-        const mark = CHAPTER_MARK(chapterId);
-        const meta0 = await readWorkMeta(dir);
-        const existing = String(meta0.foundation.happened ?? "");
-        if (existing.includes(mark)) {
-            return { meta: meta0, appended: false, line, reason: "already_recorded" };
-        }
-        const next = existing.trim() ? `${existing.trim()}\n${line}` : line;
-        const meta = await setFoundation(dir, { happened: next });
-        return { meta, appended: true, line };
+        return appendHappenedLine(dir, chapterId, line, input.replace === true);
     },
     /**
      * Soft receipt lines after candidate_accept — remind model to refresh 当前小说状态.
@@ -100,7 +56,7 @@ export const FoundationPort = {
             lines.push(`- happened_appended：已追加「${opts.append.line}」${src}`);
         }
         else if (opts.append?.reason === "already_recorded") {
-            lines.push(`- happened_skip：${opts.chapterId} 已在当前小说状态·已发生中（未重复追加）`);
+            lines.push(`- happened_skip：${opts.chapterId} 已有状态记录（未覆盖）；如本章已修订，请核对旧记录并按需用 foundation_append_happened(replace=true) 更新`);
         }
         else if (!ending && opts.happenedSource !== "body_tail") {
             lines.push(`- happened_remind：本章 ending 与正文末拍皆空，未自动追加。请用 zhizhang_foundation_set 或 zhizhang_foundation_append_happened 补一句本章后果。`);

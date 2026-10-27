@@ -1,11 +1,13 @@
+import { assertNoPendingCard } from "../../storage/card-journal.js";
 /** 事实层：逐章白描校验与落盘。 */
-import { withLock } from "../../store.js";
+import { withResourceLock } from "../../storage/process-lock.js";
 import type { StoragePaths } from "../../types.js";
 import { ZhizhangError } from "../../errors.js";
 import { HOOK_STRENGTHS, HOOK_TYPES } from "../../domain/card-schema.js";
 import { quoteOk } from "../../domain/evidence.js";
-import { analysisPaths, ensureDir, nowIso, readJson, readJsonl, writeJsonl } from "./paths.js";
-import { writeAnalysisMeta } from "./meta.js";
+import { analysisPaths, ensureDir, nowIso, readJsonl } from "./paths.js";
+import { snapshotFile } from "../../storage/accept-journal.js";
+import { commitAnalysisUpdate } from "./meta.js";
 
 /** 白描硬禁：心理/评价词。desc 里出现即视为「替人物补动机/下判断」。 */
 export const WHITE_DESC_HARD_RE = /(心里|心中|内心|觉得|认为|希望|害怕|恐惧|愤怒|悲伤|难过|失望|后悔|其实|显然|精彩|感人|震撼)/;
@@ -17,6 +19,8 @@ export function validateChapterFacts(facts: any, sourceText: any, index: { n: nu
     const warnings: string[] = [];
     const f = facts ?? {};
     const n = Number(f.n);
+    if (f.readingLevel !== undefined && f.readingLevel !== "正文已读" && f.readingLevel !== "深读")
+        errors.push("readingLevel 只接受正文已读或深读；未声明时请省略");
     const chapter = index.find((c: any) => c.n === n);
     if (!Number.isInteger(n) || !chapter) {
         errors.push(`章号不存在：${f.n}`);
@@ -72,7 +76,9 @@ export async function upsertChapter(paths: StoragePaths, sourceId: any, facts: a
     const p = analysisPaths(paths, sourceId);
     await ensureDir(p.dir);
     let count = 0;
-    await withLock(`analysis:${sourceId}`, async () => {
+    await withResourceLock(paths.library, async () => {
+        await assertNoPendingCard(paths.library);
+        const before = await snapshotFile(p.chapters);
         const rows = await readJsonl(p.chapters);
         const rec = { ...facts, n: Number(facts.n), schemaVersion: 2, updatedAt: nowIso() };
         const at = rows.findIndex((r: any) => Number(r.n) === rec.n);
@@ -81,15 +87,12 @@ export async function upsertChapter(paths: StoragePaths, sourceId: any, facts: a
         else
             rows.push(rec);
         rows.sort((a: any, b: any) => Number(a.n) - Number(b.n));
-        await writeJsonl(p.chapters, rows);
-        const meta = (await readJson(p.meta, null)) ?? {};
-        const scope = meta.scope ?? { mode: "none", chapters: 0 };
-        const maxN = rows.reduce((m: any, r: any) => Math.max(m, Number(r.n) || 0), 0);
-        const planned = scope.mode === "sample" ? rows.length : scope.mode === "auto" || scope.mode === "full" ? 0 : maxN;
-        await writeAnalysisMeta(paths, sourceId, {
-            stage: "facts",
-            lastRead: Math.max(Number(meta.lastRead ?? 0), rec.n),
-            scope: { ...scope, chapters: Math.max(Number(scope.chapters ?? 0), planned) },
+        const content = rows.length ? rows.map((r: any) => JSON.stringify(r)).join("\n") + "\n" : "";
+        await commitAnalysisUpdate(paths, sourceId, "chapters.jsonl", before, content, meta => {
+            const scope = meta.scope ?? { mode: "none", chapters: 0 };
+            const maxN = rows.reduce((m: any, r: any) => Math.max(m, Number(r.n) || 0), 0);
+            const planned = scope.mode === "sample" ? rows.length : scope.mode === "auto" || scope.mode === "full" ? 0 : maxN;
+            return { stage: "facts", lastRead: Math.max(Number(meta.lastRead ?? 0), rec.n), scope: { ...scope, chapters: Math.max(Number(scope.chapters ?? 0), planned) } };
         });
         count = rows.length;
     });

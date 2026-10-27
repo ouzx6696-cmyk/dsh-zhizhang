@@ -1,4 +1,5 @@
 /** 前章解析 — brief / accept / audit / panel 共用，避免四份实现漂移。 */
+import { EMPTY_OUTLINE } from "../types.js";
 import { listChapters, readChapter } from "../store.js";
 
 /**
@@ -10,19 +11,18 @@ import { listChapters, readChapter } from "../store.js";
  * 返回 { meta, body, outline } 或 null。
  */
 export async function resolvePrevChapter(dir: string, chapterId: string) {
+    const chapters = await listChapters(dir);
+    if (!chapters.length) return null;
+    const idx = chapters.findIndex((c: any) => c.id === chapterId);
+    if (idx <= 0) return null;
+    const prevMeta = chapters[idx - 1];
     try {
-        const chapters = await listChapters(dir);
-        if (!chapters.length)
-            return null;
-        const idx = chapters.findIndex((c: any) => c.id === chapterId);
-        if (idx <= 0)
-            return null;
-        const prevMeta = chapters[idx - 1];
         const prev = await readChapter(dir, prevMeta.id);
-        return { meta: prevMeta, body: prev.body || "", outline: prev.outline };
+        return { meta: prevMeta, body: prev.body || "", outline: prev.outline, missing: false };
     }
-    catch {
-        return null;
+    catch (err: any) {
+        if (err?.code !== "ENOENT") throw err;
+        return { meta: prevMeta, body: "", outline: EMPTY_OUTLINE(), missing: true };
     }
 }
 
