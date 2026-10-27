@@ -1,5 +1,5 @@
 /** Shared process-local synchronization and filesystem primitives. */
-import { mkdir, open, rename, rm } from "node:fs/promises";
+import { lstat, mkdir, open, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import { ZhizhangError } from "../errors.js";
 const locks = new Map<string, Promise<unknown>>();
@@ -39,13 +39,28 @@ export function assertResourceId(id: string, label: string = "id") {
         t === "." ||
         t === ".." ||
         WINDOWS_RESERVED_NAME.test(t) ||
+        /[<>:"|?*]/.test(t) ||
         /[. ]$/.test(t)) {
         throw new ZhizhangError("bad_id", `${label} 非法（禁止目录穿越 / 保留名）：${t.slice(0, 80)}`);
     }
     return t;
 }
+/** Check lexical ancestors; links/reparse paths are not writable asset roots. */
+export async function assertSafeAncestors(file: string) {
+    for (let current = path.resolve(path.dirname(file)); ; current = path.dirname(current)) {
+        try {
+            const info = await lstat(current);
+            if (info.isSymbolicLink() || !info.isDirectory()) throw new ZhizhangError("unsafe_path", `写入路径包含链接或非目录，拒绝越界风险：${current}`);
+        } catch (err: any) { if (err?.code !== "ENOENT") throw err; }
+        if (current === path.dirname(current)) break;
+    }
+}
 export async function atomicWrite(file: string, content: string) {
+    await assertSafeAncestors(file);
     await mkdir(path.dirname(file), { recursive: true });
+    await assertSafeAncestors(file);
+    try { if ((await lstat(file)).isSymbolicLink()) throw new ZhizhangError("unsafe_path", `拒绝覆盖链接资产：${file}`); }
+    catch (err: any) { if (err?.code !== "ENOENT") throw err; }
     const tmp = `${file}.${process.pid}.${Date.now()}.${tmpSeq++}.tmp`;
     const handle = await open(tmp, "wx");
     try {

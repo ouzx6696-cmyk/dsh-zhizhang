@@ -54,13 +54,13 @@ export const ProductMap = {
                     Scheduler.writeLine() +
                     "；audit/assemble/直写均为旁路（见调度图）。",
                 capabilities: [
-                    { id: "works", title: "作品与根基 / 当前小说状态（happened）", ready: true },
+                    { id: "works", title: "作品根基、作者记录与版本化接续索引", ready: true },
                     { id: "outline", title: "章纲处境", ready: true },
                     { id: "candidates", title: "候选 stage/accept", ready: true },
-                    { id: "edit", title: "可选编辑过稿（A 确认验收 / B 仅候选 / C 拒）", ready: true },
+                    { id: "edit", title: "按需编辑与工作稿采纳", ready: true },
                     { id: "multi_draft", title: "可选多草稿+统一整理（默认关）", ready: true },
                     { id: "gates", title: "Brief/Lint + Accept 内嵌软传感", ready: true },
-                    { id: "assemble", title: "汇编成稿（旁路 finalize）", ready: true },
+                    { id: "assemble", title: "汇编现行正文（不改变定稿状态）", ready: true },
                 ],
                 loopStage: 3,
                 handsOffTo: Scheduler.nextHint("candidate_accept"),
@@ -82,7 +82,7 @@ export const ProductMap = {
             "## 一条创作闭环",
             ProductMap.loopLine(),
             "",
-            "三阶段是同一条链上的工序，不是三个独立产品。拆书只出两样：craft（技法→正文）| mind（思维→设定/纲）。",
+            "三个阶段服务同一部作品，按最终产物进入，不要求自动三连跑。片段分析用 zhizhang_reference_analyze，可保留工作区迁移包；正式入库再用 library_*。",
             "",
             Scheduler.formatDiagram(),
             "",
@@ -100,8 +100,8 @@ export const ProductMap = {
             }
             lines.push("");
         }
-        lines.push("## 工作流（照做，别跳步）");
-        for (const [key, wf] of Object.entries(WORKFLOWS)) {
+        lines.push("## 按任务取用的工作流");
+        for (const wf of Object.values(WORKFLOWS)) {
             lines.push(`### ${wf.title}`);
             for (const st of wf.steps)
                 lines.push(`${st.n}. ${st.tool} —— ${st.do}`);
@@ -117,7 +117,7 @@ export const ProductMap = {
         lines.push("- **mind** → inspire_forge / 根基·章纲");
         lines.push("- **craft** → chapter_brief(lean) 写法+场面状态");
         lines.push("- combo 的 card_ids 可整包给 inspire；lean brief 自动只吃 craft");
-        lines.push("- 写后可选 edit（去空转留毛边，不磨齐刷）：用户选 A/B/C；A 须 confirm；禁止静默验收；技能见 docs/skills/web-novel-master-optimizer.md");
+        lines.push("- 编辑按真实问题与授权；A/B/C 为兼容交互，不重复索取固定确认词。采纳工作稿后，内容审读与定稿分别核对；方法见 docs/skills/web-novel-master-optimizer.md");
         lines.push("- 可选·多草稿（默认关）：同章多候选 → unify_brief → unify_stage；开 DSH_ZHIZHANG_MULTI_DRAFT=1 或 config.multiDraft.enabled；默认链不加负重");
         lines.push("- Web 面板：侧栏织章默认三栏阅读工作台；管线可切；真采纳同 Accept；产文仍归 Agent");
         lines.push("");

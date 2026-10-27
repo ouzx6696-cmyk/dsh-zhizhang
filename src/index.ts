@@ -2,7 +2,7 @@
  * dsh-zhizhang — DeepSeek Harness plugin entry (on-demand).
  *
  * The profile mount registers exactly one trigger tool (`zhizhang_enable`) plus the
- * read-only Web panel HTTP routes. The full 织章 toolset (count reported at runtime,
+ * protected Web panel HTTP routes. The full 织章 toolset (count reported at runtime,
  * see allTools()) and the resident hard-rules prompt section are mounted only after
  * the trigger is called, on the calling Agent scope when the host exposes one —
  * standard sessions stay clean.
@@ -11,7 +11,27 @@ import { formatToolError } from "./lib/errors.js";
 import type { ExecContext } from "./lib/types.js";
 import { registerPanelHttpRoutes } from "./lib/http-api.js";
 import { applyTools } from "./lib/bootstrap.js";
-import { AcceptPolicy, BriefGate, InspirationPort, LibraryPort, LintGate, METHOD_ASSET_IDS, MethodRegistry, MultiDraftPort, HumanFeelAuditorPort, HumanFeelGate, NovelSenseAuditorPort, NovelSenseGate, PayoffAuditorPort, ProductMap, Scheduler, SaveBypassGate, StyleLinterPort, setPortConfig, envMultiDraftFlag, } from "./lib/ports/index.js";
+import {
+    AcceptPolicy,
+    BriefGate,
+    InspirationPort,
+    LibraryPort,
+    LintGate,
+    METHOD_ASSET_IDS,
+    MethodRegistry,
+    MultiDraftPort,
+    HumanFeelAuditorPort,
+    HumanFeelGate,
+    NovelSenseAuditorPort,
+    NovelSenseGate,
+    PayoffAuditorPort,
+    ProductMap,
+    Scheduler,
+    SaveBypassGate,
+    StyleLinterPort,
+    setPortConfig,
+    envMultiDraftFlag,
+} from "./lib/ports/index.js";
 import { SYSTEM_BRIEF, allTools, formatLint, setPluginConfig, } from "./tools/index.js";
 export const name = "zhizhang";
 export const inject = ["tools"];
@@ -63,7 +83,7 @@ export function apply(ctx: any, pluginConfig: any = {}) {
         envMultiDraftFlag();
     setPortConfig({ multiDraftEnabled: multiOn });
     ctx.tools.register(makeEnableTool(pluginConfig));
-    // Read-only panel API (GET + accept POST). No tools/prompt cost.
+    // Protected panel API (GET + accept POST). No tools/prompt cost.
     registerPanelHttpRoutes(ctx, pluginConfig);
 }
 export { applyTools, SYSTEM_BRIEF };

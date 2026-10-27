@@ -1,7 +1,7 @@
 /** 拆书分析 — 路径 / JSON IO 基元。 */
 import path from "node:path";
 import { mkdir } from "node:fs/promises";
-import { atomicWrite } from "../../store.js";
+import { atomicWrite } from "../../storage/primitives.js";
 import { readJsonCached, readJsonlCached } from "../../file-cache.js";
 import { ZhizhangError } from "../../errors.js";
 const SOURCE_ID_RE = /^src-[A-Za-z0-9_-]{1,64}$/;
@@ -11,9 +11,7 @@ export function assertSourceId(id) {
         throw new ZhizhangError("bad_args", `sourceId 非法：${t.slice(0, 80)}`);
     return t;
 }
-export function nowIso() {
-    return new Date().toISOString();
-}
+export { nowIso } from "../../storage/primitives.js";
 export function analysisPaths(paths, sourceId) {
     const id = assertSourceId(sourceId);
     const dir = path.join(paths.library, "analyses", id);

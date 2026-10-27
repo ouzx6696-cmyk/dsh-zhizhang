@@ -1,5 +1,5 @@
 /** L0 测绘缓存 — 与事实层联动，事实变了就重建。 */
-import { atomicWrite } from "../../store.js";
+import { atomicWrite } from "../../storage/primitives.js";
 import { buildSurvey } from "../survey.js";
 import { analysisPaths, ensureDir, readJson } from "./paths.js";
 import type { StoragePaths } from "../../types.js";

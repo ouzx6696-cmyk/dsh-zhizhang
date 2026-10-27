@@ -43,3 +43,19 @@ test("编辑候选采纳前须明确确认", () => {
     assert.ok(denied.messages.some((m) => m.code === "edit_accept_confirm_required"));
     assert.equal(AcceptPolicy.evaluate({ candidate, brief: null, payoff: null, skipBrief: true, acceptAfterEdit: true, confirmAcceptAfterEdit: true }).ok, true);
 });
+
+test("证据按实际原文核对，心理词不误拒对白，重号不静默合并", async () => {
+    const { quoteOk } = await import("../dist/lib/domain/evidence.js");
+    assert.equal(quoteOk("她说我害怕", "她说：我害怕。"), false);
+    assert.equal(quoteOk("她说：我害怕。", "她说：我害怕。"), true);
+    const { chapterIndex, chapterText } = await import("../dist/lib/ports/analysis/chapters.js");
+    const { validateChapterFacts } = await import("../dist/lib/ports/analysis/facts.js");
+    const { buildPlan } = await import("../dist/lib/ports/analysis/plan.js");
+    const text = "第一章 夜归\n她说：我害怕。随后关门。\n第一章 番外\n他打开窗。";
+    const index = chapterIndex(text);
+    assert.equal(chapterText(text, index, 1), null);
+    assert.throws(() => buildPlan({ sourceId: "src-test", index }), e => e.code === "ambiguous_chapter_numbers");
+    const result = validateChapterFacts({ n: 1, sourceStart: index[0].start, events: [{ desc: "她说：我害怕。随后关门。", quote: "她说：我害怕。随后关门。" }] }, text, index);
+    assert.equal(result.errors.length, 0);
+    assert.ok(result.warnings.length > 0);
+});

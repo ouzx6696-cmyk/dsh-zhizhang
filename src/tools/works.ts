@@ -1,5 +1,17 @@
 /** Writing pillar — works, foundation, outline, chapters. */
-import { appendLedger, countWords, createWork, ensureStorage, listChapters, listWorks, readChapter, readWorkMeta, resolveWorkDir, setFoundation, setOutline, updateChapter, } from "../lib/store.js";
+import {
+    countWords,
+    createWork,
+    ensureStorage,
+    listChapters,
+    listWorks,
+    readChapter,
+    readWorkMeta,
+    resolveWorkDir,
+    setFoundation,
+    setOutline,
+    updateChapter,
+} from "../lib/store.js";
 import { inspectPendingAccept, resumePendingAccept } from "../lib/storage/accept-journal.js";
 import { hasPendingChapterSave, inspectPendingChapterSave, resumePendingChapterSave } from "../lib/storage/chapter-journal.js";
 import { assertNoInspirationMarker } from "../lib/storage/inspiration-journal.js";
@@ -14,7 +26,7 @@ export function worksTools() {
     return [
         defineTool({
             name: "zhizhang_project_create",
-            description: "创建织章作品目录。默认写作链：chapter_brief(lean)→stage→lint→accept。不生成正文。",
+            description: "创建织章作品目录。默认写作链：chapter_brief(lean)→stage→accept（内置扫描）。不生成正文。",
             properties: {
                 title: S("作品标题（必填）"),
                 genre: S("可选类型"),
@@ -311,6 +323,9 @@ export function worksTools() {
                 const ch = await readChapter(dir, chapterId);
                 return [
                     `# ${ch.title}（${ch.id}）`,
+                    `- 修订：${ch.revision}`,
+                    `- 审读声明：${ch.review ? `${ch.review.result} · ${ch.review.revision === ch.revision ? "正文版本匹配（依据仍须复核）" : "旧正文版本，已过期"} · ${ch.review.summary}` : "未记录；旧定稿不补造证据"}`,
+                    `- 条件依赖：${JSON.stringify(ch.dependencies ?? [])}`,
                     `- 状态：${ch.status} · ${ch.wordCount} 字 · ${ch.updatedAt}`,
                     "",
                     "## 章纲",
@@ -323,7 +338,7 @@ export function worksTools() {
         }),
         defineTool({
             name: "zhizhang_chapter_save",
-            description: "作者显式落盘或定稿改 status。创作默认请走 candidate 链。大正文（超过旁路字数阈值）须 confirm_bypass=true，否则拒绝。可省略 content 仅改 status/title/position（须章已存在）。",
+            description: "作者显式落盘或定稿改 status。创作默认请走 candidate 链。大正文（超过旁路字数阈值）须 confirm_bypass=true，否则拒绝。可省略 content 仅改 status/title/position（须章已存在）。定稿正文修改须 force=true，保留历史并降回草稿。",
             properties: {
                 work: WORK_OPT,
                 working_dir: WORKING_DIR,
@@ -332,6 +347,12 @@ export function worksTools() {
                 content: S("完整正文；省略则保留已有正文（仅改 status/title/position）"),
                 status: E(CHAPTER_STATUSES, "可选状态"),
                 position: I("可选排序位置（从 1）"),
+                force: B("明确允许修订定稿正文；修改后需重新审读定稿"),
+                review_summary: S("当前版本完整审读的依据、结论与问题；只是声明，不是自动质量证明"),
+                review_result: E(["pass", "blocked"], "审读声明结果"),
+                reviewed_by: S("审读声明者"),
+                acknowledge_revision: B("声明已核对本章修订影响；须提供当前 expected_revision"),
+                expected_revision: S("可选现行章节 revision；不匹配则拒绝覆盖"),
                 confirm_bypass: B(`大正文旁路确认：正文超过 ${SAVE_BYPASS_WORD_THRESHOLD} 字直写时必须为 true；短稿/仅改状态可不传`),
             },
             required: ["chapter"],
@@ -376,13 +397,15 @@ export function worksTools() {
                     body: contentArg,
                     status,
                     position,
+                    force: boolArg(args, "force") === true,
+                    expectedRevision: asString(args, "expected_revision"),
+                    reviewSummary: asString(args, "review_summary"),
+                    reviewResult: asString(args, "review_result") as "pass" | "blocked" | undefined,
+                    reviewedBy: asString(args, "reviewed_by"),
+                    acknowledgeRevision: boolArg(args, "acknowledge_revision") === true,
+                    ledgerEntry: `chapter_save 显式保存 ${chapterId}${bypassNoted ? " confirm_bypass=true" : ""}`,
                 });
                 const bypassTag = bypassNoted ? " confirm_bypass=true" : contentArg === undefined ? " 仅元数据/status" : "";
-                await appendLedger(dir, {
-                    chapterId: saved.id,
-                    kind: "chapter_save_direct",
-                    summary: `chapter_save 直写「${saved.title}」${saved.wordCount}字 status=${saved.status}（旁路候选链${bypassTag}，已留痕）`,
-                });
                 return `已保存「${saved.title}」（${saved.id}）：${saved.wordCount} 字，状态 ${saved.status}。已记 ledger kind=chapter_save_direct${bypassTag}。`;
             },
         }),

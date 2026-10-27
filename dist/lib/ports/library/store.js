@@ -5,13 +5,11 @@
 import { randomUUID } from "node:crypto";
 import { readFile, access } from "node:fs/promises";
 import path from "node:path";
-import { atomicWrite, assertResourceId } from "../../store.js";
+import { atomicWrite, assertResourceId } from "../../storage/primitives.js";
 import { withResourceLock } from "../../storage/process-lock.js";
 import { assertNoPendingCard } from "../../storage/card-journal.js";
 import { coerceAxis, coerceHumanFeel } from "./schema.js";
-export function nowIso() {
-    return new Date().toISOString();
-}
+export { nowIso } from "../../storage/primitives.js";
 export function newId(prefix) {
     return `${prefix}-${Date.now().toString(36)}${randomUUID().replace(/-/g, "").slice(0, 12)}`;
 }

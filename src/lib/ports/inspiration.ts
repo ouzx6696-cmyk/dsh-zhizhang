@@ -1,3 +1,5 @@
+import { readReference } from "../services/reference.js";
+import { fingerprint } from "../domain/lifecycle.js";
 import { withResourceLock } from "../storage/process-lock.js";
 /**
  * InspirationPort — 灵感推演支柱（live）。
@@ -8,14 +10,23 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, access } from "node:fs/promises";
 import path from "node:path";
 import { ZhizhangError } from "../errors.js";
-import { snapshotFile } from "../storage/accept-journal.js";
+import { snapshotFile } from "../storage/recovery-common.js";
 import { normalizeFoundation, validateStoryPace } from "../storage/work-meta.js";
 import { prepareChapterSaveUnlocked, readChapter } from "../storage/chapters.js";
 import { assertNoPendingInspiration, createInspirationJournal, finishInspirationJournal } from "../storage/inspiration-journal.js";
 import { readPlanning } from "../domain/planning.js";
-import { atomicWrite, assertResourceId, createWork, resolveWorkDir, readWorkMeta, } from "../store.js";
+import { atomicWrite, assertResourceId, createWork, resolveWorkDir, readWorkMeta, } from "../work-store.js";
 import { readJsonCached } from "../file-cache.js";
-import { LibraryPort, ANTI_STIFFNESS_BRIEF_LINE, coerceAxis, coerceHumanFeel, craftCueFromHumanFeel, formatTechniqueCardBlock, formatTechniqueCardBlockLean, hasShatterCraftCue, } from "./library.js";
+import {
+    LibraryPort,
+    ANTI_STIFFNESS_BRIEF_LINE,
+    coerceAxis,
+    coerceHumanFeel,
+    craftCueFromHumanFeel,
+    formatTechniqueCardBlock,
+    formatTechniqueCardBlockLean,
+    hasShatterCraftCue,
+} from "./library.js";
 import { MethodRegistry } from "./methods.js";
 import { QualityPolicy } from "./quality-policy.js";
 import type { StoragePaths } from "../types.js";
@@ -88,9 +99,8 @@ export const InspirationPort = {
             else
                 craftCount += 1;
         }
-        if (cardIds.length > 0 && mindCount === 0 && !craftOnly) {
-            throw new ZhizhangError("mind_required", "灵感规划须至少一张 axis=mind 创作思维卡；若仅技法试写请传 craft_only=true");
-        }
+        const referenceIds = [...new Set<string>(input.referenceIds ?? [])];
+        for (const id of referenceIds) await readReference(paths, id);
         const sessionId = newId("insp");
         const now = nowIso();
         const session: Record<string, any> = {
@@ -99,6 +109,8 @@ export const InspirationPort = {
             goal,
             genre: String(input.genre ?? "").trim(),
             cardIds,
+            referenceIds,
+            ...(input.workKey ? { targetWorkKey: input.workKey, targetPlanningRevision: fingerprint((await readWorkMeta(await resolveWorkDir(paths, input.workKey)))) } : {}),
             createdAt: now,
             updatedAt: now,
         };
@@ -125,7 +137,7 @@ export const InspirationPort = {
         await ensureInsp(paths);
         const d = inspDirs(paths);
         const { readdir } = await import("node:fs/promises");
-        const names = await readdir(d.sessions).catch(() => []);
+        const names = await readdir(d.sessions);
         const rows = [];
         for (const name of names) {
             if (!name.endsWith(".json"))
@@ -143,7 +155,7 @@ export const InspirationPort = {
                 });
             }
             catch {
-                /* skip */
+                throw new ZhizhangError("bad_inspiration_session", `灵感会话 ${name} 不可读，请核对原文件。`);
             }
         }
         rows.sort((a: any, b: any) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
@@ -269,6 +281,10 @@ export const InspirationPort = {
             lines.push(MethodRegistry.formatForAgent(tomato));
             lines.push("");
         }
+        for (const id of session.referenceIds ?? []) {
+            const reference = await readReference(paths, id);
+            lines.push("## 显式选用的工作区迁移参考", JSON.stringify({ id, scope: reference.scope, question: reference.question, transfer: reference.transfer, report: reference.report }), "参考不构成本书事实，重造人物欲望、规则、对手筹码及事件链。");
+        }
         lines.push("## 本书决策");
         lines.push("- 先确定节奏档位（快爽 / 稳推 / 慢燃）：按作者目标安排卖点与回报；慢燃也要让近端体验和推进成立。");
         lines.push("- 写清主角目标与办法、对手可行回应、代价如何发生，以及当场回报和下一步压力；让这些选择来自本书人物与处境。");
@@ -276,8 +292,8 @@ export const InspirationPort = {
         lines.push("");
         lines.push("## 输出要求");
         lines.push("- 可先提交 book_plan（content）、volume_plan（id/title/content/chapters）和 act_plan（同卷规划，可填 volumeId），写全书、各卷与幕的目标及明确归属的章节；只有显式 apply 后才进入作品与章简报。");
-        lines.push("- foundation：locks / characters / planned / style / threads 等；**planned/locks/threads 须主吃 mind**（卖点进代价、信息分期、压力机、长线债）；style 可辅吃 craft 的写法+状态；人名剧情自行重造。");
-        lines.push("- outline：须含 chapter、title、situationLens、livedScene、stateLens、ending；**压力换与书债对齐 mind.debtAndSwap / readerContract**；stateLens 写场面状态/写法取舍（非声纹）。");
+        lines.push("- foundation：locks / characters / planned / style / threads 等；**planned/locks/threads 依据作者材料，可参考 mind**（卖点进代价、信息分期、压力机、长线债）；style 可辅吃 craft 的写法+状态；人名剧情自行重造。");
+        lines.push("- outline：给章号、视角、篇幅、锁定和人物知识边界，以及梗概、冲突看点、具体推进节点和章末落点；格式按实际材料适配，不强制钩子或固定场数。");
         lines.push("- **相邻换压力**：后续章纲换场面/压力/人事，接着前章后果往下推。");
         lines.push("- 成功样子：可迁移的设定/纲思维 + 写法场面；对照 failAsEncyclopedia / failAsTemplate / failAsShortStory 自检边界。");
         lines.push("- **质量面 · 毒点**：" + QualityPolicy.poisonPolicyLine());
@@ -325,9 +341,8 @@ export const InspirationPort = {
             const chapter = String(payload.chapter ?? payload.chapterId ?? "").trim();
             if (!chapter)
                 throw new ZhizhangError("bad_args", "outline payload 须含 chapter");
-            const ending = String(payload.ending ?? "").trim();
-            if (!ending)
-                throw new ZhizhangError("bad_args", "outline payload 须含 ending（可兑付落点）");
+            if (![payload.synopsis, payload.beats, payload.ending].some(v => typeof v === "string" && v.trim()))
+                throw new ZhizhangError("bad_args", "章纲须提供具体经历、节点或落点，不强制钩子。");
         }
         else {
             if (typeof payload.content !== "string" || !payload.content.trim())
@@ -350,6 +365,10 @@ export const InspirationPort = {
             payload: { ...payload },
             // 卡组快照：acceptEmit(apply) 据此更新 bindings.json 索引，不必回读 session。
             cardIds: [...(session.cardIds ?? [])],
+            referenceIds: session.referenceIds ?? [],
+            referenceVersions: await Promise.all((session.referenceIds ?? []).map(async (refId: string) => ({ id: refId, revision: fingerprint(await readReference(paths, refId)) }))),
+            targetWorkKey: session.targetWorkKey,
+            targetPlanningRevision: session.targetPlanningRevision,
             sourceGoal: session.goal,
             ...(session.pace ? { pace: session.pace } : {}),
             status: "staged",
@@ -408,6 +427,8 @@ export const InspirationPort = {
             const candidateBefore = await snapshotFile(candPath);
             if (candidateBefore === null) throw new ZhizhangError("candidate_not_found", `找不到灵感候选 ${id}`);
             const cand = JSON.parse(await readFile(candPath, "utf8"));
+            for (const ref of cand.referenceVersions ?? []) if (fingerprint(await readReference(paths, ref.id)) !== ref.revision)
+                throw new ZhizhangError("reference_changed", "所选分析成果已变化，请核对并重新准备规划。");
             if (await snapshotFile(candPath) !== candidateBefore)
                 throw new ZhizhangError("candidate_changed", "灵感候选在读取期间发生变化，请重新检查。");
             if (cand.status === "accepted" && cand.appliedWorkKey)
@@ -429,6 +450,8 @@ export const InspirationPort = {
                 const metaPath = path.join(dir, "meta.json");
                 const metaBefore = await snapshotFile(metaPath);
                 const meta = await readWorkMeta(dir);
+                if (cand.targetWorkKey && (cand.targetWorkKey !== meta.key || cand.targetPlanningRevision !== fingerprint(meta)))
+                    throw new ZhizhangError("planning_changed", "所绑定作品依据已变化或目标不同，请重核规划后再应用。");
                 workKey = meta.key;
                 if (workKey !== path.basename(dir))
                     throw new ZhizhangError("bad_work_meta", "作品目录与元数据 key 不一致；请保留并检查作品。 ");
@@ -457,6 +480,7 @@ export const InspirationPort = {
                         candidateId: id,
                         authorGoal: typeof cand.sourceGoal === "string" ? cand.sourceGoal : "",
                         selectedCardIds: Array.isArray(cand.cardIds) ? [...cand.cardIds] : [],
+                        selectedReferenceIds: cand.referenceIds ?? [],
                     };
                     if (cand.kind === "book_plan") {
                         planning.book = { ...(planning.book ?? {}), content: payload.content, source, updatedAt: now };

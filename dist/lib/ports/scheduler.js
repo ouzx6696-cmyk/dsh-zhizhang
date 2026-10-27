@@ -4,9 +4,9 @@
  */
 import { PLUGIN_VERSION } from "../version.js";
 /** Canonical default loop — same semantics as CREATIVE_LOOP_LINE; keep in sync via ProductMap. */
-export const SCHEDULER_DEFAULT_LINE = "拆书（事实→聚合→模块）→ 书进库（book|scene）→ library_combo_suggest（1 book + N scene，可跨书）→ inspire 落根基/纲 → chapter_brief(lean，只吃 craft）→ candidate_stage → style_lint →（可选 edit）→ candidate_accept";
+export const SCHEDULER_DEFAULT_LINE = "按最终产物进入：片段分析（可不入库）｜规划（参考可选）｜正文写作或修订；已有依据直接复用，不自动跨阶段";
 /** Writing segment only (after foundation/outline ready). */
-export const SCHEDULER_WRITE_LINE = "chapter_brief(lean) → 创作 → candidate_stage → style_lint →（可选 edit）→ candidate_accept";
+export const SCHEDULER_WRITE_LINE = "chapter_brief(lean) → 创作与回读 → candidate_stage → candidate_accept（内置扫描，编辑可选；采纳不等于定稿）";
 /** Library segment. */
 export const SCHEDULER_LIBRARY_LINE = "library_import → library_plan（auto 10% / full 须同意）→ dissect_brief(batch) → facts_stage（白描）→ structure_stage（剧情/节奏/人物）→ card_stage（v2 模块）→ card_accept → report → combo_suggest";
 /** Inspiration segment. */
@@ -33,7 +33,7 @@ export const SCHEDULER_BYPASSES = [
     {
         id: "inspire.craft_only",
         title: "仅技法灵感",
-        when: "有 craft 卡但无 mind 卡，仍要仅技法试写",
+        when: "可选标注仅技法用途，不再是缺 mind 的必经旁路",
         via: "inspire_start craft_only=true",
     },
     {
@@ -46,13 +46,13 @@ export const SCHEDULER_BYPASSES = [
         id: "multi.draft",
         title: "多草稿统一整理",
         when: "config.multiDraftEnabled 或 DSH_ZHIZHANG_MULTI_DRAFT=1；同章≥2 待采纳要对齐口气",
-        via: "candidate_stage(draft_label)×N → chapter_drafts → unify_brief → 整理 → unify_stage → style_lint → accept（默认链不进）",
+        via: "candidate_stage(draft_label)×N → chapter_drafts → unify_brief → 整理 → unify_stage → accept（内置扫描）（默认链不进）",
     },
     {
         id: "finalize.ship",
         title: "定稿与汇编",
         when: "章末或完书",
-        via: "chapter_save status=final · review_ledger · assemble",
+        via: "chapter_save status=reviewed + expected_revision → status=final · assemble",
     },
 ];
 /** Next-step hints keyed by just-finished tool family (for receipts). */
@@ -66,15 +66,15 @@ const NEXT_HINTS = {
     inspire_start: "zhizhang_inspire_forge_brief → stage → accept(apply=true)",
     inspire_stage: "zhizhang_inspire_accept(apply=true) → chapter_brief",
     inspire_accept_applied: SCHEDULER_WRITE_LINE,
-    chapter_brief: "创作 → candidate_stage → style_lint →（可选 edit）→ candidate_accept",
-    candidate_stage: "zhizhang_style_lint(candidate=…) →（可选 edit）→ candidate_accept",
-    style_lint: "可选 zhizhang_candidate_edit_brief → edit_stage；或直接 candidate_accept。编辑后须用户选 A/B/C，禁止静默验收",
-    candidate_edit_stage: "请用户选 A 编辑+一次确认验收 / B 仅候选再验 / C 拒编辑或换模式；未表态按 B",
-    candidate_edit_decide_b: "zhizhang_style_lint(candidate=编辑候选) → candidate_accept",
+    chapter_brief: "创作与回读 → candidate_stage → candidate_accept；定稿另核审读与授权",
+    candidate_stage: "回读候选后 candidate_accept（内置扫描）；需要诊断可提前 style_lint，深度编辑可选",
+    style_lint: "可选 zhizhang_candidate_edit_brief → edit_stage；或直接 candidate_accept。编辑采纳按实际授权；A/B/C 可选，采纳不等于定稿",
+    candidate_edit_stage: "按授权采纳编辑工作稿，或保留候选；A/B/C 兼容交互不要求重复确认",
+    candidate_edit_decide_b: "zhizhang_candidate_accept（内置扫描；提前 style_lint 可选）",
     candidate_edit_decide_c: "保留写手候选；或换 mode 重跑 edit_brief → edit_stage",
     candidate_accept: "续章再 chapter_brief；定稿旁路见 finalize.ship；诊断旁路见 diagnose.audit",
-    candidate_unify_brief: "整理合并正文 → zhizhang_candidate_unify_stage(candidate_ids=…, content=…) → style_lint → accept",
-    candidate_unify_stage: "zhizhang_style_lint(candidate=整理稿) → candidate_accept",
+    candidate_unify_brief: "整理合并正文 → zhizhang_candidate_unify_stage(candidate_ids=…, content=…) → candidate_accept（内置扫描）",
+    candidate_unify_stage: "zhizhang_candidate_accept（内置扫描）",
     project_create: "有卡：combo → inspire → " +
         SCHEDULER_WRITE_LINE +
         "；无卡：inspire_start(goal) 规划，或 outline_set → " +
@@ -120,8 +120,8 @@ export const Scheduler = {
             `- 库段：${SCHEDULER_LIBRARY_LINE}`,
             `- 灵感段：${SCHEDULER_INSPIRE_LINE}`,
             `- 写作段：${SCHEDULER_WRITE_LINE}`,
-            "- 可选 edit（去空转留毛边）：lint 后 edit_brief→改写→edit_stage；用户选 A（确认=编辑+accept）/ B（仅候选）/ C（拒/换模式）；未表态按 B；禁止静默验收",
-            "- 可选·多草稿（默认关）：同章多 stage → unify_brief → unify_stage → lint → accept；见旁路 multi.draft",
+            "- 编辑按需：edit_brief → 改写 → edit_stage；按真实授权采纳工作稿，或保留候选。A/B/C 为兼容交互，采纳不代表审读或定稿",
+            "- 可选·多草稿（默认关）：同章多 stage → unify_brief → unify_stage → candidate_accept（内置扫描）；见旁路 multi.draft",
             "- Accept 内嵌软传感（人味/书感/兑付/AI腔）；三 audit 仅诊断旁路",
             "",
             "### 旁路 BYPASS — 显式进入",

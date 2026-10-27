@@ -21,23 +21,22 @@ export const DISSECT_STEPS = [
 export const WRITE_STEPS = [
     { n: 1, tool: "chapter_brief(lean)", do: "只吃 craft + 前章正文 + 处境；full 是旁路" },
     { n: 2, tool: "（创作）", do: "按 brief 写正文；不写梗概" },
-    { n: 3, tool: "candidate_stage", do: "暂存候选（不落正式章）" },
-    { n: 4, tool: "style_lint(candidate)", do: "签发 lintPassToken；命中只警告，不等于质量" },
-    { n: 5, tool: "（可选）edit_brief → 改写 → edit_stage → A/B/C", do: "A=编辑+验收；B=仅候选；C=拒；未表态按 B" },
-    { n: 6, tool: "candidate_accept", do: "落盘正式章；回执含软传感" },
+    { n: 3, tool: "candidate_stage", do: "暂存候选，现行工作稿不变" },
+    { n: 4, tool: "（可选）edit_brief → 改写 → edit_stage", do: "按授权采纳或保留候选；A/B/C 兼容可用，不强制往返" },
+    { n: 5, tool: "candidate_accept", do: "内置扫描并采纳工作稿；内容审读与作者定稿另行表达" },
 ];
 export const DISSECT_STEP_COUNT = DISSECT_STEPS.length;
 export const WRITE_STEP_COUNT = WRITE_STEPS.length;
 export const WORKFLOWS = {
     library: {
-        title: `拆书入库（${DISSECT_STEP_COUNT} 步，照做）`,
+        title: `完整拆书入库（${DISSECT_STEP_COUNT} 步；局部分析无需全走）`,
         steps: DISSECT_STEPS,
-        gate: "出库标准：每张卡能回答五条（可操作 / 特异性 / 非梗概 / 状态落纸 / 失败边界）；置信度拆覆盖/证据/结构三层，Auto 抽样封顶 0.84；Full 才可下全书结论。",
+        gate: "出库标准：每张卡能回答五条（可操作 / 特异性 / 非梗概 / 状态落纸 / 失败边界）；置信度拆覆盖/证据/结构三层，Auto 抽样封顶 0.84；Full 且实际阅读覆盖充分，才讨论有依据的全书观察。",
     },
     writing: {
-        title: `写作（${WRITE_STEP_COUNT} 步，照做）`,
+        title: `写作（${WRITE_STEP_COUNT} 项指引，编辑可选）`,
         steps: WRITE_STEPS,
-        gate: "验收：雷达 0 ≠ 质量过关；人读一遍再定稿。",
+        gate: "扫描不代替内容审读；完整回读并声明当前版本审读，再按授权定稿。",
     },
 };
 /** 回执/描述里的 "N/9"；未知 kind 返回空串。 */

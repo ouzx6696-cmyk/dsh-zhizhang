@@ -1,7 +1,16 @@
 /**
  * MethodRegistry — on-demand creative method assets (Contract 4.0 + skill rules).
  */
-import { CHAPTER_BRIEF_ASSET_IDS, CHAPTER_BRIEF_FULL_ASSET_IDS, formatAssetForAgent, formatReaderContract as formatReaderContractText, getMethodAsset, getMethodAssets, listMethodAssets, METHOD_ASSET_IDS, } from "../method-assets.js";
+import {
+    CHAPTER_BRIEF_ASSET_IDS,
+    CHAPTER_BRIEF_FULL_ASSET_IDS,
+    formatAssetForAgent,
+    formatReaderContract as formatReaderContractText,
+    getMethodAsset,
+    getMethodAssets,
+    listMethodAssets,
+    METHOD_ASSET_IDS,
+} from "../method-assets.js";
 export const MethodRegistry = {
     ids: METHOD_ASSET_IDS,
     briefDefaultIds: CHAPTER_BRIEF_ASSET_IDS,

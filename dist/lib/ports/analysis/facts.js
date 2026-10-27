@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { assertNoPendingCard } from "../../storage/card-journal.js";
 /** 事实层：逐章白描校验与落盘。 */
 import { withResourceLock } from "../../storage/process-lock.js";
@@ -5,7 +6,7 @@ import { ZhizhangError } from "../../errors.js";
 import { HOOK_STRENGTHS, HOOK_TYPES } from "../../domain/card-schema.js";
 import { quoteOk } from "../../domain/evidence.js";
 import { analysisPaths, ensureDir, nowIso, readJsonl } from "./paths.js";
-import { snapshotFile } from "../../storage/accept-journal.js";
+import { snapshotFile } from "../../storage/recovery-common.js";
 import { commitAnalysisUpdate } from "./meta.js";
 /** 白描硬禁：心理/评价词。desc 里出现即视为「替人物补动机/下判断」。 */
 export const WHITE_DESC_HARD_RE = /(心里|心中|内心|觉得|认为|希望|害怕|恐惧|愤怒|悲伤|难过|失望|后悔|其实|显然|精彩|感人|震撼)/;
@@ -18,7 +19,8 @@ export function validateChapterFacts(facts, sourceText, index) {
     const n = Number(f.n);
     if (f.readingLevel !== undefined && f.readingLevel !== "正文已读" && f.readingLevel !== "深读")
         errors.push("readingLevel 只接受正文已读或深读；未声明时请省略");
-    const chapter = index.find((c) => c.n === n);
+    const matches = index.filter((c) => c.n === n && (f.sourceStart === undefined || c.start === f.sourceStart));
+    const chapter = matches.length === 1 ? matches[0] : undefined;
     if (!Number.isInteger(n) || !chapter) {
         errors.push(`章号不存在：${f.n}`);
         return { errors, warnings };
@@ -40,7 +42,7 @@ export function validateChapterFacts(facts, sourceText, index) {
         else if (!quoteOk(quote, text))
             errors.push(`events[${i}].quote 在该章原文找不到：${quote.slice(0, 40)}`);
         if (WHITE_DESC_HARD_RE.test(desc))
-            errors.push(`events[${i}].desc 含心理/评价词（${desc.match(WHITE_DESC_HARD_RE)?.[0]}）：白描只写动作与结果，动机写进 unknowns`);
+            warnings.push(`events[${i}].desc 含心理/评价词（${desc.match(WHITE_DESC_HARD_RE)?.[0]}）：白描只写动作与结果，动机写进 unknowns`);
         else if (WHITE_DESC_SOFT_RE.test(desc))
             warnings.push(`events[${i}].desc 含因果/意图词（${desc.match(WHITE_DESC_SOFT_RE)?.[0]}）：能改成动作就改`);
     }
@@ -76,8 +78,8 @@ export async function upsertChapter(paths, sourceId, facts, sourceText, index) {
         await assertNoPendingCard(paths.library);
         const before = await snapshotFile(p.chapters);
         const rows = await readJsonl(p.chapters);
-        const rec = { ...facts, n: Number(facts.n), schemaVersion: 2, updatedAt: nowIso() };
-        const at = rows.findIndex((r) => Number(r.n) === rec.n);
+        const rec = { ...facts, n: Number(facts.n), sourceStart: index.find(c => c.n === Number(facts.n) && (facts.sourceStart === undefined || c.start === facts.sourceStart)).start, sourceHash: createHash("sha256").update(sourceText).digest("hex"), schemaVersion: 2, updatedAt: nowIso() };
+        const at = rows.findIndex((r) => Number(r.n) === rec.n && (r.sourceStart === undefined || r.sourceStart === rec.sourceStart));
         if (at >= 0)
             rows[at] = rec;
         else

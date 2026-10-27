@@ -1,11 +1,12 @@
+import { applyRecordedWrites } from "./recovery-common.js";
 /** Recover a facts or analysis aggregate update together with its progress metadata. */
 import { createHash, randomUUID } from "node:crypto";
 import { hostname } from "node:os";
 import { lstat, open, readFile, unlink } from "node:fs/promises";
 import path from "node:path";
 import { ZhizhangError } from "../errors.js";
-import { atomicWrite, isMissingFileError } from "./primitives.js";
-import { snapshotFile, ensureRecoveryOwnerInactive } from "./accept-journal.js";
+import { isMissingFileError } from "./primitives.js";
+import { snapshotFile, ensureRecoveryOwnerInactive } from "./recovery-common.js";
 import { withResourceLock } from "./process-lock.js";
 const FILE = ".zhizhang-analysis-pending.json";
 const hash = (s: string) => createHash("sha256").update(s).digest("hex");
@@ -28,14 +29,7 @@ async function apply(library: string, j: Intent) {
     let state = await classify(library, j);
     if (state.conflict)
         throw new ZhizhangError("library_recovery_conflict", `以下分析文件已变化，未覆盖：${state.writes.filter(w => w.state === "冲突").map(w => w.file).join("、")}。`);
-    for (let i = 0; i < j.writes.length; i++) {
-        const w = j.writes[i];
-        if (state.writes[i].state === "已写入") continue;
-        const file = path.join(library, w.file);
-        if (await snapshotFile(file) !== w.before)
-            throw new ZhizhangError("library_recovery_conflict", `${w.file} 在恢复期间变化。`);
-        await atomicWrite(file, w.content);
-    }
+    await applyRecordedWrites(j.writes.map(w => ({ ...w, file: path.join(library, w.file) })), "library_recovery_conflict");
     state = await classify(library, j);
     if (state.conflict || state.writes.some(w => w.state !== "已写入"))
         throw new ZhizhangError("library_recovery_conflict", "分析文件在恢复期间变化，请保留记录并核对。");

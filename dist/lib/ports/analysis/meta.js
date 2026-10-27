@@ -1,12 +1,12 @@
 import { assertNoPendingCard } from "../../storage/card-journal.js";
 import { withResourceLock } from "../../storage/process-lock.js";
-import { snapshotFile } from "../../storage/accept-journal.js";
+import { snapshotFile } from "../../storage/recovery-common.js";
 import { createAnalysisJournal, finishAnalysisJournal } from "../../storage/analysis-journal.js";
 import { ZhizhangError } from "../../errors.js";
 /** 分析 meta / bundle / 列表。 */
 import path from "node:path";
 import { readdir } from "node:fs/promises";
-import { atomicWrite } from "../../store.js";
+import { atomicWrite } from "../../storage/primitives.js";
 import { analysisPaths, assertSourceId, ensureDir, nowIso, readJson, readJsonl } from "./paths.js";
 import { chapterIndex, totalChapters } from "./chapters.js";
 export async function ensureAnalysis(paths, sourceId, sourceText) {

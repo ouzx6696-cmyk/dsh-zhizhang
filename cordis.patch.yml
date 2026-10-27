@@ -1,6 +1,6 @@
 # dsh-zhizhang bundle patch: insert the 织章 engineering-tools plugin.
 # Row name is the npm package so Node resolves from the profile's node_modules.
-# Mounting registers only zhizhang_enable (+ read-only panel HTTP); the full tool set and
+# Mounting registers only zhizhang_enable (+ protected panel HTTP); the full tool set and
 # hard-rules prompt section mount per Agent after that trigger. rootDir defaults under
 # the session cwd; override in profile cordis.patch.yml.
 - insert:

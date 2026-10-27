@@ -1,9 +1,5 @@
 /** 章节目录 — 支持阿拉伯/中文数字与序章。 */
-import {
-    CHAPTER_HEADING_RE,
-    FRONT_HEADING_RE,
-    parseChapterHeading,
-} from "../../domain/chapter-heading.js";
+import { CHAPTER_HEADING_RE, FRONT_HEADING_RE, parseChapterHeading, } from "../../domain/chapter-heading.js";
 
 function fresh(re: any) {
     return new RegExp(re.source, re.flags);
@@ -38,7 +34,8 @@ export function totalChapters(index: { n: number; title: string; start: number; 
 }
 
 export function chapterText(text: string, index: { n: number; title: string; start: number; end: number }[], n: number) {
-    const hit = index.find((c: any) => c.n === Number(n));
+    const matches = index.filter((c: any) => c.n === Number(n));
+    const hit = matches.length === 1 ? matches[0] : null;
     if (!hit)
         return null;
     return String(text).slice(hit.start, hit.end);

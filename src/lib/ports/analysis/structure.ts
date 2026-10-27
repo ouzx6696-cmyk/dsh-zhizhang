@@ -5,7 +5,7 @@ import type { StoragePaths } from "../../types.js";
 import { ZhizhangError } from "../../errors.js";
 import { analysisPaths, ensureDir, nowIso, readJson, readJsonl } from "./paths.js";
 import { commitAnalysisUpdate } from "./meta.js";
-import { snapshotFile } from "../../storage/accept-journal.js";
+import { snapshotFile } from "../../storage/recovery-common.js";
 
 export function validatePlot(plot: any) {
     const errors = [];

@@ -262,7 +262,6 @@ export function formatHandoffBlock(h: any) {
         `- discard：${h.discard}`,
     ].join("\n");
 }
-const KIND_SET = new Set(["craft", "scene", "book", "voice"]); // voice=legacy alias → craft
 export function normalizeKind(raw: any) {
     const warnings: string[] = [];
     if (raw == null || raw === "") {
@@ -538,7 +537,7 @@ export function formatModuleBlockV2(card: any) {
         `- 失败边界：${card.failWhen ?? "（未填）"}`,
         `- 证据：${ev || "（未填）"}`,
         ...(Array.isArray(card.readingEvidence?.chapters)
-            ? [`- 引用章阅读程度（提交时申报，非机械证明）：${card.readingEvidence.chapters.map((c: any) => `第${c.chapter}章 ${c.readingLevel}`).join("；") || "未声明"}`]
+            ? [`- 引用章阅读程度（提交时申报，非机械证明）：${card.readingEvidence.chapters.map((c: any) => `第${c.chapter}章 ${c.readingLevel}${c.sourceMatches === false ? "（历史来源版本，待重核）" : c.sourceMatches === null ? "（来源版本未知）" : ""}`).join("；") || "未声明"}`]
             : ["- 引用章阅读程度：未声明（旧卡无申报快照）"]),
         ...(Array.isArray(card.steps) && card.steps.length ? [`- 操作步骤：${card.steps.map((x: any, i: number) => `${i + 1}) ${x}`).join(" ")}`] : []),
         ...(Array.isArray(card.bannedDiction) && card.bannedDiction.length ? [`- 禁用词句：${card.bannedDiction.join("、")}`] : []),

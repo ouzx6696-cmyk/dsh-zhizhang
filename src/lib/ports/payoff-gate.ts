@@ -4,7 +4,7 @@ export const PayoffGate = {
         const { payoff, requirePayoff } = opts;
         if (requirePayoff) {
             if (!payoff) {
-                return deny("payoff_missing", `require_payoff=true：本章无近期 zhizhang_payoff_audit。请先审计，或关闭 require_payoff（默认仅警告 payoff_missing）。`);
+                return deny("payoff_missing", `require_payoff=true：本章无匹配当前正文与章纲版本的 zhizhang_payoff_audit。请先审计，或关闭 require_payoff（默认仅警告 payoff_missing）。`);
             }
             if (!payoff.ok) {
                 return deny("payoff_not_ok", `require_payoff=true：最近兑付审计未通过（${payoff.summary}）。请改稿或关闭 require_payoff（默认仅警告 payoff_not_ok）。`);
@@ -12,7 +12,7 @@ export const PayoffGate = {
         }
         if (!payoff) {
             return allow([
-                warn("payoff_missing", `本章无近期 zhizhang_payoff_audit（软提示）。默认链不强制；accept 已看 ending。细诊再跑 payoff_audit；require_payoff=true 才硬拒。`),
+                warn("payoff_missing", `本章无匹配当前正文与章纲版本的 zhizhang_payoff_audit（软提示）。默认链不强制；accept 已看 ending。细诊再跑 payoff_audit；require_payoff=true 才硬拒。`),
             ]);
         }
         if (!payoff.ok) {

@@ -5,7 +5,7 @@ import { lstat, open, readFile, unlink } from "node:fs/promises";
 import path from "node:path";
 import { ZhizhangError } from "../errors.js";
 import { atomicWrite, isMissingFileError } from "./primitives.js";
-import { snapshotFile, ensureRecoveryOwnerInactive } from "./accept-journal.js";
+import { snapshotFile, ensureRecoveryOwnerInactive } from "./recovery-common.js";
 import { withResourceLock } from "./process-lock.js";
 const FILE = ".zhizhang-source-pending.json";
 const hash = (s: string) => createHash("sha256").update(s).digest("hex");

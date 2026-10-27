@@ -2,7 +2,7 @@
  * Panel / HTTP accept — 与 zhizhang_candidate_accept 共用 services/accept.js。
  * 面板额外要求 confirm=true（防误点）；编辑候选按路径 A 自动补确认。
  */
-import { readCandidate, resolveWorkDir } from "./store.js";
+import { readCandidate, resolveWorkDir } from "./work-store.js";
 import { runAccept } from "./services/accept.js";
 import { ZhizhangError } from "./errors.js";
 
@@ -54,7 +54,7 @@ export async function runPanelAccept(paths: import("./types.js").StoragePaths, r
         return {
             ok: false,
             code: "edit_accept_confirm_required",
-            error: "编辑候选路径 A 须 confirm_accept_after_edit=true（确认：采纳本章编辑稿并验收为正式章）。禁止静默验收。",
+            error: "编辑候选路径 A 须 confirm_accept_after_edit=true（确认：采纳本章编辑稿为当前工作稿）。禁止静默验收。",
             needEditConfirm: true,
             needConfirm: true,
         };
@@ -66,6 +66,7 @@ export async function runPanelAccept(paths: import("./types.js").StoragePaths, r
         candidateId,
         mode: req.mode === "append" ? "append" : "replace",
         force: req.force === true,
+        expectedRevision: req.expectedRevision,
         lintPassToken: req.lintPassToken,
         skipBrief: req.skipBrief === true,
         // 严格旗标只认真 boolean：Boolean("false")===true 的坑在面板同样要防，

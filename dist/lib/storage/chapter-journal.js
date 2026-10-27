@@ -1,11 +1,12 @@
+import { applyRecordedWrites } from "./recovery-common.js";
 /** Recover a direct chapter or outline save interrupted between chapter and metadata. */
 import { createHash, randomUUID } from "node:crypto";
 import { hostname } from "node:os";
 import { lstat, open, readFile, unlink } from "node:fs/promises";
 import path from "node:path";
 import { ZhizhangError } from "../errors.js";
-import { assertResourceId, atomicWrite, isMissingFileError } from "./primitives.js";
-import { ensureRecoveryOwnerInactive, snapshotFile } from "./accept-journal.js";
+import { assertResourceId, isMissingFileError } from "./primitives.js";
+import { ensureRecoveryOwnerInactive, snapshotFile } from "./recovery-common.js";
 import { withResourceLock } from "./process-lock.js";
 const FILE = ".zhizhang-chapter-pending.json";
 const hash = (s) => createHash("sha256").update(s).digest("hex");
@@ -36,20 +37,20 @@ async function readIntent(dir) {
     }
     try {
         const j = JSON.parse(raw);
-        if (![1, 2, 3, 4].includes(j.version) || !/^[a-f0-9-]{36}$/.test(j.id) || !j.owner || !Number.isSafeInteger(j.owner.pid) || j.owner.pid < 1 || typeof j.owner.host !== "string" || typeof j.createdAt !== "string" || typeof j.chapterId !== "string")
+        if (![1, 2, 3, 4, 5].includes(j.version) || !/^[a-f0-9-]{36}$/.test(j.id) || !j.owner || !Number.isSafeInteger(j.owner.pid) || j.owner.pid < 1 || typeof j.owner.host !== "string" || typeof j.createdAt !== "string" || typeof j.chapterId !== "string")
             throw Error();
         if (j.version === 2 && j.kind !== "brief" && j.kind !== "payoff")
             throw Error();
         if (j.version === 3 && j.kind !== "lint" || j.version === 4 && j.kind !== "stage")
             throw Error();
-        const candidateId = j.version >= 3 ? assertResourceId(j.candidateId, "候选 id") : "";
-        const files = j.version === 1 ? [`chapters/${assertResourceId(j.chapterId, "章节 id")}.md`, "meta.json"]
+        const candidateId = (j.version === 3 || j.version === 4) ? assertResourceId(j.candidateId, "候选 id") : "";
+        const files = (j.version === 1 || j.version === 5) ? [`chapters/${assertResourceId(j.chapterId, "章节 id")}.md`, "meta.json", ...(j.version === 5 ? ["ledger.json"] : [])]
             : j.version === 2 ? [j.kind === "brief" ? "brief-crumbs.json" : "payoff-audits.json", "ledger.json"]
                 : j.version === 3 ? [`candidates/${candidateId}.json`, "ledger.json"]
                     : [`candidates/${candidateId}.md`, `candidates/${candidateId}.json`];
-        if (!Array.isArray(j.writes) || j.writes.length !== 2)
+        if (!Array.isArray(j.writes) || j.writes.length !== files.length)
             throw Error();
-        for (let i = 0; i < 2; i++) {
+        for (let i = 0; i < files.length; i++) {
             const w = j.writes[i];
             if (!w || w.file !== files[i] || !(w.before === null || /^[a-f0-9]{64}$/.test(w.before)) || !/^[a-f0-9]{64}$/.test(w.after) || typeof w.content !== "string" || hash(w.content) !== w.after)
                 throw Error();
@@ -64,7 +65,7 @@ async function readIntent(dir) {
 }
 async function classify(dir, j) { const writes = await Promise.all(j.writes.map(async (w) => { const current = await snapshotFile(path.join(dir, w.file)); return { file: w.file, state: current === w.after ? "已写入" : current === w.before ? "待写入" : "冲突" }; })); return { writes, conflict: writes.some(w => w.state === "冲突") }; }
 export async function createChapterJournal(dir, input) {
-    const j = { version: 1, id: randomUUID(), owner: { pid: process.pid, host: hostname() }, createdAt: new Date().toISOString(), chapterId: input.chapterId, writes: input.writes.map(w => ({ ...w, after: hash(w.content) })) };
+    const j = { version: input.writes.length === 3 ? 5 : 1, id: randomUUID(), owner: { pid: process.pid, host: hostname() }, createdAt: new Date().toISOString(), chapterId: input.chapterId, writes: input.writes.map(w => ({ ...w, after: hash(w.content) })) };
     let h;
     try {
         h = await open(path.join(dir, FILE), "wx", 0o600);
@@ -114,15 +115,7 @@ async function apply(dir, j) {
     let state = await classify(dir, j);
     if (state.conflict)
         throw new ZhizhangError("recovery_conflict", `文件已变化，未覆盖：${state.writes.filter(w => w.state === "冲突").map(w => w.file).join("、")}。`);
-    for (let i = 0; i < j.writes.length; i++) {
-        const w = j.writes[i];
-        if (state.writes[i].state === "已写入")
-            continue;
-        const file = path.join(dir, w.file);
-        if (await snapshotFile(file) !== w.before)
-            throw new ZhizhangError("recovery_conflict", `${w.file} 在恢复期间变化，已停止。`);
-        await atomicWrite(file, w.content);
-    }
+    await applyRecordedWrites(j.writes.map(w => ({ ...w, file: path.join(dir, w.file) })), "recovery_conflict");
     state = await classify(dir, j);
     if (state.conflict || state.writes.some(w => w.state !== "已写入"))
         throw new ZhizhangError("recovery_conflict", "文件在恢复期间变化，请保留记录并核对。");

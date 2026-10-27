@@ -1,4 +1,5 @@
 /** Compose domain tool arrays — public tool names stay stable. */
+import { referenceTools } from "./reference.js";
 import { auditTools } from "./audit.js";
 import { candidatesTools } from "./candidates.js";
 import { exportTools } from "./export.js";
@@ -11,6 +12,7 @@ import { worksTools } from "./works.js";
 export function allTools() {
     return [
         ...worksTools(),
+        ...referenceTools(),
         ...auditTools(),
         ...candidatesTools(),
         ...exportTools(),

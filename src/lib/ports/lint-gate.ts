@@ -1,4 +1,4 @@
-import { markCandidateLinted } from "../store.js";
+import { markCandidateLinted } from "../work-store.js";
 import { allow, deny, warn } from "./types.js";
 export const LintGate = {
     async issueToken(dir: string, candidateId: string, hitCount: any, expectedBody?: string) {

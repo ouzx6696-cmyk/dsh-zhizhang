@@ -1,11 +1,7 @@
+export { snapshotFile, ensureRecoveryOwnerInactive } from "./recovery-common.js";
 type Snapshot = string | null;
-export declare function snapshotFile(file: string): Promise<Snapshot>;
 /** A pending acceptance is never silently interpreted as a completed state. */
 export declare function assertNoPendingAccept(dir: string): Promise<void>;
-export declare function ensureRecoveryOwnerInactive(owner: {
-    pid: number;
-    host: string;
-}): void;
 /** Construct the intent before any of the four authoritative files are written. */
 export declare function createAcceptJournal(dir: string, input: {
     chapterId: string;
@@ -42,4 +38,3 @@ export declare function resumePendingAccept(dir: string): Promise<{
     candidateId: string;
     mode: "replace" | "append";
 }>;
-export {};

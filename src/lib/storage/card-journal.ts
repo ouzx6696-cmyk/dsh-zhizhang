@@ -6,7 +6,7 @@ import path from "node:path";
 import { ZhizhangError } from "../errors.js";
 import { assertResourceId, atomicWrite, isMissingFileError } from "./primitives.js";
 import { withResourceLock } from "./process-lock.js";
-import { ensureRecoveryOwnerInactive, snapshotFile } from "./accept-journal.js";
+import { ensureRecoveryOwnerInactive, snapshotFile } from "./recovery-common.js";
 import { assertNoPendingSource } from "./source-journal.js";
 import { assertNoPendingDiscard } from "./discard-journal.js";
 import { assertNoPendingAnalysis } from "./analysis-journal.js";

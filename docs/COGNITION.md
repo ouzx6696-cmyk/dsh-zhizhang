@@ -1,146 +1,36 @@
-# 织章认知总览 · dsh-zhizhang 0.17.0
+# 织章的整体模型 · 0.18.0
 
-> **从这一份开始读懂全局。**  
-> 产品/工程对齐用；不含开发流水账。细节分册见文末导航。
+织章帮助作者与 AI 长期协作维护同一部作品。价值在于恢复现场、给足创作依据、明确采用范围和控制修订影响。工具、字段、门禁和文件数量都是实现手段。
 
----
+## 信息身份
 
-## 1. 织章是什么
+| 信息 | 权威范围 |
+| --- | --- |
+| 作者目标与锁定 | 本书创作意图和边界，不能凭代码自动改动 |
+| 参考原文与分析 | 有来源和阅读范围的观察，不能当成本书事实 |
+| 采用规划 | 当前允许用于创作的方案，不代表已经发生 |
+| 工作稿与候选 | 当前表达或备选，可明确作为后稿条件依据 |
+| 定稿正文 | 已发生叙事的主要来源，仍需区分人物说法、读者揭示和角色获知 |
+| 摘要、brief、诊断、索引 | 带来源与版本的辅助信息，不反向改正文制造一致 |
 
-**织章**是 DeepSeek Harness（DSH）上的**工具型网文工程层**。
+`stage` 会保存候选；`accept` 才应用到当前工作稿。采纳、内容审读与作者定稿分别表达。旧定稿兼容保留，不能补造历史审读证据。
 
-- **不调模型**：本插件不内置 chat/completion；AI 只通过工具交创作字符串。
-- **工程归代码**：落盘、锁、门禁、审校留痕、策略 —— 在 TypeScript（经 Ports）。
-- **创作归 AI**：大纲措辞、正文、改稿、拆书分析 —— 作为工具参数提交；**显式 accept 才持久化**。
-- **按需启用**：profile 挂载只注册 `zhizhang_enable`；普通会话不注入 51 工具与硬规则。
-  需要写小说时调用 `zhizhang_enable`，工具与硬规则才按 Agent 作用域挂上（换会话重来）。
-- **面板归读与闸**：侧栏「织章」默认是**小说阅读工作台**（三栏读正文 / 对照候选 / 真采纳）；产文仍靠对话里的 Agent。
-- **目标**：在**质量**（人味·书感·毒点·兑付·AI腔·反僵硬）与**效率**（默认最短合格路径）之间，给 Agent 一条看一眼就懂的链。
+## 日常循环
 
-一句话：
+恢复现场 → 取本章现行依据 → 创作与回读 → 暂存候选 → 显式采纳 → 继续写作或按授权定稿。
 
-```text
-书进库（双轴卡）→ combo → 灵感落根基/纲 → lean 开写 → stage→lint→（可选 edit）→ accept
-```
+参考分析是可选上游；用户有章纲可直接写，有目标可直接规划。只分析片段时不自动入库，也不启动原创写作。角色是职责，可由同一 Agent 先写后审，不要求多代理。
 
-可选旁路（默认关、不进主链）：**多草稿统一整理**；诊断 audit；厚 brief；直写；定稿汇编。
+简报包含本章关键经历、知识边界、相关规划、前章正文、本书讲法与必要接续信息。工作前稿标为条件依据。超长正文如截断，须补读才能声称完整接续。
 
-迷路先调工具：`zhizhang_product_map`。
+## 修订
 
----
+修订先核现行基线，保留原稿字节，显式应用当前候选，再提示相关后稿和状态核对。历史不参与普通汇编。旧候选不能整章覆盖后来改过的正文；显式 append 是锁内追加，语义不同。
 
-## 2. 质量 × 效率
+定稿正文变化需 `force=true` 并降回草稿。审读记录绑定具体正文及依据；重新定稿核版本、前章依赖和实际授权。对锁定或其他定稿的语义冲突仍需作者决定。
 
-| 维度 | 怎么落地 |
-|------|----------|
-| **效率** | `port.scheduler` 单源：默认最短合格；audit / 厚 brief / 直写 / 硬开关 / 多草稿 / 定稿 全是**显式旁路** |
-| **质量** | `QualityPolicy` 五轴一体（含**反僵硬**）；Accept 内嵌软传感；雷达 0 ≠ 质量过关；Agent 提示写「要写成什么样」 |
-| **分喂** | mind → 设定/章纲；craft → lean brief（写法+状态，**前章正文，超长时保留头尾并标明省略** n≥2）；不灌角色声纹原句 |
-| **边界** | 工具薄接线；策略只改 Ports；禁止 bash 直改 `.zhizhang/**`；禁止静默写正式章 |
+## 分工
 
----
+代码负责确定性约束、版本与文件；AI 提供分析、规划、正文和审读声明；作者决定方向、采用和定稿；面板让作者看清当前现场。词表、文件存在和模型声明均不证明文学或市场效果。
 
-## 3. 三角闭环（一图）
-
-三阶段是**同一条链上的工序**，不是三个独立产品；面板与工具共用这一条。
-
-```text
-┌─────────────┐     combo      ┌─────────────┐    apply     ┌──────────────┐
-│  ① 拆书库    │ ────────────► │  ② 灵感推演  │ ──────────► │  ③ 写作工程   │
-│ Library     │  1 mind+N craft│ Inspiration │  根基/章纲   │ Writing      │
-│ craft|mind  │                │ mind 主粮    │              │ lean→stage   │
-│ → card_ids  │                │ craft 辅     │              │ →lint→可选edit│
-│             │                │              │              │ →accept      │
-└─────────────┘                └─────────────┘              └──────────────┘
-        ▲                                                         │
-        │              MethodRegistry（共享方法包 ≠ 拆书卡）         │
-        └──────────────────── 按需注入；lean 默认仅 style_contract ─┘
-
-旁路（显式）：diagnose.audit · brief.full · save.direct · inspire.craft_only
-            · accept.flags · multi.draft（默认关）· finalize.ship
-
-Web：侧栏织章 → 默认「小说」三栏阅读；顶栏切「管线」看库/灵感/写作仪表
-```
-
-| 阶段 | 交出什么 | 下一站吃什么 |
-|------|----------|--------------|
-| ① 库 | 已采纳双轴卡；combo 包 `card_ids` | inspire 或（有根基时）直接 brief |
-| ② 灵感 | foundation / outline（显式 apply） | chapter_brief(lean) |
-| ③ 写作 | 候选正文经门禁入章（可选编辑 A/B/C；可选多草稿整理） | 续章再 brief；定稿走旁路 |
-
-默认全链（与代码 `Scheduler.defaultLine()` 一致）：
-
-```text
-拆书（事实→聚合→模块）→ 书进库（book|scene）→ library_combo_suggest（1 book + N scene，可跨书）
-  → inspire 落根基/纲 → chapter_brief(lean，只吃 craft）
-  → candidate_stage → style_lint →（可选 edit）→ candidate_accept
-```
-
----
-
-## 4. 分层（谁干什么）
-
-```text
-Host (DSH)
-  → tools.register + SYSTEM_BRIEF
-  → Tools（薄：校验 · 开存储 · 调 Port · 拼回执）
-  → Ports（Scheduler · ProductMap · Library · Inspiration · Edit · MultiDraft · Gates · QualityPolicy · Methods）
-  → Store + Sensors
-  → .zhizhang/{works,library,inspiration}/
-  → Web seats：sidebar + main（小说工作台）+ settings；HTTP 读章/采纳
-```
-
-| 归代码 | 归 AI | 归面板 |
-|--------|--------|--------|
-| 落盘、锁、原子写、路径沙箱 | 大纲、正文、改稿、拆书分析 | 读正式章/候选全文 |
-| 门禁（Ports）、雷达、兑付审计 | 把成稿作为**工具参数**提交 | 二次确认真采纳（同 Accept） |
-| 候选 stage / accept、审校留痕（ledger.json） | 五类证据诊断（写入 ledger） | 多草稿开启时出 unify brief（不写盘） |
-| final 拒覆盖、禁止双采纳 | **不**直接碰磁盘、**不**自称已写库 | **不**自带模型产文、**不**第二套 Word |
-
----
-
-## 4.1 当前小说状态（连续性）
-
-对外口径统一叫 **「当前小说状态」**。工程 `ledger.json` 只做审校留痕，不充当小说状态名。
-
-| 组成 | 说明 |
-|------|------|
-| `foundation.happened` | 状态·已发生（accept 按纲末/正文末拍对齐短追加） |
-| 前章正文（超长时保留头尾并标明省略） + ending/happened 索引 | lean n≥2 注入前章正文；ending/happened 只作索引 |
-| planned / threads / locks | 合同骨 |
-| 工程 `ledger.json` | **仅**审校/操作留痕，**不是**小说状态 |
-
-物品：**只记有什么**；勿抬成「章末必须留物」硬债。毒点仍禁对账**流水**（反面教材）。
-
-## 4.2 可选能力（默认不加重）
-
-| 能力 | 默认 | 怎么开 | 面板角色 |
-|------|------|--------|----------|
-| 写后编辑 A/B/C | 可选，非每章必经 | lint 后 `edit_*` 工具；用户选 A/B/C | 说明卡 + 正式采纳；decide 走工具 |
-| 多草稿统一整理 | **关** | `multiDraft.enabled` 或 `DSH_ZHIZHANG_MULTI_DRAFT=1` | 「统一整理」只出 brief |
-| 阅读工作台 | **开**（默认 UI） | 侧栏织章 | 三栏读/对照/采纳 |
-
-## 5. 认知分册导航
-
-| 文档 | 一句话用途 |
-|------|------------|
-| **[COGNITION.md](./COGNITION.md)**（本页） | 总入口：是什么、一图、怎么读 |
-| [MAP.md](./MAP.md) | 默认路径 + 显式旁路（对齐 Scheduler / ProductMap） |
-| [PILLARS.md](./PILLARS.md) | 三柱说明书：库 / 灵感 / 写作 |
-| [QUALITY.md](./QUALITY.md) | 创作口径：人味·书感·毒点·brief 保砍 |
-| [CHANGE.md](./CHANGE.md) | 改哪里：ports-only、新能力怎么挂测 |
-| [PORTS.md](./PORTS.md) | 端口契约手册（改策略时翻） |
-| [TOOLS.md](./TOOLS.md) | 工具一览（按默认/旁路排） |
-| [TEST.md](./TEST.md) | 测试分层与加测规则 |
-| [DATA.md](./DATA.md) | 磁盘布局与卡 schema |
-| [ARCHITECTURE.md](./ARCHITECTURE.md) | 代码 vs AI 边界（短） |
-| [FRAMEWORK.md](./FRAMEWORK.md) | 最小锚点：原则 / 闭环 / 分层 |
-| [STATUS.md](./STATUS.md) | 当前版本事实快照 |
-| [DSH_INSTALL.md](./DSH_INSTALL.md) | 安装到 DSH |
-| [PANEL.md](./PANEL.md) | 面板 / 小说工作台 |
-
-**读法建议**
-
-1. 产品新人：本页 → MAP → PILLARS → PANEL → QUALITY  
-2. 要改行为：CHANGE → PORTS → TEST  
-3. Agent 迷路：工具 `zhizhang_product_map`（运行时地图 ≡ MAP 同源）
+架构见 [ARCHITECTURE.md](ARCHITECTURE.md)，任务路径见 [MAP.md](MAP.md)，实际结果见 [IMPLEMENTATION.md](IMPLEMENTATION.md)。

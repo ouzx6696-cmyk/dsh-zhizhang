@@ -1,7 +1,7 @@
 import { getPortConfig } from "./config.js";
 import { Scheduler } from "./scheduler.js";
 import { PLUGIN_VERSION } from "../version.js";
-import { countWords } from "../store.js";
+import { countWords } from "../work-store.js";
 export const MULTI_DRAFT_DISABLED_CODE = "multi_draft_disabled";
 export function envMultiDraftFlag() {
     const raw = String(process.env.DSH_ZHIZHANG_MULTI_DRAFT ?? "")
@@ -77,7 +77,7 @@ export const MultiDraftPort = {
             lines.push(`- ${p.id}${label} · ${p.wordCount} 字` + (p.note ? ` · ${p.note}` : ""));
             lines.push(`  摘录：${p.preview || "（空）"}`);
         }
-        lines.push("", "【硬边界】", "- 只输出合并后的本章正文，无对比报告。", "- 不新增无关支线；不静默写 chapters/。", "- 整理稿经 unify_stage 暂存后，仍须 style_lint → candidate_accept。", "", `下一步：${Scheduler.nextHint("candidate_unify_brief")}`);
+        lines.push("", "【硬边界】", "- 只输出合并后的本章正文，无对比报告。", "- 不新增无关支线；不静默写 chapters/。", "- 整理稿经 unify_stage 暂存后，仍须 candidate_accept（内置扫描）。", "", `下一步：${Scheduler.nextHint("candidate_unify_brief")}`);
         return lines.join("\n");
     },
     afterUnifyStageLines(opts) {

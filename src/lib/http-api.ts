@@ -1,12 +1,30 @@
+import { buildPanelSnapshot, listChapterLensRows } from "./panel-query.js";
 import { access, readFile } from "node:fs/promises";
 import { timingSafeEqual } from "node:crypto";
 import { networkInterfaces } from "node:os";
 import type { StoragePaths, PluginConfig } from "./types.js";
 import path from "node:path";
-import { assertResourceId, buildPanelSnapshot, candidateHasLintPass, countWords, ensureStorage, getLastToolBase, listCandidates, listChapterLensRows, listProjects, listWorks, loadLastToolBase, projectIdOf, readCandidate, readChapter, resolveWorkDir, } from "./store.js";
+import {
+    assertResourceId,
+    candidateHasLintPass,
+    countWords,
+    ensureStorage,
+    getLastToolBase,
+    listCandidates,
+    listProjects,
+    listWorks,
+    loadLastToolBase,
+    projectIdOf,
+    readCandidate,
+    readChapter,
+    resolveWorkDir,
+} from "./work-store.js";
 import { buildInspirationView, buildLibraryView, buildProductView } from "./panel-enrich.js";
 import { runPanelAccept } from "./panel-accept.js";
-import { readWorkMeta } from "./store.js";
+import { updateChapter } from "./storage/chapters.js";
+import { withPortConfig } from "./ports/config.js";
+import { envMultiDraftFlag } from "./ports/multi-draft.js";
+import { readWorkMeta } from "./work-store.js";
 import { ZhizhangError } from "./errors.js";
 import { MultiDraftPort } from "./ports/multi-draft.js";
 /** Soft body cap for panel reads (~400 KiB). */
@@ -100,33 +118,23 @@ function tokenOk(req: any, config: PluginConfig) {
     return a.length === b.length && timingSafeEqual(a, b);
 }
 /**
- * Loopback: trusted, but an explicit Origin (browser) must still match Host —
- * DNS-rebinding pages post a cross-origin Origin we can reject.
+ * Loopback also requires a trusted Host; matching arbitrary Host/Origin is insufficient.
  * LAN (allowLanPanel): Host must be one of ours and the shared token (if any) must match.
  */
 function isAllowed(req: any, config: PluginConfig) {
     const loopback = isLoopback(req);
-    if (!loopback) {
-        if (config.allowLanPanel !== true)
-            return false;
-        const host = req.headers?.host;
-        if (typeof host !== "string")
-            return false;
-        let hostname = "";
-        try {
-            hostname = new URL(`http://${host}`).hostname.toLowerCase();
-        }
-        catch {
-            return false;
-        }
-        const allow = lanHostAllowlist(config);
-        if (allow.size > 0 && !allow.has(hostname))
-            return false;
-        if (!tokenOk(req, config))
-            return false;
-    }
+    if (!loopback && config.allowLanPanel !== true) return false;
+    const host = req.headers?.host;
+    if (typeof host !== "string") return false;
+    let hostname: string;
+    try { hostname = new URL(`http://${host}`).hostname.toLowerCase(); }
+    catch { return false; }
+    const allowed = lanHostAllowlist(config);
+    const localHost = ["localhost", "127.0.0.1", "[::1]"].includes(hostname);
+    if (loopback ? !localHost && !allowed.has(hostname) : !allowed.has(hostname)) return false;
+    if (!tokenOk(req, config)) return false;
     const origin = req.headers?.origin;
-    if (typeof origin === "string" && origin !== "null" && !hostsMatch(origin, req.headers?.host))
+    if (typeof origin === "string" && !hostsMatch(origin, req.headers?.host))
         return false;
     return true;
 }
@@ -171,7 +179,9 @@ async function readJsonBody(req: any) {
         };
     }
     try {
-        return { parsed: bodyRaw ? JSON.parse(bodyRaw) : {} };
+        const parsed = bodyRaw ? JSON.parse(bodyRaw) : {};
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw Error("object required");
+        return { parsed };
     }
     catch {
         return { err: { status: 400, payload: { ok: false, code: "bad_json", error: "请求体须为 JSON" } } };
@@ -204,6 +214,7 @@ export async function resolveHttpPaths(config: PluginConfig) {
             storageRoot: path.resolve(envRoot),
             libraryRoot: config.libraryRoot,
             worksRoot: config.worksRoot,
+            sourceRoot: config.sourceRoot,
         });
         return { ...paths, resolvedVia: "env.DSH_ZHIZHANG_ROOT" };
     }
@@ -216,6 +227,7 @@ export async function resolveHttpPaths(config: PluginConfig) {
             storageRoot: lastBase,
             libraryRoot: config.libraryRoot,
             worksRoot: config.worksRoot,
+            sourceRoot: config.sourceRoot,
         });
         return { ...paths, resolvedVia: "last-agent-tool" };
     }
@@ -390,6 +402,7 @@ async function panelPaths(url: any, config: PluginConfig, baseOverride: any = ""
     const paths = await ensureStorage(null, {
         storageRoot: match.base,
         libraryRoot: config.libraryRoot,
+        sourceRoot: config.sourceRoot,
         // 优先用该项目自己记录的作品目录；老索引没记时再回退到全局配置，
         // 否则面板切到子项目会继续读写顶层项目的作品。
         worksRoot: match.worksRoot || config.worksRoot,
@@ -398,7 +411,7 @@ async function panelPaths(url: any, config: PluginConfig, baseOverride: any = ""
 }
 export function createPanelApiHandler(config: PluginConfig = {}) {
     const allowRate = createRateLimiter();
-    return async function panelApiHandler(req: any, res: any) {
+    const handler = async function panelApiHandler(req: any, res: any) {
         try {
             if (!isAllowed(req, config)) {
                 return writeJson(res, 403, { ok: false, error: "forbidden: loopback-only" });
@@ -409,7 +422,27 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
             }
             const url = parseUrl(req);
             const pathOnly = url.pathname.replace(/\/+$/, "") || "/";
-            // —— POST accept (only write path on this API) ——
+            if (["/chapter/review", "/chapter/finalize", "/revision/acknowledge"].some(route => pathOnly === ZZ_API_PREFIX + route)) {
+                if (method !== "POST") return writeJson(res, 405, { ok: false, error: "POST required" });
+                const body = await readJsonBody(req);
+                if (body.err) return writeJson(res, body.err.status, body.err.payload);
+                const input = body.parsed;
+                if (input.confirm !== true || typeof input.work !== "string" || typeof input.chapter !== "string" || typeof input.expectedRevision !== "string")
+                    return writeJson(res, 400, { ok: false, code: "confirmation_required", error: "须明确确认、作品、章节与实际已读版本。" });
+                const picked = await panelPaths(url, config, String(input.base ?? input.project ?? ""));
+                if (picked.error) return writeJson(res, 400, { ok: false, code: "bad_base", error: "项目未登记" });
+                try {
+                    const dir = await resolveWorkDir(picked.paths as StoragePaths, input.work);
+                    const chapter = await updateChapter(dir, { id: input.chapter, expectedRevision: input.expectedRevision,
+                        status: pathOnly.endsWith("/review") ? "reviewed" : pathOnly.endsWith("/finalize") ? "final" : undefined,
+                        reviewSummary: typeof input.summary === "string" ? input.summary : "作者在阅读面板声明已完整审读当前版本",
+                        reviewResult: input.result === "blocked" ? "blocked" : "pass",
+                        reviewedBy: "panel author", acknowledgeRevision: pathOnly.endsWith("/acknowledge"),
+                    });
+                    return writeJson(res, 200, { ok: true, chapterId: chapter.id, status: chapter.status });
+                } catch (err) { return writeJson(res, 409, { ok: false, code: err instanceof ZhizhangError ? err.code : "chapter_action_failed", error: err instanceof Error ? err.message : String(err) }); }
+            }
+            // —— POST candidate adoption ——
             if (pathOnly === `${ZZ_API_PREFIX}/candidate/accept`) {
                 if (method !== "POST") {
                     return writeJson(res, 405, { ok: false, error: `method not allowed: ${method}` });
@@ -434,6 +467,7 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
                     work: String(parsed.work ?? parsed.workKey ?? ""),
                     candidate: String(parsed.candidate ?? parsed.candidateId ?? ""),
                     confirm: parsed.confirm === true,
+                    expectedRevision: typeof parsed.expectedRevision === "string" ? parsed.expectedRevision : undefined,
                     mode: modeRaw,
                     force: parsed.force === true,
                     lintPassToken: typeof parsed.lintPassToken === "string"
@@ -804,6 +838,9 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
                             status: rec.status,
                             wordCount: rec.wordCount,
                             updatedAt: rec.updatedAt,
+                            revision: rec.revision,
+                            review: rec.review,
+                            dependencies: rec.dependencies,
                         },
                         outline: rec.outline,
                         body: capped.body,
@@ -912,6 +949,7 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
             });
         }
     };
+    return (req: any, res: any) => withPortConfig({ multiDraftEnabled: config.multiDraftEnabled === true || config.multiDraft?.enabled === true || envMultiDraftFlag() }, () => handler(req, res));
 }
 /** Register routes on DSH webServer (optional; headless skips). */
 export function registerPanelHttpRoutes(ctx: any, config: PluginConfig) {
@@ -927,6 +965,9 @@ export function registerPanelHttpRoutes(ctx: any, config: PluginConfig) {
         `${ZZ_API_PREFIX}/chapter`,
         `${ZZ_API_PREFIX}/candidate`,
         `${ZZ_API_PREFIX}/candidate/accept`,
+        `${ZZ_API_PREFIX}/chapter/review`,
+        `${ZZ_API_PREFIX}/chapter/finalize`,
+        `${ZZ_API_PREFIX}/revision/acknowledge`,
         `${ZZ_API_PREFIX}/unify/prepare`,
     ];
     try {

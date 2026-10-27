@@ -1,9 +1,6 @@
-/**
- * PortConfig — thresholds and default soft/hard policy switches.
- * Change policy knobs here; tools should call getPortConfig().
- */
-import { BRIEF_RECENT_MS, SAVE_BYPASS_WORD_THRESHOLD } from "../store.js";
-export declare function getPortConfig(): {
+import { BRIEF_RECENT_MS, SAVE_BYPASS_WORD_THRESHOLD } from "../domain/constants.js";
+export declare function withPortConfig<T>(patch: Record<string, any>, run: () => T): T;
+export declare function getPortConfig(): Record<string, any> | {
     briefRecentMs: number;
     saveBypassWordThreshold: number;
     defaultStrictLint: boolean;

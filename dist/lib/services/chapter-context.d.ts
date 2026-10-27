@@ -8,8 +8,9 @@
  */
 export declare function resolvePrevChapter(dir: string, chapterId: string): Promise<{
     meta: any;
-    body: string;
-    outline: import("../types.js").Outline;
+    body: any;
+    outline: any;
+    revision: any;
     missing: boolean;
 } | null>;
-export declare function resolvePrevBody(dir: string, chapterId: string): Promise<string | null>;
+export declare function resolvePrevBody(dir: string, chapterId: string): Promise<any>;

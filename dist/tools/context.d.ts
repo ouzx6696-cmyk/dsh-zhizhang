@@ -1,5 +1,6 @@
 import type { ExecContext } from "../lib/types.js";
-export declare let config: {};
+export declare const config: Record<string, any>;
+export declare function withPluginConfig<T>(value: Record<string, any>, run: () => T): T;
 export declare function setPluginConfig(next: any): void;
 export declare function sessionKey(exec: ExecContext): any;
 export declare function rememberWork(exec: ExecContext, key: string): void;

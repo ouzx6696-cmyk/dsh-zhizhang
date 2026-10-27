@@ -3,15 +3,25 @@
  */
 import { readFile, stat } from "node:fs/promises";
 const MAX_ENTRIES = 800;
+const MAX_TEXT_BYTES = 16 * 1024 * 1024;
+let textBytes = 0;
 const textCache = new Map();
 function remember(file, entry) {
     // 先 delete 再 set 把键移到最新；淘汰时从最旧开始（近似 LRU）。
+    const prior = textCache.get(file);
+    if (prior)
+        textBytes -= prior.text.length * 2;
     textCache.delete(file);
+    if (entry.text.length * 2 > MAX_TEXT_BYTES)
+        return;
     textCache.set(file, entry);
-    if (textCache.size > MAX_ENTRIES) {
+    textBytes += entry.text.length * 2;
+    while (textCache.size > MAX_ENTRIES || textBytes > MAX_TEXT_BYTES) {
         const oldest = textCache.keys().next().value;
-        if (oldest !== undefined)
-            textCache.delete(oldest);
+        if (oldest === undefined)
+            break;
+        textBytes -= textCache.get(oldest).text.length * 2;
+        textCache.delete(oldest);
     }
 }
 /** Cached polling read; callers needing integrity must read and hash the file directly. */

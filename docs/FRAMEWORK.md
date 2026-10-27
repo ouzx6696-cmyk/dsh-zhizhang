@@ -1,6 +1,6 @@
 # 织章插件 · 框架索引
 
-**产品**：`dsh-zhizhang`（DSH 插件）· **版本**：0.17.0  
+**产品**：`dsh-zhizhang`（DSH 插件）· **版本**：0.18.0
 
 完整认知请读 **[COGNITION.md](./COGNITION.md)**（总入口）。本页只留最小锚点，避免与分册重复。
 
@@ -8,14 +8,14 @@
 
 ## 原则
 
-工程归代码；AI 只交创作字符串；显式 accept 才持久化。  
-调度：默认最短合格，旁路显式（`port.scheduler`）。  
+工程归代码；AI 只交创作字符串；stage 保存候选，显式 accept 才应用工作稿；审读与定稿分开。
+调度：默认最短合格，旁路显式（`port.scheduler`）。
 面板：读正文 / 对照候选 / 真采纳；产文仍归 Agent。
 
 ## 闭环一句
 
 ```text
-书进库（craft|mind）→ combo → inspire → chapter_brief(lean）→ stage → lint →（可选 edit）→ accept
+书进库（craft|mind）→ combo → inspire → chapter_brief(lean）→ stage → accept（内置扫描，编辑可选）
 ```
 
 旁路含 **multi.draft（默认关）** · diagnose.audit · brief.full · save.direct · finalize 等。

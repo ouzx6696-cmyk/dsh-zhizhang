@@ -30,7 +30,8 @@ export function totalChapters(index) {
     return index.filter((c) => c.n > 0).length;
 }
 export function chapterText(text, index, n) {
-    const hit = index.find((c) => c.n === Number(n));
+    const matches = index.filter((c) => c.n === Number(n));
+    const hit = matches.length === 1 ? matches[0] : null;
     if (!hit)
         return null;
     return String(text).slice(hit.start, hit.end);

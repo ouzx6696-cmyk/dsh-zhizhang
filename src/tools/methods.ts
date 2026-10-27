@@ -1,4 +1,5 @@
 /** Shared MethodRegistry tools + chapter_brief (writing entry that injects craft packs). */
+import { contextBasis } from "../lib/domain/lifecycle.js";
 import { buildPanelSnapshot, readChapter, readWorkMeta, recordBriefBreadcrumb, } from "../lib/store.js";
 import { resolvePrevChapter } from "../lib/services/chapter-context.js";
 import { formatPlanningBrief } from "../lib/domain/planning.js";
@@ -72,7 +73,7 @@ export function methodsTools() {
         }),
         defineTool({
             name: "zhizhang_chapter_brief",
-            description: "【闭环·写作】开写简报。默认 lean：只吃 craft（写法+状态）+ 幕 + 上一章正文（n≥2 全文）+ 毒点 + style_contract；不灌 mind/节拍/卡全文。card_ids 可来自 combo。下一步：创作 → candidate_stage → style_lint → candidate_accept。",
+            description: "【闭环·写作】开写简报。默认 lean：只吃 craft（写法+状态）+ 幕 + 上一章正文（n≥2 全文）+ 毒点 + style_contract；保留关键经历和转向节点，不灌 mind/卡全文。card_ids 可来自 combo。下一步：创作 → candidate_stage → candidate_accept（内置扫描）。",
             properties: {
                 chapter: S("章节 id，如 c001（必填）"),
                 work: WORK_OPT,
@@ -198,6 +199,13 @@ export function methodsTools() {
                         : "- 开篇：先尝一场小卖点立合同；设定嵌进动作，篇幅跟当场压力走",
                     "",
                 ];
+                if (Array.isArray(meta.revisionImpacts) && meta.revisionImpacts.length) {
+                    const impacts = meta.revisionImpacts.filter((v: any) => v.chapterId === chapterId || v.nextChapterId === chapterId || v.dependents?.includes(chapterId));
+                    if (impacts.length) lines.push("## 修订接续提示", ...impacts.map((v: any) => `- ${v.chapterId} 正文已修改；请以最新正文核对旧状态、后稿与章纲，系统没有自动改写它们。`), "");
+                }
+                if (f.style?.trim()) lines.push("## 本书有效讲法", f.style.trim(), "");
+                if (f.characters?.trim()) lines.push("## 作者人物依据", f.characters.trim(), "");
+                if (f.readerKnowledge?.trim()) lines.push("## 作者记录的读者揭示（不等于人物获知）", f.readerKnowledge.trim(), "");
                 const planning = formatPlanningBrief(meta, chapter.id);
                 if (planning) lines.push(planning, "");
                 if (lean) {
@@ -206,7 +214,7 @@ export function methodsTools() {
                     // 2) Craft+state cards (high leverage) — before outline fat
                     lines.push(cardSection, "");
                     // 3) Situation without beats
-                    lines.push("## 本章处境（lean · 无节拍分镜）", renderOutlineLean(o), "");
+                    lines.push("## 本章处境（lean · 必要经历与知识边界）", renderOutlineLean(o), "");
                     // 4) Locks one-liner —— 处境区已含 outline.locks；根基锁只在与章锁不同且非空时补，避免同文双写。
                     if (f.locks?.trim() && f.locks.trim() !== String(o.locks ?? "").trim()) {
                         lines.push("## 锁定（根基）", `- ${f.locks.trim()}`, "");
@@ -246,8 +254,19 @@ export function methodsTools() {
                 if (missing.length > 0) {
                     lines.push("", `（额外资产未找到：${missing.join("、")}）`);
                 }
+                if (prev && !prev.missing) lines.push("", `前稿依据：${prev.meta.id} · ${prev.meta.status === "final" ? "定稿" : "条件工作稿，尚非定稿事实"} · revision=${prev.revision}`);
+                if (meta.continuity) {
+                    const preceding = [...meta.chapters].filter((c: any) => c.position < chapter.position).sort((a: any, b: any) => a.position - b.position).slice(-3);
+                    const selectedIds = new Set([chapterId, ...preceding.map((c: any) => c.id), ...(chapter.dependencies ?? []).map((d: any) => d.chapterId)]);
+                    const select = (entries: any[]) => entries.filter(v => selectedIds.has(v.chapterId));
+                    const finalized = select(meta.continuity.finalized), working = select(meta.continuity.working);
+                    lines.push("", "## 相关接续索引", `已定稿来源：${JSON.stringify(finalized)}`, `条件工作来源：${JSON.stringify(working)}`,
+                        `其余 ${meta.continuity.finalized.length + meta.continuity.working.length - finalized.length - working.length} 条索引未注入；相关早先事实按章纲与实际出处定点补读。`,
+                        "索引仅含来源与末尾摘录，不是全书事实台账；旧章没有索引不代表未定稿。人物说法不自动等于客观事实。");
+                }
+                const basis = contextBasis(meta, chapter, prev && !prev.missing ? { chapterId: prev.meta.id, revision: prev.revision!, kind: prev.meta.status === "final" ? "final" : "working" } : undefined);
                 const usedIds = [...found.map((a: any) => a.id), ...cardIdsForCrumb];
-                await recordBriefBreadcrumb(dir, { chapterId, assetIds: usedIds });
+                await recordBriefBreadcrumb(dir, { chapterId, assetIds: usedIds, basis });
                 lines.push("", `（已留痕 brief-crumbs：${chapterId} · ${usedIds.join(",") || "(none)"} · mode=${lean ? "lean" : "full"}）`);
                 return lines.join("\n");
             },

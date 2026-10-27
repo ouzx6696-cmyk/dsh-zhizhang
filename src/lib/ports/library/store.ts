@@ -3,18 +3,15 @@
  * 不包含卡 schema（见 schema.js）与机械审计（见 audit.js）。
  */
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, access } from "node:fs/promises";
+import { readFile, access } from "node:fs/promises";
 import path from "node:path";
-import { ZhizhangError } from "../../errors.js";
-import { atomicWrite, assertResourceId } from "../../store.js";
+import { atomicWrite, assertResourceId } from "../../storage/primitives.js";
 import { withResourceLock } from "../../storage/process-lock.js";
 import { assertNoPendingCard } from "../../storage/card-journal.js";
 import { coerceAxis, coerceHumanFeel } from "./schema.js";
 import type { StoragePaths } from "../../types.js";
 
-export function nowIso() {
-    return new Date().toISOString();
-}
+export { nowIso } from "../../storage/primitives.js";
 export function newId(prefix: string) {
     return `${prefix}-${Date.now().toString(36)}${randomUUID().replace(/-/g, "").slice(0, 12)}`;
 }

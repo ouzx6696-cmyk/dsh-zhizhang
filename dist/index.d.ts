@@ -2,7 +2,7 @@
  * dsh-zhizhang — DeepSeek Harness plugin entry (on-demand).
  *
  * The profile mount registers exactly one trigger tool (`zhizhang_enable`) plus the
- * read-only Web panel HTTP routes. The full 织章 toolset (count reported at runtime,
+ * protected Web panel HTTP routes. The full 织章 toolset (count reported at runtime,
  * see allTools()) and the resident hard-rules prompt section are mounted only after
  * the trigger is called, on the calling Agent scope when the host exposes one —
  * standard sessions stay clean.
@@ -278,11 +278,11 @@ export declare const __testing: {
             searchCards(paths: import("./lib/types.js").StoragePaths, query: any, opts?: any): Promise<any>;
             suggestCombo(paths: import("./lib/types.js").StoragePaths, input?: any): Promise<{
                 ok: boolean;
-                cardIds: never[];
+                cardIds: any[];
                 mind: null;
-                crafts: never[];
+                crafts: any[];
                 warnings: string[];
-                emptyReason: string;
+                emptyReason: string | undefined;
             } | {
                 ok: boolean;
                 cardIds: any[];

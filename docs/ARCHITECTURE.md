@@ -1,50 +1,27 @@
-# 架构：代码 vs AI 边界
+# 架构与依赖 · 0.18.0
 
-> 总览见 [COGNITION.md](./COGNITION.md) · 改动见 [CHANGE.md](./CHANGE.md)
-> 文中的 `src/...` 指**源码仓**路径；本发行包只带编译后的 `dist/`。
+宿主入口 → 工具 / HTTP → 共同作品操作 → 存储与恢复。查询视图单独读取业务数据，不被持久化模块反向依赖。
 
-## 一句话
+| 职责 | 实现 |
+| --- | --- |
+| 宿主按需启用 | `src/index.ts`、`lib/bootstrap.ts` |
+| 调用作用域配置 | `tools/context.ts`、`ports/config.ts` 的 AsyncLocalStorage；绑定工具携带实例配置 |
+| 稳定公开外观 | `lib/store.ts`，重导出存储与查询接口供现有调用兼容 |
+| 工作区与作品操作 | `lib/work-store.ts`，路径、项目发现、候选、采用、业务留痕与汇编 |
+| 章节共同保存 | `storage/chapters.ts`，格式、基线、审读、定稿、修订与连续性 |
+| 内容身份与历史 | `domain/lifecycle.ts`、`storage/revision.ts` |
+| 作者查询 | `lib/panel-query.ts`、`panel-enrich.ts`；不参与领域写入决策 |
+| 参考与迁移 | `services/reference.ts`、`tools/reference.ts`；工作区分析不自动入公共库 |
+| 库与规划 | `ports/library*`、`ports/analysis/*`、`ports/inspiration.ts` |
+| 接续编排 | `tools/methods.ts`、`services/chapter-context.ts` 与 ContextBasis |
+| 共享恢复机制 | `storage/recovery-common.ts`；各 journal 保留格式及固定目标白名单 |
+| 创作方法与诊断 | `domain/creative-guidance.ts`、MethodRegistry、质量策略与传感器 |
+| 作者交互 | `http-api.ts`、`client/client.js`，调用共同作品操作 |
 
-**工程状态机、锁、落盘、门禁、语感规则、兑付审计、审校留痕、采纳写回 —— 在插件 TypeScript（优先经 Ports）；大模型只通过 DSH Agent 调用工具，提交创作字符串，从不直接碰磁盘。**
+架构护栏解析 TypeScript 实际导入、导出与字面量动态导入，排除纯类型边，拒绝运行时循环和存储反向依赖业务/面板。公开 Store 外观不作为内部持久化依赖入口。库与分析中的底层文件操作直接使用 storage/primitives，时间戳也复用同一实现。类型导入和未使用声明由 TypeScript 配置检查。
 
-产品形态：**一条创作闭环** + **Scheduler 调度**（默认最短合格 vs 显式旁路）。
+五类写入协议复用共同恢复执行器；源文本暂存、卡来源守卫和删除协议保留专用行为。所有协议共享快照与进程所有权核对。保留旧格式，不用新协议猜测恢复旧记录。
 
-```text
-Host (DSH) → apply / tools.register
-     → src/tools/*（按域薄接线）
-     → Ports（Scheduler + 三柱 + Edit(可选) + Gates + Quality + Methods）
-     → Store + Sensors
-     → .zhizhang/{works,library,inspiration,manuscripts}/
-```
+文件锁协调配合进程，原子替换不等于 compare-and-swap。路径保护拒绝链接祖先及链接资产；不声称可以抵抗任意外部恶意竞态或保证断电持久性。
 
-## 代码负责（确定性）
-
-| 能力 | 位置 |
-|------|------|
-| 作品/章节 CRUD 与公开存储接口 | `src/lib/store.ts`（兼容外观） |
-| 章节格式、读写与锁内更新 | `src/lib/storage/chapters.ts` |
-| 作品元数据、共享锁与原子写 | `src/lib/storage/work-meta.ts`、`src/lib/storage/primitives.ts` |
-| 拆书库 | `ports/library.js` + `ports/library/{schema,audit}.js` |
-| 拆书分析层 | `ports/analysis/*`（facade：`ports/analysis.js`） |
-| 单一事实源 | `domain/{chapter-heading,card-schema,evidence,coverage,report-sections,workflow}.js` |
-| 采纳 / 前章共享服务 | `services/{accept,chapter-context}.js` |
-| 灵感会话/推演/可选 apply | `ports/inspiration.ts` |
-| 默认路径 vs 旁路 | `ports/scheduler.ts` |
-| 可选编辑过稿（A/B/C） | `ports/edit.ts` |
-| 采纳/旁路/brief/payoff 策略 | `src/lib/ports/*` |
-| 质量面 | `ports/quality-policy.ts` |
-| 闭环产品地图 | `ports/product.ts` ← `zhizhang_product_map` |
-| AI 腔 / 兑付传感 | `style-linter.ts` / `payoff-audit.ts` ← Audit ports |
-| 方法资产按需注入 | `method-assets.ts` ← MethodRegistry |
-| 常驻硬规则 | `SYSTEM_BRIEF` + `systemPrompt.section` |
-
-## AI 负责（创造性）
-
-- 写大纲措辞、正文、改稿建议、技法卡分析正文  
-- 把成稿 / 卡 / 灵感候选作为参数交给对应 `*_stage` 工具  
-- 显式 `*_accept` 后才持久化；不自称已写库  
-- 按五类证据做诊断（写入 ledger）；插件不提供「代写替换段」工具  
-
-## 面板
-
-`zhizhang_panel_snapshot` 导出进度/处境/候选/审校留痕；不做第二套编辑器写库路径。见 [PANEL.md](./PANEL.md)。
+插件不内置模型调用。审读记录是声明与版本绑定，不是自动语义验证器。详细契约见 [PORTS.md](PORTS.md)。

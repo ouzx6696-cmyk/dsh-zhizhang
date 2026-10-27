@@ -1,7 +1,7 @@
 /** 拆书分析 — 路径 / JSON IO 基元。 */
 import path from "node:path";
 import { mkdir } from "node:fs/promises";
-import { atomicWrite } from "../../store.js";
+import { atomicWrite } from "../../storage/primitives.js";
 import { readJsonCached, readJsonlCached } from "../../file-cache.js";
 import type { StoragePaths } from "../../types.js";
 import { ZhizhangError } from "../../errors.js";
@@ -15,9 +15,7 @@ export function assertSourceId(id: string) {
     return t;
 }
 
-export function nowIso() {
-    return new Date().toISOString();
-}
+export { nowIso } from "../../storage/primitives.js";
 
 export function analysisPaths(paths: StoragePaths, sourceId: any) {
     const id = assertSourceId(sourceId);

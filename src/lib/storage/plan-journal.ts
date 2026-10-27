@@ -1,11 +1,12 @@
+import { applyRecordedWrites } from "./recovery-common.js";
 /** Recover the authoritative reading plan, its human-readable view and scope together. */
 import { createHash, randomUUID } from "node:crypto";
 import { hostname } from "node:os";
 import { lstat, open, readFile, unlink } from "node:fs/promises";
 import path from "node:path";
 import { ZhizhangError } from "../errors.js";
-import { atomicWrite, isMissingFileError } from "./primitives.js";
-import { snapshotFile, ensureRecoveryOwnerInactive } from "./accept-journal.js";
+import { isMissingFileError } from "./primitives.js";
+import { snapshotFile, ensureRecoveryOwnerInactive } from "./recovery-common.js";
 import { withResourceLock } from "./process-lock.js";
 const FILE = ".zhizhang-plan-pending.json";
 const hash = (s: string) => createHash("sha256").update(s).digest("hex");
@@ -32,11 +33,7 @@ export async function createPlanJournal(library: string, input: { sourceId: stri
 async function apply(library: string, j: Intent) {
     let state = await classify(library, j);
     if (state.conflict) throw new ZhizhangError("library_recovery_conflict", `计划文件已变化，未覆盖：${state.writes.filter(w => w.state === "冲突").map(w => w.file).join("、")}。`);
-    for (let i = 0; i < j.writes.length; i++) {
-        const w = j.writes[i]; if (state.writes[i].state === "已完成") continue;
-        const file = path.join(library, w.file); if (await snapshotFile(file) !== w.before) throw new ZhizhangError("library_recovery_conflict", `${w.file} 在恢复期间变化。`);
-        if (w.after === null) await unlink(file); else await atomicWrite(file, w.content!);
-    }
+    await applyRecordedWrites(j.writes.map(w => ({ ...w, file: path.join(library, w.file) })), "library_recovery_conflict");
     state = await classify(library, j); if (state.conflict || state.writes.some(w => w.state !== "已完成")) throw new ZhizhangError("library_recovery_conflict", "计划文件在恢复期间变化，请保留记录并核对。");
     if ((await readIntent(library)).id !== j.id) throw new ZhizhangError("library_recovery_conflict", "计划恢复记录已变化。"); await unlink(path.join(library, FILE));
 }

@@ -1,6 +1,6 @@
 /**
  * Panel console enrichments — Library / Inspiration / Product summaries for snapshot + HTML.
- * Read-only; no writes.
+ * Query projections never apply creative changes; underlying ports may initialize derived indexes.
  */
 import { readdir } from "node:fs/promises";
 import path from "node:path";
@@ -12,7 +12,7 @@ import { ProductMap } from "./ports/product.js";
 import { Scheduler } from "./ports/scheduler.js";
 import { readPlanning } from "./domain/planning.js";
 import { assertNoPendingInspiration } from "./storage/inspiration-journal.js";
-import { listLocalBooks } from "./store.js";
+import { listLocalBooks } from "./work-store.js";
 function foundationFilledFields(f) {
     const keys = [
         "locks",
@@ -38,8 +38,8 @@ export async function buildLibraryView(paths) {
             try {
                 axis = coerceAxis(await LibraryPort.getCard(paths, row.id));
             }
-            catch {
-                axis = "craft";
+            catch (err) {
+                throw err;
             }
         }
         if (axis === "mind")
@@ -58,8 +58,8 @@ export async function buildLibraryView(paths) {
             emptyReason: sug.emptyReason,
         };
     }
-    catch {
-        combo = null;
+    catch (err) {
+        throw err;
     }
     const sourceRoot = paths.sourceRoot || "";
     let pending = [];
@@ -119,7 +119,7 @@ export async function buildInspirationView(paths, opts) {
     const appliedCandIds = [];
     try {
         const candDir = path.join(paths.inspiration, "candidates");
-        const names = await readdir(candDir).catch(() => []);
+        const names = await readdir(candDir);
         for (const name of names) {
             if (!name.endsWith(".json"))
                 continue;
@@ -134,12 +134,12 @@ export async function buildInspirationView(paths, opts) {
                 }
             }
             catch {
-                /* skip */
+                throw new Error(`灵感候选 ${name} 不可读，请核对原文件。`);
             }
         }
     }
-    catch {
-        /* no insp candidates */
+    catch (err) {
+        throw err;
     }
     const filled = foundationFilledFields(opts.foundation);
     let withSituation = 0;

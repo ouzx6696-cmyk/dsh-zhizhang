@@ -28,11 +28,11 @@ export declare function buildLibraryView(paths: StoragePaths): Promise<{
     draftedCount: any;
     combo: {
         ok: boolean;
-        cardIds: any[] | never[];
+        cardIds: any[];
         mindTitle: any;
         craftTitles: any[];
         emptyReason: string | undefined;
-    } | null;
+    };
     summary: string;
 }>;
 export declare function buildInspirationView(paths: StoragePaths, opts: any): Promise<{

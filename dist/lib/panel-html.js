@@ -160,7 +160,7 @@ export function renderPanelHtml(input) {
                 return (`<li class="zz-chapter" data-id="${esc(c.id)}" data-status="${esc(c.status)}">` +
                     `<span class="zz-dot" data-status="${esc(c.status)}" title="${esc(statusLabel(c.status))}"></span>` +
                     `<div><div class="zz-ch-title">${esc(c.title)}` +
-                    (c.briefRecent ? ` <span class="zz-badge zz-badge-ok">brief✓</span>` : "") +
+                    (c.briefRecent ? ` <span class="zz-badge zz-badge-ok">简报记录</span>` : "") +
                     `</div>` +
                     `<div class="zz-ch-sub">${esc(statusLabel(c.status))}` +
                     (sit ? ` · 处境：${esc(sit)}` : "") +
@@ -257,7 +257,7 @@ export function renderPanelHtml(input) {
         chaptersHtml,
         `<h2>Writing · 待采纳</h2>`,
         candHtml,
-        `<p class="zz-note">编辑抉择：A 确认=编辑+验收 · B 仅候选再验 · C 拒/换模式（工具 edit_decide）；面板只做正式采纳。可选多草稿默认关。</p>`,
+        `<p class="zz-note">编辑按授权采纳或保留候选；A/B/C 兼容可用。面板采纳工作稿，审读与定稿另行声明。可选多草稿默认关。</p>`,
         `<h2>工程留痕</h2>`,
         `<details class="zz-fold"><summary>审校留痕（最近）</summary>${ledgerHtml}</details>`,
         `<details class="zz-fold"><summary>brief 留痕（近期）</summary>${briefHtml}</details>`,

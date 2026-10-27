@@ -1,11 +1,11 @@
 /** Cooperative filesystem lock for writers in different processes sharing a resource. */
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
-import { mkdir, open, readFile, rmdir, unlink } from "node:fs/promises";
+import { mkdir, open, readFile, realpath, rmdir, unlink } from "node:fs/promises";
 import { hostname } from "node:os";
 import path from "node:path";
 import { ZhizhangError } from "../errors.js";
-import { withLock } from "./primitives.js";
+import { assertSafeAncestors, withLock } from "./primitives.js";
 
 const held = new AsyncLocalStorage<Set<string>>();
 const LOCK_DIR = ".zhizhang-write-lock";
@@ -17,7 +17,8 @@ const WAIT_MS = 10000;
  * Only cooperating writers participate; external edits remain unprotected.
  */
 export async function withResourceLock<T>(root: string, fn: () => Promise<T>): Promise<T> {
-    const key = path.resolve(root);
+    await assertSafeAncestors(path.join(root, ".lock-check"));
+    const key = await realpath(root);
     const previous = held.getStore();
     if (previous?.has(key)) return fn();
     return withLock(`resource:${key}`, async () => {

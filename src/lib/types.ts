@@ -69,6 +69,8 @@ export interface WorkMeta {
     createdAt: string;
     updatedAt: string;
     chapters: ChapterMeta[];
+    planning?: { schemaVersion: 1; book?: { content: string; [key: string]: unknown }; volumes: Array<{ id: string; content: string; chapters: string[]; [key: string]: unknown }>; acts?: Array<{ id: string; content: string; chapters: string[]; [key: string]: unknown }>; [key: string]: unknown };
+    continuity?: { schemaVersion: 1; finalized: Array<{ chapterId: string; revision: string; excerpt: string; at: string }>; working: Array<{ chapterId: string; revision: string; excerpt: string; at: string }> };
 }
 
 export interface LedgerEntry {
@@ -97,6 +99,8 @@ export interface Candidate {
     bodyFile: string;
     wordCount: number;
     /** 语感雷达命中数（style_lint 写入） */
+    targetRevision?: string;
+    basis?: import("./domain/lifecycle.js").ContextBasis;
     lintHitCount?: number;
     /** 已扫过的凭据（只证明扫过，不等于过关） */
     lintPassToken?: string;

@@ -1,75 +1,26 @@
-import type { Outline } from "../types.js";
+import type { ContextBasis } from "../domain/lifecycle.js";
 export declare function chaptersDir(dir: string): string;
 export declare function listChapters(dir: string): Promise<any[]>;
-export declare function readChapter(dir: string, chapterId: string): Promise<{
-    id: any;
-    title: any;
-    position: number;
-    status: string;
-    wordCount: number;
-    updatedAt: string;
-    body: string;
-    outline: Outline;
-} | {
-    id: string;
-    title: string;
-    position: any;
-    status: any;
-    wordCount: number;
-    updatedAt: string;
-    body: string;
-    outline: Outline;
-}>;
+export declare function readChapter(dir: string, chapterId: string): Promise<any>;
 export declare function readChapterLens(dir: string, chapterId: string): Promise<any>;
-export declare function saveChapter(dir: string, input: any): Promise<{
-    id: any;
-    title: any;
-    position: any;
-    status: any;
-    wordCount: number;
-    updatedAt: string;
-    body: any;
-    outline: Outline;
-}>;
+export declare function assertContextBasis(dir: string, basis: ContextBasis, chapterId: string): Promise<void>;
+export declare function currentContextBasis(dir: string, chapterId: string): Promise<ContextBasis>;
+export declare function saveChapter(dir: string, input: any): Promise<any>;
 /** Caller must hold the work lock. */
 export declare function prepareChapterSaveUnlocked(dir: string, input: any): Promise<{
-    record: {
-        id: any;
-        title: any;
-        position: any;
-        status: any;
-        wordCount: number;
-        updatedAt: string;
-        body: any;
-        outline: Outline;
-    };
+    record: any;
+    history: string | undefined;
+    chapterBefore: string | null;
+    metaBefore: string | null;
     chapterPath: string;
     chapterContent: string;
     metaContent: string;
 }>;
 /** Caller holds the work lock. */
-export declare function saveChapterUnlocked(dir: string, input: any): Promise<{
-    id: any;
-    title: any;
-    position: any;
-    status: any;
-    wordCount: number;
-    updatedAt: string;
-    body: any;
-    outline: Outline;
-}>;
+export declare function saveChapterUnlocked(dir: string, input: any): Promise<any>;
 export declare function setOutline(dir: string, chapterId: string, patch: any, title?: string, options?: {
     pace?: string;
-}): Promise<{
-    id: any;
-    title: any;
-    position: any;
-    status: any;
-    wordCount: number;
-    updatedAt: string;
-    body: any;
-    outline: Outline;
-}>;
+}): Promise<any>;
 /** Apply a direct chapter edit using the current content inside the work lock. */
 export declare function updateChapter(dir: string, input: {
     id: string;
@@ -77,13 +28,11 @@ export declare function updateChapter(dir: string, input: {
     body?: string;
     status?: string;
     position?: number;
-}): Promise<{
-    id: any;
-    title: any;
-    position: any;
-    status: any;
-    wordCount: number;
-    updatedAt: string;
-    body: any;
-    outline: Outline;
-}>;
+    force?: boolean;
+    expectedRevision?: string;
+    ledgerEntry?: string;
+    reviewSummary?: string;
+    reviewResult?: "pass" | "blocked";
+    reviewedBy?: string;
+    acknowledgeRevision?: boolean;
+}): Promise<any>;

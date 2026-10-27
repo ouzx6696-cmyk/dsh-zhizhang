@@ -2,7 +2,7 @@
  * dsh-zhizhang — DeepSeek Harness plugin entry (on-demand).
  *
  * The profile mount registers exactly one trigger tool (`zhizhang_enable`) plus the
- * read-only Web panel HTTP routes. The full 织章 toolset (count reported at runtime,
+ * protected Web panel HTTP routes. The full 织章 toolset (count reported at runtime,
  * see allTools()) and the resident hard-rules prompt section are mounted only after
  * the trigger is called, on the calling Agent scope when the host exposes one —
  * standard sessions stay clean.
@@ -62,7 +62,7 @@ export function apply(ctx, pluginConfig = {}) {
         envMultiDraftFlag();
     setPortConfig({ multiDraftEnabled: multiOn });
     ctx.tools.register(makeEnableTool(pluginConfig));
-    // Read-only panel API (GET + accept POST). No tools/prompt cost.
+    // Protected panel API (GET + accept POST). No tools/prompt cost.
     registerPanelHttpRoutes(ctx, pluginConfig);
 }
 export { applyTools, SYSTEM_BRIEF };

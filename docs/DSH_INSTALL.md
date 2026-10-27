@@ -35,7 +35,7 @@ dsh plugin --profile desktop add link:"E:/dsh cj/dsh-zhizhang-0.17.0"
 
 # 4) 会话内按需启用（关键）
 #    普通会话只多一个 zhizhang_enable；
-#    让 Agent 调 zhizhang_enable（或说「启用织章」）后，51 个工具 + 硬规则才挂到本会话。
+#    让 Agent 调 zhizhang_enable（或说「启用织章」）后，完整工具集 + 硬规则才挂到本会话。
 
 # 5) 验证
 #    桌面 profile 由 Electron 独占，CLI `--dump-config` 会拒绝：
@@ -49,7 +49,7 @@ dsh plugin --profile desktop add link:"E:/dsh cj/dsh-zhizhang-0.17.0"
 ## 配置
 
 插件配置在 bundle 的 `config` 层（`cordis.patch.yml` 或 profile patch）。
-挂载本身只注册 `zhizhang_enable` + 只读面板 HTTP；工具层在会话内触发。
+挂载本身只注册 `zhizhang_enable` + 面板 HTTP（写请求有确认和共同业务规则）；工具层在会话内触发。
 
 ```yaml
 - insert:

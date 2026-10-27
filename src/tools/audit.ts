@@ -1,3 +1,4 @@
+import { fingerprint } from "../lib/domain/lifecycle.js";
 /** Writing pillar — style lint, review ledger, payoff audit. */
 import { appendLedger, readCandidate, readChapter, readLedger, readWorkMeta, storePayoffAudit, } from "../lib/store.js";
 import { resolvePrevChapter } from "../lib/services/chapter-context.js";
@@ -13,7 +14,7 @@ export function auditTools() {
     return [
         defineTool({
             name: "zhizhang_style_lint",
-            description: "【默认链·工程闸】语感雷达：传 candidate 时扫正文并签发 lintPassToken（accept 必经；已扫过≠质量过关）。下一步可直接 accept，或可选 edit_brief→edit_stage 后再由用户选 A/B/C。扫 chapter/text 仅诊断。",
+            description: "【按需诊断】语感雷达：传 candidate 时扫描正文并记录版本凭据；candidate_accept 已内置扫描，无需例行先调本工具。已有过期凭据须重扫。扫 chapter/text 仅诊断，扫描不证明内容质量。",
             properties: {
                 work: WORK_OPT,
                 working_dir: WORKING_DIR,
@@ -60,14 +61,14 @@ export function auditTools() {
                     return [
                         formatLint(label, hits, summary),
                         "",
-                        "说明：章节扫描不过 accept 闸。要对候选过闸请传 candidate=cand-…",
+                        "说明：章节扫描是诊断，不绑定候选；候选采纳会扫描当前字节。",
                     ].join("\n");
                 }
                 const hits = StyleLinterPort.lint(text);
                 return [
                     formatLint(label, hits, StyleLinterPort.summarize(hits)),
                     "",
-                    "说明：纯 text 扫描不过 accept 闸。要对候选过闸请传 candidate=cand-…",
+                    "说明：纯 text 扫描是诊断；候选采纳会扫描当前字节。",
                 ].join("\n");
             },
         }),
@@ -201,6 +202,8 @@ export function auditTools() {
                         chapterId,
                         source,
                         sourceId,
+                        bodyHash: fingerprint(body),
+                        outlineHash: fingerprint(chapter.outline),
                         ok: result.ok,
                         warningCount: result.warningCount,
                         codes,

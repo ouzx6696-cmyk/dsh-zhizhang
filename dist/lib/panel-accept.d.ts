@@ -42,7 +42,7 @@ export declare function runPanelAccept(paths: import("./types.js").StoragePaths,
     candidateId: string;
     chapterId: any;
     title: any;
-    wordCount: number | undefined;
+    wordCount: any;
     status: any;
     receipt: string | undefined;
     nextHint: string | undefined;

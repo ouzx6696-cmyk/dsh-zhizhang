@@ -760,18 +760,18 @@ export function libraryTools() {
                     query: asString(args, "query"),
                     preferMindSourceIds: prefer ? [prefer] : undefined,
                 });
-                if (!result.ok || !result.mind) {
+                if (!result.ok) {
                     return [
-                        "组合建议失败：无可用 mind",
+                        "当前没有可用参考卡",
                         `- 原因：${result.emptyReason ?? "未知"}`,
                         "",
-                        "补救：拆书采纳 mind 卡，或放宽 source 过滤；仅技法试写用 inspire_start(craft_only=true)",
+                        "可放宽来源过滤，或直接按作者目标规划；不要求先补参考卡",
                     ].join("\n");
                 }
                 const lines = [
-                    "组合包（1 book + N scene）",
+                    "参考组合（优先 mind + craft，缺一轴不阻断）",
                     `- card_ids：${result.cardIds.join(", ")}`,
-                    `- mind：${result.mind.title}（${result.mind.id}）· src=${result.mind.sourceId}`,
+                    result.mind ? `- mind：${result.mind.title}（${result.mind.id}）· src=${result.mind.sourceId}` : "- mind：无；可按作者材料规划，不强制补卡",
                     ...(queryText ? [`- 主题排序：${queryText}`] : []),
                     `- craft ×${result.crafts.length}：`,
                     ...result.crafts.map((c, i) => `  ${i + 1}. ${c.title}（${c.id}）· src=${c.sourceId}`),

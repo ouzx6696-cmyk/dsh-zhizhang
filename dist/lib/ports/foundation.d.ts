@@ -35,7 +35,7 @@ export declare const FoundationPort: {
         replaced?: undefined;
     }>;
     /**
-     * Soft receipt lines after candidate_accept — remind model to refresh 当前小说状态.
+     * Candidate adoption updates working continuity; happened remains author material.
      */
     acceptReceiptLines(opts: any): string[];
 };

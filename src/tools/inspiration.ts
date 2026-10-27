@@ -15,17 +15,19 @@ export function inspirationTools() {
     return [
         defineTool({
             name: "zhizhang_inspire_start",
-            description: "【闭环·灵感】开启会话：根据作者目标规划，可选已采纳参考卡。无卡时直接规划；有卡但无 mind 时须 craft_only。不写根基。",
+            description: "【闭环·灵感】开启会话：根据作者目标规划，可选已采纳参考卡。无卡时直接规划；参考按本次问题选用，不要求凑齐 mind。不写根基。",
             properties: {
+                work: S("可选绑定现有作品；作品依据变化后应用须重新核对"),
                 goal: S("灵感目标（新作方向）"),
                 genre: S("可选题材"),
                 pace: E(["快爽", "稳推", "慢燃"], "可选：本书节奏档位；未指定时结合作者目标选择"),
                 card_ids: {
                     type: "array",
-                    description: "可选已采纳参考卡；有卡时须含 mind，除非 craft_only；无卡可直接规划",
+                    description: "可选已采纳参考卡；按当前问题选用，不要求凑齐 mind；无卡可直接规划",
                     items: { type: "string" },
                 },
-                craft_only: B("仅技法试写：无 mind 时须 true，会话打标"),
+                reference_ids: { type: "array", items: { type: "string" }, description: "可选显式选用的工作区 ref-* 分析成果" },
+                craft_only: B("仅技法试写：可选声明偏技法用途，不构成数量门禁"),
                 working_dir: WORKING_DIR,
             },
             required: ["goal"],
@@ -36,9 +38,11 @@ export function inspirationTools() {
                 const paths = await openInsp(exec, args);
                 const { sessionId, mindCount, craftCount } = await InspirationPort.startSession(paths, {
                     goal,
+                    workKey: asString(args, "work"),
                     genre: asString(args, "genre"),
                     pace: asString(args, "pace"),
                     cardIds,
+                    referenceIds: asStringArray(args, "reference_ids") ?? [],
                     craftOnly,
                 });
                 return [
@@ -139,7 +143,7 @@ export function inspirationTools() {
                     ...(result.bindingWarning ? [`- 提醒：${result.bindingWarning}`] : []),
                     "",
                     result.applied
-                        ? "下一步（闭环）：zhizhang_chapter_brief(lean) → candidate_stage → style_lint → candidate_accept"
+                        ? "下一步（闭环）：zhizhang_chapter_brief(lean) → candidate_stage → candidate_accept（内置扫描）"
                         : "提示：尚未写入作品；需要落盘时再 inspire_accept(apply=true)",
                 ].join("\n");
             },

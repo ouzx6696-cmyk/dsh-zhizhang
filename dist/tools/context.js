@@ -1,19 +1,29 @@
 /**
  * Shared tool context: plugin config, session last-work, openWork helpers.
  */
+import { AsyncLocalStorage } from "node:async_hooks";
 import { ZhizhangError } from "../lib/errors.js";
 import { ensureStorage, listWorks, readWorkMeta, resolveWorkDir, } from "../lib/store.js";
-export let config = {};
+const configurations = new AsyncLocalStorage();
+let fallbackConfig = {};
+export const config = new Proxy({}, {
+    get: (_target, key) => (configurations.getStore() ?? fallbackConfig)[key],
+    ownKeys: () => Reflect.ownKeys(configurations.getStore() ?? fallbackConfig),
+    getOwnPropertyDescriptor: () => ({ enumerable: true, configurable: true }),
+});
+export function withPluginConfig(value, run) {
+    return configurations.run(value, run);
+}
 const lastWorkBySession = new Map();
 const MAX_SESSIONS = 500;
 export function setPluginConfig(next) {
-    config = { ...next };
+    fallbackConfig = { ...next };
 }
 export function sessionKey(exec) {
     return (exec?.agent?.session?.id ?? "default");
 }
 export function rememberWork(exec, key) {
-    const sk = sessionKey(exec);
+    const sk = `${sessionKey(exec)}:${JSON.stringify(config)}`;
     lastWorkBySession.delete(sk);
     lastWorkBySession.set(sk, key);
     while (lastWorkBySession.size > MAX_SESSIONS) {
@@ -78,7 +88,7 @@ export async function openWork(exec, args) {
     const paths = await ensureStorage(exec, config, asString(args, "working_dir"));
     let key = asString(args, "work");
     if (!key) {
-        key = lastWorkBySession.get(sessionKey(exec));
+        key = lastWorkBySession.get(`${sessionKey(exec)}:${JSON.stringify(config)}`);
     }
     if (!key) {
         const all = await listWorks(paths);

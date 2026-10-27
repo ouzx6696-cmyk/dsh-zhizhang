@@ -1,6 +1,6 @@
 import type { StoragePaths } from "../../types.js";
 export declare function assertSourceId(id: string): string;
-export declare function nowIso(): string;
+export { nowIso } from "../../storage/primitives.js";
 export declare function analysisPaths(paths: StoragePaths, sourceId: any): {
     dir: string;
     meta: string;

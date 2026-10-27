@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * Copy (or optionally esbuild) the ModuleLoader client into dist/client.js.
- * --check: verify source exists and parses as JS (Function constructor smoke).
+ * Validate and copy the ModuleLoader client into dist/client.js.
+ * --check: validate the wrapper, official seat registration and JavaScript syntax.
  */
-import { mkdir, readFile, writeFile, copyFile, access } from "node:fs/promises";
+import { mkdir, readFile, copyFile, access } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -24,8 +24,7 @@ async function main() {
   if (code.includes("ctx.inject([")) {
     throw new Error("client.js must not use ctx.inject([...]) for seats (use ctx.slots.inject)");
   }
-  // Syntax smoke: strip ModuleLoader shell and ensure factory body is parseable enough
-  // by checking balanced braces roughly + Function on a stub.
+  // Parse without executing the client or requiring a browser runtime.
   new Function("window", code.replace(/window\.__ModuleLoader__\.load/, "void"));
 
   if (checkOnly) {

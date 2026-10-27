@@ -10,7 +10,7 @@ export declare const EditPort: {
     modeInfo(mode: any): any;
     /**
      * Agent-facing edit brief — positive craft framing; hard ban-list stays short.
-     * Model must NOT claim已定稿; user picks A/B/C after rewrite.
+     * Applying an edit uses actual authorization; it does not declare review or final.
      * Depolish: keep breath & rough edges; forbid flattening for “去AI味”.
      */
     formatEditBrief(input?: any): string;

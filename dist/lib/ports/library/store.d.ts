@@ -1,5 +1,5 @@
 import type { StoragePaths } from "../../types.js";
-export declare function nowIso(): string;
+export { nowIso } from "../../storage/primitives.js";
 export declare function newId(prefix: string): string;
 export declare function fileExists(p: string): Promise<boolean>;
 export declare function libraryDirs(paths: StoragePaths): {

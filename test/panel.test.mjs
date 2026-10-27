@@ -10,7 +10,7 @@ function fakeRequest(options) {
     const req = new EventEmitter();
     req.method = options.method ?? "GET";
     req.url = options.url ?? "/api/dsh-zhizhang/works";
-    req.headers = options.headers ?? {};
+    req.headers = { host: "localhost", ...options.headers };
     req.socket = { remoteAddress: options.remoteAddress ?? "127.0.0.1" };
     const res = { status: 0, payload: null, writeHead(status) { this.status = status; }, end(body) { this.payload = JSON.parse(body); } };
     return { req, res };
@@ -75,6 +75,12 @@ test("面板拒绝不可信来源、非 JSON 写入和未授权局域网访问",
         const wrongType = await fetch(`${server.api}/candidate/accept`, { method: "POST", headers: { "content-type": "text/plain" }, body: "x" });
         assert.equal(wrongType.status, 415);
         assert.equal((await fetch(`${server.api}/works`, { headers: { origin: "http://evil.example" } })).status, 403);
+        const rebound = fakeRequest({ headers: { host: "rebind.example", origin: "http://rebind.example" } });
+        await createPanelApiHandler({ storageRoot: work.base })(rebound.req, rebound.res);
+        assert.equal(rebound.res.status, 403);
+        const tokenless = fakeRequest({ headers: { host: "localhost" } });
+        await createPanelApiHandler({ storageRoot: work.base, panelToken: "secret" })(tokenless.req, tokenless.res);
+        assert.equal(tokenless.res.status, 403);
         const local = lanAddress();
         const deny = fakeRequest({ remoteAddress: local });
         await createPanelApiHandler({ storageRoot: work.base })(deny.req, deny.res);
@@ -111,4 +117,34 @@ test("面板限制重复写入请求", async () => {
     finally {
         await work.cleanup();
     }
+});
+
+test("面板审读、定稿与版本冲突通过共同章节操作执行", async () => {
+    const work = await withWork("面板生命周期"), server = await servePanel({ storageRoot: work.base });
+    try {
+        await saveChapter(work.dir, { id: "c001", title: "一", body: "她关上门。", status: "drafted" });
+        const version = (await readChapter(work.dir, "c001")).revision;
+        const request = { work: work.key, chapter: "c001", expectedRevision: version, confirm: true };
+        assert.equal((await jpost(server.api, "/chapter/finalize", request)).status, 409);
+        assert.equal((await jpost(server.api, "/chapter/review", { ...request, expectedRevision: "stale" })).status, 409);
+        assert.equal((await jpost(server.api, "/chapter/review", { ...request, result: "blocked" })).status, 200);
+        assert.equal((await jpost(server.api, "/chapter/finalize", request)).status, 409);
+        assert.equal((await jpost(server.api, "/chapter/review", request)).status, 200);
+        assert.equal((await jpost(server.api, "/chapter/finalize", request)).status, 200);
+        assert.equal((await readChapter(work.dir, "c001")).status, "final");
+        const bad = await fetch(server.api + "/chapter/review", { method: "POST", headers: { "content-type": "application/json" }, body: "null" });
+        assert.equal(bad.status, 400);
+    } finally { await server.close(); await work.cleanup(); }
+});
+
+test("发行客户端按宿主模块协议加载并安全渲染正文", async () => {
+    const { readFile } = await import("node:fs/promises"), { runInNewContext } = await import("node:vm");
+    let descriptor;
+    runInNewContext(await readFile("dist/client.js", "utf8"), { window: { __ModuleLoader__: { load: value => { descriptor = value; } } } });
+    const client = descriptor.factory(() => ({ createElement() {} }));
+    assert.equal(typeof client.apply, "function");
+    assert.equal(descriptor.id, "dsh-zhizhang");
+    const html = client.__testing.lightMdToHtml('<img src=x onerror="alert(1)">\n正文');
+    assert.equal(html.includes("<img"), false);
+    assert.ok(html.includes("&lt;img"));
 });

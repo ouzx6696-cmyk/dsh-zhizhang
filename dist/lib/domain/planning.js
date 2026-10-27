@@ -18,7 +18,7 @@ function sourceLine(p) {
         return "来源未记录";
     const ids = Array.isArray(source.selectedCardIds) ? source.selectedCardIds.filter((x) => typeof x === "string").slice(0, 24) : [];
     const goal = typeof source.authorGoal === "string" ? source.authorGoal : "";
-    return `作者目标：${goal.length > 300 ? goal.slice(0, 300) + "…" : goal || "未记录"}；所选参考卡：${ids.length ? ids.join("、") : "无"}（记录选择，不证明实际阅读或具体影响）`;
+    return `作者目标：${goal.length > 300 ? goal.slice(0, 300) + "…" : goal || "未记录"}；所选参考卡：${ids.length ? ids.join("、") : "无"}；工作区迁移参考：${Array.isArray(source.selectedReferenceIds) ? source.selectedReferenceIds.join("、") || "无" : "无"}（记录选择，不证明实际阅读或具体影响）`;
 }
 export function formatPlanningBrief(meta, chapterId) {
     const planning = readPlanning(meta);

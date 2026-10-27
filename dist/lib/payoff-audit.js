@@ -13,7 +13,7 @@ import { DEFAULT_ENDING_LEXICON, scoreEnding } from "./domain/ending-consistency
  */
 const SCORE_UNDER = 0.5;
 const SCORE_OK = 0.75;
-function quoteAround(body, needle, max = 48) {
+function quoteAround(body, needle) {
     if (typeof needle === "string") {
         const i = body.indexOf(needle);
         if (i < 0)

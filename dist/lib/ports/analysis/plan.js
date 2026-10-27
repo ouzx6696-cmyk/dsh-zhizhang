@@ -1,11 +1,11 @@
 /** 抽样计划：Auto 10% 分层 / Full 全量（须显式同意）。 */
 import path from "node:path";
 import { readFile, unlink } from "node:fs/promises";
-import { atomicWrite } from "../../store.js";
+import { atomicWrite } from "../../storage/primitives.js";
 import { ZhizhangError } from "../../errors.js";
 import { withResourceLock } from "../../storage/process-lock.js";
 import { assertNoPendingCard } from "../../storage/card-journal.js";
-import { snapshotFile } from "../../storage/accept-journal.js";
+import { snapshotFile } from "../../storage/recovery-common.js";
 import { createPlanJournal, finishPlanJournal } from "../../storage/plan-journal.js";
 import { AUTO_SAMPLE_HEAD, AUTO_SAMPLE_RATIO, AUTO_SAMPLE_TAIL } from "../../domain/workflow.js";
 import { assertSourceId, ensureDir, nowIso, readJson } from "./paths.js";
@@ -32,6 +32,9 @@ function planFiles(paths, sourceId) {
 }
 export function buildPlan(input) {
     const { sourceId, title, index, mode = "auto", ratio = PLAN_RATIO_DEFAULT, batchChars = PLAN_BATCH_DEFAULT } = input;
+    const numbers = index.map((c) => c.n);
+    if (new Set(numbers).size !== numbers.length)
+        throw new ZhizhangError("ambiguous_chapter_numbers", "原文存在重复章号，不能按章号合并阅读计划；请按实际位置选片段分析或先明确章界，原文已保留。");
     const full = mode === "full";
     const ratioNum = Number(ratio);
     if (!full && (!Number.isFinite(ratioNum) || ratioNum < PLAN_RATIO_MIN || ratioNum > PLAN_RATIO_MAX)) {

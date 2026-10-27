@@ -1,3 +1,4 @@
+import { applyRecordedWrites } from "./recovery-common.js";
 /** Recover an inspiration apply across the work and inspiration directories. */
 import { createHash, randomUUID } from "node:crypto";
 import { hostname } from "node:os";
@@ -5,8 +6,8 @@ import { lstat, open, readFile, unlink } from "node:fs/promises";
 import path from "node:path";
 import { ZhizhangError } from "../errors.js";
 import type { StoragePaths } from "../types.js";
-import { assertResourceId, atomicWrite, isMissingFileError } from "./primitives.js";
-import { ensureRecoveryOwnerInactive, snapshotFile } from "./accept-journal.js";
+import { assertResourceId, isMissingFileError } from "./primitives.js";
+import { ensureRecoveryOwnerInactive, snapshotFile } from "./recovery-common.js";
 import { withResourceLock } from "./process-lock.js";
 
 const JOURNAL = ".zhizhang-inspiration-pending.json";
@@ -91,12 +92,7 @@ async function applyIntent(paths: StoragePaths, j: Intent) {
     await createMarker(paths, j);
     let state = await classify(paths, j);
     if (state.conflict) throw new ZhizhangError("inspiration_recovery_conflict", `文件已变化，未覆盖：${state.writes.filter(w => w.state === "冲突").map(w => `${w.target}/${w.file}`).join("、")}。请保留并核对。`);
-    for (let i = 0; i < j.writes.length; i++) {
-        const w = j.writes[i]; if (state.writes[i].state === "已写入") continue;
-        const file = absolute(paths, j, w);
-        if (await snapshotFile(file) !== w.before) throw new ZhizhangError("inspiration_recovery_conflict", `${w.file} 在恢复期间变化，已停止。`);
-        await atomicWrite(file, w.content);
-    }
+    await applyRecordedWrites(j.writes.map(w => ({ ...w, file: absolute(paths, j, w) })), "inspiration_recovery_conflict");
     state = await classify(paths, j);
     if (state.conflict || state.writes.some(w => w.state !== "已写入")) throw new ZhizhangError("inspiration_recovery_conflict", "文件在恢复期间变化，请保留记录并人工核对。");
     if ((await readIntent(paths)).id !== j.id) throw new ZhizhangError("inspiration_recovery_conflict", "恢复记录已变化，未清除。");

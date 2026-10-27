@@ -347,6 +347,7 @@ window.__ModuleLoader__.load({
         signal: ctrl ? ctrl.signal : undefined,
         body: opts.body,
       };
+      try { var token = window.sessionStorage.getItem("zhizhang.panelToken"); if (token) init.headers["x-zhizhang-token"] = token; } catch (e) {}
       return fetch(url, init)
         .then(function (r) {
           if (timer) clearTimeout(timer);
@@ -427,10 +428,10 @@ window.__ModuleLoader__.load({
             "p",
             { className: "zz-muted" },
             cand.id + " → " + cand.chapterId + " · " + cand.wordCount + " 字",
-            isEdit ? "（编辑稿，路径 A：采纳并验收）" : "",
+            isEdit ? "（编辑稿，路径 A：采纳工作稿）" : "",
           ),
           !cand.hasLintPass
-            ? h("div", { className: "zz-err" }, "未见有效扫描：可能尚未扫描、正文已变或凭据为旧格式；请先让 Agent 重跑 zhizhang_style_lint。")
+            ? h("div", { className: "zz-err" }, "采纳时自动扫描；若已有扫描凭据对应旧正文，服务端会要求重新扫描。")
             : null,
           h(
             "label",
@@ -449,7 +450,7 @@ window.__ModuleLoader__.load({
               "span",
               null,
               isEdit
-                ? "我确认：采纳本章编辑稿并验收为正式章（等同 confirm + confirm_accept_after_edit）"
+                ? "我确认：采纳本章编辑稿为当前工作稿（等同 confirm + confirm_accept_after_edit）"
                 : "我确认采纳本候选到章节草稿（须过 Accept 硬闸；禁止静默成功）",
             ),
           ),
@@ -481,7 +482,7 @@ window.__ModuleLoader__.load({
                 });
               },
             }),
-            h("span", null, "skip_brief：跳过近期 chapter_brief 硬闸（作者旁路）"),
+            h("span", null, "skip_brief：跳过上下文准备记录（作者旁路）"),
           ),
           state.err ? h("div", { className: "zz-err" }, state.err) : null,
           h(
@@ -539,9 +540,12 @@ window.__ModuleLoader__.load({
 
     function SettingsCard() {
       ensureCss();
+      var tokenState = useState(function () { try { return window.sessionStorage.getItem("zhizhang.panelToken") || ""; } catch (e) { return ""; } });
       return h(
         "div",
         { className: "zz-settings" },
+        h("label", null, "访问令牌（本次浏览器会话）", h("input", { type: "password", value: tokenState[0], autoComplete: "off", onChange: function (e) { var value = e.target.value; tokenState[1](value); try { if (value) window.sessionStorage.setItem("zhizhang.panelToken", value); else window.sessionStorage.removeItem("zhizhang.panelToken"); } catch (err) {} } })),
+        h("p", { className: "zz-muted" }, "若宿主配置了 panelToken，在此输入后回到织章刷新。"),
         h("div", { className: "zz-ch-title" }, "织章"),
         h(
           "p",
@@ -950,6 +954,7 @@ window.__ModuleLoader__.load({
             base: projectIdRef.current || undefined,
             work: state.work,
             candidate: cand.id,
+            expectedRevision: state.chapterMeta && state.chapterMeta.id === cand.chapterId ? state.chapterMeta.revision : undefined,
             confirm: true,
             force: !!opts.force,
             skipBrief: !!opts.skipBrief,
@@ -1397,7 +1402,7 @@ window.__ModuleLoader__.load({
                     "div",
                     { className: "zz-ch-title" },
                     c.title,
-                    c.briefRecent ? h(Badge, { tone: "zz-badge-ok" }, " brief✓") : null,
+                    c.briefRecent ? h(Badge, { tone: "zz-badge-ok" }, " 简报记录") : null,
                   ),
                   h(
                     "div",
@@ -1426,7 +1431,7 @@ window.__ModuleLoader__.load({
                 h(
                   "div",
                   { className: "zz-muted" },
-                  (c.hasLintPass ? "lint✓" : "缺 lint") +
+                  (c.hasLintPass ? "lint✓" : "采纳时扫描") +
                     (c.editOf ? " · 编辑自 " + c.editOf : "") +
                     (c.unifyOf && c.unifyOf.length ? " · 整理自 " + c.unifyOf.length + " 稿" : "") +
                     (c.lintHitCount ? " · hits " + c.lintHitCount : ""),
@@ -1629,7 +1634,7 @@ window.__ModuleLoader__.load({
                       "div",
                       { className: "zz-ch-sub" },
                       statusLabel(c.status) +
-                        (c.briefRecent ? " · brief✓" : "") +
+                        (c.briefRecent ? " · 简报记录" : "") +
                         (c.situationLens ? " · " + clip(c.situationLens, 36) : ""),
                     ),
                   ),
@@ -1663,7 +1668,7 @@ window.__ModuleLoader__.load({
                       " · " +
                       (pc.wordCount || 0) +
                       " 字" +
-                      (pc.hasLintPass ? " · lint✓" : " · 缺 lint") +
+                      (pc.hasLintPass ? " · lint✓" : " · 采纳时扫描") +
                       (pc.source === "unify" ? " · 整理" : ""),
                   );
                 }),
@@ -1719,7 +1724,7 @@ window.__ModuleLoader__.load({
                 unifyMsg:
                   "已生成统一整理 brief（" +
                   (data.candidateIds || ids).length +
-                  " 稿）并尝试复制到剪贴板。请把 brief 贴给对话里的 Agent，写完后走 unify_stage → lint → accept。",
+                  " 稿）并尝试复制到剪贴板。请把 brief 贴给对话里的 Agent，写完后走 unify_stage → accept（内置扫描）。",
                 unifyErr: null,
               });
             });
@@ -1751,7 +1756,7 @@ window.__ModuleLoader__.load({
                 });
               },
             },
-            "正式章",
+            "现行正文",
           ),
           h(
             "button",
@@ -1782,7 +1787,7 @@ window.__ModuleLoader__.load({
                 " · " +
                 (activeCand.wordCount || 0) +
                 " 字 · " +
-                (activeCand.hasLintPass ? "lint✓" : "缺 lint"),
+                (activeCand.hasLintPass ? "lint✓" : "采纳时扫描"),
             )
           : null,
       );
@@ -1835,12 +1840,12 @@ window.__ModuleLoader__.load({
             h(
               "p",
               { className: "zz-muted", style: { marginTop: 8 } },
-              "在对话里让 Agent：chapter_brief(lean) → 写出 → candidate_stage → style_lint → accept。",
+              "在对话里让 Agent：chapter_brief(lean) → 创作与回读 → candidate_stage → candidate_accept（内置扫描）。",
             ),
             h(
               "p",
               { className: "zz-muted", style: { marginTop: 6 } },
-              "可选：写后编辑 A/B/C；或多草稿（默认关）再统一整理。",
+              "按需编辑；多草稿（默认关）可统一整理。",
             ),
           );
         } else {
@@ -1851,10 +1856,28 @@ window.__ModuleLoader__.load({
         }
       }
 
+      function chapterAction(action) {
+        if (!state.chapterMeta || !state.chapterMeta.revision || state.chapterTruncated || state.bodyLoading) return;
+        var message = action === "review" ? "声明：我已完整审读当前正文及必要依据，无未解决内容硬伤。此声明将绑定当前版本。" : action === "finalize" ? "将当前已审版本定稿；这代表本次明确的定稿授权。" : "声明已核对本章修订涉及的状态和相关后稿，清除此版本的修订提示。";
+        if (!window.confirm(message)) return;
+        var route = action === "acknowledge" ? "/revision/acknowledge" : "/chapter/" + action;
+        fetchJson(API + route, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ base: projectIdRef.current || undefined, work: state.work, chapter: state.chapterId, expectedRevision: state.chapterMeta.revision, confirm: true }) })
+          .then(function (res) {
+            if (!res.ok || !res.data.ok) throw new Error(res.data.error || "操作失败");
+            setState(function (s) { return Object.assign({}, s, { bodyEpoch: s.bodyEpoch + 1, acceptMsg: "章节状态已更新", acceptErr: null }); });
+          }).catch(function (err) { setState(function (s) { return Object.assign({}, s, { acceptErr: err.message }); }); });
+      }
       var rightGate = h(
         "div",
         null,
-        h("div", { className: "zz-sec" }, "本章闸"),
+        h("div", { className: "zz-sec" }, "本章状态"),
+        state.chapterMeta ? h("div", { className: "zz-card" },
+          h("p", { className: "zz-muted" }, "采纳工作稿、审读声明与作者定稿分别记录。"),
+          h("p", { className: "zz-muted" }, state.chapterMeta.review ? "审读：" + state.chapterMeta.review.result + " · " + (state.chapterMeta.review.revision === state.chapterMeta.revision ? "正文版本匹配，依据在定稿时复核" : "旧正文版本，已过期") : "无审读声明；历史定稿不补造证据"),
+          h("button", { className: "zz-btn", disabled: state.chapterTruncated || state.bodyLoading, onClick: function () { chapterAction("review"); } }, "声明已审读"),
+          h("button", { className: "zz-btn", disabled: state.chapterTruncated || state.bodyLoading, onClick: function () { chapterAction("finalize"); } }, "定稿"),
+          h("button", { className: "zz-btn", disabled: state.chapterTruncated || state.bodyLoading, onClick: function () { chapterAction("acknowledge"); } }, "已核对修订影响"),
+          state.chapterTruncated ? h("p", null, "正文被截断，请经工具读取完整正文后审读。") : null) : null,
         state.chapterId
           ? h(
               "div",
@@ -1869,7 +1892,7 @@ window.__ModuleLoader__.load({
                   h(
                     "div",
                     { className: "zz-gate " + (ch && ch.briefRecent ? "zz-gate-ok" : "zz-gate-bad") },
-                    ch && ch.briefRecent ? "brief✓ 近期已跑" : "brief：未见近期留痕",
+                    ch && ch.briefRecent ? "近期有简报记录；采纳时核版本" : "无近期记录；写作前获取上下文",
                   ),
                   h(
                     "div",
@@ -1881,7 +1904,7 @@ window.__ModuleLoader__.load({
                     activeCand
                       ? activeCand.hasLintPass
                         ? "lint✓ 已扫描，采纳时复核正文"
-                        : "lint：扫描缺失、正文已变或凭据为旧格式，需重扫"
+                        : "采纳时自动扫描；已有凭据若过期须重扫"
                       : "lint：无待采纳",
                   ),
                   h(
@@ -1923,7 +1946,7 @@ window.__ModuleLoader__.load({
                     " · " +
                     (pc.wordCount || 0) +
                     " 字" +
-                    (pc.hasLintPass ? " · lint✓" : " · 缺 lint"),
+                    (pc.hasLintPass ? " · lint✓" : " · 采纳时扫描"),
                 );
               }),
               activeCand
@@ -1989,14 +2012,14 @@ window.__ModuleLoader__.load({
               h(
                 "ol",
                 null,
-                h("li", null, "A · 确认采纳编辑稿并验收为正式章（面板采纳即路径 A，须二次确认）"),
-                h("li", null, "B · 只留下编辑候选，稍后再验（工具 edit_decide）"),
+                h("li", null, "A · 采纳编辑稿为工作稿（面板采纳需确认；不代表审读或定稿）"),
+                h("li", null, "B · 保留编辑候选，暂不采纳（工具 edit_decide）"),
                 h("li", null, "C · 拒编辑或换模式重跑（工具 edit_decide）"),
               ),
               h(
                 "p",
                 { className: "zz-muted", style: { marginTop: 8 } },
-                "未表态按 B。完整 decide 走 zhizhang_candidate_edit_decide；面板只做正式采纳。",
+                "A/B/C 兼容可用，按实际授权选择。面板采纳工作稿后，内容审读与定稿另行声明。",
               ),
             )
           : h(
@@ -2006,7 +2029,7 @@ window.__ModuleLoader__.load({
               h(
                 "p",
                 { className: "zz-muted", style: { margin: 0 } },
-                "lint 后可 edit_brief → 改写 → edit_stage；用户选 A/B/C。非每章必经，不进默认最短链。",
+                "按实际阅读问题取 edit_brief → 改写 → edit_stage，再按授权采纳或保留候选。编辑可选。",
               ),
             ),
         h("div", { className: "zz-sec" }, "当前小说状态"),
@@ -2056,7 +2079,7 @@ window.__ModuleLoader__.load({
             { className: "zz-wb-head" },
             state.chapterMeta
               ? (state.chapterMeta.title || state.chapterId) +
-                  (state.readerView === "candidate" ? " · 候选对照" : " · 正式章")
+                  (state.readerView === "candidate" ? " · 候选对照" : " · 现行正文")
               : "阅读",
           ),
           h("div", { className: "zz-wb-body" }, readerToolbar, readerContent),

@@ -1,7 +1,7 @@
 {
   "name": "dsh-zhizhang",
-  "version": "0.17.0",
-  "description": "织章 DSH 插件：按需启用（默认只挂 zhizhang_enable）；Scheduler 调度；双轴 craft|mind；lean 写作闭环；反僵硬；写后可选编辑 A/B/C；小说阅读工作台；可选多草稿（默认关）；ports-only。",
+  "version": "0.18.0",
+  "description": "织章 DSH 插件：按需启用；参考分析与原创规划；条件接续、版本化审读、定稿与安全修订；本地资产、恢复与作者阅读工作台。",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -31,7 +31,7 @@
     "test": "npm run build && node --test --import ./test/setup.mjs test/domain.test.mjs test/workflow.test.mjs test/storage.test.mjs test/panel.test.mjs",
     "check": "npm run guard && npm test",
     "typecheck": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
-    "guard": "node scripts/ts-nocheck-guard.mjs && node scripts/type-import-guard.mjs"
+    "guard": "node scripts/architecture-guard.mjs"
   },
   "dsh": {
     "bundle": {

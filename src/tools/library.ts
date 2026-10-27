@@ -9,8 +9,37 @@ import { hasPendingDiscard, inspectPendingDiscard, resumePendingDiscard } from "
 import { hasPendingAnalysis, inspectPendingAnalysis, resumePendingAnalysis } from "../lib/storage/analysis-journal.js";
 import { hasPendingPlan, inspectPendingPlan, resumePendingPlan } from "../lib/storage/plan-journal.js";
 import { stat } from "node:fs/promises";
-import { LibraryPort, coerceAxis, formatHumanFeelBlock, formatBookCraftBlock, formatMindBlock, formatHandoffBlock, formatModuleBlockV2, } from "../lib/ports/index.js";
-import { readAnalysisBundle, readSurvey, computeCoverage, listAnalyses, WHITE_DESC_HARD_RE, buildPlan, estimatePlan, planLabel, writePlan, readPlan, makeConfirmToken, writePendingConfirm, assertFullConsent, planProgress, planMembership, chapterText, chapterTitle, PLAN_RATIO_DEFAULT, PLAN_BATCH_DEFAULT, PLAN_BATCH_MIN, PLAN_BATCH_MAX, } from "../lib/ports/analysis.js";
+import {
+    LibraryPort,
+    coerceAxis,
+    formatHumanFeelBlock,
+    formatBookCraftBlock,
+    formatMindBlock,
+    formatHandoffBlock,
+    formatModuleBlockV2,
+} from "../lib/ports/index.js";
+import {
+    readAnalysisBundle,
+    readSurvey,
+    computeCoverage,
+    listAnalyses,
+    WHITE_DESC_HARD_RE,
+    buildPlan,
+    estimatePlan,
+    planLabel,
+    writePlan,
+    readPlan,
+    makeConfirmToken,
+    writePendingConfirm,
+    assertFullConsent,
+    planProgress,
+    chapterText,
+    chapterTitle,
+    PLAN_RATIO_DEFAULT,
+    PLAN_BATCH_DEFAULT,
+    PLAN_BATCH_MIN,
+    PLAN_BATCH_MAX,
+} from "../lib/ports/analysis.js";
 import { ensureStorage, listLocalBooks, sessionCwd } from "../lib/store.js";
 import { AUTO_SAMPLE_HEAD, AUTO_SAMPLE_RATIO, AUTO_SAMPLE_TAIL } from "../lib/domain/workflow.js";
 import { asArray, asString, asStringArray, config, fail } from "./context.js";
@@ -759,18 +788,18 @@ export function libraryTools() {
                     query: asString(args, "query"),
                     preferMindSourceIds: prefer ? [prefer] : undefined,
                 });
-                if (!result.ok || !result.mind) {
+                if (!result.ok) {
                     return [
-                        "组合建议失败：无可用 mind",
+                        "当前没有可用参考卡",
                         `- 原因：${result.emptyReason ?? "未知"}`,
                         "",
-                        "补救：拆书采纳 mind 卡，或放宽 source 过滤；仅技法试写用 inspire_start(craft_only=true)",
+                        "可放宽来源过滤，或直接按作者目标规划；不要求先补参考卡",
                     ].join("\n");
                 }
                 const lines = [
-                    "组合包（1 book + N scene）",
+                    "参考组合（优先 mind + craft，缺一轴不阻断）",
                     `- card_ids：${result.cardIds.join(", ")}`,
-                    `- mind：${result.mind.title}（${result.mind.id}）· src=${result.mind.sourceId}`,
+                    result.mind ? `- mind：${result.mind.title}（${result.mind.id}）· src=${result.mind.sourceId}` : "- mind：无；可按作者材料规划，不强制补卡",
                     ...(queryText ? [`- 主题排序：${queryText}`] : []),
                     `- craft ×${result.crafts.length}：`,
                     ...result.crafts.map((c: any, i: number) => `  ${i + 1}. ${c.title}（${c.id}）· src=${c.sourceId}`),

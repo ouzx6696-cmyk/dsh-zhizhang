@@ -53,7 +53,7 @@ export function analysisTools() {
     return [
         defineTool({
             name: "zhizhang_library_facts_stage",
-            description: `${stepPrefix("library", 4, "事实层")}提交逐章白描事实（谁做了什么、结果；没写的动机进 unknowns）。校验：引文可回溯、desc 无心理/评价词。下一步：structure_stage 聚合。`,
+            description: `${stepPrefix("library", 4, "事实层")}提交逐章白描事实（谁做了什么、结果；没写的动机进 unknowns）。校验字面引文与来源；心理/评价词仅提示，不误拒原作对白。下一步：structure_stage 聚合。`,
             properties: {
                 source: S("sourceId"),
                 facts: { type: "object", description: "单章事实：{n,title,events:[{loc,desc,quote}],functions,hook,value,unknowns,readingLevel?}；readingLevel 可显式申报正文已读或深读，省略为未声明" },

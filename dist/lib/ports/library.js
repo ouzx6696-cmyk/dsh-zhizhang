@@ -12,9 +12,9 @@ import { ZhizhangError } from "../errors.js";
 import { assertNoPendingCard, createCardJournal, finishCardJournal } from "../storage/card-journal.js";
 import { createSourceJournal, finishSourceJournal } from "../storage/source-journal.js";
 import { createDiscardJournal, finishDiscardJournal } from "../storage/discard-journal.js";
-import { snapshotFile } from "../storage/accept-journal.js";
+import { snapshotFile } from "../storage/recovery-common.js";
 import { withResourceLock } from "../storage/process-lock.js";
-import { atomicWrite, assertResourceId, sessionCwd, } from "../store.js";
+import { atomicWrite, assertResourceId, sessionCwd, } from "../work-store.js";
 import { readJsonCached } from "../file-cache.js";
 import { MethodRegistry } from "./methods.js";
 import { parseChapterNumber } from "../domain/chapter-heading.js";
@@ -22,10 +22,10 @@ import { REPORT_SECTION_COUNT } from "../domain/report-sections.js";
 import { QualityPolicy } from "./quality-policy.js";
 import { chapterIndex, chapterText, chapterTitle, nearestChapter, totalChapters, ensureAnalysis, writeAnalysisMeta, readAnalysisBundle, deriveAxis, validateModule, verifyModuleEvidence, verifyBodyQuotes, assertSourceId, } from "./analysis.js";
 import { normalizeMechanism, normalizeHumanFeel, normalizeBookCraft, normalizeHandoff, normalizeKind, normalizeAxis, coerceAxis, normalizeMind, warnCharacterStateWall, readingArtifactWarnings, admitCardContent, } from "./library/schema.js";
-export * from "./library/schema.js";
 import { auditCardContent, normForMatch } from "./library/audit.js";
-export { auditCardContent, normForMatch } from "./library/audit.js";
 import { nowIso, newId, fileExists, libraryDirs, emptyIndex, readIndex, filterCardRows, comboScore, decodeBookBuffer, normalizeUserPath, tokenizeQuery, cardDeepHay, reconcileIndex, } from "./library/store.js";
+export * from "./library/schema.js";
+export { auditCardContent, normForMatch } from "./library/audit.js";
 // —— § 拆书源缓存（文本 + 章索引派生） ——
 // 轮询与阅读复用源文本缓存；证据校验单独读取源文件字节，不把缓存当完整性证明。
 const SOURCE_CACHE_MAX = 6;
@@ -67,8 +67,9 @@ async function getSourceCached(paths, sourceId) {
         throw new ZhizhangError("source_changed", `书源 ${id} 在读取期间发生变化；请重新核对后再试。`);
     const entry = { mtimeMs: after.mtimeMs, ctimeMs: after.ctimeMs, ino: after.ino, size: after.size, meta, text };
     sourceCache.delete(textPath);
-    sourceCache.set(textPath, entry);
-    if (sourceCache.size > SOURCE_CACHE_MAX) {
+    if (text.length * 2 <= 64 * 1024 * 1024)
+        sourceCache.set(textPath, entry);
+    while (sourceCache.size > SOURCE_CACHE_MAX || [...sourceCache.values()].reduce((n, v) => n + v.text.length * 2, 0) > 64 * 1024 * 1024) {
         const oldest = sourceCache.keys().next().value;
         if (oldest !== undefined)
             sourceCache.delete(oldest);
@@ -109,7 +110,7 @@ export const LibraryPort = {
     id: "port.library",
     status: "live",
     title: "拆书库",
-    summary: "闭环第1段：交书→plan（auto 10% / full 须同意）→dissect（批次）→facts（白描）→structure（剧情/节奏/人物）→card（v2 模块）→accept→report→combo。book 交灵感；scene 交写作。验收=真读原文（脚本只证明没编没缺）。≠ MethodRegistry。",
+    summary: "闭环第1段：交书→plan（auto 10% / full 须同意）→dissect（批次）→facts（白描）→structure（剧情/节奏/人物）→card（v2 模块）→accept→report→combo。book 交灵感；scene 交写作。验收=真读原文（脚本只核字段与字面引文）。≠ MethodRegistry。",
     capabilities() {
         return [
             { id: "import_source", title: "导入小说原文", ready: true },
@@ -321,7 +322,7 @@ export const LibraryPort = {
                 if (mode === "full") {
                     lines.push("- 注意：无 plan 的 mode=full 只取 from 起数章，不是全量；全量须 library_plan(mode=full)（作者同意后）。本批按 chapters 记 scope。");
                 }
-                lines.push("", "【纪律】只记白描：谁做了什么、结果怎样；原文没写的动机/身份/后果写进 unknowns，禁止补。", "【禁】desc 里出现 心里/觉得/认为/希望/害怕/后悔/其实/精彩/感人/震撼 等心理评价词会被拒。", "", "## 每章提交格式（zhizhang_library_facts_stage；阅读程度须如实申报，未声明可省略）", "```json", JSON.stringify({ source: meta.id, facts: { n: 1, title: "…", events: [{ loc: "P1-P3", desc: "谁做了什么，结果怎样", quote: "原文片段" }], functions: ["入局"], hook: { type: "悬念", text: "章末钩子", strength: "强" }, value: { situation: "…", relation: "…", cognition: "…", emotion: "…" }, unknowns: ["原文没写的动机"], readingLevel: "正文已读" } }, null, 2), "```", "", "## 本批原文");
+                lines.push("", "【纪律】只记白描：谁做了什么、结果怎样；原文没写的动机/身份/后果写进 unknowns，禁止补。", "心理/评价词只提示回看：区分人物明确说过的话与分析者推断，不能单凭词表拒绝事实。", "", "## 每章提交格式（zhizhang_library_facts_stage；阅读程度须如实申报，未声明可省略）", "```json", JSON.stringify({ source: meta.id, facts: { n: 1, title: "…", events: [{ loc: "P1-P3", desc: "谁做了什么，结果怎样", quote: "原文片段" }], functions: ["入局"], hook: { type: "悬念", text: "章末钩子", strength: "强" }, value: { situation: "…", relation: "…", cognition: "…", emotion: "…" }, unknowns: ["原文没写的动机"], readingLevel: "正文已读" } }, null, 2), "```", "", "## 本批原文");
                 for (const b of batch) {
                     lines.push(`
 ### 第${b.n}章 ${b.title}`);
@@ -562,19 +563,19 @@ export const LibraryPort = {
             card.evidence = v2.evidence;
             // Snapshot only explicit reading declarations for cited chapters; quotes do not prove depth.
             const analysis = await readAnalysisBundle(paths, sourceId);
-            const byChapter = new Map(analysis.chapters.map((f) => [Number(f.n), f]));
             const chapterNums = [...new Set(v2.evidence.map((e) => parseChapterNumber(e?.chapter)).filter((n) => Number.isInteger(n) && n > 0))];
             const chapters = chapterNums.map((n) => {
-                const fact = byChapter.get(n);
+                const matches = analysis.chapters.filter((f) => Number(f.n) === n);
+                const fact = matches.length === 1 ? matches[0] : undefined;
                 const level = fact?.readingLevel === "正文已读" || fact?.readingLevel === "深读" ? fact.readingLevel : "未声明";
-                return { chapter: n, readingLevel: level };
+                return { chapter: n, readingLevel: level, sourceHash: fact?.sourceHash, sourceStart: fact?.sourceStart, sourceMatches: fact?.sourceHash ? fact.sourceHash === evidenceSourceHash : null };
             });
             card.readingEvidence = {
                 capturedAt: now,
                 sourceHash: evidenceSourceHash,
                 planMode: analysis.meta?.scope?.mode ?? "未建计划",
                 chapters,
-                note: "阅读程度为提交者申报，引用匹配不证明已读或深读",
+                note: "阅读程度为提交者申报，引用匹配不证明已读或深读；来源版本不同时仅为历史申报，旧记录来源未知",
             };
             if (chapters.some((ch) => ch.readingLevel === "未声明"))
                 warnings.push("部分证据章的阅读程度未声明；引文匹配不证明已读或深读。");
@@ -775,15 +776,15 @@ export const LibraryPort = {
                 if (tokens.every((t) => cardDeepHay(card).includes(t)))
                     hits.push({ ...row, axis: coerceAxis(card) });
             }
-            catch {
-                /* skip */
+            catch (err) {
+                throw err;
             }
         }
         return hits;
     },
     /**
-     * 推荐组合包：恰好 1 mind + 最多 N craft（可跨 source）。
-     * 缺 mind → ok=false + emptyReason（不抛，便于产品面展示）。
+     * 推荐组合包：优先 1 mind + 最多 N craft；有用的 craft 可独立返回。
+     * 缺 mind 不阻断；没有任何可用卡时返回空原因。
      */
     async suggestCombo(paths, input = {}) {
         await LibraryPort.ensureLibrary(paths);
@@ -808,8 +809,8 @@ export const LibraryPort = {
                 try {
                     axis = coerceAxis(await LibraryPort.getCard(paths, row.id));
                 }
-                catch {
-                    axis = "craft";
+                catch (err) {
+                    throw err;
                 }
             }
             const normalized = { ...row, axis };
@@ -819,14 +820,10 @@ export const LibraryPort = {
                 crafts.push(normalized);
         }
         if (minds.length === 0) {
-            return {
-                ok: false,
-                cardIds: [],
-                mind: null,
-                crafts: [],
-                warnings,
-                emptyReason: "候选池无 mind 卡：请先拆/采纳创作思维卡，或放宽 source 过滤；仅技法试写请 inspire_start(craft_only=true) 自选 craft",
-            };
+            const selected = [...crafts].sort((a, b) => comboScore(b, query, "").score - comboScore(a, query, "").score).slice(0, craftCount);
+            return { ok: selected.length > 0, cardIds: selected.map(c => c.id), mind: null, crafts: selected,
+                warnings: [...warnings, "没有 mind；按本书作者材料规划，craft 仅提供写法参考，不要求补卡。"],
+                emptyReason: selected.length ? undefined : "当前范围没有参考卡；可以直接按作者目标规划。" };
         }
         // score minds
         const mindScored = [];
@@ -838,8 +835,8 @@ export const LibraryPort = {
             try {
                 deep = cardDeepHay(await LibraryPort.getCard(paths, row.id));
             }
-            catch {
-                /* ignore */
+            catch (err) {
+                throw err;
             }
             const cs = comboScore(row, query, deep);
             let score = cs.score;
@@ -856,8 +853,8 @@ export const LibraryPort = {
             try {
                 deep = cardDeepHay(await LibraryPort.getCard(paths, row.id));
             }
-            catch {
-                /* ignore */
+            catch (err) {
+                throw err;
             }
             const cs = comboScore(row, query, deep);
             let score = cs.score;
@@ -952,7 +949,7 @@ export const LibraryPort = {
                 const check = validateModule(card);
                 const bad = entry.text
                     ? verifyModuleEvidence(card, entry.text, entry.index)
-                    : (card.evidence ?? []).map((e, i) => `evidence[${i}] 来源缺失，无法核对`);
+                    : (card.evidence ?? []).map((_, i) => `evidence[${i}] 来源缺失，无法核对`);
                 const quotes = (card.evidence ?? []).length;
                 const bodyCheck = entry.text
                     ? verifyBodyQuotes(card, entry.text)

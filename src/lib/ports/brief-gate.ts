@@ -5,7 +5,7 @@ export const BriefGate = {
         const recentMs = opts.recentMs ?? getPortConfig().briefRecentMs;
         const hours = Math.round(recentMs / 3600000);
         if (!opts.brief && !opts.skipBrief) {
-            return deny("brief_required", `采纳前须对本章调用 zhizhang_chapter_brief（近 ${hours}h 留痕）。作者/测试可传 skip_brief=true。brief 注入方法资产；lintPassToken 只证明已扫过，不能代替 brief。`);
+            return deny("brief_required", `采纳前须对本章调用 zhizhang_chapter_brief（依据版本留痕；旧格式最多 ${hours}h）。作者/测试可传 skip_brief=true。brief 注入方法资产；lintPassToken 只证明已扫过，不能代替 brief。`);
         }
         if (!opts.brief && opts.skipBrief) {
             return allow([
@@ -14,7 +14,7 @@ export const BriefGate = {
         }
         const b = opts.brief;
         return allow([
-            info("brief_ok", `brief 留痕：${b.at} · assets=${b.assetIds.join(",") || "(none)"}`),
+            info("brief_ok", `上下文留痕（应用时核版本）：${b.at} · assets=${b.assetIds.join(",") || "(none)"}`),
         ]);
     },
 };

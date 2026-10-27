@@ -1,3 +1,5 @@
+import { snapshotFile, ensureRecoveryOwnerInactive, applyRecordedWrites } from "./recovery-common.js";
+export { snapshotFile, ensureRecoveryOwnerInactive } from "./recovery-common.js";
 /** Recoverable candidate acceptance for one work. */
 import { createHash, randomUUID } from "node:crypto";
 import { hostname } from "node:os";
@@ -7,22 +9,9 @@ import { ZhizhangError } from "../errors.js";
 import { withResourceLock } from "./process-lock.js";
 import { assertNoInspirationMarker } from "./inspiration-journal.js";
 import { assertNoPendingChapterSave } from "./chapter-journal.js";
-import { assertResourceId, atomicWrite, isMissingFileError } from "./primitives.js";
+import { assertResourceId, isMissingFileError } from "./primitives.js";
 const JOURNAL = ".zhizhang-accept-pending.json";
 const hash = (s) => createHash("sha256").update(s).digest("hex");
-export async function snapshotFile(file) {
-    try {
-        const info = await lstat(file);
-        if (!info.isFile() || info.isSymbolicLink())
-            throw new ZhizhangError("recovery_unsupported_file", `不能通过恢复流程覆盖非普通文件或符号链接：${file}`);
-        return hash(await readFile(file));
-    }
-    catch (err) {
-        if (isMissingFileError(err))
-            return null;
-        throw err;
-    }
-}
 /** A pending acceptance is never silently interpreted as a completed state. */
 export async function assertNoPendingAccept(dir) {
     await assertNoInspirationMarker(dir);
@@ -102,21 +91,6 @@ async function classify(dir, j) {
     })));
     return { writes, guards, conflict: [...writes, ...guards].some((x) => x.state === "冲突") };
 }
-export function ensureRecoveryOwnerInactive(owner) {
-    if (owner.host !== hostname())
-        throw new ZhizhangError("recovery_owner_unknown", "恢复记录来自另一台主机，无法确认原进程已停止；请先由管理员核对，暂不自动恢复。");
-    if (owner.pid === process.pid)
-        return; // caller holds the operation's process-local locks
-    try {
-        process.kill(owner.pid, 0);
-    }
-    catch (err) {
-        if (err?.code === "ESRCH")
-            return;
-        throw new ZhizhangError("recovery_owner_unknown", "无法确认原进程是否停止，暂不自动恢复。");
-    }
-    throw new ZhizhangError("recovery_owner_active", "原进程仍存在（或进程号已复用），暂不自动恢复；请先核对原进程状态。");
-}
 /** Construct the intent before any of the four authoritative files are written. */
 export async function createAcceptJournal(dir, input) {
     const j = {
@@ -152,15 +126,7 @@ async function applyJournal(dir, j) {
     const state = await classify(dir, j);
     if (state.conflict)
         throw new ZhizhangError("recovery_conflict", `以下文件已变化，未自动恢复：${[...state.writes, ...state.guards].filter((x) => x.state === "冲突").map((x) => x.file).join("、")}。请保留记录并人工核对。`);
-    for (let i = 0; i < j.writes.length; i++) {
-        const w = j.writes[i];
-        if (state.writes[i].state === "已写入")
-            continue;
-        // Recheck immediately before each write; this is not a cross-process lock.
-        if (await snapshotFile(path.join(dir, w.file)) !== w.before)
-            throw new ZhizhangError("recovery_conflict", `${w.file} 在恢复期间发生变化，已停止；请人工核对。`);
-        await atomicWrite(path.join(dir, w.file), w.content);
-    }
+    await applyRecordedWrites(j.writes.map(w => ({ ...w, file: path.join(dir, w.file) })), "recovery_conflict");
     const verified = await classify(dir, j);
     if (verified.conflict || verified.writes.some((w) => w.state !== "已写入"))
         throw new ZhizhangError("recovery_conflict", "采纳文件在写入期间发生变化，恢复记录已保留；请人工核对。");

@@ -3,6 +3,9 @@
  * exposes one). Kept out of the plugin entry so a profile mount injects only the
  * single `zhizhang_enable` trigger.
  */
+import { withPluginConfig } from "../tools/context.js";
+import { withPortConfig } from "./ports/config.js";
+import { envMultiDraftFlag } from "./ports/multi-draft.js";
 import { allTools, SYSTEM_BRIEF, setPluginConfig, } from "../tools/index.js";
 /**
  * Register every 织章 tool and the resident hard-rules section on `ctx`.
@@ -13,10 +16,12 @@ import { allTools, SYSTEM_BRIEF, setPluginConfig, } from "../tools/index.js";
 export function applyTools(ctx: any, pluginConfig: any) {
     if (pluginConfig !== undefined)
         setPluginConfig(pluginConfig);
+    const boundConfig = { ...(pluginConfig ?? {}) };
+    const policy = { multiDraftEnabled: boundConfig.multiDraftEnabled === true || boundConfig.multiDraft?.enabled === true || envMultiDraftFlag() };
     const disposers = [];
     try {
         for (const tool of allTools()) {
-            disposers.push(ctx.tools.register(tool));
+            disposers.push(ctx.tools.register({ ...tool, execute: (args: any, exec: any) => withPluginConfig(boundConfig, () => withPortConfig(policy, () => tool.execute(args, exec))) }));
         }
         const systemPrompt = ctx.get?.("systemPrompt");
         if (systemPrompt && typeof systemPrompt.section === "function") {

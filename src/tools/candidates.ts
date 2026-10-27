@@ -15,6 +15,7 @@ async function runAcceptPipeline(args: any, exec: ExecContext, opts: any) {
         candidateId: opts.candidateId,
         mode: opts.mode,
         force: opts.force,
+        expectedRevision: opts.expectedRevision,
         lintPassToken: opts.lintPassToken,
         skipBrief: opts.skipBrief,
         strictLint: opts.strictLint,
@@ -32,7 +33,7 @@ export function candidatesTools() {
     return [
         defineTool({
             name: "zhizhang_candidate_stage",
-            description: "【默认链】暂存候选到 candidates/（不写 chapters/）。可同章多次 stage（多草稿）；可选 draft_label / variant_group。下一步：style_lint →（可选 edit）→ accept。统一整理见旁路 unify_*（须 multiDraft 开启）。",
+            description: "【默认链】暂存候选到 candidates/（不写 chapters/）。可同章多次 stage（多草稿）；可选 draft_label / variant_group。下一步：candidate_accept（内置扫描，编辑可选）。统一整理见旁路 unify_*（须 multiDraft 开启）。",
             properties: {
                 work: WORK_OPT,
                 working_dir: WORKING_DIR,
@@ -76,7 +77,7 @@ export function candidatesTools() {
         }),
         defineTool({
             name: "zhizhang_candidate_edit_brief",
-            description: "【默认链·可选编辑】取出编辑过稿 brief（默认 polish-depolish）。Agent 按 brief 改写正文后调用 edit_stage；改完须用户选 A/B/C，禁止自称已验收。技能：docs/skills/web-novel-master-optimizer.md",
+            description: "【默认链·可选编辑】取出编辑过稿 brief（默认 polish-depolish）。Agent 按 brief 改写正文后调用 edit_stage；按真实授权采纳或保留候选；A/B/C 兼容可用，采纳不代表定稿。技能：docs/skills/web-novel-master-optimizer.md",
             properties: {
                 work: WORK_OPT,
                 working_dir: WORKING_DIR,
@@ -113,7 +114,7 @@ export function candidatesTools() {
         }),
         defineTool({
             name: "zhizhang_candidate_edit_stage",
-            description: "【默认链·可选编辑】将编辑后正文暂存为新候选（editOf=写手候选；不写正式章）。随后须用户选 A/B/C；未表态按 B。禁止本工具内 accept。",
+            description: "【默认链·可选编辑】将编辑后正文暂存为新候选（editOf=写手候选；不写正式章）。随后按授权采纳或保留候选；A/B/C 兼容可用。禁止本工具内 accept。",
             properties: {
                 work: WORK_OPT,
                 working_dir: WORKING_DIR,
@@ -160,14 +161,15 @@ export function candidatesTools() {
         }),
         defineTool({
             name: "zhizhang_candidate_edit_decide",
-            description: "【默认链·可选编辑】用户对编辑候选显式选 A/B/C。A=一次确认应用编辑并 accept（须 confirm_accept_after_edit=true，且编辑候选已 lint）；B=仅确认候选、正式章不变；C=拒编辑。禁止静默 A。",
+            description: "【默认链·可选编辑】用户对编辑候选显式选 A/B/C。A=一次确认应用编辑并 accept（须 confirm_accept_after_edit=true，采纳时自动扫描；已有过期凭据须重扫）；B=仅确认候选、正式章不变；C=拒编辑。禁止静默 A。",
             properties: {
                 work: WORK_OPT,
                 working_dir: WORKING_DIR,
                 candidate: S("编辑候选 id（须带 editOf）"),
                 choice: E(["A", "B", "C"], "用户抉择"),
-                confirm_accept_after_edit: B("路径 A 必填 true：确认采纳本章编辑稿并验收为正式章"),
+                confirm_accept_after_edit: B("路径 A 必填 true：确认采纳本章编辑稿为当前工作稿"),
                 mode: E(["replace", "append"], "A 时写入模式，默认 replace"),
+                expected_revision: S("旧候选缺少基线时，显式核对的现行章节 revision"),
                 force: B("A 且目标章 final 时须 true"),
                 lint_pass_token: S("A 可选：显式 lintPassToken"),
                 skip_brief: B("A 时跳过 brief 硬闸"),
@@ -211,7 +213,7 @@ export function candidatesTools() {
                 // A — require confirm; then full accept pipeline
                 const confirmed = boolArg(args, "confirm_accept_after_edit") === true;
                 if (!confirmed) {
-                    fail("路径 A 须一次显式确认：传 confirm_accept_after_edit=true（确认：采纳本章编辑稿并验收为正式章）。禁止静默验收。", "edit_accept_confirm_required");
+                    fail("路径 A 须一次显式确认：传 confirm_accept_after_edit=true（确认：采纳本章编辑稿为当前工作稿）。禁止静默验收。", "edit_accept_confirm_required");
                 }
                 const mode = asString(args, "mode") ?? "replace";
                 if (mode !== "append" && mode !== "replace")
@@ -219,6 +221,7 @@ export function candidatesTools() {
                 return runAcceptPipeline(args, exec, {
                     candidateId,
                     mode,
+                    expectedRevision: asString(args, "expected_revision"),
                     force: boolArg(args, "force") ?? false,
                     lintPassToken: asString(args, "lint_pass_token") ?? undefined,
                     skipBrief: boolArg(args, "skip_brief") ?? false,
@@ -233,7 +236,7 @@ export function candidatesTools() {
         }),
         defineTool({
             name: "zhizhang_chapter_drafts",
-            description: "【旁路·多草稿】列出某章待采纳候选（含 draftLabel）；可选带近期已采纳。不要求 multiDraft 开启。下一步：选稿 lint/accept，或开启后 unify_brief。",
+            description: "【旁路·多草稿】列出某章待采纳候选（含 draftLabel）；可选带近期已采纳。不要求 multiDraft 开启。下一步：选稿 candidate_accept（内置扫描），或开启后 unify_brief。",
             properties: {
                 work: WORK_OPT,
                 working_dir: WORKING_DIR,
@@ -356,7 +359,7 @@ export function candidatesTools() {
         }),
         defineTool({
             name: "zhizhang_candidate_unify_stage",
-            description: "【旁路·多草稿】将统一整理正文暂存为新候选（source=unify，unifyOf=父 ids；不写正式章）。须 multiDraft 开启。下一步：style_lint → candidate_accept。",
+            description: "【旁路·多草稿】将统一整理正文暂存为新候选（source=unify，unifyOf=父 ids；不写正式章）。须 multiDraft 开启。下一步：candidate_accept（内置扫描）。",
             properties: {
                 work: WORK_OPT,
                 working_dir: WORKING_DIR,
@@ -418,21 +421,22 @@ export function candidatesTools() {
         }),
         defineTool({
             name: "zhizhang_candidate_accept",
-            description: "【默认链】采纳候选到章节草稿。硬闸：lintPassToken + 近期 chapter_brief。编辑路径 A 可传 accept_after_edit + confirm_accept_after_edit（一次确认=编辑+验收）；禁止只应用编辑却偷偷 accept。旁路：skip_brief / strict_* / require_payoff / force。",
+            description: "【默认链】采纳候选到章节草稿。默认需要 chapter_brief 依据；采纳内置扫描，已有过期扫描凭据须重扫。编辑路径 A 可传 accept_after_edit + confirm_accept_after_edit；采纳、内容审读与定稿分开。旁路：skip_brief / strict_* / require_payoff / force。",
             properties: {
                 work: WORK_OPT,
                 working_dir: WORKING_DIR,
                 candidate: S("候选 id（cand-…）"),
                 mode: E(["replace", "append"], "默认 replace"),
+                expected_revision: S("旧候选缺少基线时，显式核对的现行章节 revision"),
                 force: B("目标章为 final 时必须为 true 才允许覆盖（采纳后降为 drafted）"),
-                lint_pass_token: S("可选：zhizhang_style_lint 返回的 lintPassToken；省略则校验候选上已记录的 token"),
+                lint_pass_token: S("可选：zhizhang_style_lint 返回的 lintPassToken；省略时自动扫描；已有凭据则核对是否仍对应候选正文"),
                 skip_brief: B("跳过近期 chapter_brief 硬闸（作者/测试用；默认 false）"),
                 strict_lint: B("若 lintHitCount>0 则硬拒（默认 false：仅警告 lint_hits_present）"),
                 require_payoff: B("【旁路】无近期 payoff_audit 或 ok=false 则硬拒（默认 false，不要求先跑 audit）"),
                 strict_human: B("若人味软雷达命中则硬拒（默认 false：仅警告 human_feel_hits）"),
                 strict_novel: B("若书感软雷达命中则硬拒（默认 false：仅警告 novel_sense_hits；与人味闸默认分轨）"),
-                accept_after_edit: B("路径 A：声明本候选为编辑稿并要连带验收（须同时 confirm_accept_after_edit）"),
-                confirm_accept_after_edit: B("路径 A 一次确认：采纳本章编辑稿并验收为正式章（无此旗标不得当 A）"),
+                accept_after_edit: B("路径 A：声明本候选为编辑稿并采纳到当前工作稿（须同时 confirm_accept_after_edit）"),
+                confirm_accept_after_edit: B("路径 A 一次确认：采纳本章编辑稿为当前工作稿（无此旗标不得当 A）"),
             },
             required: ["candidate"],
             async execute(args: any, exec: ExecContext) {
@@ -443,6 +447,7 @@ export function candidatesTools() {
                 return runAcceptPipeline(args, exec, {
                     candidateId,
                     mode,
+                    expectedRevision: asString(args, "expected_revision"),
                     force: boolArg(args, "force") ?? false,
                     lintPassToken: asString(args, "lint_pass_token") ?? undefined,
                     skipBrief: boolArg(args, "skip_brief") ?? false,

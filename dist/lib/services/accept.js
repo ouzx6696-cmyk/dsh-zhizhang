@@ -1,11 +1,13 @@
 /**
  * 采纳管线 — tool / panel 共用一套硬闸与落盘。
- * 只负责「候选 → 正式章 + happened」；不处理面板 confirm 文案，也不 openWork。
+ * 只负责「候选 → 当前工作稿 + 版本化接续索引」；不处理面板 confirm 文案，也不 openWork。
  */
-import { acceptCandidate, candidateGateFingerprint, getRecentBrief, getRecentPayoffAudit, readCandidate, } from "../store.js";
+import { acceptCandidate, candidateGateFingerprint, getRecentBrief, getRecentPayoffAudit, readCandidate, readChapter, } from "../work-store.js";
 import { AcceptPolicy, FoundationPort, InspirationPort, Scheduler, firstDenyCode, firstDenyText, } from "../ports/index.js";
 import { getPortConfig } from "../ports/config.js";
 import { ZhizhangError } from "../errors.js";
+import { fingerprint } from "../domain/lifecycle.js";
+import { lintStyle } from "../style-linter.js";
 import { resolvePrevBody } from "./chapter-context.js";
 function errResult(err, fallback) {
     return {
@@ -35,9 +37,14 @@ export async function runAccept(input) {
     // 留痕窗口走 PortConfig（默认 12h）：BriefGate 文案与实际查询必须同源。
     const recentMs = getPortConfig().briefRecentMs;
     const brief = await getRecentBrief(dir, candMeta.chapterId, recentMs);
-    const payoff = await getRecentPayoffAudit(dir, candMeta.chapterId, recentMs);
+    const currentChapter = await readChapter(dir, candMeta.chapterId);
+    const payoffRecord = await getRecentPayoffAudit(dir, candMeta.chapterId, recentMs);
+    const payoff = payoffRecord?.bodyHash === fingerprint(candMeta.body) && payoffRecord?.outlineHash === fingerprint(currentChapter.outline) ? payoffRecord : null;
     const craftCue = await InspirationPort.resolveCraftCue(paths, { workKey, limit: 5 });
     const prevBody = await resolvePrevBody(dir, candMeta.chapterId);
+    const expectedCandidate = candidateGateFingerprint(candMeta);
+    if (!candMeta.lintPassToken)
+        candMeta.lintHitCount = lintStyle(candMeta.body).length;
     const gate = AcceptPolicy.evaluate({
         candidate: candMeta,
         brief,
@@ -59,7 +66,9 @@ export async function runAccept(input) {
     try {
         saved = await acceptCandidate(dir, candidateId, mode === "append" ? "append" : "replace", {
             force: forceFlag,
-            expectedCandidate: candidateGateFingerprint(candMeta),
+            expectedRevision: input.expectedRevision,
+            expectedOutline: fingerprint(currentChapter.outline),
+            expectedCandidate,
             lintPassToken: String(lintPassToken ?? "").trim() || undefined,
         });
     }
@@ -68,16 +77,12 @@ export async function runAccept(input) {
     }
     const state = saved.stateUpdate;
     const happenedLines = FoundationPort.acceptReceiptLines({
-        chapterId: saved.id,
-        title: saved.title,
-        ending: state.ending,
         threads: state.threads,
-        append: state.append,
-        happenedSource: state.resolved.source,
         endingVsBodyWarn: state.resolved.warn,
     });
     const receipt = [
         `已采纳 ${candidateId} →「${saved.title}」（${saved.id}），${saved.wordCount} 字，状态 ${saved.status}。仍需作者审校/定稿。`,
+        "以下仅为机械诊断信号；有作用的心理、安静体验与完整收束可保留，不等于内容审读或定稿。",
         ...gate.receiptLines,
         ...happenedLines,
     ].join("\n");

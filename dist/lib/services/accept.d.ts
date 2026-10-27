@@ -14,7 +14,7 @@ export declare function runAccept(input: any): Promise<{
     candidateId: any;
     chapterId: any;
     title: any;
-    wordCount: number;
+    wordCount: any;
     status: any;
     receipt: string;
     nextHint: string;

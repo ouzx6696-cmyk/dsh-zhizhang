@@ -55,16 +55,16 @@ export declare const LibraryPort: {
     listCards(paths: StoragePaths, opts?: any): Promise<any>;
     searchCards(paths: StoragePaths, query: any, opts?: any): Promise<any>;
     /**
-     * 推荐组合包：恰好 1 mind + 最多 N craft（可跨 source）。
-     * 缺 mind → ok=false + emptyReason（不抛，便于产品面展示）。
+     * 推荐组合包：优先 1 mind + 最多 N craft；有用的 craft 可独立返回。
+     * 缺 mind 不阻断；没有任何可用卡时返回空原因。
      */
     suggestCombo(paths: StoragePaths, input?: any): Promise<{
         ok: boolean;
-        cardIds: never[];
+        cardIds: any[];
         mind: null;
-        crafts: never[];
+        crafts: any[];
         warnings: string[];
-        emptyReason: string;
+        emptyReason: string | undefined;
     } | {
         ok: boolean;
         cardIds: any[];

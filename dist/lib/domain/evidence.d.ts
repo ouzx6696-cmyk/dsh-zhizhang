@@ -2,11 +2,11 @@
  * 引文核对 — 全插件唯一来源。
  *
  * 只做「这段引文能否在原文里查到」；不判断卡好不好。
- * 白描、模块 evidence、卡正文引文、审计共用同一套归一化。
+ * 白描、模块 evidence 与卡正文的正式引文走逐字核对；宽松归一化仅供诊断定位。
  */
 /** 归一化：去空白与标点，只留汉字/字母/数字，避免排版差异误杀。 */
 export declare function normalizeQuoteText(input: unknown): string;
-/** 引文核对：整段可查；跨段/省略号则按片段核对（每段≥4字）。 */
+/** Claimed literal quotations must occur verbatim; fuzzy normalization is diagnostic only. */
 export declare function quoteOk(quote: unknown, text: unknown): boolean;
 /**
  * 抽取卡正文里的引文（“…” / 「…」）。

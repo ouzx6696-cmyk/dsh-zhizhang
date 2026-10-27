@@ -6,9 +6,13 @@ export function clip(text: string, max: any) {
         return "（空）";
     return t.length <= max ? t : `${t.slice(0, max)}…`;
 }
-/** Lean outline for chapter_brief: no beats list (beats stay on disk via outline_get). */
+/** Lean outline preserves necessary causal steps and character knowledge without full method packs. */
 export function renderOutlineLean(o: any) {
     const lines = [
+        `- 视角：${o.pov || "（空）"}`,
+        `- 人物知识边界：${o.knowledge || "（未额外声明；核对实际前文）"}`,
+        `- 关键经历：${o.synopsis || "（空）"}`,
+        `- 推进节点与转向依据：${o.beats || "（空）"}`,
         `- 目标字数：${o.targetWords}`,
         `- 处境透镜：${o.situationLens || "（空）"}`,
         `- 冲突：${o.conflict || "（空）"}`,
@@ -69,6 +73,8 @@ export function renderStatus(meta: any, dir: string, paths: StoragePaths) {
     for (const ch of [...meta.chapters].sort((a: any, b: any) => a.position - b.position)) {
         lines.push(`${ch.position}. [${ch.status}] ${ch.title}（${ch.id}，${ch.wordCount} 字）`);
     }
+    if (Array.isArray(meta.revisionImpacts) && meta.revisionImpacts.length)
+        lines.push("", "## 修订待核对", ...meta.revisionImpacts.map((v: any) => `- ${v.chapterId}${v.nextChapterId ? ` → ${v.nextChapterId}` : ""}：${v.reason}；相关后稿 ${(v.dependents ?? []).join("、") || "未记录明确依赖"}；历史 ${v.history}`));
     lines.push("", `下一步（默认）：${Scheduler.nextHint("work_status")}`);
     return lines.join("\n");
 }

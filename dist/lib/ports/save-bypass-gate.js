@@ -10,7 +10,7 @@ export const SaveBypassGate = {
         }
         const threshold = opts.threshold ?? getPortConfig().saveBypassWordThreshold;
         if (opts.wordCount > threshold && !opts.confirmBypass) {
-            return deny("bypass_confirm_required", `正文约 ${opts.wordCount} 字，超过旁路阈值 ${threshold}。请走 candidate_stage → style_lint → candidate_accept；作者确需直写请传 confirm_bypass=true。`);
+            return deny("bypass_confirm_required", `正文约 ${opts.wordCount} 字，超过旁路阈值 ${threshold}。请走 candidate_stage → candidate_accept（内置扫描）；作者确需直写请传 confirm_bypass=true。`);
         }
         if (opts.wordCount > threshold && opts.confirmBypass) {
             return allow([info("save_bypass_confirmed", "confirm_bypass=true")]);
