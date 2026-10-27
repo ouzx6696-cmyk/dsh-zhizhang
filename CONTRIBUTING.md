@@ -15,8 +15,8 @@ npm run check
 | --- | --- |
 | `npm run check` | 日常完整校验：架构护栏、构建和全部测试 |
 | `npm test` | 构建并运行四个文件中的行为测试 |
-| `npm run build` | 编译 TypeScript 并验证、复制客户端到 `dist/` |
-| `npm run build:check` | 检查类型与客户端语法，不写构建产物 |
+| `npm run build` | 编译 TypeScript，并用 esbuild 把 `src/client/` 打包为 ModuleLoader 格式的 `dist/client.js` |
+| `npm run build:check` | 检查类型并在内存中打包、校验客户端，不写构建产物 |
 | `npm run typecheck` | 只运行 TypeScript 检查 |
 | `npm run guard` | 检查依赖方向、运行时循环及禁止关闭类型检查 |
 
@@ -34,7 +34,7 @@ src/lib/ports/         参考库、规划、方法、编辑与质量策略
 src/lib/work-store.ts  作品、候选、留痕和汇编操作
 src/lib/panel-*.ts     作者查询与展示
 src/lib/http-api.ts    面板接口及访问检查
-src/client/client.js   宿主客户端阅读工作台
+src/client/            浏览器半侧源码（JSX + CSS），构建为 dist/client.js
 test/                  四类行为测试与隔离辅助
 scripts/               架构检查、客户端构建、离线备份
 dist/                  提交到仓库的发行代码与类型声明
@@ -51,6 +51,8 @@ docs/                  当前说明及历史档案
 - 存储不得反向依赖面板和业务导航；底层文件能力直接引用原语，类型使用 `import type`。
 - 不用机械指标替代文学判断，不把扫描、内容审读和作者授权合并。
 - 旧工具名、数据和恢复格式有实际使用者；改变兼容行为须明确说明，不能靠静默默认值掩盖损坏。
+
+客户端遵循 DSH 客户端规则：组件只接收 props，不接触 `ctx`；席位通过 `ctx.slots.inject(...)` 等待声明并随插件 fiber 撤销；不在模块级保存“已启用”之类单例状态；用户可见文案集中在 `src/client/copy.js`；样式不写颜色字面量（构建会拒绝），hover 放在 `@media (hover: hover)` 内，中性描边 0.5px，圆角使用 `--dsw-radius-*`。
 
 对应的分层和操作契约见 [ARCHITECTURE](docs/ARCHITECTURE.md)、[PORTS](docs/PORTS.md)。
 

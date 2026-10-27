@@ -10,10 +10,16 @@
 import { formatToolError } from "./lib/errors.js";
 import { registerPanelHttpRoutes } from "./lib/http-api.js";
 import { applyTools } from "./lib/bootstrap.js";
+import { createConfigSchema } from "./lib/config-schema.js";
 import { AcceptPolicy, BriefGate, InspirationPort, LibraryPort, LintGate, METHOD_ASSET_IDS, MethodRegistry, MultiDraftPort, HumanFeelAuditorPort, HumanFeelGate, NovelSenseAuditorPort, NovelSenseGate, PayoffAuditorPort, ProductMap, Scheduler, SaveBypassGate, StyleLinterPort, setPortConfig, envMultiDraftFlag, } from "./lib/ports/index.js";
 import { SYSTEM_BRIEF, allTools, formatLint, setPluginConfig, } from "./tools/index.js";
 export const name = "zhizhang";
 export const inject = ["tools"];
+/**
+ * Standard Schema for the row's `config`: DSH validates it at load, fills the
+ * defaults and rejects malformed values instead of letting them fail later.
+ */
+export const Config = await createConfigSchema();
 const tools = allTools();
 ProductMap.setToolCount(tools.length);
 function enabledReceipt() {

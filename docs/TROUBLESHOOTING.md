@@ -9,7 +9,9 @@
 | `zhizhang_enable` 也没有 | profile 是否已加入依赖并启用 bundle；修改后是否重启 |
 | 只有 `zhizhang_enable` | 这是默认状态；让当前会话 Agent 调用它 |
 | `no_agent_ctx` | 调用是否来自具备 Agent 作用域的 DSH 会话；独立 HTTP 调用不能代替会话启用 |
-| 工具可用但面板不显示 | 插件客户端是否完整，侧栏席位是否加载；核对 `dist/client.js` 和宿主版本 |
+| 工具可用但面板不显示 | 插件客户端是否完整，侧栏席位是否加载；核对 `dist/client.js` 和宿主版本，浏览器控制台搜索 `[dsh-zhizhang]` |
+| 面板显示「织章面板出错了」 | 面板内部渲染异常已被隔离；点「重新载入面板」，仍失败时把错误信息反馈给维护者 |
+| 插件加载报配置校验错误 | 0.19.0 起插件导出 `Config`，宿主按字段类型校验；按报错路径修正 profile patch 中的 `config` |
 | CLI 无法 dump desktop profile | 可能由 Electron 独占，改用 GUI 和启用回执核对 |
 
 安装方式见 [DSH_INSTALL.md](DSH_INSTALL.md)。仓库自动检查通过不代表任意 DSH 版本都已实测。

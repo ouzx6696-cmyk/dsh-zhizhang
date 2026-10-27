@@ -1,0 +1,258 @@
+/**
+ * Product copy for the 织章 browser half. Every user-visible string lives here so
+ * components never embed literals; `t(key, vars)` fills `{name}` placeholders.
+ * Data from the author's works (titles, ids, hints) stays verbatim and never
+ * passes through this table.
+ */
+const ZH = {
+  panelLabel: "织章",
+  appTitle: "织章",
+  appSubtitleNoWork: "小说工作台",
+  loading: "正在载入织章工作台…",
+  errorTitle: "暂时连不上织章的面板接口",
+  errorHint: "确认插件已安装并重启了 DSH；在对话里调用 zhizhang_panel_snapshot 也能查看同样的数据。",
+  forbiddenHint: "接口拒绝了本次访问。若宿主配置了 panelToken，请到插件详情页的「织章」卡片输入访问令牌。",
+  rateLimitedHint: "请求过于频繁，稍后会自动重试。",
+  retry: "重试",
+  refresh: "刷新",
+  refreshing: "刷新中…",
+  autoRefresh: "自动刷新",
+  autoRefreshOn: "自动刷新：开",
+  autoRefreshOff: "自动刷新：关",
+  updatedAt: "{time} 更新",
+  staleData: "接口暂时不可用，显示的是上次成功读取的数据。",
+  project: "项目",
+  projectUnreachable: "（不可达）",
+  projectUnreadable: "（作品列表不可读）",
+  projectRecovery: "（含待恢复作品）",
+  work: "作品",
+  workRecovery: "（采纳待恢复）",
+  viewMode: "视图",
+  modeNovel: "写作台",
+  modePipeline: "全书概况",
+  rootLabel: "数据根 {root}",
+
+  statChapters: "{n} 章",
+  statWords: "{n} 字",
+  statFinal: "定稿 {n}",
+  statDrafted: "草稿 {n}",
+  statPending: "待采纳 {n}",
+  statImpacts: "待核对 {n}",
+
+  chapters: "章节",
+  chapterFilter: "筛选章节",
+  chapterFilterPlaceholder: "按标题或编号筛选",
+  chapterFilterAll: "全部",
+  chapterFilterPending: "有候选",
+  chapterFilterAttention: "需处理",
+  chapterNoMatch: "没有符合条件的章节。",
+  chaptersEmpty: "还没有章节。在对话里让 Agent 规划或起草后，这里会自动出现。",
+  candidateCount: "{n} 份候选",
+  candidateEdit: "编辑稿",
+  words: "{n} 字",
+  impactBadge: "待核对",
+  briefRecent: "有近期简报",
+
+  statusFinal: "定稿",
+  statusReviewed: "已审读",
+  statusDrafted: "工作稿",
+  statusPlanned: "计划",
+
+  readerOfficial: "现行正文",
+  readerCandidate: "候选",
+  readerSplit: "并排对照",
+  readerViews: "阅读视图",
+  fontSmaller: "缩小字号",
+  fontLarger: "放大字号",
+  pickChapter: "从左侧选择一章开始阅读",
+  pickChapterHint: "正文按需读取，不随轮询重复下载。",
+  loadingBody: "正在读取正文…",
+  loadingCandidate: "正在读取候选…",
+  emptyBody: "本章还没有正文",
+  emptyBodyHint: "在对话里让 Agent 获取简报、起草并暂存候选；采纳后正文会出现在这里。",
+  emptyCandidate: "这份候选正文为空。",
+  noCandidate: "本章没有待采纳的候选。",
+  truncated: "正文超过面板上限，只显示前 {size}。审读与定稿请通过工具读取完整正文。",
+  candidateTruncated: "候选超过面板上限，只显示开头部分。",
+  officialColumn: "现行正文",
+  candidateColumn: "候选 {id}",
+
+  inspector: "本章",
+  lifecycle: "章节进度",
+  stagePlanned: "计划",
+  stageDrafted: "工作稿",
+  stageReviewed: "已审读",
+  stageFinal: "定稿",
+  reviewNone: "还没有审读声明。",
+  reviewCurrent: "审读结论：{result}，绑定当前版本。",
+  reviewStale: "审读声明针对旧版本，正文改动后需要重新审读。",
+  reviewPass: "通过",
+  reviewBlocked: "有阻断问题",
+  actionReview: "声明已审读",
+  actionFinalize: "定稿",
+  actionAcknowledge: "确认修订影响",
+  disabledTruncated: "正文被截断，不能据此审读或定稿",
+  disabledLoading: "正文还在读取",
+  disabledNoReview: "需要当前版本的通过审读后才能定稿",
+  disabledNoImpact: "本章没有待核对的修订影响",
+  impactNotice: "本章正文改过，后续状态与相关章节需要核对。",
+  gateBriefOk: "近期有简报记录，采纳时会核对依据版本",
+  gateBriefMissing: "没有近期简报记录，写作前先获取上下文",
+  gateLintOk: "已扫描，采纳时复核正文",
+  gateLintPending: "采纳时自动扫描",
+  gateNoCandidate: "暂无待采纳候选",
+  candidates: "待采纳候选",
+  acceptCurrent: "采纳这份候选",
+  unify: "统一整理",
+  unifyBusy: "正在生成…",
+  unifyHint: "只生成整理简报，不写盘。",
+  unifyOff: "同章有多份候选。开启 multiDraft 后可在这里生成统一整理简报。",
+  unifyDone: "已生成 {n} 份候选的整理简报，并尝试复制到剪贴板。把它交给对话里的 Agent，写完后暂存再采纳。",
+  editTitle: "编辑稿怎么处理",
+  editA: "采纳为工作稿：在这里确认采纳，不代表审读或定稿。",
+  editB: "暂不采纳：保留候选，用 zhizhang_candidate_edit_decide 记录。",
+  editC: "拒绝或换模式重写：同样在对话里用 edit_decide。",
+  editOptionalTitle: "写完后的可选编辑",
+  editOptional: "发现具体阅读问题时，取 edit_brief → 改写 → edit_stage，再决定采纳或保留。",
+  foundation: "故事状态",
+  foundationLocks: "设定锁",
+  foundationHappened: "已发生",
+  foundationThreads: "线头",
+  foundationStyle: "调性",
+  nextSteps: "下一步",
+  noHints: "暂无提示。",
+  more: "展开全部",
+  details: "查看详情",
+  less: "收起",
+
+  acceptTitle: "采纳候选",
+  acceptSummary: "{id} → {chapter} · {words} 字",
+  acceptEditNote: "这是一份编辑稿，采纳后成为本章工作稿。",
+  acceptNoLint: "采纳时会自动扫描；已有扫描凭据若对应旧正文，服务端会要求重新扫描。",
+  acceptConfirm: "我确认把这份候选采纳为本章工作稿",
+  acceptConfirmEdit: "我确认把这份编辑稿采纳为本章工作稿",
+  acceptForce: "目标章已定稿时允许覆盖（会降为工作稿）",
+  acceptSkipBrief: "跳过简报记录检查（作者明确旁路）",
+  acceptSubmit: "确认采纳",
+  acceptBusy: "正在采纳…",
+  acceptDone: "已采纳。",
+  acceptFooter: "采纳不等于审读或定稿，这两步需要另行声明。",
+  cancel: "取消",
+  close: "关闭",
+
+  reviewTitle: "声明已审读",
+  reviewBody: "声明你已完整阅读 {chapter} 当前版本及必要依据。声明会绑定版本 {revision}，正文再改动后失效。",
+  reviewResultLabel: "审读结论",
+  reviewSummaryLabel: "审读说明（可选）",
+  reviewSummaryPlaceholder: "例如：通读全章，人物动机与前章一致，无硬伤。",
+  reviewSubmit: "保存审读声明",
+  finalizeTitle: "定稿",
+  finalizeBody: "把 {chapter} 当前已审读版本定稿。这是一次明确的定稿授权，服务端会复核审读、上下文和前章依赖。",
+  finalizeSubmit: "确认定稿",
+  acknowledgeTitle: "确认修订影响",
+  acknowledgeBody: "确认你已核对 {chapter} 修订涉及的状态记录和相关后续章节。这只清除提示，不会修改正文。",
+  acknowledgeSubmit: "确认已核对",
+  actionBusy: "正在提交…",
+  actionDone: "章节状态已更新。",
+
+  pipelineTabs: "概况分区",
+  tabOverview: "总览",
+  tabLibrary: "参考库",
+  tabInspiration: "规划",
+  tabWriting: "写作",
+  tabLedger: "留痕",
+  defaultLoop: "默认写作：{line}",
+  libraryNone: "没有参考库数据。",
+  libraryUnavailable: "参考库暂时不可读。",
+  librarySources: "来源 {n}",
+  libraryAccepted: "已采纳卡 {n}",
+  libraryDrafted: "草稿卡 {n}",
+  libraryProgress: "拆书进度",
+  librarySourceRoot: "本地书源",
+  libraryPending: "待导入 {n}",
+  libraryEmpty: "还没有参考来源。需要时让 Agent 调用 zhizhang_library_import。",
+  libraryCombo: "组合建议",
+  inspirationNone: "没有规划数据。",
+  inspirationUnavailable: "规划数据暂时不可读。",
+  inspirationSessions: "灵感会话 {n}",
+  inspirationPending: "待输出 {n}",
+  inspirationApplied: "已应用到作品",
+  inspirationNotApplied: "未应用",
+  inspirationFields: "根基字段 {n}",
+  planning: "已采纳规划",
+  planningBook: "全书",
+  planningNoBook: "还没有全书规划。",
+  planningChapters: "章节：{list}",
+  planningVolume: "所属卷：{id}",
+  planningUnset: "未指定",
+  planningTruncated: "内容已截断，完整规划可在对话中查看。",
+  planningMoreVolumes: "还有其他卷规划，可在对话中查看。",
+  planningMoreActs: "还有其他幕规划，可在对话中查看。",
+  outlineProgress: "章纲进度：处境 {situation}/{total} · 场面 {lived} · 状态 {state} · 齐备 {complete}",
+  sessionsEmpty: "还没有灵感会话。",
+  sessionCards: "{n} 张卡",
+  sessionForged: "已成稿",
+  writingChapters: "章节",
+  writingPending: "待采纳候选",
+  writingNoPending: "没有待采纳的候选。",
+  writingEditNote: "编辑稿的 A/B/C 抉择在对话里用 zhizhang_candidate_edit_decide；这里只做正式采纳。",
+  ledgerReview: "审读留痕",
+  ledgerBrief: "简报留痕",
+  ledgerPayoff: "兑付摘要（可选）",
+  ledgerEmpty: "暂无记录。",
+  ledgerPayoffEmpty: "暂无。例行审计不在默认创作路径上。",
+  accept: "采纳",
+
+  onboardEmpty: "还没有作品",
+  onboardNoWork: "选择一部作品",
+  onboardLead: "创作和规划都在对话里完成；这里用来阅读、对照和确认采纳。",
+  onboardSteps: "三步开始",
+  onboardStep1: "在对话里说「启用织章」，让 Agent 调用 {code}。",
+  onboardStep2: "让 Agent 用 {code} 新建作品，写下书名、题材和简介。",
+  onboardStep3: "回到这里，作品和章节会自动出现。",
+  onboardLibrary: "想先整理参考书？切到「全书概况 → 参考库」查看本地书源。",
+
+  settingsTitle: "织章",
+  settingsLead: "写作台在侧栏「织章」。面板读取本地数据，写回只经过显式采纳、审读、定稿等确认操作，或对话中的 zhizhang_* 工具。",
+  settingsToken: "访问令牌",
+  settingsTokenHint: "宿主配置了 panelToken 时填写。只保存在当前浏览器会话，不写入链接。",
+  settingsTokenSaved: "已保存到本次会话。",
+  settingsTokenClear: "清除",
+  settingsStorage: "数据默认在会话目录的 .zhizhang/，也可以在插件配置里指定 storageRoot、worksRoot、libraryRoot。",
+
+  crashTitle: "织章面板出错了",
+  crashHint: "其他功能不受影响。可以重新载入面板；问题持续时请把下面的信息反馈给维护者。",
+  crashReload: "重新载入面板",
+  footer: "织章 {version} · 采纳、审读、定稿分别确认，面板不会静默写入",
+};
+
+const TABLE = ZH;
+
+/** Translate a copy key, filling `{name}` placeholders from `vars`. */
+export function t(key, vars) {
+  const raw = Object.prototype.hasOwnProperty.call(TABLE, key) ? TABLE[key] : key;
+  if (!vars) return raw;
+  return raw.replace(/\{(\w+)\}/g, (match, name) => (vars[name] == null ? match : String(vars[name])));
+}
+
+/** Format an integer the way the copy expects (grouped, zh-CN). */
+export function formatCount(n) {
+  const value = Number(n);
+  return Number.isFinite(value) ? value.toLocaleString("zh-CN") : "0";
+}
+
+/** HH:MM:SS for status lines; empty when the timestamp is unusable. */
+export function formatClock(iso) {
+  const date = iso ? new Date(iso) : null;
+  if (!date || Number.isNaN(date.getTime())) return "";
+  return date.toLocaleTimeString("zh-CN", { hour12: false });
+}
+
+/** Human byte size (KB/MB) for truncation notices. */
+export function formatBytes(n) {
+  const value = Number(n) || 0;
+  if (value >= 1024 * 1024) return (value / (1024 * 1024)).toFixed(1) + " MB";
+  return Math.max(1, Math.round(value / 1024)) + " KB";
+}
+
+export const __copyKeys = Object.keys(ZH);

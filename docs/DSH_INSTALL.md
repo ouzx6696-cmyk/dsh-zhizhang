@@ -1,12 +1,12 @@
 # 安装与配置
 
-适用插件版本：**0.18.0**。需要 DeepSeek Harness（DSH）宿主和 Node.js ≥22。React 与客户端运行时由宿主提供；本插件没有独立聊天界面或内置模型配置。
+适用插件版本：**0.19.0**。需要 DeepSeek Harness（DSH）宿主和 Node.js ≥22。React 与客户端运行时由宿主提供；本插件没有独立聊天界面或内置模型配置。
 
-旧安装记录曾在 DSH 0.2.1-rc.2 上验证 0.17.0 的挂载方式。0.18.0 已完成构建与模块协议级检查，但尚未在真实 DSH 桌面重新验收；不同宿主版本的 CLI 和 profile 管理以宿主自身说明为准。
+旧安装记录曾在 DSH 0.2.1-rc.2 上验证 0.17.0 的挂载方式。0.19.0 已完成构建、模块协议级检查与浏览器渲染检查，但尚未在真实 DSH 桌面重新验收；不同宿主版本的 CLI 和 profile 管理以宿主自身说明为准。
 
 ## 1. 准备插件
 
-发行附件优先选择 `dsh-zhizhang-0.18.0.tgz`，它是已构建的 npm 格式 tarball；不必在用户机器上重新编译。也可解压预构建 ZIP 后按目录安装。GitHub 自动生成的 Source code 压缩包属于源码快照，与这两个发行附件不同。
+发行附件优先选择 `dsh-zhizhang-0.19.0.tgz`，它是已构建的 npm 格式 tarball；不必在用户机器上重新编译。也可解压预构建 ZIP 后按目录安装。GitHub 自动生成的 Source code 压缩包属于源码快照，与这两个发行附件不同。
 
 从源码使用：
 
@@ -24,7 +24,7 @@ npm run check
 当前 DSH 官方规则支持直接安装 tarball：
 
 ```bash
-dsh plugin --profile desktop add ./dsh-zhizhang-0.18.0.tgz
+dsh plugin --profile desktop add ./dsh-zhizhang-0.19.0.tgz
 ```
 
 使用 desktop profile 前先启动过 DSH 桌面以完成初始化，再完全退出桌面进程执行 CLI 安装。`--profile` 放在 `add` 之前。
@@ -88,7 +88,7 @@ Windows 含空格路径可使用 `link:"D:/plugins/dsh-zhizhang"`。目录名不
 
 ## 升级
 
-先停止写入并备份实际数据根，核对 [CHANGELOG 的 0.18.0 升级说明](../CHANGELOG.md#0180)，再替换插件并重启宿主。候选、历史稿和恢复记录属于作品资产，不随插件目录更新而删除。存在未完成操作时先检查原记录，不靠重装插件解决写入冲突。
+先停止写入并备份实际数据根，核对 [CHANGELOG 的 0.19.0 升级说明](../CHANGELOG.md#0190)，再替换插件并重启宿主。候选、历史稿和恢复记录属于作品资产，不随插件目录更新而删除。存在未完成操作时先检查原记录，不靠重装插件解决写入冲突。
 
 ## 官方依据
 

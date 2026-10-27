@@ -141,10 +141,105 @@ test("发行客户端按宿主模块协议加载并安全渲染正文", async ()
     const { readFile } = await import("node:fs/promises"), { runInNewContext } = await import("node:vm");
     let descriptor;
     runInNewContext(await readFile("dist/client.js", "utf8"), { window: { __ModuleLoader__: { load: value => { descriptor = value; } } } });
-    const client = descriptor.factory(() => ({ createElement() {} }));
+    const fakeReact = { createElement() {}, Component: class {}, Fragment: "f", memo: c => c };
+    const client = descriptor.factory(id => { if (id === "react") return fakeReact; throw new Error("unexpected module " + id); });
     assert.equal(typeof client.apply, "function");
     assert.equal(descriptor.id, "dsh-zhizhang");
     const html = client.__testing.lightMdToHtml('<img src=x onerror="alert(1)">\n正文');
     assert.equal(html.includes("<img"), false);
     assert.ok(html.includes("&lt;img"));
+});
+
+test("客户端每次 apply 都登记侧栏、主页面与插件详情卡，卸载后可再次启用", async () => {
+    const { readFile } = await import("node:fs/promises"), { runInNewContext } = await import("node:vm");
+    let descriptor;
+    runInNewContext(await readFile("dist/client.js", "utf8"), { window: { __ModuleLoader__: { load: value => { descriptor = value; } } } });
+    const fakeReact = { createElement() {}, Component: class {}, Fragment: "f", memo: c => c };
+    const client = descriptor.factory(id => { if (id === "react") return fakeReact; throw new Error("unexpected module " + id); });
+    assert.deepEqual([...client.inject], ["slots"]);
+    const mount = () => {
+        const names = [], effects = [];
+        const ctx = {
+            slots: { inject: (name, factory) => { factory(); return () => names.splice(names.indexOf(name), 1); }, register: spec => { names.push(spec.name); return () => {}; } },
+            effect: fn => effects.push(fn()),
+        };
+        client.apply(ctx);
+        return { names, dispose: () => effects.forEach(d => d()) };
+    };
+    const first = mount();
+    assert.deepEqual([...first.names].sort(), ["main", "plugins.detail.section", "settings.plugin.item", "sidebar.panellist"]);
+    first.dispose();
+    assert.deepEqual(first.names, []);
+    assert.equal(mount().names.length, 4);
+});
+
+test("插件配置按导出的 Standard Schema 校验并补默认值", async () => {
+    const { Config } = await import("../dist/index.js");
+    const { __testing } = await import("../dist/lib/config-schema.js");
+    for (const schema of [Config, __testing.fallbackSchema()]) {
+        const std = schema["~standard"];
+        const ok = std.validate({ storageRoot: "/data", multiDraft: { enabled: true } });
+        assert.equal(ok.issues, undefined);
+        assert.equal(ok.value.rootDir, ".zhizhang");
+        assert.equal(ok.value.storageRoot, "/data");
+        assert.equal(ok.value.multiDraft.enabled, true);
+        assert.equal(std.validate({}).value.worksRoot, undefined);
+        assert.equal(std.validate({ worksRoot: "  ", libraryRoot: "" }).value.worksRoot, undefined);
+        assert.equal(std.validate({ worksRoot: "  ", libraryRoot: "" }).value.libraryRoot, undefined);
+        assert.ok(std.validate({ multiDraft: { enabled: "yes" } }).issues.length > 0);
+        assert.ok(std.validate({ allowLanPanel: "yes" }).issues.length > 0);
+    }
+});
+
+async function loadedClient(extra = {}) {
+    const { readFile } = await import("node:fs/promises"), { runInNewContext } = await import("node:vm");
+    let descriptor;
+    const react = { createElement: (type, props) => ({ type, props }), Component: class {}, Fragment: "f", memo: c => c };
+    runInNewContext(await readFile("dist/client.js", "utf8"), { window: { __ModuleLoader__: { load: value => { descriptor = value; } } }, URL, AbortController, setTimeout, clearTimeout, ...extra });
+    return descriptor.factory(id => { if (id === "react") return react; throw new Error("unexpected module " + id); });
+}
+
+test("客户端拒收旧项目响应，摘要版本与手动刷新使旧正文失效", async () => {
+    const { __testing: { reducer, initialState, bodyKey } } = await loadedClient();
+    let state = { ...initialState(), projectId: "a", work: "同名作品", mode: "novel", chapterId: "c001", snapshot: { chapters: [{ id: "c001", updatedAt: "v1" }], candidates: [] } };
+    const key = bodyKey(state, "chapter");
+    state = reducer(state, { type: "body", slot: "chapter", value: { key, status: "ready", body: "项目甲正文", meta: { id: "c001", revision: "r1" } } });
+    state = reducer(state, { type: "openDialog", dialog: { kind: "review" } });
+    const confirmation = state.dialog;
+    assert.equal(confirmation.meta.revision, "r1");
+    state = reducer(state, { type: "selectProject", id: "b" });
+    assert.equal(state.dialog, null);
+    assert.equal(state.chapter.body, "");
+    const selected = state;
+    state = reducer(state, { type: "snapshot", selection: 0, data: { snapshot: { workKey: "旧作品", chapters: [] } }, signature: "late" });
+    assert.equal(state, selected);
+    state = reducer(state, { type: "body", slot: "chapter", value: { key, status: "ready", body: "迟到旧正文" } });
+    assert.equal(state, selected);
+    state = reducer(state, { type: "snapshot", selection: state.selection, data: { projectId: "b", snapshot: { workKey: "同名作品", chapters: [{ id: "c001", updatedAt: "v2" }], candidates: [] } }, signature: "new" });
+    const nextKey = bodyKey(state, "chapter");
+    assert.notEqual(nextKey, key);
+    state = reducer(state, { type: "body", slot: "chapter", value: { key: nextKey, status: "ready", body: "项目乙正文", meta: { id: "c001", revision: "r2" } } });
+    state = reducer(state, { type: "reloadBodies" });
+    assert.equal(state.chapter.status, "idle");
+    assert.notEqual(bodyKey(state, "chapter"), nextKey);
+    assert.equal(confirmation.meta.revision, "r1");
+});
+
+test("客户端请求超时覆盖响应正文，取消后的 JSON 不回填", async () => {
+    const client = await loadedClient({ fetch: async (_url, { signal }) => ({ ok: true, status: 200, json: () => new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true })) }) });
+    await assert.rejects(client.__testing.request("/chapter", { timeoutMs: 10 }), e => e.code === "timeout");
+    const ctrl = new AbortController();
+    const pending = client.__testing.request("/chapter", { timeoutMs: 1000, signal: ctrl.signal });
+    await new Promise(resolve => setImmediate(resolve));
+    ctrl.abort();
+    await assert.rejects(pending, e => e.code === "aborted");
+});
+
+test("插件详情卡识别官方包对象，并排除其他插件", async () => {
+    const client = await loadedClient();
+    let Detail;
+    client.apply({ slots: { inject: (_name, fn) => fn(), register: (spec, component) => { if (spec.name === "plugins.detail.section") Detail = component; } } });
+    assert.equal(typeof Detail, "function");
+    assert.notEqual(Detail({ subject: { kind: "bundle", pkg: { name: "dsh-zhizhang" } } }), null);
+    assert.equal(Detail({ subject: { kind: "bundle", pkg: { name: "other" } } }), null);
 });

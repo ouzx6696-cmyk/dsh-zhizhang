@@ -13,6 +13,11 @@ import { applyTools } from "./lib/bootstrap.js";
 import { SYSTEM_BRIEF, formatLint } from "./tools/index.js";
 export declare const name = "zhizhang";
 export declare const inject: string[];
+/**
+ * Standard Schema for the row's `config`: DSH validates it at load, fills the
+ * defaults and rejects malformed values instead of letting them fail later.
+ */
+export declare const Config: import("./lib/config-schema.js").ConfigSchema;
 declare function enabledReceipt(): string;
 export declare function apply(ctx: any, pluginConfig?: any): void;
 export { applyTools, SYSTEM_BRIEF };

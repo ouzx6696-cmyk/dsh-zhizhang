@@ -32,7 +32,9 @@ flowchart TD
 | `lib/ports/` | 参考库、拆书、规划、方法、编辑和质量策略 |
 | `lib/storage/` | 原子文件操作、资源锁、不可覆盖历史、各类恢复意图 |
 | `lib/panel-query.ts`、`panel-enrich.ts`、`panel-html.ts` | 作者视图投影与展示，控制注入规模 |
-| `lib/http-api.ts`、`client/client.js` | 面板接口、访问检查、按需正文读取和交互 |
+| `lib/config-schema.ts` | 导出给宿主校验的插件 `Config`（Standard Schema；宿主提供 Schemastery 时使用之） |
+| `lib/http-api.ts` | 面板接口、访问检查和按需正文读取 |
+| `client/` | 浏览器半侧：`index.jsx` 登记席位，`useWorkbench.js` 与 `state.js` 管理数据与视图状态，`components/` 为纯展示组件，`ui.jsx` 适配宿主控件，`styles.css` 只用 `--dsw-*` 主题变量；由 `scripts/build-client.mjs` 打包为 `dist/client.js` |
 
 ## 一次写入如何成立
 
@@ -45,6 +47,8 @@ flowchart TD
 ## 查询与上下文
 
 面板快照返回摘要，正文按需读取；HTML 和 JSON 复用共同投影。章简报按本章与明确关联选择材料，既保留实际前章正文，也控制无关全书索引的注入。缓存有条目和近似字节上限，但不作为采纳或恢复的完整性证据。
+
+客户端请求按项目、作品、章节和摘要版本标识；reducer 忽略旧选择的迟到响应，手动刷新和摘要版本变化使正文缓存失效。确认弹窗保留打开时的作品与已读版本，写请求完成后对账。插件详情卡遵循官方 `subject.pkg.name` 结构，控制层优先复用宿主控件，缺失时退回本地实现。
 
 ## 护栏与边界
 
