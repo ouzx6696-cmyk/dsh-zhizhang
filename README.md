@@ -1,54 +1,61 @@
 # 织章 · dsh-zhizhang
 
-**0.18.0** · DeepSeek Harness 的长篇创作工程插件。
+DeepSeek Harness（DSH）的长篇创作工程插件，当前版本 **0.18.0**，要求 **Node.js ≥22**。
 
-围绕一部作品维护作者目标、参考依据、现行规划、工作稿、审读与定稿。AI 提交创作内容，代码负责版本、文件、授权范围与恢复；插件不内置模型调用。
+织章把一部小说的参考材料、采用规划、章节候选、现行正文、审读和修订历史组织在一起，让作者与 AI 在续写、换会话和改稿时能找回依据、看清版本、控制修改范围。插件不内置模型调用，创作由 DSH 中的 Agent 完成。
 
-## 按最终产物进入
+## 可以做什么
 
-| 需求 | 路径 |
+| 需求 | 织章提供的支持 |
 | --- | --- |
-| 研究指定片段 | `reference_analyze` 准备分析或保存报告与迁移包，默认不入公共库 |
-| 完整拆书与正式入库 | `library_import → plan → dissect → facts/structure → card_stage → card_accept`；Full 须确认 |
-| 发展作品 | `inspire_start → forge_brief → stage → accept(apply=true)`；参考卡和工作区迁移包均可选 |
-| 正文写作 | `chapter_brief → 创作与回读 → candidate_stage → candidate_accept`；采纳自动扫描，深度编辑可选 |
-| 作者定稿 | 读章取得 `revision`，声明当前版本审读，再按授权定稿 |
-| 修订 | 核基线、保留历史、应用候选、核相关接续；不自动改后文 |
+| 分析参考作品 | 指定片段的分析与迁移包；完整拆书的来源、阅读计划、事实、结构、参考卡和报告 |
+| 发展原创作品 | 根基、全书、卷、幕和章纲候选，明确采纳后才应用；没有参考库也可规划 |
+| 连续写作 | 结合现行章纲、前章正文、人物依据和本书讲法准备简报；暂存候选、比较并采纳 |
+| 审读与定稿 | 将审读声明绑定到具体正文和上下文版本，按作者授权另行定稿 |
+| 修订与恢复 | 核对目标基线、保留原稿历史、提示相关依赖；多文件写入中断后检查或恢复原操作 |
+| 阅读与交付 | 作者面板阅读及操作，按章序汇编 Markdown，离线备份与完整性校验 |
 
-采纳工作稿不等于定稿。工作稿可供下一章条件接续，只有定稿进入定稿接续索引。旧 `happened` 保留为作者材料，不被自动改写。
+参考分析、规划和写作可以分别进入。有章纲就直接写，只研究片段就停在分析成果，不要求先建库或把所有流程走一遍。
 
-## 启用与开发
+## 开始使用
 
-宿主默认只挂 `zhizhang_enable`；调用后工具与必要规则按 Agent 作用域加载。面板常驻，负责阅读、比较、采纳、审读声明和定稿。工具数量由启用回执报告。
+1. 按[安装与配置](docs/DSH_INSTALL.md)把插件挂载到 DSH profile，并启用 bundle。
+2. 在会话中说“启用织章”，让 Agent 调用 `zhizhang_enable`。
+3. 说明作品、目标和本次修改范围。完整示例见[快速开始](docs/QUICKSTART.md)。
+
+例如：
+
+> 启用织章。新建《雨夜来信》，先帮我整理人物关系和前三章章纲，暂不写正文。
+
+默认只注册启用入口；启用后向当前 Agent 挂载创作工具和必要规则。侧栏面板用于阅读、比较和操作，正文仍由 Agent 创作。
+
+## 三个需要分清的动作
+
+- **暂存**：保存一个候选，现行正文不变。
+- **采纳**：把候选应用为工作稿；内置机械扫描，深度编辑按需进行。
+- **定稿**：完整审读当前版本及必要依据后，按真实授权另行确认。
+
+采纳不等于定稿，扫描不等于内容审读。工作稿可供后章条件接续；改动其依据后需要重新核对。旧 `happened` 保留为作者记录，不会被自动改写。
+
+## 数据保存在本地
+
+默认使用会话目录下的 `.zhizhang/`，也可以分别指定作品目录、共享参考库和源书目录。一个章节只有一份现行正文，修订历史另存。具体路径、备份和中断处理见[数据与恢复](docs/DATA.md)。
+
+## 开发
 
 ```bash
 npm ci
 npm run check
 ```
 
-源码仓库要求 Node ≥22。`check` 执行静态护栏、架构依赖检查、构建与四文件测试。发行入口和客户端位于 tracked `dist/`，没有另一套烟测或长流程脚本。
+`check` 执行架构检查、TypeScript 编译、客户端构建及四个文件中的测试。`dist/` 是受版本控制的发行产物，修改源码后需要同步构建。开发约定见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
-安装与 DSH 配置见 [DSH_INSTALL.md](docs/DSH_INSTALL.md)。支持独立作品根、共享拆书库和源书目录。多草稿默认关闭。
+0.18.0 功能实现已在 Linux / Node 22、24 上通过 39 项测试，并验证发行包独立加载；真实 DSH 桌面、Windows 文件系统及反向代理仍需目标环境验收。
 
-## 数据与恢复
+## 文档与版本
 
-默认保存至会话目录 `.zhizhang/`；`working_dir`、`storageRoot` 或环境配置可指定其他位置。正文修订保留 `revisions/<章>/<原始字节hash>.md`，只有一份现行章节。
-
-作品操作中断用 `zhizhang_status(recovery=inspect|resume)`；公共库用 `zhizhang_library_list`；灵感应用用 `zhizhang_inspire_status`。先核遗留锁与实际写入者，不重复套用操作。离线备份见 [DATA.md](docs/DATA.md)。
-
-HTTP 同时验证可信 Host 与显式 Origin。配置 `panelToken` 后，本机和 LAN 都需令牌；可在织章设置卡输入，仅保留本次浏览器会话。
-
-## 项目文档
-
-| 文档 | 用途 |
-| --- | --- |
-| [COGNITION.md](docs/COGNITION.md) | 产品目标、信息身份与作品生命周期 |
-| [OPTIMIZATION_PLAN.md](docs/OPTIMIZATION_PLAN.md) | 结合技能套件 1.3.0 的整体方案 |
-| [IMPLEMENTATION.md](docs/IMPLEMENTATION.md) | 实际实施结果、统一审查与边界 |
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | 模块职责与依赖方向 |
-| [MAP.md](docs/MAP.md) / [PILLARS.md](docs/PILLARS.md) | 任务路径与阶段交接 |
-| [DATA.md](docs/DATA.md) / [PANEL.md](docs/PANEL.md) | 文件、版本、恢复与作者面板 |
-| [QUALITY.md](docs/QUALITY.md) / [TEST.md](docs/TEST.md) | 创作方法与工程验证的边界 |
-| [TOOLS.md](docs/TOOLS.md) / [PORTS.md](docs/PORTS.md) | 运行时接口与业务契约 |
-| [STATUS.md](docs/STATUS.md) | 当前版本快照 |
-| [ASSESSMENT.md](docs/ASSESSMENT.md) / [REVIEW.md](docs/REVIEW.md) | 重构前的评估证据与历史梳理 |
+- [文档导航](docs/README.md)：按使用、维护和排错查找说明。
+- [版本记录](CHANGELOG.md)：各版本的变化、升级影响及历史依据。
+- [架构说明](docs/ARCHITECTURE.md)：模块职责与依赖方向。
+- [工具参考](docs/TOOLS.md)：完整工具列表和参数名称。
+- [历史档案](docs/history/README.md)：旧评估、重构方案与实施证据。

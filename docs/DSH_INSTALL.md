@@ -1,77 +1,79 @@
-# DSH 安装与启用（本机实测）
+# 安装与配置
 
-日期：2026-10-20（Asia/Hong_Kong）· 插件 **0.17.0**
+适用插件版本：**0.18.0**。需要 DeepSeek Harness（DSH）宿主和 Node.js ≥22。React 与客户端运行时由宿主提供；本插件没有独立聊天界面或内置模型配置。
 
-## 目标
+旧安装记录曾在 DSH 0.2.1-rc.2 上验证 0.17.0 的挂载方式。0.18.0 已完成构建与模块协议级检查，但尚未在真实 DSH 桌面重新验收；不同宿主版本的 CLI 和 profile 管理以宿主自身说明为准。
 
-把 `dsh-zhizhang` 以 `link:` 挂进 DeepSeek Harness profile，并**真正启用**（bundle + patch），
-确认工具层与 Web 面板都出现。
+## 1. 准备插件
 
-## 本机环境
-
-| 项 | 事实 |
-|----|------|
-| DSH 桌面端 | `E:\dsh\DeepSeek Harness.exe`；更新通道 nightly |
-| DSH 版本 | **0.2.1-rc.2**（`dsh --version`；2026-10-20 实测） |
-| CLI | `E:\dsh\resources\runtime\cli\bin\dsh.cmd`（Electron `ELECTRON_RUN_AS_NODE` 跑 `app.asar\dsh\...\cli.js`） |
-| profile | `C:\Users\Administrator\.dsh\profiles\desktop` |
-| 插件目录 | `E:\dsh cj\dsh-zhizhang-0.17.0`（目录名 = 包内 version，二者必须一致） |
-| Node | 用宿主自带运行时即可；插件声明 `node >= 22` |
-
-## 安装
+从源码使用：
 
 ```bash
-# 1) 挂依赖（pnpm link；只装依赖，不改 loader）
-dsh plugin --profile desktop add link:"E:/dsh cj/dsh-zhizhang-0.17.0"
-
-# 2) 启用（关键！CLI 不会自动加 bundle）
-#    编辑 C:\Users\Administrator\.dsh\profiles\desktop\package.json：
-#    "dsh": { "profile": { "bundles": [ ... , "dsh-zhizhang" ] } }
-#
-#    或者不写 bundle，改在 profile 的 cordis.patch.yml 里加一行 insert
-#    （见插件根目录 cordis.patch.yml）
-
-# 3) 重启 DeepSeek Harness（或重启 profile）
-
-# 4) 会话内按需启用（关键）
-#    普通会话只多一个 zhizhang_enable；
-#    让 Agent 调 zhizhang_enable（或说「启用织章」）后，完整工具集 + 硬规则才挂到本会话。
-
-# 5) 验证
-#    桌面 profile 由 Electron 独占，CLI `--dump-config` 会拒绝：
-#    error: profile "desktop" is managed exclusively by the Electron application
-#    改用 GUI 侧栏「织章」/ 会话里的 zhizhang_enable 回执确认。
+git clone https://github.com/ouzx6696-cmyk/dsh-zhizhang.git
+cd dsh-zhizhang
+npm ci
+npm run check
 ```
 
-只出现在 `node_modules` / `dependencies` 里**不算**启用；还要在 `dsh.profile.bundles`（或 patch）里，
-重启后由 `zhizhang_enable` 触发工具层。
+仓库包含 `dist/`。如果使用发行压缩包，应确认其中有 `package.json`、`cordis.patch.yml`、`dist/index.js` 和 `dist/client.js`。不要只复制 `src/`；本说明不假设该版本已发布到 npm。
 
-## 配置
+## 2. 挂载并启用 bundle
 
-插件配置在 bundle 的 `config` 层（`cordis.patch.yml` 或 profile patch）。
-挂载本身只注册 `zhizhang_enable` + 面板 HTTP（写请求有确认和共同业务规则）；工具层在会话内触发。
+以下沿用仓库已有安装方式，将路径替换为实际插件目录：
+
+```bash
+dsh plugin --profile desktop add link:/absolute/path/to/dsh-zhizhang
+```
+
+Windows 含空格路径可使用 `link:"D:/plugins/dsh-zhizhang"`。目录名不承担版本判断，实际版本以包内 `package.json` 为准。
+
+仅添加依赖还不代表加载插件。profile 的 `package.json` 还需将 `dsh-zhizhang` 加入已有的 `dsh.profile.bundles` 列表；也可按宿主支持的方式在 profile patch 中插入插件，参照仓库的 [cordis.patch.yml](../cordis.patch.yml)。选择一种加载方式，避免重复插入。
+
+完成后重启相应 profile 或 DSH。Electron 管理的 desktop profile 可能拒绝 CLI `--dump-config`，这时通过桌面侧栏和会话中的启用回执确认。
+
+## 3. 在会话中启用
+
+让 Agent 调用 `zhizhang_enable`，或直接说“启用织章”。挂载阶段只提供这个工具及面板接口；启用后才向当前 Agent 注册完整工具集与必要规则。新 Agent 作用域需要再次启用，同一作用域重复调用不会重复挂载。
+
+确认侧栏出现“织章”，并能在会话中调用 `zhizhang_product_map`。如果缺少 Agent 作用域而报 `no_agent_ctx`，按[排错说明](TROUBLESHOOTING.md)处理。
+
+## 4. 配置存储和面板
+
+配置位于插件插入项的 `config`，示例：
 
 ```yaml
 - insert:
     - id: zhizhang
-      name: 'dsh-zhizhang'
+      name: dsh-zhizhang
       config:
-        rootDir: '.zhizhang'          # 默认：<会话 cwd>/.zhizhang
-        # storageRoot: 'D:/writes'     # 可选：固定存储根（HTTP 面板同用）
-        # libraryRoot: 'D:/writes/shared-library'  # 可选：拆书库复用（见 docs/DATA.md）
-        # sourceRoot: 'D:/books'       # 可选：本地书源目录（按文件名导入）
-        # worksRoot: 'D:/writes/novels'  # 可选：作品目录（一本书一个同名文件夹）
-        # allowLanPanel: false         # 默认仅 loopback
-        # multiDraft:
-        #   enabled: false               # 可选多草稿（默认关）
+        rootDir: .zhizhang
+        # storageRoot: /absolute/path/to/writing-data
+        # worksRoot: /absolute/path/to/novels
+        # libraryRoot: /absolute/path/to/shared-library
+        # sourceRoot: /absolute/path/to/books
+        allowLanPanel: false
+        # panelHosts: [writing-host.local]
+        # panelToken: replace-with-your-own-token
+        multiDraft:
+          enabled: false
 ```
 
-## 本机历史（0.2.0 时代，仅存档）
+| 配置 | 默认与用途 |
+| --- | --- |
+| `rootDir` | `.zhizhang`；默认相对于会话 cwd 的数据目录 |
+| `storageRoot` | 固定数据根；存放工作区分析、灵感、汇编及默认作品/库目录 |
+| `worksRoot` | 默认 `<数据根>/works`；单独指定作品目录 |
+| `libraryRoot` | 默认 `<数据根>/library`；可共享参考库 |
+| `sourceRoot` | 默认未设置；供按文件名查找本地源书 |
+| `allowLanPanel` | 默认关闭；显式允许非本机面板连接 |
+| `panelHosts` | 可接受的主机名；未设置时 LAN 列表取本机非回环网卡地址 |
+| `panelToken` | 可选访问令牌；配置后本机和 LAN 都必须提供 |
+| `multiDraft.enabled` | 默认关闭；可选的同章多草稿统一整理功能 |
 
-- 旧 npm 全局 CLI 入口依赖 `import.meta.main`，Node 20 下会静默退出；当时用 Bun 跑 bin.js。
-- 0.2.1 桌面端自带 runtime CLI，上面的绕行已不需要。
-- 当时 `link:` + `--dump-config` 已验证能出现 zhizhang 层；**但只有 bundles/patch 生效后才算加载**。
+`multiDraftEnabled` 是现有的等价兼容配置。配置字段和环境变量见[数据目录优先级](DATA.md#目录优先级)。独立根建议使用绝对路径，便于工具和面板定位同一批资产。
 
-## 源码仓库校验
+配置令牌后，在织章设置卡输入令牌，浏览器仅在当前会话保存。开启 LAN 不会取消 Host、Origin 和令牌检查；代理部署还需要在实际环境验收。
 
-安装依赖后，在源码仓库运行 `npm run check`；此命令不依赖 DSH。发行包只包含构建产物，不包含源码测试；真实宿主加载仍需在 DSH 内验证。
+## 升级
+
+先停止写入并备份实际数据根，核对 [CHANGELOG 的 0.18.0 升级说明](../CHANGELOG.md#0180)，再替换插件并重启宿主。候选、历史稿和恢复记录属于作品资产，不随插件目录更新而删除。存在未完成操作时先检查原记录，不靠重装插件解决写入冲突。

@@ -1,3 +1,5 @@
+> 档案快照：保留当时的分析、计划或验证记录，不作为当前安装与使用要求。当前说明见[文档导航](../README.md)，版本变化见[CHANGELOG](../../CHANGELOG.md)。
+
 # 变更记录与维护约定
 
 ## 0.18.0 · 作品生命周期整体优化
@@ -404,7 +406,7 @@
 - 面板：列出全部待采纳标签；开启后「统一整理」→ `POST …/unify/prepare` 只返回 brief。
 - 默认链负重与 0.13 相同。
 
-详见 [PORTS.md](./PORTS.md) · [TOOLS.md](./TOOLS.md) · [PANEL.md](./PANEL.md)。
+详见 [PORTS.md](../PORTS.md) · [TOOLS.md](../TOOLS.md) · [PANEL.md](../PANEL.md)。
 
 ## 此前（0.13.0）
 
@@ -456,7 +458,7 @@
 | 库准入（声纹假阳） | `ports/library.ts` `admitCardContent` / `neutralizeVoiceNegations` |
 | 工具名与参数壳 | `src/tools/*`（只接线，不藏策略） |
 | 落盘路径与原子写 | `lib/store.ts`（谨慎；DATA.md 同步） |
-| 面板 UI / HTTP | `src/client/client.js` + `lib/panel-html.ts` + `lib/http-api.ts`；见 [PANEL.md](./PANEL.md) |
+| 面板 UI / HTTP | `src/client/client.js` + `lib/panel-html.ts` + `lib/http-api.ts`；见 [PANEL.md](../PANEL.md) |
 
 Compose 入口：`src/index.ts` 只注册工具 + apply，不塞业务 if。
 
