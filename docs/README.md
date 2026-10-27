@@ -26,6 +26,7 @@
 | 操作前提、版本冲突和写入结果 | [业务契约](PORTS.md) |
 | 创作、编辑和机械诊断的边界 | [质量方法](QUALITY.md) |
 | 测试分工和验证范围 | [测试说明](TEST.md) |
+| DSH 插件发行要求与本包核对 | [DSH 发行核对](DSH_RELEASE.md) |
 | 当前与历史版本变化 | [CHANGELOG](../CHANGELOG.md) |
 | 重构前后的分析与证据 | [历史档案](history/README.md) |
 

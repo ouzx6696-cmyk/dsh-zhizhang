@@ -6,6 +6,8 @@
 
 ## 1. 准备插件
 
+发行附件优先选择 `dsh-zhizhang-0.18.0.tgz`，它是已构建的 npm 格式 tarball；不必在用户机器上重新编译。也可解压预构建 ZIP 后按目录安装。GitHub 自动生成的 Source code 压缩包属于源码快照，与这两个发行附件不同。
+
 从源码使用：
 
 ```bash
@@ -19,7 +21,15 @@ npm run check
 
 ## 2. 挂载并启用 bundle
 
-以下沿用仓库已有安装方式，将路径替换为实际插件目录：
+当前 DSH 官方规则支持直接安装 tarball：
+
+```bash
+dsh plugin --profile desktop add ./dsh-zhizhang-0.18.0.tgz
+```
+
+使用 desktop profile 前先启动过 DSH 桌面以完成初始化，再完全退出桌面进程执行 CLI 安装。`--profile` 放在 `add` 之前。
+
+如果使用源码 checkout 或解压后的预构建 ZIP，可将路径替换为实际插件目录：
 
 ```bash
 dsh plugin --profile desktop add link:/absolute/path/to/dsh-zhizhang
@@ -27,7 +37,7 @@ dsh plugin --profile desktop add link:/absolute/path/to/dsh-zhizhang
 
 Windows 含空格路径可使用 `link:"D:/plugins/dsh-zhizhang"`。目录名不承担版本判断，实际版本以包内 `package.json` 为准。
 
-仅添加依赖还不代表加载插件。profile 的 `package.json` 还需将 `dsh-zhizhang` 加入已有的 `dsh.profile.bundles` 列表；也可按宿主支持的方式在 profile patch 中插入插件，参照仓库的 [cordis.patch.yml](../cordis.patch.yml)。选择一种加载方式，避免重复插入。
+当前官方 `dsh plugin --profile ... add ...` 会识别 `dsh.bundle`，并自动将组合包加入 profile 的 `dsh.profile.bundles`。如果使用旧版 CLI 或手动安装依赖，需检查该列表确实包含 `dsh-zhizhang`；也可按宿主支持的方式在 profile patch 中插入插件，参照仓库的 [cordis.patch.yml](../cordis.patch.yml)。不要同时重复插入同一个插件。
 
 完成后重启相应 profile 或 DSH。Electron 管理的 desktop profile 可能拒绝 CLI `--dump-config`，这时通过桌面侧栏和会话中的启用回执确认。
 
@@ -70,6 +80,8 @@ Windows 含空格路径可使用 `link:"D:/plugins/dsh-zhizhang"`。目录名不
 | `panelToken` | 可选访问令牌；配置后本机和 LAN 都必须提供 |
 | `multiDraft.enabled` | 默认关闭；可选的同章多草稿统一整理功能 |
 
+覆盖配置时注意：官方 patch 按行覆盖，`config` 是整体替换而不是逐键深度合并，需重述该行仍要保留的设置。
+
 `multiDraftEnabled` 是现有的等价兼容配置。配置字段和环境变量见[数据目录优先级](DATA.md#目录优先级)。独立根建议使用绝对路径，便于工具和面板定位同一批资产。
 
 配置令牌后，在织章设置卡输入令牌，浏览器仅在当前会话保存。开启 LAN 不会取消 Host、Origin 和令牌检查；代理部署还需要在实际环境验收。
@@ -77,3 +89,7 @@ Windows 含空格路径可使用 `link:"D:/plugins/dsh-zhizhang"`。目录名不
 ## 升级
 
 先停止写入并备份实际数据根，核对 [CHANGELOG 的 0.18.0 升级说明](../CHANGELOG.md#0180)，再替换插件并重启宿主。候选、历史稿和恢复记录属于作品资产，不随插件目录更新而删除。存在未完成操作时先检查原记录，不靠重装插件解决写入冲突。
+
+## 官方依据
+
+本页按 [DSH 打包与安装插件](https://github.com/deepseek-ai/DeepSeek-Harness/blob/22ddee3792402c3e70ec5f86a63c3e3e895a2f60/docs/user/develop/basic/publish.zh.md)核对。清单、客户端和兼容性规则见 [DSH 发行核对](DSH_RELEASE.md)。官方源码说明不等于织章已在所有宿主版本上完成实际安装验证。
