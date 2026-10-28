@@ -1,6 +1,6 @@
 /** Shared MethodRegistry tools + chapter_brief (writing entry that injects craft packs). */
 import { contextBasis } from "../lib/domain/lifecycle.js";
-import { buildPanelSnapshot, readChapter, readWorkMeta, recordBriefBreadcrumb, } from "../lib/store.js";
+import { buildPanelHints, readChapter, readWorkMeta, recordBriefBreadcrumb, } from "../lib/store.js";
 import { resolvePrevChapter } from "../lib/services/chapter-context.js";
 import { formatPlanningBrief } from "../lib/domain/planning.js";
 import { InspirationPort, METHOD_ASSET_IDS, MethodRegistry, Scheduler, } from "../lib/ports/index.js";
@@ -227,8 +227,8 @@ export function methodsTools() {
                     lines.push("", `- 默认交稿：${Scheduler.writeLine()}（Accept 内嵌软传感；audit 为旁路）`, `- lean 意向预算 ~${LEAN_BRIEF_BUDGET} 字（不含前章正文）；前章正文另附全文；节拍/卡全文用 outline_get / library_card_get`);
                 }
                 else {
-                    // 只要 nextHints：hintsOnly 跳过 ledger / library / inspiration / HTML。
-                    const snap = await buildPanelSnapshot(dir, paths, { includeHtml: false, hintsOnly: true });
+                    // 简报只读取作品提示，不构建面板视图。
+                    const snap = await buildPanelHints(dir);
                     lines.push(readerContract, "");
                     lines.push("## 根基（锁定 / 文风）", `- 锁定：${f.locks || "（空）"}`, `- 文风根基：${f.style || "（空）"}`, "", "## 本章章纲与处境", renderOutline(o), "", "## 下一步提示", `- 默认：${Scheduler.nextHint("chapter_brief")}`, ...snap.nextHints.map((h: any) => `- ${h}`), "", "## 工程提醒", `- 默认交稿：${Scheduler.writeLine()}`, "- brief.full 为本模式；*_audit / assemble 为旁路", "- lintPassToken 只证明已扫过，不是质量过关");
                     if (includeBody && chapter.body.trim()) {

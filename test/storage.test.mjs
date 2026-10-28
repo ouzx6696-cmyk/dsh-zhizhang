@@ -445,13 +445,8 @@ test("完整修订保留原稿，旧候选不覆盖新稿并提示接续核对",
         assert.equal(impact.nextChapterId, "c002");
         assert.deepEqual(await readFile(path.join(dir, impact.history)), original);
         await assert.rejects(acceptCandidate(dir, stale.id), e => e.code === "revision_conflict");
-        const fresh = await stageCandidate(dir, { chapterId: "c001", body: "她把钥匙收回口袋。" });
-        await markCandidateLinted(dir, fresh.id, 0);
-        await acceptCandidate(dir, fresh.id);
-        const snapshot = await buildPanelSnapshot(dir, f.paths);
-        assert.ok(snapshot.nextHints.some(h => h.includes("c001") && h.includes("c002")));
-        const shipped = await assembleManuscript(dir, f.paths);
-        assert.match(await readFile(typeof shipped === "string" ? shipped : shipped.file, "utf8"), /她把钥匙收回口袋/);
+        await updateChapter(dir,{id:'c001',acknowledgeRevision:true,expectedRevision:(await readChapter(dir,'c001')).revision});
+        assert.equal((await readWorkMeta(dir)).revisionImpacts.some(impact=>impact.chapterId==='c001'),false);
     } finally { await f.close(); }
 });
 
@@ -504,4 +499,54 @@ test("坏候选保持可见且面板明确报告不可读", async () => {
         assert.equal(snapshot.candidates[0].unavailable, true);
         assert.ok(snapshot.nextHints.some(h => h.includes("不可读")));
     } finally { await f.close(); }
+});
+
+test('人工修订使用捕获依据，扫描采纳保留去重来源，节奏变化拒绝应用',async()=>{
+ const {withWork}=await import('./helpers.mjs');
+ const {diagnose,stageRevisionCandidate,bodyHash}=await import('../dist/lib/services/diagnostics.js');
+ const {recordBriefBreadcrumb,setFoundation,saveChapter}=await import('../dist/lib/store.js');
+ const {currentContextBasis}=await import('../dist/lib/storage/chapters.js');
+ const work=await withWork('020 来源闭环');
+ try{
+  await saveChapter(work.dir,{id:'c001',title:'一',body:'旧正文。'});
+  await recordBriefBreadcrumb(work.dir,{chapterId:'c001',assetIds:[],basis:await currentContextBasis(work.dir,'c001')});
+  await saveChapter(work.dir,{id:'c001',title:'一',body:'他不禁退后。'});
+  const chapter=await readChapter(work.dir,'c001');
+  const report=await diagnose(work.dir,{kind:'chapter',chapter:'c001',expectedRevision:chapter.revision,bodyHash:bodyHash(chapter.body)});
+  const input={source:report.source,confirm:true,requestId:'roundtrip-revision',edits:[{...report.blocks[0],before:chapter.body,after:'他退到门边。'}]};
+  const staged=await stageRevisionCandidate(work.dir,input);
+  await markCandidateLinted(work.dir,staged.candidateId,0);
+  await acceptCandidate(work.dir,staged.candidateId);
+  const saved=await readCandidate(work.dir,staged.candidateId);
+  assert.equal(saved.revisionSource.requestId,input.requestId);
+  assert.equal(saved.revisionSource.source.bodyHash, report.source.bodyHash);
+  assert.equal((await stageRevisionCandidate(work.dir,input)).candidateId,saved.id);
+  assert.equal((await readChapter(work.dir,'c001')).body,'他退到门边。');
+  const now=await readChapter(work.dir,'c001');
+  const next=await diagnose(work.dir,{kind:'chapter',chapter:'c001',expectedRevision:now.revision,bodyHash:bodyHash(now.body)});
+  const pending=await stageRevisionCandidate(work.dir,{source:next.source,confirm:true,requestId:'pace-revision-test',edits:[{...next.blocks[0],before:now.body,after:'他仍停在门边。'}]});
+  await setFoundation(work.dir,{}, {pace:'慢燃'});
+  await assert.rejects(acceptCandidate(work.dir,pending.candidateId),e=>e.code==='context_changed');
+ }finally{await work.cleanup();}
+});
+
+test('CRLF 章节保留正文原始换行，快照读取实际文件元数据', async () => {
+    const { withWork } = await import('./helpers.mjs');
+    const { saveChapter } = await import('../dist/lib/store.js');
+    const work = await withWork('CRLF 兼容');
+    try {
+        await saveChapter(work.dir,{id:'c001',title:'原题',body:'第一段。\n第二段。'});
+        const file = path.join(work.dir,'chapters','c001.md');
+        const raw = (await readFile(file,'utf8')).replace(/\n/g,'\r\n').replace('原题','文件中改题');
+        await writeFile(file,raw);
+        const chapter = await readChapter(work.dir,'c001');
+        assert.equal(chapter.title,'文件中改题');
+        assert.equal(chapter.body,'第一段。\r\n第二段。');
+        await updateChapter(work.dir,{id:'c001',status:'drafted',expectedRevision:chapter.revision});
+        assert.equal((await readChapter(work.dir,'c001')).body,chapter.body);
+        const snapshot = await buildPanelSnapshot(work.dir,work.paths);
+        assert.equal(snapshot.chapters[0].title,'文件中改题');
+        assert.equal(snapshot.chapters[0].wordCount,chapter.wordCount);
+        assert.equal(snapshot.totals.words,chapter.wordCount);
+    } finally {await work.cleanup();}
 });

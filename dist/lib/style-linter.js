@@ -1,14 +1,30 @@
-/** Client-only style diagnostics for AI-ish / lazy prose. Zero network. */
-const DIALOGUE_PAIR = /([“「])([\s\S]*?)([”」])/g;
-/** Ranges of quoted dialogue that should not trigger narrative style rules. */
+/** Deterministic prose signals for tools and local diagnostics; no model or network. */
+/** Pair dialogue delimiters in one pass, including nested quotes and unmatched input. */
 export function dialogueRanges(text) {
+    const stack = [];
     const ranges = [];
-    DIALOGUE_PAIR.lastIndex = 0;
-    let match;
-    while ((match = DIALOGUE_PAIR.exec(text)) !== null) {
-        ranges.push([match.index, match.index + match[0].length]);
+    for (let index = 0; index < text.length; index++) {
+        const character = text[index];
+        if (character === '“' || character === '「')
+            stack.push({ character, start: index });
+        else if (character === '”' || character === '」') {
+            const open = stack[stack.length - 1];
+            if (open && (open.character === '“' ? character === '”' : character === '」')) {
+                stack.pop();
+                ranges.push([open.start, index + 1]);
+            }
+        }
     }
-    return ranges;
+    ranges.sort((a, b) => a[0] - b[0]);
+    const merged = [];
+    for (const range of ranges) {
+        const previous = merged[merged.length - 1];
+        if (previous && range[0] <= previous[1])
+            previous[1] = Math.max(previous[1], range[1]);
+        else
+            merged.push(range);
+    }
+    return merged;
 }
 function inDialogue(index, ranges) {
     // ranges 由 dialogueRanges 按出现顺序产出（按 start 升序），二分定位。
@@ -84,12 +100,6 @@ const RULES = [
         endingOnly: true,
     },
 ];
-// 每条规则预编译一次执行用正则（均带 /g）；使用前重置 lastIndex，
-// 单线程事件循环内不存在交叉执行，无 lastIndex 串扰。
-const COMPILED_RULES = RULES.map((rule) => ({
-    rule,
-    re: new RegExp(rule.pattern.source, rule.pattern.flags.includes("g") ? rule.pattern.flags : `${rule.pattern.flags}g`),
-}));
 function lastParagraphSpan(text) {
     const parts = text.split(/\n+/);
     for (let i = parts.length - 1; i >= 0; i--) {
@@ -101,45 +111,54 @@ function lastParagraphSpan(text) {
     }
     return null;
 }
-/** Scan manuscript text; dialogue in “…” / 「…」 is exempt. */
-export function lintStyle(text) {
-    if (!text)
-        return [];
+/** Merge rule cursors in document order; retain at most `limit` results while counting all hits. */
+export function scanStyle(text, limit = 120, include = () => true) {
     const ranges = dialogueRanges(text);
-    const hits = [];
-    const seen = new Set();
-    for (const { rule, re } of COMPILED_RULES) {
-        const scopes = rule.endingOnly
-            ? (() => {
-                const span = lastParagraphSpan(text);
-                return span ? [{ offset: span.start, slice: span.text }] : [];
-            })()
-            : [{ offset: 0, slice: text }];
-        for (const scope of scopes) {
-            re.lastIndex = 0;
-            let match;
-            while ((match = re.exec(scope.slice)) !== null) {
-                const start = scope.offset + match.index;
-                const end = start + match[0].length;
-                if (inDialogue(start, ranges))
-                    continue;
-                const key = `${rule.category}:${start}:${end}`;
-                if (seen.has(key))
-                    continue;
-                seen.add(key);
-                hits.push({
-                    category: rule.category,
-                    start,
-                    end,
-                    match: match[0],
-                    hint: rule.hint,
-                });
+    function* matches(rule) {
+        const span = rule.endingOnly ? lastParagraphSpan(text) : { start: 0, text };
+        if (!span)
+            return;
+        const re = new RegExp(rule.pattern.source, rule.pattern.flags);
+        let match;
+        while ((match = re.exec(span.text))) {
+            const start = span.start + match.index, end = start + match[0].length;
+            if (include(start, end) && !inDialogue(start, ranges)) {
+                yield { category: rule.category, start, end, match: match[0], hint: rule.hint };
             }
         }
     }
-    hits.sort((a, b) => a.start - b.start || a.end - b.end);
-    return hits;
+    const cursors = RULES.map(rule => { const iterator = matches(rule); return { iterator, next: iterator.next() }; });
+    const hits = [];
+    let totalHits = 0, position = '', seen = new Set();
+    while (true) {
+        let selected = -1;
+        for (let i = 0; i < cursors.length; i++) {
+            const candidate = cursors[i].next;
+            if (candidate.done)
+                continue;
+            const current = selected < 0 ? undefined : cursors[selected].next.value;
+            if (!current || candidate.value.start < current.start || (candidate.value.start === current.start && candidate.value.end < current.end))
+                selected = i;
+        }
+        if (selected < 0)
+            break;
+        const cursor = cursors[selected], hit = cursor.next.value;
+        const key = `${hit.start}:${hit.end}`;
+        if (position !== key) {
+            position = key;
+            seen = new Set();
+        }
+        if (!seen.has(hit.category)) {
+            seen.add(hit.category);
+            totalHits++;
+            if (hits.length < limit)
+                hits.push(hit);
+        }
+        cursor.next = cursor.iterator.next();
+    }
+    return { hits, totalHits };
 }
+export function lintStyle(text) { return scanStyle(text, Infinity).hits; }
 export function summarizeStyleLint(hits) {
     const summary = {
         cliche_syntax: 0,

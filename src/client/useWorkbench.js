@@ -5,7 +5,9 @@
  */
 import React from "react";
 import { api } from "./api.js";
-import { t } from "./copy.js";
+import { t, diagnosticCopy } from "./copy.js";
+import { useDiagnostics } from "./useDiagnostics.js";
+import { diagnosticScope } from "./edit-state.js";
 import { PREF, writePref } from "./prefs.js";
 import { bodyKey, derive, initialState, reducer, snapshotSignature } from "./state.js";
 
@@ -23,9 +25,29 @@ function messageOf(err) {
 }
 
 export function useWorkbench() {
-  const [state, dispatch] = useReducer(reducer, undefined, initialState);
+  const [state, rawDispatch] = useReducer(reducer, undefined, initialState);
   const ref = useRef(state);
   ref.current = state;
+  const setEdit = useCallback(value => {
+    ref.current = { ...ref.current, edit: value };
+    rawDispatch({ type: "edit", value });
+  }, []);
+  const dispatch = useCallback(action => {
+    const previous = ref.current;
+    const navigation = ["selectProject", "selectWork", "selectChapter", "selectCandidate", "mode", "readerView", "diagnosticKind", "reloadBodies"].includes(action.type);
+    if (navigation) {
+      const next = reducer(previous, action);
+      const changesSource = diagnosticScope(next) !== diagnosticScope(previous) || next.mode !== previous.mode || action.type === "reloadBodies";
+      if (changesSource && previous.edit) {
+        if (previous.edit.saving) return false;
+        if (previous.edit.dirty && !window.confirm(diagnosticCopy.discard)) return false;
+        setEdit(null);
+      }
+      ref.current = { ...next, edit: ref.current.edit };
+    }
+    rawDispatch(action);
+    return true;
+  }, [setEdit]);
   const view = useMemo(() => derive(state), [state.snapshot, state.chapterId, state.candidateId]); // eslint-disable-line react-hooks/exhaustive-deps
   const viewRef = useRef(view);
   viewRef.current = view;
@@ -39,6 +61,12 @@ export function useWorkbench() {
       alive.current = false;
       if (inflight.current) inflight.current.abort();
     };
+  }, []);
+
+  useEffect(() => {
+    const handler = event => { if(ref.current.edit?.dirty){event.preventDefault();event.returnValue="";} };
+    window.addEventListener("beforeunload",handler);
+    return ()=>window.removeEventListener("beforeunload",handler);
   }, []);
 
   // Persist viewing choices (never author data).
@@ -77,7 +105,7 @@ export function useWorkbench() {
         }
       }
       if (!alive.current || ctrl.signal.aborted || ref.current.selection !== selection) return;
-      const data = await api.snapshot(projectId, selected.work, ctrl.signal);
+      const data = await api.snapshot(projectId, selected.work, ctrl.signal, selected.mode === "novel" ? "work" : "all");
       if (!alive.current || ctrl.signal.aborted) return;
       failures.current = 0;
       dispatch({ type: "snapshot", selection, data, signature: snapshotSignature(data) });
@@ -93,7 +121,7 @@ export function useWorkbench() {
   // First load, and a full reload whenever the selected project or work changes.
   useEffect(() => {
     refresh({ projects: true });
-  }, [refresh, state.selection]);
+  }, [refresh, state.selection, state.mode]);
 
   // One polling loop: visible tabs poll often, hidden tabs rarely, failures back off,
   // and nothing polls while a confirmation dialog is open.
@@ -185,12 +213,13 @@ export function useWorkbench() {
   const actions = useMemo(() => {
     const notify = (tone, text) => dispatch({ type: "notice", tone, text });
     return {
-      refresh: () => { dispatch({ type: "reloadBodies" }); return refresh({ projects: true }); },
+      refresh: () => { if (!dispatch({ type: "reloadBodies" })) return; return refresh({ projects: true }); },
       dispatch,
       notify,
       /** Adopt a candidate through the same Accept gates as the tool. */
       async accept(cand, opts, target) {
         const s = ref.current;
+        if (s.edit?.dirty || s.edit?.saving) throw new Error(diagnosticCopy.finishEditing);
         if (!target || target.selection !== s.selection || target.projectId !== s.projectId || target.work !== s.work || target.cand?.id !== cand.id)
           throw new Error("当前作品或候选已切换，请重新确认。");
         const chapterMeta = target.meta;
@@ -224,6 +253,7 @@ export function useWorkbench() {
       /** Review / finalize / acknowledge bound to the revision actually loaded. */
       async chapterAction(kind, extra, target) {
         const s = ref.current;
+        if (s.edit?.dirty || s.edit?.saving) throw new Error(diagnosticCopy.finishEditing);
         const meta = target?.meta;
         if (!target || target.selection !== s.selection || target.projectId !== s.projectId || target.work !== s.work || target.chapterId !== s.chapterId || meta?.id !== s.chapterId || !meta?.revision || s.chapter.status !== "ready" || s.chapter.truncated || s.chapter.meta?.revision !== meta.revision)
           throw new Error("章节或已读版本已变化，请完整加载后重新确认。");
@@ -268,7 +298,8 @@ export function useWorkbench() {
     };
   }, [refresh]);
 
-  return { state, view, actions };
+  const diagnostics = useDiagnostics({ state, stateRef: ref, alive, setEdit, refresh: actions.refresh, notify: actions.notify });
+  return { state, view, actions: { ...actions, diagnostics } };
 }
 
 export const __messageOf = messageOf;

@@ -94,9 +94,11 @@ export async function request(path, { method = "GET", query, body, timeoutMs = 1
 /** Endpoint helpers; `base` is the selected project id (optional). */
 export const api = {
   projects: (refresh, signal) => request("/projects", { query: { refresh: refresh ? 1 : "" }, timeoutMs: 8000, signal }),
-  snapshot: (base, work, signal) => request("/snapshot", { query: { base, work }, timeoutMs: 10000, signal }),
+  snapshot: (base, work, signal, scope = "all") => request("/snapshot", { query: { base, work, scope }, timeoutMs: 10000, signal }),
   chapter: (base, work, id, signal) => request("/chapter", { query: { base, work, id }, timeoutMs: 15000, signal }),
   candidate: (base, work, id, signal) => request("/candidate", { query: { base, work, id }, timeoutMs: 15000, signal }),
+  diagnose: (payload, signal) => request("/diagnostics/scan", { method: "POST", body: payload, signal, timeoutMs: 20000 }),
+  stageRevision: (payload) => request("/diagnostics/stage", { method: "POST", body: payload, timeoutMs: 20000 }),
   accept: (payload) => request("/candidate/accept", { method: "POST", body: payload, timeoutMs: 20000 }),
   chapterAction: (action, payload) =>
     request(action === "acknowledge" ? "/revision/acknowledge" : "/chapter/" + action, { method: "POST", body: payload, timeoutMs: 15000 }),

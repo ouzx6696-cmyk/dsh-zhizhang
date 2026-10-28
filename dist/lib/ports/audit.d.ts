@@ -1,11 +1,5 @@
 export declare const StyleLinterPort: {
-    lint(text: string): {
-        category: string;
-        start: number;
-        end: number;
-        match: string;
-        hint: string;
-    }[];
+    lint(text: string): import("../style-linter.js").StyleHit[];
     summarize(hits: any): {
         cliche_syntax: number;
         lazy_emotion: number;

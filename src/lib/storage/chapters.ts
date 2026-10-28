@@ -46,7 +46,7 @@ function serializeChapterMarkdown(record: any) {
     return `---\n${JSON.stringify(fm, null, 2)}\n---\n\n${record.body ?? ""}\n`;
 }
 function parseChapterMarkdown(raw: string, fallbackId: any) {
-    const match = raw.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+    const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n)?([\s\S]*)$/);
     if (!match) {
         return {
             id: fallbackId,
@@ -73,7 +73,7 @@ function parseChapterMarkdown(raw: string, fallbackId: any) {
     if (meta.review && (!/^[a-f0-9]{64}$/.test(meta.review.revision) || !["pass", "blocked"].includes(meta.review.result) || typeof meta.review.summary !== "string" || !meta.review.basis || typeof meta.review.basis.foundation !== "string" || typeof meta.review.basis.planning !== "string"))
         throw new ZhizhangError("bad_chapter", `章节审读记录损坏：${fallbackId}`);
     // serializeChapterMarkdown always appends a trailing newline; strip it on read.
-    const body = (match[2] ?? "").replace(/^\n/, "").replace(/\n$/, "");
+    const body = (match[2] ?? "").replace(/^\r?\n/, "").replace(/\r?\n$/, "");
     const status = CHAPTER_STATUSES.includes(meta.status)
         ? meta.status
         : "drafting";
@@ -107,10 +107,10 @@ export async function readChapter(dir: string, chapterId: string) {
  * Panel-only lens read with an mtime+size cache. The Web workbench polls every
  * ~6s; without this it re-reads every chapter file per poll.
  */
-const CHAPTER_LENS_CACHE_MAX = 400;
+const CHAPTER_LENS_CACHE_BYTES = 8 * 1024 * 1024;
+let chapterLensBytes = 0;
 const chapterLensCache = new Map();
-export async function readChapterLens(dir: string, chapterId: string) {
-    await assertNoPendingAccept(dir);
+async function readChapterLens(dir: string, chapterId: string) {
     const file = chapterFile(dir, chapterId);
     const st = await stat(file);
     const hit = chapterLensCache.get(file);
@@ -118,17 +118,42 @@ export async function readChapterLens(dir: string, chapterId: string) {
         return hit.lens;
     const record = parseChapterMarkdown(await readFile(file, "utf8"), chapterId);
     const lens = {
+        revision: chapterRevision(record),
+        readVersion: fingerprint(record),
+        updatedAt: record.updatedAt,
+        status: record.status,
+        title: record.title,
+        wordCount: record.wordCount,
         situationLens: record.outline.situationLens,
         livedScene: record.outline.livedScene,
         stateLens: record.outline.stateLens,
     };
-    chapterLensCache.set(file, { mtimeMs: st.mtimeMs, ctimeMs: st.ctimeMs, ino: st.ino, size: st.size, lens });
-    if (chapterLensCache.size > CHAPTER_LENS_CACHE_MAX) {
+    if (hit) chapterLensBytes -= hit.bytes;
+    chapterLensCache.delete(file);
+    const bytes = 512 + 2 * (file.length + lens.title.length + lens.situationLens.length + lens.livedScene.length + lens.stateLens.length);
+    if (bytes <= CHAPTER_LENS_CACHE_BYTES) {
+        chapterLensCache.set(file, { mtimeMs: st.mtimeMs, ctimeMs: st.ctimeMs, ino: st.ino, size: st.size, lens, bytes });
+        chapterLensBytes += bytes;
+    }
+    while (chapterLensBytes > CHAPTER_LENS_CACHE_BYTES) {
         const oldest = chapterLensCache.keys().next().value;
-        if (oldest !== undefined)
-            chapterLensCache.delete(oldest);
+        if (oldest === undefined) break;
+        chapterLensBytes -= chapterLensCache.get(oldest).bytes;
+        chapterLensCache.delete(oldest);
     }
     return lens;
+}
+/** One recovery check per query, with bounded filesystem concurrency. */
+export async function readChapterLenses(dir: string, ids: string[]) {
+    await assertNoPendingAccept(dir);
+    const rows: { id: string; lens?: Awaited<ReturnType<typeof readChapterLens>>; error?: string }[] = [];
+    for (let offset = 0; offset < ids.length; offset += 16) {
+        rows.push(...await Promise.all(ids.slice(offset, offset + 16).map(async id => {
+            try { return { id, lens: await readChapterLens(dir, id) }; }
+            catch (error) { return { id, error: error instanceof Error ? error.message : String(error) }; }
+        })));
+    }
+    return rows;
 }
 function precedingChapter(meta: any, chapterId: string) {
     const ordered = [...meta.chapters].sort((a: any, b: any) => a.position - b.position);

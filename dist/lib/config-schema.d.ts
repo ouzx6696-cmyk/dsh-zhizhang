@@ -34,12 +34,6 @@ export declare const CONFIG_FIELDS: Record<string, {
     description: string;
     secret?: boolean;
 }>;
-declare function fallbackSchema(): ConfigSchema;
-declare function schemasterySchema(Schema: any): ConfigSchema;
-/** Resolve the schema once at module load; never throws. */
+/** Optional host schema adapter; installed but incompatible schemas fail at load. */
 export declare function createConfigSchema(): Promise<ConfigSchema>;
-export declare const __testing: {
-    fallbackSchema: typeof fallbackSchema;
-    schemasterySchema: typeof schemasterySchema;
-};
 export {};

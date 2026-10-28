@@ -7,7 +7,7 @@
 需要 Node.js ≥22 和 npm。仓库以 Node 22、24 为 CI 检查范围。
 
 ```bash
-npm ci
+npm ci --ignore-scripts
 npm run check
 ```
 
@@ -19,6 +19,8 @@ npm run check
 | `npm run build:check` | 检查类型并在内存中打包、校验客户端，不写构建产物 |
 | `npm run typecheck` | 只运行 TypeScript 检查 |
 | `npm run guard` | 检查依赖方向、运行时循环及禁止关闭类型检查 |
+
+安装依赖时跳过 prepare，随后由 check 统一构建一次，与 CI 一致。
 
 插件没有独立开发服务器。客户端与宿主集成需要实际 DSH；仓库检查可以在不启动宿主的情况下运行。
 
@@ -58,7 +60,7 @@ docs/                  当前说明及历史档案
 
 ## 测试与文档
 
-复用现有 domain、workflow、storage、panel 四个测试文件。优先验证用户能观察到的结果、拒绝行为和资产保留；不为每个模块增加长流程或独立烟测。细节见[测试说明](docs/TEST.md)。
+复用现有 domain、workflow、storage、panel 四个测试文件。按规则、工具契约、HTTP、文件恢复分工；纯状态直接导入。完整创作主线只保留一条，其他用例设置必要前提后检查结果，不反复走前置流程。细节见[测试说明](docs/TEST.md)。
 
 源码变化后运行 `npm run check`，把实际生成的 `dist/` 与源码一起提交。文档变化重点核链接、命令、示例参数和包内文件；没有代码变化时不必为文案编写测试。
 
@@ -71,7 +73,7 @@ docs/                  当前说明及历史档案
 1. 将相同版本写入 `package.json`、`package-lock.json` 的包元数据及 `src/lib/version.ts`。
 2. 在 [CHANGELOG](CHANGELOG.md) 将对应未发布内容整理为新增、调整、修复与升级影响，使用可核实的日期和提交。
 3. 运行 `npm run check`，确认源码与 `dist/` 一起更新。
-4. 执行 `npm pack --dry-run` 核对清单，或 `npm pack --pack-destination /absolute/output` 生成归档；包应含 `dist/`、bundle patch 和当前说明。
+4. 执行 `npm pack --dry-run` 核对清单，或 `npm pack --pack-destination /absolute/output` 生成归档；包应含 `dist/`、bundle patch、离线备份脚本和 `docs/*.md` 当前说明；`docs/history/` 仅保留在仓库。
 5. 独立解包后核入口及客户端文件，验证按需启用；实际安装和平台兼容只报告真正完成的验证。
 6. 核对 Git 状态与远端后再按授权提交、推送；创建 GitHub Release 或发布 npm 需要相应的明确发布指令。
 
@@ -79,4 +81,4 @@ Git 提交、推送、标签、GitHub Release 和 npm 发布是不同状态。�
 
 ## 历史文档
 
-当前使用说明保持一套；旧评估、方案和实施证据保留在 [docs/history](docs/history/README.md)。档案可以解释设计来由，但不能把当年的门禁、路径或测试数量重新变成现行要求。
+当前使用说明保持一套；旧评估、方案和实施证据保留在 [docs/history](https://github.com/ouzx6696-cmyk/dsh-zhizhang/blob/master/docs/history/README.md)。档案可以解释设计来由，但不能把当年的门禁、路径或测试数量重新变成现行要求。

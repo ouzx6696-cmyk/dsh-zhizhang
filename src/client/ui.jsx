@@ -1,10 +1,4 @@
-/**
- * Control layer. DSH asks feature UIs to reuse `@deepseek-ai/dsh-client-ui-primitives`
- * (a shell-seeded platform module) instead of restyling controls. A third-party
- * plugin cannot pin the host version, so each primitive is picked when the host
- * exports it and wrapped in a guard; a missing export or a render failure falls
- * back to the local control with the same props.
- */
+/** Resolve optional host controls once. Rendering errors belong to the page boundary. */
 import React from "react";
 
 const { useEffect, useRef } = React;
@@ -12,7 +6,7 @@ const { useEffect, useRef } = React;
 function hostModule(id) {
   try {
     // eslint-disable-next-line no-undef
-    return typeof __dshRequire === "function" ? __dshRequire(id) : null;
+    return __dshRequire(id);
   } catch {
     return null;
   }
@@ -25,34 +19,8 @@ function isComponent(value) {
   return typeof value === "function" || (value !== null && typeof value === "object" && "$$typeof" in value);
 }
 
-class Guard extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { failed: false };
-  }
-  static getDerivedStateFromError() {
-    return { failed: true };
-  }
-  componentDidCatch(error) {
-    if (typeof console !== "undefined") console.warn("[dsh-zhizhang] primitive fallback:", error);
-  }
-  render() {
-    return this.state.failed ? this.props.fallback : this.props.children;
-  }
-}
-
 function pick(name, Local) {
-  const Host = PRIMITIVES[name];
-  if (!isComponent(Host)) return Local;
-  function Picked(props) {
-    return (
-      <Guard fallback={<Local {...props} />}>
-        <Host {...props} />
-      </Guard>
-    );
-  }
-  Picked.displayName = "Zz" + name;
-  return Picked;
+  return isComponent(PRIMITIVES[name]) ? PRIMITIVES[name] : Local;
 }
 
 const cx = (...parts) => parts.filter(Boolean).join(" ");

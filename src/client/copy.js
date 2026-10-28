@@ -256,3 +256,33 @@ export function formatBytes(n) {
 }
 
 export const __copyKeys = Object.keys(ZH);
+
+export const diagnosticCopy = {
+  retrySave: "核对并重试保存",
+  retry: "保存结果尚未确定；请用同一请求重试核对，暂时锁定编辑",
+  finishEditing: "请先保存或放弃段落修改，再执行章节操作。",
+  statistic: "重复与节奏统计 · 不代表错误，可保留有作用的表达",
+  conflict: "源版本已变化，旧修改仍保留；请核对差异后重新扫描。",
+  lengths: "分句数 / 长度范围（仅统计）：",
+  title: "表达诊断",
+  explain: "本地规则信号，仅供回看，不判定 AI 来源。深度模型诊断尚未开放。",
+  target: "扫描对象",
+  chapter: "现行正文",
+  candidate: "当前候选",
+  scan: "扫描表达",
+  busy: "处理中…",
+  discard: "有未保存修改，确定放弃？",
+  saved: "修订候选已保存：",
+  retained: "修改仍保留，可核对后以同一请求重试",
+  other: "编辑对象已切换。旧修改仍保留，请回到原对象或放弃。",
+  clear: "放弃本次编辑",
+  count: "显示问题：",
+  limited: "（已限制显示数量）",
+  optional: "规则信号 · 可选调整；有作用的表达可以保留",
+  paragraph: "编辑段落",
+  edit: "修改后的完整段落",
+  undo: "撤销",
+  redo: "重做",
+  save: "保存修订候选",
+  original: "标注仍基于扫描时原文；右侧为未保存修改，保存不会直接替换现行稿。",
+};

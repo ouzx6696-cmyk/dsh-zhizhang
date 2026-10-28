@@ -1,20 +1,16 @@
 /** Centre column: manuscript reader with official, candidate and side-by-side views. */
 import React from "react";
 import { formatBytes, formatCount, t } from "../copy.js";
-import { lightMdToHtml } from "../markdown.js";
+import { Manuscript } from "./Manuscript.jsx";
+import { Diagnostics } from "./Diagnostics.jsx";
+import { EMPTY_ISSUES, editMatches } from "../edit-state.js";
 import { FONT_STEPS } from "../state.js";
 import { Button, Icon, SegmentedControl, Tag } from "../ui.jsx";
 import { Callout, Empty, Skeleton, StatusTag } from "./common.jsx";
 
-const { memo, useMemo } = React;
 
-const Manuscript = memo(function Manuscript({ text }) {
-  const html = useMemo(() => lightMdToHtml(text), [text]);
-  // lightMdToHtml escapes every text run before adding markup, so the HTML is safe.
-  return <article className="zz-manuscript" dangerouslySetInnerHTML={{ __html: html }} />;
-});
 
-function BodyPane({ slot, kind }) {
+function BodyPane({ slot, kind, issues = EMPTY_ISSUES, annotationId }) {
   if (slot.status === "loading" || slot.status === "idle") {
     return (
       <div className="zz-pane-loading" role="status">
@@ -32,12 +28,13 @@ function BodyPane({ slot, kind }) {
       {slot.truncated ? (
         <Callout tone="warning">{kind === "candidate" ? t("candidateTruncated") : t("truncated", { size: formatBytes(slot.bodyBytes || 400 * 1024) })}</Callout>
       ) : null}
-      <Manuscript text={slot.body} />
+      <Manuscript text={slot.body} issues={issues} annotationId={annotationId} />
     </>
   );
 }
 
 export function Reader({ state, view, actions }) {
+  const annotationId = React.useId();
   const { dispatch } = actions;
   const { current, activeCand } = view;
   const meta = state.chapter.meta;
@@ -49,6 +46,7 @@ export function Reader({ state, view, actions }) {
     );
   }
   const readerView = !activeCand && state.readerView !== "official" ? "official" : state.readerView;
+  const issues = kind => editMatches(state, kind) ? state.edit.report.issues : EMPTY_ISSUES;
   const stepIndex = FONT_STEPS.indexOf(state.fontStep);
   const options = [
     { value: "official", label: t("readerOfficial") },
@@ -98,22 +96,23 @@ export function Reader({ state, view, actions }) {
           </span>
         </div>
       </div>
+      <Diagnostics state={state} view={view} actions={actions} annotationId={annotationId} />
       <div className="zz-reader-body" id={"zz-reader-" + readerView + "-panel"} role="tabpanel" aria-labelledby={"zz-reader-" + readerView} tabIndex={0}>
         {readerView === "split" ? (
           <div className="zz-split">
             <section className="zz-split-col" aria-label={t("officialColumn")}>
               <h3 className="zz-split-head">{t("officialColumn")}</h3>
-              <BodyPane slot={state.chapter} kind="official" />
+              <BodyPane slot={state.chapter} kind="official" issues={issues("chapter")} annotationId={annotationId} />
             </section>
             <section className="zz-split-col" aria-label={t("candidateColumn", { id: activeCand.id })}>
               <h3 className="zz-split-head">{t("candidateColumn", { id: activeCand.draftLabel || activeCand.id })}</h3>
-              <BodyPane slot={state.candidate} kind="candidate" />
+              <BodyPane slot={state.candidate} kind="candidate" issues={issues("candidate")} annotationId={annotationId} />
             </section>
           </div>
         ) : readerView === "candidate" ? (
-          <BodyPane slot={state.candidate} kind="candidate" />
+          <BodyPane slot={state.candidate} kind="candidate" issues={issues("candidate")} annotationId={annotationId} />
         ) : (
-          <BodyPane slot={state.chapter} kind="official" />
+          <BodyPane slot={state.chapter} kind="official" issues={issues("chapter")} annotationId={annotationId} />
         )}
       </div>
     </div>

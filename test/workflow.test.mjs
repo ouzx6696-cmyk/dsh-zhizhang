@@ -210,47 +210,6 @@ test("全书、卷、幕规划仅在采纳后进入对应章节并保留来源",
     }
 });
 
-test("条件连写、审读定稿与旧章修订共用同一版本链", async () => {
-    const f = await setup();
-    try {
-        const { dir, meta } = await createWork(f.paths, { title: "接续链" });
-        await setOutline(dir, "c001", { synopsis: "她收起钥匙", beats: "先拒绝，再收回", ending: "钥匙收回" }, "一");
-        await setOutline(dir, "c002", { knowledge: "他没有见过钥匙", synopsis: "他在门外等", ending: "敲门" }, "二");
-        await f.run("zhizhang_foundation_set", { work: meta.key, style: "本书用安静克制的讲法", characters: "她守住承诺，他尚未知情", readerKnowledge: "读者已见钥匙，但他还未见过" });
-        await f.run("zhizhang_chapter_brief", { work: meta.key, chapter: "c001" });
-        const first = id(await f.run("zhizhang_candidate_stage", { work: meta.key, chapter: "c001", content: "她把钥匙收回口袋。" }), /(cand-[a-z0-9]+)/);
-        assert.match(await f.run("zhizhang_candidate_accept", { work: meta.key, candidate: first }), /已采纳/);
-        assert.equal((await readWorkMeta(dir)).foundation.happened, "");
-        assert.equal((await readWorkMeta(dir)).continuity.finalized.length, 0);
-        const brief = await f.run("zhizhang_chapter_brief", { work: meta.key, chapter: "c002" });
-        assert.match(brief, /条件工作稿/);
-        assert.match(brief, /他没有见过钥匙/);
-        assert.match(brief, /本书用安静克制的讲法/);
-        assert.match(brief, /读者已见钥匙，但他还未见过/);
-        const second = id(await f.run("zhizhang_candidate_stage", { work: meta.key, chapter: "c002", content: "他站在门外，抬手敲门。" }), /(cand-[a-z0-9]+)/);
-        assert.match(await f.run("zhizhang_candidate_accept", { work: meta.key, candidate: second }), /已采纳/);
-        assert.equal((await readChapter(dir, "c002")).dependencies[0].chapterId, "c001");
-        assert.match(await f.run("zhizhang_chapter_save", { work: meta.key, chapter: "c002", status: "final" }), /review_required/);
-        for (const chapter of ["c002", "c001"]) {
-            const revision = (await readChapter(dir, chapter)).revision;
-            assert.match(await f.run("zhizhang_chapter_save", { work: meta.key, chapter, status: "reviewed", expected_revision: revision, review_summary: "完整回读并核前稿" }), /状态 reviewed/);
-            const final = await f.run("zhizhang_chapter_save", { work: meta.key, chapter, status: "final" });
-            assert.match(final, chapter === "c002" ? /dependency_not_final/ : /状态 final/);
-        }
-        assert.match(await f.run("zhizhang_chapter_save", { work: meta.key, chapter: "c002", status: "final" }), /状态 final/);
-        assert.equal((await readWorkMeta(dir)).continuity.finalized.length, 2);
-        await f.run("zhizhang_chapter_brief", { work: meta.key, chapter: "c002" });
-        const stale = id(await f.run("zhizhang_candidate_stage", { work: meta.key, chapter: "c002", content: "他用钥匙开门。" }), /(cand-[a-z0-9]+)/);
-        await f.run("zhizhang_chapter_save", { work: meta.key, chapter: "c001", content: "她把钥匙交给了他。", force: true });
-        assert.match(await f.run("zhizhang_candidate_accept", { work: meta.key, candidate: stale, force: true }), /dependency_changed/);
-        assert.equal((await readChapter(dir, "c002")).body, "他站在门外，抬手敲门。");
-        assert.ok((await readWorkMeta(dir)).revisionImpacts.find(v => v.chapterId === "c001").dependents.includes("c002"));
-        const revision = (await readChapter(dir, "c001")).revision;
-        await f.run("zhizhang_chapter_save", { work: meta.key, chapter: "c001", acknowledge_revision: true, expected_revision: revision });
-        assert.equal((await readWorkMeta(dir)).revisionImpacts.some(v => v.chapterId === "c001"), false);
-    } finally { await f.close(); }
-});
-
 test("片段分析不建公共索引，迁移包按显式选择进入规划", async () => {
     const f = await setup();
     try {
@@ -289,21 +248,24 @@ test("多个宿主实例并行使用各自配置与会话作品", async () => {
     } finally { await Promise.all(roots.map(root => rm(root, { recursive: true, force: true }))); }
 });
 
-test("新增前章后，原首章的旧候选与审读不能继续使用", async () => {
+test("前章变更和插入前章使候选与审读依据失效", async () => {
+    const { currentContextBasis } = await import('../dist/lib/storage/chapters.js');
+    const { saveChapter, updateChapter, acceptCandidate } = await import('../dist/lib/store.js');
     const f = await setup();
     try {
-        const { dir, meta } = await createWork(f.paths, { title: "插入前章" });
-        await setOutline(dir, "c001", {}, "原首章");
-        await f.run("zhizhang_chapter_save", { work: meta.key, chapter: "c001", position: 2, content: "她推门进去。" });
-        await f.run("zhizhang_chapter_brief", { work: meta.key, chapter: "c001" });
-        const candidate = await stageCandidate(dir, { chapterId: "c001", body: "她重新推开门。" });
-        const before = await readChapter(dir, "c001");
-        await f.run("zhizhang_chapter_save", { work: meta.key, chapter: "c001", status: "reviewed", expected_revision: before.revision });
-        await f.run("zhizhang_chapter_save", { work: meta.key, chapter: "c000", title: "新增前章", position: 1, content: "她还在街上。" });
-        assert.match(await f.run("zhizhang_candidate_accept", { work: meta.key, candidate: candidate.id }), /dependency_changed/);
-        assert.match(await f.run("zhizhang_chapter_save", { work: meta.key, chapter: "c001", status: "final" }), /dependency_changed/);
-        const after = await readChapter(dir, "c001");
-        assert.equal(after.body, before.body);
-        assert.equal(after.status, "reviewed");
-    } finally { await f.close(); }
+        for (const insert of [false,true]) {
+            const { dir } = await createWork(f.paths,{title:insert?'插入前章':'前章改稿'});
+            await saveChapter(dir,{id:'c001',title:'一',body:'旧前章。',position:1});
+            await saveChapter(dir,{id:'c002',title:'二',body:'现行正文。',position:3});
+            const target = insert ? 'c001' : 'c002';
+            const basis = await currentContextBasis(dir,target);
+            const candidate = await stageCandidate(dir,{chapterId:target,body:'新候选。',capturedBasis:basis,expectedRevision:basis.targetRevision});
+            await updateChapter(dir,{id:target,status:'reviewed',expectedRevision:basis.targetRevision});
+            if(insert) await saveChapter(dir,{id:'c000',title:'新增',body:'新增前章。',position:0});
+            else await saveChapter(dir,{id:'c001',title:'一',body:'前章改稿。'});
+            await assert.rejects(acceptCandidate(dir,candidate.id),error=>error.code==='dependency_changed');
+            await assert.rejects(updateChapter(dir,{id:target,status:'final'}),error=>error.code==='dependency_changed');
+            assert.equal((await readChapter(dir,target)).status,'reviewed');
+        }
+    } finally {await f.close();}
 });

@@ -2,7 +2,13 @@ import type { ContextBasis } from "../domain/lifecycle.js";
 export declare function chaptersDir(dir: string): string;
 export declare function listChapters(dir: string): Promise<any[]>;
 export declare function readChapter(dir: string, chapterId: string): Promise<any>;
-export declare function readChapterLens(dir: string, chapterId: string): Promise<any>;
+declare function readChapterLens(dir: string, chapterId: string): Promise<any>;
+/** One recovery check per query, with bounded filesystem concurrency. */
+export declare function readChapterLenses(dir: string, ids: string[]): Promise<{
+    id: string;
+    lens?: Awaited<ReturnType<typeof readChapterLens>>;
+    error?: string;
+}[]>;
 export declare function assertContextBasis(dir: string, basis: ContextBasis, chapterId: string): Promise<void>;
 export declare function currentContextBasis(dir: string, chapterId: string): Promise<ContextBasis>;
 export declare function saveChapter(dir: string, input: any): Promise<any>;
@@ -36,3 +42,4 @@ export declare function updateChapter(dir: string, input: {
     reviewedBy?: string;
     acknowledgeRevision?: boolean;
 }): Promise<any>;
+export {};

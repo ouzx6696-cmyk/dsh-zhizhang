@@ -1,13 +1,15 @@
 import { SCHEMA_VERSION } from "./types.js";
 /** Read models for tools and panel; never imported by persistence. */
 import path from "node:path";
-import { readChapterLens } from "./storage/chapters.js";
+import { readChapterLenses } from "./storage/chapters.js";
 import { readWorkMeta } from "./storage/work-meta.js";
 import { readLedger } from "./storage/ledger.js";
 import { listCandidates, readBriefCrumbs, readPayoffAudits, candidateHasLintPass } from "./work-store.js";
 import { readTextCached } from "./file-cache.js";
 import { assertResourceId, nowIso } from "./storage/primitives.js";
 import { ZhizhangError } from "./errors.js";
+import { buildLibraryView, buildInspirationView, buildProductView } from './panel-enrich.js';
+import { isMultiDraftEnabled } from './ports/multi-draft.js';
 import { Scheduler } from "./ports/scheduler.js";
 import { BRIEF_RECENT_MS } from "./domain/constants.js";
 import { renderPanelHtml } from "./panel-html.js";
@@ -32,50 +34,30 @@ function capText(s: any, n: number) {
         return t;
     return `${Array.from(t).slice(0, n).join("")}…`;
 }
-/**
- * Lens-only chapter rows for /inspiration — skips ledger/candidates/briefs/payoffs
- * and the library+inspiration views a full buildPanelSnapshot would compute.
- */
-export async function listChapterLensRows(dir: string) {
-    const meta = await readWorkMeta(dir);
-    const rows = [];
-    for (const ch of [...meta.chapters].sort((a: any, b: any) => a.position - b.position)) {
-        let situationLens = "";
-        let livedScene = "";
-        let stateLens = "";
-        try {
-            const lens = await readChapterLens(dir, ch.id);
-            situationLens = lens.situationLens;
-            livedScene = lens.livedScene;
-            stateLens = lens.stateLens;
-        }
-        catch {
-            /* index-only */
-        }
-        rows.push({
-            id: ch.id,
-            title: ch.title,
-            position: ch.position,
-            status: ch.status,
-            wordCount: ch.wordCount,
-            situationLens,
-            livedScene,
-            stateLens,
-        });
-    }
-    return rows;
+/** Shared chapter projection for the workbench and planning overview. */
+async function chapterRows(dir: string, chapters: any[]) {
+    const ordered = [...chapters].sort((a, b) => a.position - b.position);
+    const lenses = await readChapterLenses(dir, ordered.map(chapter => chapter.id));
+    return ordered.map((chapter, index) => {
+        const { lens, error } = lenses[index];
+        return {
+            id: chapter.id, title: chapter.title, position: chapter.position,
+            status: chapter.status, wordCount: chapter.wordCount,
+            ...lens,
+            situationLens: capText(lens?.situationLens ?? '', 400),
+            livedScene: capText(lens?.livedScene ?? '', 400),
+            stateLens: capText(lens?.stateLens ?? '', 400),
+            ...(error ? { unavailable: true, error } : {}),
+        };
+    });
 }
-export async function buildPanelSnapshot(dir: string, pathsHint: any, opts: any = {}) {
-    const paths = pathsHint ?? pathsFromWorkDir(dir);
-    const { buildLibraryView, buildInspirationView, buildProductView, } = await import("./panel-enrich.js");
-    const hintsOnly = opts.hintsOnly === true;
-    const meta = await readWorkMeta(dir);
-    // hintsOnly 只服务 chapter_brief.full 的 nextHints：不读 ledger，也不构建
-    // library / inspiration / HTML——那些是面板用的重活。
-    const ledger = hintsOnly ? { entries: [] } : await readLedger(dir);
-    const cands = await listCandidates(dir);
-    const briefs = await readBriefCrumbs(dir);
-    const payoffs = await readPayoffAudits(dir);
+export async function listChapterLensRows(dir: string) {
+    return chapterRows(dir, (await readWorkMeta(dir)).chapters);
+}
+async function readPanelWork(dir: string) {
+    const [meta, cands, briefs, payoffs] = await Promise.all([
+        readWorkMeta(dir), listCandidates(dir), readBriefCrumbs(dir), readPayoffAudits(dir),
+    ]);
     const lastPayoffByChapter: Record<string, any> = {};
     for (const e of payoffs.entries) {
         lastPayoffByChapter[e.chapterId] = e;
@@ -91,43 +73,16 @@ export async function buildPanelSnapshot(dir: string, pathsHint: any, opts: any 
     let final = 0;
     let drafted = 0;
     let planned = 0;
-    const chapters = [];
-    for (const ch of [...meta.chapters].sort((a: any, b: any) => a.position - b.position)) {
-        words += ch.wordCount;
-        if (ch.status === "final")
-            final += 1;
-        else if (ch.status === "planned")
-            planned += 1;
-        else
-            drafted += 1;
-        let situationLens = "";
-        let livedScene = "";
-        let stateLens = "";
-        try {
-            const lens = await readChapterLens(dir, ch.id);
-            situationLens = capText(lens.situationLens, 400);
-            livedScene = capText(lens.livedScene, 400);
-            stateLens = capText(lens.stateLens, 400);
-        }
-        catch {
-            /* index-only */
-        }
-        chapters.push({
-            id: ch.id,
-            title: ch.title,
-            position: ch.position,
-            status: ch.status,
-            wordCount: ch.wordCount,
-            situationLens,
-            livedScene,
-            stateLens,
-            briefRecent: recentBriefChapterIds.has(ch.id),
-        });
+    const chapters = (await chapterRows(dir, meta.chapters)).map(chapter => ({ ...chapter, briefRecent: recentBriefChapterIds.has(chapter.id) }));
+    for (const chapter of chapters) {
+        words += chapter.wordCount;
+        if (chapter.status === 'final') final++;
+        else if (chapter.status === 'planned') planned++;
+        else drafted++;
     }
     const revisionImpacts = Array.isArray(meta.revisionImpacts) ? meta.revisionImpacts : [];
     const pendingCands = cands.filter((c: any) => c.pending);
     const pending = pendingCands.length;
-    const { isMultiDraftEnabled } = await import("./ports/multi-draft.js");
     const multiDraftEnabledEarly = isMultiDraftEnabled();
     const nextHints = [
         ...revisionImpacts.map((v: any) => `修订待核对：${v.chapterId}${v.nextChapterId ? ` → ${v.nextChapterId}` : ""}；${v.reason}`),
@@ -148,6 +103,7 @@ export async function buildPanelSnapshot(dir: string, pathsHint: any, opts: any 
     else if (!multiDraftEnabledEarly && pending >= 2) {
         nextHints.unshift("同章多份待采纳：开启 multiDraft 后可统一整理（默认关，不进主链）");
     }
+    if (chapters.some(chapter => chapter.unavailable)) nextHints.unshift("部分章节不可读，请检查原文件；未将读取失败当作空白正文。");
     if (chapters.some((c: any) => !c.situationLens))
         nextHints.unshift("部分章节缺 situationLens，建议 zhizhang_outline_set");
     if (chapters.some((c: any) => c.wordCount > 0 && !c.briefRecent)) {
@@ -157,8 +113,15 @@ export async function buildPanelSnapshot(dir: string, pathsHint: any, opts: any 
     if (payoffWarn.length > 0) {
         nextHints.unshift(`兑付审计有 ${payoffWarn.length} 章未过：${payoffWarn.map((p: any) => p.chapterId).join("、")}`);
     }
-    if (hintsOnly)
-        return { nextHints };
+    return { meta, cands, pendingCands, briefs, now, chapters, words, final, drafted, planned, revisionImpacts, nextHints, lastPayoffByChapter, multiDraftEnabledEarly };
+}
+export async function buildPanelHints(dir: string) {
+    return { nextHints: (await readPanelWork(dir)).nextHints };
+}
+export async function buildPanelSnapshot(dir: string, pathsHint: any, opts: { includeHtml?: boolean; scope?: 'work' | 'all' } = {}) {
+    const paths = pathsHint ?? pathsFromWorkDir(dir);
+    const [work, ledger] = await Promise.all([readPanelWork(dir), readLedger(dir)]);
+    const { meta, pendingCands, cands, briefs, now, chapters, words, final, drafted, planned, revisionImpacts, nextHints, lastPayoffByChapter, multiDraftEnabledEarly } = work;
     // Export only the last 12 chapters' payoffs; hints above already used the full map.
     const lastPayoffCapped: Record<string, any> = {};
     for (const ch of meta.chapters) {
@@ -173,60 +136,15 @@ export async function buildPanelSnapshot(dir: string, pathsHint: any, opts: any 
         return Number.isFinite(at) && now - at <= BRIEF_RECENT_MS;
     });
     const product = buildProductView();
-    let library;
-    let inspiration;
-    try {
-        library = await buildLibraryView(paths);
+    let library, inspiration;
+    if (opts.scope !== 'work') {
+        [library, inspiration] = await Promise.all([
+            buildLibraryView(paths).catch(error => ({ unavailable: true, recoveryPending: error instanceof ZhizhangError && error.code === 'library_recovery_required', summary: error.message })),
+            buildInspirationView(paths, { workKey: meta.key, foundation: meta.foundation, planning: meta.planning, chapters })
+                .catch(error => ({ unavailable: true, summary: error.message })),
+        ]);
     }
-    catch (err) {
-        const recoveryPending = err instanceof ZhizhangError && err.code === "library_recovery_required";
-        if (recoveryPending) nextHints.unshift(err.message);
-        library = {
-            unavailable: true,
-            recoveryPending,
-            sourcesCount: 0,
-            sourceRoot: paths.sourceRoot,
-            pendingCount: 0,
-            pending: [],
-            sources: [],
-            craftCount: 0,
-            mindCount: 0,
-            acceptedCount: 0,
-            draftedCount: 0,
-            combo: null,
-            summary: recoveryPending ? (err as Error).message : "拆书库暂不可读，请检查库文件。",
-        };
-    }
-    try {
-        inspiration = await buildInspirationView(paths, {
-            workKey: meta.key,
-            foundation: meta.foundation,
-            planning: meta.planning,
-            chapters,
-        });
-    }
-    catch (err) {
-        inspiration = {
-            unavailable: true,
-            sessionsCount: 0,
-            sessions: [],
-            pendingEmits: 0,
-            acceptedEmits: 0,
-            appliedToWork: false,
-            appliedCandIds: [],
-            foundationFilled: false,
-            foundationFilledFields: [],
-            outlineProgress: {
-                total: chapters.length,
-                withSituation: 0,
-                withLived: 0,
-                withState: 0,
-                complete: 0,
-            },
-            summary: err instanceof Error ? err.message : "灵感支柱暂不可读",
-        };
-    }
-    const candidateRows = await Promise.all([...pendingCands, ...cands.filter((c: any) => !c.pending).slice(-20)].map(async (c: any) => {
+    const candidateRows = await Promise.all([...pendingCands, ...cands.filter((c: any) => !c.pending).slice(0, 20)].map(async (c: any) => {
         let hasLintPass = false;
         if (c.lintPassToken && c.lintBodyHash && c.lintedAt) {
             try {
@@ -239,7 +157,7 @@ export async function buildPanelSnapshot(dir: string, pathsHint: any, opts: any 
         }
         return {
             unavailable: c.unavailable, error: c.error,
-            id: c.id, chapterId: c.chapterId, stagedAt: c.stagedAt, pending: c.pending,
+            id: c.id, chapterId: c.chapterId, stagedAt: c.stagedAt, readVersion: c.readVersion, pending: c.pending,
             wordCount: c.wordCount, note: c.note, editOf: c.editOf, editMode: c.editMode,
             draftLabel: c.draftLabel, variantGroup: c.variantGroup, unifyOf: c.unifyOf,
             hasLintPass, lintHitCount: c.lintHitCount ?? 0, source: c.source,
@@ -269,8 +187,8 @@ export async function buildPanelSnapshot(dir: string, pathsHint: any, opts: any 
         lastPayoffByChapter: lastPayoffCapped,
         nextHints,
         product,
-        library,
-        inspiration,
+        ...(library ? { library } : {}),
+        ...(inspiration ? { inspiration } : {}),
     };
     // HTML is only for embedding / snapshot tool output; the Web panel polls JSON and
     // never reads this field, so HTTP passes includeHtml:false to keep polling cheap.
@@ -295,8 +213,8 @@ export async function buildPanelSnapshot(dir: string, pathsHint: any, opts: any 
         lastPayoffByChapter: lastPayoffCapped,
         nextHints,
         product,
-        library,
-        inspiration,
+        ...(library ? { library } : {}),
+        ...(inspiration ? { inspiration } : {}),
         html,
     };
 }

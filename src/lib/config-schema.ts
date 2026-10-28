@@ -98,21 +98,10 @@ function schemasterySchema(Schema: any): ConfigSchema {
     return Schema.object(fields) as ConfigSchema;
 }
 
-/** Resolve the schema once at module load; never throws. */
+/** Optional host schema adapter; installed but incompatible schemas fail at load. */
 export async function createConfigSchema(): Promise<ConfigSchema> {
-    try {
-        const mod: any = await import("@deepseek-ai/schemastery" as string);
-        const Schema = mod?.default ?? mod;
-        if (typeof Schema?.object === "function") {
-            const schema = schemasterySchema(Schema);
-            if (schema && typeof (schema as any)["~standard"]?.validate === "function")
-                return schema;
-        }
-    }
-    catch {
-        /* host does not provide schemastery: use the built-in schema */
-    }
-    return fallbackSchema();
+    let module;
+    try { module = await import("@deepseek-ai/schemastery" as string); }
+    catch { return fallbackSchema(); }
+    return schemasterySchema(module.default ?? module);
 }
-
-export const __testing = { fallbackSchema, schemasterySchema };

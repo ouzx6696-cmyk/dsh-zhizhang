@@ -115,6 +115,7 @@ export interface Candidate {
     variantGroup?: string;
     editMode?: string;
     editedAt?: string;
+    revisionSource?: { requestId: string; digest: string; pace: string | null; source?: import("./domain/diagnostics.js").DiagnosticSource };
     acceptedAt?: string;
     acceptedMode?: string;
 }

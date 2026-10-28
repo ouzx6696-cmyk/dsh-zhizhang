@@ -33,6 +33,7 @@ for (const file of files) {
     ts.forEachChild(node, visit);
   }
   visit(ast);
+  if ((/\/domain\/(?:manuscript|diagnostics)\.ts$/).test(file) && (source.includes('node:') || imports.some(p => p.includes('/storage/') || p.includes('/ports/')))) throw new Error('Text analysis must remain browser-safe');
   graph.set(file, imports);
   if (file.includes(`${path.sep}storage${path.sep}`) && imports.some(p => /(?:panel-|work-store|\/ports\/)/.test(p)))
     throw new Error(`Storage depends on business/query code: ${path.relative(root, file)}`);

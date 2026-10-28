@@ -36,28 +36,18 @@ export async function buildLibraryView(paths: StoragePaths) {
     for (const row of accepted) {
         let axis = row.axis;
         if (axis !== "craft" && axis !== "mind") {
-            try {
-                axis = coerceAxis(await LibraryPort.getCard(paths, row.id));
-            }
-            catch (err) { throw err; }
+            axis = coerceAxis(await LibraryPort.getCard(paths, row.id));
         }
         if (axis === "mind")
             mindCount += 1;
         else
             craftCount += 1;
     }
-    let combo = null;
-    try {
-        const sug = await LibraryPort.suggestCombo(paths, { craftCount: 2 });
-        combo = {
-            ok: sug.ok,
-            cardIds: sug.cardIds ?? [],
-            mindTitle: sug.mind?.title ?? null,
-            craftTitles: (sug.crafts ?? []).map((c: any) => c.title),
-            emptyReason: sug.emptyReason,
-        };
-    }
-    catch (err) { throw err; }
+    const suggestion = await LibraryPort.suggestCombo(paths, { craftCount: 2 });
+    const combo = {
+        ok: suggestion.ok, cardIds: suggestion.cardIds ?? [], mindTitle: suggestion.mind?.title ?? null,
+        craftTitles: (suggestion.crafts ?? []).map((card: any) => card.title), emptyReason: suggestion.emptyReason,
+    };
     const sourceRoot = paths.sourceRoot || "";
     let pending: any[] = [];
     if (sourceRoot) {
@@ -114,28 +104,25 @@ export async function buildInspirationView(paths: StoragePaths, opts: any) {
     let pendingEmits = 0;
     let acceptedEmits = 0;
     const appliedCandIds = [];
-    try {
-        const candDir = path.join(paths.inspiration, "candidates");
-        const names = await readdir(candDir);
-        for (const name of names) {
-            if (!name.endsWith(".json"))
-                continue;
-            try {
-                const raw = await readJsonCached(path.join(candDir, name));
-                if (raw.status === "staged")
-                    pendingEmits += 1;
-                if (raw.status === "accepted")
-                    acceptedEmits += 1;
-                if (raw.appliedWorkKey && raw.appliedWorkKey === opts.workKey && raw.id) {
-                    appliedCandIds.push(raw.id);
-                }
-            }
-            catch {
-                throw new Error(`灵感候选 ${name} 不可读，请核对原文件。`);
+    const candDir = path.join(paths.inspiration, "candidates");
+    const names = await readdir(candDir);
+    for (const name of names) {
+        if (!name.endsWith(".json"))
+            continue;
+        try {
+            const raw = await readJsonCached(path.join(candDir, name));
+            if (raw.status === "staged")
+                pendingEmits += 1;
+            if (raw.status === "accepted")
+                acceptedEmits += 1;
+            if (raw.appliedWorkKey && raw.appliedWorkKey === opts.workKey && raw.id) {
+                appliedCandIds.push(raw.id);
             }
         }
+        catch {
+            throw new Error(`灵感候选 ${name} 不可读，请核对原文件。`);
+        }
     }
-    catch (err) { throw err; }
     const filled = foundationFilledFields(opts.foundation);
     let withSituation = 0;
     let withLived = 0;

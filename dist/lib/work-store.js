@@ -541,6 +541,8 @@ export function candidateToDiskMeta(cand) {
         note: cand.note,
         bodyFile: cand.bodyFile,
     };
+    if (cand.revisionSource)
+        disk.revisionSource = cand.revisionSource;
     if (cand.targetRevision)
         disk.targetRevision = cand.targetRevision;
     if (cand.basis)
@@ -597,14 +599,20 @@ export async function stageCandidate(dir, input) {
         if (await snapshotFile(path.join(candidatesDir(dir), bodyFile)) !== null || await snapshotFile(path.join(candidatesDir(dir), `${id}.json`)) !== null)
             throw new ZhizhangError("id_collision", "候选 id 已存在，未覆盖原文件，请重新暂存。");
         const stagedAt = nowIso();
-        const preparedContext = await getRecentBrief(dir, chapterId, Infinity);
+        const current = await readChapter(dir, chapterId);
+        if (input.expectedRevision !== undefined && input.expectedRevision !== current.revision)
+            throw new ZhizhangError("revision_conflict", "暂存期间目标版本变化");
+        if (input.capturedBasis)
+            await assertContextBasis(dir, input.capturedBasis, chapterId);
+        const preparedContext = input.capturedBasis ? { basis: input.capturedBasis } : await getRecentBrief(dir, chapterId, Infinity);
         const cand = {
             schemaVersion: SCHEMA_VERSION,
             id,
             workKey: meta.key,
             chapterId,
             stagedAt,
-            targetRevision: (await readChapter(dir, chapterId)).revision,
+            targetRevision: current.revision,
+            revisionSource: input.revisionSource,
             basis: preparedContext?.basis,
             source: input.source ?? "agent",
             note: input.note ?? "",
@@ -749,6 +757,8 @@ export async function acceptCandidate(dir, candidateId, mode = "replace", opts =
             cand.lintedAt = nowIso();
             cand.lintPassToken = `inline-${randomUUID()}`;
         }
+        if (cand.revisionSource && ((await readWorkMeta(dir)).pace ?? null) !== cand.revisionSource.pace)
+            throw new ZhizhangError("context_changed", "修订采用的节奏已变化");
         if (cand.basis)
             await assertContextBasis(dir, cand.basis, chapterId);
         if (!cand.targetRevision && opts.expectedRevision === undefined)
@@ -841,7 +851,9 @@ export async function listCandidates(dir) {
             // mtime 缓存：面板每轮轮询都全量列候选，未变的候选不必重读。
             const raw = await readJsonCached(path.join(candidatesDir(dir), name));
             const bodyFile = candidateBodyFile(raw, name.slice(0, -5));
-            if (!(await stat(path.join(candidatesDir(dir), bodyFile))).isFile())
+            const bodyStat = await stat(path.join(candidatesDir(dir), bodyFile));
+            const metaStat = await stat(path.join(candidatesDir(dir), name));
+            if (!bodyStat.isFile())
                 throw new ZhizhangError("bad_candidate", `候选 ${raw.id} 正文不是普通文件。`);
             // wordCount is persisted at stage time; only legacy rows re-read the body.
             let wordCount = typeof raw.wordCount === "number" ? raw.wordCount : 0;
@@ -851,6 +863,7 @@ export async function listCandidates(dir) {
             }
             rows.push({
                 ...raw,
+                readVersion: [metaStat.mtimeMs, metaStat.ctimeMs, metaStat.ino, metaStat.size, bodyStat.mtimeMs, bodyStat.ctimeMs, bodyStat.ino, bodyStat.size].join(":"),
                 wordCount,
                 pending: !raw.acceptedAt,
             });

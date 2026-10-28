@@ -14,8 +14,6 @@ export function E(values: any, description: any) {
 export function O(properties: any, required: any = []) {
     return { type: "object", additionalProperties: false, properties, required };
 }
-// 两个可选参数注入 49+28 个工具 schema（合计约 23% 的注册面字符），
-// 描述压到最短口径；语义不变：都可选、都有默认。
 export const WORKING_DIR = S("可选：存储根（默认 <cwd>/.zhizhang/）");
 export const WORK_OPT = S("可选：作品 key/标题（默认本会话最近作品）");
 export const OUTLINE_PROPS = {

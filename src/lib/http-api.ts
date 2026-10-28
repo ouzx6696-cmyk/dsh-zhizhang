@@ -1,3 +1,4 @@
+import { diagnose, stageRevisionCandidate, bodyHash } from "./services/diagnostics.js";
 import { buildPanelSnapshot, listChapterLensRows } from "./panel-query.js";
 import { access, readFile } from "node:fs/promises";
 import { timingSafeEqual } from "node:crypto";
@@ -45,6 +46,27 @@ function capPanelBody(body: string) {
     };
 }
 export const ZZ_API_PREFIX = "/api/dsh-zhizhang";
+const PANEL_ROUTES = [
+    ZZ_API_PREFIX,
+    `${ZZ_API_PREFIX}/health`,
+    `${ZZ_API_PREFIX}/diagnostics/capabilities`,
+    `${ZZ_API_PREFIX}/diagnostics/scan`,
+    `${ZZ_API_PREFIX}/diagnostics/stage`,
+    `${ZZ_API_PREFIX}/projects`,
+    `${ZZ_API_PREFIX}/works`,
+    `${ZZ_API_PREFIX}/snapshot`,
+    `${ZZ_API_PREFIX}/library`,
+    `${ZZ_API_PREFIX}/report`,
+    `${ZZ_API_PREFIX}/inspiration`,
+    `${ZZ_API_PREFIX}/chapter`,
+    `${ZZ_API_PREFIX}/candidate`,
+    `${ZZ_API_PREFIX}/candidate/accept`,
+    `${ZZ_API_PREFIX}/chapter/review`,
+    `${ZZ_API_PREFIX}/chapter/finalize`,
+    `${ZZ_API_PREFIX}/revision/acknowledge`,
+    `${ZZ_API_PREFIX}/unify/prepare`,
+];
+
 function writeJson(res: any, status: any, body: any) {
     const payload = JSON.stringify(body);
     res.writeHead(status, {
@@ -159,7 +181,7 @@ function createRateLimiter() {
     };
 }
 /** POST body: content-type gate + size cap + JSON parse, shared by accept / unify. */
-async function readJsonBody(req: any) {
+async function readJsonBody(req: any, limit = 64_000) {
     const ct = String(req.headers?.["content-type"] ?? "").split(";")[0].trim().toLowerCase();
     if (ct !== "application/json") {
         return {
@@ -168,15 +190,12 @@ async function readJsonBody(req: any) {
     }
     let bodyRaw = "";
     try {
-        bodyRaw = String(await readBody(req));
+        bodyRaw = String(await readBody(req, limit));
     }
     catch (err) {
-        return {
-            err: {
-                status: 413,
-                payload: { ok: false, code: "body_too_large", error: err instanceof Error ? err.message : String(err) },
-            },
-        };
+        const code = err instanceof ZhizhangError ? err.code : "request_aborted";
+        return { err: { status: code === "body_too_large" ? 413 : code === "request_timeout" ? 408 : 400,
+            payload: { ok: false, code, error: err instanceof Error ? err.message : String(err) } } };
     }
     try {
         const parsed = bodyRaw ? JSON.parse(bodyRaw) : {};
@@ -252,21 +271,49 @@ export async function resolveHttpPaths(config: PluginConfig) {
     const paths = await ensureStorage(null, config);
     return { ...paths, resolvedVia: "ensureStorage(cwd)" };
 }
-function readBody(req: any, limit: number = 64_000) {
-    return new Promise((resolve: any, reject: any) => {
+function readBody(req: any, limit = 64_000): Promise<string> {
+    return new Promise((resolve, reject) => {
         const chunks: Buffer[] = [];
-        let size = 0;
-        req.on("data", (c: any) => {
-            size += c.length;
-            if (size > limit) {
-                reject(new Error("body too large"));
-                req.destroy();
-                return;
-            }
-            chunks.push(c);
-        });
-        req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
-        req.on("error", reject);
+        let size = 0, settled = false;
+        const cleanup = () => {
+            clearTimeout(timer);
+            req.off("data", onData);
+            req.off("end", onEnd);
+            req.off("error", onError);
+            req.off("aborted", onAborted);
+            req.off("close", onClose);
+        };
+        const finish = (error?: Error) => {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            if (error) {
+                chunks.length = 0;
+                req.pause?.();
+                // Give the structured error response time to flush, then close the unread stream.
+                const closeTimer = setTimeout(() => req.destroy?.(), 1000);
+                closeTimer.unref();
+                req.once("close", () => clearTimeout(closeTimer));
+                req.once("error", () => {});
+                reject(error);
+            } else resolve(Buffer.concat(chunks).toString("utf8"));
+        };
+        const onData = (chunk: Buffer) => {
+            size += chunk.length;
+            if (size > limit) finish(new ZhizhangError("body_too_large", "请求体超过大小上限"));
+            else chunks.push(chunk);
+        };
+        const onEnd = () => finish();
+        const onError = (error: Error) => finish(error);
+        const onAborted = () => finish(new ZhizhangError("request_aborted", "请求已中断"));
+        const onClose = () => { if (!settled) onAborted(); };
+        const timer = setTimeout(() => finish(new ZhizhangError("request_timeout", "请求体读取超时")), 30000);
+        timer.unref();
+        req.on("data", onData);
+        req.once("end", onEnd);
+        req.once("error", onError);
+        req.once("aborted", onAborted);
+        req.once("close", onClose);
     });
 }
 /** Read-only unify brief pack — no disk writes. */
@@ -418,10 +465,32 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
             }
             const method = (req.method ?? "GET").toUpperCase();
             if (!allowRate(String(req.socket?.remoteAddress ?? "?"), method === "POST")) {
+                res.setHeader?.("Retry-After", "60");
                 return writeJson(res, 429, { ok: false, code: "rate_limited", error: "请求过于频繁，请稍后再试" });
             }
             const url = parseUrl(req);
             const pathOnly = url.pathname.replace(/\/+$/, "") || "/";
+            if (pathOnly === ZZ_API_PREFIX + "/diagnostics/capabilities") {
+                if (method !== "GET") return writeJson(res, 405, { ok: false, code: "method", error: "GET required" });
+                return writeJson(res, 200, { ok: true, quick: true, deep: false, reason: "模型调用与会话投递尚未验证" });
+            }
+            if (["/diagnostics/scan", "/diagnostics/stage"].some(p => pathOnly === ZZ_API_PREFIX + p)) {
+                if (method !== "POST") return writeJson(res, 405, { ok: false, code: "method", error: "POST required" });
+                const parsed = await readJsonBody(req, pathOnly.endsWith("/stage") ? 1024 * 1024 : 64000);
+                if (parsed.err) return writeJson(res, parsed.err.status, parsed.err.payload);
+                const input = parsed.parsed;
+                const picked = await panelPaths(url, config, String(input.base ?? ""));
+                if (picked.error) return writeJson(res, 400, { ok: false, code: "bad_base", error: "项目未登记" });
+                try {
+                    const dir = await resolveWorkDir(picked.paths as StoragePaths, input.work);
+                    const result = pathOnly.endsWith("/stage") ? await stageRevisionCandidate(dir, input) : await diagnose(dir, input);
+                    return writeJson(res, 200, { ok: true, ...result });
+                } catch (err) {
+                    const code = err instanceof ZhizhangError ? err.code : "diagnostic_failed";
+                    const status = code === "body_too_large" ? 413 : code.startsWith("bad_") || code === "too_many_paragraphs" ? 400 : err instanceof ZhizhangError ? 409 : 500;
+                    return writeJson(res, status, { ok: false, code, error: err instanceof Error ? err.message : String(err) });
+                }
+            }
             if (["/chapter/review", "/chapter/finalize", "/revision/acknowledge"].some(route => pathOnly === ZZ_API_PREFIX + route)) {
                 if (method !== "POST") return writeJson(res, 405, { ok: false, error: "POST required" });
                 const body = await readJsonBody(req);
@@ -576,19 +645,7 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
                     acceptViaPost: true,
                     base: paths.base,
                     resolvedVia: paths.resolvedVia,
-                    routes: [
-                        `${ZZ_API_PREFIX}/health`,
-                        `${ZZ_API_PREFIX}/projects`,
-                        `${ZZ_API_PREFIX}/works`,
-                        `${ZZ_API_PREFIX}/snapshot`,
-                        `${ZZ_API_PREFIX}/library`,
-                        `${ZZ_API_PREFIX}/inspiration`,
-                        `${ZZ_API_PREFIX}/chapter`,
-                        `${ZZ_API_PREFIX}/candidate`,
-                        `${ZZ_API_PREFIX}/report`,
-                        `POST ${ZZ_API_PREFIX}/candidate/accept`,
-                        `${ZZ_API_PREFIX}/unify/prepare`,
-                    ],
+                    routes: PANEL_ROUTES.map(route => /\/(?:scan|stage|accept|review|finalize|acknowledge|prepare)$/.test(route) ? `POST ${route}` : route),
                     multiDraftEnabled: MultiDraftPort.isEnabled(),
                 });
             }
@@ -731,21 +788,23 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
                     return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
                 }
                 const paths = picked.paths as StoragePaths;
+                const includeHtml = url.searchParams.get("html") === "1";
+                const scope = !includeHtml && url.searchParams.get("scope") === "work" ? "work" : "all";
                 const works = await listWorks(paths);
                 let workKey = (url.searchParams.get("work") ?? "").trim();
                 if (!workKey) {
                     if (works.length === 0) {
-                        const library = await buildLibraryView(paths).catch((err: any) => ({ unavailable: true, recoveryPending: err?.code === "library_recovery_required", summary: err instanceof Error ? err.message : "拆书库暂不可读" }));
+                        const library = scope === "all" ? await buildLibraryView(paths).catch((err: any) => ({ unavailable: true, recoveryPending: err?.code === "library_recovery_required", summary: err instanceof Error ? err.message : "拆书库暂不可读" })) : undefined;
                         return writeJson(res, 200, {
                             ok: true,
                             empty: true,
-                            message: (library as any).unavailable ? (library as any).summary : "还没有作品。先用 zhizhang_project_create 创建。",
+                            message: library && "unavailable" in library ? library.summary : "还没有作品。先用 zhizhang_project_create 创建。",
                             works: [],
                             projectId: projectIdOf(paths.base),
                             base: paths.base,
                             resolvedVia: paths.resolvedVia,
                             product: buildProductView(),
-                            library,
+                            ...(library ? {library} : {}),
                         });
                     }
                     if (works.length > 1) {
@@ -772,10 +831,7 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
                         error: err instanceof Error ? err.message : String(err),
                     });
                 }
-                // HTML is opt-in (?html=1): the Web panel only consumes JSON and polls
-                // every ~6s, so rendering the 15KB panel HTML per poll is wasted work.
-                const includeHtml = url.searchParams.get("html") === "1";
-                const snap = await buildPanelSnapshot(dir, paths, { includeHtml });
+                const snap = await buildPanelSnapshot(dir, paths, { includeHtml, scope });
                 const { html, ...rest } = snap;
                 return writeJson(res, 200, {
                     ok: true,
@@ -839,6 +895,7 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
                             wordCount: rec.wordCount,
                             updatedAt: rec.updatedAt,
                             revision: rec.revision,
+                            bodyHash: bodyHash(rec.body),
                             review: rec.review,
                             dependencies: rec.dependencies,
                         },
@@ -905,6 +962,8 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
                         workKey,
                         meta: {
                             id: cand.id,
+                            bodyHash: bodyHash(cand.body),
+                            targetRevision: cand.targetRevision,
                             chapterId: cand.chapterId,
                             stagedAt: cand.stagedAt,
                             source: cand.source,
@@ -953,29 +1012,12 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
 }
 /** Register routes on DSH webServer (optional; headless skips). */
 export function registerPanelHttpRoutes(ctx: any, config: PluginConfig) {
-    const routeList = [
-        ZZ_API_PREFIX,
-        `${ZZ_API_PREFIX}/health`,
-        `${ZZ_API_PREFIX}/projects`,
-        `${ZZ_API_PREFIX}/works`,
-        `${ZZ_API_PREFIX}/snapshot`,
-        `${ZZ_API_PREFIX}/library`,
-        `${ZZ_API_PREFIX}/report`,
-        `${ZZ_API_PREFIX}/inspiration`,
-        `${ZZ_API_PREFIX}/chapter`,
-        `${ZZ_API_PREFIX}/candidate`,
-        `${ZZ_API_PREFIX}/candidate/accept`,
-        `${ZZ_API_PREFIX}/chapter/review`,
-        `${ZZ_API_PREFIX}/chapter/finalize`,
-        `${ZZ_API_PREFIX}/revision/acknowledge`,
-        `${ZZ_API_PREFIX}/unify/prepare`,
-    ];
     try {
         if (typeof ctx.inject === "function") {
             ctx.inject(["webServer"], (wctx: any) => {
                 const handler = createPanelApiHandler(config);
                 const run = () => {
-                    const disposers = routeList.map((p: any) => wctx.webServer.register({ kind: "exact", path: p, handler }));
+                    const disposers = PANEL_ROUTES.map((p: any) => wctx.webServer.register({ kind: "exact", path: p, handler }));
                     return () => {
                         for (const d of disposers) {
                             if (typeof d === "function")
@@ -998,7 +1040,7 @@ export function registerPanelHttpRoutes(ctx: any, config: PluginConfig) {
         const web = ctx.get?.("webServer");
         if (web && typeof web.register === "function") {
             const handler = createPanelApiHandler(config);
-            for (const p of routeList) {
+            for (const p of PANEL_ROUTES) {
                 web.register({ kind: "exact", path: p, handler });
             }
             return true;
