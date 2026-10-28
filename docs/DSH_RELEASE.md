@@ -1,6 +1,6 @@
 # DSH 插件发行核对
 
-本页记录织章 0.19.0 的发行依据，不把 DSH 官方 monorepo 的 workspace 约束当作第三方包必须复制的布局。
+本页记录织章 0.20.0 的发行核对；官方规则沿用下列固定来源，不把 DSH 官方 monorepo 的 workspace 约束当作第三方包必须复制的布局。
 
 ## 官方来源
 
@@ -23,7 +23,7 @@
 | 插件导出 `Config` 供加载时校验 | `src/lib/config-schema.ts`：宿主有 Schemastery 时生成 Schemastery 对象，否则导出等价的 Standard Schema；可选 peer 依赖 |
 | 样式随插件停用回收 | 样式表带 `data-plugin`/`data-plugin-css`，只用 `--dsw-*` 主题变量 |
 | 宿主路由按应用基址解析 | 面板请求以 `document.baseURI` 解析 `api/dsh-zhizhang/*` |
-| 运行时文件包含在发布清单 | `files` 包含 dist、bundle patch、脚本及使用说明，不含作品数据或 node_modules |
+| 运行时文件包含在发布清单 | `files` 包含 dist、bundle patch、离线备份脚本及当前说明，不含历史档案、开发检查脚本、作品数据或 node_modules |
 | 分发预构建代码 | npm 格式 `.tgz` 作为标准安装附件；ZIP 提供同一套预构建文件的便捷解压形式 |
 | 正确区分加载与按需启用 | CLI 安装自动登记当前 bundle；Agent 会话仍须调用 `zhizhang_enable` |
 
@@ -32,7 +32,7 @@
 ## 安装和升级提示
 
 ```bash
-dsh plugin --profile desktop add ./dsh-zhizhang-0.19.0.tgz
+dsh plugin --profile desktop add ./dsh-zhizhang-0.20.0.tgz
 ```
 
 desktop profile 应先由桌面程序初始化，再完全退出桌面程序运行 CLI。当前 CLI 会将声明了 `dsh.bundle` 的包加入 bundles；旧 CLI 或手工依赖安装需核对实际 profile。用户 patch 覆盖整行 config，不能假设逐键合并。
