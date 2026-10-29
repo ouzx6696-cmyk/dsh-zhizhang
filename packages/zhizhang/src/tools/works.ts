@@ -32,6 +32,7 @@ export function worksTools() {
                 genre: S("可选类型"),
                 premise: S("可选一句话前提"),
                 key: S("可选目录名 slug；默认由标题生成"),
+                strict_key: B("true 时目录名已存在就报错，不自动添加后缀；可用于恢复任务"),
                 working_dir: WORKING_DIR,
             },
             required: ["title"],
@@ -43,6 +44,7 @@ export function worksTools() {
                     genre: asString(args, "genre"),
                     premise: asString(args, "premise"),
                     key: asString(args, "key"),
+                    requireExactKey: boolArg(args, "strict_key") === true,
                 });
                 rememberWork(exec, meta.key);
                 return [

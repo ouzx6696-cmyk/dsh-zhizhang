@@ -281,7 +281,7 @@ export function createToutiaoTools(deps: ToolDeps): HostToolDefinition[] {
         const rec = {
           rev: cur.rev, sha256: cur.sha256, pass: r.pass === true, score: Number(r.score ?? 0),
           hard_gates: (r.hard_gates as string[]) ?? [], fail_count: ((r.fails as unknown[]) ?? []).length,
-          rules_version: r.rules_version, card_sha256: cardText === undefined ? null : sha256(cardText), at: nowIso(),
+          rules_version: r.rules_version, card_sha256: cardText === undefined ? null : sha256(cardText), at: new Date().toISOString(), by: deps.role,
         }
         await store.update(id, (mm) => { mm.qa.push(rec) })
         const warn = cardText === undefined ? ['没有立项卡，未做立项卡与台账核对；交稿前必须补卡并重跑'] : []

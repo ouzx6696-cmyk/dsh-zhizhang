@@ -23,7 +23,7 @@ function Onboarding({ empty, message }) {
       <Empty title={heading} hint={message && message.indexOf(heading) < 0 ? message : t("onboardLead")} />
       <ol className="zz-onboarding-steps" aria-label={t("onboardSteps")}>
         <li>
-          <WithCode text={t("onboardStep1")} code="zhizhang_enable" />
+          <WithCode text={t("onboardStep1")} code="fanqie_enable" />
         </li>
         <li>
           <WithCode text={t("onboardStep2")} code="zhizhang_project_create" />

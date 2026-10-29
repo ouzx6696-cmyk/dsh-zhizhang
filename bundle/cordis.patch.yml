@@ -1,11 +1,15 @@
-# dsh-writer bundle patch：插入写作 Agent 插件。
-# 挂载时注册三个触发工具：toutiao_enable（今日头条）、fanqie_enable（番茄长篇，内置织章 0.20.0），
-# zhizhang_enable（织章原生入口）；外加本机写作台 /writer/toutiao。会话里说"写一篇头条"或"写番茄长篇"才在该会话挂载对应工具、总则与门禁。
-# 一个会话只能一种体裁；头条与长篇互斥。
+# dsh-writer：默认两个写作模式入口，DSH 负责会话与 Agent 执行。
+# toutiao_enable / fanqie_enable；番茄自动挂载内部小说工作台。
+# 本机任务页 /writer；旧 zhizhang_enable 可用 compatibilityEntry: true 显式启用。
+# 一个会话一种体裁；原数据目录与作者确认流程保留。
 - insert:
     - id: writer
       name: 'dsh-writer'
       config:
+        compatibilityEntry: false
+        workflow:
+          review: quick
+          maxAutoRevisionRounds: 2
         zhizhang:
           rootDir: '.zhizhang'
           multiDraftEnabled: false

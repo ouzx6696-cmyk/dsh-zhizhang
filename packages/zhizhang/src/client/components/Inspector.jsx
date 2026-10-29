@@ -72,8 +72,8 @@ export function Inspector({ state, view, actions }) {
         {['continue','review',...(meta?.writerReview?.verdict !== '通过' && meta?.writerReview ? ['revise'] : [])].map(action => (
           <Button key={action} size="sm" disabled={!!bodyBlocked} onClick={async () => {
             const label = {continue:'续写下一章',review:'派编辑审读本章',revise:'按回报修改'}[action];
-            if (!window.confirm(`向本项目最近使用织章的主会话发送“${label}”？`)) return;
-            try { await request('/writer/action', {method:'POST',body:{base:state.base,work:state.work,chapter:current.id,action,confirm:true}}); window.alert('已发送到主会话'); }
+            if (!window.confirm(`向本作品的主会话发送“${label}”？如果存在多个会话，请在任务页选择。`)) return;
+            try { await request('/writer/action', {method:'POST',body:{base:state.base,work:state.work,chapter:current.id,action,confirm:true}}); window.alert('任务已投递。请在“写作任务”页查看稿件、问题和下一步。'); }
             catch(e) { window.alert(e.message); }
           }}>{ {continue:'续写下一章',review:'派编辑审读本章',revise:'按回报修改'}[action] }</Button>
         ))}

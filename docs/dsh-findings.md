@@ -21,7 +21,7 @@
 | — | 工具返回值约束 | ✅ 已验证 | 返回值须为无损 JSON 并符合 `output.schema`（`packages/core/tools/src/json-schema.ts` 子集）；adapter 统一 JSON 化 |
 
 ## 关键注意
-- `0.2.2-alpha.2`（2026-10-28）要求插件迁移 `tools.resolve/executable` 与提示词组装接口、最低 Node 24.9。升级时只改 `packages/dsh-adapter`，并重跑 `test:dsh` 与 `test:e2e`。
+- `0.2.2-alpha.2`（2026-10-28）要求插件迁移 `tools.resolve/executable` 与提示词组装接口、最低 Node 24.9。升级时只改 `packages/dsh-adapter`，并重跑 `pnpm check` 和可选的 `pnpm test:host`。
 - 门禁的"作者确认"在工具内还有一道复核：只有门禁确实为本次调用（`exec.token`）发起过 ask 并被放行，`toutiao_status → 已交稿` 才会执行。宿主门禁失效时，工具自身也拒绝。
 
 
@@ -37,3 +37,7 @@
 - 原织章客户端继续通过 rc.4 的 `packages/client/modules/src/` 模块加载与 `packages/client/ui-slots/src/` 席位接口挂载；发行模块 id 为 dsh-writer，原面板/API id 保持兼容。
 
 原织章服务端宿主注册、系统段落、路由和可选 Schema 现均经 packages/dsh-adapter。共享存储定稿回报检查不是 DSH API，直接位于本项目 packages/zhizhang/src/lib/storage/chapters.ts。
+
+## 0.5.0 任务工作台
+
+默认番茄入口在当前 Agent 作用域临时注册内部启用工具，并通过 DSH ToolRuntime 执行；宿主门禁与结果事件继续生效。任务页 `/writer` 和 `/writer/action` 由 webServer exact route 注册，小说面板仍使用 `/api/dsh-zhizhang/*`；任务页按主会话明确选择投递目标。

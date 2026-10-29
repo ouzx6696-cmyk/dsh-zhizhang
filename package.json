@@ -1,6 +1,6 @@
 {
   "name": "writer-agent",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "description": "写作 Agent：DSH 插件形态的番茄长篇 + 今日头条写作工具链",
   "type": "module",
@@ -8,20 +8,17 @@
     "node": ">=24.9 <25"
   },
   "scripts": {
-    "typecheck": "pnpm build:zhizhang && tsc -p tsconfig.json --noEmit",
-    "build:test": "pnpm build:zhizhang && tsc -p tsconfig.test.json && node scripts/link-test-zhizhang.mjs",
     "build": "node scripts/build-bundle.mjs",
-    "guard": "node scripts/architecture-guard.mjs",
-    "test:py": "python packages/toutiao/skill/tests/test_gates.py && python packages/fanqie/skill/tests/test_bridge.py",
-    "test:node": "pnpm build:test && node --test test/*.test.mjs",
-    "test": "pnpm run guard && pnpm run typecheck && pnpm run test:py && pnpm run test:node",
+    "check": "node scripts/check.mjs",
+    "test": "node scripts/check.mjs",
+    "test:dsh": "pnpm build:test && node --test test/dsh-real.test.mjs",
+    "test:host": "node scripts/test-host.mjs",
     "pack:bundle": "pnpm build && node -e \"require('fs').mkdirSync('dist-pack',{recursive:true})\" && cd bundle && pnpm pack --pack-destination ../dist-pack",
-    "test:dsh": "pnpm run build:test && node --test test/dsh-real.test.mjs",
-    "test:e2e": "node test/e2e/run-headless.mjs",
-    "test:e2e:fanqie": "node test/e2e/run-fanqie.mjs",
-    "test:all": "pnpm test && pnpm test:zhizhang && pnpm test:dsh && pnpm test:e2e && pnpm test:e2e:fanqie",
     "build:zhizhang": "tsc -p tsconfig.adapter.json && tsc -p packages/zhizhang/tsconfig.json && node packages/zhizhang/scripts/build-client.mjs",
-    "test:zhizhang": "pnpm build:zhizhang && node scripts/test-zhizhang.mjs"
+    "build:test": "pnpm build:zhizhang && tsc -p tsconfig.test.json && node scripts/link-test-zhizhang.mjs",
+    "guard": "node scripts/architecture-guard.mjs",
+    "typecheck": "pnpm build:zhizhang && tsc -p tsconfig.json --noEmit",
+    "test:rules": "python packages/toutiao/skill/tests/test_gates.py"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

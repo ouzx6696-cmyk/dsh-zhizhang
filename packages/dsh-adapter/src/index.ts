@@ -256,17 +256,25 @@ export function registerRoutes(ctx: HostContext, routes: { path: string; handler
 /** Execute through the real scoped pipeline; never invoke a tool body directly.
  * Source: packages/core/tools/src/index.ts ToolRuntime.execute / ToolExecutionInput.
  */
-export async function enableIntegratedZhizhang(exec: HostToolExecution): Promise<boolean> {
+export async function enableIntegratedZhizhang(exec: HostToolExecution, internalTool?: HostToolDefinition): Promise<boolean> {
   const ctx = agentContextOf(exec)
-  if (!ctx?.tools?.execute) return false
-  const result = await ctx.tools.execute({
-    name: 'zhizhang_enable', arguments: {}, agent: exec.agent,
-    callId: randomUUID(), signal: exec.signal,
-  })
-  if (result.isError || typeof result.value !== 'string' || !result.value.startsWith('已启用织章')) {
-    throw new WriterError('GATE_DENIED', '织章启用失败；请检查内置插件是否加载及宿主门禁，不会绕过门禁调用工具。')
+  if (!ctx?.tools?.execute) {
+    if (internalTool) throw new WriterError('GATE_DENIED', '宿主不支持作用域工具执行，无法启用小说工作台。')
+    return false
   }
-  return true
+  const dispose = internalTool ? ctx.tools.register(internalTool) : undefined
+  try {
+    const result = await ctx.tools.execute({
+      name: 'zhizhang_enable', arguments: {}, agent: exec.agent,
+      callId: randomUUID(), signal: exec.signal,
+    })
+    if (result.isError || typeof result.value !== 'string' || !result.value.startsWith('已启用织章')) {
+      throw new WriterError('GATE_DENIED', '织章启用失败；请检查内置插件是否加载及宿主门禁，不会绕过门禁调用工具。')
+    }
+    return true
+  } finally {
+    if (typeof dispose === 'function') dispose()
+  }
 }
 
 /** rc.4: packages/api/session-controller/src/index.ts prompt, types.ts SessionPromptRequest. */

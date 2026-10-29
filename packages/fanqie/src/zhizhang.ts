@@ -6,7 +6,10 @@ import { readWorkMeta, readChapter as loadChapter, listWorks as allWorks, storag
 export interface ZhizhangPathsConfig { rootDir?: string; storageRoot?: string; worksRoot?: string }
 export interface ChapterOutline { pov?: string; targetWords?: number; locks?: string; knowledge?: string; synopsis?: string; conflict?: string; beats?: string; ending?: string; [k: string]: unknown }
 export interface ChapterRow { id: string; title: string; position: number; status: string; wordCount?: number }
-export interface ChapterRecord extends ChapterRow { outline: ChapterOutline; body: string; bodySha256: string }
+export interface ChapterRecord extends ChapterRow {
+ outline: ChapterOutline; body: string; bodySha256: string; revision: string
+ review?: { revision: string; result: 'pass' | 'blocked'; [key: string]: unknown }
+}
 export interface WorkInfo { base?: string; key: string; title: string; dir: string; chapters: ChapterRow[] }
 interface Selection { cfg: ZhizhangPathsConfig; exec?: HostToolExecution; workingDir?: string }
 export function worksRoot(cfg: ZhizhangPathsConfig, exec?: HostToolExecution, workingDir?: string): Selection { return { cfg, exec, workingDir } }
@@ -20,13 +23,21 @@ export async function openWork(root: Selection, work?: string): Promise<WorkInfo
   const selected = await withPluginConfig(root.cfg, () => selectWork(root.exec as any, { work, working_dir: root.workingDir }))
   const meta = await readWorkMeta(selected.dir)
   return { base: selected.paths.base, key: meta.key, title: meta.title, dir: selected.dir, chapters: [...meta.chapters].sort((a: any,b: any) => a.position-b.position) }
- } catch (e) { throw new WriterError('NOT_FOUND', e instanceof Error ? e.message : String(e)) }
+ } catch (e) {
+  const error = e as Error & { code?: string }
+  if (error.code === 'ENOENT' || error.code === 'not_found' || error.code === 'work_not_found') throw new WriterError('NOT_FOUND', error.message)
+  if (error.name === 'ZhizhangError') throw new WriterError('CONFLICT', error.message)
+  throw e
+ }
 }
 export async function readChapter(work: WorkInfo, id: string): Promise<ChapterRecord> {
  const row = work.chapters.find(c => c.id === id || c.title === id || String(c.position) === id)
  if (!row) throw new WriterError('NOT_FOUND', `没有这一章：${id}`)
- try { const ch = await loadChapter(work.dir, row.id); return { ...row, status: ch.status, outline: ch.outline, body: ch.body, bodySha256: sha256(ch.body) } }
- catch(e) { if ((e as any).code === 'ENOENT') return { ...row, outline: {}, body: '', bodySha256: sha256('') }; throw e }
+ try { const ch = await loadChapter(work.dir, row.id); return { ...row, status: ch.status, outline: ch.outline, body: ch.body, bodySha256: sha256(ch.body), revision: ch.revision, review: ch.review } }
+ catch(e) {
+  if ((e as NodeJS.ErrnoException).code === 'ENOENT') throw new WriterError('NOT_FOUND', `章节 ${row.id} 已登记，但章节文件不存在；请检查作品目录。`)
+  throw e
+ }
 }
 /** 解析章节选择：单章 id/序号，或 "3-5" 区间，或省略 = 全部 */
 export function pickChapters(work: WorkInfo, spec?: string): ChapterRow[] {

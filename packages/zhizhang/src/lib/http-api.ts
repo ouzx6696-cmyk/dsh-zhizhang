@@ -525,8 +525,8 @@ export function createPanelApiHandler(config: PluginConfig = {}) {
                   const dir=await resolveWorkDir(picked.paths as StoragePaths,input.work);
                   await readChapter(dir,assertResourceId(input.chapter,'章节 id'));
                   if(!writerHooks.dispatch) throw new Error('写作 Agent 会话投递尚未就绪');
-                  await writerHooks.dispatch({base:(picked.paths as StoragePaths).base,dir,work:input.work,chapter:input.chapter,action:input.action});
-                  return writeJson(res,200,{ok:true});
+                  const task = await writerHooks.dispatch({base:(picked.paths as StoragePaths).base,dir,work:input.work,chapter:input.chapter,action:input.action});
+                  return writeJson(res,200,{ok:true,task});
                 } catch(e) { return writeJson(res,409,{ok:false,error:e instanceof Error?e.message:String(e)}); }
             }
             // —— POST candidate adoption ——

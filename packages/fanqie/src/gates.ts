@@ -1,5 +1,5 @@
 /**
- * 长篇门禁（dev-plan T3.6 / T3.7）。拦的是织章工具（同一会话里的 zhizhang_*），织章本身一行不改。
+ * 长篇门禁：限制当前会话的小说工具，并保留作者确认与版本校验。
  *
  * 写手：
  *   fanqie.finalize_requires_author  zhizhang_chapter_save status=final → 请作者确认（锁定）
@@ -14,12 +14,16 @@ import { latestReview, type FanqieConfig } from './env.js'
 import { openWork, readChapter, worksRoot } from './zhizhang.js'
 import type { Role } from './tools.js'
 
-/** 编辑子代理不许碰的织章写入类工具 */
-export const EDITOR_DENY = new Set([
-  'zhizhang_candidate_accept', 'zhizhang_candidate_edit_decide', 'zhizhang_candidate_stage',
-  'zhizhang_chapter_save', 'zhizhang_foundation_set', 'zhizhang_foundation_append_happened',
-  'zhizhang_outline_set', 'zhizhang_inspire_accept', 'zhizhang_library_card_accept',
-  'zhizhang_library_card_discard', 'zhizhang_library_import', 'zhizhang_project_create', 'zhizhang_assemble',
+/** 审读所需的查询、体检和编辑候选。新增写入工具不会自动授予编辑。 */
+export const EDITOR_ALLOWED = new Set([
+  'zhizhang_enable',
+  'zhizhang_project_list', 'zhizhang_project_open', 'zhizhang_status',
+  'zhizhang_chapter_list', 'zhizhang_chapter_read', 'zhizhang_chapter_drafts',
+  'zhizhang_foundation_get', 'zhizhang_outline_get', 'zhizhang_chapter_brief',
+  'zhizhang_method_list', 'zhizhang_method_get', 'zhizhang_product_map', 'zhizhang_system_brief',
+  'zhizhang_style_lint', 'zhizhang_review_ledger', 'zhizhang_human_feel_audit',
+  'zhizhang_novel_sense_audit', 'zhizhang_payoff_audit',
+  'zhizhang_candidate_edit_brief', 'zhizhang_candidate_edit_stage',
 ])
 
 export function fanqieGateRules(config: FanqieConfig, role: Role): GateRule[] {
@@ -30,7 +34,7 @@ export function fanqieGateRules(config: FanqieConfig, role: Role): GateRule[] {
       locked: true,
       description: '编辑只能审读与出编辑候选，不能采纳、定稿、改根基或章纲',
       check(_args, exec) {
-        if (!EDITOR_DENY.has(exec.name)) return undefined
+        if (EDITOR_ALLOWED.has(exec.name)) return undefined
         return { kind: 'deny', reason: `编辑不能调用 ${exec.name}。把审读结论用 fanqie_review_report 回报给主写手，由主写手和作者决定。需要改稿就用 zhizhang_candidate_edit_brief / zhizhang_candidate_edit_stage 出编辑候选。` }
       },
     }]
@@ -72,6 +76,8 @@ export function fanqieGateRules(config: FanqieConfig, role: Role): GateRule[] {
         if (!r) return { kind: 'deny', reason: `${ch.title} 还没有编辑审读回报；先派编辑子代理审读（fanqie_review_report）` }
         if (r.body_sha256 !== bodySha) return { kind: 'deny', reason: `${ch.title} 的审读回报对应的是旧正文，正文改过后要重新审读` }
         if (r.verdict !== '通过') return { kind: 'deny', reason: `${ch.title} 最新审读结论是「${r.verdict}」，硬伤解决并重审通过后才能定稿` }
+        if (r.by !== 'editor' || r.reread_full !== true || !Array.isArray(r.hard_issues) || r.hard_issues.length !== 0)
+          return { kind: 'deny', reason: `${ch.title} 须有独立编辑完整回读且零硬伤的通过回报` }
         return undefined
       },
     },

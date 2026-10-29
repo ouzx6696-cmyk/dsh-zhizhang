@@ -9,6 +9,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import path from 'node:path'
 import { readText } from '../../core/src/fsx.js'
+import { isLocalPanelRequest } from '../../core/src/http.js'
 import { WriterError } from '../../dsh-adapter/src/index.js'
 import { listKnownRoots, type ToutiaoConfig } from './env.js'
 import { ArticleStore, nowIso, STATUSES, type ArticleMeta } from './store.js'
@@ -20,11 +21,6 @@ export const ADOPT_PATH = '/writer/toutiao/api/adopt'
 const TOKEN = randomBytes(24).toString('hex')
 
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!))
-
-function isLoopback(req: IncomingMessage): boolean {
-  const a = req.socket?.remoteAddress ?? ''
-  return a === '127.0.0.1' || a === '::1' || a === '::ffff:127.0.0.1'
-}
 
 function send(res: ServerResponse, status: number, body: string, type = 'text/html; charset=utf-8') {
   res.writeHead(status, { 'content-type': type, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'x-frame-options': 'SAMEORIGIN' })
@@ -111,7 +107,7 @@ export async function adopt(root: string, id: string, config: ToutiaoConfig = {}
 
 export function createPanelHandlers(config: ToutiaoConfig) {
   const view = async (req: IncomingMessage, res: ServerResponse) => {
-    if (!isLoopback(req)) return send(res, 403, 'forbidden', 'text/plain')
+    if (!isLocalPanelRequest(req)) return send(res, 403, 'forbidden', 'text/plain')
     if (req.method !== 'GET') return send(res, 405, 'method not allowed', 'text/plain')
     try {
       const url = new URL(req.url ?? '/', 'http://127.0.0.1')
@@ -127,7 +123,7 @@ export function createPanelHandlers(config: ToutiaoConfig) {
     }
   }
   const adoptHandler = async (req: IncomingMessage, res: ServerResponse) => {
-    if (!isLoopback(req)) return send(res, 403, 'forbidden', 'text/plain')
+    if (!isLocalPanelRequest(req)) return send(res, 403, 'forbidden', 'text/plain')
     if (req.method !== 'POST') return send(res, 405, 'method not allowed', 'text/plain')
     try {
       const form = new URLSearchParams(await readBody(req))

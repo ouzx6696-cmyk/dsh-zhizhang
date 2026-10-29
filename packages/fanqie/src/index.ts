@@ -1,5 +1,5 @@
 /**
- * writer-fanqie — 番茄长篇（建立在织章 dsh-zhizhang 之上，不改织章）。
+ * writer-fanqie — 番茄长篇（使用内置小说工作台）。
  *
  * 触发：fanqie_enable（role=writer|editor），或观察到同一会话 zhizhang_enable 成功后自动挂载（autoMount）。
  * 挂载内容：fanqie_* 工具、长篇补充段落、长篇门禁（拦同一会话里的 zhizhang_* 调用）。
@@ -67,7 +67,7 @@ export function makeFanqieEnableTool(config: FanqieConfig): HostToolDefinition {
       const role: Role = args.role === 'editor' ? 'editor' : 'writer'
       genres.claim(exec, 'fanqie')
       const r = mountFanqie(agentCtx, config, role)
-      const zz = zhizhangOn.has(agentCtx) || await enableIntegratedZhizhang(exec)
+      const zz = zhizhangOn.has(agentCtx) || await (config.enableWorkbench ? config.enableWorkbench(exec) : enableIntegratedZhizhang(exec))
       if (zz) zhizhangOn.add(agentCtx)
       return {
         enabled: true,

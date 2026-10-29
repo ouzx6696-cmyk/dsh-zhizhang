@@ -1,8 +1,8 @@
-/** 番茄长篇工具（fanqie_*）：读织章作品，跑 forge 规则，出编辑审读回报。全部不写织章文件。 */
+/** 番茄长篇工具：读取作品、运行写作规则并保存版本化审读回报。 */
 import path from 'node:path'
 import { stat } from 'node:fs/promises'
 import { defineWriterTool, sessionCwd, WriterError, type HostToolDefinition, type HostToolExecution, type JsonSchemaNode } from '../../dsh-adapter/src/index.js'
-import { nowIso, resolveInside } from '../../core/src/fsx.js'
+import { resolveInside } from '../../core/src/fsx.js'
 import {
   bridge, HARD_CATEGORIES, latestReview, LEVELS, renderReview, saveReview, VERDICTS, withTempFiles,
   type FanqieConfig, type ReviewReport,
@@ -195,7 +195,7 @@ export function createFanqieTools(deps: FanqieToolDeps): HostToolDefinition[] {
         const report: ReviewReport = {
           work: w.key, work_title: w.title, chapter: ch.id, chapter_title: ch.title, body_sha256: ch.bodySha256,
           verdict, hard_issues: hard, levels, optional, reread_full: args.reread_full === true,
-          changed_scope: str(args.changed_scope), strengths: str(args.strengths), by: deps.role, at: nowIso(),
+          changed_scope: str(args.changed_scope), strengths: str(args.strengths), by: deps.role, at: new Date().toISOString(),
         }
         const file = await saveReview(config, exec, report, w.dir)
         return { saved: path.basename(file), verdict, body_sha256: ch.bodySha256, markdown: renderReview(report) }

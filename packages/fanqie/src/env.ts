@@ -1,16 +1,20 @@
 import { assertResourceId } from '../../zhizhang/dist/lib/storage/primitives.js'
 /** 长篇运行环境：配置、Python 桥、审读回报存储。 */
 import path from 'node:path'
-import { mkdtemp, rm, writeFile, readdir } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { randomBytes } from 'node:crypto'
 import { tmpdir } from 'node:os'
-import { sessionCwd, WriterError, type HostToolExecution } from '../../dsh-adapter/src/index.js'
-import { atomicWrite, readJson, resolveInside } from '../../core/src/fsx.js'
+import { WriterError, type HostToolExecution } from '../../dsh-adapter/src/index.js'
+import { atomicWrite, resolveInside } from '../../core/src/fsx.js'
+import { latestWriterReport } from '../../zhizhang/dist/lib/writer-hooks.js'
 import { locatePython, runScript, type ScriptResult } from '../../core/src/runner.js'
 import { fanqieBridgeScript } from './methods.js'
 import { openWork, worksRoot, type ZhizhangPathsConfig } from './zhizhang.js'
 
 export interface FanqieConfig {
-  /** 本插件自己的输出目录（审读回报等），相对会话 cwd，默认 outputs/fanqie */
+  /** Internal app mount, not a user configuration field. */
+  enableWorkbench?: (exec: HostToolExecution) => Promise<boolean>
+  /** 旧配置仍可读取；当前审读回报存放于作品目录。 */
   outputsDir?: string
   /** Python 命令；不填沿用顶层 python */
   python?: string
@@ -22,10 +26,6 @@ export interface FanqieConfig {
   requireEditorPass?: boolean
   /** 关闭的非锁定门禁 id */
   disabledGates?: string[]
-}
-
-export function outputsRoot(config: FanqieConfig, exec?: HostToolExecution): string {
-  return path.resolve(sessionCwd(exec), config.outputsDir?.trim() || 'outputs/fanqie')
 }
 
 export async function bridge(config: FanqieConfig, args: string[], opts: { signal?: AbortSignal; timeoutMs?: number } = {}): Promise<ScriptResult> {
@@ -85,17 +85,14 @@ export async function reviewDir(config: FanqieConfig, exec: HostToolExecution | 
 
 export async function saveReview(config: FanqieConfig, exec: HostToolExecution | undefined, r: ReviewReport, workDir?: string): Promise<string> {
   const dir = await reviewDir(config, exec, r.work, r.chapter, workDir)
-  const file = path.join(dir, `${r.at.replace(/[:.+]/g, '-')}.json`)
+  const file = path.join(dir, `${r.at.replace(/[:.+]/g, '-')}-${randomBytes(8).toString('hex')}.json`)
   await atomicWrite(file, JSON.stringify(r, null, 2))
   return file
 }
 
 export async function latestReview(config: FanqieConfig, exec: HostToolExecution | undefined, work: string, chapter: string, workDir?: string): Promise<ReviewReport | undefined> {
-  const dir = await reviewDir(config, exec, work, chapter, workDir)
-  let names: string[] = []
-  try { names = (await readdir(dir)).filter(n => n.endsWith('.json')).sort() } catch { return undefined }
-  const last = names.at(-1)
-  return last ? readJson<ReviewReport>(path.join(dir, last)) : undefined
+  const dir = workDir ?? (await openWork(worksRoot(config.zhizhang ?? {}, exec), work)).dir
+  return await latestWriterReport(dir, chapter) as ReviewReport | undefined
 }
 
 export function renderReview(r: ReviewReport, stale = false): string {

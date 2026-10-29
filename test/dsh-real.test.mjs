@@ -60,7 +60,7 @@ test('真实 DSH ToolRuntime：按会话启用、门禁 deny/ask、作者确认�
   assert.equal(en.value.prompt_section, true)
   assert.equal(en.value.gates, true)
   const names = ctx.tools.schemas(agent).map(t => t.name)
-  assert.ok(names.includes('toutiao_qa_check'))
+  assert.ok(names.includes('toutiao_qa_check') && names.includes('writer_run') && names.includes('writer_resume'))
   assert.ok(!ctx.tools.schemas(other).map(t => t.name).includes('toutiao_qa_check'), '其他会话看不到头条工具')
 
   const card = JSON.parse(await readFile(path.join(FIX, 'story_long_card.json'), 'utf8'))
@@ -92,6 +92,12 @@ test('真实 DSH ToolRuntime：按会话启用、门禁 deny/ask、作者确认�
   assert.equal(done.value?.ok, true, done.text)
   assert.equal(done.value.article.status, '已交稿')
 
+  const tracked = await call('writer_run', {goal:'核对已交稿原稿', intent:'review', article:id})
+  assert.equal(tracked.value?.task.target.article, id, tracked.text)
+  const exported = await call('writer_export', {task_id:tracked.value.task.id,format:'txt'})
+  assert.equal(exported.value?.final,true,exported.text)
+  assert.ok(exported.value.content.includes(story.replace(/^#\s+/, '')))
+
   // 编辑子代理：独立作用域，只有红笔与质检工具
   const mint = async (id) => {
     const a = { id }
@@ -108,11 +114,11 @@ test('真实 DSH ToolRuntime：按会话启用、门禁 deny/ask、作者确认�
   assert.ok(en2.includes('toutiao_qa_check') && !en2.includes('toutiao_status'), en2.join(','))
 
   // 体裁隔离：经真实 tools/result 观察到织章启用后，该会话拒绝头条；头条会话拒绝织章
-  const denied = await call('zhizhang_enable', {}, agent)
+  const denied = await call('fanqie_enable', {}, agent)
   assert.equal(denied.isError, true)
   assert.match(denied.text, /体裁隔离/)
   const novel = await mint('sess-novel')
-  assert.match((await call('zhizhang_enable', {}, novel)).text, /^已启用织章/)
+  assert.match((await call('fanqie_enable', {}, novel)).text, /zhizhang_enabled/)
   const blocked = await call('toutiao_enable', {}, novel)
   assert.equal(blocked.isError, true)
   assert.match(blocked.text, /番茄长篇/)

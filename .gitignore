@@ -11,3 +11,5 @@ bundle/skill-fanqie/
 packages/zhizhang/dist/
 packages/dsh-adapter/dist/
 bundle/licenses/
+
+.writer/

@@ -56,7 +56,7 @@ function enabledReceipt() {
     return receipt;
 }
 const loadedAgents = new WeakSet();
-function makeEnableTool(pluginConfig: any) {
+export function makeEnableTool(pluginConfig: any) {
     return {
         name: "zhizhang_enable",
         description: `【按需启用】把织章小说工具（${tools.length} 个）与硬规则加载到当前会话。只有需要拆书 / 写小说 / 改稿时才调用；未调用前这些工具与系统提示都不会注入。启用后调用 zhizhang_product_map 看默认链。`,
@@ -83,13 +83,13 @@ function makeEnableTool(pluginConfig: any) {
         },
     };
 }
-export function apply(ctx: any, pluginConfig: any = {}) {
+export function apply(ctx: any, pluginConfig: any = {}, options: { compatibilityEntry?: boolean } = {}) {
     setPluginConfig(pluginConfig);
     const multiOn = pluginConfig.multiDraftEnabled === true ||
         pluginConfig.multiDraft?.enabled === true ||
         envMultiDraftFlag();
     setPortConfig({ multiDraftEnabled: multiOn });
-    registerHostTool(ctx, makeEnableTool(pluginConfig));
+    if (options.compatibilityEntry !== false) registerHostTool(ctx, makeEnableTool(pluginConfig));
     // Protected panel API (GET + accept POST). No tools/prompt cost.
     registerPanelHttpRoutes(ctx, pluginConfig);
 }

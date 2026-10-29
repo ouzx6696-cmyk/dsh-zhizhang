@@ -5,13 +5,13 @@
  * passes through this table.
  */
 const ZH = {
-  panelLabel: "织章",
-  appTitle: "织章",
+  panelLabel: "写作 Agent",
+  appTitle: "小说工作台",
   appSubtitleNoWork: "小说工作台",
-  loading: "正在载入织章工作台…",
-  errorTitle: "暂时连不上织章的面板接口",
+  loading: "正在载入小说工作台…",
+  errorTitle: "暂时连不上小说工作台",
   errorHint: "确认插件已安装并重启了 DSH；在对话里调用 zhizhang_panel_snapshot 也能查看同样的数据。",
-  forbiddenHint: "接口拒绝了本次访问。若宿主配置了 panelToken，请到插件详情页的「织章」卡片输入访问令牌。",
+  forbiddenHint: "接口拒绝了本次访问。若宿主配置了 panelToken，请到插件详情页的「小说工作台」卡片输入访问令牌。",
   rateLimitedHint: "请求过于频繁，稍后会自动重试。",
   retry: "重试",
   refresh: "刷新",
@@ -207,23 +207,23 @@ const ZH = {
   onboardNoWork: "选择一部作品",
   onboardLead: "创作和规划都在对话里完成；这里用来阅读、对照和确认采纳。",
   onboardSteps: "三步开始",
-  onboardStep1: "在对话里说「启用织章」，让 Agent 调用 {code}。",
+  onboardStep1: "在对话里说「开始写小说」，让 Agent 调用 {code}。",
   onboardStep2: "让 Agent 用 {code} 新建作品，写下书名、题材和简介。",
   onboardStep3: "回到这里，作品和章节会自动出现。",
   onboardLibrary: "想先整理参考书？切到「全书概况 → 参考库」查看本地书源。",
 
-  settingsTitle: "织章",
-  settingsLead: "写作台在侧栏「织章」。面板读取本地数据，写回只经过显式采纳、审读、定稿等确认操作，或对话中的 zhizhang_* 工具。",
+  settingsTitle: "小说工作台",
+  settingsLead: "工作台在侧栏「写作 Agent」。面板读取本地数据，写回只经过显式采纳、审读、定稿等确认操作，或对话中的 zhizhang_* 工具。",
   settingsToken: "访问令牌",
   settingsTokenHint: "宿主配置了 panelToken 时填写。只保存在当前浏览器会话，不写入链接。",
   settingsTokenSaved: "已保存到本次会话。",
   settingsTokenClear: "清除",
   settingsStorage: "数据默认在会话目录的 .zhizhang/，也可以在插件配置里指定 storageRoot、worksRoot、libraryRoot。",
 
-  crashTitle: "织章面板出错了",
+  crashTitle: "小说工作台出错了",
   crashHint: "其他功能不受影响。可以重新载入面板；问题持续时请把下面的信息反馈给维护者。",
   crashReload: "重新载入面板",
-  footer: "织章 {version} · 采纳、审读、定稿分别确认，面板不会静默写入",
+  footer: "小说工作台 {version} · 采纳、审读、定稿分别确认，面板不会静默写入",
 };
 
 const TABLE = ZH;

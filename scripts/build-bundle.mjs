@@ -7,8 +7,11 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const OUT = path.join(ROOT, 'bundle')
-execFileSync(process.execPath, [path.join(ROOT, 'node_modules/typescript/bin/tsc'), '-p', path.join(ROOT,'tsconfig.adapter.json')], {stdio:'inherit'})
-execFileSync(process.execPath, [path.join(ROOT, 'node_modules/typescript/bin/tsc'), '-p', path.join(ROOT,'packages/zhizhang/tsconfig.json')], {stdio:'inherit'})
+// A caller that has just run the full check may reuse its compiled dependencies.
+if (!process.argv.includes('--compiled')) {
+  execFileSync(process.execPath, [path.join(ROOT, 'node_modules/typescript/bin/tsc'), '-p', path.join(ROOT,'tsconfig.adapter.json')], {stdio:'inherit'})
+  execFileSync(process.execPath, [path.join(ROOT, 'node_modules/typescript/bin/tsc'), '-p', path.join(ROOT,'packages/zhizhang/tsconfig.json')], {stdio:'inherit'})
+}
 const check = process.argv.includes('--check')
 
 await rm(path.join(OUT, 'dist'), { recursive: true, force: true })
@@ -32,9 +35,9 @@ process.env.WRITER_CLIENT_ID = 'dsh-writer'
 process.env.WRITER_CLIENT_OUT = path.join(OUT, 'dist/client.js')
 await import('../packages/zhizhang/scripts/build-client.mjs')
 
-const noCache = (src) => !src.includes('__pycache__')
-await cp(path.join(ROOT, 'packages/toutiao/skill'), path.join(OUT, 'skill'), { recursive: true, filter: noCache })
-await cp(path.join(ROOT, 'packages/fanqie/skill'), path.join(OUT, 'skill-fanqie'), { recursive: true, filter: noCache })
+const runtimeAsset = src => !src.split(path.sep).some(part => part === '__pycache__' || part === 'tests') && !src.endsWith('.pyc')
+await cp(path.join(ROOT, 'packages/toutiao/skill'), path.join(OUT, 'skill'), { recursive: true, filter: runtimeAsset })
+await cp(path.join(ROOT, 'packages/fanqie/skill'), path.join(OUT, 'skill-fanqie'), { recursive: true, filter: runtimeAsset })
 const pkg = JSON.parse(await readFile(path.join(ROOT, 'package.json'), 'utf8'))
 const bpkg = JSON.parse(await readFile(path.join(OUT, 'package.json'), 'utf8'))
 if (bpkg.version !== pkg.version) {

@@ -1,6 +1,6 @@
 {
   "name": "@writer/zhizhang",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "织章 DSH 插件：按需启用；参考分析与原创规划；条件接续、版本化审读、定稿与安全修订；本地资产、恢复与作者阅读工作台（写作台三栏、并排对照、确认式采纳 / 审读 / 定稿）。",
   "type": "module",
   "main": "./dist/index.js",

@@ -1,13 +1,15 @@
 /** 长篇常驻段落：写手版与编辑版。与织章自己的硬规则段落并存，只补充本插件新增的方法、工具与门禁。 */
 
-export const FANQIE_BRIEF = `# 番茄长篇（写作 Agent 补充规则）
+export const FANQIE_BRIEF = `
+日常写作先 writer_run，已有任务 writer_resume；按任务返回的路线持续完成，不要求作者手动串工具。每阶段保存业务产物后 writer_checkpoint，结束前 writer_status。
+# 番茄长篇（写作 Agent 补充规则）
 
 作品数据全部由织章管理（zhizhang_*）；本插件补充 forge 方法、长篇规则检查、编辑审读与定稿门禁。
 
 ## 每章的默认路线
 1. 动笔前：fanqie_outline_check（chapters=本章）章纲 8 字段齐全、无占位，再 zhizhang_chapter_brief。
 2. 写：按织章默认链出候选、采纳为草稿（采纳不等于定稿）。方法看 fanqie_method_get（novel-writer/references/writing、rhythm、prose_craft）。
-3. 审：有 subagent 工具时派编辑子代理，提示词写"【长篇编辑任务】先调用 fanqie_enable，参数 role=editor；再调用 zhizhang_enable；作品=…；章=…；按 novel-writer/references/editor_method 审读，用 fanqie_review_report 回报"。没有就自己按 editor_method 审，同样用 fanqie_review_report 记下。
+3. 审：有 subagent 工具时派编辑子代理，提示词写"【长篇编辑任务】先调用 fanqie_enable，参数 role=editor；作品=…；章=…；按 novel-writer/references/editor_method 审读，用 fanqie_review_report 回报"。没有就自己按 editor_method 审，同样用 fanqie_review_report 记下。
 4. 核旧账：改过正文后 fanqie_ledger_check（本章，默认连带上一章）。
 5. 定稿：zhizhang_chapter_save status=final 会弹作者确认；force 覆盖定稿同样要作者确认。作者没点头不得定稿。
 

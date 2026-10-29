@@ -1,8 +1,21 @@
-> 0.4.0：同时提供 toutiao_enable、fanqie_enable、zhizhang_enable；织章原生工具保留 0.20.0 返回格式，以下 JSON 约定仅适用于 writer 工具。织章完整工具清单见 packages/zhizhang/docs/TOOLS.md。
+# 工具清单（dsh-writer 0.5.0）
 
-# 工具清单（dsh-writer 0.4.0）
+任务、头条和番茄工具返回 JSON 对象：成功 `{ok:true, ...}`，业务失败 `{ok:false, code, message}`，code ∈ INVALID_ARGS / NOT_FOUND / CONFLICT / GATE_DENIED / SCRIPT_FAILED / TIMEOUT / OUT_OF_ROOT。内置 `zhizhang_*` 工具继续返回文本。
 
-返回值统一为 JSON 对象：成功 `{ok:true, ...}`，业务失败 `{ok:false, code, message}`，code ∈ INVALID_ARGS / NOT_FOUND / CONFLICT / GATE_DENIED / SCRIPT_FAILED / TIMEOUT / OUT_OF_ROOT。
+默认入口为 `toutiao_enable` 和 `fanqie_enable`；按模式启用后可以使用以下任务工具。`zhizhang_enable` 仅在兼容模式可见。
+
+| 任务工具 | 用途 |
+|---|---|
+| writer_run | 创建或推进单篇文章 / 单章任务；小说可指定 `working_dir` |
+| writer_status | 根据已存稿件和审读回报读取任务状态，`list=true` 列出当前模式任务 |
+| writer_resume | 在指定会话恢复任务；旧会话不得继续写入被接管的任务 |
+| writer_checkpoint | 绑定新建对象、保存步骤说明、记录待确认连续性变化或阻塞 |
+| writer_review | 选择 quick / editor / manual 并发起该版本的新一次审读 |
+| writer_export | 导出已存正文为 Markdown 或 TXT，不负责平台发布 |
+
+新书任务预留作品 key，创建作品时传该 key 和 `strict_key=true`；遇到已有或不完整目录时停止并检查，不生成重复目录。
+
+以下为业务工具，小说工具完整清单见 [内部工作台文档](../packages/zhizhang/docs/TOOLS.md)。
 
 | 工具 | 参数 | 说明 |
 |---|---|---|

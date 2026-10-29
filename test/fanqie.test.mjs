@@ -38,7 +38,7 @@ async function setup(config = {}) {
   const cwd = await tempDir()
   await makeWork(cwd)
   const host = fakeHost()
-  apply(host.root.ctx, config)
+  apply(host.root.ctx, { ...config, compatibilityEntry: true })
   stubZhizhang(host)
   const agent = host.agent('w', cwd)
   return { host, cwd, agent, call: (n, a) => host.call(agent, n, a) }
@@ -133,7 +133,7 @@ test('审读回报：固定格式、有硬伤不能判通过、绑定正文版�
 })
 
 test('长篇门禁：定稿与 force 须作者确认；requireEditorPass 时无通过回报不许定稿', async () => {
-  const { host, call } = await setup({ fanqie: { requireEditorPass: true } })
+  const { host, call, cwd } = await setup({ fanqie: { requireEditorPass: true } })
   await call('fanqie_enable')
   // 普通保存不拦
   assert.equal(await call('zhizhang_chapter_save', { chapter: 'c001', content: 'x' }), 'zhizhang_chapter_save ok')
@@ -146,7 +146,12 @@ test('长篇门禁：定稿与 force 须作者确认；requireEditorPass 时无�
   await call('fanqie_review_report', { chapter: 'c001', verdict: '通过', hard_issues: [], levels: [], reread_full: true })
   // 带新正文定稿：回报对应旧正文 → 拒绝
   assert.match((await call('zhizhang_chapter_save', { chapter: 'c001', status: 'final', content: '全新正文' })).reason, /旧正文/)
-  // 版本匹配 → 进入作者确认（ask）
+  // 写手自检不满足严格的独立编辑门禁
+  assert.match((await call('zhizhang_chapter_save', { chapter: 'c001', status: 'final' })).reason, /独立编辑/)
+  const ed = host.agent('reviewer', cwd)
+  await host.call(ed, 'fanqie_enable', { role: 'editor' })
+  await host.call(ed, 'fanqie_review_report', { chapter: 'c001', verdict: '通过', hard_issues: [], levels: [], reread_full: true })
+  // 版本匹配且来自编辑 → 进入作者确认（ask）
   const before = host.approvals.length
   assert.equal(await call('zhizhang_chapter_save', { chapter: 'c001', status: 'final' }), 'zhizhang_chapter_save ok')
   assert.equal(host.approvals.length, before + 1)

@@ -2,7 +2,9 @@
  * 常驻总则（Skill 三级装载的第一级）。由原 SKILL.md 改写：脚本命令全部换成工具名，
  * 各步方法改为 toutiao_method_get 按需取（第二级），语料按需取（第三级）。
  */
-export const TOUTIAO_BRIEF = `# 今日头条写作（writer-agent · 规则 4.0.0）
+export const TOUTIAO_BRIEF = `
+日常写作先 writer_run，已有任务 writer_resume；按任务返回的路线持续完成，不要求作者手动串工具。每阶段保存业务产物后 writer_checkpoint，结束前 writer_status。
+# 今日头条写作（writer-agent · 规则 4.0.0）
 
 把新闻、政策、日常事或神话故事写成能过审、像人写、让读者觉得"说的就是我"的头条图文或微头条。
 四条铁律：生成靠处境，校验靠工具，事实靠出处，终审靠人。

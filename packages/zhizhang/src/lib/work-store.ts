@@ -18,6 +18,7 @@ import { mkdir, readdir, readFile, realpath, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { homedir } from "node:os";
 import { createHash, randomUUID } from "node:crypto";
+import { sessionCwd as hostSessionCwd } from '../../../dsh-adapter/dist/index.js';
 import { EMPTY_FOUNDATION, SCHEMA_VERSION } from "./types.js";
 import type { Candidate, ExecContext, PluginConfig, StoragePaths } from "./types.js";
 import { assertContextBasis } from "./storage/chapters.js";
@@ -89,9 +90,7 @@ export function slugify(title: string) {
     return RESERVED_NAME.test(cleaned) ? `_${cleaned}` : cleaned;
 }
 export function sessionCwd(exec: ExecContext | null) {
-    const cwd = exec?.agent?.session?.header
-        ?.cwd;
-    return typeof cwd === "string" && cwd.length > 0 ? cwd : process.cwd();
+    return hostSessionCwd(exec as any);
 }
 /**
  * Last storage root touched by an agent tool. The Web panel has no session, so it
@@ -448,6 +447,7 @@ export async function createWork(paths: StoragePaths, input: any) {
         }
         catch (err: any) {
             if (err?.code !== "EEXIST") throw err;
+            if (input.requireExactKey) throw new ZhizhangError("work_exists", `作品目录已存在：${candidate}。请检查并恢复原作品，不会创建另一个目录。`);
         }
     }
     if (!dir) throw new ZhizhangError("work_create_failed", "无法为作品分配独立目录，请检查作品根目录。");

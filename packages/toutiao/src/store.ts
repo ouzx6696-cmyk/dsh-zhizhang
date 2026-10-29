@@ -29,6 +29,7 @@ export interface DraftRecord { rev: number; role: string; sha256: string; chars:
 export interface QaRecord {
   rev: number; sha256: string; pass: boolean; score: number; hard_gates: string[]
   fail_count: number; rules_version: string; card_sha256: string | null; at: string
+  by?: 'writer' | 'editor'
 }
 export interface HistoryRecord { from: Status | null; to: Status; by: string; at: string; note?: string }
 

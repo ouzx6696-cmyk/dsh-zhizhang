@@ -1,4 +1,10 @@
-# 0.4.0 · 2026-10-29
+# 更新记录
+
+## 0.5.0
+
+两种模式入口与可恢复任务；DSH 继续负责 Agent 执行，插件记录目标与产物。新增任务页、写作包、审读方式和导出，保留旧数据与业务门禁；统一任务定位、审读版本及 HTTP 访问边界，收敛检查入口并移除包内测试夹具。详见 [版本说明](docs/releases/0.5.0.md)。
+
+## 0.4.0 · 2026-10-29
 
 - Fix CI Python UTF-8 output on Windows and run the original Zhizhang suite from its package directory; preserve LF source hashes across platforms.
 
@@ -10,7 +16,6 @@
 - Enforce fresh passing review reports at shared storage finalization for chat and panel operations.
 - Restore Node 24 / TypeScript 5.8.3 / Python 3.11 / pnpm baseline and the seven business error codes.
 
-# Changelog
 
 ## 0.3.0 — 2026-10-28
 - **番茄长篇整合（M3）**：新增 `fanqie_enable` 与 9 个 `fanqie_*` 工具，建立在织章 dsh-zhizhang 0.20.x 之上、只读织章数据；forge 三件套原文与五个检查脚本原样内置，`fanqie_bridge.py` 统一契约。

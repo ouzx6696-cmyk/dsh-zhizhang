@@ -46,7 +46,7 @@ export const inject = ["slots"];
 export function apply(ctx) {
   ensureStyles();
   ctx.slots.inject("main", () => ctx.slots.register({ name: "main", key: PANEL_ID, inject: () => ({}) }, App));
-  ctx.slots.inject("sidebar.panellist", () => ctx.slots.register({ name: "sidebar.panellist", id: PANEL_ID, order: PANEL_ORDER, label: () => t("panelLabel") }, SidebarIcon));
+  ctx.slots.inject("sidebar.panellist", () => ctx.slots.register({ name: "sidebar.panellist", id: PANEL_ID, order: PANEL_ORDER, label: () => "写作 Agent" }, SidebarIcon));
   ctx.slots.inject("plugins.detail.section", () => ctx.slots.register({ name: "plugins.detail.section", id: SETTINGS_KEY, inject: () => ({}) }, PluginDetailSection));
 }
 
