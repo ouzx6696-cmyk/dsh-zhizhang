@@ -1,0 +1,4 @@
+# 示例，不自动生效。需要本地配置时复制为 库位置.yaml，并填写实际库路径。
+# 相对路径以含该配置的技能根为基准；两技能须指向同一库。
+# 也可不建本地配置，使用 INSPIRATION_LIBRARY 环境变量。
+library_root: '../my-reference-library'

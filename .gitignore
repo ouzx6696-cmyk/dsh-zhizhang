@@ -1,35 +1,13 @@
-# deps & build
 node_modules/
-# dist is the published plugin; generated runtime files are tracked alongside source.
-coverage/
-*.tsbuildinfo
-
-# logs & env
-*.log
-npm-debug.log*
-.env
-.env.*
-!.env.example
-
-# OS / editor
-.DS_Store
-Thumbs.db
-*.swp
-*~
-
-# runtime novel workdirs (local)
-.zhizhang/
-.zhizhang-*/
-
-# scratch / backups inside tree
-*.tmp
-*.bak
+build/
+dist-pack/
+bundle/dist/
+bundle/skill/
+__pycache__/
 *.tgz
-*.tar.gz
-backups/
+outputs/
+bundle/skill-fanqie/
 
-# test / eval scratch if ever nested
-.dsh-eval/
-
-# host tool workspace
-.workbuddy/
+packages/zhizhang/dist/
+packages/dsh-adapter/dist/
+bundle/licenses/

@@ -1,0 +1,47 @@
+{
+  "name": "dsh-writer",
+  "version": "0.4.0",
+  "description": "写作 Agent：按需启用的 DSH 插件。今日头条（立项卡、版本化稿件、规则质检硬闸、状态机与作者确认、交稿单、台账、写作台）+ 番茄长篇（建立在织章之上：forge 方法、章纲与旧账检查、编辑审读回报、定稿门禁）。",
+  "type": "module",
+  "main": "./dist/index.js",
+  "exports": {
+    ".": "./dist/index.js",
+    "./package.json": "./package.json",
+    "./client": "./dist/client.js"
+  },
+  "files": [
+    "dist",
+    "skill",
+    "skill-fanqie",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=24.9 <25",
+    "dsh": ">=0.2.1-rc.4 <0.2.2"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ],
+      "platform": "web"
+    }
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "toutiao",
+    "fanqie",
+    "novel",
+    "writing",
+    "ai-writing"
+  ],
+  "license": "UNLICENSED"
+}

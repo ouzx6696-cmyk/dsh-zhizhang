@@ -1,0 +1,145 @@
+[
+  {
+    "command": [
+      "node",
+      "--version"
+    ],
+    "cwd": "/workspace/work/v040",
+    "exit": 0
+  },
+  {
+    "command": [
+      "pnpm",
+      "--version"
+    ],
+    "cwd": "/workspace/work/v040",
+    "exit": 0
+  },
+  {
+    "command": [
+      "node",
+      "node_modules/typescript/bin/tsc",
+      "--version"
+    ],
+    "cwd": "/workspace/work/v040",
+    "exit": 0
+  },
+  {
+    "command": [
+      "/workspace/work/python/cpython-3.11-linux-x86_64-gnu/bin/python3.11",
+      "--version"
+    ],
+    "cwd": "/workspace/work/v040",
+    "exit": 0
+  },
+  {
+    "command": [
+      "pnpm",
+      "install",
+      "--frozen-lockfile",
+      "--offline",
+      "--store-dir",
+      "/workspace/work/pnpm-store",
+      "--cache-dir",
+      "/workspace/work/pnpm-cache"
+    ],
+    "cwd": "/workspace/work/v040",
+    "exit": 0
+  },
+  {
+    "command": [
+      "pnpm",
+      "typecheck"
+    ],
+    "cwd": "/workspace/work/v040",
+    "exit": 0
+  },
+  {
+    "command": [
+      "pnpm",
+      "guard"
+    ],
+    "cwd": "/workspace/work/v040",
+    "exit": 0
+  },
+  {
+    "command": [
+      "pnpm",
+      "build:test"
+    ],
+    "cwd": "/workspace/work/v040",
+    "exit": 0
+  },
+  {
+    "command": [
+      "node",
+      "--test",
+      "test/*.test.mjs"
+    ],
+    "cwd": "/workspace/work/v040",
+    "exit": 0
+  },
+  {
+    "command": [
+      "/workspace/work/python/cpython-3.11-linux-x86_64-gnu/bin/python3.11",
+      "packages/toutiao/skill/tests/test_gates.py"
+    ],
+    "cwd": "/workspace/work/v040",
+    "exit": 0
+  },
+  {
+    "command": [
+      "/workspace/work/python/cpython-3.11-linux-x86_64-gnu/bin/python3.11",
+      "packages/fanqie/skill/tests/test_bridge.py"
+    ],
+    "cwd": "/workspace/work/v040",
+    "exit": 0
+  },
+  {
+    "command": [
+      "node",
+      "--test",
+      "--import",
+      "./test/setup.mjs",
+      "test/domain.test.mjs",
+      "test/workflow.test.mjs",
+      "test/storage.test.mjs",
+      "test/panel.test.mjs"
+    ],
+    "cwd": "/workspace/work/v040/packages/zhizhang",
+    "exit": 0
+  },
+  {
+    "command": [
+      "node",
+      "test/e2e/run-headless.mjs"
+    ],
+    "cwd": "/workspace/work/v040",
+    "exit": 0
+  },
+  {
+    "command": [
+      "node",
+      "test/e2e/run-fanqie.mjs"
+    ],
+    "cwd": "/workspace/work/v040",
+    "exit": 0
+  },
+  {
+    "command": [
+      "pnpm",
+      "pack:bundle"
+    ],
+    "cwd": "/workspace/work/v040",
+    "exit": 0
+  },
+  {
+    "command": [
+      "pnpm",
+      "pack:bundle"
+    ],
+    "cwd": "/workspace/work/v040",
+    "exit": 0,
+    "note": "Final documentation-only rebuild"
+  }
+]

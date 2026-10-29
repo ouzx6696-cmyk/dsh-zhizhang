@@ -1,0 +1,43 @@
+name: ci
+on: [push, pull_request]
+env:
+  PYTHONUTF8: '1'
+  PYTHONIOENCODING: utf-8
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - uses: pnpm/action-setup@v4
+        with: { version: 11.25.0 }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run guard
+      - run: pnpm run typecheck
+      - run: python packages/toutiao/skill/tests/test_gates.py
+      - run: python packages/fanqie/skill/tests/test_bridge.py
+      - run: pnpm run test:node
+      - run: pnpm run test:zhizhang
+      - run: pnpm run build
+  dsh-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - uses: pnpm/action-setup@v4
+        with: { version: 11.25.0 }
+      - run: pnpm install --frozen-lockfile
+      - run: mkdir -p ../dshrt && cd ../dshrt && npm init -y && npm i @deepseek-ai/dsh@0.2.1-rc.4 --ignore-scripts
+      - run: WRITER_DSH_RUNTIME=$GITHUB_WORKSPACE/../dshrt pnpm run test:dsh
+      - run: WRITER_DSH_RUNTIME=$GITHUB_WORKSPACE/../dshrt pnpm run test:e2e
+      - run: WRITER_DSH_RUNTIME=$GITHUB_WORKSPACE/../dshrt pnpm run test:e2e:fanqie
