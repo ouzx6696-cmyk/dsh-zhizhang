@@ -1,0 +1,35 @@
+# deps & build
+node_modules/
+# dist is the published plugin; generated runtime files are tracked alongside source.
+coverage/
+*.tsbuildinfo
+
+# logs & env
+*.log
+npm-debug.log*
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# runtime novel workdirs (local)
+.zhizhang/
+.zhizhang-*/
+
+# scratch / backups inside tree
+*.tmp
+*.bak
+*.tgz
+*.tar.gz
+backups/
+
+# test / eval scratch if ever nested
+.dsh-eval/
+
+# host tool workspace
+.workbuddy/

@@ -1,50 +1,39 @@
-/** Keep the actual dependency direction reviewable, including literal dynamic imports. */
-import ts from 'typescript';
-import { readdir, readFile } from 'node:fs/promises';
-import path from 'node:path';
-const root = path.resolve('src');
-const files = [];
-async function walk(dir) {
-  for (const entry of await readdir(dir, { withFileTypes: true })) {
-    const file = path.join(dir, entry.name);
-    if (entry.isDirectory()) await walk(file);
-    else if (file.endsWith('.ts')) files.push(file);
+// 架构守卫：只有 packages/dsh-adapter 可以提到宿主包 @deepseek-ai/*；业务包之间只能按分层向下依赖。
+import { readdir, readFile } from 'node:fs/promises'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const LAYERS = { 'dsh-adapter': 0, core: 1, gates: 1, zhizhang: 1, toutiao: 2, fanqie: 2, app: 3 }
+const problems = []
+
+async function* walk(dir) {
+  for (const e of await readdir(dir, { withFileTypes: true })) {
+    const p = path.join(dir, e.name)
+    if (e.isDirectory()) yield* walk(p)
+    else if (p.endsWith('.ts')) yield p
   }
 }
-await walk(root);
-const known = new Set(files), graph = new Map();
-for (const file of files) {
-  const source = await readFile(file, 'utf8');
-  if (source.includes('@ts-nocheck')) throw new Error(`Type checking disabled: ${path.relative(root, file)}`);
-  const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
-  const imports = [];
-  function visit(node) {
-    let literal;
-    if (ts.isImportDeclaration(node) && !node.importClause?.isTypeOnly) {
-      const bindings = node.importClause?.namedBindings;
-      if (!(bindings && ts.isNamedImports(bindings) && !node.importClause?.name && bindings.elements.every(x => x.isTypeOnly))) literal = node.moduleSpecifier;
+
+for (const pkg of Object.keys(LAYERS)) {
+  const src = path.join(ROOT, 'packages', pkg, 'src')
+  for await (const file of walk(src)) {
+    const text = await readFile(file, 'utf8')
+    for (const m of text.matchAll(/(?:import|export)[^'"]*?from\s+['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]\s*\)/g)) {
+      const spec = m[1] ?? m[2]
+      const rel = path.relative(ROOT, file)
+      if (spec.startsWith('@deepseek-ai/') && pkg !== 'dsh-adapter') problems.push(`${rel}: 业务包不得直接引用 ${spec}，请经由 packages/dsh-adapter`)
+      if (spec.startsWith('.')) {
+        const target = path.resolve(path.dirname(file), spec)
+        const tp = path.relative(path.join(ROOT, 'packages'), target).split(path.sep)[0]
+        if (pkg === 'zhizhang' && tp === 'dsh-adapter') continue
+        if (tp && tp in LAYERS && tp !== pkg && LAYERS[tp] >= LAYERS[pkg]) problems.push(`${rel}: ${pkg} 不能依赖同层或上层包 ${tp}`)
+      }
     }
-    if (ts.isExportDeclaration(node) && !node.isTypeOnly) literal = node.moduleSpecifier;
-    if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) literal = node.arguments[0];
-    if (literal && ts.isStringLiteral(literal) && literal.text.startsWith('.')) {
-      const target = path.resolve(path.dirname(file), literal.text.replace(/\.js$/, '.ts'));
-      if (known.has(target)) imports.push(target);
-    }
-    ts.forEachChild(node, visit);
   }
-  visit(ast);
-  if ((/\/domain\/(?:manuscript|diagnostics)\.ts$/).test(file) && (source.includes('node:') || imports.some(p => p.includes('/storage/') || p.includes('/ports/')))) throw new Error('Text analysis must remain browser-safe');
-  graph.set(file, imports);
-  if (file.includes(`${path.sep}storage${path.sep}`) && imports.some(p => /(?:panel-|work-store|\/ports\/)/.test(p)))
-    throw new Error(`Storage depends on business/query code: ${path.relative(root, file)}`);
 }
-const active = new Set(), visited = new Set(), stack = [];
-function check(file) {
-  if (active.has(file)) throw new Error('Dependency cycle: ' + [...stack.slice(stack.indexOf(file)), file].map(p => path.relative(root, p)).join(' -> '));
-  if (visited.has(file)) return;
-  active.add(file); stack.push(file);
-  for (const next of graph.get(file)) check(next);
-  stack.pop(); active.delete(file); visited.add(file);
+if (problems.length) {
+  console.error('架构守卫失败：\n' + problems.map(p => '  - ' + p).join('\n'))
+  process.exit(1)
 }
-for (const file of files) check(file);
-console.log(`Architecture: ${files.length} source modules, no runtime dependency cycles; storage boundaries OK`);
+console.log('架构守卫通过')

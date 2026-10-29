@@ -1,0 +1,39 @@
+MIT License
+
+Copyright (c) 2026 【作者名待填】
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+## 引用来源说明
+
+以下为规划方法参考过的资料及其归属。本技能未复制其文本，也不实现其中的自动注入、过滤器或加载机制；其中的规模说法不作为默认参数：
+
+- 七条逻辑链、长篇失忆临界点、伏笔台账字段、知情人名单：[chinese-webnovel-skills](https://github.com/tance-mang/chinese-webnovel-skills)（MIT）
+- 伏笔"记忆温度"模型与公平回收五条件：[webnovel-handbook](https://github.com/miserylee/webnovel-handbook)
+- 章纲体量（章节蓝图 500–800 字）、三级大纲体系：[马良写作](https://maliangwriter.com/blog/three-level-outline-system/)
+- 幕层与单元剧组织、时间锁/空间锁、主线支线配比：龙空精华帖《浅谈主线的结构》
+- 状态推进序列（Progressions）、确定性重注入：[NovelCrafter](https://www.novelcrafter.com/features/codex)（官方文档）
+- 分层加载 I0–I3：[light-novel](https://github.com/HUANLLK/light-novel)
+- 可选过滤器、互斥组、时效：[SillyTavern World Info](https://docs.sillytavern.site/usage/core-concepts/worldinfo/)
+- 写入需作者批准：[NovelForge](https://github.com/hzhang092/novel-agent)
+- 篇幅预算与口径说明：见 `资产/规模参数.md`；平台参数以 `资产/番茄平台.md` 的核对日期为准。
+
+本技能不宣称这些参考资料能证明规划提高文学质量。

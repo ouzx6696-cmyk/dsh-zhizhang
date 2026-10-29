@@ -1,184 +1,32 @@
-# 版本迭代记录
+# 0.4.0 · 2026-10-29
 
-当前版本：**0.20.0**。记录按版本说明使用者能感知的变化和升级影响；日期取对应 Git 提交记录，不代表 npm 发布或 GitHub Release 创建时间。下列主要版本可在仓库历史中核实，旧文档中的过渡版本另列，避免补造发布日期。
+- Merge Zhizhang 0.20.0 source into packages/zhizhang; keep its 47 original tests unchanged and stop independent publishing.
+- Ship one dsh-writer package with three enable triggers and the Zhizhang client; unify configuration under zhizhang.
+- Reuse internal work selection and chapter readers; save editor reports under each work's writer-reviews directory.
+- Merge forge diagnostics into zhizhang_style_lint and deduplicate overlapping same-line findings; remove fanqie_manuscript_lint.
+- Add workbench review summaries and confirmed actions routed to the most recently active main session in the same project.
+- Enforce fresh passing review reports at shared storage finalization for chat and panel operations.
+- Restore Node 24 / TypeScript 5.8.3 / Python 3.11 / pnpm baseline and the seven business error codes.
 
-## 0.20.0
+# Changelog
 
-日期：2026-10-28（GitHub Release）
+## 0.3.0 — 2026-10-28
+- **番茄长篇整合（M3）**：新增 `fanqie_enable` 与 9 个 `fanqie_*` 工具，建立在织章 dsh-zhizhang 0.20.x 之上、只读织章数据；forge 三件套原文与五个检查脚本原样内置，`fanqie_bridge.py` 统一契约。
+- 长篇门禁：定稿与 force 覆盖须作者确认；可选 `fanqie.requireEditorPass`；编辑子代理只读。
+- 观察 `zhizhang_enable` 成功后自动挂载长篇工具与门禁（`fanqie.autoMount`）。
+- **包名改为 `dsh-writer`，插件 id 改为 `writer`**（0.2.x 用户先 `dsh plugin remove dsh-writer-toutiao`）；新增入口层 `packages/app`。
+- 门禁引擎支持 `前缀*` 规则；体裁登记改为进程级单例。
+- 测试：Python 205 + 10，Node 29；真实 headless 新增长篇 e2e（真实织章 0.20.0）。
 
-- 修复真实章节快照缺少版本字段造成的旧正文缓存；正文或审读元数据变化都使阅读缓存失效。
-- 新增本地表达扫描、可定位标注、问题说明和整段编辑，支持原文对照与简单撤销／重做。
-- 新增安全修订候选入口：锁内核正文及上下文来源，显式捕获依据，持久请求去重；扫描与采纳保留修订来源，现行稿只经既有采纳改变。
-- 正文改用有源位置的 React 节点渲染，代码段保持原样，不再通过拼接 HTML 注入正文。
-- 统一工作台编辑状态与异步请求归属；保存结果不确定时锁定原修改并以同一请求核对，切换后的迟到响应不回填。
-- 本地扫描排除代码与配对对白，规则与重复统计按正文顺序限量展示；删除旧 HTML 渲染路径，未标注文本跳过字符切分。
-- 补齐候选正文/元数据外部变更的刷新标识，历史列表显示最近 20 条；兼容 CRLF 章节元数据并保留正文内部原始换行。
-- 深度模型调用与 Agent 投递尚未开放，能力接口明确返回不可用；本版机械扫描不判断 AI 来源。
-- 写作台刷新只读取作品范围，切到全书概况再读取参考库和灵感库；章节摘要改为批量读取，简报提示使用独立查询入口。
-- 扫描按显示上限插入结果，达到上限后继续计数；编辑历史按字符串占用估算，输入时不再序列化整个缓冲。
-- 移除逐控件错误兜底、旧设置席位及重复释放逻辑，统一依赖当前 DSH 席位生命周期；旧设置席位不再支持。
-- 测试按纯规则、入口契约、HTTP 和文件恢复分工，合并重复流程；历史设计与迭代记录移入仓库档案，不随运行包分发；移除未使用的 bun-types 开发依赖。
-- R1 修复已纳入本开发分支，尚未单独发布 0.19.1。当前升级保留原有数据格式，新增候选来源字段为可选扩展。
+## 0.2.0 — 2026-10-28
+- 写手与编辑分离：`toutiao_enable role=editor` 挂载编辑专用 9 个工具与编辑总则；写手不能把自己的稿记成编辑版；新增可选门禁 `toutiao.editor_pass`（配置 `requireEditorPass`）。
+- 体裁隔离：头条与番茄长篇（织章 `zhizhang_*`）在同一会话互斥，经 `tools/result` 观察织章启用。
+- 写作台“采用”同步台账状态。
+- 适配层新增 `onToolResult`。
+- 测试：Node 20 项；真实 ToolRuntime 覆盖编辑作用域与体裁隔离；真实 headless 端到端改为主会话派出编辑子代理。
 
-
-验证：Node 22.23.4、24.19.0 各通过 47 项检查，真实 React 与本地 HTTP 接口交互核对通过；独立解包验证入口和按需启用。深度模型能力尚未开放，真实 DSH 桌面验收仍待完成。
-
-## 0.19.0
-
-日期：2026-10-27
-
-这一版按 DSH 官方插件开发规则全量梳理，重点重做作者面板。
-
-### 新增
-
-- 写作台阅读区新增「并排对照」：现行正文与所选候选左右排列，面板变窄时上下排列；字号可调并按浏览器记住。
-- 章节导航超过 6 章时提供筛选框与「全部 / 有候选 / 需处理」过滤，标出待核对修订；方向键、Home/End 在章节与候选间移动。
-- 本章栏新增章节进度（计划 → 工作稿 → 已审读 → 定稿）；审读改为对话框，可选择「通过 / 有阻断问题」并填写说明。
-- 定稿与确认修订影响改为应用内确认对话框，取代浏览器原生 `confirm`；按钮在不可用时说明原因。
-- 插件导出 `Config`：宿主加载时校验字段类型并补默认值，提供 Schemastery 时可在插件页描述字段。
-- 「织章」设置卡登记到 DSH 插件详情页（`plugins.detail.section`），旧版宿主仍使用 `settings.plugin.item`。
-- 面板渲染异常被隔离在面板内，可一键重新载入。
-
-### 调整
-
-- 客户端从单个 2300 行脚本拆为模块化源码（`src/client/`），用 esbuild 构建为同一 ModuleLoader 格式的 `dist/client.js`。
-- 控件优先复用宿主 `ui-primitives`（Button、SegmentedControl、Tag、StateDot、Checkbox、Modal），缺失或出错时退回插件内实现。
-- 样式改用 DSH `--dsw-*` 语义变量、0.5px 发丝描边、`--dsw-radius-*` 圆角，去掉颜色字面量与主题选择器；hover 仅在支持悬停的设备上生效；布局按面板宽度（容器查询）响应。
-- 状态集中到一个 reducer：轮询只更新摘要且内容未变时不重渲染；单一轮询循环按页面可见性调整间隔、失败退避，确认对话框打开时暂停；正文与候选按需读取并可取消。
-- 面板请求按 `document.baseURI` 解析，与宿主自带功能一致；所有可见文案集中到 `copy.js`。
-- 采纳回执较长时折叠为「查看详情」，成功提示自动消失。
-
-### 修复
-
-- 客户端模块级 `applied` 标记导致插件停用后再次启用（或热替换）时不再登记侧栏与页面。
-- 布局按窗口宽度断点计算，侧栏展开时三栏被挤压；改为容器查询。
-- 样式表缺少 `data-plugin` 标记，停用插件后宿主无法回收。
-- 模态框使用背景模糊和自定义阴影、边框，与 DSH 遮罩和层级规范不符。
-
-### 升级说明
-
-1. 直接替换插件并重启宿主；数据格式、工具名和接口均未改变。
-2. 新增的 `Config` 校验会拒绝类型错误的配置（例如 `allowLanPanel: "yes"`）；按报错修正 profile patch。
-3. 浏览器里记住的项目、作品、章节和视图沿用原来的存储键。
-
-### 合入前评估修复
-
-- 修正插件详情页的包身份读取，适配官方 `subject.pkg.name` 契约。
-- 正文请求绑定项目、作品、章节及摘要版本，忽略旧选择的迟到响应；手动刷新同时重取正文。
-- 确认弹窗保留实际已读版本，切换作品或章节后不沿用旧确认；写入失败或超时后重新对账。
-- 请求超时覆盖 JSON 正文读取，停止轮询后不让旧定时器重新启动。
-- 修正本地弹窗输入时焦点丢失，补齐 Tab 焦点约束；空目录配置在两种 schema 下均保留环境变量回退。
-- 删除已不参与构建的旧单文件客户端，发行代码统一由新组件入口构建。
-
-## 0.18.0
-
-日期：2026-10-27 · [提交 fa0818b](https://github.com/ouzx6696-cmyk/dsh-zhizhang/commit/fa0818b99fccc72ea747c342ab74fd4a5df88cb1)
-
-这一版从分散工具链转向同一部作品的完整生命周期，重点是明确当前依据、采纳范围和修订影响。
-
-### 新增
-
-- 工作区片段分析与迁移包，可明确选入原创规划，无需先入公共参考库。
-- 全书、卷、幕和章纲的规划应用与来源记录。
-- 绑定正文及上下文版本的审读声明、定稿检查和条件接续索引。
-- 不可覆盖的原始字节修订历史、明确依赖的修订提示与核对确认入口。
-- 面板审读、定稿、修订确认及访问令牌输入；Node 22/24 CI 配置。
-
-### 调整
-
-- 候选采纳内置机械扫描；提前 `style_lint` 改为按需诊断，已有过期凭据仍需重扫。
-- 参考、规划、写作按最终产物进入；编辑、多草稿和完整拆书不再被描述为每次必经流程。
-- 采纳工作稿、内容审读和作者定稿分别表达；不再自动改写作者 `happened` 记录。
-- 直接保存与候选采纳复用章节保存规则；多个恢复协议复用公共机制，旧格式继续解码。
-- 查询与存储分离，配置按宿主实例与调用作用域隔离；清除旧导航、重复回执及过渡检查文件。
-- 类型导入和未使用声明改由 TypeScript 原生检查；测试收拢为四个文件，一个 `npm run check`。
-
-### 修复
-
-- 目标章、章纲、规划、前稿或参考报告变化后，旧依据不能继续用于覆盖或定稿。
-- 在原首章之前插入章节时，旧候选和旧审读也会失效。
-- 候选列表与逐项读取共用元数据校验；损坏字段和正文缺失保持可见。
-- 正式引文按字面核对；重复章号不再按数字静默合并，来源版本变化不冒充新版已读。
-- 修复候选并发采纳、部分写入、路径边界、面板 Host/Origin/令牌及多实例配置混用等问题。
-
-### 文档与仓库整理
-
-- 重写首页、安装配置和快速开始；新增统一文档导航、排错与维护说明。
-- 将历史评估、重构方案、实施记录和旧流水式变更记录归入 `docs/history/`，合并重复说明入口。
-- 按 Git 里程碑整理版本变化及 0.18.0 升级注意事项；包版本保持不变。
-- 发行文件列表增加本变更记录和维护说明，补全仓库链接元数据。
-- 按 DSH 官方规则核对 bundle、客户端与 tarball，纠正当前 CLI 自动登记 bundle 的安装说明，补充预构建发行附件用法。
-
-### 升级说明
-
-1. 停止写入，备份数据根及独立作品/参考库；存在未完成操作时先检查原恢复记录。
-2. 旧章节、旧定稿、公开工具名和恢复格式保留兼容，不自动补造历史审读或阅读证据。
-3. 旧候选若缺目标基线，采纳前需显式提供当前 `expected_revision`，或重新暂存。`force` 不能绕过版本冲突。
-4. 定稿正文修订需要 `force=true`，原稿留存，修改后降回草稿；重新审读后再按授权定稿。
-5. 配置 `panelToken` 后，本机和 LAN 都需要令牌；符号链接作品根应改为明确的真实目录。
-6. 当前 `assemble(only_final=true)` 为兼容行为，收录 `reviewed` 与 `final`，不证明全部章节最终定稿。
-
-验证：Linux / Node 22.23.4、24.19.0 各通过 39 项测试；100 个源模块未发现运行时依赖环；发行包可独立加载。真实 DSH 桌面、Windows 和反向代理未据此宣称已验收。详细证据见[实施档案](https://github.com/ouzx6696-cmyk/dsh-zhizhang/blob/master/docs/history/IMPLEMENTATION.md)。
-
-## 0.17.0
-
-日期：2026-10-20 · [实现 cc9fe0e](https://github.com/ouzx6696-cmyk/dsh-zhizhang/commit/cc9fe0e) · [发行产物 6fbc05a](https://github.com/ouzx6696-cmyk/dsh-zhizhang/commit/6fbc05a)
-
-- 将章节标题、卡片适配、证据、覆盖率、报告节数和工作流集中到领域模块，减少多处硬编码。
-- 拆分参考库和分析模块，工具与面板共用采纳服务及前章解析。
-- 增加源书量化测绘、正文引文核对和报告内容；计数与版本改由运行时读取。
-
-2026-10-23 至 2026-10-27 的后续维护仍使用 0.17.0 包版本：测试迁移至 `node:test`，启用 strict 类型检查，修复并发、证据、HTTP、汇编及数据保护问题，逐步建立规划应用、恢复与离线备份。对应提交从 [e5233ee](https://github.com/ouzx6696-cmyk/dsh-zhizhang/commit/e5233ee) 到 [cfc93a2](https://github.com/ouzx6696-cmyk/dsh-zhizhang/commit/cfc93a2)。这些中间工作最终与生命周期重构一起收敛到 0.18.0，不另造版本号。
-
-## 0.15.3
-
-日期：2026-10-19 · [提交 00ce268](https://github.com/ouzx6696-cmyk/dsh-zhizhang/commit/00ce268)
-
-- 建立按需启用入口：挂载插件后先提供 `zhizhang_enable`，完整工具和规则按 Agent 作用域加载。
-- 支持面板项目发现及切换，完善发行入口与类型声明。
-- 同版本后续提交调整工作台阅读体验、错误状态和首次引导，并隔离测试的 `DSH_HOME`。
-
-## 0.15.0
-
-日期：2026-10-18 · [提交 c425d68](https://github.com/ouzx6696-cmyk/dsh-zhizhang/commit/c425d68)
-
-- 整合小说阅读工作台，围绕章节、正文和候选组织作者操作。
-- 支持可选多草稿与统一整理，默认关闭。
-
-## 0.11.1
-
-日期：2026-10-17 · [提交 cedd255](https://github.com/ouzx6696-cmyk/dsh-zhizhang/commit/cedd255)
-
-- 完善可选编辑流程，保留 A/B/C 的采用范围交互。
-- 编辑指引强调保留人物声音、句长变化和有效毛边，减少为“去 AI 味”而机械磨平文字。
-
-## 0.10.5
-
-日期：2026-10-17 · [提交 d485e8d](https://github.com/ouzx6696-cmyk/dsh-zhizhang/commit/d485e8d)
-
-- 强化参考技法与本书场面状态的交接，调整反僵硬提示及质量策略。
-
-## 0.10.3
-
-日期：2026-10-16 · [初始仓库基线 0d1cc89](https://github.com/ouzx6696-cmyk/dsh-zhizhang/commit/0d1cc89)
-
-这是当前可追溯的 Git 起点。它已经包含写作、参考库和灵感能力；不能把首次入库理解为这些能力在当天从零实现。
-
-## 旧文档记载的过渡版本
-
-以下版本名存在于旧记录，但没有在当前 Git 历史中找到逐版独立的发布提交或标签，日期留空。只概括演进方向，具体旧参数和旧规则见[原始记录](https://github.com/ouzx6696-cmyk/dsh-zhizhang/blob/master/docs/history/LEGACY_CHANGELOG.md)，不作为当前操作要求。
-
-| 版本 | 旧记录中的主要变化 |
-| --- | --- |
-| 0.16.1 | 显式阅读计划，Auto 抽样与 Full 确认，批次与覆盖范围记录 |
-| 0.16.0 | 拆书事实、结构聚合、v2 模块卡与报告分层 |
-| 0.15.6 | 将工作流步骤和回执指引显式化 |
-| 0.15.5 | 强调真实阅读和参考卡可迁移性，区分机械与内容判断 |
-| 0.15.4 | 导入编码、查询分词、标签过滤及参考卡审计修复 |
-| 0.15.2 / 0.15.1 | 按需启用、路径校验、面板定位、轮询和并发读取优化 |
-| 0.14.0 | 可选多草稿与统一整理 |
-| 0.13.0 | 三栏小说阅读工作台及按需正文读取 |
-| 0.12.0 | Web 控制台、面板采纳及设置卡 |
-| 0.11.0 | 可选编辑与采用范围交互的早期版本 |
-
-今后每次版本变化记录“新增、调整、修复、升级影响及验证”，按最终交付行为编写；尚未发版的变更保留在“未发布”，不再按开发轮次堆叠日志。
+## 0.1.0 — 2026-10-28
+- 新增 `dsh-writer-toutiao` 插件：按需启用，19 个头条工具，常驻总则，4 条门禁，本机写作台。
+- 新增 `@writer/dsh-adapter`、`core`、`gates` 三个基础层。
+- 头条规则沿用 toutiao-viral-writer 4.0.0 原脚本，新增 `writer_bridge.py` 统一 JSON 输出。
+- 测试：Python 205 项、Node 17 项、真实 DSH ToolRuntime 集成 1 项、真实 dsh headless 端到端 1 项。

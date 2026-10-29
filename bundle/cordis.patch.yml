@@ -1,0 +1,20 @@
+# dsh-writer bundle patch：插入写作 Agent 插件。
+# 挂载时注册三个触发工具：toutiao_enable（今日头条）、fanqie_enable（番茄长篇，内置织章 0.20.0），
+# zhizhang_enable（织章原生入口）；外加本机写作台 /writer/toutiao。会话里说"写一篇头条"或"写番茄长篇"才在该会话挂载对应工具、总则与门禁。
+# 一个会话只能一种体裁；头条与长篇互斥。
+- insert:
+    - id: writer
+      name: 'dsh-writer'
+      config:
+        zhizhang:
+          rootDir: '.zhizhang'
+          multiDraftEnabled: false
+        rootDir: 'outputs/toutiao'      # 头条数据目录，相对会话工作目录；与 toutiao-viral-writer 4.0.0 兼容
+        # storageRoot: 'D:/写作/头条'   # 头条固定绝对目录（设置后忽略 rootDir）
+        # python: 'py -3'               # Python 命令；默认自动查找 py -3 / python / python3
+        # panel: true                   # 本机写作台，默认开
+        # requireEditorPass: false      # 头条：送验收前必须经编辑子代理
+        # disabledGates: []             # 可关闭的非锁定门禁
+        fanqie:
+          # autoMount: true             # 会话里 zhizhang_enable 成功后自动挂上长篇工具与门禁
+          # requireEditorPass: false    # 长篇：定稿前必须有"通过"且版本匹配的编辑审读回报

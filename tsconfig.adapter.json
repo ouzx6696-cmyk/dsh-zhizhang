@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "packages/dsh-adapter/src",
+    "outDir": "packages/dsh-adapter/dist",
+    "declaration": true
+  },
+  "include": [
+    "packages/dsh-adapter/src/**/*.ts"
+  ],
+  "exclude": []
+}
