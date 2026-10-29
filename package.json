@@ -21,7 +21,7 @@
     "test:e2e:fanqie": "node test/e2e/run-fanqie.mjs",
     "test:all": "pnpm test && pnpm test:zhizhang && pnpm test:dsh && pnpm test:e2e && pnpm test:e2e:fanqie",
     "build:zhizhang": "tsc -p tsconfig.adapter.json && tsc -p packages/zhizhang/tsconfig.json && node packages/zhizhang/scripts/build-client.mjs",
-    "test:zhizhang": "pnpm build:zhizhang && node --test --import ./packages/zhizhang/test/setup.mjs packages/zhizhang/test/*.test.mjs"
+    "test:zhizhang": "pnpm build:zhizhang && node scripts/test-zhizhang.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

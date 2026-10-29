@@ -1,5 +1,7 @@
 # 0.4.0 · 2026-10-29
 
+- Fix CI Python UTF-8 output on Windows and run the original Zhizhang suite from its package directory; preserve LF source hashes across platforms.
+
 - Merge Zhizhang 0.20.0 source into packages/zhizhang; keep its 47 original tests unchanged and stop independent publishing.
 - Ship one dsh-writer package with three enable triggers and the Zhizhang client; unify configuration under zhizhang.
 - Reuse internal work selection and chapter readers; save editor reports under each work's writer-reviews directory.
