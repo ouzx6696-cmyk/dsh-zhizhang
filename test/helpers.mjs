@@ -2,7 +2,7 @@
 import { mkdtemp, cp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 export const BUILD = path.join(ROOT, 'build')
@@ -66,3 +66,6 @@ export function fakeHost({ approve = 'allowed-once' } = {}) {
 export async function copyFixtures(dir) {
   await cp(FIX, dir, { recursive: true })
 }
+
+// Absolute Windows paths must be converted to file URLs for the ESM loader.
+export function importModule(file) { return import(pathToFileURL(file).href) }

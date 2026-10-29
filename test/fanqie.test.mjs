@@ -3,9 +3,9 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdir, writeFile, readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { BUILD, ROOT, fakeHost, tempDir } from './helpers.mjs'
+import { importModule, BUILD, ROOT, fakeHost, tempDir } from './helpers.mjs'
 
-const { apply } = await import(path.join(BUILD, 'app/src/index.js'))
+const { apply } = await importModule(path.join(BUILD, 'app/src/index.js'))
 const EX = await readFile(path.join(ROOT, 'packages/fanqie/skill/forge/novel-writer/assets/examples/两张车票.md'), 'utf8')
 
 const OUTLINE = {

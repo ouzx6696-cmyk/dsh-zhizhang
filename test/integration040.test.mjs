@@ -2,13 +2,13 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import path from 'node:path'
-import { BUILD, ROOT, fakeHost, tempDir } from './helpers.mjs'
-const { apply } = await import(path.join(BUILD,'app/src/index.js'))
-const store = await import(path.join(BUILD,'zhizhang/dist/lib/work-store.js'))
-const { writerHooks, readWriterReview } = await import(path.join(BUILD,'zhizhang/dist/lib/writer-hooks.js'))
-const { openWork, worksRoot } = await import(path.join(BUILD,'fanqie/src/zhizhang.js'))
-const { withPluginConfig, openWork: originalOpen } = await import(path.join(BUILD,'zhizhang/dist/tools/context.js'))
-const { Config: ZConfig } = await import(path.join(BUILD,'zhizhang/dist/index.js'))
+import { importModule, BUILD, ROOT, fakeHost, tempDir } from './helpers.mjs'
+const { apply } = await importModule(path.join(BUILD,'app/src/index.js'))
+const store = await importModule(path.join(BUILD,'zhizhang/dist/lib/work-store.js'))
+const { writerHooks, readWriterReview } = await importModule(path.join(BUILD,'zhizhang/dist/lib/writer-hooks.js'))
+const { openWork, worksRoot } = await importModule(path.join(BUILD,'fanqie/src/zhizhang.js'))
+const { withPluginConfig, openWork: originalOpen } = await importModule(path.join(BUILD,'zhizhang/dist/tools/context.js'))
+const { Config: ZConfig } = await importModule(path.join(BUILD,'zhizhang/dist/index.js'))
 const tick = () => new Promise(r=>setTimeout(r,30))
 async function setup() {
  const root=await tempDir('writer040-');const host=fakeHost(); const sent=[]
@@ -57,7 +57,7 @@ test('统一linter保留织章结果并附forge体检，删除独立工具',asyn
 test('真实面板HTTP定稿也受回报门禁，按钮接口投递到主会话',async t=>{
  const f=await setup();await store.saveChapter(f.dir,{id:'c001',title:'第一章',body:'面板正文。'})
  let ch=await store.readChapter(f.dir,'c001');await store.updateChapter(f.dir,{id:'c001',status:'reviewed',expectedRevision:ch.revision});ch=await store.readChapter(f.dir,'c001')
- const {createPanelApiHandler}=await import(path.join(BUILD,'zhizhang/dist/lib/http-api.js'))
+ const {createPanelApiHandler}=await importModule(path.join(BUILD,'zhizhang/dist/lib/http-api.js'))
  const {createServer}=await import('node:http');const server=createServer(createPanelApiHandler({storageRoot:f.root}));await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>server.close())
  const url=`http://127.0.0.1:${server.address().port}/api/dsh-zhizhang`
  let res=await fetch(url+'/chapter/finalize',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({work:'book',chapter:'c001',confirm:true,expectedRevision:ch.revision})})

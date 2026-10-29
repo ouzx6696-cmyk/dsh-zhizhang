@@ -295,3 +295,55 @@ $ PYTHONUTF8=1 PYTHONIOENCODING=utf-8 /workspace/work/python/cpython-3.11-linux-
 205/205 通过
 
 [exit 0]
+
+$ PYTHONUTF8=1 PYTHONIOENCODING=utf-8 WRITER_PYTHON=/workspace/work/python/cpython-3.11-linux-x86_64-gnu/bin/python3.11 WRITER_DSH_RUNTIME=/workspace/work/dsh-runtime pnpm test:node
+$ pnpm build:test && node --test test/*.test.mjs
+$ pnpm build:zhizhang && tsc -p tsconfig.test.json && node scripts/link-test-zhizhang.mjs
+$ tsc -p tsconfig.adapter.json && tsc -p packages/zhizhang/tsconfig.json && node packages/zhizhang/scripts/build-client.mjs
+build-client: wrote dist/client.js (160181 bytes)
+✔ 真实 DSH ToolRuntime：按会话启用、门禁 deny/ask、作者确认、段落注入 (170.5766ms)
+✔ 启用长篇：工具、段落、门禁按会话挂载；方法原文带织章对照表 (7.835753ms)
+✔ 章纲检查：读织章章纲，8 字段齐全通过；缺字段与占位报错 (65.755631ms)
+✔ 旧账对照与正文体检：从织章正文取材 (26.681468ms)
+✔ 拆书测绘与引文核对：只读会话目录内的文件 (42.781545ms)
+✔ 审读回报：固定格式、有硬伤不能判通过、绑定正文版本、正文一改就过期 (11.010952ms)
+✔ 长篇门禁：定稿与 force 须作者确认；requireEditorPass 时无通过回报不许定稿 (23.086033ms)
+✔ 长篇编辑子代理：只能审读与出编辑候选，写入类织章工具一律拒绝 (3.274686ms)
+✔ 体裁路由：zhizhang_enable 成功即自动挂长篇门禁并锁定体裁；失败回执不算 (2.039955ms)
+✔ autoMount=false：织章启用后不自动挂载 (2.16429ms)
+✔ 启用：只挂一个触发工具，启用后按会话挂载工具、总则、门禁 (4.170013ms)
+✔ 全流程：故事线长图文 立项→标题→成稿→质检→验收→交稿单→台账→作者采用 (207.609897ms)
+✔ 改稿或改立项卡都会让旧质检作废 (126.093576ms)
+✔ 打回超过两轮需作者同意 (60.149059ms)
+✔ 门禁未接上时，工具自身仍拒绝未经作者确认的“已交稿” (69.498155ms)
+✔ 写作台：列表可见，采用后为已交稿；未验收的不能采用 (168.422554ms)
+✔ 资讯线长图文无立项卡也能质检，但不能验收 (62.781712ms)
+✔ id 越界与非法 id 被拒绝 (0.820975ms)
+✔ 编辑角色：只挂红笔与质检工具，存稿自动记为 editor；同一会话不能换角色 (4.177384ms)
+✔ requireEditorPass：写手版不能直接送验收，编辑版可以 (4.295901ms)
+✔ 体裁隔离：头条会话拒绝织章工具；织章会话拒绝头条启用 (1.44066ms)
+✔ 单配置注册三个入口，织章源码及47项原测试完整保留 (40.517466ms)
+✔ 番茄选择作品与织章当前会话选择一致 (38.408829ms)
+✔ 投递为普通queue用户消息，编辑子会话不抢占主会话 (71.998647ms)
+✔ 共享存储定稿门禁：对话save和面板update均拒绝缺失、旧版、未通过回报 (70.845517ms)
+✔ 统一linter保留织章结果并附forge体检，删除独立工具 (67.315117ms)
+✔ 真实面板HTTP定稿也受回报门禁，按钮接口投递到主会话 (79.584417ms)
+✔ resolveInside 拒绝越界 (0.726114ms)
+✔ serialize 串行化同 key 的读改写 (44.278888ms)
+✔ 脚本契约：非 JSON、缺字段、非零退出码都判失败 (0.312706ms)
+✔ 运行器：超时 (312.604088ms)
+✔ 门禁引擎：deny 优先；ask 记录 token，只能消费一次；锁定规则不能关 (0.77118ms)
+✔ 立项卡预检：样例卡通过，模板卡报占位，故事线缺字段报错 (2.102827ms)
+✔ 状态机 (0.217875ms)
+✔ 稿件只增不改，哈希记录 (5.091066ms)
+✔ 方法文件全部可取，总则不超 2k 字且不含 shell 命令 (3.951446ms)
+ℹ tests 36
+ℹ suites 0
+ℹ pass 36
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2140.936247
+
+[exit 0]

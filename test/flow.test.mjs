@@ -3,12 +3,12 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { BUILD, FIX, fakeHost, tempDir } from './helpers.mjs'
+import { importModule, BUILD, FIX, fakeHost, tempDir } from './helpers.mjs'
 
-const { mountToutiao } = await import(path.join(BUILD, 'toutiao/src/index.js'))
-const { apply } = await import(path.join(BUILD, 'app/src/index.js'))
-const { adopt, __panelTesting } = await import(path.join(BUILD, 'toutiao/src/panel.js'))
-const { STOP_LINE } = await import(path.join(BUILD, 'toutiao/src/store.js'))
+const { mountToutiao } = await importModule(path.join(BUILD, 'toutiao/src/index.js'))
+const { apply } = await importModule(path.join(BUILD, 'app/src/index.js'))
+const { adopt, __panelTesting } = await importModule(path.join(BUILD, 'toutiao/src/panel.js'))
+const { STOP_LINE } = await importModule(path.join(BUILD, 'toutiao/src/store.js'))
 
 const STORY = await readFile(path.join(FIX, 'story_long_good.md'), 'utf8')
 const CARD = JSON.parse(await readFile(path.join(FIX, 'story_long_card.json'), 'utf8'))
