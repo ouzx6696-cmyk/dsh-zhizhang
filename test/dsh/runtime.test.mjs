@@ -8,7 +8,7 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { BUILD, FIX, tempDir } from '../helpers.mjs'
+import { BUILD, FIX, tempDir, importModule } from '../helpers.mjs'
 
 const RT = process.env.WRITER_DSH_RUNTIME
 const skip = !RT || !existsSync(path.join(RT, 'node_modules', '@deepseek-ai', 'dsh-tools')) ? '未设置 WRITER_DSH_RUNTIME' : false
@@ -24,7 +24,7 @@ test('真实 DSH ToolRuntime：按会话启用、门禁 deny/ask、作者确认�
   const SystemPrompt = (await load('@deepseek-ai/dsh-system-prompt')).default
   const ToolRuntime = (await load('@deepseek-ai/dsh-tools')).default
   const { ToolCallId } = await load('@deepseek-ai/dsh-llm')
-  const plugin = await import(path.join(BUILD, 'app/src/index.js'))
+  const plugin = await importModule(path.join(BUILD, 'app/src/index.js'))
 
   process.env.DSH_HOME = await tempDir('dshhome-')
   const ctx = new Context()

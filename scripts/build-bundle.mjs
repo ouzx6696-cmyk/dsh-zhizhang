@@ -32,9 +32,9 @@ execFileSync(process.execPath, [path.join(ROOT, 'scripts/build-client.mjs')], { 
 await cp(path.join(ROOT, 'build/client.js'), path.join(OUT, 'dist/client.js'))
 await mkdir(path.join(OUT, 'scripts'), { recursive: true })
 await cp(path.join(ROOT, 'scripts/backup.mjs'), path.join(OUT, 'scripts/writer-backup.mjs'))
-const noCache = (src) => !src.includes('__pycache__')
-await cp(path.join(ROOT, 'packages/toutiao/skill'), path.join(OUT, 'skill'), { recursive: true, filter: noCache })
-await cp(path.join(ROOT, 'packages/fanqie/skill'), path.join(OUT, 'skill-fanqie'), { recursive: true, filter: noCache })
+const runtimeFiles = src => !src.split(path.sep).some(part => part === 'tests' || part === '__pycache__') && !src.endsWith('.pyc')
+await cp(path.join(ROOT, 'packages/toutiao/skill'), path.join(OUT, 'skill'), { recursive: true, filter: runtimeFiles })
+await cp(path.join(ROOT, 'packages/fanqie/skill'), path.join(OUT, 'skill-fanqie'), { recursive: true, filter: runtimeFiles })
 const pkg = JSON.parse(await readFile(path.join(ROOT, 'package.json'), 'utf8'))
 const bpkg = JSON.parse(await readFile(path.join(OUT, 'package.json'), 'utf8'))
 if (bpkg.version !== pkg.version) {

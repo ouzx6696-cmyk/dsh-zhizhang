@@ -1,5 +1,8 @@
 name: ci
 on: [push, pull_request]
+env:
+  PYTHONUTF8: '1'
+  PYTHONIOENCODING: utf-8
 jobs:
   test:
     strategy:
@@ -23,6 +26,8 @@ jobs:
         with: { node-version: 24 }
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
+      - uses: pnpm/action-setup@v4
+        with: { version: 11.25.0 }
       - run: npm ci
       - run: mkdir -p ../dshrt && cd ../dshrt && npm init -y && npm i @deepseek-ai/dsh@0.2.1-rc.4 --ignore-scripts
       - run: WRITER_DSH_RUNTIME=$GITHUB_WORKSPACE/../dshrt npm run test:dsh

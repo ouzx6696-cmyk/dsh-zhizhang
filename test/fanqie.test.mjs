@@ -4,11 +4,11 @@ import assert from 'node:assert/strict'
 import { readFile, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import path from 'node:path'
-import { BUILD, ROOT, fakeHost, tempDir } from './helpers.mjs'
+import { BUILD, ROOT, fakeHost, tempDir, importModule } from './helpers.mjs'
 
 
-const { apply } = await import(path.join(BUILD, 'app/src/index.js'))
-const { ensureStorage, createWork, setOutline, saveChapter, readChapter } = await import(path.join(BUILD, 'fanqie/src/engine/store.js'))
+const { apply } = await importModule(path.join(BUILD, 'app/src/index.js'))
+const { ensureStorage, createWork, setOutline, saveChapter, readChapter } = await importModule(path.join(BUILD, 'fanqie/src/engine/store.js'))
 const EX = await readFile(path.join(ROOT, 'packages/fanqie/skill/forge/novel-writer/assets/examples/两张车票.md'), 'utf8')
 
 const OUTLINE = {
@@ -184,7 +184,7 @@ test('长篇编辑子代理：只能审读与出编辑候选，写入类长篇�
   const rep = await host.call(ed, 'fanqie_review_report', { chapter: 'c001', verdict: '通过', hard_issues: [], levels: [], reread_full: true })
   assert.equal(rep.ok, true)
   assert.equal((await host.call(ed, 'writer_enable', { mode: 'fanqie', role: 'writer' })).code, 'CONFLICT')
-  const { sessionFor } = await import(path.join(BUILD, 'core/src/sessions.js'))
+  const { sessionFor } = await importModule(path.join(BUILD, 'core/src/sessions.js'))
   assert.equal((await sessionFor(path.join(cwd, '.writer'))).sessionId, 'w', '编辑子代理不覆盖主会话')
 })
 
@@ -197,7 +197,7 @@ test('模式路由：长篇会话锁定模式；没有 Agent 作用域不挂载�
   await host.call(tt, 'writer_enable', { mode: 'toutiao' })
   assert.equal((await host.call(tt, 'writer_enable', { mode: 'fanqie' })).code, 'CONFLICT')
   assert.equal((await host.call({ id: 'x', session: { id: 'x', header: { cwd } }, scope: undefined }, 'writer_enable', { mode: 'fanqie' })).code, 'NO_AGENT')
-  const { Config } = await import(path.join(BUILD, 'app/src/index.js'))
+  const { Config } = await importModule(path.join(BUILD, 'app/src/index.js'))
   const v = Config['~standard'].validate({ fanqie: { requireEditorPass: true, storageRoot: '/data/novel' }, toutiao: { rootDir: 'x' }, workbench: { allowLan: true } })
   assert.equal(v.issues, undefined, JSON.stringify(v.issues))
   assert.equal(v.value.fanqie.rootDir, '.writer')
