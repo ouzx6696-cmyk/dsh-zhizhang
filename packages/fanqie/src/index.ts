@@ -17,6 +17,7 @@ import { fanqieApi } from './workbench/api.js'
 export type { FanqieConfig } from './config.js'
 export { parseFanqieConfig } from './config.js'
 export { FANQIE_BRIEF, FANQIE_EDITOR_BRIEF, fanqieApi }
+export { fanqieLibrary } from './forge.js'
 
 const ORDER_SECTION = 110
 
@@ -60,6 +61,6 @@ export function mountFanqie(agentCtx: HostContext, config: FanqieConfig, role: R
 
 export function fanqieNext(role: Role): string {
   return role === 'editor'
-    ? '先 fanqie_chapter_read 取本章，再 fanqie_forge_get novel-writer/references/editor_method。'
-    : '开书先 fanqie_forge_get inspiration-forge/SKILL 并 fanqie_project_create；已有作品用 fanqie_project_open，再看 fanqie_product_map 的默认链。'
+    ? '先 fanqie_chapter_read 取本章，再 fanqie_forge_get edit。'
+    : '开书先 fanqie_forge_get overview 与 plan-foundation，再 fanqie_project_create；已有作品用 fanqie_project_open，再看 fanqie_product_map 的默认链。'
 }

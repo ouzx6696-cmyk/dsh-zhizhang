@@ -7,8 +7,7 @@ import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
 import { readdir } from 'node:fs/promises'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { BUILD, ROOT, fakeHost, tempDir, importModule } from './helpers.mjs'
+import { BUILD, ROOT, fakeHost, tempDir } from './helpers.mjs'
 
 const TOUTIAO_SKILL = path.join(ROOT, 'packages/toutiao/skill')
 const FORGE = path.join(ROOT, 'packages/fanqie/skill/forge')
@@ -46,27 +45,40 @@ async function loadEverything(apply, label) {
 
   // 头条：toutiao_method_get 的每个 id
   const ttTool = tt.scope.tools.get('toutiao_method_get')
-  const ids = ttTool.parameters?.properties?.id?.enum
+  const ids = (await call(tt, 'toutiao_method_get', { id: 'list' })).builtin
+  for (const id of ids ?? []) assert.ok(ttTool.parameters.properties.id.description.includes(id), `${label}: 工具说明里列出 ${id}`)
   assert.ok(Array.isArray(ids) && ids.length >= 30, `${label}: 头条方法 id 列表`)
   for (const id of ids) {
     const r = await call(tt, 'toutiao_method_get', { id })
     assert.equal(r.ok, true, `${label}: toutiao_method_get ${id} → ${JSON.stringify(r).slice(0, 200)}`)
     assert.ok(String(r.text ?? '').trim().length > 50, `${label}: ${id} 内容为空`)
+    texts.push(r.text)
+    const o = await call(tt, 'toutiao_method_get', { id: '原版:' + id })
+    assert.equal(o.from, 'original', `${label}: 原版:${id}`)
     loaded.toutiao++
   }
 
   // forge：fanqie_forge_get 目录与每一份
   const idx = await call(fq, 'fanqie_forge_get', {})
   assert.equal(idx.ok, true, JSON.stringify(idx).slice(0, 300))
-  idx.methods = (await call(fq, 'fanqie_forge_get', { id: 'list' })).methods
-  for (const key of Object.keys(idx.key_methods)) assert.ok(idx.methods.includes(key), `${label}: 常用入口 ${key} 不存在`)
+  const flist = await call(fq, 'fanqie_forge_get', { id: 'list' })
+  idx.methods = flist.original
+  for (const key of Object.keys(idx.key_methods)) assert.ok(flist.methods.includes(key), `${label}: 常用入口 ${key} 不存在`)
+  // 原版：每一份都能强制读出原件
   for (const id of idx.methods) {
-    const r = await call(fq, 'fanqie_forge_get', { id })
-    assert.equal(r.ok, true, `${label}: fanqie_forge_get ${id}`)
+    const r = await call(fq, 'fanqie_forge_get', { id: '原版:' + id })
+    assert.equal(r.ok, true, `${label}: fanqie_forge_get 原版:${id}`)
     assert.match(r.text, /写作 Agent 适配/)
     loaded.forge++
   }
-  texts.push((await call(fq, 'fanqie_forge_get', { id: idx.methods[0] })).text.split('\n').slice(0, 12).join('\n'))
+  // 默认方案：每一份都能读，原版 id 也能对到默认方案
+  for (const id of flist.methods) {
+    const r = await call(fq, 'fanqie_forge_get', { id })
+    assert.equal(r.from, 'default', `${label}: fanqie_forge_get ${id}`)
+    texts.push(r.text)
+    loaded.fanqieDefault = (loaded.fanqieDefault ?? 0) + 1
+  }
+  texts.push((await call(fq, 'fanqie_forge_get', { id: '原版:' + idx.methods[0] })).text.split('\n').slice(0, 12).join('\n'))
 
   // 引擎方法资产：fanqie_method_list / fanqie_method_get
   const list = await call(fq, 'fanqie_method_list', {})
@@ -85,20 +97,20 @@ async function loadEverything(apply, label) {
   return { tt, fq, call, loaded, texts, receipts, engineIds, forgeIds: idx.methods, toutiaoIds: ids }
 }
 
-const { apply } = await importModule(path.join(BUILD, 'app/src/index.js'))
+const { apply } = await import(path.join(BUILD, 'app/src/index.js'))
 
 test('原件对照：头条方法与语料、forge 三件套都完整在包里，并全部登记为可加载', async () => {
-  const { METHOD_FILES } = await importModule(path.join(BUILD, 'toutiao/src/methods.js'))
+  const { METHOD_FILES } = await import(path.join(BUILD, 'toutiao/src/methods.js'))
   const docs = [...await files(TOUTIAO_SKILL, '.md'), ...await files(TOUTIAO_SKILL, '.json')].filter(f => f !== 'CHANGELOG.md')
   const registered = new Set(Object.values(METHOD_FILES))
   assert.deepEqual(docs.filter(f => !registered.has(f)), [], '头条 skill 里没有登记的方法文件')
   for (const f of registered) assert.ok(existsSync(path.join(TOUTIAO_SKILL, f)), `登记了不存在的文件 ${f}`)
-  const { listMethods } = await importModule(path.join(BUILD, 'fanqie/src/forge.js'))
+  const { listMethods } = await import(path.join(BUILD, 'fanqie/src/forge.js'))
   const forgeDocs = (await files(FORGE, '.md')).map(f => f.replace(/\.md$/, ''))
   assert.deepEqual(await listMethods(), forgeDocs)
   for (const pkg of ['inspiration-forge', 'inspiration-forge-library', 'novel-writer']) assert.ok(forgeDocs.includes(`${pkg}/SKILL`), `${pkg} 缺 SKILL`)
   // 原文之间的 Markdown 链接，以及原文里只写相对路径的引用，都能经 getFanqieMethod 取到
-  const { getFanqieMethod } = await importModule(path.join(BUILD, 'fanqie/src/forge.js'))
+  const { getFanqieMethod } = await import(path.join(BUILD, 'fanqie/src/forge.js'))
   const { readFile } = await import('node:fs/promises')
   const broken = []
   for (const id of forgeDocs) {
@@ -145,7 +157,7 @@ test('源码构建：三套方法论每一份都能经工具加载；提到的�
 
 const BUNDLE = path.join(ROOT, 'bundle/dist/index.js')
 test('打好的插件包：从包内路径加载三套方法论', { skip: !existsSync(BUNDLE) && '先 npm run bundle' }, async () => {
-  const mod = await import(pathToFileURL(BUNDLE).href + '?t=' + Date.now())
+  const mod = await import(BUNDLE + '?t=' + Date.now())
   const r = await loadEverything(mod.apply, '插件包')
   assert.ok(r.loaded.toutiao >= 30 && r.loaded.forge >= 100 && r.loaded.engine >= 12, JSON.stringify(r.loaded))
 })

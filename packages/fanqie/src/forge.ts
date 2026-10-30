@@ -3,7 +3,7 @@
  * 方法原文一字不改，取用时在前面加一段对照表，把原文里的自有落盘指令换成本插件的长篇工具；
  * 五个检查脚本经 fanqie_bridge.py 统一成 JSON 契约，Python 只用标准库。
  */
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url'
 import { WriterError } from '../../host/src/index.js'
 import { readText, resolveInside } from '../../core/src/fsx.js'
 import { locatePython, runScript, type ScriptResult } from '../../core/src/runner.js'
+import type { MethodLibrary } from '../../core/src/profiles.js'
 
 let resolved: string | undefined
 
@@ -105,6 +106,62 @@ export async function getFanqieMethod(id: string): Promise<{ id: string; text: s
     throw new WriterError('NOT_FOUND', `没有这份方法：${clean}。${near.length ? `相近的：${near.join('、')}` : `常用：${Object.keys(KEY_METHODS).join('、')}`}`)
   }
   return { id: clean, text: `${ADAPTER_NOTE}\n${text}` }
+}
+
+/* ---------------- 方法方案：默认（精炼版）/ 原版（forge 原件）/ 用户方案 ---------------- */
+
+let defaultResolved: string | undefined
+
+/** 长篇默认方案目录：环境变量 → 打包后 <pkg>/profiles/fanqie/default → 源码树 packages/fanqie/profiles/default */
+export function fanqieDefaultDir(): string {
+  if (defaultResolved) return defaultResolved
+  const here = path.dirname(fileURLToPath(import.meta.url))
+  const candidates = [
+    process.env.WRITER_FANQIE_DEFAULT_DIR,
+    path.resolve(here, '../profiles/fanqie/default'),
+    path.resolve(here, '../../profiles/default'),
+    path.resolve(here, '../profiles/default'),
+    path.resolve(here, '../../../packages/fanqie/profiles/default'),
+    path.resolve(here, '../../../../packages/fanqie/profiles/default'),
+  ].filter((x): x is string => !!x)
+  for (const c of candidates) if (existsSync(path.join(c, 'profile.json'))) { defaultResolved = c; return c }
+  throw new WriterError('NOT_FOUND', `找不到长篇默认方案目录（试过 ${candidates.join(' ; ')}）`)
+}
+
+interface DefaultIndex { methods: { id: string; title?: string }[]; aliases?: Record<string, string> }
+let defaultIndex: DefaultIndex | undefined
+/** 同步读（canonical 要同步）：默认方案的目录与"原版 id → 默认 id"别名 */
+function loadDefaultIndex(): DefaultIndex {
+  if (defaultIndex) return defaultIndex
+  defaultIndex = JSON.parse(readFileSync(path.join(fanqieDefaultDir(), 'profile.json'), 'utf8')) as DefaultIndex
+  return defaultIndex
+}
+
+/** 原版 id（含只写相对路径的写法）→ 默认方案 id */
+export function fanqieCanonical(id: string): string {
+  const idx = loadDefaultIndex()
+  const clean = id.trim().replace(/\\/g, '/').replace(/^\.?\//, '').replace(/\.md$/, '')
+  if (idx.methods.some(m => m.id === clean)) return clean
+  const aliases = idx.aliases ?? {}
+  if (aliases[clean]) return aliases[clean]!
+  const hits = Object.keys(aliases).filter(k => k.endsWith(`/${clean}`))
+  return hits.length === 1 ? aliases[hits[0]!]! : clean
+}
+
+export const fanqieLibrary: MethodLibrary = {
+  mode: 'fanqie',
+  async defaultIds() { return loadDefaultIndex().methods.map(m => ({ id: m.id, title: m.title })) },
+  originalIds: () => listMethods(),
+  async readDefault(id) {
+    const entry = loadDefaultIndex().methods.find(m => m.id === id)
+    if (!entry) return undefined
+    const text = await readText(resolveInside(fanqieDefaultDir(), `${id}.md`))
+    return text === undefined ? undefined : { id, text, file: `默认/${id}.md`, title: entry.title }
+  },
+  async readOriginal(id) {
+    try { const r = await getFanqieMethod(id); return { id: r.id, text: r.text, file: `${r.id}.md` } } catch { return undefined }
+  },
+  canonical: fanqieCanonical,
 }
 
 /* ---------------- 规则脚本 ---------------- */

@@ -3,7 +3,8 @@ import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WriterError } from '../../host/src/index.js'
-import { readText } from '../../core/src/fsx.js'
+import { readText, resolveInside } from '../../core/src/fsx.js'
+import type { MethodLibrary } from '../../core/src/profiles.js'
 
 export const METHOD_FILES: Record<string, string> = {
   'overview': 'SKILL.md',
@@ -67,4 +68,52 @@ export async function getMethod(id: string): Promise<{ id: string; file: string;
   const text = await readText(path.join(skillDir(), rel))
   if (text === undefined) throw new WriterError('NOT_FOUND', `方法文件缺失：${rel}`)
   return { id, file: rel, text }
+}
+
+/* ---------------- 方法方案：默认（精炼版）/ 原版（上面的原件）/ 用户方案 ---------------- */
+
+let defaultResolved: string | undefined
+
+/** 头条默认方案目录：环境变量 → 打包后 <pkg>/profiles/toutiao/default → 源码树 packages/toutiao/profiles/default */
+export function toutiaoDefaultDir(): string {
+  if (defaultResolved) return defaultResolved
+  const here = path.dirname(fileURLToPath(import.meta.url))
+  const candidates = [
+    process.env.WRITER_TOUTIAO_DEFAULT_DIR,
+    path.resolve(here, '../profiles/toutiao/default'),
+    path.resolve(here, '../../profiles/default'),
+    path.resolve(here, '../profiles/default'),
+    path.resolve(here, '../../../packages/toutiao/profiles/default'),
+    path.resolve(here, '../../../../packages/toutiao/profiles/default'),
+  ].filter((x): x is string => !!x)
+  for (const c of candidates) if (existsSync(path.join(c, 'profile.json'))) { defaultResolved = c; return c }
+  throw new WriterError('NOT_FOUND', `找不到头条默认方案目录（试过 ${candidates.join(' ; ')}）`)
+}
+
+interface DefaultIndex { methods: { id: string; title?: string }[] }
+let defaultIndex: DefaultIndex | undefined
+async function loadDefaultIndex(): Promise<DefaultIndex> {
+  if (defaultIndex) return defaultIndex
+  const raw = await readText(path.join(toutiaoDefaultDir(), 'profile.json'))
+  defaultIndex = JSON.parse(raw ?? '{"methods":[]}') as DefaultIndex
+  return defaultIndex
+}
+
+export const toutiaoLibrary: MethodLibrary = {
+  mode: 'toutiao',
+  async defaultIds() { return (await loadDefaultIndex()).methods.map(m => ({ id: m.id, title: m.title })) },
+  async originalIds() { return Object.keys(METHOD_FILES) },
+  async readDefault(id) {
+    const entry = (await loadDefaultIndex()).methods.find(m => m.id === id)
+    if (!entry) return undefined
+    const text = await readText(resolveInside(toutiaoDefaultDir(), `${id}.md`))
+    return text === undefined ? undefined : { id, text, file: `默认/${id}.md`, title: entry.title }
+  },
+  async readOriginal(id) {
+    const rel = METHOD_FILES[id]
+    if (!rel) return undefined
+    const text = await readText(path.join(skillDir(), rel))
+    return text === undefined ? undefined : { id, text, file: rel }
+  },
+  canonical: (id) => id,
 }

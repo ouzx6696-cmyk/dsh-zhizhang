@@ -4,11 +4,11 @@ import assert from 'node:assert/strict'
 import { readFile, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import path from 'node:path'
-import { BUILD, ROOT, fakeHost, tempDir, importModule } from './helpers.mjs'
+import { BUILD, ROOT, fakeHost, tempDir } from './helpers.mjs'
 
 
-const { apply } = await importModule(path.join(BUILD, 'app/src/index.js'))
-const { ensureStorage, createWork, setOutline, saveChapter, readChapter } = await importModule(path.join(BUILD, 'fanqie/src/engine/store.js'))
+const { apply } = await import(path.join(BUILD, 'app/src/index.js'))
+const { ensureStorage, createWork, setOutline, saveChapter, readChapter } = await import(path.join(BUILD, 'fanqie/src/engine/store.js'))
 const EX = await readFile(path.join(ROOT, 'packages/fanqie/skill/forge/novel-writer/assets/examples/两张车票.md'), 'utf8')
 
 const OUTLINE = {
@@ -55,13 +55,17 @@ test('启用长篇：writer_enable mode=fanqie 一次挂上引擎与写作层工
   assert.match(agent.scope.sections.map(x => x.text()).join('\n'), /番茄长篇/)
   assert.match(agent.scope.sections.map(x => x.text()).join('\n'), /【写作台】/)
   const idx = await call('fanqie_forge_get', {})
-  assert.ok(idx.key_methods['novel-writer/references/editor_method'])
+  assert.ok(idx.key_methods.edit, '默认方案目录')
   const m = await call('fanqie_forge_get', { id: 'novel-writer/references/editor_method' })
-  assert.match(m.text, /写作 Agent 适配/)
-  assert.match(m.text, /四类内容硬伤/)
+  assert.equal(m.id, 'edit', '原版 id 对到默认方案里的同类方法')
+  assert.match(m.text, /四类/)
+  const o = await call('fanqie_forge_get', { id: '原版:novel-writer/references/editor_method' })
+  assert.match(o.text, /写作 Agent 适配/)
+  assert.match(o.text, /四类内容硬伤/)
   const list = await call('fanqie_forge_get', { id: 'list' })
-  assert.ok(list.methods.length > 60)
-  assert.equal((await call('fanqie_forge_get', { id: '../../../etc/passwd' })).code, 'OUT_OF_ROOT')
+  assert.equal(list.methods.length, 17)
+  assert.ok(list.original.length > 60)
+  assert.equal((await call('fanqie_forge_get', { id: '../../../etc/passwd' })).code, 'INVALID_ARGS')
   assert.equal(host.agent('other', '/tmp').scope.tools.size, 0)
 })
 
@@ -184,7 +188,7 @@ test('长篇编辑子代理：只能审读与出编辑候选，写入类长篇�
   const rep = await host.call(ed, 'fanqie_review_report', { chapter: 'c001', verdict: '通过', hard_issues: [], levels: [], reread_full: true })
   assert.equal(rep.ok, true)
   assert.equal((await host.call(ed, 'writer_enable', { mode: 'fanqie', role: 'writer' })).code, 'CONFLICT')
-  const { sessionFor } = await importModule(path.join(BUILD, 'core/src/sessions.js'))
+  const { sessionFor } = await import(path.join(BUILD, 'core/src/sessions.js'))
   assert.equal((await sessionFor(path.join(cwd, '.writer'))).sessionId, 'w', '编辑子代理不覆盖主会话')
 })
 
@@ -197,7 +201,7 @@ test('模式路由：长篇会话锁定模式；没有 Agent 作用域不挂载�
   await host.call(tt, 'writer_enable', { mode: 'toutiao' })
   assert.equal((await host.call(tt, 'writer_enable', { mode: 'fanqie' })).code, 'CONFLICT')
   assert.equal((await host.call({ id: 'x', session: { id: 'x', header: { cwd } }, scope: undefined }, 'writer_enable', { mode: 'fanqie' })).code, 'NO_AGENT')
-  const { Config } = await importModule(path.join(BUILD, 'app/src/index.js'))
+  const { Config } = await import(path.join(BUILD, 'app/src/index.js'))
   const v = Config['~standard'].validate({ fanqie: { requireEditorPass: true, storageRoot: '/data/novel' }, toutiao: { rootDir: 'x' }, workbench: { allowLan: true } })
   assert.equal(v.issues, undefined, JSON.stringify(v.issues))
   assert.equal(v.value.fanqie.rootDir, '.writer')

@@ -1,5 +1,6 @@
 /** 番茄长篇模式的配置（dsh-writer 配置的 fanqie 段）：数据位置、Python、定稿条件、门禁开关、多草稿。 */
 import type { PluginConfig } from './engine/types.js'
+import { parseAssetsConfig, type AssetsConfig } from '../../core/src/user-assets.js'
 
 export interface FanqieConfig extends PluginConfig {
   /** 数据目录（相对会话 cwd），默认 .writer */
@@ -20,12 +21,16 @@ export interface FanqieConfig extends PluginConfig {
   disabledGates?: string[]
   /** 同章多草稿统一整理，默认关 */
   multiDraft?: { enabled?: boolean }
+  /** 作者自备方法 / 语料目录（fanqie_forge_get id=user:…）；见 docs/ASSETS.md */
+  assets?: AssetsConfig
+  /** 固定使用的方法方案（默认 / 原版 / 用户方案名或 id）；不填则用写作台或工具选的当前方案 */
+  profile?: string
 }
 
 export type Issue = { message: string; path: (string | number)[] }
 
-const STRINGS = ['rootDir', 'storageRoot', 'worksRoot', 'libraryRoot', 'sourceRoot', 'python'] as const
-const KNOWN = new Set<string>([...STRINGS, 'requireEditorPass', 'disabledGates', 'multiDraft'])
+const STRINGS = ['rootDir', 'storageRoot', 'worksRoot', 'libraryRoot', 'sourceRoot', 'python', 'profile'] as const
+const KNOWN = new Set<string>([...STRINGS, 'requireEditorPass', 'disabledGates', 'multiDraft', 'assets'])
 
 /** 校验并填默认值；未知字段报错，免得拼错的配置悄悄不生效 */
 export function parseFanqieConfig(input: unknown, at: string[] = ['fanqie']): { value?: FanqieConfig; issues: Issue[] } {
@@ -53,6 +58,11 @@ export function parseFanqieConfig(input: unknown, at: string[] = ['fanqie']): { 
     const m = v.multiDraft as Record<string, unknown> | null
     if (!m || typeof m !== 'object' || Array.isArray(m) || (m.enabled !== undefined && typeof m.enabled !== 'boolean')) issues.push({ message: `${[...at, 'multiDraft'].join('.')} 应为 { enabled: 布尔值 }`, path: [...at, 'multiDraft'] })
     else out.multiDraft = { enabled: m.enabled === true }
+  }
+  if (v.assets !== undefined) {
+    const a = parseAssetsConfig(v.assets, [...at, 'assets'])
+    issues.push(...a.issues)
+    if (a.value) out.assets = a.value
   }
   out.rootDir ??= '.writer'
   return issues.length ? { issues } : { value: out, issues }

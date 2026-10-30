@@ -1,18 +1,19 @@
 # 工具清单
 
-`writer_enable`、头条工具和长篇写作层工具返回 JSON 对象；长篇引擎工具返回文本。具体参数与必填项以会话中显示的工具说明为准。
+返回值统一为 JSON 对象：成功 `{ok:true, ...}`，业务失败 `{ok:false, code, message}`，code ∈ INVALID_ARGS / NOT_FOUND / CONFLICT / GATE_DENIED / SCRIPT_FAILED / TIMEOUT / OUT_OF_ROOT / NO_AGENT。
 
 ## 入口
 
 | 工具 | 参数 | 说明 |
 |---|---|---|
-| writer_enable | mode, role | 本插件入口。`mode=toutiao` 启用头条，`mode=fanqie` 启用长篇；`role=editor` 用于编辑子代理。同一会话使用一种模式和角色。 |
+| writer_enable | mode, role | 全局唯一可见的写作工具。mode=toutiao 挂头条工具、总则、门禁；mode=fanqie 挂长篇引擎工具与硬规则 + 写作层工具、补充规则、门禁；role=editor 为编辑子代理。一个会话只能一种模式、一种角色，冲突返回 CONFLICT |
 
-## 今日头条（mode=toutiao）
+# 今日头条（mode=toutiao）
 
 | 工具 | 参数 | 说明 |
 |---|---|---|
-| toutiao_method_get | id | 取方法/模板/语料：overview（SKILL.md 总纲）、s1-hot … s7-delivery、template-card、template-delivery、corpus-* |
+| toutiao_method_get | id | 按当前方法方案取方法/模板/语料：overview、s1-hot … s7-delivery、template-card、template-delivery、corpus-*；`list` 列当前方案全部；`原版:id` 强制读原件；`user:相对路径` 取作者自备资产 |
+| toutiao_profile | action, profile, name, base, note, from_dir, method, text, file | 方法方案：list / show / use / create / save / reset / rename（见 [PROFILES.md](PROFILES.md)）；编辑子代理不挂 |
 | toutiao_rules | — | 现行质检规则 Markdown |
 | toutiao_hot_fetch | top, vertical, relevant | 抓热榜 |
 | toutiao_article_create | slug, date, title_hint, line, genre | 新建文章 |
@@ -28,8 +29,7 @@
 | toutiao_ledger_add / toutiao_ledger_show | id / last | 台账 |
 | toutiao_feedback_append / toutiao_feedback_read | original, revised, motive / — | 作者反馈 |
 
-### 门禁
-
+## 门禁
 | id | 工具 | 行为 | 可关闭 |
 |---|---|---|---|
 | toutiao.accept_requires_qa | toutiao_status → 已验收 | 无有效过线质检则拒绝 | 否 |
@@ -39,10 +39,10 @@
 | toutiao.editor_pass | toutiao_status → 待验收 | `requireEditorPass: true` 时，写手版不能直接送验收 | 是（默认未开） |
 | 模式隔离（全局） | toutiao_* / fanqie_* | 会话模式已定时拒绝另一模式的工具 | 否 |
 
-### 编辑子代理
+## 编辑子代理
 编辑角色可用：toutiao_method_get、toutiao_rules、toutiao_article_list、toutiao_article_get、toutiao_draft_get、toutiao_draft_stage、toutiao_edit_record、toutiao_qa_check、toutiao_feedback_read。
 
-## 番茄长篇（mode=fanqie）
+# 番茄长篇（mode=fanqie）
 
 挂上两组工具，名字都以 `fanqie_` 开头：
 
@@ -51,7 +51,8 @@
 
 | 工具 | 参数 | 说明 |
 |---|---|---|
-| fanqie_forge_get | id | forge 方法原文（开头附长篇工具对照表）；不给 id 看常用目录，`list` 看全部；原文里只写相对路径（如 references/writing）也能取到 |
+| fanqie_forge_get | id | 按当前方法方案取长篇方法（默认方案 17 份：overview、plan-*、library、write-chapter、scene、prose、rhythm、continuity、platform、edit、revise、templates-*、examples-*）；不给 id 看当前方案目录，`list` 看全部；原版 forge id 自动对到默认方案同类方法；`原版:id` 强制读原件（附工具对照表）；`user:相对路径` 取作者自备资产 |
+| fanqie_profile | 同 toutiao_profile | 长篇的方法方案管理；编辑子代理不挂 |
 | fanqie_outline_check | work, chapters, mode | 章纲 8 字段、占位、章序；readiness / format |
 | fanqie_ledger_check | work, chapters, include_previous | 跨章数字与相对时间对照（默认连带上一章） |
 | fanqie_library_scan | file, top, keywords | 拆书测绘（文件须在会话工作目录内） |
@@ -63,8 +64,7 @@
 
 `work` 可填作品 key 或标题；省略时（本会话上次打开的作品 → 只有一部时用它）；`chapters` 可填章 id、序号或 "3-5"。
 
-### 长篇门禁
-
+## 长篇门禁（拦同一会话里的 fanqie_* 调用）
 | id | 角色 | 拦什么 | 行为 | 可关闭 |
 |---|---|---|---|---|
 | fanqie.finalize_requires_author | 写手 | fanqie_chapter_save status=final | 请作者确认 | 否 |
@@ -73,9 +73,6 @@
 | fanqie.editor_readonly | 编辑 | 采纳、定稿、改根基/章纲、入库、开书等写入类工具 | 拒绝 | 否 |
 | 模式隔离（全局） | — | toutiao_* ↔ fanqie_* | 拒绝 | 否 |
 
-## 写作台接口
-
-接口默认只接受本机访问，也可按 `workbench` 配置局域网和令牌。
-
+# 写作台接口（只接受本机，或按 workbench 配置的局域网与令牌）
 - 番茄长篇：`/api/writer/*`（projects、works、snapshot、chapter、candidate、candidate/accept、chapter/review、chapter/finalize、revision/acknowledge、diagnostics/*、unify/prepare、agent/deliver），见 [WORKBENCH.md](WORKBENCH.md)。
 - 今日头条：`GET /api/writer/toutiao/articles`、`GET /api/writer/toutiao/article?root=&id=`、`POST /api/writer/toutiao/adopt {root,id,confirm}`、`POST /api/writer/toutiao/deliver {root,id?,action=new|continue|review|revise,note?,requestId?,confirm}`。

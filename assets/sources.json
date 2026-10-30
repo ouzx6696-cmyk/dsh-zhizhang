@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "note": "插件自带资产的来源登记与更新预设。改这里之后运行 npm run assets -- manifest；导入上游新版见 docs/ASSETS.md。",
+  "sources": [
+    {
+      "id": "toutiao-viral-writer",
+      "title": "今日头条写作方法、语料、模板与质检规则",
+      "mode": "toutiao",
+      "kind": "upstream",
+      "version": "4.0.0",
+      "dest": "packages/toutiao/skill",
+      "upstreamRoot": "toutiao-viral-writer",
+      "marker": "SKILL.md",
+      "versionFrom": {
+        "file": "SKILL.md",
+        "pattern": "全链路写作（(\\d+\\.\\d+\\.\\d+)）"
+      },
+      "versionRefs": [
+        {
+          "file": "packages/toutiao/src/brief.ts",
+          "pattern": "规则 (\\d+\\.\\d+\\.\\d+)"
+        }
+      ],
+      "registry": {
+        "type": "toutiao-methods",
+        "file": "packages/toutiao/src/methods.ts",
+        "dirs": [
+          "references",
+          "corpus",
+          "templates"
+        ],
+        "files": [
+          "SKILL.md"
+        ]
+      },
+      "tool": "toutiao_method_get",
+      "local": [
+        "scripts/writer_bridge.py"
+      ],
+      "patched": [],
+      "exclude": []
+    },
+    {
+      "id": "inspiration-forge-suite",
+      "title": "长篇规划、拆书、正文写作与编辑方法（forge 三件套）",
+      "mode": "fanqie",
+      "kind": "upstream",
+      "version": "1.3.0",
+      "dest": "packages/fanqie/skill/forge",
+      "upstreamRoot": "inspiration-forge-suite",
+      "marker": "novel-writer/SKILL.md",
+      "versionFrom": {
+        "file": "novel-writer/SKILL.md",
+        "pattern": "version: \"(\\d+\\.\\d+\\.\\d+)\""
+      },
+      "versionRefs": [
+        {
+          "file": "packages/fanqie/src/forge.ts",
+          "pattern": "inspiration-forge-suite (\\d+\\.\\d+\\.\\d+)"
+        }
+      ],
+      "registry": {
+        "type": "forge-tree"
+      },
+      "tool": "fanqie_forge_get",
+      "local": [],
+      "patched": [],
+      "exclude": []
+    },
+    {
+      "id": "toutiao-default-profile",
+      "title": "今日头条默认方案（从原版提炼重写的精炼版）",
+      "mode": "toutiao",
+      "kind": "profile",
+      "dest": "packages/toutiao/profiles/default",
+      "tool": "toutiao_method_get"
+    },
+    {
+      "id": "fanqie-default-profile",
+      "title": "番茄长篇默认方案（从原版提炼重写的精炼版）",
+      "mode": "fanqie",
+      "kind": "profile",
+      "dest": "packages/fanqie/profiles/default",
+      "tool": "fanqie_forge_get"
+    },
+    {
+      "id": "writer-fanqie-rules",
+      "title": "长篇规则桥接脚本（本项目自写）",
+      "mode": "fanqie",
+      "kind": "local",
+      "dest": "packages/fanqie/skill",
+      "exclude": [
+        "forge/"
+      ]
+    },
+    {
+      "id": "engine-method-assets",
+      "title": "长篇引擎内置方法资产（本项目自写）",
+      "mode": "fanqie",
+      "kind": "builtin",
+      "module": "build/fanqie/src/engine/method-assets.js",
+      "source": "packages/fanqie/src/engine/method-assets.ts",
+      "tool": "fanqie_method_get"
+    }
+  ],
+  "user": {
+    "note": "作者自备资产不进清单：放在配置 toutiao.assets.dirs / fanqie.assets.dirs 指定的目录里，id 为 user:相对路径。",
+    "prefix": "user:",
+    "exts": [
+      ".md",
+      ".txt",
+      ".json"
+    ]
+  }
+}

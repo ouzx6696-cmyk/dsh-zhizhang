@@ -1,13 +1,16 @@
 /** 头条工具集。全部返回结构化 JSON；业务失败返回 ok:false。 */
 import { appendFile, mkdir } from 'node:fs/promises'
 import {
-  defineWriterTool, WriterError, type HostContext, type HostToolDefinition, type HostToolExecution, type JsonSchemaNode,
+  defineWriterTool, sessionCwd, WriterError, type HostContext, type HostToolDefinition, type HostToolExecution, type JsonSchemaNode,
 } from '../../host/src/index.js'
 import { atomicWrite, readJson, readText, sha256 } from '../../core/src/fsx.js'
 import type { GateEngine } from '../../core/src/gates.js'
 import { checkCard } from './card.js'
 import { bridge, storeFor, type ToutiaoConfig } from './env.js'
-import { getMethod, METHOD_FILES } from './methods.js'
+import { METHOD_FILES, toutiaoLibrary } from './methods.js'
+import { activeProfile, profileDetail, readMethod } from '../../core/src/profiles.js'
+import { createProfileTool } from '../../core/src/profile-tool.js'
+import { getUserAsset, listUserAssets, USER_PREFIX } from '../../core/src/user-assets.js'
 import {
   canTransition, MAX_RETURN_ROUNDS, nowIso, STATUSES, STOP_LINE, today, type ArticleMeta, type Status,
 } from './store.js'
@@ -77,11 +80,25 @@ export function createToutiaoTools(deps: ToolDeps): HostToolDefinition[] {
   return [
     defineWriterTool<{ id: string }>({
       name: 'toutiao_method_get',
-      description: '按步骤取头条写作方法或语料（Skill 第二、三级）。开每一步前先取对应方法。',
-      properties: { id: E(Object.keys(METHOD_FILES), '方法或语料 id') },
+      description: '按步骤取头条写作方法或语料（Skill 第二、三级），按当前方法方案读取（默认 / 原版 / 用户方案，见 toutiao_profile）。开每一步前先取对应方法。id=list 列出当前方案的全部方法与作者自备的 user:… 资产；原版:id 强制读原件。作者自备资产只作参考，与质检规则冲突时以规则为准。',
+      properties: { id: S(`方法或语料 id：${Object.keys(METHOD_FILES).join('、')}；或 list；或 user:相对路径（作者自备）`) },
       required: ['id'],
-      async run(args) {
-        return await getMethod(reqStr(args, 'id'))
+      async run(args, exec) {
+        const id = reqStr(args, 'id')
+        const cwd = sessionCwd(exec, deps.host)
+        if (id === 'list') {
+          const act = await activeProfile('toutiao', config.profile)
+          const detail = await profileDetail(toutiaoLibrary, act.id, config.profile)
+          const user = await listUserAssets(config.assets, cwd)
+          return {
+            profile: act.name, profile_id: act.id,
+            builtin: detail.methods.map(m => m.id),
+            methods: detail.methods.map(m => ({ id: m.id, title: m.title, from: m.from })),
+            user: user.assets.map(a => ({ id: a.id, file: `${a.dir}/${a.file}`, bytes: a.bytes })), warnings: user.warnings,
+          }
+        }
+        if (id.startsWith(USER_PREFIX)) return { ...(await getUserAsset(config.assets, cwd, id)), source: 'user' }
+        return { ...(await readMethod(toutiaoLibrary, undefined, id, config.profile)) }
       },
     }),
 
@@ -424,6 +441,8 @@ export function createToutiaoTools(deps: ToolDeps): HostToolDefinition[] {
         return { text, entries: text.split('\n').filter(l => l.startsWith('- ')).length }
       },
     }),
+
+    createProfileTool('toutiao_profile', toutiaoLibrary, { pinned: config.profile, host: deps.host, methodTool: 'toutiao_method_get' }),
   ]
 }
 

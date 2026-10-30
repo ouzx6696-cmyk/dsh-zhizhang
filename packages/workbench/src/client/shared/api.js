@@ -116,3 +116,19 @@ export const toutiaoApi = {
   adopt: (root, id) => request("/toutiao/adopt", { method: "POST", body: { root, id, confirm: true }, timeoutMs: 15000 }),
   deliver: (payload) => request("/toutiao/deliver", { method: "POST", body: { ...payload, confirm: true }, timeoutMs: 20000 }),
 };
+
+/** 方法方案（两种模式共用接口，挂在 /<mode>/profiles 下） */
+export function profilesApi(mode) {
+  const base = "/" + mode + "/profiles";
+  return {
+    list: (signal) => request(base, { timeoutMs: 10000, signal }),
+    detail: (profile, signal) => request(base + "/detail", { query: { profile }, timeoutMs: 10000, signal }),
+    method: (profile, id, signal) => request(base + "/method", { query: { profile, id }, timeoutMs: 10000, signal }),
+    use: (profile) => request(base + "/use", { method: "POST", body: { profile }, timeoutMs: 10000 }),
+    create: (payload) => request(base + "/create", { method: "POST", body: payload, timeoutMs: 30000 }),
+    save: (profile, id, text) => request(base + "/save", { method: "POST", body: { profile, id, text }, timeoutMs: 15000 }),
+    reset: (profile, id) => request(base + "/reset", { method: "POST", body: { profile, id }, timeoutMs: 10000 }),
+    rename: (profile, name, note) => request(base + "/rename", { method: "POST", body: { profile, name, note }, timeoutMs: 10000 }),
+    remove: (profile) => request(base + "/delete", { method: "POST", body: { profile, confirm: true }, timeoutMs: 10000 }),
+  };
+}

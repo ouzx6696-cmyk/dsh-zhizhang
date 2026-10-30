@@ -3,10 +3,13 @@ import path from 'node:path'
 import { stat } from 'node:fs/promises'
 import { defineWriterTool, sessionCwd, WriterError, type HostToolDefinition, type HostToolExecution, type JsonSchemaNode } from '../../host/src/index.js'
 import { nowIso, resolveInside } from '../../core/src/fsx.js'
-import { bridge, getFanqieMethod, KEY_METHODS, listMethods, withTempFiles } from './forge.js'
+import { bridge, fanqieLibrary, KEY_METHODS, listMethods, withTempFiles } from './forge.js'
+import { activeProfile, profileDetail, readMethod } from '../../core/src/profiles.js'
+import { createProfileTool } from '../../core/src/profile-tool.js'
 import { HARD_CATEGORIES, latestReview, LEVELS, renderReview, saveReview, VERDICTS, type ReviewReport } from './review.js'
 import { openWork, pickChapters, readChapter, type ChapterRecord } from './works.js'
 import type { FanqieConfig } from './config.js'
+import { getUserAsset, listUserAssets, USER_PREFIX } from '../../core/src/user-assets.js'
 
 export type Role = 'writer' | 'editor'
 
@@ -57,13 +60,28 @@ export function createFanqieTools(deps: FanqieToolDeps): HostToolDefinition[] {
   const tools: HostToolDefinition[] = [
     defineWriterTool<{ id?: string }>({
       name: 'fanqie_forge_get',
-      description: '取长篇方法原文（inspiration-forge 规划 / forge-library 拆书 / novel-writer 写作与编辑）。不给 id 返回常用目录；给 "list" 返回全部 id。原文前附"长篇工具对照表"，落盘一律按表走长篇工具。',
-      properties: { id: S('方法 id，如 novel-writer/references/editor_method；省略看常用目录，"list" 看全部') },
-      async run(args) {
+      description: '取长篇方法（规划、拆书、写章、句面、节奏、连续性、编辑、修订、模板与示范），按当前方法方案读取（默认 / 原版 / 用户方案，见 fanqie_profile）。不给 id 返回当前方案目录；"list" 返回全部 id（含作者自备的 user:… 资产）。原版的 forge id（如 novel-writer/references/editor_method）会自动对应到默认方案里的同类方法；原版:id 强制读原件（原件前附工具对照表，落盘一律走长篇工具）。作者自备资产只作参考，与门禁冲突时以门禁为准。',
+      properties: { id: S('方法 id，如 write-chapter、edit；作者自备用 user:相对路径；省略看当前方案目录，"list" 看全部') },
+      async run(args, exec) {
         const id = str(args.id).trim()
-        if (!id) return { key_methods: KEY_METHODS }
-        if (id === 'list') return { methods: await listMethods() }
-        return getFanqieMethod(id)
+        const cwd = sessionCwd(exec)
+        const act = await activeProfile('fanqie', config.profile)
+        if (!id) {
+          if (act.id === 'original' || (act.kind === 'user' && act.base === 'original')) return { profile: act.name, key_methods: KEY_METHODS }
+          const d = await profileDetail(fanqieLibrary, act.id, config.profile)
+          return { profile: act.name, key_methods: Object.fromEntries(d.methods.map(m => [m.id, m.title ?? (m.added ? '作者新增' : '')])) }
+        }
+        if (id === 'list') {
+          const d = await profileDetail(fanqieLibrary, act.id, config.profile)
+          const user = await listUserAssets(config.assets, cwd)
+          return {
+            profile: act.name, profile_id: act.id,
+            methods: d.methods.map(m => m.id), original: act.id === 'original' ? undefined : await listMethods(),
+            user: user.assets.map(a => ({ id: a.id, file: `${a.dir}/${a.file}`, bytes: a.bytes })), warnings: user.warnings,
+          }
+        }
+        if (id.startsWith(USER_PREFIX)) return { ...(await getUserAsset(config.assets, cwd, id)), source: 'user' }
+        return { ...(await readMethod(fanqieLibrary, undefined, id, config.profile)) }
       },
     }),
 
@@ -211,6 +229,8 @@ export function createFanqieTools(deps: FanqieToolDeps): HostToolDefinition[] {
         return { found: true, fresh, verdict: r.verdict, by: r.by, at: r.at, markdown: renderReview(r, !fresh) }
       },
     }),
+
+    createProfileTool('fanqie_profile', fanqieLibrary, { pinned: config.profile, methodTool: 'fanqie_forge_get' }),
   ]
   return deps.role === 'editor' ? tools.filter(t => EDITOR_TOOLS.has(t.name)) : tools
 }

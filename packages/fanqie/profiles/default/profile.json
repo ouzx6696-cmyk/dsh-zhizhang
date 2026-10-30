@@ -1,0 +1,190 @@
+{
+  "schemaVersion": 1,
+  "id": "default",
+  "name": "默认",
+  "mode": "fanqie",
+  "note": "插件精炼版：从原版提炼重写，去重、去空话，对齐质检规则与工具",
+  "methods": [
+    {
+      "id": "overview",
+      "title": "长篇写作总纲：从开书到定稿"
+    },
+    {
+      "id": "plan-foundation",
+      "title": "开书立项：卖点、主角、规则、节奏档位与读者承诺"
+    },
+    {
+      "id": "plan-structure",
+      "title": "卷与幕结构，幕转章纲"
+    },
+    {
+      "id": "plan-outline",
+      "title": "章纲：8 个字段怎么写好"
+    },
+    {
+      "id": "library",
+      "title": "拆书与参考分析"
+    },
+    {
+      "id": "write-chapter",
+      "title": "写章流程：从章纲到交付"
+    },
+    {
+      "id": "scene",
+      "title": "场景与情节手法"
+    },
+    {
+      "id": "prose",
+      "title": "句面与人味"
+    },
+    {
+      "id": "rhythm",
+      "title": "节奏档位、爽点与钩子"
+    },
+    {
+      "id": "continuity",
+      "title": "连续性与旧账"
+    },
+    {
+      "id": "platform",
+      "title": "番茄连载要点"
+    },
+    {
+      "id": "edit",
+      "title": "编辑审读：四类硬伤与 L1–L3"
+    },
+    {
+      "id": "revise",
+      "title": "受控修订"
+    },
+    {
+      "id": "templates-plan",
+      "title": "规划类模板合集"
+    },
+    {
+      "id": "templates-write",
+      "title": "写作类模板"
+    },
+    {
+      "id": "examples-plan",
+      "title": "规划类精选案例：做对了什么"
+    },
+    {
+      "id": "examples-write",
+      "title": "精选示范：改前与改后"
+    }
+  ],
+  "aliases": {
+    "inspiration-forge-library/SKILL": "library",
+    "inspiration-forge-library/工作流": "library",
+    "inspiration-forge-library/库位置": "library",
+    "inspiration-forge-library/方法论": "library",
+    "inspiration-forge-library/资产/交接契约": "library",
+    "inspiration-forge-library/资产/拆解/假设台账模板": "library",
+    "inspiration-forge-library/资产/拆解/字段规范": "library",
+    "inspiration-forge-library/资产/拆解/对照表模板": "library",
+    "inspiration-forge-library/资产/拆解/平台画像模板": "library",
+    "inspiration-forge-library/资产/拆解/并发拆解规程": "library",
+    "inspiration-forge-library/资产/拆解/库根模板": "library",
+    "inspiration-forge-library/资产/拆解/库结构": "library",
+    "inspiration-forge-library/资产/拆解/总结报告模板": "library",
+    "inspiration-forge-library/资产/拆解/拆解卡模板": "templates-plan",
+    "inspiration-forge-library/资产/拆解/案例/开篇拆解与技法卡提取示例-快爽档": "examples-plan",
+    "inspiration-forge-library/资产/拆解/案例/拆解对照": "library",
+    "inspiration-forge-library/资产/拆解/案例/热烈叙事与群体反应": "library",
+    "inspiration-forge-library/资产/拆解/案例/组织选择与取舍": "library",
+    "inspiration-forge-library/资产/拆解/深拆模板": "library",
+    "inspiration-forge-library/资产/拆解/精简拆解模板": "templates-plan",
+    "inspiration-forge-library/资产/拆解/证据示例": "library",
+    "inspiration-forge-library/资产/拆解/锚点体系": "library",
+    "inspiration-forge-library/资产/拆解/锚点判据": "library",
+    "inspiration-forge-library/资产/拆解/阅读卡模板": "library",
+    "inspiration-forge-library/资产/拆解/题材页模板": "library",
+    "inspiration-forge/SKILL": "plan-foundation",
+    "inspiration-forge/工作流": "plan-structure",
+    "inspiration-forge/库位置": "library",
+    "inspiration-forge/方法论": "plan-structure",
+    "inspiration-forge/资产/novel-writer交接格式": "plan-outline",
+    "inspiration-forge/资产/交接契约": "plan-foundation",
+    "inspiration-forge/资产/命名": "plan-foundation",
+    "inspiration-forge/资产/幕转章纲": "plan-structure",
+    "inspiration-forge/资产/拆解/幕骨架模板": "plan-structure",
+    "inspiration-forge/资产/案例/这座山归我了-规划": "examples-plan",
+    "inspiration-forge/资产/案例/雾港旧声铺-规划": "examples-plan",
+    "inspiration-forge/资产/案例/黄金三章快启动示例-快爽档": "plan-outline",
+    "inspiration-forge/资产/模板/act_outline": "templates-plan",
+    "inspiration-forge/资产/模板/change_proposal": "templates-plan",
+    "inspiration-forge/资产/模板/chapter_outline": "templates-plan",
+    "inspiration-forge/资产/模板/character": "templates-plan",
+    "inspiration-forge/资产/模板/current_state": "templates-plan",
+    "inspiration-forge/资产/模板/faction": "templates-plan",
+    "inspiration-forge/资产/模板/item": "templates-plan",
+    "inspiration-forge/资产/模板/location": "templates-plan",
+    "inspiration-forge/资产/模板/promise": "templates-plan",
+    "inspiration-forge/资产/模板/rule": "templates-plan",
+    "inspiration-forge/资产/模板/spine": "templates-plan",
+    "inspiration-forge/资产/模板/story_foundation": "templates-plan",
+    "inspiration-forge/资产/模板/threads": "templates-plan",
+    "inspiration-forge/资产/模板/timeline": "templates-plan",
+    "inspiration-forge/资产/模板/volume_outline": "templates-plan",
+    "inspiration-forge/资产/模板/world": "templates-plan",
+    "inspiration-forge/资产/模板/判据总表": "library",
+    "inspiration-forge/资产/番茄平台": "plan-foundation",
+    "inspiration-forge/资产/章纲示例": "plan-outline",
+    "inspiration-forge/资产/索引层": "plan-outline",
+    "inspiration-forge/资产/结构形状": "plan-structure",
+    "inspiration-forge/资产/规模参数": "plan-structure",
+    "inspiration-forge/资产/题材包": "plan-foundation",
+    "inspiration-forge/资产/题材红线": "plan-foundation",
+    "novel-writer/SKILL": "overview",
+    "novel-writer/assets/examples/fanqie_outline_example": "examples-plan",
+    "novel-writer/assets/examples/setting_choices_example": "examples-plan",
+    "novel-writer/assets/examples/三组修订示例": "examples-write",
+    "novel-writer/assets/examples/两张车票": "examples-write",
+    "novel-writer/assets/examples/借你这一拳": "examples-write",
+    "novel-writer/assets/examples/反AI腔与番茄高张力人味重塑对照集": "examples-write",
+    "novel-writer/assets/examples/多人场面与公开方案": "scene",
+    "novel-writer/assets/examples/掌柜说它会招财": "examples-write",
+    "novel-writer/assets/examples/答案、后果与喜剧声音": "examples-write",
+    "novel-writer/assets/examples/这座山归我了-C001": "examples-write",
+    "novel-writer/assets/examples/这座山归我了-C002": "examples-write",
+    "novel-writer/assets/examples/这座山归我了-C003": "examples-write",
+    "novel-writer/assets/examples/这座山归我了-正文与审改": "rhythm",
+    "novel-writer/assets/examples/雾港旧声铺-C001": "examples-write",
+    "novel-writer/assets/examples/雾港旧声铺-C002": "examples-write",
+    "novel-writer/assets/examples/雾港旧声铺-C003": "examples-write",
+    "novel-writer/assets/examples/雾港旧声铺-C004": "examples-write",
+    "novel-writer/assets/examples/雾港旧声铺-C005": "examples-write",
+    "novel-writer/assets/examples/雾港旧声铺-正文与审改": "continuity",
+    "novel-writer/assets/examples/高张力场景与审改": "examples-write",
+    "novel-writer/assets/templates/act_outline": "templates-plan",
+    "novel-writer/assets/templates/chapter_outline": "templates-plan",
+    "novel-writer/assets/templates/constraints": "templates-write",
+    "novel-writer/assets/templates/current_state": "templates-write",
+    "novel-writer/assets/templates/editor_agent": "templates-write",
+    "novel-writer/assets/templates/plan": "templates-plan",
+    "novel-writer/assets/templates/story_foundation": "templates-plan",
+    "novel-writer/assets/templates/summary": "templates-write",
+    "novel-writer/assets/templates/volume_outline": "templates-plan",
+    "novel-writer/assets/templates/volume_rehearsal": "templates-plan",
+    "novel-writer/assets/templates/volume_summary": "templates-write",
+    "novel-writer/assets/templates/writing_style": "templates-write",
+    "novel-writer/assets/templates/writing_style_default": "prose",
+    "novel-writer/references/continuity": "continuity",
+    "novel-writer/references/dispatch": "overview",
+    "novel-writer/references/editor_method": "edit",
+    "novel-writer/references/fanqie_platform": "platform",
+    "novel-writer/references/handoff_contract": "rhythm",
+    "novel-writer/references/pipeline_handoff": "write-chapter",
+    "novel-writer/references/project_layout": "overview",
+    "novel-writer/references/prose_craft": "prose",
+    "novel-writer/references/revision": "revise",
+    "novel-writer/references/rhythm": "rhythm",
+    "novel-writer/references/roles": "overview",
+    "novel-writer/references/scene_craft": "scene",
+    "novel-writer/references/serial_orientation": "plan-structure",
+    "novel-writer/references/story_craft": "plan-foundation",
+    "novel-writer/references/structure_craft": "plan-structure",
+    "novel-writer/references/writing": "write-chapter"
+  }
+}

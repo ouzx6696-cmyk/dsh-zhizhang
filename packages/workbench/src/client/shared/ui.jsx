@@ -158,6 +158,8 @@ export const StateDot = pick("StateDot", LocalStateDot);
 export const SegmentedControl = pick("SegmentedControl", LocalSegmentedControl);
 export const Checkbox = pick("Checkbox", LocalCheckbox);
 export const Modal = pick("Modal", LocalModal);
+/** 写作台自己的弹窗（宽版布局用，不换成宿主组件） */
+export const PanelModal = LocalModal;
 export { cx };
 
 /** 挂到 document.body（宿主提供 react-dom 时）；否则原地渲染 */
@@ -176,6 +178,10 @@ const ICONS = {
   pause: ["M9 5v14", "M15 5v14"],
   play: ["M7 5l12 7-12 7z"],
   close: ["M6 6l12 12", "M18 6L6 18"],
+  layers: ["M12 2l10 5-10 5L2 7z", "M2 12l10 5 10-5", "M2 17l10 5 10-5"],
+  trash: ["M3 6h18", "M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2", "M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"],
+  upload: ["M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4", "M17 8l-5-5-5 5", "M12 3v12"],
+  undo: ["M9 14L4 9l5-5", "M4 9h10.5a5.5 5.5 0 0 1 0 11H11"],
   minus: ["M5 12h14"],
   plus: ["M12 5v14", "M5 12h14"],
   search: ["M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14z", "M20 20l-3.5-3.5"],

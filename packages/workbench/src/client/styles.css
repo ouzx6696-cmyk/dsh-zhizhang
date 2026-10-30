@@ -827,3 +827,73 @@
   .wb-card:hover { box-shadow: var(--wb-shadow-2); transform: translateY(-1px); }
   .wb-row-button:hover { background: var(--wb-hover); }
 }
+
+/* ---------- 方法方案 ---------- */
+.wb-profile-button { gap: 6px; }
+.wb-profile-button-name {
+  max-width: 8em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  padding: 0 6px; border-radius: var(--wb-r-xs); background: var(--wb-accent-soft); color: var(--wb-fg);
+  font: var(--dsw-font-xxs-12, 12px/18px system-ui, sans-serif);
+}
+.wb-modal.wb-modal-wide { width: min(1180px, 100%); height: min(780px, calc(100% - 32px)); display: flex; flex-direction: column; }
+.wb-modal-wide .wb-modal-content { flex: 1 1 auto; min-height: 0; padding-bottom: 20px; }
+.wb-modal-wide .wb-modal-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+.wb-pf-grid { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 220px 300px minmax(0, 1fr); gap: 12px; }
+.wb-pf-col { min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+.wb-pf-span { grid-column: 2 / 4; overflow: auto; }
+.wb-pf-list, .wb-pf-methods-list { display: flex; flex-direction: column; gap: 4px; overflow: auto; min-height: 0; }
+.wb-pf-profiles .wb-pf-list { flex: 1 1 auto; }
+.wb-pf-item, .wb-pf-method {
+  width: 100%; text-align: left; border: 0; cursor: pointer; color: var(--wb-fg);
+  background: transparent; border-radius: var(--wb-r-sm); padding: 8px 10px;
+  display: flex; flex-direction: column; gap: 2px;
+  transition: background-color 160ms var(--wb-ease, ease), box-shadow 160ms var(--wb-ease, ease);
+}
+.wb-pf-item-on, .wb-pf-method-on { background: var(--wb-accent-soft); box-shadow: inset 2px 0 0 var(--wb-accent); }
+.wb-pf-item-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.wb-pf-item-name { font: var(--dsw-font-s-strong-14, 600 14px/22px system-ui, sans-serif); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-pf-item-meta { display: flex; flex-wrap: wrap; gap: 8px; color: var(--wb-fg-3); font: var(--dsw-font-xxs-12, 12px/18px system-ui, sans-serif); }
+.wb-pf-item-note { color: var(--wb-fg-2); font: var(--dsw-font-xxs-12, 12px/18px system-ui, sans-serif); }
+.wb-pf-new-button { align-self: flex-start; }
+.wb-pf-head { display: flex; flex-direction: column; gap: 6px; }
+.wb-pf-subhead { font: var(--dsw-font-base-strong-16, 600 16px/24px system-ui, sans-serif); }
+.wb-pf-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: flex-end; }
+.wb-pf-head .wb-pf-actions { justify-content: flex-start; }
+.wb-pf-search { display: flex; align-items: center; gap: 6px; color: var(--wb-fg-3); }
+.wb-pf-methods { border-left: 0.5px solid var(--wb-line); border-right: 0.5px solid var(--wb-line); padding: 0 12px; }
+.wb-pf-methods-list { flex: 1 1 auto; }
+.wb-pf-method { flex-direction: row; align-items: center; justify-content: space-between; padding: 6px 10px; }
+.wb-pf-method-text { display: flex; flex-direction: column; min-width: 0; }
+.wb-pf-method-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--dsw-font-xs-13, 13px/20px system-ui, sans-serif); }
+.wb-pf-method-id { color: var(--wb-fg-3); font: 11px/16px ui-monospace, SFMono-Regular, Menlo, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-pf-empty { padding: 12px; text-align: center; }
+.wb-pf-add { margin-top: 4px; }
+.wb-pf-editor-head { display: flex; align-items: center; gap: 8px; }
+.wb-pf-editor-id { font: 600 13px/20px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.wb-pf-textarea, .wb-pf-base {
+  flex: 1 1 auto; min-height: 160px; width: 100%; resize: none; margin: 0;
+  padding: 12px 14px; border-radius: var(--wb-r-md);
+  border: 0.5px solid var(--wb-line-strong); background: var(--wb-layer); color: var(--wb-fg);
+  font: 13px/1.75 ui-monospace, SFMono-Regular, Menlo, "PingFang SC", "Noto Sans SC", monospace;
+  white-space: pre-wrap; overflow: auto;
+}
+.wb-pf-textarea[readonly] { background: var(--wb-hover); }
+.wb-pf-base { flex: 0 1 40%; color: var(--wb-fg-2); }
+.wb-pf-placeholder { flex: 1 1 auto; justify-content: center; color: var(--wb-fg-3); }
+.wb-pf-new { display: flex; flex-direction: column; gap: 12px; max-width: 560px; }
+.wb-file-button {
+  position: relative; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; cursor: pointer;
+  border-radius: var(--wb-r-sm); box-shadow: inset 0 0 0 0.5px var(--wb-line-strong);
+  font: var(--dsw-font-xs-strong-13, 500 13px/20px system-ui, sans-serif);
+}
+.wb-file-button input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+@media (hover: hover) {
+  .wb-pf-item:not(.wb-pf-item-on):hover, .wb-pf-method:not(.wb-pf-method-on):hover, .wb-file-button:hover { background: var(--wb-hover); }
+}
+@media (max-width: 900px) {
+  .wb-pf-grid { grid-template-columns: 1fr; overflow: auto; }
+  .wb-pf-span { grid-column: auto; }
+  .wb-pf-methods { border: 0; padding: 0; }
+  .wb-pf-list, .wb-pf-methods-list { max-height: 220px; }
+  .wb-pf-textarea { min-height: 320px; }
+}

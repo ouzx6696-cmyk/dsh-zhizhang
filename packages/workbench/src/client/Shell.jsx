@@ -5,6 +5,7 @@ import { PREF, oneOf, readPref, writePref } from "./shared/prefs.js";
 import { SegmentedControl } from "./shared/ui.jsx";
 import { FanqieApp } from "./fanqie/FanqieApp.jsx";
 import { ToutiaoApp } from "./toutiao/ToutiaoApp.jsx";
+import { ProfilesButton } from "./shared/Profiles.jsx";
 
 const { useCallback, useState } = React;
 const MODES = ["fanqie", "toutiao"];
@@ -16,6 +17,8 @@ export function Shell() {
   const [mode, setMode] = useState(() => oneOf(readPref(PREF.mode, "fanqie"), MODES, "fanqie"));
   const change = useCallback((m) => { setMode(m); writePref(PREF.mode, m); }, []);
   const modeSwitch = (
+    <>
+    <ProfilesButton key={mode} mode={mode} />
     <SegmentedControl
       id="wb-mode"
       label={t("modeLabel")}
@@ -27,6 +30,7 @@ export function Shell() {
       onChange={change}
       className="wb-mode-switch"
     />
+    </>
   );
   return mode === "toutiao" ? <ToutiaoApp modeSwitch={modeSwitch} version={VERSION} /> : <FanqieApp modeSwitch={modeSwitch} version={VERSION} />;
 }

@@ -6,8 +6,8 @@ export const FANQIE_BRIEF = `# 番茄长篇（写作 Agent 补充规则）
 
 ## 每章的默认路线
 1. 动笔前：fanqie_outline_check（chapters=本章）章纲 8 字段齐全、无占位，再 fanqie_chapter_brief。
-2. 写：按默认链出候选、采纳为草稿（采纳不等于定稿）。方法看 fanqie_forge_get（novel-writer/references/writing、rhythm、prose_craft）。
-3. 审：有 subagent 工具时派编辑子代理，提示词写"【长篇编辑任务】先调用 writer_enable，参数 mode=fanqie、role=editor；作品=…；章=…；按 novel-writer/references/editor_method 审读，用 fanqie_review_report 回报"。没有就自己按 editor_method 审，同样用 fanqie_review_report 记下。
+2. 写：按默认链出候选、采纳为草稿（采纳不等于定稿）。方法看 fanqie_forge_get（write-chapter、rhythm、prose；先看 overview）。
+3. 审：有 subagent 工具时派编辑子代理，提示词写"【长篇编辑任务】先调用 writer_enable，参数 mode=fanqie、role=editor；作品=…；章=…；按 fanqie_forge_get edit 审读，用 fanqie_review_report 回报"。没有就自己按 edit 审，同样用 fanqie_review_report 记下。
 4. 核旧账：改过正文后 fanqie_ledger_check（本章，默认连带上一章）。
 5. 定稿：fanqie_chapter_save status=final 会弹作者确认；force 覆盖定稿同样要作者确认。作者没点头不得定稿。作者也可以自己在写作台定稿，你只需告诉他审读结论。
 
@@ -20,7 +20,7 @@ export const FANQIE_EDITOR_BRIEF = `# 长篇编辑（审读）
 
 你是独立编辑，只审不定稿。采纳、定稿、改根基或章纲、入库这些长篇工具对你一律关闭。
 
-1. fanqie_chapter_read 取本章正文与章纲；必要时读上一章。fanqie_forge_get novel-writer/references/editor_method 取方法。
+1. fanqie_chapter_read 取本章正文与章纲；必要时读上一章。fanqie_forge_get edit 取方法。
 2. 先查四类硬伤：关键剧情与落点、本书硬约束、人物认知、正文接续。再按 L1 结构与单元 / L2 场面与交锋 / L3 句面与声音 定位病灶。
 3. 辅助：fanqie_style_lint（语感雷达 + forge 正文体检，一次看全）、fanqie_ledger_check（本章）。命中只是线索，有症状才算问题。
 4. 需要改稿时只出编辑候选（fanqie_candidate_edit_brief → fanqie_candidate_edit_stage），不替作者采纳。

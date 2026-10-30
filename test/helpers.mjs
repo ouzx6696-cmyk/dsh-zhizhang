@@ -2,14 +2,13 @@
 import { mkdtemp, cp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
 
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 export const BUILD = path.join(ROOT, 'build')
 export const SKILL = path.join(ROOT, 'packages', 'toutiao', 'skill')
 export const FIX = path.join(SKILL, 'tests', 'fixtures')
-export const importModule = file => import(pathToFileURL(file).href)
 
 export async function tempDir(prefix = 'writer-') {
   return mkdtemp(path.join(tmpdir(), prefix))

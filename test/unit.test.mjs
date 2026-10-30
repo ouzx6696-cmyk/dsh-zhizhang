@@ -2,15 +2,15 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import path from 'node:path'
 import { readFile } from 'node:fs/promises'
-import { BUILD, FIX, tempDir, importModule } from './helpers.mjs'
+import { BUILD, FIX, tempDir } from './helpers.mjs'
 
-const { resolveInside, serialize, atomicWrite, readJson } = await importModule(path.join(BUILD, 'core/src/fsx.js'))
-const { parseContract, locatePython, runScript } = await importModule(path.join(BUILD, 'core/src/runner.js'))
-const { createGateEngine } = await importModule(path.join(BUILD, 'core/src/gates.js'))
-const { checkCard } = await importModule(path.join(BUILD, 'toutiao/src/card.js'))
-const { ArticleStore, canTransition } = await importModule(path.join(BUILD, 'toutiao/src/store.js'))
-const { getMethod, METHOD_FILES } = await importModule(path.join(BUILD, 'toutiao/src/methods.js'))
-const { TOUTIAO_BRIEF } = await importModule(path.join(BUILD, 'toutiao/src/brief.js'))
+const { resolveInside, serialize, atomicWrite, readJson } = await import(path.join(BUILD, 'core/src/fsx.js'))
+const { parseContract, locatePython, runScript } = await import(path.join(BUILD, 'core/src/runner.js'))
+const { createGateEngine } = await import(path.join(BUILD, 'core/src/gates.js'))
+const { checkCard } = await import(path.join(BUILD, 'toutiao/src/card.js'))
+const { ArticleStore, canTransition } = await import(path.join(BUILD, 'toutiao/src/store.js'))
+const { getMethod, METHOD_FILES } = await import(path.join(BUILD, 'toutiao/src/methods.js'))
+const { TOUTIAO_BRIEF } = await import(path.join(BUILD, 'toutiao/src/brief.js'))
 
 test('resolveInside 拒绝越界', () => {
   assert.equal(resolveInside('/a/b', 'c'), path.resolve('/a/b/c'))

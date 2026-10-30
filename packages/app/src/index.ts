@@ -14,13 +14,15 @@ import {
 } from '../../host/src/index.js'
 import { MODE_LABEL, MODES, modes, type Mode } from '../../core/src/mode.js'
 import { setPromptSink } from '../../core/src/sessions.js'
-import { registerWorkbench, type WorkbenchAccess } from '../../workbench/src/server.js'
+import { setProfilesRoot } from '../../core/src/profiles.js'
+import { profileRoutes } from '../../core/src/profile-api.js'
+import { API, registerWorkbench, type WorkbenchAccess, type WorkbenchMode } from '../../workbench/src/server.js'
 import {
-  mountToutiao, parseToutiaoConfig, toutiaoApi, toutiaoNext, TOUTIAO_BRIEF, TOUTIAO_EDITOR_BRIEF,
+  mountToutiao, parseToutiaoConfig, toutiaoApi, toutiaoLibrary, toutiaoNext, TOUTIAO_BRIEF, TOUTIAO_EDITOR_BRIEF,
   type Role, type ToutiaoConfig,
 } from '../../toutiao/src/index.js'
 import {
-  configureFanqie, fanqieApi, fanqieNext, mountFanqie, parseFanqieConfig, FANQIE_BRIEF, FANQIE_EDITOR_BRIEF,
+  configureFanqie, fanqieApi, fanqieLibrary, fanqieNext, mountFanqie, parseFanqieConfig, FANQIE_BRIEF, FANQIE_EDITOR_BRIEF,
   type FanqieConfig,
 } from '../../fanqie/src/index.js'
 
@@ -33,6 +35,8 @@ export interface WriterConfig {
   toutiao?: ToutiaoConfig
   fanqie?: FanqieConfig
   workbench?: WorkbenchAccess
+  /** 方法方案（用户方案与当前选择）存放目录；默认 $DSH_HOME/writer/profiles */
+  profilesDir?: string
 }
 
 type Issue = { message: string; path: (string | number)[] }
@@ -58,8 +62,9 @@ export const Config = {
       const v = (input ?? {}) as Record<string, unknown>
       if (typeof v !== 'object' || Array.isArray(v)) return { issues: [{ message: '插件配置必须是对象' }] }
       const issues: Issue[] = []
-      for (const k of Object.keys(v)) if (!['python', 'toutiao', 'fanqie', 'workbench'].includes(k)) issues.push({ message: `${k} 不是有效配置项：只认 python、toutiao、fanqie、workbench（见 INSTALL.md）`, path: [k] })
+      for (const k of Object.keys(v)) if (!['python', 'toutiao', 'fanqie', 'workbench', 'profilesDir'].includes(k)) issues.push({ message: `${k} 不是有效配置项：只认 python、toutiao、fanqie、workbench、profilesDir（见 INSTALL.md）`, path: [k] })
       if (v.python !== undefined && typeof v.python !== 'string') issues.push({ message: 'python 应为字符串', path: ['python'] })
+      if (v.profilesDir !== undefined && typeof v.profilesDir !== 'string') issues.push({ message: 'profilesDir 应为字符串', path: ['profilesDir'] })
       const t = parseToutiaoConfig(v.toutiao), f = parseFanqieConfig(v.fanqie), w = parseAccess(v.workbench)
       issues.push(...t.issues, ...f.issues, ...w.issues)
       if (issues.length) return { issues }
@@ -118,8 +123,13 @@ export function apply(ctx: HostContext, config: WriterConfig = {}) {
   toutiao.python ??= config.python
   fanqie.python ??= config.python
   configureFanqie(fanqie)
+  setProfilesRoot(config.profilesDir)
   ctx.tools?.register(makeWriterEnable(ctx, toutiao, fanqie))
   onPreExecute(ctx, exec => modes.gate(exec))
-  registerWorkbench(ctx, config.workbench ?? {}, [toutiaoApi(toutiao), fanqieApi(fanqie)])
+  const profiles: WorkbenchMode[] = [
+    profileRoutes(`${API}/toutiao`, toutiaoLibrary, () => toutiao.profile),
+    profileRoutes(`${API}/fanqie`, fanqieLibrary, () => fanqie.profile),
+  ]
+  registerWorkbench(ctx, config.workbench ?? {}, [toutiaoApi(toutiao), fanqieApi(fanqie), ...profiles])
   provideSessionPrompt(ctx, sink => setPromptSink(sink), 'dsh-writer: workbench delivery')
 }

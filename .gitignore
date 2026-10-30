@@ -8,3 +8,5 @@ __pycache__/
 outputs/
 bundle/skill-fanqie/
 bundle/scripts/
+bundle/assets/
+bundle/profiles/

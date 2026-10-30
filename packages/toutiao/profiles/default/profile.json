@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 1,
+  "id": "default",
+  "name": "默认",
+  "mode": "toutiao",
+  "note": "插件精炼版：从原版提炼重写，去重、去空话，对齐质检规则与工具",
+  "methods": [
+    {
+      "id": "overview",
+      "title": "头条写作总览：从哪步起、每步做好的关键"
+    },
+    {
+      "id": "s1-hot",
+      "title": "S1 热点雷达（资讯线找题）"
+    },
+    {
+      "id": "s1-evergreen",
+      "title": "S1 常青题与节点（故事线为主）"
+    },
+    {
+      "id": "s2-selection",
+      "title": "S2 立项：打分、定骨架、填立项卡"
+    },
+    {
+      "id": "s3-headline",
+      "title": "S3 标题：五个母体各一版，四问排序"
+    },
+    {
+      "id": "s4-common",
+      "title": "S4 共用写法：两条线都要守的"
+    },
+    {
+      "id": "s4-news",
+      "title": "S4 资讯线写法"
+    },
+    {
+      "id": "s4-story",
+      "title": "S4 故事线写法"
+    },
+    {
+      "id": "s4-micro",
+      "title": "S4 微头条写法（两条线都能用）"
+    },
+    {
+      "id": "s5-editing",
+      "title": "S5 红笔：去 AI 味、找回人味（16 病型 + 故事线 4 病型）"
+    },
+    {
+      "id": "s6-qa",
+      "title": "S6 质检：跑工具、读结果、定向改"
+    },
+    {
+      "id": "s7-delivery",
+      "title": "S7 交稿、声明与反馈"
+    },
+    {
+      "id": "template-card",
+      "title": "立项卡模板（JSON，沿用原版）",
+      "fallback": "original"
+    },
+    {
+      "id": "template-delivery",
+      "title": "交稿单：[主标题]"
+    },
+    {
+      "id": "corpus-common",
+      "title": "语料：通用底座"
+    },
+    {
+      "id": "corpus-benchmark",
+      "title": "语料：标杆稿解剖"
+    },
+    {
+      "id": "corpus-story-motifs",
+      "title": "语料：故事线母题库"
+    },
+    {
+      "id": "corpus-story-texture",
+      "title": "语料：故事线写法质感"
+    },
+    {
+      "id": "corpus-民生社保",
+      "title": "语料：民生社保"
+    },
+    {
+      "id": "corpus-职场就业",
+      "title": "语料：职场就业"
+    },
+    {
+      "id": "corpus-房产楼市",
+      "title": "语料：房产楼市"
+    },
+    {
+      "id": "corpus-教育升学",
+      "title": "语料：教育升学"
+    },
+    {
+      "id": "corpus-健康养老",
+      "title": "语料：健康养老"
+    },
+    {
+      "id": "corpus-三农乡土",
+      "title": "语料：三农乡土"
+    },
+    {
+      "id": "corpus-情感家庭",
+      "title": "语料：情感家庭"
+    },
+    {
+      "id": "corpus-财经理财",
+      "title": "语料：财经理财"
+    },
+    {
+      "id": "corpus-汽车出行",
+      "title": "语料：汽车出行"
+    },
+    {
+      "id": "corpus-科技数码",
+      "title": "语料：科技数码"
+    },
+    {
+      "id": "corpus-社会观察",
+      "title": "语料：社会观察"
+    },
+    {
+      "id": "corpus-文旅消费",
+      "title": "语料：文旅消费"
+    }
+  ]
+}

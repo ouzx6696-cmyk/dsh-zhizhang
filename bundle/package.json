@@ -1,6 +1,6 @@
 {
   "name": "dsh-writer",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "写作 Agent：按需启用的 DSH 插件，一个触发工具 writer_enable 按模式启用。今日头条（立项卡、版本化稿件、规则质检硬闸、状态机与作者确认、交稿单、台账）+ 番茄长篇（作品存储与创作工具链、forge 方法、章纲与旧账检查、编辑审读回报、定稿门禁）；写作工作台两种模式共用，一键续写 / 派编辑 / 按回报修改。",
   "type": "module",
   "main": "./dist/index.js",
@@ -14,6 +14,8 @@
     "skill",
     "skill-fanqie",
     "scripts",
+    "assets",
+    "profiles",
     "cordis.patch.yml",
     "README.md"
   ],
