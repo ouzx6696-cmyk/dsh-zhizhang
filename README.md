@@ -48,3 +48,5 @@ npm run pack
 ```
 
 `npm test` 运行项目自带的架构、规则、工具和引擎检查；`npm run pack` 将安装包放入 `dist-pack/`。DSH 宿主集成检查见 [DSH 接口](docs/DSH.md)。
+
+发布时先创建 Release 草稿，再运行 GitHub Actions 的 `release` 工作流并填写标签；工作流从选定提交打包、上传校验文件并发布。
