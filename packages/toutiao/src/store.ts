@@ -1,5 +1,5 @@
 /**
- * 头条文章存储（dev-plan §5.2）。目录布局与 toutiao-viral-writer 4.0.0 兼容：
+ * 头条文章存储。目录布局：
  *
  *   <root>/                       默认 <会话 cwd>/outputs/toutiao
  *     log.csv                     发稿台账（由 Python ledger 读写，格式不变）
@@ -13,7 +13,7 @@
  */
 import { readdir } from 'node:fs/promises'
 import path from 'node:path'
-import { WriterError } from '../../dsh-adapter/src/index.js'
+import { WriterError } from '../../host/src/index.js'
 import { atomicWrite, exists, readJson, readText, resolveInside, serialize, sha256 } from '../../core/src/fsx.js'
 
 export const STATUSES = ['初稿待改', '待验收', '已验收', '验收退回', '已交稿'] as const
@@ -29,7 +29,6 @@ export interface DraftRecord { rev: number; role: string; sha256: string; chars:
 export interface QaRecord {
   rev: number; sha256: string; pass: boolean; score: number; hard_gates: string[]
   fail_count: number; rules_version: string; card_sha256: string | null; at: string
-  by?: 'writer' | 'editor'
 }
 export interface HistoryRecord { from: Status | null; to: Status; by: string; at: string; note?: string }
 

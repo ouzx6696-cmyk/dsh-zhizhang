@@ -4,7 +4,6 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "strict": true,
-    "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
     "skipLibCheck": true,
     "declaration": false,
@@ -13,12 +12,12 @@
       "node"
     ],
     "rootDir": "packages",
-    "outDir": "build"
+    "outDir": "build",
+    "noUnusedLocals": true,
+    "noUnusedParameters": false,
+    "resolveJsonModule": true
   },
   "include": [
     "packages/*/src/**/*.ts"
-  ],
-  "exclude": [
-    "packages/zhizhang"
   ]
 }

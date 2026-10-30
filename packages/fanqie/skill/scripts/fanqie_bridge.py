@@ -6,7 +6,7 @@
 stdout 只输出一个 JSON 对象，含 tool / rules_version / ok。原脚本一行不改，这里只做适配。
 
 子命令：
-  outline <input.json>                 章纲字段检查（织章章纲 ↔ forge 章纲接口一一对应）
+  outline <input.json>                 章纲字段检查（长篇章纲 ↔ forge 章纲接口一一对应）
   ledger  <file> [<file> ...]          跨文档数字与时间对照（ledger_check.scan）
   lint    <long_para> <file> [...]     正文体检（manuscript_linter.lint_file）
   scan    <file> <top> <keywords>      长篇测绘（novel_scanner.scan_novel）
@@ -32,7 +32,7 @@ import manuscript_linter  # noqa: E402
 import novel_scanner  # noqa: E402
 import quote_check  # noqa: E402
 
-# 织章章纲字段 → forge 章纲接口（check_outline.BLOCKS / FIELDS）
+# 长篇章纲字段 → forge 章纲接口（check_outline.BLOCKS / FIELDS）
 FIELD_MAP = [
     ('synopsis', '剧情梗概'),
     ('conflict', '核心冲突与看点'),

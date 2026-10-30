@@ -1,29 +1,29 @@
 {
   "name": "writer-agent",
-  "version": "0.5.0",
+  "version": "0.7.0",
   "private": true,
-  "description": "写作 Agent：DSH 插件形态的番茄长篇 + 今日头条写作工具链",
+  "description": "写作 Agent：DSH 插件，一个入口两种写作模式（今日头条 / 番茄长篇）+ 写作台",
   "type": "module",
   "engines": {
-    "node": ">=24.9 <25"
+    "node": ">=22"
   },
   "scripts": {
-    "build": "node scripts/build-bundle.mjs",
-    "check": "node scripts/check.mjs",
-    "test": "node scripts/check.mjs",
-    "test:dsh": "pnpm build:test && node --test test/dsh-real.test.mjs",
-    "test:host": "node scripts/test-host.mjs",
-    "pack:bundle": "pnpm build && node -e \"require('fs').mkdirSync('dist-pack',{recursive:true})\" && cd bundle && pnpm pack --pack-destination ../dist-pack",
-    "build:zhizhang": "tsc -p tsconfig.adapter.json && tsc -p packages/zhizhang/tsconfig.json && node packages/zhizhang/scripts/build-client.mjs",
-    "build:test": "pnpm build:zhizhang && tsc -p tsconfig.test.json && node scripts/link-test-zhizhang.mjs",
     "guard": "node scripts/architecture-guard.mjs",
-    "typecheck": "pnpm build:zhizhang && tsc -p tsconfig.json --noEmit",
-    "test:rules": "python packages/toutiao/skill/tests/test_gates.py"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.json && node scripts/build-client.mjs",
+    "test:py": "python packages/toutiao/skill/tests/test_gates.py && python packages/fanqie/skill/tests/test_bridge.py",
+    "test:node": "npm run build && node scripts/build-bundle.mjs && node --test --import ./test/setup.mjs test/*.test.mjs test/engine/*.test.mjs",
+    "test": "npm run guard && npm run test:py && npm run test:node",
+    "test:dsh": "npm run build && node --test --import ./test/setup.mjs test/dsh/*.test.mjs",
+    "test:e2e": "node test/e2e/run-toutiao.mjs",
+    "test:e2e:fanqie": "node test/e2e/run-fanqie.mjs",
+    "test:all": "npm test && npm run test:dsh && npm run test:e2e && npm run test:e2e:fanqie",
+    "bundle": "node scripts/build-bundle.mjs",
+    "pack": "npm run bundle && node -e \"require('fs').mkdirSync('dist-pack',{recursive:true})\" && cd bundle && npm pack --pack-destination ../dist-pack"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
     "esbuild": "^0.28.2",
-    "typescript": "5.8.3"
-  },
-  "packageManager": "pnpm@11.25.0"
+    "typescript": "~5.8.3"
+  }
 }

@@ -2,7 +2,7 @@
 import { mkdir, readFile, rename, writeFile, rm, stat } from 'node:fs/promises'
 import { randomBytes, createHash } from 'node:crypto'
 import path from 'node:path'
-import { WriterError } from '../../dsh-adapter/src/index.js'
+import { WriterError } from '../../host/src/index.js'
 
 /** 把 rel 解析到 root 下；越界（含 .. 与绝对路径跳出）抛 OUT_OF_ROOT。 */
 export function resolveInside(root: string, ...rel: string[]): string {

@@ -2,10 +2,11 @@
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { WriterError } from '../../dsh-adapter/src/index.js'
+import { WriterError } from '../../host/src/index.js'
 import { readText } from '../../core/src/fsx.js'
 
 export const METHOD_FILES: Record<string, string> = {
+  'overview': 'SKILL.md',
   's1-hot': 'references/s1-hot.md',
   's1-evergreen': 'references/s1-evergreen.md',
   's2-selection': 'references/s2-selection.md',

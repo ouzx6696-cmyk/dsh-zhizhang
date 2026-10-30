@@ -1,6 +1,6 @@
-/** 头条门禁规则（dev-plan §5.3）。工具内另有同等复核，门禁失效也不会被绕过。 */
-import type { HostContext } from '../../dsh-adapter/src/index.js'
-import type { GateRule } from '../../gates/src/index.js'
+/** 头条门禁规则。工具内另有同等复核，门禁失效也不会被绕过。 */
+import type { HostContext } from '../../host/src/index.js'
+import type { GateRule } from '../../core/src/gates.js'
 import { storeFor, type ToutiaoConfig } from './env.js'
 import { MAX_RETURN_ROUNDS } from './store.js'
 import { validPassingQa } from './tools.js'

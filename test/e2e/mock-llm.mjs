@@ -1,7 +1,7 @@
 // 假模型服务器：说 DeepSeek（Anthropic 兼容）Messages SSE 协议，按脚本依次发出工具调用。
 // node mock-llm.mjs <port> <script.json> [log]
 // script.json：{ "main": [...], "editor": [...] }（或直接一个数组 = main）。
-//   会话首条用户消息含“【编辑任务】”走 editor 脚本，否则走 main。
+//   会话首条用户消息含“编辑任务】”（【编辑任务】【头条编辑任务】【长篇编辑任务】）走 editor 脚本，否则走 main。
 //   步骤是 {name, input} 或 "WAIT"：WAIT 处先回一句文字结束本轮，等到之后出现新的用户消息（如子代理完成通知）再往下走。
 import http from 'node:http'
 import { readFileSync, appendFileSync } from 'node:fs'
@@ -41,7 +41,7 @@ http.createServer((req, res) => {
     const msg = JSON.parse(body)
     const msgs = msg.messages ?? []
     const firstUser = textOf(msgs.find(m => m.role === 'user')?.content)
-    const role = firstUser.includes('【编辑任务】') ? 'editor' : 'main'
+    const role = /编辑任务】/.test(firstUser) ? 'editor' : 'main'
     const script = scripts[role] ?? []
     // 统计工具结果与“最后一个工具结果之后的新用户文字”
     const results = []
@@ -66,7 +66,7 @@ http.createServer((req, res) => {
     const last = results.at(-1)
     const c = last ? textOf(last.content) || String(last.content ?? '') : ''
     L(`[${role}] step ${results.length} ${last ? (last.is_error ? 'ERR ' : 'OK ') + c.slice(0, 300).replace(/\n/g, ' ') : ''}`)
-    if (results.length === 0) L(`[${role}] tools: ${(msg.tools ?? []).map(t => t.name).filter(n => n.startsWith('toutiao') || n === 'subagent').join(',')}`)
+    if (results.length === 0) L(`[${role}] tools: ${(msg.tools ?? []).map(t => t.name).filter(n => /^(toutiao_|fanqie_|writer_enable$|subagent$)/.test(n)).join(',')}`)
     L(`[${role}] brief-in-messages: ${JSON.stringify(msgs).includes('四条铁律')} editor-brief: ${JSON.stringify(msgs).includes('你是独立编辑')}`)
     const usage = { input_tokens: 10, output_tokens: 5 }
     const head = [{ type: 'message_start', message: { id: `msg_${Date.now()}`, type: 'message', role: 'assistant', model: msg.model, content: [], usage } }]

@@ -7,9 +7,4 @@ __pycache__/
 *.tgz
 outputs/
 bundle/skill-fanqie/
-
-packages/zhizhang/dist/
-packages/dsh-adapter/dist/
-bundle/licenses/
-
-.writer/
+bundle/scripts/

@@ -1,14 +1,12 @@
-/** 番茄长篇工具：读取作品、运行写作规则并保存版本化审读回报。 */
+/** 写作层工具：forge 方法、章纲检查、旧账对照、拆书测绘、引文核对、编辑审读回报。只读作品，不写正文。 */
 import path from 'node:path'
 import { stat } from 'node:fs/promises'
-import { defineWriterTool, sessionCwd, WriterError, type HostToolDefinition, type HostToolExecution, type JsonSchemaNode } from '../../dsh-adapter/src/index.js'
-import { resolveInside } from '../../core/src/fsx.js'
-import {
-  bridge, HARD_CATEGORIES, latestReview, LEVELS, renderReview, saveReview, VERDICTS, withTempFiles,
-  type FanqieConfig, type ReviewReport,
-} from './env.js'
-import { getFanqieMethod, KEY_METHODS, listMethods } from './methods.js'
-import { openWork, pickChapters, readChapter, worksRoot, type ChapterRecord } from './zhizhang.js'
+import { defineWriterTool, sessionCwd, WriterError, type HostToolDefinition, type HostToolExecution, type JsonSchemaNode } from '../../host/src/index.js'
+import { nowIso, resolveInside } from '../../core/src/fsx.js'
+import { bridge, getFanqieMethod, KEY_METHODS, listMethods, withTempFiles } from './forge.js'
+import { HARD_CATEGORIES, latestReview, LEVELS, renderReview, saveReview, VERDICTS, type ReviewReport } from './review.js'
+import { openWork, pickChapters, readChapter, type ChapterRecord } from './works.js'
+import type { FanqieConfig } from './config.js'
 
 export type Role = 'writer' | 'editor'
 
@@ -16,7 +14,7 @@ const S = (description: string): JsonSchemaNode => ({ type: 'string', descriptio
 const I = (description: string): JsonSchemaNode => ({ type: 'integer', description })
 const B = (description: string): JsonSchemaNode => ({ type: 'boolean', description })
 const E = (values: readonly string[], description: string): JsonSchemaNode => ({ type: 'string', enum: [...values], description })
-const WORK = S('织章作品 key 或标题；只有一部作品时可省略')
+const WORK = S('长篇作品 key 或标题；只有一部作品时可省略')
 const CHAPTERS = S('章节：章 id / 序号，或区间如 "3-5"；省略 = 全部')
 const CHAPTER = S('章 id、标题或序号')
 
@@ -24,18 +22,15 @@ const str = (v: unknown) => (typeof v === 'string' ? v : '')
 
 /** 编辑角色可见的长篇工具 */
 export const EDITOR_TOOLS = new Set([
-  'fanqie_method_get', 'fanqie_outline_check', 'fanqie_ledger_check', 
+  'fanqie_forge_get', 'fanqie_outline_check', 'fanqie_ledger_check',
   'fanqie_review_report', 'fanqie_review_get', 'fanqie_quote_check', 'fanqie_library_scan',
 ])
 
 export interface FanqieToolDeps { config: FanqieConfig; role: Role }
 
-/** 读取作品与章节（工具内共用） */
-async function work(config: FanqieConfig, exec: HostToolExecution, key?: string) {
-  return openWork(worksRoot(config.zhizhang ?? {}, exec, typeof (exec.arguments as any)?.working_dir === 'string' ? (exec.arguments as any).working_dir : undefined), key || undefined)
-}
+const work = (exec: HostToolExecution, key?: string) => openWork(exec, key || undefined)
 
-/** 本地文件路径只允许在会话工作目录内（含织章书源目录在 cwd 内的情况） */
+/** 本地文件路径只允许在会话工作目录内 */
 async function localFile(exec: HostToolExecution, p: string): Promise<string> {
   if (!p.trim()) throw new WriterError('INVALID_ARGS', '缺少文件路径')
   const cwd = sessionCwd(exec)
@@ -61,8 +56,8 @@ export function createFanqieTools(deps: FanqieToolDeps): HostToolDefinition[] {
   const { config } = deps
   const tools: HostToolDefinition[] = [
     defineWriterTool<{ id?: string }>({
-      name: 'fanqie_method_get',
-      description: '取长篇方法原文（inspiration-forge 规划 / forge-library 拆书 / novel-writer 写作与编辑）。不给 id 返回常用目录；给 "list" 返回全部 id。原文前附"织章工具对照表"，落盘一律按表走织章工具。',
+      name: 'fanqie_forge_get',
+      description: '取长篇方法原文（inspiration-forge 规划 / forge-library 拆书 / novel-writer 写作与编辑）。不给 id 返回常用目录；给 "list" 返回全部 id。原文前附"长篇工具对照表"，落盘一律按表走长篇工具。',
       properties: { id: S('方法 id，如 novel-writer/references/editor_method；省略看常用目录，"list" 看全部') },
       async run(args) {
         const id = str(args.id).trim()
@@ -74,10 +69,10 @@ export function createFanqieTools(deps: FanqieToolDeps): HostToolDefinition[] {
 
     defineWriterTool<{ work?: string; chapters?: string; mode?: string }>({
       name: 'fanqie_outline_check',
-      description: '章纲机械检查：织章章纲 8 个字段（剧情梗概、核心冲突与看点、情节推进节点、章末落点、视角、目标篇幅、锁定事实、人物知识边界）是否填齐、有没有显式占位、章序是否连续。readiness=动笔前（默认），format=只查接口。不判断剧情好坏。',
+      description: '章纲机械检查：长篇章纲 8 个字段（剧情梗概、核心冲突与看点、情节推进节点、章末落点、视角、目标篇幅、锁定事实、人物知识边界）是否填齐、有没有显式占位、章序是否连续。readiness=动笔前（默认），format=只查接口。不判断剧情好坏。',
       properties: { work: WORK, chapters: CHAPTERS, mode: E(['readiness', 'format'], '默认 readiness') },
       async run(args, exec) {
-        const w = await work(config, exec, args.work)
+        const w = await work(exec, args.work)
         const rows = pickChapters(w, args.chapters)
         const chapters = []
         for (const r of rows) {
@@ -85,7 +80,7 @@ export function createFanqieTools(deps: FanqieToolDeps): HostToolDefinition[] {
           chapters.push({ id: ch.id, title: ch.title, position: ch.position, status: ch.status, outline: ch.outline })
         }
         const input = JSON.stringify({ mode: args.mode === 'format' ? 'format' : 'readiness', chapters })
-        const r = await withTempFiles([{ name: 'outline.json', text: input }], ([p]) => bridge(config, ['outline', p!], { signal: exec.signal }))
+        const r = await withTempFiles([{ name: 'outline.json', text: input }], ([p]) => bridge(config.python, ['outline', p!], { signal: exec.signal }))
         const titleOf = new Map(chapters.map(c => [c.id, `${c.position}.${c.title}`]))
         const issues = (r.issues as { chapter: string }[]).map(i => ({ ...i, chapter_title: titleOf.get(i.chapter) ?? '' }))
         return { work: w.key, title: w.title, pass: r.pass, checked: r.checked, errors: r.errors, issues, field_map: r.field_map, note: r.note }
@@ -98,7 +93,7 @@ export function createFanqieTools(deps: FanqieToolDeps): HostToolDefinition[] {
       properties: { work: WORK, chapters: S('章 id / 序号或区间，如 "5" 或 "3-5"（必填）'), include_previous: B('连带所选第一章的前一章，默认 true') },
       required: ['chapters'],
       async run(args, exec) {
-        const w = await work(config, exec, args.work)
+        const w = await work(exec, args.work)
         let rows = pickChapters(w, args.chapters)
         if (args.include_previous !== false) {
           const first = rows[0]!
@@ -114,7 +109,7 @@ export function createFanqieTools(deps: FanqieToolDeps): HostToolDefinition[] {
           if (ch.body.trim()) files.push({ name: `${tag}-正文-${ch.status}.md`, text: ch.body })
         }
         if (!files.length) throw new WriterError('NOT_FOUND', '所选章节既没有章纲也没有正文')
-        const r = await withTempFiles(files, (paths) => bridge(config, ['ledger', ...paths], { signal: exec.signal }))
+        const r = await withTempFiles(files, (paths) => bridge(config.python, ['ledger', ...paths], { signal: exec.signal }))
         return { work: w.key, files: r.files, items: r.items, note: r.note }
       },
     }),
@@ -127,7 +122,7 @@ export function createFanqieTools(deps: FanqieToolDeps): HostToolDefinition[] {
       async run(args, exec) {
         const f = await localFile(exec, str(args.file))
         const top = Number.isInteger(args.top) && args.top! > 0 ? Math.min(args.top!, 100) : 10
-        const r = await bridge(config, ['scan', f, String(top), str(args.keywords)], { signal: exec.signal })
+        const r = await bridge(config.python, ['scan', f, String(top), str(args.keywords)], { signal: exec.signal })
         const { tool: _t, rules_version, ok: _o, ...rest } = r
         return { ...rest, rules_version }
       },
@@ -146,7 +141,7 @@ export function createFanqieTools(deps: FanqieToolDeps): HostToolDefinition[] {
       async run(args, exec) {
         const src = await localFile(exec, str(args.source))
         const mc = String(Number.isInteger(args.min_chars) && args.min_chars! > 0 ? args.min_chars : 6)
-        const go = (ana: string) => bridge(config, ['quote', src, ana, mc], { signal: exec.signal })
+        const go = (ana: string) => bridge(config.python, ['quote', src, ana, mc], { signal: exec.signal })
         const r = args.analysis_text
           ? await withTempFiles([{ name: '拆解稿.md', text: str(args.analysis_text) }], ([p]) => go(p!))
           : await go(await localFile(exec, str(args.analysis)))
@@ -176,7 +171,7 @@ export function createFanqieTools(deps: FanqieToolDeps): HostToolDefinition[] {
       },
       required: ['chapter', 'verdict', 'hard_issues', 'levels', 'reread_full'],
       async run(args, exec) {
-        const w = await work(config, exec, str(args.work))
+        const w = await work(exec, str(args.work))
         const ch = await readChapter(w, str(args.chapter))
         if (!ch.body.trim()) throw new WriterError('CONFLICT', `${ch.title} 还没有正文，无从审读`)
         const verdict = str(args.verdict) as ReviewReport['verdict']
@@ -195,9 +190,9 @@ export function createFanqieTools(deps: FanqieToolDeps): HostToolDefinition[] {
         const report: ReviewReport = {
           work: w.key, work_title: w.title, chapter: ch.id, chapter_title: ch.title, body_sha256: ch.bodySha256,
           verdict, hard_issues: hard, levels, optional, reread_full: args.reread_full === true,
-          changed_scope: str(args.changed_scope), strengths: str(args.strengths), by: deps.role, at: new Date().toISOString(),
+          changed_scope: str(args.changed_scope), strengths: str(args.strengths), by: deps.role, at: nowIso(),
         }
-        const file = await saveReview(config, exec, report, w.dir)
+        const file = await saveReview(w.dir, report)
         return { saved: path.basename(file), verdict, body_sha256: ch.bodySha256, markdown: renderReview(report) }
       },
     }),
@@ -208,15 +203,14 @@ export function createFanqieTools(deps: FanqieToolDeps): HostToolDefinition[] {
       properties: { work: WORK, chapter: CHAPTER },
       required: ['chapter'],
       async run(args, exec) {
-        const w = await work(config, exec, args.work)
+        const w = await work(exec, args.work)
         const ch = await readChapter(w, str(args.chapter))
-        const r = await latestReview(config, exec, w.key, ch.id, w.dir)
+        const r = await latestReview(w.dir, ch.id)
         if (!r) return { found: false, chapter: ch.id }
         const fresh = r.body_sha256 === ch.bodySha256
         return { found: true, fresh, verdict: r.verdict, by: r.by, at: r.at, markdown: renderReview(r, !fresh) }
       },
     }),
   ]
-  for (const tool of tools) if (tool.parameters.properties?.work) tool.parameters.properties.working_dir = S('可选：织章存储根，与织章工具选择规则相同')
   return deps.role === 'editor' ? tools.filter(t => EDITOR_TOOLS.has(t.name)) : tools
 }

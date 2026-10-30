@@ -1,26 +1,18 @@
-# 工具清单（dsh-writer 0.5.0）
+# 工具清单
 
-任务、头条和番茄工具返回 JSON 对象：成功 `{ok:true, ...}`，业务失败 `{ok:false, code, message}`，code ∈ INVALID_ARGS / NOT_FOUND / CONFLICT / GATE_DENIED / SCRIPT_FAILED / TIMEOUT / OUT_OF_ROOT。内置 `zhizhang_*` 工具继续返回文本。
+返回值统一为 JSON 对象：成功 `{ok:true, ...}`，业务失败 `{ok:false, code, message}`，code ∈ INVALID_ARGS / NOT_FOUND / CONFLICT / GATE_DENIED / SCRIPT_FAILED / TIMEOUT / OUT_OF_ROOT / NO_AGENT。
 
-默认入口为 `toutiao_enable` 和 `fanqie_enable`；按模式启用后可以使用以下任务工具。`zhizhang_enable` 仅在兼容模式可见。
-
-| 任务工具 | 用途 |
-|---|---|
-| writer_run | 创建或推进单篇文章 / 单章任务；小说可指定 `working_dir` |
-| writer_status | 根据已存稿件和审读回报读取任务状态，`list=true` 列出当前模式任务 |
-| writer_resume | 在指定会话恢复任务；旧会话不得继续写入被接管的任务 |
-| writer_checkpoint | 绑定新建对象、保存步骤说明、记录待确认连续性变化或阻塞 |
-| writer_review | 选择 quick / editor / manual 并发起该版本的新一次审读 |
-| writer_export | 导出已存正文为 Markdown 或 TXT，不负责平台发布 |
-
-新书任务预留作品 key，创建作品时传该 key 和 `strict_key=true`；遇到已有或不完整目录时停止并检查，不生成重复目录。
-
-以下为业务工具，小说工具完整清单见 [内部工作台文档](../packages/zhizhang/docs/TOOLS.md)。
+## 入口
 
 | 工具 | 参数 | 说明 |
 |---|---|---|
-| toutiao_enable | role | 挂载到当前会话（全局唯一可见的头条工具）；role=editor 时只挂红笔/质检 9 个工具 |
-| toutiao_method_get | id | 取方法/模板/语料：s1-hot … s7-delivery、template-card、template-delivery、corpus-* |
+| writer_enable | mode, role | 全局唯一可见的写作工具。mode=toutiao 挂头条工具、总则、门禁；mode=fanqie 挂长篇引擎工具与硬规则 + 写作层工具、补充规则、门禁；role=editor 为编辑子代理。一个会话只能一种模式、一种角色，冲突返回 CONFLICT |
+
+# 今日头条（mode=toutiao）
+
+| 工具 | 参数 | 说明 |
+|---|---|---|
+| toutiao_method_get | id | 取方法/模板/语料：overview（SKILL.md 总纲）、s1-hot … s7-delivery、template-card、template-delivery、corpus-* |
 | toutiao_rules | — | 现行质检规则 Markdown |
 | toutiao_hot_fetch | top, vertical, relevant | 抓热榜 |
 | toutiao_article_create | slug, date, title_hint, line, genre | 新建文章 |
@@ -44,33 +36,41 @@
 | toutiao.max_return_rounds | toutiao_status → 验收退回 | 第 3 轮起请求确认 | 是 |
 | toutiao.delivery_requires_accepted | toutiao_delivery_save | 非已验收则拒绝 | 否 |
 | toutiao.editor_pass | toutiao_status → 待验收 | `requireEditorPass: true` 时，写手版不能直接送验收 | 是（默认未开） |
-| 体裁隔离（全局） | toutiao_* / zhizhang_* | 会话体裁已定时拒绝另一体裁工具 | 否 |
+| 模式隔离（全局） | toutiao_* / fanqie_* | 会话模式已定时拒绝另一模式的工具 | 否 |
 
 ## 编辑子代理
 编辑角色可用：toutiao_method_get、toutiao_rules、toutiao_article_list、toutiao_article_get、toutiao_draft_get、toutiao_draft_stage、toutiao_edit_record、toutiao_qa_check、toutiao_feedback_read。
 
-# 番茄长篇（fanqie_*）
+# 番茄长篇（mode=fanqie）
 
-触发：`fanqie_enable`（role=writer|editor），或会话里 `zhizhang_enable` 成功后自动挂载（`autoMount`）。全部工具**只读织章数据**，不写织章文件；审读回报写在 `outputs/fanqie/reviews/`。
+挂上两组工具，名字都以 `fanqie_` 开头：
+
+- **引擎**（packages/fanqie/src/engine，50 多个）：作品与项目（`fanqie_project_*`）、根基与章纲（`fanqie_foundation_*`、`fanqie_outline_*`）、写作链（`fanqie_chapter_brief` → `fanqie_candidate_stage` → `fanqie_candidate_accept`）、审读与定稿（`fanqie_chapter_save`）、检查（`fanqie_style_lint` 等）、拆书库（`fanqie_library_*`）、灵感（`fanqie_inspire_*`）、方法资产（`fanqie_method_list/get`，12 项，含编辑过稿 `edit`）、产品地图与调度（`fanqie_product_map`）。逐项说明见 [engine/TOOLS.md](engine/TOOLS.md)。
+- **写作层**（packages/fanqie）：
 
 | 工具 | 参数 | 说明 |
 |---|---|---|
-| fanqie_enable | role | 挂载长篇工具、补充段落与门禁；回执告诉你织章是否已启用 |
-| fanqie_method_get | id | forge 方法原文（加织章工具对照表）；不给 id 看常用目录，`list` 看全部 |
-| fanqie_outline_check | work, chapters, mode | 织章章纲 8 字段、占位、章序；readiness / format |
+| fanqie_forge_get | id | forge 方法原文（开头附长篇工具对照表）；不给 id 看常用目录，`list` 看全部；原文里只写相对路径（如 references/writing）也能取到 |
+| fanqie_outline_check | work, chapters, mode | 章纲 8 字段、占位、章序；readiness / format |
 | fanqie_ledger_check | work, chapters, include_previous | 跨章数字与相对时间对照（默认连带上一章） |
 | fanqie_library_scan | file, top, keywords | 拆书测绘（文件须在会话工作目录内） |
 | fanqie_quote_check | source, analysis / analysis_text, min_chars | 拆解稿引文逐字核对 |
 | fanqie_review_report | work, chapter, verdict, hard_issues, levels, optional, reread_full, changed_scope, strengths | 编辑审读回报，绑定当前正文 SHA-256；有硬伤或未完整回读不能判"通过" |
 | fanqie_review_get | work, chapter | 最新回报与是否过期 |
 
-`work` 可填织章作品 key 或标题，只有一部作品时可省略；`chapters` 可填章 id、序号或 "3-5"。
+正文体检合在 `fanqie_style_lint` 里（语感雷达后附 forge 正文体检，重复命中去掉）。审读回报写在作品目录 `writer-reviews/<章 id>/`。
 
-## 长篇门禁（拦同一会话里的织章工具）
+`work` 可填作品 key 或标题；省略时（本会话上次打开的作品 → 只有一部时用它）；`chapters` 可填章 id、序号或 "3-5"。
+
+## 长篇门禁（拦同一会话里的 fanqie_* 调用）
 | id | 角色 | 拦什么 | 行为 | 可关闭 |
 |---|---|---|---|---|
-| fanqie.finalize_requires_author | 写手 | zhizhang_chapter_save status=final | 请作者确认 | 否 |
-| fanqie.force_requires_author | 写手 | 任一 zhizhang_* 带 force=true | 请作者确认 | 否 |
-| fanqie.finalize_requires_review | 写手 | 同上定稿 | `requireEditorPass` 时无"通过"且版本匹配的回报则拒绝 | 是（默认未开） |
-| fanqie.editor_readonly | 编辑 | 采纳、定稿、改根基/章纲、出写手候选、入库、导入、开书、组装 | 拒绝 | 否 |
-| 体裁隔离（全局） | — | toutiao_* ↔ zhizhang_* / fanqie_* | 拒绝 | 否 |
+| fanqie.finalize_requires_author | 写手 | fanqie_chapter_save status=final | 请作者确认 | 否 |
+| fanqie.force_requires_author | 写手 | 任一 fanqie_* 带 force=true | 请作者确认 | 否 |
+| fanqie.finalize_requires_review | 写手 | 同上定稿 | `requireEditorPass` 时无"通过"且版本匹配的回报则拒绝（写作台定稿由引擎内部同一条件约束） | 是（默认未开） |
+| fanqie.editor_readonly | 编辑 | 采纳、定稿、改根基/章纲、入库、开书等写入类工具 | 拒绝 | 否 |
+| 模式隔离（全局） | — | toutiao_* ↔ fanqie_* | 拒绝 | 否 |
+
+# 写作台接口（只接受本机，或按 workbench 配置的局域网与令牌）
+- 番茄长篇：`/api/writer/*`（projects、works、snapshot、chapter、candidate、candidate/accept、chapter/review、chapter/finalize、revision/acknowledge、diagnostics/*、unify/prepare、agent/deliver），见 [WORKBENCH.md](WORKBENCH.md)。
+- 今日头条：`GET /api/writer/toutiao/articles`、`GET /api/writer/toutiao/article?root=&id=`、`POST /api/writer/toutiao/adopt {root,id,confirm}`、`POST /api/writer/toutiao/deliver {root,id?,action=new|continue|review|revise,note?,requestId?,confirm}`。

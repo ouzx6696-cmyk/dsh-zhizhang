@@ -1,24 +1,26 @@
-# dsh-writer：默认两个写作模式入口，DSH 负责会话与 Agent 执行。
-# toutiao_enable / fanqie_enable；番茄自动挂载内部小说工作台。
-# 本机任务页 /writer；旧 zhizhang_enable 可用 compatibilityEntry: true 显式启用。
-# 一个会话一种体裁；原数据目录与作者确认流程保留。
+# dsh-writer bundle patch：插入写作 Agent 插件。
+# 挂载时只注册一个触发工具 writer_enable，外加侧栏「写作台」（写作工作台：番茄长篇 / 今日头条两种模式）。
+# 会话里说"写一篇头条"或"写番茄长篇"，Agent 调用 writer_enable(mode=toutiao|fanqie) 才在该会话挂载对应工具、规则与门禁。
+# 一个会话只能一种模式；要换就新开会话。
 - insert:
     - id: writer
       name: 'dsh-writer'
       config:
-        compatibilityEntry: false
-        workflow:
-          review: quick
-          maxAutoRevisionRounds: 2
-        zhizhang:
-          rootDir: '.zhizhang'
-          multiDraftEnabled: false
-        rootDir: 'outputs/toutiao'      # 头条数据目录，相对会话工作目录；与 toutiao-viral-writer 4.0.0 兼容
-        # storageRoot: 'D:/写作/头条'   # 头条固定绝对目录（设置后忽略 rootDir）
-        # python: 'py -3'               # Python 命令；默认自动查找 py -3 / python / python3
-        # panel: true                   # 本机写作台，默认开
-        # requireEditorPass: false      # 头条：送验收前必须经编辑子代理
-        # disabledGates: []             # 可关闭的非锁定门禁
+        # python: 'py -3'               # Python 命令，两种模式共用；默认自动查找 py -3 / python / python3
+        toutiao:
+          rootDir: 'outputs/toutiao'    # 头条数据目录，相对会话工作目录
+          # storageRoot: 'D:/写作/头条' # 固定绝对目录（设置后忽略 rootDir）
+          # requireEditorPass: false    # 送验收前必须经编辑子代理红笔
+          # disabledGates: []           # 可关闭的非锁定门禁
         fanqie:
-          # autoMount: true             # 会话里 zhizhang_enable 成功后自动挂上长篇工具与门禁
-          # requireEditorPass: false    # 长篇：定稿前必须有"通过"且版本匹配的编辑审读回报
+          rootDir: '.writer'            # 长篇数据目录，相对会话工作目录
+          # storageRoot: 'D:/写作/长篇' # 固定数据根（绝对路径）
+          # worksRoot: 'D:/小说'        # 作品目录：每本书一个同名文件夹
+          # libraryRoot: 'D:/拆书库'    # 共享参考库
+          # sourceRoot: 'D:/书源'       # 本地书源：放 .txt/.md，可按文件名导入
+          # requireEditorPass: false    # 定稿前（对话或写作台）必须有"通过"且版本匹配的编辑审读回报
+          # multiDraft:
+          #   enabled: false            # 同章多草稿统一整理；默认关
+        # workbench:
+        #   allowLan: false             # 默认仅本机；true 才允许局域网访问写作台
+        #   token: ''                   # 写作台访问令牌

@@ -3,12 +3,12 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { importModule, BUILD, FIX, fakeHost, tempDir } from './helpers.mjs'
+import { BUILD, FIX, fakeHost, tempDir } from './helpers.mjs'
 
-const { mountToutiao } = await importModule(path.join(BUILD, 'toutiao/src/index.js'))
-const { apply } = await importModule(path.join(BUILD, 'app/src/index.js'))
-const { adopt, __panelTesting } = await importModule(path.join(BUILD, 'toutiao/src/panel.js'))
-const { STOP_LINE } = await importModule(path.join(BUILD, 'toutiao/src/store.js'))
+const { mountToutiao } = await import(path.join(BUILD, 'toutiao/src/index.js'))
+const { apply } = await import(path.join(BUILD, 'app/src/index.js'))
+const { adopt, listArticles, articleDetail, buildToutiaoDelivery } = await import(path.join(BUILD, 'toutiao/src/workbench/data.js'))
+const { STOP_LINE } = await import(path.join(BUILD, 'toutiao/src/store.js'))
 
 const STORY = await readFile(path.join(FIX, 'story_long_good.md'), 'utf8')
 const CARD = JSON.parse(await readFile(path.join(FIX, 'story_long_card.json'), 'utf8'))
@@ -24,8 +24,9 @@ async function setup(opts) {
   const host = fakeHost(opts)
   apply(host.root.ctx, {})
   const agent = host.agent('s1', cwd)
-  const en = await host.call(agent, 'toutiao_enable')
-  assert.equal(en.ok, true)
+  const en = await host.call(agent, 'writer_enable', { mode: 'toutiao' })
+  assert.equal(en.ok, true, JSON.stringify(en))
+  assert.equal(en.mode, 'toutiao')
   return { host, agent, cwd, call: (n, a) => host.call(agent, n, a) }
 }
 
@@ -33,15 +34,18 @@ function deliveryMd(title, draft) {
   return `# 交稿单 · ${title}\n\n- **当前状态**：已验收\n\n## 一、标题矩阵\n- 主推：${title}\n\n## 三、终稿正文\n${draft}\n`
 }
 
-test('启用：只挂一个触发工具，启用后按会话挂载工具、总则、门禁', async () => {
+test('启用：只挂 writer_enable，mode=toutiao 后按会话挂载头条工具、总则、门禁', async () => {
   const { host, agent } = await setup()
-  assert.deepEqual([...host.root.tools.keys()].sort(), ['fanqie_enable', 'toutiao_enable'])
+  assert.deepEqual([...host.root.tools.keys()], ['writer_enable'])
+  assert.ok(![...agent.scope.tools.keys()].some(n => n.startsWith('fanqie_')), '头条会话不挂长篇工具')
   assert.ok(agent.scope.tools.size >= 18, `tools=${agent.scope.tools.size}`)
-  assert.equal(agent.scope.sections.length, 2)
+  assert.equal(agent.scope.sections.length, 1)
   assert.match(agent.scope.sections[0].text(), /AI 到此止步/)
   assert.equal(agent.scope.pre.length, 1)
-  const again = await host.call(agent, 'toutiao_enable')
+  const again = await host.call(agent, 'writer_enable', { mode: 'toutiao' })
   assert.equal(again.already_enabled, true)
+  const bad = await host.call(agent, 'writer_enable', { mode: 'xiaohongshu' })
+  assert.equal(bad.code, 'INVALID_ARGS')
   assert.equal(agent.scope.tools.size >= 18, true)
 })
 
@@ -178,7 +182,7 @@ test('门禁未接上时，工具自身仍拒绝未经作者确认的“已交�
   assert.equal(r.code, 'GATE_DENIED')
 })
 
-test('写作台：列表可见，采用后为已交稿；未验收的不能采用', async () => {
+test('写作台（今日头条模式）：列表与详情可见，按钮指令按状态生成；采用后为已交稿；未验收的不能采用', async () => {
   const { call } = await setup()
   const id = (await call('toutiao_article_create', { slug: 'panel' })).article.id
   await call('toutiao_card_set', { id, card: CARD })
@@ -187,17 +191,35 @@ test('写作台：列表可见，采用后为已交稿；未验收的不能采�
   await call('toutiao_status', { id, to: '待验收' })
   const root = (await call('toutiao_article_list', {})).root
   await assert.rejects(adopt(root, id), /只有已验收/)
+  const d0 = await articleDetail(root, id)
+  assert.equal(d0.adoptable, false)
+  assert.match(d0.qaProblem, /还没跑质检/)
+  assert.equal(d0.draft.rev, 1)
+  assert.ok(d0.draft.text.includes(STORY.slice(0, 20)))
+  const rv = await buildToutiaoDelivery(root, { action: 'review', id })
+  assert.match(rv.text, /^【写作台】派编辑子代理/)
+  assert.match(rv.text, /writer_enable，参数 mode=toutiao、role=editor/)
+  assert.match((await buildToutiaoDelivery(root, { action: 'new', note: '秋天的柿子' })).text, /题材\/素材：秋天的柿子/)
+  await assert.rejects(buildToutiaoDelivery(root, { action: 'continue' }), /须指明文章/)
+  await assert.rejects(buildToutiaoDelivery(root, { action: 'publish', id }), /不支持的动作/)
   await call('toutiao_qa_check', { id })
   await call('toutiao_status', { id, to: '已验收' })
+  assert.match((await buildToutiaoDelivery(root, { action: 'continue', id, note: '标题再短点' })).text, /出交稿单[\s\S]*作者附言：标题再短点/)
   await call('toutiao_delivery_save', { id, markdown: deliveryMd(CARD['主标题'], STORY) })
   await call('toutiao_ledger_add', { id })
-  const html = await __panelTesting.renderList()
-  assert.match(html, /精卫填了一辈子海/)
+  const list = await listArticles()
+  const row = list.articles.find(a => a.id === id)
+  assert.equal(row.title, CARD['主标题'])
+  assert.equal(row.qa.pass, true)
+  const d1 = await articleDetail(root, id)
+  assert.equal(d1.adoptable, true)
+  assert.match(d1.delivery, /交稿单/)
   const m = await adopt(root, id)
   assert.equal(m.status, '已交稿')
   assert.equal((await call('toutiao_ledger_show', {})).rows.at(-1)['状态'], '已交稿', '采用后台账同步')
   assert.equal(m.history.at(-1).by, 'author-panel')
-  await assert.rejects(adopt('/etc', id), /未知的存储目录/)
+  await assert.rejects(adopt('/etc', id), /未知的头条数据目录/)
+  await assert.rejects(articleDetail('/etc', id), /未知的头条数据目录/)
 })
 
 test('资讯线长图文无立项卡也能质检，但不能验收', async () => {
@@ -233,7 +255,7 @@ test('编辑角色：只挂红笔与质检工具，存稿自动记为 editor；�
   assert.equal(w.ok, true)
   assert.equal((await call('toutiao_article_get', { id })).article.current_rev, 1)
   const ed = host.agent('child-1', cwd)
-  const en = await host.call(ed, 'toutiao_enable', { role: 'editor' })
+  const en = await host.call(ed, 'writer_enable', { mode: 'toutiao', role: 'editor' })
   assert.equal(en.role, 'editor')
   const names = [...ed.scope.tools.keys()].sort()
   assert.ok(names.includes('toutiao_qa_check') && names.includes('toutiao_edit_record'))
@@ -244,78 +266,37 @@ test('编辑角色：只挂红笔与质检工具，存稿自动记为 editor；�
   assert.equal(r.ok, true)
   const meta = await call('toutiao_article_get', { id })
   assert.deepEqual(meta.article.current_rev, 2)
-  const again = await host.call(ed, 'toutiao_enable', { role: 'writer' })
+  const again = await host.call(ed, 'writer_enable', { mode: 'toutiao', role: 'writer' })
   assert.equal(again.code, 'CONFLICT')
 })
 
 test('requireEditorPass：写手版不能直接送验收，编辑版可以', async () => {
   const cwd = await tempDir()
   const host = fakeHost()
-  apply(host.root.ctx, { requireEditorPass: true })
+  apply(host.root.ctx, { toutiao: { requireEditorPass: true } })
   const wr = host.agent('w', cwd), ed = host.agent('e', cwd)
-  await host.call(wr, 'toutiao_enable')
+  await host.call(wr, 'writer_enable', { mode: 'toutiao' })
   const id = (await host.call(wr, 'toutiao_article_create', { slug: 'ep' })).article.id
   await host.call(wr, 'toutiao_draft_stage', { id, text: STORY })
   const d = await host.call(wr, 'toutiao_status', { id, to: '待验收' })
   assert.equal(d.denied, true)
   assert.match(d.reason, /编辑红笔/)
-  await host.call(ed, 'toutiao_enable', { role: 'editor' })
+  await host.call(ed, 'writer_enable', { mode: 'toutiao', role: 'editor' })
   await host.call(ed, 'toutiao_draft_stage', { id, text: STORY })
   assert.equal((await host.call(wr, 'toutiao_status', { id, to: '待验收' })).ok, true)
 })
 
-test('体裁隔离：头条会话拒绝织章工具；织章会话拒绝头条启用', async () => {
+test('模式隔离：一个会话只能一种模式；长篇工具在头条会话里不存在', async () => {
   const { host, agent, cwd } = await setup()
-  host.root.ctx.tools.register({ name: 'zhizhang_enable', description: '', parameters: { type: 'object' }, output: {}, execute: async () => '已启用织章' })
-  const r = await host.call(agent, 'zhizhang_enable')
-  assert.equal(r.denied, true)
-  assert.match(r.reason, /体裁隔离/)
+  const r = await host.call(agent, 'writer_enable', { mode: 'fanqie' })
+  assert.equal(r.code, 'CONFLICT')
+  assert.match(r.message, /今日头条/)
+  await assert.rejects(host.call(agent, 'fanqie_chapter_list', {}), /unknown tool/)
   const other = host.agent('novel', cwd)
-  assert.equal(await host.call(other, 'zhizhang_enable'), '已启用织章')
-  const t = await host.call(other, 'toutiao_enable')
-  assert.equal(t.denied, true)
-  assert.match(t.reason, /番茄长篇/)
-})
-
-test('写作任务：恢复同一文章、校准真实版本、禁止串稿并导出原文', async () => {
-  const {host,agent,cwd,call}=await setup()
-  const first=await call('writer_run',{goal:'根据已提供素材撰文'})
-  assert.equal(first.ok,true,JSON.stringify(first))
-  const id=first.task.id,article=first.task.target.article
-  const again=await call('writer_run',{goal:'根据已提供素材撰文'})
-  assert.equal(again.task.id,id)
-  const staged=await call('toutiao_draft_stage',{id:article,text:LONG,note:'初稿'})
-  assert.equal(staged.ok,true,JSON.stringify(staged))
-  const status=await call('writer_status',{task_id:id})
-  assert.equal(status.task.step,'review')
-  const other=host.agent('resumed',cwd)
-  await host.call(other,'toutiao_enable')
-  const resumed=await host.call(other,'writer_resume',{task_id:id})
-  assert.equal(resumed.task.target.article,article)
-  assert.equal(resumed.context.body,LONG)
-  const wrong=await host.call(other,'toutiao_draft_stage',{id:'2026-10-29-other',text:LONG})
-  assert.equal(wrong.denied,true)
-  const exp=await host.call(other,'writer_export',{task_id:id,format:'txt'})
-  assert.ok(exp.content.includes(LONG.replace(/^#\s+/, '')))
-  const md=await host.call(other,'writer_export',{task_id:id,format:'md'})
-  assert.equal(md.content.split('\n')[0],LONG.split('\n')[0])
-  const {Tasks}=await importModule(path.join(BUILD,'app/src/tasks.js'))
-  const fresh=new Tasks({toutiao:{},fanqie:{}})
-  const saved=await fresh.get(cwd,id)
-  assert.equal(saved.target.article,article)
-  await fresh.refresh(saved)
-  assert.equal(saved.revision,status.task.revision)
-
-  // 旧质检不能冒充一次新审读；外部修改也不能继续使用旧哈希。
-  await host.call(other,'toutiao_qa_check',{id:article})
-  const review=await host.call(other,'writer_run',{goal:'重新审阅当前稿',intent:'review',article})
-  assert.equal(review.task.status,'reviewing')
-  await host.call(other,'toutiao_qa_check',{id:article})
-  const reviewed=await host.call(other,'writer_status',{task_id:review.task.id})
-  assert.equal(reviewed.task.status,'completed')
-  const { writeFile } = await import('node:fs/promises')
-  await writeFile(status.task.artifact,'作者直接改过的内容。')
-  const changed=await host.call(other,'writer_status',{task_id:review.task.id})
-  assert.equal(changed.task.status,'needs_input')
-  assert.match(changed.task.next,/外部修改/)
+  const en = await host.call(other, 'writer_enable', { mode: 'fanqie' })
+  assert.equal(en.ok, true)
+  assert.match(en.engine, /番茄长篇引擎/)
+  const t = await host.call(other, 'writer_enable', { mode: 'toutiao' })
+  assert.equal(t.code, 'CONFLICT')
+  assert.match(t.message, /番茄长篇/)
 })

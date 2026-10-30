@@ -1,10 +1,10 @@
-/** 头条工具集（dev-plan T1.4–T1.8）。全部返回结构化 JSON；业务失败返回 ok:false。 */
+/** 头条工具集。全部返回结构化 JSON；业务失败返回 ok:false。 */
 import { appendFile, mkdir } from 'node:fs/promises'
 import {
   defineWriterTool, WriterError, type HostContext, type HostToolDefinition, type HostToolExecution, type JsonSchemaNode,
-} from '../../dsh-adapter/src/index.js'
+} from '../../host/src/index.js'
 import { atomicWrite, readJson, readText, sha256 } from '../../core/src/fsx.js'
-import type { GateEngine } from '../../gates/src/index.js'
+import type { GateEngine } from '../../core/src/gates.js'
 import { checkCard } from './card.js'
 import { bridge, storeFor, type ToutiaoConfig } from './env.js'
 import { getMethod, METHOD_FILES } from './methods.js'
@@ -281,7 +281,7 @@ export function createToutiaoTools(deps: ToolDeps): HostToolDefinition[] {
         const rec = {
           rev: cur.rev, sha256: cur.sha256, pass: r.pass === true, score: Number(r.score ?? 0),
           hard_gates: (r.hard_gates as string[]) ?? [], fail_count: ((r.fails as unknown[]) ?? []).length,
-          rules_version: r.rules_version, card_sha256: cardText === undefined ? null : sha256(cardText), at: new Date().toISOString(), by: deps.role,
+          rules_version: r.rules_version, card_sha256: cardText === undefined ? null : sha256(cardText), at: nowIso(),
         }
         await store.update(id, (mm) => { mm.qa.push(rec) })
         const warn = cardText === undefined ? ['没有立项卡，未做立项卡与台账核对；交稿前必须补卡并重跑'] : []
@@ -308,7 +308,7 @@ export function createToutiaoTools(deps: ToolDeps): HostToolDefinition[] {
         if (to === '待验收' && before.current_rev === 0) throw new WriterError('CONFLICT', '还没有稿件')
         if (to === '待验收' && config.requireEditorPass) {
           const cur = store.currentDraft(before)
-          if (cur && cur.role === 'writer') throw new WriterError('GATE_DENIED', '当前版本还没经过编辑红笔：请用编辑子代理（toutiao_enable role=editor）改过再送验收')
+          if (cur && cur.role === 'writer') throw new WriterError('GATE_DENIED', '当前版本还没经过编辑红笔：请用编辑子代理（writer_enable mode=toutiao role=editor）改过再送验收')
         }
         if (to === '已验收') {
           const v = await validPassingQa(store, before)

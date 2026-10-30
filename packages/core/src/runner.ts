@@ -1,12 +1,11 @@
 /**
  * Python 规则脚本运行器。
- * - 定位 Python（配置 → 环境变量 WRITER_PYTHON → 平台候选），校验 3.11；
+ * - 定位 Python（配置 → 环境变量 WRITER_PYTHON → 平台候选），校验 ≥ 3.8；
  * - 带超时与取消运行脚本；
  * - stdout 必须是且只是一个 JSON 对象，含 tool/rules_version/ok；否则一律 SCRIPT_FAILED，绝不当作通过。
  */
 import { spawn } from 'node:child_process'
-import { stat } from 'node:fs/promises'
-import { WriterError } from '../../dsh-adapter/src/index.js'
+import { WriterError } from '../../host/src/index.js'
 
 export interface ScriptResult {
   tool: string
@@ -27,7 +26,6 @@ interface Proc { code: number | null; stdout: string; stderr: string; timedOut: 
 
 function exec(cmd: string, args: string[], opts: RunOptions = {}): Promise<Proc> {
   return new Promise((resolve, reject) => {
-    if (opts.signal?.aborted) return resolve({ code: null, stdout: '', stderr: '', timedOut: false })
     let child
     try {
       child = spawn(cmd, args, {
@@ -57,9 +55,9 @@ export interface PythonCommand { cmd: string; prefix: string[] }
 
 const cache = new Map<string, Promise<PythonCommand>>()
 
-/** 找可用 Python 3.11。explicit 为配置项 python（可写 "py -3" 这类带参数的命令）。 */
+/** 找可用 Python ≥ 3.8。explicit 为配置项 python（可写 "py -3" 这类带参数的命令）。 */
 export function locatePython(explicit?: string): Promise<PythonCommand> {
-  const key = explicit ?? process.env.WRITER_PYTHON ?? ''
+  const key = explicit ?? ''
   let p = cache.get(key)
   if (!p) {
     p = findPython(explicit)
@@ -71,28 +69,25 @@ export function locatePython(explicit?: string): Promise<PythonCommand> {
 
 async function findPython(explicit?: string): Promise<PythonCommand> {
   const candidates: PythonCommand[] = []
-  const add = async (s: string | undefined) => {
+  const add = (s: string | undefined) => {
     if (!s || !s.trim()) return
-    const value = s.trim()
-    // 已配置的可执行文件路径可能包含空格，不应当拆成多个参数。
-    if ((await stat(value).catch(() => undefined))?.isFile()) { candidates.push({cmd:value,prefix:[]}); return }
-    const match = /^(?:"([^"]+)"|'([^']+)'|(\S+))(?:\s+(.*))?$/.exec(value)
-    if (match) candidates.push({cmd:match[1] ?? match[2] ?? match[3]!, prefix:match[4]?.trim().split(/\s+/) ?? []})
+    const parts = s.trim().split(/\s+/)
+    candidates.push({ cmd: parts[0]!, prefix: parts.slice(1) })
   }
-  await add(explicit)
-  await add(process.env.WRITER_PYTHON)
-  if (process.platform === 'win32') { await add('py -3.11'); await add('py -3'); await add('python'); await add('python3') }
-  else { await add('python3.11'); await add('python3'); await add('python') }
+  add(explicit)
+  add(process.env.WRITER_PYTHON)
+  if (process.platform === 'win32') { add('py -3'); add('python'); add('python3') }
+  else { add('python3'); add('python') }
   const tried: string[] = []
   for (const c of candidates) {
     tried.push([c.cmd, ...c.prefix].join(' '))
     try {
       const r = await exec(c.cmd, [...c.prefix, '-c', 'import sys;print("%d.%d"%sys.version_info[:2])'], { timeoutMs: 15000 })
       const m = /^(\d+)\.(\d+)/.exec(r.stdout.trim())
-      if (r.code === 0 && m && Number(m[1]) === 3 && Number(m[2]) === 11) return c
+      if (r.code === 0 && m && (Number(m[1]) > 3 || (Number(m[1]) === 3 && Number(m[2]) >= 8))) return c
     } catch { /* 下一个 */ }
   }
-  throw new WriterError('SCRIPT_FAILED', `找不到 Python 3.11（试过：${tried.join('、')}）。请安装 Python，或在插件配置里填写 python 路径。`)
+  throw new WriterError('SCRIPT_FAILED', `找不到 Python 3.8+（试过：${tried.join('、')}）。请安装 Python，或在插件配置里填写 python 路径。`)
 }
 
 /** 运行脚本并按契约解析。 */

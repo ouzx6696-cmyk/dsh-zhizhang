@@ -1,27 +1,16 @@
 /** 每次调用的运行环境：存储根、Python、门禁。 */
 import path from 'node:path'
 import { homedir } from 'node:os'
-import { sessionCwd, type HostContext, type HostToolExecution } from '../../dsh-adapter/src/index.js'
+import { sessionCwd, type HostContext, type HostToolExecution } from '../../host/src/index.js'
 import { atomicWrite, readJson } from '../../core/src/fsx.js'
+import { rememberSession } from '../../core/src/sessions.js'
 import { locatePython, runScript, type ScriptResult } from '../../core/src/runner.js'
-import { WriterError } from '../../dsh-adapter/src/index.js'
+import { WriterError } from '../../host/src/index.js'
 import { ArticleStore } from './store.js'
 import { bridgeScript } from './methods.js'
 
-export interface ToutiaoConfig {
-  /** 相对会话 cwd 的数据目录，默认 outputs/toutiao（与 toutiao-viral-writer 4.0.0 一致） */
-  rootDir?: string
-  /** 固定的绝对数据目录，设置后忽略 rootDir */
-  storageRoot?: string
-  /** Python 命令，如 C:\\Python312\\python.exe 或 "py -3" */
-  python?: string
-  /** 关闭的非锁定门禁 id */
-  disabledGates?: string[]
-  /** 是否挂载写作台面板（仅本机访问），默认 true */
-  panel?: boolean
-  /** true：送“待验收”前当前版本必须出自编辑子代理或作者（写手与编辑分离），默认 false */
-  requireEditorPass?: boolean
-}
+export type { ToutiaoConfig } from './config.js'
+import type { ToutiaoConfig } from './config.js'
 
 export function rootFor(config: ToutiaoConfig, exec?: HostToolExecution, host?: HostContext): string {
   const sr = (config.storageRoot ?? process.env.WRITER_TOUTIAO_ROOT ?? '').trim()
@@ -32,6 +21,7 @@ export function rootFor(config: ToutiaoConfig, exec?: HostToolExecution, host?: 
 export function storeFor(config: ToutiaoConfig, exec?: HostToolExecution, host?: HostContext): ArticleStore {
   const root = rootFor(config, exec, host)
   rememberRoot(root)
+  rememberSession(root, exec) // 写作台据此知道该把按钮指令发到哪个会话
   return new ArticleStore(root)
 }
 

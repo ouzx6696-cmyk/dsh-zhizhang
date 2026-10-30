@@ -2,7 +2,8 @@
 import { mkdtemp, cp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
+
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 export const BUILD = path.join(ROOT, 'build')
@@ -13,8 +14,8 @@ export async function tempDir(prefix = 'writer-') {
   return mkdtemp(path.join(tmpdir(), prefix))
 }
 
-export function fakeHost({ approve = 'allowed-once' } = {}) {
-  const make = () => {
+export function fakeHost({ approve = 'allowed-once', services } = {}) {
+  const make = (root = false) => {
     const tools = new Map()
     const pre = []
     const results = []
@@ -27,9 +28,13 @@ export function fakeHost({ approve = 'allowed-once' } = {}) {
       },
       get(name) { if (name === 'systemPrompt') return { section(s) { sections.push(s); return () => {} } } },
     }
+    // services：模拟 Cordis inject（webServer、sessionController 等），只给宿主根上下文
+    if (root && services) {
+      ctx.inject = (deps, cb) => { if (deps.every(d => services[d])) cb({ ...ctx, ...services, effect: (run) => run() }) }
+    }
     return { ctx, tools, pre, results, sections }
   }
-  const root = make()
+  const root = make(true)
   const approvals = []
   const host = {
     root, approvals, approve,
@@ -66,6 +71,3 @@ export function fakeHost({ approve = 'allowed-once' } = {}) {
 export async function copyFixtures(dir) {
   await cp(FIX, dir, { recursive: true })
 }
-
-// Absolute Windows paths must be converted to file URLs for the ESM loader.
-export function importModule(file) { return import(pathToFileURL(file).href) }
