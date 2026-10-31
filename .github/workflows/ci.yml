@@ -83,6 +83,17 @@ jobs:
           $signature = Get-AuthenticodeSignature $exe.FullName
           if ($env:CERTIFICATE_PROVIDED -eq 'true' -and $signature.Status -ne 'Valid') { throw '签名校验未通过' }
           @{ signing = $signature.Status.ToString(); realModelAcceptance = 'pending-author-review' } | ConvertTo-Json | Set-Content apps/desktop/release/RELEASE-CONDITIONS.json
+          if (-not (Select-String -Path apps/desktop/release/latest.yml -Pattern 'path:.*\.exe')) { throw '更新清单没有引用 NSIS 安装器' }
+          $package = Get-ChildItem apps/desktop/release/*.zip | Select-Object -First 1
+          $zip = [System.IO.Compression.ZipFile]::OpenRead($package.FullName)
+          try {
+            foreach ($file in @('WriterAgent.exe', 'resources/app.asar', 'resources/python/python.exe', 'resources/writer/scripts/writer-backup.mjs')) {
+              if ($zip.Entries.FullName -notcontains $file) { throw "免安装包缺少 $file" }
+            }
+          } finally { $zip.Dispose() }
+          & apps/desktop/release/win-unpacked/resources/python/python.exe -c "import json; print(json.dumps({'runtime':'ok','text':'中文'},ensure_ascii=False))"
+          if ($LASTEXITCODE -ne 0) { throw '随包 Python 无法运行' }
+          Write-Output "::notice::Windows 原生 NSIS 和 ZIP 完整；更新清单引用 exe；随包 Python 可运行；签名状态=$($signature.Status)"
       - name: 整理交付文件
         shell: bash
         run: |

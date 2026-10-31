@@ -7,9 +7,9 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "tsc --noEmit && node ../../scripts/stage-desktop.mjs && electron-vite build",
-    "pack": "node ../../scripts/prepare-desktop-python.mjs && electron-builder --win nsis --x64",
+    "pack": "node ../../scripts/prepare-desktop-python.mjs && electron-builder --win nsis --x64 --publish never",
     "predev": "node ../../scripts/stage-desktop.mjs",
-    "pack:portable": "node ../../scripts/prepare-desktop-python.mjs && electron-builder --win zip --x64"
+    "pack:portable": "node ../../scripts/prepare-desktop-python.mjs && electron-builder --win zip --x64 --publish never"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "1.4.0",
