@@ -86,7 +86,9 @@ function Layout({
           {tab === "chapter" && (
             <div className="decision-panel">{inspector}</div>
           )}
-          {tab === "methods" && <MethodsPane mode={mode} />}
+          <div hidden={tab !== "methods"} style={{ height: "100%" }}>
+            <MethodsPane mode={mode} />
+          </div>
         </div>
       </aside>
     </div>
@@ -119,11 +121,21 @@ function Novel(props) {
       dirty: !!state.edit?.dirty,
       ready,
       kind: "novel",
-      outlineReady: !!(
-        state.chapter.meta?.outline?.synopsis &&
-        state.chapter.meta?.outline?.conflict &&
-        state.chapter.meta?.outline?.ending
-      ),
+      outlineReady: [
+        "pov",
+        "targetWords",
+        "locks",
+        "knowledge",
+        "synopsis",
+        "conflict",
+        "beats",
+        "ending",
+      ].every((key) => {
+        const value = state.chapter.outline?.[key];
+        return typeof value === "number"
+          ? value > 0
+          : typeof value === "string" && !!value.trim();
+      }),
       actions: { deliver: actions.deliver, refresh: actions.refresh },
     });
   }, [

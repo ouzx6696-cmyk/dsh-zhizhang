@@ -200,7 +200,7 @@ export function useFanqie() {
         dispatch({
           type: "body",
           slot: "chapter",
-          value: { status: "ready", key: chapterKey, body: data.body || "", meta: data.meta || null, truncated: !!data.truncated, bodyBytes: data.bodyBytes || 0, writer: data.writer || null },
+          value: { status: "ready", key: chapterKey, body: data.body || "", meta: data.meta || null, outline: data.outline || null, truncated: !!data.truncated, bodyBytes: data.bodyBytes || 0, writer: data.writer || null },
         });
       })
       .catch((err) => {

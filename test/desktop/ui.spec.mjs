@@ -126,6 +126,7 @@ test("首次引导、连接测试、统一写作根与真实 Pi 创建作品", a
     timeout: 20000,
   });
   await expect(page.locator(".studio-nav")).toContainText("雨夜");
+  await expect(page.locator(".quick-actions")).toContainText("派编辑审");
 });
 
 test("决策不被 Agent 挡住，右栏标签与响应式布局，亮暗截图", async () => {
