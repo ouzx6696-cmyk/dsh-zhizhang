@@ -143,6 +143,7 @@ test("决策不被 Agent 挡住，右栏标签与响应式布局，亮暗截图"
   await page.screenshot({
     path: "test-results/desktop-1440-light.png",
     fullPage: true,
+    animations: "disabled",
   });
   await page.setViewportSize({ width: 1100, height: 900 });
   await expect(
@@ -174,6 +175,7 @@ test("决策不被 Agent 挡住，右栏标签与响应式布局，亮暗截图"
   await page.screenshot({
     path: "test-results/desktop-1440-dark.png",
     fullPage: true,
+    animations: "disabled",
   });
 });
 
