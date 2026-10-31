@@ -44,6 +44,7 @@ export class Settings {
     for (const role of ["writer", "editor", "planner"])
       if (source[role]?.secret) {
         try {
+          if (!this.secrets.available()) throw new Error("系统安全存储不可用");
           source[role].apiKey = this.secrets.decrypt(source[role].secret);
         } catch {
           source[role].apiKey = "";
@@ -60,6 +61,7 @@ export class Settings {
     const search = await this.json("search.json", {});
     if (search.secret) {
       try {
+        if (!this.secrets.available()) throw new Error("系统安全存储不可用");
         this.searchKey = this.secrets.decrypt(search.secret);
       } catch {
         this.notices.push("搜索 Key 无法解密，请重新填写。");
