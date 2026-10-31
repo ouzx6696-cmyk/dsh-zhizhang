@@ -1,0 +1,5 @@
+# Keep asset checksums and source archives identical on Windows and Unix.
+* text=auto eol=lf
+*.ico binary
+*.zip binary
+*.pdf binary

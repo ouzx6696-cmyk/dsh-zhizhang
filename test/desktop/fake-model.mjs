@@ -19,6 +19,15 @@ export async function fakeModel(scripts = {}) {
         request.on("close", () => response.destroy());
         return;
       }
+      if (next.status >= 400) {
+        response.writeHead(next.status, { "Content-Type": "application/json" });
+        response.end(
+          JSON.stringify({
+            error: { message: next.error, code: "invalid_api_key" },
+          }),
+        );
+        return;
+      }
       const tool = next.name
         ? {
             id: "call_" + calls.length,

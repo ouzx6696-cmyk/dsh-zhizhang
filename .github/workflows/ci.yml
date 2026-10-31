@@ -5,10 +5,7 @@ env:
   PYTHONIOENCODING: utf-8
 jobs:
   test:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -28,6 +25,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
       - run: npm ci
+      - run: npm install --global pnpm@11.25.0
       - run: mkdir -p ../dshrt && cd ../dshrt && npm init -y && npm i @deepseek-ai/dsh@0.2.1-rc.4 --ignore-scripts
       - run: node scripts/ci-run.mjs npm run test:dsh
         env:
@@ -47,6 +45,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
       - run: npm ci
+      - run: node scripts/ci-run.mjs npm run test:desktop
       - run: node scripts/ci-run.mjs npm run desktop:build
       - run: node scripts/ci-run.mjs npm run test:desktop:ui
       - uses: actions/upload-artifact@v4

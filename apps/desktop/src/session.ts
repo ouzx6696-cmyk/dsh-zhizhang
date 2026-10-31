@@ -571,10 +571,26 @@ export class Sessions {
       }
       if (event.type === "tool_execution_start")
         task.current = toolStep(event.toolName, target.mode);
-      if (event.type === "agent_settled")
-        task.waiting = event.aborted
-          ? "任务已停止，核对已保存结果"
-          : "查看稿件与回报，决定是否采纳或定稿";
+      if (event.type === "agent_settled") {
+        const last = session.messages.findLast(
+          (message) => message.role === "assistant",
+        );
+        const failure =
+          last?.role === "assistant" && last.stopReason === "error"
+            ? explainError(
+                last.errorMessage || "模型请求失败，请检查连接后重试",
+              )
+            : "";
+        task.waiting =
+          failure ||
+          (event.aborted
+            ? "任务已停止，核对已保存结果"
+            : "查看稿件与回报，决定是否采纳或定稿");
+        if (primary && failure) {
+          this.emit({ target, error: failure });
+          this.extras.log?.("model_error", { role });
+        }
+      }
       if (event.type === "agent_start")
         entry.phase = editor ? "编辑审读中…" : "正在创作…";
       if (event.type === "tool_execution_start")

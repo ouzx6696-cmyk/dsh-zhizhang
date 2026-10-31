@@ -117,6 +117,7 @@ test("真实 Pi：建书归属、独立编辑、角色模型、作者确认、�
         input: { work: "station", chapter: "c001", status: "final" },
       },
       { text: "请作者查看审读回报，当前仍是草稿。" },
+      { status: 401, error: "Unauthorized" },
     ],
     "mock-planner": [
       {
@@ -149,14 +150,15 @@ test("真实 Pi：建书归属、独立编辑、角色模型、作者确认、�
   const done = settled(),
     events = [],
     asks = [];
-  let attached;
+  let attached,
+    onSettled = done.finish;
   const sessions = new Sessions(
     home,
     "python3",
     () => models(model.url),
     (event) => {
       events.push(event);
-      if (event.event?.type === "agent_settled" && !event.editor) done.finish();
+      if (event.event?.type === "agent_settled" && !event.editor) onSettled();
     },
     async (message) => {
       asks.push(message);
@@ -229,6 +231,13 @@ test("真实 Pi：建书归属、独立编辑、角色模型、作者确认、�
     });
     assert.match(handoff, /briefRecorded/);
     assert.ok(!handoff.includes("MAIN-PRIVATE"));
+    const failure = settled();
+    onSettled = failure.finish;
+    await sessions.send(attached.next, "检查连接错误的反馈", {
+      intent: "inspect",
+    });
+    await failure.promise;
+    assert.ok(events.some((event) => /认证失败/.test(event.error || "")));
   } finally {
     await sessions.dispose();
     await model.close();
