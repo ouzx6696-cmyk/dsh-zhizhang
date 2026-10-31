@@ -14,6 +14,7 @@ import {
 } from '../../host/src/index.js'
 import { MODE_LABEL, MODES, modes, type Mode } from '../../core/src/mode.js'
 import { setPromptSink } from '../../core/src/sessions.js'
+import { releaseWorkspaces } from '../../core/src/workspace-lock.js'
 import { setProfilesRoot } from '../../core/src/profiles.js'
 import { profileRoutes } from '../../core/src/profile-api.js'
 import { API, registerWorkbench, type WorkbenchAccess, type WorkbenchMode } from '../../workbench/src/server.js'
@@ -118,6 +119,7 @@ function makeWriterEnable(host: HostContext, toutiao: ToutiaoConfig, fanqie: Fan
 }
 
 export function apply(ctx: HostContext, config: WriterConfig = {}) {
+  ctx.effect?.(() => () => { void releaseWorkspaces() }, 'writer: workspace ownership')
   const toutiao: ToutiaoConfig = { ...(parseToutiaoConfig(config.toutiao).value ?? config.toutiao ?? {}) }
   const fanqie: FanqieConfig = { ...(parseFanqieConfig(config.fanqie).value ?? config.fanqie ?? {}) }
   toutiao.python ??= config.python

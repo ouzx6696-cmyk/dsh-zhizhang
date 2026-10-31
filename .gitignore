@@ -14,3 +14,8 @@ bundle/profiles/
 apps/desktop/out/
 apps/desktop/release/
 apps/desktop/resources/
+apps/desktop/out-test/
+test-results/
+playwright-report/
+
+acceptance-results/

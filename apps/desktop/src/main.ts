@@ -1,4 +1,13 @@
-import { app, BrowserWindow, dialog, ipcMain, safeStorage } from "electron";
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  safeStorage,
+  Notification,
+  clipboard,
+  shell,
+} from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -26,7 +35,28 @@ import {
   resolveWorkDir,
 } from "../../../packages/fanqie/src/engine/work-store";
 import { buildDeliveryPrompt } from "../../../packages/fanqie/src/workbench/delivery";
-import { buildToutiaoDelivery } from "../../../packages/toutiao/src/workbench/data";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import updater from "electron-updater";
+const { autoUpdater } = updater;
+import { Settings } from "./settings";
+import { connection } from "./models";
+import { testConnection } from "./pi";
+import { Diagnostics, explainError } from "./diagnostics";
+import { exportContent, wordDocument } from "./exports";
+import { VERSION } from "../../../packages/core/src/version";
+import {
+  setWorkspaceHost,
+  claimWorkspace,
+  workspaceAccess,
+  releaseWorkspace,
+  releaseWorkspaces,
+  assertWorkspaceWritable,
+} from "../../../packages/core/src/workspace-lock";
+import {
+  listArticles,
+  buildToutiaoDelivery,
+} from "../../../packages/toutiao/src/workbench/data";
 
 import { API, type RouteContext } from "../../../packages/workbench/src/server";
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -36,11 +66,58 @@ let target: Target;
 let selectionVersion = 0;
 let home: string;
 let model: ModelSettings;
+let settings: Settings;
+let diagnostics: Diagnostics;
+let access: { readOnly: boolean; owner: any } = {
+  readOnly: false,
+  owner: null,
+};
+let updateState: any = { state: "idle" };
+const deliveries = new Map<string, Promise<unknown>>();
+if (!app.isPackaged && process.env.WRITER_USER_DATA)
+  app.setPath("userData", process.env.WRITER_USER_DATA);
 let writerConfig: {
   toutiao?: ReturnType<typeof parseToutiaoConfig>["value"];
   fanqie?: ReturnType<typeof parseFanqieConfig>["value"];
 } = {};
-function emit(value: unknown) {
+function emit(value: any) {
+  if (value.error) value = { ...value, error: explainError(value.error) };
+  if (value.event?.type === "agent_settled") {
+    void diagnostics?.write("task_ended", {
+      mode: value.target?.mode,
+      work: value.target?.work,
+      aborted: value.event.aborted,
+    });
+    if (!value.editor && !window?.isFocused() && Notification.isSupported()) {
+      const notification = new Notification({
+        title: "写作 Agent",
+        body: value.event.aborted
+          ? "任务已停止，已保存结果保留"
+          : "写作任务已结束，等待你查看稿件与回报。",
+      });
+      notification.on("click", () => {
+        window.show();
+        window.focus();
+        void selectTarget(value.target).then((chosen) =>
+          emit({ selection: { ...chosen, focus: value.focus } }),
+        );
+      });
+      notification.show();
+    }
+    if (
+      value.target &&
+      target &&
+      sessions.key(value.target) !== sessions.key(target) &&
+      !sessions
+        .running()
+        .some(
+          (item) => sessions.key(item.target) === sessions.key(value.target),
+        )
+    )
+      void lockRoot(value.target).then(releaseWorkspace);
+  }
+  if (value.event?.type === "tool_execution_end")
+    void diagnostics?.write("tool_ended", { tool: value.event.toolName });
   if (window && !window.isDestroyed())
     window.webContents.send("writer:event", value);
 }
@@ -75,6 +152,20 @@ function pythonPath() {
     : process.env.WRITER_PYTHON ||
         (process.platform === "win32" ? "py -3" : "python3");
 }
+async function lockRoot(value: Target) {
+  if (value.mode === "toutiao" || !value.work) return value.root;
+  const project = (await listProjects()).find(
+    (item) => item.id === projectIdOf(value.root),
+  );
+  return resolveWorkDir(
+    await ensureStorage(null, {
+      ...writerConfig.fanqie,
+      storageRoot: value.root,
+      worksRoot: project?.worksRoot,
+    }),
+    value.work,
+  );
+}
 async function selectTarget(next: Target) {
   const version = ++selectionVersion;
   const previous = target;
@@ -88,21 +179,37 @@ async function selectTarget(next: Target) {
     const project = (await listProjects()).find(
       (p) => p.id === projectIdOf(normalized.root),
     );
+    const unified =
+      settings?.workspace &&
+      normalized.root === path.join(settings.workspace, ".writer");
     const paths = await ensureStorage(null, {
       ...writerConfig.fanqie,
       storageRoot: normalized.root,
-      ...(project?.worksRoot ? { worksRoot: project.worksRoot } : {}),
+      ...(project?.worksRoot
+        ? { worksRoot: project.worksRoot }
+        : unified
+          ? { worksRoot: path.join(settings.workspace, "novels") }
+          : {}),
     });
     await rememberProject(paths.base, paths.works);
   }
   if (version !== selectionVersion) return target;
   target = normalized;
+  if (
+    previous &&
+    sessions.key(previous) !== sessions.key(target) &&
+    !sessions
+      .running()
+      .some((item) => sessions.key(item.target) === sessions.key(previous))
+  )
+    await releaseWorkspace(await lockRoot(previous));
+  access = await claimWorkspace(await lockRoot(target));
   if (previous && sessions.key(previous) !== sessions.key(target))
     sessions.release(previous);
   await writeFile(path.join(home, "target.json"), JSON.stringify(target));
   return target;
 }
-async function request(
+async function performRequest(
   operation: string,
   options: {
     method?: string;
@@ -116,12 +223,11 @@ async function request(
   for (const [k, v] of Object.entries(options.query || {}))
     if (v !== undefined && v !== "") url.searchParams.set(k, String(v));
   const body = options.body || {};
-  const projects =
-    options.query?.base || options.body?.base || options.body?.project
-      ? await listProjects()
-      : [];
+  const projects = await listProjects();
   const base = body.base || body.project || options.query?.base;
-  const project = projects.find((p: any) => p.id === base || p.base === base);
+  const project = projects.find((p: any) =>
+    base ? p.id === base || p.base === base : p.base === selected.root,
+  );
   if (base && !project) throw new Error("项目未登记，请重新选择创作目录");
   const root =
     body.root || options.query?.root || project?.base || selected.root;
@@ -158,7 +264,10 @@ async function request(
             chapter: "chapterId" in prompt ? prompt.chapterId : undefined,
             source: "chapter",
           };
-    await sessions.send(operationTarget, prompt.text, focus);
+    await sessions.send(operationTarget, prompt.text, {
+      ...focus,
+      intent: body.action === "review" ? "review" : "write",
+    });
     return { status: 200, data: { ok: true, text: prompt.text } };
   }
   if (operation.endsWith("/capabilities"))
@@ -168,8 +277,8 @@ async function request(
         ok: true,
         quick: true,
         deep: false,
-        deliver: !!model.apiKey,
-        reason: model.apiKey ? undefined : "请先保存模型连接",
+        deliver: !!model.writer.apiKey,
+        reason: model.writer.apiKey ? undefined : "请先保存模型连接",
       },
     };
   const cfg = {
@@ -179,7 +288,7 @@ async function request(
     ...(project?.worksRoot ? { worksRoot: project.worksRoot } : {}),
   };
   const modes = [
-    toutiaoApi(cfg, () => !!model.apiKey),
+    toutiaoApi(cfg, () => !!model.writer.apiKey),
     fanqieApi(cfg),
     profileRoutes(
       API + "/toutiao",
@@ -213,7 +322,9 @@ async function request(
   for (const handler of modes) if (await handler.handle(ctx)) break;
   if (operation === "/toutiao/articles") {
     response.data.currentRoot = selected.root;
-    response.data.deliverReason = model.apiKey ? undefined : "请先保存模型连接";
+    response.data.deliverReason = model.writer.apiKey
+      ? undefined
+      : "请先保存模型连接";
   }
   const writes =
     /\/(candidate\/accept|chapter\/(review|finalize)|revision\/acknowledge|diagnostics\/stage|toutiao\/adopt|profiles\/(use|create|save|reset|rename|delete))$/.test(
@@ -246,9 +357,34 @@ async function request(
   }
   return response;
 }
+async function request(operation: string, options: any = {}) {
+  const id = options.body?.requestId;
+  if (!id || !operation.endsWith("/deliver"))
+    return performRequest(operation, options);
+  const key = JSON.stringify([
+    operation,
+    id,
+    options.body.root,
+    options.body.base,
+    options.body.work,
+  ]);
+  if (deliveries.has(key)) return deliveries.get(key);
+  const pending = performRequest(operation, options);
+  deliveries.set(key, pending);
+  if (deliveries.size > 100) deliveries.delete(deliveries.keys().next().value!);
+  try {
+    return await pending;
+  } catch (error) {
+    deliveries.delete(key);
+    throw error;
+  }
+}
+
 app
   .whenReady()
   .then(async () => {
+    if (process.platform === "win32")
+      app.setAppUserModelId("local.writer.agent");
     const resources = app.isPackaged
       ? path.join(process.resourcesPath, "writer")
       : path.resolve(here, "../../resources/writer");
@@ -270,30 +406,37 @@ app
         path.join(home, "profiles"),
       ),
     );
-    const stored = JSON.parse(
-      await readFile(path.join(home, "model.json"), "utf8").catch(() => "{}"),
-    );
-    model = {
-      baseUrl: "https://api.deepseek.com",
-      model: "deepseek-chat",
-      contextWindow: 128000,
-      maxTokens: 8192,
-      ...stored,
-      apiKey: stored.secret
-        ? safeStorage.decryptString(Buffer.from(stored.secret, "base64"))
-        : "",
-    };
-    const raw = JSON.parse(
-      await readFile(path.join(home, "writer.json"), "utf8").catch((error) => {
-        if (error.code === "ENOENT") return "{}";
-        throw error;
-      }),
-    );
+    setWorkspaceHost("独立客户端");
+    settings = new Settings(home, {
+      available: () =>
+        safeStorage.isEncryptionAvailable() &&
+        (process.platform !== "linux" ||
+          safeStorage.getSelectedStorageBackend() !== "basic_text"),
+      encrypt: (text) => safeStorage.encryptString(text).toString("base64"),
+      decrypt: (text) => safeStorage.decryptString(Buffer.from(text, "base64")),
+    });
+    await settings.load();
+    model = settings.models;
+    diagnostics = new Diagnostics(home);
+    await diagnostics.init();
+    await diagnostics.write("start", { version: VERSION });
+    let raw: any = {};
+    try {
+      raw = JSON.parse(await readFile(path.join(home, "writer.json"), "utf8"));
+    } catch (error: any) {
+      if (error.code !== "ENOENT")
+        settings.notices.push("writer.json 无法读取，已使用默认业务配置。");
+    }
     const toutiao = parseToutiaoConfig(raw.toutiao),
       fanqie = parseFanqieConfig(raw.fanqie);
-    const issues = [...toutiao.issues, ...fanqie.issues];
-    if (issues.length) throw new Error(issues.map((x) => x.message).join("；"));
-    writerConfig = { toutiao: toutiao.value, fanqie: fanqie.value };
+    if (toutiao.issues.length || fanqie.issues.length)
+      settings.notices.push("业务配置有无效字段，已对相应模式使用默认配置。");
+    writerConfig = {
+      toutiao: toutiao.issues.length
+        ? parseToutiaoConfig({}).value
+        : toutiao.value,
+      fanqie: fanqie.issues.length ? parseFanqieConfig({}).value : fanqie.value,
+    };
     sessions = new Sessions(
       home,
       pythonPath(),
@@ -307,11 +450,18 @@ app
           emit({ selection: chosen });
         }
       },
+      {
+        preferences: () => settings.preferences(),
+        searchKey: () => settings.searchKey,
+        log: (event, fields) => {
+          void diagnostics.write(event, fields);
+        },
+      },
     );
     const saved = await readFile(path.join(home, "target.json"), "utf8").catch(
       () => "",
     );
-    let notice = "";
+    let notice = settings.notices.join("\n");
     if (saved) {
       try {
         await selectTarget(JSON.parse(saved));
@@ -323,12 +473,10 @@ app
     ipcMain.handle("writer:state", () => ({
       target,
       notice,
-      model: {
-        ...model,
-        apiKey: "",
-        secret: undefined,
-        configured: !!model.apiKey,
-      },
+      access,
+      ...settings.public(),
+      version: VERSION,
+      updates: updateState,
     }));
     ipcMain.handle("writer:choose", async (_event, mode) => {
       if (mode !== "toutiao" && mode !== "fanqie") throw new Error("未知模式");
@@ -344,36 +492,194 @@ app
         : selectTarget({ mode, root: result.filePaths[0] });
     });
     ipcMain.handle("writer:model", async (_event, next) => {
-      const baseUrl = new URL(String(next.baseUrl));
-      if (!["http:", "https:"].includes(baseUrl.protocol))
-        throw new Error("接口地址须为 HTTP(S) URL");
-      const proposed = {
-        baseUrl: baseUrl.href.replace(/\/$/, ""),
-        model: String(next.model || "").trim(),
-        apiKey: String(next.apiKey || model.apiKey),
-        contextWindow: Number(next.contextWindow),
-        maxTokens: Number(next.maxTokens),
-      };
-      if (!proposed.model || !proposed.apiKey)
-        throw new Error("请填写模型 ID 和 API Key");
-      if (
-        !Number.isInteger(proposed.contextWindow) ||
-        !Number.isInteger(proposed.maxTokens) ||
-        proposed.maxTokens <= 0 ||
-        proposed.contextWindow <= proposed.maxTokens
-      )
-        throw new Error("上下文窗口须大于最大输出，且均为正整数");
-      const { apiKey, ...rest } = proposed;
-      const stored = JSON.stringify({
-        ...rest,
-        secret: safeStorage.encryptString(apiKey).toString("base64"),
-      });
       await sessions.dispose();
-      await writeFile(path.join(home, "model.json"), stored);
-      model = proposed;
+      notice = await settings.saveModels(next);
+      model = settings.models;
       emit({ running: [] });
       emit({ refresh: true });
+      await diagnostics.write("models_saved");
+      return settings.public();
+    });
+    ipcMain.handle("writer:test-model", async (_event, role, next) => {
+      const previous = model[role as keyof ModelSettings] || model.writer;
+      try {
+        const value = connection(next, previous);
+        if (!value.apiKey && value.baseUrl === model.writer.baseUrl)
+          value.apiKey = model.writer.apiKey;
+        return await testConnection(
+          value,
+          path.join(home, "agent", "auth.json"),
+        );
+      } catch (error) {
+        throw new Error(explainError(error));
+      }
+    });
+    ipcMain.handle("writer:appearance", async (_event, next) => {
+      await settings.saveUI({ appearance: next });
+      return settings.appearance;
+    });
+    ipcMain.handle("writer:preferences", async (_event, text) => {
+      if (typeof text === "string") await settings.savePreferences(text);
+      return settings.preferences();
+    });
+    ipcMain.handle("writer:search", async (_event, key) => {
+      await settings.saveSearch(String(key));
+      await sessions.dispose();
+      emit({ running: [] });
+      return settings.public();
+    });
+    ipcMain.handle("writer:workspace", async () => {
+      const result = await dialog.showOpenDialog(window, {
+        title: "选择统一写作根",
+        properties: ["openDirectory", "createDirectory"],
+      });
+      if (result.canceled) return null;
+      await settings.saveUI({ workspace: result.filePaths[0] });
+      await Promise.all([
+        mkdir(path.join(settings.workspace, "novels"), { recursive: true }),
+        mkdir(path.join(settings.workspace, "toutiao"), { recursive: true }),
+      ]);
+      const chosen = await selectTarget({
+        mode: "fanqie",
+        root: path.join(settings.workspace, ".writer"),
+      });
+      return { target: chosen, ...settings.public() };
+    });
+    ipcMain.handle("writer:projects", async () => {
+      const projects = await listProjects({ refresh: true }),
+        articles = await listArticles(),
+        items: any[] = [];
+      for (const project of projects)
+        for (const work of project.works || [])
+          items.push({
+            label: work.title,
+            target: { mode: "fanqie", root: project.base, work: work.key },
+            focus: { workTitle: work.title },
+          });
+      for (const article of articles.articles)
+        items.push({
+          label: article.title,
+          target: { mode: "toutiao", root: article.root },
+          focus: {
+            article: article.id,
+            title: article.title,
+            source: "article",
+          },
+        });
+      return items;
+    });
+    ipcMain.handle("writer:new-target", async (_event, mode) => {
+      if (!settings.workspace) throw new Error("请先选择统一写作根");
+      const next: Target = {
+        mode,
+        root: path.join(
+          settings.workspace,
+          mode === "fanqie" ? ".writer" : "toutiao",
+        ),
+      };
+      return selectTarget(next);
+    });
+    ipcMain.handle("writer:new-conversation", async (_event, next) => {
+      await sessions.newConversation(next);
       return true;
+    });
+    ipcMain.handle("writer:conversations", async (_event, next) =>
+      (await sessions.conversations(next)).map(({ file, ...value }) => value),
+    );
+    ipcMain.handle("writer:export", async (_event, next, focus, format) => {
+      const content = await exportContent(next, focus);
+      const answer = await dialog.showMessageBox(window, {
+        type: content.issues.length ? "warning" : "info",
+        title: "导出与发布检查",
+        message: [...content.issues, content.reminder].join("\n"),
+        buttons: ["取消", format === "copy" ? "复制标题与正文" : "导出"],
+        defaultId: 0,
+        cancelId: 0,
+      });
+      if (answer.response !== 1) return null;
+      if (format === "copy") {
+        clipboard.writeText(content.text);
+        return { copied: true };
+      }
+      const extension = format === "docx" ? "docx" : "txt",
+        result = await dialog.showSaveDialog(window, {
+          title: "导出稿件",
+          defaultPath:
+            content.title.replace(/[<>:\"/\\|?*]/g, "_") + "." + extension,
+          filters: [{ name: extension, extensions: [extension] }],
+        });
+      if (result.canceled || !result.filePath) return null;
+      await writeFile(
+        result.filePath,
+        extension === "docx"
+          ? await wordDocument(content.title, content.text)
+          : content.text,
+      );
+      return { file: result.filePath };
+    });
+    ipcMain.handle("writer:backup", async () => {
+      if (!settings.workspace) throw new Error("请先选择写作根");
+      const result = await dialog.showOpenDialog(window, {
+        title: "选择备份保存位置（写作根以外）",
+        properties: ["openDirectory", "createDirectory"],
+      });
+      if (result.canceled) return null;
+      const output = path.join(
+        result.filePaths[0],
+        "写作备份-" + new Date().toISOString().replace(/[:.]/g, "-"),
+      );
+      await promisify(execFile)(
+        process.execPath,
+        [
+          path.join(resources, "scripts/writer-backup.mjs"),
+          "--source",
+          settings.workspace,
+          "--output",
+          output,
+        ],
+        {
+          env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+          maxBuffer: 1024 * 1024,
+        },
+      );
+      await diagnostics.write("backup_completed");
+      return { file: output };
+    });
+    ipcMain.handle("writer:diagnostics", async () => {
+      const result = await dialog.showSaveDialog(window, {
+        title: "导出诊断包",
+        defaultPath: "写作Agent-诊断.json",
+      });
+      if (result.canceled || !result.filePath) return null;
+      await writeFile(
+        result.filePath,
+        JSON.stringify(
+          await diagnostics.bundle({
+            version: VERSION,
+            settings: settings.public(),
+            writerConfig,
+          }),
+          null,
+          2,
+        ),
+      );
+      return { file: result.filePath };
+    });
+    ipcMain.handle("writer:external", (_event, url) => {
+      const parsed = new URL(String(url));
+      if (!["http:", "https:"].includes(parsed.protocol))
+        throw new Error("只支持公开网页链接");
+      return shell.openExternal(parsed.href);
+    });
+    ipcMain.handle("writer:updates", async (_event, action) => {
+      if (!app.isPackaged) throw new Error("开发环境不下载更新");
+      if (action === "download") await autoUpdater.downloadUpdate();
+      else if (action === "install") {
+        await sessions.dispose();
+        await releaseWorkspaces();
+        autoUpdater.quitAndInstall(false, true);
+      } else await autoUpdater.checkForUpdates();
+      return updateState;
     });
     ipcMain.handle("writer:profiles", async () => {
       const result = await dialog.showOpenDialog(window, {
@@ -391,8 +697,8 @@ app
       return !result.canceled;
     });
     ipcMain.handle("writer:select", (_event, next) => selectTarget(next));
-    ipcMain.handle("writer:view", (_event, next, limit) =>
-      sessions.view(next, limit),
+    ipcMain.handle("writer:view", (_event, next, limit, archive) =>
+      sessions.view(next, limit, archive),
     );
     ipcMain.handle("writer:running", () => sessions.running());
     ipcMain.handle("writer:request", (_event, operation, options) =>
@@ -410,7 +716,8 @@ app
     window = new BrowserWindow({
       width: 1380,
       height: 920,
-      minWidth: 900,
+      title: "写作 Agent",
+      minWidth: 760,
       minHeight: 650,
       webPreferences: {
         preload: path.join(here, "../preload/preload.cjs"),
@@ -418,6 +725,59 @@ app
         nodeIntegration: false,
       },
     });
+    const rendererOrigin = process.env.ELECTRON_RENDERER_URL;
+    window.webContents.on("will-navigate", (event, url) => {
+      const allowed = rendererOrigin
+        ? new URL(url).origin === new URL(rendererOrigin).origin
+        : url.startsWith("file:") &&
+          url.split("#")[0] === window.webContents.getURL().split("#")[0];
+      if (!allowed) {
+        event.preventDefault();
+        if (/^https?:/.test(url)) void shell.openExternal(url);
+      }
+    });
+    window.webContents.session.webRequest.onHeadersReceived(
+      (details, callback) =>
+        callback({
+          responseHeaders: {
+            ...details.responseHeaders,
+            "Content-Security-Policy": [
+              "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self'" +
+                (rendererOrigin
+                  ? " ws: http://localhost:* http://127.0.0.1:*"
+                  : "") +
+                "; object-src 'none'; base-uri 'none'; frame-src 'none'",
+            ],
+          },
+        }),
+    );
+    autoUpdater.autoDownload = false;
+    autoUpdater.autoInstallOnAppQuit = false;
+    autoUpdater.on("checking-for-update", () => {
+      updateState = { state: "checking", message: "正在检查更新…" };
+      emit({ updates: updateState });
+    });
+    autoUpdater.on("update-not-available", () => {
+      updateState = { state: "current", message: "当前已是最新版本" };
+      emit({ updates: updateState });
+    });
+    autoUpdater.on("update-available", (info) => {
+      updateState = { state: "available", version: info.version };
+      emit({ updates: updateState });
+    });
+    autoUpdater.on("download-progress", (info) => {
+      updateState = { state: "downloading", percent: Math.round(info.percent) };
+      emit({ updates: updateState });
+    });
+    autoUpdater.on("update-downloaded", () => {
+      updateState = { state: "downloaded" };
+      emit({ updates: updateState });
+    });
+    autoUpdater.on("error", () => {
+      updateState = { state: "error", message: "暂时无法检查更新，请稍后重试" };
+      emit({ updates: updateState });
+    });
+    if (app.isPackaged) void autoUpdater.checkForUpdates().catch(() => {});
     window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
     if (process.env.ELECTRON_RENDERER_URL)
       await window.loadURL(process.env.ELECTRON_RENDERER_URL);
@@ -432,8 +792,10 @@ app.on("before-quit", (event) => {
   if (quitting) return;
   event.preventDefault();
   void (sessions ? sessions.dispose() : Promise.resolve()).finally(() => {
-    quitting = true;
-    app.quit();
+    void releaseWorkspaces().finally(() => {
+      quitting = true;
+      app.quit();
+    });
   });
 });
 app.on("window-all-closed", () => app.quit());

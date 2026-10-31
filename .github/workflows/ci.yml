@@ -1,5 +1,5 @@
 name: ci
-on: [push, pull_request]
+on: [push, pull_request, workflow_call]
 jobs:
   test:
     strategy:
@@ -13,8 +13,9 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
       - run: npm ci
-      - run: npm test
-      - run: npm run pack
+      - run: node scripts/ci-run.mjs npm test
+      - run: node scripts/ci-run.mjs npm run test:desktop
+      - run: node scripts/ci-run.mjs npm run pack
   dsh-integration:
     runs-on: ubuntu-latest
     steps:
@@ -25,6 +26,68 @@ jobs:
         with: { python-version: '3.12' }
       - run: npm ci
       - run: mkdir -p ../dshrt && cd ../dshrt && npm init -y && npm i @deepseek-ai/dsh@0.2.1-rc.4 --ignore-scripts
-      - run: WRITER_DSH_RUNTIME=$GITHUB_WORKSPACE/../dshrt npm run test:dsh
-      - run: WRITER_DSH_RUNTIME=$GITHUB_WORKSPACE/../dshrt npm run test:e2e
-      - run: WRITER_DSH_RUNTIME=$GITHUB_WORKSPACE/../dshrt npm run test:e2e:fanqie
+      - run: node scripts/ci-run.mjs npm run test:dsh
+        env:
+          WRITER_DSH_RUNTIME: ${{ github.workspace }}/../dshrt
+      - run: node scripts/ci-run.mjs npm run test:e2e
+        env:
+          WRITER_DSH_RUNTIME: ${{ github.workspace }}/../dshrt
+      - run: node scripts/ci-run.mjs npm run test:e2e:fanqie
+        env:
+          WRITER_DSH_RUNTIME: ${{ github.workspace }}/../dshrt
+  desktop-ui:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: npm ci
+      - run: node scripts/ci-run.mjs npm run desktop:build
+      - run: node scripts/ci-run.mjs npm run test:desktop:ui
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-ui-results
+          path: test-results/
+  windows-package:
+    needs: [test, dsh-integration, desktop-ui]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm ci
+      - run: node scripts/ci-run.mjs npm run desktop:build
+      - run: node scripts/ci-run.mjs npm run pack
+      - run: node scripts/ci-run.mjs npm run pack --workspace @writer/desktop
+        env:
+          CSC_LINK: ${{ secrets.WINDOWS_CERTIFICATE }}
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+      - run: node scripts/ci-run.mjs npm run pack:portable --workspace @writer/desktop
+        env:
+          CSC_LINK: ${{ secrets.WINDOWS_CERTIFICATE }}
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+      - name: 核对签名并记录发布条件
+        shell: pwsh
+        env:
+          CERTIFICATE_PROVIDED: ${{ secrets.WINDOWS_CERTIFICATE != '' }}
+        run: |
+          $exe = Get-ChildItem apps/desktop/release/*.exe | Select-Object -First 1
+          $signature = Get-AuthenticodeSignature $exe.FullName
+          if ($env:CERTIFICATE_PROVIDED -eq 'true' -and $signature.Status -ne 'Valid') { throw '签名校验未通过' }
+          @{ signing = $signature.Status.ToString(); realModelAcceptance = 'pending-author-review' } | ConvertTo-Json | Set-Content apps/desktop/release/RELEASE-CONDITIONS.json
+      - name: 整理交付文件
+        shell: bash
+        run: |
+          version="$(node -p 'require("./package.json").version')"
+          mkdir -p release-artifacts
+          cp dist-pack/*.tgz apps/desktop/release/*.exe apps/desktop/release/*.zip apps/desktop/release/*.blockmap apps/desktop/release/latest.yml apps/desktop/release/RELEASE-CONDITIONS.json release-artifacts/
+          cp "docs/${version}-IMPLEMENTATION.md" docs/DESKTOP.md release-artifacts/
+          git archive --format=zip --prefix="writer-agent-${version}/" -o "release-artifacts/writer-agent-${version}-src.zip" HEAD
+          (cd release-artifacts && sha256sum *.zip *.tgz *.exe *.blockmap *.yml *.json *.md > SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: writer-windows-packages
+          path: release-artifacts/

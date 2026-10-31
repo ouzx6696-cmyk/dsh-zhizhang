@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const PKGS = path.join(ROOT, 'packages')
-const LAYERS = { host: 0, core: 1, workbench: 1, toutiao: 2, fanqie: 2, app: 3 }
+const LAYERS = { host: 0, core: 1, workbench: 1, toutiao: 2, fanqie: 2, app: 3, 'host-generic': 2 }
 const BROWSER_SAFE = ['fanqie/src/engine/domain/manuscript.ts', 'fanqie/src/engine/domain/diagnostics.ts']
 const problems = []
 

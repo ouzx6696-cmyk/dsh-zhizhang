@@ -59,7 +59,7 @@ export function Diagnostics({ state, view, actions, annotationId }) {
         </div>
         <Button disabled={!edit.history.length || locked} onClick={() => undo()}>{c.undo}</Button>
         <Button disabled={!edit.future.length || locked} onClick={() => undo(true)}>{c.redo}</Button>
-        <Button disabled={!edit.dirty || busy || conflict && !edit.pendingSave} onClick={save}>{edit.pendingSave ? c.retrySave : c.save}</Button>
+        <Button data-action="save-paragraph" disabled={!edit.dirty || busy || conflict && !edit.pendingSave} onClick={save}>{edit.pendingSave ? c.retrySave : c.save}</Button>
         <Button disabled={busy || edit.saving} onClick={clear}>{c.clear}</Button>
         {edit.dirty ? <p>{c.original}</p> : null}
       </> : null}

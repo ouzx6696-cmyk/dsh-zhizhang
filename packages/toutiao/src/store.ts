@@ -1,3 +1,5 @@
+import { mkdir } from 'node:fs/promises'
+import { claimWorkspace, assertWorkspaceWritable } from "../../core/src/workspace-lock.js"
 /**
  * 头条文章存储。目录布局：
  *
@@ -89,7 +91,14 @@ export class ArticleStore {
   editsPath(id: string) { return path.join(this.dir(id), 'edits.json') }
   deliveryPath(id: string) { return path.join(this.dir(id), '交稿单.md') }
 
+  async writable() {
+    await mkdir(this.root, { recursive: true })
+    await claimWorkspace(this.root)
+    await assertWorkspaceWritable(this.root)
+  }
+
   async create(slug: string, opts: { date?: string; titleHint?: string; line?: string; genre?: string }): Promise<ArticleMeta> {
+    await this.writable()
     const s = slug.trim()
     if (!SLUG_RE.test(s)) throw new WriterError('INVALID_ARGS', 'slug 只能用字母、数字、中文、-、_，最长 41 字')
     const date = opts.date ?? today()
@@ -118,6 +127,7 @@ export class ArticleStore {
 
   /** 读改写 meta.json，同一文章串行 */
   async update(id: string, fn: (m: ArticleMeta) => Promise<void> | void): Promise<ArticleMeta> {
+    await this.writable()
     return serialize(this.metaPath(id), async () => {
       const meta = await this.get(id)
       await fn(meta)
@@ -145,6 +155,7 @@ export class ArticleStore {
   }
 
   async writeCard(id: string, card: Record<string, unknown>): Promise<string> {
+    await this.writable()
     await this.get(id)
     const text = JSON.stringify(card, null, 2)
     await atomicWrite(this.cardPath(id), text)
@@ -164,6 +175,7 @@ export class ArticleStore {
 
   /** 新增一版稿件（只增不改）。已交稿的文章不再接受新稿。 */
   async stageDraft(id: string, text: string, role: string, note: string): Promise<ArticleMeta> {
+    await this.writable()
     return this.update(id, async (m) => {
       if (m.status === '已交稿') throw new WriterError('CONFLICT', '这篇已交稿，不能再改；需要改写请新开一篇')
       const rev = m.current_rev + 1

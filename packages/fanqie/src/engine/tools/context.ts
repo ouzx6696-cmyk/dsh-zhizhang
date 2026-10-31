@@ -1,6 +1,7 @@
 /**
  * Shared tool context: plugin config, session last-work, openWork helpers.
  */
+import { claimWorkspace } from "../../../../core/src/workspace-lock.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { NovelError } from "../errors.js";
 import type { ExecContext } from "../types.js";
@@ -104,6 +105,7 @@ export async function openWork(exec: ExecContext, args: any) {
     }
     const dir = await resolveWorkDir(paths, key);
     const meta = await readWorkMeta(dir);
+    await claimWorkspace(dir);
     rememberWork(exec, meta.key);
     return { paths, dir, key: meta.key };
 }

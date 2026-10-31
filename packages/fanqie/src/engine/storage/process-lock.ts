@@ -1,4 +1,5 @@
 /** Cooperative filesystem lock for writers in different processes sharing a resource. */
+import { assertWorkspaceWritable } from "../../../../core/src/workspace-lock.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import { mkdir, open, readFile, realpath, rmdir, unlink } from "node:fs/promises";
@@ -17,6 +18,7 @@ const WAIT_MS = 10000;
  * Only cooperating writers participate; external edits remain unprotected.
  */
 export async function withResourceLock<T>(root: string, fn: () => Promise<T>): Promise<T> {
+    await assertWorkspaceWritable(root);
     await assertSafeAncestors(path.join(root, ".lock-check"));
     const key = await realpath(root);
     const previous = held.getStore();

@@ -1,0 +1,29 @@
+name: real-model-acceptance
+on:
+  workflow_dispatch:
+    inputs:
+      news_urls:
+        description: 至少两个真实新闻链接（JSON 数组）
+        required: true
+        type: string
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm ci
+      - run: npm run acceptance:prepare -- --output acceptance-results
+      - name: 执行真实模型任务
+        env:
+          WRITER_ACCEPTANCE_KEY: ${{ secrets.WRITER_ACCEPTANCE_KEY }}
+          NEWS_URLS: ${{ inputs.news_urls }}
+        run: |
+          node -e 'const fs=require("fs");const p="acceptance-results/acceptance-config.example.json";const c=JSON.parse(fs.readFileSync(p));c.newsUrls=JSON.parse(process.env.NEWS_URLS);fs.writeFileSync(p,JSON.stringify(c))'
+          node scripts/acceptance.mjs --run --config acceptance-results/acceptance-config.example.json --output acceptance-results
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: real-model-acceptance
+          path: acceptance-results/

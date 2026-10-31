@@ -23,6 +23,7 @@ async function scan(root) {
   async function visit(dir, rel) {
     const names = (await readdir(dir)).sort();
     for (const name of names) {
+      if (name === '.writer-workspace-lock.json') continue;
       const file = path.join(dir, name), item = rel ? path.join(rel, name) : name;
       const st = await lstat(file);
       if (name === '.writer-write-lock') fail(`发现写锁 ${file}；请停止所有写入进程并核对后再备份。`);

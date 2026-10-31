@@ -1,43 +1,53 @@
-# 独立客户端（0.9.1 开发版）
+# 独立客户端（0.9.2 开发版）
 
-独立入口位于 `apps/desktop`，使用 Electron、React 和 Pi SDK。头条与长篇工具、候选、审读、方法方案继续与 DSH 入口共用。发行包见 [v0.9.1](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/v0.9.1)，客户端仍属开发预览。
+写作 Agent 面向本地头条创作与长篇写作：模型负责规划、写作和独立审读，作者决定采纳、采用及定稿。Electron 提供窗口与文件操作，Pi 管理模型会话，业务与方法资产沿用 DSH 版本。
 
-## 开发
+## 开始使用
 
-开发环境使用 Node.js 22.19+（建议 24）和 npm，运行规则脚本还需 Python 3。首次 `npm install` 会准备 Electron 开发运行时。
+首次启动依次完成连接模型、选择写作根、开新书或新头条。预设含 DeepSeek、Kimi、通义千问、智谱及 OpenAI / Anthropic 兼容接口；服务商具体模型 ID 与账户权限以其实际提供为准。“测试连接”发送一条最短真实请求，显示延迟。
 
-```bash
-npm install
-npm run desktop:dev
+写手默认 deepseek-chat，编辑默认 deepseek-reasoner 并开启思考；规划默认跟随写手，可单独配置。编辑与规划使用独立上下文，不继承主会话完整聊天。编辑按既有工具权限工作，不替作者定稿。
+
+写作根布局：
+
+```text
+写作根/
+  novels/作品目录/    # 正文、章纲、候选、审读、版本历史
+  toutiao/           # 文章、立项卡、逐版稿件、质检、交稿单、台账
+  .writer/           # 小说资料库、规划资源、preferences.md
 ```
 
-`WRITER_PYTHON` 可以指定 Python 可执行文件。应用中先选择长篇数据根（包含 works，或一个空目录）或头条文章目录，再保存模型连接。默认接口格式为 OpenAI 兼容；Key 使用 Electron safeStorage 保存，模型运行时从内存获取，不写入另一份模型配置。
+已有 0.9.1 目录无需搬迁；设置中的“打开旧长篇目录 / 打开旧头条目录”可继续使用。统一根仅组织新作品，不自动移动已有作品。顶栏作品切换器可打开最近登记的作品和文章。
 
-写作台保留原操作；“对话”显示对话区域，“刷新对话”重读对应 Pi 会话，“查看更早消息”继续读取历史。宽窗口为对话单独留位，窄窗口使用抽屉。编辑通过 `writer_review` 运行，采用与定稿仍由作者决定。方法方案的原内容不变，“方法目录”可指定既有用户方案根目录。
+## 写作与作者决定
 
-打开文章或章节后，自由输入会携带发送时的对象与已加载版本；切页不改变已经发送的任务。对话分别显示当前阅读与运行对象，其他作品仍在运行时，顶部提供返回和停止入口。编辑工具结果会显示实际审读或质检摘要，并可回到对应章节、文章。
+左侧导航，中间稿纸，右侧 Agent / 本章 / 方法方案。正文上方保留声明已审读、定稿；候选视图提供采纳和对照。小于 1200px 收起章节导航，小于 960px 右栏作为可开关抽屉。
 
-查看已保存对话不需要先连接模型。Agent 触发的作者确认使用原生对话框；停止任务会取消等待中的确认。保存模型连接会停止当前任务，保留历史与作品文件。
+Agent 任务卡显示实际工具推进的步骤、当前状态及待作者决定事项。token 来自模型 usage；未配置价格时费用提示以服务商账单为准。后台任务结束可发系统通知，点击返回对应作品。
 
-应用数据保存在 Electron userData 下；作品和方法方案保存在所选目录。Pi 会话按模式、根目录和作品关联，工具顺序执行。停止请求不撤销已经保存的稿件。
+输入 `/` 或 Ctrl+K 打开命令面板，支持新书、续写、改本章、派编辑、拆书、质检、交稿、导出和新对话。快捷动作随当前章节／文章状态变化，使用原写作台的任务文本。Enter 发送，Shift+Enter 换行，Ctrl+S 保存正在修改的段落，Ctrl+1/2/3 切右栏，Esc 停止任务前确认。
 
-## 构建
+发送时固定当前对象和已保存状态；切页不更改已发送任务。长篇写章前由客户端调用精简 chapter_brief 留下依据，再交给模型；摘要不附全文，模型仍须读取实际正文。审读附最近回报，头条附状态与质检。“新对话，保留作品”保存旧 Pi 会话入口，清空当前聊天；作品不变，旧对话可从历史下拉查看。
 
-```bash
-npm run desktop:build
-npm run desktop:pack       # Windows NSIS 安装器；Linux 交叉构建需 Wine
-npm run desktop:portable   # Windows 免安装 ZIP
-```
+两种模式共用作者偏好 `.writer/preferences.md`，可在设置中编辑。自由对话不自动保存尚未提交的段落。停止任务保留已落盘内容，不撤销写入。
 
-build 包含公共 TypeScript 与桌面 TypeScript 检查、资产准备、Main/Preload/Renderer 构建。pack 生成 Windows x64 NSIS 安装包，准备固定版本、带 SHA-256 校验的 Windows CPython，并放入包外资源目录。Python 运行包来源与版本记录在资源中的 writer-runtime.json；随运行包保留其许可证文件。首次打包需要访问 GitHub 和 Electron 发行资源。
+## 资料、导出与备份
 
-Windows x64 为本版安装包目标；macOS/Linux 可用于源码开发，不宣称相应平台已完成安装包支持。客户端实际桌面交互、真实模型及 Windows 安装运行的核对结果需以本次工作记录为准。
+可以给 Agent 公开网页链接；可选在设置中填写 Tavily Key 启用搜索。搜索摘要不算已核实出处：资讯线立项卡须引用本任务实际读取的网址。页面内容仅作为外部资料；读取拒绝本机、内网和保留地址，限制 2 MB。
 
-DSH 插件仍由 `npm run pack` 生成，不包含 Pi/Electron 运行依赖。独立版与 DSH 不同时写同一作品。
+顶栏提供 TXT、DOCX 与复制正文。头条输出标题和当前稿；长篇只输出已定稿章节。导出前显示残留标记、当前质检与 AI 生成声明提醒；故事或合成人物须按平台要求声明虚构演绎。应用不登录或自动发布到平台。
 
-## 既有业务配置
+设置可备份整个写作根，复用既有离线备份脚本，生成新目录和校验清单。采纳候选、头条采用及长篇定稿前会保存轻量文件快照，位于作品的 `.writer-snapshots/`；保留原有逐版稿件与历史。备份、快照不自动恢复或删除作者文件。
 
-需要启用原有可选能力时，在应用 userData 下的 `writer.json` 填写 `toutiao` / `fanqie` 配置，例如：
+DSH 与桌面检测 `.writer-workspace-lock.json`（宿主、进程、机器）：另一进程持有作品时只能读取。先关闭另一入口中的作品，再重新打开。进程退出释放自己的锁，同机进程已结束的锁可重取。
+
+## 设置与故障信息
+
+模型 Key 使用系统 safeStorage 加密，不写入另一份 Pi 凭据文件；安全存储不可用时只在内存保留，并提示下次重填。损坏的模型或 writer.json 配置使用默认值启动并提示。API Key 留空表示保持同一接口已有 Key。
+
+应用 userData 保存模型元数据、窗口偏好、Pi 会话索引和按天日志。诊断导出含版本、去敏配置和最近日志，不记录 Key 或稿件正文。认证、余额、限流和网络错误给出中文处理建议。
+
+`writer.json` 沿用 DSH 业务字段，例如：
 
 ```json
 {
@@ -46,6 +56,32 @@ DSH 插件仍由 `npm run pack` 生成，不包含 Pi/Electron 运行依赖。�
 }
 ```
 
-字段沿用现有配置解析器；作品根以界面所选目录为准，Python 以应用运行资源为准。更改此文件后重启应用。
+修改后重启。主题、正文字体与字号可在界面设置；黑体和宋体随包提供，不依赖联网字体。
 
-本次实现与未验证范围见 [0.9.1-IMPLEMENTATION.md](0.9.1-IMPLEMENTATION.md)，设计依据见 [0.9.1-OPTIMIZATION.md](0.9.1-OPTIMIZATION.md)。
+## 开发与验证
+
+Node.js 22.19+（建议 24）、npm、Python 3；Windows 可用 `WRITER_PYTHON` 指定 Python。
+
+```sh
+npm ci
+npm run desktop:dev
+npm run desktop:build
+npm run test:desktop       # 真实 Pi + 本地假模型，业务与宿主边界
+npm run test:desktop:ui    # Playwright 驱动真实 Electron，需桌面环境
+```
+
+业务层继续 `npm test`；DSH 集成与两条 headless 流程沿用现有命令。桌面核心只有一份测试文件；界面检查聚焦引导、决策可见、主题、命令和会话，不另建烟测集合。各层职责与实测结果见实施记录。
+
+## Windows 构建与更新
+
+```sh
+npm run desktop:build
+npm run pack --workspace @writer/desktop           # 原生 Windows NSIS
+npm run pack:portable --workspace @writer/desktop  # 免安装 ZIP
+```
+
+CI 在业务、DSH 与 Windows Electron 界面检查成功后，原生构建 NSIS 和 ZIP，并附 SHA-256 清单。内置固定版本、校验过的 Windows CPython，字体与 Python 许可证随资源保留。没有提供证书时生成未签名包；若提供 WINDOWS_CERTIFICATE / WINDOWS_CERTIFICATE_PASSWORD，构建后核对 Authenticode 签名，不把未签名视为签名通过。
+
+electron-updater 启动检查 GitHub Releases，作者确认后下载、安装。更新源必须发布匹配的安装器、blockmap 与 latest.yml；尚未完成跨已发布版本的更新实测。
+
+正式发布前还需完成 [真实模型验收](ACCEPTANCE.md) 与作者评分。本版不承诺 Windows 物理机安装、证书签名或真模型写作效果已经验证。多宿主适配留到 0.9.3，接口约定见 [通用宿主边界](MCP-0.9.3-CONTRACT.md)。

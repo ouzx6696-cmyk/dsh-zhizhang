@@ -2,8 +2,24 @@ import { contextBridge, ipcRenderer } from "electron";
 const invoke = (name: string, ...args: unknown[]) =>
   ipcRenderer.invoke("writer:" + name, ...args);
 contextBridge.exposeInMainWorld("writerDesktop", {
+  workspace: () => invoke("workspace"),
+  projects: () => invoke("projects"),
+  newTarget: (mode: string) => invoke("new-target", mode),
+  appearance: (next: unknown) => invoke("appearance", next),
+  preferences: (text?: string) => invoke("preferences", text),
+  search: (key: string) => invoke("search", key),
+  testModel: (role: string, next: unknown) => invoke("test-model", role, next),
+  newConversation: (target: unknown) => invoke("new-conversation", target),
+  conversations: (target: unknown) => invoke("conversations", target),
+  export: (target: unknown, focus: unknown, format: string) =>
+    invoke("export", target, focus, format),
+  backup: () => invoke("backup"),
+  diagnostics: () => invoke("diagnostics"),
+  updates: (action?: string) => invoke("updates", action),
+  openExternal: (url: string) => invoke("external", url),
   select: (target: unknown) => invoke("select", target),
-  view: (target: unknown, limit?: number) => invoke("view", target, limit),
+  view: (target: unknown, limit?: number, archive?: number) =>
+    invoke("view", target, limit, archive),
   running: () => invoke("running"),
   profiles: () => invoke("profiles"),
   state: () => invoke("state"),

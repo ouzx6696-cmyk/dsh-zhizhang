@@ -1,4 +1,5 @@
 /** Chapter encoding, reads and serialized updates; the store facade re-exports the public API. */
+import { snapshotFiles } from "../../../../core/src/snapshots.js";
 import { mkdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { NovelError } from "../errors.js";
@@ -360,6 +361,7 @@ export async function updateChapter(dir: string, input: { id: string; title?: st
         }
         if (!previous && input.body === undefined)
             throw new NovelError("bad_args", "新建章节必须提供 content");
+        if(input.status === "final")await snapshotFiles(dir,[metaPath(dir),chapterFile(dir,input.id)]);
         return saveChapterUnlocked(dir, {
             id: input.id,
             title: input.title ?? previous?.title ?? input.id,

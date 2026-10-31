@@ -1,5 +1,6 @@
 appId: local.writer.agent
-productName: WriterAgent
+productName: 写作 Agent
+executableName: WriterAgent
 artifactName: WriterAgent-${version}-${os}-${arch}.${ext}
 directories:
   output: release
@@ -12,9 +13,14 @@ extraResources:
   - from: resources/python
     to: python
 asar: true
+publish:
+  provider: github
+  owner: ouzx6696-cmyk
+  repo: dsh-zhizhang
 win:
   target: nsis
-  signAndEditExecutable: false
+  icon: branding/icon.ico
+  signExecutable: true
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true

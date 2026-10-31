@@ -1,9 +1,10 @@
 # writer-agent · 写作 Agent
 
-0.9.1 开发版提供基于 Pi 的独立桌面入口，保留 DSH 插件。两种入口共用写作业务和本地作品格式。
+0.9.2 开发版提供基于 Pi 的独立桌面客户端，保留 DSH 插件；两种入口共用写作业务、方法方案与本地作品。
 
-独立客户端的开发、构建和数据位置见 [docs/DESKTOP.md](docs/DESKTOP.md)。以下为 DSH 插件的使用说明。
-本版任务对象、会话关联、作者操作与界面优化见 [docs/0.9.1-IMPLEMENTATION.md](docs/0.9.1-IMPLEMENTATION.md)，其中列明实际核对范围与使用边界。
+桌面版采用统一写作根和三栏界面，提供独立编辑模型、规划角色、交接、新对话、作者偏好与导出。使用与构建见 [桌面说明](docs/DESKTOP.md)，本轮实施、验证证据与待办见 [0.9.2 实施记录](docs/0.9.2-IMPLEMENTATION.md)。真实模型写作效果与证书签名仍待验收，正式发行仍以 GitHub Releases 为准。
+
+以下为 DSH 插件使用说明。
 
 在 DeepSeek Harness（DSH）上做的写作 Agent：**一个入口 `writer_enable`、两种写作模式（今日头条 / 番茄长篇）、一个写作台**。
 
@@ -41,6 +42,7 @@ DSH 侧栏「写作台」，顶部切换**番茄长篇 / 今日头条**：
 ```
 packages/
   host/        唯一接触 DSH 宿主对象的一层（结构类型 + 能力探测，零 @deepseek-ai 运行时依赖）
+  host-generic/ 宿主无关的工具执行：门禁、确认、配置绑定、执行与渲染
   core/        文件与越界检查、Python 运行器、门禁引擎、写作模式与隔离、会话追踪与投递、版本
   workbench/   写作台：server.ts（访问校验、限流、路由组合）+ client/（外壳、番茄长篇、今日头条、共用组件）
   toutiao/     今日头条：工具、总则、门禁、文章存储、写作台接口；skill/ 是规则脚本与原版方法，profiles/default 是默认方案
@@ -57,7 +59,7 @@ docs/          架构、安装、工具、写作台、番茄长篇、资产、DS
 
 ```bash
 npm ci
-npm test              # 架构守卫 + Python 规则（头条 205 + 长篇 10）+ Node 90 + 资产检查
+npm test              # 架构守卫 + Python 规则 + Node 业务与资产检查
 npm run pack          # 生成 dist-pack/dsh-writer-<版本>.tgz
 
 # 需要一份装好 DSH 的目录（mkdir dshrt && cd dshrt && npm init -y && npm i @deepseek-ai/dsh@0.2.1-rc.4 --ignore-scripts）

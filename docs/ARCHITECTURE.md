@@ -1,6 +1,6 @@
 # 架构
 
-写作 Agent 是一个 DSH 插件（包名 `dsh-writer`）：一个入口 `writer_enable`，两种写作模式，一个写作台。
+写作 Agent 同时提供 DSH 插件（`dsh-writer`）和 Pi 独立桌面入口。两种入口共用业务工厂、方法方案、门禁与本地作品；桌面说明见 [DESKTOP.md](DESKTOP.md)。
 
 ```mermaid
 flowchart TD
@@ -28,6 +28,7 @@ flowchart TD
 | 1 | `workbench` | 服务端：访问校验、限流、JSON 读写、路由组合（server.ts）；浏览器端：外壳与两种模式的界面（client/） |
 | 2 | `toutiao` | 今日头条：19 个工具、总则、门禁、文章存储、规则脚本（skill/）、写作台接口（workbench/） |
 | 2 | `fanqie` | 番茄长篇：引擎（engine/，作品存储与 50 多个创作工具）+ 写作层（forge 方法、章纲/旧账检查、编辑审读、门禁）+ 写作台接口（workbench/） |
+| 2 | `host-generic` | 宿主无关的工具门禁、作者确认、配置绑定、执行与渲染；无 SDK 或网络依赖 |
 | 3 | `app` | 插件入口：`writer_enable`、配置校验、把两种模式的接口挂到写作台 |
 
 只能向下依赖；`scripts/architecture-guard.mjs` 还检查宿主边界、引擎存储边界、浏览器端边界和依赖环。
@@ -52,3 +53,9 @@ flowchart TD
 ## 构建
 - 一份 `tsconfig.json` 编译全部服务端代码到 `build/`；`scripts/build-client.mjs` 用 esbuild 打浏览器端。
 - `scripts/build-bundle.mjs` 把入口打成单文件 ESM（`bundle/dist/index.js`，无运行时依赖），复制浏览器端、规则脚本与方法文件、备份脚本；`npm run pack` 生成 tgz。
+
+## 独立桌面入口
+
+`apps/desktop/src/pi.ts` 是唯一 Pi SDK 导入边界，`session.ts` 管理写手、独立编辑和规划角色、精简交接与既有会话文件。Electron main 负责窗口、加密配置、文件对话框、通知和 IPC；React 工作区直接复用写作台组件。工具调用经 host-generic 回到原业务，不重建方法或存储。
+
+统一根将书放在 novels、文章放在 toutiao、资料与作者偏好放在 .writer。跨入口的作品租约与轻量快照在 core，共享业务写入检查租约。0.9.3 MCP 适配边界见 [接口约定](MCP-0.9.3-CONTRACT.md)。

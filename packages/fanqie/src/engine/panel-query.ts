@@ -182,6 +182,7 @@ export async function buildPanelSnapshot(dir: string, pathsHint: any, opts: { sc
         totals: { chapters: chapters.length, words, final, drafted, planned },
         foundation: foundationView,
         chapters,
+        volumes:(meta.planning?.volumes || []).map((volume:any)=>({id:volume.id,title:volume.title,chapters:volume.chapters})),
         ledgerRecent,
         candidates: candidateRows,
         revisionImpacts,

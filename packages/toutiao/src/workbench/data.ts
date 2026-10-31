@@ -5,6 +5,7 @@
  *   - adopt          作者在写作台“采用”：已验收 + 已出交稿单 + 质检仍有效 → 已交稿
  *   - buildToutiaoDelivery  写作台按钮 → 投递到对话的一条消息
  */
+import { snapshotFiles } from "../../../core/src/snapshots.js"
 import path from 'node:path'
 import { readText } from '../../../core/src/fsx.js'
 import { WriterError } from '../../../host/src/index.js'
@@ -83,6 +84,7 @@ export async function adopt(rootIn: string, id: string, config: ToutiaoConfig = 
   if (m0.status !== '已验收' || !m0.delivered) throw new WriterError('CONFLICT', '只有已验收且已生成交稿单的文章可以采用')
   const v = await validPassingQa(store, m0)
   if (!v.ok) throw new WriterError('GATE_DENIED', v.reason)
+  await snapshotFiles(store.dir(id),[store.metaPath(id),store.draftPath(id,m0.current_rev)])
   const m = await store.update(id, (mm) => {
     if (mm.status !== '已验收') throw new WriterError('CONFLICT', '状态已变化')
     mm.history.push({ from: mm.status, to: '已交稿', by: 'author-panel', at: nowIso(), note: '作者在写作台采用' })
@@ -127,7 +129,10 @@ export async function buildToutiaoDelivery(rootIn: string, input: { action: stri
       lines.push(`【写作台】按最近的质检与编辑意见修改${ref}。${why}。只改 fails、硬闸与三联表指出的位置，存新版本后重跑 toutiao_qa_check；不靠换词、堆口语词或数字凑分。`)
     }
   }
-  if (enableHint) lines.push(enableHint)
+  if (enableHint) {
+    lines.push(enableHint)
+    if (action === 'review') lines.push('编辑子代理须先调用 writer_enable，参数 mode=toutiao、role=editor；不要让主会话切换角色。')
+  }
   if (note && action !== 'new') lines.push(`作者附言：${note}`)
   return { action, id: input.id, text: lines.join('\n') }
 }

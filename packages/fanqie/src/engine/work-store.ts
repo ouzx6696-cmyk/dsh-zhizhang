@@ -14,6 +14,7 @@
  * Patterns: atomic write, path sandbox, cooperative resource locks, CJK-aware word count.
  * Strategy decisions stay in ports/; this module only persists and queries.
  */
+import { snapshotFiles } from "../../../core/src/snapshots.js";
 import { mkdir, readdir, readFile, realpath, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { stateRoot } from "../../../core/src/paths.js";
@@ -822,6 +823,7 @@ export async function acceptCandidate(dir: string, candidateId: string, mode: an
                     : `采纳候选 ${id}（${acceptMode}）→ 本地草稿，未定稿`,
             });
             if (ledger.entries.length > LEDGER_MAX_ENTRIES) ledger.entries = ledger.entries.slice(-LEDGER_MAX_ENTRIES);
+            await snapshotFiles(dir, [metaPath(dir), chapterPath]);
             const journalId = await createAcceptJournal(dir, {
                 chapterId: chapterId, candidateId: id, mode: acceptMode, bodyFile, bodyHash,
                 writes: [

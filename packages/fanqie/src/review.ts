@@ -3,6 +3,7 @@
  * 定稿条件（requireEditorPass）与写作台单章附带的审读信息也在这里，工具定稿与写作台定稿共用。
  */
 import path from 'node:path'
+import { assertWorkspaceWritable } from '../../core/src/workspace-lock.js'
 import { readdir } from 'node:fs/promises'
 import { atomicWrite, readJson, resolveInside, sha256 } from '../../core/src/fsx.js'
 import { readWorkMeta } from './engine/store.js'
@@ -45,6 +46,7 @@ export function reviewDir(workDir: string, chapter: string): string {
 }
 
 export async function saveReview(workDir: string, r: ReviewReport): Promise<string> {
+  await assertWorkspaceWritable(workDir)
   const dir = reviewDir(workDir, r.chapter)
   const file = path.join(dir, `${r.at.replace(/[:.+]/g, '-')}.json`)
   await atomicWrite(file, JSON.stringify(r, null, 2))

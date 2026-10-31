@@ -36,7 +36,7 @@ function matches(a, q) {
   return String(a.title).toLowerCase().includes(k) || String(a.id).toLowerCase().includes(k);
 }
 
-function ArticleList({ articles, statuses, sel, onSelect }) {
+export function ArticleList({ articles, statuses, sel, onSelect }) {
   const [query, setQuery] = useState("");
   const visible = articles.filter((a) => matches(a, query));
   const groups = (statuses.length ? statuses : [...new Set(articles.map((a) => a.status))])
@@ -91,7 +91,7 @@ function ArticleList({ articles, statuses, sel, onSelect }) {
   );
 }
 
-function Body({ detail }) {
+export function Body({ detail }) {
   const [view, setView] = useState("draft");
   if (detail.status === "loading") return <div className="wb-pane-loading" role="status"><Skeleton lines={8} /></div>;
   if (detail.status === "error") return <Callout tone="danger" role="alert">{detail.error}</Callout>;
@@ -137,7 +137,7 @@ function Body({ detail }) {
   );
 }
 
-export function ToutiaoSide({ tt }) {
+export function ToutiaoSide({ tt, hideAgent = false }) {
   const { detail, busy, deliverOff, actions } = tt;
   const doneAt = tt.doneAt || {};
   const [confirming, setConfirming] = useState(false);
@@ -244,7 +244,7 @@ export function ToutiaoSide({ tt }) {
           </Section>
         </>
       ) : null}
-      <Section title={t("ttAgent")} className="wb-writer">
+      {!hideAgent && <Section title={t("ttAgent")} className="wb-writer">
         <label className="wb-field wb-tt-note">
           <span className="wb-muted">{t("ttNote")}</span>
           <textarea rows={2} maxLength={300} value={note} placeholder={t("ttNotePlaceholder")} onChange={(e) => setNote(e.target.value)} />
@@ -260,7 +260,7 @@ export function ToutiaoSide({ tt }) {
           <ActionCard icon="pen" primary={!a || a.status === "已交稿"} title={t("ttNew")} hint={t("ttNewHint")} busy={busy === "new"} disabled={!!busy || !!off} offReason={off} onClick={() => send("new")} />
         </div>
         {off ? <p className="wb-muted wb-off-reason"><Icon name="info" size={12} /> {off}</p> : null}
-      </Section>
+      </Section>}
     </div>
   );
 }

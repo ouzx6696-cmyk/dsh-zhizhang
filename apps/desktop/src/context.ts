@@ -12,6 +12,7 @@ export type Focus = {
   workTitle?: string;
   source?: "chapter" | "candidate" | "article" | "split";
   dirty?: boolean;
+  intent?: "write" | "review" | "plan" | "inspect";
 };
 
 export const scopeId = (target?: Target | null) =>
@@ -54,4 +55,22 @@ export function toolLabel(name: string) {
   if (/method|forge_get|profile/.test(name)) return "查阅方法方案";
   if (/create|outline|foundation/.test(name)) return "整理作品与规划";
   return "读取创作材料";
+}
+
+export function toolStep(name: string, mode: "fanqie" | "toutiao") {
+  if (mode === "toutiao") {
+    if (/hot|feedback|ledger_show/.test(name)) return "S1 找题";
+    if (/article_create|card_/.test(name)) return "S2 立项";
+    if (/headline/.test(name)) return "S3 标题";
+    if (/draft_stage/.test(name)) return "S4 成文";
+    if (/review|edit/.test(name)) return "S5 红笔";
+    if (/qa_check/.test(name)) return "S6 质检";
+    if (/delivery|ledger_add/.test(name)) return "S7 交稿";
+  }
+  if (/review/.test(name)) return "送审";
+  if (/candidate_.*stage|draft_stage/.test(name)) return "出候选";
+  if (/lint|check|qa/.test(name)) return "自检";
+  if (/outline|foundation|plan/.test(name)) return "规划";
+  if (/candidate|chapter_save/.test(name)) return "起草";
+  return "读材料";
 }

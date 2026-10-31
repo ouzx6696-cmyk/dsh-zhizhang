@@ -50,7 +50,7 @@ export function routeUrl(path, query) {
  * success; rejects with ApiError otherwise (including timeouts and aborts).
  */
 export async function request(path, { method = "GET", query, body, timeoutMs = 10000, signal } = {}) {
-  if (window.writerDesktop) {
+  if (globalThis.window?.writerDesktop) {
     if(signal?.aborted)throw new ApiError("aborted",{code:"aborted"});
     const result = await window.writerDesktop.request(path, { method, query, body });
     if(signal?.aborted)throw new ApiError("aborted",{code:"aborted"});

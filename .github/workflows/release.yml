@@ -3,23 +3,24 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 已创建的发行草稿标签，例如 v0.9.1
+        description: 已创建的发行草稿标签，例如 v0.9.2
         required: true
         type: string
-
 permissions:
   contents: write
-
 jobs:
+  verify:
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
   publish:
+    needs: verify
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 24 }
-      - run: npm ci
-      - run: npm run pack
-      - run: npm run desktop:portable
+      - uses: actions/download-artifact@v4
+        with:
+          name: writer-windows-packages
+          path: release-artifacts
       - name: 上传并发布
         env:
           GH_TOKEN: ${{ github.token }}
@@ -29,12 +30,7 @@ jobs:
           version="${TAG#v}"
           test "$(node -p 'require("./package.json").version')" = "$version"
           test "$(gh release view "$TAG" --json isDraft --jq .isDraft)" = true
-          mkdir -p release-artifacts
-          cp "dist-pack/dsh-writer-${version}.tgz" release-artifacts/
-          cp "apps/desktop/release/WriterAgent-${version}-win-x64.zip" release-artifacts/
-          cp "docs/${version}-IMPLEMENTATION.md" "docs/${version}-OPTIMIZATION.md" docs/DESKTOP.md release-artifacts/
-          git archive --format=zip --prefix="writer-agent-${version}/" -o "release-artifacts/writer-agent-${version}-src.zip" HEAD
-          (cd release-artifacts && sha256sum *.zip *.tgz *.md > SHA256SUMS)
+          (cd release-artifacts && sha256sum --check SHA256SUMS)
           gh release edit "$TAG" --target "$GITHUB_SHA"
           gh release upload "$TAG" release-artifacts/* --clobber
           gh release edit "$TAG" --draft=false --latest

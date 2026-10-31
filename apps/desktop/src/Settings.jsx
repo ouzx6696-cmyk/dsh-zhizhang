@@ -1,0 +1,463 @@
+import React, { useEffect, useState } from "react";
+import {
+  X,
+  Check,
+  FolderOpen,
+  Download,
+  Shield,
+  LoaderCircle,
+} from "lucide-react";
+import { PROVIDERS } from "./models";
+const api = window.writerDesktop;
+export function ModelFields({ role, model, onChange, onTest, result }) {
+  const preset = (id) => {
+    const item = PROVIDERS.find((row) => row.id === id);
+    onChange({
+      ...model,
+      provider: id,
+      api: item.api,
+      baseUrl: item.baseUrl,
+      model: item.model,
+      contextWindow: item.contextWindow,
+      apiKey: "",
+      configured: false,
+      reasoning: id === "deepseek" && role === "editor",
+      thinkingLevel: role === "editor" ? "medium" : "off",
+    });
+  };
+  return (
+    <fieldset className="model-fields">
+      <legend>
+        {role === "writer"
+          ? "写手"
+          : role === "editor"
+            ? "独立编辑"
+            : "规划与拆书"}
+      </legend>
+      <label>
+        服务商
+        <select
+          value={model.provider}
+          onChange={(event) => preset(event.target.value)}
+        >
+          {PROVIDERS.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        接口地址
+        <input
+          type="url"
+          value={model.baseUrl}
+          onChange={(event) =>
+            onChange({ ...model, baseUrl: event.target.value })
+          }
+        />
+      </label>
+      <label>
+        模型 ID
+        <input
+          value={model.model}
+          onChange={(event) =>
+            onChange({ ...model, model: event.target.value })
+          }
+        />
+      </label>
+      <label>
+        API Key
+        <input
+          type="password"
+          autoComplete="off"
+          placeholder={
+            model.configured
+              ? "已保存，留空保持"
+              : "编辑可沿用同一接口的写手 Key"
+          }
+          value={model.apiKey || ""}
+          onChange={(event) =>
+            onChange({ ...model, apiKey: event.target.value })
+          }
+        />
+      </label>
+      <div className="field-grid">
+        <label>
+          上下文窗口
+          <input
+            type="number"
+            min="1024"
+            step="1024"
+            value={model.contextWindow}
+            onChange={(event) =>
+              onChange({ ...model, contextWindow: Number(event.target.value) })
+            }
+          />
+        </label>
+        <label>
+          最大输出
+          <input
+            type="number"
+            min="1"
+            step="1024"
+            value={model.maxTokens}
+            onChange={(event) =>
+              onChange({ ...model, maxTokens: Number(event.target.value) })
+            }
+          />
+        </label>
+      </div>
+      <label className="checkbox">
+        <input
+          type="checkbox"
+          checked={model.reasoning}
+          onChange={(event) =>
+            onChange({ ...model, reasoning: event.target.checked })
+          }
+        />
+        启用模型思考能力
+      </label>
+      {model.reasoning && (
+        <label>
+          思考档位
+          <select
+            value={model.thinkingLevel}
+            onChange={(event) =>
+              onChange({ ...model, thinkingLevel: event.target.value })
+            }
+          >
+            {["off", "minimal", "low", "medium", "high", "xhigh"].map(
+              (level) => (
+                <option key={level}>{level}</option>
+              ),
+            )}
+          </select>
+        </label>
+      )}
+      <button type="button" onClick={onTest} disabled={result?.busy}>
+        {result?.busy ? (
+          <LoaderCircle size={14} className="spin" />
+        ) : (
+          <Check size={14} />
+        )}
+        测试连接
+      </button>
+      {result && (
+        <p className={result.error ? "form-error" : "form-note"}>
+          {result.busy
+            ? "正在发送最短连接请求…"
+            : result.error || `连接成功 · ${result.latency} ms`}
+        </p>
+      )}
+    </fieldset>
+  );
+}
+export function Settings({ state, onClose, onSaved, onWorkspace, onImport }) {
+  const [tab, setTab] = useState("models"),
+    [models, setModels] = useState(state.models),
+    [appearance, setAppearance] = useState(state.appearance),
+    [preferences, setPreferences] = useState(""),
+    [searchKey, setSearchKey] = useState(""),
+    [test, setTest] = useState({}),
+    [message, setMessage] = useState(""),
+    [busy, setBusy] = useState(false),
+    [updates, setUpdates] = useState(state.updates || {});
+  useEffect(() => {
+    api
+      .preferences()
+      .then(setPreferences)
+      .catch(() => {});
+  }, [state.workspace]);
+  useEffect(() => {
+    const unsubscribe = api.subscribe((value) => {
+      if (value.updates) setUpdates(value.updates);
+    });
+    return unsubscribe;
+  }, []);
+  const action = async (operation) => {
+    setBusy(true);
+    setMessage("");
+    try {
+      const result = await operation();
+      if (result?.file) setMessage("已保存到 " + result.file);
+      return result;
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const testRole = (role) =>
+    action(async () => {
+      setTest((previous) => ({ ...previous, [role]: { busy: true } }));
+      try {
+        const result = await api.testModel(role, models[role]);
+        setTest((previous) => ({ ...previous, [role]: result }));
+      } catch (error) {
+        setTest((previous) => ({
+          ...previous,
+          [role]: { error: error.message },
+        }));
+      }
+    });
+  const save = () =>
+    action(async () => {
+      if (JSON.stringify(models) !== JSON.stringify(state.models))
+        await api.model(models);
+      await api.appearance(appearance);
+      if (state.workspace) await api.preferences(preferences);
+      if (searchKey) await api.search(searchKey);
+      await onSaved();
+      onClose();
+    });
+  return (
+    <div className="studio-backdrop">
+      <section
+        className="studio-settings"
+        role="dialog"
+        aria-modal="true"
+        aria-label="设置"
+      >
+        <header>
+          <h2>设置</h2>
+          <button
+            className="icon-button"
+            aria-label="关闭设置"
+            onClick={onClose}
+          >
+            <X size={18} />
+          </button>
+        </header>
+        <nav className="settings-tabs">
+          {[
+            ["models", "模型与角色"],
+            ["workspace", "写作根与偏好"],
+            ["appearance", "外观"],
+            ["resources", "资料与更新"],
+          ].map(([id, label]) => (
+            <button
+              key={id}
+              className={tab === id ? "active" : ""}
+              onClick={() => setTab(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+        <div className="settings-content">
+          {tab === "models" && (
+            <>
+              <p className="form-note">
+                保存模型连接会停止当前任务；作品和历史保留。编辑默认使用不同模型与独立上下文。
+              </p>
+              {!state.secureStorage && (
+                <p className="form-warning">
+                  <Shield size={16} />
+                  系统安全存储不可用，Key 只保留到本次应用关闭。
+                </p>
+              )}
+              {["writer", "editor"].map((role) => (
+                <ModelFields
+                  key={role}
+                  role={role}
+                  model={models[role]}
+                  onChange={(value) =>
+                    setModels((previous) => ({ ...previous, [role]: value }))
+                  }
+                  onTest={() => testRole(role)}
+                  result={test[role]}
+                />
+              ))}
+              <label className="checkbox">
+                <input
+                  type="checkbox"
+                  checked={!models.planner}
+                  onChange={(event) =>
+                    setModels((previous) => ({
+                      ...previous,
+                      planner: event.target.checked
+                        ? null
+                        : { ...previous.writer, apiKey: "" },
+                    }))
+                  }
+                />
+                规划与拆书跟随写手模型
+              </label>
+              {models.planner && (
+                <ModelFields
+                  role="planner"
+                  model={models.planner}
+                  onChange={(value) =>
+                    setModels((previous) => ({ ...previous, planner: value }))
+                  }
+                  onTest={() => testRole("planner")}
+                  result={test.planner}
+                />
+              )}
+            </>
+          )}
+          {tab === "workspace" && (
+            <>
+              <h3>统一写作根</h3>
+              <p className="path-label">{state.workspace || "尚未选择"}</p>
+              <p className="form-note">
+                小说位于 novels，头条位于
+                toutiao；作者偏好由两种模式共用。导入旧目录不会移动原稿。
+              </p>
+              <div className="button-row">
+                <button onClick={() => action(onWorkspace)}>
+                  <FolderOpen size={16} />
+                  选择写作根
+                </button>
+                <button onClick={() => action(() => onImport("fanqie"))}>
+                  导入长篇目录
+                </button>
+                <button onClick={() => action(() => onImport("toutiao"))}>
+                  导入头条目录
+                </button>
+              </div>
+              <h3>作者偏好</h3>
+              <p className="form-note">
+                记录文风、人称习惯、常用垂类和希望避免的表达。每次任务会带入这些偏好。
+              </p>
+              <textarea
+                className="preferences-editor"
+                value={preferences}
+                onChange={(event) => setPreferences(event.target.value)}
+                placeholder="例如：第三人称限知；对白简短；不要替角色解释情绪。"
+              />
+              <button
+                disabled={busy}
+                onClick={() => action(() => api.backup())}
+              >
+                备份写作根
+              </button>
+            </>
+          )}
+          {tab === "appearance" && (
+            <>
+              <label>
+                主题
+                <select
+                  value={appearance.theme}
+                  onChange={(event) =>
+                    setAppearance({ ...appearance, theme: event.target.value })
+                  }
+                >
+                  <option value="system">跟随系统</option>
+                  <option value="light">亮色</option>
+                  <option value="dark">暗色</option>
+                </select>
+              </label>
+              <label>
+                正文字体
+                <select
+                  value={appearance.font}
+                  onChange={(event) =>
+                    setAppearance({ ...appearance, font: event.target.value })
+                  }
+                >
+                  <option value="serif">思源宋体</option>
+                  <option value="sans">思源黑体</option>
+                </select>
+              </label>
+              <label>
+                正文字号
+                <input
+                  type="number"
+                  min="14"
+                  max="28"
+                  value={appearance.fontSize}
+                  onChange={(event) =>
+                    setAppearance({
+                      ...appearance,
+                      fontSize: Number(event.target.value),
+                    })
+                  }
+                />
+              </label>
+              <p className="form-note">
+                字体随应用提供；稿纸行宽与行距针对长篇阅读设置。
+              </p>
+            </>
+          )}
+          {tab === "resources" && (
+            <>
+              <h3>资料检索（可选）</h3>
+              <p className="form-note">
+                未配置搜索时，Agent
+                只能读取你提供的公开链接。搜索摘要不算已核实出处，资讯事实须继续读取原网页。
+              </p>
+              <label>
+                Tavily API Key
+                <input
+                  type="password"
+                  value={searchKey}
+                  onChange={(event) => setSearchKey(event.target.value)}
+                  placeholder={
+                    state.searchConfigured ? "已配置，留空保持" : "可不填"
+                  }
+                />
+              </label>
+              <h3>应用更新</h3>
+              <p>
+                {updates.state === "available"
+                  ? `发现 ${updates.version}`
+                  : updates.state === "downloaded"
+                    ? "更新已下载，确认后重启安装"
+                    : updates.state === "downloading"
+                      ? `正在下载 ${updates.percent}%`
+                      : updates.message ||
+                        "启动时检查更新，下载和安装均由你决定。"}
+              </p>
+              <div className="button-row">
+                <button onClick={() => action(() => api.updates())}>
+                  检查更新
+                </button>
+                {updates.state === "available" && (
+                  <button onClick={() => action(() => api.updates("download"))}>
+                    <Download size={16} />
+                    下载更新
+                  </button>
+                )}
+                {updates.state === "downloaded" && (
+                  <button
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          "确认已保存正在编辑的内容？更新会停止当前任务并重启。",
+                        )
+                      )
+                        void action(() => api.updates("install"));
+                    }}
+                  >
+                    重启安装
+                  </button>
+                )}
+              </div>
+              <h3>诊断</h3>
+              <p className="form-note">
+                诊断包仅含版本、去敏配置与运行事件，不含 Key 或稿件正文。
+              </p>
+              <button onClick={() => action(() => api.diagnostics())}>
+                导出诊断包
+              </button>
+            </>
+          )}
+        </div>
+        {message && (
+          <p className="form-note" role="status">
+            {message}
+          </p>
+        )}
+        <footer>
+          <button onClick={onClose}>取消</button>
+          <button className="primary" disabled={busy} onClick={save}>
+            保存设置
+          </button>
+        </footer>
+      </section>
+    </div>
+  );
+}

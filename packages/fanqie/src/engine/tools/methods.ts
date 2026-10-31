@@ -79,6 +79,7 @@ export function methodsTools() {
                 work: WORK_OPT,
                 working_dir: WORKING_DIR,
                 brief_mode: E(["lean", "full"], "lean（默认）| full（卡全文+四方法包+节拍）"),
+                handoff_only: B("只返回任务交接摘要，不附前章全文或方法全文"),
                 include_body: B("是否附本章已存正文（默认 false）"),
                 extra_assets: S("额外方法资产 id，逗号分隔（lean 默认仅 style_contract）"),
                 card_ids: {
@@ -268,6 +269,7 @@ export function methodsTools() {
                 const usedIds = [...found.map((a: any) => a.id), ...cardIdsForCrumb];
                 await recordBriefBreadcrumb(dir, { chapterId, assetIds: usedIds, basis });
                 lines.push("", `（已留痕 brief-crumbs：${chapterId} · ${usedIds.join(",") || "(none)"} · mode=${lean ? "lean" : "full"}）`);
+                if (args.handoff_only === true) return JSON.stringify({work:key,title:meta.title,chapter:{id:chapter.id,title:chapter.title,status:chapter.status,revision:chapter.revision},outline:o,pace:meta.pace,locks:f.locks,style:f.style,planning,previous:previousForContract ? {title:previousForContract.title,ending:previousForContract.ending} : null,briefRecorded:true,requiresBodyRead:true});
                 return lines.join("\n");
             },
         }),

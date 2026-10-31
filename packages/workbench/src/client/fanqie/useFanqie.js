@@ -184,7 +184,7 @@ export function useFanqie() {
       .then((data) => { if (alive.current) dispatch({ type: "deliver", value: { caps: { deliver: !!data.deliver, reason: data.deliverReason || "" } } }); })
       .catch((err) => { if (alive.current && err.code !== "aborted") dispatch({ type: "deliver", value: { caps: { deliver: false, reason: messageOf(err) } } }); });
     return () => ctrl.abort();
-  }, [state.projectId, state.selection, state.bodyEpoch]);
+  }, [state.projectId, state.selection, state.bodyEpoch, window.writerDesktop ? state.lastRefresh : null]);
 
   // Current chapter body, fetched on demand and keyed so polls never refetch it.
   const chapterKey = bodyKey(state, "chapter");

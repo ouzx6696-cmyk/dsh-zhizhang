@@ -1,5 +1,5 @@
 /** 头条工具集。全部返回结构化 JSON；业务失败返回 ok:false。 */
-import { appendFile, mkdir } from 'node:fs/promises'
+import { appendFile } from 'node:fs/promises'
 import {
   defineWriterTool, sessionCwd, WriterError, type HostContext, type HostToolDefinition, type HostToolExecution, type JsonSchemaNode,
 } from '../../host/src/index.js'
@@ -272,6 +272,7 @@ export function createToutiaoTools(deps: ToolDeps): HostToolDefinition[] {
         if (!Array.isArray(args.rows) || args.rows.length === 0) throw new WriterError('INVALID_ARGS', 'rows 不能为空')
         const prev = (await readJson<unknown[]>(store.editsPath(id))) ?? []
         const rows = args.rows.map(r => ({ rev: m.current_rev, 原句: String(r.原句 ?? ''), 改后: String(r.改后 ?? ''), 病型: String(r.病型 ?? ''), at: nowIso() }))
+        await store.writable()
         await atomicWrite(store.editsPath(id), JSON.stringify([...prev, ...rows], null, 2))
         return { added: rows.length, total: prev.length + rows.length }
       },
@@ -378,6 +379,7 @@ export function createToutiaoTools(deps: ToolDeps): HostToolDefinition[] {
         if (problems.length) throw new WriterError('INVALID_ARGS', problems.join('；'))
         md = md.split('\n').filter(l => !l.includes('AI 到此止步')).join('\n').trimEnd()
         md += `\n\n---\n> ${STOP_LINE}\n`
+        await store.writable()
         await atomicWrite(store.deliveryPath(id), md)
         const after = await store.update(id, (mm) => { mm.delivered = true })
         return { article: summary(after), path: store.deliveryPath(id), chars: [...md].length }
@@ -399,6 +401,7 @@ export function createToutiaoTools(deps: ToolDeps): HostToolDefinition[] {
         if (title && (shown.rows as Record<string, string>[]).some(r => r['主标题'] === title)) {
           throw new WriterError('CONFLICT', `台账里已有“${title}”`)
         }
+        await store.writable()
         const r = await bridge(config, ['ledger-add', '--card', store.cardPath(id), '--ledger', store.ledgerPath, '--status', m.status, '--date', id.slice(0, 10)], { signal: exec.signal })
         return { row: r.row, ledger: store.ledgerPath }
       },
@@ -422,7 +425,7 @@ export function createToutiaoTools(deps: ToolDeps): HostToolDefinition[] {
       required: ['original', 'revised', 'motive'],
       async run(args, exec) {
         const store = st(exec)
-        await mkdir(store.root, { recursive: true })
+        await store.writable()
         const line = `- ${today()}：${reqStr(args, 'original')} → ${reqStr(args, 'revised')} → ${reqStr(args, 'motive')}\n`
         const prev = await readText(store.feedbackPath)
         if (prev === undefined) await atomicWrite(store.feedbackPath, `# 作者改稿反馈\n\n${line}`)

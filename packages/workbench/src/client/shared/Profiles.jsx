@@ -116,7 +116,10 @@ function NewProfileForm({ profiles, base, onCancel, onCreate, busy }) {
   );
 }
 
-export function ProfilesDialog({ mode, api, onClose, onChanged }) {
+function InlineProfiles({children}) { return <section className="wb-pf">{children}</section>; }
+
+export function ProfilesDialog({ mode, api, onClose, onChanged, inline = false }) {
+  const Frame = inline ? InlineProfiles : PanelModal;
   const { notices, push, dismiss } = useNotices();
   const [list, setList] = useState({ status: "loading", profiles: [], active: "", pinned: false });
   const [sel, setSel] = useState("");
@@ -207,7 +210,7 @@ export function ProfilesDialog({ mode, api, onClose, onChanged }) {
   const close = () => { if (dirty && !window.confirm(t("pfUnsaved"))) return; onClose(); };
 
   return (
-    <PanelModal open title={t("pfTitle", { mode: MODE_NAME[mode] || mode })} closeLabel={t("close")} onClose={close} className="wb-modal-wide wb-pf" description={t("pfLead")}>
+    <Frame open title={t("pfTitle", { mode: MODE_NAME[mode] || mode })} closeLabel={t("close")} onClose={close} className="wb-modal-wide wb-pf" description={t("pfLead")}>
       {list.status === "error" ? <Callout tone="danger">{list.error}</Callout> : null}
       {list.pinned ? <Callout tone="info">{t("pfPinnedHint")}</Callout> : null}
       <div className="wb-pf-grid">
@@ -340,6 +343,6 @@ export function ProfilesDialog({ mode, api, onClose, onChanged }) {
         )}
       </div>
       <Notices notices={notices} onDismiss={dismiss} />
-    </PanelModal>
+    </Frame>
   );
 }

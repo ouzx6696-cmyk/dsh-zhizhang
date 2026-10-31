@@ -86,13 +86,13 @@ export function WriterAgent({ state, actions, chapterId, writer, bodyReady }) {
   );
 }
 
-export function Inspector({ state, view, actions }) {
+export function Inspector({ state, view, actions, hideAgent = false }) {
   const { dispatch } = actions;
   const { current, chapterPending, activeCand, impacts, snap } = view;
   if (!current) {
     return (
       <div className="wb-inspector">
-        {state.work ? <WriterAgent state={state} actions={actions} chapterId="" writer={null} bodyReady={false} /> : null}
+        {state.work && !hideAgent ? <WriterAgent state={state} actions={actions} chapterId="" writer={null} bodyReady={false} /> : null}
         <Section title={t("nextSteps")}>
           <Hints hints={(snap && snap.nextHints) || []} />
         </Section>
@@ -141,7 +141,7 @@ export function Inspector({ state, view, actions }) {
         </div>
       </Section>
 
-      <WriterAgent state={state} actions={actions} chapterId={current.id} writer={writer} bodyReady={body.status === "ready"} />
+      {!hideAgent && <WriterAgent state={state} actions={actions} chapterId={current.id} writer={writer} bodyReady={body.status === "ready"} />}
 
       <Section title={t("candidates")} aside={chapterPending.length ? <span className="wb-count">{chapterPending.length}</span> : null}>
         <ul className="wb-gates">
