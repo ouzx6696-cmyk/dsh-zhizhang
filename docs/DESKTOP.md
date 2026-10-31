@@ -1,6 +1,6 @@
 # 独立客户端（0.9.1 开发版）
 
-独立入口位于 `apps/desktop`，使用 Electron、React 和 Pi SDK。头条与长篇工具、候选、审读、方法方案继续与 DSH 入口共用。当前改动尚未创建 GitHub Release。
+独立入口位于 `apps/desktop`，使用 Electron、React 和 Pi SDK。头条与长篇工具、候选、审读、方法方案继续与 DSH 入口共用。发行包见 [v0.9.1](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/v0.9.1)，客户端仍属开发预览。
 
 ## 开发
 
