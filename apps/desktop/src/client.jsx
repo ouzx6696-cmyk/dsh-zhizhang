@@ -209,6 +209,10 @@ function App() {
       if (value.running) setRunning(value.running);
       if (value.updates)
         setState((previous) => ({ ...previous, updates: value.updates }));
+      if (value.navigate) {
+        void jump(value.navigate, value.focus).catch(fail);
+        return;
+      }
       if (value.selection) {
         void selectSnapshot(value.selection, false).catch(fail);
         return;

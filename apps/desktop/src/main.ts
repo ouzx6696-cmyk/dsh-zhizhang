@@ -98,9 +98,7 @@ function emit(value: any) {
       notification.on("click", () => {
         window.show();
         window.focus();
-        void selectTarget(value.target).then((chosen) =>
-          emit({ selection: { ...chosen, focus: value.focus } }),
-        );
+        emit({ navigate: value.target, focus: value.focus });
       });
       notification.show();
     }
