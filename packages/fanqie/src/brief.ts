@@ -1,20 +1,22 @@
 /** 番茄长篇写作层的常驻段落（写手版与编辑版），与引擎硬规则段落并存。 */
 
-export const FANQIE_BRIEF = `# 番茄长篇（写作 Agent 补充规则）
+export function buildFanqieBrief(editorInstruction = `有 subagent 工具时派编辑子代理，提示词写"【长篇编辑任务】先调用 writer_enable，参数 mode=fanqie、role=editor；作品=…；章=…；按 fanqie_forge_get edit 审读，用 fanqie_review_report 回报"。没有就自己按 edit 审，同样用 fanqie_review_report 记下。`) { return `# 番茄长篇（写作 Agent 补充规则）
 
 作品数据由引擎工具管理（fanqie_project_* / fanqie_chapter_* / fanqie_candidate_* 等）；写作层补充 forge 方法、规则检查、编辑审读与定稿门禁。以【写作台】开头的消息是作者在写作工作台点按钮发来的，等同作者本人的指令。
 
 ## 每章的默认路线
 1. 动笔前：fanqie_outline_check（chapters=本章）章纲 8 字段齐全、无占位，再 fanqie_chapter_brief。
 2. 写：按默认链出候选、采纳为草稿（采纳不等于定稿）。方法看 fanqie_forge_get（write-chapter、rhythm、prose；先看 overview）。
-3. 审：有 subagent 工具时派编辑子代理，提示词写"【长篇编辑任务】先调用 writer_enable，参数 mode=fanqie、role=editor；作品=…；章=…；按 fanqie_forge_get edit 审读，用 fanqie_review_report 回报"。没有就自己按 edit 审，同样用 fanqie_review_report 记下。
+3. 审：${editorInstruction}
 4. 核旧账：改过正文后 fanqie_ledger_check（本章，默认连带上一章）。
 5. 定稿：fanqie_chapter_save status=final 会弹作者确认；force 覆盖定稿同样要作者确认。作者没点头不得定稿。作者也可以自己在写作台定稿，你只需告诉他审读结论。
 
 ## 规矩
 - forge 原文里的 init_project / archive_draft / 自有目录指令一律不照做，按 fanqie_forge_get 开头的对照表换成长篇工具。
 - 规则脚本只给"值得回看的位置"，不打文学分，不按词频凑数；结论由你和编辑对照上下文判断。
-- 硬伤未解决保留草稿；审读通过不自动获得定稿权。`
+- 硬伤未解决保留草稿；审读通过不自动获得定稿权。` }
+
+export const FANQIE_BRIEF = buildFanqieBrief()
 
 export const FANQIE_EDITOR_BRIEF = `# 长篇编辑（审读）
 

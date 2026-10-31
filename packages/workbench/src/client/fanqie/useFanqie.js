@@ -118,7 +118,23 @@ export function useFanqie() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!window.writerDesktop || !state.base) return;
+    const current = state.view === 'chapters' ? view.current : null;
+    const candidate = current && state.readerView !== 'official' ? view.activeCand : null;
+    const loaded = state.readerView === 'candidate' ? state.candidate : state.chapter;
+    window.dispatchEvent(new CustomEvent('writer:target', { detail: {
+      mode: 'fanqie', root: state.base, ...(state.snapshot?.workKey ? { work: state.snapshot.workKey } : {}),
+      focus: { workTitle: state.snapshot?.title, chapter: current?.id, title: current?.title,
+        candidate: candidate?.id, source: current ? (state.readerView === 'split' ? 'split' : candidate ? 'candidate' : 'chapter') : undefined,
+        revision: loaded.status === 'ready' ? (loaded.meta?.revision ?? loaded.meta?.readVersion) : undefined,
+        dirty: !!state.edit?.dirty }
+    }}));
+  }, [state.base, state.snapshot?.workKey, state.snapshot?.title, state.view, state.readerView, state.chapterId, view.activeCand?.id, state.chapter.status, state.chapter.meta, state.candidate.status, state.candidate.meta, state.edit?.dirty]);
+
+
   // First load, and a full reload whenever the selected project or work changes.
+  useEffect(() => { const listener = () => refresh({projects:true}); window.addEventListener('writer:refresh', listener); return () => window.removeEventListener('writer:refresh', listener); }, [refresh]);
   useEffect(() => {
     refresh({ projects: true });
   }, [refresh, state.selection, state.view]);
@@ -126,7 +142,7 @@ export function useFanqie() {
   // One polling loop: visible tabs poll often, hidden tabs rarely, failures back off,
   // and nothing polls while a confirmation dialog is open.
   useEffect(() => {
-    if (!state.polling) return undefined;
+    if (window.writerDesktop || !state.polling) return undefined;
     let timer = null;
     let stopped = false;
     let running = false;

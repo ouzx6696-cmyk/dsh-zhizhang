@@ -1,6 +1,6 @@
 /** 每次调用的运行环境：存储根、Python、门禁。 */
 import path from 'node:path'
-import { homedir } from 'node:os'
+import { stateRoot } from '../../core/src/paths.js'
 import { sessionCwd, type HostContext, type HostToolExecution } from '../../host/src/index.js'
 import { atomicWrite, readJson } from '../../core/src/fsx.js'
 import { rememberSession } from '../../core/src/sessions.js'
@@ -28,7 +28,7 @@ export function storeFor(config: ToutiaoConfig, exec?: HostToolExecution, host?:
 /* 面板没有会话，记住工具用过的存储根（内存 + DSH home 下一个小文件） */
 const knownRoots = new Set<string>()
 function rootsFile(): string {
-  return path.join((process.env.DSH_HOME ?? '').trim() || path.join(homedir(), '.dsh'), 'writer-toutiao-roots.json')
+  return path.join(stateRoot(), 'writer-toutiao-roots.json')
 }
 let loaded = false
 export async function listKnownRoots(): Promise<string[]> {
@@ -39,7 +39,7 @@ export async function listKnownRoots(): Promise<string[]> {
   }
   return [...knownRoots]
 }
-function rememberRoot(root: string) {
+export function rememberRoot(root: string) {
   if (knownRoots.has(root)) return
   knownRoots.add(root)
   const list = [...knownRoots].slice(-20)

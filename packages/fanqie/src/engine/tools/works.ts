@@ -46,6 +46,7 @@ export function worksTools() {
                     key: asString(args, "key"),
                 });
                 rememberWork(exec, meta.key);
+                exec.onWorkCreated?.(paths.base, meta.key);
                 return [
                     `已创建作品「${meta.title}」（key=${meta.key}）`,
                     `- 目录：${dir}`,

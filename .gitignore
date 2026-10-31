@@ -10,3 +10,7 @@ bundle/skill-fanqie/
 bundle/scripts/
 bundle/assets/
 bundle/profiles/
+
+apps/desktop/out/
+apps/desktop/release/
+apps/desktop/resources/

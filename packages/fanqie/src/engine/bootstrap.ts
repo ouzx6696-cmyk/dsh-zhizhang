@@ -9,15 +9,19 @@ import { allTools, SYSTEM_BRIEF, setPluginConfig, } from "./tools/index.js";
  * @param pluginConfig Plugin config to apply before tool construction.
  * @returns Disposers for every registration (unwinds a partial mount on failure).
  */
+export function engineTools(pluginConfig: any = {}) {
+    const boundConfig = { ...pluginConfig };
+    const policy = { multiDraftEnabled: boundConfig.multiDraftEnabled === true || boundConfig.multiDraft?.enabled === true || envMultiDraftFlag() };
+    return allTools().map(tool => ({ ...tool, execute: (args: any, exec: any) => withPluginConfig(boundConfig, () => withPortConfig(policy, () => tool.execute(args, exec))) }));
+}
+
 export function applyTools(ctx: any, pluginConfig: any) {
     if (pluginConfig !== undefined)
         setPluginConfig(pluginConfig);
-    const boundConfig = { ...(pluginConfig ?? {}) };
-    const policy = { multiDraftEnabled: boundConfig.multiDraftEnabled === true || boundConfig.multiDraft?.enabled === true || envMultiDraftFlag() };
     const disposers = [];
     try {
-        for (const tool of allTools()) {
-            disposers.push(ctx.tools.register({ ...tool, execute: (args: any, exec: any) => withPluginConfig(boundConfig, () => withPortConfig(policy, () => tool.execute(args, exec))) }));
+        for (const tool of engineTools(pluginConfig)) {
+            disposers.push(ctx.tools.register(tool));
         }
         const systemPrompt = ctx.get?.("systemPrompt");
         if (systemPrompt && typeof systemPrompt.section === "function") {

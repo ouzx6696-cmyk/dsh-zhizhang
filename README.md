@@ -1,4 +1,9 @@
-# writer-agent · 写作 Agent（DSH 插件）
+# writer-agent · 写作 Agent
+
+0.9.1 开发版提供基于 Pi 的独立桌面入口，保留 DSH 插件。两种入口共用写作业务和本地作品格式。
+
+独立客户端的开发、构建和数据位置见 [docs/DESKTOP.md](docs/DESKTOP.md)。以下为 DSH 插件的使用说明。
+本版任务对象、会话关联、作者操作与界面优化见 [docs/0.9.1-IMPLEMENTATION.md](docs/0.9.1-IMPLEMENTATION.md)，其中列明实际核对范围与使用边界。
 
 在 DeepSeek Harness（DSH）上做的写作 Agent：**一个入口 `writer_enable`、两种写作模式（今日头条 / 番茄长篇）、一个写作台**。
 

@@ -24,7 +24,7 @@ function fail(ctx: RouteContext, err: unknown) {
 
 const str = (x: unknown) => (typeof x === 'string' ? x : '')
 
-export function toutiaoApi(config: ToutiaoConfig): WorkbenchMode {
+export function toutiaoApi(config: ToutiaoConfig, canDeliver?: () => boolean): WorkbenchMode {
   return {
     routes: Object.values(ROUTES),
     async handle(ctx) {
@@ -40,7 +40,7 @@ export function toutiaoApi(config: ToutiaoConfig): WorkbenchMode {
             const s = await sessionFor(root)
             if (s) sessions[root] = s.at
           }
-          const sink = !!promptSink()
+          const sink = (canDeliver ? canDeliver() : !!promptSink())
           ctx.json(200, { ok: true, ...data, actions: [...TOUTIAO_ACTIONS], sessions, deliver: sink, deliverReason: sink ? undefined : '当前宿主没有会话控制服务（headless 或不支持的 DSH 版本），无法发到对话' })
         } else if (route === 'article') {
           const root = ctx.url.searchParams.get('root') ?? '', id = ctx.url.searchParams.get('id') ?? ''

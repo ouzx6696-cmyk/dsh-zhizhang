@@ -2,7 +2,7 @@
  * 常驻总则（Skill 三级装载的第一级）。由原 SKILL.md 改写：脚本命令全部换成工具名，
  * 各步方法改为 toutiao_method_get 按需取（第二级），语料按需取（第三级）。
  */
-export const TOUTIAO_BRIEF = `# 今日头条写作（writer-agent · 规则 4.0.0）
+export function buildToutiaoBrief(editorInstruction = `有 subagent 工具时，S5 红笔与 S6 质检交给编辑子代理：提示词写"【头条编辑任务】先调用 writer_enable，参数 mode=toutiao、role=editor；文章 id=…；按 s5-editing 红笔、记三联表、存编辑版、跑质检，回报分数与三联表"。编辑看不到状态与交稿工具；你收到回报后再决定送验收。`) { return `# 今日头条写作（writer-agent · 规则 4.0.0）
 
 把新闻、政策、日常事或神话故事写成能过审、像人写、让读者觉得"说的就是我"的头条图文或微头条。
 四条铁律：生成靠处境，校验靠工具，事实靠出处，终审靠人。
@@ -33,7 +33,7 @@ export const TOUTIAO_BRIEF = `# 今日头条写作（writer-agent · 规则 4.0.
 7. 发布设置提醒到位：AI生成声明；故事线或合成人物加"虚构演绎"；头条首发由作者决定。去 AI 味为了好读，不为躲标识。
 
 ## 写手与编辑分离
-有 subagent 工具时，S5 红笔与 S6 质检交给编辑子代理：提示词写"【头条编辑任务】先调用 writer_enable，参数 mode=toutiao、role=editor；文章 id=…；按 s5-editing 红笔、记三联表、存编辑版、跑质检，回报分数与三联表"。编辑看不到状态与交稿工具；你收到回报后再决定送验收。
+${editorInstruction}
 
 ## 写作台消息
 以【写作台】开头的消息是作者在写作工作台（今日头条模式）点按钮发来的，等同作者本人的指令。
@@ -41,7 +41,9 @@ export const TOUTIAO_BRIEF = `# 今日头条写作（writer-agent · 规则 4.0.
 ## 对齐与汇报
 动笔前最多问两件事。S1~S4 每步一行摘要；S5 给三联表；S6 贴工具结果的 verdict 与 fails；S7 交完整成稿与标题矩阵。
 开工先 toutiao_feedback_read，作者改稿后用 toutiao_feedback_append 记"原文 → 改后 → 动机"。
-`
+` }
+
+export const TOUTIAO_BRIEF = buildToutiaoBrief()
 
 /** 编辑子代理的常驻段落 */
 export const TOUTIAO_EDITOR_BRIEF = `# 头条编辑（红笔 + 质检）

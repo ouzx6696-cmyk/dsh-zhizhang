@@ -14,6 +14,7 @@ import { Reader } from "./Reader.jsx";
 const { useCallback } = React;
 
 function Onboarding({ empty, message }) {
+  if (window.writerDesktop) return <div className="wb-onboarding"><h2>开始创作</h2><p>在写作对话中说明书名和题材，Agent 会创建作品并安排章纲。已有作品请选择包含 works 的长篇数据根。</p></div>;
   const heading = empty ? t("onboardEmpty") : t("onboardNoWork");
   return (
     <div className="wb-onboarding">

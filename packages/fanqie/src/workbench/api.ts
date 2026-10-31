@@ -27,7 +27,7 @@ import { readWorkMeta } from "../engine/work-store.js";
 import { NovelError } from "../engine/errors.js";
 import { MultiDraftPort } from "../engine/ports/multi-draft.js";
 import { deliver, deliveryProblem, sessionFor } from "../../../core/src/sessions.js";
-import { API, readJsonBody, writeJson, type RouteContext, type WorkbenchMode } from "../../../workbench/src/server.js";
+import { API, type RouteContext, type WorkbenchMode } from "../../../workbench/src/server.js";
 import { chapterReviewInfo, finalizeProblem } from "../review.js";
 import { buildDeliveryPrompt, DELIVERY_ACTIONS } from "./delivery.js";
 /** Soft body cap for panel reads (~400 KiB). */
@@ -275,15 +275,16 @@ async function panelPaths(url: any, config: PluginConfig, baseOverride: any = ""
 const UNHANDLED = Symbol("unhandled");
 /** 番茄长篇模式的写作台接口 */
 export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
-    const route = async function fanqieRoute({ req, res, url, method, path: pathOnly }: RouteContext): Promise<unknown> {
+    const route = async function fanqieRoute(ctx: RouteContext): Promise<unknown> {
+        const { url, method, path: pathOnly } = ctx;
         try {
             if (pathOnly === WB_API_PREFIX + "/diagnostics/capabilities") {
-                if (method !== "GET") return writeJson(res, 405, { ok: false, code: "method", error: "GET required" });
+                if (method !== "GET") return ctx.json(405, { ok: false, code: "method", error: "GET required" });
                 // 投递可用：宿主有会话控制服务，且该项目有过主会话
                 const picked = await panelPaths(url, config);
                 const problem = picked.error ? { code: "bad_base", message: "项目未登记" } : await deliveryProblem((picked.paths as StoragePaths).base);
                 const target = picked.error ? undefined : await sessionFor((picked.paths as StoragePaths).base);
-                return writeJson(res, 200, {
+                return ctx.json(200, {
                     ok: true, quick: true, deep: false, reason: "模型深度调用尚未开放",
                     deliver: !problem,
                     deliverReason: problem?.message,
@@ -292,59 +293,59 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
                 });
             }
             if (["/diagnostics/scan", "/diagnostics/stage"].some(p => pathOnly === WB_API_PREFIX + p)) {
-                if (method !== "POST") return writeJson(res, 405, { ok: false, code: "method", error: "POST required" });
-                const parsed = await readJsonBody(req, pathOnly.endsWith("/stage") ? 1024 * 1024 : 64000);
-                if (parsed.err) return writeJson(res, parsed.err.status, parsed.err.payload);
+                if (method !== "POST") return ctx.json(405, { ok: false, code: "method", error: "POST required" });
+                const parsed = await ctx.readBody(pathOnly.endsWith("/stage") ? 1024 * 1024 : 64000);
+                if (parsed.err) return ctx.json(parsed.err.status, parsed.err.payload);
                 const input = parsed.parsed;
                 const picked = await panelPaths(url, config, String(input.base ?? ""));
-                if (picked.error) return writeJson(res, 400, { ok: false, code: "bad_base", error: "项目未登记" });
+                if (picked.error) return ctx.json(400, { ok: false, code: "bad_base", error: "项目未登记" });
                 try {
                     const dir = await resolveWorkDir(picked.paths as StoragePaths, input.work);
                     const result = pathOnly.endsWith("/stage") ? await stageRevisionCandidate(dir, input) : await diagnose(dir, input);
-                    return writeJson(res, 200, { ok: true, ...result });
+                    return ctx.json(200, { ok: true, ...result });
                 } catch (err) {
                     const code = err instanceof NovelError ? err.code : "diagnostic_failed";
                     const status = code === "body_too_large" ? 413 : code.startsWith("bad_") || code === "too_many_paragraphs" ? 400 : err instanceof NovelError ? 409 : 500;
-                    return writeJson(res, status, { ok: false, code, error: err instanceof Error ? err.message : String(err) });
+                    return ctx.json(status, { ok: false, code, error: err instanceof Error ? err.message : String(err) });
                 }
             }
             if (pathOnly === WB_API_PREFIX + "/agent/deliver") {
-                if (method !== "POST") return writeJson(res, 405, { ok: false, code: "method", error: "POST required" });
-                const body = await readJsonBody(req, 16_000);
-                if (body.err) return writeJson(res, body.err.status, body.err.payload);
+                if (method !== "POST") return ctx.json(405, { ok: false, code: "method", error: "POST required" });
+                const body = await ctx.readBody(16_000);
+                if (body.err) return ctx.json(body.err.status, body.err.payload);
                 const input = body.parsed;
                 if (input.confirm !== true || typeof input.work !== "string" || typeof input.action !== "string")
-                    return writeJson(res, 400, { ok: false, code: "confirmation_required", error: "须明确确认、作品与动作。" });
+                    return ctx.json(400, { ok: false, code: "confirmation_required", error: "须明确确认、作品与动作。" });
                 const picked = await panelPaths(url, config, String(input.base ?? input.project ?? ""));
-                if (picked.error) return writeJson(res, 400, { ok: false, code: "bad_base", error: "项目未登记" });
+                if (picked.error) return ctx.json(400, { ok: false, code: "bad_base", error: "项目未登记" });
                 const paths = picked.paths as StoragePaths;
                 const problem = await deliveryProblem(paths.base);
-                if (problem) return writeJson(res, problem.code === "no_session" ? 409 : 503, { ok: false, code: problem.code, error: problem.message });
+                if (problem) return ctx.json(problem.code === "no_session" ? 409 : 503, { ok: false, code: problem.code, error: problem.message });
                 try {
                     const dir = await resolveWorkDir(paths, input.work);
                     const prompt = await buildDeliveryPrompt(dir, { action: input.action, chapter: typeof input.chapter === "string" ? input.chapter : undefined, note: typeof input.note === "string" ? input.note : undefined });
                     const sent = await deliver(paths.base, prompt.text, typeof input.requestId === "string" ? input.requestId : undefined);
-                    return writeJson(res, 200, { ok: true, action: prompt.action, chapterId: prompt.chapterId, requestId: sent.requestId, text: prompt.text });
+                    return ctx.json(200, { ok: true, action: prompt.action, chapterId: prompt.chapterId, requestId: sent.requestId, text: prompt.text });
                 } catch (err) {
                     const code = err instanceof NovelError ? err.code : (err as any)?.code ?? "deliver_failed";
-                    return writeJson(res, err instanceof NovelError ? 400 : 502, { ok: false, code: String(code), error: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200) });
+                    return ctx.json(err instanceof NovelError ? 400 : 502, { ok: false, code: String(code), error: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200) });
                 }
             }
             if (["/chapter/review", "/chapter/finalize", "/revision/acknowledge"].some(route => pathOnly === WB_API_PREFIX + route)) {
-                if (method !== "POST") return writeJson(res, 405, { ok: false, error: "POST required" });
-                const body = await readJsonBody(req);
-                if (body.err) return writeJson(res, body.err.status, body.err.payload);
+                if (method !== "POST") return ctx.json(405, { ok: false, error: "POST required" });
+                const body = await ctx.readBody();
+                if (body.err) return ctx.json(body.err.status, body.err.payload);
                 const input = body.parsed;
                 if (input.confirm !== true || typeof input.work !== "string" || typeof input.chapter !== "string" || typeof input.expectedRevision !== "string")
-                    return writeJson(res, 400, { ok: false, code: "confirmation_required", error: "须明确确认、作品、章节与实际已读版本。" });
+                    return ctx.json(400, { ok: false, code: "confirmation_required", error: "须明确确认、作品、章节与实际已读版本。" });
                 const picked = await panelPaths(url, config, String(input.base ?? input.project ?? ""));
-                if (picked.error) return writeJson(res, 400, { ok: false, code: "bad_base", error: "项目未登记" });
+                if (picked.error) return ctx.json(400, { ok: false, code: "bad_base", error: "项目未登记" });
                 try {
                     const dir = await resolveWorkDir(picked.paths as StoragePaths, input.work);
                     if (pathOnly.endsWith("/finalize")) {
                         const current = await readChapter(dir, assertResourceId(input.chapter, "章节 id"));
                         const denied = await finalizeProblem(dir, current.id, current.body ?? "", config.requireEditorPass === true);
-                        if (denied) return writeJson(res, 409, { ok: false, code: "writer_finalize_blocked", error: denied });
+                        if (denied) return ctx.json(409, { ok: false, code: "writer_finalize_blocked", error: denied });
                     }
                     const chapter = await updateChapter(dir, { id: input.chapter, expectedRevision: input.expectedRevision,
                         status: pathOnly.endsWith("/review") ? "reviewed" : pathOnly.endsWith("/finalize") ? "final" : undefined,
@@ -352,25 +353,25 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
                         reviewResult: input.result === "blocked" ? "blocked" : "pass",
                         reviewedBy: "panel author", acknowledgeRevision: pathOnly.endsWith("/acknowledge"),
                     });
-                    return writeJson(res, 200, { ok: true, chapterId: chapter.id, status: chapter.status });
-                } catch (err) { return writeJson(res, 409, { ok: false, code: err instanceof NovelError ? err.code : "chapter_action_failed", error: err instanceof Error ? err.message : String(err) }); }
+                    return ctx.json(200, { ok: true, chapterId: chapter.id, status: chapter.status });
+                } catch (err) { return ctx.json(409, { ok: false, code: err instanceof NovelError ? err.code : "chapter_action_failed", error: err instanceof Error ? err.message : String(err) }); }
             }
             // —— POST candidate adoption ——
             if (pathOnly === `${WB_API_PREFIX}/candidate/accept`) {
                 if (method !== "POST") {
-                    return writeJson(res, 405, { ok: false, error: `method not allowed: ${method}` });
+                    return ctx.json(405, { ok: false, error: `method not allowed: ${method}` });
                 }
-                const body = await readJsonBody(req);
+                const body = await ctx.readBody();
                 if (body.err)
-                    return writeJson(res, body.err.status, body.err.payload);
+                    return ctx.json(body.err.status, body.err.payload);
                 const parsed = body.parsed;
                 const modeRaw = parsed.mode ?? "replace";
                 if (modeRaw !== "append" && modeRaw !== "replace") {
-                    return writeJson(res, 400, { ok: false, code: "bad_mode", error: "mode 只支持 append / replace" });
+                    return ctx.json(400, { ok: false, code: "bad_mode", error: "mode 只支持 append / replace" });
                 }
                 const picked = await panelPaths(url, config, String(parsed.base ?? parsed.project ?? ""));
                 if (picked.error) {
-                    return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
+                    return ctx.json(400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
                 }
                 const paths = picked.paths as StoragePaths;
                 // Booleans are strict: only `true` enables, only `false` disables —
@@ -407,32 +408,32 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
                         : result.code === "work_not_found" || result.code === "candidate_not_found"
                             ? 404
                             : 422;
-                    return writeJson(res, status, result);
+                    return ctx.json(status, result);
                 }
-                return writeJson(res, 200, result);
+                return ctx.json(200, result);
             }
             // —— unify/prepare (read-only brief; no disk write) ——
             if (pathOnly === `${WB_API_PREFIX}/unify/prepare`) {
                 if (method !== "GET" && method !== "HEAD" && method !== "POST") {
-                    return writeJson(res, 405, { ok: false, error: `method not allowed: ${method}` });
+                    return ctx.json(405, { ok: false, error: `method not allowed: ${method}` });
                 }
                 const paths0 = method === "POST" ? null : (await panelPaths(url, config));
                 if (method !== "POST" && paths0?.error) {
-                    return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
+                    return ctx.json(400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
                 }
                 let paths = paths0?.paths as StoragePaths;
                 let work = "";
                 let chapter = "";
                 let candidateIds = [];
                 if (method === "POST") {
-                    const body = await readJsonBody(req);
+                    const body = await ctx.readBody();
                     if (body.err)
-                        return writeJson(res, body.err.status, body.err.payload);
+                        return ctx.json(body.err.status, body.err.payload);
                     const parsed = body.parsed;
                     // A6: POST body base/project wins, same as accept.
                     const picked = await panelPaths(url, config, String(parsed.base ?? parsed.project ?? ""));
                     if (picked.error) {
-                        return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
+                        return ctx.json(400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
                     }
                     paths = picked.paths as StoragePaths;
                     work = String(parsed.work ?? parsed.workKey ?? "");
@@ -466,21 +467,21 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
                         : result.code === "work_not_found"
                             ? 404
                             : 422;
-                    return writeJson(res, status, result);
+                    return ctx.json(status, result);
                 }
-                return writeJson(res, 200, result);
+                return ctx.json(200, result);
             }
             if (method !== "GET" && method !== "HEAD") {
-                return writeJson(res, 405, { ok: false, error: `method not allowed: ${method}` });
+                return ctx.json(405, { ok: false, error: `method not allowed: ${method}` });
             }
             if (pathOnly === `${WB_API_PREFIX}/health` || pathOnly === WB_API_PREFIX) {
                 const picked = await panelPaths(url, config);
                 if (picked.error) {
-                    return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
+                    return ctx.json(400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
                 }
                 const paths = picked.paths as StoragePaths;
                 const product = buildProductView();
-                return writeJson(res, 200, {
+                return ctx.json(200, {
                     ok: true,
                     plugin: "dsh-writer",
                     version: product.version,
@@ -512,7 +513,7 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
                         recoveryPending: false,
                     });
                 }
-                return writeJson(res, 200, {
+                return ctx.json(200, {
                     ok: true,
                     base: paths.base,
                     resolvedVia: paths.resolvedVia,
@@ -523,11 +524,11 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
             if (pathOnly === `${WB_API_PREFIX}/works`) {
                 const picked = await panelPaths(url, config);
                 if (picked.error) {
-                    return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
+                    return ctx.json(400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
                 }
                 const paths = picked.paths as StoragePaths;
                 const works = await listWorks(paths);
-                return writeJson(res, 200, {
+                return ctx.json(200, {
                     ok: true,
                     base: paths.base,
                     resolvedVia: paths.resolvedVia,
@@ -545,11 +546,11 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
             if (pathOnly === `${WB_API_PREFIX}/library`) {
                 const picked = await panelPaths(url, config);
                 if (picked.error) {
-                    return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
+                    return ctx.json(400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
                 }
                 const paths = picked.paths as StoragePaths;
                 const library = await buildLibraryView(paths);
-                return writeJson(res, 200, {
+                return ctx.json(200, {
                     ok: true,
                     base: paths.base,
                     library,
@@ -559,25 +560,25 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
             if (pathOnly === `${WB_API_PREFIX}/report`) {
                 const source = String(url.searchParams.get("source") ?? "").trim();
                 if (!/^src-[A-Za-z0-9_-]{1,64}$/.test(source)) {
-                    return writeJson(res, 400, { ok: false, code: "bad_id", error: "source 非法" });
+                    return ctx.json(400, { ok: false, code: "bad_id", error: "source 非法" });
                 }
                 const picked = await panelPaths(url, config);
                 if (picked.error) {
-                    return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
+                    return ctx.json(400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
                 }
                 const reportPath = path.join((picked.paths as StoragePaths).library, "analyses", source, "report.md");
                 try {
                     const report = await readFile(reportPath, "utf8");
-                    return writeJson(res, 200, { ok: true, source, report });
+                    return ctx.json(200, { ok: true, source, report });
                 }
                 catch {
-                    return writeJson(res, 404, { ok: false, code: "report_not_found", error: "报告未生成（先跑 fanqie_library_report）" });
+                    return ctx.json(404, { ok: false, code: "report_not_found", error: "报告未生成（先跑 fanqie_library_report）" });
                 }
             }
             if (pathOnly === `${WB_API_PREFIX}/inspiration`) {
                 const picked = await panelPaths(url, config);
                 if (picked.error) {
-                    return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
+                    return ctx.json(400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
                 }
                 const paths = picked.paths as StoragePaths;
                 let workKey = (url.searchParams.get("work") ?? "").trim();
@@ -618,7 +619,7 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
                     foundation,
                     chapters,
                 });
-                return writeJson(res, 200, {
+                return ctx.json(200, {
                     ok: true,
                     base: paths.base,
                     workKey: workKey || null,
@@ -629,7 +630,7 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
             if (pathOnly === `${WB_API_PREFIX}/snapshot`) {
                 const picked = await panelPaths(url, config);
                 if (picked.error) {
-                    return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
+                    return ctx.json(400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
                 }
                 const paths = picked.paths as StoragePaths;
                 const scope = url.searchParams.get("scope") === "work" ? "work" : "all";
@@ -638,7 +639,7 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
                 if (!workKey) {
                     if (works.length === 0) {
                         const library = scope === "all" ? await buildLibraryView(paths).catch((err: any) => ({ unavailable: true, recoveryPending: err?.code === "library_recovery_required", summary: err instanceof Error ? err.message : "拆书库暂不可读" })) : undefined;
-                        return writeJson(res, 200, {
+                        return ctx.json(200, {
                             ok: true,
                             empty: true,
                             message: library && "unavailable" in library ? library.summary : "还没有作品。先用 fanqie_project_create 创建。",
@@ -651,7 +652,7 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
                         });
                     }
                     if (works.length > 1) {
-                        return writeJson(res, 200, {
+                        return ctx.json(200, {
                             ok: true,
                             needWork: true,
                             message: "请选择作品",
@@ -669,13 +670,13 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
                     dir = await resolveWorkDir(paths, workKey);
                 }
                 catch (err) {
-                    return writeJson(res, 404, {
+                    return ctx.json(404, {
                         ok: false,
                         error: err instanceof Error ? err.message : String(err),
                     });
                 }
                 const rest = await buildPanelSnapshot(dir, paths, { scope });
-                return writeJson(res, 200, {
+                return ctx.json(200, {
                     ok: true,
                     empty: false,
                     snapshot: rest,
@@ -689,23 +690,23 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
             if (pathOnly === `${WB_API_PREFIX}/chapter`) {
                 const picked = await panelPaths(url, config);
                 if (picked.error) {
-                    return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
+                    return ctx.json(400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
                 }
                 const paths = picked.paths as StoragePaths;
                 const workKey = (url.searchParams.get("work") ?? "").trim();
                 let chapterId = (url.searchParams.get("id") ?? url.searchParams.get("chapter") ?? "").trim();
                 if (!workKey) {
-                    return writeJson(res, 400, { ok: false, code: "work_required", error: "缺少 work" });
+                    return ctx.json(400, { ok: false, code: "work_required", error: "缺少 work" });
                 }
                 if (!chapterId) {
-                    return writeJson(res, 400, { ok: false, code: "id_required", error: "缺少章节 id" });
+                    return ctx.json(400, { ok: false, code: "id_required", error: "缺少章节 id" });
                 }
                 try {
                     chapterId = assertResourceId(chapterId, "章节 id");
                 }
                 catch (err) {
                     const code = err instanceof NovelError ? err.code : "bad_id";
-                    return writeJson(res, 400, {
+                    return ctx.json(400, {
                         ok: false,
                         code,
                         error: err instanceof Error ? err.message : String(err),
@@ -716,7 +717,7 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
                     dir = await resolveWorkDir(paths, workKey);
                 }
                 catch (err) {
-                    return writeJson(res, 404, {
+                    return ctx.json(404, {
                         ok: false,
                         code: "work_not_found",
                         error: err instanceof Error ? err.message : String(err),
@@ -732,7 +733,7 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
                     catch {
                         writer = undefined;
                     }
-                    return writeJson(res, 200, {
+                    return ctx.json(200, {
                         ok: true,
                         workKey,
                         meta: {
@@ -759,7 +760,7 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
                     const missing = (err as any)?.code === "ENOENT" ||
                         /ENOENT|no such file|不存在/i.test(msg);
                     const recovering = err instanceof NovelError && err.code === "recovery_required";
-                    return writeJson(res, recovering ? 409 : missing ? 404 : 500, {
+                    return ctx.json(recovering ? 409 : missing ? 404 : 500, {
                         ok: false,
                         code: recovering ? "recovery_required" : missing ? "chapter_not_found" : "chapter_read_failed",
                         error: missing ? `章节不存在：${chapterId}` : msg.slice(0, 200),
@@ -769,23 +770,23 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
             if (pathOnly === `${WB_API_PREFIX}/candidate`) {
                 const picked = await panelPaths(url, config);
                 if (picked.error) {
-                    return writeJson(res, 400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
+                    return ctx.json(400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
                 }
                 const paths = picked.paths as StoragePaths;
                 const workKey = (url.searchParams.get("work") ?? "").trim();
                 let candidateId = (url.searchParams.get("id") ?? url.searchParams.get("candidate") ?? "").trim();
                 if (!workKey) {
-                    return writeJson(res, 400, { ok: false, code: "work_required", error: "缺少 work" });
+                    return ctx.json(400, { ok: false, code: "work_required", error: "缺少 work" });
                 }
                 if (!candidateId) {
-                    return writeJson(res, 400, { ok: false, code: "id_required", error: "缺少候选 id" });
+                    return ctx.json(400, { ok: false, code: "id_required", error: "缺少候选 id" });
                 }
                 try {
                     candidateId = assertResourceId(candidateId, "候选 id");
                 }
                 catch (err) {
                     const code = err instanceof NovelError ? err.code : "bad_id";
-                    return writeJson(res, 400, {
+                    return ctx.json(400, {
                         ok: false,
                         code,
                         error: err instanceof Error ? err.message : String(err),
@@ -796,7 +797,7 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
                     dir = await resolveWorkDir(paths, workKey);
                 }
                 catch (err) {
-                    return writeJson(res, 404, {
+                    return ctx.json(404, {
                         ok: false,
                         code: "work_not_found",
                         error: err instanceof Error ? err.message : String(err),
@@ -806,7 +807,7 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
                     const cand = await readCandidate(dir, candidateId);
                     const capped = capPanelBody(cand.body ?? "");
                     const wordCount = countWords(cand.body ?? "");
-                    return writeJson(res, 200, {
+                    return ctx.json(200, {
                         ok: true,
                         workKey,
                         meta: {
@@ -839,7 +840,7 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
                     const missing = (err as any)?.code === "ENOENT" ||
                         /ENOENT|no such file|不存在/i.test(msg);
                     const recovering = err instanceof NovelError && err.code === "recovery_required";
-                    return writeJson(res, recovering ? 409 : missing ? 404 : 500, {
+                    return ctx.json(recovering ? 409 : missing ? 404 : 500, {
                         ok: false,
                         code: recovering ? "recovery_required" : missing ? "candidate_not_found" : "candidate_read_failed",
                         error: missing ? `候选不存在：${candidateId}` : msg.slice(0, 200),
@@ -850,7 +851,7 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
         }
         catch (err) {
             const recovering = err instanceof NovelError && (err.code === "recovery_required" || err.code === "library_recovery_required");
-            return writeJson(res, recovering ? 409 : 500, {
+            return ctx.json(recovering ? 409 : 500, {
                 ok: false,
                 ...(recovering ? { code: (err as NovelError).code } : {}),
                 error: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200),

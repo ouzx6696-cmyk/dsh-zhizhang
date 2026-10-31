@@ -21,7 +21,7 @@ export function setPluginConfig(next: any) {
     fallbackConfig = { ...next };
 }
 export function sessionKey(exec: ExecContext) {
-    return (exec?.agent?.session?.id ?? "default");
+    return (exec?.sessionId ?? exec?.agent?.session?.id ?? "default");
 }
 export function rememberWork(exec: ExecContext, key: string) {
     const sk = `${sessionKey(exec)}:${JSON.stringify(config)}`;

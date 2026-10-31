@@ -4,6 +4,7 @@
  * - 带超时与取消运行脚本；
  * - stdout 必须是且只是一个 JSON 对象，含 tool/rules_version/ok；否则一律 SCRIPT_FAILED，绝不当作通过。
  */
+import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { WriterError } from '../../host/src/index.js'
 
@@ -71,6 +72,7 @@ async function findPython(explicit?: string): Promise<PythonCommand> {
   const candidates: PythonCommand[] = []
   const add = (s: string | undefined) => {
     if (!s || !s.trim()) return
+    if (path.isAbsolute(s.trim())) { candidates.push({ cmd: s.trim(), prefix: [] }); return }
     const parts = s.trim().split(/\s+/)
     candidates.push({ cmd: parts[0]!, prefix: parts.slice(1) })
   }

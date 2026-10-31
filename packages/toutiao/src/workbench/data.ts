@@ -93,7 +93,7 @@ export async function adopt(rootIn: string, id: string, config: ToutiaoConfig = 
 }
 
 /** 写作台按钮 → 对话消息。正文仍由 Agent 在会话里写；作者附言 ≤300 字原样附在末尾。 */
-export async function buildToutiaoDelivery(rootIn: string, input: { action: string; id?: string; note?: string }) {
+export async function buildToutiaoDelivery(rootIn: string, input: { action: string; id?: string; note?: string }, enableHint = ENABLE_HINT_TOUTIAO) {
   if (!(TOUTIAO_ACTIONS as readonly string[]).includes(input.action)) throw new WriterError('INVALID_ARGS', `不支持的动作：${input.action}`)
   const action = input.action as ToutiaoAction
   const root = await knownRoot(rootIn)
@@ -121,13 +121,13 @@ export async function buildToutiaoDelivery(rootIn: string, input: { action: stri
       lines.push(`【写作台】继续${ref}：${next[m.status] ?? '按总则推进到下一步'}。`)
       lines.push('不要标记已交稿，那一步由我确认。')
     } else if (action === 'review') {
-      lines.push(`【写作台】派编辑子代理给${ref}红笔并质检：提示词写“【头条编辑任务】先调用 writer_enable，参数 mode=toutiao、role=editor；文章 id=${m.id}；按 s5-editing 红笔、记三联表、存编辑版、跑质检，回报分数与三联表”。收到回报后把分数和要点告诉我。`)
+      lines.push(`【写作台】派编辑子代理给${ref}红笔并质检：按 s5-editing 红笔、记三联表、存编辑版、跑质检，回报分数与三联表。收到回报后把分数和要点告诉我。`)
     } else {
       const why = q ? `最近质检 ${q.score} 分${q.pass ? '过线' : '未过线'}${q.hard_gates.length ? `，硬闸：${q.hard_gates.join('、')}` : ''}（rev ${q.rev}）` : '还没有质检记录'
       lines.push(`【写作台】按最近的质检与编辑意见修改${ref}。${why}。只改 fails、硬闸与三联表指出的位置，存新版本后重跑 toutiao_qa_check；不靠换词、堆口语词或数字凑分。`)
     }
   }
-  lines.push(ENABLE_HINT_TOUTIAO)
+  if (enableHint) lines.push(enableHint)
   if (note && action !== 'new') lines.push(`作者附言：${note}`)
   return { action, id: input.id, text: lines.join('\n') }
 }

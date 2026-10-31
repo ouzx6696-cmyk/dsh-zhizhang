@@ -6,7 +6,7 @@
  * 记录持久化在 $DSH_HOME/writer-sessions.json，重启后仍能投递。进程级单例，多份打包副本共享。
  */
 import { mkdir, readFile } from 'node:fs/promises'
-import { homedir } from 'node:os'
+import { stateRoot } from './paths.js'
 import path from 'node:path'
 import type { HostToolExecution, PromptSink } from '../../host/src/index.js'
 import { atomicWrite } from './fsx.js'
@@ -42,6 +42,7 @@ export function isDelegated(exec: HostToolExecution | null | undefined): boolean
   return depth > 0
 }
 function sessionIdOf(exec: HostToolExecution | null | undefined): string {
+  if (exec?.sessionId) return exec.sessionId
   const s = exec?.agent?.session as { id?: unknown; header?: { id?: unknown } } | undefined
   const id = s?.id ?? s?.header?.id
   return typeof id === 'string' ? id : ''
@@ -50,7 +51,7 @@ function keyOf(root: string) {
   return path.resolve(root).replaceAll('\\', '/').toLowerCase()
 }
 function file() {
-  const home = (process.env.DSH_HOME ?? '').trim() || path.join(homedir(), '.dsh')
+  const home = stateRoot()
   return path.join(home, 'writer-sessions.json')
 }
 async function load(r: Registry) {
@@ -72,7 +73,7 @@ async function persist(r: Registry) {
 
 /** 写作工具解析数据目录时调用：记下这个目录最近的主会话 */
 export function rememberSession(root: string, exec: HostToolExecution | null | undefined) {
-  if (!exec || isDelegated(exec)) return
+  if (!exec?.agent || exec.role === 'editor' || isDelegated(exec)) return
   const sessionId = sessionIdOf(exec)
   if (!sessionId) return
   const r = registry()

@@ -25,14 +25,13 @@ export interface WorkbenchAccess {
 }
 
 export interface RouteContext {
-  req: IncomingMessage
-  res: ServerResponse
   url: URL
   /** 去掉末尾斜杠的路径 */
   path: string
   method: string
   json(status: number, body: unknown): void
   /** 读 JSON 请求体；失败时已经写好错误响应并返回 undefined */
+  readBody(limit?: number): ReturnType<typeof readJsonBody>
   body(limit?: number): Promise<Record<string, unknown> | undefined>
 }
 
@@ -192,7 +191,8 @@ export function createWorkbenchHandler(access: WorkbenchAccess, modes: Workbench
       }
       const url = new URL(req.url ?? '/', 'http://127.0.0.1')
       const ctx: RouteContext = {
-        req, res, url, method,
+        url, method,
+        readBody: (limit) => readJsonBody(req, limit),
         path: url.pathname.replace(/\/+$/, '') || '/',
         json: (status, body) => writeJson(res, status, body),
         async body(limit) {

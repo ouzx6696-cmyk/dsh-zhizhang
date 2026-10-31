@@ -50,6 +50,13 @@ export function routeUrl(path, query) {
  * success; rejects with ApiError otherwise (including timeouts and aborts).
  */
 export async function request(path, { method = "GET", query, body, timeoutMs = 10000, signal } = {}) {
+  if (window.writerDesktop) {
+    if(signal?.aborted)throw new ApiError("aborted",{code:"aborted"});
+    const result = await window.writerDesktop.request(path, { method, query, body });
+    if(signal?.aborted)throw new ApiError("aborted",{code:"aborted"});
+    if (result.status >= 400 || result.data?.ok === false) throw new ApiError(result.data?.error || result.data?.message || "操作失败", { status: result.status, code: result.data?.code });
+    return result.data;
+  }
   const ctrl = new AbortController();
   const onAbort = () => ctrl.abort();
   if (signal) {

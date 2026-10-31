@@ -32,6 +32,9 @@ export interface HostAgent {
 
 /** 出处：packages/core/tools/src/index.ts `ToolExecution` / `ToolRunContext` */
 export interface HostToolExecution {
+  readonly sessionId?: string
+  readonly cwd?: string
+  readonly role?: string
   readonly callId?: string
   readonly name: string
   readonly arguments: unknown
@@ -170,6 +173,7 @@ export function agentContextOf(exec: HostToolExecution): HostContext | undefined
 
 /** 会话工作目录：workingDirectory 服务 → session.header.cwd → process.cwd() */
 export function sessionCwd(exec: HostToolExecution | undefined, root?: HostContext): string {
+  if (exec?.cwd) return exec.cwd
   const session = exec?.agent?.session
   if (session) {
     const wd = (exec?.agent?.ctx?.get?.('workingDirectory') ?? root?.get?.('workingDirectory')) as HostWorkingDirectory | undefined
@@ -186,7 +190,7 @@ export function sessionCwd(exec: HostToolExecution | undefined, root?: HostConte
 }
 
 export function sessionIdOf(exec: HostToolExecution | undefined): string {
-  return exec?.agent?.session?.id ?? 'default'
+  return exec?.sessionId ?? exec?.agent?.session?.id ?? 'default'
 }
 
 /** 注册系统提示段落；宿主不支持时返回 undefined（调用方降级为工具回执里给总则）。 */

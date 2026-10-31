@@ -35,7 +35,7 @@ export function useToutiao() {
     listCtrl.current = ctrl;
     try {
       const data = await toutiaoApi.articles(ctrl.signal);
-      setList({ status: "ready", articles: data.articles || [], statuses: data.statuses || [], roots: data.roots || [], sessions: data.sessions || {}, deliver: !!data.deliver, deliverReason: data.deliverReason || "", error: "", at: new Date().toISOString() });
+      setList({ status: "ready", articles: data.articles || [], statuses: data.statuses || [], roots: data.roots || [], currentRoot: data.currentRoot, sessions: data.sessions || {}, deliver: !!data.deliver, deliverReason: data.deliverReason || "", error: "", at: new Date().toISOString() });
     } catch (err) {
       if (err && err.code === "aborted") return;
       setList((prev) => ({ ...prev, status: prev.articles.length ? "ready" : "error", error: err.message || String(err) }));
@@ -60,8 +60,10 @@ export function useToutiao() {
     }
   }, []);
 
+  useEffect(() => { const listener = () => loadList(true); window.addEventListener('writer:refresh', listener); return () => window.removeEventListener('writer:refresh', listener); }, [loadList]);
   useEffect(() => {
     loadList();
+    if (window.writerDesktop) return () => { listCtrl.current?.abort(); detailCtrl.current?.abort(); };
     const timer = setInterval(() => {
       if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
       loadList();
@@ -71,6 +73,12 @@ export function useToutiao() {
 
   // 选中的文章：列表刷新时跟着刷新详情（状态、质检可能刚变）
   const selected = list.articles.find((a) => a.root === sel.root && a.id === sel.id);
+  useEffect(() => {
+    if (!window.writerDesktop) return;
+    const root = selected?.root || list.currentRoot;
+    if (root) window.dispatchEvent(new CustomEvent('writer:target', {detail:{mode:'toutiao', root,
+      focus: selected ? {article:selected.id, title:selected.title, source:'article', revision:detail.status === 'ready' && detail.article?.id === selected.id ? detail.article.rev : undefined} : {}}}));
+  }, [selected?.root, selected?.id, selected?.title, detail.status, detail.article?.rev, list.currentRoot]);
   const stamp = selected ? selected.updatedAt : "";
   useEffect(() => { if (selected) loadDetail(sel.root, sel.id); }, [sel.root, sel.id, stamp, !!selected, loadDetail]);
 
@@ -83,6 +91,7 @@ export function useToutiao() {
   // 投递目标数据目录：选中文章的目录；没选就用最近有会话的目录
   const pickRoot = () => {
     if (selected) return selected.root;
+    if (window.writerDesktop) return list.currentRoot || "";
     const withSession = Object.entries(list.sessions).sort((a, b) => String(b[1]).localeCompare(String(a[1])));
     return (withSession[0] && withSession[0][0]) || list.roots[0] || "";
   };
@@ -119,7 +128,7 @@ export function useToutiao() {
   }, [selected, loadList, notify]);
 
   const deliverRoot = pickRoot();
-  const deliverOff = !list.deliver ? t("ttDeliverOff", { reason: list.deliverReason || "" }) : !list.sessions[deliverRoot] ? t("ttNoSession") : "";
+  const deliverOff = !list.deliver ? t("ttDeliverOff", { reason: list.deliverReason || "" }) : (!deliverRoot || (!window.writerDesktop && !list.sessions[deliverRoot])) ? t("ttNoSession") : "";
 
   return { list, sel, selected, detail, busy, notices, refreshing, doneAt, deliverOff, actions: { select, deliver, adopt, refresh: () => loadList(true), dismiss } };
 }

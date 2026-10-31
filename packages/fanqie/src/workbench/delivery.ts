@@ -23,7 +23,7 @@ export function pickNextChapter(rows: Row[]): Row | undefined {
     return rows.find(r => r.status !== "final" && !(Number(r.wordCount) > 0));
 }
 
-export async function buildDeliveryPrompt(dir: string, input: { action: string; chapter?: string; note?: string }) {
+export async function buildDeliveryPrompt(dir: string, input: { action: string; chapter?: string; note?: string }, enableHint = ENABLE_HINT_FANQIE) {
     if (!(DELIVERY_ACTIONS as readonly string[]).includes(input.action))
         throw new NovelError("bad_action", `不支持的动作：${input.action}`);
     const action = input.action as DeliveryAction;
@@ -53,7 +53,7 @@ export async function buildDeliveryPrompt(dir: string, input: { action: string; 
             ? `【写作台】派编辑子代理审读《${meta.title}》${label(target)}：完整回读当前正文，按编辑方法出审读回报（fanqie_review_report）。编辑不改正文、不定稿。`
             : `【写作台】按最新编辑审读回报修改《${meta.title}》${label(target)}：只改回报里的硬伤与 L1–L3 位置，出候选并自检，再派编辑复审。不要定稿。`);
     }
-    lines.push(ENABLE_HINT_FANQIE);
+    if (enableHint) lines.push(enableHint);
     if (note)
         lines.push(`作者附言：${note}`);
     return { action, chapterId, text: lines.join("\n") };

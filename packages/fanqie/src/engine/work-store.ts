@@ -16,7 +16,7 @@
  */
 import { mkdir, readdir, readFile, realpath, rm, stat } from "node:fs/promises";
 import path from "node:path";
-import { homedir } from "node:os";
+import { stateRoot } from "../../../core/src/paths.js";
 import { createHash, randomUUID } from "node:crypto";
 import { EMPTY_FOUNDATION, SCHEMA_VERSION } from "./types.js";
 import type { Candidate, ExecContext, PluginConfig, StoragePaths } from "./types.js";
@@ -90,8 +90,7 @@ export function slugify(title: string) {
     return RESERVED_NAME.test(cleaned) ? `_${cleaned}` : cleaned;
 }
 export function sessionCwd(exec: ExecContext | null) {
-    const cwd = exec?.agent?.session?.header
-        ?.cwd;
+    const cwd = exec?.cwd ?? exec?.agent?.session?.header?.cwd;
     return typeof cwd === "string" && cwd.length > 0 ? cwd : process.cwd();
 }
 /**
@@ -103,7 +102,7 @@ let lastToolBase = "";
 let lastWorksRoot = "";
 let lastMarkerReadAt = 0;
 function dshHome() {
-    return (process.env.DSH_HOME ?? "").trim() || path.join(homedir(), ".dsh");
+    return stateRoot();
 }
 function toolBaseMarker() {
     return path.join(dshHome(), "writer-novel-last-root.json");
@@ -205,11 +204,15 @@ async function upsertProjectFile(base: string, works: string) {
  */
 export function rememberProject(base: string, works: string) {
     if (!base || (base === lastProjectBase && (works ? works === lastProjectWorks : true)))
-        return;
+        return projectsChain;
     lastProjectBase = base;
     if (works)
         lastProjectWorks = works;
-    projectsChain = projectsChain.then(() => upsertProjectFile(base, works)).catch(() => { });
+    projectsChain = projectsChain.then(async () => {
+        await upsertProjectFile(base, works);
+        projectsSummaryCache = null;
+    }).catch(() => { });
+    return projectsChain;
 }
 const LOCAL_BOOK_EXTS = new Set([".txt", ".md", ".markdown"]);
 /** List candidate book files in a local shelf folder (read-only, no import). */

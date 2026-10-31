@@ -13,9 +13,10 @@ const MODES = ["fanqie", "toutiao"];
 /* global __WB_VERSION__ */
 const VERSION = typeof __WB_VERSION__ === "string" ? __WB_VERSION__ : "";
 
-export function Shell() {
-  const [mode, setMode] = useState(() => oneOf(readPref(PREF.mode, "fanqie"), MODES, "fanqie"));
-  const change = useCallback((m) => { setMode(m); writePref(PREF.mode, m); }, []);
+export function Shell({ modeOverride, onModeChange } = {}) {
+  const [storedMode, setMode] = useState(() => oneOf(readPref(PREF.mode, "fanqie"), MODES, "fanqie"));
+  const mode = modeOverride || storedMode;
+  const change = useCallback((m) => { if (onModeChange) { onModeChange(m); return; } setMode(m); writePref(PREF.mode, m); }, [onModeChange]);
   const modeSwitch = (
     <>
     <ProfilesButton key={mode} mode={mode} />
