@@ -356,6 +356,13 @@ test("命令面板、角色设置与新对话保留作品", async () => {
 });
 
 test("正文可在稿纸中直接编辑并保存", async () => {
+  await page.evaluate(async url => {
+    const api=window.writerDesktop, state=await api.state();
+    if (!state.workspace) {
+      await api.model({writer:{...state.models.writer,api:"openai-completions",baseUrl:url,model:"mock-writer",apiKey:"fixture-key"},editor:{...state.models.editor,api:"openai-completions",baseUrl:url,model:"mock-editor",apiKey:"fixture-key"}});
+      await api.workspace();
+    }
+  }, model.url);
   const store = await import("../../apps/desktop/out-test/work-store.mjs");
   const base = path.join(root, ".writer");
   const paths = await store.ensureStorage(
@@ -380,6 +387,7 @@ test("正文可在稿纸中直接编辑并保存", async () => {
   );
   await store.saveChapter(work.dir, {
     id: "c001",
+    title: "雨夜",
     body: "林川握着车票站在雨里。站台上的钟停在十一点。",
     status: "drafted",
   });
