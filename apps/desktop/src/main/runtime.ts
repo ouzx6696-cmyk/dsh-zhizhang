@@ -27,7 +27,6 @@ export class Runtime {
   home = "";
   resources = "";
   target?: Target;
-  selectionVersion = 0;
   access: { readOnly: boolean; owner: { host?: string } | null } = {
     readOnly: false,
     owner: null,

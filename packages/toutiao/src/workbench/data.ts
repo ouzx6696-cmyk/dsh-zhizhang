@@ -32,9 +32,10 @@ async function knownRoot(root: string): Promise<string> {
 export async function listArticles() {
   const roots = await listKnownRoots()
   const rows: Record<string, unknown>[] = []
+  const issues: { root: string; id?: string; error: string }[] = []
   for (const root of roots) {
     let metas: ArticleMeta[] = []
-    try { metas = await new ArticleStore(root).list() } catch { continue }
+    try { metas = await new ArticleStore(root).list(issues) } catch (error) { issues.push({root, error: error instanceof Error ? error.message : String(error)}); continue }
     for (const m of metas) {
       const q = m.qa.at(-1)
       rows.push({
@@ -46,7 +47,7 @@ export async function listArticles() {
   }
   const order = new Map(STATUSES.map((s, i) => [s as string, i]))
   rows.sort((a, b) => (order.get(String(a.status))! - order.get(String(b.status))!) || String(b.updatedAt).localeCompare(String(a.updatedAt)))
-  return { roots, statuses: [...STATUSES], articles: rows }
+  return { roots, statuses: [...STATUSES], articles: rows, issues }
 }
 
 export async function articleDetail(rootIn: string, id: string) {
@@ -113,7 +114,7 @@ export async function adopt(rootIn: string, id: string, expected: { rev: number;
     mm.history.push({ from: mm.status, to: '已交稿', by: 'author-panel', at: nowIso(), note: '作者在写作台采用' })
     mm.status = '已交稿'
   })
-  await syncLedgerStatus(config, store, m).catch(() => undefined)
+  await syncLedgerStatus(config, store, m).catch((error) => { throw new WriterError("CONFLICT", `文章已采用，但台账同步失败：${error instanceof Error ? error.message : String(error)}`) })
   return m
 }
 

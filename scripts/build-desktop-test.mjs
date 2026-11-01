@@ -1,5 +1,6 @@
 import { build } from "esbuild";
 const entries = [
+  ["targets", "apps/desktop/src/main/targets.ts"],
   ["session", "apps/desktop/src/session/index.ts"],
   ["pi", "apps/desktop/src/session/pi-adapter.ts"],
   ["recovery", "apps/desktop/src/recovery.ts"],

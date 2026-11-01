@@ -616,8 +616,8 @@ export const InspirationPort = {
                     }
                 }
             }
-            catch {
-                /* fall through to legacy scan */
+            catch (error: any) {
+                if (error.code !== "ENOENT") throw error;
             }
             // 旧数据回退：索引出现前的 accept 记录，仍扫 candidates/ 目录。
             const { readdir } = await import("node:fs/promises");
@@ -709,8 +709,8 @@ export const InspirationPort = {
                 .map((c: any) => craftCueFromHumanFeel(coerceHumanFeel(c.humanFeel)))
                 .join("\n");
         }
-        catch {
-            return "";
+        catch (error) {
+            throw new NovelError("craft_source_unavailable", `技法依据不可读：${error instanceof Error ? error.message : String(error)}`);
         }
     },
     /**

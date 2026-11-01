@@ -122,6 +122,7 @@ export function Articles(props: WorkspaceProps) {
             : 2;
   return (
     <>
+      {tt.list.error && <p role="alert">{tt.list.error}</p>}
       <WorkspaceLayout
         tab={props.tab}
         setTab={props.setTab}

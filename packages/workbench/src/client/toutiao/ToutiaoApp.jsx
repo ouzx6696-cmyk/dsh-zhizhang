@@ -311,7 +311,7 @@ export function ToutiaoApp({ modeSwitch, version }) {
           <h2 className="wb-column-head">{t("ttArticles")}</h2>
           <div className="wb-column-body">
             {list.articles.length ? (
-              <ArticleList articles={list.articles} statuses={list.statuses || []} sel={sel} onSelect={actions.select} />
+              <>{list.error && <Callout tone="danger" role="alert">{list.error}</Callout>}<ArticleList articles={list.articles} statuses={list.statuses || []} sel={sel} onSelect={actions.select} /></>
             ) : (
               <div className="wb-onboarding wb-onboarding-compact">
                 <Empty icon="inbox" title={t("ttEmpty")} />

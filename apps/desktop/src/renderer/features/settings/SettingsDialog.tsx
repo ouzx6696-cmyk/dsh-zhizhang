@@ -9,10 +9,11 @@ type SettingsProps = {
   state: SystemState;
   onClose: () => void;
   onSaved: () => void | Promise<void>;
+  canRestart: () => boolean;
   onWorkspace: () => void | Promise<void>;
   onImport: (mode: "fanqie" | "toutiao") => void | Promise<void>;
 };
-export function Settings({ state, onClose, onSaved, onWorkspace, onImport }: SettingsProps) {
+export function Settings({ state, onClose, onSaved, onWorkspace, onImport, canRestart }: SettingsProps) {
   const [tab, setTab] = useState("models"),
     [models, setModels] = useState<any>(state.models),
     [appearance, setAppearance] = useState<any>(state.appearance),
@@ -324,7 +325,7 @@ export function Settings({ state, onClose, onSaved, onWorkspace, onImport }: Set
                     <button
                       onClick={async () => {
                         if (
-                          await askConfirm("确认已保存正在编辑的内容？更新会停止当前任务并重启。")
+                          canRestart() && await askConfirm("停止任务并重启安装更新？")
                         )
                           void action(() => api.updates("install"));
                       }}

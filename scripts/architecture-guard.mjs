@@ -76,12 +76,11 @@ for (const pkg of Object.keys(LAYERS)) {
       if (client) {
         const tts = trel.replace(/\.js$/, '.ts')
         if (!trel.startsWith('workbench/src/client/') && !trel.startsWith('workbench/src/adapters/') && !trel.startsWith('ui/src/') && !BROWSER_SAFE.includes(tts)) problems.push(`${rel}: 浏览器端只能引用浏览器可用模块，不能引用 ${trel}`)
-        continue
       }
-      if (tpkg in LAYERS && tpkg !== pkg && LAYERS[tpkg] >= LAYERS[pkg]) problems.push(`${rel}: ${pkg} 不能依赖同层或上层包 ${tpkg}`)
+      if (!client && tpkg in LAYERS && tpkg !== pkg && LAYERS[tpkg] >= LAYERS[pkg]) problems.push(`${rel}: ${pkg} 不能依赖同层或上层包 ${tpkg}`)
       if (rel.startsWith('fanqie/src/engine/storage/') && /fanqie\/src\/engine\/(panel-|work-store|ports\/)/.test(trel)) problems.push(`${rel}: 存储层不能依赖业务/查询代码 ${trel}`)
       if (BROWSER_SAFE.includes(rel) && (/\/(storage|ports)\//.test(trel))) problems.push(`${rel}: 文本分析须保持浏览器可用，不能引用 ${trel}`)
-      if (!typeOnly) edges.push(path.resolve(PKGS, trel.replace(/\.js$/, '.ts')))
+      if (!typeOnly) { const resolved = ts.resolveModuleName(spec, file, { moduleResolution: ts.ModuleResolutionKind.Bundler, allowJs: true }, ts.sys).resolvedModule; if (resolved) edges.push(path.resolve(resolved.resolvedFileName)); }
     }
     if (BROWSER_SAFE.includes(rel) && deps.some(d => d.spec.startsWith('node:'))) problems.push(`${rel}: 文本分析须保持浏览器可用，不能引用 node 内置模块`)
     graph.set(file, edges)

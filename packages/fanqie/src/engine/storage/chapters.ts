@@ -257,7 +257,6 @@ export async function prepareChapterSaveUnlocked(dir: string, input: any) {
     }
     const continuity = meta.continuity ?? { schemaVersion: 1, finalized: [], working: [] };
     if (!Array.isArray(continuity.finalized) || !Array.isArray(continuity.working)) throw new NovelError("bad_continuity", "接续状态格式损坏，请核对元数据。");
-    continuity.coverageNote = "只登记有来源的已处理章节；旧章未登记不代表没有定稿，须结合目录与实际正文。";
     const entry = { chapterId: id, revision, excerpt: record.body.slice(-200), at: record.updatedAt };
     continuity.finalized = continuity.finalized.filter((v: any) => v.chapterId !== id);
     continuity.working = continuity.working.filter((v: any) => v.chapterId !== id);

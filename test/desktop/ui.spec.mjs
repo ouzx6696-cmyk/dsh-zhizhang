@@ -16,7 +16,7 @@ const shot = (name) =>
       page.locator(".chat-message small"),
     ],
   });
-test.describe.configure({ mode: "serial" });
+test.describe.configure({ mode: "default" });
 test.afterEach(async ({}, info) => {
   if (info.status !== info.expectedStatus) {
     await info.attach("model-calls", {
@@ -103,9 +103,7 @@ test.beforeAll(async () => {
   app = await electron.launch({
     executablePath:
       process.env.WRITER_ELECTRON_EXECUTABLE ||
-      createRequire(
-        new URL("../../apps/desktop/package.json", import.meta.url),
-      )("electron"),
+      createRequire(new URL("../../apps/desktop/package.json", import.meta.url))("electron"),
     args: ["--no-sandbox", path.resolve("apps/desktop/out/main/main.js")],
     env: {
       ...process.env,
@@ -150,24 +148,16 @@ test("首次引导、连接测试、统一写作根与真实 Pi 创建作品", a
 
 test("决策不被 Agent 挡住，右栏标签与响应式布局，亮暗截图", async () => {
   await page.getByRole("button", { name: /雨夜/ }).first().click();
-  await expect(
-    page.getByRole("button", { name: "声明已审读", exact: true }).first(),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "定稿", exact: true }).first(),
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "声明已审读", exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "定稿", exact: true }).first()).toBeVisible();
   const columns = await page
     .locator(".studio-layout")
     .evaluate((element) => getComputedStyle(element).gridTemplateColumns);
   expect(columns.split(" ")).toHaveLength(3);
   const fonts = await page.evaluate(() => {
     const families = new Map();
-    for (const element of [
-      document.body,
-      ...document.body.querySelectorAll("*"),
-    ]) {
-      if (!element.textContent?.trim() || !element.getClientRects().length)
-        continue;
+    for (const element of [document.body, ...document.body.querySelectorAll("*")]) {
+      if (!element.textContent?.trim() || !element.getClientRects().length) continue;
       const family = getComputedStyle(element).fontFamily;
       if (!families.has(family))
         families.set(
@@ -181,9 +171,7 @@ test("决策不被 Agent 挡住，右栏标签与响应式布局，亮暗截图"
     return [...families];
   });
   for (const [family, source] of fonts)
-    expect(family, `字体来自 ${source}`).toMatch(
-      /Noto Sans SC|Noto Serif SC|monospace/,
-    );
+    expect(family, `字体来自 ${source}`).toMatch(/Noto Sans SC|Noto Serif SC|monospace/);
   const visibleText = await page.locator("body").innerText();
   for (const pattern of [
     /cand-[0-9a-f]{6}/i,
@@ -198,9 +186,7 @@ test("决策不被 Agent 挡住，右栏标签与响应式布局，亮暗截图"
     expect(visibleText).not.toMatch(pattern);
   await shot("desktop-1440-light.png");
   await page.setViewportSize({ width: 1100, height: 900 });
-  await expect(
-    page.getByRole("button", { name: "声明已审读", exact: true }).first(),
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "声明已审读", exact: true }).first()).toBeVisible();
   const reader = await page.locator(".studio-paper-column").boundingBox(),
     sidebar = await page.locator(".studio-sidebar").boundingBox();
   expect(reader.x + reader.width).toBeLessThanOrEqual(sidebar.x + 1);
@@ -244,12 +230,8 @@ test("决策不被 Agent 挡住，右栏标签与响应式布局，亮暗截图"
   await page.getByRole("button", { name: "设置", exact: true }).click();
   const appearance = page.getByRole("dialog", { name: "设置", exact: true });
   await appearance.getByRole("button", { name: "外观", exact: true }).click();
-  await appearance
-    .getByRole("combobox", { name: "主题", exact: true })
-    .selectOption("dark");
-  await appearance
-    .getByRole("button", { name: "保存设置", exact: true })
-    .click();
+  await appearance.getByRole("combobox", { name: "主题", exact: true }).selectOption("dark");
+  await appearance.getByRole("button", { name: "保存设置", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await shot("desktop-1440-dark.png");
   await page.setViewportSize({ width: 1100, height: 900 });
@@ -263,18 +245,12 @@ test("命令面板、角色设置与新对话保留作品", async () => {
   await page.getByRole("tab", { name: "Agent", exact: true }).click();
   const candidate = page.locator('.result-card[data-kind="candidate"]').first();
   await expect(candidate).toBeVisible();
-  const candidateTitles = page.locator(
-    '.result-card[data-kind="candidate"] strong',
-  );
+  const candidateTitles = page.locator('.result-card[data-kind="candidate"] strong');
   await expect(candidateTitles.nth(0)).toHaveText("候选稿 1");
   await expect(candidateTitles.nth(1)).toHaveText("候选稿 2");
   await candidate.getByRole("button", { name: /对照查看/ }).click();
-  await expect(page.locator(".studio-paper-column")).toContainText(
-    "第一份候选：林川拿起车票。",
-  );
-  await expect(
-    page.getByRole("combobox", { name: "选择候选稿" }),
-  ).toBeVisible();
+  await expect(page.locator(".studio-paper-column")).toContainText("第一份候选：林川拿起车票。");
+  await expect(page.getByRole("combobox", { name: "选择候选稿" })).toBeVisible();
   await page.getByRole("button", { name: /雨夜/ }).first().click();
   await page.getByRole("tab", { name: "方法方案", exact: true }).click();
   await page.getByRole("button", { name: "打开方法方案", exact: true }).click();
@@ -312,7 +288,9 @@ test("命令面板、角色设置与新对话保留作品", async () => {
   await settings.getByRole("button", { name: "写作根与偏好", exact: true }).click();
   await settings.getByRole("button", { name: "检查占用和未完成写入", exact: true }).click();
   await expect(settings.getByText(/没有待恢复的写入/)).toBeVisible();
-  await expect(settings.getByRole("button", { name: "备份后恢复原操作", exact: true })).toBeHidden();
+  await expect(
+    settings.getByRole("button", { name: "备份后恢复原操作", exact: true }),
+  ).toBeHidden();
   await settings.getByRole("button", { name: "取消", exact: true }).click();
   await page.evaluate(async (url) => {
     const api = window.writerDesktop,
@@ -344,15 +322,9 @@ test("命令面板、角色设置与新对话保留作品", async () => {
   const result = page.locator('.result-card[data-kind="review"]').last();
   await expect(result).toContainText("通过", { timeout: 15000 });
   await result.getByRole("button", { name: /对照查看/ }).click();
-  await expect(page.locator(".studio-paper-column")).toContainText(
-    "林川握着车票",
-  );
-  const before = model.calls.filter(
-    (call) => call.model === "mock-writer",
-  ).length;
-  const workBefore = await page.evaluate(
-    async () => (await window.writerDesktop.state()).target,
-  );
+  await expect(page.locator(".studio-paper-column")).toContainText("林川握着车票");
+  const before = model.calls.filter((call) => call.model === "mock-writer").length;
+  const workBefore = await page.evaluate(async () => (await window.writerDesktop.state()).target);
   await page.evaluate(async () => {
     const api = window.writerDesktop,
       state = await api.state(),
@@ -369,9 +341,7 @@ test("命令面板、角色设置与新对话保留作品", async () => {
     ]);
   });
   await expect
-    .poll(
-      () => model.calls.filter((call) => call.model === "mock-writer").length,
-    )
+    .poll(() => model.calls.filter((call) => call.model === "mock-writer").length)
     .toBe(before + 1);
   await page.keyboard.press("Control+k");
   await page
@@ -379,15 +349,47 @@ test("命令面板、角色设置与新对话保留作品", async () => {
     .getByRole("button", { name: /新对话/ })
     .click();
   await expect(page.locator(".studio-nav")).toContainText("雨夜");
-  expect(
-    await page.evaluate(
-      async () => (await window.writerDesktop.state()).target,
-    ),
-  ).toEqual(workBefore);
+  expect(await page.evaluate(async () => (await window.writerDesktop.state()).target)).toEqual(
+    workBefore,
+  );
   await expect(page.locator(".chat-messages")).toContainText("从一句想法开始");
 });
 
 test("正文可在稿纸中直接编辑并保存", async () => {
+  const store = await import("../../apps/desktop/out-test/work-store.mjs");
+  const base = path.join(root, ".writer");
+  const paths = await store.ensureStorage(
+    {},
+    { storageRoot: base, worksRoot: path.join(root, "novels") },
+  );
+  const work = await store.createWork(paths, { title: "编辑检查", key: "edit-check" });
+  await store.setOutline(
+    work.dir,
+    "c001",
+    {
+      pov: "林川",
+      targetWords: 2000,
+      locks: "车站",
+      knowledge: "未知来客",
+      synopsis: "等车",
+      conflict: "末班已过",
+      beats: "来电",
+      ending: "有人敲门",
+    },
+    "雨夜",
+  );
+  await store.saveChapter(work.dir, {
+    id: "c001",
+    body: "林川握着车票站在雨里。站台上的钟停在十一点。",
+    status: "drafted",
+  });
+  await page.evaluate(
+    async (target) => {
+      await window.writerDesktop.select(target);
+    },
+    { mode: "fanqie", root: base, work: work.meta.key },
+  );
+  await page.reload();
   await page.getByRole("button", { name: /雨夜/ }).first().click();
   await page.getByRole("button", { name: "编辑正文", exact: true }).click();
   const editor = page.getByRole("textbox", { name: "正文源码" });
@@ -398,12 +400,18 @@ test("正文可在稿纸中直接编辑并保存", async () => {
       "作者亲手补写的一段。",
   );
   // Refusing a view change must keep the live draft.
-  await page.evaluate(() => { window.__restoreConfirm = window.confirm; window.confirm = () => false; });
+  await page.evaluate(() => {
+    window.__restoreConfirm = window.confirm;
+    window.confirm = () => false;
+  });
   try {
     await page.getByRole("button", { name: "全书概况", exact: true }).click();
     await expect(editor).toHaveValue(/作者亲手补写的一段/);
   } finally {
-    await page.evaluate(() => { window.confirm = window.__restoreConfirm; delete window.__restoreConfirm; });
+    await page.evaluate(() => {
+      window.confirm = window.__restoreConfirm;
+      delete window.__restoreConfirm;
+    });
   }
   await page.keyboard.press("Control+s");
   await expect(editor).toBeHidden();
@@ -419,10 +427,15 @@ test("正文可在稿纸中直接编辑并保存", async () => {
     const state = await api.state();
     const work = state.target.work;
     const current = await api.request("/chapter", { query: { work, id: "c001" } });
-    const result = await api.request("/chapter/save", { method: "POST", body: {
-      work, chapter: "c001", expectedRevision: current.data.meta.revision,
-      body: current.data.body + "\n后台先保存的新正文。",
-    }});
+    const result = await api.request("/chapter/save", {
+      method: "POST",
+      body: {
+        work,
+        chapter: "c001",
+        expectedRevision: current.data.meta.revision,
+        body: current.data.body + "\n后台先保存的新正文。",
+      },
+    });
     if (result.status !== 200) throw new Error(JSON.stringify(result));
   });
   await expect(editor).toHaveValue("作者尚未保存的局部修改");
@@ -431,7 +444,9 @@ test("正文可在稿纸中直接编辑并保存", async () => {
   await expect(editor).toHaveValue("作者尚未保存的局部修改");
   await page.getByRole("button", { name: "取消", exact: true }).click();
   await page.getByRole("button", { name: "再次点击放弃", exact: true }).click();
-  await expect(page.locator(".studio-paper-column .wb-manuscript")).toContainText("后台先保存的新正文。");
+  await expect(page.locator(".studio-paper-column .wb-manuscript")).toContainText(
+    "后台先保存的新正文。",
+  );
 });
 
 test("停止任务走应用内确认并在 2 秒内收尾", async () => {
@@ -457,9 +472,7 @@ test("今日头条使用同一套外壳与空态引导", async () => {
   await expect(page.getByRole("tab", { name: "本篇", exact: true })).toBeVisible();
   await expect(page.locator(".view-switch")).not.toContainText("全书概况");
   await expect(page.locator(".paper-decisions")).toBeHidden();
-  await expect(
-    page.getByRole("button", { name: /新写一篇头条/ }),
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: /新写一篇头条/ })).toBeVisible();
   await page.getByRole("button", { name: "发稿台账", exact: true }).click();
   await expect(page.locator(".paper-ledger")).toContainText("发稿台账");
   await expect(page.locator(".paper-ledger")).toContainText("还没有头条稿件");

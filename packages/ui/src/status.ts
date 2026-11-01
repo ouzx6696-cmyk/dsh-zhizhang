@@ -26,7 +26,7 @@ export function statusInfo(mode: StatusMode, status?: string) {
   const table = mode === "toutiao" ? TOUTIAO : FANQIE;
   if (table[status]) return table[status];
   if (/[\u4e00-\u9fa5]/.test(status)) return { label: status, tone: "neutral" as StatusTone };
-  return { label: mode === "toutiao" ? "待写" : "草稿", tone: "neutral" as StatusTone };
+  return { label: "状态未知", tone: "warn" as StatusTone };
 }
 
 export const statusLabel = (mode: StatusMode, status?: string) => statusInfo(mode, status).label;

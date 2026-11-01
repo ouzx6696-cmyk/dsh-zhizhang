@@ -22,10 +22,10 @@ import type { Sessions } from "./manager";
 
 const CLIENT_NOTICE =
   "【独立客户端调用说明】当前模式与角色已启用，不调用 writer_enable。任务开头的 writer-context 是发送时的对象与已保存状态。它不是完整阅读凭据，版本变化时重读。主会话需要规划或拆书时使用 writer_plan。按任务用既有工具读取必要规划、前章和正文；压缩摘要不代替作品事实。作者切页不改变本次任务。";
-const PLANNER_NOTICE =
-  "当前是规划角色：直接使用本模式既有工具完成规划或指定原文拆解，不再派生子会话，不写正文。";
 
 export function systemPrompt(target: Target, role: "writer" | "editor" | "planner") {
+  if (role === "planner")
+    return `你是${target.mode === "fanqie" ? "长篇" : "头条"}规划角色。按作者目标读取必要材料，完成规划或指定原文拆解，使用当前工具保存结果并回报具体对象。正文交给写手。方法按任务读取。`;
   const editor = role === "editor";
   const base =
     target.mode === "toutiao"
@@ -44,9 +44,10 @@ export function systemPrompt(target: Target, role: "writer" | "editor" | "planne
         ].join("\n");
   return (
     base +
-    (role === "planner" ? "\n" + PLANNER_NOTICE : "") +
     "\n" +
-    CLIENT_NOTICE
+    (role === "writer"
+      ? CLIENT_NOTICE
+      : "当前模式和角色已启用。读取实际稿件，按当前版本交回审读结果。")
   );
 }
 
@@ -59,12 +60,7 @@ async function paths(host: Sessions, target: Target) {
   });
 }
 
-export async function taskPrompt(
-  host: Sessions,
-  target: Target,
-  text: string,
-  focus: Focus,
-) {
+export async function taskPrompt(host: Sessions, target: Target, text: string, focus: Focus) {
   const profile = await activeProfile(target.mode, host.options[target.mode]?.profile);
   let saved: unknown;
   if (target.mode === "fanqie" && target.work) {
@@ -107,9 +103,7 @@ export async function taskPrompt(
       );
     }
     const review =
-      chapter && intent === "review"
-        ? await reviewResult(host, target, focus)
-        : undefined;
+      chapter && intent === "review" ? await reviewResult(host, target, focus) : undefined;
     saved = {
       brief,
       review,

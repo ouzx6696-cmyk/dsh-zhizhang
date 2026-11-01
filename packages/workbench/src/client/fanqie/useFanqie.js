@@ -1,4 +1,4 @@
-import { useSourceGuard } from "../shared/useSourceGuard.js";
+import { canLeaveEdit, useSourceGuard } from "../shared/useSourceGuard.js";
 /**
  * Data side of the panel: one reducer, one polling loop and on-demand body
  * loaders. Everything here is local to the mounted panel (registrant-private
@@ -47,8 +47,7 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
       const changesSource = diagnosticScope(next) !== diagnosticScope(previous) || next.view !== previous.view || action.type === "reloadBodies";
       if (action.type !== "reloadBodies" && (changesSource || next.readerView !== previous.readerView) && !canLeaveSource()) return false;
       if (changesSource && previous.edit) {
-        if (previous.edit.saving) return false;
-        if (previous.edit.dirty && !window.confirm(diagnosticCopy.discard)) return false;
+        if (!canLeaveEdit(previous.edit, window.confirm)) return false;
         setEdit(null);
       }
       ref.current = { ...next, edit: ref.current.edit };

@@ -167,3 +167,13 @@ test("番茄长篇配置：校验并补默认值，未知字段报错", async ()
     assert.ok(parseFanqieConfig({ requireEditorPass: "yes" }).issues.length > 0);
 });
 
+
+
+test("默认展示模板不能制造卡片的诊断依据", async () => {
+  const {normalizeHumanFeel, craftCueFromHumanFeel, hasShatterCraftCue, DEFAULT_FAIL_AS_TEMPLATE} = await import('../../build/fanqie/src/engine/ports/library/schema.js');
+  const raw={writerCraft:'物件描写',characterState:'平静',stateOnPage:'窗边看雨',allowedEdges:'一处动作细节'};
+  const normalized=normalizeHumanFeel(raw);
+  assert.equal(hasShatterCraftCue(craftCueFromHumanFeel(normalized.humanFeel)),false);
+  assert.equal(hasShatterCraftCue(craftCueFromHumanFeel({...raw,failAsTemplate:DEFAULT_FAIL_AS_TEMPLATE})),false);
+  assert.equal(hasShatterCraftCue(craftCueFromHumanFeel({...raw,allowedEdges:'打断后留半截'})),true);
+});

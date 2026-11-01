@@ -43,12 +43,12 @@ export async function createSession(
   await mkdir(dir, { recursive: true });
   let manager = SessionManager.inMemory(target.root);
   if (primary) {
-    const marker = await readFile(path.join(dir, "current"), "utf8").catch(() => "");
+    const marker = await readFile(path.join(dir, "current"), "utf8").catch((error) => { if (error.code === "ENOENT") return ""; throw error; });
     manager =
       marker &&
       (await access(marker).then(
         () => true,
-        () => false,
+        (error) => { if (error.code === "ENOENT") return false; throw error; },
       ))
         ? SessionManager.open(marker)
         : SessionManager.create(target.root, dir);
@@ -73,7 +73,7 @@ export async function createSession(
   let definitions: HostToolDefinition[] =
     target.mode === "toutiao"
       ? createToutiaoTools({ config, role: businessRole, gates: () => gates })
-      : [...engineTools(config, gates), ...createFanqieTools({ config, role: businessRole })];
+      : [...engineTools(config, gates, "throw"), ...createFanqieTools({ config, role: businessRole })];
   definitions = definitions.filter((tool) => roleAllows(role, tool.name, target.mode));
   const readUrls = new Set<string>();
   const task = createTask();

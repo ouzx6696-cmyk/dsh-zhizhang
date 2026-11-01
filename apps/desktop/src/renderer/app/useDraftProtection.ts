@@ -1,3 +1,4 @@
+import { canLeaveEdit } from "../../../../../packages/workbench/src/client/shared/useSourceGuard.js";
 import { useRef, type MutableRefObject } from "react";
 import type { Focus } from "../../context";
 import type { SourceEditState } from "../../renderer-contracts";
@@ -10,23 +11,30 @@ export function useDraftProtection(
   const methodEdit = useRef({ dirty: false, saving: false });
   const sourceEdit = useRef<SourceEditState | null>(null);
   function canLeave() {
-    if (sourceEdit.current?.saving || methodEdit.current.saving) {
-      showError("修改正在保存，请稍后再切换。");
-      return false;
-    }
-    const unsaved = [
-      sourceEdit.current?.dirty ? "正文" : focused.current.dirty && "段落",
-      methodEdit.current.dirty && "方法方案",
-    ].filter(Boolean);
-    if (
-      unsaved.length &&
-      !window.confirm(`当前${unsaved.join("和")}有未保存修改，离开将放弃这些修改。是否继续？`)
-    )
-      return false;
-    return true;
+    return canLeaveEdit(
+      {
+        saving: !!sourceEdit.current?.saving || methodEdit.current.saving,
+        dirty: !!sourceEdit.current?.dirty || !!focused.current.dirty || methodEdit.current.dirty,
+      },
+      window.confirm,
+      () => showError("修改正在保存，请稍后再切换。"),
+    );
   }
   return {
     canLeave,
+    canRestart() {
+      if (
+        sourceEdit.current?.saving ||
+        methodEdit.current.saving ||
+        sourceEdit.current?.dirty ||
+        methodEdit.current.dirty ||
+        focused.current.dirty
+      ) {
+        showError("请先保存或放弃当前修改，再安装更新。");
+        return false;
+      }
+      return true;
+    },
     discardSource() {
       const current = sourceEdit.current;
       sourceEdit.current = null;

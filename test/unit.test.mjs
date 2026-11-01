@@ -91,4 +91,10 @@ test('稿件只增不改，哈希记录', async () => {
   await assert.rejects(s.stageDraft(m.id, '# t\n旧依据', 'author', '', basis), /文章已变化/)
   assert.equal((await s.get(m.id)).current_rev, 3)
   await assert.rejects(s.create('a', { date: '2026-10-28' }), /已存在/)
+  const {writeFile} = await import('node:fs/promises')
+  await writeFile(s.metaPath(m.id), '{broken')
+  await assert.rejects(s.list(), /损坏/)
+  const issues=[]
+  assert.deepEqual(await s.list(issues), [])
+  assert.equal(issues[0].id, m.id)
 })

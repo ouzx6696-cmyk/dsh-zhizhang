@@ -2,6 +2,7 @@
  * 方法方案：页头按钮 + 弹窗。左列方案（默认 / 原版 / 用户方案N），中列方法清单，右列全文。
  * 内置方案只读；用户方案可逐份保存、恢复底稿、新增、改名、删除；新建时可导入 .md 文件或整个文件夹。
  */
+import { canLeaveEdit } from "./useSourceGuard.js";
 import React from "react";
 import { ApiError, profilesApi } from "./api.js";
 import { t } from "./copy.js";
@@ -164,7 +165,7 @@ export function ProfilesDialog({ mode, api, onClose, onChanged, inline = false, 
   }, [dirty]);
 
   const openMethod = useCallback(async (id) => {
-    if (dirty && !window.confirm(t("pfUnsaved"))) return;
+    if (!canLeaveEdit({dirty, saving: busy === "save"}, window.confirm)) return;
     setBusy("method:" + id);
     try {
       const r = await api.method(sel, id);
@@ -173,7 +174,7 @@ export function ProfilesDialog({ mode, api, onClose, onChanged, inline = false, 
       setShowBase(false);
     } catch (e) { push("danger", errText(e)); }
     setBusy("");
-  }, [api, sel, dirty, push]);
+  }, [api, sel, dirty, push, busy]);
 
   const run = async (key, fn, ok) => {
     setBusy(key);

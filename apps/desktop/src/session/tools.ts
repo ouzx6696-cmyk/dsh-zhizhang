@@ -202,7 +202,7 @@ export function createBusinessTools(options: {
                         : resultKind === "qa"
                           ? `质检 ${output.score ?? output.qa?.score ?? ""} ${output.verdict || ""}`.trim()
                           : "任务已完成",
-                failed: output?.ok === false || text.startsWith("错误"),
+                failed: output?.ok === false,
               },
             }
           : {},

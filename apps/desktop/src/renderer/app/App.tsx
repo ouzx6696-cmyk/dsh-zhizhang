@@ -65,6 +65,7 @@ function App() {
             if (app.selected) await app.loadView(app.selected);
             app.refreshWorkspace();
           }}
+          canRestart={app.canRestart}
           onWorkspace={app.chooseWorkspace}
           onImport={app.importRoot}
         />

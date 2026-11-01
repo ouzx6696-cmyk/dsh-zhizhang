@@ -18,7 +18,24 @@ function errResult(err: any, fallback: any) {
     };
 }
 
-export async function runAccept(input: any) {
+export interface AcceptInput {
+    paths: import("../types.js").StoragePaths;
+    dir: string;
+    workKey: string;
+    candidateId: string;
+    mode?: string;
+    lintPassToken?: string;
+    expectedRevision?: string;
+    force?: boolean;
+    skipBrief?: boolean;
+    strictLint?: boolean;
+    requirePayoff?: boolean;
+    strictHuman?: boolean;
+    strictNovel?: boolean;
+    acceptAfterEdit?: boolean;
+    confirmAcceptAfterEdit?: boolean;
+}
+export async function runAccept(input: AcceptInput) {
     const {
         paths,
         dir,
@@ -96,7 +113,6 @@ export async function runAccept(input: any) {
     });
     const receipt = [
         `已采纳 ${candidateId} →「${saved.title}」（${saved.id}），${saved.wordCount} 字，状态 ${saved.status}。仍需作者审校/定稿。`,
-        "以下仅为机械诊断信号；有作用的心理、安静体验与完整收束可保留，不等于内容审读或定稿。",
         ...gate.receiptLines,
         ...happenedLines,
     ].join("\n");

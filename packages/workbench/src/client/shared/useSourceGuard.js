@@ -1,6 +1,14 @@
 /** One mounted editor, using the same leave policy as the existing workbench. */
 import { useCallback, useEffect, useRef, useState } from "react";
 
+export function canLeaveEdit(current, confirm, blocked = () => {}) {
+  if (current?.saving) {
+    blocked();
+    return false;
+  }
+  return !current?.dirty || confirm("有未保存修改，离开将放弃这些修改。是否继续？");
+}
+
 export function useSourceGuard(onEditState) {
   const editor = useRef(null);
   const sink = useRef(onEditState);
@@ -17,9 +25,7 @@ export function useSourceGuard(onEditState) {
   }, []);
   const canLeave = useCallback(() => {
     const current = editor.current;
-    if (current?.saving) return false;
-    if (current?.dirty && !window.confirm("正文有未保存修改，离开将放弃这些修改。是否继续？"))
-      return false;
+    if (!canLeaveEdit(current, window.confirm)) return false;
     current?.discard();
     report(null);
     return true;

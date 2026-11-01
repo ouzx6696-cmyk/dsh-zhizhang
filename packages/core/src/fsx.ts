@@ -46,7 +46,7 @@ export async function readJson<T>(file: string): Promise<T | undefined> {
 }
 
 export async function exists(p: string): Promise<boolean> {
-  try { await stat(p); return true } catch { return false }
+  try { await stat(p); return true } catch (error: any) { if (error.code === "ENOENT") return false; throw error }
 }
 
 export function sha256(text: string): string {

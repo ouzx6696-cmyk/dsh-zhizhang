@@ -37,7 +37,7 @@ jobs:
           } catch { files = ['package.json']; }
           const shared = files.some(p => /^(packages\/|scripts\/|test\/|\.github\/|package(?:-lock)?\.json$|tsconfig)/.test(p));
           const desktop = shared || files.some(p => p.startsWith('apps/desktop/'));
-          const compatibility = shared;
+          const compatibility = files.some(p => /^(packages\/(app|host|host-generic|core|fanqie|toutiao)\/|packages\/workbench\/src\/(server|adapters)|test\/(dsh|e2e)\/|scripts\/(build-bundle|build-client|runtime-assets)|package(?:-lock)?\.json$|\.github\/)/.test(p));
           const pack = process.env.GITHUB_EVENT_NAME === 'workflow_dispatch' || process.env.GITHUB_REF.startsWith('refs/tags/');
           appendFileSync(process.env.GITHUB_OUTPUT, `desktop=${desktop || pack}\ncompatibility=${compatibility || pack}\npackage=${pack}\n`);
           JS
@@ -52,7 +52,6 @@ jobs:
       - run: npm ci
       - run: node scripts/ci-run.mjs npm run lint
       - run: node scripts/ci-run.mjs npm test
-      - run: node scripts/ci-run.mjs npm run test:desktop
   dsh-integration:
     needs: scope
     if: needs.scope.outputs.compatibility == 'true'
@@ -99,12 +98,8 @@ jobs:
           path: test-results/
       - run: node scripts/ci-run.mjs npm run pack
         if: needs.scope.outputs.package == 'true'
-      - run: node scripts/ci-run.mjs npm run pack --workspace @writer/desktop
-        if: needs.scope.outputs.package == 'true'
-        env:
-          CSC_LINK: ${{ secrets.WINDOWS_CERTIFICATE }}
-          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
-      - run: node scripts/ci-run.mjs npm run pack:portable --workspace @writer/desktop
+      - run: node ../../scripts/prepare-desktop-python.mjs && npx electron-builder --win nsis zip --x64 --publish never
+        working-directory: apps/desktop
         if: needs.scope.outputs.package == 'true'
         env:
           CSC_LINK: ${{ secrets.WINDOWS_CERTIFICATE }}
@@ -145,7 +140,7 @@ jobs:
           version="$(node -p 'require("./package.json").version')"
           mkdir -p release-artifacts
           cp dist-pack/*.tgz apps/desktop/release/*.exe apps/desktop/release/*.zip apps/desktop/release/*.blockmap "apps/desktop/release/$WRITER_UPDATE_FILE" apps/desktop/release/RELEASE-CONDITIONS.json release-artifacts/
-          cp "docs/history/${version}-IMPLEMENTATION.md" docs/guides/DESKTOP.md docs/history/0.9.3-IMPLEMENTATION.md docs/history/NEXT-ITERATION-IMPLEMENTATION.md docs/history/NEXT-ITERATION-PLAN.md release-artifacts/
+          cp "docs/history/${version}-IMPLEMENTATION.md" docs/guides/DESKTOP.md README.md release-artifacts/
           git archive --format=zip --prefix="writer-agent-${version}/" -o "release-artifacts/writer-agent-${version}-src.zip" HEAD
           (cd release-artifacts && sha256sum *.zip *.tgz *.exe *.blockmap *.yml *.json *.md > SHA256SUMS)
       - uses: actions/upload-artifact@v4

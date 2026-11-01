@@ -621,3 +621,31 @@ test("首轮审读交接允许无旧回报，恢复须先备份并拒绝锁和�
     await rm(base, { recursive: true, force: true });
   }
 });
+
+
+test("连续作品切换及持久化失败保留目标与租约一致", async () => {
+  const {selectTarget}=await import('../../apps/desktop/out-test/targets.mjs');
+  const {access}=await import('node:fs/promises');
+  const base=await mkdtemp(path.join(tmpdir(),'writer-select-'));
+  const roots=['a','b','c'].map(name=>path.join(base,name));
+  await Promise.all(roots.map(root=>mkdir(root)));
+  const state={home:base,writerConfig:{},sessions:{key:t=>t.root,running:()=>[],release:()=>{}}};
+  try {
+    await Promise.all(roots.slice(0,2).map(root=>selectTarget(state,{mode:'toutiao',root})));
+    assert.equal(state.target.root,roots[1]);
+    assert.equal(state.access.readOnly,false);
+    await assert.rejects(access(path.join(roots[0],'.writer-workspace-lock.json')));
+    const owner=state.access.owner.id;
+    await rm(path.join(base,'target.json'));
+    await mkdir(path.join(base,'target.json'));
+    await assert.rejects(selectTarget(state,{mode:'toutiao',root:roots[2]}));
+    assert.equal(state.target.root,roots[1]);
+    assert.equal(state.access.owner.id,owner);
+    await assert.rejects(access(path.join(roots[2],'.writer-workspace-lock.json')));
+  } finally {
+    const {releaseWorkspaces}=await import('../../apps/desktop/out-test/targets.mjs');
+    // Each compiled entry owns its lease registry; release through the target module.
+    await releaseWorkspaces();
+    await rm(base,{recursive:true,force:true});
+  }
+});

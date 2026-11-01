@@ -137,14 +137,21 @@ export class ArticleStore {
     })
   }
 
-  async list(): Promise<ArticleMeta[]> {
+  async list(issues?: { root: string; id?: string; error: string }[]): Promise<ArticleMeta[]> {
     let names: string[] = []
-    try { names = await readdir(this.root) } catch { return [] }
+    try { names = await readdir(this.root) } catch (error: any) { if (error.code === "ENOENT") return []; throw error }
     const out: ArticleMeta[] = []
     for (const n of names) {
       if (!ID_RE.test(n)) continue
-      const m = await readJson<ArticleMeta>(path.join(this.root, n, 'meta.json')).catch(() => undefined)
-      if (m) out.push(m)
+      try {
+        const m = await this.get(n)
+        if (!Array.isArray(m.qa) || !Array.isArray(m.drafts) || typeof m.updated_at !== 'string' || !m.headlines || !STATUSES.includes(m.status))
+          throw new WriterError('CONFLICT', `文章元数据格式损坏：${n}`)
+        out.push(m)
+      } catch (error) {
+        if (!issues) throw error
+        issues.push({root: this.root, id: n, error: error instanceof Error ? error.message : String(error)})
+      }
     }
     out.sort((a, b) => b.updated_at.localeCompare(a.updated_at))
     return out

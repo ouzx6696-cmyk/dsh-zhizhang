@@ -144,20 +144,18 @@ const activeFile = () => path.join(profilesRoot(), 'active.json')
 
 export async function activeProfile(mode: ProfileMode, pinned?: string): Promise<ProfileMeta & { pinned: boolean }> {
   if (pinned) {
-    const m = await findProfile(mode, pinned).catch(() => undefined)
-    if (m) return { ...m, pinned: true }
+    return { ...await findProfile(mode, pinned), pinned: true }
   }
   const saved = (await readJson<Record<string, string>>(activeFile()))?.[mode]
   if (saved) {
-    const m = await findProfile(mode, saved).catch(() => undefined)
-    if (m) return { ...m, pinned: false }
+    return { ...await findProfile(mode, saved), pinned: false }
   }
   return { ...builtinMeta(mode, 'default'), pinned: false }
 }
 
 export async function activateProfile(mode: ProfileMode, key: string, pinned?: string): Promise<ProfileMeta> {
   const m = await findProfile(mode, key)
-  if (pinned && (await findProfile(mode, pinned).catch(() => undefined))) {
+  if (pinned) {
     throw new WriterError('CONFLICT', `配置里 ${mode}.profile 已固定为「${pinned}」，要切换请先改配置`)
   }
   const cur = (await readJson<Record<string, string>>(activeFile())) ?? {}

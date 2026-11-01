@@ -52,7 +52,7 @@ export function auditHumanFeel(text: string, opts: any) {
     if (stiff)
         hits.push(stiff);
     const summary = hits.length === 0
-        ? "人味软雷达未命中（启发式；≠质量过关）"
+        ? "人味诊断未发现命中"
         : `人味软雷达命中 ${hits.length} 类：${hits.map((h: any) => h.code).join("、")}`;
     return { hitCount: hits.length, hits, summary };
 }

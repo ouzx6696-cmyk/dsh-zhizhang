@@ -37,6 +37,7 @@ export type SaveChapterInput = {
   editOf?: string;
   draftLabel?: string;
 };
+export type SavedChapter = { ok: boolean; chapterId: string; revision?: string; candidateId?: string; status?: string };
 export type SaveDraftInput = {
   root: string;
   id: string;
@@ -61,7 +62,7 @@ export interface FanqieData {
     id: string,
     signal?: AbortSignal,
   ): Promise<Json>;
-  saveChapter(payload: SaveChapterInput): Promise<Json>;
+  saveChapter(payload: SaveChapterInput): Promise<SavedChapter>;
   candidate(
     base: string | undefined,
     work: string | undefined,

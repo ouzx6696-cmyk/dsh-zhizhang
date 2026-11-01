@@ -24,7 +24,7 @@ export function useDesktopController() {
   const pendingMessages = useRef<ChatMessage[] | null>(null);
   const input = useRef<HTMLTextAreaElement | null>(null);
   const archived = useRef<number | undefined>(undefined);
-  const { canLeave, discardSource, trackMethodEdit, trackSourceEdit } = useDraftProtection(
+  const { canLeave, canRestart, discardSource, trackMethodEdit, trackSourceEdit } = useDraftProtection(
     focused,
     (message) => set({ error: message }),
   );
@@ -208,7 +208,6 @@ export function useDesktopController() {
           stream: "",
           phase: event.aborted ? "已停止，已保存结果保留" : "任务结束，等待你查看结果",
         });
-        refreshWorkspace();
       }
     });
     return () => {
@@ -370,6 +369,7 @@ export function useDesktopController() {
     chooseWorkspace,
     importRoot,
     canLeave,
+    canRestart,
     trackMethodEdit,
     trackSourceEdit,
     changeView,

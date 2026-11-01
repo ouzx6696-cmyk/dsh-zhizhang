@@ -29,7 +29,7 @@ export async function executeTool(
     }
     execution.signal?.throwIfAborted();
     const value = await options.bind(() => definition.execute(input, execution));
-    const failure = execution.failure || (value && typeof value === "object" && "ok" in value && value.ok === false ? value as { code?: string; message?: string } : undefined);
+    const failure = (value && typeof value === "object" && "ok" in value && value.ok === false ? value as { code?: string; message?: string } : undefined);
     if (failure) throw Object.assign(new Error(failure.message || "工具执行失败"), { code: failure.code });
     return { value, content: definition.output.render(input, value) };
   } finally {

@@ -186,4 +186,14 @@ test('写作台接口：方案列表、详情、全文、新建、保存、切�
     server.close()
     delete process.env.WRITER_PROFILES_DIR
   }
+    const {setProfilesRoot, activeProfile}=await import(buildUrl('core/src/profiles.js'))
+    const broken=await tempDir('writer-broken-profile-')
+    const fs=await import('node:fs/promises')
+    setProfilesRoot(broken)
+    await fs.mkdir(path.join(broken,'fanqie/user-1'),{recursive:true})
+    await fs.writeFile(path.join(broken,'fanqie/user-1/profile.json'),'{broken')
+    await assert.rejects(activeProfile('fanqie','user-1'), /损坏/)
+    setProfilesRoot(undefined)
+    await fs.rm(broken,{recursive:true,force:true})
+
 })

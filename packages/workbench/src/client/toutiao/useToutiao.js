@@ -41,7 +41,7 @@ export function useToutiao({ onTarget, onSourceEditState } = {}) {
     listCtrl.current = ctrl;
     try {
       const data = await toutiao.articles(ctrl.signal);
-      setList({ status: "ready", articles: data.articles || [], statuses: data.statuses || [], roots: data.roots || [], currentRoot: data.currentRoot, sessions: data.sessions || {}, deliver: !!data.deliver, deliverReason: data.deliverReason || "", error: "", at: new Date().toISOString() });
+      setList({ status: "ready", articles: data.articles || [], statuses: data.statuses || [], roots: data.roots || [], currentRoot: data.currentRoot, sessions: data.sessions || {}, deliver: !!data.deliver, deliverReason: data.deliverReason || "", error: (data.issues || []).map(issue => `${issue.id || issue.root}：${issue.error}`).join("；"), at: new Date().toISOString() });
     } catch (err) {
       if (err && err.code === "aborted") return;
       setList((prev) => ({ ...prev, status: prev.articles.length ? "ready" : "error", error: err.message || String(err) }));
@@ -83,8 +83,8 @@ export function useToutiao({ onTarget, onSourceEditState } = {}) {
     if (!isDesktop) return;
     const root = selected?.root || list.currentRoot;
     if (root) targetSink.current?.({mode:'toutiao', root,
-      focus: selected ? {article:selected.id, title:selected.title, source:'article', revision:detail.status === 'ready' && detail.article?.id === selected.id ? detail.article.rev : undefined} : {}});
-  }, [selected?.root, selected?.id, selected?.title, detail.status, detail.article?.rev, list.currentRoot]);
+      focus: selected ? {article:selected.id, title:selected.title, source:'article', dirty: sourceGuard.dirty, revision:detail.status === 'ready' && detail.article?.id === selected.id ? detail.article.rev : undefined} : {}});
+  }, [selected?.root, selected?.id, selected?.title, detail.status, detail.article?.rev, list.currentRoot, sourceGuard.dirty]);
   const stamp = selected ? selected.updatedAt : "";
   useEffect(() => { if (selected) loadDetail(sel.root, sel.id); }, [sel.root, sel.id, stamp, !!selected, loadDetail]);
 

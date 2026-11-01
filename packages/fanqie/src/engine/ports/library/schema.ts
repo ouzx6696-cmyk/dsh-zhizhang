@@ -104,7 +104,7 @@ export function normalizeHumanFeel(raw: any) {
             characterState: characterState || "（未填）",
             stateOnPage: stateOnPage || "（未填）",
             allowedEdges: allowedEdges || "（未填）",
-            failAsTemplate: failAsTemplate || DEFAULT_FAIL_AS_TEMPLATE,
+            failAsTemplate,
         },
         warnings,
     };
@@ -121,8 +121,7 @@ export function coerceHumanFeel(raw: any) {
             characterState: String(h.characterState ?? "").trim() || "（未填）",
             stateOnPage: String(h.stateOnPage ?? h.voice ?? "").trim() || "（未填）",
             allowedEdges: String(h.allowedEdges ?? "").trim() || "（未填）",
-            failAsTemplate: String(h.failAsTemplate ?? "").trim() ||
-                DEFAULT_FAIL_AS_TEMPLATE,
+            failAsTemplate: String(h.failAsTemplate ?? "").trim(),
         };
     }
     // pure legacy
@@ -133,8 +132,7 @@ export function coerceHumanFeel(raw: any) {
             characterState: "（旧卡未分状态）",
             stateOnPage: String(h.voice ?? "").trim() || "（未填）",
             allowedEdges: String(h.allowedEdges ?? "").trim() || "（未填）",
-            failAsTemplate: String(h.failAsTemplate ?? "").trim() ||
-                DEFAULT_FAIL_AS_TEMPLATE,
+            failAsTemplate: String(h.failAsTemplate ?? "").trim(),
         };
     }
     return undefined;
@@ -143,7 +141,7 @@ export function craftCueFromHumanFeel(hf: any) {
     const c = coerceHumanFeel(hf);
     if (!c)
         return "";
-    return [c.writerCraft, c.characterState, c.stateOnPage, c.allowedEdges, c.failAsTemplate]
+    return [c.writerCraft, c.characterState, c.stateOnPage, c.allowedEdges, c.failAsTemplate === DEFAULT_FAIL_AS_TEMPLATE ? "" : c.failAsTemplate]
         .filter(Boolean)
         .join("\n");
 }

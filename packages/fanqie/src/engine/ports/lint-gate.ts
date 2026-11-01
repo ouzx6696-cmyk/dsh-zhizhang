@@ -21,8 +21,6 @@ export const LintGate = {
     },
     /** Always include on accept receipt. */
     echoLines(hitCount: any) {
-        return [
-            `lintHitCount：${hitCount}（语感雷达命中数；lintPassToken 仅证明已扫过，扫过≠质量过关）`,
-        ];
+        return hitCount ? [`语感诊断：${hitCount} 处，请对照上下文核对。`] : [];
     },
 };
