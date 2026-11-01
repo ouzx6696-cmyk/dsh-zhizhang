@@ -8,9 +8,9 @@ import { remember } from "../state/prefs";
 import { runCommand } from "../features/commands/runCommand";
 import { deliverAction, startNewWork } from "../features/agent/taskActions";
 import { desktop } from "../state/desktop";
+import { useDesktopShortcuts } from "./useDesktopShortcuts";
 
 const api = desktop;
-const refresh = () => window.dispatchEvent(new Event("writer:refresh"));
 
 export function useDesktopController() {
   const state = useDesktop();
@@ -28,6 +28,10 @@ export function useDesktopController() {
 
   function fail(error: unknown) {
     set({ error: error instanceof Error ? error.message : String(error) });
+  }
+
+  function refreshWorkspace() {
+    void Promise.resolve(contextRef.current.actions?.refresh?.()).catch(fail);
   }
 
   function setPosition(next: Focus) {
@@ -165,7 +169,7 @@ export function useDesktopController() {
         return;
       }
       if (value.refresh) {
-        refresh();
+        refreshWorkspace();
         void loadProjects().catch(fail);
       }
       const event = value.event;
@@ -199,7 +203,7 @@ export function useDesktopController() {
           stream: "",
           phase: event.aborted ? "已停止，已保存结果保留" : "任务结束，等待你查看结果",
         });
-        refresh();
+        refreshWorkspace();
       }
     });
     return () => {
@@ -207,38 +211,18 @@ export function useDesktopController() {
     };
   }, []);
 
+  useDesktopShortcuts({
+    selected,
+    context: contextRef,
+    set,
+    stop: api.stop,
+  });
+
+  const targetMode = state.system?.target?.mode;
   useEffect(() => {
-    const keyboard = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        set((current) => ({ palette: !current.palette, query: "" }));
-      }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
-        event.preventDefault();
-        void contextRef.current.actions?.saveParagraph?.();
-      }
-      if ((event.ctrlKey || event.metaKey) && ["1", "2", "3"].includes(event.key)) {
-        event.preventDefault();
-        set({ tab: ["agent", "chapter", "methods"][Number(event.key) - 1], drawer: true });
-      }
-      if (event.key === "Escape") {
-        const current = desktopStore.get();
-        if (current.palette) {
-          set({ palette: false });
-          return;
-        }
-        if (current.settingsOpen) {
-          set({ settingsOpen: false });
-          return;
-        }
-        if (chatStore.get().busy && window.confirm("停止当前任务？已保存的稿件不会撤销。"))
-          void api.stop(selected.current || undefined).catch(fail);
-        else set({ drawer: false });
-      }
-    };
-    window.addEventListener("keydown", keyboard);
-    return () => window.removeEventListener("keydown", keyboard);
-  }, []);
+    if (targetMode === "toutiao" && !["writing", "overview"].includes(state.view))
+      set({ view: "writing" });
+  }, [targetMode, state.view]);
 
   function trackMethodEdit(value: { dirty: boolean; saving: boolean }) {
     methodEdit.current = value;
@@ -266,7 +250,6 @@ export function useDesktopController() {
     await selectSnapshot(value.target, false);
     await syncState();
     set((current) => ({ workspaceKey: current.workspaceKey + 1 }));
-    refresh();
     await loadProjects();
   }
 
@@ -285,7 +268,6 @@ export function useDesktopController() {
     remember(target, nextFocus);
     await selectSnapshot({ ...target, focus: nextFocus }, true, true);
     set((current) => ({ workspaceKey: current.workspaceKey + 1, view: "writing", picker: false }));
-    refresh();
   }
 
   async function sendText(value: string, snapshot: Focus = focused.current) {
@@ -387,7 +369,7 @@ export function useDesktopController() {
     submit,
     sendText,
     newWork, deliver, command, exportFile, chooseWorkspace, importRoot, canLeave,
-    trackMethodEdit, stop: () => api.stop(selected.current || undefined),
+    trackMethodEdit, refreshWorkspace, stop: () => api.stop(selected.current || undefined),
   };}
 
 export type DesktopController = ReturnType<typeof useDesktopController>;

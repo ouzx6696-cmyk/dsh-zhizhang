@@ -30,6 +30,7 @@ export interface FanqieData {
   projects(refresh?: boolean, signal?: AbortSignal): Promise<Json>;
   snapshot(base?: string, work?: string, signal?: AbortSignal, scope?: string): Promise<Json>;
   chapter(base: string | undefined, work: string | undefined, id: string, signal?: AbortSignal): Promise<Json>;
+  saveChapter(payload: Json): Promise<Json>;
   candidate(base: string | undefined, work: string | undefined, id: string, signal?: AbortSignal): Promise<Json>;
   diagnose(payload: Json, signal?: AbortSignal): Promise<Json>;
   stageRevision(payload: Json): Promise<Json>;
@@ -44,6 +45,7 @@ export interface ToutiaoData {
   articles(signal?: AbortSignal): Promise<Json>;
   article(root: string, id: string, signal?: AbortSignal): Promise<Json>;
   adopt(article: Json): Promise<Json>;
+  saveDraft(payload: Json): Promise<Json>;
   deliver(payload: Json): Promise<Json>;
 }
 

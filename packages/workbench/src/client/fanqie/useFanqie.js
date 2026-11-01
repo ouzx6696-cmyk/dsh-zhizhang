@@ -140,7 +140,6 @@ export function useFanqie({ onTarget } = {}) {
 
 
   // First load, and a full reload whenever the selected project or work changes.
-  useEffect(() => { const listener = () => refresh({projects:true}); window.addEventListener('writer:refresh', listener); return () => window.removeEventListener('writer:refresh', listener); }, [refresh]);
   useEffect(() => {
     refresh({ projects: true });
   }, [refresh, state.selection, state.view]);
@@ -309,19 +308,43 @@ export function useFanqie({ onTarget } = {}) {
       /** 写作 Agent：把固定指令投递为对话里的一条消息；正文仍由 Agent 在会话里写 */
       async deliver(action, chapterId) {
         const s = ref.current;
-        if (!s.work) return;
+        if (!s.work) return false;
         const requestId = "wb-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
         dispatch({ type: "deliver", value: { busy: action, message: null, error: null } });
         try {
           await fanqie.deliver({ base: s.projectId || undefined, work: s.work, chapter: chapterId || undefined, action, confirm: true, requestId });
-          if (!alive.current || ref.current.selection !== s.selection) return;
+          if (!alive.current || ref.current.selection !== s.selection) return true;
           dispatch({ type: "deliver", value: { busy: "", message: t("deliverDone") } });
           dispatch({ type: "notice", tone: "success", text: t("deliverDone") });
+          return true;
         } catch (err) {
-          if (!alive.current || ref.current.selection !== s.selection) return;
+          if (!alive.current || ref.current.selection !== s.selection) return false;
           dispatch({ type: "deliver", value: { busy: "", error: messageOf(err) } });
           dispatch({ type: "notice", tone: "danger", text: t("deliverFailed", { reason: messageOf(err) }) });
+          return false;
         }
+      },
+      async saveChapter({ body, expectedRevision, candidateId }) {
+        const s = ref.current;
+        if (!s.work || !s.chapterId) throw new Error(t("chapterSaveMissing"));
+        const data = await fanqie.saveChapter({
+          base: s.projectId || undefined,
+          work: s.work,
+          chapter: s.chapterId,
+          body,
+          expectedRevision,
+          ...(candidateId ? { mode: "candidate", editOf: candidateId, draftLabel: "作者修订" } : {}),
+        });
+        await refresh({ soft: false });
+        if (candidateId && data.candidateId) {
+          dispatch({ type: "selectCandidate", chapterId: s.chapterId, id: data.candidateId });
+          dispatch({ type: "readerView", view: "candidate" });
+          notify("success", t("candidateSaved"));
+        } else {
+          dispatch({ type: "readerView", view: "official" });
+          notify("success", t("chapterSaved"));
+        }
+        return data;
       },
       async unifyPrepare() {
         const s = ref.current;

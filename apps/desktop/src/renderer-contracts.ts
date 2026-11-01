@@ -16,6 +16,7 @@ export interface WorkspaceContext {
   review?: { verdict?: string };
   actions?: {
     saveParagraph?: () => void | Promise<void>;
+    refresh?: () => void | Promise<void>;
   };
 }
 export interface TaskState {
@@ -69,6 +70,7 @@ export interface WorkspaceProps {
   agent: ReactNode;
   tab: string;
   setTab: (tab: string) => void;
+  onView?: (view: string) => void;
   drawer: boolean;
   setDrawer: (open: boolean) => void;
   readOnly?: boolean;

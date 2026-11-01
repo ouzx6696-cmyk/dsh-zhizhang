@@ -26,7 +26,7 @@ function Overview({ snap }) {
         </Section>
       ) : null}
       <Section title={t("nextSteps")}>
-        <Hints hints={snap.nextHints || []} initial={6} />
+        <Hints hints={snap.panelHints || []} initial={6} />
       </Section>
     </>
   );
@@ -202,7 +202,7 @@ function Writing({ snap, pending, onAccept, onOpenChapter }) {
                 <span className="wb-row-title">{c.draftLabel ? "「" + c.draftLabel + "」" : "候选 " + (index + 1)}</span>
                 <span className="wb-row-meta">
                   {"→ 目标章节 · " + t("words", { n: formatCount(c.wordCount || 0) })}
-                  {c.hasLintPass ? " · lint ✓" : ""}
+                  {c.hasLintPass ? " · 已扫描" : ""}
                   {c.editOf ? " · " + t("candidateEdit") : ""}
                   {c.unifyOf && c.unifyOf.length ? " · " + t("unify") : ""}
                 </span>

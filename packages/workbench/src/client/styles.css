@@ -565,6 +565,20 @@
   .wb-root *::after { animation: none; transition: none; }
 }
 
+/* Full-chapter source editing. */
+.wb-source-editor { max-width: 42rem; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
+.wb-source-editor-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+.wb-source-editor-head strong { font: var(--dsw-font-s-strong-14, 600 14px/22px var(--ui-font-ui)); }
+.wb-source-editor-head > span:not(.wb-muted) { color: var(--wb-warn); font: var(--dsw-font-xxs-strong-12, 600 12px/18px var(--ui-font-ui)); }
+.wb-source-note { margin: 0; }
+.wb-source-text {
+  width: 100%; min-height: min(62vh, 640px); resize: vertical;
+  padding: 22px 26px; border: 1px solid var(--wb-line-strong); border-radius: var(--wb-r-md);
+  background: var(--wb-card); color: var(--wb-fg);
+  font-family: var(--wb-manuscript-font); font-size: calc(15px + var(--wb-font-step, 0) * 1px);
+  line-height: 2;
+}
+
 /* Local diagnostics and the original / edited paragraph comparison. */
 .wb-diagnostics {
   border: 0.5px solid var(--wb-line);
@@ -576,7 +590,10 @@
 }
 .wb-diagnostics select { color: var(--wb-fg); background: var(--wb-layer); padding: 4px; }
 .wb-diagnostics li { margin: 8px 0; padding: 6px; border-bottom: 0.5px solid var(--wb-line); }
-.wb-diagnostics .wb-button { margin: 4px 2px; }
+.wb-diagnostics .wb-toolbar,
+.wb-diagnostics .wb-action-row { margin: 8px 0; }
+.wb-diagnostics .wb-toolbar .wb-button,
+.wb-diagnostics .wb-action-row .wb-button { height: 32px; }
 .wb-diagnostics label { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
 .wb-manuscript mark {
   color: inherit;

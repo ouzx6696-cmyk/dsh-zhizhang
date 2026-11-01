@@ -32,6 +32,7 @@ function fanqie(bridge: DesktopBridge): FanqieData {
     snapshot: (base, work, signal, scope = "all") =>
       call(bridge, "/snapshot", { query: { base, work, scope }, signal }),
     chapter: (base, work, id, signal) => call(bridge, "/chapter", { query: { base, work, id }, signal }),
+    saveChapter: (payload) => call(bridge, "/chapter/save", { method: "POST", body: payload }),
     candidate: (base, work, id, signal) =>
       call(bridge, "/candidate", { query: { base, work, id }, signal }),
     diagnose: (payload, signal) =>
@@ -67,8 +68,9 @@ function toutiao(bridge: DesktopBridge): ToutiaoData {
           confirm: true,
         },
       }),
+    saveDraft: (payload) => call(bridge, "/toutiao/draft", { method: "POST", body: payload }),
     deliver: (payload) =>
-      call(bridge, "/toutiao/deliver", { method: "POST", body: { ...payload, confirm: true } }),
+      call(bridge, "/toutiao/agent/deliver", { method: "POST", body: { ...payload, confirm: true } }),
   };
 }
 

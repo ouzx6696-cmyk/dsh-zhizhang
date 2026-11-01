@@ -37,7 +37,9 @@
       "local": [
         "scripts/writer_bridge.py"
       ],
-      "patched": [],
+      "patched": [
+        "scripts/ledger.py"
+      ],
       "exclude": []
     },
     {

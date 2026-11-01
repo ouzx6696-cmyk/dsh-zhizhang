@@ -17,6 +17,7 @@ import {
     readCandidate,
     readChapter,
     resolveWorkDir,
+    stageCandidate,
 } from "../engine/work-store.js";
 import { buildInspirationView, buildLibraryView, buildProductView } from "../engine/panel-enrich.js";
 import { runPanelAccept } from "./accept.js";
@@ -61,6 +62,7 @@ export const FANQIE_ROUTES = [
     `${WB_API_PREFIX}/report`,
     `${WB_API_PREFIX}/inspiration`,
     `${WB_API_PREFIX}/chapter`,
+    `${WB_API_PREFIX}/chapter/save`,
     `${WB_API_PREFIX}/candidate`,
     `${WB_API_PREFIX}/candidate/accept`,
     `${WB_API_PREFIX}/chapter/review`,
@@ -470,6 +472,54 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
                     return ctx.json(status, result);
                 }
                 return ctx.json(200, result);
+            }
+            if (pathOnly === `${WB_API_PREFIX}/chapter/save`) {
+                if (method !== "POST") return ctx.json(405, { ok: false, code: "method", error: "POST required" });
+                const body = await ctx.readBody(4 * 1024 * 1024);
+                if (body.err) return ctx.json(body.err.status, body.err.payload);
+                const input = body.parsed;
+                if (typeof input.work !== "string" || typeof input.chapter !== "string" || typeof input.body !== "string" || typeof input.expectedRevision !== "string") {
+                    return ctx.json(400, { ok: false, code: "bad_args", error: "须提交作品、章节、正文与实际已读版本。" });
+                }
+                const picked = await panelPaths(url, config, String(input.base ?? input.project ?? ""));
+                if (picked.error) return ctx.json(400, { ok: false, code: "bad_base", error: "项目未登记" });
+                try {
+                    const dir = await resolveWorkDir(picked.paths as StoragePaths, input.work);
+                    if (input.mode === "candidate") {
+                        const cand = await stageCandidate(dir, {
+                            chapterId: input.chapter,
+                            body: input.body,
+                            expectedRevision: input.expectedRevision,
+                            editOf: typeof input.editOf === "string" ? input.editOf : undefined,
+                            source: "author",
+                            note: "作者在阅读面板保存",
+                            draftLabel: typeof input.draftLabel === "string" && input.draftLabel.trim() ? input.draftLabel : "作者修订",
+                        });
+                        return ctx.json(200, {
+                            ok: true,
+                            candidateId: cand.id,
+                            chapterId: cand.chapterId,
+                            wordCount: countWords(cand.body),
+                        });
+                    }
+                    const chapter = await updateChapter(dir, {
+                        id: input.chapter,
+                        body: input.body,
+                        expectedRevision: input.expectedRevision,
+                        force: true,
+                        ledgerEntry: "作者在阅读面板保存正文",
+                    });
+                    return ctx.json(200, {
+                        ok: true,
+                        chapterId: chapter.id,
+                        revision: chapter.revision,
+                        status: chapter.status,
+                        wordCount: chapter.wordCount,
+                    });
+                } catch (err) {
+                    const code = err instanceof NovelError ? err.code : "chapter_save_failed";
+                    return ctx.json(409, { ok: false, code, error: err instanceof Error ? err.message : String(err) });
+                }
             }
             if (method !== "GET" && method !== "HEAD") {
                 return ctx.json(405, { ok: false, error: `method not allowed: ${method}` });

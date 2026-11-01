@@ -191,6 +191,9 @@ test("决策不被 Agent 挡住，右栏标签与响应式布局，亮暗截图"
     /\bkind\s*=/i,
     /\bkey\s*=/i,
     /\bledger\b/i,
+    /writer_plan/,
+    /fanqie_/,
+    /toutiao_/,
   ])
     expect(visibleText).not.toMatch(pattern);
   await shot("desktop-1440-light.png");
@@ -211,6 +214,31 @@ test("决策不被 Agent 挡住，右栏标签与响应式布局，亮暗截图"
   await expect(page.locator(".studio-sidebar")).toBeVisible();
   await page.getByRole("tab", { name: "本章", exact: true }).click();
   await expect(page.locator(".decision-panel")).toBeVisible();
+  const panelText = await page.locator(".studio-sidebar").innerText();
+  for (const pattern of [
+    /situationLens/,
+    /fanqie_/,
+    /toutiao_/,
+    /multiDraft/,
+    /chapter_save/,
+    /confirm_bypass/,
+    /expected_revision/,
+  ])
+    expect(panelText).not.toMatch(pattern);
+  await page.getByRole("button", { name: "全书概况", exact: true }).click();
+  await expect(page.locator(".wb-pipeline")).toBeVisible();
+  const overviewText = await page.locator(".wb-pipeline").innerText();
+  for (const pattern of [
+    /situationLens/,
+    /fanqie_/,
+    /toutiao_/,
+    /multiDraft/,
+    /chapter_save/,
+    /confirm_bypass/,
+    /expected_revision/,
+  ])
+    expect(overviewText).not.toMatch(pattern);
+  await page.getByRole("button", { name: "写作", exact: true }).click();
   await page.getByRole("button", { name: "收起右栏", exact: true }).click();
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.getByRole("button", { name: "设置", exact: true }).click();
@@ -235,10 +263,18 @@ test("命令面板、角色设置与新对话保留作品", async () => {
   await page.getByRole("tab", { name: "Agent", exact: true }).click();
   const candidate = page.locator('.result-card[data-kind="candidate"]').first();
   await expect(candidate).toBeVisible();
+  const candidateTitles = page.locator(
+    '.result-card[data-kind="candidate"] strong',
+  );
+  await expect(candidateTitles.nth(0)).toHaveText("候选稿 1");
+  await expect(candidateTitles.nth(1)).toHaveText("候选稿 2");
   await candidate.getByRole("button", { name: /对照查看/ }).click();
   await expect(page.locator(".studio-paper-column")).toContainText(
     "第一份候选：林川拿起车票。",
   );
+  await expect(
+    page.getByRole("combobox", { name: "选择候选稿" }),
+  ).toBeVisible();
   await page.getByRole("button", { name: /雨夜/ }).first().click();
   await page.getByRole("tab", { name: "方法方案", exact: true }).click();
   await page.getByRole("button", { name: "打开方法方案", exact: true }).click();
@@ -351,11 +387,57 @@ test("命令面板、角色设置与新对话保留作品", async () => {
   await expect(page.locator(".chat-messages")).toContainText("从一句想法开始");
 });
 
-test("今日头条使用同一套外壳与进度条", async () => {
+test("正文可在稿纸中直接编辑并保存", async () => {
+  await page.getByRole("button", { name: /雨夜/ }).first().click();
+  await page.getByRole("button", { name: "编辑正文", exact: true }).click();
+  const editor = page.getByRole("textbox", { name: "正文源码" });
+  await expect(editor).toBeEditable();
+  await editor.fill(
+    "林川握着车票站在雨里。站台上的钟停在十一点，广播又报了一次末班车。\n\n" +
+      "售票员推开窗，问他等谁。他没来得及回答，口袋里的电话先响了。\n\n" +
+      "作者亲手补写的一段。",
+  );
+  await page.keyboard.press("Control+s");
+  await expect(editor).toBeHidden();
+  await expect(page.locator(".studio-paper-column .wb-manuscript")).toContainText(
+    "作者亲手补写的一段。",
+  );
+  await expect(page.getByText("已保存当前正文。")).toBeVisible();
+});
+
+test("停止任务走应用内确认并在 2 秒内收尾", async () => {
+  model.push("mock-writer", { wait: true });
+  const input = page.getByRole("textbox", { name: "写作要求" });
+  await input.fill("等待模型时停止");
+  await input.press("Enter");
+  const stop = page.getByRole("button", { name: "停止任务" });
+  await expect(stop).toBeVisible({ timeout: 10000 });
+  await page.keyboard.press("Escape");
+  const confirm = page.getByRole("dialog", { name: "确认操作" });
+  await expect(confirm).toBeVisible();
+  const started = Date.now();
+  await confirm.getByRole("button", { name: "继续", exact: true }).click();
+  await expect(stop).toBeDisabled({ timeout: 2000 });
+  expect(Date.now() - started).toBeLessThan(2000);
+});
+
+test("今日头条使用同一套外壳与空态引导", async () => {
   await page.locator(".project-switch").click();
   await page.getByRole("button", { name: "新头条" }).click();
   await expect(page.locator(".studio-nav")).toContainText("文章");
-  await expect(page.locator(".paper-steps")).toContainText("S1 找题");
-  await expect(page.locator(".paper-steps")).toContainText("S7 交稿");
+  await expect(page.getByRole("tab", { name: "本篇", exact: true })).toBeVisible();
+  await expect(page.locator(".view-switch")).not.toContainText("全书概况");
+  await expect(page.locator(".paper-decisions")).toBeHidden();
+  await expect(
+    page.getByRole("button", { name: /新写一篇头条/ }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "发稿台账", exact: true }).click();
+  await expect(page.locator(".paper-ledger")).toContainText("发稿台账");
+  await expect(page.locator(".paper-ledger")).toContainText("还没有头条稿件");
+  const ledgerText = await page.locator(".paper-ledger").innerText();
+  for (const pattern of [/toutiao_/, /fanqie_/, /multiDraft/, /chapter_save/])
+    expect(ledgerText).not.toMatch(pattern);
+  await page.getByRole("button", { name: "写作", exact: true }).click();
+  await expect(page.locator(".paper-ledger")).toBeHidden();
   await shot("desktop-toutiao-1440-light.png");
 });

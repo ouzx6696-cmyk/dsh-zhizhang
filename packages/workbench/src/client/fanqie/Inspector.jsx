@@ -86,7 +86,7 @@ export function WriterAgent({ state, actions, chapterId, writer, bodyReady }) {
   );
 }
 
-export function Inspector({ state, view, actions, hideAgent = false }) {
+export function Inspector({ state, view, actions, hideAgent = false, compact = false }) {
   const { dispatch } = actions;
   const { current, chapterPending, activeCand, impacts, snap } = view;
   if (!current) {
@@ -94,7 +94,7 @@ export function Inspector({ state, view, actions, hideAgent = false }) {
       <div className="wb-inspector">
         {state.work && !hideAgent ? <WriterAgent state={state} actions={actions} chapterId="" writer={null} bodyReady={false} /> : null}
         <Section title={t("nextSteps")}>
-          <Hints hints={(snap && snap.nextHints) || []} />
+          <Hints hints={(snap && snap.panelHints) || []} />
         </Section>
       </div>
     );
@@ -115,30 +115,40 @@ export function Inspector({ state, view, actions, hideAgent = false }) {
   return (
     <div className="wb-inspector">
       <Section title={t("lifecycle")} aside={<StatusTag status={status} />}>
-        <Lifecycle status={status} />
+        {compact ? null : <Lifecycle status={status} />}
         <p className="wb-muted">
           {!review ? t("reviewNone") : reviewCurrent ? t("reviewCurrent", { result: review.result === "blocked" ? t("reviewBlocked") : t("reviewPass") }) : t("reviewStale")}
         </p>
         {hasImpact ? <Callout tone="warning">{t("impactNotice")}</Callout> : null}
-        <div className="wb-action-row">
-          <Button variant="outline" size="sm" disabled={!!bodyBlocked} title={bodyBlocked || undefined} onClick={() => open("review")}>
-            {t("actionReview")}
-          </Button>
-          <Button
-            variant={reviewPassed && status !== "final" ? "primary" : "outline"}
-            size="sm"
-            disabled={!!finalizeBlocked || status === "final"}
-            title={finalizeBlocked || undefined}
-            onClick={() => open("finalize")}
-          >
-            {t("actionFinalize")}
-          </Button>
-          {hasImpact ? (
-            <Button variant="outline" size="sm" disabled={!!bodyBlocked} title={bodyBlocked || undefined} onClick={() => open("acknowledge")}>
-              {t("actionAcknowledge")}
+        {compact ? (
+          hasImpact ? (
+            <div className="wb-action-row">
+              <Button variant="outline" size="sm" disabled={!!bodyBlocked} title={bodyBlocked || undefined} onClick={() => open("acknowledge")}>
+                {t("actionAcknowledge")}
+              </Button>
+            </div>
+          ) : null
+        ) : (
+          <div className="wb-action-row">
+            <Button variant="outline" size="sm" disabled={!!bodyBlocked} title={bodyBlocked || undefined} onClick={() => open("review")}>
+              {t("actionReview")}
             </Button>
-          ) : null}
-        </div>
+            <Button
+              variant={reviewPassed && status !== "final" ? "primary" : "outline"}
+              size="sm"
+              disabled={!!finalizeBlocked || status === "final"}
+              title={finalizeBlocked || undefined}
+              onClick={() => open("finalize")}
+            >
+              {t("actionFinalize")}
+            </Button>
+            {hasImpact ? (
+              <Button variant="outline" size="sm" disabled={!!bodyBlocked} title={bodyBlocked || undefined} onClick={() => open("acknowledge")}>
+                {t("actionAcknowledge")}
+              </Button>
+            ) : null}
+          </div>
+        )}
       </Section>
 
       {!hideAgent && <WriterAgent state={state} actions={actions} chapterId={current.id} writer={writer} bodyReady={body.status === "ready"} />}
@@ -166,8 +176,8 @@ export function Inspector({ state, view, actions, hideAgent = false }) {
                       <span className="wb-candidate-card-title">{pc.draftLabel ? "「" + pc.draftLabel + "」" : "候选 " + (index + 1)}</span>
                       <span className="wb-candidate-card-meta">
                         {t("words", { n: formatCount(pc.wordCount || 0) })}
-                        {pc.hasLintPass ? " · lint ✓" : ""}
-                        {pc.lintHitCount ? " · hits " + pc.lintHitCount : ""}
+                        {pc.hasLintPass ? " · 已扫描" : ""}
+                        {pc.lintHitCount ? " · 提示 " + pc.lintHitCount : ""}
                         {pc.editOf ? " · " + t("candidateEdit") : ""}
                       </span>
                       {pc.note ? <span className="wb-candidate-card-note">{pc.note}</span> : null}
@@ -218,7 +228,7 @@ export function Inspector({ state, view, actions, hideAgent = false }) {
       </details>
 
       <Section title={t("nextSteps")}>
-        <Hints hints={(snap && snap.nextHints) || []} initial={3} />
+        <Hints hints={(snap && snap.panelHints) || []} initial={3} />
       </Section>
     </div>
   );

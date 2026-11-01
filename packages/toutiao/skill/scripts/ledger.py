@@ -75,7 +75,17 @@ def write(path, rows):
                 w.writerow(r)
             f.flush()
             os.fsync(f.fileno())
-        os.replace(temporary, path)
+        deadline = time.monotonic() + 5
+        while True:
+            try:
+                os.replace(temporary, path)
+                break
+            except PermissionError:
+                # Windows can briefly deny the rename while a reader or indexer
+                # still holds log.csv open; the lock keeps writers serialized.
+                if time.monotonic() >= deadline:
+                    raise
+                time.sleep(0.02)
     finally:
         if os.path.exists(temporary):
             os.unlink(temporary)

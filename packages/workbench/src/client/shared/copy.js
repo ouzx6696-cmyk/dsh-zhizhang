@@ -4,7 +4,10 @@
  * Data from the author's works (titles, ids, hints) stays verbatim and never
  * passes through this table.
  */
+import { EDITOR_COPY } from "./copy-editor.js";
+
 const ZH = {
+  ...EDITOR_COPY,
   panelLabel: "写作台",
   appTitle: "写作台",
   appSubtitleNoWork: "番茄长篇",
@@ -64,7 +67,7 @@ const ZH = {
   pfBytes: "{n} 字",
   loading: "正在载入写作台…",
   errorTitle: "暂时连不上写作台接口",
-  errorHint: "确认插件已安装并重启了 DSH。番茄长篇模式下，对话里的 fanqie_panel_snapshot 也能查看同样的数据。",
+  errorHint: "确认插件已安装并重启了 DSH。番茄长篇模式下，对话里也能查看同样的作品数据。",
   forbiddenHint: "接口拒绝了本次访问。若插件配置了 workbench.token，请到插件详情页的「写作台」卡片输入访问令牌。",
   rateLimitedHint: "请求过于频繁，稍后会自动重试。",
   retry: "重试",
@@ -173,14 +176,14 @@ const ZH = {
   unify: "统一整理",
   unifyBusy: "正在生成…",
   unifyHint: "只生成整理简报，不写盘。",
-  unifyOff: "同章有多份候选。开启 multiDraft 后可在这里生成统一整理简报。",
+  unifyOff: "同章有多份候选。开启「多草稿整理」后，可在这里生成统一整理简报。",
   unifyDone: "已生成 {n} 份候选的整理简报，并尝试复制到剪贴板。把它交给对话里的 Agent，写完后暂存再采纳。",
   editTitle: "编辑稿怎么处理",
   editA: "采纳为工作稿：在这里确认采纳，不代表审读或定稿。",
-  editB: "暂不采纳：保留候选，用 fanqie_candidate_edit_decide 记录。",
-  editC: "拒绝或换模式重写：同样在对话里用 edit_decide。",
+  editB: "暂不采纳：保留候选，在对话里说明保留原因即可。",
+  editC: "拒绝或换一种写法：同样在对话里说明你的取舍。",
   editOptionalTitle: "写完后的可选编辑",
-  editOptional: "发现具体阅读问题时，取 edit_brief → 改写 → edit_stage，再决定采纳或保留。",
+  editOptional: "发现具体阅读问题时，可以让 Agent 先出改写简报，再决定采纳或保留。",
   foundation: "故事状态",
   foundationLocks: "设定锁",
   foundationHappened: "已发生",
@@ -237,7 +240,7 @@ const ZH = {
   libraryProgress: "拆书进度",
   librarySourceRoot: "本地书源",
   libraryPending: "待导入 {n}",
-  libraryEmpty: "还没有参考来源。需要时让 Agent 调用 fanqie_library_import。",
+  libraryEmpty: "还没有参考来源。需要时在对话里让 Agent 导入。",
   libraryCombo: "组合建议",
   inspirationNone: "没有规划数据。",
   inspirationUnavailable: "规划数据暂时不可读。",
@@ -262,7 +265,7 @@ const ZH = {
   writingChapters: "章节",
   writingPending: "待采纳候选",
   writingNoPending: "没有待采纳的候选。",
-  writingEditNote: "编辑稿的 A/B/C 抉择在对话里用 fanqie_candidate_edit_decide；这里只做正式采纳。",
+  writingEditNote: "编辑稿的取舍在对话里确认；这里只做正式采纳。",
   ledgerReview: "审读留痕",
   ledgerBrief: "简报留痕",
   ledgerPayoff: "兑付摘要（可选）",

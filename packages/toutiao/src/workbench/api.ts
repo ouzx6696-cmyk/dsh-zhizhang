@@ -4,15 +4,16 @@
  *   GET  /api/writer/toutiao/article?root=&id=      单篇详情
  *   POST /api/writer/toutiao/adopt   {root,id,expectedRev,expectedSha256,confirm} 作者采用 → 已交稿
  *   POST /api/writer/toutiao/deliver {root,id?,action,note?,requestId?,confirm}  按钮指令发到对话
+ *   POST /api/writer/toutiao/draft  {root,id,text}                    作者直接保存一版
  */
 import { WriterError } from '../../../host/src/index.js'
 import { deliver, deliveryProblem, promptSink, sessionFor } from '../../../core/src/sessions.js'
 import { API, type RouteContext, type WorkbenchMode } from '../../../workbench/src/server.js'
 import type { ToutiaoConfig } from '../env.js'
-import { adopt, articleDetail, buildToutiaoDelivery, listArticles, TOUTIAO_ACTIONS } from './data.js'
+import { adopt, articleDetail, buildToutiaoDelivery, listArticles, saveAuthorDraft, TOUTIAO_ACTIONS } from './data.js'
 
 const BASE = `${API}/toutiao`
-const ROUTES = { articles: `${BASE}/articles`, article: `${BASE}/article`, adopt: `${BASE}/adopt`, deliver: `${BASE}/deliver` }
+const ROUTES = { articles: `${BASE}/articles`, article: `${BASE}/article`, adopt: `${BASE}/adopt`, draft: `${BASE}/draft`, deliver: `${BASE}/deliver` }
 
 function fail(ctx: RouteContext, err: unknown) {
   if (err instanceof WriterError) {
@@ -30,7 +31,7 @@ export function toutiaoApi(config: ToutiaoConfig, canDeliver?: () => boolean): W
     async handle(ctx) {
       const route = Object.entries(ROUTES).find(([, p]) => p === ctx.path)?.[0]
       if (!route) return false
-      const want = route === 'adopt' || route === 'deliver' ? 'POST' : 'GET'
+      const want = route === 'adopt' || route === 'draft' || route === 'deliver' ? 'POST' : 'GET'
       if (ctx.method !== want) { ctx.json(405, { ok: false, code: 'method', error: `${want} required` }); return true }
       try {
         if (route === 'articles') {
@@ -53,6 +54,15 @@ export function toutiaoApi(config: ToutiaoConfig, canDeliver?: () => boolean): W
           else {
             const m = await adopt(str(body.root), str(body.id), { rev: body.expectedRev as number, sha256: str(body.expectedSha256) }, config)
             ctx.json(200, { ok: true, id: m.id, status: m.status })
+          }
+        } else if (route === 'draft') {
+          const body = await ctx.body(1_000_000)
+          if (!body) return true
+          const text = typeof body.text === 'string' ? body.text : ''
+          if (!str(body.root) || !str(body.id) || !text.trim()) ctx.json(400, { ok: false, code: 'bad_args', error: '须指明数据目录、文章与非空正文。' })
+          else {
+            const saved = await saveAuthorDraft(str(body.root), str(body.id), text, config)
+            ctx.json(200, { ok: true, id: str(body.id), ...saved })
           }
         } else {
           const body = await ctx.body(16_000)

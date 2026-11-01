@@ -105,6 +105,8 @@ function fanqie(): FanqieData {
       request("/snapshot", { query: { base, work, scope }, timeoutMs: 10000, signal }),
     chapter: (base, work, id, signal) =>
       request("/chapter", { query: { base, work, id }, timeoutMs: 15000, signal }),
+    saveChapter: (payload) =>
+      request("/chapter/save", { method: "POST", body: payload, timeoutMs: 20000 }),
     candidate: (base, work, id, signal) =>
       request("/candidate", { query: { base, work, id }, timeoutMs: 15000, signal }),
     diagnose: (payload, signal) =>
@@ -145,6 +147,8 @@ function toutiao(): ToutiaoData {
         },
         timeoutMs: 15000,
       }),
+    saveDraft: (payload) =>
+      request("/toutiao/draft", { method: "POST", body: payload, timeoutMs: 20000 }),
     deliver: (payload) =>
       request("/toutiao/deliver", {
         method: "POST",

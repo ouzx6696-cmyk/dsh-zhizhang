@@ -6,6 +6,7 @@ import { EMPTY_ISSUES, editMatches } from "./edit-state.js";
 import { FONT_STEPS } from "./state.js";
 import { Button, Icon, SegmentedControl, Tag } from "../shared/ui.jsx";
 import { Callout, Empty, Skeleton } from "../shared/common.jsx";
+import { SourceEditor } from "../shared/SourceEditor.jsx";
 
 
 
@@ -32,12 +33,14 @@ function BodyPane({ slot, kind, issues = EMPTY_ISSUES, annotationId }) {
   );
 }
 
-export function Reader({ state, view, actions, annotationId: providedAnnotationId }) {
+export function Reader({ state, view, actions, annotationId: providedAnnotationId, readOnly = false }) {
   const generatedAnnotationId = React.useId();
   const annotationId = providedAnnotationId || generatedAnnotationId;
   const { dispatch } = actions;
-  const { current, activeCand } = view;
+  const { current, activeCand, chapterPending } = view;
   const meta = state.chapter.meta;
+  const [editing, setEditing] = React.useState(false);
+  React.useEffect(() => setEditing(false), [current?.id, activeCand?.id]);
   if (!state.chapterId || !current) {
     return (
       <div className="wb-reader-empty">
@@ -48,6 +51,23 @@ export function Reader({ state, view, actions, annotationId: providedAnnotationI
   const readerView = !activeCand && state.readerView !== "official" ? "official" : state.readerView;
   const issues = kind => editMatches(state, kind) ? state.edit.report.issues : EMPTY_ISSUES;
   const stepIndex = FONT_STEPS.indexOf(state.fontStep);
+  const editorSlot = readerView === "candidate" ? state.candidate : state.chapter;
+  const revision = meta?.revision ?? current.revision ?? current.readVersion;
+  const editable =
+    !readOnly &&
+    readerView !== "split" &&
+    typeof revision === "string" &&
+    !!revision &&
+    !editorSlot.truncated &&
+    !!String(editorSlot.body || "").trim();
+  const editorNote =
+    readerView === "candidate"
+      ? t("editorCandidateNote")
+      : meta?.status === "final"
+        ? t("editorFinalNote")
+        : meta?.status === "reviewed"
+          ? t("editorReviewNote")
+          : undefined;
   const options = [
     { value: "official", label: t("readerOfficial") },
     { value: "candidate", label: t("readerCandidate"), disabled: !activeCand, title: activeCand ? undefined : t("noCandidate") },
@@ -66,6 +86,41 @@ export function Reader({ state, view, actions, annotationId: providedAnnotationI
           </span>
         </div>
         <div className="wb-reader-tools">
+          {!editing ? (
+          <>
+          {readerView !== "official" && chapterPending.length > 1 ? (
+            <select
+              className="wb-select wb-candidate-select"
+              aria-label={t("candidatePicker")}
+              value={activeCand?.id || ""}
+              onChange={(event) =>
+                dispatch({
+                  type: "selectCandidate",
+                  chapterId: current.id,
+                  id: event.target.value,
+                })
+              }
+            >
+              {chapterPending.map((cand, index) => (
+                <option key={cand.id} value={cand.id}>
+                  {(cand.draftLabel || t("candidateOption", { n: index + 1 })) +
+                    " · " +
+                    t("words", { n: formatCount(cand.wordCount || 0) })}
+                </option>
+              ))}
+            </select>
+          ) : null}
+          {!editing ? (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!editable}
+              title={!editable ? t("editorUnavailable") : undefined}
+              onClick={() => setEditing(true)}
+            >
+              {t("editorToggle")}
+            </Button>
+          ) : null}
           <SegmentedControl
             id="wb-reader"
             label={t("readerViews")}
@@ -93,10 +148,28 @@ export function Reader({ state, view, actions, annotationId: providedAnnotationI
               icon={<Icon name="plus" size={14} />}
             />
           </span>
+          </>
+          ) : null}
         </div>
       </div>
       <div className="wb-reader-body wb-enter" key={current.id + ":" + readerView} id={"wb-reader-" + readerView + "-panel"} role="tabpanel" aria-labelledby={"wb-reader-" + readerView} tabIndex={0}>
-        {readerView === "split" ? (
+        {editing ? (
+          <SourceEditor
+            key={current.id + ":" + readerView}
+            initial={editorSlot.body}
+            title={t("editorTitle")}
+            note={editorNote}
+            onSave={async (text) => {
+              await actions.saveChapter({
+                body: text,
+                expectedRevision: revision,
+                candidateId: readerView === "candidate" ? activeCand?.id : undefined,
+              });
+              setEditing(false);
+            }}
+            onCancel={() => setEditing(false)}
+          />
+        ) : readerView === "split" ? (
           <div className="wb-split">
             <section className="wb-split-col" aria-label={t("officialColumn")}>
               <h3 className="wb-split-head">{t("officialColumn")}</h3>

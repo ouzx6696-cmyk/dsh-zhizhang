@@ -14,6 +14,17 @@ import { useChatSelector } from "../../state/chatStore";
 import { desktop } from "../../state/desktop";
 import type { DesktopController } from "../../app/useDesktopController";
 
+function actionTitle(text: string) {
+  const raw = text.replace(/^【写作台】\s*/, "");
+  let title = raw.split(/[。\n]/)[0] || raw;
+  title = title.split("：")[0] || title;
+  title = title
+    .replace(/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/gi, "")
+    .replace(/[，,、；;\s]+$/g, "")
+    .trim();
+  return title.length > 44 ? title.slice(0, 44) + "…" : title;
+}
+
 function messageBody(message: ChatMessage) {
   return typeof message.content === "string"
     ? message.content
@@ -56,6 +67,16 @@ function ChatStream({
 export function AgentPanel({ app }: { app: DesktopController }) {
   const { state, selected, focus, context, fail, set, input } = app;
   const messages = useChatSelector((chat) => chat.messages);
+  const candidateNumbers = new Map<number, number>();
+  const chapterCounts = new Map<string, number>();
+  messages.forEach((message, index) => {
+    const result = message.role === "toolResult" ? message.details?.writerResult : null;
+    if (result?.kind !== "candidate") return;
+    const key = [result.target?.root, result.target?.work, result.focus?.chapter].join("|");
+    const number = (chapterCounts.get(key) || 0) + 1;
+    chapterCounts.set(key, number);
+    candidateNumbers.set(index, number);
+  });
   const busy = useChatSelector((chat) => chat.busy);
   const phase = useChatSelector((chat) => chat.phase);
   const task = useChatSelector((chat) => chat.task);
@@ -123,18 +144,21 @@ export function AgentPanel({ app }: { app: DesktopController }) {
                   ["派编辑", "派编辑审"],
                   ["质检", "检查本章"],
                 ];
-  function resultCard(result: any) {
-    return (
-      <div className={"result-card " + (result.failed ? "failed" : "")} data-kind={result.kind || "review"}>
-        <strong>
-          {{
-            candidate: "候选稿",
+  function resultCard(result: any, candidateNumber?: number) {
+    const title =
+      result.kind === "candidate"
+        ? result.draftLabel
+          ? `候选稿「${result.draftLabel}」`
+          : `候选稿${candidateNumber ? " " + candidateNumber : ""}`
+        : {
             review: "审读回报",
             qa: "质检结果",
             delivery: "交稿单",
             planning: "规划回报",
-          }[result.kind as string] || "任务回报"}
-        </strong>
+          }[result.kind as string] || "任务回报";
+    return (
+      <div className={"result-card " + (result.failed ? "failed" : "")} data-kind={result.kind || "review"}>
+        <strong>{title}</strong>
         <p>{result.summary}</p>
         <button onClick={() => app.jump(result.target, result.focus).catch(fail)}>
           对照查看 <ArrowRight size={14} />
@@ -148,7 +172,8 @@ export function AgentPanel({ app }: { app: DesktopController }) {
     if (message.role === "custom" && message.display === false) return null;
     if (message.role === "toolResult") {
       const result = message.details?.writerResult;
-      if (result) return <div key={index}>{resultCard(result)}</div>;
+      if (result)
+        return <div key={index}>{resultCard(result, candidateNumbers.get(index))}</div>;
       return (
         <div className="tool-action" key={index}>
           {toolLabel(message.toolName || "")}
@@ -159,6 +184,22 @@ export function AgentPanel({ app }: { app: DesktopController }) {
       message.role === "user"
         ? promptContext(original)
         : { text: original, context: null as any };
+    if (message.role === "user" && parsed.text.startsWith("【写作台】")) {
+      return (
+        <article className="chat-message user action-capsule" key={index}>
+          <small>你 · 发起动作</small>
+          <details>
+            <summary>
+              <span>{actionTitle(parsed.text) || "已发起写作动作"}</span>
+              <span className="action-capsule-more">查看指令</span>
+            </summary>
+            <div className="action-capsule-body">
+              <Markdown text={parsed.text} />
+            </div>
+          </details>
+        </article>
+      );
+    }
     return (
       <article className={"chat-message " + message.role} key={index}>
         <small>
@@ -178,7 +219,10 @@ export function AgentPanel({ app }: { app: DesktopController }) {
         <section className="task-card" aria-label="当前任务">
           <header>
             <strong>
-              {busy ? "正在进行" : "任务结束"} · {task.name || phase}
+              {busy ? "正在进行" : "任务结束"} ·{" "}
+              {task.name?.startsWith("【写作台】")
+                ? actionTitle(task.name)
+                : task.name || phase}
             </strong>
             <button className="stop-task" disabled={!busy} aria-label="停止任务" onClick={() => app.stop().catch(fail)}>
               停止

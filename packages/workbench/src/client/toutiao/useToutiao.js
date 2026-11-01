@@ -63,7 +63,7 @@ export function useToutiao({ onTarget } = {}) {
     }
   }, []);
 
-  useEffect(() => { const listener = () => loadList(true); window.addEventListener('writer:refresh', listener); return () => window.removeEventListener('writer:refresh', listener); }, [loadList]);
+  const refresh = useCallback(() => loadList(true), [loadList]);
   useEffect(() => {
     loadList();
     if (isDesktop) return () => { listCtrl.current?.abort(); detailCtrl.current?.abort(); };
@@ -99,17 +99,29 @@ export function useToutiao({ onTarget } = {}) {
     return (withSession[0] && withSession[0][0]) || list.roots[0] || "";
   };
 
+  const saveDraft = useCallback(async (text) => {
+    const root = selected?.root || list.currentRoot;
+    if (!root || !sel.id) throw new Error(t("ttNoArticle"));
+    const data = await toutiao.saveDraft({ root, id: sel.id, text });
+    notify("success", t("ttDraftSaved", { rev: data.rev }));
+    await loadList();
+    await loadDetail(root, sel.id);
+    return data;
+  }, [selected, sel.id, list.currentRoot, loadList, loadDetail, notify]);
+
   const deliver = useCallback(async (action, note) => {
     const root = pickRoot();
-    if (!root) { notify("danger", t("ttNoSession")); return; }
+    if (!root) { notify("danger", t("ttNoSession")); return false; }
     setBusy(action);
     try {
       const requestId = "wt-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
       const data = await toutiao.deliver({ root, id: action === "new" ? undefined : sel.id, action, note: note || undefined, requestId });
       notify("success", t("ttSent", { text: String(data.text || "").split("\n")[0] }));
       setDoneAt((prev) => ({ ...prev, [action]: Date.now() }));
+      return true;
     } catch (err) {
       notify("danger", t("deliverFailed", { reason: err.message || String(err) }));
+      return false;
     } finally {
       setBusy("");
     }
@@ -134,5 +146,5 @@ export function useToutiao({ onTarget } = {}) {
   const deliverRoot = pickRoot();
   const deliverOff = !list.deliver ? t("ttDeliverOff", { reason: list.deliverReason || "" }) : (!deliverRoot || (!isDesktop && !list.sessions[deliverRoot])) ? t("ttNoSession") : "";
 
-  return { list, sel, selected, detail, adoptReady, busy, notices, refreshing, doneAt, deliverOff, actions: { select, deliver, adopt, refresh: () => loadList(true), dismiss } };
+  return { list, sel, selected, detail, adoptReady, busy, notices, refreshing, doneAt, deliverOff, actions: { select, deliver, adopt, saveDraft, refresh, dismiss } };
 }

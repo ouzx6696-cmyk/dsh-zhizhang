@@ -32,7 +32,7 @@ export async function runCommand(deps: CommandDependencies) {
     return deps.jump(selected, { ...focus, candidate: context.candidate?.id });
   if (name === "补全章纲")
     return deps.sendText(
-      "使用 writer_plan 读取本书已保存的规划，补齐当前章纲缺项；不要写正文。" + args,
+      "【写作台】读取本书已保存的规划，补齐当前章纲缺项；不要写正文。" + args,
       { ...focus, intent: "plan" },
     );
   if (name === "新书") return deps.newWork("fanqie", args);
@@ -41,15 +41,15 @@ export async function runCommand(deps: CommandDependencies) {
   if (name === "派编辑") return deps.deliver("review", args);
   if (name === "拆书")
     return deps.sendText(
-      "使用 writer_plan 拆解以下指定原文或链接。只完成分析，不自动入库或改写本书。" +
+      "【写作台】拆解以下指定原文或链接。只完成分析，不自动入库或改写本书。" +
         (args || "先请我提供原文片段或链接。"),
       { ...focus, intent: "plan" },
     );
   if (name === "质检")
     return deps.sendText(
       selected?.mode === "toutiao"
-        ? "对当前文章运行 toutiao_qa_check，回报实际分数、硬闸与 fails，不自动采用。"
-        : "对当前章节运行 fanqie_style_lint 与 fanqie_ledger_check，回报值得核对的位置，不自动改稿或定稿。",
+        ? "【写作台】对当前文章做质检，回报实际分数、硬闸与未通过项，不自动采用。"
+        : "【写作台】对当前章节做表达与伏笔核对，回报值得核对的位置，不自动改稿或定稿。",
       { ...focus, intent: "review" },
     );
   if (name === "交稿") {

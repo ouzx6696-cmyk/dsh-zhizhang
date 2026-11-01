@@ -25,7 +25,7 @@ import type {
 export class Sessions {
   projectedHistory = new WeakMap<
     SessionManager,
-    { leaf: string | null; messages: unknown[] }
+    { leaf: string | null; limit: number; messages: unknown[]; total: number }
   >();
   preparations = new Set<symbol>();
   generations = new Map<string, number>();

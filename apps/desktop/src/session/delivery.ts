@@ -48,18 +48,27 @@ export async function notifyAuthor(
     "/chapter/finalize": "定稿",
     "/revision/acknowledge": "核对修订影响",
     "/diagnostics/stage": "保存修订候选",
+    "/chapter/save": "保存章节正文",
     "/toutiao/adopt": "采用文章",
+    "/toutiao/draft": "保存作者稿",
   };
-  const action = names[value.operation] || "更新方法方案";
+  const candidateSave = value.operation === "/chapter/save" && !!value.candidate;
+  const action = candidateSave
+    ? "保存候选正文"
+    : names[value.operation] || "更新方法方案";
   const objects: Record<string, string> = {
     "/candidate/accept": "当前候选稿",
     "/chapter/review": "当前章节",
     "/chapter/finalize": "当前章节",
     "/revision/acknowledge": "当前修订",
     "/diagnostics/stage": "修订候选",
+    "/chapter/save": "当前章节",
     "/toutiao/adopt": "当前文章",
+    "/toutiao/draft": "当前文章",
   };
-  const object = objects[value.operation] || "当前项目";
+  const object = candidateSave
+    ? "当前候选稿"
+    : objects[value.operation] || "当前项目";
   const revision =
     typeof value.revision === "number" ? `；版本：${value.revision}` : "";
   const status = value.status ? `；状态：${statusLabel(target.mode, value.status)}` : "";

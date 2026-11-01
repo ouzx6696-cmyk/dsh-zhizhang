@@ -37,6 +37,17 @@ export function TopBar({ app }: { app: DesktopController }) {
     setExportOpen(false);
     app.exportFile(format).catch(fail);
   };
+  const views: [string, string][] =
+    selected?.mode === "toutiao"
+      ? [
+          ["writing", "写作"],
+          ["overview", "发稿台账"],
+        ]
+      : [
+          ["writing", "写作"],
+          ["overview", "全书概况"],
+          ["library", "拆书库"],
+        ];
   if (!system) return null;
   return (
     <>
@@ -55,11 +66,7 @@ export function TopBar({ app }: { app: DesktopController }) {
           <ChevronDown size={13} />
         </button>
         <nav className="view-switch">
-          {[
-            ["writing", "写作"],
-            ["overview", "全书概况"],
-            ["library", "拆书库"],
-          ].map(([id, label]) => (
+          {views.map(([id, label]) => (
             <button
               className={state.view === id ? "active" : ""}
               key={id}

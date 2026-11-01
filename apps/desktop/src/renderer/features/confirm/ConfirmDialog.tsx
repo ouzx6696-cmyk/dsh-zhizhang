@@ -1,0 +1,49 @@
+import React from "react";
+import { AlertCircle } from "lucide-react";
+import { settleConfirm, useConfirmRequest } from "../../state/confirm";
+
+export function ConfirmDialog() {
+  const request = useConfirmRequest();
+  React.useEffect(() => {
+    if (!request) return;
+    const keyboard = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        settleConfirm(false);
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        settleConfirm(true);
+      }
+    };
+    document.addEventListener("keydown", keyboard, true);
+    return () => document.removeEventListener("keydown", keyboard, true);
+  }, [request]);
+  if (!request) return null;
+  return (
+    <div
+      className="studio-backdrop"
+      role="presentation"
+      onClick={() => settleConfirm(false)}
+    >
+      <section
+        className="confirm-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label="确认操作"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <AlertCircle size={20} />
+        <p>{request.message}</p>
+        <div className="confirm-actions">
+          <button autoFocus onClick={() => settleConfirm(false)}>
+            {request.cancelLabel || "取消"}
+          </button>
+          <button className="primary" onClick={() => settleConfirm(true)}>
+            {request.confirmLabel || "继续"}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}

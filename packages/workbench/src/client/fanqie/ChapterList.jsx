@@ -103,7 +103,7 @@ function ChapterListImpl({ chapters, byChapter, impacts, chapterId, onSelectChap
                       className="wb-candidate-badge"
                       aria-label={`查看 ${cands.length} 个候选`}
                       title={`查看 ${cands.length} 个候选`}
-                      onClick={() => onSelectCandidate(c.id, cands[0].id)}
+                      onClick={() => onSelectCandidate(c.id, cands[cands.length - 1].id)}
                     >
                       {cands.length}
                     </button>

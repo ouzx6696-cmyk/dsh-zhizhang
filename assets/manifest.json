@@ -8,7 +8,7 @@
       "kind": "upstream",
       "version": "4.0.0",
       "files": 44,
-      "bytes": 332314,
+      "bytes": 332739,
       "loadable": 30,
       "byKind": {
         "meta": 1,
@@ -393,10 +393,10 @@
     {
       "source": "toutiao-viral-writer",
       "kind": "rule",
-      "origin": "upstream",
+      "origin": "patched",
       "path": "packages/toutiao/skill/scripts/ledger.py",
-      "bytes": 5921,
-      "sha256": "408ec47244fcdaab175a149da86e75a64f905988dc80758f4af19a55e2de0bc6"
+      "bytes": 6331,
+      "sha256": "f4b666c7410203f62573bc3e89093efcc98f74439ddd656319c1c9ce1062c750"
     },
     {
       "source": "toutiao-viral-writer",
@@ -419,8 +419,8 @@
       "kind": "rule",
       "origin": "local",
       "path": "packages/toutiao/skill/scripts/writer_bridge.py",
-      "bytes": 9131,
-      "sha256": "5a4878033c879c27e0a6a00f0086efdb7fb961ecad4955da2e7dd8a0b03ee5d6"
+      "bytes": 9146,
+      "sha256": "c27809842cda802e9031849cf35b1c397e19af74c2d1b5856ec7fc635e107f93"
     },
     {
       "source": "toutiao-viral-writer",

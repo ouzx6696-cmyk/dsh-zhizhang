@@ -97,6 +97,9 @@ export async function fakeModel(scripts = {}) {
   return {
     url: `http://127.0.0.1:${server.address().port}/v1`,
     calls,
+    push: (model, ...items) => {
+      (queues[model] ||= []).push(...items);
+    },
     close: () =>
       new Promise((resolve) => {
         server.closeAllConnections();

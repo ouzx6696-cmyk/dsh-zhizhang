@@ -325,3 +325,39 @@ test('台账并发：同篇重复提交只记一次，改标题后按文章身�
   ledger = await call('toutiao_ledger_show', { last: 100 })
   assert.equal(ledger.total, 1)
 })
+
+test('台账并发：20 篇不同文章并发记账并穿插状态同步，无丢行或串写', async () => {
+  const { call } = await setup()
+  const ids = []
+  for (let index = 0; index < 20; index += 1) {
+    const created = await call('toutiao_article_create', { slug: 'ledger-fan-' + index })
+    const id = created.article?.id || created.id
+    assert.ok(id, JSON.stringify(created))
+    ids.push(id)
+    assert.equal((await call('toutiao_card_set', { id, card: CARD })).ok, true)
+    assert.equal(
+      (await call('toutiao_draft_stage', { id, text: '# 并发台账\n\n短稿正文。', role: 'writer' })).rev,
+      1,
+    )
+  }
+  assert.equal(new Set(ids).size, 20)
+  const results = await Promise.all(
+    ids.map(async (id) => {
+      const added = await call('toutiao_ledger_add', { id })
+      const synced = await call('toutiao_status', { id, to: '待验收' })
+      return { id, added, synced }
+    }),
+  )
+  for (const result of results) {
+    assert.equal(result.added.ok, true, JSON.stringify(result.added))
+    assert.equal(result.synced.ok, true, JSON.stringify(result.synced))
+  }
+  const ledger = await call('toutiao_ledger_show', { last: 100 })
+  assert.equal(ledger.total, 20)
+  assert.equal(ledger.rows.length, 20)
+  assert.deepEqual(
+    ledger.rows.map((row) => row['文章ID']).sort(),
+    [...ids].sort(),
+  )
+  assert.ok(ledger.rows.every((row) => row['状态'] === '待验收'), JSON.stringify(ledger.rows))
+})

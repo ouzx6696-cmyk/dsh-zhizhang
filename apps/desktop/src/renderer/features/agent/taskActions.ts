@@ -44,9 +44,9 @@ export async function startNewWork(
     });
   else
     await deps.sendText(
-      "创建一本新的长篇作品。" +
+      "【写作台】创建一本新的长篇作品。" +
         (note ? "书名、题材或想法：" + note : "先和我确定书名与一句话题材。") +
-        "作品创建后可用 writer_plan 完成开书规划；先完成本次规划，不自动写正文。",
+        "作品创建后先完成开书规划，不自动写正文。",
       { intent: "plan" },
     );
   deps.set({ picker: false, onboarding: false });

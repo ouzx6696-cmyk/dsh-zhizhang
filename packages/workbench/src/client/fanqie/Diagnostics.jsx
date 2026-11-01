@@ -30,14 +30,16 @@ export function Diagnostics({ state, view, actions, annotationId }) {
   return <section ref={root} className="wb-diagnostics" aria-label={c.title}>
     <h3>{c.title}</h3>
     <p className="wb-muted">{c.explain}</p>
-    <select className="wb-select" disabled={locked} aria-label={c.target} value={kind}
-      onChange={event => actions.dispatch({ type: 'diagnosticKind', kind: event.target.value })}>
-      <option value="chapter">{c.chapter}</option>
-      <option value="candidate" disabled={!view.activeCand || state.readerView === 'official'}>{c.candidate}</option>
-    </select>
-    <Button disabled={locked || slot.status !== 'ready' || slot.truncated || !slot.body?.trim()} onClick={scan}>
-      {busy ? c.busy : c.scan}
-    </Button>
+    <div className="wb-toolbar">
+      <select className="wb-select" disabled={locked} aria-label={c.target} value={kind}
+        onChange={event => actions.dispatch({ type: 'diagnosticKind', kind: event.target.value })}>
+        <option value="chapter">{c.chapter}</option>
+        <option value="candidate" disabled={!view.activeCand || state.readerView === 'official'}>{c.candidate}</option>
+      </select>
+      <Button disabled={locked || slot.status !== 'ready' || slot.truncated || !slot.body?.trim()} onClick={scan}>
+        {busy ? c.busy : c.scan}
+      </Button>
+    </div>
     {error || edit?.saveError ? <p role="alert">{error || edit.saveError}</p> : null}
     {edit && !valid ? <p role="alert">{c.other}<Button disabled={edit.saving} onClick={clear}>{c.clear}</Button></p> : null}
     {conflict ? <p role="alert">{c.conflict}</p> : null}
@@ -57,10 +59,12 @@ export function Diagnostics({ state, view, actions, annotationId }) {
           <textarea className="wb-textarea" disabled={locked} aria-label={c.edit}
             value={edit.edits[index] ?? body.slice(block.start, block.end)} onChange={event => change(index, event.target.value)} />
         </div>
-        <Button disabled={!edit.history.length || locked} onClick={() => undo()}>{c.undo}</Button>
-        <Button disabled={!edit.future.length || locked} onClick={() => undo(true)}>{c.redo}</Button>
-        <Button data-action="save-paragraph" disabled={!edit.dirty || busy || conflict && !edit.pendingSave} onClick={save}>{edit.pendingSave ? c.retrySave : c.save}</Button>
-        <Button disabled={busy || edit.saving} onClick={clear}>{c.clear}</Button>
+        <div className="wb-action-row">
+          <Button disabled={!edit.history.length || locked} onClick={() => undo()}>{c.undo}</Button>
+          <Button disabled={!edit.future.length || locked} onClick={() => undo(true)}>{c.redo}</Button>
+          <Button data-action="save-paragraph" disabled={!edit.dirty || busy || conflict && !edit.pendingSave} onClick={save}>{edit.pendingSave ? c.retrySave : c.save}</Button>
+          <Button disabled={busy || edit.saving} onClick={clear}>{c.clear}</Button>
+        </div>
         {edit.dirty ? <p>{c.original}</p> : null}
       </> : null}
     </> : null}

@@ -190,6 +190,8 @@ export function createBusinessTools(options: {
                 target: resultTarget,
                 focus: resultFocus,
                 label: focusLabel(resultTarget, resultFocus),
+                draftLabel:
+                  typeof input.draft_label === "string" ? input.draft_label : undefined,
                 summary:
                   resultKind === "candidate"
                     ? candidateSummary(text)

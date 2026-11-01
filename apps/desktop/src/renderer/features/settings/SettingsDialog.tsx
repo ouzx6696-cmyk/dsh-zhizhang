@@ -3,6 +3,7 @@ import { X, FolderOpen, Download, Shield } from "lucide-react";
 import { ModelFields } from "./ModelFields";
 import type { SystemState } from "../../state/store";
 import { desktop } from "../../state/desktop";
+import { askConfirm } from "../../state/confirm";
 const api = desktop;
 type SettingsProps = {
   state: SystemState;
@@ -324,9 +325,9 @@ export function Settings({ state, onClose, onSaved, onWorkspace, onImport }: Set
                 )}
                 {updates.state === "downloaded" && (
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       if (
-                        window.confirm(
+                        await askConfirm(
                           "确认已保存正在编辑的内容？更新会停止当前任务并重启。",
                         )
                       )

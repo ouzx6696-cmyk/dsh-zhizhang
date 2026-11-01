@@ -5,9 +5,10 @@ import { useToutiao } from "./useToutiao.js";
 import { ActionButton, Button, Icon, Modal, SegmentedControl, Spinner, StateDot, Tag, cx } from "../shared/ui.jsx";
 import { ActionCard, Callout, Empty, Notices, Section, Skeleton, Steps, WithCode } from "../shared/common.jsx";
 import { Manuscript } from "../shared/Manuscript.jsx";
+import { SourceEditor } from "../shared/SourceEditor.jsx";
 import { statusInfo } from "../../../../ui/src/status.js";
 
-const { useState } = React;
+const { useEffect, useState } = React;
 
 const TAG_TONE = { neutral: "neutral", info: "info", warn: "warning", success: "success", danger: "danger" };
 const statusLabel = (status) => statusInfo("toutiao", status).label;
@@ -94,8 +95,11 @@ export function ArticleList({ articles, statuses, sel, onSelect }) {
   );
 }
 
-export function Body({ detail }) {
+export function Body({ detail, onSave, readOnly = false }) {
   const [view, setView] = useState("draft");
+  const [editing, setEditing] = useState(false);
+  const articleId = detail.article?.id, draftRev = detail.article?.draft?.rev;
+  useEffect(() => setEditing(false), [articleId, draftRev]);
   if (detail.status === "loading") return <div className="wb-pane-loading" role="status"><Skeleton lines={8} /></div>;
   if (detail.status === "error") return <Callout tone="danger" role="alert">{detail.error}</Callout>;
   const a = detail.article;
@@ -112,20 +116,38 @@ export function Body({ detail }) {
           </p>
         </div>
         <div className="wb-reader-tools">
-          <SegmentedControl
-            id="wb-tt-view"
-            label={t("ttDetail")}
-            value={shown}
-            onChange={setView}
-            options={[
-              { value: "draft", label: t("ttViewDraft") },
-              { value: "delivery", label: t("ttViewDelivery"), disabled: !a.delivery, title: a.delivery ? undefined : t("ttNoDelivery") },
-            ]}
-          />
+          {!editing ? (
+            <SegmentedControl
+              id="wb-tt-view"
+              label={t("ttDetail")}
+              value={shown}
+              onChange={setView}
+              options={[
+                { value: "draft", label: t("ttViewDraft") },
+                { value: "delivery", label: t("ttViewDelivery"), disabled: !a.delivery, title: a.delivery ? undefined : t("ttNoDelivery") },
+              ]}
+            />
+          ) : null}
+          {!editing && shown === "draft" && a.draft?.text && !a.draft.truncated && onSave && !readOnly ? (
+            <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+              {t("editorToggle")}
+            </Button>
+          ) : null}
         </div>
       </div>
       <div className="wb-reader-body wb-enter" key={a.id + ":" + shown + ":" + (a.draft ? a.draft.rev : 0)} tabIndex={0}>
-        {shown === "delivery" ? (
+        {editing && shown === "draft" && a.draft ? (
+          <SourceEditor
+            initial={a.draft.text}
+            title={t("editorTitle")}
+            note={t("ttEditorNote")}
+            onSave={async (text) => {
+              await onSave(text);
+              setEditing(false);
+            }}
+            onCancel={() => setEditing(false)}
+          />
+        ) : shown === "delivery" ? (
           <pre className="wb-prewrap wb-tt-delivery">{a.delivery}</pre>
         ) : a.draft && a.draft.text ? (
           <>

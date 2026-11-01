@@ -122,7 +122,7 @@ async function performRequest(
       : "请先保存模型连接";
   }
   const writes =
-    /\/(candidate\/accept|chapter\/(review|finalize)|revision\/acknowledge|diagnostics\/stage|toutiao\/adopt|profiles\/(use|create|save|reset|rename|delete))$/.test(
+    /\/(candidate\/accept|chapter\/(review|finalize|save)|revision\/acknowledge|diagnostics\/stage|toutiao\/(adopt|draft)|profiles\/(use|create|save|reset|rename|delete))$/.test(
       operation,
     );
   if (ctx.method === "POST" && response.status < 400 && writes) {

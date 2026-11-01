@@ -55,7 +55,10 @@ function Novel(props: WorkspaceProps) {
           ? value > 0
           : typeof value === "string" && !!value.trim();
       }),
-      actions: { saveParagraph: actions.diagnostics.save },
+      actions: {
+        saveParagraph: actions.diagnostics.save,
+        refresh: actions.refresh,
+      },
     });
   }, [
     view.current,
@@ -63,6 +66,7 @@ function Novel(props: WorkspaceProps) {
     state.chapter,
     state.edit,
     view.snap?.title,
+    actions.refresh,
   ]);
   const current = view.current,
     meta = state.chapter.meta,
@@ -210,6 +214,7 @@ function Novel(props: WorkspaceProps) {
             view={view}
             actions={actions}
             annotationId={annotationId}
+            readOnly={props.readOnly}
           />
         )}
       </>
@@ -233,7 +238,7 @@ function Novel(props: WorkspaceProps) {
               actions={actions}
               annotationId={annotationId}
             />
-            <Inspector state={state} view={view} actions={actions} hideAgent />
+            <Inspector state={state} view={view} actions={actions} hideAgent compact />
           </>
         }
         agent={props.agent}

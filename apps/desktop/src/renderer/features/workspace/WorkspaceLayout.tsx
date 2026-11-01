@@ -3,13 +3,9 @@ import type { ReactNode } from "react";
 import { profilesApi } from "../../../../../../packages/workbench/src/client/shared/api.js";
 import { ProfilesDialog } from "../../../../../../packages/workbench/src/client/shared/Profiles.jsx";
 import { Menu, PanelRightClose } from "lucide-react";
+import { askConfirm } from "../../state/confirm";
 
 export type EditState = { dirty: boolean; saving: boolean };
-const tabs = [
-  ["agent", "Agent"],
-  ["chapter", "本章"],
-  ["methods", "方法方案"],
-];
 
 function MethodsPane({
   mode,
@@ -60,6 +56,7 @@ function MethodsEditor({
       onEditState={onEditState}
       onClose={() => {}}
       onChanged={() => {}}
+      confirm={askConfirm}
     />
   );
 }
@@ -87,6 +84,11 @@ export function WorkspaceLayout({
   setDrawer: (open: boolean) => void;
   onMethodEditState: (state: EditState) => void;
 }) {
+  const tabs: [string, string][] = [
+    ["agent", "Agent"],
+    ["chapter", mode === "toutiao" ? "本篇" : "本章"],
+    ["methods", "方法方案"],
+  ];
   const [navOpen, setNavOpen] = useState(false);
   const [methodsOpen, setMethodsOpen] = useState(false);
   const [methodsMounted, setMethodsMounted] = useState(false);
@@ -117,6 +119,14 @@ export function WorkspaceLayout({
         {navigation}
       </nav>
       <section className="studio-paper-column">{center}</section>
+      {drawer && (
+        <button
+          type="button"
+          className="drawer-scrim"
+          aria-label="关闭右侧面板遮罩"
+          onClick={() => setDrawer(false)}
+        />
+      )}
       <aside className={"studio-sidebar " + (drawer ? "open" : "")}>
         <div className="studio-tabs" role="tablist">
           {tabs.map(([id, label]) => (

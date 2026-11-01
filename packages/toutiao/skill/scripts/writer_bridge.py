@@ -193,7 +193,7 @@ def main():
     fn = {"qa": cmd_qa, "rules": cmd_rules, "limits": cmd_limits, "hot": cmd_hot,
           "ledger-add": cmd_ledger_add, "ledger-status": cmd_ledger_status, "ledger-show": cmd_ledger_show}[a.cmd]
     try:
-        if a.cmd in ("ledger-add", "ledger-status"):
+        if a.cmd in ("ledger-add", "ledger-status", "ledger-show"):
             with L.locked(a.ledger):
                 return fn(a)
         return fn(a)

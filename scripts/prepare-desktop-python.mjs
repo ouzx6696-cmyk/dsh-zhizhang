@@ -34,15 +34,24 @@ if (existing && JSON.parse(existing).sha256 === hash) {
   console.log("随包 Python 已准备");
   process.exit(0);
 }
-execFileSync("curl", ["--fail", "--location", "--output", archive, url], {
+const archiveHash = await readFile(archive)
+  .then((value) => createHash("sha256").update(value).digest("hex"))
+  .catch(() => "");
+if (archiveHash !== hash) {
+  await rm(archive, { force: true });
+  execFileSync("curl", ["--fail", "--location", "--output", archive, url], {
+    stdio: "inherit",
+  });
+  const digest = createHash("sha256")
+    .update(await readFile(archive))
+    .digest("hex");
+  if (digest !== hash) throw new Error("Python 运行包校验值不符");
+}
+await rm(path.join(dir, "python"), { recursive: true, force: true });
+execFileSync("tar", ["-xzf", "python.tar.gz", "-C", "."], {
+  cwd: dir,
   stdio: "inherit",
 });
-const digest = createHash("sha256")
-  .update(await readFile(archive))
-  .digest("hex");
-if (digest !== hash) throw new Error("Python 运行包校验值不符");
-await rm(path.join(dir, "python"), { recursive: true, force: true });
-execFileSync("tar", ["-xzf", archive, "-C", dir], { stdio: "inherit" });
 await writeFile(
   path.join(dir, "python", "writer-runtime.json"),
   JSON.stringify(

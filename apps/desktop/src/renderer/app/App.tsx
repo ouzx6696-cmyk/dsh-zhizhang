@@ -15,6 +15,7 @@ import { Workspace } from "../features/workspace/Workspace";
 import { Settings } from "../features/settings/SettingsDialog";
 import { Onboarding } from "../features/onboarding/Onboarding";
 import { CommandPalette } from "../features/palette/CommandPalette";
+import { ConfirmDialog } from "../features/confirm/ConfirmDialog";
 
 function App() {
   const app = useDesktopController();
@@ -37,6 +38,7 @@ function App() {
           agent={<AgentPanel app={app} />}
           tab={state.tab}
           setTab={(tab) => set({ tab })}
+          onView={(view) => set({ view })}
           drawer={state.drawer}
           setDrawer={(drawer) => set({ drawer })}
           readOnly={system.access?.readOnly}
@@ -60,7 +62,7 @@ function App() {
           onSaved={async () => {
             await app.syncState();
             if (app.selected) await app.loadView(app.selected);
-            window.dispatchEvent(new Event("writer:refresh"));
+            app.refreshWorkspace();
           }}
           onWorkspace={app.chooseWorkspace}
           onImport={app.importRoot}
@@ -68,6 +70,7 @@ function App() {
       )}
       {state.onboarding === true && <Onboarding app={app} />}
       {state.palette && <CommandPalette app={app} />}
+      <ConfirmDialog />
     </div>
   );
 }

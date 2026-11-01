@@ -41,11 +41,14 @@ export async function newConversation(host: Sessions, target: Target) {
   await rm(path.join(dir, "current"), { force: true });
 }
 
-function history(host: Sessions, manager: SessionManager) {
+function history(host: Sessions, manager: SessionManager, limit: number) {
   const leaf = manager.getLeafId();
+  const cap = Math.max(1, Math.min(10000, Number(limit) || 80));
   const cached = host.projectedHistory.get(manager);
-  if (cached?.leaf === leaf) return cached.messages;
-  const messages = manager.getBranch().flatMap<unknown>((entry) => {
+  if (cached?.leaf === leaf && cached.limit >= cap)
+    return { messages: cached.messages.slice(-cap), total: cached.total };
+  const branch = manager.getBranch();
+  const messages = branch.slice(-cap).flatMap<unknown>((entry) => {
     if (entry.type === "message")
       return [{ ...entry.message, writerMessageId: entry.id }];
     if (entry.type === "custom_message" && entry.display)
@@ -61,8 +64,20 @@ function history(host: Sessions, manager: SessionManager) {
       ];
     return [];
   });
-  host.projectedHistory.set(manager, { leaf, messages });
-  return messages;
+  let total = 0;
+  for (const entry of branch)
+    if (
+      entry.type === "message" ||
+      (entry.type === "custom_message" && entry.display)
+    )
+      total += 1;
+  host.projectedHistory.set(manager, {
+    leaf,
+    limit: cap,
+    messages,
+    total,
+  });
+  return { messages: messages.slice(-cap), total };
 }
 
 export async function view(
@@ -100,7 +115,9 @@ export async function view(
         host.historyCache.delete(host.historyCache.keys().next().value!);
     }
   }
-  const messages = manager ? history(host, manager) : [];
+  const projected = manager
+    ? history(host, manager, limit)
+    : { messages: [] as unknown[], total: 0 };
   const streaming = entry?.session.agent.state.streamingMessage;
   const stream =
     streaming?.role === "assistant"
@@ -110,8 +127,8 @@ export async function view(
           .join("")
       : "";
   return {
-    messages: messages.slice(-Math.max(1, Math.min(10000, Number(limit) || 80))),
-    total: messages.length,
+    messages: projected.messages,
+    total: projected.total,
     busy: entry ? !entry.session.isIdle : false,
     stream,
     phase: entry?.phase || "",

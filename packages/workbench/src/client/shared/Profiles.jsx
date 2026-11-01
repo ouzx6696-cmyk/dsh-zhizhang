@@ -118,7 +118,7 @@ function NewProfileForm({ profiles, base, onCancel, onCreate, busy }) {
 
 function InlineProfiles({children}) { return <section className="wb-pf">{children}</section>; }
 
-export function ProfilesDialog({ mode, api, onClose, onChanged, inline = false, onEditState }) {
+export function ProfilesDialog({ mode, api, onClose, onChanged, inline = false, onEditState, confirm }) {
   const Frame = inline ? InlineProfiles : PanelModal;
   const { notices, push, dismiss } = useNotices();
   const [list, setList] = useState({ status: "loading", profiles: [], active: "", pinned: false });
@@ -215,7 +215,11 @@ export function ProfilesDialog({ mode, api, onClose, onChanged, inline = false, 
   };
 
   const rows = (detail?.methods || []).filter((m) => !filter || m.id.includes(filter) || (m.title || "").includes(filter));
-  const close = () => { if (dirty && !window.confirm(t("pfUnsaved"))) return; onClose(); };
+  const close = async () => {
+    const ask = confirm || ((message) => Promise.resolve(window.confirm(message)));
+    if (dirty && !(await ask(t("pfUnsaved")))) return;
+    onClose();
+  };
 
   return (
     <Frame open title={t("pfTitle", { mode: MODE_NAME[mode] || mode })} closeLabel={t("close")} onClose={close} className="wb-modal-wide wb-pf" description={t("pfLead")}>

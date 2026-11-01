@@ -493,6 +493,80 @@ test("子任务在准备或 SDK 接收期间取消，不交付成功结果", asy
   await assert.rejects(promptWithSignal(delayed, async () => "任务", starting.signal), { name: "AbortError" });
 });
 
+test("停止任务同时取消父会话与子角色会话", async () => {
+  const home = await mkdtemp(path.join(tmpdir(), "writer-cancel-tree-"));
+  const sessions = new Sessions(
+    home,
+    "python3",
+    defaultModels,
+    () => {},
+    async () => false,
+  );
+  const order = [];
+  const child = { abort: async () => { order.push("child"); } };
+  const parent = { abort: async () => { order.push("parent"); }, isIdle: true };
+  const target = { mode: "fanqie", root: home };
+  sessions.sessions.set(sessions.key(target), {
+    session: parent,
+    target,
+    focus: {},
+    phase: "",
+    task: {},
+  });
+  sessions.children.set(parent, child);
+  try {
+    await sessions.stop(target);
+    assert.deepEqual(order.sort(), ["child", "parent"]);
+    assert.equal(sessions.generations.get(sessions.key(target)), 1);
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("模型等待中停止：2 秒内收尾且取消后不再请求模型", async () => {
+  const base = await mkdtemp(path.join(tmpdir(), "writer-cancel-model-"));
+  const home = path.join(base, "app");
+  const data = path.join(base, "data");
+  await mkdir(home);
+  await mkdir(data);
+  process.env.DSH_HOME = home;
+  const model = await fakeModel({ "mock-writer": [{ wait: true }] });
+  const sessions = new Sessions(
+    home,
+    "python3",
+    () => models(model.url),
+    () => {},
+    async () => false,
+  );
+  try {
+    const target = { mode: "fanqie", root: data };
+    const pending = sessions.send(target, "等待模型响应后停止。", {});
+    const deadline = Date.now() + 10000;
+    while (!model.calls.length && Date.now() < deadline)
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.ok(model.calls.length >= 1, "模型请求未发出");
+    const started = Date.now();
+    await sessions.stop(target);
+    const settled = await Promise.race([
+      pending.then(
+        () => "resolved",
+        (error) => error?.name || "rejected",
+      ),
+      new Promise((resolve) => setTimeout(() => resolve("timeout"), 2000)),
+    ]);
+    assert.notEqual(settled, "timeout", "停止后任务未在 2 秒内收尾");
+    assert.ok(Date.now() - started < 2000, "停止耗时超过 2 秒");
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    assert.equal(model.calls.length, 1, "取消后不应再请求模型");
+    const entry = sessions.sessions.get(sessions.key(target));
+    assert.ok(!entry || entry.session.isIdle, "取消后会话仍在运行");
+  } finally {
+    await sessions.dispose();
+    await model.close();
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
 test("首轮审读交接允许无旧回报，恢复须先备份并拒绝锁和冲突", async () => {
   const base = await mkdtemp(path.join(tmpdir(), "writer-recovery-"));
   const { ensureStorage, createWork, setOutline } = await import("../../apps/desktop/out-test/work-store.mjs");
