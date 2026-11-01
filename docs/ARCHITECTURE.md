@@ -1,6 +1,6 @@
 # 架构
 
-写作 Agent 以基于内置 PI 的自有桌面客户端为主线，提供长篇和头条写作。现有 DSH 插件保留兼容，共用业务工厂、方法方案、门禁与本地作品；不增加其他 Agent 适配。桌面说明见 [DESKTOP.md](DESKTOP.md)。
+写作 Agent 以基于内置 PI 的自有桌面客户端为主线，提供长篇和头条写作。现有 DSH 插件保留兼容，共用业务工厂、方法方案、门禁与本地作品；不增加其他 Agent 适配。桌面说明见 [DESKTOP.md](guides/DESKTOP.md)。
 
 ## 桌面调用链与事实归属
 
@@ -27,7 +27,7 @@ flowchart TD
 - **读取**：面板文件缓存和 PI 历史投影减少重复读取；授权、采纳及恢复依据仍核对实际文件。桌面写作台依赖事件刷新，兼容浏览器入口保留受控轮询。
 - **方法**：原版、默认、用户方案承担不同用途；完整性登记、加载行为与发行路径分别核对，不能把不同方案当冗余删除。
 
-当前工程收敛与验收要求见[下一轮迭代报告](NEXT-ITERATION-PLAN.md)。下文记录共享包边界及存量 DSH 接入。
+当前工程收敛与验收要求见[下一轮迭代报告](history/NEXT-ITERATION-PLAN.md)。下文记录共享包边界及存量 DSH 接入。
 
 ```mermaid
 flowchart TD
@@ -85,4 +85,4 @@ flowchart TD
 
 `apps/desktop/src/session/pi-adapter.ts` 是唯一 Pi SDK 导入边界；`session/` 管理写手、独立编辑和规划角色、精简交接与既有会话文件。Electron main 由 `main/index.ts` 启动，IPC 按领域放在 `main/ipc/*`。渲染层是 `renderer/app` 组装、`renderer/state` 单 store 与 `renderer/features/*` 功能模块；React 工作区直接复用写作台组件。工具调用经 host-generic 回到原业务，不重建方法或存储。
 
-统一根将书放在 novels、文章放在 toutiao、资料与作者偏好放在 .writer。跨入口的作品租约与轻量快照在 core，共享业务写入检查租约。0.9.3 继续基于内置 PI 完善自有客户端的会话、角色协作、上下文和作品一致性，见[开发计划](PLAN-0.9.3.md)；不新增其他 Agent 工具适配。
+统一根将书放在 novels、文章放在 toutiao、资料与作者偏好放在 .writer。跨入口的作品租约与轻量快照在 core，共享业务写入检查租约。0.9.3 继续基于内置 PI 完善自有客户端的会话、角色协作、上下文和作品一致性，见[开发计划](history/PLAN-0.9.3.md)；不新增其他 Agent 工具适配。

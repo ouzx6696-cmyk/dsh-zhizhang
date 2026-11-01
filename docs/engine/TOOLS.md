@@ -1,6 +1,6 @@
 # 工具参考
 
-`writer_enable mode=fanqie` 后挂上的引擎工具（写作层另有 7 个，见 [../TOOLS.md](../TOOLS.md)）。表格取自代码里的名称、description 和参数定义，参数类型及必填项以宿主展示的 schema 为准；表达诊断通过写作台接口提供。
+`writer_enable mode=fanqie` 后挂上的引擎工具（写作层另有 7 个，见 [../guides/TOOLS.md](../guides/TOOLS.md)）。表格取自代码里的名称、description 和参数定义，参数类型及必填项以宿主展示的 schema 为准；表达诊断通过写作台接口提供。
 
 概念见[作品生命周期](COGNITION.md)。表中只列参数名，不表示每项都必填。旧候选缺目标基线时需当前 `expected_revision`；扫描、审读与定稿是不同动作。
 

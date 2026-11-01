@@ -106,6 +106,31 @@ for (const [rel, file] of [
 }
 
 if (warnings.length) console.warn('架构守卫提示：\n' + [...new Set(warnings)].map(p => '  - ' + p).join('\n'))
+
+const versionFiles = [
+  ['package.json', path.join(ROOT, 'package.json'), 'json'],
+  ['apps/desktop/package.json', path.join(ROOT, 'apps/desktop/package.json'), 'json'],
+  ['bundle/package.json', path.join(ROOT, 'bundle/package.json'), 'json'],
+  ['packages/core/src/version.ts', path.join(ROOT, 'packages/core/src/version.ts'), 'ts'],
+  ['CHANGELOG.md', path.join(ROOT, 'CHANGELOG.md'), 'md'],
+]
+const versions = []
+for (const [label, file, kind] of versionFiles) {
+  const text = await readFile(file, 'utf8')
+  const version = kind === 'json'
+    ? JSON.parse(text).version
+    : kind === 'ts'
+      ? text.match(/VERSION\s*=\s*"([^"]+)"/)?.[1]
+      : text.match(/^##\s+([^\s·]+)/m)?.[1]
+  versions.push({ label, version })
+}
+const distinct = [...new Set(versions.map(v => v.version))]
+if (distinct.length !== 1 || !distinct[0]) problems.push(`版本号不一致：${versions.map(v => `${v.label}=${v.version}`).join('，')}`)
+
+const docsRoot = await readdir(path.join(ROOT, 'docs'))
+const rootDocs = docsRoot.filter(name => name.endsWith('.md'))
+if (rootDocs.length > 10) problems.push(`docs 根目录有 ${rootDocs.length} 份文档，应不超过 10 份；迭代报告放 docs/history/，使用说明放 docs/guides/`)
+
 if (problems.length) {
   console.error('架构守卫失败：\n' + [...new Set(problems)].map(p => '  - ' + p).join('\n'))
   process.exit(1)

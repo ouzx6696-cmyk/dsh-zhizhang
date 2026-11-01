@@ -46,7 +46,7 @@
 
 挂上两组工具，名字都以 `fanqie_` 开头：
 
-- **引擎**（packages/fanqie/src/engine，50 多个）：作品与项目（`fanqie_project_*`）、根基与章纲（`fanqie_foundation_*`、`fanqie_outline_*`）、写作链（`fanqie_chapter_brief` → `fanqie_candidate_stage` → `fanqie_candidate_accept`）、审读与定稿（`fanqie_chapter_save`）、检查（`fanqie_style_lint` 等）、拆书库（`fanqie_library_*`）、灵感（`fanqie_inspire_*`）、方法资产（`fanqie_method_list/get`，12 项，含编辑过稿 `edit`）、产品地图与调度（`fanqie_product_map`）。逐项说明见 [engine/TOOLS.md](engine/TOOLS.md)。
+- **引擎**（packages/fanqie/src/engine，50 多个）：作品与项目（`fanqie_project_*`）、根基与章纲（`fanqie_foundation_*`、`fanqie_outline_*`）、写作链（`fanqie_chapter_brief` → `fanqie_candidate_stage` → `fanqie_candidate_accept`）、审读与定稿（`fanqie_chapter_save`）、检查（`fanqie_style_lint` 等）、拆书库（`fanqie_library_*`）、灵感（`fanqie_inspire_*`）、方法资产（`fanqie_method_list/get`，12 项，含编辑过稿 `edit`）、产品地图与调度（`fanqie_product_map`）。逐项说明见 [engine/TOOLS.md](../engine/TOOLS.md)。
 - **写作层**（packages/fanqie）：
 
 | 工具 | 参数 | 说明 |

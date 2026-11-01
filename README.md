@@ -6,9 +6,9 @@
 
 ## 使用
 
-Windows 提供安装器和免安装 ZIP，随包携带 Python。设置模型连接与统一写作根后即可开始创作，详见[桌面说明](docs/DESKTOP.md)。正式发布以 [GitHub Releases](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases) 为准；候选构建从 Actions 的 `writer-windows-packages` 下载。
+Windows 提供安装器和免安装 ZIP，随包携带 Python。设置模型连接与统一写作根后即可开始创作，详见[桌面说明](docs/guides/DESKTOP.md)。正式发布以 [GitHub Releases](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases) 为准；候选构建从 Actions 的 `writer-windows-packages` 下载。
 
-当前候选版的实现、验证与限制见[构建说明](docs/0.9.3-rc.1-IMPLEMENTATION.md)，真实模型文学质量和 Windows 实机安装/更新不能仅凭构建成功判定通过。
+当前候选版的实现、验证与限制见[构建说明](docs/history/0.9.3-rc.1-IMPLEMENTATION.md)，真实模型文学质量和 Windows 实机安装/更新不能仅凭构建成功判定通过。
 
 ## 开发与验证
 
@@ -27,12 +27,12 @@ npm run verify:release    # Windows：验证并生成候选交付包
 ## 框架与当前工作
 
 - [架构](docs/ARCHITECTURE.md)：桌面调用链、共享业务、事实归属与存储边界。
-- [当前状态](docs/STATUS.md)、[效率重构实施记录](docs/NEXT-ITERATION-IMPLEMENTATION.md)：实际完成项和证据。
-- [迭代要求与验收条件](docs/NEXT-ITERATION-PLAN.md)、[0.9.3 验收报告](docs/0.9.3-ACCEPTANCE-REPORT.md)。
-- [方法方案](docs/PROFILES.md)、[方法资产与更新](docs/ASSETS.md)、[长篇业务](docs/FANQIE.md)。
+- [当前状态](docs/STATUS.md)、[本轮优化实施记录](docs/history/0.9.3-OPTIMIZATION-IMPLEMENTATION.md)：实际完成项和证据。
+- [效率重构实施记录](docs/history/NEXT-ITERATION-IMPLEMENTATION.md)、[迭代要求与验收条件](docs/history/NEXT-ITERATION-PLAN.md)、[0.9.3 验收报告](docs/history/0.9.3-ACCEPTANCE-REPORT.md)。
+- [方法方案](docs/guides/PROFILES.md)、[方法资产与更新](docs/guides/ASSETS.md)、[长篇业务](docs/guides/FANQIE.md)。
 
 业务与存储位于 `packages/core`、`packages/fanqie`、`packages/toutiao`，共享界面在 `packages/workbench`，自有客户端在 `apps/desktop`。保留现有包和作品格式，不建立第二份作品事实库。
 
 ## 存量兼容
 
-既有 DSH 插件复用相同业务与方法，使用见[安装说明](docs/INSTALL.md)及[DSH 接口](docs/DSH.md)。它承担存量兼容，不驱动其他 Agent 工具适配。
+既有 DSH 插件复用相同业务与方法，使用见[安装说明](docs/guides/INSTALL.md)及[DSH 接口](docs/guides/DSH.md)。它承担存量兼容，不驱动其他 Agent 工具适配。
