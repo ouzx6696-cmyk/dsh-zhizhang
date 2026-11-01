@@ -4,7 +4,7 @@ import path from 'node:path'
 import { defineWriterTool, sessionCwd, WriterError, type HostContext, type HostToolDefinition, type JsonSchemaNode } from '../../host/src/index.js'
 import { readText, resolveInside } from './fsx.js'
 import {
-  createProfile, listProfiles, PROFILE_LIMITS, profileDetail, renameProfile, resetMethod, saveMethod, useProfile, type MethodLibrary,
+  createProfile, listProfiles, PROFILE_LIMITS, profileDetail, renameProfile, resetMethod, saveMethod, activateProfile, type MethodLibrary,
 } from './profiles.js'
 
 const S = (description: string): JsonSchemaNode => ({ type: 'string', description })
@@ -57,7 +57,7 @@ export function createProfileTool(name: string, lib: MethodLibrary, opts: { pinn
           const key = profile || (await listProfiles(lib, opts.pinned)).active
           return await profileDetail(lib, key, opts.pinned)
         }
-        case 'use': return { profile: await useProfile(lib.mode, need(profile, 'profile'), opts.pinned) }
+        case 'use': return { profile: await activateProfile(lib.mode, need(profile, 'profile'), opts.pinned) }
         case 'create': {
           let files: { id: string; text: string }[] = []
           const dir = str(args.from_dir)

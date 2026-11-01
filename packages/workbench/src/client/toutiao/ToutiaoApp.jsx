@@ -5,10 +5,13 @@ import { useToutiao } from "./useToutiao.js";
 import { ActionButton, Button, Icon, Modal, SegmentedControl, Spinner, StateDot, Tag, cx } from "../shared/ui.jsx";
 import { ActionCard, Callout, Empty, Notices, Section, Skeleton, Steps, WithCode } from "../shared/common.jsx";
 import { Manuscript } from "../shared/Manuscript.jsx";
+import { statusInfo } from "../../../../ui/src/status.js";
 
 const { useState } = React;
 
-const STATUS_TONE = { 初稿待改: "warning", 待验收: "info", 已验收: "success", 验收退回: "danger", 已交稿: "neutral" };
+const TAG_TONE = { neutral: "neutral", info: "info", warn: "warning", success: "success", danger: "danger" };
+const statusLabel = (status) => statusInfo("toutiao", status).label;
+const statusTone = (status) => TAG_TONE[statusInfo("toutiao", status).tone];
 const STATUS_DOT = { 初稿待改: "warning", 待验收: "warning", 已验收: "done", 验收退回: "error", 已交稿: "done" };
 const PIPELINE = ["立项", "成稿", "待验收", "已验收", "已交稿"];
 
@@ -55,9 +58,9 @@ export function ArticleList({ articles, statuses, sel, onSelect }) {
       ) : null}
       {!groups.length ? <Empty hint={t("ttFilterEmpty")} /> : null}
       {groups.map((g) => (
-        <section key={g.status} className="wb-tt-group" aria-label={g.status}>
+        <section key={g.status} className="wb-tt-group" aria-label={statusLabel(g.status)}>
           <h3 className="wb-tt-group-head">
-            <StateDot state={STATUS_DOT[g.status] || "idle"} size={8} /> {g.status} <span className="wb-count">{g.rows.length}</span>
+            <StateDot state={STATUS_DOT[g.status] || "idle"} size={8} /> {statusLabel(g.status)} <span className="wb-count">{g.rows.length}</span>
           </h3>
           <ul className="wb-chapter-list">
             {g.rows.map((a) => {
@@ -104,7 +107,7 @@ export function Body({ detail }) {
         <div className="wb-reader-heading">
           <h2 className="wb-reader-title">{a.title}</h2>
           <p className="wb-reader-meta">
-            <Tag tone={STATUS_TONE[a.status] || "neutral"}>{a.status}</Tag>
+            <Tag tone={statusTone(a.status)}>{statusLabel(a.status)}</Tag>
             {a.draft ? <span>{t("ttRev", { n: a.draft.rev })} · {formatCount(a.draft.chars)} 字 · {t("ttRole_" + (a.draft.role === "editor" ? "editor" : a.draft.role === "author" ? "author" : "writer"))}</span> : null}
           </p>
         </div>
@@ -149,7 +152,7 @@ export function ToutiaoSide({ tt, hideAgent = false }) {
     <div className="wb-inspector">
       {a ? (
         <>
-          <Section title={t("ttFacts")} aside={<Tag tone={STATUS_TONE[a.status] || "neutral"}>{a.status}</Tag>}>
+          <Section title={t("ttFacts")} aside={<Tag tone={statusTone(a.status)}>{statusLabel(a.status)}</Tag>}>
             <Steps steps={PIPELINE} {...pipelineAt(a)} label={t("ttPipeline")} />
             <dl className="wb-facts">
               <div className="wb-fact"><dt>{t("ttLine")}</dt><dd>{a.line} · {a.genre}</dd></div>
@@ -326,7 +329,7 @@ export function ToutiaoApp({ modeSwitch, version }) {
             <Tag tone="neutral">{t("ttStatTotal", { n: list.articles.length })}</Tag>
             {(list.statuses || []).map((st) => {
               const n = list.articles.filter((a) => a.status === st).length;
-              return n ? <Tag key={st} tone={STATUS_TONE[st] || "quiet"}>{st + " " + n}</Tag> : null;
+              return n ? <Tag key={st} tone={statusTone(st)}>{statusLabel(st) + " " + n}</Tag> : null;
             })}
             {list.at ? <span className="wb-updated">{t("updatedAt", { time: formatClock(list.at) })}</span> : null}
           </div>

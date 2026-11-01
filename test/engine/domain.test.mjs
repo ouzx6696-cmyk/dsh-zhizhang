@@ -167,10 +167,3 @@ test("番茄长篇配置：校验并补默认值，未知字段报错", async ()
     assert.ok(parseFanqieConfig({ requireEditorPass: "yes" }).issues.length > 0);
 });
 
-async function loadedClient(extra = {}) {
-    const { readFile } = await import("node:fs/promises"), { runInNewContext } = await import("node:vm");
-    let descriptor;
-    const react = { createElement: (type, props) => ({ type, props }), Component: class {}, Fragment: "f", memo: c => c };
-    runInNewContext(await readFile("build/client.js", "utf8"), { window: { __ModuleLoader__: { load: value => { descriptor = value; } } }, URL, AbortController, setTimeout, clearTimeout, ...extra });
-    return descriptor.factory(id => { if (id === "react") return react; throw new Error("unexpected module " + id); });
-}

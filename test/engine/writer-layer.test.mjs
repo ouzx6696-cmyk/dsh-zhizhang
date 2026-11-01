@@ -2,7 +2,6 @@ import { execFileSync } from "node:child_process";
 /** 写作层与引擎的衔接：会话追踪与投递、定稿条件（requireEditorPass）、单章审读信息、forge 正文体检、写作台路由组合、浏览器端区块。 */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import { EventEmitter } from "node:events";
 import { saveChapter, setOutline, readChapter, ensureStorage } from "../../build/fanqie/src/engine/store.js";
 import { setPromptSink, sessionFor, rememberSession } from "../../build/core/src/sessions.js";

@@ -1,19 +1,16 @@
 /** 两种模式共用的展示组件（纯 props）。 */
 import React from "react";
 import { t } from "./copy.js";
+import { statusInfo } from "../../../../ui/src/status.js";
 import { Button, Icon, Spinner, StateDot, Tag, cx, toBody } from "./ui.jsx";
 
 const { useCallback, useEffect, useRef, useState } = React;
 
-export const STATUS_TONE = { final: "success", reviewed: "info", accepted: "success", staged: "info", drafted: "warning", draft: "warning", drafting: "warning", planned: "quiet" };
+const TAG_TONE = { neutral: "neutral", info: "info", warn: "warning", success: "success", danger: "danger" };
 export const STATUS_DOT = { final: "done", reviewed: "done", accepted: "done", staged: "warning", drafted: "warning", draft: "warning", drafting: "warning", planned: "idle" };
 
 export function statusLabel(status) {
-  if (status === "final") return t("statusFinal");
-  if (status === "reviewed" || status === "accepted") return t("statusReviewed");
-  if (status === "staged") return t("statusStaged");
-  if (status === "planned") return t("statusPlanned");
-  return t("statusDrafted");
+  return statusInfo("fanqie", status).label;
 }
 
 export function clip(value, n) {
@@ -22,7 +19,8 @@ export function clip(value, n) {
 }
 
 export function StatusTag({ status }) {
-  return <Tag tone={STATUS_TONE[status] || "neutral"}>{statusLabel(status)}</Tag>;
+  const info = statusInfo("fanqie", status);
+  return <Tag tone={TAG_TONE[info.tone]}>{info.label}</Tag>;
 }
 
 export function StatusDot({ status }) {

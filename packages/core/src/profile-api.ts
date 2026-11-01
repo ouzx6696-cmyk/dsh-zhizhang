@@ -13,7 +13,7 @@
  */
 import { WriterError } from '../../host/src/index.js'
 import {
-  createProfile, deleteProfile, findProfile, listProfiles, profileDetail, readMethod, renameProfile, resetMethod, saveMethod, useProfile,
+  createProfile, deleteProfile, findProfile, listProfiles, profileDetail, readMethod, renameProfile, resetMethod, saveMethod, activateProfile,
   type MethodLibrary,
 } from './profiles.js'
 
@@ -62,7 +62,7 @@ export function profileRoutes(base: string, lib: MethodLibrary, pinned?: () => s
       }
       const body = await ctx.body(sub === '/create' ? 4_000_000 : 400_000)
       if (!body) return true
-      if (sub === '/use') ctx.json(200, { ok: true, profile: await useProfile(lib.mode, str(body.profile), pin) })
+      if (sub === '/use') ctx.json(200, { ok: true, profile: await activateProfile(lib.mode, str(body.profile), pin) })
       else if (sub === '/create') {
         const files = Array.isArray(body.files) ? body.files.map(f => ({ id: str((f as Record<string, unknown>)?.id), text: String((f as Record<string, unknown>)?.text ?? '') })) : []
         ctx.json(200, { ok: true, profile: await createProfile(lib, { name: str(body.name) || undefined, base: str(body.base) || undefined, note: str(body.note) || undefined, files }) })

@@ -43,7 +43,7 @@ function chapterFile(dir: string, id: string) {
     return path.join(chaptersDir(dir), `${assertResourceId(id, "章节 id")}.md`);
 }
 function serializeChapterMarkdown(record: any) {
-    const { body, revision, ...fm } = record;
+    const { body: _body, revision: _revision, ...fm } = record;
     return `---\n${JSON.stringify(fm, null, 2)}\n---\n\n${record.body ?? ""}\n`;
 }
 function parseChapterMarkdown(raw: string, fallbackId: any) {

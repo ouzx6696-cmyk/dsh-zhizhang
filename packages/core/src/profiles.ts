@@ -81,7 +81,6 @@ export function chineseNumber(n: number): string {
 /** 方法 id：中文、字母、数字、- _ . /，不能越级 */
 export function checkMethodId(id: string): string {
   const clean = id.trim().replace(/\\/g, '/').replace(/^\.?\//, '').replace(/\.md$/i, '')
-  // eslint-disable-next-line no-control-regex
   if (!clean || clean.length > 120 || /[\u0000-\u001f<>:"|?*]/.test(clean) || clean.split('/').some(s => s === '..' || s === '.' || !s.trim())) {
     throw new WriterError('INVALID_ARGS', `方法 id 不合法：${id}（不能含 < > : " | ? * 或越级路径）`)
   }
@@ -156,7 +155,7 @@ export async function activeProfile(mode: ProfileMode, pinned?: string): Promise
   return { ...builtinMeta(mode, 'default'), pinned: false }
 }
 
-export async function useProfile(mode: ProfileMode, key: string, pinned?: string): Promise<ProfileMeta> {
+export async function activateProfile(mode: ProfileMode, key: string, pinned?: string): Promise<ProfileMeta> {
   const m = await findProfile(mode, key)
   if (pinned && (await findProfile(mode, pinned).catch(() => undefined))) {
     throw new WriterError('CONFLICT', `配置里 ${mode}.profile 已固定为「${pinned}」，要切换请先改配置`)

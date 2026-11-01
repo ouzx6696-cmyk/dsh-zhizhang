@@ -107,11 +107,6 @@ const ZH = {
   impactBadge: "待核对",
   briefRecent: "有近期简报",
 
-  statusFinal: "定稿",
-  statusReviewed: "已审",
-  statusStaged: "待审",
-  statusDrafted: "草稿",
-  statusPlanned: "计划",
 
   readerOfficial: "现行正文",
   readerCandidate: "候选",
