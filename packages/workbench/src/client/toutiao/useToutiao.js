@@ -50,7 +50,7 @@ export function useToutiao() {
     if (!root || !id) { setDetail({ status: "idle", article: null, error: "" }); return; }
     const ctrl = new AbortController();
     detailCtrl.current = ctrl;
-    setDetail((prev) => ({ ...prev, status: prev.article && prev.article.id === id ? "ready" : "loading", error: "" }));
+    setDetail((prev) => ({ ...prev, status: "loading", error: "" }));
     try {
       const data = await toutiaoApi.article(root, id, ctrl.signal);
       setDetail({ status: "ready", article: data.article, error: "" });
@@ -112,11 +112,12 @@ export function useToutiao() {
     }
   }, [sel.id, selected, list.sessions, list.roots, notify]);
 
-  const adopt = useCallback(async () => {
-    if (!selected) return;
+  const adoptReady = detail.status === "ready" && detail.article?.root === selected?.root && detail.article?.id === selected?.id && !!detail.article?.draft?.sha256;
+  const adopt = useCallback(async (article) => {
+    if (!adoptReady || article?.root !== selected.root || article?.id !== selected.id) return;
     setBusy("adopt");
     try {
-      await toutiaoApi.adopt(selected.root, selected.id);
+      await toutiaoApi.adopt(article);
       notify("success", t("ttAdopted"));
       setDoneAt((prev) => ({ ...prev, adopt: Date.now() }));
       await loadList();
@@ -125,10 +126,10 @@ export function useToutiao() {
     } finally {
       setBusy("");
     }
-  }, [selected, loadList, notify]);
+  }, [selected, adoptReady, loadList, notify]);
 
   const deliverRoot = pickRoot();
   const deliverOff = !list.deliver ? t("ttDeliverOff", { reason: list.deliverReason || "" }) : (!deliverRoot || (!window.writerDesktop && !list.sessions[deliverRoot])) ? t("ttNoSession") : "";
 
-  return { list, sel, selected, detail, busy, notices, refreshing, doneAt, deliverOff, actions: { select, deliver, adopt, refresh: () => loadList(true), dismiss } };
+  return { list, sel, selected, detail, adoptReady, busy, notices, refreshing, doneAt, deliverOff, actions: { select, deliver, adopt, refresh: () => loadList(true), dismiss } };
 }

@@ -120,7 +120,7 @@ export const api = {
 export const toutiaoApi = {
   articles: (signal) => request("/toutiao/articles", { timeoutMs: 10000, signal }),
   article: (root, id, signal) => request("/toutiao/article", { query: { root, id }, timeoutMs: 10000, signal }),
-  adopt: (root, id) => request("/toutiao/adopt", { method: "POST", body: { root, id, confirm: true }, timeoutMs: 15000 }),
+  adopt: (article) => request("/toutiao/adopt", { method: "POST", body: { root: article.root, id: article.id, expectedRev: article.rev, expectedSha256: article.draft.sha256, confirm: true }, timeoutMs: 15000 }),
   deliver: (payload) => request("/toutiao/deliver", { method: "POST", body: { ...payload, confirm: true }, timeoutMs: 20000 }),
 };
 

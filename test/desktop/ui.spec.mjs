@@ -49,6 +49,14 @@ test.beforeAll(async () => {
           status: "drafted",
         },
       },
+      {
+        name: "fanqie_candidate_stage",
+        input: { chapter: "c001", content: "第一份候选：林川拿起车票。" },
+      },
+      {
+        name: "fanqie_candidate_stage",
+        input: { chapter: "c001", content: "第二份候选：售票员拉开铁门。" },
+      },
       { text: "作品已创建，请告诉我下一步。" },
       {
         name: "writer_review",
@@ -181,6 +189,31 @@ test("决策不被 Agent 挡住，右栏标签与响应式布局，亮暗截图"
 });
 
 test("命令面板、角色设置与新对话保留作品", async () => {
+  await page.getByRole("tab", { name: "Agent", exact: true }).click();
+  const candidate = page.locator('.result-card[data-kind="candidate"]').first();
+  await expect(candidate).toBeVisible();
+  await candidate.getByRole("button", { name: /对照查看/ }).click();
+  await expect(page.locator(".studio-paper-column")).toContainText(
+    "第一份候选：林川拿起车票。",
+  );
+  await page.getByRole("button", { name: /雨夜/ }).first().click();
+  await page.getByRole("tab", { name: "方法方案", exact: true }).click();
+  await page.getByRole("button", { name: "新建方案", exact: true }).click();
+  await page.locator(".wb-pf-new input").first().fill("界面校验方案");
+  await page.getByRole("button", { name: "创建", exact: true }).click();
+  await expect(page.locator(".wb-pf-methods h3")).toHaveText("界面校验方案");
+  await page.locator(".wb-pf-method").first().click();
+  const method = page.locator(".wb-pf-textarea");
+  await expect(method).toBeEditable();
+  const savedMethod = await method.inputValue();
+  await method.fill(savedMethod + "\n未保存的界面校验草稿");
+  await page.getByRole("tab", { name: "Agent", exact: true }).click();
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await candidate.getByRole("button", { name: /对照查看/ }).click();
+  await page.getByRole("tab", { name: "方法方案", exact: true }).click();
+  await expect(method).toHaveValue(savedMethod + "\n未保存的界面校验草稿");
+  await method.fill(savedMethod);
+  await page.getByRole("tab", { name: "Agent", exact: true }).click();
   await page.keyboard.press("Control+k");
   const commands = page.getByRole("dialog", { name: "命令面板" });
   await expect(commands).toBeVisible();
@@ -229,7 +262,9 @@ test("命令面板、角色设置与新对话保留作品", async () => {
   const before = model.calls.filter(
     (call) => call.model === "mock-writer",
   ).length;
-  const chapterText = await page.locator(".studio-nav").innerText();
+  const workBefore = await page.evaluate(
+    async () => (await window.writerDesktop.state()).target,
+  );
   await page.evaluate(async () => {
     const api = window.writerDesktop,
       state = await api.state(),
@@ -255,8 +290,11 @@ test("命令面板、角色设置与新对话保留作品", async () => {
     .getByRole("dialog", { name: "命令面板" })
     .getByRole("button", { name: /新对话/ })
     .click();
-  await expect
-    .poll(() => page.locator(".studio-nav").innerText())
-    .toBe(chapterText);
+  await expect(page.locator(".studio-nav")).toContainText("雨夜");
+  expect(
+    await page.evaluate(
+      async () => (await window.writerDesktop.state()).target,
+    ),
+  ).toEqual(workBefore);
   await expect(page.locator(".chat-messages")).toContainText("从一句想法开始");
 });

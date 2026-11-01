@@ -65,7 +65,7 @@ export async function articleDetail(rootIn: string, id: string) {
     root, id: m.id, title: titleOf(m), status: m.status, line: m.line, genre: m.genre,
     headlines: m.headlines, rev: m.current_rev, returnRounds: m.return_rounds, maxReturnRounds: MAX_RETURN_ROUNDS,
     card: { 主问题: pick('主问题'), 核心事实: pick('核心事实'), 读者: pick('读者') ?? pick('目标读者'), 出处: card['出处'] ?? undefined, present: Object.keys(card).length > 0 },
-    draft: cur ? { rev: cur.rev, role: cur.role, chars: cur.chars, at: cur.created_at, note: cur.note, text: draft, truncated } : null,
+    draft: cur ? { rev: cur.rev, sha256: cur.sha256, role: cur.role, chars: cur.chars, at: cur.created_at, note: cur.note, text: draft, truncated } : null,
     drafts: m.drafts.map(d => ({ rev: d.rev, role: d.role, chars: d.chars, at: d.created_at, note: d.note })),
     qa: m.qa.map(q => ({ rev: q.rev, score: q.score, pass: q.pass, hardGates: q.hard_gates, failCount: q.fail_count, rulesVersion: q.rules_version, at: q.at })),
     qaValid: qaValid.ok, qaProblem: qaValid.ok ? undefined : qaValid.reason,
@@ -76,17 +76,27 @@ export async function articleDetail(rootIn: string, id: string) {
   }
 }
 
-/** 作者在写作台采用：校验后改为已交稿。 */
-export async function adopt(rootIn: string, id: string, config: ToutiaoConfig = {}): Promise<ArticleMeta> {
+/** 导出读取完整当前正文，不使用写作台预览截断。 */
+export async function articleManuscript(rootIn: string, id: string) {
+  const store = new ArticleStore(await knownRoot(rootIn))
+  const meta = await store.get(id), draft = store.currentDraft(meta)
+  if (!draft) throw new WriterError('NOT_FOUND', '文章还没有正文')
+  return { title: titleOf(meta), text: await store.readDraft(id, draft.rev), qaValid: (await validPassingQa(store, meta)).ok }
+}
+
+export async function adopt(rootIn: string, id: string, expected: { rev: number; sha256: string }, config: ToutiaoConfig = {}): Promise<ArticleMeta> {
   const root = await knownRoot(rootIn)
   const store = new ArticleStore(root)
-  const m0 = await store.get(id)
-  if (m0.status !== '已验收' || !m0.delivered) throw new WriterError('CONFLICT', '只有已验收且已生成交稿单的文章可以采用')
-  const v = await validPassingQa(store, m0)
-  if (!v.ok) throw new WriterError('GATE_DENIED', v.reason)
-  await snapshotFiles(store.dir(id),[store.metaPath(id),store.draftPath(id,m0.current_rev)])
-  const m = await store.update(id, (mm) => {
-    if (mm.status !== '已验收') throw new WriterError('CONFLICT', '状态已变化')
+  if (!Number.isInteger(expected?.rev) || expected.rev < 1 || !/^[a-f0-9]{64}$/.test(expected.sha256))
+    throw new WriterError('INVALID_ARGS', '须指明已经加载的文章版本与正文指纹')
+  const m = await store.update(id, async (mm) => {
+    const draft = store.currentDraft(mm)
+    if (!draft || draft.rev !== expected.rev || draft.sha256 !== expected.sha256)
+      throw new WriterError('CONFLICT', '文章版本已变化，请重新阅读当前稿后确认采用')
+    if (mm.status !== '已验收' || !mm.delivered) throw new WriterError('CONFLICT', '只有已验收且已生成交稿单的文章可以采用')
+    const v = await validPassingQa(store, mm)
+    if (!v.ok) throw new WriterError('GATE_DENIED', v.reason)
+    await snapshotFiles(store.dir(id), [store.metaPath(id), store.draftPath(id, draft.rev)])
     mm.history.push({ from: mm.status, to: '已交稿', by: 'author-panel', at: nowIso(), note: '作者在写作台采用' })
     mm.status = '已交稿'
   })

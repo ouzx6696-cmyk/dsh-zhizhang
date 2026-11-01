@@ -49,7 +49,7 @@ export function candidatesTools() {
                 const content = asString(args, "content", { required: true, trim: false });
                 if (!content.trim())
                     fail("content 不能为空");
-                const { dir } = await openWork(exec, args);
+                const { paths, dir, key } = await openWork(exec, args);
                 const draftLabel = asString(args, "draft_label");
                 const variantGroup = asString(args, "variant_group");
                 const cand = await stageCandidate(dir, {
@@ -60,6 +60,7 @@ export function candidatesTools() {
                     draftLabel: draftLabel || undefined,
                     variantGroup: variantGroup || undefined,
                 });
+                exec.onCandidateStaged?.({id: cand.id, chapterId: cand.chapterId, work: key, base: paths.base});
                 const labelLine = cand.draftLabel ? `- 标签：${cand.draftLabel}` : null;
                 const groupLine = cand.variantGroup ? `- 分组：${cand.variantGroup}` : null;
                 return [
@@ -131,7 +132,7 @@ export function candidatesTools() {
                     fail("content 不能为空");
                 const cfg = getPortConfig();
                 const mode = EditPort.normalizeMode(asString(args, "mode") ?? cfg.defaultEditMode);
-                const { dir } = await openWork(exec, args);
+                const { paths, dir, key } = await openWork(exec, args);
                 const parent = await readCandidate(dir, parentId);
                 if (parent.acceptedAt) {
                     fail(`源候选 ${parentId} 已采纳，无法再挂编辑。请重新 stage 写手稿后再编辑。`, "edit_parent_accepted");
@@ -144,6 +145,7 @@ export function candidatesTools() {
                     editOf: parentId,
                     editMode: mode,
                 });
+                exec.onCandidateStaged?.({id: cand.id, chapterId: cand.chapterId, work: key, base: paths.base});
                 const soft = auditHumanFeel(cand.body, {});
                 const softHits = soft.hits.map((h: any) => ({ code: h.code, text: h.text }));
                 return [
@@ -387,7 +389,7 @@ export function candidatesTools() {
                 const ids = asStringArray(args, "candidate_ids") ?? [];
                 if (ids.length < 2)
                     fail("candidate_ids 至少 2 个", "unify_need_two");
-                const { dir } = await openWork(exec, args);
+                const { paths, dir, key } = await openWork(exec, args);
                 const parents = [];
                 for (const id of ids) {
                     const cand = await readCandidate(dir, id);
@@ -411,6 +413,7 @@ export function candidatesTools() {
                     unifyOf: ids,
                     draftLabel: label,
                 });
+                exec.onCandidateStaged?.({id: cand.id, chapterId: cand.chapterId, work: key, base: paths.base});
                 return MultiDraftPort.afterUnifyStageLines({
                     unifyCandId: cand.id,
                     parentIds: ids,

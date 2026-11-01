@@ -118,7 +118,7 @@ function NewProfileForm({ profiles, base, onCancel, onCreate, busy }) {
 
 function InlineProfiles({children}) { return <section className="wb-pf">{children}</section>; }
 
-export function ProfilesDialog({ mode, api, onClose, onChanged, inline = false }) {
+export function ProfilesDialog({ mode, api, onClose, onChanged, inline = false, onEditState }) {
   const Frame = inline ? InlineProfiles : PanelModal;
   const { notices, push, dismiss } = useNotices();
   const [list, setList] = useState({ status: "loading", profiles: [], active: "", pinned: false });
@@ -154,6 +154,14 @@ export function ProfilesDialog({ mode, api, onClose, onChanged, inline = false }
   const profile = list.profiles.find((p) => p.id === sel);
   const editable = profile && profile.kind === "user";
   const dirty = method && editable && draft !== method.text;
+  useEffect(() => { onEditState?.({dirty: !!dirty, saving: busy === "save"}); }, [dirty, busy, onEditState]);
+  useEffect(() => () => onEditState?.({dirty: false, saving: false}), [onEditState]);
+  useEffect(() => {
+    if (!dirty) return;
+    const leave = (event) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", leave);
+    return () => window.removeEventListener("beforeunload", leave);
+  }, [dirty]);
 
   const openMethod = useCallback(async (id) => {
     if (dirty && !window.confirm(t("pfUnsaved"))) return;

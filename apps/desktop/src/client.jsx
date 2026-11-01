@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "@fontsource/noto-sans-sc/400.css";
 import "@fontsource/noto-sans-sc/600.css";
@@ -51,6 +51,7 @@ function remember(target, focus = {}, preserve = false) {
     writePref(PREF.work, target.work || "");
     if (!preserve) {
       writePref(PREF.chapter, focus.chapter || "");
+      writePref(PREF.candidate, focus.candidate || "");
       writePref(PREF.readerView, focus.candidate ? "candidate" : "official");
     }
     if (focus.chapter) writePref(PREF.view, "chapters");
@@ -141,11 +142,16 @@ function App() {
       if (pendingMessages.current === buffer) pendingMessages.current = null;
     }
   }
-  async function selectSnapshot(next, persist = true) {
+  async function selectSnapshot(next, persist = true, reopen = false) {
     if (!next) return;
     const { focus: nextFocus = {}, ...target } = next,
       previous = selected.current;
     if (scopeId(previous) === scopeId(target)) {
+      if (reopen) {
+        await api.select(target);
+        if (scopeId(selected.current) !== scopeId(target)) return;
+        await syncState();
+      }
       if (next.focus) setPosition(nextFocus);
       return;
     }
@@ -309,10 +315,24 @@ function App() {
     window.addEventListener("keydown", keyboard);
     return () => window.removeEventListener("keydown", keyboard);
   }, [busy, palette, settings]);
+  const methodEdit = useRef({ dirty: false, saving: false });
+  const trackMethodEdit = useCallback((value) => {
+    methodEdit.current = value;
+  }, []);
   function canLeave() {
+    if (methodEdit.current.saving) {
+      setError("方法方案正在保存，请稍后再切换。");
+      return false;
+    }
+    const unsaved = [
+      focused.current.dirty && "段落",
+      methodEdit.current.dirty && "方法方案",
+    ].filter(Boolean);
     return (
-      !focused.current.dirty ||
-      window.confirm("当前段落有未保存修改，离开将放弃这些修改。是否继续？")
+      !unsaved.length ||
+      window.confirm(
+        `当前${unsaved.join("和")}有未保存修改，离开将放弃这些修改。是否继续？`,
+      )
     );
   }
   async function chooseWorkspace() {
@@ -330,13 +350,14 @@ function App() {
     const value = await api.choose(mode);
     if (!value) return;
     await selectSnapshot(value, false);
+    await syncState();
     setWorkspaceKey((key) => key + 1);
     await loadProjects();
   }
   async function jump(target, nextFocus = {}) {
     if (!canLeave()) return;
     remember(target, nextFocus);
-    await selectSnapshot({ ...target, focus: nextFocus });
+    await selectSnapshot({ ...target, focus: nextFocus }, true, true);
     setWorkspaceKey((key) => key + 1);
     setView("writing");
     setPicker(false);
@@ -963,6 +984,7 @@ function App() {
           setDrawer={setDrawer}
           readOnly={state.access?.readOnly}
           onContext={setContext}
+          onMethodEditState={trackMethodEdit}
         />
       ) : (
         <div className="studio-empty">

@@ -1,5 +1,5 @@
 import { Document, Packer, Paragraph, HeadingLevel } from "docx";
-import { articleDetail } from "../../../packages/toutiao/src/workbench/data";
+import { articleManuscript } from "../../../packages/toutiao/src/workbench/data";
 import {
   ensureStorage,
   listProjects,
@@ -11,6 +11,7 @@ import {
 import type { Target, Focus } from "./context";
 export function publishText(text: string) {
   return text
+    .replace(/\r\n?/g, "\n")
     .replace(/<!--[\s\S]*?-->/g, "")
     .replace(/^\s*```[^\n]*\n|^\s*```\s*$/gm, "")
     .replace(/^\s*#{1,6}\s+/gm, "")
@@ -21,7 +22,7 @@ export function publishText(text: string) {
     .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
     .replace(/\*\*([^*]+)\*\*|__([^_]+)__/g, "$1$2")
     .replace(
-      /^\s*[（(【\[]?(?:配图提示|配图建议|插图建议|图片提示)[：:][^\n]*$/gm,
+      /^\s*[（(【\[]?(?:配图|配图提示|配图建议|插图建议|图片提示)[：:][^\n]*$/gm,
       "",
     )
     .trim();
@@ -31,19 +32,27 @@ export function publicationIssues(text: string) {
   if (/\[(?:待补|待写|TODO|占位)[^\]]*\]|\{[^}\n]{1,40}\}/i.test(text))
     issues.push("仍有占位标记");
   if (/<!--|```|\*\*/.test(text))
-    issues.push("存在 Markdown 或批注残留，导出时会清理");
+    issues.push("仍有 Markdown 或批注标记，请核对");
   return issues;
 }
 export async function exportContent(target: Target, focus: Focus) {
   if (target.mode === "toutiao") {
     if (!focus.article) throw new Error("请先选择要交稿的文章");
-    const article = await articleDetail(target.root, focus.article);
-    if (!article.draft) throw new Error("文章还没有正文");
+    const article = await articleManuscript(target.root, focus.article);
+    const body = publishText(article.text);
+    const text =
+      article.title +
+      "\n\n" +
+      (body.split("\n")[0].trim() === article.title.trim()
+        ? body
+            .slice(body.indexOf("\n") < 0 ? body.length : body.indexOf("\n"))
+            .trimStart()
+        : body);
     return {
       title: article.title,
-      text: article.title + "\n\n" + publishText(article.draft.text),
+      text,
       issues: [
-        ...publicationIssues(article.draft.text),
+        ...publicationIssues(text),
         ...(!article.qaValid ? ["当前稿件尚未通过有效质检"] : []),
       ],
       reminder:
@@ -73,7 +82,7 @@ export async function exportContent(target: Target, focus: Focus) {
       `第${row.position}章 ${chapter.title}\n\n${publishText(chapter.body)}`,
     );
     issues.push(
-      ...publicationIssues(chapter.body).map(
+      ...publicationIssues(publishText(chapter.body)).map(
         (issue) => `${chapter.title}：${issue}`,
       ),
     );

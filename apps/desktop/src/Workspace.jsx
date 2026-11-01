@@ -20,7 +20,7 @@ const tabs = [
   ["chapter", "本章"],
   ["methods", "方法方案"],
 ];
-function MethodsPane({ mode }) {
+function MethodsPane({ mode, onEditState }) {
   const api = useMemo(() => profilesApi(mode), [mode]);
   return (
     <div className="method-panel">
@@ -28,6 +28,7 @@ function MethodsPane({ mode }) {
         mode={mode}
         api={api}
         inline
+        onEditState={onEditState}
         onClose={() => {}}
         onChanged={() => {}}
       />
@@ -44,6 +45,7 @@ function Layout({
   mode,
   drawer,
   setDrawer,
+  onMethodEditState,
 }) {
   const [navOpen, setNavOpen] = useState(false);
   return (
@@ -87,7 +89,7 @@ function Layout({
             <div className="decision-panel">{inspector}</div>
           )}
           <div hidden={tab !== "methods"} style={{ height: "100%" }}>
-            <MethodsPane mode={mode} />
+            <MethodsPane mode={mode} onEditState={onMethodEditState} />
           </div>
         </div>
       </aside>
@@ -314,10 +316,10 @@ function Articles(props) {
   const adopt = async () => {
     if (
       window.confirm(
-        "确认采用当前已验收的稿件？发布时请按平台要求声明 AI 生成，故事或合成人物须注明虚构演绎。",
+        `确认采用《${a.title}》第 ${a.rev} 版？发布时请按平台要求声明 AI 生成，故事或合成人物须注明虚构演绎。`,
       )
     )
-      await tt.actions.adopt();
+      await tt.actions.adopt(a);
   };
   return (
     <>
@@ -343,7 +345,12 @@ function Articles(props) {
               {a && (
                 <button
                   className="primary"
-                  disabled={!a.adoptable || !!tt.busy || props.readOnly}
+                  disabled={
+                    !a.adoptable ||
+                    !tt.adoptReady ||
+                    !!tt.busy ||
+                    props.readOnly
+                  }
                   onClick={adopt}
                 >
                   <Check size={14} />

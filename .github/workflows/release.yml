@@ -31,6 +31,14 @@ jobs:
           test "$(node -p 'require("./package.json").version')" = "$version"
           test "$(gh release view "$TAG" --json isDraft --jq .isDraft)" = true
           (cd release-artifacts && sha256sum --check SHA256SUMS)
-          gh release edit "$TAG" --target "$GITHUB_SHA"
+          if ! git ls-remote --exit-code origin "refs/tags/$TAG" >/dev/null; then
+            gh api --method POST "repos/$GH_REPO/git/refs" -f ref="refs/tags/$TAG" -f sha="$GITHUB_SHA" >/dev/null
+          fi
+          git fetch --depth=1 --no-tags origin "refs/tags/$TAG"
+          tag_sha="$(git rev-parse 'FETCH_HEAD^{commit}')"
+          if [ "$tag_sha" != "$GITHUB_SHA" ]; then
+            echo "::error::Release 标签指向 $tag_sha，本次构建为 $GITHUB_SHA；请先核对标签。"
+            exit 1
+          fi
           gh release upload "$TAG" release-artifacts/* --clobber
           gh release edit "$TAG" --draft=false --latest

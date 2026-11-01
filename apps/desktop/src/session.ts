@@ -215,9 +215,21 @@ export class Sessions {
             ? { ...(target.work ? { work: target.work } : {}), ...args }
             : args;
         let createdWork: { base: string; key: string } | undefined;
+        let stagedCandidate:
+          | { id: string; chapterId: string; work: string; base: string }
+          | undefined;
         const exec: HostToolExecution & {
           onWorkCreated: (base: string, key: string) => void;
+          onCandidateStaged: (candidate: {
+            id: string;
+            chapterId: string;
+            work: string;
+            base: string;
+          }) => void;
         } = {
+          onCandidateStaged: (candidate) => {
+            stagedCandidate = candidate;
+          },
           onWorkCreated: (base, key) => {
             createdWork = { base, key };
           },
@@ -288,6 +300,24 @@ export class Sessions {
               ? input.id
               : entry.focus.article,
         };
+        const resultTarget = {
+          ...target,
+          ...(target.mode === "fanqie" && typeof input.work === "string"
+            ? { work: input.work }
+            : {}),
+          ...(stagedCandidate
+            ? { root: stagedCandidate.base, work: stagedCandidate.work }
+            : {}),
+        };
+        if (stagedCandidate)
+          Object.assign(resultFocus, {
+            candidate: stagedCandidate.id,
+            chapter: stagedCandidate.chapterId,
+            source: "candidate",
+            revision: undefined,
+            title: undefined,
+            workTitle: undefined,
+          });
         const resultKind = /review_report/.test(def.name)
           ? "review"
           : /qa_check/.test(def.name)
@@ -304,9 +334,9 @@ export class Sessions {
             ? {
                 writerResult: {
                   kind: resultKind,
-                  target: { ...target },
+                  target: resultTarget,
                   focus: resultFocus,
-                  label: focusLabel(target, resultFocus),
+                  label: focusLabel(resultTarget, resultFocus),
                   summary:
                     typeof value === "string"
                       ? text.split("\n")[0]

@@ -222,7 +222,10 @@ async function performRequest(
     if (v !== undefined && v !== "") url.searchParams.set(k, String(v));
   const body = options.body || {};
   const projects = await listProjects();
-  const base = body.base || body.project || options.query?.base;
+  // 新建方案的 base 表示方法底稿（default / original），不是作品目录。
+  const base = operation.endsWith("/profiles/create")
+    ? undefined
+    : body.base || body.project || options.query?.base;
   const project = projects.find((p: any) =>
     base ? p.id === base || p.base === base : p.base === selected.root,
   );
@@ -418,13 +421,7 @@ app
     diagnostics = new Diagnostics(home);
     await diagnostics.init();
     await diagnostics.write("start", { version: VERSION });
-    let raw: any = {};
-    try {
-      raw = JSON.parse(await readFile(path.join(home, "writer.json"), "utf8"));
-    } catch (error: any) {
-      if (error.code !== "ENOENT")
-        settings.notices.push("writer.json 无法读取，已使用默认业务配置。");
-    }
+    const raw = await settings.readObject("writer.json");
     const toutiao = parseToutiaoConfig(raw.toutiao),
       fanqie = parseFanqieConfig(raw.fanqie);
     if (toutiao.issues.length || fanqie.issues.length)
@@ -444,8 +441,7 @@ app
       writerConfig,
       async (previous, next) => {
         if (target && sessions.key(target) === sessions.key(previous)) {
-          const chosen = await selectTarget(next);
-          emit({ selection: chosen });
+          emit({ navigate: next });
         }
       },
       {

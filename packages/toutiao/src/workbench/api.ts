@@ -2,7 +2,7 @@
  * 写作台 · 今日头条模式的接口：
  *   GET  /api/writer/toutiao/articles               全部文章 + 每个数据目录能否投递
  *   GET  /api/writer/toutiao/article?root=&id=      单篇详情
- *   POST /api/writer/toutiao/adopt   {root,id,confirm}                          作者采用 → 已交稿
+ *   POST /api/writer/toutiao/adopt   {root,id,expectedRev,expectedSha256,confirm} 作者采用 → 已交稿
  *   POST /api/writer/toutiao/deliver {root,id?,action,note?,requestId?,confirm}  按钮指令发到对话
  */
 import { WriterError } from '../../../host/src/index.js'
@@ -51,7 +51,7 @@ export function toutiaoApi(config: ToutiaoConfig, canDeliver?: () => boolean): W
           if (!body) return true
           if (body.confirm !== true || !str(body.root) || !str(body.id)) ctx.json(400, { ok: false, code: 'confirmation_required', error: '须明确确认、数据目录与文章。' })
           else {
-            const m = await adopt(str(body.root), str(body.id), config)
+            const m = await adopt(str(body.root), str(body.id), { rev: body.expectedRev as number, sha256: str(body.expectedSha256) }, config)
             ctx.json(200, { ok: true, id: m.id, status: m.status })
           }
         } else {

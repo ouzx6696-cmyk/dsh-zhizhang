@@ -295,7 +295,7 @@ test('写作台：单章带编辑回报与定稿条件；写作台定稿也受 r
     assert.equal(prompts.at(-1).sessionId, 'tt-main')
     assert.equal(prompts.at(-1).requestId, 'wt-test-0001')
     assert.match(prompts.at(-1).content[0].text, /^【写作台】派编辑子代理给《2\d{3}-\d\d-\d\d-wb》（/)
-    assert.equal((await post('/toutiao/adopt', { root: row.root, id: aid, confirm: true })).status, 409, '未验收不能采用')
+    assert.equal((await post('/toutiao/adopt', { root: row.root, id: aid, expectedRev: det.article.draft.rev, expectedSha256: det.article.draft.sha256, confirm: true })).status, 409, '未验收不能采用')
     assert.equal((await post('/toutiao/deliver', { root: '/nope', action: 'new', confirm: true })).status, 409, '没有会话的目录')
   } finally {
     await new Promise(r => server.close(r))

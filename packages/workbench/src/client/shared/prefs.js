@@ -8,6 +8,7 @@ export const PREF = {
   project: "lastProject",
   work: "lastWork",
   chapter: "lastChapter",
+  candidate: "lastCandidate",
   mode: "writingMode",
   view: "fanqieView",
   tab: "pipelineTab",

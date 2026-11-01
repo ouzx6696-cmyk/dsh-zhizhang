@@ -97,10 +97,12 @@ export async function assertWorkspaceWritable(root: string) {
     );
 }
 export async function releaseWorkspace(root: string) {
-  const key = path.resolve(root),
+  const resolved = path.resolve(root);
+  const key = held.has(resolved) ? resolved : await realpath(root),
     owner = held.get(key);
-  if (owner && (await ownerAt(key))?.id === owner.id) {
-    await unlink(path.join(key, FILE));
+  if (owner) {
+    if ((await ownerAt(key))?.id === owner.id)
+      await unlink(path.join(key, FILE));
     held.delete(key);
   }
 }

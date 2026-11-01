@@ -1,10 +1,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  rm,
+  writeFile,
+  symlink,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { ArticleStore } from "../../apps/desktop/out-test/article-store.mjs";
 import { fakeModel } from "./fake-model.mjs";
 import { Sessions } from "../../apps/desktop/out-test/session.mjs";
 import { Settings } from "../../apps/desktop/out-test/settings.mjs";
@@ -14,6 +22,7 @@ import {
   readSource,
 } from "../../apps/desktop/out-test/network.mjs";
 import {
+  exportContent,
   publicationIssues,
   publishText,
   wordDocument,
@@ -21,6 +30,7 @@ import {
 import {
   claimWorkspace,
   assertWorkspaceWritable,
+  releaseWorkspace,
   releaseWorkspaces,
 } from "../../apps/desktop/out-test/lease.mjs";
 const root = fileURLToPath(new URL("../../", import.meta.url));
@@ -67,7 +77,7 @@ function models(url) {
   return value;
 }
 
-test("真实 Pi：建书归属、独立编辑、角色模型、作者确认、通知落盘与新对话交接", async () => {
+test("真实 Pi：建书归属、候选定位、独立编辑、角色模型、作者确认、通知落盘与新对话交接", async () => {
   const base = await mkdtemp(path.join(tmpdir(), "writer-desktop-")),
     home = path.join(base, "app"),
     data = path.join(base, "data");
@@ -103,6 +113,14 @@ test("真实 Pi：建书归属、独立编辑、角色模型、作者确认、�
             "林川把票递到窗口。售票员没接，先看了眼墙上的钟。\n\n“末班车不停这一站。”她说。门外却传来了刹车声。",
           status: "drafted",
         },
+      },
+      {
+        name: "fanqie_candidate_stage",
+        input: { chapter: "c001", content: "候选一：林川走到窗边。" },
+      },
+      {
+        name: "fanqie_candidate_stage",
+        input: { chapter: "c001", content: "候选二：她拉开了门。" },
       },
       {
         name: "writer_review",
@@ -178,6 +196,29 @@ test("真实 Pi：建书归属、独立编辑、角色模型、作者确认、�
     await done.promise;
     assert.equal(attached.next.work, "station");
     assert.equal(asks.length, 1);
+    const candidates = events
+      .filter(
+        (event) =>
+          event.event?.type === "tool_execution_end" &&
+          event.event.toolName === "fanqie_candidate_stage",
+      )
+      .map((event) => event.event.result);
+    assert.equal(candidates.length, 2);
+    assert.notEqual(
+      candidates[0].details.writerResult.focus.candidate,
+      candidates[1].details.writerResult.focus.candidate,
+    );
+    for (const result of candidates) {
+      const card = result.details.writerResult;
+      assert.equal(card.target.work, "station");
+      assert.equal(card.target.root, data);
+      assert.equal(card.focus.chapter, "c001");
+      assert.equal(card.focus.source, "candidate");
+      assert.ok(
+        card.focus.candidate &&
+          result.content[0].text.includes(card.focus.candidate),
+      );
+    }
     const writer = model.calls.find((call) => call.model === "mock-writer"),
       editor = model.calls.find((call) => call.model === "mock-editor");
     assert.ok(writer && editor);
@@ -279,6 +320,24 @@ test("安全存储不可用不落盘明文 Key，损坏配置仍可恢复默认"
     await writeFile(path.join(home, "model.json"), "broken");
     await store.load();
     assert.ok(store.notices.length);
+    for (const content of ["null", "[]"]) {
+      for (const file of [
+        "desktop.json",
+        "model.json",
+        "search.json",
+        "writer.json",
+      ])
+        await writeFile(path.join(home, file), content);
+      const restored = new Settings(home, {
+        available: () => false,
+        encrypt: (text) => text,
+        decrypt: (text) => text,
+      });
+      await restored.load();
+      assert.deepEqual(await restored.readObject("writer.json"), {});
+      assert.equal(restored.notices.length, 4);
+      assert.equal(restored.workspace, "");
+    }
     const value = defaultModels();
     value.writer.apiKey = "do-not-persist";
     await store.saveModels(value);
@@ -317,6 +376,23 @@ test("作品租约：另一进程持有时只读；进程结束后可重新取�
     child.kill();
     await new Promise((resolve) => child.once("exit", resolve));
     assert.equal((await claimWorkspace(folder)).readOnly, false);
+    const alias = folder + "-alias";
+    try {
+      await symlink(
+        folder,
+        alias,
+        process.platform === "win32" ? "junction" : "dir",
+      );
+      await releaseWorkspace(alias);
+      await assert.rejects(
+        readFile(path.join(folder, ".writer-workspace-lock.json")),
+        { code: "ENOENT" },
+      );
+      assert.equal((await claimWorkspace(alias)).readOnly, false);
+      await releaseWorkspace(alias);
+    } finally {
+      await rm(alias, { force: true });
+    }
   } finally {
     child.kill();
     await releaseWorkspaces();
@@ -330,4 +406,50 @@ test("发布检查保留正文、清理标题标记，DOCX 可输出", async () 
   const data = await wordDocument("标题", "正文");
   assert.equal(data[0], 0x50);
   assert.equal(data[1], 0x4b);
+  const base = await mkdtemp(path.join(tmpdir(), "writer-export-")),
+    home = path.join(base, "home"),
+    folder = path.join(base, "toutiao");
+  await mkdir(home);
+  await mkdir(folder);
+  process.env.DSH_HOME = home;
+  await writeFile(
+    path.join(home, "writer-toutiao-roots.json"),
+    JSON.stringify([folder]),
+  );
+  const store = new ArticleStore(folder);
+  try {
+    const story = await readFile(
+        path.join(
+          root,
+          "packages/toutiao/skill/tests/fixtures/story_long_good.md",
+        ),
+        "utf8",
+      ),
+      title = story.split("\n")[0].slice(2);
+    const article = await store.create("export", { titleHint: title });
+    await store.stageDraft(
+      article.id,
+      story.replace(/\n/g, "\r\n") +
+        "\r\n" +
+        "正文".repeat(110000) +
+        "唯一尾标",
+      "writer",
+      "导出校验",
+    );
+    const result = await exportContent(
+      { mode: "toutiao", root: folder },
+      { article: article.id },
+    );
+    assert.equal(
+      result.text.split("\n").filter((line) => line === title).length,
+      1,
+    );
+    assert.ok(!result.text.includes("【配图："));
+    assert.ok(!result.text.includes("已截断"));
+    assert.ok(result.text.endsWith("唯一尾标"));
+    assert.deepEqual(result.issues, ["当前稿件尚未通过有效质检"]);
+  } finally {
+    await releaseWorkspaces();
+    await rm(base, { recursive: true, force: true });
+  }
 });

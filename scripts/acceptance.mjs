@@ -1,6 +1,7 @@
 /** Explicit real-model acceptance. Credentials stay in env; missing results stay pending. */
 import { mkdir, readFile, writeFile, readdir } from "node:fs/promises";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 const repo = fileURLToPath(new URL("../", import.meta.url));
 const flag = (name) => {
@@ -65,8 +66,11 @@ const scores = () =>
       profile,
       {
         cases: [
-          ...headCases.map((_, i) => "头条 " + (i + 1)),
-          ...Array.from({ length: 10 }, (_, i) => "长篇第 " + (i + 1) + " 章"),
+          ...headCases.map((_, i) => "head-" + (i + 1)),
+          ...Array.from(
+            { length: 10 },
+            (_, i) => "novel-c" + String(i + 1).padStart(3, "0"),
+          ),
         ].map((id) => ({ id, readability: null, voice: null })),
         continuityErrors: null,
         resumedWithoutExtraSetup: null,
@@ -75,69 +79,166 @@ const scores = () =>
       },
     ]),
   );
+const chapterIds = Array.from(
+  { length: 10 },
+  (_, i) => "c" + String(i + 1).padStart(3, "0"),
+);
+const caseIds = [
+  ...headCases.map((_, i) => "head-" + (i + 1)),
+  "novel-plan",
+  ...chapterIds.map((id) => "novel-" + id),
+];
+let readers;
+async function artifact(profile, row) {
+  readers ||= await Promise.all([
+    import("../apps/desktop/out-test/work-store.mjs"),
+    import("../apps/desktop/out-test/review.mjs"),
+    import("../apps/desktop/out-test/article-store.mjs"),
+  ]);
+  const [store, review, { ArticleStore }] = readers;
+  if (row.caseId.startsWith("head-")) {
+    const index = Number(row.caseId.slice(5)) - 1;
+    const articles = new ArticleStore(path.join(output, profile, "toutiao"));
+    const meta = await articles.get(row.article);
+    const draft = articles.currentDraft(meta);
+    if (!draft || draft.rev !== row.revision)
+      throw new Error("文章当前版本与任务记录不一致");
+    const digest = (text) => createHash("sha256").update(text).digest("hex");
+    if (digest(await articles.readDraft(meta.id, draft.rev)) !== draft.sha256)
+      throw new Error("文章正文指纹不一致");
+    const line = index === 3 || index === 4 ? "故事线" : "资讯线";
+    const genre = index >= 5 ? "微头条" : "长图文";
+    if (meta.line !== line || meta.genre !== genre)
+      throw new Error("文章类别与指定任务不一致");
+    if (
+      !meta.delivered ||
+      !(await readFile(articles.deliveryPath(meta.id), "utf8")).trim()
+    )
+      throw new Error("缺少本轮交稿单");
+    const qa = articles.latestQaFor(meta),
+      cardSha = await articles.cardSha(meta.id);
+    if (!qa || !qa.pass || qa.card_sha256 !== cardSha)
+      throw new Error("缺少当前稿件与立项卡对应的质检");
+    // 首次／两次内过线统计保留真实尝试顺序；各次须对应实际存留的稿件和立项卡。
+    const attempts = await Promise.all(
+      meta.qa.slice(0, 2).map(async (q) => {
+        const prior = meta.drafts.find((d) => d.rev === q.rev);
+        return prior &&
+          prior.sha256 === q.sha256 &&
+          q.card_sha256 === cardSha &&
+          digest(await articles.readDraft(meta.id, q.rev)) === q.sha256
+          ? q
+          : null;
+      }),
+    );
+    return { article: meta, attempts };
+  }
+  if (!row.work) throw new Error("任务没有对应作品");
+  const dir = await store.resolveWorkDir(
+    { works: path.join(output, profile, "novels", "works") },
+    row.work,
+  );
+  if (row.caseId === "novel-plan") {
+    for (const id of chapterIds) {
+      const chapter = await store.readChapter(dir, id);
+      if (
+        ![
+          "pov",
+          "targetWords",
+          "locks",
+          "knowledge",
+          "synopsis",
+          "conflict",
+          "beats",
+          "ending",
+        ].every((key) =>
+          typeof chapter.outline[key] === "number"
+            ? chapter.outline[key] > 0
+            : !!chapter.outline[key]?.trim(),
+        )
+      )
+        throw new Error(id + " 章纲不完整");
+    }
+    return { work: path.basename(dir) };
+  }
+  const id = row.caseId.slice(6);
+  if (row.chapter !== id) throw new Error("章节与任务编号不一致");
+  const chapter = await store.readChapter(dir, id);
+  if (!chapter.body.trim()) throw new Error("章节没有正文");
+  const report = await review.latestReview(dir, id);
+  if (
+    !report ||
+    report.chapter !== id ||
+    report.by !== "editor" ||
+    !report.reread_full ||
+    report.body_sha256 !== review.bodyFingerprint(chapter.body)
+  )
+    throw new Error("缺少独立编辑对当前正文的完整审读回报");
+  return { review: report };
+}
 async function summarize() {
   const records = await json("run-records.json"),
     subjective = await json("subjective-scores.json"),
     metrics = [];
   for (const profile of ["default", "original"]) {
-    const head = path.join(output, profile, "toutiao"),
-      articles = [];
-    for (const entry of await list(head))
-      if (entry.isDirectory() && /^\d{4}-\d{2}-\d{2}-/.test(entry.name))
-        articles.push(
-          JSON.parse(
-            await readFile(path.join(head, entry.name, "meta.json"), "utf8"),
-          ),
-        );
-    const reviews = [];
-    for (const book of await list(
-      path.join(output, profile, "novels", "works"),
-    )) {
-      if (!book.isDirectory()) continue;
-      const root = path.join(
-        output,
-        profile,
-        "novels",
-        "works",
-        book.name,
-        "writer-reviews",
-      );
-      for (const chapter of await list(root)) {
-        if (!chapter.isDirectory()) continue;
-        const files = (await list(path.join(root, chapter.name)))
-          .filter((file) => file.name.endsWith(".json"))
-          .map((file) => file.name)
-          .sort();
-        if (files.length)
-          reviews.push(
-            JSON.parse(
-              await readFile(
-                path.join(root, chapter.name, files.at(-1)),
-                "utf8",
-              ),
-            ),
-          );
+    const rows = records.filter((row) => row.profile === profile),
+      articles = [],
+      reviews = [],
+      issues = [];
+    const plan = rows.find((row) => row.caseId === "novel-plan");
+    const seenArticles = new Set();
+    for (const id of caseIds) {
+      const matches = rows.filter((row) => row.caseId === id);
+      if (matches.length !== 1 || matches[0].state !== "completed") {
+        issues.push(id + "：任务缺失、重复或未完成");
+        continue;
+      }
+      const row = matches[0];
+      try {
+        if (id.startsWith("novel-c") && row.work !== plan?.work)
+          throw new Error("章节不属于本轮规划的同一本书");
+        const result = await artifact(profile, row);
+        if (result.article) {
+          if (seenArticles.has(row.article))
+            throw new Error("同一文章被用于多个任务");
+          seenArticles.add(row.article);
+          articles.push(result);
+        }
+        if (result.review) reviews.push(result.review);
+      } catch (error) {
+        issues.push(id + "：" + error.message);
       }
     }
+    if (
+      rows.length !== caseIds.length ||
+      rows.some((row) => !caseIds.includes(row.caseId))
+    )
+      issues.push("任务集合不等于约定的 18 项");
     const pass = (q) =>
       q?.pass &&
       q.score >= 84 &&
       q.fail_count === 0 &&
       q.hard_gates.length === 0;
     const author = subjective[profile],
-      graded = author.cases.filter((item) =>
-        [item.readability, item.voice].every(
-          (score) => Number.isFinite(score) && score >= 1 && score <= 5,
-        ),
-      );
+      graded = caseIds
+        .filter((id) => id !== "novel-plan")
+        .flatMap((id) => {
+          const matches = author.cases.filter((row) => row.id === id);
+          return matches.length === 1 &&
+            [matches[0].readability, matches[0].voice].every(
+              (score) => Number.isFinite(score) && score >= 1 && score <= 5,
+            )
+            ? matches
+            : [];
+        });
     const item = {
       profile,
+      issues,
       articles: articles.length,
       firstQaPassRate:
-        articles.filter((article) => pass(article.qa[0])).length / 7,
+        articles.filter((article) => pass(article.attempts[0])).length / 7,
       twoQaPassRate:
-        articles.filter((article) => article.qa.slice(0, 2).some(pass)).length /
-        7,
+        articles.filter((article) => article.attempts.some(pass)).length / 7,
       chapterReviews: reviews.length,
       editorPassRate:
         reviews.filter(
@@ -164,6 +265,7 @@ async function summarize() {
       resumedWithoutExtraSetup: author.resumedWithoutExtraSetup,
     };
     item.automaticThresholdsMet =
+      !item.issues.length &&
       item.articles === 7 &&
       item.chapterReviews === 10 &&
       item.firstQaPassRate >= 0.6 &&
@@ -175,7 +277,8 @@ async function summarize() {
   await save("metrics.json", metrics);
   const complete =
       records.length === 36 &&
-      records.every((row) => row.state === "completed"),
+      records.every((row) => row.state === "completed") &&
+      metrics.every((row) => !row.issues.length),
     human = metrics.every(
       (row) =>
         row.authorAverage !== null &&
@@ -271,7 +374,15 @@ for (const profile of ["default", "original"]) {
       target = next;
     },
   );
-  async function run(name, scope, text, focus = {}) {
+  async function run(caseId, name, scope, text, focus = {}) {
+    const before =
+      scope.mode === "toutiao"
+        ? new Set(
+            (await list(toutiao))
+              .filter((row) => row.isDirectory())
+              .map((row) => row.name),
+          )
+        : null;
     let timer;
     const start = Date.now(),
       done = new Promise((resolve, reject) => {
@@ -291,19 +402,42 @@ for (const profile of ["default", "original"]) {
           .filter((message) => message.role === "assistant")
           .at(-1);
       if (last?.stopReason === "error") throw new Error(last.errorMessage);
-      all.push({
+      const record = {
         profile,
+        caseId,
         name,
         state: "completed",
         scope: actual,
+        work: actual.work,
+        chapter: focus.chapter,
         durationMs: Date.now() - start,
         tokens: view.task?.tokens ?? null,
         cost: view.task?.cost > 0 ? view.task.cost : null,
-      });
+      };
+      if (before) {
+        const created = (await list(toutiao)).filter(
+          (row) =>
+            row.isDirectory() &&
+            /^\d{4}-\d{2}-\d{2}-/.test(row.name) &&
+            !before.has(row.name),
+        );
+        if (created.length !== 1)
+          throw new Error("每个头条任务须对应一篇新建文章");
+        record.article = created[0].name;
+        record.revision = JSON.parse(
+          await readFile(
+            path.join(toutiao, record.article, "meta.json"),
+            "utf8",
+          ),
+        ).current_rev;
+      }
+      await artifact(profile, record);
+      all.push(record);
     } catch (error) {
       await sessions.stop(scope);
       all.push({
         profile,
+        caseId,
         name,
         state: "failed",
         reason: String(error.message),
@@ -323,12 +457,14 @@ for (const profile of ["default", "original"]) {
   try {
     for (const [index, [genre, idea]] of headCases.entries())
       await run(
+        "head-" + (index + 1),
         `头条 ${index + 1} ${genre}`,
         { mode: "toutiao", root: toutiao },
         `新建并完成一篇${genre}：${idea}。本次新闻来源：${config.newsUrls.join("、")}。资讯事实须读取原网页，按当前方法方案推进至质检和交稿单；保留全部真实质检记录，不标记已交稿。`,
         { intent: "write" },
       );
     await run(
+      "novel-plan",
       "长篇开书",
       target,
       `创建一本长篇，题材：${config.novelIdea}。使用规划角色完成根基与前十章章纲，章号 c001 到 c010；本轮只规划。`,
@@ -338,6 +474,7 @@ for (const profile of ["default", "original"]) {
       if (index === 6) await sessions.newConversation(target);
       const chapter = "c" + String(index).padStart(3, "0");
       await run(
+        "novel-" + chapter,
         `长篇第 ${index} 章`,
         target,
         `完成第 ${index} 章（${chapter}）：读实际前文与章纲，出候选、采纳为草稿并派独立编辑，运行 fanqie_ledger_check，以实际审读回报收尾，不替作者定稿。`,

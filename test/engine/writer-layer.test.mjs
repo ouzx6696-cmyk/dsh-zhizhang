@@ -207,7 +207,7 @@ test("写作台今日头条模式：按状态与质检渲染采用和写作 Agen
     const texts = (node) => node == null || typeof node === "boolean" ? [] : typeof node === "string" || typeof node === "number" ? [String(node)] : Array.isArray(node) ? node.flatMap(texts) : typeof node.type === "function" ? texts(node.type({ ...node.props, children: node.children })) : texts(node.children ?? node.props?.children);
     const buttons = (node, out = []) => { if (!node || typeof node !== "object") return out; if (Array.isArray(node)) { node.forEach(n => buttons(n, out)); return out; } if (typeof node.type === "function") return buttons(node.type({ ...node.props, children: node.children }), out); if (node.type === "button") out.push(node); buttons(node.children, out); return out; };
     const article = (over) => ({ title: "秋柿", status: "初稿待改", line: "资讯线", genre: "长图文", returnRounds: 0, maxReturnRounds: 2, card: { present: true, 主问题: "柿子为什么涩" }, headlines: { main: "秋柿", alts: [] }, qa: [], qaValid: false, qaProblem: "当前版本还没跑质检", draft: { rev: 1 }, history: [], adoptable: false, ...over });
-    const tt = (a, off = "") => ({ detail: { status: "ready", article: a }, busy: "", deliverOff: off, notices: [], doneAt: {}, actions: {} });
+    const tt = (a, off = "") => ({ adoptReady: true, detail: { status: "ready", article: a }, busy: "", deliverOff: off, notices: [], doneAt: {}, actions: {} });
     const none = ToutiaoSide({ tt: { detail: { status: "idle", article: null }, busy: "", deliverOff: "", notices: [], actions: {} } });
     const labels = (node) => buttons(node).map(b => texts(b)[0]);
     assert.deepEqual(labels(none), ["新写一篇"]);
@@ -219,6 +219,7 @@ test("写作台今日头条模式：按状态与质检渲染采用和写作 Agen
     assert.ok(labels(failed).includes("按质检修改"));
     const ready = ToutiaoSide({ tt: tt(article({ status: "已验收", qa: [{ rev: 1, score: 90, pass: true, hardGates: [] }], qaValid: true, adoptable: true })) });
     assert.equal(buttons(ready)[0].props.disabled, false);
+    assert.equal(buttons(ToutiaoSide({tt: {...tt(article({adoptable: true})), adoptReady: false}}))[0].props.disabled, true, "详情与选中对象不一致时不能采用");
     assert.ok(!labels(ready).includes("按质检修改"));
     const off = ToutiaoSide({ tt: tt(article(), "暂时不能发到对话：没有会话") });
     assert.ok(buttons(off).slice(1).every(b => b.props.disabled));

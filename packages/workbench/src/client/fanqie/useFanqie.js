@@ -78,6 +78,7 @@ export function useFanqie() {
   useEffect(() => writePref(PREF.project, state.projectId), [state.projectId]);
   useEffect(() => writePref(PREF.work, state.work), [state.work]);
   useEffect(() => writePref(PREF.chapter, state.chapterId), [state.chapterId]);
+  useEffect(() => writePref(PREF.candidate, state.candidateId), [state.candidateId]);
 
   /** Read the snapshot for the current project/work. `soft` keeps the UI as is. */
   const refresh = useCallback(async ({ soft = false, projects = false } = {}) => {

@@ -204,10 +204,10 @@ export function ToutiaoSide({ tt, hideAgent = false }) {
                   size="sm"
                   busy={busy === "adopt"}
                   done={!!doneAt.adopt}
-                  disabled={!a.adoptable || !!busy}
+                  disabled={!a.adoptable || !tt.adoptReady || !!busy}
                   title={a.adoptable ? undefined : t("ttAdoptHint")}
                   icon={<Icon name="stamp" size={14} />}
-                  onClick={() => setConfirming(true)}
+                  onClick={() => setConfirming(a)}
                 >
                   {t("ttAdopt")}
                 </ActionButton>
@@ -218,12 +218,12 @@ export function ToutiaoSide({ tt, hideAgent = false }) {
                     onClose={() => setConfirming(false)}
                     title={t("ttAdoptTitle")}
                     closeLabel={t("close")}
-                    description={t("ttAdoptConfirm", { title: a.title })}
+                    description={t("ttAdoptConfirm", { title: `${confirming.title}（第 ${confirming.rev} 版）` })}
                     footer={
                       <div className="wb-scope">
                         <div className="wb-dialog-actions">
                           <Button variant="ghost" onClick={() => setConfirming(false)}>{t("cancel")}</Button>
-                          <Button variant="primary" onClick={() => { setConfirming(false); actions.adopt(); }}>{t("ttAdoptGo")}</Button>
+                          <Button variant="primary" onClick={() => { setConfirming(false); actions.adopt(confirming); }}>{t("ttAdoptGo")}</Button>
                         </div>
                       </div>
                     }

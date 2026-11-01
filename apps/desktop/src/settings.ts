@@ -26,20 +26,25 @@ export class Settings {
     readonly home: string,
     private secrets: Secrets,
   ) {}
-  private async json(file: string, fallback: any) {
+  async readObject(file: string): Promise<Record<string, any>> {
     try {
-      return JSON.parse(await readFile(path.join(this.home, file), "utf8"));
+      const value = JSON.parse(
+        await readFile(path.join(this.home, file), "utf8"),
+      );
+      if (!value || typeof value !== "object" || Array.isArray(value))
+        throw new Error("配置须为对象");
+      return value;
     } catch (error: any) {
       if (error.code !== "ENOENT")
         this.notices.push(`${file} 无法读取，已使用默认设置。`);
-      return fallback;
+      return {};
     }
   }
   async load() {
-    const ui = await this.json("desktop.json", {});
+    const ui = await this.readObject("desktop.json");
     this.workspace = ui.workspace || "";
     this.appearance = { ...this.appearance, ...ui.appearance };
-    const stored = await this.json("model.json", {}),
+    const stored = await this.readObject("model.json"),
       source = stored.writer ? stored : { writer: stored };
     for (const role of ["writer", "editor", "planner"])
       if (source[role]?.secret) {
@@ -58,7 +63,7 @@ export class Settings {
     } catch {
       this.notices.push("模型配置无效，已恢复默认模型，请重新连接。");
     }
-    const search = await this.json("search.json", {});
+    const search = await this.readObject("search.json");
     if (search.secret) {
       try {
         if (!this.secrets.available()) throw new Error("系统安全存储不可用");

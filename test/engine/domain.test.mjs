@@ -122,6 +122,11 @@ test("客户端拒收旧项目响应，摘要版本与手动刷新使旧正文�
     assert.equal(state.chapter.status, "idle");
     assert.notEqual(bodyKey(state, "chapter"), nextKey);
     assert.equal(confirmation.meta.revision, "r1");
+    const failedKey = bodyKey(state, "chapter");
+    state = reducer(state, {type: "body", slot: "chapter", value: {key: failedKey, status: "error", error: "写入尚未结束"}});
+    state = reducer(state, {type: "snapshot", selection: state.selection, data: {projectId: "b", snapshot: state.snapshot}, signature: "new"});
+    assert.equal(state.chapter.status, "idle");
+    assert.notEqual(bodyKey(state, "chapter"), failedKey);
 });
 
 

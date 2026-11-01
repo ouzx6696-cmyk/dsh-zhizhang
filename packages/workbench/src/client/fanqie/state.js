@@ -36,7 +36,7 @@ export function initialState() {
     view: oneOf(readPref(PREF.view, "chapters"), VIEWS, "chapters"),
     tab: oneOf(readPref(PREF.tab, "overview"), TABS, "overview"),
     chapterId: readPref(PREF.chapter, ""),
-    candidateId: "",
+    candidateId: readPref(PREF.candidate, ""),
     readerView: oneOf(readPref(PREF.readerView, "official"), READER_VIEWS, "official"),
     fontStep: FONT_STEPS.indexOf(fontStep) >= 0 ? fontStep : 0,
     polling: readPref(PREF.polling, "on") !== "off",
@@ -84,6 +84,8 @@ export function reducer(state, action) {
         ...state,
         phase: "ready",
         loading: false,
+        // 写入期间的读取失败随下一次实际刷新失效，完成后重新读取正文。
+        bodyEpoch: state.bodyEpoch + ([state.chapter, state.candidate].some(slot => slot.status === "error") ? 1 : 0),
         hostOk: true,
         error: null,
         lastRefresh: new Date().toISOString(),
