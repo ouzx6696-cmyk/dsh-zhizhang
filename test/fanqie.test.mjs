@@ -301,3 +301,42 @@ test('写作台：单章带编辑回报与定稿条件；写作台定稿也受 r
     await new Promise(r => server.close(r))
   }
 })
+
+test('敏感工具不能跳过确认入口，拒绝确认不残留授权', async () => {
+  const { engineTools } = await import(path.join(BUILD, 'fanqie/src/engine/bootstrap.js'))
+  const tool = engineTools().find(t => t.name === 'fanqie_chapter_save')
+  for (const args of [{ chapter: 'c001', status: 'final' }, { chapter: 'c001', force: true }])
+    await assert.rejects(tool.execute(args, { name: tool.name, arguments: args }), /确认/)
+  const { createGateEngine } = await import(path.join(BUILD, 'core/src/gates.js'))
+  const { executeTool } = await import(path.join(BUILD, 'host-generic/src/index.js'))
+  const gates = createGateEngine([{ id: 'proof', tool: 'proof', locked: true, check: () => ({ kind: 'ask', reason: '确认' }) }], { requireApproval: true })
+  let writes = 0
+  const definition = { name: 'proof', execute: async (_args, exec) => {
+    assert.equal(gates.consumeConfirmation(exec, 'proof'), true)
+    assert.equal(gates.consumeConfirmation(exec, 'proof'), false)
+    writes++
+    return 'saved'
+  }, output: { render: () => [] } }
+  const exec = { name: 'proof', arguments: {}, token: Symbol('proof') }
+  await assert.rejects(executeTool(definition, {}, exec, { gates, bind: fn => fn(), confirm: async () => false }), /取消/)
+  assert.equal(gates.consumeConfirmation(exec, 'proof'), false)
+  await executeTool(definition, {}, { ...exec, token: Symbol('approved') }, { gates, bind: fn => fn(), confirm: async () => true })
+  assert.equal(writes, 1)
+  const { call, cwd, work } = await setup()
+  await call('writer_enable', { mode: 'fanqie' })
+  const chapter = await readChapter(work.dir, 'c001')
+  await call('fanqie_chapter_save', { chapter: 'c001', status: 'reviewed', expected_revision: chapter.revision })
+  const { fanqieGateRules } = await import(path.join(BUILD, 'fanqie/src/gates.js'))
+  const config = { storageRoot: path.join(cwd, '.writer') }
+  const boundGates = createGateEngine(fanqieGateRules(config, 'writer'), { requireApproval: true })
+  const boundTool = engineTools(config, boundGates).find(t => t.name === 'fanqie_chapter_save')
+  const { withPluginConfig } = await import(path.join(BUILD, 'fanqie/src/engine/tools/context.js'))
+  const input = { work: work.key, chapter: 'c001', status: 'final' }
+  await assert.rejects(executeTool(boundTool, input, { cwd, name: boundTool.name, token: Symbol('stale') }, {
+    gates: boundGates, bind: fn => withPluginConfig(config, fn), confirm: async () => {
+      await saveChapter(work.dir, { id: 'c001', title: '新稿', body: '作者在确认前改了正文。' })
+      return true
+    },
+  }), /变化|revision|审读/)
+  assert.notEqual((await readChapter(work.dir, 'c001')).status, 'final')
+})

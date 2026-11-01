@@ -53,5 +53,14 @@ async function apply(dir: string, j: Intent) {
     if ((await readIntent(dir)).id !== j.id) throw new NovelError("recovery_conflict", "恢复记录已变化，未清除。"); await unlink(path.join(dir, FILE));
 }
 export async function finishChapterJournal(dir: string, id: string) { const j = await readIntent(dir); if (j.id !== id) throw new NovelError("recovery_conflict", "恢复记录已变化。"); await apply(dir, j); }
-export async function inspectPendingChapterSave(dir: string) { const j = await readIntent(dir); return { id: j.id, chapterId: j.chapterId, candidateId: j.candidateId, kind: j.kind, createdAt: j.createdAt, ...await classify(dir, j) }; }
-export async function resumePendingChapterSave(dir: string) { return withResourceLock(dir, async () => { const j = await readIntent(dir); ensureRecoveryOwnerInactive(j.owner); await apply(dir, j); return { chapterId: j.chapterId, candidateId: j.candidateId, kind: j.kind }; }); }
+export async function inspectPendingChapterSave(dir: string) { const j = await readIntent(dir); return { id: j.id, owner: j.owner, chapterId: j.chapterId, candidateId: j.candidateId, kind: j.kind, createdAt: j.createdAt, ...await classify(dir, j) }; }
+export async function resumePendingChapterSave(dir: string, expected?: { id: string; fingerprint: string }) {
+    return withResourceLock(dir, async () => {
+        const j = await readIntent(dir);
+        if (expected && (j.id !== expected.id || await snapshotFile(path.join(dir, FILE)) !== expected.fingerprint))
+            throw new NovelError("recovery_conflict", "恢复记录已变化，请重新检查并确认。");
+        ensureRecoveryOwnerInactive(j.owner);
+        await apply(dir, j);
+        return { chapterId: j.chapterId, candidateId: j.candidateId, kind: j.kind };
+    });
+}

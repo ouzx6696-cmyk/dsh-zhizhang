@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const PKGS = path.join(ROOT, 'packages')
-const LAYERS = { host: 0, core: 1, workbench: 1, toutiao: 2, fanqie: 2, app: 3, 'host-generic': 2 }
+const LAYERS = { host: 0, core: 1, workbench: 1, toutiao: 2, fanqie: 2, app: 3, 'host-generic': 2, desktop: 3 }
 const BROWSER_SAFE = ['fanqie/src/engine/domain/manuscript.ts', 'fanqie/src/engine/domain/diagnostics.ts']
 const problems = []
 
@@ -19,16 +19,17 @@ async function* walk(dir) {
   for (const e of await readdir(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name)
     if (e.isDirectory()) yield* walk(p)
-    else if (/\.(ts|js|jsx)$/.test(p)) yield p
+    else if (/\.(ts|tsx|js|jsx)$/.test(p)) yield p
   }
 }
 
 const graph = new Map()
 for (const pkg of Object.keys(LAYERS)) {
-  for await (const file of walk(path.join(PKGS, pkg, 'src'))) {
+  for await (const file of walk(pkg === 'desktop' ? path.join(ROOT, 'apps/desktop/src') : path.join(PKGS, pkg, 'src'))) {
     const rel = path.relative(PKGS, file).split(path.sep).join('/')
     const text = await readFile(file, 'utf8')
     if (text.includes('@ts-nocheck')) problems.push(`${rel}: 不许关闭类型检查`)
+    const renderer = pkg === 'desktop' && /\.(jsx|tsx)$/.test(file)
     const client = rel.startsWith('workbench/src/client/')
     const ast = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, file.endsWith('x') ? ts.ScriptKind.JSX : undefined)
     const deps = []
@@ -50,6 +51,8 @@ for (const pkg of Object.keys(LAYERS)) {
     visit(ast)
     const edges = []
     for (const { spec, typeOnly } of deps) {
+      if (pkg === 'desktop' && spec.startsWith('@earendil-works/pi-') && !file.endsWith('/pi.ts')) problems.push(`${rel}: PI SDK 只能在 pi.ts 使用`)
+      if (renderer && (spec.startsWith('node:') || spec === 'electron')) problems.push(`${rel}: 渲染层不能访问 ${spec}`)
       if (spec.startsWith('@deepseek-ai/') && pkg !== 'host') problems.push(`${rel}: 只能经由 packages/host 使用 ${spec}`)
       if (!spec.startsWith('.')) {
         if (client && spec !== 'react') problems.push(`${rel}: 浏览器端不能引用 ${spec}`)
@@ -58,6 +61,7 @@ for (const pkg of Object.keys(LAYERS)) {
       const target = path.resolve(path.dirname(file), spec)
       const trel = path.relative(PKGS, target).split(path.sep).join('/')
       const tpkg = trel.split('/')[0]
+      if (renderer && !trel.startsWith('../apps/desktop/src/') && !trel.startsWith('workbench/src/client/') && !BROWSER_SAFE.includes(trel)) problems.push(`${rel}: 渲染层不能深入服务端模块 ${trel}`)
       if (client) {
         const tts = trel.replace(/\.js$/, '.ts')
         if (!trel.startsWith('workbench/src/client/') && !BROWSER_SAFE.includes(tts)) problems.push(`${rel}: 浏览器端只能引用浏览器可用模块，不能引用 ${trel}`)

@@ -35,6 +35,7 @@ export interface HostToolExecution {
   readonly sessionId?: string
   readonly cwd?: string
   readonly role?: string
+  failure?: { code: string; message: string }
   readonly callId?: string
   readonly name: string
   readonly arguments: unknown

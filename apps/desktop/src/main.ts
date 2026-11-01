@@ -43,6 +43,7 @@ import { Settings } from "./settings";
 import { connection } from "./models";
 import { testConnection } from "./pi";
 import { Diagnostics, explainError } from "./diagnostics";
+import { inspectRecovery, recoverWork } from "./recovery";
 import { exportContent, wordDocument } from "./exports";
 import { VERSION } from "../../../packages/core/src/version";
 import {
@@ -72,6 +73,7 @@ let access: { readOnly: boolean; owner: any } = {
   readOnly: false,
   owner: null,
 };
+let maintenance = false;
 let updateState: any = { state: "idle" };
 const deliveries = new Map<string, Promise<unknown>>();
 if (!app.isPackaged && process.env.WRITER_USER_DATA)
@@ -165,6 +167,7 @@ async function lockRoot(value: Target) {
   );
 }
 async function selectTarget(next: Target) {
+  if (maintenance) throw new Error("正在恢复作品，请等待完成后切换");
   const version = ++selectionVersion;
   const previous = target;
   const normalized = {
@@ -216,6 +219,7 @@ async function performRequest(
   } = {},
 ) {
   if (!target) throw new Error("请先选择创作目录");
+  if (maintenance && options.method === "POST") throw new Error("正在恢复作品，请等待完成后再修改");
   const selected = { ...target };
   const url = new URL(API + operation, "http://writer.local");
   for (const [k, v] of Object.entries(options.query || {}))
@@ -611,8 +615,7 @@ app
       );
       return { file: result.filePath };
     });
-    ipcMain.handle("writer:backup", async () => {
-      if (!settings.workspace) throw new Error("请先选择写作根");
+    async function backupDirectory(source: string) {
       const result = await dialog.showOpenDialog(window, {
         title: "选择备份保存位置（写作根以外）",
         properties: ["openDirectory", "createDirectory"],
@@ -627,7 +630,7 @@ app
         [
           path.join(resources, "scripts/writer-backup.mjs"),
           "--source",
-          settings.workspace,
+          source,
           "--output",
           output,
         ],
@@ -636,8 +639,38 @@ app
           maxBuffer: 1024 * 1024,
         },
       );
+      await promisify(execFile)(process.execPath,
+        [path.join(resources, "scripts/writer-backup.mjs"), "--verify", output],
+        { env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" }, maxBuffer: 1024 * 1024 });
       await diagnostics.write("backup_completed");
       return { file: output };
+    }
+    ipcMain.handle("writer:backup", async () => {
+      if (!settings.workspace) throw new Error("请先选择写作根");
+      return backupDirectory(settings.workspace);
+    });
+    ipcMain.handle("writer:storage-health", async () => {
+      if (!target) throw new Error("请先选择作品");
+      const current = { ...target };
+      return { ...(await inspectRecovery(await lockRoot(current))), target: current,
+        label: current.work || "当前目录" };
+    });
+    ipcMain.handle("writer:recover", async (_event, expected) => {
+      if (maintenance) throw new Error("已有恢复操作正在进行");
+      if (!target?.work || target.mode !== "fanqie") throw new Error("请先打开待恢复的长篇作品");
+      if (sessions.hasPending() || sessions.running().length) throw new Error("请先停止所有任务，再检查恢复");
+      const current = { ...target };
+      maintenance = true;
+      try {
+        const dir = await lockRoot(current);
+        const state = await inspectRecovery(dir);
+        if (!state.canRecover || state.id !== expected?.id || state.fingerprint !== expected?.fingerprint)
+          throw new Error("恢复条件已变化，请重新检查：" + state.reason);
+        if (!(await confirm(`恢复《${current.work}》的未完成写入？将先备份并校验，再完成原操作。`))) return null;
+        const result = await recoverWork(dir, expected, async () => (await backupDirectory(dir))?.file || null);
+        emit({ target: current, refresh: true });
+        return { file: result.backup, state: result.state };
+      } finally { maintenance = false; }
     });
     ipcMain.handle("writer:diagnostics", async () => {
       const result = await dialog.showSaveDialog(window, {
@@ -699,6 +732,7 @@ app
       request(operation, options),
     );
     ipcMain.handle("writer:send", async (_event, text, next, focus) => {
+      if (maintenance) throw new Error("正在恢复作品，请等待完成后再开始任务");
       if (!String(text).trim()) return;
       const bound = next || target;
       await sessions.send(bound, String(text), focus);

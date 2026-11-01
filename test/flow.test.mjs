@@ -99,7 +99,7 @@ test('全流程：故事线长图文 立项→标题→成稿→质检→验收�
   const led = await call('toutiao_ledger_add', { id })
   assert.equal(led.ok, true, JSON.stringify(led))
   assert.equal(led.row['状态'], '已验收')
-  assert.equal((await call('toutiao_ledger_add', { id })).code, 'CONFLICT')
+  assert.equal((await call('toutiao_ledger_add', { id })).ok, true, '重复记账复用现有记录')
 
   host.approve = 'rejected'
   const rej = await call('toutiao_status', { id, to: '已交稿' })
@@ -307,4 +307,21 @@ test('模式隔离：一个会话只能一种模式；长篇工具在头条会�
   const t = await host.call(other, 'writer_enable', { mode: 'toutiao' })
   assert.equal(t.code, 'CONFLICT')
   assert.match(t.message, /番茄长篇/)
+})
+
+test('台账并发：同篇重复提交只记一次，改标题后按文章身份同步状态', async () => {
+  const { call } = await setup()
+  const article = await call('toutiao_article_create', { slug: 'ledger-race' })
+  const id = article.article?.id || article.id
+  assert.ok(id, JSON.stringify(article))
+  assert.equal((await call('toutiao_card_set', { id, card: CARD })).ok, true)
+  const added = await Promise.all(Array.from({ length: 8 }, () => call('toutiao_ledger_add', { id })))
+  assert.ok(added.every(r => r.ok), JSON.stringify(added))
+  let ledger = await call('toutiao_ledger_show', { last: 100 })
+  assert.equal(ledger.total, 1)
+  assert.equal(ledger.rows[0]['文章ID'], id)
+  await call('toutiao_card_set', { id, card: { ...CARD, 主标题: '修改后的标题' } })
+  assert.equal((await call('toutiao_ledger_add', { id })).ok, true)
+  ledger = await call('toutiao_ledger_show', { last: 100 })
+  assert.equal(ledger.total, 1)
 })

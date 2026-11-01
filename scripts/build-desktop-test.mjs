@@ -1,6 +1,7 @@
 import { build } from "esbuild";
 for (const name of [
   "session",
+  "recovery",
   "settings",
   "network",
   "models",

@@ -37,10 +37,10 @@ export function mountFanqie(agentCtx: HostContext, config: FanqieConfig, role: R
     if (existing.role !== role) throw new WriterError('CONFLICT', `本会话已按「${existing.role === 'editor' ? '编辑' : '写手'}」启用番茄长篇，不能改成另一角色；编辑请用子代理`)
     return { fresh: false, tools: [], promptSection: true, gates: true, role }
   }
-  const fresh = mountEngine(agentCtx, config)
+  const gateEngine = createGateEngine(fanqieGateRules(config, role), { disabled: config.disabledGates })
+  const fresh = mountEngine(agentCtx, config, gateEngine)
   const disposers: (() => void)[] = []
   try {
-    const gateEngine = createGateEngine(fanqieGateRules(config, role), { disabled: config.disabledGates })
     const tools = createFanqieTools({ config, role })
     for (const t of tools) {
       const d = agentCtx.tools!.register(t)

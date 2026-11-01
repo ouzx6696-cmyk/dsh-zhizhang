@@ -127,6 +127,22 @@ def cmd_ledger_add(a):
         return 0
     rows = L.read(a.ledger)
     row = L.row_from_card(c, a.date, a.status)
+    identity = a.article_id
+    hits = [r for r in rows if identity and r.get("文章ID") == identity]
+    legacy = [r for r in rows if not r.get("文章ID") and r.get("主标题") == row["主标题"]]
+    if len(hits) > 1 or (not hits and len(legacy) > 1):
+        emit("ledger-add", False, code="INVALID_INPUT", message="旧台账存在歧义，请核对重复记录", raw="")
+        return 0
+    if identity:
+        row["文章ID"] = identity
+    if hits or legacy:
+        existing = (hits or legacy)[0]
+        existing["主标题"] = row["主标题"]
+        if identity:
+            existing["文章ID"] = identity
+        L.write(a.ledger, rows)
+        emit("ledger-add", True, row=existing, existing=True, raw="")
+        return 0
     rows.append(row)
     L.write(a.ledger, rows)
     emit("ledger-add", True, row=row, raw="")
@@ -135,7 +151,12 @@ def cmd_ledger_add(a):
 
 def cmd_ledger_status(a):
     rows = L.read(a.ledger)
-    hit = [r for r in rows if r.get("主标题") == a.title]
+    hit = [r for r in rows if a.article_id and r.get("文章ID") == a.article_id]
+    if not hit:
+        hit = [r for r in rows if not r.get("文章ID") and r.get("主标题") == a.title]
+    if len(hit) > 1:
+        emit("ledger-status", False, code="INVALID_INPUT", message="旧台账存在同标题记录，请先核对", raw="")
+        return 0
     if not hit:
         emit("ledger-status", False, code="NOT_FOUND", message="台账里没有“%s”" % a.title, raw="")
         return 0
@@ -161,15 +182,20 @@ def main():
     h = sub.add_parser("hot"); h.add_argument("--top", type=int, default=30)
     h.add_argument("--vertical", default="综合"); h.add_argument("--relevant", action="store_true")
     la = sub.add_parser("ledger-add"); la.add_argument("--card", required=True); la.add_argument("--ledger", required=True)
+    la.add_argument("--article-id", default="")
     la.add_argument("--status", default="已验收", choices=L.STATUSES)
     la.add_argument("--date", default=__import__("datetime").date.today().isoformat())
     ls = sub.add_parser("ledger-status"); ls.add_argument("--title", required=True)
+    ls.add_argument("--article-id", default="")
     ls.add_argument("--to", required=True, choices=L.STATUSES); ls.add_argument("--ledger", required=True)
     lw = sub.add_parser("ledger-show"); lw.add_argument("--ledger", required=True); lw.add_argument("--last", type=int, default=10)
     a = ap.parse_args()
     fn = {"qa": cmd_qa, "rules": cmd_rules, "limits": cmd_limits, "hot": cmd_hot,
           "ledger-add": cmd_ledger_add, "ledger-status": cmd_ledger_status, "ledger-show": cmd_ledger_show}[a.cmd]
     try:
+        if a.cmd in ("ledger-add", "ledger-status"):
+            with L.locked(a.ledger):
+                return fn(a)
         return fn(a)
     except Exception as e:  # 契约：任何异常也只输出一个 JSON
         emit(a.cmd, False, code="SCRIPT_FAILED", message="%s: %s" % (type(e).__name__, e), raw="")

@@ -7,6 +7,7 @@ import {
   writeFile,
   rm,
   readdir,
+  stat,
 } from "node:fs/promises";
 import {
   createAgentSession,
@@ -29,13 +30,12 @@ import {
   buildToutiaoBrief,
   TOUTIAO_EDITOR_BRIEF,
 } from "../../../packages/toutiao/src/brief";
-import { createFanqieTools } from "../../../packages/fanqie/src/tools";
+import { createFanqieTools, EDITOR_TOOLS as FANQIE_EDITOR_TOOLS } from "../../../packages/fanqie/src/tools";
 import { engineTools } from "../../../packages/fanqie/src/engine/bootstrap";
 import { SYSTEM_BRIEF } from "../../../packages/fanqie/src/engine/tools/brief";
 import { withPluginConfig } from "../../../packages/fanqie/src/engine/tools/context";
 import {
   fanqieGateRules,
-  EDITOR_DENY,
 } from "../../../packages/fanqie/src/gates";
 import {
   buildFanqieBrief,
@@ -75,7 +75,41 @@ import type {
   HostToolExecution,
 } from "../../../packages/host/src/index";
 
+
+const EDITOR_ENGINE = new Set([
+  "fanqie_project_list", "fanqie_project_open", "fanqie_status", "fanqie_foundation_get", "fanqie_outline_get",
+  "fanqie_chapter_list", "fanqie_chapter_read", "fanqie_chapter_drafts", "fanqie_candidate_edit_brief",
+  "fanqie_candidate_edit_stage", "fanqie_style_lint", "fanqie_payoff_audit", "fanqie_human_feel_audit",
+  "fanqie_novel_sense_audit", "fanqie_review_ledger", "fanqie_method_get", "fanqie_method_list",
+]);
+const PLANNER_TOOLS = new Set([
+  "fanqie_project_create", "fanqie_project_open", "fanqie_project_list", "fanqie_status",
+  "fanqie_foundation_get", "fanqie_foundation_set", "fanqie_outline_get", "fanqie_outline_set",
+  "fanqie_chapter_list", "fanqie_chapter_read", "fanqie_reference_analyze", "fanqie_product_map",
+  "fanqie_method_list", "fanqie_method_get", "fanqie_forge_get", "fanqie_outline_check",
+  "fanqie_ledger_check", "fanqie_library_scan", "fanqie_quote_check", "fanqie_library_import",
+  "fanqie_library_plan", "fanqie_library_dissect_brief", "fanqie_library_card_stage",
+  "fanqie_library_card_get", "fanqie_library_card_accept", "fanqie_library_list",
+  "fanqie_library_search", "fanqie_library_audit", "fanqie_library_combo_suggest",
+  "fanqie_library_facts_stage", "fanqie_library_structure_stage", "fanqie_library_report",
+  "fanqie_inspire_start", "fanqie_inspire_forge_brief", "fanqie_inspire_stage",
+  "fanqie_inspire_status", "fanqie_inspire_accept",
+  "toutiao_method_get", "toutiao_rules", "toutiao_hot_fetch", "toutiao_article_create",
+  "toutiao_article_list", "toutiao_article_get", "toutiao_card_set", "toutiao_card_patch",
+  "toutiao_headline_set", "toutiao_ledger_show", "toutiao_feedback_read",
+]);
+function roleAllows(role: string, name: string, mode: string) {
+  if (role === "planner") return PLANNER_TOOLS.has(name);
+  if (role !== "editor") return true;
+  return mode === "toutiao" ? EDITOR_TOOLS.has(name) : EDITOR_ENGINE.has(name) || FANQIE_EDITOR_TOOLS.has(name);
+}
+
 export class Sessions {
+  private projectedHistory = new WeakMap<SessionManager, { leaf: string | null; messages: unknown[] }>();
+  private preparations = new Set<symbol>();
+  hasPending() { return this.preparations.size > 0 || this.opening.size > 0; }
+  private generations = new Map<string, number>();
+  private historyCache = new Map<string, { stamp: string; manager: SessionManager }>();
   private sessions = new Map<
     string,
     {
@@ -179,20 +213,16 @@ export class Sessions {
       target.mode === "toutiao"
         ? toutiaoGateRules(config)
         : fanqieGateRules(config, businessRole),
+      { requireApproval: true },
     );
     let definitions: HostToolDefinition[] =
       target.mode === "toutiao"
         ? createToutiaoTools({ config, role: businessRole, gates: () => gates })
         : [
-            ...engineTools(config),
+            ...engineTools(config, gates),
             ...createFanqieTools({ config, role: businessRole }),
           ];
-    if (editor)
-      definitions = definitions.filter((t) =>
-        target.mode === "toutiao"
-          ? EDITOR_TOOLS.has(t.name)
-          : !EDITOR_DENY.has(t.name),
-      );
+    definitions = definitions.filter(t => roleAllows(role, t.name, target.mode));
     const readUrls = new Set<string>();
     const task = {
       name: "",
@@ -209,7 +239,10 @@ export class Sessions {
       description: def.description,
       parameters: Type.Unsafe<any>(def.parameters),
       execute: async (callId, raw, signal) => {
+        if (!roleAllows(role, def.name, target.mode)) throw new Error("当前角色无权执行此操作");
+        signal?.throwIfAborted();
         const args = raw as Record<string, unknown>;
+        if (def.name === "fanqie_status" && args.recovery === "resume") throw new Error("恢复写入请由作者在设置的作品恢复入口中检查、备份并确认");
         const input =
           target.mode === "fanqie"
             ? { ...(target.work ? { work: target.work } : {}), ...args }
@@ -397,6 +430,7 @@ export class Sessions {
                   }
                 : {}),
               ...(request.article ? { article: request.article } : {}),
+              intent: delegate === "editor" ? "review" : "plan",
             };
             entry.phase =
               delegate === "editor" ? "编辑审读中…" : "规划任务进行中…";
@@ -437,7 +471,7 @@ export class Sessions {
               const result =
                 delegate === "editor"
                   ? {
-                      ...(await this.reviewResult(childTarget, focus)),
+                      ...(await this.reviewResult(childTarget, focus, true)),
                       kind: "review",
                     }
                   : {
@@ -629,16 +663,23 @@ export class Sessions {
         entry.phase = "正在整理对话上下文…";
       if (event.type === "auto_retry_start") entry.phase = "模型连接重试中…";
       if (event.type === "agent_settled") entry.phase = "";
-      this.emit({
-        key: this.key(target),
-        target,
-        editor: !primary,
-        role,
-        event,
-        phase: entry.phase,
-        focus: entry.focus,
-        task,
-      });
+      const forward = () => {
+        let forwarded: unknown = event;
+        if (event.type === "message_end") {
+          let leaf = manager.getLeafEntry();
+          while (leaf) {
+            if ((leaf.type === "message" && leaf.message === event.message) ||
+                (leaf.type === "custom_message" && event.message.role === "custom" && leaf.content === event.message.content)) {
+              forwarded = { ...event, message: { ...event.message, writerMessageId: leaf.id } };
+              break;
+            }
+            leaf = leaf.parentId ? manager.getEntry(leaf.parentId) : undefined;
+          }
+        }
+        this.emit({ key: this.key(target), target, editor: !primary, role, event: forwarded, phase: entry.phase, focus: entry.focus, task });
+      };
+      if (event.type === "message_end") queueMicrotask(forward);
+      else forward();
       if (
         [
           "agent_start",
@@ -681,7 +722,8 @@ export class Sessions {
       const dir = await resolveWorkDir(await this.paths(target), target.work);
       const meta = await readWorkMeta(dir);
       const chapters: ChapterMeta[] = meta.chapters;
-      const chapter = chapters.find((c) => c.id === focus.chapter);
+      const row = chapters.find((c) => c.id === focus.chapter);
+      const chapter = row ? await readChapter(dir, row.id) : undefined;
       let brief: unknown;
       const intent =
         focus.intent ||
@@ -729,6 +771,9 @@ export class Sessions {
               title: chapter.title,
               status: chapter.status,
               updatedAt: chapter.updatedAt,
+              revision: chapter.revision,
+              dependencies: chapter.dependencies || [],
+              review: chapter.review ? { revision: chapter.review.revision, result: chapter.review.result } : undefined,
             }
           : undefined,
       };
@@ -739,6 +784,7 @@ export class Sessions {
         status: article.status,
         revision: article.current_rev,
         qa: article.qa.at(-1),
+        qaValid: await validPassingQa(new ArticleStore(target.root), article),
       };
     }
     return promptText(text, {
@@ -750,16 +796,26 @@ export class Sessions {
     });
   }
   async send(target: Target, text: string, focus: Focus = {}) {
-    const session = await this.open(target);
-    const prepared = await this.taskPrompt(target, text, focus);
-    await promptAccepted(session, prepared, (error) => {
-      const current =
-        [...this.sessions.values()].find((entry) => entry.session === session)
-          ?.target || target;
-      this.emit({ target: current, error: explainError(error) });
-      this.extras.log?.("model_error", { role: "writer" });
-    });
+    target = { ...target };
+    focus = { ...focus };
+    const key = this.key(target), generation = this.generations.get(key) || 0;
+    const preparation = Symbol("preparing");
+    this.preparations.add(preparation);
+    try {
+      const session = await this.open(target);
+      if ((this.generations.get(key) || 0) !== generation) throw new Error("任务已取消");
+      const prepared = await this.taskPrompt(target, text, focus);
+      if ((this.generations.get(key) || 0) !== generation) throw new Error("任务已取消");
+      await promptAccepted(session, prepared, (error) => {
+        const current =
+          [...this.sessions.values()].find((entry) => entry.session === session)
+            ?.target || target;
+        this.emit({ target: current, error: explainError(error) });
+        this.extras.log?.("model_error", { role: "writer" });
+      });
+    } finally { this.preparations.delete(preparation); }
   }
+
   async handoffPreview(target: Target, focus: Focus = {}) {
     return this.taskPrompt(target, "交接", focus);
   }
@@ -837,12 +893,16 @@ export class Sessions {
     await this.created(previous, next);
   }
   private history(manager: SessionManager) {
-    return manager.getBranch().flatMap<unknown>((entry) => {
-      if (entry.type === "message") return [entry.message];
+    const leaf = manager.getLeafId();
+    const cached = this.projectedHistory.get(manager);
+    if (cached?.leaf === leaf) return cached.messages;
+    const messages = manager.getBranch().flatMap<unknown>((entry) => {
+      if (entry.type === "message") return [{ ...entry.message, writerMessageId: entry.id }];
       if (entry.type === "custom_message" && entry.display)
         return [
           {
             role: "custom" as const,
+            writerMessageId: entry.id,
             customType: entry.customType,
             content: entry.content,
             display: true,
@@ -851,6 +911,8 @@ export class Sessions {
         ];
       return [];
     });
+    this.projectedHistory.set(manager, { leaf, messages });
+    return messages;
   }
   running() {
     return [...this.sessions.values()]
@@ -886,7 +948,15 @@ export class Sessions {
           () => false,
         ))
       )
-        manager = SessionManager.open(marker);
+        {
+          const info = await stat(marker, { bigint: true });
+          const stamp = `${info.ino}:${info.size}:${info.mtimeNs}:${info.ctimeNs}`;
+          const cached = this.historyCache.get(marker);
+          manager = cached?.stamp === stamp ? cached.manager : SessionManager.open(marker);
+          this.historyCache.delete(marker);
+          this.historyCache.set(marker, { stamp, manager });
+          while (this.historyCache.size > 4) this.historyCache.delete(this.historyCache.keys().next().value!);
+        }
     }
     const messages = manager ? this.history(manager) : [];
     const streaming = entry?.session.agent.state.streamingMessage;
@@ -898,7 +968,7 @@ export class Sessions {
             .join("")
         : "";
     return {
-      messages: messages.slice(-limit),
+      messages: messages.slice(-Math.max(1, Math.min(10000, Number(limit) || 80))),
       total: messages.length,
       busy: entry ? !entry.session.isIdle : false,
       stream,
@@ -907,8 +977,8 @@ export class Sessions {
       task: entry?.task,
     };
   }
-  private async reviewResult(target: Target, focus: Focus) {
-    let summary = "编辑运行结束，未读取到对应的审读结果，请查看回报。";
+  private async reviewResult(target: Target, focus: Focus, requireCurrent = false) {
+    let summary = "尚无对应的审读结果，请核对稿件与回报。";
     if (target.mode === "fanqie" && target.work && focus.chapter) {
       const dir = await resolveWorkDir(await this.paths(target), target.work);
       const chapter = await readChapter(dir, focus.chapter);
@@ -919,17 +989,20 @@ export class Sessions {
         !!this.options.fanqie?.requireEditorPass,
       );
       const review = info.editorReview;
+      if (requireCurrent && (!review || review.stale || review.by !== "editor")) throw new Error("编辑没有交回当前正文的有效审读回报，请核对已保存结果");
       summary = review
         ? `当前审读回报${review.stale ? "（对应旧正文）" : ""}：${review.verdict}，硬伤 ${review.hardIssues} 处，L1–L3 ${review.levels} 处。`
-        : "编辑已结束，但没有本章的审读回报。";
+        : "尚无本章的审读回报。";
     } else if (target.mode === "toutiao" && focus.article) {
       const store = new ArticleStore(target.root),
         meta = await store.get(focus.article),
         qa = meta.qa.at(-1);
       const valid = await validPassingQa(store, meta);
+      if (requireCurrent && (!qa || qa.rev !== meta.current_rev || qa.card_sha256 !== await store.cardSha(meta.id)))
+        throw new Error("编辑没有交回当前文章和立项卡版本的质检结果");
       summary = qa
         ? `质检 ${qa.score} 分，${valid.ok ? "当前有效" : valid.reason}；当前稿 rev ${meta.current_rev}。`
-        : "编辑已结束，尚无质检结果。";
+        : "尚无质检结果。";
     }
     return {
       target: { ...target },
@@ -981,6 +1054,8 @@ export class Sessions {
     }
   }
   async stop(target: Target) {
+    const key = this.key(target);
+    this.generations.set(key, (this.generations.get(key) || 0) + 1);
     if (this.opening.has(this.key(target)))
       await this.opening.get(this.key(target));
     const session = this.sessions.get(this.key(target))?.session;
@@ -997,5 +1072,7 @@ export class Sessions {
       s.dispose();
     }
     this.sessions.clear();
+    this.historyCache.clear();
+    this.generations.clear();
   }
 }

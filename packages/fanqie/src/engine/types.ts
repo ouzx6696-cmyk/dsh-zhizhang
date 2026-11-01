@@ -152,6 +152,7 @@ export interface PluginConfig {
 
 /** 工具执行上下文（DSH 传入；这里只声明插件实际用到的部分）。 */
 export interface ExecContext {
+    failure?: { code: string; message: string };
     onWorkCreated?: (base: string, key: string) => void;
     onCandidateStaged?: (candidate: { id: string; chapterId: string; work: string; base: string }) => void;
     /** 宿主 Agent 上下文；结构由 DSH 决定，插件只按需取用（session.cwd / ctx）。 */

@@ -14,6 +14,8 @@ contextBridge.exposeInMainWorld("writerDesktop", {
   export: (target: unknown, focus: unknown, format: string) =>
     invoke("export", target, focus, format),
   backup: () => invoke("backup"),
+  storageHealth: () => invoke("storage-health"),
+  recover: (expected: unknown) => invoke("recover", expected),
   diagnostics: () => invoke("diagnostics"),
   updates: (action?: string) => invoke("updates", action),
   openExternal: (url: string) => invoke("external", url),

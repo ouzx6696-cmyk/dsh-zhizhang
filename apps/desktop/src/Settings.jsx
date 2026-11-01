@@ -160,6 +160,7 @@ export function Settings({ state, onClose, onSaved, onWorkspace, onImport }) {
     [preferences, setPreferences] = useState(""),
     [searchKey, setSearchKey] = useState(""),
     [test, setTest] = useState({}),
+    [health, setHealth] = useState(null),
     [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false),
     [updates, setUpdates] = useState(state.updates || {});
@@ -333,6 +334,19 @@ export function Settings({ state, onClose, onSaved, onWorkspace, onImport }) {
               >
                 备份写作根
               </button>
+              <h3>当前作品状态与恢复</h3>
+              <button disabled={busy} onClick={() => action(async () => setHealth(await api.storageHealth()))}>
+                检查占用和未完成写入
+              </button>
+              {health && <div role="status">
+                <p>{health.label}：{health.reason}</p>
+                {health.files.map(item => <p key={item.file}>{item.file}：{item.state}</p>)}
+                {health.canRecover && <button disabled={busy} onClick={() => action(async () => {
+                  const result = await api.recover({ id: health.id, fingerprint: health.fingerprint });
+                  setHealth(await api.storageHealth());
+                  return result;
+                })}>备份后恢复原操作</button>}
+              </div>}
             </>
           )}
           {tab === "appearance" && (

@@ -12,7 +12,8 @@
   4.0.0 新增 内容线、母题、故事、改编方式 四列。3.x 的旧台账照常读，下次写入时补齐表头，旧行的新列留空
   （内容线按主驱动推断：故事型算故事线，其余算资讯线）。
 """
-import argparse, csv, datetime, json, os, sys
+import argparse, csv, datetime, json, os, sys, tempfile, time
+from contextlib import contextmanager
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from rules import LEDGER_FIELDS, GENRE_MODE, LINES, line_of  # noqa: E402
@@ -27,16 +28,57 @@ def read(path):
         return list(csv.DictReader(f))
 
 
+@contextmanager
+def locked(path):
+    # OS locks are released on process exit, including cancellation/crashes.
+    lock = os.path.realpath(path) + ".lock"
+    os.makedirs(os.path.dirname(lock), exist_ok=True)
+    fd = os.open(lock, os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        if os.fstat(fd).st_size == 0:
+            os.write(fd, b"\0")
+        deadline = time.monotonic() + 10
+        while True:
+            try:
+                if os.name == "nt":
+                    import msvcrt
+                    os.lseek(fd, 0, os.SEEK_SET)
+                    msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError:
+                if time.monotonic() >= deadline:
+                    raise RuntimeError("台账被其他进程占用，请稍后重试：" + lock)
+                time.sleep(0.05)
+        yield
+    finally:
+        os.close(fd)
+
+
 def write(path, rows):
-    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
-    with open(path, "w", encoding="utf-8-sig", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=LEDGER_FIELDS, extrasaction="ignore", restval="")
-        w.writeheader()
-        for r in rows:
-            r = dict(r)
-            if not r.get("内容线"):
-                r["内容线"] = line_of(r)        # 旧行补上推断出来的内容线
-            w.writerow(r)
+    folder = os.path.dirname(os.path.abspath(path))
+    os.makedirs(folder, exist_ok=True)
+    fields = list(LEDGER_FIELDS)
+    if any(r.get("文章ID") for r in rows):
+        fields.append("文章ID")
+    fd, temporary = tempfile.mkstemp(prefix=".ledger-", suffix=".tmp", dir=folder)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8-sig", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore", restval="")
+            w.writeheader()
+            for r in rows:
+                r = dict(r)
+                if not r.get("内容线"):
+                    r["内容线"] = line_of(r)
+                w.writerow(r)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
 
 
 def row_from_card(c, date, status):
@@ -51,7 +93,7 @@ def row_from_card(c, date, status):
             "状态": status}
 
 
-def main():
+def main_unlocked():
     ap = argparse.ArgumentParser(description="发稿台账")
     ap.add_argument("cmd", choices=["add", "status", "show"])
     ap.add_argument("--ledger", default="outputs/toutiao/log.csv")
@@ -94,4 +136,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    ledger = sys.argv[sys.argv.index("--ledger") + 1] if "--ledger" in sys.argv else "outputs/toutiao/log.csv"
+    with locked(ledger):
+        main_unlocked()

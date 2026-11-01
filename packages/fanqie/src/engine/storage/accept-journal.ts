@@ -142,11 +142,13 @@ export async function finishAcceptJournal(dir: string, id: string) {
 }
 export async function inspectPendingAccept(dir: string) {
     const j = await readJournal(dir);
-    return { id: j.id, chapterId: j.chapterId, candidateId: j.candidateId, mode: j.mode, createdAt: j.createdAt, ...await classify(dir, j) };
+    return { id: j.id, owner: j.owner, chapterId: j.chapterId, candidateId: j.candidateId, mode: j.mode, createdAt: j.createdAt, ...await classify(dir, j) };
 }
-export async function resumePendingAccept(dir: string) {
+export async function resumePendingAccept(dir: string, expected?: { id: string; fingerprint: string }) {
     return withResourceLock(dir, async () => {
         const j = await readJournal(dir);
+        if (expected && (j.id !== expected.id || await snapshotFile(path.join(dir, JOURNAL)) !== expected.fingerprint))
+            throw new NovelError("recovery_conflict", "恢复记录已变化，请重新检查并确认。");
         ensureRecoveryOwnerInactive(j.owner);
         await applyJournal(dir, j);
         return { chapterId: j.chapterId, candidateId: j.candidateId, mode: j.mode };

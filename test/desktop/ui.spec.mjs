@@ -225,6 +225,10 @@ test("命令面板、角色设置与新对话保留作品", async () => {
   await expect(
     settings.locator("fieldset").nth(1).getByLabel("模型 ID", { exact: true }),
   ).toHaveValue("deepseek-reasoner");
+  await settings.getByRole("button", { name: "写作根与偏好", exact: true }).click();
+  await settings.getByRole("button", { name: "检查占用和未完成写入", exact: true }).click();
+  await expect(settings.getByText(/没有待恢复的写入/)).toBeVisible();
+  await expect(settings.getByRole("button", { name: "备份后恢复原操作", exact: true })).toBeHidden();
   await settings.getByRole("button", { name: "取消", exact: true }).click();
   await page.evaluate(async (url) => {
     const api = window.writerDesktop,

@@ -27,6 +27,7 @@ interface Proc { code: number | null; stdout: string; stderr: string; timedOut: 
 
 function exec(cmd: string, args: string[], opts: RunOptions = {}): Promise<Proc> {
   return new Promise((resolve, reject) => {
+    if (opts.signal?.aborted) { reject(new WriterError("SCRIPT_FAILED", "已取消")); return }
     let child
     try {
       child = spawn(cmd, args, {

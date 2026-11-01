@@ -8,7 +8,10 @@ import {
   writeFile,
   symlink,
 } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { tmpdir, hostname } from "node:os";
+import { createHash, randomUUID } from "node:crypto";
+import { promisify } from "node:util";
+import { execFile } from "node:child_process";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -223,7 +226,12 @@ test("真实 Pi：建书归属、候选定位、独立编辑、角色模型、�
       editor = model.calls.find((call) => call.model === "mock-editor");
     assert.ok(writer && editor);
     assert.ok(model.calls.some((call) => call.model === "mock-planner"));
+    const planner = model.calls.find(call => call.model === "mock-planner");
+    assert.ok(!planner.tools.some(tool => tool.function.name === "fanqie_chapter_save"));
+    assert.ok(editor.tools.some(tool => tool.function.name === "fanqie_foundation_get"));
+    assert.ok(!editor.tools.some(tool => tool.function.name === "fanqie_library_card_stage"));
     assert.ok(!JSON.stringify(editor.messages).includes("MAIN-PRIVATE"));
+    assert.ok(editor.messages.some(m => (typeof m.content === "string" ? m.content : (m.content || []).map(part => part.text || "").join("\n")).includes('"intent":"review"')));
     assert.ok(
       !editor.tools.some(
         (tool) => tool.function.name === "fanqie_chapter_save",
@@ -450,6 +458,56 @@ test("发布检查保留正文、清理标题标记，DOCX 可输出", async () 
     assert.deepEqual(result.issues, ["当前稿件尚未通过有效质检"]);
   } finally {
     await releaseWorkspaces();
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+
+test("首轮审读交接允许无旧回报，恢复须先备份并拒绝锁和冲突", async () => {
+  const base = await mkdtemp(path.join(tmpdir(), "writer-recovery-"));
+  const { ensureStorage, createWork, setOutline } = await import("../../apps/desktop/out-test/work-store.mjs");
+  const { inspectRecovery, recoverWork } = await import("../../apps/desktop/out-test/recovery.mjs");
+  const appHome = path.join(base, "app");
+  await mkdir(appHome);
+  process.env.DSH_HOME = appHome;
+  const paths = await ensureStorage(null, { storageRoot: path.join(base, "data") });
+  const work = await createWork(paths, { title: "恢复前" });
+  await setOutline(work.dir, "c001", { synopsis: "站台" }, "第一章");
+  const sessions = new Sessions(appHome, "python3", defaultModels, () => {}, async () => false);
+  try {
+    const preview = await sessions.handoffPreview({ mode: "fanqie", root: paths.base, work: work.meta.key }, { chapter: "c001", intent: "review" });
+    assert.match(preview, /尚无本章的审读回报/);
+    assert.match(preview, /revision/);
+    const metaFile = path.join(work.dir, "meta.json"), chapterFile = path.join(work.dir, "chapters/c001.md");
+    const oldMeta = await readFile(metaFile, "utf8"), oldChapter = await readFile(chapterFile, "utf8");
+    const hash = text => createHash("sha256").update(text).digest("hex");
+    const nextMeta = JSON.stringify({ ...JSON.parse(oldMeta), title: "恢复后" });
+    const journal = { version: 1, id: randomUUID(), owner: { pid: process.pid, host: hostname() }, createdAt: new Date().toISOString(), chapterId: "c001", writes: [
+      { file: "chapters/c001.md", before: hash(oldChapter), after: hash(oldChapter), content: oldChapter },
+      { file: "meta.json", before: hash(oldMeta), after: hash(nextMeta), content: nextMeta },
+    ] };
+    await writeFile(path.join(work.dir, ".writer-chapter-pending.json"), JSON.stringify(journal));
+    const expected = await inspectRecovery(work.dir);
+    assert.equal(expected.canRecover, true);
+    await assert.rejects(recoverWork(work.dir, expected, async () => { throw new Error("备份失败"); }), /备份失败/);
+    assert.equal(await readFile(metaFile, "utf8"), oldMeta);
+    await mkdir(path.join(work.dir, ".writer-write-lock"));
+    assert.equal((await inspectRecovery(work.dir)).canRecover, false);
+    await rm(path.join(work.dir, ".writer-write-lock"), { recursive: true });
+    await writeFile(metaFile, "作者改稿");
+    assert.equal((await inspectRecovery(work.dir)).canRecover, false);
+    await writeFile(metaFile, oldMeta);
+    const run = promisify(execFile), backup = path.join(base, "backup");
+    await recoverWork(work.dir, expected, async () => {
+      await run(process.execPath, [path.join(root, "scripts/backup.mjs"), "--source", work.dir, "--output", backup]);
+      await run(process.execPath, [path.join(root, "scripts/backup.mjs"), "--verify", backup]);
+      return backup;
+    });
+    assert.equal(JSON.parse(await readFile(metaFile, "utf8")).title, "恢复后");
+    assert.equal((await inspectRecovery(work.dir)).canRecover, false);
+    await assert.rejects(recoverWork(work.dir, expected, async () => backup), /没有待恢复/);
+  } finally {
+    await sessions.dispose();
     await rm(base, { recursive: true, force: true });
   }
 });

@@ -58,4 +58,4 @@ flowchart TD
 
 `apps/desktop/src/pi.ts` 是唯一 Pi SDK 导入边界，`session.ts` 管理写手、独立编辑和规划角色、精简交接与既有会话文件。Electron main 负责窗口、加密配置、文件对话框、通知和 IPC；React 工作区直接复用写作台组件。工具调用经 host-generic 回到原业务，不重建方法或存储。
 
-统一根将书放在 novels、文章放在 toutiao、资料与作者偏好放在 .writer。跨入口的作品租约与轻量快照在 core，共享业务写入检查租约。0.9.3 MCP 适配边界见 [接口约定](MCP-0.9.3-CONTRACT.md)。
+统一根将书放在 novels、文章放在 toutiao、资料与作者偏好放在 .writer。跨入口的作品租约与轻量快照在 core，共享业务写入检查租约。0.9.3 继续基于内置 PI 完善自有客户端的会话、角色协作、上下文和作品一致性，见[开发计划](PLAN-0.9.3.md)；不新增其他 Agent 工具适配。

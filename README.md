@@ -4,6 +4,8 @@
 
 桌面版采用统一写作根和三栏界面，提供独立编辑模型、规划角色、交接、新对话、作者偏好与导出。使用与构建见 [桌面说明](docs/DESKTOP.md)，本轮实施、验证证据与待办见 [0.9.2 实施记录](docs/0.9.2-IMPLEMENTATION.md)。真实模型写作效果与证书签名仍待验收，正式发行仍以 GitHub Releases 为准。
 
+0.9.3 以已内置 PI 的自有客户端和写作内核为开发主线，已开始实施首批内核修复，进展见[实施记录](docs/0.9.3-IMPLEMENTATION.md)。见[需求与计划](docs/PLAN-0.9.3.md)、[开发指导](docs/0.9.3-DEVELOPMENT-GUIDE.md)、[验收规范](docs/0.9.3-ACCEPTANCE.md)和[验收报告](docs/0.9.3-ACCEPTANCE-REPORT.md)；此前的多宿主路线不再作为本版目标。
+
 以下为 DSH 插件使用说明。
 
 在 DeepSeek Harness（DSH）上做的写作 Agent：**一个入口 `writer_enable`、两种写作模式（今日头条 / 番茄长篇）、一个写作台**。

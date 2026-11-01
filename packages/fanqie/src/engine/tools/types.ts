@@ -23,6 +23,7 @@ export function defineTool(def: any): HostToolDefinition {
                 return await run(args ?? {}, exec);
             }
             catch (err) {
+                if (exec && Object.isExtensible(exec)) exec.failure = { code: String((err as any)?.code || "TOOL_FAILED"), message: err instanceof Error ? err.message : String(err) };
                 return formatToolError(err);
             }
         },

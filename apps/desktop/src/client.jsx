@@ -129,9 +129,9 @@ function App() {
       )
         return;
       const known = new Set(
-          value.messages.map((message) => JSON.stringify(message)),
+          value.messages.map((message) => message.writerMessageId),
         ),
-        extra = buffer.filter((message) => !known.has(JSON.stringify(message)));
+        extra = buffer.filter((message) => !message.writerMessageId || !known.has(message.writerMessageId));
       setMessages([...value.messages, ...extra]);
       setTotal(value.total + extra.length);
       setBusy(value.busy);

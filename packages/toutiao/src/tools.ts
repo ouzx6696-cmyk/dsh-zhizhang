@@ -396,13 +396,8 @@ export function createToutiaoTools(deps: ToolDeps): HostToolDefinition[] {
         const id = reqStr(args, 'id')
         const m = await store.get(id)
         if (!(await store.readCard(id))) throw new WriterError('NOT_FOUND', '没有立项卡')
-        const shown = await bridge(config, ['ledger-show', '--ledger', store.ledgerPath, '--last', '100000'], { signal: exec.signal })
-        const title = String((await store.readCard(id))?.['主标题'] ?? '')
-        if (title && (shown.rows as Record<string, string>[]).some(r => r['主标题'] === title)) {
-          throw new WriterError('CONFLICT', `台账里已有“${title}”`)
-        }
         await store.writable()
-        const r = await bridge(config, ['ledger-add', '--card', store.cardPath(id), '--ledger', store.ledgerPath, '--status', m.status, '--date', id.slice(0, 10)], { signal: exec.signal })
+        const r = await bridge(config, ['ledger-add', '--article-id', id, '--card', store.cardPath(id), '--ledger', store.ledgerPath, '--status', m.status, '--date', id.slice(0, 10)], { signal: exec.signal })
         return { row: r.row, ledger: store.ledgerPath }
       },
     }),
@@ -463,7 +458,7 @@ export async function syncLedgerStatus(config: ToutiaoConfig, store: ReturnType<
   const title = String((await store.readCard(m.id))?.['主标题'] ?? '')
   if (!title || !(await readText(store.ledgerPath))) return { synced: false }
   try {
-    await bridge(config, ['ledger-status', '--title', title, '--to', m.status, '--ledger', store.ledgerPath])
+    await bridge(config, ['ledger-status', '--article-id', m.id, '--title', title, '--to', m.status, '--ledger', store.ledgerPath])
     return { synced: true }
   } catch (e) {
     if (e instanceof WriterError && e.code === 'NOT_FOUND') return { synced: false }

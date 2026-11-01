@@ -9,6 +9,7 @@
  * 编辑：
  *   fanqie.editor_readonly           采纳、定稿、改根基/章纲、入库、开书等写入类长篇工具一律拒绝（锁定）
  */
+import { readChapter as readStoredChapter } from "./engine/store.js";
 import type { GateRule } from '../../core/src/gates.js'
 import type { FanqieConfig } from './config.js'
 import { bodyFingerprint, editorPassProblem } from './review.js'
@@ -42,8 +43,9 @@ export function fanqieGateRules(config: FanqieConfig, role: Role): GateRule[] {
       tool: 'fanqie_chapter_save',
       locked: true,
       description: '定稿须作者确认',
-      check(args) {
+      async check(args, exec) {
         if (args.status !== 'final') return undefined
+        await pinChapter(args, exec)
         return { kind: 'ask', reason: `把「${String(args.chapter ?? args.id ?? '本章')}」定稿（final）需要作者确认。审读通过不自动获得定稿权。` }
       },
     },
@@ -52,8 +54,9 @@ export function fanqieGateRules(config: FanqieConfig, role: Role): GateRule[] {
       tool: 'fanqie_*',
       locked: true,
       description: 'force 覆盖定稿须作者确认',
-      check(args, exec) {
+      async check(args, exec) {
         if (args.force !== true) return undefined
+        if (exec.name === 'fanqie_chapter_save') await pinChapter(args, exec)
         return { kind: 'ask', reason: `${exec.name} 带 force=true，会覆盖已定稿正文（降回草稿、需重新审读），需要作者确认。` }
       },
     },
@@ -74,4 +77,11 @@ export function fanqieGateRules(config: FanqieConfig, role: Role): GateRule[] {
       },
     },
   ]
+}
+
+async function pinChapter(args: Record<string, unknown>, exec: import('../../host/src/index.js').HostToolExecution) {
+  const w = await openWork(exec, typeof args.work === 'string' ? args.work : undefined, typeof args.working_dir === 'string' ? args.working_dir : undefined)
+  const ch = await readStoredChapter(w.dir, String(args.chapter ?? ''))
+  args.work = w.key
+  args.expected_revision ??= ch.revision
 }

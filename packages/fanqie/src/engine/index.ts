@@ -2,6 +2,7 @@
  * 番茄长篇引擎：作品存储与创作工具链（fanqie_* 工具 + 硬规则段落）。
  * configureEngine 设置数据位置与端口策略；mountEngine 把工具与硬规则挂到调用方 Agent 作用域（同一作用域只挂一次）。
  */
+import type { GateEngine } from "../../../core/src/gates.js";
 import { formatToolError } from "./errors.js";
 import { applyTools } from "./bootstrap.js";
 import {
@@ -42,11 +43,11 @@ export function configureEngine(config: PluginConfig = {}) {
 }
 const loadedAgents = new WeakSet();
 /** 返回是否新挂上 */
-export function mountEngine(agentCtx: any, config: PluginConfig = {}): boolean {
+export function mountEngine(agentCtx: any, config: PluginConfig = {}, gates?: GateEngine): boolean {
     if (!agentCtx || typeof agentCtx.tools?.register !== "function")
         throw new Error("当前调用没有可用的 Agent 作用域，无法按会话启用番茄长篇；请在新会话重试。");
     if (loadedAgents.has(agentCtx)) return false;
-    applyTools(agentCtx, config);
+    applyTools(agentCtx, config, gates);
     loadedAgents.add(agentCtx);
     return true;
 }

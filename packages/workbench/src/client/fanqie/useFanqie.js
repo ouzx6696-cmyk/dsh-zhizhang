@@ -120,7 +120,8 @@ export function useFanqie() {
   }, []);
 
   useEffect(() => {
-    if (!window.writerDesktop || !state.base) return;
+    // 未形成有效快照不代表作者选择了项目根；后台写入期间尤其不能清掉作品。
+    if (!window.writerDesktop || !state.base || !state.snapshot?.workKey) return;
     const current = state.view === 'chapters' ? view.current : null;
     const candidate = current && state.readerView !== 'official' ? view.activeCand : null;
     const loaded = state.readerView === 'candidate' ? state.candidate : state.chapter;
