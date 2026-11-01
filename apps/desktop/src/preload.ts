@@ -2,9 +2,12 @@ import type { Target, Focus } from "./context";
 import type { ModelConnection, ModelSettings } from "./models";
 import type { Appearance } from "./settings";
 import type { DesktopEvent } from "./renderer-contracts";
+import type { IpcArgs, IpcChannel, IpcResult, RequestOptions } from "./main/ipc/contract";
 import { contextBridge, ipcRenderer } from "electron";
-const invoke = (name: string, ...args: unknown[]) =>
-  ipcRenderer.invoke("writer:" + name, ...args);
+
+const invoke = <K extends IpcChannel>(name: K, ...args: IpcArgs<K>) =>
+  ipcRenderer.invoke("writer:" + name, ...args) as Promise<IpcResult<K>>;
+
 export const desktopAPI = {
   workspace: () => invoke("workspace"),
   projects: () => invoke("projects"),
@@ -12,7 +15,8 @@ export const desktopAPI = {
   appearance: (next: Partial<Appearance>) => invoke("appearance", next),
   preferences: (text?: string) => invoke("preferences", text),
   search: (key: string) => invoke("search", key),
-  testModel: (role: keyof ModelSettings, next: ModelConnection) => invoke("test-model", role, next),
+  testModel: (role: keyof ModelSettings, next: ModelConnection) =>
+    invoke("test-model", role, next),
   newConversation: (target: Target) => invoke("new-conversation", target),
   conversations: (target: Target) => invoke("conversations", target),
   export: (target: Target, focus: Focus, format: string) =>
@@ -31,15 +35,17 @@ export const desktopAPI = {
   state: () => invoke("state"),
   choose: (mode: Target["mode"]) => invoke("choose", mode),
   model: (value: ModelSettings) => invoke("model", value),
-  request: (operation: string, options: unknown) =>
+  request: (operation: string, options: RequestOptions) =>
     invoke("request", operation, options),
-  send: (text: string, target: Target, focus: Focus) =>
+  send: (text: string, target?: Target, focus?: Focus) =>
     invoke("send", text, target, focus),
-  stop: (target: Target) => invoke("stop", target),
+  stop: (target?: Target) => invoke("stop", target),
   subscribe: (callback: (value: DesktopEvent) => void) => {
     const listener = (_event: unknown, value: DesktopEvent) => callback(value);
     ipcRenderer.on("writer:event", listener);
-    return () => { ipcRenderer.removeListener("writer:event", listener); };
+    return () => {
+      ipcRenderer.removeListener("writer:event", listener);
+    };
   },
 };
 contextBridge.exposeInMainWorld("writerDesktop", desktopAPI);

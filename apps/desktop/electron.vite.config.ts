@@ -4,7 +4,12 @@ import path from "node:path";
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
-    build: { rollupOptions: { input: path.resolve("src/main.ts") } },
+    build: {
+      rollupOptions: {
+        input: path.resolve("src/main/index.ts"),
+        output: { entryFileNames: "main.js" },
+      },
+    },
   },
   preload: {
     build: {
