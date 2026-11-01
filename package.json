@@ -9,6 +9,8 @@
   },
   "scripts": {
     "guard": "node scripts/architecture-guard.mjs",
+    "lint": "eslint .",
+    "format:check": "prettier --check .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "build": "tsc -p tsconfig.json && node scripts/build-client.mjs",
     "test:py": "node scripts/test-python.mjs",
@@ -34,9 +36,15 @@
     "verify:release": "node scripts/verify-release.mjs"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^22.10.0",
     "esbuild": "^0.28.2",
-    "typescript": "~5.8.3"
+    "eslint": "^10.14.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.14.0",
+    "prettier": "^3.9.10",
+    "typescript": "~5.8.3",
+    "typescript-eslint": "^8.72.1"
   },
   "workspaces": [
     "apps/desktop"

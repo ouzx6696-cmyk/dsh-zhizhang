@@ -1,0 +1,13 @@
+node_modules/
+build/
+bundle/
+dist-pack/
+outputs/
+acceptance-results/
+test-results/
+playwright-report/
+apps/desktop/out/
+apps/desktop/out-test/
+apps/desktop/release/
+package-lock.json
+OPTIMIZATION-PLAN.md

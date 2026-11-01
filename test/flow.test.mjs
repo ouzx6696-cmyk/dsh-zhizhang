@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { BUILD, FIX, fakeHost, tempDir, buildUrl } from './helpers.mjs'
+import { FIX, fakeHost, tempDir, buildUrl } from './helpers.mjs'
 
 const { mountToutiao } = await import(buildUrl('toutiao/src/index.js'))
 const { apply } = await import(buildUrl('app/src/index.js'))

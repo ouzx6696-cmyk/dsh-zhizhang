@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { BUILD, ROOT, fakeHost, tempDir, buildUrl } from './helpers.mjs'
+import { ROOT, fakeHost, tempDir, buildUrl } from './helpers.mjs'
 
 const SCRIPT = path.join(ROOT, 'scripts/assets.mjs')
 const run = (args) => {

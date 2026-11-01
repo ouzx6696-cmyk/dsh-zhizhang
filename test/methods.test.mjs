@@ -8,7 +8,7 @@ import { existsSync } from 'node:fs'
 import { readdir } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { BUILD, ROOT, fakeHost, tempDir, buildUrl } from './helpers.mjs'
+import { ROOT, fakeHost, tempDir, buildUrl } from './helpers.mjs'
 
 const TOUTIAO_SKILL = path.join(ROOT, 'packages/toutiao/skill')
 const FORGE = path.join(ROOT, 'packages/fanqie/skill/forge')

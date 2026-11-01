@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { readdir, readFile, mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { BUILD, ROOT, fakeHost, tempDir, buildUrl } from './helpers.mjs'
+import { ROOT, fakeHost, tempDir, buildUrl } from './helpers.mjs'
 
 const TT = path.join(ROOT, 'packages/toutiao/profiles/default')
 const FQ = path.join(ROOT, 'packages/fanqie/profiles/default')

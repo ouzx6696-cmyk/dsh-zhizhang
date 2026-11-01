@@ -8,7 +8,7 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { BUILD, FIX, tempDir, buildUrl } from '../helpers.mjs'
+import { FIX, tempDir, buildUrl } from '../helpers.mjs'
 
 const RT = process.env.WRITER_DSH_RUNTIME
 const skip = !RT || !existsSync(path.join(RT, 'node_modules', '@deepseek-ai', 'dsh-tools')) ? '未设置 WRITER_DSH_RUNTIME' : false

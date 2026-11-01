@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import path from 'node:path'
 import { readFile } from 'node:fs/promises'
-import { BUILD, FIX, tempDir, buildUrl } from './helpers.mjs'
+import { FIX, tempDir, buildUrl } from './helpers.mjs'
 
 const { resolveInside, serialize, atomicWrite, readJson } = await import(buildUrl('core/src/fsx.js'))
 const { parseContract, locatePython, runScript } = await import(buildUrl('core/src/runner.js'))

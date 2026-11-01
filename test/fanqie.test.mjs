@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { readFile, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import path from 'node:path'
-import { BUILD, ROOT, fakeHost, tempDir, buildUrl } from './helpers.mjs'
+import { ROOT, fakeHost, tempDir, buildUrl } from './helpers.mjs'
 
 
 const { apply } = await import(buildUrl('app/src/index.js'))
