@@ -12,7 +12,7 @@ import type { ToutiaoConfig } from "../../../../packages/toutiao/src/config";
 import { releaseWorkspace } from "../../../../packages/core/src/workspace-lock";
 import { lockRoot } from "./targets";
 
-export type WriterConfig = {
+type WriterConfig = {
   toutiao?: ToutiaoConfig;
   fanqie?: FanqieConfig;
 };
@@ -71,7 +71,9 @@ export class Runtime {
           .running()
           .some((item) => this.sessions.key(item.target) === this.sessions.key(eventTarget))
       )
-        void lockRoot(this, eventTarget).then(releaseWorkspace);
+        void lockRoot(this, eventTarget)
+          .then(releaseWorkspace)
+          .catch(() => {});
     }
     if (value.event?.type === "tool_execution_end")
       void this.diagnostics?.write("tool_ended", { tool: value.event.toolName });

@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react";
-import { scopeId } from "../../context";
-import type { Focus, Target } from "../../context";
+import { scopeId, type Focus, type Target } from "../../context";
 import type { WorkspaceContext } from "../../renderer-contracts";
 import { desktopStore, useDesktop, type ChatMessage } from "../state/store";
 import { chatStore } from "../state/chatStore";
@@ -387,16 +386,8 @@ export function useDesktopController() {
     jump,
     submit,
     sendText,
-    newWork,
-    deliver,
-    command,
-    exportFile,
-    chooseWorkspace,
-    importRoot,
-    canLeave,
-    trackMethodEdit,
-    stop: () => api.stop(selected.current || undefined),
-  };
-}
+    newWork, deliver, command, exportFile, chooseWorkspace, importRoot, canLeave,
+    trackMethodEdit, stop: () => api.stop(selected.current || undefined),
+  };}
 
 export type DesktopController = ReturnType<typeof useDesktopController>;

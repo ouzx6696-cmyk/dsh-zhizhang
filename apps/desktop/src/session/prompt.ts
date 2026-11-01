@@ -68,7 +68,8 @@ export async function taskPrompt(
   const profile = await activeProfile(target.mode, host.options[target.mode]?.profile);
   let saved: unknown;
   if (target.mode === "fanqie" && target.work) {
-    const dir = await resolveWorkDir(await paths(host, target), target.work);
+    const storage = await paths(host, target);
+    const dir = await resolveWorkDir(storage, target.work);
     const meta = await readWorkMeta(dir);
     const chapters: ChapterMeta[] = meta.chapters;
     const row = chapters.find((c) => c.id === focus.chapter);
@@ -88,7 +89,7 @@ export async function taskPrompt(
       const definition = engineTools({
         ...host.options.fanqie,
         storageRoot: target.root,
-        worksRoot: (await paths(host, target)).works,
+        worksRoot: storage.works,
       }).find((tool) => tool.name === "fanqie_chapter_brief")!;
       brief = await definition.execute(
         {

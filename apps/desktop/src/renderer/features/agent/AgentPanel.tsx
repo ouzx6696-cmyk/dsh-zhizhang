@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Send,
   Plus,
@@ -10,7 +10,7 @@ import { Markdown } from "../../../Markdown";
 import { humanVersion } from "../../../commands";
 import { focusLabel, promptContext, toolLabel } from "../../../context";
 import type { ChatMessage } from "../../state/store";
-import { useChat } from "../../state/chatStore";
+import { useChatSelector } from "../../state/chatStore";
 import { desktop } from "../../state/desktop";
 import type { DesktopController } from "../../app/useDesktopController";
 
@@ -23,15 +23,62 @@ function messageBody(message: ChatMessage) {
         .join("\n");
 }
 
+function ChatStream({
+  hasMessages,
+  listRef,
+  stickToBottom,
+}: {
+  hasMessages: boolean;
+  listRef: React.RefObject<HTMLDivElement | null>;
+  stickToBottom: React.MutableRefObject<boolean>;
+}) {
+  const stream = useChatSelector((chat) => chat.stream);
+  useEffect(() => {
+    const list = listRef.current;
+    if (list && stickToBottom.current) list.scrollTop = list.scrollHeight;
+  }, [stream, listRef, stickToBottom]);
+  if (stream)
+    return (
+      <article className="chat-message assistant">
+        <small>Agent</small>
+        <Markdown text={stream} />
+      </article>
+    );
+  if (hasMessages) return null;
+  return (
+    <div className="chat-empty">
+      <Feather size={24} />
+      <p>从一句想法开始，或选择下方动作。稿件、候选与作者决定都会保留在作品里。</p>
+    </div>
+  );
+}
+
 export function AgentPanel({ app }: { app: DesktopController }) {
   const { state, selected, focus, context, fail, set, input } = app;
-  const chat = useChat();
-  const { task, busy, phase, messages, stream, total, archive, archives } = chat;
+  const messages = useChatSelector((chat) => chat.messages);
+  const busy = useChatSelector((chat) => chat.busy);
+  const phase = useChatSelector((chat) => chat.phase);
+  const task = useChatSelector((chat) => chat.task);
+  const total = useChatSelector((chat) => chat.total);
+  const archive = useChatSelector((chat) => chat.archive);
+  const archives = useChatSelector((chat) => chat.archives);
   const [draft, setDraft] = useState("");
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const stickToBottom = useRef(true);
+  useEffect(() => {
+    stickToBottom.current = true;
+    const list = listRef.current;
+    if (list) list.scrollTop = list.scrollHeight;
+  }, [selected]);
+  useEffect(() => {
+    const list = listRef.current;
+    if (list && stickToBottom.current) list.scrollTop = list.scrollHeight;
+  }, [messages]);
   const submit = async (event?: { preventDefault(): void }) => {
     event?.preventDefault();
     if (!draft.trim()) return;
     const value = draft;
+    stickToBottom.current = true;
     if (await app.submit(value)) setDraft((current) => (current === value ? "" : current));
   };
   const steps =
@@ -189,7 +236,15 @@ export function AgentPanel({ app }: { app: DesktopController }) {
           <Plus size={14} />
         </button>
       </div>
-      <div className="chat-messages">
+      <div
+        className="chat-messages"
+        ref={listRef}
+        onScroll={(event) => {
+          const list = event.currentTarget;
+          stickToBottom.current =
+            list.scrollHeight - list.scrollTop - list.clientHeight < 48;
+        }}
+      >
         {messages.length < total && (
           <button
             onClick={() => {
@@ -201,18 +256,11 @@ export function AgentPanel({ app }: { app: DesktopController }) {
           </button>
         )}
         {messages.map(renderMessage)}
-        {stream && (
-          <article className="chat-message assistant">
-            <small>Agent</small>
-            <Markdown text={stream} />
-          </article>
-        )}
-        {!messages.length && !stream && (
-          <div className="chat-empty">
-            <Feather size={24} />
-            <p>从一句想法开始，或选择下方动作。稿件、候选与作者决定都会保留在作品里。</p>
-          </div>
-        )}
+        <ChatStream
+          hasMessages={messages.length > 0}
+          listRef={listRef}
+          stickToBottom={stickToBottom}
+        />
       </div>
       <div className="agent-input-area">
         <div className="quick-actions">

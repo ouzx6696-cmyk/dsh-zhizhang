@@ -7,6 +7,8 @@ import { exportContent, wordDocument } from "../../exports";
 
 export function registerExportIpc(state: Runtime) {
   handle("export", async (target, focus, format) => {
+    if (!["copy", "txt", "docx"].includes(format))
+      throw new Error("参数无效：导出格式");
     const next = parseTarget(target);
     const content = await exportContent(next, parseFocus(focus));
     const answer = await dialog.showMessageBox(state.window!, {

@@ -44,5 +44,11 @@ class ChatStore {
 }
 
 export const chatStore = new ChatStore();
-export const useChat = () =>
-  useSyncExternalStore(chatStore.subscribe, chatStore.get, chatStore.get);
+
+export function useChatSelector<T>(selector: (state: ChatState) => T): T {
+  return useSyncExternalStore(
+    chatStore.subscribe,
+    () => selector(chatStore.get()),
+    () => selector(chatStore.get()),
+  );
+}

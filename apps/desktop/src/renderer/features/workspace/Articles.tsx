@@ -7,7 +7,7 @@ import {
 } from "../../../../../../packages/workbench/src/client/toutiao/ToutiaoApp.jsx";
 import { Notices } from "../../../../../../packages/workbench/src/client/shared/common.jsx";
 import { Check } from "lucide-react";
-import { StatusBadge } from "../../../../../../packages/ui/src/components";
+import { StatusBadge } from "../../../../../../packages/ui/src/status-badge";
 import type { WorkspaceProps } from "../../../renderer-contracts";
 import { WorkspaceLayout } from "./WorkspaceLayout";
 

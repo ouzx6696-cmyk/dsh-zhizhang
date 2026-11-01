@@ -1,6 +1,6 @@
 import type { Focus, Target } from "../../context";
 import type { ModelConnection, ModelSettings } from "../../models";
-import type { DesktopEvent, TaskState, UpdateStatus } from "../../renderer-contracts";
+import type { TaskState, UpdateStatus } from "../../renderer-contracts";
 import type { Settings } from "../../settings";
 import type { inspectRecovery } from "../../recovery";
 
@@ -85,4 +85,3 @@ export interface IpcMap {
 export type IpcChannel = keyof IpcMap;
 export type IpcArgs<K extends IpcChannel> = IpcMap[K]["args"];
 export type IpcResult<K extends IpcChannel> = IpcMap[K]["result"];
-export type DesktopEventPayload = DesktopEvent;

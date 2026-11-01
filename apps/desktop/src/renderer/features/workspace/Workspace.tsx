@@ -8,7 +8,7 @@ import { Dialogs } from "../../../../../../packages/workbench/src/client/fanqie/
 import { Diagnostics } from "../../../../../../packages/workbench/src/client/fanqie/Diagnostics.jsx";
 import { Notices } from "../../../../../../packages/workbench/src/client/shared/common.jsx";
 import { Check, FileCheck } from "lucide-react";
-import { StatusBadge } from "../../../../../../packages/ui/src/components";
+import { StatusBadge } from "../../../../../../packages/ui/src/status-badge";
 import type { WorkspaceProps } from "../../../renderer-contracts";
 import { WorkspaceLayout } from "./WorkspaceLayout";
 import { Articles } from "./Articles";

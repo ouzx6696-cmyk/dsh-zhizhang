@@ -1,6 +1,5 @@
 import type { AgentSession, SessionManager } from "./pi-adapter";
 import type { Focus, Target } from "../context";
-import type { DesktopEvent } from "../renderer-contracts";
 import type { FanqieConfig } from "../../../../packages/fanqie/src/config";
 import type { ToutiaoConfig } from "../../../../packages/toutiao/src/config";
 
@@ -38,16 +37,6 @@ export type HistoryCache = Map<
   { stamp: string; manager: SessionManager }
 >;
 
-export type SessionView = {
-  messages: unknown[];
-  total: number;
-  busy: boolean;
-  stream: string;
-  phase: string;
-  focus?: Focus;
-  task?: Task;
-};
-
 export type AuthorAction = {
   operation: string;
   article?: string;
@@ -57,9 +46,3 @@ export type AuthorAction = {
   status?: string;
   profile?: string;
 };
-
-export type SessionEmitter = (event: DesktopEvent) => void;
-export type SessionConfirmer = (
-  text: string,
-  signal?: AbortSignal,
-) => Promise<boolean>;

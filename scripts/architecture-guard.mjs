@@ -1,9 +1,11 @@
 // 架构守卫：
 //   1. 只有 packages/host 可以提到宿主包 @deepseek-ai/*（包括字符串动态导入）；
-//   2. 包之间只能按分层向下依赖：host → core / workbench（服务端）→ toutiao / fanqie → app；
-//   3. 不许 @ts-nocheck；源码里没有运行时依赖环；
-//   4. 长篇引擎的存储层不依赖业务/查询代码，文本分析（manuscript、diagnostics）保持浏览器可用；
-//   5. 浏览器端（workbench/src/client）只能引用自己和这两份浏览器可用的文本分析模块。
+//   2. 包之间只能按分层向下依赖，源码里没有运行时依赖环；
+//   3. 长篇引擎的存储层不依赖业务/查询代码，文本分析保持浏览器可用；
+//   4. 写作台浏览器端只能引用浏览器可用模块，宿主判断走 adapters；
+//   5. 桌面 Pi SDK 只在 session/pi-adapter.ts 导入，渲染层只经 state/desktop.ts 访问预加载桥；
+//   6. 样式禁止 !important，桌面/写作台组件文件不超过 400 行（提示）；
+//   7. 版本号在 package/bundle/version/CHANGELOG 一致，docs 根目录不超过 10 份。
 import ts from 'typescript'
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'

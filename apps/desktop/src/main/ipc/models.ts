@@ -8,8 +8,9 @@ import { explainError } from "../../diagnostics";
 
 export function registerModelsIpc(state: Runtime) {
   handle("model", async (next) => {
+    const notice = await state.settings.saveModels(next);
     await state.sessions.dispose();
-    state.notice = await state.settings.saveModels(next);
+    state.notice = notice;
     state.model = state.settings.models;
     state.emit({ running: [] });
     state.emit({ refresh: true });

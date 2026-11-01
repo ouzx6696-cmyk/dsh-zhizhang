@@ -11,7 +11,7 @@ import { API, type RouteContext } from "../../../../packages/workbench/src/serve
 import { selectTarget } from "./targets";
 import type { Runtime } from "./runtime";
 
-export async function performRequest(
+async function performRequest(
   state: Runtime,
   operation: string,
   options: { method?: string; query?: Record<string, unknown>; body?: any } = {},

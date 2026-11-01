@@ -94,6 +94,16 @@ export function WorkspaceLayout({
     setMethodsMounted(true);
     setMethodsOpen(true);
   };
+  useEffect(() => {
+    if (!methodsOpen) return;
+    const close = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      setMethodsOpen(false);
+    };
+    document.addEventListener("keydown", close, true);
+    return () => document.removeEventListener("keydown", close, true);
+  }, [methodsOpen]);
   return (
     <div className="studio-layout">
       <nav className={"studio-nav " + (navOpen ? "expanded" : "")}>
@@ -143,6 +153,7 @@ export function WorkspaceLayout({
             <button
               className="icon-button"
               aria-label="关闭方法方案"
+              autoFocus
               onClick={() => setMethodsOpen(false)}
             >
               ×
