@@ -602,8 +602,8 @@ export const InspirationPort = {
                             if (card.status === "accepted")
                                 cards.push(card);
                         }
-                        catch {
-                            /* skip */
+                        catch (error) {
+                            throw new NovelError("craft_source_unavailable", `绑定技法卡 ${id} 不可读：${error instanceof Error ? error.message : String(error)}`);
                         }
                     }
                     if (cards.length > 0) {

@@ -26,16 +26,15 @@ export async function lockRoot(state: Runtime, value: Target) {
 }
 
 export async function selectTarget(state: Runtime, next: Target) {
-  if (state.maintenance) throw new Error("正在恢复作品，请等待完成后切换");
   return serialize(`target:${state.home}`, async () => {
+    if (state.maintenance) throw new Error("正在恢复作品，请等待完成后切换");
     const previous = state.target;
     const normalized = {
       mode: next.mode,
       root: path.resolve(next.root),
       ...(next.work ? { work: next.work } : {}),
     };
-    if (normalized.mode === "toutiao") rememberRoot(normalized.root);
-    else {
+    if (normalized.mode !== "toutiao") {
       const project = (await listProjects()).find((p) => p.id === projectIdOf(normalized.root));
       const unified =
         state.settings?.workspace &&
@@ -65,6 +64,7 @@ export async function selectTarget(state: Runtime, next: Target) {
         await releaseWorkspace(newRoot).catch(() => {});
       throw error;
     }
+    if (normalized.mode === "toutiao") rememberRoot(normalized.root);
     state.target = normalized;
     state.access = access;
     if (previous && state.sessions.key(previous) !== state.sessions.key(normalized)) {

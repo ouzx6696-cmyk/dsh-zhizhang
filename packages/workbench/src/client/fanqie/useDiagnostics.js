@@ -1,5 +1,6 @@
 /** Mounted with the workbench, so leaving the reader cannot detach an in-flight save. */
 import React from 'react';
+import { canLeaveEdit } from '../shared/useSourceGuard.js';
 import { fanqie } from '../shared/api.js';
 import { diagnosticCopy as c } from '../shared/copy-diagnostic.js';
 import { changeParagraph, diagnosticScope, editMatches, moveHistory, requestId, revisionPayload } from './edit-state.js';
@@ -21,7 +22,7 @@ export function useDiagnostics({ state, stateRef, alive, setEdit, refresh, notif
     const snapshot = stateRef.current, kind = snapshot.diagnosticKind, slot = snapshot[kind];
     if (status.key === key && status.busy || snapshot.edit?.pendingSave || snapshot.edit?.saving) return;
     if (slot.status !== 'ready' || slot.truncated || !slot.body?.trim()) return;
-    if (snapshot.edit?.dirty && !window.confirm(c.discard)) return;
+    if (!canLeaveEdit(snapshot.edit, window.confirm)) return;
     const generation = ++operation.current.generation, controller = new AbortController();
     operation.current.controller?.abort();
     operation.current.controller = controller;
@@ -71,7 +72,7 @@ export function useDiagnostics({ state, stateRef, alive, setEdit, refresh, notif
   }
   function clear() {
     const edit = stateRef.current.edit;
-    if (edit?.saving || edit?.dirty && !window.confirm(c.discard)) return;
+    if (!canLeaveEdit(edit, window.confirm)) return;
     operation.current.generation++;
     operation.current.controller?.abort();
     setEdit(null);
