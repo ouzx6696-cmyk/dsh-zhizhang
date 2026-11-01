@@ -1,170 +1,30 @@
-// @ts-check
 import React, { useEffect, useState } from "react";
-import {
-  X,
-  Check,
-  FolderOpen,
-  Download,
-  Shield,
-  LoaderCircle,
-} from "lucide-react";
-import { PROVIDERS } from "./models";
+import { X, FolderOpen, Download, Shield } from "lucide-react";
+import { ModelFields } from "./ModelFields";
+import type { SystemState } from "../../state/store";
 const api = window.writerDesktop;
-export function ModelFields({ role, model, onChange, onTest, result }) {
-  const preset = (id) => {
-    const item = PROVIDERS.find((row) => row.id === id);
-    onChange({
-      ...model,
-      provider: id,
-      api: item.api,
-      baseUrl: item.baseUrl,
-      model: item.model,
-      contextWindow: item.contextWindow,
-      apiKey: "",
-      configured: false,
-      reasoning: id === "deepseek" && role === "editor",
-      thinkingLevel: role === "editor" ? "medium" : "off",
-    });
-  };
-  return (
-    <fieldset className="model-fields">
-      <legend>
-        {role === "writer"
-          ? "写手"
-          : role === "editor"
-            ? "独立编辑"
-            : "规划与拆书"}
-      </legend>
-      <label>
-        服务商
-        <select
-          value={model.provider}
-          onChange={(event) => preset(event.target.value)}
-        >
-          {PROVIDERS.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        接口地址
-        <input
-          type="url"
-          value={model.baseUrl}
-          onChange={(event) =>
-            onChange({ ...model, baseUrl: event.target.value })
-          }
-        />
-      </label>
-      <label>
-        模型 ID
-        <input
-          value={model.model}
-          onChange={(event) =>
-            onChange({ ...model, model: event.target.value })
-          }
-        />
-      </label>
-      <label>
-        API Key
-        <input
-          type="password"
-          autoComplete="off"
-          placeholder={
-            model.configured
-              ? "已保存，留空保持"
-              : "编辑可沿用同一接口的写手 Key"
-          }
-          value={model.apiKey || ""}
-          onChange={(event) =>
-            onChange({ ...model, apiKey: event.target.value })
-          }
-        />
-      </label>
-      <div className="field-grid">
-        <label>
-          上下文窗口
-          <input
-            type="number"
-            min="1024"
-            step="1024"
-            value={model.contextWindow}
-            onChange={(event) =>
-              onChange({ ...model, contextWindow: Number(event.target.value) })
-            }
-          />
-        </label>
-        <label>
-          最大输出
-          <input
-            type="number"
-            min="1"
-            step="1024"
-            value={model.maxTokens}
-            onChange={(event) =>
-              onChange({ ...model, maxTokens: Number(event.target.value) })
-            }
-          />
-        </label>
-      </div>
-      <label className="checkbox">
-        <input
-          type="checkbox"
-          checked={model.reasoning}
-          onChange={(event) =>
-            onChange({ ...model, reasoning: event.target.checked })
-          }
-        />
-        启用模型思考能力
-      </label>
-      {model.reasoning && (
-        <label>
-          思考档位
-          <select
-            value={model.thinkingLevel}
-            onChange={(event) =>
-              onChange({ ...model, thinkingLevel: event.target.value })
-            }
-          >
-            {["off", "minimal", "low", "medium", "high", "xhigh"].map(
-              (level) => (
-                <option key={level}>{level}</option>
-              ),
-            )}
-          </select>
-        </label>
-      )}
-      <button type="button" onClick={onTest} disabled={result?.busy}>
-        {result?.busy ? (
-          <LoaderCircle size={14} className="spin" />
-        ) : (
-          <Check size={14} />
-        )}
-        测试连接
-      </button>
-      {result && (
-        <p className={result.error ? "form-error" : "form-note"}>
-          {result.busy
-            ? "正在发送最短连接请求…"
-            : result.error || `连接成功 · ${result.latency} ms`}
-        </p>
-      )}
-    </fieldset>
-  );
-}
-export function Settings({ state, onClose, onSaved, onWorkspace, onImport }) {
+type SettingsProps = {
+  state: SystemState;
+  onClose: () => void;
+  onSaved: () => void | Promise<void>;
+  onWorkspace: () => void | Promise<void>;
+  onImport: (mode: "fanqie" | "toutiao") => void | Promise<void>;
+};
+export function Settings({ state, onClose, onSaved, onWorkspace, onImport }: SettingsProps) {
   const [tab, setTab] = useState("models"),
-    [models, setModels] = useState(state.models),
-    [appearance, setAppearance] = useState(state.appearance),
+    [models, setModels] = useState<any>(state.models),
+    [appearance, setAppearance] = useState<any>(state.appearance),
     [preferences, setPreferences] = useState(""),
     [searchKey, setSearchKey] = useState(""),
-    [test, setTest] = useState({ writer: undefined, editor: undefined, planner: undefined }),
-    [health, setHealth] = useState(null),
+    [test, setTest] = useState<Record<string, any>>({
+      writer: undefined,
+      editor: undefined,
+      planner: undefined,
+    }),
+    [health, setHealth] = useState<any>(null),
     [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false),
-    [updates, setUpdates] = useState(state.updates || {});
+    [updates, setUpdates] = useState<any>(state.updates || {});
   useEffect(() => {
     api
       .preferences()
@@ -177,29 +37,29 @@ export function Settings({ state, onClose, onSaved, onWorkspace, onImport }) {
     });
     return unsubscribe;
   }, []);
-  const action = async (operation) => {
+  const action = async (operation: () => unknown | Promise<unknown>) => {
     setBusy(true);
     setMessage("");
     try {
-      const result = await operation();
+      const result = (await operation()) as any;
       if (result?.file) setMessage("已保存到 " + result.file);
       return result;
     } catch (error) {
-      setMessage(error.message);
+      setMessage(error instanceof Error ? error.message : String(error));
     } finally {
       setBusy(false);
     }
   };
-  const testRole = (role) =>
+  const testRole = (role: "writer" | "editor" | "planner") =>
     action(async () => {
-      setTest((previous) => ({ ...previous, [role]: { busy: true } }));
+      setTest((previous: any) => ({ ...previous, [role]: { busy: true } }));
       try {
         const result = await api.testModel(role, models[role]);
-        setTest((previous) => ({ ...previous, [role]: result }));
+        setTest((previous: any) => ({ ...previous, [role]: result }));
       } catch (error) {
-        setTest((previous) => ({
+        setTest((previous: any) => ({
           ...previous,
-          [role]: { error: error.message },
+          [role]: { error: error instanceof Error ? error.message : String(error) },
         }));
       }
     });
@@ -259,13 +119,13 @@ export function Settings({ state, onClose, onSaved, onWorkspace, onImport }) {
                   系统安全存储不可用，Key 只保留到本次应用关闭。
                 </p>
               )}
-              {["writer", "editor"].map((role) => (
+              {(["writer", "editor"] as const).map((role) => (
                 <ModelFields
                   key={role}
                   role={role}
                   model={models[role]}
                   onChange={(value) =>
-                    setModels((previous) => ({ ...previous, [role]: value }))
+                    setModels((previous: any) => ({ ...previous, [role]: value }))
                   }
                   onTest={() => testRole(role)}
                   result={test[role]}
@@ -276,7 +136,7 @@ export function Settings({ state, onClose, onSaved, onWorkspace, onImport }) {
                   type="checkbox"
                   checked={!models.planner}
                   onChange={(event) =>
-                    setModels((previous) => ({
+                    setModels((previous: any) => ({
                       ...previous,
                       planner: event.target.checked
                         ? null
@@ -291,7 +151,7 @@ export function Settings({ state, onClose, onSaved, onWorkspace, onImport }) {
                   role="planner"
                   model={models.planner}
                   onChange={(value) =>
-                    setModels((previous) => ({ ...previous, planner: value }))
+                    setModels((previous: any) => ({ ...previous, planner: value }))
                   }
                   onTest={() => testRole("planner")}
                   result={test.planner}
@@ -341,7 +201,7 @@ export function Settings({ state, onClose, onSaved, onWorkspace, onImport }) {
               </button>
               {health && <div role="status">
                 <p>{health.label}：{health.reason}</p>
-                {health.files.map(item => <p key={item.file}>{item.file}：{item.state}</p>)}
+                {health.files.map((item: any) => <p key={item.file}>{item.file}：{item.state}</p>)}
                 {health.canRecover && <button disabled={busy} onClick={() => action(async () => {
                   const result = await api.recover({ id: health.id, fingerprint: health.fingerprint });
                   setHealth(await api.storageHealth());

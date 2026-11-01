@@ -34,7 +34,7 @@ export const desktopAPI = {
   profiles: () => invoke("profiles"),
   state: () => invoke("state"),
   choose: (mode: Target["mode"]) => invoke("choose", mode),
-  model: (value: ModelSettings) => invoke("model", value),
+  model: (value: unknown) => invoke("model", value),
   request: (operation: string, options: RequestOptions) =>
     invoke("request", operation, options),
   send: (text: string, target?: Target, focus?: Focus) =>

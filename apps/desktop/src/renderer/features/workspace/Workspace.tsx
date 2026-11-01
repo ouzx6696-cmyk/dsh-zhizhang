@@ -1,27 +1,35 @@
-// @ts-check
 import React, { useEffect, useState, useMemo } from "react";
-import { useFanqie } from "../../../packages/workbench/src/client/fanqie/useFanqie.js";
-import { useToutiao } from "../../../packages/workbench/src/client/toutiao/useToutiao.js";
-import { ChapterList } from "../../../packages/workbench/src/client/fanqie/ChapterList.jsx";
-import { Reader } from "../../../packages/workbench/src/client/fanqie/Reader.jsx";
-import { Inspector } from "../../../packages/workbench/src/client/fanqie/Inspector.jsx";
-import { Pipeline } from "../../../packages/workbench/src/client/fanqie/Pipeline.jsx";
-import { Dialogs } from "../../../packages/workbench/src/client/fanqie/Dialogs.jsx";
+import type { ReactNode } from "react";
+import { useFanqie } from "../../../../../../packages/workbench/src/client/fanqie/useFanqie.js";
+import { useToutiao } from "../../../../../../packages/workbench/src/client/toutiao/useToutiao.js";
+import { ChapterList } from "../../../../../../packages/workbench/src/client/fanqie/ChapterList.jsx";
+import { Reader } from "../../../../../../packages/workbench/src/client/fanqie/Reader.jsx";
+import { Inspector } from "../../../../../../packages/workbench/src/client/fanqie/Inspector.jsx";
+import { Pipeline } from "../../../../../../packages/workbench/src/client/fanqie/Pipeline.jsx";
+import { Dialogs } from "../../../../../../packages/workbench/src/client/fanqie/Dialogs.jsx";
 import {
   ArticleList,
   Body,
   ToutiaoSide,
-} from "../../../packages/workbench/src/client/toutiao/ToutiaoApp.jsx";
-import { Notices } from "../../../packages/workbench/src/client/shared/common.jsx";
-import { profilesApi } from "../../../packages/workbench/src/client/shared/api.js";
-import { ProfilesDialog } from "../../../packages/workbench/src/client/shared/Profiles.jsx";
+} from "../../../../../../packages/workbench/src/client/toutiao/ToutiaoApp.jsx";
+import { Notices } from "../../../../../../packages/workbench/src/client/shared/common.jsx";
+import { profilesApi } from "../../../../../../packages/workbench/src/client/shared/api.js";
+import { ProfilesDialog } from "../../../../../../packages/workbench/src/client/shared/Profiles.jsx";
 import { Menu, PanelRightClose, Check, FileCheck, Layers } from "lucide-react";
+import type { WorkspaceProps } from "../../../renderer-contracts";
+type EditState = { dirty: boolean; saving: boolean };
 const tabs = [
   ["agent", "Agent"],
   ["chapter", "本章"],
   ["methods", "方法方案"],
 ];
-function MethodsPane({ mode, onEditState }) {
+function MethodsPane({
+  mode,
+  onEditState,
+}: {
+  mode: "fanqie" | "toutiao";
+  onEditState: (state: EditState) => void;
+}) {
   const api = useMemo(() => profilesApi(mode), [mode]);
   return (
     <div className="method-panel">
@@ -47,6 +55,17 @@ function Layout({
   drawer,
   setDrawer,
   onMethodEditState,
+}: {
+  navigation: ReactNode;
+  center: ReactNode;
+  inspector: ReactNode;
+  agent: ReactNode;
+  tab: string;
+  setTab: (tab: string) => void;
+  mode: "fanqie" | "toutiao";
+  drawer: boolean;
+  setDrawer: (open: boolean) => void;
+  onMethodEditState: (state: EditState) => void;
 }) {
   const [navOpen, setNavOpen] = useState(false);
   return (
@@ -97,8 +116,7 @@ function Layout({
     </div>
   );
 }
-/** @param {import("./renderer-contracts").WorkspaceProps} props */
-function Novel(props) {
+function Novel(props: WorkspaceProps) {
   const { state, view, actions } = useFanqie({ onTarget: props.onTarget }),
     { dispatch } = actions;
   useEffect(() => {
@@ -197,9 +215,9 @@ function Novel(props) {
     </div>
   );
   const assigned = new Set(),
-    groups = (view.snap?.volumes || []).map((volume) => ({
+    groups = (view.snap?.volumes || []).map((volume: any) => ({
       ...volume,
-      rows: view.chapters.filter((chapter) => {
+      rows: view.chapters.filter((chapter: any) => {
         if (!volume.chapters.includes(chapter.id) || assigned.has(chapter.id))
           return false;
         assigned.add(chapter.id);
@@ -207,7 +225,7 @@ function Novel(props) {
       }),
     }));
   const ungrouped = view.chapters.filter(
-    (chapter) => !assigned.has(chapter.id),
+    (chapter: any) => !assigned.has(chapter.id),
   );
   if (ungrouped.length)
     groups.push({
@@ -218,7 +236,7 @@ function Novel(props) {
   const navigation = (
     <>
       <h2>章节</h2>
-      {groups.map((group) => (
+      {groups.map((group: any) => (
         <section className="nav-volume" key={group.id}>
           {group.title && <h3>{group.title}</h3>}
           <ChapterList
@@ -228,8 +246,8 @@ function Novel(props) {
             chapterId={state.chapterId}
             candidateId={state.candidateId}
             readerView={state.readerView}
-            onSelectChapter={(id) => dispatch({ type: "selectChapter", id })}
-            onSelectCandidate={(chapterId, id) =>
+            onSelectChapter={(id: string) => dispatch({ type: "selectChapter", id })}
+            onSelectCandidate={(chapterId: string, id: string) =>
               dispatch({ type: "selectCandidate", chapterId, id })
             }
           />
@@ -237,7 +255,7 @@ function Novel(props) {
       ))}
       <div className="nav-results">
         <h3>候选与回报</h3>
-        {view.pending.map((candidate) => (
+        {view.pending.map((candidate: any) => (
           <button
             key={candidate.id}
             onClick={() =>
@@ -278,34 +296,39 @@ function Novel(props) {
   return (
     <>
       <Layout
-        {...props}
+        tab={props.tab}
+        setTab={props.setTab}
+        drawer={props.drawer}
+        setDrawer={props.setDrawer}
+        onMethodEditState={props.onMethodEditState}
         mode="fanqie"
         navigation={navigation}
         center={center}
         inspector={
           <Inspector state={state} view={view} actions={actions} hideAgent />
         }
+        agent={props.agent}
       />
       <Dialogs state={state} view={view} actions={actions} />
       <Notices
         notices={state.notices}
-        onDismiss={(id) => dispatch({ type: "dismissNotice", id })}
+        onDismiss={(id: string) => dispatch({ type: "dismissNotice", id })}
       />
     </>
   );
 }
-/** @param {import("./renderer-contracts").WorkspaceProps} props */
-function Articles(props) {
+function Articles(props: WorkspaceProps) {
   const tt = useToutiao({ onTarget: props.onTarget }),
-    a = tt.detail.article;
+    a: any = tt.detail.article;
   useEffect(() => {
     props.onContext({
       target: props.target,
-      article: a,
+      article: a || undefined,
       kind: "article",
     });
   }, [a, tt.selected]);
   const adopt = async () => {
+    if (!a) return;
     if (
       window.confirm(
         `确认采用《${a.title}》第 ${a.rev} 版？发布时请按平台要求声明 AI 生成，故事或合成人物须注明虚构演绎。`,
@@ -316,7 +339,12 @@ function Articles(props) {
   return (
     <>
       <Layout
-        {...props}
+        tab={props.tab}
+        setTab={props.setTab}
+        drawer={props.drawer}
+        setDrawer={props.setDrawer}
+        onMethodEditState={props.onMethodEditState}
+        agent={props.agent}
         mode="toutiao"
         navigation={
           <>
@@ -359,8 +387,7 @@ function Articles(props) {
     </>
   );
 }
-/** @param {import("./renderer-contracts").WorkspaceProps} props */
-export function Workspace(props) {
+export function Workspace(props: WorkspaceProps) {
   return props.target.mode === "fanqie" ? (
     <Novel {...props} />
   ) : (

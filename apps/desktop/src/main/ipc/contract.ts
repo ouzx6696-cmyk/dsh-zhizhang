@@ -13,9 +13,9 @@ export type ProjectItem = { label: string; target: Target; focus: Focus };
 export type ConversationItem = { id: number; name: string };
 export type RunningTask = {
   target: Target;
-  focus: Focus;
-  phase: string;
-  task: TaskState;
+  focus?: Focus;
+  phase?: string;
+  task?: TaskState;
 };
 export type SessionView = {
   messages: any[];
@@ -66,7 +66,7 @@ export interface IpcMap {
   view: { args: [Target, number?, number?]; result: SessionView };
   running: { args: []; result: RunningTask[] };
   profiles: { args: []; result: boolean };
-  model: { args: [ModelSettings]; result: PublicSettings };
+  model: { args: [unknown]; result: PublicSettings };
   "test-model": {
     args: [keyof ModelSettings, ModelConnection];
     result: { latency: number; model: string };
