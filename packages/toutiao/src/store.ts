@@ -174,10 +174,12 @@ export class ArticleStore {
   }
 
   /** 新增一版稿件（只增不改）。已交稿的文章不再接受新稿。 */
-  async stageDraft(id: string, text: string, role: string, note: string): Promise<ArticleMeta> {
+  async stageDraft(id: string, text: string, role: string, note: string, expected?: { rev: number; sha256: string }): Promise<ArticleMeta> {
     await this.writable()
     return this.update(id, async (m) => {
       if (m.status === '已交稿') throw new WriterError('CONFLICT', '这篇已交稿，不能再改；需要改写请新开一篇')
+      if (expected && (m.current_rev !== expected.rev || this.currentDraft(m)?.sha256 !== expected.sha256))
+        throw new WriterError('CONFLICT', '文章已变化，请保留当前修改并重新核对最新稿件。')
       const rev = m.current_rev + 1
       const file = this.draftPath(id, rev)
       if (await exists(file)) throw new WriterError('CONFLICT', `第 ${rev} 版已存在，meta 与稿件目录不一致`)

@@ -506,7 +506,7 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
                         id: input.chapter,
                         body: input.body,
                         expectedRevision: input.expectedRevision,
-                        force: true,
+                        force: input.force === true,
                         ledgerEntry: "作者在阅读面板保存正文",
                     });
                     return ctx.json(200, {

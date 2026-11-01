@@ -397,12 +397,41 @@ test("正文可在稿纸中直接编辑并保存", async () => {
       "售票员推开窗，问他等谁。他没来得及回答，口袋里的电话先响了。\n\n" +
       "作者亲手补写的一段。",
   );
+  // Refusing a view change must keep the live draft.
+  await page.evaluate(() => { window.__restoreConfirm = window.confirm; window.confirm = () => false; });
+  try {
+    await page.getByRole("button", { name: "全书概况", exact: true }).click();
+    await expect(editor).toHaveValue(/作者亲手补写的一段/);
+  } finally {
+    await page.evaluate(() => { window.confirm = window.__restoreConfirm; delete window.__restoreConfirm; });
+  }
   await page.keyboard.press("Control+s");
   await expect(editor).toBeHidden();
   await expect(page.locator(".studio-paper-column .wb-manuscript")).toContainText(
     "作者亲手补写的一段。",
   );
   await expect(page.getByText("已保存当前正文。")).toBeVisible();
+  // A background write must not silently replace the editor's captured basis.
+  await page.getByRole("button", { name: "编辑正文", exact: true }).click();
+  await editor.fill("作者尚未保存的局部修改");
+  await page.evaluate(async () => {
+    const api = window.writerDesktop;
+    const state = await api.state();
+    const work = state.target.work;
+    const current = await api.request("/chapter", { query: { work, id: "c001" } });
+    const result = await api.request("/chapter/save", { method: "POST", body: {
+      work, chapter: "c001", expectedRevision: current.data.meta.revision,
+      body: current.data.body + "\n后台先保存的新正文。",
+    }});
+    if (result.status !== 200) throw new Error(JSON.stringify(result));
+  });
+  await expect(editor).toHaveValue("作者尚未保存的局部修改");
+  await page.keyboard.press("Control+s");
+  await expect(page.locator(".wb-source-editor [role=alert]")).toContainText(/变化|冲突/);
+  await expect(editor).toHaveValue("作者尚未保存的局部修改");
+  await page.getByRole("button", { name: "取消", exact: true }).click();
+  await page.getByRole("button", { name: "再次点击放弃", exact: true }).click();
+  await expect(page.locator(".studio-paper-column .wb-manuscript")).toContainText("后台先保存的新正文。");
 });
 
 test("停止任务走应用内确认并在 2 秒内收尾", async () => {

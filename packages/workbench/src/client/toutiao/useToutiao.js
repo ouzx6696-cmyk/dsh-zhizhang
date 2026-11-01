@@ -1,3 +1,4 @@
+import { useSourceGuard } from "../shared/useSourceGuard.js";
 /**
  * 今日头条模式的数据：文章列表（6 秒轮询，页面不可见时暂停）+ 选中文章详情 + 采用 / 投递动作。
  * 只有切到今日头条模式时才挂载，番茄长篇模式不发这些请求。
@@ -11,7 +12,9 @@ const { useCallback, useEffect, useRef, useState } = React;
 const isDesktop = host === "desktop";
 const POLL_MS = 6000;
 
-export function useToutiao({ onTarget } = {}) {
+export function useToutiao({ onTarget, onSourceEditState } = {}) {
+  const sourceGuard = useSourceGuard(onSourceEditState);
+  const canLeaveSource = sourceGuard.canLeave;
   const targetSink = useRef(onTarget);
   targetSink.current = onTarget;
   const [list, setList] = useState({ status: "loading", articles: [], roots: [], sessions: {}, statuses: [], currentRoot: "", error: "", at: "", deliver: false, deliverReason: "" });
@@ -86,10 +89,12 @@ export function useToutiao({ onTarget } = {}) {
   useEffect(() => { if (selected) loadDetail(sel.root, sel.id); }, [sel.root, sel.id, stamp, !!selected, loadDetail]);
 
   const select = useCallback((root, id) => {
+    if (!canLeaveSource()) return false;
     setSel({ root, id });
     writePref(PREF.ttRoot, root);
     writePref(PREF.ttArticle, id);
-  }, []);
+    return true;
+  }, [canLeaveSource]);
 
   // 投递目标数据目录：选中文章的目录；没选就用最近有会话的目录
   const pickRoot = () => {
@@ -99,11 +104,13 @@ export function useToutiao({ onTarget } = {}) {
     return (withSession[0] && withSession[0][0]) || list.roots[0] || "";
   };
 
-  const saveDraft = useCallback(async (text) => {
+  const saveDraft = useCallback(async (text, basis) => {
     const root = selected?.root || list.currentRoot;
     if (!root || !sel.id) throw new Error(t("ttNoArticle"));
-    const data = await toutiao.saveDraft({ root, id: sel.id, text });
+    if (!basis || basis.root !== root || basis.id !== sel.id) throw new Error("编辑对象已变化，请先保留当前修改。");
+    const data = await toutiao.saveDraft({ ...basis, text });
     notify("success", t("ttDraftSaved", { rev: data.rev }));
+    if (data.warning) notify("warning", data.warning);
     await loadList();
     await loadDetail(root, sel.id);
     return data;
@@ -146,5 +153,5 @@ export function useToutiao({ onTarget } = {}) {
   const deliverRoot = pickRoot();
   const deliverOff = !list.deliver ? t("ttDeliverOff", { reason: list.deliverReason || "" }) : (!deliverRoot || (!isDesktop && !list.sessions[deliverRoot])) ? t("ttNoSession") : "";
 
-  return { list, sel, selected, detail, adoptReady, busy, notices, refreshing, doneAt, deliverOff, actions: { select, deliver, adopt, saveDraft, refresh, dismiss } };
+  return { sourceGuard, list, sel, selected, detail, adoptReady, busy, notices, refreshing, doneAt, deliverOff, actions: { select, deliver, adopt, saveDraft, refresh, dismiss } };
 }

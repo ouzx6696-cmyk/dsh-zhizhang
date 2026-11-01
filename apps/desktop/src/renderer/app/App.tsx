@@ -38,12 +38,13 @@ function App() {
           agent={<AgentPanel app={app} />}
           tab={state.tab}
           setTab={(tab) => set({ tab })}
-          onView={(view) => set({ view })}
+          onView={app.changeView}
           drawer={state.drawer}
           setDrawer={(drawer) => set({ drawer })}
           readOnly={system.access?.readOnly}
           onContext={(context) => set({ context })}
           onTarget={(next) => void app.selectSnapshot(next).catch(app.fail)}
+          onSourceEditState={app.trackSourceEdit}
           onMethodEditState={app.trackMethodEdit}
         />
       ) : (

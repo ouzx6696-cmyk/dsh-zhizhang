@@ -23,7 +23,8 @@ function MethodsPane({
     profilesApi(mode)
       .list()
       .then((result: any) => {
-        if (running) setName(result.profiles?.find((profile: any) => profile.active)?.name || "默认");
+        if (running)
+          setName(result.profiles?.find((profile: any) => profile.active)?.name || "默认");
       })
       .catch(() => {});
     return () => {
@@ -157,20 +158,20 @@ export function WorkspaceLayout({
           className="studio-backdrop methods-backdrop"
           style={{ display: methodsOpen ? undefined : "none" }}
         >
-        <section className="methods-page" role="dialog" aria-modal="true" aria-label="方法方案">
-          <header>
-            <h2>方法方案</h2>
-            <button
-              className="icon-button"
-              aria-label="关闭方法方案"
-              autoFocus
-              onClick={() => setMethodsOpen(false)}
-            >
-              ×
-            </button>
-          </header>
-          <MethodsEditor mode={mode} onEditState={onMethodEditState} />
-        </section>
+          <section className="methods-page" role="dialog" aria-modal="true" aria-label="方法方案">
+            <header>
+              <h2>方法方案</h2>
+              <button
+                className="icon-button"
+                aria-label="关闭方法方案"
+                autoFocus
+                onClick={() => setMethodsOpen(false)}
+              >
+                ×
+              </button>
+            </header>
+            <MethodsEditor mode={mode} onEditState={onMethodEditState} />
+          </section>
         </div>
       )}
     </div>

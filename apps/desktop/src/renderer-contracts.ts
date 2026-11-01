@@ -76,5 +76,8 @@ export interface WorkspaceProps {
   readOnly?: boolean;
   onContext: (context: WorkspaceContext) => void;
   onTarget: (target: Target & { focus?: Focus }) => void;
+  onSourceEditState?: (state: SourceEditState | null) => void;
   onMethodEditState: (state: { dirty: boolean; saving: boolean }) => void;
 }
+
+export type SourceEditState = { dirty: boolean; saving: boolean; discard: () => void };

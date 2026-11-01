@@ -1,3 +1,4 @@
+import { useDraftProtection } from "./useDraftProtection";
 import { useEffect, useRef } from "react";
 import { scopeId, type Focus, type Target } from "../../context";
 import type { WorkspaceContext } from "../../renderer-contracts";
@@ -19,10 +20,14 @@ export function useDesktopController() {
   const focused = useRef<Focus>({});
   const limit = useRef(80);
   const viewRequest = useRef(0);
+  const selectionRequest = useRef(0);
   const pendingMessages = useRef<ChatMessage[] | null>(null);
   const input = useRef<HTMLTextAreaElement | null>(null);
   const archived = useRef<number | undefined>(undefined);
-  const methodEdit = useRef({ dirty: false, saving: false });
+  const { canLeave, discardSource, trackMethodEdit, trackSourceEdit } = useDraftProtection(
+    focused,
+    (message) => set({ error: message }),
+  );
   const contextRef = useRef<WorkspaceContext>(state.context);
   contextRef.current = state.context;
 
@@ -63,8 +68,7 @@ export function useDesktopController() {
     pendingMessages.current = buffer;
     try {
       const value = await api.view(target, maximum, old);
-      if (request !== viewRequest.current || scopeId(target) !== scopeId(selected.current))
-        return;
+      if (request !== viewRequest.current || scopeId(target) !== scopeId(selected.current)) return;
       const known = new Set(value.messages.map((message) => message.writerMessageId)),
         extra = buffer.filter(
           (message) => !message.writerMessageId || !known.has(message.writerMessageId),
@@ -88,17 +92,20 @@ export function useDesktopController() {
     reopen = false,
   ) {
     if (!next) return;
+    const request = ++selectionRequest.current;
     const { focus: nextFocus = {}, ...target } = next,
       previous = selected.current;
     if (scopeId(previous) === scopeId(target)) {
       if (reopen) {
         await api.select(target);
-        if (scopeId(selected.current) !== scopeId(target)) return;
+        if (request !== selectionRequest.current) return;
         await syncState();
       }
       if (next.focus) setPosition(nextFocus);
       return;
     }
+    const chosen = persist ? await api.select(target) : target;
+    if (request !== selectionRequest.current) return;
     setPosition(nextFocus);
     const preserve =
       !previous &&
@@ -116,8 +123,6 @@ export function useDesktopController() {
       task: null,
       busy: false,
     });
-    const chosen = persist ? await api.select(target) : target;
-    if (scopeId(selected.current) !== scopeId(target)) return;
     selected.current = chosen;
     await syncState();
     await loadView(chosen);
@@ -224,23 +229,12 @@ export function useDesktopController() {
       set({ view: "writing" });
   }, [targetMode, state.view]);
 
-  function trackMethodEdit(value: { dirty: boolean; saving: boolean }) {
-    methodEdit.current = value;
-  }
-
-  function canLeave() {
-    if (methodEdit.current.saving) {
-      set({ error: "方法方案正在保存，请稍后再切换。" });
-      return false;
+  function changeView(view: string) {
+    if (view === desktopStore.get().view) return;
+    if (canLeave()) {
+      discardSource();
+      set({ view });
     }
-    const unsaved = [
-      focused.current.dirty && "段落",
-      methodEdit.current.dirty && "方法方案",
-    ].filter(Boolean);
-    return (
-      !unsaved.length ||
-      window.confirm(`当前${unsaved.join("和")}有未保存修改，离开将放弃这些修改。是否继续？`)
-    );
   }
 
   async function chooseWorkspace() {
@@ -272,8 +266,7 @@ export function useDesktopController() {
 
   async function sendText(value: string, snapshot: Focus = focused.current) {
     if (!selected.current) throw new Error("先选择作品或开始新作");
-    if (archived.current !== undefined)
-      throw new Error("当前查看的是旧对话，请先返回当前对话");
+    if (archived.current !== undefined) throw new Error("当前查看的是旧对话，请先返回当前对话");
     await api.send(value, selected.current, { ...snapshot });
     set({ tab: "agent", drawer: true, error: "" });
   }
@@ -337,6 +330,8 @@ export function useDesktopController() {
       newWork,
       exportFile,
       loadView,
+      changeView,
+      canLeave,
       clearArchive: () => {
         archived.current = undefined;
       },
@@ -368,8 +363,19 @@ export function useDesktopController() {
     jump,
     submit,
     sendText,
-    newWork, deliver, command, exportFile, chooseWorkspace, importRoot, canLeave,
-    trackMethodEdit, refreshWorkspace, stop: () => api.stop(selected.current || undefined),
-  };}
+    newWork,
+    deliver,
+    command,
+    exportFile,
+    chooseWorkspace,
+    importRoot,
+    canLeave,
+    trackMethodEdit,
+    trackSourceEdit,
+    changeView,
+    refreshWorkspace,
+    stop: () => api.stop(selected.current || undefined),
+  };
+}
 
 export type DesktopController = ReturnType<typeof useDesktopController>;

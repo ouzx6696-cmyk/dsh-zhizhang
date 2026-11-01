@@ -22,8 +22,7 @@ export async function conversations(host: Sessions, target: Target) {
 
 export async function newConversation(host: Sessions, target: Target) {
   const entry = host.sessions.get(host.key(target));
-  if (entry && !entry.session.isIdle)
-    throw new Error("请先停止当前任务，再开始新对话");
+  if (entry && !entry.session.isIdle) throw new Error("请先停止当前任务，再开始新对话");
   const dir = path.join(host.home, "sessions", host.key(target));
   await mkdir(dir, { recursive: true });
   const current = await readFile(path.join(dir, "current"), "utf8").catch((error) => {
@@ -48,29 +47,27 @@ function history(host: Sessions, manager: SessionManager, limit: number) {
   if (cached?.leaf === leaf && cached.limit >= cap)
     return { messages: cached.messages.slice(-cap), total: cached.total };
   const branch = manager.getBranch();
-  const messages = branch.slice(-cap).flatMap<unknown>((entry) => {
-    if (entry.type === "message")
-      return [{ ...entry.message, writerMessageId: entry.id }];
-    if (entry.type === "custom_message" && entry.display)
-      return [
-        {
-          role: "custom" as const,
+  const messages: unknown[] = [];
+  let total = 0;
+  for (let index = branch.length - 1; index >= 0; index--) {
+    const entry = branch[index];
+    if (entry.type === "message") {
+      total++;
+      if (messages.length < cap) messages.push({ ...entry.message, writerMessageId: entry.id });
+    } else if (entry.type === "custom_message" && entry.display) {
+      total++;
+      if (messages.length < cap)
+        messages.push({
+          role: "custom",
           writerMessageId: entry.id,
           customType: entry.customType,
           content: entry.content,
           display: true,
           timestamp: Date.parse(entry.timestamp),
-        },
-      ];
-    return [];
-  });
-  let total = 0;
-  for (const entry of branch)
-    if (
-      entry.type === "message" ||
-      (entry.type === "custom_message" && entry.display)
-    )
-      total += 1;
+        });
+    }
+  }
+  messages.reverse();
   host.projectedHistory.set(manager, {
     leaf,
     limit: cap,
@@ -80,24 +77,20 @@ function history(host: Sessions, manager: SessionManager, limit: number) {
   return { messages: messages.slice(-cap), total };
 }
 
-export async function view(
-  host: Sessions,
-  target: Target,
-  limit = 80,
-  archive?: number,
-) {
+export async function view(host: Sessions, target: Target, limit = 80, archive?: number) {
   const entry = archive === undefined ? host.sessions.get(host.key(target)) : undefined;
   let manager = entry?.session.sessionManager;
   if (!manager) {
     const marker =
       archive !== undefined
         ? (await conversations(host, target)).find((item) => item.id === archive)?.file || ""
-        : await readFile(path.join(host.home, "sessions", host.key(target), "current"), "utf8").catch(
-            (error) => {
-              if (error.code === "ENOENT") return "";
-              throw error;
-            },
-          );
+        : await readFile(
+            path.join(host.home, "sessions", host.key(target), "current"),
+            "utf8",
+          ).catch((error) => {
+            if (error.code === "ENOENT") return "";
+            throw error;
+          });
     if (
       marker &&
       (await access(marker).then(

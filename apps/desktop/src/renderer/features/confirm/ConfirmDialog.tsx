@@ -21,11 +21,7 @@ export function ConfirmDialog() {
   }, [request]);
   if (!request) return null;
   return (
-    <div
-      className="studio-backdrop"
-      role="presentation"
-      onClick={() => settleConfirm(false)}
-    >
+    <div className="studio-backdrop" role="presentation" onClick={() => settleConfirm(false)}>
       <section
         className="confirm-dialog"
         role="dialog"

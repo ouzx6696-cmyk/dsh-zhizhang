@@ -97,6 +97,13 @@ test("HTTP 采纳、审读和定稿调用共同作品操作", async () => {
         assert.equal((await jpost(server.api,'/chapter/review',request)).status,200);
         assert.equal((await jpost(server.api,'/chapter/finalize',request)).status,200);
         assert.equal((await readChapter(work.dir,'c001')).status,'final');
+        const basis = await readChapter(work.dir, 'c001');
+        const edit = {work: work.key, chapter: 'c001', body: '作者明确修订', expectedRevision: basis.revision};
+        assert.equal((await jpost(server.api, '/chapter/save', edit)).status, 409);
+        assert.equal((await readChapter(work.dir, 'c001')).body, basis.body);
+        assert.equal((await jpost(server.api, '/chapter/save', {...edit, force: true})).status, 200);
+        assert.equal((await readChapter(work.dir, 'c001')).status, 'drafted');
+
     }
     finally {
         await server.close();

@@ -70,7 +70,7 @@ export function TopBar({ app }: { app: DesktopController }) {
             <button
               className={state.view === id ? "active" : ""}
               key={id}
-              onClick={() => set({ view: id })}
+              onClick={() => app.changeView(id)}
             >
               {label}
             </button>
@@ -109,7 +109,11 @@ export function TopBar({ app }: { app: DesktopController }) {
           <Command size={14} />
           <span>Ctrl K</span>
         </button>
-        <button className="icon-button" aria-label="设置" onClick={() => set({ settingsOpen: true })}>
+        <button
+          className="icon-button"
+          aria-label="设置"
+          onClick={() => set({ settingsOpen: true })}
+        >
           <SettingsIcon size={17} />
         </button>
         <button
@@ -155,7 +159,10 @@ export function TopBar({ app }: { app: DesktopController }) {
           {state.running
             .filter((item) => scopeId(item.target) !== scopeId(selected))
             .map((item) => (
-              <button key={scopeId(item.target)} onClick={() => app.jump(item.target, item.focus).catch(fail)}>
+              <button
+                key={scopeId(item.target)}
+                onClick={() => app.jump(item.target, item.focus).catch(fail)}
+              >
                 <LoaderCircle size={13} className="spin" />
                 {focusLabel(item.target, item.focus)} · {item.phase}
               </button>

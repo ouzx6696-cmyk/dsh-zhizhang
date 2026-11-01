@@ -15,8 +15,7 @@ export function parseMode(value: unknown): Target["mode"] {
 
 export function parseTarget(value: unknown): Target {
   const source = asRecord(value, "作品目标");
-  if (typeof source.root !== "string" || !source.root.trim())
-    throw new Error("参数无效：作品目录");
+  if (typeof source.root !== "string" || !source.root.trim()) throw new Error("参数无效：作品目录");
   return {
     mode: parseMode(source.mode),
     root: source.root,
@@ -26,7 +25,42 @@ export function parseTarget(value: unknown): Target {
 
 export function parseFocus(value: unknown): Focus {
   if (value === undefined || value === null) return {};
-  return asRecord(value, "任务对象") as Focus;
+  const source = asRecord(value, "任务对象");
+  const focus: Focus = {};
+  for (const key of ["article", "chapter", "candidate", "title", "workTitle"] as const) {
+    if (source[key] === undefined) continue;
+    if (typeof source[key] !== "string") throw new Error(`参数无效：任务对象 ${key}`);
+    focus[key] = source[key];
+  }
+  if (source.revision !== undefined) {
+    if (
+      typeof source.revision !== "string" &&
+      !(typeof source.revision === "number" && Number.isFinite(source.revision))
+    )
+      throw new Error("参数无效：正文版本");
+    focus.revision = source.revision;
+  }
+  if (source.dirty !== undefined) {
+    if (typeof source.dirty !== "boolean") throw new Error("参数无效：未保存状态");
+    focus.dirty = source.dirty;
+  }
+  if (source.source !== undefined) {
+    if (
+      typeof source.source !== "string" ||
+      !["chapter", "candidate", "article", "split"].includes(source.source)
+    )
+      throw new Error("参数无效：正文来源");
+    focus.source = source.source as Focus["source"];
+  }
+  if (source.intent !== undefined) {
+    if (
+      typeof source.intent !== "string" ||
+      !["write", "review", "plan", "inspect"].includes(source.intent)
+    )
+      throw new Error("参数无效：任务意图");
+    focus.intent = source.intent as Focus["intent"];
+  }
+  return focus;
 }
 
 export function parseText(value: unknown): string {
@@ -35,10 +69,7 @@ export function parseText(value: unknown): string {
 }
 
 export function parseOperation(value: unknown): string {
-  if (
-    typeof value !== "string" ||
-    !/^\/[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*$/.test(value)
-  )
+  if (typeof value !== "string" || !/^\/[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*$/.test(value))
     throw new Error("参数无效：操作");
   return value;
 }
@@ -47,8 +78,7 @@ export function parseRequestOptions(value: unknown): RequestOptions {
   if (value === undefined || value === null) return {};
   const source = asRecord(value, "请求参数");
   const method = source.method === undefined ? undefined : String(source.method).toUpperCase();
-  if (method && method !== "GET" && method !== "POST")
-    throw new Error("参数无效：请求方法");
+  if (method && method !== "GET" && method !== "POST") throw new Error("参数无效：请求方法");
   let query: Record<string, unknown> | undefined;
   if (source.query !== undefined) {
     query = asRecord(source.query, "查询参数");
@@ -79,14 +109,12 @@ export function parseAppearance(value: unknown): Partial<Appearance> {
     result.theme = source.theme as Appearance["theme"];
   }
   if (source.font !== undefined) {
-    if (!["serif", "sans"].includes(String(source.font)))
-      throw new Error("参数无效：正文字体");
+    if (!["serif", "sans"].includes(String(source.font))) throw new Error("参数无效：正文字体");
     result.font = source.font as Appearance["font"];
   }
   if (source.fontSize !== undefined) {
     const size = Number(source.fontSize);
-    if (!Number.isInteger(size) || size < 14 || size > 28)
-      throw new Error("参数无效：正文字号");
+    if (!Number.isInteger(size) || size < 14 || size > 28) throw new Error("参数无效：正文字号");
     result.fontSize = size;
   }
   return result;
@@ -101,7 +129,6 @@ export function parseLimit(value: unknown): number | undefined {
 export function parseArchive(value: unknown): number | undefined {
   if (value === undefined || value === null) return undefined;
   const archive = Number(value);
-  if (!Number.isInteger(archive) || archive < 0)
-    throw new Error("参数无效：历史对话");
+  if (!Number.isInteger(archive) || archive < 0) throw new Error("参数无效：历史对话");
   return archive;
 }

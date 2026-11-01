@@ -10,18 +10,16 @@ type CommandDependencies = {
   context: WorkspaceContext;
   selected: Target | null;
   focus: Focus;
-  set: (
-    patch: Partial<DesktopState> | ((state: DesktopState) => Partial<DesktopState>),
-  ) => void;
-  setChat: (
-    patch: Partial<ChatState> | ((state: ChatState) => Partial<ChatState>),
-  ) => void;
+  set: (patch: Partial<DesktopState> | ((state: DesktopState) => Partial<DesktopState>)) => void;
+  setChat: (patch: Partial<ChatState> | ((state: ChatState) => Partial<ChatState>)) => void;
   sendText: (value: string, snapshot?: Focus) => Promise<void>;
   deliver: (action: string, note?: string) => Promise<void>;
   jump: (target: Target | null, focus?: Focus) => Promise<void>;
   newWork: (mode: "fanqie" | "toutiao", note?: string) => Promise<void>;
   exportFile: (format: string) => Promise<void>;
   loadView: (target: Target, maximum?: number, old?: number) => Promise<void>;
+  changeView: (view: string) => void;
+  canLeave: () => boolean;
   clearArchive: () => void;
 };
 
@@ -31,10 +29,10 @@ export async function runCommand(deps: CommandDependencies) {
   if (name === "对照采纳")
     return deps.jump(selected, { ...focus, candidate: context.candidate?.id });
   if (name === "补全章纲")
-    return deps.sendText(
-      "【写作台】读取本书已保存的规划，补齐当前章纲缺项；不要写正文。" + args,
-      { ...focus, intent: "plan" },
-    );
+    return deps.sendText("【写作台】读取本书已保存的规划，补齐当前章纲缺项；不要写正文。" + args, {
+      ...focus,
+      intent: "plan",
+    });
   if (name === "新书") return deps.newWork("fanqie", args);
   if (name === "续写") return deps.deliver("continue", args);
   if (name === "改本章") return deps.deliver("revise", args);
@@ -59,6 +57,7 @@ export async function runCommand(deps: CommandDependencies) {
   if (name === "导出") return deps.exportFile("txt");
   if (name === "新对话") {
     if (!selected) throw new Error("请先打开作品");
+    if (!deps.canLeave()) return;
     await desktop.newConversation(selected);
     deps.clearArchive();
     deps.setChat({

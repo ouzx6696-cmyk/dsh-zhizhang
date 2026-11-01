@@ -5,11 +5,13 @@ import { t } from "./copy.js";
 
 const { useEffect, useRef, useState } = React;
 
-export function SourceEditor({ initial, title, note, hint, onSave, onCancel }) {
+export function SourceEditor({ initial, title, note, hint, onSave, onCancel, onStateChange }) {
   const [text, setText] = useState(initial);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [discard, setDiscard] = useState(false);
+  const savingRef = useRef(saving);
+  savingRef.current = saving;
   const textRef = useRef(text);
   const discardRef = useRef(discard);
   const initialRef = useRef(initial);
@@ -17,9 +19,12 @@ export function SourceEditor({ initial, title, note, hint, onSave, onCancel }) {
   const cancelRef = useRef(onCancel);
   textRef.current = text;
   discardRef.current = discard;
-  initialRef.current = initial;
   cancelRef.current = onCancel;
-  const dirty = text !== initial;
+  const dirty = text !== initialRef.current;
+  useEffect(() => {
+    onStateChange?.({ dirty, saving, discard: () => cancelRef.current() });
+  }, [dirty, saving, onStateChange]);
+  useEffect(() => () => onStateChange?.(null), [onStateChange]);
 
   const save = async () => {
     if (saving) return;
@@ -41,6 +46,7 @@ export function SourceEditor({ initial, title, note, hint, onSave, onCancel }) {
 
   useEffect(() => {
     const keyboard = (event) => {
+      if (document.querySelector('[aria-modal="true"]')) return;
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
         event.preventDefault();
         event.stopImmediatePropagation();
@@ -50,6 +56,7 @@ export function SourceEditor({ initial, title, note, hint, onSave, onCancel }) {
       if (event.key !== "Escape") return;
       event.preventDefault();
       event.stopImmediatePropagation();
+      if (savingRef.current) return;
       if (textRef.current === initialRef.current || discardRef.current)
         cancelRef.current();
       else setDiscard(true);

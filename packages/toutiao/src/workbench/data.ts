@@ -77,15 +77,16 @@ export async function articleDetail(rootIn: string, id: string) {
 }
 
 /** 作者在写作台直接保存：新增作者版稿件，旧版保留，状态回到初稿待改。 */
-export async function saveAuthorDraft(rootIn: string, id: string, text: string, config: ToutiaoConfig = {}) {
+export async function saveAuthorDraft(rootIn: string, id: string, text: string, expected: { rev: number; sha256: string }, config: ToutiaoConfig = {}) {
   const root = await knownRoot(rootIn)
   const clean = String(text ?? '').replace(/\r\n/g, '\n')
   if (!clean.trim()) throw new WriterError('INVALID_ARGS', '正文不能为空')
   const store = new ArticleStore(root)
-  const m = await store.stageDraft(id, clean, 'author', '作者在写作台保存')
-  await syncLedgerStatus(config, store, m).catch(() => undefined)
+  const m = await store.stageDraft(id, clean, 'author', '作者在写作台保存', expected)
+  let warning: string | undefined
+  await syncLedgerStatus(config, store, m).catch(() => { warning = "正文已保存，台账状态未能同步，请稍后核对台账。" })
   const cur = store.currentDraft(m)
-  return { rev: m.current_rev, status: m.status, chars: cur?.chars ?? 0, sha256: cur?.sha256 }
+  return { rev: m.current_rev, status: m.status, chars: cur?.chars ?? 0, sha256: cur?.sha256, ...(warning ? { warning } : {}) }
 }
 
 /** 导出读取完整当前正文，不使用写作台预览截断。 */

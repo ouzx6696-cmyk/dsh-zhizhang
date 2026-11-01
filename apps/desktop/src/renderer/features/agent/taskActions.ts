@@ -12,9 +12,7 @@ type TaskActionDependencies = {
     reopen?: boolean,
   ) => Promise<void>;
   sendText: (value: string, snapshot?: Focus) => Promise<void>;
-  set: (
-    patch: Partial<DesktopState> | ((state: DesktopState) => Partial<DesktopState>),
-  ) => void;
+  set: (patch: Partial<DesktopState> | ((state: DesktopState) => Partial<DesktopState>)) => void;
 };
 
 export async function startNewWork(
@@ -52,11 +50,7 @@ export async function startNewWork(
   deps.set({ picker: false, onboarding: false });
 }
 
-export async function deliverAction(
-  deps: TaskActionDependencies,
-  action: string,
-  note = "",
-) {
+export async function deliverAction(deps: TaskActionDependencies, action: string, note = "") {
   const target = deps.selected,
     snapshot = { ...deps.focus };
   if (!target) throw new Error("请先选择作品");
@@ -79,9 +73,9 @@ export async function deliverAction(
           confirm: true,
           requestId: crypto.randomUUID(),
         };
-  await desktop.request(
-    target.mode === "fanqie" ? "/agent/deliver" : "/toutiao/agent/deliver",
-    { method: "POST", body },
-  );
+  await desktop.request(target.mode === "fanqie" ? "/agent/deliver" : "/toutiao/agent/deliver", {
+    method: "POST",
+    body,
+  });
   deps.set({ tab: "agent", drawer: true });
 }

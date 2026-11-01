@@ -73,7 +73,8 @@ export function Onboarding({ app }: { app: DesktopController }) {
           <div className="wizard-root">
             <h2>作品都在你自己的目录里</h2>
             <p>
-              写作根下统一管理 novels、toutiao 和共用偏好。已有稿件仍可从设置中导入，不会搬动原文件。
+              写作根下统一管理 novels、toutiao
+              和共用偏好。已有稿件仍可从设置中导入，不会搬动原文件。
             </p>
             <button
               className="primary"

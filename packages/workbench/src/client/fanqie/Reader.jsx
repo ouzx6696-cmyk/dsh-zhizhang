@@ -37,10 +37,10 @@ export function Reader({ state, view, actions, annotationId: providedAnnotationI
   const generatedAnnotationId = React.useId();
   const annotationId = providedAnnotationId || generatedAnnotationId;
   const { dispatch } = actions;
-  const { current, activeCand, chapterPending } = view;
+  const { current: selectedChapter, activeCand, chapterPending } = view;
   const meta = state.chapter.meta;
-  const [editing, setEditing] = React.useState(false);
-  React.useEffect(() => setEditing(false), [current?.id, activeCand?.id]);
+  const [editing, setEditing] = React.useState(null);
+  const current = selectedChapter || (editing ? { id: editing.scope.chapter, title: editing.title } : null);
   if (!state.chapterId || !current) {
     return (
       <div className="wb-reader-empty">
@@ -116,7 +116,10 @@ export function Reader({ state, view, actions, annotationId: providedAnnotationI
               size="sm"
               disabled={!editable}
               title={!editable ? t("editorUnavailable") : undefined}
-              onClick={() => setEditing(true)}
+              onClick={() => setEditing({ initial: editorSlot.body, title: current.title, expectedRevision: revision,
+                scope: { base: state.projectId, work: state.work, chapter: current.id },
+                candidateId: readerView === "candidate" ? activeCand?.id : undefined,
+                status: meta?.status })}
             >
               {t("editorToggle")}
             </Button>
@@ -152,22 +155,22 @@ export function Reader({ state, view, actions, annotationId: providedAnnotationI
           ) : null}
         </div>
       </div>
-      <div className="wb-reader-body wb-enter" key={current.id + ":" + readerView} id={"wb-reader-" + readerView + "-panel"} role="tabpanel" aria-labelledby={"wb-reader-" + readerView} tabIndex={0}>
+      <div className="wb-reader-body wb-enter" key={editing ? editing.scope.chapter + ":" + (editing.candidateId || "official") : current.id + ":" + readerView} id={"wb-reader-" + readerView + "-panel"} role="tabpanel" aria-labelledby={"wb-reader-" + readerView} tabIndex={0}>
         {editing ? (
           <SourceEditor
-            key={current.id + ":" + readerView}
-            initial={editorSlot.body}
+            key={editing ? editing.scope.chapter + ":" + (editing.candidateId || "official") : current.id + ":" + readerView}
+            initial={editing.initial}
             title={t("editorTitle")}
             note={editorNote}
             onSave={async (text) => {
-              await actions.saveChapter({
-                body: text,
-                expectedRevision: revision,
-                candidateId: readerView === "candidate" ? activeCand?.id : undefined,
-              });
-              setEditing(false);
+              const force = !editing.candidateId && editing.status === "final";
+              if (force && !window.confirm("修改定稿正文将使原审读依据失效，并退回工作稿。确认保存？")) return;
+              await actions.saveChapter({ body: text, expectedRevision: editing.expectedRevision,
+                candidateId: editing.candidateId, scope: editing.scope, force });
+              setEditing(null);
             }}
-            onCancel={() => setEditing(false)}
+            onCancel={() => setEditing(null)}
+            onStateChange={actions.sourceEditState}
           />
         ) : readerView === "split" ? (
           <div className="wb-split">
@@ -175,8 +178,8 @@ export function Reader({ state, view, actions, annotationId: providedAnnotationI
               <h3 className="wb-split-head">{t("officialColumn")}</h3>
               <BodyPane slot={state.chapter} kind="official" issues={issues("chapter")} annotationId={annotationId} />
             </section>
-            <section className="wb-split-col" aria-label={t("candidateColumn", { id: activeCand.id })}>
-              <h3 className="wb-split-head">{t("candidateColumn", { id: activeCand.draftLabel || activeCand.id })}</h3>
+            <section className="wb-split-col" aria-label={t("candidateColumn", { id: activeCand.draftLabel || "当前" })}>
+              <h3 className="wb-split-head">{t("candidateColumn", { id: activeCand.draftLabel || "当前" })}</h3>
               <BodyPane slot={state.candidate} kind="candidate" issues={issues("candidate")} annotationId={annotationId} />
             </section>
           </div>

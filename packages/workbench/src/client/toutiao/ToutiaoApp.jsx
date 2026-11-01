@@ -8,7 +8,7 @@ import { Manuscript } from "../shared/Manuscript.jsx";
 import { SourceEditor } from "../shared/SourceEditor.jsx";
 import { statusInfo } from "../../../../ui/src/status.js";
 
-const { useEffect, useState } = React;
+const { useState } = React;
 
 const TAG_TONE = { neutral: "neutral", info: "info", warn: "warning", success: "success", danger: "danger" };
 const statusLabel = (status) => statusInfo("toutiao", status).label;
@@ -95,14 +95,12 @@ export function ArticleList({ articles, statuses, sel, onSelect }) {
   );
 }
 
-export function Body({ detail, onSave, readOnly = false }) {
+export function Body({ detail, onSave, readOnly = false, onEditState }) {
   const [view, setView] = useState("draft");
-  const [editing, setEditing] = useState(false);
-  const articleId = detail.article?.id, draftRev = detail.article?.draft?.rev;
-  useEffect(() => setEditing(false), [articleId, draftRev]);
-  if (detail.status === "loading") return <div className="wb-pane-loading" role="status"><Skeleton lines={8} /></div>;
-  if (detail.status === "error") return <Callout tone="danger" role="alert">{detail.error}</Callout>;
-  const a = detail.article;
+  const [editing, setEditing] = useState(null);
+  if (!editing && detail.status === "loading") return <div className="wb-pane-loading" role="status"><Skeleton lines={8} /></div>;
+  if (!editing && detail.status === "error") return <Callout tone="danger" role="alert">{detail.error}</Callout>;
+  const a = editing?.article || detail.article;
   if (!a) return <div className="wb-reader-empty"><Empty icon="news" title={t("ttPick")} hint={t("ttPickHint")} /></div>;
   const shown = view === "delivery" && a.delivery ? "delivery" : "draft";
   return (
@@ -129,7 +127,7 @@ export function Body({ detail, onSave, readOnly = false }) {
             />
           ) : null}
           {!editing && shown === "draft" && a.draft?.text && !a.draft.truncated && onSave && !readOnly ? (
-            <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+            <Button variant="outline" size="sm" onClick={() => setEditing({ article: a })}>
               {t("editorToggle")}
             </Button>
           ) : null}
@@ -142,10 +140,12 @@ export function Body({ detail, onSave, readOnly = false }) {
             title={t("editorTitle")}
             note={t("ttEditorNote")}
             onSave={async (text) => {
-              await onSave(text);
-              setEditing(false);
+              await onSave(text, { root: a.root, id: a.id,
+                expectedRev: a.draft.rev, expectedSha256: a.draft.sha256 });
+              setEditing(null);
             }}
-            onCancel={() => setEditing(false)}
+            onCancel={() => setEditing(null)}
+            onStateChange={onEditState}
           />
         ) : shown === "delivery" ? (
           <pre className="wb-prewrap wb-tt-delivery">{a.delivery}</pre>
@@ -321,7 +321,7 @@ export function ToutiaoApp({ modeSwitch, version }) {
           </div>
         </nav>
         <section className="wb-column wb-column-reader" aria-label={t("ttDetail")}>
-          <Body detail={tt.detail} />
+          <Body detail={tt.detail} onSave={tt.actions.saveDraft} onEditState={tt.sourceGuard.report} />
         </section>
         <aside className="wb-column wb-column-inspector" aria-label={t("ttSide")}>
           <h2 className="wb-column-head">{t("ttSide")}</h2>

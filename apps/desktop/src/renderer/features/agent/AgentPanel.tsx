@@ -1,11 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import {
-  Send,
-  Plus,
-  History,
-  Feather,
-  ArrowRight,
-} from "lucide-react";
+import { Send, Plus, History, Feather, ArrowRight } from "lucide-react";
 import { Markdown } from "../../../Markdown";
 import { humanVersion } from "../../../commands";
 import { focusLabel, promptContext, toolLabel } from "../../../context";
@@ -157,7 +151,10 @@ export function AgentPanel({ app }: { app: DesktopController }) {
             planning: "规划回报",
           }[result.kind as string] || "任务回报";
     return (
-      <div className={"result-card " + (result.failed ? "failed" : "")} data-kind={result.kind || "review"}>
+      <div
+        className={"result-card " + (result.failed ? "failed" : "")}
+        data-kind={result.kind || "review"}
+      >
         <strong>{title}</strong>
         <p>{result.summary}</p>
         <button onClick={() => app.jump(result.target, result.focus).catch(fail)}>
@@ -172,8 +169,7 @@ export function AgentPanel({ app }: { app: DesktopController }) {
     if (message.role === "custom" && message.display === false) return null;
     if (message.role === "toolResult") {
       const result = message.details?.writerResult;
-      if (result)
-        return <div key={index}>{resultCard(result, candidateNumbers.get(index))}</div>;
+      if (result) return <div key={index}>{resultCard(result, candidateNumbers.get(index))}</div>;
       return (
         <div className="tool-action" key={index}>
           {toolLabel(message.toolName || "")}
@@ -181,9 +177,7 @@ export function AgentPanel({ app }: { app: DesktopController }) {
       );
     }
     const parsed =
-      message.role === "user"
-        ? promptContext(original)
-        : { text: original, context: null as any };
+      message.role === "user" ? promptContext(original) : { text: original, context: null as any };
     if (message.role === "user" && parsed.text.startsWith("【写作台】")) {
       return (
         <article className="chat-message user action-capsule" key={index}>
@@ -220,11 +214,14 @@ export function AgentPanel({ app }: { app: DesktopController }) {
           <header>
             <strong>
               {busy ? "正在进行" : "任务结束"} ·{" "}
-              {task.name?.startsWith("【写作台】")
-                ? actionTitle(task.name)
-                : task.name || phase}
+              {task.name?.startsWith("【写作台】") ? actionTitle(task.name) : task.name || phase}
             </strong>
-            <button className="stop-task" disabled={!busy} aria-label="停止任务" onClick={() => app.stop().catch(fail)}>
+            <button
+              className="stop-task"
+              disabled={!busy}
+              aria-label="停止任务"
+              onClick={() => app.stop().catch(fail)}
+            >
               停止
             </button>
           </header>
@@ -285,8 +282,7 @@ export function AgentPanel({ app }: { app: DesktopController }) {
         ref={listRef}
         onScroll={(event) => {
           const list = event.currentTarget;
-          stickToBottom.current =
-            list.scrollHeight - list.scrollTop - list.clientHeight < 48;
+          stickToBottom.current = list.scrollHeight - list.scrollTop - list.clientHeight < 48;
         }}
       >
         {messages.length < total && (
@@ -325,7 +321,9 @@ export function AgentPanel({ app }: { app: DesktopController }) {
             {focus.revision !== undefined ? " · " + humanVersion(focus.revision) : ""}
           </div>
           {busy && task && <small className="running-target">运行任务仍处理发送时的对象</small>}
-          {focus.dirty && <small className="form-warning">段落尚未保存；Agent 使用已保存稿件。</small>}
+          {focus.dirty && (
+            <small className="form-warning">段落尚未保存；Agent 使用已保存稿件。</small>
+          )}
           <textarea
             ref={input}
             aria-label="写作要求"

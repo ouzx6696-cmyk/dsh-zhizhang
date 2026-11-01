@@ -59,9 +59,9 @@ export function toutiaoApi(config: ToutiaoConfig, canDeliver?: () => boolean): W
           const body = await ctx.body(1_000_000)
           if (!body) return true
           const text = typeof body.text === 'string' ? body.text : ''
-          if (!str(body.root) || !str(body.id) || !text.trim()) ctx.json(400, { ok: false, code: 'bad_args', error: '须指明数据目录、文章与非空正文。' })
+          if (!str(body.root) || !str(body.id) || !text.trim() || !Number.isInteger(body.expectedRev) || Number(body.expectedRev) < 1 || typeof body.expectedSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(body.expectedSha256)) ctx.json(400, { ok: false, code: 'bad_args', error: '须指明数据目录、文章、非空正文及实际已读版本。' })
           else {
-            const saved = await saveAuthorDraft(str(body.root), str(body.id), text, config)
+            const saved = await saveAuthorDraft(str(body.root), str(body.id), text, { rev: body.expectedRev as number, sha256: str(body.expectedSha256) }, config)
             ctx.json(200, { ok: true, id: str(body.id), ...saved })
           }
         } else {

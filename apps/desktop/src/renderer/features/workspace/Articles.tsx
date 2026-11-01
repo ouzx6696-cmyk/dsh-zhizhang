@@ -68,9 +68,7 @@ function Ledger({
                   : "—"}
               </td>
               <td>
-                <button onClick={() => onOpen(row.root, row.id)}>
-                  {t("ttLedgerOpen")}
-                </button>
+                <button onClick={() => onOpen(row.root, row.id)}>{t("ttLedgerOpen")}</button>
               </td>
             </tr>
           ))}
@@ -81,16 +79,17 @@ function Ledger({
 }
 
 export function Articles(props: WorkspaceProps) {
-  const tt = useToutiao({ onTarget: props.onTarget }),
+  const tt = useToutiao({ onTarget: props.onTarget, onSourceEditState: props.onSourceEditState }),
     a: any = tt.detail.article;
   useEffect(() => {
     props.onContext({
       target: props.target,
       article: a || undefined,
       kind: "article",
+      dirty: tt.sourceGuard.dirty,
       actions: { refresh: tt.actions.refresh },
     });
-  }, [a, tt.selected, tt.actions.refresh]);
+  }, [a, tt.selected, tt.actions.refresh, tt.sourceGuard.dirty]);
   const adopt = async () => {
     if (!a) return;
     if (
@@ -153,13 +152,20 @@ export function Articles(props: WorkspaceProps) {
               onWrite={() => props.onView?.("writing")}
             />
           ) : (
-          <>
-            {a ? (
-              <div className="paper-decisions">
-                <StatusBadge mode="toutiao" status={a.status} />
-                <ol className="paper-steps" aria-label="头条进度">
-                  {["S1 找题", "S2 立项", "S3 标题", "S4 成文", "S5 红笔", "S6 质检", "S7 交稿"].map(
-                    (step, index) => (
+            <>
+              {a ? (
+                <div className="paper-decisions">
+                  <StatusBadge mode="toutiao" status={a.status} />
+                  <ol className="paper-steps" aria-label="头条进度">
+                    {[
+                      "S1 找题",
+                      "S2 立项",
+                      "S3 标题",
+                      "S4 成文",
+                      "S5 红笔",
+                      "S6 质检",
+                      "S7 交稿",
+                    ].map((step, index) => (
                       <li
                         key={step}
                         data-state={index < stage ? "done" : index === stage ? "current" : "todo"}
@@ -167,52 +173,52 @@ export function Articles(props: WorkspaceProps) {
                       >
                         {step}
                       </li>
-                    ),
-                  )}
-                </ol>
-                {a.qa?.length ? (
-                  <span
-                    className="paper-qa"
-                    data-pass={a.qa[a.qa.length - 1].pass ? "true" : "false"}
+                    ))}
+                  </ol>
+                  {a.qa?.length ? (
+                    <span
+                      className="paper-qa"
+                      data-pass={a.qa[a.qa.length - 1].pass ? "true" : "false"}
+                    >
+                      质检 {a.qa[a.qa.length - 1].score} 分
+                    </span>
+                  ) : null}
+                  <button
+                    disabled={!!tt.busy || !!tt.deliverOff || props.readOnly}
+                    title={tt.deliverOff || undefined}
+                    onClick={revise}
                   >
-                    质检 {a.qa[a.qa.length - 1].score} 分
-                  </span>
-                ) : null}
-                <button
-                  disabled={!!tt.busy || !!tt.deliverOff || props.readOnly}
-                  title={tt.deliverOff || undefined}
-                  onClick={revise}
-                >
-                  打回修改
-                </button>
-                <button
-                  className="primary"
-                  disabled={!a.adoptable || !tt.adoptReady || !!tt.busy || props.readOnly}
-                  onClick={adopt}
-                >
-                  <Check size={14} />
-                  采用
-                </button>
-              </div>
-            ) : (
-              <div className="paper-start">
-                <p>还没有头条稿件</p>
-                <button
-                  className="primary"
-                  disabled={!!tt.busy || !!tt.deliverOff || props.readOnly}
-                  title={tt.deliverOff || undefined}
-                  onClick={startNew}
-                >
-                  + 新写一篇头条
-                </button>
-              </div>
-            )}
-            <Body
-              detail={tt.detail}
-              onSave={tt.actions.saveDraft}
-              readOnly={props.readOnly}
-            />
-          </>
+                    打回修改
+                  </button>
+                  <button
+                    className="primary"
+                    disabled={!a.adoptable || !tt.adoptReady || !!tt.busy || props.readOnly}
+                    onClick={adopt}
+                  >
+                    <Check size={14} />
+                    采用
+                  </button>
+                </div>
+              ) : (
+                <div className="paper-start">
+                  <p>还没有头条稿件</p>
+                  <button
+                    className="primary"
+                    disabled={!!tt.busy || !!tt.deliverOff || props.readOnly}
+                    title={tt.deliverOff || undefined}
+                    onClick={startNew}
+                  >
+                    + 新写一篇头条
+                  </button>
+                </div>
+              )}
+              <Body
+                detail={tt.detail}
+                onSave={tt.actions.saveDraft}
+                onEditState={tt.sourceGuard.report}
+                readOnly={props.readOnly}
+              />
+            </>
           )
         }
         inspector={<ToutiaoSide tt={tt} hideAgent />}

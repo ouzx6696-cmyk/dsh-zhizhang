@@ -272,6 +272,12 @@ test("真实 Pi：建书归属、候选定位、独立编辑、角色模型、�
     assert.ok(
       before.messages.some((message) => message.customType === "writer-author"),
     );
+    const live = await sessions.open(attached.next);
+    live.sessionManager.appendCustomMessageEntry("hidden", "not displayed", false);
+    live.sessionManager.appendCustomMessageEntry("hidden", "also hidden", false);
+    const tail = await sessions.view(attached.next, 2);
+    assert.equal(tail.total, before.total);
+    assert.deepEqual(tail.messages.map(item => item.writerMessageId), before.messages.slice(-2).map(item => item.writerMessageId));
     await sessions.newConversation(attached.next);
     assert.equal((await sessions.view(attached.next)).messages.length, 0);
     const conversations = await sessions.conversations(attached.next);

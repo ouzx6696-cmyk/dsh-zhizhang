@@ -33,9 +33,7 @@ export function ModelFields({
   };
   return (
     <fieldset className="model-fields">
-      <legend>
-        {role === "writer" ? "写手" : role === "editor" ? "独立编辑" : "规划与拆书"}
-      </legend>
+      <legend>{role === "writer" ? "写手" : role === "editor" ? "独立编辑" : "规划与拆书"}</legend>
       <label>
         服务商
         <select value={model.provider} onChange={(event) => preset(event.target.value)}>
@@ -74,50 +72,50 @@ export function ModelFields({
       <details className="model-advanced">
         <summary>高级</summary>
         <div className="field-grid">
-        <label>
-          上下文窗口
+          <label>
+            上下文窗口
+            <input
+              type="number"
+              min="1024"
+              step="1024"
+              value={model.contextWindow}
+              onChange={(event) =>
+                onChange({ ...model, contextWindow: Number(event.target.value) })
+              }
+            />
+          </label>
+          <label>
+            最大输出
+            <input
+              type="number"
+              min="1"
+              step="1024"
+              value={model.maxTokens}
+              onChange={(event) => onChange({ ...model, maxTokens: Number(event.target.value) })}
+            />
+          </label>
+        </div>
+        <label className="checkbox">
           <input
-            type="number"
-            min="1024"
-            step="1024"
-            value={model.contextWindow}
-            onChange={(event) =>
-              onChange({ ...model, contextWindow: Number(event.target.value) })
-            }
+            type="checkbox"
+            checked={model.reasoning}
+            onChange={(event) => onChange({ ...model, reasoning: event.target.checked })}
           />
+          启用模型思考能力
         </label>
-        <label>
-          最大输出
-          <input
-            type="number"
-            min="1"
-            step="1024"
-            value={model.maxTokens}
-            onChange={(event) => onChange({ ...model, maxTokens: Number(event.target.value) })}
-          />
-        </label>
-      </div>
-      <label className="checkbox">
-        <input
-          type="checkbox"
-          checked={model.reasoning}
-          onChange={(event) => onChange({ ...model, reasoning: event.target.checked })}
-        />
-        启用模型思考能力
-      </label>
-      {model.reasoning && (
-        <label>
-          思考档位
-          <select
-            value={model.thinkingLevel}
-            onChange={(event) => onChange({ ...model, thinkingLevel: event.target.value })}
-          >
-            {["off", "minimal", "low", "medium", "high", "xhigh"].map((level) => (
-              <option key={level}>{level}</option>
-            ))}
-          </select>
-        </label>
-      )}
+        {model.reasoning && (
+          <label>
+            思考档位
+            <select
+              value={model.thinkingLevel}
+              onChange={(event) => onChange({ ...model, thinkingLevel: event.target.value })}
+            >
+              {["off", "minimal", "low", "medium", "high", "xhigh"].map((level) => (
+                <option key={level}>{level}</option>
+              ))}
+            </select>
+          </label>
+        )}
       </details>
       <button type="button" onClick={onTest} disabled={result?.busy}>
         {result?.busy ? <LoaderCircle size={14} className="spin" /> : <Check size={14} />}

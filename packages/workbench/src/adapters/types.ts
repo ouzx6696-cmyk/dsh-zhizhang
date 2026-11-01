@@ -26,12 +26,48 @@ export type DesktopBridge = {
   ) => Promise<{ status: number; data: Json }>;
 };
 
+export type SaveChapterInput = {
+  base?: string;
+  work: string;
+  chapter: string;
+  body: string;
+  expectedRevision: string;
+  force?: boolean;
+  mode?: "candidate";
+  editOf?: string;
+  draftLabel?: string;
+};
+export type SaveDraftInput = {
+  root: string;
+  id: string;
+  text: string;
+  expectedRev: number;
+  expectedSha256: string;
+};
+export type SavedDraft = {
+  rev: number;
+  status: string;
+  chars: number;
+  sha256: string;
+  warning?: string;
+};
+
 export interface FanqieData {
   projects(refresh?: boolean, signal?: AbortSignal): Promise<Json>;
   snapshot(base?: string, work?: string, signal?: AbortSignal, scope?: string): Promise<Json>;
-  chapter(base: string | undefined, work: string | undefined, id: string, signal?: AbortSignal): Promise<Json>;
-  saveChapter(payload: Json): Promise<Json>;
-  candidate(base: string | undefined, work: string | undefined, id: string, signal?: AbortSignal): Promise<Json>;
+  chapter(
+    base: string | undefined,
+    work: string | undefined,
+    id: string,
+    signal?: AbortSignal,
+  ): Promise<Json>;
+  saveChapter(payload: SaveChapterInput): Promise<Json>;
+  candidate(
+    base: string | undefined,
+    work: string | undefined,
+    id: string,
+    signal?: AbortSignal,
+  ): Promise<Json>;
   diagnose(payload: Json, signal?: AbortSignal): Promise<Json>;
   stageRevision(payload: Json): Promise<Json>;
   accept(payload: Json): Promise<Json>;
@@ -45,7 +81,7 @@ export interface ToutiaoData {
   articles(signal?: AbortSignal): Promise<Json>;
   article(root: string, id: string, signal?: AbortSignal): Promise<Json>;
   adopt(article: Json): Promise<Json>;
-  saveDraft(payload: Json): Promise<Json>;
+  saveDraft(payload: SaveDraftInput): Promise<SavedDraft>;
   deliver(payload: Json): Promise<Json>;
 }
 

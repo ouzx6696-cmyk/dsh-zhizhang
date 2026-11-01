@@ -14,7 +14,10 @@ import { WorkspaceLayout } from "./WorkspaceLayout";
 import { Articles } from "./Articles";
 function Novel(props: WorkspaceProps) {
   const annotationId = React.useId();
-  const { state, view, actions } = useFanqie({ onTarget: props.onTarget }),
+  const { state, view, actions, sourceGuard } = useFanqie({
+      onTarget: props.onTarget,
+      onSourceEditState: props.onSourceEditState,
+    }),
     { dispatch } = actions;
   useEffect(() => {
     dispatch({
@@ -37,7 +40,7 @@ function Novel(props: WorkspaceProps) {
       hasCandidate: !!view.activeCand,
       candidate: view.activeCand,
       review: state.chapter.writer?.editorReview,
-      dirty: !!state.edit?.dirty,
+      dirty: !!state.edit?.dirty || sourceGuard.dirty,
       ready,
       kind: "novel",
       outlineReady: [
@@ -51,9 +54,7 @@ function Novel(props: WorkspaceProps) {
         "ending",
       ].every((key) => {
         const value = state.chapter.outline?.[key];
-        return typeof value === "number"
-          ? value > 0
-          : typeof value === "string" && !!value.trim();
+        return typeof value === "number" ? value > 0 : typeof value === "string" && !!value.trim();
       }),
       actions: {
         saveParagraph: actions.diagnostics.save,
@@ -65,14 +66,14 @@ function Novel(props: WorkspaceProps) {
     view.activeCand,
     state.chapter,
     state.edit,
+    sourceGuard.dirty,
     view.snap?.title,
     actions.refresh,
   ]);
   const current = view.current,
     meta = state.chapter.meta,
     review = meta?.review;
-  const reviewed =
-    review?.revision === meta?.revision && review?.result === "pass";
+  const reviewed = review?.revision === meta?.revision && review?.result === "pass";
   const canRead = state.chapter.status === "ready" && !state.chapter.truncated;
   const finalizeBlocked =
     !canRead ||
@@ -116,9 +117,7 @@ function Novel(props: WorkspaceProps) {
         <>
           <button
             disabled={!canRead || props.readOnly}
-            onClick={() =>
-              dispatch({ type: "openDialog", dialog: { kind: "review" } })
-            }
+            onClick={() => dispatch({ type: "openDialog", dialog: { kind: "review" } })}
           >
             <FileCheck size={14} />
             声明已审读
@@ -140,12 +139,9 @@ function Novel(props: WorkspaceProps) {
             className="primary"
             disabled={finalizeBlocked}
             title={
-              state.chapter.writer?.finalizeBlocked ||
-              (!reviewed ? "请先完整审读当前版本" : "")
+              state.chapter.writer?.finalizeBlocked || (!reviewed ? "请先完整审读当前版本" : "")
             }
-            onClick={() =>
-              dispatch({ type: "openDialog", dialog: { kind: "finalize" } })
-            }
+            onClick={() => dispatch({ type: "openDialog", dialog: { kind: "finalize" } })}
           >
             <Check size={14} />
             定稿
@@ -158,15 +154,12 @@ function Novel(props: WorkspaceProps) {
     groups = (view.snap?.volumes || []).map((volume: any) => ({
       ...volume,
       rows: view.chapters.filter((chapter: any) => {
-        if (!volume.chapters.includes(chapter.id) || assigned.has(chapter.id))
-          return false;
+        if (!volume.chapters.includes(chapter.id) || assigned.has(chapter.id)) return false;
         assigned.add(chapter.id);
         return true;
       }),
     }));
-  const ungrouped = view.chapters.filter(
-    (chapter: any) => !assigned.has(chapter.id),
-  );
+  const ungrouped = view.chapters.filter((chapter: any) => !assigned.has(chapter.id));
   if (ungrouped.length)
     groups.push({
       id: "ungrouped",
@@ -232,12 +225,7 @@ function Novel(props: WorkspaceProps) {
         center={center}
         inspector={
           <>
-            <Diagnostics
-              state={state}
-              view={view}
-              actions={actions}
-              annotationId={annotationId}
-            />
+            <Diagnostics state={state} view={view} actions={actions} annotationId={annotationId} />
             <Inspector state={state} view={view} actions={actions} hideAgent compact />
           </>
         }
@@ -252,9 +240,5 @@ function Novel(props: WorkspaceProps) {
   );
 }
 export function Workspace(props: WorkspaceProps) {
-  return props.target.mode === "fanqie" ? (
-    <Novel {...props} />
-  ) : (
-    <Articles {...props} />
-  );
+  return props.target.mode === "fanqie" ? <Novel {...props} /> : <Articles {...props} />;
 }

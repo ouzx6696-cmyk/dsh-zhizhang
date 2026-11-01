@@ -1,3 +1,4 @@
+import { useSourceGuard } from "../shared/useSourceGuard.js";
 /**
  * Data side of the panel: one reducer, one polling loop and on-demand body
  * loaders. Everything here is local to the mounted panel (registrant-private
@@ -26,7 +27,9 @@ function messageOf(err) {
   return (err.code && err.code !== "network" && err.code !== "timeout" ? "[" + err.code + "] " : "") + (err.message || String(err));
 }
 
-export function useFanqie({ onTarget } = {}) {
+export function useFanqie({ onTarget, onSourceEditState } = {}) {
+  const sourceGuard = useSourceGuard(onSourceEditState);
+  const canLeaveSource = sourceGuard.canLeave;
   const targetSink = useRef(onTarget);
   targetSink.current = onTarget;
   const [state, rawDispatch] = useReducer(reducer, undefined, initialState);
@@ -42,6 +45,7 @@ export function useFanqie({ onTarget } = {}) {
     if (navigation) {
       const next = reducer(previous, action);
       const changesSource = diagnosticScope(next) !== diagnosticScope(previous) || next.view !== previous.view || action.type === "reloadBodies";
+      if (action.type !== "reloadBodies" && (changesSource || next.readerView !== previous.readerView) && !canLeaveSource()) return false;
       if (changesSource && previous.edit) {
         if (previous.edit.saving) return false;
         if (previous.edit.dirty && !window.confirm(diagnosticCopy.discard)) return false;
@@ -51,7 +55,7 @@ export function useFanqie({ onTarget } = {}) {
     }
     rawDispatch(action);
     return true;
-  }, [setEdit]);
+  }, [setEdit, canLeaveSource]);
   const view = useMemo(() => derive(state), [state.snapshot, state.chapterId, state.candidateId]); // eslint-disable-line react-hooks/exhaustive-deps
   const viewRef = useRef(view);
   viewRef.current = view;
@@ -134,9 +138,9 @@ export function useFanqie({ onTarget } = {}) {
       focus: { workTitle: state.snapshot?.title, chapter: current?.id, title: current?.title,
         candidate: candidate?.id, source: current ? (state.readerView === 'split' ? 'split' : candidate ? 'candidate' : 'chapter') : undefined,
         revision: loaded.status === 'ready' ? (loaded.meta?.revision ?? loaded.meta?.readVersion) : undefined,
-        dirty: !!state.edit?.dirty }
+        dirty: !!state.edit?.dirty || sourceGuard.dirty }
     });
-  }, [state.base, state.snapshot?.workKey, state.snapshot?.title, state.view, state.readerView, state.chapterId, view.activeCand?.id, state.chapter.status, state.chapter.meta, state.candidate.status, state.candidate.meta, state.edit?.dirty]);
+  }, [state.base, state.snapshot?.workKey, state.snapshot?.title, state.view, state.readerView, state.chapterId, view.activeCand?.id, state.chapter.status, state.chapter.meta, state.candidate.status, state.candidate.meta, state.edit?.dirty, sourceGuard.dirty]);
 
 
   // First load, and a full reload whenever the selected project or work changes.
@@ -324,15 +328,18 @@ export function useFanqie({ onTarget } = {}) {
           return false;
         }
       },
-      async saveChapter({ body, expectedRevision, candidateId }) {
+      async saveChapter({ body, expectedRevision, candidateId, scope, force }) {
         const s = ref.current;
         if (!s.work || !s.chapterId) throw new Error(t("chapterSaveMissing"));
+        if (scope && (s.projectId !== scope.base || s.work !== scope.work || s.chapterId !== scope.chapter))
+          throw new Error("编辑对象已变化，请先保留当前修改再重新打开章节。");
         const data = await fanqie.saveChapter({
           base: s.projectId || undefined,
           work: s.work,
           chapter: s.chapterId,
           body,
           expectedRevision,
+          force: force === true,
           ...(candidateId ? { mode: "candidate", editOf: candidateId, draftLabel: "作者修订" } : {}),
         });
         await refresh({ soft: false });
@@ -370,7 +377,7 @@ export function useFanqie({ onTarget } = {}) {
   }, [refresh]);
 
   const diagnostics = useDiagnostics({ state, stateRef: ref, alive, setEdit, refresh: actions.refresh, notify: actions.notify });
-  return { state, view, actions: { ...actions, diagnostics } };
+  return { state, view, sourceGuard, actions: { ...actions, diagnostics, sourceEditState: sourceGuard.report } };
 }
 
 export const __messageOf = messageOf;

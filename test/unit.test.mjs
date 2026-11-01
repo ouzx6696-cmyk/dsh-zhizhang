@@ -86,5 +86,9 @@ test('稿件只增不改，哈希记录', async () => {
   assert.equal(m2.current_rev, 2)
   assert.equal(await s.readDraft(m.id, 1), '# t\n一')
   assert.notEqual(m2.drafts[0].sha256, m2.drafts[1].sha256)
+  const basis = { rev: 2, sha256: m2.drafts[1].sha256 }
+  await s.stageDraft(m.id, '# t\n作者修改', 'author', '', basis)
+  await assert.rejects(s.stageDraft(m.id, '# t\n旧依据', 'author', '', basis), /文章已变化/)
+  assert.equal((await s.get(m.id)).current_rev, 3)
   await assert.rejects(s.create('a', { date: '2026-10-28' }), /已存在/)
 })
