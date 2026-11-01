@@ -4,15 +4,15 @@
 
 开发主线是自有写作内核与客户端。模型负责协助创作，作者决定采纳、定稿和交稿。
 
-## 下载 0.9.4
+## 下载 0.9.5
 
-Windows x64 安装器和免安装包已构建，下载 [Actions 构建产物](https://github.com/ouzx6696-cmyk/dsh-zhizhang/actions/runs/41327386013) 中的 **writer-windows-packages**（需登录 GitHub）。
+Windows x64 安装器和免安装包已构建，下载 [Actions 构建产物](https://github.com/ouzx6696-cmyk/dsh-zhizhang/actions/runs/41338948556) 中的 **writer-windows-packages**（需登录 GitHub）。
 
 | 文件                            | 用途                                 | 大小      |
 | ------------------------------- | ------------------------------------ | --------- |
-| `WriterAgent-0.9.4-win-x64.exe` | 安装器，可选择安装位置               | 约 164 MB |
-| `WriterAgent-0.9.4-win-x64.zip` | 免安装，解压后运行 `WriterAgent.exe` | 约 208 MB |
-| `writer-agent-0.9.4-src.zip`    | 对应构建提交的源码                   | 约 2.3 MB |
+| `WriterAgent-0.9.5-win-x64.exe` | 安装器，可选择安装位置               | 约 164 MB |
+| `WriterAgent-0.9.5-win-x64.zip` | 免安装，解压后运行 `WriterAgent.exe` | 约 208 MB |
+| `writer-agent-0.9.5-src.zip`    | 对应构建提交的源码                   | 约 2.4 MB |
 | `SHA256SUMS`                    | 下载文件的 SHA-256 校验清单          | —         |
 
 随包携带 Python 和中文字体，无需另外安装。此构建未签名，尚未发布为 GitHub 正式 Release；正式发布及自动更新以 [Releases](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases) 为准。
@@ -38,14 +38,15 @@ Windows x64 安装器和免安装包已构建，下载 [Actions 构建产物](ht
 
 应用不登录或自动发布到写作平台。停止任务保留已经落盘的内容，不撤销已完成的写入。
 
-## 0.9.4 的改进
+## 0.9.5 的改进
 
-- 正文编辑固定打开时的内容和版本，后台刷新保留作者草稿；切页与关闭保护未保存修改。
-- 头条保存核对已读版本和正文哈希，旧稿不能静默覆盖后台新稿；长篇定稿修订需要明确确认。
-- 对话分页按可见消息计数，隐藏事件不再造成缺页。
-- 精简发行依赖，移除重复携带的字体和图标源码包，保留编译后的字体、界面资源和许可证。
+- 作品切换在成功后统一提交；读取或保存失败保留旧目标，连续切换不会混用访问状态。
+- 损坏文章与方法方案明确报告问题；会话读取故障不再静默变成新会话。
+- 卡片默认解释不再制造诊断依据，规划、写手和编辑提示与实际工具一致。
+- 内部工具保留真实异常，精简重复回执与任务结束刷新；各编辑入口复用离开决策。
+- 保留必要的数据保护，常驻测试场景总数不增加；Windows 一次准备生成安装器与 ZIP。
 
-构建提交为 [`7a4f75b`](https://github.com/ouzx6696-cmyk/dsh-zhizhang/commit/7a4f75b6c4d3ce312bcb547dec26b4ade6517916)。核心、桌面与 Windows 界面检查通过，实际打包客户端及随包 Python 可启动，下载产物校验通过。真实模型文学质量、作者试用和 Windows 实机安装／更新仍待验收。详细证据与限制见[0.9.4 实施及验收记录](docs/history/0.9.4-IMPLEMENTATION.md)。
+构建提交为 [`abf7204`](https://github.com/ouzx6696-cmyk/dsh-zhizhang/commit/abf7204d219013cadb6a980847d9273ae342585f)。核心、桌面与 Windows 界面检查通过，实际打包客户端及随包 Python 可启动，下载产物校验通过。真实模型文学质量、作者试用和 Windows 实机安装／更新仍待验收。详细证据与限制见[0.9.5 实施及验收记录](docs/history/0.9.5-IMPLEMENTATION.md)。
 
 ## 开发
 
