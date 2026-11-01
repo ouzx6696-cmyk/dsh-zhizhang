@@ -7,8 +7,9 @@ import { PREF, readPref } from "../../../../../packages/workbench/src/client/sha
 import { remember } from "../state/prefs";
 import { runCommand } from "../features/commands/runCommand";
 import { deliverAction, startNewWork } from "../features/agent/taskActions";
+import { desktop } from "../state/desktop";
 
-const api = window.writerDesktop;
+const api = desktop;
 const refresh = () => window.dispatchEvent(new Event("writer:refresh"));
 
 export function useDesktopController() {

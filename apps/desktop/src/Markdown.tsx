@@ -2,6 +2,7 @@ import React from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
+import { desktop } from "./renderer/state/desktop";
 export function Markdown({ text }: { text: string }) {
   return (
     <div className="studio-markdown">
@@ -15,7 +16,7 @@ export function Markdown({ text }: { text: string }) {
               href={href}
               onClick={(event) => {
                 event.preventDefault();
-                if (href) void window.writerDesktop.openExternal(href);
+                if (href) void desktop.openExternal(href);
               }}
             >
               {children}

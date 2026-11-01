@@ -150,7 +150,7 @@ test("决策不被 Agent 挡住，右栏标签与响应式布局，亮暗截图"
     .evaluate((element) => getComputedStyle(element).gridTemplateColumns);
   expect(columns.split(" ")).toHaveLength(3);
   await page.screenshot({
-    path: "test-results/desktop-1440-light.png",
+    path: "docs/design/baseline/desktop-1440-light.png",
     fullPage: true,
     animations: "disabled",
   });
@@ -161,8 +161,18 @@ test("决策不被 Agent 挡住，右栏标签与响应式布局，亮暗截图"
   const reader = await page.locator(".studio-paper-column").boundingBox(),
     sidebar = await page.locator(".studio-sidebar").boundingBox();
   expect(reader.x + reader.width).toBeLessThanOrEqual(sidebar.x + 1);
+  await page.screenshot({
+    path: "docs/design/baseline/desktop-1100-light.png",
+    fullPage: true,
+    animations: "disabled",
+  });
   await page.setViewportSize({ width: 900, height: 900 });
   await expect(page.locator(".studio-sidebar")).toHaveCSS("position", "fixed");
+  await page.screenshot({
+    path: "docs/design/baseline/desktop-900-light.png",
+    fullPage: true,
+    animations: "disabled",
+  });
   await page.getByRole("button", { name: "收起右栏", exact: true }).click();
   await expect(page.locator(".studio-sidebar")).toBeHidden();
   await page.getByRole("button", { name: "打开右栏", exact: true }).click();
@@ -182,10 +192,23 @@ test("决策不被 Agent 挡住，右栏标签与响应式布局，亮暗截图"
     .click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.screenshot({
-    path: "test-results/desktop-1440-dark.png",
+    path: "docs/design/baseline/desktop-1440-dark.png",
     fullPage: true,
     animations: "disabled",
   });
+  await page.setViewportSize({ width: 1100, height: 900 });
+  await page.screenshot({
+    path: "docs/design/baseline/desktop-1100-dark.png",
+    fullPage: true,
+    animations: "disabled",
+  });
+  await page.setViewportSize({ width: 900, height: 900 });
+  await page.screenshot({
+    path: "docs/design/baseline/desktop-900-dark.png",
+    fullPage: true,
+    animations: "disabled",
+  });
+  await page.setViewportSize({ width: 1440, height: 1000 });
 });
 
 test("命令面板、角色设置与新对话保留作品", async () => {

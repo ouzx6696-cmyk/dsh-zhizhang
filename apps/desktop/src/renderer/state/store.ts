@@ -1,8 +1,9 @@
 import { useSyncExternalStore } from "react";
 import type { Focus, Target } from "../../context";
 import type { TaskState, WorkspaceContext } from "../../renderer-contracts";
+import type { DesktopApi } from "./desktop";
 
-type Api = typeof window.writerDesktop;
+type Api = DesktopApi;
 export type SystemState = Awaited<ReturnType<Api["state"]>>;
 export type SystemModels = SystemState["models"];
 export type ProjectItem = Awaited<ReturnType<Api["projects"]>>[number];

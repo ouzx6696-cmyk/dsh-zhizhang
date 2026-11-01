@@ -14,6 +14,7 @@ const PKGS = path.join(ROOT, 'packages')
 const LAYERS = { host: 0, core: 1, workbench: 1, toutiao: 2, fanqie: 2, app: 3, 'host-generic': 2, desktop: 3 }
 const BROWSER_SAFE = ['fanqie/src/engine/domain/manuscript.ts', 'fanqie/src/engine/domain/diagnostics.ts']
 const problems = []
+const warnings = []
 
 async function* walk(dir) {
   for (const e of await readdir(dir, { withFileTypes: true })) {
@@ -29,7 +30,11 @@ for (const pkg of Object.keys(LAYERS)) {
     const rel = path.relative(PKGS, file).split(path.sep).join('/')
     const text = await readFile(file, 'utf8')
     if (text.includes('@ts-nocheck')) problems.push(`${rel}: 不许关闭类型检查`)
-    const renderer = pkg === 'desktop' && /\.(jsx|tsx)$/.test(file)
+    const renderer = pkg === 'desktop' && (rel.startsWith('../apps/desktop/src/renderer/') || /\.(jsx|tsx)$/.test(file))
+    if (renderer && text.includes('window.writerDesktop') && !rel.endsWith('apps/desktop/src/renderer/state/desktop.ts'))
+      problems.push(`${rel}: 渲染层只能经 state/desktop.ts 访问预加载桥`)
+    if ((pkg === 'desktop' || rel.startsWith('workbench/src/client/')) && text.split(/\r?\n/).length > 400)
+      warnings.push(`${rel}: 超过 400 行，建议按功能拆分`)
     if (pkg === 'desktop' && file.endsWith('.jsx') && !/^\/\/ @ts-check\r?\n/.test(text))
       problems.push(`${rel}: 桌面 JSX 必须显式启用 @ts-check 并纳入 renderer 检查`)
     const client = rel.startsWith('workbench/src/client/')
@@ -90,8 +95,19 @@ function check(file) {
 }
 for (const file of graph.keys()) check(file)
 
+for (const [rel, file] of [
+  ['apps/desktop/src/desktop.css', path.join(ROOT, 'apps/desktop/src/desktop.css')],
+  ['workbench/src/client/styles.css', path.join(PKGS, 'workbench/src/client/styles.css')],
+]) {
+  const css = await readFile(file, 'utf8')
+  const important = (css.match(/!important/g) || []).length
+  if (important) warnings.push(`${rel}: ${important} 处 !important（阶段 2 清理）`)
+  if (/font-family:[^;]*system-ui/.test(css)) warnings.push(`${rel}: 写死了 system-ui 字体（阶段 2 收口）`)
+}
+
+if (warnings.length) console.warn('架构守卫提示：\n' + [...new Set(warnings)].map(p => '  - ' + p).join('\n'))
 if (problems.length) {
   console.error('架构守卫失败：\n' + [...new Set(problems)].map(p => '  - ' + p).join('\n'))
   process.exit(1)
 }
-console.log(`架构守卫通过：${graph.size} 个源文件，分层、宿主边界、存储边界、浏览器边界与依赖环检查均通过`)
+console.log(`架构守卫通过：${graph.size} 个源文件，分层、宿主边界、存储边界、浏览器边界与依赖环检查均通过；${warnings.length} 条提示`)

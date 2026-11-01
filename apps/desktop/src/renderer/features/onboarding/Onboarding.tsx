@@ -2,6 +2,7 @@ import React from "react";
 import { ArrowRight, BookOpen, Check, Feather } from "lucide-react";
 import { ModelFields } from "../settings/ModelFields";
 import type { DesktopController } from "../../app/useDesktopController";
+import { desktop } from "../../state/desktop";
 
 export function Onboarding({ app }: { app: DesktopController }) {
   const { state, fail, set } = app;
@@ -37,7 +38,7 @@ export function Onboarding({ app }: { app: DesktopController }) {
                 set({ connectionResult: { busy: true } });
                 try {
                   set({
-                    connectionResult: await window.writerDesktop.testModel("writer", writer),
+                    connectionResult: await desktop.testModel("writer", writer),
                   });
                 } catch (error) {
                   set({
@@ -56,7 +57,7 @@ export function Onboarding({ app }: { app: DesktopController }) {
                 try {
                   if (!writer.apiKey && !writer.configured)
                     throw new Error("请填写写手模型的 API Key");
-                  await window.writerDesktop.model(wizardModels);
+                  await desktop.model(wizardModels);
                   await app.syncState();
                   set({ wizardStep: 1 });
                 } catch (error) {

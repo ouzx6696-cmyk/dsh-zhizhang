@@ -1,6 +1,7 @@
 import type { Focus, Target } from "../../../context";
 import type { WorkspaceContext } from "../../../renderer-contracts";
 import type { DesktopState } from "../../state/store";
+import { desktop } from "../../state/desktop";
 
 type CommandDependencies = {
   name: string;
@@ -54,11 +55,11 @@ export async function runCommand(deps: CommandDependencies) {
   if (name === "导出") return deps.exportFile("txt");
   if (name === "新对话") {
     if (!selected) throw new Error("请先打开作品");
-    await window.writerDesktop.newConversation(selected);
+    await desktop.newConversation(selected);
     deps.clearArchive();
     set({
       archive: undefined,
-      archives: await window.writerDesktop.conversations(selected),
+      archives: await desktop.conversations(selected),
       phase: "新对话已准备，作品保留；下一条指令会自动带入交接。",
     });
     await deps.loadView(selected);

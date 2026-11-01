@@ -6,20 +6,22 @@
 
 ```mermaid
 flowchart TD
-  UI[client / Workspace / 共享写作台] --> P[preload：writerDesktop IPC]
-  P --> M[main：桌面能力与作者操作]
-  M --> S[Sessions：任务与角色生命周期]
-  S --> PI[pi.ts：PI SDK 唯一边界]
+  UI[renderer：App / 功能模块 / 共享写作台] --> P[preload：typed IPC contract]
+  P --> M[main：lifecycle + ipc/*]
+  M --> S[session：manager / prompt / tools / history]
+  S --> PI[session/pi-adapter：PI SDK 唯一边界]
   S --> E[host-generic：执行门禁与确认]
   E --> T[长篇 / 头条业务工具]
-  M --> A[进程内复用写作台接口]
+  M --> A[main/operations：进程内复用写作台接口]
   T --> B[共同业务操作与存储]
   A --> B
   B --> D[作品版本 / Journal / Python 规则]
+  WB[workbench/adapters：DSH HTTP / 桌面 IPC] --> UI
 ```
 
-- **任务**：发送时捕获 Target/Focus；界面浏览位置与已接收任务分开。`session.ts` 管理准备、执行、主子会话、历史和结果，`pi.ts` 封装 SDK。子任务通过 `promptWithSignal` 将取消贯穿上下文准备与 SDK 启动，不从“当前未流式输出”推断任务已停止。
-- **作者操作**：`main.ts` 经 RouteContext 在进程内复用两种写作台接口，不额外启动 HTTP 服务；写入复用既有业务前提。preload 暴露能力，renderer 不直接访问 Node 或磁盘。
+- **任务**：发送时捕获 Target/Focus；界面浏览位置与已接收任务分开。`session/` 按 manager、pi-adapter、prompt、delivery、history、editor-task、task-tracker 等模块管理准备、执行、主子会话和结果，`pi-adapter.ts` 是唯一 SDK 边界。子任务通过 `promptWithSignal` 将取消贯穿上下文准备与 SDK 启动，不从“当前未流式输出”推断任务已停止。
+- **作者操作**：`main/operations.ts` 经 RouteContext 在进程内复用两种写作台接口，不额外启动 HTTP 服务；写入复用既有业务前提。`main/ipc/contract.ts` 统一通道、参数和返回类型，`renderer/state/desktop.ts` 是渲染层唯一的预加载桥入口。
+- **写作台数据**：浏览器端经 `workbench/src/adapters` 的同名接口取数；DSH 用 HTTP 实现，桌面用 IPC 实现，视图不再自行拼请求。
 - **授权**：本次确认绑定实际参数、对象和版本；共同执行门禁和敏感工具内部复核各有职责。UI 点头、模型文字和业务审读不是可以相互替代的授权。
 - **作品**：正文、候选、规划和审读以磁盘实际对象及版本为准；结果卡和会话不另建作品事实库。原子写、资源锁、作品租约及 Journal 保护不同范围。
 - **读取**：面板文件缓存和 PI 历史投影减少重复读取；授权、采纳及恢复依据仍核对实际文件。桌面写作台依赖事件刷新，兼容浏览器入口保留受控轮询。
@@ -81,6 +83,6 @@ flowchart TD
 
 ## 独立桌面入口
 
-`apps/desktop/src/pi.ts` 是唯一 Pi SDK 导入边界，`session.ts` 管理写手、独立编辑和规划角色、精简交接与既有会话文件。Electron main 负责窗口、加密配置、文件对话框、通知和 IPC；React 工作区直接复用写作台组件。工具调用经 host-generic 回到原业务，不重建方法或存储。
+`apps/desktop/src/session/pi-adapter.ts` 是唯一 Pi SDK 导入边界；`session/` 管理写手、独立编辑和规划角色、精简交接与既有会话文件。Electron main 由 `main/index.ts` 启动，IPC 按领域放在 `main/ipc/*`。渲染层是 `renderer/app` 组装、`renderer/state` 单 store 与 `renderer/features/*` 功能模块；React 工作区直接复用写作台组件。工具调用经 host-generic 回到原业务，不重建方法或存储。
 
 统一根将书放在 novels、文章放在 toutiao、资料与作者偏好放在 .writer。跨入口的作品租约与轻量快照在 core，共享业务写入检查租约。0.9.3 继续基于内置 PI 完善自有客户端的会话、角色协作、上下文和作品一致性，见[开发计划](PLAN-0.9.3.md)；不新增其他 Agent 工具适配。

@@ -2,7 +2,8 @@ import React, { useEffect, useState } from "react";
 import { X, FolderOpen, Download, Shield } from "lucide-react";
 import { ModelFields } from "./ModelFields";
 import type { SystemState } from "../../state/store";
-const api = window.writerDesktop;
+import { desktop } from "../../state/desktop";
+const api = desktop;
 type SettingsProps = {
   state: SystemState;
   onClose: () => void;

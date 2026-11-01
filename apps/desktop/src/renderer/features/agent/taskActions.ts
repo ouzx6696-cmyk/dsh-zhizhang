@@ -1,5 +1,6 @@
 import type { Focus, Target } from "../../../context";
 import type { DesktopState } from "../../state/store";
+import { desktop } from "../../state/desktop";
 
 type TaskActionDependencies = {
   selected: Target | null;
@@ -22,7 +23,7 @@ export async function startNewWork(
   note = "",
 ) {
   if (!deps.canLeave()) return;
-  const next = await window.writerDesktop.newTarget(mode);
+  const next = await desktop.newTarget(mode);
   await deps.selectSnapshot(next, false);
   deps.set((current) => ({
     workspaceKey: current.workspaceKey + 1,
@@ -31,7 +32,7 @@ export async function startNewWork(
     drawer: true,
   }));
   if (mode === "toutiao")
-    await window.writerDesktop.request("/toutiao/agent/deliver", {
+    await desktop.request("/toutiao/agent/deliver", {
       method: "POST",
       body: {
         root: next.root,
@@ -78,7 +79,7 @@ export async function deliverAction(
           confirm: true,
           requestId: crypto.randomUUID(),
         };
-  await window.writerDesktop.request(
+  await desktop.request(
     target.mode === "fanqie" ? "/agent/deliver" : "/toutiao/agent/deliver",
     { method: "POST", body },
   );

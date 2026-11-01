@@ -13,6 +13,7 @@ import { Markdown } from "../../../Markdown";
 import { humanVersion } from "../../../commands";
 import { focusLabel, promptContext, toolLabel } from "../../../context";
 import type { ChatMessage } from "../../state/store";
+import { desktop } from "../../state/desktop";
 import type { DesktopController } from "../../app/useDesktopController";
 
 function messageBody(message: ChatMessage) {
@@ -164,7 +165,7 @@ export function AgentPanel({ app }: { app: DesktopController }) {
         <button
           onClick={async () => {
             try {
-              set({ archives: await window.writerDesktop.conversations(selected!) });
+              set({ archives: await desktop.conversations(selected!) });
               set({ palette: false });
             } catch (error) {
               fail(error);
