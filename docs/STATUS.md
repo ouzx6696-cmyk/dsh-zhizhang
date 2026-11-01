@@ -1,24 +1,22 @@
-# 当前状态：0.9.4 构建准备
+# 当前状态：0.9.4
 
-基于 PLAN-0.9.2，独立客户端的统一工作区、角色模型、交接、命令、资料、导出和发布构建流程已实现；DSH 插件继续可用。详细清单、实际校验与限制见 [0.9.2 实施记录](history/0.9.2-IMPLEMENTATION.md)。深度审查中的 8 类问题及相关方案创建缺陷已修正，见 [审查修复记录](history/0.9.2-REVIEW-FIXES.md)。
+2026-11-02（香港时间）。自有桌面客户端与内置 PI 是当前开发主线；DSH 仅保留存量兼容，不新增其他 Agent 工具适配。
 
-| 部分 | 状态 |
-|---|---|
-| A 稳定与安全 | 已实现；既有两处失败修复，核心边界本地验证通过 |
-| B 桌面界面 | 已实现；Linux 真实 Electron 完成引导、响应式与主题核对；Windows 由 CI 复核 |
-| C 连续创作能力 | 已实现；真实 SDK 与假模型验证工具流程；实际写作效果待 E 集 |
-| D 通用宿主与发布 | 抽层、分层检查、Windows 原生构建和确认式更新已接入；证书与安装／更新实测待完成 |
-| E 真实写作验收 | 工具和评分模板已备妥，尚未使用真实模型运行，不得视为通过 |
-| 正式发行 | 仍以 GitHub Releases 为准，开发提交不自动成为正式最新版 |
+## 当前交付
 
-0.9.2 的[真实模型验收](ACCEPTANCE.md)和签名／实机条件仍需按实际资源核验后决定正式发布。
+- 实现提交：[`7a4f75b`](https://github.com/ouzx6696-cmyk/dsh-zhizhang/commit/7a4f75b6c4d3ce312bcb547dec26b4ade6517916)。
+- [Windows 构建 41327386013](https://github.com/ouzx6696-cmyk/dsh-zhizhang/actions/runs/41327386013)全部通过，产出 NSIS 安装器、免安装 ZIP、源码及 SHA-256 清单。
+- 实际打包客户端启动、随包 Python、版本及更新清单检查通过；下载后 12 个文件的 SHA-256 校验通过。
+- 安装器约 164 MB，ZIP 约 208 MB。未配置签名证书，状态为 NotSigned；没有发布 GitHub 正式 Release。
 
-0.9.3 已明确以内置 PI 和自有写作客户端为主线，不开发其他 Agent 工具适配。当前完成的是[需求与计划](history/PLAN-0.9.3.md)、[开发指导](0.9.3-DEVELOPMENT-GUIDE.md)、[验收规范](0.9.3-ACCEPTANCE.md)及[验收报告初始化](history/0.9.3-ACCEPTANCE-REPORT.md)，两批内核修复及效率重构代码收尾已实施，见[实施记录](history/0.9.3-IMPLEMENTATION.md)；整版功能及真实效果验收尚未完成。此前[多宿主接口约定](MCP-0.9.3-CONTRACT.md)保留为历史方案，不再驱动本版工作。
+## 本轮结果
 
-OPTIMIZATION-PLAN 的阶段 0–4 已实施：主进程/会话/渲染层拆分，共享设计变量与状态映射，顶栏、左栏、正文、Agent、方法方案、设置和头条页面重做，以及截图快照、文案扫描、字体检查和文档归档。验证结果为 Python 215、Node 96、桌面核心 7、真实 Electron 界面 4 项通过，架构守卫 0 条提示；边界与遗留见[优化实施记录](history/0.9.3-OPTIMIZATION-IMPLEMENTATION.md)。真实模型、Windows 实机安装/更新与作者试用仍未验收。
+正文编辑固定版本并保护未保存修改；头条条件保存拒绝旧依据；长篇定稿修订需要明确授权；修复历史可见消息分页；移除运行包中重复的前端依赖源码。详细改动与检查见[0.9.4 实施及验收记录](history/0.9.4-IMPLEMENTATION.md)。
 
-日常使用见 [桌面说明](guides/DESKTOP.md)，DSH 使用见 [安装说明](guides/INSTALL.md)。原方法资产及默认／原版方案保持可切换，没有根据假模型结果改写写作方法。
+核心 Node 97 项、Python 规则 215 项、桌面会话 9 项和 GUI 6 个场景通过；严格类型与架构守卫通过。ESLint 无错误，保留既有 17 项 Hook 警告。本地截图受安全存储横幅影响，未覆盖视觉基准；CI 按既有策略验证布局与交互。
 
-[整体梳理、效率重构与精简验证](history/NEXT-ITERATION-PLAN.md)的代码收尾已完成，含桌面渲染检查、显式交互、测试出口清理、队列复用及构建/CI 收敛；见[最新实施记录](history/NEXT-ITERATION-IMPLEMENTATION.md)第三批。待同提交原生构建与真实写作/实机效果验收，不将这些条件自动记为通过。
+## 仍需实际条件验收
 
-0.9.4 在云端 `364f084` 基线上修复正文编辑保护、条件保存和历史分页，并精简实际运行包依赖；见[本轮实施记录](history/0.9.4-IMPLEMENTATION.md)。构建及效果验收依各项实际证据记录。
+真实模型文学质量、作者评分与人工视觉验收、Windows 实机安装和跨版本自动更新尚未完成。不能用假模型、结构检查或打包成功替代这些结论。真实模型流程见[验收说明](ACCEPTANCE.md)。
+
+[桌面使用](guides/DESKTOP.md) · [架构](ARCHITECTURE.md) · [0.9.3 实施历史](history/0.9.3-IMPLEMENTATION.md) · [效率重构历史](history/NEXT-ITERATION-IMPLEMENTATION.md)
