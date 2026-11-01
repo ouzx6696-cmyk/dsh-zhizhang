@@ -27,7 +27,7 @@ import {
   LoaderCircle,
 } from "lucide-react";
 import { Workspace } from "./Workspace";
-import { Settings, ModelFields } from "./Settings.jsx";
+import { Settings, ModelFields } from "./SettingsPanel.jsx";
 import { Markdown } from "./Markdown";
 import { COMMANDS, humanVersion } from "./commands";
 import { scopeId, focusLabel, promptContext, toolLabel } from "./context";
