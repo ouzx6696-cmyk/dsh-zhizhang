@@ -160,17 +160,30 @@ test("决策不被 Agent 挡住，右栏标签与响应式布局，亮暗截图"
     .locator(".studio-layout")
     .evaluate((element) => getComputedStyle(element).gridTemplateColumns);
   expect(columns.split(" ")).toHaveLength(3);
-  const fonts = await page.evaluate(() =>
-    [
-      ...new Set(
-        [...document.querySelectorAll("*")]
-          .filter((element) => element.textContent?.trim())
-          .map((element) => getComputedStyle(element).fontFamily),
-      ),
-    ],
-  );
-  for (const family of fonts)
-    expect(family).toMatch(/Noto Sans SC|Noto Serif SC|monospace/);
+  const fonts = await page.evaluate(() => {
+    const families = new Map();
+    for (const element of [
+      document.body,
+      ...document.body.querySelectorAll("*"),
+    ]) {
+      if (!element.textContent?.trim() || !element.getClientRects().length)
+        continue;
+      const family = getComputedStyle(element).fontFamily;
+      if (!families.has(family))
+        families.set(
+          family,
+          element.tagName.toLowerCase() +
+            (typeof element.className === "string" && element.className
+              ? "." + element.className.trim().split(/\s+/).join(".")
+              : ""),
+        );
+    }
+    return [...families];
+  });
+  for (const [family, source] of fonts)
+    expect(family, `字体来自 ${source}`).toMatch(
+      /Noto Sans SC|Noto Serif SC|monospace/,
+    );
   const visibleText = await page.locator("body").innerText();
   for (const pattern of [
     /cand-[0-9a-f]{6}/i,

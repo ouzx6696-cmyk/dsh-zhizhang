@@ -8,6 +8,8 @@ export default defineConfig({
   reporter: "list",
   outputDir: "../../test-results/electron",
   snapshotPathTemplate: "../../docs/design/baseline/{arg}{ext}",
+  // 基线用本机 Noto 字体渲染；CI 无该字体，只核对结构与布局，像素比对留在本地。
+  ignoreSnapshots: !process.env.CI,
   expect: {
     toHaveScreenshot: { maxDiffPixelRatio: 0.01, threshold: 0.2 },
   },
