@@ -107,3 +107,5 @@
 ### Windows 构建修正
 
 首次远端候选构建 `41301530177` 的核心和桌面核心检查已通过，但 Windows 渲染检查发现 `Settings.jsx` 与 `settings.ts` 在大小写不敏感文件系统上的 TypeScript 解析冲突。将界面文件改为 `SettingsPanel.jsx` 并更新导入，保留完整渲染检查，不绕过 Windows 类型错误。随后对新提交重新执行原生构建；首次失败保留在 Actions。
+
+第二次 Windows 构建 `41301884544` 已通过核心、类型、GUI 并生成 NSIS/ZIP，但清单校验错误预期 rc.yml。核对锁定 electron-builder 实现后，GitHub provider 使用 latest.yml，候选属性通过版本及 Release 状态表示。校验改为核对实际清单版本和安装器引用；不跳过检查，不发布稳定更新。随后对修正提交重新构建。
