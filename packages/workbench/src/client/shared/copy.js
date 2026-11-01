@@ -108,8 +108,9 @@ const ZH = {
   briefRecent: "有近期简报",
 
   statusFinal: "定稿",
-  statusReviewed: "已审读",
-  statusDrafted: "工作稿",
+  statusReviewed: "已审",
+  statusStaged: "待审",
+  statusDrafted: "草稿",
   statusPlanned: "计划",
 
   readerOfficial: "现行正文",

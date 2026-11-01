@@ -5,12 +5,13 @@ import { Button, Icon, Spinner, StateDot, Tag, cx, toBody } from "./ui.jsx";
 
 const { useCallback, useEffect, useRef, useState } = React;
 
-export const STATUS_TONE = { final: "success", reviewed: "info", drafted: "warning", draft: "warning", planned: "quiet" };
-export const STATUS_DOT = { final: "done", reviewed: "done", drafted: "warning", draft: "warning", planned: "idle" };
+export const STATUS_TONE = { final: "success", reviewed: "info", accepted: "success", staged: "info", drafted: "warning", draft: "warning", drafting: "warning", planned: "quiet" };
+export const STATUS_DOT = { final: "done", reviewed: "done", accepted: "done", staged: "warning", drafted: "warning", draft: "warning", drafting: "warning", planned: "idle" };
 
 export function statusLabel(status) {
   if (status === "final") return t("statusFinal");
-  if (status === "reviewed") return t("statusReviewed");
+  if (status === "reviewed" || status === "accepted") return t("statusReviewed");
+  if (status === "staged") return t("statusStaged");
   if (status === "planned") return t("statusPlanned");
   return t("statusDrafted");
 }

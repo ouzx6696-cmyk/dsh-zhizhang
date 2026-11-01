@@ -16,6 +16,7 @@ import { Notices } from "../../../../../../packages/workbench/src/client/shared/
 import { profilesApi } from "../../../../../../packages/workbench/src/client/shared/api.js";
 import { ProfilesDialog } from "../../../../../../packages/workbench/src/client/shared/Profiles.jsx";
 import { Menu, PanelRightClose, Check, FileCheck, Layers } from "lucide-react";
+import { StatusBadge } from "../../../../../../packages/ui/src/components";
 import type { WorkspaceProps } from "../../../renderer-contracts";
 type EditState = { dirty: boolean; saving: boolean };
 const tabs = [
@@ -181,9 +182,7 @@ function Novel(props: WorkspaceProps) {
     props.readOnly;
   const decisions = (
     <div className="paper-decisions">
-      <span className="status-badge">
-        {meta?.status || current?.status || "待规划"}
-      </span>
+      <StatusBadge mode="fanqie" status={meta?.status || current?.status} />
       <span className="paper-progress">规划 · 写作 · 审读 · 定稿</span>
       {current && (
         <>
@@ -360,7 +359,7 @@ function Articles(props: WorkspaceProps) {
         center={
           <>
             <div className="paper-decisions">
-              <span className="status-badge">{a?.status || "尚未立项"}</span>
+              <StatusBadge mode="toutiao" status={a?.status} />
               <span className="paper-progress">选题 · 成稿 · 质检 · 交稿</span>
               {a && (
                 <button

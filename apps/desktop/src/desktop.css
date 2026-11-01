@@ -174,6 +174,7 @@ small {
   --wb-surface: var(--panel);
   --wb-border: var(--line);
   --wb-accent: var(--accent);
+  --ui-paper-font: var(--paper-font);
   height: 100dvh;
   display: flex;
   flex-direction: column;
@@ -242,7 +243,7 @@ small {
   border: 0;
 }
 .sidebar-open {
-  display: none !important;
+  display: none;
 }
 .readonly-banner,
 .background-tasks {
@@ -305,7 +306,7 @@ small {
   background: transparent;
 }
 .nav-toggle {
-  display: none !important;
+  display: none;
 }
 .studio-paper-column {
   overflow-y: auto;
@@ -454,7 +455,7 @@ small {
   color: var(--muted);
 }
 .drawer-close {
-  display: none !important;
+  display: none;
 }
 .agent-panel {
   display: flex;
@@ -581,7 +582,7 @@ small {
   border: 1px solid var(--line);
   border-radius: 5px;
   padding: 10px;
-  font: 11px/1.6 monospace;
+  font: 11px/1.6 var(--ui-font-mono);
   max-height: 340px;
   overflow: auto;
 }
@@ -1028,7 +1029,7 @@ small {
     display: none;
   }
   .nav-toggle {
-    display: flex !important;
+    display: flex;
   }
   .studio-nav.expanded {
     position: absolute;
@@ -1080,7 +1081,7 @@ small {
   }
   .sidebar-open,
   .drawer-close {
-    display: inline-flex !important;
+    display: inline-flex;
   }
   .drawer-close {
     margin-left: auto;
@@ -1107,9 +1108,9 @@ small {
   *,
   *::before,
   *::after {
-    animation: none !important;
-    transition: none !important;
-    scroll-behavior: auto !important;
+    animation: none;
+    transition: none;
+    scroll-behavior: auto;
   }
 }
 .method-panel .wb-pf-grid {

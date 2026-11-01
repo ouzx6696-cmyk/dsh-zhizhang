@@ -10,6 +10,7 @@ import { App } from "./root.jsx";
 import { PluginDetailSection } from "./shared/Settings.jsx";
 import { Icon } from "./shared/ui.jsx";
 import css from "./styles.css";
+import tokens from "../../../ui/src/tokens.css";
 import { HOST_PACKAGE } from "./shared/host.js";
 
 export const PLUGIN_ID = HOST_PACKAGE;
@@ -28,7 +29,7 @@ export function ensureStyles() {
   const tag = document.createElement("style");
   tag.dataset.plugin = PLUGIN_ID;
   tag.dataset.pluginCss = tagId;
-  tag.textContent = css;
+  tag.textContent = tokens + "\n" + css;
   document.head.appendChild(tag);
 }
 

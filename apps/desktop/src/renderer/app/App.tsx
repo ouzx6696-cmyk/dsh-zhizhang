@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import "@fontsource/noto-sans-sc/400.css";
 import "@fontsource/noto-sans-sc/600.css";
 import "@fontsource/noto-serif-sc/400.css";
+import "../../../../../packages/ui/src/tokens.css";
 import "../../../../../packages/workbench/src/client/styles.css";
 import "../../desktop.css";
 import { LoaderCircle } from "lucide-react";

@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const PKGS = path.join(ROOT, 'packages')
-const LAYERS = { host: 0, core: 1, workbench: 1, toutiao: 2, fanqie: 2, app: 3, 'host-generic': 2, desktop: 3 }
+const LAYERS = { ui: 0, host: 0, core: 1, workbench: 1, toutiao: 2, fanqie: 2, app: 3, 'host-generic': 2, desktop: 3 }
 const BROWSER_SAFE = ['fanqie/src/engine/domain/manuscript.ts', 'fanqie/src/engine/domain/diagnostics.ts']
 const problems = []
 const warnings = []
@@ -68,10 +68,10 @@ for (const pkg of Object.keys(LAYERS)) {
       const target = path.resolve(path.dirname(file), spec)
       const trel = path.relative(PKGS, target).split(path.sep).join('/')
       const tpkg = trel.split('/')[0]
-      if (renderer && !trel.startsWith('../apps/desktop/src/') && !trel.startsWith('workbench/src/client/') && !BROWSER_SAFE.includes(trel)) problems.push(`${rel}: 渲染层不能深入服务端模块 ${trel}`)
+      if (renderer && !trel.startsWith('../apps/desktop/src/') && !trel.startsWith('workbench/src/client/') && !trel.startsWith('ui/src/') && !BROWSER_SAFE.includes(trel)) problems.push(`${rel}: 渲染层不能深入服务端模块 ${trel}`)
       if (client) {
         const tts = trel.replace(/\.js$/, '.ts')
-        if (!trel.startsWith('workbench/src/client/') && !trel.startsWith('workbench/src/adapters/') && !BROWSER_SAFE.includes(tts)) problems.push(`${rel}: 浏览器端只能引用浏览器可用模块，不能引用 ${trel}`)
+        if (!trel.startsWith('workbench/src/client/') && !trel.startsWith('workbench/src/adapters/') && !trel.startsWith('ui/src/') && !BROWSER_SAFE.includes(tts)) problems.push(`${rel}: 浏览器端只能引用浏览器可用模块，不能引用 ${trel}`)
         continue
       }
       if (tpkg in LAYERS && tpkg !== pkg && LAYERS[tpkg] >= LAYERS[pkg]) problems.push(`${rel}: ${pkg} 不能依赖同层或上层包 ${tpkg}`)
@@ -101,7 +101,7 @@ for (const [rel, file] of [
 ]) {
   const css = await readFile(file, 'utf8')
   const important = (css.match(/!important/g) || []).length
-  if (important) warnings.push(`${rel}: ${important} 处 !important（阶段 2 清理）`)
+  if (important) problems.push(`${rel}: 禁止 !important（现有 ${important} 处）`)
   if (/font-family:[^;]*system-ui/.test(css)) warnings.push(`${rel}: 写死了 system-ui 字体（阶段 2 收口）`)
 }
 

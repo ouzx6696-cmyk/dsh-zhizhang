@@ -149,6 +149,17 @@ test("决策不被 Agent 挡住，右栏标签与响应式布局，亮暗截图"
     .locator(".studio-layout")
     .evaluate((element) => getComputedStyle(element).gridTemplateColumns);
   expect(columns.split(" ")).toHaveLength(3);
+  const fonts = await page.evaluate(() =>
+    [
+      ...new Set(
+        [...document.querySelectorAll("*")]
+          .filter((element) => element.textContent?.trim())
+          .map((element) => getComputedStyle(element).fontFamily),
+      ),
+    ],
+  );
+  for (const family of fonts)
+    expect(family).toMatch(/Noto Sans SC|Noto Serif SC|monospace/);
   await page.screenshot({
     path: "docs/design/baseline/desktop-1440-light.png",
     fullPage: true,

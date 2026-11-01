@@ -1,0 +1,203 @@
+/* Shared design tokens. DSH supplies --dsw-*; the desktop shell maps the same
+   aliases to its palette, so components never name a colour or font directly. */
+:where(:root, .ui-scope, .wb-scope, .wb-root, .wb-modal-root) {
+  --ui-font-ui: var(--dsw-font-family, "Noto Sans SC", "Microsoft YaHei", sans-serif);
+  --ui-font-body: var(--ui-paper-font, "Noto Serif SC", "Songti SC", Georgia, serif);
+  --ui-font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --ui-space-1: 4px;
+  --ui-space-2: 8px;
+  --ui-space-3: 12px;
+  --ui-space-4: 16px;
+  --ui-space-5: 24px;
+  --ui-space-6: 32px;
+
+  --ui-radius-sm: 6px;
+  --ui-radius-md: 10px;
+  --ui-radius-lg: 14px;
+
+  --ui-bg: var(--dsw-alias-bg-layer-1, Canvas);
+  --ui-panel: var(--dsw-alias-settings-card-fill, var(--dsw-alias-bg-layer-1, Canvas));
+  --ui-paper: var(--dsw-alias-bg-layer-2, Canvas);
+  --ui-line: var(--dsw-alias-border-l2, color-mix(in srgb, CanvasText 14%, transparent));
+  --ui-line-strong: var(--dsw-alias-border-l4, color-mix(in srgb, CanvasText 24%, transparent));
+  --ui-text: var(--dsw-alias-label-primary, CanvasText);
+  --ui-text-2: var(--dsw-alias-label-secondary, color-mix(in srgb, CanvasText 72%, transparent));
+  --ui-text-3: var(--dsw-alias-label-tertiary, color-mix(in srgb, CanvasText 56%, transparent));
+  --ui-accent: var(--dsw-alias-state-business-primary, var(--dsw-alias-link, LinkText));
+  --ui-accent-soft: var(--dsw-alias-state-business-tertiary, color-mix(in srgb, LinkText 12%, transparent));
+  --ui-on-accent: var(--dsw-alias-label-primary-inverted, Canvas);
+  --ui-success: var(--dsw-alias-state-success-primary, color-mix(in srgb, CanvasText 65%, LinkText));
+  --ui-warning: var(--dsw-alias-state-warn-primary, color-mix(in srgb, CanvasText 55%, Mark));
+  --ui-danger: var(--dsw-alias-state-error-primary, color-mix(in srgb, CanvasText 55%, LinkText));
+  --ui-hover: var(--dsw-alias-interactive-bg-hover, color-mix(in srgb, CanvasText 6%, transparent));
+  --ui-active: var(--dsw-alias-interactive-bg-active, color-mix(in srgb, CanvasText 10%, transparent));
+  --ui-mask: var(--dsw-alias-bg-mask-1, color-mix(in srgb, CanvasText 45%, transparent));
+  --ui-shadow-1: var(--dsw-elevation-soft, 0 1px 2px color-mix(in srgb, CanvasText 8%, transparent));
+  --ui-shadow-2: var(
+    --dsw-elevation-medium,
+    0 8px 24px color-mix(in srgb, CanvasText 12%, transparent),
+    0 1px 3px color-mix(in srgb, CanvasText 8%, transparent)
+  );
+}
+
+.ui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ui-space-2);
+  min-height: 30px;
+  padding: 0 var(--ui-space-3);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-panel);
+  color: var(--ui-text);
+  font: 13px/20px var(--ui-font-ui);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ui-button:hover:not(:disabled) {
+  background: var(--ui-hover);
+}
+.ui-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.ui-button--primary {
+  border-color: var(--ui-accent);
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
+}
+.ui-button--primary:hover:not(:disabled) {
+  background: var(--ui-accent);
+  filter: brightness(1.06);
+}
+.ui-button--text {
+  border-color: transparent;
+  background: transparent;
+}
+.ui-button--icon {
+  min-width: 30px;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+}
+.ui-button--sm {
+  min-height: 26px;
+  padding: 0 var(--ui-space-2);
+  font-size: 12px;
+}
+
+.ui-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-1);
+  padding: 1px 7px;
+  border-radius: var(--ui-radius-sm);
+  background: color-mix(in srgb, var(--ui-text) 7%, transparent);
+  color: var(--ui-text-2);
+  font: 600 11px/18px var(--ui-font-ui);
+  white-space: nowrap;
+}
+.ui-badge[data-tone="info"] {
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
+}
+.ui-badge[data-tone="warn"] {
+  background: color-mix(in srgb, var(--ui-warning) 14%, transparent);
+  color: var(--ui-warning);
+}
+.ui-badge[data-tone="success"] {
+  background: color-mix(in srgb, var(--ui-success) 14%, transparent);
+  color: var(--ui-success);
+}
+.ui-badge[data-tone="danger"] {
+  background: color-mix(in srgb, var(--ui-danger) 14%, transparent);
+  color: var(--ui-danger);
+}
+
+.ui-card {
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-panel);
+  box-shadow: var(--ui-shadow-1);
+}
+.ui-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-3) var(--ui-space-4);
+  border-bottom: 1px solid var(--ui-line);
+}
+.ui-card-head h3 {
+  margin: 0;
+  font: 600 14px/22px var(--ui-font-ui);
+}
+.ui-card-aside {
+  color: var(--ui-text-3);
+  font: 12px/18px var(--ui-font-ui);
+}
+.ui-card-body {
+  padding: var(--ui-space-3) var(--ui-space-4);
+}
+
+.ui-tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-1);
+}
+.ui-tab {
+  min-height: 30px;
+  padding: 0 var(--ui-space-2);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--ui-text-3);
+  font: 13px/20px var(--ui-font-ui);
+  cursor: pointer;
+}
+.ui-tab:hover {
+  color: var(--ui-text);
+  background: var(--ui-hover);
+}
+.ui-tab[aria-selected="true"] {
+  color: var(--ui-text);
+  border-bottom-color: var(--ui-accent);
+}
+
+.ui-toast-stack {
+  position: fixed;
+  right: var(--ui-space-4);
+  bottom: var(--ui-space-4);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+  max-width: min(420px, calc(100vw - 32px));
+}
+body:has(.studio-backdrop) .ui-toast-stack {
+  bottom: 92px;
+}
+.ui-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border: 1px solid var(--ui-line);
+  border-left: 3px solid var(--ui-accent);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-panel);
+  color: var(--ui-text);
+  box-shadow: var(--ui-shadow-2);
+  font: 13px/20px var(--ui-font-ui);
+}
+.ui-toast[data-tone="danger"] {
+  border-left-color: var(--ui-danger);
+}
+.ui-toast[data-tone="warn"] {
+  border-left-color: var(--ui-warning);
+}
+.ui-toast[data-tone="success"] {
+  border-left-color: var(--ui-success);
+}
