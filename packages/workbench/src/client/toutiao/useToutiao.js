@@ -3,7 +3,7 @@
  * 只有切到今日头条模式时才挂载，番茄长篇模式不发这些请求。
  */
 import React from "react";
-import { toutiaoApi } from "../shared/api.js";
+import { toutiao } from "../shared/api.js";
 import { PREF, readPref, writePref } from "../shared/prefs.js";
 import { t } from "../shared/copy.js";
 
@@ -36,7 +36,7 @@ export function useToutiao({ onTarget } = {}) {
     const ctrl = new AbortController();
     listCtrl.current = ctrl;
     try {
-      const data = await toutiaoApi.articles(ctrl.signal);
+      const data = await toutiao.articles(ctrl.signal);
       setList({ status: "ready", articles: data.articles || [], statuses: data.statuses || [], roots: data.roots || [], currentRoot: data.currentRoot, sessions: data.sessions || {}, deliver: !!data.deliver, deliverReason: data.deliverReason || "", error: "", at: new Date().toISOString() });
     } catch (err) {
       if (err && err.code === "aborted") return;
@@ -54,7 +54,7 @@ export function useToutiao({ onTarget } = {}) {
     detailCtrl.current = ctrl;
     setDetail((prev) => ({ ...prev, status: "loading", error: "" }));
     try {
-      const data = await toutiaoApi.article(root, id, ctrl.signal);
+      const data = await toutiao.article(root, id, ctrl.signal);
       setDetail({ status: "ready", article: data.article, error: "" });
     } catch (err) {
       if (err && err.code === "aborted") return;
@@ -104,7 +104,7 @@ export function useToutiao({ onTarget } = {}) {
     setBusy(action);
     try {
       const requestId = "wt-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
-      const data = await toutiaoApi.deliver({ root, id: action === "new" ? undefined : sel.id, action, note: note || undefined, requestId });
+      const data = await toutiao.deliver({ root, id: action === "new" ? undefined : sel.id, action, note: note || undefined, requestId });
       notify("success", t("ttSent", { text: String(data.text || "").split("\n")[0] }));
       setDoneAt((prev) => ({ ...prev, [action]: Date.now() }));
     } catch (err) {
@@ -119,7 +119,7 @@ export function useToutiao({ onTarget } = {}) {
     if (!adoptReady || article?.root !== selected.root || article?.id !== selected.id) return;
     setBusy("adopt");
     try {
-      await toutiaoApi.adopt(article);
+      await toutiao.adopt(article);
       notify("success", t("ttAdopted"));
       setDoneAt((prev) => ({ ...prev, adopt: Date.now() }));
       await loadList();

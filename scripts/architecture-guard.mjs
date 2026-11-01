@@ -66,7 +66,7 @@ for (const pkg of Object.keys(LAYERS)) {
       if (renderer && !trel.startsWith('../apps/desktop/src/') && !trel.startsWith('workbench/src/client/') && !BROWSER_SAFE.includes(trel)) problems.push(`${rel}: 渲染层不能深入服务端模块 ${trel}`)
       if (client) {
         const tts = trel.replace(/\.js$/, '.ts')
-        if (!trel.startsWith('workbench/src/client/') && !BROWSER_SAFE.includes(tts)) problems.push(`${rel}: 浏览器端只能引用浏览器可用模块，不能引用 ${trel}`)
+        if (!trel.startsWith('workbench/src/client/') && !trel.startsWith('workbench/src/adapters/') && !BROWSER_SAFE.includes(tts)) problems.push(`${rel}: 浏览器端只能引用浏览器可用模块，不能引用 ${trel}`)
         continue
       }
       if (tpkg in LAYERS && tpkg !== pkg && LAYERS[tpkg] >= LAYERS[pkg]) problems.push(`${rel}: ${pkg} 不能依赖同层或上层包 ${tpkg}`)

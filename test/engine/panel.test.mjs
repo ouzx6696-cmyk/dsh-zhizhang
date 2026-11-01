@@ -173,7 +173,7 @@ test("客户端按当前 DSH 席位协议登记界面，错误交由宿主管理
 });
 
 test("客户端请求超时覆盖响应正文，取消后的 JSON 不回填", async (t) => {
-    const { request } = await import("../../packages/workbench/src/client/shared/api.js");
+    const { request } = await import("../../build/workbench/src/adapters/dsh.js");
     t.mock.method(globalThis, "fetch", async (_url, { signal }) => ({ ok: true, status: 200, json: () => new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true })) }));
     await assert.rejects(request("/chapter", { timeoutMs: 10 }), e => e.code === "timeout");
     const ctrl = new AbortController();

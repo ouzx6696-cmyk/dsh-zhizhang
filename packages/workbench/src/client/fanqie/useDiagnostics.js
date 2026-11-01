@@ -1,6 +1,6 @@
 /** Mounted with the workbench, so leaving the reader cannot detach an in-flight save. */
 import React from 'react';
-import { api } from '../shared/api.js';
+import { fanqie } from '../shared/api.js';
 import { diagnosticCopy as c } from '../shared/copy.js';
 import { changeParagraph, diagnosticScope, editMatches, moveHistory, requestId, revisionPayload } from './edit-state.js';
 
@@ -27,7 +27,7 @@ export function useDiagnostics({ state, stateRef, alive, setEdit, refresh, notif
     operation.current.controller = controller;
     setStatus({ key, busy: true, error: '' });
     try {
-      const report = await api.diagnose({ base: snapshot.projectId, work: snapshot.work, chapter: snapshot.chapterId,
+      const report = await fanqie.diagnose({ base: snapshot.projectId, work: snapshot.work, chapter: snapshot.chapterId,
         kind, candidate: snapshot.candidate.meta?.id, expectedRevision: snapshot.chapter.meta?.revision, bodyHash: slot.meta?.bodyHash }, controller.signal);
       if (!current(generation) || stateRef.current[kind].body !== slot.body || stateRef.current[kind].meta?.bodyHash !== report.source.bodyHash) return;
       setEdit({ scope, base: snapshot.projectId, work: snapshot.work, report, original: slot.body,
@@ -46,7 +46,7 @@ export function useDiagnostics({ state, stateRef, alive, setEdit, refresh, notif
     setEdit({ ...edit, saving: true, saveError: '' });
     setStatus({ key, busy: true, error: '' });
     try {
-      const result = await api.stageRevision(revisionPayload(edit));
+      const result = await fanqie.stageRevision(revisionPayload(edit));
       if (!alive.current || stateRef.current.edit?.requestId !== edit.requestId) return;
       setEdit(null);
       if (stateRef.current.projectId === edit.base && stateRef.current.work === edit.work) {

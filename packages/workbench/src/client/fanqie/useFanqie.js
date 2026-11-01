@@ -4,7 +4,7 @@
  * state in DSH terms); nothing is shared through module-level singletons.
  */
 import React from "react";
-import { api } from "../shared/api.js";
+import { fanqie } from "../shared/api.js";
 import { t, diagnosticCopy } from "../shared/copy.js";
 import { useDiagnostics } from "./useDiagnostics.js";
 import { diagnosticScope } from "./edit-state.js";
@@ -97,7 +97,7 @@ export function useFanqie({ onTarget } = {}) {
     try {
       if (projects || !ref.current.projects.length) {
         try {
-          const data = await api.projects(!soft && projects, ctrl.signal);
+          const data = await fanqie.projects(!soft && projects, ctrl.signal);
           if (Array.isArray(data.projects)) {
             projectId = projectId && data.projects.some(p => p.id === projectId) ? projectId : data.current || "";
             if (alive.current && !ctrl.signal.aborted) dispatch({ type: "projects", selection, projects: data.projects, current: projectId });
@@ -108,7 +108,7 @@ export function useFanqie({ onTarget } = {}) {
         }
       }
       if (!alive.current || ctrl.signal.aborted || ref.current.selection !== selection) return;
-      const data = await api.snapshot(projectId, selected.work, ctrl.signal, selected.view === "chapters" ? "work" : "all");
+      const data = await fanqie.snapshot(projectId, selected.work, ctrl.signal, selected.view === "chapters" ? "work" : "all");
       if (!alive.current || ctrl.signal.aborted) return;
       failures.current = 0;
       dispatch({ type: "snapshot", selection, data, signature: snapshotSignature(data) });
@@ -184,7 +184,7 @@ export function useFanqie({ onTarget } = {}) {
   // 写作 Agent 投递能力：换项目、换作品、手动刷新时重查（便宜的 GET，不进轮询）
   useEffect(() => {
     const ctrl = new AbortController();
-    api.capabilities(state.projectId, ctrl.signal)
+    fanqie.capabilities(state.projectId, ctrl.signal)
       .then((data) => { if (alive.current) dispatch({ type: "deliver", value: { caps: { deliver: !!data.deliver, reason: data.deliverReason || "" } } }); })
       .catch((err) => { if (alive.current && err.code !== "aborted") dispatch({ type: "deliver", value: { caps: { deliver: false, reason: messageOf(err) } } }); });
     return () => ctrl.abort();
@@ -198,7 +198,7 @@ export function useFanqie({ onTarget } = {}) {
     const ctrl = new AbortController();
     const { projectId, work, chapterId } = ref.current;
     dispatch({ type: "body", slot: "chapter", value: { status: "loading", key: chapterKey } });
-    api
+    fanqie
       .chapter(projectId, work, chapterId, ctrl.signal)
       .then((data) => {
         dispatch({
@@ -223,7 +223,7 @@ export function useFanqie({ onTarget } = {}) {
     const { projectId, work } = ref.current;
     const id = viewRef.current.activeCand.id;
     dispatch({ type: "body", slot: "candidate", value: { status: "loading", key: candidateKey } });
-    api
+    fanqie
       .candidate(projectId, work, id, ctrl.signal)
       .then((data) => {
         dispatch({
@@ -254,7 +254,7 @@ export function useFanqie({ onTarget } = {}) {
         const chapterMeta = target.meta;
         const isEdit = !!cand.editOf;
         try {
-          const data = await api.accept({
+          const data = await fanqie.accept({
             base: s.projectId || undefined,
             work: s.work,
             candidate: cand.id,
@@ -287,7 +287,7 @@ export function useFanqie({ onTarget } = {}) {
         if (!target || target.selection !== s.selection || target.projectId !== s.projectId || target.work !== s.work || target.chapterId !== s.chapterId || meta?.id !== s.chapterId || !meta?.revision || s.chapter.status !== "ready" || s.chapter.truncated || s.chapter.meta?.revision !== meta.revision)
           throw new Error("章节或已读版本已变化，请完整加载后重新确认。");
         try {
-          await api.chapterAction(kind, {
+          await fanqie.chapterAction(kind, {
             base: target.projectId || undefined, work: target.work, chapter: target.chapterId,
             expectedRevision: meta.revision, confirm: true, ...(extra || {}),
           });
@@ -311,7 +311,7 @@ export function useFanqie({ onTarget } = {}) {
         const requestId = "wb-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
         dispatch({ type: "deliver", value: { busy: action, message: null, error: null } });
         try {
-          await api.deliver({ base: s.projectId || undefined, work: s.work, chapter: chapterId || undefined, action, confirm: true, requestId });
+          await fanqie.deliver({ base: s.projectId || undefined, work: s.work, chapter: chapterId || undefined, action, confirm: true, requestId });
           if (!alive.current || ref.current.selection !== s.selection) return;
           dispatch({ type: "deliver", value: { busy: "", message: t("deliverDone") } });
           dispatch({ type: "notice", tone: "success", text: t("deliverDone") });
@@ -327,7 +327,7 @@ export function useFanqie({ onTarget } = {}) {
         if (!s.work || !s.chapterId || ids.length < 2) return;
         dispatch({ type: "unify", value: { busy: true, message: null, error: null } });
         try {
-          const data = await api.unifyPrepare({ base: s.projectId || undefined, work: s.work, chapter: s.chapterId, candidate_ids: ids });
+          const data = await fanqie.unifyPrepare({ base: s.projectId || undefined, work: s.work, chapter: s.chapterId, candidate_ids: ids });
           const brief = data.brief || "";
           try {
             if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(brief);
