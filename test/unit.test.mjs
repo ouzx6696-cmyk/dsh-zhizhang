@@ -2,13 +2,13 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import path from 'node:path'
 import { readFile } from 'node:fs/promises'
-import { BUILD, FIX, tempDir } from './helpers.mjs'
+import { BUILD, FIX, tempDir, buildUrl } from './helpers.mjs'
 
-const { resolveInside, serialize, atomicWrite, readJson } = await import(path.join(BUILD, 'core/src/fsx.js'))
-const { parseContract, locatePython, runScript } = await import(path.join(BUILD, 'core/src/runner.js'))
-const { createGateEngine } = await import(path.join(BUILD, 'core/src/gates.js'))
-const { checkCard } = await import(path.join(BUILD, 'toutiao/src/card.js'))
-const { ArticleStore, canTransition } = await import(path.join(BUILD, 'toutiao/src/store.js'))
+const { resolveInside, serialize, atomicWrite, readJson } = await import(buildUrl('core/src/fsx.js'))
+const { parseContract, locatePython, runScript } = await import(buildUrl('core/src/runner.js'))
+const { createGateEngine } = await import(buildUrl('core/src/gates.js'))
+const { checkCard } = await import(buildUrl('toutiao/src/card.js'))
+const { ArticleStore, canTransition } = await import(buildUrl('toutiao/src/store.js'))
 
 test('resolveInside 拒绝越界', () => {
   assert.equal(resolveInside('/a/b', 'c'), path.resolve('/a/b/c'))

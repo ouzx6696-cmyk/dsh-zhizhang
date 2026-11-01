@@ -53,7 +53,7 @@ for (const pkg of Object.keys(LAYERS)) {
     visit(ast)
     const edges = []
     for (const { spec, typeOnly } of deps) {
-      if (pkg === 'desktop' && spec.startsWith('@earendil-works/pi-') && !file.endsWith('/pi.ts')) problems.push(`${rel}: PI SDK 只能在 pi.ts 使用`)
+      if (pkg === 'desktop' && spec.startsWith('@earendil-works/pi-') && !rel.endsWith('apps/desktop/src/pi.ts')) problems.push(`${rel}: PI SDK 只能在 pi.ts 使用`)
       if (renderer && (spec.startsWith('node:') || spec === 'electron')) problems.push(`${rel}: 渲染层不能访问 ${spec}`)
       if (spec.startsWith('@deepseek-ai/') && pkg !== 'host') problems.push(`${rel}: 只能经由 packages/host 使用 ${spec}`)
       if (!spec.startsWith('.')) {

@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { BUILD, ROOT, fakeHost, tempDir } from './helpers.mjs'
+import { BUILD, ROOT, fakeHost, tempDir, buildUrl } from './helpers.mjs'
 
 const SCRIPT = path.join(ROOT, 'scripts/assets.mjs')
 const run = (args) => {
@@ -74,9 +74,9 @@ test('导入上游新版：比对、应用、版本号、报告、未登记提�
 })
 
 test('作者自备资产：两种模式都能列出与读取，配置拼错会报错', async () => {
-  const { apply } = await import(path.join(BUILD, 'app/src/index.js'))
-  const { parseToutiaoConfig } = await import(path.join(BUILD, 'toutiao/src/index.js'))
-  const { parseFanqieConfig } = await import(path.join(BUILD, 'fanqie/src/index.js'))
+  const { apply } = await import(buildUrl('app/src/index.js'))
+  const { parseToutiaoConfig } = await import(buildUrl('toutiao/src/index.js'))
+  const { parseFanqieConfig } = await import(buildUrl('fanqie/src/index.js'))
   assert.match(parseToutiaoConfig({ assets: { dir: ['x'] } }).issues[0].message, /toutiao\.assets\.dir 不是有效配置项/)
   assert.match(parseFanqieConfig({ assets: { dirs: 'x' } }).issues[0].message, /fanqie\.assets\.dirs 应为非空字符串数组/)
 

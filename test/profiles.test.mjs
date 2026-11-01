@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { readdir, readFile, mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { BUILD, ROOT, fakeHost, tempDir } from './helpers.mjs'
+import { BUILD, ROOT, fakeHost, tempDir, buildUrl } from './helpers.mjs'
 
 const TT = path.join(ROOT, 'packages/toutiao/profiles/default')
 const FQ = path.join(ROOT, 'packages/fanqie/profiles/default')
@@ -51,7 +51,7 @@ test('默认方案：文件齐全、目录一致、别名完整、工具名真�
     }
   }
   const tt = JSON.parse(await readFile(path.join(TT, 'profile.json'), 'utf8'))
-  const { METHOD_FILES } = await import(path.join(BUILD, 'toutiao/src/methods.js'))
+  const { METHOD_FILES } = await import(buildUrl('toutiao/src/methods.js'))
   assert.deepEqual(tt.methods.map(m => m.id).sort(), Object.keys(METHOD_FILES).sort(), '头条默认方案覆盖全部 30 个 id')
   // 母题库：二级标题与规则名单一致（质检按名单核对母题）
   const rules = await readFile(path.join(ROOT, 'packages/toutiao/skill/scripts/rules.py'), 'utf8')
@@ -61,7 +61,7 @@ test('默认方案：文件齐全、目录一致、别名完整、工具名真�
   assert.deepEqual(heads, motifs)
   // 长篇：每个原版 forge id 都有归宿
   const fq = JSON.parse(await readFile(path.join(FQ, 'profile.json'), 'utf8'))
-  const { listMethods } = await import(path.join(BUILD, 'fanqie/src/forge.js'))
+  const { listMethods } = await import(buildUrl('fanqie/src/forge.js'))
   const forge = await listMethods()
   assert.deepEqual(forge.filter(id => !fq.aliases[id]), [])
   const ids = new Set(fq.methods.map(m => m.id))
@@ -69,7 +69,7 @@ test('默认方案：文件齐全、目录一致、别名完整、工具名真�
 })
 
 async function enable(config = {}) {
-  const { apply } = await import(path.join(BUILD, 'app/src/index.js'))
+  const { apply } = await import(buildUrl('app/src/index.js'))
   const host = fakeHost()
   apply(host.root.ctx, config)
   const cwd = await tempDir()
@@ -145,7 +145,7 @@ test('写作台接口：方案列表、详情、全文、新建、保存、切�
   process.env.WRITER_PROFILES_DIR = await tempDir('writer-profiles-')
   const routes = new Map()
   const services = { webServer: { register: (r) => { routes.set(r.path, r.handler); return () => routes.delete(r.path) } } }
-  const { apply } = await import(path.join(BUILD, 'app/src/index.js'))
+  const { apply } = await import(buildUrl('app/src/index.js'))
   const host = fakeHost({ services })
   apply(host.root.ctx, { fanqie: { profile: '原版' } })
   const server = createServer((req, res) => {

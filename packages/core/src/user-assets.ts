@@ -55,7 +55,7 @@ export async function listUserAssets(cfg: AssetsConfig | undefined, cwd: string)
     let count = 0
     const walk = async (d: string, depth: number) => {
       const entries = await readdir(d, { withFileTypes: true }).catch(() => [])
-      entries.sort((a, b) => a.name.localeCompare(b.name))
+      entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
       for (const e of entries) {
         if (e.name.startsWith('.') || e.name === 'node_modules' || e.name === '__pycache__') continue
         const p = path.join(d, e.name)

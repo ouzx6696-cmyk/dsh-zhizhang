@@ -4,11 +4,11 @@ import assert from 'node:assert/strict'
 import { readFile, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import path from 'node:path'
-import { BUILD, ROOT, fakeHost, tempDir } from './helpers.mjs'
+import { BUILD, ROOT, fakeHost, tempDir, buildUrl } from './helpers.mjs'
 
 
-const { apply } = await import(path.join(BUILD, 'app/src/index.js'))
-const { ensureStorage, createWork, setOutline, saveChapter, readChapter } = await import(path.join(BUILD, 'fanqie/src/engine/store.js'))
+const { apply } = await import(buildUrl('app/src/index.js'))
+const { ensureStorage, createWork, setOutline, saveChapter, readChapter } = await import(buildUrl('fanqie/src/engine/store.js'))
 const EX = await readFile(path.join(ROOT, 'packages/fanqie/skill/forge/novel-writer/assets/examples/两张车票.md'), 'utf8')
 
 const OUTLINE = {
@@ -188,7 +188,7 @@ test('长篇编辑子代理：只能审读与出编辑候选，写入类长篇�
   const rep = await host.call(ed, 'fanqie_review_report', { chapter: 'c001', verdict: '通过', hard_issues: [], levels: [], reread_full: true })
   assert.equal(rep.ok, true)
   assert.equal((await host.call(ed, 'writer_enable', { mode: 'fanqie', role: 'writer' })).code, 'CONFLICT')
-  const { sessionFor } = await import(path.join(BUILD, 'core/src/sessions.js'))
+  const { sessionFor } = await import(buildUrl('core/src/sessions.js'))
   assert.equal((await sessionFor(path.join(cwd, '.writer'))).sessionId, 'w', '编辑子代理不覆盖主会话')
 })
 
@@ -201,7 +201,7 @@ test('模式路由：长篇会话锁定模式；没有 Agent 作用域不挂载�
   await host.call(tt, 'writer_enable', { mode: 'toutiao' })
   assert.equal((await host.call(tt, 'writer_enable', { mode: 'fanqie' })).code, 'CONFLICT')
   assert.equal((await host.call({ id: 'x', session: { id: 'x', header: { cwd } }, scope: undefined }, 'writer_enable', { mode: 'fanqie' })).code, 'NO_AGENT')
-  const { Config } = await import(path.join(BUILD, 'app/src/index.js'))
+  const { Config } = await import(buildUrl('app/src/index.js'))
   const v = Config['~standard'].validate({ fanqie: { requireEditorPass: true, storageRoot: '/data/novel' }, toutiao: { rootDir: 'x' }, workbench: { allowLan: true } })
   assert.equal(v.issues, undefined, JSON.stringify(v.issues))
   assert.equal(v.value.fanqie.rootDir, '.writer')
@@ -303,12 +303,12 @@ test('写作台：单章带编辑回报与定稿条件；写作台定稿也受 r
 })
 
 test('敏感工具不能跳过确认入口，拒绝确认不残留授权', async () => {
-  const { engineTools } = await import(path.join(BUILD, 'fanqie/src/engine/bootstrap.js'))
+  const { engineTools } = await import(buildUrl('fanqie/src/engine/bootstrap.js'))
   const tool = engineTools().find(t => t.name === 'fanqie_chapter_save')
   for (const args of [{ chapter: 'c001', status: 'final' }, { chapter: 'c001', force: true }])
     await assert.rejects(tool.execute(args, { name: tool.name, arguments: args }), /确认/)
-  const { createGateEngine } = await import(path.join(BUILD, 'core/src/gates.js'))
-  const { executeTool } = await import(path.join(BUILD, 'host-generic/src/index.js'))
+  const { createGateEngine } = await import(buildUrl('core/src/gates.js'))
+  const { executeTool } = await import(buildUrl('host-generic/src/index.js'))
   const gates = createGateEngine([{ id: 'proof', tool: 'proof', locked: true, check: () => ({ kind: 'ask', reason: '确认' }) }], { requireApproval: true })
   let writes = 0
   const definition = { name: 'proof', execute: async (_args, exec) => {
@@ -326,11 +326,11 @@ test('敏感工具不能跳过确认入口，拒绝确认不残留授权', async
   await call('writer_enable', { mode: 'fanqie' })
   const chapter = await readChapter(work.dir, 'c001')
   await call('fanqie_chapter_save', { chapter: 'c001', status: 'reviewed', expected_revision: chapter.revision })
-  const { fanqieGateRules } = await import(path.join(BUILD, 'fanqie/src/gates.js'))
+  const { fanqieGateRules } = await import(buildUrl('fanqie/src/gates.js'))
   const config = { storageRoot: path.join(cwd, '.writer') }
   const boundGates = createGateEngine(fanqieGateRules(config, 'writer'), { requireApproval: true })
   const boundTool = engineTools(config, boundGates).find(t => t.name === 'fanqie_chapter_save')
-  const { withPluginConfig } = await import(path.join(BUILD, 'fanqie/src/engine/tools/context.js'))
+  const { withPluginConfig } = await import(buildUrl('fanqie/src/engine/tools/context.js'))
   const input = { work: work.key, chapter: 'c001', status: 'final' }
   await assert.rejects(executeTool(boundTool, input, { cwd, name: boundTool.name, token: Symbol('stale') }, {
     gates: boundGates, bind: fn => withPluginConfig(config, fn), confirm: async () => {
