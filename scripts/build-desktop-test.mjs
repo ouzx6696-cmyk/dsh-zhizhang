@@ -1,5 +1,5 @@
 import { build } from "esbuild";
-for (const name of [
+const entries = [
   "session",
   "recovery",
   "settings",
@@ -7,31 +7,12 @@ for (const name of [
   "models",
   "pi",
   "exports",
-])
-  await build({
-    entryPoints: [`apps/desktop/src/${name}.ts`],
-    bundle: true,
-    platform: "node",
-    format: "esm",
-    packages: "external",
-    outfile: `apps/desktop/out-test/${name}.mjs`,
-    logLevel: "warning",
-  });
-
-await build({
-  entryPoints: ["packages/core/src/workspace-lock.ts"],
-  bundle: true,
-  platform: "node",
-  format: "esm",
-  packages: "external",
-  outfile: "apps/desktop/out-test/lease.mjs",
-});
-
-for (const [name, entry] of [
+].map(name => [name, `apps/desktop/src/${name}.ts`]);
+entries.push(["lease", "packages/core/src/workspace-lock.ts"],
   ["work-store", "packages/fanqie/src/engine/work-store.ts"],
   ["review", "packages/fanqie/src/review.ts"],
-  ["article-store", "packages/toutiao/src/store.ts"],
-])
+  ["article-store", "packages/toutiao/src/store.ts"]);
+for (const [name, entry] of entries)
   await build({
     entryPoints: [entry],
     bundle: true,

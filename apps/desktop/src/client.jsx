@@ -1,3 +1,4 @@
+// @ts-check
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "@fontsource/noto-sans-sc/400.css";
@@ -63,8 +64,8 @@ function remember(target, focus = {}, preserve = false) {
 function App() {
   const [onboarding, setOnboarding] = useState(null);
   const [state, setState] = useState(null),
-    [focus, setFocus] = useState({}),
-    [context, setContext] = useState({});
+    [focus, setFocus] = useState(/** @type {import("./context").Focus} */ ({})),
+    [context, setContext] = useState(/** @type {import("./renderer-contracts").WorkspaceContext} */ ({}));
   const [messages, setMessages] = useState([]),
     [stream, setStream] = useState(""),
     [busy, setBusy] = useState(false),
@@ -88,8 +89,10 @@ function App() {
     [wizardStep, setWizardStep] = useState(0),
     [wizardModels, setWizardModels] = useState(null),
     [connectionResult, setConnectionResult] = useState(null);
+  const contextRef = useRef(context);
+  contextRef.current = context;
   const selected = useRef(null),
-    focused = useRef({}),
+    focused = useRef(/** @type {import("./context").Focus} */ ({})),
     limit = useRef(80),
     viewRequest = useRef(0),
     pendingMessages = useRef(null),
@@ -207,10 +210,6 @@ function App() {
     return () => media.removeEventListener("change", update);
   }, [state?.appearance]);
   useEffect(() => {
-    const selection = (event) => {
-      void selectSnapshot(event.detail).catch(fail);
-    };
-    window.addEventListener("writer:target", selection);
     const unsubscribe = api.subscribe((value) => {
       if (value.running) setRunning(value.running);
       if (value.updates)
@@ -276,7 +275,6 @@ function App() {
     });
     return () => {
       unsubscribe();
-      window.removeEventListener("writer:target", selection);
     };
   }, []);
   useEffect(() => {
@@ -288,7 +286,7 @@ function App() {
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
         event.preventDefault();
-        window.dispatchEvent(new Event("writer:save-paragraph"));
+        void contextRef.current.actions?.saveParagraph?.();
       }
       if (
         (event.ctrlKey || event.metaKey) &&
@@ -984,6 +982,7 @@ function App() {
           setDrawer={setDrawer}
           readOnly={state.access?.readOnly}
           onContext={setContext}
+          onTarget={(next) => void selectSnapshot(next).catch(fail)}
           onMethodEditState={trackMethodEdit}
         />
       ) : (

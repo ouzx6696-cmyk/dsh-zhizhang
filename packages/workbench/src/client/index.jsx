@@ -6,9 +6,6 @@
  */
 import React from "react";
 import { t } from "./shared/copy.js";
-import { Manuscript } from "./shared/Manuscript.jsx";
-import { WriterAgent } from "./fanqie/Inspector.jsx";
-import { ToutiaoSide } from "./toutiao/ToutiaoApp.jsx";
 import { App } from "./root.jsx";
 import { PluginDetailSection } from "./shared/Settings.jsx";
 import { Icon } from "./shared/ui.jsx";
@@ -49,5 +46,3 @@ export function apply(ctx) {
   ctx.slots.inject("sidebar.panellist", () => ctx.slots.register({ name: "sidebar.panellist", id: PANEL_ID, order: PANEL_ORDER, label: () => t("panelLabel") }, SidebarIcon));
   ctx.slots.inject("plugins.detail.section", () => ctx.slots.register({ name: "plugins.detail.section", id: SETTINGS_KEY, inject: () => ({}) }, PluginDetailSection));
 }
-
-export const __testing = { Manuscript, WriterAgent, ToutiaoSide };

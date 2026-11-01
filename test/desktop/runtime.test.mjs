@@ -199,6 +199,9 @@ test("真实 Pi：建书归属、候选定位、独立编辑、角色模型、�
     await done.promise;
     assert.equal(attached.next.work, "station");
     assert.equal(asks.length, 1);
+    const planning = events.find(event => event.event?.type === "tool_execution_end" && event.event.toolName === "writer_plan")?.event.result.details.writerResult;
+    assert.equal(planning.status, "saved");
+    assert.ok(planning.saved.some(item => item.tool === "fanqie_project_create"));
     const candidates = events
       .filter(
         (event) =>
@@ -462,6 +465,33 @@ test("发布检查保留正文、清理标题标记，DOCX 可输出", async () 
   }
 });
 
+
+test("子任务在准备或 SDK 接收期间取消，不交付成功结果", async () => {
+  const { promptWithSignal } = await import("../../apps/desktop/out-test/pi.mjs");
+  const controller = new AbortController();
+  let release, calls = 0;
+  const prepared = new Promise(resolve => { release = resolve; });
+  const session = { abort: async () => {}, prompt: async () => { calls++; } };
+  const pending = promptWithSignal(session, () => prepared, controller.signal);
+  controller.abort();
+  release("不应启动");
+  await assert.rejects(pending, { name: "AbortError" });
+  assert.equal(calls, 0);
+
+  const starting = new AbortController();
+  let active = false, stopped = false;
+  const delayed = {
+    abort: async () => { if (active) stopped = true; },
+    prompt: async (_text, options) => {
+      starting.abort(); // SDK input/auth can await before the run exists.
+      await Promise.resolve();
+      active = true;
+      options.preflightResult("started");
+      assert.equal(stopped, true, "必须在首个模型请求前重新传递停止");
+    },
+  };
+  await assert.rejects(promptWithSignal(delayed, async () => "任务", starting.signal), { name: "AbortError" });
+});
 
 test("首轮审读交接允许无旧回报，恢复须先备份并拒绝锁和冲突", async () => {
   const base = await mkdtemp(path.join(tmpdir(), "writer-recovery-"));

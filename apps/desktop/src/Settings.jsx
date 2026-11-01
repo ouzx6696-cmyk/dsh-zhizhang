@@ -1,3 +1,4 @@
+// @ts-check
 import React, { useEffect, useState } from "react";
 import {
   X,
@@ -159,7 +160,7 @@ export function Settings({ state, onClose, onSaved, onWorkspace, onImport }) {
     [appearance, setAppearance] = useState(state.appearance),
     [preferences, setPreferences] = useState(""),
     [searchKey, setSearchKey] = useState(""),
-    [test, setTest] = useState({}),
+    [test, setTest] = useState({ writer: undefined, editor: undefined, planner: undefined }),
     [health, setHealth] = useState(null),
     [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false),

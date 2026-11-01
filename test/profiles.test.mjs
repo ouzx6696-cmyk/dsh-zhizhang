@@ -28,6 +28,10 @@ async function toolNames() {
 }
 
 test('默认方案：文件齐全、目录一致、别名完整、工具名真实', async () => {
+  const { TOUTIAO_BRIEF } = await import('../build/toutiao/src/brief.js');
+  assert.ok([...TOUTIAO_BRIEF].length < 2000);
+  assert.doesNotMatch(TOUTIAO_BRIEF, /python3|scripts\//);
+
   const names = await toolNames()
   for (const [dir, mode] of [[TT, 'toutiao'], [FQ, 'fanqie']]) {
     const idx = JSON.parse(await readFile(path.join(dir, 'profile.json'), 'utf8'))

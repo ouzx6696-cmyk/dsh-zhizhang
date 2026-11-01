@@ -1,10 +1,11 @@
+import { allTools } from "../../build/fanqie/src/engine/tools/index.js";
 /** The writing product's main path and author-controlled decisions. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { __testing, configureEngine } from "../../build/fanqie/src/engine/index.js";
+import { mountEngine, configureEngine } from "../../build/fanqie/src/engine/index.js";
 import { LibraryPort, InspirationPort, MultiDraftPort, setPortConfig, resetPortConfig } from "../../build/fanqie/src/engine/ports/index.js";
 import { ensureStorage, createWork, setOutline, stageCandidate, readCandidate, buildPanelSnapshot, readChapter, readWorkMeta, resolveWorkDir } from "../../build/fanqie/src/engine/store.js";
 import { methodsTools } from "../../build/fanqie/src/engine/tools/methods.js";
@@ -14,7 +15,7 @@ const BOOK = [
     "第1章 差三罐", "凌晨两点，屏幕上的数字比昨天少了三罐咖啡。他把时间戳抄在纸条上。",
     "第2章 四秒", "他调出监控回放，侧窗的人影只用了四秒。",
 ].join("\n");
-const tools = new Map(__testing.tools.map(tool => [tool.name, tool.execute]));
+const tools = new Map(allTools().map(tool => [tool.name, tool.execute]));
 async function setup() {
     const root = await mkdtemp(path.join(tmpdir(), "writer-novel-workflow-"));
     const paths = await ensureStorage({}, { storageRoot: root });
@@ -148,10 +149,10 @@ test("引擎按会话挂载一次，版本一致，浏览器端已构建", async
     const mounted = [], sections = [];
     const agent = { tools: { register: (t) => mounted.push(t) }, get: () => ({ section: (s) => { sections.push(s); return () => { }; } }) };
     configureEngine({});
-    assert.equal(__testing.mountEngine(agent, {}), true);
-    assert.equal(__testing.mountEngine(agent, {}), false);
-    assert.throws(() => __testing.mountEngine(null, {}), /Agent 作用域/);
-    assert.equal(mounted.length, __testing.tools.length);
+    assert.equal(mountEngine(agent, {}), true);
+    assert.equal(mountEngine(agent, {}), false);
+    assert.throws(() => mountEngine(null, {}), /Agent 作用域/);
+    assert.equal(mounted.length, allTools().length);
     assert.equal(sections.length, 1);
     const pkg = JSON.parse(await readFile(path.resolve("package.json"), "utf8"));
     assert.equal(VERSION, pkg.version);

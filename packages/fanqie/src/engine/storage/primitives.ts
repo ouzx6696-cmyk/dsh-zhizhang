@@ -2,25 +2,11 @@
 import { lstat, mkdir, open, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import { NovelError } from "../errors.js";
-const locks = new Map<string, Promise<unknown>>();
+import { serialize } from "../../../../core/src/fsx.js";
 let tmpSeq = 0;
-export async function withLock(key: string, fn: (...args: any[]) => any) {
-    const previous = locks.get(key) ?? Promise.resolve();
-    let release: () => void = () => { };
-    const gate = new Promise((resolve: any) => {
-        release = resolve;
-    });
-    const current = previous.then(() => gate);
-    locks.set(key, current);
-    await previous;
-    try {
-        return await fn();
-    }
-    finally {
-        release();
-        if (locks.get(key) === current)
-            locks.delete(key);
-    }
+/** Shared queue, separate namespace from unrelated core file updates. */
+export function withLock<T>(key: string, fn: () => T | Promise<T>): Promise<T> {
+    return serialize(`novel:${key}`, async () => fn());
 }
 export function countWords(text: string) {
     if (typeof text !== "string" || text.length === 0)

@@ -1,11 +1,11 @@
+import { execFileSync } from "node:child_process";
 /** 写作层与引擎的衔接：会话追踪与投递、定稿条件（requireEditorPass）、单章审读信息、forge 正文体检、写作台路由组合、浏览器端区块。 */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { EventEmitter } from "node:events";
-import { Script } from "node:vm";
 import { saveChapter, setOutline, readChapter, ensureStorage } from "../../build/fanqie/src/engine/store.js";
-import { setPromptSink, sessionFor, rememberSession, __resetSessions } from "../../build/core/src/sessions.js";
+import { setPromptSink, sessionFor, rememberSession } from "../../build/core/src/sessions.js";
 import { buildDeliveryPrompt, pickNextChapter } from "../../build/fanqie/src/workbench/delivery.js";
 import { fanqieApi } from "../../build/fanqie/src/workbench/api.js";
 import { createWorkbenchHandler } from "../../build/workbench/src/server.js";
@@ -13,13 +13,12 @@ import { bodyFingerprint, saveReview } from "../../build/fanqie/src/review.js";
 import { auditTools } from "../../build/fanqie/src/engine/tools/audit.js";
 import { worksTools } from "../../build/fanqie/src/engine/tools/works.js";
 import { setPluginConfig } from "../../build/fanqie/src/engine/tools/context.js";
-import { jpost, servePanel, withWork } from "./helpers.mjs";
+import { jpost, servePanel, withWork, loadComponents } from "./helpers.mjs";
 
 const mainExec = (cwd, id = "s-main", depth = 0) => ({ agent: { session: { id, header: { cwd, delegationDepth: depth } } } });
 const get = (api, route) => fetch(`${api}${route}`);
 
 test("主会话追踪：子代理会话不覆盖，按数据根记录并落盘", async () => {
-    __resetSessions();
     const work = await withWork("追踪");
     try {
         await ensureStorage(mainExec(work.base), { storageRoot: work.base });
@@ -28,8 +27,9 @@ test("主会话追踪：子代理会话不覆盖，按数据根记录并落盘",
         rememberSession(work.base, { agent: { session: { id: "s-child", header: {} }, options: { subagentDepth: 1 } } });
         assert.equal((await sessionFor(work.base)).sessionId, "s-main");
         await new Promise(r => setTimeout(r, 50));
-        __resetSessions();
-        assert.equal((await sessionFor(work.base)).sessionId, "s-main", "重启后从 DSH_HOME 记录恢复");
+        const script = `import { sessionFor } from ${JSON.stringify(new URL("../../build/core/src/sessions.js", import.meta.url).href)}; console.log(JSON.stringify(await sessionFor(${JSON.stringify(work.base)})));`;
+        const restored = JSON.parse(execFileSync(process.execPath, ["--input-type=module", "-e", script], { encoding: "utf8" }));
+        assert.equal(restored.sessionId, "s-main", "新进程从 DSH_HOME 记录恢复");
     }
     finally {
         await work.cleanup();
@@ -37,7 +37,6 @@ test("主会话追踪：子代理会话不覆盖，按数据根记录并落盘",
 });
 
 test("写作台投递：能力探测、缺会话、缺宿主、成功投递三种动作", async () => {
-    __resetSessions();
     const work = await withWork("投递");
     const server = await servePanel({ storageRoot: work.base });
     const sent = [];
@@ -100,7 +99,6 @@ test("下一章选择：第一章没正文的，否则新的一章", async () =>
 });
 
 test("定稿条件：requireEditorPass 时写作台与工具两条路径都要当前正文的通过回报；单章读取带审读信息", async () => {
-    __resetSessions();
     const work = await withWork("门禁");
     const server = await servePanel({ storageRoot: work.base, requireEditorPass: true });
     try {
@@ -177,12 +175,9 @@ test("写作台路由组合：各模式按路径分派，同一套访问校验�
 });
 
 test("写作台“写作 Agent”区块：按能力与回报渲染按钮", async () => {
-    const script = new Script(await readFile("build/client.js", "utf8"));
-    let descriptor;
     const h = (type, props, ...children) => ({ type, props: props || {}, children: children.flat() });
     const react = { createElement: h, Component: class { }, Fragment: "fragment", memo: c => c, useState: v => [typeof v === "function" ? v() : v, () => { }], useCallback: f => f, useMemo: f => f(), useEffect: () => { }, useRef: v => ({ current: v }) };
-    script.runInNewContext({ window: { __ModuleLoader__: { load: v => { descriptor = v; } } }, URL, AbortController, setTimeout, clearTimeout });
-    const { WriterAgent } = descriptor.factory(() => react).__testing;
+    const { WriterAgent } = loadComponents(react);
     const texts = (node) => node == null || typeof node === "boolean" ? [] : typeof node === "string" || typeof node === "number" ? [String(node)] : Array.isArray(node) ? node.flatMap(texts) : typeof node.type === "function" ? texts(node.type({ ...node.props, children: node.children })) : texts(node.children ?? node.props?.children);
     const buttons = (node, out = []) => { if (!node || typeof node !== "object") return out; if (Array.isArray(node)) { node.forEach(n => buttons(n, out)); return out; } if (typeof node.type === "function") return buttons(node.type({ ...node.props, children: node.children }), out); if (node.type === "button") out.push(node); buttons(node.children, out); return out; };
     const off = WriterAgent({ state: { deliver: { caps: { deliver: false, reason: "没有会话" } } }, actions: {}, chapterId: "c001", writer: null, bodyReady: true });
@@ -198,12 +193,9 @@ test("写作台“写作 Agent”区块：按能力与回报渲染按钮", async
 });
 
 test("写作台今日头条模式：按状态与质检渲染采用和写作 Agent 按钮", async () => {
-    const script = new Script(await readFile("build/client.js", "utf8"));
-    let descriptor;
     const h = (type, props, ...children) => ({ type, props: props || {}, children: children.flat() });
     const react = { createElement: h, Component: class { }, Fragment: "fragment", memo: c => c, useState: v => [typeof v === "function" ? v() : v, () => { }], useCallback: f => f, useMemo: f => f(), useEffect: () => { }, useRef: v => ({ current: v }), useId: () => "id" };
-    script.runInNewContext({ window: { __ModuleLoader__: { load: v => { descriptor = v; } } }, URL, AbortController, setTimeout, clearTimeout });
-    const { ToutiaoSide } = descriptor.factory(() => react).__testing;
+    const { ToutiaoSide } = loadComponents(react);
     const texts = (node) => node == null || typeof node === "boolean" ? [] : typeof node === "string" || typeof node === "number" ? [String(node)] : Array.isArray(node) ? node.flatMap(texts) : typeof node.type === "function" ? texts(node.type({ ...node.props, children: node.children })) : texts(node.children ?? node.props?.children);
     const buttons = (node, out = []) => { if (!node || typeof node !== "object") return out; if (Array.isArray(node)) { node.forEach(n => buttons(n, out)); return out; } if (typeof node.type === "function") return buttons(node.type({ ...node.props, children: node.children }), out); if (node.type === "button") out.push(node); buttons(node.children, out); return out; };
     const article = (over) => ({ title: "秋柿", status: "初稿待改", line: "资讯线", genre: "长图文", returnRounds: 0, maxReturnRounds: 2, card: { present: true, 主问题: "柿子为什么涩" }, headlines: { main: "秋柿", alts: [] }, qa: [], qaValid: false, qaProblem: "当前版本还没跑质检", draft: { rev: 1 }, history: [], adoptable: false, ...over });

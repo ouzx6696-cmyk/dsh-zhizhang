@@ -10,8 +10,10 @@ import { t } from "../shared/copy.js";
 const { useCallback, useEffect, useRef, useState } = React;
 const POLL_MS = 6000;
 
-export function useToutiao() {
-  const [list, setList] = useState({ status: "loading", articles: [], roots: [], sessions: {}, deliver: false, deliverReason: "" });
+export function useToutiao({ onTarget } = {}) {
+  const targetSink = useRef(onTarget);
+  targetSink.current = onTarget;
+  const [list, setList] = useState({ status: "loading", articles: [], roots: [], sessions: {}, statuses: [], currentRoot: "", error: "", at: "", deliver: false, deliverReason: "" });
   const [sel, setSel] = useState(() => ({ root: readPref(PREF.ttRoot, ""), id: readPref(PREF.ttArticle, "") }));
   const [detail, setDetail] = useState({ status: "idle", article: null, error: "" });
   const [busy, setBusy] = useState("");
@@ -76,8 +78,8 @@ export function useToutiao() {
   useEffect(() => {
     if (!window.writerDesktop) return;
     const root = selected?.root || list.currentRoot;
-    if (root) window.dispatchEvent(new CustomEvent('writer:target', {detail:{mode:'toutiao', root,
-      focus: selected ? {article:selected.id, title:selected.title, source:'article', revision:detail.status === 'ready' && detail.article?.id === selected.id ? detail.article.rev : undefined} : {}}}));
+    if (root) targetSink.current?.({mode:'toutiao', root,
+      focus: selected ? {article:selected.id, title:selected.title, source:'article', revision:detail.status === 'ready' && detail.article?.id === selected.id ? detail.article.rev : undefined} : {}});
   }, [selected?.root, selected?.id, selected?.title, detail.status, detail.article?.rev, list.currentRoot]);
   const stamp = selected ? selected.updatedAt : "";
   useEffect(() => { if (selected) loadDetail(sel.root, sel.id); }, [sel.root, sel.id, stamp, !!selected, loadDetail]);

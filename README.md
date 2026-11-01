@@ -1,73 +1,38 @@
 # writer-agent · 写作 Agent
 
-0.9.2 开发版提供基于 Pi 的独立桌面客户端，保留 DSH 插件；两种入口共用写作业务、方法方案与本地作品。
+基于内置 PI 的独立桌面写作客户端，支持今日头条和番茄长篇网文。本次构建版本为 **0.9.3-rc.1**，尚未作为稳定版本发布。
 
-桌面版采用统一写作根和三栏界面，提供独立编辑模型、规划角色、交接、新对话、作者偏好与导出。使用与构建见 [桌面说明](docs/DESKTOP.md)，本轮实施、验证证据与待办见 [0.9.2 实施记录](docs/0.9.2-IMPLEMENTATION.md)。真实模型写作效果与证书签名仍待验收，正式发行仍以 GitHub Releases 为准。
+客户端将规划、写作、候选对照、独立编辑、作者确认和作品存储连在同一工作区。原版、默认及用户方法方案均可使用；旧作品继续兼容。
 
-0.9.3 以已内置 PI 的自有客户端和写作内核为开发主线，已开始实施首批内核修复，进展见[实施记录](docs/0.9.3-IMPLEMENTATION.md)。见[需求与计划](docs/PLAN-0.9.3.md)、[开发指导](docs/0.9.3-DEVELOPMENT-GUIDE.md)、[验收规范](docs/0.9.3-ACCEPTANCE.md)和[验收报告](docs/0.9.3-ACCEPTANCE-REPORT.md)；此前的多宿主路线不再作为本版目标。
+## 使用
 
-以下为 DSH 插件使用说明。
+Windows 提供安装器和免安装 ZIP，随包携带 Python。设置模型连接与统一写作根后即可开始创作，详见[桌面说明](docs/DESKTOP.md)。正式发布以 [GitHub Releases](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases) 为准；候选构建从 Actions 的 `writer-windows-packages` 下载。
 
-在 DeepSeek Harness（DSH）上做的写作 Agent：**一个入口 `writer_enable`、两种写作模式（今日头条 / 番茄长篇）、一个写作台**。
+当前候选版的实现、验证与限制见[构建说明](docs/0.9.3-rc.1-IMPLEMENTATION.md)，真实模型文学质量和 Windows 实机安装/更新不能仅凭构建成功判定通过。
 
-- 宿主基线：DSH `0.2.1-rc.4`（`engines.dsh: >=0.2.1-rc.4 <0.2.2`）
-- 运行时：Node.js ≥ 22（建议 24），Python ≥ 3.8（只用标准库）
-- 插件包：`dsh-writer`（`bundle/` 目录打包而成）
+## 开发与验证
 
-## 怎么用
-
-普通会话只多一个工具 `writer_enable`。作者说要写什么，Agent 按模式启用，本会话才挂上对应的工具、规则与门禁：
-
-| 模式 | 启用 | 本会话获得 |
-|---|---|---|
-| 今日头条 | `writer_enable mode=toutiao` | 19 个 `toutiao_*` 工具、常驻总则、4 条门禁：S1 找题 → S2 立项卡 → S3 标题（34 字上限）→ S4/S5 成文红笔（版本只增不改）→ S6 规则质检硬闸（≥84、零 fail、无硬闸）→ S7 交稿单与台账；"已交稿"只能作者确认 |
-| 番茄长篇 | `writer_enable mode=fanqie` | 长篇引擎 50 多个 `fanqie_*` 工具（作品、根基、章纲、候选、采纳、审读、定稿、拆书库、汇编）+ 写作层工具（forge 方法 `fanqie_forge_get`、章纲检查、旧账对照、拆书测绘、引文核对、编辑审读回报）+ 长篇门禁（定稿与 force 须作者确认，可选"定稿前须编辑通过"） |
-| 编辑子代理 | 再加 `role=editor` | 头条只挂红笔/质检 9 个工具；长篇写入类工具一律拒绝，只能审读、出编辑候选、交审读回报 |
-
-一个会话只能一种模式；要换就新开会话。
-
-## 方法方案
-
-模型读的方法论分方案：**默认**（插件精炼版，从上游原件提炼重写，对齐质检规则与工具）、**原版**（上游原件）、**用户方案一、二……**（作者在写作台「方法方案」里新建，以默认或原版为底逐份覆盖或新增，再设为当前）。两种模式各自一套。见 [docs/PROFILES.md](docs/PROFILES.md)。
-
-## 写作台
-
-DSH 侧栏「写作台」，顶部切换**番茄长篇 / 今日头条**：
-
-- **番茄长篇**：三栏（章节 / 正文与候选对照 / 生命周期、候选、写作 Agent），确认式采纳、审读、定稿；全书概况、参考库、灵感、汇编。右栏「写作 Agent」显示编辑审读结论，一键"续写下一章 / 派编辑审读本章 / 按回报修改"。
-- **今日头条**：三栏（文章按状态排好 / 当前稿与交稿单 / 概况、标题、质检、采用、写作 Agent），一键"新写一篇 / 继续推进 / 派编辑红笔 / 按质检修改"，"采用"把已验收的文章标记为已交稿。
-
-按钮发出的是一条以【写作台】开头的普通用户消息，排进最近在该数据目录上用过写作工具的主会话（DSH `sessionController.prompt`，Agent 忙时排队）。
-
-## 目录
-
-```
-packages/
-  host/        唯一接触 DSH 宿主对象的一层（结构类型 + 能力探测，零 @deepseek-ai 运行时依赖）
-  host-generic/ 宿主无关的工具执行：门禁、确认、配置绑定、执行与渲染
-  core/        文件与越界检查、Python 运行器、门禁引擎、写作模式与隔离、会话追踪与投递、版本
-  workbench/   写作台：server.ts（访问校验、限流、路由组合）+ client/（外壳、番茄长篇、今日头条、共用组件）
-  toutiao/     今日头条：工具、总则、门禁、文章存储、写作台接口；skill/ 是规则脚本与原版方法，profiles/default 是默认方案
-  fanqie/      番茄长篇：engine/（作品存储与创作工具链）+ 写作层（forge、审读回报、门禁）+ 写作台接口；skill/ 是 forge 原版方法与规则脚本，profiles/default 是默认方案
-  app/         插件入口：writer_enable、配置校验、写作台装配
-bundle/        插件包清单（package.json、cordis.patch.yml）；打包后生成 dist/、skill/、skill-fanqie/、scripts/
-scripts/       构建（build-client、build-bundle）、架构守卫、资产清单与更新（assets.mjs）、长篇数据备份
-test/          单元与全流程、engine/（引擎）、dsh/（真实 DSH 组件）、e2e/（真实 dsh headless）
-assets/        资产来源登记（sources.json）与清单（manifest.json）
-docs/          架构、安装、工具、写作台、番茄长篇、资产、DSH 接口、状态；engine/ 引擎细节；design/ 最初的设计文档
-```
-
-## 开发
+源码开发需要 Node.js ≥22（推荐 24）和 Python ≥3.8；Python 规则只依赖标准库。
 
 ```bash
 npm ci
-npm test              # 架构守卫 + Python 规则 + Node 业务与资产检查
-npm run pack          # 生成 dist-pack/dsh-writer-<版本>.tgz
-
-# 需要一份装好 DSH 的目录（mkdir dshrt && cd dshrt && npm init -y && npm i @deepseek-ai/dsh@0.2.1-rc.4 --ignore-scripts）
-WRITER_DSH_RUNTIME=/path/to/dshrt npm run test:dsh          # 真实 cordis + dsh-tools 集成
-WRITER_DSH_RUNTIME=/path/to/dshrt npm run test:e2e          # 今日头条：S2→S7 + 编辑子代理
-WRITER_DSH_RUNTIME=/path/to/dshrt npm run test:e2e:fanqie   # 番茄长篇：开书→章纲→正文→体检→编辑审读→定稿确认
+npm run desktop:dev       # 本地桌面开发
+npm run verify            # 核心：架构、规则、业务与资产
+npm run verify:desktop    # 桌面：类型、构建、PI 与少量 GUI 场景
+npm run verify:release    # Windows：验证并生成候选交付包
 ```
 
-安装见 [docs/INSTALL.md](docs/INSTALL.md)，架构见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，资产清单、上游方法论更新与作者自备资产见 [docs/ASSETS.md](docs/ASSETS.md)，现状与待桌面确认的事项见 [docs/STATUS.md](docs/STATUS.md)。
+修改期间运行受影响的检查，通过且相关输入未变就复用结果。真实模型使用现有 `acceptance:run`，按验收阶段运行。无需为日常修改反复执行整套发行流程。
+
+## 框架与当前工作
+
+- [架构](docs/ARCHITECTURE.md)：桌面调用链、共享业务、事实归属与存储边界。
+- [当前状态](docs/STATUS.md)、[效率重构实施记录](docs/NEXT-ITERATION-IMPLEMENTATION.md)：实际完成项和证据。
+- [迭代要求与验收条件](docs/NEXT-ITERATION-PLAN.md)、[0.9.3 验收报告](docs/0.9.3-ACCEPTANCE-REPORT.md)。
+- [方法方案](docs/PROFILES.md)、[方法资产与更新](docs/ASSETS.md)、[长篇业务](docs/FANQIE.md)。
+
+业务与存储位于 `packages/core`、`packages/fanqie`、`packages/toutiao`，共享界面在 `packages/workbench`，自有客户端在 `apps/desktop`。保留现有包和作品格式，不建立第二份作品事实库。
+
+## 存量兼容
+
+既有 DSH 插件复用相同业务与方法，使用见[安装说明](docs/INSTALL.md)及[DSH 接口](docs/DSH.md)。它承担存量兼容，不驱动其他 Agent 工具适配。

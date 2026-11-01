@@ -1,3 +1,4 @@
+// @ts-check
 import React, { useEffect, useState, useMemo } from "react";
 import { useFanqie } from "../../../packages/workbench/src/client/fanqie/useFanqie.js";
 import { useToutiao } from "../../../packages/workbench/src/client/toutiao/useToutiao.js";
@@ -96,8 +97,9 @@ function Layout({
     </div>
   );
 }
+/** @param {import("./renderer-contracts").WorkspaceProps} props */
 function Novel(props) {
-  const { state, view, actions } = useFanqie(),
+  const { state, view, actions } = useFanqie({ onTarget: props.onTarget }),
     { dispatch } = actions;
   useEffect(() => {
     dispatch({
@@ -138,7 +140,7 @@ function Novel(props) {
           ? value > 0
           : typeof value === "string" && !!value.trim();
       }),
-      actions: { deliver: actions.deliver, refresh: actions.refresh },
+      actions: { saveParagraph: actions.diagnostics.save },
     });
   }, [
     view.current,
@@ -147,16 +149,6 @@ function Novel(props) {
     state.edit,
     view.snap?.title,
   ]);
-  useEffect(() => {
-    const save = () => {
-      const button = document.querySelector(
-        'button[data-action="save-paragraph"]',
-      );
-      if (button) button.click();
-    };
-    window.addEventListener("writer:save-paragraph", save);
-    return () => window.removeEventListener("writer:save-paragraph", save);
-  }, []);
   const current = view.current,
     meta = state.chapter.meta,
     review = meta?.review;
@@ -302,15 +294,15 @@ function Novel(props) {
     </>
   );
 }
+/** @param {import("./renderer-contracts").WorkspaceProps} props */
 function Articles(props) {
-  const tt = useToutiao(),
+  const tt = useToutiao({ onTarget: props.onTarget }),
     a = tt.detail.article;
   useEffect(() => {
     props.onContext({
       target: props.target,
       article: a,
       kind: "article",
-      actions: { deliver: tt.actions.deliver, refresh: tt.actions.refresh },
     });
   }, [a, tt.selected]);
   const adopt = async () => {
@@ -367,6 +359,7 @@ function Articles(props) {
     </>
   );
 }
+/** @param {import("./renderer-contracts").WorkspaceProps} props */
 export function Workspace(props) {
   return props.target.mode === "fanqie" ? (
     <Novel {...props} />

@@ -106,8 +106,3 @@ export async function deliver(root: string, text: string, requestId?: string): P
   await sink.prompt(target.sessionId, text, id)
   return { sessionId: target.sessionId, requestId: id }
 }
-
-/** 测试用 */
-export function __resetSessions() {
-  delete (globalThis as Record<symbol, Registry | undefined>)[KEY]
-}

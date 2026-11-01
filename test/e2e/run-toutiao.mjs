@@ -18,9 +18,15 @@ const work = mkdtempSync(path.join(tmpdir(), 'writer-e2e-'))
 if (process.env.E2E_DEBUG) console.log('work dir', work)
 const home = path.join(work, 'dsh-home')
 const cwd = path.join(work, 'project')
+let tgz = process.env.WRITER_COMPAT_PACKAGE;
+if (!tgz) {
 execFileSync(process.execPath, [path.join(ROOT, 'scripts/build-bundle.mjs')], { stdio: 'inherit' })
 execFileSync('npm', ['pack', '--pack-destination', work], { cwd: path.join(ROOT, 'bundle'), stdio: 'ignore', shell: process.platform === 'win32' })
-const tgz = path.join(work, readdirSync(work).find(f => f.endsWith('.tgz')))
+tgz = path.join(work, readdirSync(work).find(f => f.endsWith('.tgz')))
+ } else {
+  tgz = path.resolve(tgz);
+  assert.ok(existsSync(tgz), '指定的本次兼容包不存在');
+}
 const env = { ...process.env, DSH_HOME: home }
 execFileSync(DSH, ['plugin', '--profile', 'headless', 'add', tgz], { env, cwd: work, stdio: 'ignore' })
 // 打开“写手与编辑分离”

@@ -1,3 +1,4 @@
+import type { DesktopEvent } from "./renderer-contracts";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import {
@@ -63,7 +64,7 @@ import {
 } from "./context";
 export type { Target, Focus } from "./context";
 import { executeTool } from "../../../packages/host-generic/src/index";
-import { promptAccepted, runtimeModel } from "./pi";
+import { promptAccepted, promptWithSignal, runtimeModel } from "./pi";
 import { readSource, searchSources } from "./network";
 import { explainError } from "./diagnostics";
 import { assertWorkspaceWritable } from "../../../packages/core/src/workspace-lock";
@@ -98,6 +99,13 @@ const PLANNER_TOOLS = new Set([
   "toutiao_article_list", "toutiao_article_get", "toutiao_card_set", "toutiao_card_patch",
   "toutiao_headline_set", "toutiao_ledger_show", "toutiao_feedback_read",
 ]);
+// Only operations whose successful return confirms a persisted object.
+const PLANNING_WRITES = new Set([
+  "fanqie_project_create", "fanqie_foundation_set", "fanqie_outline_set",
+  "fanqie_library_import", "fanqie_library_card_stage", "fanqie_library_card_accept",
+  "fanqie_inspire_start", "fanqie_inspire_stage", "fanqie_inspire_accept",
+  "toutiao_article_create", "toutiao_card_set", "toutiao_card_patch", "toutiao_headline_set",
+]);
 function roleAllows(role: string, name: string, mode: string) {
   if (role === "planner") return PLANNER_TOOLS.has(name);
   if (role !== "editor") return true;
@@ -126,7 +134,7 @@ export class Sessions {
     private home: string,
     private python: string,
     private settings: () => ModelSettings,
-    private emit: (event: unknown) => void,
+    private emit: (event: DesktopEvent) => void,
     private confirm: (text: string, signal?: AbortSignal) => Promise<boolean>,
     private options: { toutiao?: ToutiaoConfig; fanqie?: FanqieConfig } = {},
     private created: (
@@ -159,9 +167,10 @@ export class Sessions {
     editor = false,
     planner = false,
     onCreated?: (work: string) => Promise<void>,
+    onSaved?: (tool: string, output: string) => void,
   ): Promise<AgentSession> {
     if (editor || planner)
-      return this.create(target, editor ? "editor" : "planner", onCreated);
+      return this.create(target, editor ? "editor" : "planner", onCreated, onSaved);
     const key = this.key(target);
     if (this.sessions.has(key)) return this.sessions.get(key)!.session;
     if (!this.opening.has(key))
@@ -175,6 +184,7 @@ export class Sessions {
     target: Target,
     role: "writer" | "editor" | "planner",
     onCreated?: (work: string) => Promise<void>,
+    onSaved?: (tool: string, output: string) => void,
   ): Promise<AgentSession> {
     const editor = role === "editor",
       primary = role === "writer";
@@ -302,6 +312,8 @@ export class Sessions {
           bind: (run) => withPluginConfig(config, run),
           confirm: this.confirm,
         });
+        if (role === "planner" && PLANNING_WRITES.has(def.name))
+          onSaved?.(def.name, content.filter(c => c.type === "text").map(c => "text" in c ? c.text : "").join("\n"));
         if (
           (primary || role === "planner") &&
           createdWork &&
@@ -434,6 +446,7 @@ export class Sessions {
             };
             entry.phase =
               delegate === "editor" ? "编辑审读中…" : "规划任务进行中…";
+            const saved: { tool: string; receipt: string }[] = [];
             const child = await this.open(
               childTarget,
               delegate === "editor",
@@ -442,16 +455,14 @@ export class Sessions {
                 childTarget.work = work;
                 if (!target.work) await this.attachCreated(entry, work);
               },
+              (tool, receipt) => saved.push({ tool, receipt }),
             );
             this.children.set(session, child);
-            const abort = () => {
-              void child.abort();
-            };
-            signal?.addEventListener("abort", abort, { once: true });
             try {
-              signal?.throwIfAborted();
-              await child.prompt(
-                await this.taskPrompt(childTarget, request.task, focus),
+              await promptWithSignal(
+                child,
+                () => this.taskPrompt(childTarget, request.task, focus),
+                signal,
               );
               const last = child.messages.findLast(
                 (message) => message.role === "assistant",
@@ -478,7 +489,11 @@ export class Sessions {
                       target: childTarget,
                       focus,
                       label: focusLabel(childTarget, focus),
-                      summary: "规划任务已返回，请核对实际规划结果",
+                      summary: saved.length
+                        ? `规划执行了 ${saved.length} 次保存操作，请核对以下工具回执。`
+                        : "规划建议已返回；没有确认的保存回执，不代表规划已落盘。",
+                      status: saved.length ? "saved" : "discussion",
+                      saved,
                       kind: "planning",
                     };
               return {
@@ -487,6 +502,7 @@ export class Sessions {
                     type: "text",
                     text:
                       result.summary +
+                      ("saved" in result ? "\n" + result.saved?.map(item => `${item.tool}: ${item.receipt}`).join("\n") : "") +
                       "\n\n" +
                       (child.getLastAssistantText() || "编辑未返回文字结论。"),
                   },
@@ -494,7 +510,6 @@ export class Sessions {
                 details: { writerResult: result },
               };
             } finally {
-              signal?.removeEventListener("abort", abort);
               this.children.delete(session);
               child.dispose();
               entry.phase =
@@ -664,7 +679,7 @@ export class Sessions {
       if (event.type === "auto_retry_start") entry.phase = "模型连接重试中…";
       if (event.type === "agent_settled") entry.phase = "";
       const forward = () => {
-        let forwarded: unknown = event;
+        let forwarded: DesktopEvent["event"] = event;
         if (event.type === "message_end") {
           let leaf = manager.getLeafEntry();
           while (leaf) {

@@ -1,7 +1,7 @@
 // 端到端（番茄长篇模式）：真实 dsh headless + 本插件 tgz + 假模型 + 真实 subagent。
 // 用法：WRITER_DSH_RUNTIME=<dsh 运行时目录> node test/e2e/run-fanqie.mjs
 import { spawn, execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, writeFileSync, readdirSync, mkdirSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, writeFileSync, readdirSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import assert from 'node:assert/strict'
@@ -18,9 +18,15 @@ if (process.env.E2E_DEBUG) console.log('work dir', work)
 const home = path.join(work, 'dsh-home')
 const cwd = path.join(work, 'project')
 mkdirSync(cwd, { recursive: true })
+let tgz = process.env.WRITER_COMPAT_PACKAGE;
+if (!tgz) {
 execFileSync(process.execPath, [path.join(ROOT, 'scripts/build-bundle.mjs')], { stdio: 'ignore' })
 execFileSync('npm', ['pack', '--pack-destination', work], { cwd: path.join(ROOT, 'bundle'), stdio: 'ignore', shell: process.platform === 'win32' })
-const tgz = path.join(work, readdirSync(work).find(f => f.endsWith('.tgz')))
+tgz = path.join(work, readdirSync(work).find(f => f.endsWith('.tgz')))
+ } else {
+  tgz = path.resolve(tgz);
+  assert.ok(existsSync(tgz), '指定的本次兼容包不存在');
+}
 const env = { ...process.env, DSH_HOME: home }
 execFileSync(DSH, ['plugin', '--profile', 'headless', 'add', tgz], { env, cwd: work, stdio: 'ignore' })
 writeFileSync(path.join(home, 'profiles/headless/cordis.patch.yml'), '- id: writer\n  config:\n    fanqie:\n      requireEditorPass: true\n')

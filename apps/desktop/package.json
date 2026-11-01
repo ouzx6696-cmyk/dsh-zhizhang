@@ -1,12 +1,12 @@
 {
   "name": "@writer/desktop",
-  "version": "0.9.2",
+  "version": "0.9.3-rc.1",
   "private": true,
   "type": "module",
   "main": "out/main/main.js",
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "tsc --noEmit && node ../../scripts/stage-desktop.mjs && electron-vite build",
+    "build": "tsc --noEmit && tsc -p tsconfig.renderer.json && node ../../scripts/stage-desktop.mjs && electron-vite build",
     "pack": "node ../../scripts/prepare-desktop-python.mjs && electron-builder --win nsis --x64 --publish never",
     "predev": "node ../../scripts/stage-desktop.mjs",
     "pack:portable": "node ../../scripts/prepare-desktop-python.mjs && electron-builder --win zip --x64 --publish never"

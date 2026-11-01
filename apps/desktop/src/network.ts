@@ -1,3 +1,4 @@
+import { VERSION } from "../../../packages/core/src/version";
 import { lookup } from "node:dns/promises";
 import http from "node:http";
 import https from "node:https";
@@ -60,7 +61,7 @@ export async function readSource(
             headers: {
               Accept: "text/html,text/plain,application/xhtml+xml",
               "Accept-Encoding": "identity",
-              "User-Agent": "WriterAgent/0.9.2",
+              "User-Agent": `WriterAgent/${VERSION}`,
             },
             lookup: ((_host: unknown, options: any, callback: any) =>
               options?.all

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { Script } from "node:vm";
 /** 引擎测试用：临时作品与写作台接口服务。 */
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -25,3 +27,13 @@ export async function servePanel(config = {}) {
 export const jpost = (api, route, body) => fetch(`${api}${route}`, {
     method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
 });
+
+export function loadComponents(react) {
+    const module = { exports: {} };
+    new Script(readFileSync(new URL('../../build/test-components.cjs', import.meta.url), 'utf8')).runInNewContext({
+        module, exports: module.exports,
+        require(id) { if (id === 'react') return react; throw new Error('Unexpected component dependency: ' + id); },
+        URL, AbortController, setTimeout, clearTimeout,
+    });
+    return module.exports;
+}

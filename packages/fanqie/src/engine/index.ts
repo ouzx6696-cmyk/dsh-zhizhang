@@ -3,30 +3,9 @@
  * configureEngine 设置数据位置与端口策略；mountEngine 把工具与硬规则挂到调用方 Agent 作用域（同一作用域只挂一次）。
  */
 import type { GateEngine } from "../../../core/src/gates.js";
-import { formatToolError } from "./errors.js";
 import { applyTools } from "./bootstrap.js";
-import {
-    AcceptPolicy,
-    BriefGate,
-    InspirationPort,
-    LibraryPort,
-    LintGate,
-    METHOD_ASSET_IDS,
-    MethodRegistry,
-    MultiDraftPort,
-    HumanFeelAuditorPort,
-    HumanFeelGate,
-    NovelSenseAuditorPort,
-    NovelSenseGate,
-    PayoffAuditorPort,
-    ProductMap,
-    Scheduler,
-    SaveBypassGate,
-    StyleLinterPort,
-    setPortConfig,
-    envMultiDraftFlag,
-} from "./ports/index.js";
-import { SYSTEM_BRIEF, allTools, formatLint, setPluginConfig, } from "./tools/index.js";
+import { ProductMap, Scheduler, setPortConfig, envMultiDraftFlag } from "./ports/index.js";
+import { SYSTEM_BRIEF, allTools, setPluginConfig } from "./tools/index.js";
 import type { PluginConfig } from "./types.js";
 const tools = allTools();
 ProductMap.setToolCount(tools.length);
@@ -52,35 +31,3 @@ export function mountEngine(agentCtx: any, config: PluginConfig = {}, gates?: Ga
     return true;
 }
 export { applyTools, SYSTEM_BRIEF };
-export const __testing = {
-  tools,
-  applyTools,
-  engineSummary,
-  mountEngine,
-  formatLint,
-  SYSTEM_BRIEF,
-  formatToolError,
-    METHOD_ASSET_IDS,
-    listMethodAssets: () => MethodRegistry.list(),
-    getMethodAssets: (ids: any) => MethodRegistry.getMany(ids),
-    auditPayoff: PayoffAuditorPort.audit,
-    formatPayoffAudit: PayoffAuditorPort.format,
-    ports: {
-        AcceptPolicy,
-        LintGate,
-        BriefGate,
-        MethodRegistry,
-        SaveBypassGate,
-        StyleLinterPort,
-        PayoffAuditorPort,
-        HumanFeelAuditorPort,
-        HumanFeelGate,
-        NovelSenseAuditorPort,
-        NovelSenseGate,
-        LibraryPort,
-        InspirationPort,
-        ProductMap,
-        Scheduler,
-        MultiDraftPort,
-    },
-};

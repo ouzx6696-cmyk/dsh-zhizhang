@@ -1,5 +1,11 @@
 name: ci
-on: [push, pull_request, workflow_call]
+on:
+  push:
+    paths-ignore: ['docs/**', '**/*.md']
+  pull_request:
+    paths-ignore: ['docs/**', '**/*.md']
+  workflow_call:
+  workflow_dispatch:
 env:
   PYTHONUTF8: "1"
   PYTHONIOENCODING: utf-8
@@ -7,6 +13,34 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  scope:
+    runs-on: ubuntu-latest
+    outputs:
+      desktop: ${{ steps.paths.outputs.desktop }}
+      compatibility: ${{ steps.paths.outputs.compatibility }}
+      package: ${{ steps.paths.outputs.package }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 2 }
+      - id: paths
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          node --input-type=module <<'JS'
+          import {execFileSync} from 'node:child_process';
+          import {appendFileSync} from 'node:fs';
+          let files;
+          try {
+            if (!process.env.BASE_SHA) throw new Error('full verification');
+            files = execFileSync('git', ['diff', '--name-only', '-z', process.env.BASE_SHA, 'HEAD'], {encoding:'utf8'}).split('\0');
+          } catch { files = ['package.json']; }
+          const shared = files.some(p => /^(packages\/|scripts\/|test\/|\.github\/|package(?:-lock)?\.json$|tsconfig)/.test(p));
+          const desktop = shared || files.some(p => p.startsWith('apps/desktop/'));
+          const compatibility = shared;
+          const pack = process.env.GITHUB_EVENT_NAME === 'workflow_dispatch' || process.env.GITHUB_REF.startsWith('refs/tags/');
+          appendFileSync(process.env.GITHUB_OUTPUT, `desktop=${desktop || pack}\ncompatibility=${compatibility || pack}\npackage=${pack}\n`);
+          JS
   test:
     runs-on: ubuntu-latest
     steps:
@@ -18,8 +52,9 @@ jobs:
       - run: npm ci
       - run: node scripts/ci-run.mjs npm test
       - run: node scripts/ci-run.mjs npm run test:desktop
-      - run: node scripts/ci-run.mjs npm run pack
   dsh-integration:
+    needs: scope
+    if: needs.scope.outputs.compatibility == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,6 +68,9 @@ jobs:
       - run: node scripts/ci-run.mjs npm run test:dsh
         env:
           WRITER_DSH_RUNTIME: ${{ github.workspace }}/../dshrt
+      - run: node scripts/ci-run.mjs npm run pack
+      - shell: bash
+        run: echo "WRITER_COMPAT_PACKAGE=dist-pack/dsh-writer-$(node -p 'require("./package.json").version').tgz" >> "$GITHUB_ENV"
       - run: node scripts/ci-run.mjs npm run test:e2e
         env:
           WRITER_DSH_RUNTIME: ${{ github.workspace }}/../dshrt
@@ -40,6 +78,8 @@ jobs:
         env:
           WRITER_DSH_RUNTIME: ${{ github.workspace }}/../dshrt
   desktop-ui:
+    needs: scope
+    if: needs.scope.outputs.desktop == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -56,25 +96,20 @@ jobs:
         with:
           name: desktop-ui-results
           path: test-results/
-  windows-package:
-    needs: [test, dsh-integration, desktop-ui]
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 24 }
-      - run: npm ci
-      - run: node scripts/ci-run.mjs npm run desktop:build
       - run: node scripts/ci-run.mjs npm run pack
+        if: needs.scope.outputs.package == 'true'
       - run: node scripts/ci-run.mjs npm run pack --workspace @writer/desktop
+        if: needs.scope.outputs.package == 'true'
         env:
           CSC_LINK: ${{ secrets.WINDOWS_CERTIFICATE }}
           CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
       - run: node scripts/ci-run.mjs npm run pack:portable --workspace @writer/desktop
+        if: needs.scope.outputs.package == 'true'
         env:
           CSC_LINK: ${{ secrets.WINDOWS_CERTIFICATE }}
           CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
       - name: 核对签名并记录发布条件
+        if: needs.scope.outputs.package == 'true'
         shell: pwsh
         env:
           CERTIFICATE_PROVIDED: ${{ secrets.WINDOWS_CERTIFICATE != '' }}
@@ -82,8 +117,11 @@ jobs:
           $exe = Get-ChildItem apps/desktop/release/*.exe | Select-Object -First 1
           $signature = Get-AuthenticodeSignature $exe.FullName
           if ($env:CERTIFICATE_PROVIDED -eq 'true' -and $signature.Status -ne 'Valid') { throw '签名校验未通过' }
-          @{ signing = $signature.Status.ToString(); realModelAcceptance = 'pending-author-review' } | ConvertTo-Json | Set-Content apps/desktop/release/RELEASE-CONDITIONS.json
-          if (-not (Select-String -Path apps/desktop/release/latest.yml -Pattern 'path:.*\.exe')) { throw '更新清单没有引用 NSIS 安装器' }
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          @{ version = $version; commit = $env:GITHUB_SHA; signing = $signature.Status.ToString(); realModelAcceptance = 'pending-author-review' } | ConvertTo-Json | Set-Content apps/desktop/release/RELEASE-CONDITIONS.json
+          $updateFile = if ($version -match '-([a-zA-Z][a-zA-Z0-9]*)') { "$($Matches[1]).yml" } else { 'latest.yml' }
+          "WRITER_UPDATE_FILE=$updateFile" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          if (-not (Select-String -Path "apps/desktop/release/$updateFile" -Pattern 'path:.*\.exe')) { throw '更新清单没有引用 NSIS 安装器' }
           $package = Get-ChildItem apps/desktop/release/*.zip | Select-Object -First 1
           $zip = [System.IO.Compression.ZipFile]::OpenRead($package.FullName)
           try {
@@ -95,15 +133,17 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw '随包 Python 无法运行' }
           Write-Output "::notice::Windows 原生 NSIS 和 ZIP 完整；更新清单引用 exe；随包 Python 可运行；签名状态=$($signature.Status)"
       - name: 整理交付文件
+        if: needs.scope.outputs.package == 'true'
         shell: bash
         run: |
           version="$(node -p 'require("./package.json").version')"
           mkdir -p release-artifacts
-          cp dist-pack/*.tgz apps/desktop/release/*.exe apps/desktop/release/*.zip apps/desktop/release/*.blockmap apps/desktop/release/latest.yml apps/desktop/release/RELEASE-CONDITIONS.json release-artifacts/
-          cp "docs/${version}-IMPLEMENTATION.md" docs/DESKTOP.md release-artifacts/
+          cp dist-pack/*.tgz apps/desktop/release/*.exe apps/desktop/release/*.zip apps/desktop/release/*.blockmap "apps/desktop/release/$WRITER_UPDATE_FILE" apps/desktop/release/RELEASE-CONDITIONS.json release-artifacts/
+          cp "docs/${version}-IMPLEMENTATION.md" docs/DESKTOP.md docs/0.9.3-IMPLEMENTATION.md docs/NEXT-ITERATION-IMPLEMENTATION.md docs/NEXT-ITERATION-PLAN.md release-artifacts/
           git archive --format=zip --prefix="writer-agent-${version}/" -o "release-artifacts/writer-agent-${version}-src.zip" HEAD
           (cd release-artifacts && sha256sum *.zip *.tgz *.exe *.blockmap *.yml *.json *.md > SHA256SUMS)
       - uses: actions/upload-artifact@v4
+        if: needs.scope.outputs.package == 'true'
         with:
           name: writer-windows-packages
           path: release-artifacts/

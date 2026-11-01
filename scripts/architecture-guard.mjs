@@ -30,6 +30,8 @@ for (const pkg of Object.keys(LAYERS)) {
     const text = await readFile(file, 'utf8')
     if (text.includes('@ts-nocheck')) problems.push(`${rel}: 不许关闭类型检查`)
     const renderer = pkg === 'desktop' && /\.(jsx|tsx)$/.test(file)
+    if (pkg === 'desktop' && file.endsWith('.jsx') && !/^\/\/ @ts-check\r?\n/.test(text))
+      problems.push(`${rel}: 桌面 JSX 必须显式启用 @ts-check 并纳入 renderer 检查`)
     const client = rel.startsWith('workbench/src/client/')
     const ast = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, file.endsWith('x') ? ts.ScriptKind.JSX : undefined)
     const deps = []

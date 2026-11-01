@@ -1,3 +1,4 @@
+import type { DesktopEvent, UpdateStatus } from "./renderer-contracts";
 import {
   app,
   BrowserWindow,
@@ -74,7 +75,7 @@ let access: { readOnly: boolean; owner: any } = {
   owner: null,
 };
 let maintenance = false;
-let updateState: any = { state: "idle" };
+let updateState: UpdateStatus = { state: "idle" };
 const deliveries = new Map<string, Promise<unknown>>();
 if (!app.isPackaged && process.env.WRITER_USER_DATA)
   app.setPath("userData", process.env.WRITER_USER_DATA);
@@ -82,8 +83,9 @@ let writerConfig: {
   toutiao?: ReturnType<typeof parseToutiaoConfig>["value"];
   fanqie?: ReturnType<typeof parseFanqieConfig>["value"];
 } = {};
-function emit(value: any) {
+function emit(value: DesktopEvent) {
   if (value.error) value = { ...value, error: explainError(value.error) };
+  const eventTarget = value.target;
   if (value.event?.type === "agent_settled") {
     void diagnostics?.write("task_ended", {
       mode: value.target?.mode,
@@ -105,16 +107,16 @@ function emit(value: any) {
       notification.show();
     }
     if (
-      value.target &&
+      eventTarget &&
       target &&
-      sessions.key(value.target) !== sessions.key(target) &&
+      sessions.key(eventTarget) !== sessions.key(target) &&
       !sessions
         .running()
         .some(
-          (item) => sessions.key(item.target) === sessions.key(value.target),
+          (item) => sessions.key(item.target) === sessions.key(eventTarget),
         )
     )
-      void lockRoot(value.target).then(releaseWorkspace);
+      void lockRoot(eventTarget).then(releaseWorkspace);
   }
   if (value.event?.type === "tool_execution_end")
     void diagnostics?.write("tool_ended", { tool: value.event.toolName });

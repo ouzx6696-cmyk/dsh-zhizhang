@@ -10,7 +10,7 @@ import { fanqieApi } from "../../build/fanqie/src/workbench/api.js";
 import { createWorkbenchHandler } from "../../build/workbench/src/server.js";
 const panel = (config, access = {}) => createWorkbenchHandler(access, [fanqieApi(config)]).handler;
 import { initialState, reducer, bodyKey } from "../../packages/workbench/src/client/fanqie/state.js";
-import { jpost, servePanel, withWork } from "./helpers.mjs";
+import { jpost, servePanel, withWork, loadComponents } from "./helpers.mjs";
 const script = new Script(await readFile("build/client.js", "utf8"));
 function loadedClient(extra = {}) {
     let descriptor;
@@ -185,7 +185,8 @@ test("客户端请求超时覆盖响应正文，取消后的 JSON 不回填", as
 
 
 test("新的正文渲染以文本节点保留换行与 Markdown 结构", async()=>{
-    const render = loadedClient().__testing.Manuscript;
+    const react = { createElement: (type, props, ...children) => ({ type, props, children }), Component: class {}, Fragment: 'fragment', memo: component => component };
+    const render = loadComponents(react).Manuscript;
     const flatten=x=>Array.isArray(x)?x.map(flatten).join(''):typeof x==='string'?x:x?.type==='br'?'\n':x?.children?flatten(x.children):'';
     const tree=render({text:'# 标题\r\n\r\n**门外**有人。\r\n<script>\r\n\r\n> 引用\r\n\r\n```\r\n**原样**\r\n```'});
     const visible=flatten(tree);

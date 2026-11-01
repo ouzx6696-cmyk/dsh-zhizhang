@@ -24,7 +24,9 @@ function messageOf(err) {
   return (err.code && err.code !== "network" && err.code !== "timeout" ? "[" + err.code + "] " : "") + (err.message || String(err));
 }
 
-export function useFanqie() {
+export function useFanqie({ onTarget } = {}) {
+  const targetSink = useRef(onTarget);
+  targetSink.current = onTarget;
   const [state, rawDispatch] = useReducer(reducer, undefined, initialState);
   const ref = useRef(state);
   ref.current = state;
@@ -125,13 +127,13 @@ export function useFanqie() {
     const current = state.view === 'chapters' ? view.current : null;
     const candidate = current && state.readerView !== 'official' ? view.activeCand : null;
     const loaded = state.readerView === 'candidate' ? state.candidate : state.chapter;
-    window.dispatchEvent(new CustomEvent('writer:target', { detail: {
+    targetSink.current?.({
       mode: 'fanqie', root: state.base, ...(state.snapshot?.workKey ? { work: state.snapshot.workKey } : {}),
       focus: { workTitle: state.snapshot?.title, chapter: current?.id, title: current?.title,
         candidate: candidate?.id, source: current ? (state.readerView === 'split' ? 'split' : candidate ? 'candidate' : 'chapter') : undefined,
         revision: loaded.status === 'ready' ? (loaded.meta?.revision ?? loaded.meta?.readVersion) : undefined,
         dirty: !!state.edit?.dirty }
-    }}));
+    });
   }, [state.base, state.snapshot?.workKey, state.snapshot?.title, state.view, state.readerView, state.chapterId, view.activeCand?.id, state.chapter.status, state.chapter.meta, state.candidate.status, state.candidate.meta, state.edit?.dirty]);
 
 

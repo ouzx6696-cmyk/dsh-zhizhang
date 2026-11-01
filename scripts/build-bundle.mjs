@@ -41,3 +41,12 @@ if (bpkg.version !== pkg.version) {
   await writeFile(path.join(OUT, 'package.json'), JSON.stringify(bpkg, null, 2) + '\n')
 }
 console.log(`built bundle ${bpkg.name}@${bpkg.version}${check ? ' (check)' : ''}`)
+
+// Only Node component checks consume this artifact; it never enters bundle/.
+if (process.argv.includes('--test-components')) await build({
+  entryPoints: [path.join(ROOT, 'test/engine/components.jsx')],
+  outfile: path.join(ROOT, 'build/test-components.cjs'),
+  bundle: true, platform: 'browser', format: 'cjs', external: ['react'],
+  define: { __WB_VERSION__: JSON.stringify(pkg.version), __WB_PACKAGE__: JSON.stringify(bpkg.name) },
+  logLevel: 'warning',
+});

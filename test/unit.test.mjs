@@ -9,8 +9,6 @@ const { parseContract, locatePython, runScript } = await import(path.join(BUILD,
 const { createGateEngine } = await import(path.join(BUILD, 'core/src/gates.js'))
 const { checkCard } = await import(path.join(BUILD, 'toutiao/src/card.js'))
 const { ArticleStore, canTransition } = await import(path.join(BUILD, 'toutiao/src/store.js'))
-const { getMethod, METHOD_FILES } = await import(path.join(BUILD, 'toutiao/src/methods.js'))
-const { TOUTIAO_BRIEF } = await import(path.join(BUILD, 'toutiao/src/brief.js'))
 
 test('resolveInside 拒绝越界', () => {
   assert.equal(resolveInside('/a/b', 'c'), path.resolve('/a/b/c'))
@@ -89,10 +87,4 @@ test('稿件只增不改，哈希记录', async () => {
   assert.equal(await s.readDraft(m.id, 1), '# t\n一')
   assert.notEqual(m2.drafts[0].sha256, m2.drafts[1].sha256)
   await assert.rejects(s.create('a', { date: '2026-10-28' }), /已存在/)
-})
-
-test('方法文件全部可取，总则不超 2k 字且不含 shell 命令', async () => {
-  for (const id of Object.keys(METHOD_FILES)) assert.ok((await getMethod(id)).text.length > 100, id)
-  assert.ok([...TOUTIAO_BRIEF].length < 2000, `brief=${[...TOUTIAO_BRIEF].length}`)
-  assert.doesNotMatch(TOUTIAO_BRIEF, /python3|scripts\//)
 })

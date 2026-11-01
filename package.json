@@ -1,8 +1,8 @@
 {
   "name": "writer-agent",
-  "version": "0.9.2",
+  "version": "0.9.3-rc.1",
   "private": true,
-  "description": "写作 Agent：DSH 插件，一个入口两种写作模式（今日头条 / 番茄长篇）+ 写作台",
+  "description": "基于内置 PI 的独立写作客户端：今日头条与番茄长篇，保留 DSH 存量兼容",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -12,9 +12,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "build": "tsc -p tsconfig.json && node scripts/build-client.mjs",
     "test:py": "python packages/toutiao/skill/tests/test_gates.py && python packages/fanqie/skill/tests/test_bridge.py",
-    "test:node": "npm run build && node scripts/build-bundle.mjs && node --test --import ./test/setup.mjs test/*.test.mjs test/engine/*.test.mjs",
-    "test": "npm run guard && npm run test:py && npm run test:node",
-    "test:dsh": "npm run build && node --test --import ./test/setup.mjs test/dsh/*.test.mjs",
+    "test:node": "tsc -p tsconfig.json && node scripts/build-bundle.mjs --test-components && node --test --import ./test/setup.mjs test/*.test.mjs test/engine/*.test.mjs",
+    "test": "npm run verify",
+    "test:dsh": "tsc -p tsconfig.json && node --test --import ./test/setup.mjs test/dsh/*.test.mjs",
     "test:e2e": "node test/e2e/run-toutiao.mjs",
     "test:e2e:fanqie": "node test/e2e/run-fanqie.mjs",
     "test:all": "npm test && npm run test:dsh && npm run test:e2e && npm run test:e2e:fanqie",
@@ -28,7 +28,10 @@
     "test:desktop": "node scripts/build-desktop-test.mjs && node --test test/desktop/runtime.test.mjs",
     "test:desktop:ui": "playwright test --config apps/desktop/playwright.config.mjs",
     "acceptance:prepare": "node scripts/build-desktop-test.mjs && node scripts/acceptance.mjs",
-    "acceptance:run": "node scripts/build-desktop-test.mjs && node scripts/acceptance.mjs --run"
+    "acceptance:run": "node scripts/build-desktop-test.mjs && node scripts/acceptance.mjs --run",
+    "verify": "npm run guard && npm run test:py && npm run test:node",
+    "verify:desktop": "npm run desktop:build && npm run test:desktop && npm run test:desktop:ui",
+    "verify:release": "node scripts/verify-release.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
