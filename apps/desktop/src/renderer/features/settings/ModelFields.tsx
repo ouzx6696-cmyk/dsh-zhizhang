@@ -71,7 +71,9 @@ export function ModelFields({
           onChange={(event) => onChange({ ...model, apiKey: event.target.value })}
         />
       </label>
-      <div className="field-grid">
+      <details className="model-advanced">
+        <summary>高级</summary>
+        <div className="field-grid">
         <label>
           上下文窗口
           <input
@@ -116,6 +118,7 @@ export function ModelFields({
           </select>
         </label>
       )}
+      </details>
       <button type="button" onClick={onTest} disabled={result?.busy}>
         {result?.busy ? <LoaderCircle size={14} className="spin" /> : <Check size={14} />}
         测试连接

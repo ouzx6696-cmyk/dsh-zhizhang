@@ -160,11 +160,16 @@ test("决策不被 Agent 挡住，右栏标签与响应式布局，亮暗截图"
   );
   for (const family of fonts)
     expect(family).toMatch(/Noto Sans SC|Noto Serif SC|monospace/);
-  await page.screenshot({
-    path: "docs/design/baseline/desktop-1440-light.png",
-    fullPage: true,
-    animations: "disabled",
-  });
+  const visibleText = await page.locator("body").innerText();
+  for (const pattern of [
+    /cand-[0-9a-f]{6}/i,
+    /\bdrafted\b/i,
+    /\bkind\s*=/i,
+    /\bkey\s*=/i,
+    /\bledger\b/i,
+  ])
+    expect(visibleText).not.toMatch(pattern);
+  await expect(page).toHaveScreenshot("desktop-1440-light.png", { fullPage: true, animations: "disabled" });
   await page.setViewportSize({ width: 1100, height: 900 });
   await expect(
     page.getByRole("button", { name: "声明已审读", exact: true }).first(),
@@ -172,18 +177,10 @@ test("决策不被 Agent 挡住，右栏标签与响应式布局，亮暗截图"
   const reader = await page.locator(".studio-paper-column").boundingBox(),
     sidebar = await page.locator(".studio-sidebar").boundingBox();
   expect(reader.x + reader.width).toBeLessThanOrEqual(sidebar.x + 1);
-  await page.screenshot({
-    path: "docs/design/baseline/desktop-1100-light.png",
-    fullPage: true,
-    animations: "disabled",
-  });
+  await expect(page).toHaveScreenshot("desktop-1100-light.png", { fullPage: true, animations: "disabled" });
   await page.setViewportSize({ width: 900, height: 900 });
   await expect(page.locator(".studio-sidebar")).toHaveCSS("position", "fixed");
-  await page.screenshot({
-    path: "docs/design/baseline/desktop-900-light.png",
-    fullPage: true,
-    animations: "disabled",
-  });
+  await expect(page).toHaveScreenshot("desktop-900-light.png", { fullPage: true, animations: "disabled" });
   await page.getByRole("button", { name: "收起右栏", exact: true }).click();
   await expect(page.locator(".studio-sidebar")).toBeHidden();
   await page.getByRole("button", { name: "打开右栏", exact: true }).click();
@@ -202,23 +199,11 @@ test("决策不被 Agent 挡住，右栏标签与响应式布局，亮暗截图"
     .getByRole("button", { name: "保存设置", exact: true })
     .click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  await page.screenshot({
-    path: "docs/design/baseline/desktop-1440-dark.png",
-    fullPage: true,
-    animations: "disabled",
-  });
+  await expect(page).toHaveScreenshot("desktop-1440-dark.png", { fullPage: true, animations: "disabled" });
   await page.setViewportSize({ width: 1100, height: 900 });
-  await page.screenshot({
-    path: "docs/design/baseline/desktop-1100-dark.png",
-    fullPage: true,
-    animations: "disabled",
-  });
+  await expect(page).toHaveScreenshot("desktop-1100-dark.png", { fullPage: true, animations: "disabled" });
   await page.setViewportSize({ width: 900, height: 900 });
-  await page.screenshot({
-    path: "docs/design/baseline/desktop-900-dark.png",
-    fullPage: true,
-    animations: "disabled",
-  });
+  await expect(page).toHaveScreenshot("desktop-900-dark.png", { fullPage: true, animations: "disabled" });
   await page.setViewportSize({ width: 1440, height: 1000 });
 });
 
@@ -232,6 +217,7 @@ test("命令面板、角色设置与新对话保留作品", async () => {
   );
   await page.getByRole("button", { name: /雨夜/ }).first().click();
   await page.getByRole("tab", { name: "方法方案", exact: true }).click();
+  await page.getByRole("button", { name: "打开方法方案", exact: true }).click();
   await page.getByRole("button", { name: "新建方案", exact: true }).click();
   await page.locator(".wb-pf-new input").first().fill("界面校验方案");
   await page.getByRole("button", { name: "创建", exact: true }).click();
@@ -241,12 +227,15 @@ test("命令面板、角色设置与新对话保留作品", async () => {
   await expect(method).toBeEditable();
   const savedMethod = await method.inputValue();
   await method.fill(savedMethod + "\n未保存的界面校验草稿");
+  await page.getByRole("button", { name: "关闭方法方案", exact: true }).click();
   await page.getByRole("tab", { name: "Agent", exact: true }).click();
   page.once("dialog", (dialog) => dialog.dismiss());
   await candidate.getByRole("button", { name: /对照查看/ }).click();
   await page.getByRole("tab", { name: "方法方案", exact: true }).click();
+  await page.getByRole("button", { name: "打开方法方案", exact: true }).click();
   await expect(method).toHaveValue(savedMethod + "\n未保存的界面校验草稿");
   await method.fill(savedMethod);
+  await page.getByRole("button", { name: "关闭方法方案", exact: true }).click();
   await page.getByRole("tab", { name: "Agent", exact: true }).click();
   await page.keyboard.press("Control+k");
   const commands = page.getByRole("dialog", { name: "命令面板" });
@@ -255,9 +244,10 @@ test("命令面板、角色设置与新对话保留作品", async () => {
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "设置", exact: true }).click();
   const settings = page.getByRole("dialog", { name: "设置", exact: true });
-  await expect(settings.getByText("独立编辑", { exact: true })).toBeVisible();
+  await expect(settings.getByRole("tab", { name: "独立编辑", exact: true })).toBeVisible();
+  await settings.getByRole("tab", { name: "独立编辑", exact: true }).click();
   await expect(
-    settings.locator("fieldset").nth(1).getByLabel("模型 ID", { exact: true }),
+    settings.locator("fieldset").first().getByLabel("模型 ID", { exact: true }),
   ).toHaveValue("deepseek-reasoner");
   await settings.getByRole("button", { name: "写作根与偏好", exact: true }).click();
   await settings.getByRole("button", { name: "检查占用和未完成写入", exact: true }).click();
@@ -335,4 +325,13 @@ test("命令面板、角色设置与新对话保留作品", async () => {
     ),
   ).toEqual(workBefore);
   await expect(page.locator(".chat-messages")).toContainText("从一句想法开始");
+});
+
+test("今日头条使用同一套外壳与进度条", async () => {
+  await page.locator(".project-switch").click();
+  await page.getByRole("button", { name: "新头条" }).click();
+  await expect(page.locator(".studio-nav")).toContainText("文章");
+  await expect(page.locator(".paper-steps")).toContainText("S1 找题");
+  await expect(page.locator(".paper-steps")).toContainText("S7 交稿");
+  await expect(page).toHaveScreenshot("desktop-toutiao-1440-light.png", { fullPage: true, animations: "disabled" });
 });

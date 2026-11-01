@@ -1,12 +1,10 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   BookOpen,
   ChevronDown,
   Command,
   Settings as SettingsIcon,
   Plus,
-  FileDown,
-  Copy,
   PanelRightOpen,
   X,
   AlertCircle,
@@ -18,6 +16,11 @@ import type { DesktopController } from "../../app/useDesktopController";
 
 export function TopBar({ app }: { app: DesktopController }) {
   const { state, system, selected, focus, fail, set } = app;
+  const [exportOpen, setExportOpen] = useState(false);
+  const exportAs = (format: string) => {
+    setExportOpen(false);
+    app.exportFile(format).catch(fail);
+  };
   if (!system) return null;
   return (
     <>
@@ -55,27 +58,30 @@ export function TopBar({ app }: { app: DesktopController }) {
           {system.models.writer?.model}
           <small> · 编辑 {system.models.editor?.model}</small>
         </span>
-        <button
-          className="icon-button"
-          aria-label="导出稿件"
-          onClick={() => app.exportFile("txt").catch(fail)}
-        >
-          <FileDown size={16} />
-        </button>
-        <button
-          className="icon-button"
-          aria-label="复制标题与正文"
-          onClick={() => app.exportFile("copy").catch(fail)}
-        >
-          <Copy size={15} />
-        </button>
-        <button
-          className="icon-button"
-          aria-label="导出 Word"
-          onClick={() => app.exportFile("docx").catch(fail)}
-        >
-          W
-        </button>
+        <div className="export-menu">
+          <button
+            className="export-trigger"
+            aria-haspopup="menu"
+            aria-expanded={exportOpen}
+            onClick={() => setExportOpen((open) => !open)}
+          >
+            导出
+            <ChevronDown size={13} />
+          </button>
+          {exportOpen && (
+            <div className="export-options" role="menu" aria-label="导出">
+              <button role="menuitem" onClick={() => exportAs("copy")}>
+                复制标题与正文
+              </button>
+              <button role="menuitem" onClick={() => exportAs("txt")}>
+                导出 TXT
+              </button>
+              <button role="menuitem" onClick={() => exportAs("docx")}>
+                导出 Word
+              </button>
+            </div>
+          )}
+        </div>
         <button className="command-button" onClick={() => set({ palette: true, query: "" })}>
           <Command size={14} />
           <span>Ctrl K</span>

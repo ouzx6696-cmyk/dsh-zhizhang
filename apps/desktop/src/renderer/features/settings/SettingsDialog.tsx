@@ -26,6 +26,7 @@ export function Settings({ state, onClose, onSaved, onWorkspace, onImport }: Set
     [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false),
     [updates, setUpdates] = useState<any>(state.updates || {});
+  const [roleTab, setRoleTab] = useState<"writer" | "editor" | "planner">("writer");
   useEffect(() => {
     api
       .preferences()
@@ -92,7 +93,8 @@ export function Settings({ state, onClose, onSaved, onWorkspace, onImport }: Set
             <X size={18} />
           </button>
         </header>
-        <nav className="settings-tabs">
+        <div className="settings-body">
+        <nav className="settings-nav" aria-label="设置分区">
           {[
             ["models", "模型与角色"],
             ["workspace", "写作根与偏好"],
@@ -100,6 +102,7 @@ export function Settings({ state, onClose, onSaved, onWorkspace, onImport }: Set
             ["resources", "资料与更新"],
           ].map(([id, label]) => (
             <button
+              aria-current={tab === id ? "page" : undefined}
               key={id}
               className={tab === id ? "active" : ""}
               onClick={() => setTab(id)}
@@ -120,34 +123,31 @@ export function Settings({ state, onClose, onSaved, onWorkspace, onImport }: Set
                   系统安全存储不可用，Key 只保留到本次应用关闭。
                 </p>
               )}
-              {(["writer", "editor"] as const).map((role) => (
-                <ModelFields
+              <div className="role-tabs" role="tablist" aria-label="模型角色">
+              {(["writer", "editor", "planner"] as const).map((role) => (
+                <button
                   key={role}
-                  role={role}
-                  model={models[role]}
-                  onChange={(value) =>
-                    setModels((previous: any) => ({ ...previous, [role]: value }))
-                  }
-                  onTest={() => testRole(role)}
-                  result={test[role]}
-                />
+                  role="tab"
+                  aria-selected={roleTab === role}
+                  className={roleTab === role ? "active" : ""}
+                  onClick={() => setRoleTab(role)}
+                >
+                  {role === "writer" ? "写手" : role === "editor" ? "独立编辑" : "规划与拆书"}
+                </button>
               ))}
-              <label className="checkbox">
-                <input
-                  type="checkbox"
-                  checked={!models.planner}
-                  onChange={(event) =>
-                    setModels((previous: any) => ({
-                      ...previous,
-                      planner: event.target.checked
-                        ? null
-                        : { ...previous.writer, apiKey: "" },
-                    }))
-                  }
-                />
-                规划与拆书跟随写手模型
-              </label>
-              {models.planner && (
+            </div>
+            {roleTab !== "planner" ? (
+              <ModelFields
+                role={roleTab}
+                model={models[roleTab]}
+                onChange={(value) =>
+                  setModels((previous: any) => ({ ...previous, [roleTab]: value }))
+                }
+                onTest={() => testRole(roleTab)}
+                result={test[roleTab]}
+              />
+            ) : models.planner ? (
+              <>
                 <ModelFields
                   role="planner"
                   model={models.planner}
@@ -157,7 +157,32 @@ export function Settings({ state, onClose, onSaved, onWorkspace, onImport }: Set
                   onTest={() => testRole("planner")}
                   result={test.planner}
                 />
-              )}
+                <label className="checkbox">
+                  <input
+                    type="checkbox"
+                    checked={false}
+                    onChange={() =>
+                      setModels((previous: any) => ({ ...previous, planner: null }))
+                    }
+                  />
+                  改为跟随写手模型
+                </label>
+              </>
+            ) : (
+              <label className="checkbox">
+                <input
+                  type="checkbox"
+                  checked={false}
+                  onChange={() =>
+                    setModels((previous: any) => ({
+                      ...previous,
+                      planner: { ...previous.writer, apiKey: "" },
+                    }))
+                  }
+                />
+                规划与拆书使用独立模型
+              </label>
+            )}
             </>
           )}
           {tab === "workspace" && (
@@ -321,6 +346,7 @@ export function Settings({ state, onClose, onSaved, onWorkspace, onImport }: Set
               </button>
             </>
           )}
+        </div>
         </div>
         {message && (
           <p className="form-note" role="status">

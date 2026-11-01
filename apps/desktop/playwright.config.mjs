@@ -7,6 +7,10 @@ export default defineConfig({
   timeout: 45000,
   reporter: "list",
   outputDir: "../../test-results/electron",
+  snapshotPathTemplate: "../../docs/design/baseline/{arg}{ext}",
+  expect: {
+    toHaveScreenshot: { maxDiffPixelRatio: 0.01, threshold: 0.2 },
+  },
   use: { trace: "retain-on-failure" },
   retries: 0,
 });

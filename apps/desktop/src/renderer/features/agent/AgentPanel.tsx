@@ -1,13 +1,10 @@
 import React from "react";
 import {
   Send,
-  Square,
   Plus,
   History,
   Feather,
-  LoaderCircle,
   ArrowRight,
-  AlertCircle,
 } from "lucide-react";
 import { Markdown } from "../../../Markdown";
 import { humanVersion } from "../../../commands";
@@ -95,18 +92,10 @@ export function AgentPanel({ app }: { app: DesktopController }) {
     if (message.role === "custom" && message.display === false) return null;
     if (message.role === "toolResult") {
       const result = message.details?.writerResult;
+      if (result) return <div key={index}>{resultCard(result)}</div>;
       return (
-        <div key={index}>
-          {result && resultCard(result)}
-          <details className="tool-action">
-            <summary>
-              {toolLabel(message.toolName || "")}
-              {!original.startsWith("{")
-                ? " · " + original.split("\n")[0].replace(/^#+\s*/, "").slice(0, 54)
-                : ""}
-            </summary>
-            <pre>{original}</pre>
-          </details>
+        <div className="tool-action" key={index}>
+          {toolLabel(message.toolName || "")}
         </div>
       );
     }
@@ -135,13 +124,8 @@ export function AgentPanel({ app }: { app: DesktopController }) {
             <strong>
               {busy ? "正在进行" : "任务结束"} · {task.name || phase}
             </strong>
-            <button
-              className="icon-button"
-              disabled={!busy}
-              aria-label="停止任务"
-              onClick={() => app.stop().catch(fail)}
-            >
-              <Square size={13} />
+            <button className="stop-task" disabled={!busy} aria-label="停止任务" onClick={() => app.stop().catch(fail)}>
+              停止
             </button>
           </header>
           <div className="task-track">

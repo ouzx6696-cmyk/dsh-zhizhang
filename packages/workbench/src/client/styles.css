@@ -286,6 +286,15 @@
   width: 100%; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer;
   border-radius: var(--wb-r-md);
 }
+.wb-chapter-line { display: flex; align-items: center; gap: var(--ui-space-1); }
+.wb-chapter-line .wb-chapter-row { flex: 1; min-width: 0; }
+.wb-candidate-badge {
+  flex: 0 0 auto; display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 7px;
+  border: 0; border-radius: 999px; corner-shape: round;
+  background: var(--wb-warn-soft); color: var(--wb-warn);
+  font: var(--dsw-font-xxxs-strong-11, 600 11px/16px var(--ui-font-ui)); cursor: pointer;
+}
+.wb-candidate-badge:hover { background: var(--wb-warn); color: var(--wb-bg); }
 .wb-chapter-row {
   display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 10px; align-items: center;
   padding: 8px 10px;

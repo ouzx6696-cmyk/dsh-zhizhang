@@ -5,7 +5,8 @@
  */
 import React from "react";
 import { fanqie } from "../shared/api.js";
-import { t, diagnosticCopy } from "../shared/copy.js";
+import { t } from "../shared/copy.js";
+import { diagnosticCopy } from "../shared/copy-diagnostic.js";
 import { useDiagnostics } from "./useDiagnostics.js";
 import { diagnosticScope } from "./edit-state.js";
 import { PREF, writePref } from "../shared/prefs.js";

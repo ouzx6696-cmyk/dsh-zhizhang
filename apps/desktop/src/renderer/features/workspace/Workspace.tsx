@@ -1,123 +1,19 @@
-import React, { useEffect, useState, useMemo } from "react";
-import type { ReactNode } from "react";
+import React, { useEffect } from "react";
 import { useFanqie } from "../../../../../../packages/workbench/src/client/fanqie/useFanqie.js";
-import { useToutiao } from "../../../../../../packages/workbench/src/client/toutiao/useToutiao.js";
 import { ChapterList } from "../../../../../../packages/workbench/src/client/fanqie/ChapterList.jsx";
 import { Reader } from "../../../../../../packages/workbench/src/client/fanqie/Reader.jsx";
 import { Inspector } from "../../../../../../packages/workbench/src/client/fanqie/Inspector.jsx";
 import { Pipeline } from "../../../../../../packages/workbench/src/client/fanqie/Pipeline.jsx";
 import { Dialogs } from "../../../../../../packages/workbench/src/client/fanqie/Dialogs.jsx";
-import {
-  ArticleList,
-  Body,
-  ToutiaoSide,
-} from "../../../../../../packages/workbench/src/client/toutiao/ToutiaoApp.jsx";
+import { Diagnostics } from "../../../../../../packages/workbench/src/client/fanqie/Diagnostics.jsx";
 import { Notices } from "../../../../../../packages/workbench/src/client/shared/common.jsx";
-import { profilesApi } from "../../../../../../packages/workbench/src/client/shared/api.js";
-import { ProfilesDialog } from "../../../../../../packages/workbench/src/client/shared/Profiles.jsx";
-import { Menu, PanelRightClose, Check, FileCheck, Layers } from "lucide-react";
+import { Check, FileCheck } from "lucide-react";
 import { StatusBadge } from "../../../../../../packages/ui/src/components";
 import type { WorkspaceProps } from "../../../renderer-contracts";
-type EditState = { dirty: boolean; saving: boolean };
-const tabs = [
-  ["agent", "Agent"],
-  ["chapter", "本章"],
-  ["methods", "方法方案"],
-];
-function MethodsPane({
-  mode,
-  onEditState,
-}: {
-  mode: "fanqie" | "toutiao";
-  onEditState: (state: EditState) => void;
-}) {
-  const api = useMemo(() => profilesApi(mode), [mode]);
-  return (
-    <div className="method-panel">
-      <ProfilesDialog
-        mode={mode}
-        api={api}
-        inline
-        onEditState={onEditState}
-        onClose={() => {}}
-        onChanged={() => {}}
-      />
-    </div>
-  );
-}
-function Layout({
-  navigation,
-  center,
-  inspector,
-  agent,
-  tab,
-  setTab,
-  mode,
-  drawer,
-  setDrawer,
-  onMethodEditState,
-}: {
-  navigation: ReactNode;
-  center: ReactNode;
-  inspector: ReactNode;
-  agent: ReactNode;
-  tab: string;
-  setTab: (tab: string) => void;
-  mode: "fanqie" | "toutiao";
-  drawer: boolean;
-  setDrawer: (open: boolean) => void;
-  onMethodEditState: (state: EditState) => void;
-}) {
-  const [navOpen, setNavOpen] = useState(false);
-  return (
-    <div className="studio-layout">
-      <nav className={"studio-nav " + (navOpen ? "expanded" : "")}>
-        <button
-          className="nav-toggle icon-button"
-          aria-label="展开章节导航"
-          onClick={() => setNavOpen(!navOpen)}
-        >
-          <Menu size={18} />
-        </button>
-        {navigation}
-      </nav>
-      <section className="studio-paper-column">{center}</section>
-      <aside className={"studio-sidebar " + (drawer ? "open" : "")}>
-        <div className="studio-tabs" role="tablist">
-          {tabs.map(([id, label]) => (
-            <button
-              role="tab"
-              aria-selected={tab === id}
-              key={id}
-              onClick={() => setTab(id)}
-            >
-              {label}
-            </button>
-          ))}
-          <button
-            className="drawer-close icon-button"
-            aria-label="收起右栏"
-            onClick={() => setDrawer(false)}
-          >
-            <PanelRightClose size={16} />
-          </button>
-        </div>
-        <div className="studio-side-body" data-tab={tab}>
-          <div hidden={tab !== "agent"} className="agent-slot">
-            {agent}
-          </div>
-          {tab === "chapter" && (
-            <div className="decision-panel">{inspector}</div>
-          )}
-          <div hidden={tab !== "methods"} style={{ height: "100%" }}>
-            <MethodsPane mode={mode} onEditState={onMethodEditState} />
-          </div>
-        </div>
-      </aside>
-    </div>
-  );
-}
+import { WorkspaceLayout } from "./WorkspaceLayout";
+import { Articles } from "./Articles";
 function Novel(props: WorkspaceProps) {
+  const annotationId = React.useId();
   const { state, view, actions } = useFanqie({ onTarget: props.onTarget }),
     { dispatch } = actions;
   useEffect(() => {
@@ -180,10 +76,38 @@ function Novel(props: WorkspaceProps) {
     !!state.chapter.writer?.finalizeBlocked ||
     meta?.status === "final" ||
     props.readOnly;
+  const stage =
+    meta?.status === "final"
+      ? 3
+      : reviewed
+        ? 2
+        : state.chapter.status === "ready" || (meta?.wordCount || 0) > 0
+          ? 1
+          : 0;
+  const revision = meta?.revision ?? current?.revision,
+    updatedAt = meta?.updatedAt || current?.updatedAt,
+    savedTime = updatedAt ? String(updatedAt).slice(11, 16) : "",
+    versionLabel =
+      typeof revision === "number"
+        ? `第 ${revision} 版${savedTime ? " · " + savedTime : ""}`
+        : savedTime
+          ? `已保存 · ${savedTime}`
+          : "";
   const decisions = (
     <div className="paper-decisions">
       <StatusBadge mode="fanqie" status={meta?.status || current?.status} />
-      <span className="paper-progress">规划 · 写作 · 审读 · 定稿</span>
+      <ol className="paper-steps" aria-label="章节进度">
+        {["规划", "写作", "审读", "定稿"].map((step, index) => (
+          <li
+            key={step}
+            data-state={index < stage ? "done" : index === stage ? "current" : "todo"}
+            aria-current={index === stage ? "step" : undefined}
+          >
+            {step}
+          </li>
+        ))}
+      </ol>
+      {versionLabel ? <span className="paper-version">{versionLabel}</span> : null}
       {current && (
         <>
           <button
@@ -195,6 +119,19 @@ function Novel(props: WorkspaceProps) {
             <FileCheck size={14} />
             声明已审读
           </button>
+          {view.activeCand ? (
+            <button
+              disabled={props.readOnly}
+              onClick={() =>
+                dispatch({
+                  type: "openDialog",
+                  dialog: { kind: "accept", cand: view.activeCand },
+                })
+              }
+            >
+              采纳候选
+            </button>
+          ) : null}
           <button
             className="primary"
             disabled={finalizeBlocked}
@@ -243,8 +180,6 @@ function Novel(props: WorkspaceProps) {
             byChapter={view.byChapter}
             impacts={view.impacts}
             chapterId={state.chapterId}
-            candidateId={state.candidateId}
-            readerView={state.readerView}
             onSelectChapter={(id: string) => dispatch({ type: "selectChapter", id })}
             onSelectCandidate={(chapterId: string, id: string) =>
               dispatch({ type: "selectCandidate", chapterId, id })
@@ -252,24 +187,6 @@ function Novel(props: WorkspaceProps) {
           />
         </section>
       ))}
-      <div className="nav-results">
-        <h3>候选与回报</h3>
-        {view.pending.map((candidate: any) => (
-          <button
-            key={candidate.id}
-            onClick={() =>
-              dispatch({
-                type: "selectCandidate",
-                chapterId: candidate.chapterId,
-                id: candidate.id,
-              })
-            }
-          >
-            <Layers size={14} />
-            {candidate.id}
-          </button>
-        ))}
-      </div>
     </>
   );
 
@@ -288,13 +205,18 @@ function Novel(props: WorkspaceProps) {
             </p>
           </div>
         ) : (
-          <Reader state={state} view={view} actions={actions} />
+          <Reader
+            state={state}
+            view={view}
+            actions={actions}
+            annotationId={annotationId}
+          />
         )}
       </>
     );
   return (
     <>
-      <Layout
+      <WorkspaceLayout
         tab={props.tab}
         setTab={props.setTab}
         drawer={props.drawer}
@@ -304,7 +226,15 @@ function Novel(props: WorkspaceProps) {
         navigation={navigation}
         center={center}
         inspector={
-          <Inspector state={state} view={view} actions={actions} hideAgent />
+          <>
+            <Diagnostics
+              state={state}
+              view={view}
+              actions={actions}
+              annotationId={annotationId}
+            />
+            <Inspector state={state} view={view} actions={actions} hideAgent />
+          </>
         }
         agent={props.agent}
       />
@@ -313,76 +243,6 @@ function Novel(props: WorkspaceProps) {
         notices={state.notices}
         onDismiss={(id: string) => dispatch({ type: "dismissNotice", id })}
       />
-    </>
-  );
-}
-function Articles(props: WorkspaceProps) {
-  const tt = useToutiao({ onTarget: props.onTarget }),
-    a: any = tt.detail.article;
-  useEffect(() => {
-    props.onContext({
-      target: props.target,
-      article: a || undefined,
-      kind: "article",
-    });
-  }, [a, tt.selected]);
-  const adopt = async () => {
-    if (!a) return;
-    if (
-      window.confirm(
-        `确认采用《${a.title}》第 ${a.rev} 版？发布时请按平台要求声明 AI 生成，故事或合成人物须注明虚构演绎。`,
-      )
-    )
-      await tt.actions.adopt(a);
-  };
-  return (
-    <>
-      <Layout
-        tab={props.tab}
-        setTab={props.setTab}
-        drawer={props.drawer}
-        setDrawer={props.setDrawer}
-        onMethodEditState={props.onMethodEditState}
-        agent={props.agent}
-        mode="toutiao"
-        navigation={
-          <>
-            <h2>文章</h2>
-            <ArticleList
-              articles={tt.list.articles}
-              statuses={tt.list.statuses || []}
-              sel={tt.sel}
-              onSelect={tt.actions.select}
-            />
-          </>
-        }
-        center={
-          <>
-            <div className="paper-decisions">
-              <StatusBadge mode="toutiao" status={a?.status} />
-              <span className="paper-progress">选题 · 成稿 · 质检 · 交稿</span>
-              {a && (
-                <button
-                  className="primary"
-                  disabled={
-                    !a.adoptable ||
-                    !tt.adoptReady ||
-                    !!tt.busy ||
-                    props.readOnly
-                  }
-                  onClick={adopt}
-                >
-                  <Check size={14} />
-                  采用
-                </button>
-              )}
-            </div>
-            <Body detail={tt.detail} />
-          </>
-        }
-        inspector={<ToutiaoSide tt={tt} hideAgent />}
-      />
-      <Notices notices={tt.notices} onDismiss={tt.actions.dismiss} />
     </>
   );
 }

@@ -2,11 +2,10 @@
 import React from "react";
 import { formatBytes, formatCount, t } from "../shared/copy.js";
 import { Manuscript } from "../shared/Manuscript.jsx";
-import { Diagnostics } from "./Diagnostics.jsx";
 import { EMPTY_ISSUES, editMatches } from "./edit-state.js";
 import { FONT_STEPS } from "./state.js";
 import { Button, Icon, SegmentedControl, Tag } from "../shared/ui.jsx";
-import { Callout, Empty, Skeleton, StatusTag } from "../shared/common.jsx";
+import { Callout, Empty, Skeleton } from "../shared/common.jsx";
 
 
 
@@ -33,8 +32,8 @@ function BodyPane({ slot, kind, issues = EMPTY_ISSUES, annotationId }) {
   );
 }
 
-export function Reader({ state, view, actions }) {
-  const annotationId = React.useId();
+export function Reader({ state, view, actions, annotationId: providedAnnotationId }) {
+  const annotationId = providedAnnotationId || React.useId();
   const { dispatch } = actions;
   const { current, activeCand } = view;
   const meta = state.chapter.meta;
@@ -59,7 +58,6 @@ export function Reader({ state, view, actions }) {
         <div className="wb-reader-heading">
           <h2 className="wb-reader-title">{(meta && meta.title) || current.title || current.id}</h2>
           <span className="wb-reader-meta">
-            <StatusTag status={(meta && meta.status) || current.status} />
             <span>{t("words", { n: formatCount((meta && meta.wordCount) || current.wordCount || 0) })}</span>
             {readerView !== "official" && activeCand ? (
               <Tag tone="warning">{(activeCand.draftLabel ? "「" + activeCand.draftLabel + "」" : activeCand.id) + " · " + t("words", { n: formatCount(activeCand.wordCount || 0) })}</Tag>
@@ -96,7 +94,6 @@ export function Reader({ state, view, actions }) {
           </span>
         </div>
       </div>
-      <Diagnostics state={state} view={view} actions={actions} annotationId={annotationId} />
       <div className="wb-reader-body wb-enter" key={current.id + ":" + readerView} id={"wb-reader-" + readerView + "-panel"} role="tabpanel" aria-labelledby={"wb-reader-" + readerView} tabIndex={0}>
         {readerView === "split" ? (
           <div className="wb-split">

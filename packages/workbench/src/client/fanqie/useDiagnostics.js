@@ -1,7 +1,7 @@
 /** Mounted with the workbench, so leaving the reader cannot detach an in-flight save. */
 import React from 'react';
 import { fanqie } from '../shared/api.js';
-import { diagnosticCopy as c } from '../shared/copy.js';
+import { diagnosticCopy as c } from '../shared/copy-diagnostic.js';
 import { changeParagraph, diagnosticScope, editMatches, moveHistory, requestId, revisionPayload } from './edit-state.js';
 
 const { useEffect, useRef, useState } = React;

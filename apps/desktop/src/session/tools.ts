@@ -12,6 +12,15 @@ import type { createGateEngine } from "../../../../packages/core/src/gates";
 import type { Sessions } from "./manager";
 import type { SessionEntry } from "./types";
 
+function candidateSummary(text: string) {
+  const words = /约\s*(\d+)\s*字/.exec(text)?.[1];
+  const at = new Date().toLocaleTimeString("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  return `候选稿${words ? ` · ${words} 字` : ""} · ${at}`;
+}
+
 export function createBusinessTools(options: {
   host: Sessions;
   target: Target;
@@ -182,14 +191,15 @@ export function createBusinessTools(options: {
                 focus: resultFocus,
                 label: focusLabel(resultTarget, resultFocus),
                 summary:
-                  typeof value === "string"
-                    ? text.split("\n")[0]
-                    : output.message ||
-                      (resultKind === "qa"
-                        ? `质检 ${output.score ?? output.qa?.score ?? ""} ${output.verdict || ""}`
-                        : resultKind === "candidate"
-                          ? "候选稿已准备"
-                          : "交稿单已保存"),
+                  resultKind === "candidate"
+                    ? candidateSummary(text)
+                    : resultKind === "review"
+                      ? "审读回报已交，请核对"
+                      : resultKind === "delivery"
+                        ? "交稿单已保存"
+                        : resultKind === "qa"
+                          ? `质检 ${output.score ?? output.qa?.score ?? ""} ${output.verdict || ""}`.trim()
+                          : "任务已完成",
                 failed: output?.ok === false || text.startsWith("错误"),
               },
             }

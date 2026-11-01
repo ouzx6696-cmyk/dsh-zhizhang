@@ -12,7 +12,7 @@ function matches(chapter, query) {
   return String(chapter.title || "").toLowerCase().includes(q) || String(chapter.id || "").toLowerCase().includes(q);
 }
 
-function ChapterListImpl({ chapters, byChapter, impacts, chapterId, candidateId, readerView, onSelectChapter, onSelectCandidate }) {
+function ChapterListImpl({ chapters, byChapter, impacts, chapterId, onSelectChapter, onSelectCandidate }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
   const showTools = chapters.length > 6;
@@ -74,53 +74,41 @@ function ChapterListImpl({ chapters, byChapter, impacts, chapterId, candidateId,
             const selected = c.id === chapterId;
             return (
               <li key={c.id} className="wb-chapter-item">
-                <button
-                  type="button"
-                  data-wb-row=""
-                  className={cx("wb-chapter-row", selected && "wb-chapter-row-on")}
-                  aria-current={selected ? "true" : undefined}
-                  onClick={() => onSelectChapter(c.id)}
-                >
-                  <StatusDot status={c.status} />
-                  <span className="wb-chapter-text">
-                    <span className="wb-chapter-title" title={c.title}>
-                      {c.title || c.id}
+                <div className="wb-chapter-line">
+                  <button
+                    type="button"
+                    data-wb-row=""
+                    className={cx("wb-chapter-row", selected && "wb-chapter-row-on")}
+                    aria-current={selected ? "true" : undefined}
+                    onClick={() => onSelectChapter(c.id)}
+                  >
+                    <StatusDot status={c.status} />
+                    <span className="wb-chapter-text">
+                      <span className="wb-chapter-title" title={c.title}>
+                        {c.title || c.id}
+                      </span>
+                      <span className="wb-chapter-meta">
+                        {statusLabel(c.status)}
+                        {c.wordCount ? " · " + t("words", { n: formatCount(c.wordCount) }) : ""}
+                        {c.situationLens ? " · " + clip(c.situationLens, 28) : ""}
+                      </span>
                     </span>
-                    <span className="wb-chapter-meta">
-                      {statusLabel(c.status)}
-                      {c.wordCount ? " · " + t("words", { n: formatCount(c.wordCount) }) : ""}
-                      {c.situationLens ? " · " + clip(c.situationLens, 28) : ""}
+                    <span className="wb-chapter-flags">
+                      {impacts.has(c.id) ? <span className="wb-flag" data-tone="danger">{t("impactBadge")}</span> : null}
                     </span>
-                  </span>
-                  <span className="wb-chapter-flags">
-                    {impacts.has(c.id) ? <span className="wb-flag" data-tone="danger">{t("impactBadge")}</span> : null}
-                    {cands.length ? <span className="wb-flag" data-tone="warning">{cands.length}</span> : null}
-                  </span>
-                </button>
-                {cands.length ? (
-                  <ul className="wb-candidate-sublist">
-                    {cands.map((pc) => {
-                      const on = selected && readerView !== "official" && (candidateId ? candidateId === pc.id : cands[0].id === pc.id);
-                      return (
-                        <li key={pc.id}>
-                          <button
-                            type="button"
-                            data-wb-row=""
-                            className={cx("wb-candidate-row", on && "wb-candidate-row-on")}
-                            aria-current={on ? "true" : undefined}
-                            onClick={() => onSelectCandidate(c.id, pc.id)}
-                          >
-                            <span className="wb-candidate-label">{pc.draftLabel ? "「" + pc.draftLabel + "」" : pc.id}</span>
-                            <span className="wb-candidate-meta">
-                              {t("words", { n: formatCount(pc.wordCount || 0) })}
-                              {pc.source === "unify" ? " · " + t("unify") : pc.editOf ? " · " + t("candidateEdit") : ""}
-                            </span>
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                ) : null}
+                  </button>
+                  {cands.length ? (
+                    <button
+                      type="button"
+                      className="wb-candidate-badge"
+                      aria-label={`查看 ${cands.length} 个候选`}
+                      title={`查看 ${cands.length} 个候选`}
+                      onClick={() => onSelectCandidate(c.id, cands[0].id)}
+                    >
+                      {cands.length}
+                    </button>
+                  ) : null}
+                </div>
               </li>
             );
           })}
