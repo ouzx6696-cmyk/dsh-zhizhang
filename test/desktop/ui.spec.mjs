@@ -5,6 +5,17 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { fakeModel } from "./fake-model.mjs";
 let app, page, home, root, model;
+const shot = (name) =>
+  expect(page).toHaveScreenshot(name, {
+    fullPage: true,
+    animations: "disabled",
+    mask: [
+      page.locator(".result-card p"),
+      page.locator(".paper-version"),
+      page.locator(".task-card p"),
+      page.locator(".chat-message small"),
+    ],
+  });
 test.describe.configure({ mode: "serial" });
 test.afterEach(async ({}, info) => {
   if (info.status !== info.expectedStatus) {
@@ -169,7 +180,7 @@ test("决策不被 Agent 挡住，右栏标签与响应式布局，亮暗截图"
     /\bledger\b/i,
   ])
     expect(visibleText).not.toMatch(pattern);
-  await expect(page).toHaveScreenshot("desktop-1440-light.png", { fullPage: true, animations: "disabled" });
+  await shot("desktop-1440-light.png");
   await page.setViewportSize({ width: 1100, height: 900 });
   await expect(
     page.getByRole("button", { name: "声明已审读", exact: true }).first(),
@@ -177,10 +188,10 @@ test("决策不被 Agent 挡住，右栏标签与响应式布局，亮暗截图"
   const reader = await page.locator(".studio-paper-column").boundingBox(),
     sidebar = await page.locator(".studio-sidebar").boundingBox();
   expect(reader.x + reader.width).toBeLessThanOrEqual(sidebar.x + 1);
-  await expect(page).toHaveScreenshot("desktop-1100-light.png", { fullPage: true, animations: "disabled" });
+  await shot("desktop-1100-light.png");
   await page.setViewportSize({ width: 900, height: 900 });
   await expect(page.locator(".studio-sidebar")).toHaveCSS("position", "fixed");
-  await expect(page).toHaveScreenshot("desktop-900-light.png", { fullPage: true, animations: "disabled" });
+  await shot("desktop-900-light.png");
   await page.getByRole("button", { name: "收起右栏", exact: true }).click();
   await expect(page.locator(".studio-sidebar")).toBeHidden();
   await page.getByRole("button", { name: "打开右栏", exact: true }).click();
@@ -199,11 +210,11 @@ test("决策不被 Agent 挡住，右栏标签与响应式布局，亮暗截图"
     .getByRole("button", { name: "保存设置", exact: true })
     .click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  await expect(page).toHaveScreenshot("desktop-1440-dark.png", { fullPage: true, animations: "disabled" });
+  await shot("desktop-1440-dark.png");
   await page.setViewportSize({ width: 1100, height: 900 });
-  await expect(page).toHaveScreenshot("desktop-1100-dark.png", { fullPage: true, animations: "disabled" });
+  await shot("desktop-1100-dark.png");
   await page.setViewportSize({ width: 900, height: 900 });
-  await expect(page).toHaveScreenshot("desktop-900-dark.png", { fullPage: true, animations: "disabled" });
+  await shot("desktop-900-dark.png");
   await page.setViewportSize({ width: 1440, height: 1000 });
 });
 
@@ -333,5 +344,5 @@ test("今日头条使用同一套外壳与进度条", async () => {
   await expect(page.locator(".studio-nav")).toContainText("文章");
   await expect(page.locator(".paper-steps")).toContainText("S1 找题");
   await expect(page.locator(".paper-steps")).toContainText("S7 交稿");
-  await expect(page).toHaveScreenshot("desktop-toutiao-1440-light.png", { fullPage: true, animations: "disabled" });
+  await shot("desktop-toutiao-1440-light.png");
 });

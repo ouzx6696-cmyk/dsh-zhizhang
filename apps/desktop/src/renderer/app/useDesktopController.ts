@@ -3,6 +3,7 @@ import { scopeId } from "../../context";
 import type { Focus, Target } from "../../context";
 import type { WorkspaceContext } from "../../renderer-contracts";
 import { desktopStore, useDesktop, type ChatMessage } from "../state/store";
+import { chatStore } from "../state/chatStore";
 import { PREF, readPref } from "../../../../../packages/workbench/src/client/shared/prefs.js";
 import { remember } from "../state/prefs";
 import { runCommand } from "../features/commands/runCommand";
@@ -65,7 +66,7 @@ export function useDesktopController() {
         extra = buffer.filter(
           (message) => !message.writerMessageId || !known.has(message.writerMessageId),
         );
-      set({
+      chatStore.set({
         messages: [...value.messages, ...extra],
         total: value.total + extra.length,
         busy: value.busy,
@@ -105,7 +106,7 @@ export function useDesktopController() {
     selected.current = target;
     archived.current = undefined;
     limit.current = 80;
-    set({
+    chatStore.set({
       archive: undefined,
       messages: [],
       stream: "",
@@ -117,7 +118,7 @@ export function useDesktopController() {
     selected.current = chosen;
     await syncState();
     await loadView(chosen);
-    set({ archives: await api.conversations(chosen) });
+    chatStore.set({ archives: await api.conversations(chosen) });
   }
 
   useEffect(() => {
@@ -170,14 +171,14 @@ export function useDesktopController() {
       }
       const event = value.event;
       if (!event) return;
-      if (value.phase) set({ phase: value.phase });
-      if (value.task && !value.editor) set({ task: { ...value.task } });
+      if (value.phase) chatStore.set({ phase: value.phase });
+      if (value.task && !value.editor) chatStore.set({ task: { ...value.task } });
       if (value.editor) return;
-      if (event.type === "agent_start") set({ busy: true, stream: "" });
+      if (event.type === "agent_start") chatStore.set({ busy: true, stream: "" });
       if (event.type === "compaction_start" || event.type === "auto_retry_start")
-        set({ busy: true });
+        chatStore.set({ busy: true });
       if (event.type === "message_update" && event.assistantMessageEvent?.type === "text_delta")
-        set((current) => ({
+        chatStore.set((current) => ({
           stream: current.stream + (event.assistantMessageEvent?.delta || ""),
         }));
       if (event.type === "message_end") {
@@ -186,15 +187,15 @@ export function useDesktopController() {
         if (!message) return;
         if (pendingMessages.current) pendingMessages.current.push(message);
         else
-          set((current) => ({
+          chatStore.set((current) => ({
             messages: [...current.messages, message].slice(-limit.current),
             total: current.total + 1,
           }));
-        if (message.role === "assistant") set({ stream: "" });
+        if (message.role === "assistant") chatStore.set({ stream: "" });
         if (message.errorMessage) set({ error: message.errorMessage });
       }
       if (event.type === "agent_settled") {
-        set({
+        chatStore.set({
           busy: false,
           stream: "",
           phase: event.aborted ? "已停止，已保存结果保留" : "任务结束，等待你查看结果",
@@ -222,22 +223,23 @@ export function useDesktopController() {
         set({ tab: ["agent", "chapter", "methods"][Number(event.key) - 1], drawer: true });
       }
       if (event.key === "Escape") {
-        if (state.palette) {
+        const current = desktopStore.get();
+        if (current.palette) {
           set({ palette: false });
           return;
         }
-        if (state.settingsOpen) {
+        if (current.settingsOpen) {
           set({ settingsOpen: false });
           return;
         }
-        if (state.busy && window.confirm("停止当前任务？已保存的稿件不会撤销。"))
+        if (chatStore.get().busy && window.confirm("停止当前任务？已保存的稿件不会撤销。"))
           void api.stop(selected.current || undefined).catch(fail);
         else set({ drawer: false });
       }
     };
     window.addEventListener("keydown", keyboard);
     return () => window.removeEventListener("keydown", keyboard);
-  }, [state.busy, state.palette, state.settingsOpen]);
+  }, []);
 
   function trackMethodEdit(value: { dirty: boolean; saving: boolean }) {
     methodEdit.current = value;
@@ -347,6 +349,7 @@ export function useDesktopController() {
       selected: selected.current,
       focus: focused.current,
       set,
+      setChat: chatStore.set,
       sendText,
       deliver,
       jump,
@@ -362,7 +365,7 @@ export function useDesktopController() {
   async function exportFile(format: string) {
     if (!selected.current) return;
     const result = await api.export(selected.current, focused.current, format);
-    if (result) set({ phase: result.copied ? "标题与正文已复制" : "稿件已导出" });
+    if (result) chatStore.set({ phase: result.copied ? "标题与正文已复制" : "稿件已导出" });
   }
 
   return {
@@ -375,6 +378,7 @@ export function useDesktopController() {
     archived,
     limit,
     set,
+    setChat: chatStore.set,
     fail,
     syncState,
     loadProjects,

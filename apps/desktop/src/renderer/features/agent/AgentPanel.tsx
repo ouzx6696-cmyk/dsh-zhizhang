@@ -10,6 +10,7 @@ import { Markdown } from "../../../Markdown";
 import { humanVersion } from "../../../commands";
 import { focusLabel, promptContext, toolLabel } from "../../../context";
 import type { ChatMessage } from "../../state/store";
+import { useChat } from "../../state/chatStore";
 import { desktop } from "../../state/desktop";
 import type { DesktopController } from "../../app/useDesktopController";
 
@@ -24,7 +25,8 @@ function messageBody(message: ChatMessage) {
 
 export function AgentPanel({ app }: { app: DesktopController }) {
   const { state, selected, focus, context, fail, set, input } = app;
-  const { task, busy, phase, messages, stream, total, archive, archives } = state;
+  const chat = useChat();
+  const { task, busy, phase, messages, stream, total, archive, archives } = chat;
   const [draft, setDraft] = useState("");
   const submit = async (event?: { preventDefault(): void }) => {
     event?.preventDefault();
@@ -156,7 +158,7 @@ export function AgentPanel({ app }: { app: DesktopController }) {
         <button
           onClick={async () => {
             try {
-              set({ archives: await desktop.conversations(selected!) });
+              app.setChat({ archives: await desktop.conversations(selected!) });
               set({ palette: false });
             } catch (error) {
               fail(error);
@@ -172,7 +174,7 @@ export function AgentPanel({ app }: { app: DesktopController }) {
           onChange={async (event) => {
             const value = event.target.value === "current" ? undefined : Number(event.target.value);
             app.archived.current = value;
-            set({ archive: value });
+            app.setChat({ archive: value });
             await app.loadView(selected!, 80, value);
           }}
         >

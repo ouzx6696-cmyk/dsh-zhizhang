@@ -1,6 +1,7 @@
 import type { Focus, Target } from "../../../context";
 import type { WorkspaceContext } from "../../../renderer-contracts";
 import type { DesktopState } from "../../state/store";
+import type { ChatState } from "../../state/chatStore";
 import { desktop } from "../../state/desktop";
 
 type CommandDependencies = {
@@ -11,6 +12,9 @@ type CommandDependencies = {
   focus: Focus;
   set: (
     patch: Partial<DesktopState> | ((state: DesktopState) => Partial<DesktopState>),
+  ) => void;
+  setChat: (
+    patch: Partial<ChatState> | ((state: ChatState) => Partial<ChatState>),
   ) => void;
   sendText: (value: string, snapshot?: Focus) => Promise<void>;
   deliver: (action: string, note?: string) => Promise<void>;
@@ -57,7 +61,7 @@ export async function runCommand(deps: CommandDependencies) {
     if (!selected) throw new Error("请先打开作品");
     await desktop.newConversation(selected);
     deps.clearArchive();
-    set({
+    deps.setChat({
       archive: undefined,
       archives: await desktop.conversations(selected),
       phase: "新对话已准备，作品保留；下一条指令会自动带入交接。",

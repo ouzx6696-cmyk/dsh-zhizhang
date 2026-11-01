@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 import type { Focus, Target } from "../../context";
-import type { TaskState, WorkspaceContext } from "../../renderer-contracts";
+import type { WorkspaceContext } from "../../renderer-contracts";
 import type { DesktopApi } from "./desktop";
 
 type Api = DesktopApi;
@@ -30,11 +30,6 @@ export type DesktopState = {
   target?: Target;
   focus: Focus;
   context: WorkspaceContext;
-  messages: ChatMessage[];
-  stream: string;
-  busy: boolean;
-  phase: string;
-  task: TaskState | null;
   running: RunningItem[];
   error: string;
   tab: string;
@@ -46,9 +41,6 @@ export type DesktopState = {
   palette: boolean;
   query: string;
   workspaceKey: number;
-  total: number;
-  archive: number | undefined;
-  archives: ConversationItem[];
   wizardStep: number;
   wizardModels: SystemModels | null;
   connectionResult: ConnectionResult;
@@ -59,11 +51,6 @@ const initialState: DesktopState = {
   system: null,
   focus: {},
   context: {},
-  messages: [],
-  stream: "",
-  busy: false,
-  phase: "",
-  task: null,
   running: [],
   error: "",
   tab: "agent",
@@ -75,9 +62,6 @@ const initialState: DesktopState = {
   palette: false,
   query: "",
   workspaceKey: 0,
-  total: 0,
-  archive: undefined,
-  archives: [],
   wizardStep: 0,
   wizardModels: null,
   connectionResult: null,
