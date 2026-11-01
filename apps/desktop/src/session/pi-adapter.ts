@@ -13,14 +13,16 @@ import {
   ModelRuntime,
   type AgentSession,
 } from "@earendil-works/pi-coding-agent";
-import type { ModelConnection } from "./models";
+import type { ModelConnection } from "../models";
 /** Keep cancellation attached through context preparation and SDK prompt startup. */
 export async function promptWithSignal(
   session: AgentSession,
   prepare: () => Promise<string>,
   signal?: AbortSignal,
 ) {
-  const abort = () => { void session.abort(); };
+  const abort = () => {
+    void session.abort();
+  };
   signal?.addEventListener("abort", abort, { once: true });
   try {
     signal?.throwIfAborted();
@@ -30,7 +32,9 @@ export async function promptWithSignal(
       expandPromptTemplates: false,
       // prompt awaits input/auth before marking a run active. Reapply an abort
       // received in that gap once the run exists, before its first request.
-      preflightResult: () => { if (signal?.aborted) abort(); },
+      preflightResult: () => {
+        if (signal?.aborted) abort();
+      },
     });
     signal?.throwIfAborted();
   } finally {

@@ -1,0 +1,192 @@
+import type { Focus, Target } from "../context";
+import { focusLabel, promptText } from "../context";
+import type { ChapterMeta } from "../../../../packages/fanqie/src/engine/types";
+import {
+  ensureStorage,
+  listProjects,
+  projectIdOf,
+  readChapter,
+  readWorkMeta,
+  resolveWorkDir,
+} from "../../../../packages/fanqie/src/engine/work-store";
+import { activeProfile } from "../../../../packages/core/src/profiles";
+import { ArticleStore } from "../../../../packages/toutiao/src/store";
+import { chapterReviewInfo } from "../../../../packages/fanqie/src/review";
+import { assertWorkspaceWritable } from "../../../../packages/core/src/workspace-lock";
+import { engineTools } from "../../../../packages/fanqie/src/engine/bootstrap";
+import { validPassingQa } from "../../../../packages/toutiao/src/tools";
+import { SYSTEM_BRIEF } from "../../../../packages/fanqie/src/engine/tools/brief";
+import { buildToutiaoBrief, TOUTIAO_EDITOR_BRIEF } from "../../../../packages/toutiao/src/brief";
+import { buildFanqieBrief, FANQIE_EDITOR_BRIEF } from "../../../../packages/fanqie/src/brief";
+import type { Sessions } from "./manager";
+
+const CLIENT_NOTICE =
+  "【独立客户端调用说明】当前模式与角色已启用，不调用 writer_enable。任务开头的 writer-context 是发送时的对象与已保存状态。它不是完整阅读凭据，版本变化时重读。主会话需要规划或拆书时使用 writer_plan。按任务用既有工具读取必要规划、前章和正文；压缩摘要不代替作品事实。作者切页不改变本次任务。";
+const PLANNER_NOTICE =
+  "当前是规划角色：直接使用本模式既有工具完成规划或指定原文拆解，不再派生子会话，不写正文。";
+
+export function systemPrompt(target: Target, role: "writer" | "editor" | "planner") {
+  const editor = role === "editor";
+  const base =
+    target.mode === "toutiao"
+      ? editor
+        ? TOUTIAO_EDITOR_BRIEF
+        : buildToutiaoBrief(
+            "S5 红笔与 S6 质检使用 writer_review 派独立编辑，传入 article 和完整任务；编辑交回回报后再推进验收。",
+          )
+      : [
+          SYSTEM_BRIEF,
+          editor
+            ? FANQIE_EDITOR_BRIEF
+            : buildFanqieBrief(
+                "使用 writer_review 派独立编辑，传入 work、chapter 和任务；按 fanqie_forge_get edit 审读，用 fanqie_review_report 交回报。",
+              ),
+        ].join("\n");
+  return (
+    base +
+    (role === "planner" ? "\n" + PLANNER_NOTICE : "") +
+    "\n" +
+    CLIENT_NOTICE
+  );
+}
+
+async function paths(host: Sessions, target: Target) {
+  const project = (await listProjects()).find((p) => p.id === projectIdOf(target.root));
+  return ensureStorage(null, {
+    ...host.options.fanqie,
+    storageRoot: target.root,
+    ...(project?.worksRoot ? { worksRoot: project.worksRoot } : {}),
+  });
+}
+
+export async function taskPrompt(
+  host: Sessions,
+  target: Target,
+  text: string,
+  focus: Focus,
+) {
+  const profile = await activeProfile(target.mode, host.options[target.mode]?.profile);
+  let saved: unknown;
+  if (target.mode === "fanqie" && target.work) {
+    const dir = await resolveWorkDir(await paths(host, target), target.work);
+    const meta = await readWorkMeta(dir);
+    const chapters: ChapterMeta[] = meta.chapters;
+    const row = chapters.find((c) => c.id === focus.chapter);
+    const chapter = row ? await readChapter(dir, row.id) : undefined;
+    let brief: unknown;
+    const intent =
+      focus.intent ||
+      (/审读|编辑|质检/.test(text)
+        ? "review"
+        : /章纲|规划|拆书|大纲/.test(text)
+          ? "plan"
+          : /续写|写|改|润色/.test(text)
+            ? "write"
+            : "inspect");
+    if (chapter && intent === "write") {
+      await assertWorkspaceWritable(dir);
+      const definition = engineTools({
+        ...host.options.fanqie,
+        storageRoot: target.root,
+        worksRoot: (await paths(host, target)).works,
+      }).find((tool) => tool.name === "fanqie_chapter_brief")!;
+      brief = await definition.execute(
+        {
+          work: target.work,
+          chapter: chapter.id,
+          brief_mode: "lean",
+          handoff_only: true,
+        },
+        {
+          name: definition.name,
+          arguments: {},
+          sessionId: "handoff-" + host.key(target),
+          cwd: target.root,
+        },
+      );
+    }
+    const review =
+      chapter && intent === "review"
+        ? await reviewResult(host, target, focus)
+        : undefined;
+    saved = {
+      brief,
+      review,
+      title: meta.title,
+      chapters: meta.chapters.length,
+      chapter: chapter
+        ? {
+            id: chapter.id,
+            title: chapter.title,
+            status: chapter.status,
+            updatedAt: chapter.updatedAt,
+            revision: chapter.revision,
+            dependencies: chapter.dependencies || [],
+            review: chapter.review
+              ? { revision: chapter.review.revision, result: chapter.review.result }
+              : undefined,
+          }
+        : undefined,
+    };
+  } else if (target.mode === "toutiao" && focus.article) {
+    const article = await new ArticleStore(target.root).get(focus.article);
+    saved = {
+      article: article.id,
+      status: article.status,
+      revision: article.current_rev,
+      qa: article.qa.at(-1),
+      qaValid: await validPassingQa(new ArticleStore(target.root), article),
+    };
+  }
+  return promptText(text, {
+    target,
+    focus,
+    profile: { id: profile.id, name: profile.name },
+    saved,
+    preferences: await host.extras.preferences?.(),
+  });
+}
+
+export async function reviewResult(
+  host: Sessions,
+  target: Target,
+  focus: Focus,
+  requireCurrent = false,
+) {
+  let summary = "尚无对应的审读结果，请核对稿件与回报。";
+  if (target.mode === "fanqie" && target.work && focus.chapter) {
+    const dir = await resolveWorkDir(await paths(host, target), target.work);
+    const chapter = await readChapter(dir, focus.chapter);
+    const info = await chapterReviewInfo(
+      dir,
+      focus.chapter,
+      chapter.body,
+      !!host.options.fanqie?.requireEditorPass,
+    );
+    const review = info.editorReview;
+    if (requireCurrent && (!review || review.stale || review.by !== "editor"))
+      throw new Error("编辑没有交回当前正文的有效审读回报，请核对已保存结果");
+    summary = review
+      ? `当前审读回报${review.stale ? "（对应旧正文）" : ""}：${review.verdict}，硬伤 ${review.hardIssues} 处，L1–L3 ${review.levels} 处。`
+      : "尚无本章的审读回报。";
+  } else if (target.mode === "toutiao" && focus.article) {
+    const store = new ArticleStore(target.root),
+      meta = await store.get(focus.article),
+      qa = meta.qa.at(-1);
+    const valid = await validPassingQa(store, meta);
+    if (
+      requireCurrent &&
+      (!qa || qa.rev !== meta.current_rev || qa.card_sha256 !== (await store.cardSha(meta.id)))
+    )
+      throw new Error("编辑没有交回当前文章和立项卡版本的质检结果");
+    summary = qa
+      ? `质检 ${qa.score} 分，${valid.ok ? "当前有效" : valid.reason}；当前稿 rev ${meta.current_rev}。`
+      : "尚无质检结果。";
+  }
+  return {
+    target: { ...target },
+    focus,
+    label: focusLabel(target, focus),
+    summary,
+  };
+}

@@ -3,7 +3,7 @@ import type { Runtime } from "../runtime";
 import { handle } from "./handle";
 import { asRecord } from "./validate";
 import { connection } from "../../models";
-import { testConnection } from "../../pi";
+import { testConnection } from "../../session/pi-adapter";
 import { explainError } from "../../diagnostics";
 
 export function registerModelsIpc(state: Runtime) {
