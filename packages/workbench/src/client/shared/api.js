@@ -10,6 +10,3 @@ export const fanqie = dataAdapter.fanqie;
 export const toutiao = dataAdapter.toutiao;
 export const profilesApi = (mode) => dataAdapter.profiles(mode);
 
-// Kept for components that still name the 0.9.3 exports.
-export const api = fanqie;
-export const toutiaoApi = toutiao;

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// 插件自带资产的清单与更新（说明见 docs/ASSETS.md）
+// 插件自带资产的清单与更新（说明见 docs/guides/ASSETS.md）
 //   node scripts/assets.mjs manifest                 重新生成 assets/manifest.json
 //   node scripts/assets.mjs check                    清单、登记、版本号是否和磁盘一致（npm test 会跑）
 //   node scripts/assets.mjs import <来源> <目录|zip>  比对上游新版，只出报告

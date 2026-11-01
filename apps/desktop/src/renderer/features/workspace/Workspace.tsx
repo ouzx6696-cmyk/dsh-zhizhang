@@ -238,7 +238,7 @@ function Novel(props: WorkspaceProps) {
         }
         agent={props.agent}
       />
-      <Dialogs state={state} view={view} actions={actions} />
+      <Dialogs state={state} actions={actions} />
       <Notices
         notices={state.notices}
         onDismiss={(id: string) => dispatch({ type: "dismissNotice", id })}

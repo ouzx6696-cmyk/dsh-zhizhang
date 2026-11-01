@@ -2,14 +2,14 @@
  * 作者自备资产：配置里 toutiao.assets / fanqie.assets 指定的目录。
  * 目录里的 .md / .txt / .json 按相对路径成为方法 id：user:<相对路径去扩展名>，
  * 经 toutiao_method_get / fanqie_forge_get 读取。只读，不覆盖插件自带的方法；
- * 自带方法的更新走 scripts/assets.mjs（见 docs/ASSETS.md）。
+ * 自带方法的更新走 scripts/assets.mjs（见 docs/guides/ASSETS.md）。
  */
 import { readdir, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { WriterError } from '../../host/src/index.js'
 import { readText, resolveInside } from './fsx.js'
 
-/** 资产配置段。dirs 之外的键现在一律报错；以后加键在这里登记（见 docs/ASSETS.md「预留」）。 */
+/** 资产配置段。dirs 之外的键现在一律报错；以后加键在这里登记（见 docs/guides/ASSETS.md「预留」）。 */
 export interface AssetsConfig {
   /** 作者自备方法 / 语料目录：绝对路径，或相对会话工作目录 */
   dirs?: string[]

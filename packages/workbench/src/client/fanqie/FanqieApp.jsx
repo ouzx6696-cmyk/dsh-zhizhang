@@ -113,7 +113,7 @@ export function FanqieApp({ modeSwitch, version }) {
       <Notices notices={state.notices} onDismiss={dismiss} />
       {content}
       <footer className="wb-footer">{t("footer", { version })}</footer>
-      <Dialogs state={state} view={view} actions={actions} />
+      <Dialogs state={state} actions={actions} />
     </div>
   );
 }

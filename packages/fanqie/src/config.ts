@@ -21,7 +21,7 @@ export interface FanqieConfig extends PluginConfig {
   disabledGates?: string[]
   /** 同章多草稿统一整理，默认关 */
   multiDraft?: { enabled?: boolean }
-  /** 作者自备方法 / 语料目录（fanqie_forge_get id=user:…）；见 docs/ASSETS.md */
+  /** 作者自备方法 / 语料目录（fanqie_forge_get id=user:…）；见 docs/guides/ASSETS.md */
   assets?: AssetsConfig
   /** 固定使用的方法方案（默认 / 原版 / 用户方案名或 id）；不填则用写作台或工具选的当前方案 */
   profile?: string

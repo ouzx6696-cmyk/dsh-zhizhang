@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "note": "插件自带资产的来源登记与更新预设。改这里之后运行 npm run assets -- manifest；导入上游新版见 docs/ASSETS.md。",
+  "note": "插件自带资产的来源登记与更新预设。改这里之后运行 npm run assets -- manifest；导入上游新版见 docs/guides/ASSETS.md。",
   "sources": [
     {
       "id": "toutiao-viral-writer",

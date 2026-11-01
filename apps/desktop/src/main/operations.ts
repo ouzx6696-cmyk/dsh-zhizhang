@@ -20,7 +20,7 @@ export async function performRequest(
   if (!selected) throw new Error("请先选择创作目录");
   if (state.maintenance && options.method === "POST")
     throw new Error("正在恢复作品，请等待完成后再修改");
-  const url = new URL(API + operation, "http://writer.local");
+  const url = new URL(API + operation, "app://writer");
   for (const [k, v] of Object.entries(options.query || {}))
     if (v !== undefined && v !== "") url.searchParams.set(k, String(v));
   const body = options.body || {};

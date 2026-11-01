@@ -85,7 +85,7 @@ function ChapterListImpl({ chapters, byChapter, impacts, chapterId, onSelectChap
                     <StatusDot status={c.status} />
                     <span className="wb-chapter-text">
                       <span className="wb-chapter-title" title={c.title}>
-                        {c.title || c.id}
+                        {c.title || "未命名章节"}
                       </span>
                       <span className="wb-chapter-meta">
                         {statusLabel(c.status)}

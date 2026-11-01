@@ -41,7 +41,7 @@ function AcceptDialog({ cand, onAccept, onClose }) {
       onClose={close}
       title={t("acceptTitle")}
       closeLabel={t("close")}
-      description={t("acceptSummary", { id: cand.draftLabel ? "「" + cand.draftLabel + "」" + cand.id : cand.id, chapter: cand.chapterId, words: formatCount(cand.wordCount || 0) })}
+      description={t("acceptSummary", { id: cand.draftLabel ? "「" + cand.draftLabel + "」" : "当前候选稿", words: formatCount(cand.wordCount || 0) })}
       footer={
         <div className="wb-scope">
           <div className="wb-dialog-actions">
@@ -165,7 +165,7 @@ function ChapterActionDialog({ kind, chapter, meta, onSubmit, onClose }) {
   );
 }
 
-export function Dialogs({ state, view, actions }) {
+export function Dialogs({ state, actions }) {
   const dialog = state.dialog;
   if (!dialog) return null;
   const close = () => actions.dispatch({ type: "closeDialog" });

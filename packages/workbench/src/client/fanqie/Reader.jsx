@@ -33,7 +33,8 @@ function BodyPane({ slot, kind, issues = EMPTY_ISSUES, annotationId }) {
 }
 
 export function Reader({ state, view, actions, annotationId: providedAnnotationId }) {
-  const annotationId = providedAnnotationId || React.useId();
+  const generatedAnnotationId = React.useId();
+  const annotationId = providedAnnotationId || generatedAnnotationId;
   const { dispatch } = actions;
   const { current, activeCand } = view;
   const meta = state.chapter.meta;
@@ -56,11 +57,11 @@ export function Reader({ state, view, actions, annotationId: providedAnnotationI
     <div className="wb-reader" data-view={readerView} style={{ "--wb-font-step": String(state.fontStep) }}>
       <div className="wb-reader-bar">
         <div className="wb-reader-heading">
-          <h2 className="wb-reader-title">{(meta && meta.title) || current.title || current.id}</h2>
+          <h2 className="wb-reader-title">{(meta && meta.title) || current.title || "未命名章节"}</h2>
           <span className="wb-reader-meta">
             <span>{t("words", { n: formatCount((meta && meta.wordCount) || current.wordCount || 0) })}</span>
             {readerView !== "official" && activeCand ? (
-              <Tag tone="warning">{(activeCand.draftLabel ? "「" + activeCand.draftLabel + "」" : activeCand.id) + " · " + t("words", { n: formatCount(activeCand.wordCount || 0) })}</Tag>
+              <Tag tone="warning">{(activeCand.draftLabel ? "「" + activeCand.draftLabel + "」" : "候选稿") + " · " + t("words", { n: formatCount(activeCand.wordCount || 0) })}</Tag>
             ) : null}
           </span>
         </div>

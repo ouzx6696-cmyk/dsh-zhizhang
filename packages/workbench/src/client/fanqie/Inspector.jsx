@@ -153,7 +153,7 @@ export function Inspector({ state, view, actions, hideAgent = false }) {
         {chapterPending.length ? (
           <>
             <ul className="wb-candidate-cards">
-              {chapterPending.map((pc) => {
+              {chapterPending.map((pc, index) => {
                 const on = activeCand && activeCand.id === pc.id;
                 return (
                   <li key={pc.id}>
@@ -163,7 +163,7 @@ export function Inspector({ state, view, actions, hideAgent = false }) {
                       aria-pressed={on ? "true" : "false"}
                       onClick={() => dispatch({ type: "selectCandidate", chapterId: current.id, id: pc.id })}
                     >
-                      <span className="wb-candidate-card-title">{pc.draftLabel ? "「" + pc.draftLabel + "」 " + pc.id : pc.id}</span>
+                      <span className="wb-candidate-card-title">{pc.draftLabel ? "「" + pc.draftLabel + "」" : "候选 " + (index + 1)}</span>
                       <span className="wb-candidate-card-meta">
                         {t("words", { n: formatCount(pc.wordCount || 0) })}
                         {pc.hasLintPass ? " · lint ✓" : ""}

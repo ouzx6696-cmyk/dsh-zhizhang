@@ -142,7 +142,7 @@ jobs:
           version="$(node -p 'require("./package.json").version')"
           mkdir -p release-artifacts
           cp dist-pack/*.tgz apps/desktop/release/*.exe apps/desktop/release/*.zip apps/desktop/release/*.blockmap "apps/desktop/release/$WRITER_UPDATE_FILE" apps/desktop/release/RELEASE-CONDITIONS.json release-artifacts/
-          cp "docs/${version}-IMPLEMENTATION.md" docs/DESKTOP.md docs/0.9.3-IMPLEMENTATION.md docs/NEXT-ITERATION-IMPLEMENTATION.md docs/NEXT-ITERATION-PLAN.md release-artifacts/
+          cp "docs/history/${version}-IMPLEMENTATION.md" docs/guides/DESKTOP.md docs/history/0.9.3-IMPLEMENTATION.md docs/history/NEXT-ITERATION-IMPLEMENTATION.md docs/history/NEXT-ITERATION-PLAN.md release-artifacts/
           git archive --format=zip --prefix="writer-agent-${version}/" -o "release-artifacts/writer-agent-${version}-src.zip" HEAD
           (cd release-artifacts && sha256sum *.zip *.tgz *.exe *.blockmap *.yml *.json *.md > SHA256SUMS)
       - uses: actions/upload-artifact@v4

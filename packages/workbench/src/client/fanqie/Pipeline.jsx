@@ -73,8 +73,8 @@ function Library({ library }) {
         <ul className="wb-card-grid">
           {library.sources.map((s) => (
             <li key={s.id} className="wb-card">
-              <span className="wb-card-title">{s.title || s.id}</span>
-              <span className="wb-card-text">{(s.author ? s.author + " · " : "") + s.id}</span>
+              <span className="wb-card-title">{s.title || "未命名资料"}</span>
+              <span className="wb-card-text">{s.author || "资料库"}</span>
             </li>
           ))}
         </ul>
@@ -180,7 +180,7 @@ function Writing({ snap, pending, onAccept, onOpenChapter }) {
               <li key={c.id}>
                 <button type="button" className="wb-row wb-row-button" onClick={() => onOpenChapter(c.id)}>
                   <StatusDot status={c.status} />
-                  <span className="wb-row-title">{c.title || c.id}</span>
+                  <span className="wb-row-title">{c.title || "未命名章节"}</span>
                   <span className="wb-row-meta">
                     {statusLabel(c.status)}
                     {c.situationLens ? " · " + clip(c.situationLens, 48) : ""}
@@ -197,11 +197,11 @@ function Writing({ snap, pending, onAccept, onOpenChapter }) {
           <Empty hint={t("writingNoPending")} />
         ) : (
           <ul className="wb-rows">
-            {pending.map((c) => (
+            {pending.map((c, index) => (
               <li key={c.id} className="wb-row">
-                <span className="wb-row-title">{c.draftLabel ? "「" + c.draftLabel + "」 " + c.id : c.id}</span>
+                <span className="wb-row-title">{c.draftLabel ? "「" + c.draftLabel + "」" : "候选 " + (index + 1)}</span>
                 <span className="wb-row-meta">
-                  {"→ " + c.chapterId + " · " + t("words", { n: formatCount(c.wordCount || 0) })}
+                  {"→ 目标章节 · " + t("words", { n: formatCount(c.wordCount || 0) })}
                   {c.hasLintPass ? " · lint ✓" : ""}
                   {c.editOf ? " · " + t("candidateEdit") : ""}
                   {c.unifyOf && c.unifyOf.length ? " · " + t("unify") : ""}

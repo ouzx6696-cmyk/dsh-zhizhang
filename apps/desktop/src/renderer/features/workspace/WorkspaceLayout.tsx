@@ -11,20 +11,29 @@ const tabs = [
   ["methods", "方法方案"],
 ];
 
-function MethodsPane({ mode, onOpen }: { mode: "fanqie" | "toutiao"; onOpen: () => void }) {
+function MethodsPane({
+  mode,
+  onOpen,
+  active,
+}: {
+  mode: "fanqie" | "toutiao";
+  onOpen: () => void;
+  active: boolean;
+}) {
   const [name, setName] = useState("默认");
   useEffect(() => {
-    let active = true;
+    if (!active) return;
+    let running = true;
     profilesApi(mode)
       .list()
       .then((result: any) => {
-        if (active) setName(result.profiles?.find((profile: any) => profile.active)?.name || "默认");
+        if (running) setName(result.profiles?.find((profile: any) => profile.active)?.name || "默认");
       })
       .catch(() => {});
     return () => {
-      active = false;
+      running = false;
     };
-  }, [mode]);
+  }, [mode, active]);
   return (
     <div className="method-cta">
       <p>当前方案：{name}</p>
@@ -80,6 +89,11 @@ export function WorkspaceLayout({
 }) {
   const [navOpen, setNavOpen] = useState(false);
   const [methodsOpen, setMethodsOpen] = useState(false);
+  const [methodsMounted, setMethodsMounted] = useState(false);
+  const openMethods = () => {
+    setMethodsMounted(true);
+    setMethodsOpen(true);
+  };
   return (
     <div className="studio-layout">
       <nav className={"studio-nav " + (navOpen ? "expanded" : "")}>
@@ -114,14 +128,15 @@ export function WorkspaceLayout({
           </div>
           {tab === "chapter" && <div className="decision-panel">{inspector}</div>}
           <div hidden={tab !== "methods"} style={{ height: "100%" }}>
-            <MethodsPane mode={mode} onOpen={() => setMethodsOpen(true)} />
+            <MethodsPane mode={mode} onOpen={openMethods} active={tab === "methods"} />
           </div>
         </div>
       </aside>
-      <div
-        className="studio-backdrop methods-backdrop"
-        style={{ display: methodsOpen ? undefined : "none" }}
-      >
+      {methodsMounted && (
+        <div
+          className="studio-backdrop methods-backdrop"
+          style={{ display: methodsOpen ? undefined : "none" }}
+        >
         <section className="methods-page" role="dialog" aria-modal="true" aria-label="方法方案">
           <header>
             <h2>方法方案</h2>
@@ -135,7 +150,8 @@ export function WorkspaceLayout({
           </header>
           <MethodsEditor mode={mode} onEditState={onMethodEditState} />
         </section>
-      </div>
+        </div>
+      )}
     </div>
   );
 }

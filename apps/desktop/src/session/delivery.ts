@@ -4,6 +4,7 @@ import { promptAccepted } from "./pi-adapter";
 import { taskPrompt } from "./prompt";
 import type { Sessions } from "./manager";
 import type { AuthorAction } from "./types";
+import { statusLabel } from "../../../../packages/ui/src/status";
 
 export async function sendPrompt(
   host: Sessions,
@@ -50,7 +51,19 @@ export async function notifyAuthor(
     "/toutiao/adopt": "采用文章",
   };
   const action = names[value.operation] || "更新方法方案";
-  const content = `作者已${action}；对象：${value.article || value.chapter || value.candidate || target.work || "当前项目"}${value.revision !== undefined ? `；版本：${value.revision}` : ""}${value.status ? `；状态：${value.status}` : ""}${value.profile ? `；方案：${value.profile}` : ""}。`;
+  const objects: Record<string, string> = {
+    "/candidate/accept": "当前候选稿",
+    "/chapter/review": "当前章节",
+    "/chapter/finalize": "当前章节",
+    "/revision/acknowledge": "当前修订",
+    "/diagnostics/stage": "修订候选",
+    "/toutiao/adopt": "当前文章",
+  };
+  const object = objects[value.operation] || "当前项目";
+  const revision =
+    typeof value.revision === "number" ? `；版本：${value.revision}` : "";
+  const status = value.status ? `；状态：${statusLabel(target.mode, value.status)}` : "";
+  const content = `作者已${action}；对象：${object}${revision}${status}。`;
   await session.sendCustomMessage(
     {
       customType: "writer-author",

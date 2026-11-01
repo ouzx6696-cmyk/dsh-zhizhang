@@ -322,23 +322,6 @@ small {
   border-radius: 6px;
   margin-bottom: 4px;
 }
-.nav-results {
-  margin: 24px 10px;
-}
-.nav-results h3 {
-  font-size: 11px;
-  color: var(--muted);
-  font-weight: 400;
-}
-.nav-results button {
-  display: flex;
-  width: 100%;
-  justify-content: flex-start;
-  border: 0;
-  font-size: 11px;
-  padding: 5px;
-  background: transparent;
-}
 .nav-toggle {
   display: none;
 }
@@ -364,11 +347,6 @@ small {
 .paper-decisions button {
   padding: 3px 7px;
   font-size: 11px;
-}
-.paper-progress {
-  font-size: 11px;
-  color: var(--muted);
-  margin-right: auto;
 }
 .paper-steps {
   display: flex;
@@ -413,13 +391,6 @@ small {
 .paper-qa[data-pass="false"] {
   background: color-mix(in srgb, var(--danger) 14%, transparent);
   color: var(--danger);
-}
-.status-badge {
-  font-size: 11px;
-  color: var(--warning);
-  background: color-mix(in srgb, var(--warning) 12%, transparent);
-  padding: 1px 6px;
-  border-radius: 4px;
 }
 .studio-paper-column .wb-reader {
   background: transparent;

@@ -4,7 +4,6 @@ import {
   defaultModels,
   normalizeModels,
   publicModels,
-  type ModelSettings,
 } from "./models";
 export type Appearance = {
   theme: "system" | "light" | "dark";

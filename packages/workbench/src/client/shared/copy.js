@@ -198,7 +198,7 @@ const ZH = {
   less: "收起",
 
   acceptTitle: "采纳候选",
-  acceptSummary: "{id} → {chapter} · {words} 字",
+  acceptSummary: "{id} · {words} 字",
   acceptEditNote: "这是一份编辑稿，采纳后成为本章工作稿。",
   acceptNoLint: "采纳时会自动扫描；已有扫描凭据若对应旧正文，服务端会要求重新扫描。",
   acceptConfirm: "我确认把这份候选采纳为本章工作稿",
