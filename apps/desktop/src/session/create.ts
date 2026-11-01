@@ -1,5 +1,6 @@
 import path from "node:path";
-import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile } from "node:fs/promises";
+import { atomicWrite } from "../../../../packages/core/src/fsx";
 import type { Target } from "../context";
 import {
   createAgentSession,
@@ -146,7 +147,7 @@ export async function createSession(
   });
   if (primary) {
     host.sessions.set(key, entry);
-    await writeFile(path.join(dir, "current"), manager.getSessionFile()!, "utf8");
+    await atomicWrite(path.join(dir, "current"), manager.getSessionFile()!);
   }
   return session;
 }

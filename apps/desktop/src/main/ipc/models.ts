@@ -1,7 +1,7 @@
 import path from "node:path";
 import type { Runtime } from "../runtime";
 import { handle } from "./handle";
-import { asRecord } from "./validate";
+import { parseAppearance } from "./validate";
 import { connection } from "../../models";
 import { testConnection } from "../../session/pi-adapter";
 import { explainError } from "../../diagnostics";
@@ -30,7 +30,7 @@ export function registerModelsIpc(state: Runtime) {
     }
   });
   handle("appearance", async (next) => {
-    await state.settings.saveUI({ appearance: asRecord(next, "外观") });
+    await state.settings.saveUI({ appearance: parseAppearance(next) });
     return state.settings.appearance;
   });
   handle("preferences", async (text) => {

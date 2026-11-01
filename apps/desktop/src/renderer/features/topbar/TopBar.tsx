@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   BookOpen,
   ChevronDown,
@@ -17,6 +17,22 @@ import type { DesktopController } from "../../app/useDesktopController";
 export function TopBar({ app }: { app: DesktopController }) {
   const { state, system, selected, focus, fail, set } = app;
   const [exportOpen, setExportOpen] = useState(false);
+  const exportMenu = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!exportOpen) return;
+    const close = (event: PointerEvent) => {
+      if (!exportMenu.current?.contains(event.target as Node)) setExportOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setExportOpen(false);
+    };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [exportOpen]);
   const exportAs = (format: string) => {
     setExportOpen(false);
     app.exportFile(format).catch(fail);
@@ -58,7 +74,7 @@ export function TopBar({ app }: { app: DesktopController }) {
           {system.models.writer?.model}
           <small> · 编辑 {system.models.editor?.model}</small>
         </span>
-        <div className="export-menu">
+        <div className="export-menu" ref={exportMenu}>
           <button
             className="export-trigger"
             aria-haspopup="menu"

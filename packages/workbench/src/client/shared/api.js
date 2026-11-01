@@ -6,6 +6,7 @@ import { dataAdapter } from "../../adapters/index.js";
 
 export { ApiError, readToken, writeToken } from "../../adapters/index.js";
 
+export const host = dataAdapter.host;
 export const fanqie = dataAdapter.fanqie;
 export const toutiao = dataAdapter.toutiao;
 export const profilesApi = (mode) => dataAdapter.profiles(mode);

@@ -5,6 +5,7 @@ import {
   parseFocus,
   parseLimit,
   parseOperation,
+  parseRequestOptions,
   parseTarget,
   parseText,
 } from "./validate";
@@ -28,7 +29,7 @@ export function registerSessionIpc(state: Runtime) {
   );
   handle("running", () => state.sessions.running());
   handle("request", (operation, options) =>
-    request(state, parseOperation(operation), options ?? {}),
+    request(state, parseOperation(operation), parseRequestOptions(options)),
   );
   handle("send", async (value, next, focus) => {
     if (state.maintenance) throw new Error("正在恢复作品，请等待完成后再开始任务");
@@ -39,7 +40,9 @@ export function registerSessionIpc(state: Runtime) {
     await state.sessions.send(bound, text, parseFocus(focus));
     return true;
   });
-  handle("stop", (next) =>
-    state.sessions.stop(next ? parseTarget(next) : state.target!),
-  );
+  handle("stop", (next) => {
+    const target = next ? parseTarget(next) : state.target;
+    if (!target) throw new Error("请先选择作品");
+    return state.sessions.stop(target);
+  });
 }

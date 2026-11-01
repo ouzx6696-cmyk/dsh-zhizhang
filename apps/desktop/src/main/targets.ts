@@ -1,7 +1,7 @@
 import path from "node:path";
-import { writeFile } from "node:fs/promises";
 import type { Target } from "../context";
 import { rememberRoot } from "../../../../packages/toutiao/src/env";
+import { atomicWrite } from "../../../../packages/core/src/fsx";
 import {
   ensureStorage,
   listProjects,
@@ -69,6 +69,6 @@ export async function selectTarget(state: Runtime, next: Target) {
   state.access = await claimWorkspace(await lockRoot(state, state.target));
   if (previous && state.sessions.key(previous) !== state.sessions.key(state.target))
     state.sessions.release(previous);
-  await writeFile(path.join(state.home, "target.json"), JSON.stringify(state.target));
+  await atomicWrite(path.join(state.home, "target.json"), JSON.stringify(state.target));
   return state.target;
 }

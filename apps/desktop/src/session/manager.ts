@@ -1,6 +1,7 @@
 import path from "node:path";
 import { createHash } from "node:crypto";
-import { access, mkdir, writeFile, rm } from "node:fs/promises";
+import { access, mkdir, rm } from "node:fs/promises";
+import { atomicWrite } from "../../../../packages/core/src/fsx";
 import type { Focus, Target } from "../context";
 import type { DesktopEvent } from "../renderer-contracts";
 import type { ModelSettings } from "../models";
@@ -119,7 +120,7 @@ export class Sessions {
     );
     if (exists) return;
     await mkdir(dir, { recursive: true });
-    await writeFile(
+    await atomicWrite(
       path.join(dir, "current"),
       entry.session.sessionManager.getSessionFile()!,
     );

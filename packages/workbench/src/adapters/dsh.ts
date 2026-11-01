@@ -177,5 +177,5 @@ function profiles(mode: string): ProfilesData {
 }
 
 export function createDshAdapter(): WorkbenchData {
-  return { fanqie: fanqie(), toutiao: toutiao(), profiles };
+  return { host: "dsh", fanqie: fanqie(), toutiao: toutiao(), profiles };
 }

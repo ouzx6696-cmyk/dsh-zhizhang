@@ -295,18 +295,17 @@ export function useDesktopController() {
     set({ tab: "agent", drawer: true, error: "" });
   }
 
-  async function send(event?: { preventDefault(): void }) {
-    event?.preventDefault();
-    if (!state.text.trim()) return;
-    const original = state.text;
+  async function submit(value: string) {
+    const original = value;
     try {
       if (original.startsWith("/")) {
         const [name, ...parts] = original.slice(1).split(/\s+/);
         await command(name, parts.join(" "));
       } else await sendText(original);
-      set((current) => ({ text: current.text === original ? "" : current.text }));
+      return true;
     } catch (error) {
       fail(error);
+      return false;
     }
   }
 
@@ -382,7 +381,7 @@ export function useDesktopController() {
     loadView,
     selectSnapshot,
     jump,
-    send,
+    submit,
     sendText,
     newWork,
     deliver,

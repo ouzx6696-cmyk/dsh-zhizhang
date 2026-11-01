@@ -1,5 +1,6 @@
 import path from "node:path";
-import { access, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, rm, stat } from "node:fs/promises";
+import { atomicWrite } from "../../../../packages/core/src/fsx";
 import type { Target } from "../context";
 import { SessionManager } from "./pi-adapter";
 import type { Sessions } from "./manager";
@@ -31,7 +32,7 @@ export async function newConversation(host: Sessions, target: Target) {
   });
   if (current) {
     const previous = await conversations(host, target);
-    await writeFile(
+    await atomicWrite(
       path.join(dir, "history.json"),
       JSON.stringify([...previous.map((item) => item.file), current]),
     );

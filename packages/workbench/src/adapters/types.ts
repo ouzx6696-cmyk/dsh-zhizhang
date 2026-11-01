@@ -60,6 +60,7 @@ export interface ProfilesData {
 }
 
 export interface WorkbenchData {
+  host: "desktop" | "dsh";
   fanqie: FanqieData;
   toutiao: ToutiaoData;
   profiles(mode: "fanqie" | "toutiao" | string): ProfilesData;

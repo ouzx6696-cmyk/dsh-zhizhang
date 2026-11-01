@@ -1,6 +1,7 @@
 import path from "node:path";
 import { dialog, shell } from "electron";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
+import { atomicWrite } from "../../../../../packages/core/src/fsx";
 import type { Runtime } from "../runtime";
 import { selectTarget } from "../targets";
 import { handle } from "./handle";
@@ -89,7 +90,7 @@ export function registerWorkspaceIpc(state: Runtime) {
     });
     if (!result.canceled) {
       setProfilesRoot(result.filePaths[0]);
-      await writeFile(path.join(state.home, "profiles-directory"), result.filePaths[0]);
+      await atomicWrite(path.join(state.home, "profiles-directory"), result.filePaths[0]);
       state.emit({ refresh: true });
     }
     return !result.canceled;

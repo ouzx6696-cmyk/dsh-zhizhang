@@ -3,11 +3,12 @@
  * 只有切到今日头条模式时才挂载，番茄长篇模式不发这些请求。
  */
 import React from "react";
-import { toutiao } from "../shared/api.js";
+import { toutiao, host } from "../shared/api.js";
 import { PREF, readPref, writePref } from "../shared/prefs.js";
 import { t } from "../shared/copy.js";
 
 const { useCallback, useEffect, useRef, useState } = React;
+const isDesktop = host === "desktop";
 const POLL_MS = 6000;
 
 export function useToutiao({ onTarget } = {}) {
@@ -65,7 +66,7 @@ export function useToutiao({ onTarget } = {}) {
   useEffect(() => { const listener = () => loadList(true); window.addEventListener('writer:refresh', listener); return () => window.removeEventListener('writer:refresh', listener); }, [loadList]);
   useEffect(() => {
     loadList();
-    if (window.writerDesktop) return () => { listCtrl.current?.abort(); detailCtrl.current?.abort(); };
+    if (isDesktop) return () => { listCtrl.current?.abort(); detailCtrl.current?.abort(); };
     const timer = setInterval(() => {
       if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
       loadList();
@@ -76,7 +77,7 @@ export function useToutiao({ onTarget } = {}) {
   // 选中的文章：列表刷新时跟着刷新详情（状态、质检可能刚变）
   const selected = list.articles.find((a) => a.root === sel.root && a.id === sel.id);
   useEffect(() => {
-    if (!window.writerDesktop) return;
+    if (!isDesktop) return;
     const root = selected?.root || list.currentRoot;
     if (root) targetSink.current?.({mode:'toutiao', root,
       focus: selected ? {article:selected.id, title:selected.title, source:'article', revision:detail.status === 'ready' && detail.article?.id === selected.id ? detail.article.rev : undefined} : {}});
@@ -93,7 +94,7 @@ export function useToutiao({ onTarget } = {}) {
   // 投递目标数据目录：选中文章的目录；没选就用最近有会话的目录
   const pickRoot = () => {
     if (selected) return selected.root;
-    if (window.writerDesktop) return list.currentRoot || "";
+    if (isDesktop) return list.currentRoot || "";
     const withSession = Object.entries(list.sessions).sort((a, b) => String(b[1]).localeCompare(String(a[1])));
     return (withSession[0] && withSession[0][0]) || list.roots[0] || "";
   };
@@ -131,7 +132,7 @@ export function useToutiao({ onTarget } = {}) {
   }, [selected, adoptReady, loadList, notify]);
 
   const deliverRoot = pickRoot();
-  const deliverOff = !list.deliver ? t("ttDeliverOff", { reason: list.deliverReason || "" }) : (!deliverRoot || (!window.writerDesktop && !list.sessions[deliverRoot])) ? t("ttNoSession") : "";
+  const deliverOff = !list.deliver ? t("ttDeliverOff", { reason: list.deliverReason || "" }) : (!deliverRoot || (!isDesktop && !list.sessions[deliverRoot])) ? t("ttNoSession") : "";
 
   return { list, sel, selected, detail, adoptReady, busy, notices, refreshing, doneAt, deliverOff, actions: { select, deliver, adopt, refresh: () => loadList(true), dismiss } };
 }

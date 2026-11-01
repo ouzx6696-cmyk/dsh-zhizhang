@@ -1,6 +1,7 @@
 /** 番茄长篇模式：页头、章节三栏 / 全书概况、确认对话框与提示。 */
 import React from "react";
 import { t } from "../shared/copy.js";
+import { host } from "../shared/api.js";
 import { useFanqie } from "./useFanqie.js";
 import { Button, Icon } from "../shared/ui.jsx";
 import { ChapterList } from "./ChapterList.jsx";
@@ -10,11 +11,12 @@ import { Header } from "./Header.jsx";
 import { Inspector } from "./Inspector.jsx";
 import { Pipeline } from "./Pipeline.jsx";
 import { Reader } from "./Reader.jsx";
+const isDesktop = host === "desktop";
 
 const { useCallback } = React;
 
 function Onboarding({ empty, message }) {
-  if (window.writerDesktop) return <div className="wb-onboarding"><h2>开始创作</h2><p>在写作对话中说明书名和题材，Agent 会创建作品并安排章纲。已有作品请选择包含 works 的长篇数据根。</p></div>;
+  if (isDesktop) return <div className="wb-onboarding"><h2>开始创作</h2><p>在写作对话中说明书名和题材，Agent 会创建作品并安排章纲。已有作品请选择包含 works 的长篇数据根。</p></div>;
   const heading = empty ? t("onboardEmpty") : t("onboardNoWork");
   return (
     <div className="wb-onboarding">

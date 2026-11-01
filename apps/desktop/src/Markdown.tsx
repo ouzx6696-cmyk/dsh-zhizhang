@@ -3,7 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
 import { desktop } from "./renderer/state/desktop";
-export function Markdown({ text }: { text: string }) {
+export const Markdown = React.memo(function Markdown({ text }: { text: string }) {
   return (
     <div className="studio-markdown">
       <ReactMarkdown
@@ -28,4 +28,4 @@ export function Markdown({ text }: { text: string }) {
       </ReactMarkdown>
     </div>
   );
-}
+});

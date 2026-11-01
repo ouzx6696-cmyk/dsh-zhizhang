@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Send,
   Plus,
@@ -24,7 +24,14 @@ function messageBody(message: ChatMessage) {
 
 export function AgentPanel({ app }: { app: DesktopController }) {
   const { state, selected, focus, context, fail, set, input } = app;
-  const { task, busy, phase, messages, stream, total, archive, archives, text } = state;
+  const { task, busy, phase, messages, stream, total, archive, archives } = state;
+  const [draft, setDraft] = useState("");
+  const submit = async (event?: { preventDefault(): void }) => {
+    event?.preventDefault();
+    if (!draft.trim()) return;
+    const value = draft;
+    if (await app.submit(value)) setDraft((current) => (current === value ? "" : current));
+  };
   const steps =
     selected?.mode === "toutiao"
       ? ["S1 找题", "S2 立项", "S3 标题", "S4 成文", "S5 红笔", "S6 质检", "S7 交稿"]
@@ -218,7 +225,7 @@ export function AgentPanel({ app }: { app: DesktopController }) {
           ))}
           <button onClick={() => set({ palette: true, query: "" })}>/ 更多命令</button>
         </div>
-        <form onSubmit={app.send}>
+        <form onSubmit={submit}>
           <div className="input-target">
             {selected ? focusLabel(selected, focus) : "尚未选择作品"}
             {focus.revision !== undefined ? " · " + humanVersion(focus.revision) : ""}
@@ -229,16 +236,16 @@ export function AgentPanel({ app }: { app: DesktopController }) {
             ref={input}
             aria-label="写作要求"
             placeholder="继续说要求，Enter 发送 · Shift+Enter 换行"
-            value={text}
-            onChange={(event) => set({ text: event.target.value })}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === "/" && !text) {
+              if (event.key === "/" && !draft) {
                 event.preventDefault();
                 set({ palette: true, query: "" });
               }
               if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                 event.preventDefault();
-                void app.send();
+                void submit();
               }
             }}
           />

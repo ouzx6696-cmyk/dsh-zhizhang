@@ -36,7 +36,6 @@ export type DesktopState = {
   phase: string;
   task: TaskState | null;
   running: RunningItem[];
-  text: string;
   error: string;
   tab: string;
   view: string;
@@ -66,7 +65,6 @@ const initialState: DesktopState = {
   phase: "",
   task: null,
   running: [],
-  text: "",
   error: "",
   tab: "agent",
   view: "writing",

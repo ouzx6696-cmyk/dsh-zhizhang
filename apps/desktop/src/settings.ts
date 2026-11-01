@@ -1,5 +1,6 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { atomicWrite } from "../../../packages/core/src/fsx";
 import {
   defaultModels,
   normalizeModels,
@@ -98,7 +99,7 @@ export class Settings {
             : undefined,
       };
     }
-    await writeFile(
+    await atomicWrite(
       path.join(this.home, "model.json"),
       JSON.stringify(stored, null, 2),
     );
@@ -111,7 +112,7 @@ export class Settings {
     if (next.workspace !== undefined) this.workspace = next.workspace;
     if (next.appearance)
       this.appearance = { ...this.appearance, ...next.appearance };
-    await writeFile(
+    await atomicWrite(
       path.join(this.home, "desktop.json"),
       JSON.stringify(
         { workspace: this.workspace, appearance: this.appearance },
@@ -123,7 +124,7 @@ export class Settings {
   async saveSearch(key: string) {
     const value = key.trim();
     if (!value) return;
-    await writeFile(
+    await atomicWrite(
       path.join(this.home, "search.json"),
       JSON.stringify({
         secret: this.secrets.available()
@@ -150,7 +151,6 @@ export class Settings {
     if (Buffer.byteLength(text) > 32768)
       throw new Error("作者偏好请控制在 32 KB 内");
     const file = this.preferencesFile();
-    await mkdir(path.dirname(file), { recursive: true });
-    await writeFile(file, text);
+    await atomicWrite(file, text);
   }
 }

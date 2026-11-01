@@ -38,6 +38,8 @@ for (const pkg of Object.keys(LAYERS)) {
     if (pkg === 'desktop' && file.endsWith('.jsx') && !/^\/\/ @ts-check\r?\n/.test(text))
       problems.push(`${rel}: 桌面 JSX 必须显式启用 @ts-check 并纳入 renderer 检查`)
     const client = rel.startsWith('workbench/src/client/')
+    if (client && text.includes('window.writerDesktop'))
+      problems.push(`${rel}: 浏览器端只能通过 adapters 判断宿主，不能直接访问预加载桥`)
     const ast = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, file.endsWith('x') ? ts.ScriptKind.JSX : undefined)
     const deps = []
     const visit = (node) => {

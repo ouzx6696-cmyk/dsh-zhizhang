@@ -4,7 +4,7 @@
  * state in DSH terms); nothing is shared through module-level singletons.
  */
 import React from "react";
-import { fanqie } from "../shared/api.js";
+import { fanqie, host } from "../shared/api.js";
 import { t } from "../shared/copy.js";
 import { diagnosticCopy } from "../shared/copy-diagnostic.js";
 import { useDiagnostics } from "./useDiagnostics.js";
@@ -13,6 +13,7 @@ import { PREF, writePref } from "../shared/prefs.js";
 import { bodyKey, derive, initialState, reducer, snapshotSignature } from "./state.js";
 
 const { useCallback, useEffect, useMemo, useReducer, useRef } = React;
+const isDesktop = host === "desktop";
 
 export const POLL_MS = 6000;
 export const POLL_HIDDEN_MS = 30000;
@@ -124,7 +125,7 @@ export function useFanqie({ onTarget } = {}) {
 
   useEffect(() => {
     // 未形成有效快照不代表作者选择了项目根；后台写入期间尤其不能清掉作品。
-    if (!window.writerDesktop || !state.base || !state.snapshot?.workKey) return;
+    if (!isDesktop || !state.base || !state.snapshot?.workKey) return;
     const current = state.view === 'chapters' ? view.current : null;
     const candidate = current && state.readerView !== 'official' ? view.activeCand : null;
     const loaded = state.readerView === 'candidate' ? state.candidate : state.chapter;
@@ -147,7 +148,7 @@ export function useFanqie({ onTarget } = {}) {
   // One polling loop: visible tabs poll often, hidden tabs rarely, failures back off,
   // and nothing polls while a confirmation dialog is open.
   useEffect(() => {
-    if (window.writerDesktop || !state.polling) return undefined;
+    if (isDesktop || !state.polling) return undefined;
     let timer = null;
     let stopped = false;
     let running = false;
@@ -189,7 +190,7 @@ export function useFanqie({ onTarget } = {}) {
       .then((data) => { if (alive.current) dispatch({ type: "deliver", value: { caps: { deliver: !!data.deliver, reason: data.deliverReason || "" } } }); })
       .catch((err) => { if (alive.current && err.code !== "aborted") dispatch({ type: "deliver", value: { caps: { deliver: false, reason: messageOf(err) } } }); });
     return () => ctrl.abort();
-  }, [state.projectId, state.selection, state.bodyEpoch, window.writerDesktop ? state.lastRefresh : null]);
+  }, [state.projectId, state.selection, state.bodyEpoch, isDesktop ? state.lastRefresh : null]);
 
   // Current chapter body, fetched on demand and keyed so polls never refetch it.
   const chapterKey = bodyKey(state, "chapter");
