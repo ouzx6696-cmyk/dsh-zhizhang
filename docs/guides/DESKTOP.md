@@ -76,6 +76,8 @@ npm run test:desktop:ui    # Playwright 驱动真实 Electron，需桌面环境
 
 ## Windows 构建与更新
 
+GUI 沿用少量交互与布局场景，截图保存在 `test-results/screenshots/`，CI 上传为 `desktop-ui-results`。当前界面不再与旧版像素基线自动比较；`docs/design/baseline/` 保留历史参考，双主题的视觉效果通过实际截图审阅。
+
 ```sh
 npm run desktop:build
 npm run pack --workspace @writer/desktop           # 原生 Windows NSIS

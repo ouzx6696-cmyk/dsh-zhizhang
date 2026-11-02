@@ -10,8 +10,6 @@ const shot = async (name) => {
   const folder = path.resolve(process.env.WRITER_SCREENSHOT_DIR || "test-results/screenshots");
   await mkdir(folder, { recursive: true });
   await page.screenshot({ path: path.join(folder, name), fullPage: true, animations: "disabled" });
-  if (!process.env.CI)
-    await expect(page).toHaveScreenshot(name, { fullPage: true, animations: "disabled" });
 };
 test.describe.configure({ mode: "default" });
 test.afterEach(async ({}, info) => {

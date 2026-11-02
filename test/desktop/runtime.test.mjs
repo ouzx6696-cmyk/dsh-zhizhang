@@ -7,6 +7,7 @@ import {
   rm,
   writeFile,
   symlink,
+  realpath,
 } from "node:fs/promises";
 import { tmpdir, hostname } from "node:os";
 import { createHash, randomUUID } from "node:crypto";
@@ -626,7 +627,7 @@ test("首轮审读交接允许无旧回报，恢复须先备份并拒绝锁和�
 test("连续作品切换及持久化失败保留目标与租约一致", async () => {
   const {selectTarget}=await import('../../apps/desktop/out-test/targets.mjs');
   const {access}=await import('node:fs/promises');
-  const base=await mkdtemp(path.join(tmpdir(),'writer-select-'));
+  const base=await realpath(await mkdtemp(path.join(tmpdir(),'writer-select-')));
   const roots=['a','b','c'].map(name=>path.join(base,name));
   await Promise.all(roots.map(root=>mkdir(root)));
   const state={home:base,writerConfig:{},sessions:{key:t=>t.root,running:()=>[],release:()=>{}}};
