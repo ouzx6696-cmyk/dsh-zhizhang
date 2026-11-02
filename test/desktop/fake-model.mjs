@@ -86,9 +86,10 @@ export async function fakeModel(scripts = {}) {
           : { content: next.text || "完成。" }),
       });
       send({}, tool ? "tool_calls" : "stop", {
-        prompt_tokens: 30,
-        completion_tokens: 8,
-        total_tokens: 38,
+        prompt_tokens: next.usage?.prompt_tokens ?? 30,
+        completion_tokens: next.usage?.completion_tokens ?? 8,
+        ...(next.usage || {}),
+        total_tokens: (next.usage?.prompt_tokens ?? 30) + (next.usage?.completion_tokens ?? 8),
       });
       response.end("data: [DONE]\n\n");
     });

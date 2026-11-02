@@ -112,6 +112,7 @@ export async function createSession(
   const settingsManager = SettingsManager.inMemory({
     compaction: { enabled: true },
     retry: { enabled: true },
+    cacheWarming: "streaming",
   });
   const loader = new DefaultResourceLoader({
     settingsManager,

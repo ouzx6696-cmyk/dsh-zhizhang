@@ -859,3 +859,39 @@ test('T3-05 SDK 错误后正确结束，下一次成功任务有独立结束事�
     assert.match(ended[0].event.error,/认证失败/)
   } finally {await host.dispose();await model.close();await rm(home,{recursive:true,force:true})}
 })
+
+test('PI 上下文：连续请求和重启保持历史前缀，缓存用量使用 SDK 口径', async () => {
+  const home=await mkdtemp(path.join(tmpdir(),'writer-cache-'))
+  process.env.WRITER_STATE_ROOT=home
+  const model=await fakeModel({'mock-writer':[
+    {text:'第一轮'},
+    {text:'第二轮',usage:{prompt_tokens:1000,prompt_tokens_details:{cached_tokens:700,cache_write_tokens:100}}},
+    {text:'重启后继续'},
+  ]})
+  const usage=[],target={mode:'toutiao',root:path.join(home,'articles')}
+  let finish
+  const make=()=>new Sessions(home,'python3',()=>models(model.url),event=>{
+    if(event.event?.type==='agent_settled'&&!event.editor) finish?.()
+  },async()=>true,{},async()=>{}, {log:(event,fields)=>{if(event==='model_usage')usage.push(fields)}})
+  let host=make()
+  const send=async text=>{const done=settled();finish=done.finish;await host.send(target,text);await done.promise}
+  try {
+    await send('先核对要求')
+    const first=structuredClone(model.calls[0])
+    await send('继续核对')
+    const second=structuredClone(model.calls[1])
+    assert.deepEqual(second.messages.slice(0,first.messages.length),first.messages)
+    assert.deepEqual(second.tools,first.tools)
+    assert.equal(usage[1].input,200)
+    assert.equal(usage[1].cacheRead,700)
+    assert.equal(usage[1].cacheWrite,100)
+    const session=await host.open(target),id=session.sessionId
+    assert.equal(session.settingsManager.getCompactionSettings().enabled,true)
+    assert.equal(session.settingsManager.getCacheWarmingMode(),'streaming')
+    await host.dispose();host=make()
+    assert.equal((await host.open(target)).sessionId,id)
+    await send('重启后继续核对')
+    assert.deepEqual(model.calls[2].messages.slice(0,second.messages.length),second.messages)
+    assert.deepEqual(model.calls[2].tools,first.tools)
+  } finally {await host.dispose();await model.close();await rm(home,{recursive:true,force:true})}
+})

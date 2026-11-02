@@ -80,6 +80,13 @@ export function trackSession(options: {
     if (event.type === "message_end" && event.message.role === "assistant") {
       task.tokens += event.message.usage.totalTokens || 0;
       task.cost += event.message.usage.cost.total || 0;
+      const usage = event.message.usage;
+      host.extras.log?.('model_usage', {
+        role, model: event.message.model, provider: event.message.provider,
+        input: usage.input, output: usage.output, cacheRead: usage.cacheRead,
+        cacheWrite: usage.cacheWrite, totalTokens: usage.totalTokens,
+        cost: usage.cost.total,
+      });
     }
     if (event.type === "tool_execution_end" && !event.isError) {
       const step = toolStep(event.toolName, target.mode);
