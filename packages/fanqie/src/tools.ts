@@ -1,7 +1,7 @@
 /** 写作层工具：forge 方法、章纲检查、旧账对照、拆书测绘、引文核对、编辑审读回报。只读作品，不写正文。 */
 import path from 'node:path'
 import { stat } from 'node:fs/promises'
-import { defineWriterTool, sessionCwd, WriterError, type HostToolDefinition, type HostToolExecution, type JsonSchemaNode } from '../../host/src/index.js'
+import { defineWriterTool, WriterError, type ToolDefinition, type ToolExecution, type JsonSchemaNode } from '../../core/src/tool.js'
 import { nowIso, resolveInside } from '../../core/src/fsx.js'
 import { bridge, fanqieLibrary, KEY_METHODS, listMethods, withTempFiles } from './forge.js'
 import { activeProfile, profileDetail, readMethod } from '../../core/src/profiles.js'
@@ -31,12 +31,12 @@ export const EDITOR_TOOLS = new Set([
 
 export interface FanqieToolDeps { config: FanqieConfig; role: Role }
 
-const work = (exec: HostToolExecution, key?: string) => openWork(exec, key || undefined)
+const work = (exec: ToolExecution, key?: string) => openWork(exec, key || undefined)
 
 /** 本地文件路径只允许在会话工作目录内 */
-async function localFile(exec: HostToolExecution, p: string): Promise<string> {
+async function localFile(exec: ToolExecution, p: string): Promise<string> {
   if (!p.trim()) throw new WriterError('INVALID_ARGS', '缺少文件路径')
-  const cwd = sessionCwd(exec)
+  const cwd = exec.cwd
   const abs = resolveInside(cwd, p)
   const st = await stat(abs).catch(() => undefined)
   if (!st?.isFile()) throw new WriterError('NOT_FOUND', `文件不存在：${p}`)
@@ -55,16 +55,16 @@ function outlineText(ch: ChapterRecord): string {
   ].filter(Boolean).join('\n')
 }
 
-export function createFanqieTools(deps: FanqieToolDeps): HostToolDefinition[] {
+export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
   const { config } = deps
-  const tools: HostToolDefinition[] = [
+  const tools: ToolDefinition[] = [
     defineWriterTool<{ id?: string }>({
       name: 'fanqie_forge_get',
       description: '取长篇方法（规划、拆书、写章、句面、节奏、连续性、编辑、修订、模板与示范），按当前方法方案读取（默认 / 原版 / 用户方案，见 fanqie_profile）。不给 id 返回当前方案目录；"list" 返回全部 id（含作者自备的 user:… 资产）。原版的 forge id（如 novel-writer/references/editor_method）会自动对应到默认方案里的同类方法；原版:id 强制读原件（原件前附工具对照表，落盘一律走长篇工具）。作者自备资产只作参考，与门禁冲突时以门禁为准。',
       properties: { id: S('方法 id，如 write-chapter、edit；作者自备用 user:相对路径；省略看当前方案目录，"list" 看全部') },
       async run(args, exec) {
         const id = str(args.id).trim()
-        const cwd = sessionCwd(exec)
+        const cwd = exec.cwd
         const act = await activeProfile('fanqie', config.profile)
         if (!id) {
           if (act.id === 'original' || (act.kind === 'user' && act.base === 'original')) return { profile: act.name, key_methods: KEY_METHODS }

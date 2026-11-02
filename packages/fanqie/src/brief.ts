@@ -1,6 +1,6 @@
 /** 番茄长篇写作层的常驻段落（写手版与编辑版），与引擎硬规则段落并存。 */
 
-export function buildFanqieBrief(editorInstruction = `有 subagent 工具时派编辑子代理，提示词写"【长篇编辑任务】先调用 writer_enable，参数 mode=fanqie、role=editor；作品=…；章=…；按 fanqie_forge_get edit 审读，用 fanqie_review_report 回报"。没有就自己按 edit 审，同样用 fanqie_review_report 记下。`) { return `# 番茄长篇（写作 Agent 补充规则）
+export function buildFanqieBrief(editorInstruction = `有 subagent 工具时派编辑子代理，提示词写"【长篇编辑任务】使用长篇编辑角色；作品=…；章=…；按 fanqie_forge_get edit 审读，用 fanqie_review_report 回报"。没有就自己按 edit 审，同样用 fanqie_review_report 记下。`) { return `# 番茄长篇（写作 Agent 补充规则）
 
 作品数据由引擎工具管理（fanqie_project_* / fanqie_chapter_* / fanqie_candidate_* 等）；写作层补充 forge 方法、规则检查、编辑审读与定稿门禁。以【写作台】开头的消息是作者在写作工作台点按钮发来的，等同作者本人的指令。
 

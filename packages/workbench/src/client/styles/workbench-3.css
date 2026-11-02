@@ -1,15 +1,9 @@
 .wb-empty-title {
-  font: var(
-    --dsw-font-base-strong-16,
-    600 var(--ui-size-16)/var(--ui-size-24) var(--ui-font-ui)
-  );
+  font: 600 var(--ui-size-16)/var(--ui-size-24) var(--ui-font-ui);
 }
 .wb-empty-hint {
   color: var(--wb-fg-3);
-  font: var(
-    --dsw-font-xs-13,
-    var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui)
-  );
+  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
   max-width: 32rem;
 }
 .wb-skeleton-stack {
@@ -55,7 +49,7 @@
   margin: 24px auto;
   padding: 24px;
   border-radius: var(--wb-r-xl);
-  border: 0.5px solid var(--dsw-alias-settings-card-stroke, var(--wb-line));
+  border: 0.5px solid var(--wb-line);
   background: var(--wb-card);
 }
 .wb-onboarding .wb-empty {
@@ -84,10 +78,7 @@
   corner-shape: round;
   background: var(--wb-hover);
   color: var(--wb-fg-2);
-  font: var(
-    --dsw-font-xxs-strong-12,
-    600 var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui)
-  );
+  font: 600 var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
 }
 .wb-crash {
   margin: 0;
@@ -96,20 +87,14 @@
   overflow: auto;
   border-radius: var(--wb-r-md);
   background: var(--wb-hover);
-  font: var(
-    --dsw-font-markdown-code-block-small,
-    var(--ui-size-12)/var(--ui-size-18) var(--ui-font-mono)
-  );
+  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-mono);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 .wb-footer {
   margin-top: auto;
   color: var(--wb-fg-3);
-  font: var(
-    --dsw-font-xxs-12,
-    var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui)
-  );
+  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
 }
 /* ---------- workbench ---------- */
 .wb-view-panel {
@@ -139,7 +124,7 @@
   display: flex;
   flex-direction: column;
   border-radius: var(--wb-r-xl);
-  border: 0.5px solid var(--dsw-alias-settings-card-stroke, var(--wb-line));
+  border: 0.5px solid var(--wb-line);
   background: var(--wb-card);
   overflow: hidden;
 }
@@ -147,10 +132,7 @@
   flex: 0 0 auto;
   padding: 12px 16px 8px;
   color: var(--wb-fg-3);
-  font: var(
-    --dsw-font-xxs-strong-12,
-    600 var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui)
-  );
+  font: 600 var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
   letter-spacing: 0.04em;
 }
 .wb-column-body {
@@ -193,10 +175,7 @@
   outline: 0;
   background: transparent;
   color: var(--wb-fg);
-  font: var(
-    --dsw-font-xs-13,
-    var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui)
-  );
+  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
 }
 .wb-chapter-list {
   display: flex;
@@ -233,10 +212,7 @@
   corner-shape: round;
   background: var(--wb-warn-soft);
   color: var(--wb-warn);
-  font: var(
-    --dsw-font-xxxs-strong-11,
-    600 var(--ui-size-12)/var(--ui-size-16) var(--ui-font-ui)
-  );
+  font: 600 var(--ui-size-12)/var(--ui-size-16) var(--ui-font-ui);
   cursor: pointer;
 }
 .wb-candidate-badge:hover {
@@ -259,20 +235,14 @@
   flex-direction: column;
 }
 .wb-chapter-title {
-  font: var(
-    --dsw-font-s-strong-14,
-    500 var(--ui-size-14)/var(--ui-size-22) var(--ui-font-ui)
-  );
+  font: 500 var(--ui-size-14)/var(--ui-size-22) var(--ui-font-ui);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .wb-chapter-meta {
   color: var(--wb-fg-3);
-  font: var(
-    --dsw-font-xxs-12,
-    var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui)
-  );
+  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -62,8 +62,8 @@ test('全流程：故事线长图文 立项→标题→成稿→质检→验收�
   assert.equal((await call('toutiao_status', { id, to: '待验收' })).ok, true)
 
   const early = await call('toutiao_status', { id, to: '已验收' })
-  assert.equal(early.denied, true, '没质检就验收应被门禁拒绝')
-  assert.match(early.reason, /toutiao\.accept_requires_qa/)
+  assert.equal(early.code, 'GATE_DENIED', '没质检就验收必须拒绝')
+  assert.match(early.message, /还没跑质检/)
 
   const qa = await call('toutiao_qa_check', { id })
   assert.equal(qa.ok, true, JSON.stringify(qa))
@@ -114,8 +114,8 @@ test('改稿或改立项卡都会让旧质检作废', async () => {
   assert.equal((await call('toutiao_qa_check', { id })).pass, true)
   await call('toutiao_card_patch', { id, patch: { 情绪: '怅然' } })
   const r = await call('toutiao_status', { id, to: '已验收' })
-  assert.equal(r.denied, true)
-  assert.match(r.reason, /立项卡在质检后改过/)
+  assert.equal(r.code, 'GATE_DENIED')
+  assert.match(r.message, /立项卡在质检后改过/)
 
   assert.equal((await call('toutiao_qa_check', { id })).pass, true)
   await call('toutiao_draft_stage', { id, text: STORY + '\n' })
@@ -123,8 +123,8 @@ test('改稿或改立项卡都会让旧质检作废', async () => {
   assert.equal(st.article.status, '初稿待改', '新稿回到初稿待改')
   await call('toutiao_status', { id, to: '待验收' })
   const r2 = await call('toutiao_status', { id, to: '已验收' })
-  assert.equal(r2.denied, true)
-  assert.match(r2.reason, /还没跑质检/)
+  assert.equal(r2.code, 'GATE_DENIED')
+  assert.match(r2.message, /还没跑质检/)
 })
 
 test('打回超过两轮需作者同意', async () => {
@@ -181,7 +181,7 @@ test('写作台（今日头条模式）：列表与详情可见，按钮指令�
   assert.ok(d0.draft.text.includes(STORY.slice(0, 20)))
   const rv = await buildToutiaoDelivery(root, { action: 'review', id })
   assert.match(rv.text, /^【写作台】派编辑子代理/)
-  assert.match(rv.text, /writer_enable，参数 mode=toutiao、role=editor/)
+  assert.match(rv.text, /红笔并质检/)
   assert.match((await buildToutiaoDelivery(root, { action: 'new', note: '秋天的柿子' })).text, /题材\/素材：秋天的柿子/)
   await assert.rejects(buildToutiaoDelivery(root, { action: 'continue' }), /须指明文章/)
   await assert.rejects(buildToutiaoDelivery(root, { action: 'publish', id }), /不支持的动作/)
@@ -266,8 +266,8 @@ test('requireEditorPass：写手版不能直接送验收，编辑版可以', asy
   const id = (await writer.call('toutiao_article_create', { slug: 'ep' })).article.id
   await writer.call('toutiao_draft_stage', { id, text: STORY })
   const denied = await writer.call('toutiao_status', { id, to: '待验收' })
-  assert.equal(denied.denied, true)
-  assert.match(denied.reason, /编辑红笔/)
+  assert.equal(denied.code, 'GATE_DENIED')
+  assert.match(denied.message, /编辑红笔/)
   await editor.call('toutiao_draft_stage', { id, text: STORY })
   assert.equal((await writer.call('toutiao_status', { id, to: '待验收' })).ok, true)
 })

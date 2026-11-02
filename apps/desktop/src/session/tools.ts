@@ -11,9 +11,9 @@ import type { Focus, Target } from "../context";
 import { focusLabel } from "../context";
 import { PLANNING_WRITES, roleAllows } from "./roles";
 import { ArticleStore } from "../../../../packages/toutiao/src/store";
-import { executeTool } from "../../../../packages/host-generic/src/index";
+import { executeTool } from "../../../../packages/core/src/execute";
 import { withPluginConfig } from "../../../../packages/fanqie/src/engine/tools/context";
-import type { HostToolDefinition, HostToolExecution } from "../../../../packages/host/src/index";
+import type { ToolDefinition as WriterToolDefinition, ToolExecution } from "../../../../packages/core/src/tool";
 import type { createGateEngine } from "../../../../packages/core/src/gates";
 import type { Sessions } from "./manager";
 import type { SessionEntry } from "./types";
@@ -35,7 +35,7 @@ export function createBusinessTools(options: {
   manager: SessionManager;
   gates: ReturnType<typeof createGateEngine>;
   config: any;
-  definitions: HostToolDefinition[];
+  definitions: WriterToolDefinition[];
   readUrls: Set<string>;
   getEntry: () => SessionEntry;
   onCreated?: (work: string) => Promise<void>;
@@ -131,7 +131,7 @@ export function createBusinessTools(options: {
       let createdWork: { base: string; key: string } | undefined;
       let stagedCandidate:
         { id: string; chapterId: string; work: string; base: string } | undefined;
-      const exec: HostToolExecution & {
+      const exec: ToolExecution & {
         onWorkCreated: (base: string, key: string) => void;
         onCandidateStaged: (candidate: {
           id: string;

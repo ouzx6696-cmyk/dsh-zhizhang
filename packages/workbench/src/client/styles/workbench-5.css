@@ -8,17 +8,11 @@
 }
 .wb-step-label {
   color: var(--wb-fg-3);
-  font: var(
-    --dsw-font-xxs-12,
-    var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui)
-  );
+  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
 }
 .wb-step[data-state="current"] .wb-step-label {
   color: var(--wb-fg);
-  font: var(
-    --dsw-font-xxs-strong-12,
-    600 var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui)
-  );
+  font: 600 var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
 }
 .wb-action-row {
   display: flex;
@@ -40,10 +34,7 @@
   gap: 8px;
   align-items: baseline;
   color: var(--wb-fg-2);
-  font: var(
-    --dsw-font-xs-13,
-    var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui)
-  );
+  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
 }
 .wb-gate::before {
   content: "";
@@ -51,7 +42,7 @@
   height: 6px;
   border-radius: 50%;
   corner-shape: round;
-  background: var(--dsw-alias-state-idle-primary, var(--wb-fg-3));
+  background: var(--wb-fg-3);
   transform: translateY(-1px);
 }
 .wb-gate[data-state="ok"]::before {
@@ -84,19 +75,13 @@
   box-shadow: inset 0 0 0 1px var(--wb-warn);
 }
 .wb-candidate-card-title {
-  font: var(
-    --dsw-font-xs-strong-13,
-    600 var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui)
-  );
+  font: 600 var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
   overflow-wrap: anywhere;
 }
 .wb-candidate-card-meta,
 .wb-candidate-card-note {
   color: var(--wb-fg-3);
-  font: var(
-    --dsw-font-xxs-12,
-    var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui)
-  );
+  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
 }
 .wb-disclosure {
   padding: 10px 0;
@@ -108,10 +93,7 @@
   align-items: center;
   gap: 6px;
   color: var(--wb-fg-2);
-  font: var(
-    --dsw-font-xs-strong-13,
-    600 var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui)
-  );
+  font: 600 var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
 }
 .wb-disclosure > summary::-webkit-details-marker {
   display: none;
@@ -138,10 +120,7 @@
   list-style: decimal;
   padding-left: 1.2em;
   color: var(--wb-fg-2);
-  font: var(
-    --dsw-font-xs-13,
-    var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui)
-  );
+  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
 }
 .wb-facts {
   display: flex;
@@ -150,16 +129,10 @@
 }
 .wb-fact dt {
   color: var(--wb-fg-3);
-  font: var(
-    --dsw-font-xxs-12,
-    var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui)
-  );
+  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
 }
 .wb-fact dd {
-  font: var(
-    --dsw-font-xs-13,
-    var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui)
-  );
+  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -180,10 +153,7 @@
   border-radius: var(--wb-r-md);
   background: var(--wb-hover);
   color: var(--wb-fg-2);
-  font: var(
-    --dsw-font-xs-13,
-    var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui)
-  );
+  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
   overflow-wrap: anywhere;
 }
 .wb-hint-urgent {
@@ -223,28 +193,19 @@
   gap: 4px;
   padding: 14px 16px;
   border-radius: var(--wb-r-xl);
-  border: 0.5px solid var(--dsw-alias-settings-card-stroke, var(--wb-line));
+  border: 0.5px solid var(--wb-line);
   background: var(--wb-card);
 }
 .wb-card-kicker {
   color: var(--wb-fg-3);
-  font: var(
-    --dsw-font-xxs-12,
-    var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui)
-  );
+  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
 }
 .wb-card-title {
-  font: var(
-    --dsw-font-s-strong-14,
-    600 var(--ui-size-14)/var(--ui-size-22) var(--ui-font-ui)
-  );
+  font: 600 var(--ui-size-14)/var(--ui-size-22) var(--ui-font-ui);
 }
 .wb-card-text {
   color: var(--wb-fg-2);
-  font: var(
-    --dsw-font-xs-13,
-    var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui)
-  );
+  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
   overflow-wrap: anywhere;
 }
 .wb-rows {
@@ -258,10 +219,7 @@
   align-items: center;
   padding: 10px 12px;
   border-bottom: 0.5px solid var(--wb-line);
-  font: var(
-    --dsw-font-xs-13,
-    var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui)
-  );
+  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
 }
 .wb-row-button {
   width: 100%;
@@ -283,9 +241,6 @@
 .wb-row-meta {
   grid-column: 1;
   color: var(--wb-fg-3);
-  font: var(
-    --dsw-font-xxs-12,
-    var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui)
-  );
+  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
   overflow-wrap: anywhere;
 }

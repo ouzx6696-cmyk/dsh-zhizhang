@@ -2,7 +2,7 @@
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { WriterError } from '../../host/src/index.js'
+import { WriterError } from '../../core/src/tool.js'
 import { readText, resolveInside } from '../../core/src/fsx.js'
 import type { MethodLibrary } from '../../core/src/profiles.js'
 

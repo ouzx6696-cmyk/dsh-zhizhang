@@ -4,7 +4,7 @@ import { VERSION } from "../../../../core/src/version.js";
 import { countWords } from "../work-store.js";
 export const MULTI_DRAFT_DISABLED_CODE = "multi_draft_disabled";
 export function envMultiDraftFlag() {
-    const raw = String(process.env.DSH_ZHIZHANG_MULTI_DRAFT ?? "")
+    const raw = String(process.env.WRITER_NOVEL_MULTI_DRAFT ?? "")
         .trim()
         .toLowerCase();
     return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
@@ -27,7 +27,7 @@ export const MultiDraftPort = {
     isEnabled: isMultiDraftEnabled,
     enableHint() {
         return ("开启方式：插件 config.multiDraft.enabled=true，或 setPortConfig({ multiDraftEnabled: true })，" +
-            "或环境变量 DSH_ZHIZHANG_MULTI_DRAFT=1。开启后不改变默认单候选链。");
+            "或环境变量 WRITER_NOVEL_MULTI_DRAFT=1。开启后不改变默认单候选链。");
     },
     /** Refuse unify tools when feature off. Throws Error with .code = multi_draft_disabled. */
     requireEnabled() {

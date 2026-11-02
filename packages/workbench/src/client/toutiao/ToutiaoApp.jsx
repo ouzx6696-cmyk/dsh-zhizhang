@@ -1,9 +1,8 @@
 /** 写作台 · 今日头条模式：左列文章、中间当前稿 / 交稿单、右侧状态、质检、采用与写作 Agent 按钮。 */
 import React from "react";
 import { formatClock, formatCount, t } from "../shared/copy.js";
-import { useToutiao } from "./useToutiao.js";
-import { ActionButton, Button, Icon, Modal, SegmentedControl, Spinner, StateDot, Tag, cx } from "../shared/ui.jsx";
-import { ActionCard, Callout, Empty, Notices, Section, Skeleton, WithCode } from "../shared/common.jsx";
+import { ActionButton, Button, Icon, Modal, SegmentedControl, StateDot, Tag, cx } from "../shared/ui.jsx";
+import { ActionCard, Callout, Empty, Section, Skeleton } from "../shared/common.jsx";
 import { Manuscript } from "../shared/Manuscript.jsx";
 import { SourceEditor } from "../shared/SourceEditor.jsx";
 import { ARTICLE_STEPS, articleProgress } from "../../../../ui/src/status.js";
@@ -284,80 +283,6 @@ export function ToutiaoSide({ tt, hideAgent = false }) {
         </div>
         {off ? <p className="wb-muted wb-off-reason"><Icon name="info" size={12} /> {off}</p> : null}
       </Section>}
-    </div>
-  );
-}
-
-export function ToutiaoApp({ modeSwitch, version }) {
-  const tt = useToutiao();
-  const { list, sel, actions } = tt;
-  let content;
-  if (list.status === "loading") {
-    content = <div className="wb-boot" role="status"><span className="wb-visually-hidden">{t("ttLoading")}</span><Skeleton lines={5} /></div>;
-  } else if (list.status === "error") {
-    content = (
-      <div className="wb-onboarding">
-        <Empty icon="alert" title={t("errorTitle")} hint={t("errorHint")} />
-        <Callout tone="danger" role="alert">{list.error}</Callout>
-        <Button variant="outline" onClick={actions.refresh} icon={<Icon name="refresh" size={14} />}>{t("retry")}</Button>
-      </div>
-    );
-  } else {
-    content = (
-      <div className="wb-view-panel"><div className="wb-workbench" data-genre="toutiao">
-        <nav className="wb-column wb-column-nav" aria-label={t("ttArticles")}>
-          <h2 className="wb-column-head">{t("ttArticles")}</h2>
-          <div className="wb-column-body">
-            {list.articles.length ? (
-              <>{list.error && <Callout tone="danger" role="alert">{list.error}</Callout>}<ArticleList articles={list.articles} sel={sel} onSelect={actions.select} /></>
-            ) : (
-              <div className="wb-onboarding wb-onboarding-compact">
-                <Empty icon="inbox" title={t("ttEmpty")} />
-                <p className="wb-muted"><WithCode text={t("ttEmptyHint")} code="writer_enable mode=toutiao" /></p>
-              </div>
-            )}
-          </div>
-        </nav>
-        <section className="wb-column wb-column-reader" aria-label={t("ttDetail")}>
-          <Body detail={tt.detail} onSave={tt.actions.saveDraft} onEditState={tt.sourceGuard.report} />
-        </section>
-        <aside className="wb-column wb-column-inspector" aria-label={t("ttSide")}>
-          <h2 className="wb-column-head">{t("ttSide")}</h2>
-          <div className="wb-column-body"><ToutiaoSide tt={tt} /></div>
-        </aside>
-      </div></div>
-    );
-  }
-  return (
-    <div className="wb-root" data-mode="toutiao">
-      <header className="wb-header">
-        <div className="wb-header-main">
-          <div className="wb-heading wb-heading-brand">
-            <span className="wb-brand" data-mode="toutiao" aria-hidden="true"><Icon name="news" size={18} /></span>
-            <div className="wb-heading-text">
-              <h1 className="wb-title">{t("ttTitle")}</h1>
-              <p className="wb-subtitle">{t("ttSubtitle")}</p>
-            </div>
-          </div>
-          <div className="wb-toolbar">
-            {modeSwitch}
-            <Button variant="outline" size="sm" disabled={tt.refreshing} onClick={actions.refresh} icon={tt.refreshing ? <Spinner /> : <Icon name="refresh" size={14} />}>{tt.refreshing ? t("refreshing") : t("refresh")}</Button>
-          </div>
-        </div>
-        {list.status === "ready" && list.articles.length ? (
-          <div className="wb-stats" aria-label={t("ttArticles")}>
-            <Tag tone="neutral">{t("ttStatTotal", { n: list.articles.length })}</Tag>
-            {(list.statuses || []).map((st) => {
-              const n = list.articles.filter((a) => a.status === st).length;
-              return n ? <Tag key={st} tone={statusTone(st)}>{statusLabel(st) + " " + n}</Tag> : null;
-            })}
-            {list.at ? <span className="wb-updated">{t("updatedAt", { time: formatClock(list.at) })}</span> : null}
-          </div>
-        ) : null}
-      </header>
-      {content}
-      <Notices notices={tt.notices || []} onDismiss={actions.dismiss} />
-      <footer className="wb-footer">{t("footer", { version })}</footer>
     </div>
   );
 }

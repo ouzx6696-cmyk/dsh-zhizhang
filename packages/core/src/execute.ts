@@ -1,20 +1,22 @@
 /** Transport-independent tool execution. No SDK, HTTP or window dependencies. */
 import type {
-  HostToolDefinition,
-  HostToolExecution,
-} from "../../host/src/index.js";
-import type { GateEngine } from "../../core/src/gates.js";
+  ToolDefinition,
+  ToolExecution,
+} from "./tool.js";
+import type { GateEngine } from "./gates.js";
 
 export async function executeTool(
-  definition: HostToolDefinition,
+  definition: ToolDefinition,
   input: Record<string, unknown>,
-  execution: HostToolExecution,
+  execution: ToolExecution,
   options: {
     gates: GateEngine;
     bind: <T>(run: () => Promise<T>) => Promise<T>;
     confirm: (message: string, signal?: AbortSignal) => Promise<boolean>;
   },
 ) {
+  if (typeof execution.cwd !== "string" || !execution.cwd.trim())
+    throw new Error("工具执行缺少工作目录");
   execution = { ...execution, arguments: input };
   const decision = await options.bind(() => options.gates.evaluate(execution));
   if (decision?.kind === "deny" || decision?.kind === "cancel")

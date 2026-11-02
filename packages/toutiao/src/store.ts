@@ -15,7 +15,7 @@ import { claimWorkspace, assertWorkspaceWritable } from "../../core/src/workspac
  */
 import { readdir } from 'node:fs/promises'
 import path from 'node:path'
-import { WriterError } from '../../host/src/index.js'
+import { WriterError } from '../../core/src/tool.js'
 import { atomicWrite, exists, readJson, readText, resolveInside, serialize, sha256 } from '../../core/src/fsx.js'
 
 export const STATUSES = ['初稿待改', '待验收', '已验收', '验收退回', '已交稿'] as const

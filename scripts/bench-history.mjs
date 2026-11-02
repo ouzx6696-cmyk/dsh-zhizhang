@@ -161,7 +161,7 @@ async function main() {
   const workspace = path.join(base, "workspace");
   const storageRoot = path.join(workspace, ".writer");
   await mkdir(home, { recursive: true });
-  process.env.DSH_HOME = home;
+  process.env.WRITER_STATE_ROOT = home;
   const paths = await ensureStorage(null, { storageRoot });
   await rememberProject(paths.base, paths.works);
   const first = await createWork(paths, { title: "性能甲" });

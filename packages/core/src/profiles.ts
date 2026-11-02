@@ -5,12 +5,12 @@
  *   user-N   用户方案N 作者提交的版本：以某个内置方案为底，逐份覆盖或新增
  * 读取顺序：用户方案的覆盖 → 它的底（默认或原版）；默认里没有的 id 回落到原版。
  * 当前方案存在 <方案目录>/active.json；配置 <mode>.profile 可以钉死。
- * 方案目录：配置 profilesDir → WRITER_PROFILES_DIR → $DSH_HOME/writer/profiles → ~/.dsh-writer/profiles。
+ * 方案目录：配置 profilesDir → WRITER_PROFILES_DIR → 应用状态目录/writer/profiles。
  */
 import { readdir, rm, stat } from 'node:fs/promises'
-import { homedir } from 'node:os'
+import { stateRoot } from './paths.js'
 import path from 'node:path'
-import { WriterError } from '../../host/src/index.js'
+import { WriterError } from './tool.js'
 import { atomicWrite, readJson, readText, resolveInside } from './fsx.js'
 
 export type ProfileMode = 'toutiao' | 'fanqie'
@@ -60,8 +60,7 @@ export function setProfilesRoot(dir: string | undefined) { configuredRoot = dir?
 export function profilesRoot(): string {
   if (configuredRoot) return path.resolve(configuredRoot)
   if (process.env.WRITER_PROFILES_DIR?.trim()) return path.resolve(process.env.WRITER_PROFILES_DIR.trim())
-  if (process.env.DSH_HOME?.trim()) return path.join(path.resolve(process.env.DSH_HOME.trim()), 'writer', 'profiles')
-  return path.join(homedir(), '.dsh-writer', 'profiles')
+  return path.join(stateRoot(), 'writer', 'profiles')
 }
 
 const nowIso = () => new Date().toISOString()

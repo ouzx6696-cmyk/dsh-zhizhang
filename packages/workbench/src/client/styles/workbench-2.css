@@ -10,10 +10,7 @@
   background: transparent;
   color: inherit;
   cursor: pointer;
-  font: var(
-    --dsw-font-s-strong-14,
-    500 var(--ui-size-14)/var(--ui-size-22) var(--ui-font-ui)
-  );
+  font: 500 var(--ui-size-14)/var(--ui-size-22) var(--ui-font-ui);
   white-space: nowrap;
   transition:
     background-color 120ms ease,
@@ -23,10 +20,7 @@
   height: 28px;
   padding: 0 10px;
   border-radius: var(--wb-r-sm);
-  font: var(
-    --dsw-font-xs-strong-13,
-    500 var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui)
-  );
+  font: 500 var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
 }
 .wb-button-icon-only {
   padding: 0;
@@ -36,8 +30,8 @@
   width: 28px;
 }
 .wb-button-primary {
-  background: var(--dsw-alias-button-primary-fill, var(--wb-fg));
-  color: var(--dsw-alias-label-primary-inverted, canvas);
+  background: var(--wb-fg);
+  color: canvas;
 }
 .wb-button-outline {
   box-shadow: inset 0 0 0 0.5px var(--wb-line-strong);
@@ -69,10 +63,7 @@
   padding: 0 8px;
   border-radius: 999px;
   corner-shape: round;
-  font: var(
-    --dsw-font-xxxs-strong-11,
-    500 var(--ui-size-12)/var(--ui-size-16) var(--ui-font-ui)
-  );
+  font: 500 var(--ui-size-12)/var(--ui-size-16) var(--ui-font-ui);
   color: var(--wb-fg-2);
   box-shadow: inset 0 0 0 0.5px var(--wb-line);
   white-space: nowrap;
@@ -109,7 +100,7 @@
   display: inline-block;
   border-radius: 50%;
   corner-shape: round;
-  background: var(--dsw-alias-state-idle-primary, var(--wb-fg-3));
+  background: var(--wb-fg-3);
 }
 .wb-state-dot[data-state="done"] {
   background: var(--wb-ok);
@@ -136,16 +127,13 @@
   background: transparent;
   color: var(--wb-fg-2);
   cursor: pointer;
-  font: var(
-    --dsw-font-xs-13,
-    var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui)
-  );
+  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
   white-space: nowrap;
 }
 .wb-segment-on {
   background: var(--wb-layer);
   color: var(--wb-fg);
-  box-shadow: var(--dsw-elevation-soft, 0 0 0 0.5px var(--wb-line));
+  box-shadow: 0 0 0 0.5px var(--wb-line);
 }
 .wb-segment:disabled {
   opacity: 0.45;
@@ -172,10 +160,7 @@
 .wb-modal-mask {
   position: absolute;
   inset: 0;
-  background: var(
-    --dsw-alias-bg-mask-1,
-    color-mix(in srgb, canvastext 40%, transparent)
-  );
+  background: color-mix(in srgb, canvastext 40%, transparent);
 }
 .wb-modal {
   position: relative;
@@ -184,13 +169,10 @@
   overflow: auto;
   border: 0;
   border-radius: var(--wb-r-panel);
-  background: var(--dsw-alias-bg-layer-2, canvas);
+  background: canvas;
   color: var(--wb-fg);
-  box-shadow: var(--dsw-elevation-prominent, 0 0 0 0.5px var(--wb-line-strong));
-  font: var(
-    --dsw-font-s-14,
-    var(--ui-size-14)/var(--ui-size-22) var(--ui-font-ui)
-  );
+  box-shadow: 0 0 0 0.5px var(--wb-line-strong);
+  font: var(--ui-size-14)/var(--ui-size-22) var(--ui-font-ui);
 }
 .wb-modal-content {
   padding: 24px 24px 8px;
@@ -206,10 +188,7 @@
 }
 .wb-modal-title {
   margin: 0;
-  font: var(
-    --dsw-font-m-18,
-    600 var(--ui-size-18)/var(--ui-size-26) var(--ui-font-ui)
-  );
+  font: 600 var(--ui-size-18)/var(--ui-size-26) var(--ui-font-ui);
   font-weight: 600;
 }
 .wb-modal-description {
@@ -233,10 +212,7 @@
   border-radius: var(--wb-r-md);
   background: var(--wb-accent-soft);
   color: var(--wb-fg);
-  font: var(
-    --dsw-font-xs-13,
-    var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui)
-  );
+  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
 }
 .wb-callout > .wb-icon {
   margin-top: 3px;

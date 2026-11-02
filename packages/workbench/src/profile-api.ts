@@ -11,11 +11,11 @@
  *   POST …/profiles/delete {profile, confirm: true}
  * 这里不依赖写作台包（同层），上下文按结构对上 RouteContext 即可。
  */
-import { WriterError } from '../../host/src/index.js'
+import { sendError } from './routes.js'
 import {
   createProfile, deleteProfile, findProfile, listProfiles, profileDetail, readMethod, renameProfile, resetMethod, saveMethod, activateProfile,
   type MethodLibrary,
-} from './profiles.js'
+} from '../../core/src/profiles.js'
 
 export interface ProfileRouteContext {
   url: URL
@@ -28,14 +28,6 @@ export interface ProfileRouteContext {
 const GETS = ['', '/detail', '/method'] as const
 const POSTS = ['/use', '/create', '/save', '/reset', '/rename', '/delete'] as const
 const str = (x: unknown) => (typeof x === 'string' ? x.trim() : '')
-
-function fail(ctx: ProfileRouteContext, err: unknown) {
-  if (err instanceof WriterError) {
-    const status = err.code === 'NOT_FOUND' ? 404 : err.code === 'INVALID_ARGS' || err.code === 'OUT_OF_ROOT' ? 400 : 409
-    return ctx.json(status, { ok: false, code: err.code, error: err.message })
-  }
-  ctx.json(500, { ok: false, code: 'failed', error: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200) })
-}
 
 export function profileRoutes(base: string, lib: MethodLibrary, pinned?: () => string | undefined) {
   const root = `${base}/profiles`
@@ -73,7 +65,7 @@ export function profileRoutes(base: string, lib: MethodLibrary, pinned?: () => s
         if (body.confirm !== true) ctx.json(400, { ok: false, code: 'confirmation_required', error: '删除方案须明确确认' })
         else ctx.json(200, { ok: true, ...(await deleteProfile(lib.mode, str(body.profile))) })
       }
-    } catch (err) { fail(ctx, err) }
+    } catch (err) { sendError(ctx, err) }
     return true
   }
   return { routes, handle }

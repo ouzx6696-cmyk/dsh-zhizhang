@@ -72,4 +72,4 @@ npm run verify:desktop    # 桌面类型、构建、会话与少量 GUI 场景
 
 [架构说明](docs/ARCHITECTURE.md) · [当前状态](docs/STATUS.md) · [变更记录](CHANGELOG.md) · [方法方案](docs/guides/PROFILES.md) · [资产说明](docs/guides/ASSETS.md)
 
-既有 DSH 插件继续复用相同业务与存储，供存量使用，见[兼容入口安装说明](docs/guides/INSTALL.md)。
+DSH 插件形态最后版本为 v0.9.7。

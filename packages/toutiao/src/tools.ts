@@ -1,8 +1,8 @@
 /** 头条工具集。全部返回结构化 JSON；业务失败返回 ok:false。 */
 import { appendFile } from 'node:fs/promises'
 import {
-  defineWriterTool, sessionCwd, WriterError, type HostContext, type HostToolDefinition, type HostToolExecution, type JsonSchemaNode,
-} from '../../host/src/index.js'
+  defineWriterTool, WriterError, type ToolDefinition, type ToolExecution, type JsonSchemaNode,
+} from '../../core/src/tool.js'
 import { atomicWrite, readJson, readText, sha256 } from '../../core/src/fsx.js'
 import type { GateEngine } from '../../core/src/gates.js'
 import { checkCard } from './card.js'
@@ -37,7 +37,6 @@ function optStr(args: Record<string, unknown>, key: string): string | undefined 
 
 export interface ToolDeps {
   config: ToutiaoConfig
-  host?: HostContext
   /** 门禁引擎（工具内复核作者确认用） */
   gates: () => GateEngine | undefined
   /** 本会话角色：writer 主写手（默认）/ editor 编辑子代理 */
@@ -73,9 +72,9 @@ export async function validPassingQa(store: ReturnType<typeof storeFor>, m: Arti
   return { ok: true as const, qa: q }
 }
 
-export function createToutiaoTools(deps: ToolDeps): HostToolDefinition[] {
+export function createToutiaoTools(deps: ToolDeps): ToolDefinition[] {
   const { config } = deps
-  const st = (exec: HostToolExecution) => storeFor(config, exec, deps.host)
+  const st = (exec: ToolExecution) => storeFor(config, exec)
 
   return [
     defineWriterTool<{ id: string }>({
@@ -85,7 +84,7 @@ export function createToutiaoTools(deps: ToolDeps): HostToolDefinition[] {
       required: ['id'],
       async run(args, exec) {
         const id = reqStr(args, 'id')
-        const cwd = sessionCwd(exec, deps.host)
+        const cwd = exec.cwd
         if (id === 'list') {
           const act = await activeProfile('toutiao', config.profile)
           const detail = await profileDetail(toutiaoLibrary, act.id, config.profile)
@@ -326,7 +325,7 @@ export function createToutiaoTools(deps: ToolDeps): HostToolDefinition[] {
         if (to === '待验收' && before.current_rev === 0) throw new WriterError('CONFLICT', '还没有稿件')
         if (to === '待验收' && config.requireEditorPass) {
           const cur = store.currentDraft(before)
-          if (cur && cur.role === 'writer') throw new WriterError('GATE_DENIED', '当前版本还没经过编辑红笔：请用编辑子代理（writer_enable mode=toutiao role=editor）改过再送验收')
+          if (cur && cur.role === 'writer') throw new WriterError('GATE_DENIED', '当前版本还没经过编辑红笔：请用头条编辑子代理改过再送验收')
         }
         if (to === '已验收') {
           const v = await validPassingQa(store, before)
@@ -440,7 +439,7 @@ export function createToutiaoTools(deps: ToolDeps): HostToolDefinition[] {
       },
     }),
 
-    createProfileTool('toutiao_profile', toutiaoLibrary, { pinned: config.profile, host: deps.host, methodTool: 'toutiao_method_get' }),
+    createProfileTool('toutiao_profile', toutiaoLibrary, { pinned: config.profile, methodTool: 'toutiao_method_get' }),
   ]
 }
 

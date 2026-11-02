@@ -7,7 +7,7 @@
  *    只有门禁确实为本次调用（exec.token）发起过 ask 并获放行，工具才继续。
  *    这样即便宿主没接上门禁（或接口变化导致门禁静默失效），也不会绕过作者确认。
  */
-import type { HostToolExecution, PreToolDecision } from '../../host/src/index.js'
+import type { ToolExecution, PreToolDecision } from './tool.js'
 
 export type GateOutcome = { kind: 'deny'; reason: string } | { kind: 'ask'; reason: string } | undefined
 
@@ -18,7 +18,7 @@ export interface GateRule {
   /** true：作者配置不能关闭 */
   locked: boolean
   description: string
-  check(args: Record<string, unknown>, exec: HostToolExecution): Promise<GateOutcome> | GateOutcome
+  check(args: Record<string, unknown>, exec: ToolExecution): Promise<GateOutcome> | GateOutcome
 }
 
 export interface GateConfig {
@@ -29,12 +29,12 @@ export interface GateConfig {
 
 export interface GateEngine {
   readonly rules: readonly GateRule[]
-  evaluate(exec: HostToolExecution): Promise<PreToolDecision | undefined>
+  evaluate(exec: ToolExecution): Promise<PreToolDecision | undefined>
   /** 工具内调用：本次调用是否已由门禁 ask 并被作者放行。调用即消费。 */
-  consumeConfirmation(exec: HostToolExecution, ruleId: string): boolean
-  confirmationArguments(exec: HostToolExecution): Record<string, unknown> | undefined
-  approveConfirmation(exec: HostToolExecution): void
-  discardConfirmation(exec: HostToolExecution): void
+  consumeConfirmation(exec: ToolExecution, ruleId: string): boolean
+  confirmationArguments(exec: ToolExecution): Record<string, unknown> | undefined
+  approveConfirmation(exec: ToolExecution): void
+  discardConfirmation(exec: ToolExecution): void
   /** 测试/诊断用：某规则当前是否生效 */
   isActive(ruleId: string): boolean
 }

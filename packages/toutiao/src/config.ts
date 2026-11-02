@@ -1,4 +1,4 @@
-/** 今日头条模式的配置（dsh-writer 配置的 toutiao 段）。 */
+/** 今日头条模式的配置（writer-agent 配置的 toutiao 段）。 */
 import { parseAssetsConfig, type AssetsConfig } from '../../core/src/user-assets.js'
 
 export interface ToutiaoConfig {

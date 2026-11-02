@@ -17,7 +17,7 @@ export async function tempDir(prefix = 'writer-') {
 
 export async function createToolHarness({ mode, role = 'writer', cwd, config = {}, confirm } = {}) {
   const { createGateEngine } = await import(buildUrl('core/src/gates.js'))
-  const { executeTool } = await import(buildUrl('host-generic/src/index.js'))
+  const { executeTool } = await import(buildUrl('core/src/execute.js'))
   const { withPluginConfig } = await import(buildUrl('fanqie/src/engine/tools/context.js'))
   const approvals = []
   let definitions, rules
@@ -35,7 +35,7 @@ export async function createToolHarness({ mode, role = 'writer', cwd, config = {
   const { engineTools } = await import(buildUrl('fanqie/src/engine/bootstrap.js'))
   const { fanqieGateRules } = await import(buildUrl('fanqie/src/gates.js'))
   const gates = createGateEngine(fanqieGateRules(config, role), { requireApproval: true, disabled: config.disabledGates })
-  definitions = [...engineTools(config, gates, 'throw'), ...createFanqieTools({ config, role })]
+  definitions = [...engineTools(config, gates, 'throw', role), ...createFanqieTools({ config, role })]
   return harness(gates)
 
   function harness(gates) {
@@ -68,7 +68,7 @@ export async function createToolHarness({ mode, role = 'writer', cwd, config = {
 }
 
 export async function createRouteHarness(config = {}) {
-  const { profileRoutes } = await import(buildUrl('core/src/profile-api.js'))
+  const { profileRoutes } = await import(buildUrl('workbench/src/profile-api.js'))
   const { toutiaoLibrary } = await import(buildUrl('toutiao/src/methods.js'))
   const { fanqieLibrary } = await import(buildUrl('fanqie/src/forge.js'))
   const { toutiaoApi } = await import(buildUrl('toutiao/src/workbench/api.js'))
@@ -81,7 +81,7 @@ export async function createRouteHarness(config = {}) {
     let response = new Response('{}', { status: 404 })
     const ctx = { url, method, path: url.pathname,
       json: (status, data) => { response = new Response(JSON.stringify(data), { status }) },
-      body: async () => body, readBody: async () => ({ parsed: body }) }
+      body: async () => body }
     for (const handler of handlers) if (await handler.handle(ctx)) break
     return response
   }

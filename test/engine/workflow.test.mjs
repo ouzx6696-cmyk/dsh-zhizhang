@@ -5,7 +5,6 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { mountEngine, configureEngine } from "../../build/fanqie/src/engine/index.js";
 import { LibraryPort, InspirationPort, MultiDraftPort, setPortConfig, resetPortConfig } from "../../build/fanqie/src/engine/ports/index.js";
 import { ensureStorage, createWork, setOutline, stageCandidate, readCandidate, buildPanelSnapshot, readChapter, readWorkMeta, resolveWorkDir } from "../../build/fanqie/src/engine/store.js";
 import { methodsTools } from "../../build/fanqie/src/engine/tools/methods.js";
@@ -18,11 +17,11 @@ const BOOK = [
 const tools = new Map(allTools().map(tool => [tool.name, tool.execute]));
 async function setup() {
     const root = await mkdtemp(path.join(tmpdir(), "writer-novel-workflow-"));
-    const paths = await ensureStorage({}, { storageRoot: root });
+    const paths = await ensureStorage(null, { storageRoot: root });
     const run = async (name, args = {}) => {
         const tool = tools.get(name);
         assert.ok(tool, `missing tool ${name}`);
-        return await tool({ ...args, working_dir: root }, {});
+        return await tool({ ...args, working_dir: root }, { cwd: root });
     };
     return { root, paths, run, close: () => rm(root, { recursive: true, force: true }) };
 }
@@ -145,19 +144,15 @@ test("显式授权和定稿保护不接受字符串代替布尔值", async () =>
         await f.close();
     }
 });
-test("引擎按会话挂载一次，版本一致，浏览器端已构建", async () => {
-    const mounted = [], sections = [];
-    const agent = { tools: { register: (t) => mounted.push(t) }, get: () => ({ section: (s) => { sections.push(s); return () => { }; } }) };
-    configureEngine({});
-    assert.equal(mountEngine(agent, {}), true);
-    assert.equal(mountEngine(agent, {}), false);
-    assert.throws(() => mountEngine(null, {}), /Agent 作用域/);
-    assert.equal(mounted.length, allTools().length);
-    assert.equal(sections.length, 1);
-    const pkg = JSON.parse(await readFile(path.resolve("package.json"), "utf8"));
+test("引擎工具工厂名称唯一，版本与桌面共享核心一致", async () => {
+    const { engineTools } = await import('../../build/fanqie/src/engine/bootstrap.js');
+    const tools = engineTools();
+    assert.equal(tools.length, allTools().length);
+    assert.equal(new Set(tools.map(tool=>tool.name)).size, tools.length);
+    const pkg = JSON.parse(await readFile(path.resolve('package.json'), 'utf8'));
     assert.equal(VERSION, pkg.version);
-    assert.equal((await stat(path.resolve("build/client.js"))).isFile(), true);
 });
+
 test("多草稿默认关闭，开启后统一稿仍只是候选", async () => {
     const f = await setup();
     try {
@@ -230,21 +225,17 @@ test("片段分析不建公共索引，迁移包按显式选择进入规划", as
     } finally { await f.close(); }
 });
 
-test("多个宿主实例并行使用各自配置与会话作品", async () => {
-    const roots = await Promise.all([mkdtemp(path.join(tmpdir(), "writer-novel-host-a-")), mkdtemp(path.join(tmpdir(), "writer-novel-host-b-"))]);
-    const { applyTools } = await import("../../build/fanqie/src/engine/bootstrap.js");
+test("多个工具实例并行使用各自配置与会话作品", async () => {
+    const { createToolHarness, tempDir } = await import('../helpers.mjs');
+    const roots = await Promise.all([tempDir(), tempDir()]);
     try {
-        const instances = roots.map((root, index) => {
-            const mounted = new Map();
-            applyTools({ tools: { register: t => mounted.set(t.name, t) } }, { storageRoot: root, multiDraftEnabled: index === 0 });
-            return mounted;
-        });
-        const exec = { agent: { session: { id: "same-session-id" } } };
-        await Promise.all(instances.map((tools, i) => tools.get("fanqie_project_create").execute({ title: "作品" + i }, exec)));
-        const status = await Promise.all(instances.map(tools => tools.get("fanqie_status").execute({}, exec)));
+        const instances = await Promise.all(roots.map((root, index) => createToolHarness({
+            mode: 'fanqie', cwd: root, config: { storageRoot: root, multiDraft: {enabled:index===0} } })));
+        await Promise.all(instances.map((harness, index) => harness.call('fanqie_project_create', {title:'作品'+index})));
+        const status = await Promise.all(instances.map(harness=>harness.call('fanqie_status')));
         assert.match(status[0], /作品0/); assert.doesNotMatch(status[0], /作品1/);
         assert.match(status[1], /作品1/); assert.doesNotMatch(status[1], /作品0/);
-    } finally { await Promise.all(roots.map(root => rm(root, { recursive: true, force: true }))); }
+    } finally { await Promise.all(roots.map(root=>rm(root,{recursive:true,force:true}))); }
 });
 
 test("前章变更和插入前章使候选与审读依据失效", async () => {

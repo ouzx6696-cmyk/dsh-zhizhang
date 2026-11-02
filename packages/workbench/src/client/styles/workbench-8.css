@@ -4,17 +4,11 @@
   flex-direction: column;
 }
 .wb-action-card-title {
-  font: var(
-    --dsw-font-xs-strong-13,
-    600 var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui)
-  );
+  font: 600 var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
 }
 .wb-action-card-hint {
   color: var(--wb-fg-3);
-  font: var(
-    --dsw-font-xxs-12,
-    var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui)
-  );
+  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -34,7 +28,7 @@
 }
 .wb-action-card-primary .wb-action-card-icon {
   background: var(--wb-accent);
-  color: var(--dsw-alias-label-primary-inverted, canvas);
+  color: canvas;
 }
 .wb-action-card:disabled {
   cursor: not-allowed;
@@ -67,7 +61,7 @@
   }
   .wb-action-card-primary:not(:disabled):hover .wb-action-card-icon {
     background: var(--wb-accent);
-    color: var(--dsw-alias-label-primary-inverted, canvas);
+    color: canvas;
   }
 }
 .wb-off-reason {
@@ -194,7 +188,7 @@
   align-items: start;
   padding: 12px 12px 14px 14px;
   border-radius: var(--wb-r-lg);
-  background: var(--dsw-alias-bg-layer-2, var(--wb-layer));
+  background: var(--wb-layer);
   color: var(--wb-fg);
   box-shadow:
     var(--wb-shadow-2),
@@ -230,10 +224,7 @@
 .wb-toast-text {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font: var(
-    --dsw-font-xs-13,
-    var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui)
-  );
+  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
   padding-top: 1px;
 }
 .wb-toast-close {

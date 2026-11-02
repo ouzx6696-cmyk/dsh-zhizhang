@@ -40,7 +40,7 @@ import {
     PLAN_BATCH_MIN,
     PLAN_BATCH_MAX,
 } from "../ports/analysis.js";
-import { ensureStorage, listLocalBooks, sessionCwd } from "../store.js";
+import { ensureStorage, listLocalBooks } from "../store.js";
 import { AUTO_SAMPLE_HEAD, AUTO_SAMPLE_RATIO, AUTO_SAMPLE_TAIL } from "../domain/workflow.js";
 import { asArray, asString, asStringArray, config, fail } from "./context.js";
 import { S, B, E, WORKING_DIR } from "./schema.js";
@@ -60,7 +60,7 @@ export async function openLibrary(exec: ExecContext, args: any) {
 async function resolveBookFile(paths: StoragePaths, exec: ExecContext, raw: string) {
     if (!raw || path.isAbsolute(raw))
         return raw;
-    const cwd = sessionCwd(exec);
+    const cwd = exec.cwd;
     const candidates = [path.resolve(cwd, raw)];
     if (paths.sourceRoot)
         candidates.push(path.resolve(paths.sourceRoot, raw));

@@ -4,7 +4,7 @@ import { readFileSync, unlinkSync } from "node:fs";
 import { hostname } from "node:os";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import { WriterError } from "../../host/src/index.js";
+import { WriterError } from "./tool.js";
 const FILE = ".writer-workspace-lock.json";
 export type WorkspaceOwner = {
   id: string;
@@ -13,7 +13,7 @@ export type WorkspaceOwner = {
   host: string;
   at: string;
 };
-let host = "DSH";
+let host = "Writer Desktop";
 const held = new Map<string, WorkspaceOwner>();
 export function setWorkspaceHost(value: string) {
   host = value;

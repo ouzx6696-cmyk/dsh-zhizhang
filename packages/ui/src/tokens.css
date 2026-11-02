@@ -1,12 +1,8 @@
-/* Shared design tokens. DSH supplies --dsw-*; the desktop shell maps the same
-   aliases to its palette, so components never name a colour or font directly. */
+/* Shared design tokens for the desktop palette. */
 :where(:root, .ui-scope, .wb-scope, .wb-root, .wb-modal-root) {
-  --ui-font-ui: var(
-    --dsw-font-family,
-    "Noto Sans SC",
+  --ui-font-ui: "Noto Sans SC",
     "Microsoft YaHei",
-    sans-serif
-  );
+    sans-serif;
   --ui-font-body: var(
     --ui-body-family,
     "Noto Serif SC",
@@ -28,71 +24,26 @@
   --ui-radius-md: 10px;
   --ui-radius-lg: 14px;
 
-  --ui-bg: var(--dsw-alias-bg-layer-1, Canvas);
-  --ui-panel: var(
-    --dsw-alias-settings-card-fill,
-    var(--dsw-alias-bg-layer-1, Canvas)
-  );
-  --ui-paper: var(--dsw-alias-bg-layer-2, Canvas);
-  --ui-line: var(
-    --dsw-alias-border-l2,
-    color-mix(in srgb, CanvasText 14%, transparent)
-  );
-  --ui-line-strong: var(
-    --dsw-alias-border-l4,
-    color-mix(in srgb, CanvasText 24%, transparent)
-  );
-  --ui-text: var(--dsw-alias-label-primary, CanvasText);
-  --ui-text-2: var(
-    --dsw-alias-label-secondary,
-    color-mix(in srgb, CanvasText 72%, transparent)
-  );
-  --ui-text-3: var(
-    --dsw-alias-label-tertiary,
-    color-mix(in srgb, CanvasText 56%, transparent)
-  );
-  --ui-accent: var(
-    --dsw-alias-state-business-primary,
-    var(--dsw-alias-link, LinkText)
-  );
-  --ui-accent-soft: var(
-    --dsw-alias-state-business-tertiary,
-    color-mix(in srgb, LinkText 12%, transparent)
-  );
-  --ui-on-accent: var(--dsw-alias-label-primary-inverted, Canvas);
-  --ui-success: var(
-    --dsw-alias-state-success-primary,
-    color-mix(in srgb, CanvasText 65%, LinkText)
-  );
-  --ui-warning: var(
-    --dsw-alias-state-warn-primary,
-    color-mix(in srgb, CanvasText 55%, Mark)
-  );
-  --ui-danger: var(
-    --dsw-alias-state-error-primary,
-    color-mix(in srgb, CanvasText 55%, LinkText)
-  );
-  --ui-hover: var(
-    --dsw-alias-interactive-bg-hover,
-    color-mix(in srgb, CanvasText 6%, transparent)
-  );
-  --ui-active: var(
-    --dsw-alias-interactive-bg-active,
-    color-mix(in srgb, CanvasText 10%, transparent)
-  );
-  --ui-mask: var(
-    --dsw-alias-bg-mask-1,
-    color-mix(in srgb, CanvasText 45%, transparent)
-  );
-  --ui-shadow-1: var(
-    --dsw-elevation-soft,
-    0 1px 2px color-mix(in srgb, CanvasText 8%, transparent)
-  );
-  --ui-shadow-2: var(
-    --dsw-elevation-medium,
-    0 8px 24px color-mix(in srgb, CanvasText 12%, transparent),
-    0 1px 3px color-mix(in srgb, CanvasText 8%, transparent)
-  );
+  --ui-bg: Canvas;
+  --ui-panel: Canvas;
+  --ui-paper: Canvas;
+  --ui-line: color-mix(in srgb, CanvasText 14%, transparent);
+  --ui-line-strong: color-mix(in srgb, CanvasText 24%, transparent);
+  --ui-text: CanvasText;
+  --ui-text-2: color-mix(in srgb, CanvasText 72%, transparent);
+  --ui-text-3: color-mix(in srgb, CanvasText 56%, transparent);
+  --ui-accent: LinkText;
+  --ui-accent-soft: color-mix(in srgb, LinkText 12%, transparent);
+  --ui-on-accent: Canvas;
+  --ui-success: color-mix(in srgb, CanvasText 65%, LinkText);
+  --ui-warning: color-mix(in srgb, CanvasText 55%, Mark);
+  --ui-danger: color-mix(in srgb, CanvasText 55%, LinkText);
+  --ui-hover: color-mix(in srgb, CanvasText 6%, transparent);
+  --ui-active: color-mix(in srgb, CanvasText 10%, transparent);
+  --ui-mask: color-mix(in srgb, CanvasText 45%, transparent);
+  --ui-shadow-1: 0 1px 2px color-mix(in srgb, CanvasText 8%, transparent);
+  --ui-shadow-2: 0 8px 24px color-mix(in srgb, CanvasText 12%, transparent),
+    0 1px 3px color-mix(in srgb, CanvasText 8%, transparent);
 }
 
 :root[data-writer-desktop],

@@ -8,14 +8,14 @@
 import { snapshotFiles } from "../../../core/src/snapshots.js"
 import path from 'node:path'
 import { readText } from '../../../core/src/fsx.js'
-import { WriterError } from '../../../host/src/index.js'
+import { WriterError } from '../../../core/src/tool.js'
 import { listKnownRoots, type ToutiaoConfig } from '../env.js'
 import { ArticleStore, MAX_RETURN_ROUNDS, nowIso, STATUSES, type ArticleMeta } from '../store.js'
 import { syncLedgerStatus, validPassingQa } from '../tools.js'
 
 export const TOUTIAO_ACTIONS = ['new', 'continue', 'review', 'revise'] as const
 export type ToutiaoAction = (typeof TOUTIAO_ACTIONS)[number]
-export const ENABLE_HINT_TOUTIAO = '（本会话若还没启用：先 writer_enable mode=toutiao。）'
+export const ENABLE_HINT_TOUTIAO = ''
 
 const BODY_CAP = 200_000
 
@@ -155,7 +155,7 @@ export async function buildToutiaoDelivery(rootIn: string, input: { action: stri
   }
   if (enableHint) {
     lines.push(enableHint)
-    if (action === 'review') lines.push('编辑子代理须先调用 writer_enable，参数 mode=toutiao、role=editor；不要让主会话切换角色。')
+    if (action === 'review') lines.push('编辑子代理使用头条编辑角色；不要让主会话切换角色。')
   }
   if (note && action !== 'new') lines.push(`作者附言：${note}`)
   return { action, id: input.id, text: lines.join('\n') }

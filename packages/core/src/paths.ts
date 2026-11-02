@@ -5,5 +5,5 @@ export function setStateRoot(value: string) {
   root = path.resolve(value);
 }
 export function stateRoot() {
-  return root ?? (process.env.DSH_HOME?.trim() || path.join(homedir(), ".dsh"));
+  return root ?? (process.env.WRITER_STATE_ROOT?.trim() || path.join(homedir(), ".writer-agent"));
 }

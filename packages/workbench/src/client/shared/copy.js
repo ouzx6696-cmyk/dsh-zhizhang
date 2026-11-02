@@ -67,7 +67,7 @@ const ZH = {
   pfBytes: "{n} 字",
   loading: "正在载入写作台…",
   errorTitle: "暂时连不上写作台接口",
-  errorHint: "确认插件已安装并重启了 DSH。番茄长篇模式下，对话里也能查看同样的作品数据。",
+  errorHint: "重新打开客户端；也可以在写作对话中查看作品数据。",
   forbiddenHint: "接口拒绝了本次访问。若插件配置了 workbench.token，请到插件详情页的「写作台」卡片输入访问令牌。",
   rateLimitedHint: "请求过于频繁，稍后会自动重试。",
   retry: "重试",

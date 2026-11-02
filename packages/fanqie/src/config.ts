@@ -1,4 +1,4 @@
-/** 番茄长篇模式的配置（dsh-writer 配置的 fanqie 段）：数据位置、Python、定稿条件、门禁开关、多草稿。 */
+/** 番茄长篇模式的配置（writer-agent 配置的 fanqie 段）：数据位置、Python、定稿条件、门禁开关、多草稿。 */
 import type { PluginConfig } from './engine/types.js'
 import { parseAssetsConfig, type AssetsConfig } from '../../core/src/user-assets.js'
 

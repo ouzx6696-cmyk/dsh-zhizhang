@@ -53,7 +53,7 @@ CI=1 DISPLAY=:99 npm run test:desktop:ui   # 6 个 GUI 场景（需要虚拟显�
 - `apps/desktop/src/session`：PI 会话、工具包装、角色、交付
 - `apps/desktop/src/renderer`：桌面界面
 - `packages/core`：原子写、门禁、方法方案、锁、Python 运行器、工具定义（`defineWriterTool`、`WriterError`）
-- `packages/host-generic`：`executeTool`（门禁 → 确认 → 执行）
+- `packages/core/src/execute.ts`：`executeTool`（门禁 → 确认 → 执行）
 - `packages/toutiao`、`packages/fanqie`：两种模式的工具、存储、路由处理
 - `packages/workbench/src/client`：写作区 React 组件；`src/routes.ts`：路由表与类型
 - `packages/ui`：tokens、通用组件、状态映射、文案

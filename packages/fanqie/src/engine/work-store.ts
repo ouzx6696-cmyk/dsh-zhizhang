@@ -1,6 +1,6 @@
 import { rootIdentity } from "../../../core/src/identity.js";
 /**
- * Local on-disk store for dsh-writer (Writing + shared path roots).
+ * Local on-disk store for writer-agent (Writing + shared path roots).
  *
  * Layout under <root>/.writer/ (or config.rootDir):
  *   works/<key>/…          — Writing (live)
@@ -37,7 +37,7 @@ import { withResourceLock } from "./storage/process-lock.js";
 import { metaPath, normalizeFoundation, readWorkMeta, validateStoryPace, writeWorkMeta } from "./storage/work-meta.js";
 import { BRIEF_RECENT_MS } from "./domain/constants.js";
 
-/** 跨项目索引（$DSH_HOME/writer-novel-projects.json）里的一行。 */
+/** 跨项目索引（应用状态目录/writer-novel-projects.json）里的一行。 */
 interface ProjectEntry {
     id: string;
     base: string;
@@ -71,7 +71,6 @@ interface ProjectSummary {
     words?: number | null;
     recoveryPending?: boolean;
 }
-import { rememberSession } from "../../../core/src/sessions.js";
 export { readLedger, appendLedger, LEDGER_MAX_ENTRIES } from "./storage/ledger.js";
 export { atomicWrite, assertResourceId, countWords, withLock } from "./storage/primitives.js";
 export { listChapters, readChapter, saveChapter, setOutline, updateChapter } from "./storage/chapters.js";
@@ -91,23 +90,14 @@ export function slugify(title: string) {
         return `work-${Date.now().toString(36)}`;
     return RESERVED_NAME.test(cleaned) ? `_${cleaned}` : cleaned;
 }
-export function sessionCwd(exec: ExecContext | null) {
-    const cwd = exec?.cwd ?? exec?.agent?.session?.header?.cwd;
-    return typeof cwd === "string" && cwd.length > 0 ? cwd : process.cwd();
-}
-/**
- * Last storage root touched by an agent tool. The Web panel has no session, so it
- * follows this instead of the host process cwd. Persisted under the DSH home so a
- * restarted host still points at the workspace the Agent was writing to.
- */
 let lastToolBase = "";
 let lastWorksRoot = "";
 let lastMarkerReadAt = 0;
-function dshHome() {
+function applicationStateRoot() {
     return stateRoot();
 }
 function toolBaseMarker() {
-    return path.join(dshHome(), "writer-novel-last-root.json");
+    return path.join(applicationStateRoot(), "writer-novel-last-root.json");
 }
 async function persistToolBase(base: string, works: string) {
     try {
@@ -158,7 +148,7 @@ export async function loadLastToolBase() {
     return "";
 }
 function projectsFile() {
-    return path.join(dshHome(), "writer-novel-projects.json");
+    return path.join(applicationStateRoot(), "writer-novel-projects.json");
 }
 /** Stable id for a workspace storage root (case/sep-insensitive). */
 export function projectIdOf(base: string) { return rootIdentity(base); }
@@ -342,7 +332,7 @@ export async function listProjects(opts: any = {}) {
     return rows;
 }
 export function storagePaths(exec: ExecContext | null, config: PluginConfig, workingDir: any) {
-    const cwd = sessionCwd(exec);
+    const cwd = exec === null ? process.cwd() : exec.cwd;
     let base;
     if (workingDir !== undefined && workingDir !== "") {
         base = path.isAbsolute(workingDir) ? workingDir : path.resolve(cwd, workingDir);
@@ -396,7 +386,6 @@ export async function ensureStorage(exec: ExecContext | null, config: PluginConf
     if (exec) {
         rememberToolBase(paths.base, paths.works);
         rememberProject(paths.base, paths.works);
-        rememberSession(paths.base, exec as never);
     }
     return paths;
 }

@@ -1,10 +1,7 @@
-/**
- * Data facade reachable from the pure view components. The adapter is chosen
- * once: IPC in the desktop client, HTTP when the panel runs inside DSH.
- */
+/** Data facade for the desktop preload bridge. */
 import { dataAdapter } from "../../adapters/index.js";
 
-export { ApiError, readToken, writeToken } from "../../adapters/index.js";
+export { ApiError } from "../../adapters/index.js";
 
 export const host = dataAdapter.host;
 export const fanqie = dataAdapter.fanqie;

@@ -14,7 +14,7 @@ import { createSourceJournal, finishSourceJournal } from "../storage/source-jour
 import { createDiscardJournal, finishDiscardJournal } from "../storage/discard-journal.js";
 import { snapshotFile } from "../storage/recovery-common.js";
 import { withResourceLock } from "../storage/process-lock.js";
-import { atomicWrite, assertResourceId, sessionCwd, } from "../work-store.js";
+import { atomicWrite, assertResourceId, } from "../work-store.js";
 import { readJsonCached } from "../file-cache.js";
 import { MethodRegistry } from "./methods.js";
 import { parseChapterNumber } from "../domain/chapter-heading.js";
@@ -211,7 +211,7 @@ export const LibraryPort = {
         let encoding = "utf8";
         let converted = false;
         if ((!text || !String(text).trim()) && input.file) {
-            const cwd = sessionCwd(input.exec);
+            const cwd = input.exec.cwd;
             const raw = normalizeUserPath(String(input.file));
             const filePath = path.isAbsolute(raw) ? raw : path.resolve(cwd, raw);
             let buf;

@@ -2,6 +2,7 @@
  * Viewing preferences remembered per browser (never author data). Reads and
  * writes are best effort: blocked storage just means nothing is remembered.
  */
+// Existing author preferences keep their persisted namespace.
 const PREFIX = "dsh-writer:";
 
 export const PREF = {

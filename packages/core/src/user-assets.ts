@@ -6,7 +6,7 @@
  */
 import { readdir, stat } from 'node:fs/promises'
 import path from 'node:path'
-import { WriterError } from '../../host/src/index.js'
+import { WriterError } from './tool.js'
 import { readText, resolveInside } from './fsx.js'
 
 /** 资产配置段。dirs 之外的键现在一律报错；以后加键在这里登记（见 docs/guides/ASSETS.md「预留」）。 */

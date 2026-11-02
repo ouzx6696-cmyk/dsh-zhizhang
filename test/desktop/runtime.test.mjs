@@ -87,7 +87,7 @@ test("真实 Pi：建书归属、候选定位、独立编辑、角色模型、�
     data = path.join(base, "data");
   await mkdir(home);
   await mkdir(data);
-  process.env.DSH_HOME = home;
+  process.env.WRITER_STATE_ROOT = home;
   const model = await fakeModel({
     "mock-writer": [
       {
@@ -429,7 +429,7 @@ test("发布检查保留正文、清理标题标记，DOCX 可输出", async () 
     folder = path.join(base, "toutiao");
   await mkdir(home);
   await mkdir(folder);
-  process.env.DSH_HOME = home;
+  process.env.WRITER_STATE_ROOT = home;
   await writeFile(
     path.join(home, "writer-toutiao-roots.json"),
     JSON.stringify([folder]),
@@ -536,7 +536,7 @@ test("模型等待中停止：2 秒内收尾且取消后不再请求模型", asy
   const data = path.join(base, "data");
   await mkdir(home);
   await mkdir(data);
-  process.env.DSH_HOME = home;
+  process.env.WRITER_STATE_ROOT = home;
   const model = await fakeModel({ "mock-writer": [{ wait: true }] });
   const sessions = new Sessions(
     home,
@@ -580,7 +580,7 @@ test("首轮审读交接允许无旧回报，恢复须先备份并拒绝锁和�
   const { inspectRecovery, recoverWork } = await import("../../apps/desktop/out-test/recovery.mjs");
   const appHome = path.join(base, "app");
   await mkdir(appHome);
-  process.env.DSH_HOME = appHome;
+  process.env.WRITER_STATE_ROOT = appHome;
   const paths = await ensureStorage(null, { storageRoot: path.join(base, "data") });
   const work = await createWork(paths, { title: "恢复前" });
   await setOutline(work.dir, "c001", { synopsis: "站台" }, "第一章");
@@ -653,14 +653,14 @@ test("连续作品切换及持久化失败保留目标与租约一致", async ()
 
 test("0.9.6：PI 作用范围、目录别名及显式内核配置", async () => {
   const base = await mkdtemp(path.join(tmpdir(), "writer-scope-"));
-  process.env.DSH_HOME = path.join(base, "home");
+  process.env.WRITER_STATE_ROOT = path.join(base, "home");
   const data = path.join(base, "project");
   await mkdir(path.join(data, ".pi"), { recursive: true });
   await writeFile(path.join(data, "AGENTS.md"), "AMBIENT_096_MUST_NOT_ENTER");
   await writeFile(path.join(data, ".pi/settings.json"), '{"compaction":{"enabled":false}}');
   const model = await fakeModel();
   const host = new Sessions(
-    process.env.DSH_HOME,
+    process.env.WRITER_STATE_ROOT,
     "python3",
     () => models(model.url),
     () => {},
@@ -695,7 +695,7 @@ test("0.9.6：PI 作用范围、目录别名及显式内核配置", async () => 
 
 test("0.9.6：文章独立历史、旧依据冲突与准备阶段取消", async () => {
   const base = await mkdtemp(path.join(tmpdir(), "writer-article-"));
-  process.env.DSH_HOME = path.join(base, "home");
+  process.env.WRITER_STATE_ROOT = path.join(base, "home");
   const root = path.join(base, "articles"),
     store = new ArticleStore(root);
   const one = await store.create("one", {}),
@@ -709,7 +709,7 @@ test("0.9.6：文章独立历史、旧依据冲突与准备阶段取消", async 
     entered = resolve;
   });
   const host = new Sessions(
-    process.env.DSH_HOME,
+    process.env.WRITER_STATE_ROOT,
     "python3",
     () => models(model.url),
     () => {},

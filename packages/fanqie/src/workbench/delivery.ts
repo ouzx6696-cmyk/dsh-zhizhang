@@ -10,7 +10,7 @@ import { NovelError } from "../engine/errors.js";
 export const DELIVERY_ACTIONS = ["continue", "review", "revise"] as const;
 export type DeliveryAction = (typeof DELIVERY_ACTIONS)[number];
 
-export const ENABLE_HINT_FANQIE = "（本会话若还没启用：先 writer_enable mode=fanqie。）";
+export const ENABLE_HINT_FANQIE = "";
 
 interface Row { id: string; title: string; position: number; status: string; wordCount?: number }
 

@@ -1,93 +1,42 @@
 /*
- * 写作台样式。遵循 DSH 网页样式规则：只用 --dsw-* 语义变量（不写颜色字面量）、0.5px 中性细线、具名圆角、
+ * 写作台样式。遵循 桌面共享样式规则：只用 --ui-* 语义变量（不写颜色字面量）、0.5px 中性细线、具名圆角、
  * 悬停效果只在 (hover: hover) 下生效、不写主题选择器；布局用容器查询跟随面板宽度而不是窗口。
  */
 .wb-root,
 .wb-scope,
 .wb-modal-root {
-  --wb-fg: var(--dsw-alias-label-primary, canvastext);
-  --wb-fg-2: var(
-    --dsw-alias-label-secondary,
-    color-mix(in srgb, canvastext 72%, transparent)
-  );
-  --wb-fg-3: var(
-    --dsw-alias-label-tertiary,
-    color-mix(in srgb, canvastext 56%, transparent)
-  );
-  --wb-line: var(
-    --dsw-alias-border-l2,
-    color-mix(in srgb, canvastext 14%, transparent)
-  );
-  --wb-line-strong: var(
-    --dsw-alias-border-l4,
-    color-mix(in srgb, canvastext 22%, transparent)
-  );
-  --wb-layer: var(--dsw-alias-bg-layer-1, transparent);
-  --wb-card: var(
-    --dsw-alias-settings-card-fill,
-    color-mix(in srgb, canvastext 3%, transparent)
-  );
-  --wb-hover: var(
-    --dsw-alias-interactive-bg-hover,
-    color-mix(in srgb, canvastext 6%, transparent)
-  );
-  --wb-active: var(
-    --dsw-alias-interactive-bg-active,
-    color-mix(in srgb, canvastext 10%, transparent)
-  );
-  --wb-accent: var(
-    --dsw-alias-state-business-primary,
-    var(--dsw-alias-link, linktext)
-  );
-  --wb-accent-soft: var(
-    --dsw-alias-state-business-tertiary,
-    color-mix(in srgb, linktext 12%, transparent)
-  );
-  --wb-ok: var(
-    --dsw-alias-state-success-primary,
-    color-mix(in srgb, linktext 30%, canvastext)
-  );
-  --wb-ok-soft: var(
-    --dsw-alias-state-success-tertiary,
-    color-mix(in srgb, linktext 10%, transparent)
-  );
-  --wb-warn: var(
-    --dsw-alias-state-warn-primary,
-    color-mix(in srgb, mark 55%, canvastext)
-  );
-  --wb-warn-soft: var(
-    --dsw-alias-state-warn-tertiary,
-    color-mix(in srgb, mark 30%, transparent)
-  );
-  --wb-bad: var(
-    --dsw-alias-state-error-primary,
-    color-mix(in srgb, canvastext 55%, linktext)
-  );
+  --wb-fg: canvastext;
+  --wb-fg-2: color-mix(in srgb, canvastext 72%, transparent);
+  --wb-fg-3: color-mix(in srgb, canvastext 56%, transparent);
+  --wb-line: color-mix(in srgb, canvastext 14%, transparent);
+  --wb-line-strong: color-mix(in srgb, canvastext 22%, transparent);
+  --wb-layer: transparent;
+  --wb-card: color-mix(in srgb, canvastext 3%, transparent);
+  --wb-hover: color-mix(in srgb, canvastext 6%, transparent);
+  --wb-active: color-mix(in srgb, canvastext 10%, transparent);
+  --wb-accent: linktext;
+  --wb-accent-soft: color-mix(in srgb, linktext 12%, transparent);
+  --wb-ok: color-mix(in srgb, linktext 30%, canvastext);
+  --wb-ok-soft: color-mix(in srgb, linktext 10%, transparent);
+  --wb-warn: color-mix(in srgb, mark 55%, canvastext);
+  --wb-warn-soft: color-mix(in srgb, mark 30%, transparent);
+  --wb-bad: color-mix(in srgb, canvastext 55%, linktext);
   --wb-bad-soft: color-mix(
     in srgb,
-    var(
-        --dsw-alias-state-error-primary,
-        color-mix(in srgb, canvastext 55%, linktext)
-      )
+    color-mix(in srgb, canvastext 55%, linktext)
       12%,
     transparent
   );
-  --wb-skeleton: var(
-    --dsw-alias-bg-skeleton,
-    color-mix(in srgb, canvastext 6%, transparent)
-  );
-  --wb-r-xs: var(--dsw-radius-xs, 4px);
-  --wb-r-sm: var(--dsw-radius-sm, 8px);
-  --wb-r-md: var(--dsw-radius-md, 12px);
-  --wb-r-lg: var(--dsw-radius-lg, 16px);
-  --wb-r-xl: var(--dsw-radius-xl, 20px);
-  --wb-r-panel: var(--dsw-radius-panel, 28px);
+  --wb-skeleton: color-mix(in srgb, canvastext 6%, transparent);
+  --wb-r-xs: 4px;
+  --wb-r-sm: 8px;
+  --wb-r-md: 12px;
+  --wb-r-lg: 16px;
+  --wb-r-xl: 20px;
+  --wb-r-panel: 28px;
   --wb-manuscript-font: var(--ui-font-body);
   color: var(--wb-fg);
-  font: var(
-    --dsw-font-s-14,
-    var(--ui-size-14)/var(--ui-size-22) var(--ui-font-ui)
-  );
+  font: var(--ui-size-14)/var(--ui-size-22) var(--ui-font-ui);
 }
 .wb-scope {
   display: contents;
@@ -102,10 +51,7 @@
   flex-direction: column;
   gap: 16px;
   color: var(--wb-fg);
-  font: var(
-    --dsw-font-s-14,
-    var(--ui-size-14)/var(--ui-size-22) var(--ui-font-ui)
-  );
+  font: var(--ui-size-14)/var(--ui-size-22) var(--ui-font-ui);
   -webkit-font-smoothing: antialiased;
 }
 .wb-root *,
@@ -140,17 +86,11 @@
 }
 .wb-muted {
   color: var(--wb-fg-3);
-  font: var(
-    --dsw-font-xs-13,
-    var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui)
-  );
+  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
 }
 .wb-lead {
   color: var(--wb-fg-2);
-  font: var(
-    --dsw-font-base-16,
-    var(--ui-size-16)/var(--ui-size-24) var(--ui-font-ui)
-  );
+  font: var(--ui-size-16)/var(--ui-size-24) var(--ui-font-ui);
 }
 .wb-prewrap {
   white-space: pre-wrap;
@@ -160,13 +100,10 @@
   display: block;
 }
 .wb-code {
-  font: var(
-    --dsw-font-markdown-code,
-    var(--ui-size-12)/var(--ui-size-18) var(--ui-font-mono)
-  );
+  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-mono);
   padding: 1px 6px;
   border-radius: var(--wb-r-xs);
-  background: var(--dsw-alias-markdown-inline-code, var(--wb-hover));
+  background: var(--wb-hover);
   overflow-wrap: anywhere;
 }
 /* ---------- header ---------- */
@@ -187,10 +124,7 @@
   flex: 1 1 240px;
 }
 .wb-title {
-  font: var(
-    --dsw-font-xl-24,
-    600 var(--ui-size-24)/var(--ui-size-32) var(--ui-font-ui)
-  );
+  font: 600 var(--ui-size-24)/var(--ui-size-32) var(--ui-font-ui);
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -202,10 +136,7 @@
   flex-wrap: wrap;
   gap: 4px 12px;
   color: var(--wb-fg-3);
-  font: var(
-    --dsw-font-xs-13,
-    var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui)
-  );
+  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
 }
 .wb-subtle-path {
   max-width: 100%;
@@ -225,10 +156,7 @@
 .wb-select,
 .wb-input,
 .wb-textarea {
-  font: var(
-    --dsw-font-xs-13,
-    var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui)
-  );
+  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
   color: var(--wb-fg);
   background: var(--wb-layer);
   border: 0.5px solid var(--wb-line-strong);
@@ -264,10 +192,7 @@
 .wb-updated {
   margin-left: auto;
   color: var(--wb-fg-3);
-  font: var(
-    --dsw-font-xxs-12,
-    var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui)
-  );
+  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
   font-variant-numeric: tabular-nums;
 }
 /* ---------- local fallbacks for host primitives ---------- */

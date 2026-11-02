@@ -1,5 +1,5 @@
 /**
- * On-disk + in-memory types for dsh-writer. No Postgres.
+ * On-disk + in-memory types for Writer Agent. No Postgres.
  *
  * 这些是「落盘契约」的类型：meta.json / ledger.json / 候选文件都按这里的形状读写。
  * 需要动态 JSON 的地方（拆书产物、卡模块）显式用 Record<string, any>，不要用隐式 any。
@@ -150,13 +150,13 @@ export interface PluginConfig {
     [key: string]: unknown;
 }
 
-/** 工具执行上下文（DSH 传入；这里只声明插件实际用到的部分）。 */
+/** 工具执行上下文。 */
 export interface ExecContext {
     failure?: { code: string; message: string };
     onWorkCreated?: (base: string, key: string) => void;
     onCandidateStaged?: (candidate: { id: string; chapterId: string; work: string; base: string }) => void;
-    /** 宿主 Agent 上下文；结构由 DSH 决定，插件只按需取用（session.cwd / ctx）。 */
-    agent?: any;
+    cwd: string;
+    sessionId?: string;
     [key: string]: any;
 }
 

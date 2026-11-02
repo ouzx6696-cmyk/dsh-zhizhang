@@ -1,31 +1,9 @@
 /** Resolve optional host controls once. Rendering errors belong to the page boundary. */
 import React from "react";
+import { createPortal } from "react-dom";
 import { Button as UiButton } from "../../../../ui/src/primitives.jsx";
 
 const { useEffect, useRef } = React;
-
-function hostModule(id) {
-  try {
-    // eslint-disable-next-line no-undef
-    return __dshRequire(id);
-  } catch {
-    return null;
-  }
-}
-
-const PRIMITIVES = hostModule("@deepseek-ai/dsh-client-ui-primitives") || {};
-const REACT_DOM = hostModule("react-dom");
-
-function isComponent(value) {
-  return (
-    typeof value === "function" ||
-    (value !== null && typeof value === "object" && "$$typeof" in value)
-  );
-}
-
-function pick(name, Local) {
-  return isComponent(PRIMITIVES[name]) ? PRIMITIVES[name] : Local;
-}
 
 const cx = (...parts) => parts.filter(Boolean).join(" ");
 
@@ -226,31 +204,22 @@ function LocalModal({
       </div>
     </div>
   );
-  if (
-    REACT_DOM &&
-    typeof REACT_DOM.createPortal === "function" &&
-    typeof document !== "undefined"
-  ) {
-    return REACT_DOM.createPortal(node, document.body);
-  }
-  return node;
+  return toBody(node);
 }
 
-export const Button = pick("Button", LocalButton);
-export const Tag = pick("Tag", LocalTag);
-export const StateDot = pick("StateDot", LocalStateDot);
-export const SegmentedControl = pick("SegmentedControl", LocalSegmentedControl);
-export const Checkbox = pick("Checkbox", LocalCheckbox);
-export const Modal = pick("Modal", LocalModal);
+export const Button = LocalButton;
+export const Tag = LocalTag;
+export const StateDot = LocalStateDot;
+export const SegmentedControl = LocalSegmentedControl;
+export const Checkbox = LocalCheckbox;
+export const Modal = LocalModal;
 /** 写作台自己的弹窗（宽版布局用，不换成宿主组件） */
 export const PanelModal = LocalModal;
 export { cx };
 
-/** 挂到 document.body（宿主提供 react-dom 时）；否则原地渲染 */
+/** Portal overlays share the desktop document. */
 export function toBody(node) {
-  if (REACT_DOM && typeof REACT_DOM.createPortal === "function" && typeof document !== "undefined")
-    return REACT_DOM.createPortal(node, document.body);
-  return node;
+  return typeof document === 'undefined' ? node : createPortal(node, document.body);
 }
 
 const ICONS = {
@@ -372,5 +341,3 @@ export function Icon({ name, size = 16, label }) {
     </svg>
   );
 }
-
-export const __hasHostPrimitives = Object.keys(PRIMITIVES).length > 0;

@@ -358,7 +358,7 @@ for (const profile of ["default", "original"]) {
   await Promise.all(
     [home, novels, toutiao].map((folder) => mkdir(folder, { recursive: true })),
   );
-  process.env.DSH_HOME = home;
+  process.env.WRITER_STATE_ROOT = home;
   let finish,
     target = { mode: "fanqie", root: novels };
   const sessions = new Sessions(

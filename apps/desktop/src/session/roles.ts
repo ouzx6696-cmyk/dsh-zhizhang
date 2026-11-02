@@ -1,25 +1,7 @@
 import { EDITOR_TOOLS as TOUTIAO_EDITOR_TOOLS } from "../../../../packages/toutiao/src/tools";
 import { EDITOR_TOOLS as FANQIE_EDITOR_TOOLS } from "../../../../packages/fanqie/src/tools";
 
-export const EDITOR_ENGINE = new Set([
-  "fanqie_project_list",
-  "fanqie_project_open",
-  "fanqie_status",
-  "fanqie_foundation_get",
-  "fanqie_outline_get",
-  "fanqie_chapter_list",
-  "fanqie_chapter_read",
-  "fanqie_chapter_drafts",
-  "fanqie_candidate_edit_brief",
-  "fanqie_candidate_edit_stage",
-  "fanqie_style_lint",
-  "fanqie_payoff_audit",
-  "fanqie_human_feel_audit",
-  "fanqie_novel_sense_audit",
-  "fanqie_review_ledger",
-  "fanqie_method_get",
-  "fanqie_method_list",
-]);
+import { EDITOR_ENGINE } from "../../../../packages/fanqie/src/engine/bootstrap";
 
 export const PLANNER_TOOLS = new Set([
   "fanqie_project_create",

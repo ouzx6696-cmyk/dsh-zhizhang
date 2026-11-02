@@ -1,11 +1,11 @@
 import { canLeaveEdit, useSourceGuard } from "../shared/useSourceGuard.js";
 /**
- * Data side of the panel: one reducer, one polling loop and on-demand body
+ * Data side of the panel: one reducer and event refreshes and on-demand body
  * loaders. Everything here is local to the mounted panel (registrant-private
- * state in DSH terms); nothing is shared through module-level singletons.
+ * component state); nothing is shared through module-level singletons.
  */
 import React from "react";
-import { fanqie, host } from "../shared/api.js";
+import { fanqie } from "../shared/api.js";
 import { t } from "../shared/copy.js";
 import { diagnosticCopy } from "../shared/copy-diagnostic.js";
 import { useDiagnostics } from "./useDiagnostics.js";
@@ -14,11 +14,7 @@ import { PREF, writePref } from "../shared/prefs.js";
 import { bodyKey, derive, initialState, reducer, snapshotSignature } from "./state.js";
 
 const { useCallback, useEffect, useMemo, useReducer, useRef } = React;
-const isDesktop = host === "desktop";
 
-export const POLL_MS = 6000;
-export const POLL_HIDDEN_MS = 30000;
-export const POLL_MAX_BACKOFF_MS = 60000;
 
 function messageOf(err) {
   if (!err) return "";
@@ -128,7 +124,7 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
 
   useEffect(() => {
     // 未形成有效快照不代表作者选择了项目根；后台写入期间尤其不能清掉作品。
-    if (!isDesktop || !state.base || !state.snapshot?.workKey) return;
+    if (!state.base || !state.snapshot?.workKey) return;
     const current = state.view === 'chapters' ? view.current : null;
     const candidate = current && state.readerView !== 'official' ? view.activeCand : null;
     const loaded = state.readerView === 'candidate' ? state.candidate : state.chapter;
@@ -147,44 +143,6 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
     refresh({ projects: true });
   }, [refresh, state.selection, state.view]);
 
-  // One polling loop: visible tabs poll often, hidden tabs rarely, failures back off,
-  // and nothing polls while a confirmation dialog is open.
-  useEffect(() => {
-    if (isDesktop || !state.polling) return undefined;
-    let timer = null;
-    let stopped = false;
-    let running = false;
-    const hidden = () => typeof document !== "undefined" && document.visibilityState === "hidden";
-    const schedule = () => {
-      if (stopped) return;
-      clearTimeout(timer);
-      const base = hidden() ? POLL_HIDDEN_MS : POLL_MS;
-      const delay = Math.min(POLL_MAX_BACKOFF_MS, base * Math.pow(2, Math.min(failures.current, 4)));
-      timer = setTimeout(tick, delay);
-    };
-    const tick = async () => {
-      if (stopped || running) return;
-      running = true;
-      try { if (!ref.current.dialog) await refresh({ soft: true }); }
-      finally { running = false; if (alive.current) schedule(); }
-    };
-    const onVisible = () => {
-      if (hidden()) return;
-      const last = ref.current.lastRefresh ? Date.parse(ref.current.lastRefresh) : 0;
-      if (Date.now() - last > POLL_MS) {
-        clearTimeout(timer);
-        tick();
-      }
-    };
-    schedule();
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      stopped = true;
-      clearTimeout(timer);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
-  }, [state.polling, refresh]);
-
   // 写作 Agent 投递能力：换项目、换作品、手动刷新时重查（便宜的 GET，不进轮询）
   useEffect(() => {
     const ctrl = new AbortController();
@@ -192,7 +150,7 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
       .then((data) => { if (alive.current) dispatch({ type: "deliver", value: { caps: { deliver: !!data.deliver, reason: data.deliverReason || "" } } }); })
       .catch((err) => { if (alive.current && err.code !== "aborted") dispatch({ type: "deliver", value: { caps: { deliver: false, reason: messageOf(err) } } }); });
     return () => ctrl.abort();
-  }, [state.projectId, state.selection, state.bodyEpoch, isDesktop ? state.lastRefresh : null]);
+  }, [state.projectId, state.selection, state.bodyEpoch, state.lastRefresh]);
 
   // Current chapter body, fetched on demand and keyed so polls never refetch it.
   const chapterKey = bodyKey(state, "chapter");

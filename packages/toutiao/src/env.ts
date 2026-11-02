@@ -1,31 +1,29 @@
 /** 每次调用的运行环境：存储根、Python、门禁。 */
 import path from 'node:path'
 import { stateRoot } from '../../core/src/paths.js'
-import { sessionCwd, type HostContext, type HostToolExecution } from '../../host/src/index.js'
+import { type ToolExecution } from '../../core/src/tool.js'
 import { atomicWrite, readJson } from '../../core/src/fsx.js'
-import { rememberSession } from '../../core/src/sessions.js'
 import { locatePython, runScript, type ScriptResult } from '../../core/src/runner.js'
-import { WriterError } from '../../host/src/index.js'
+import { WriterError } from '../../core/src/tool.js'
 import { ArticleStore } from './store.js'
 import { bridgeScript } from './methods.js'
 
 export type { ToutiaoConfig } from './config.js'
 import type { ToutiaoConfig } from './config.js'
 
-export function rootFor(config: ToutiaoConfig, exec?: HostToolExecution, host?: HostContext): string {
+export function rootFor(config: ToutiaoConfig, exec: ToolExecution): string {
   const sr = (config.storageRoot ?? process.env.WRITER_TOUTIAO_ROOT ?? '').trim()
   if (sr) return path.resolve(sr)
-  return path.resolve(sessionCwd(exec, host), config.rootDir?.trim() || 'outputs/toutiao')
+  return path.resolve(exec.cwd, config.rootDir?.trim() || 'outputs/toutiao')
 }
 
-export function storeFor(config: ToutiaoConfig, exec?: HostToolExecution, host?: HostContext): ArticleStore {
-  const root = rootFor(config, exec, host)
+export function storeFor(config: ToutiaoConfig, exec: ToolExecution): ArticleStore {
+  const root = rootFor(config, exec)
   rememberRoot(root)
-  rememberSession(root, exec) // 写作台据此知道该把按钮指令发到哪个会话
   return new ArticleStore(root)
 }
 
-/* 面板没有会话，记住工具用过的存储根（内存 + DSH home 下一个小文件） */
+/* 面板没有会话，记住工具用过的存储根（内存 + 应用状态目录 下一个小文件） */
 const knownRoots = new Set<string>()
 function rootsFile(): string {
   return path.join(stateRoot(), 'writer-toutiao-roots.json')

@@ -2,41 +2,10 @@ import path from "node:path";
 /** HTTP contracts and the one generated-client boundary. Pure state lives in domain tests. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { EventEmitter } from "node:events";
-import { networkInterfaces } from "node:os";
 import { readFile, writeFile } from "node:fs/promises";
-import { Script } from "node:vm";
 import { saveChapter, setOutline, stageCandidate, markCandidateLinted, recordBriefBreadcrumb, readChapter, updateChapter } from "../../build/fanqie/src/engine/store.js";
-import { fanqieApi } from "../../build/fanqie/src/workbench/api.js";
-import { createWorkbenchHandler } from "../../build/workbench/src/server.js";
-const panel = (config, access = {}) => createWorkbenchHandler(access, [fanqieApi(config)]).handler;
 import { initialState, reducer, bodyKey } from "../../packages/workbench/src/client/fanqie/state.js";
 import { jpost, servePanel, withWork, loadComponents } from "./helpers.mjs";
-const script = new Script(await readFile("build/client.js", "utf8"));
-function loadedClient(extra = {}) {
-    let descriptor;
-    const react = { createElement: (type, props, ...children) => ({ type, props, children }), Component: class {}, Fragment: "fragment", memo: component => component };
-    script.runInNewContext({ window: { __ModuleLoader__: { load: value => { descriptor = value; } } }, URL, AbortController, setTimeout, clearTimeout, ...extra });
-    assert.equal(descriptor.id, 'dsh-writer');
-    return descriptor.factory(id => { if (id === "react") return react; throw new Error("unexpected module " + id); });
-}
-function fakeRequest(options) {
-    const req = new EventEmitter();
-    req.method = options.method ?? "GET";
-    req.url = options.url ?? "/api/writer/works";
-    req.headers = { host: "localhost", ...options.headers };
-    req.socket = { remoteAddress: options.remoteAddress ?? "127.0.0.1" };
-    const res = { status: 0, payload: null, writeHead(status) { this.status = status; }, end(body) { this.payload = JSON.parse(body); } };
-    return { req, res };
-}
-function lanAddress() {
-    for (const interfaces of Object.values(networkInterfaces()))
-        for (const item of interfaces ?? [])
-            if (!item.internal && item.family === "IPv4")
-                return item.address;
-    return "192.168.1.9";
-}
-
 test("真实快照按版本使正文和候选失效，写作台不扫描无关库", async () => {
     const work = await withWork("面板读取"), server = await servePanel({ storageRoot: work.base });
     try {
@@ -112,85 +81,19 @@ test("HTTP 采纳、审读和定稿调用共同作品操作", async () => {
     }
 });
 
-test("面板拒绝不可信来源、非 JSON 写入和未授权局域网访问", async () => {
-    const work = await withWork("面板安全");
-    const server = await servePanel({ storageRoot: work.base });
-    try {
-        const wrongType = await fetch(`${server.api}/candidate/accept`, { method: "POST", headers: { "content-type": "text/plain" }, body: "x" });
-        assert.equal(wrongType.status, 415);
-        assert.equal((await fetch(`${server.api}/works`, { headers: { origin: "http://evil.example" } })).status, 403);
-        const rebound = fakeRequest({ headers: { host: "rebind.example", origin: "http://rebind.example" } });
-        await panel({ storageRoot: work.base })(rebound.req, rebound.res);
-        assert.equal(rebound.res.status, 403);
-        const tokenless = fakeRequest({ headers: { host: "localhost" } });
-        await panel({ storageRoot: work.base }, { token: "secret" })(tokenless.req, tokenless.res);
-        assert.equal(tokenless.res.status, 403);
-        const local = lanAddress();
-        const deny = fakeRequest({ remoteAddress: local });
-        await panel({ storageRoot: work.base })(deny.req, deny.res);
-        assert.equal(deny.res.status, 403);
-        const lan = { allowLan: true, hosts: ["panel.lan"], token: "test-token" };
-        const blocked = fakeRequest({ remoteAddress: local, headers: { host: "panel.lan:80" } });
-        await panel({ storageRoot: work.base }, lan)(blocked.req, blocked.res);
-        assert.equal(blocked.res.status, 403);
-        const allowed = fakeRequest({ remoteAddress: local, headers: { host: "panel.lan:80", "x-writer-token": "test-token" } });
-        await panel({ storageRoot: work.base }, lan)(allowed.req, allowed.res);
-        assert.notEqual(allowed.res.status, 403);
-        const wrongMethod = await fetch(server.api+'/diagnostics/stage');
-        assert.equal(wrongMethod.status,405);
-        const badInput = await jpost(server.api,'/diagnostics/stage',{work:work.key,confirm:true,requestId:'invalid-source',source:null,edits:[]});
-        assert.equal(badInput.status,400);
-        const tooLarge = await jpost(server.api,'/diagnostics/scan',{padding:'x'.repeat(64001)});
-        assert.equal(tooLarge.status,413);
-        assert.equal((await tooLarge.json()).code,'body_too_large');
-        const {req,res} = fakeRequest({method:'POST',url:'/api/writer/diagnostics/scan',headers:{'content-type':'application/json'}});
-        const pending = panel({storageRoot:work.base})(req,res);
-        req.emit('aborted');
-        await pending;
-        assert.equal(res.status,400);
-        assert.equal(res.payload.code,'request_aborted');
-        assert.equal(req.listenerCount('data'),0);
 
-        const rateHandler = panel({storageRoot:work.base});
-        for (let i=0;i<21;i++) {
-            const limited = fakeRequest({method:'POST',url:'/api/writer/not-found'});
-            await rateHandler(limited.req,limited.res);
-            if(i===20) assert.equal(limited.res.status,429);
-        }
-
-    }
-    finally {
-        await server.close();
-        await work.cleanup();
-    }
-});
-
-test("客户端按当前 DSH 席位协议登记界面，错误交由宿主管理", () => {
-    const client = loadedClient(), components = new Map();
-    assert.deepEqual([...client.inject], ['slots']);
-    const mount = () => {
-        const names=[];
-        client.apply({slots:{inject:(_name, factory)=>factory(),register:(spec, component)=>{names.push(spec.name);components.set(spec.name,component);}}});
-        return names;
-    };
-    assert.deepEqual(mount(), ['main','sidebar.panellist','plugins.detail.section']);
-    assert.deepEqual(mount(), ['main','sidebar.panellist','plugins.detail.section']);
-    const Detail = components.get('plugins.detail.section');
-    assert.notEqual(Detail({subject:{kind:'bundle',pkg:{name:'dsh-writer'}}}),null);
-    assert.equal(Detail({subject:{kind:'bundle',pkg:{name:'other'}}}),null);
-});
-
-test("客户端请求超时覆盖响应正文，取消后的 JSON 不回填", async (t) => {
-    const { request } = await import("../../build/workbench/src/adapters/dsh.js");
-    t.mock.method(globalThis, "fetch", async (_url, { signal }) => ({ ok: true, status: 200, json: () => new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true })) }));
-    await assert.rejects(request("/chapter", { timeoutMs: 10 }), e => e.code === "timeout");
+test("桌面请求取消后不回填结果，预先取消不发送 IPC", async () => {
+    const { createDesktopAdapter } = await import('../../build/workbench/src/adapters/desktop.js');
+    let settle, requests=0;
+    const adapter = createDesktopAdapter({request:()=>{requests++;return new Promise(resolve=>{settle=resolve})}});
     const ctrl = new AbortController();
-    const pending = request("/chapter", { timeoutMs: 1000, signal: ctrl.signal });
-    await new Promise(resolve => setImmediate(resolve));
+    const pending = adapter.fanqie.chapter('root','work','c001',ctrl.signal);
     ctrl.abort();
-    await assert.rejects(pending, e => e.code === "aborted");
+    settle({status:200,data:{body:'旧响应'}});
+    await assert.rejects(pending,error=>error.code==='aborted');
+    await assert.rejects(adapter.fanqie.chapter('root','work','c001',ctrl.signal),error=>error.code==='aborted');
+    assert.equal(requests,1);
 });
-
 
 test("新的正文渲染以文本节点保留换行与 Markdown 结构", async()=>{
     const react = { createElement: (type, props, ...children) => ({ type, props, children }), Component: class {}, Fragment: 'fragment', memo: component => component };

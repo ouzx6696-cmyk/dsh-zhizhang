@@ -19,7 +19,7 @@ import { engineTools } from "../../../../packages/fanqie/src/engine/bootstrap";
 import { fanqieGateRules } from "../../../../packages/fanqie/src/gates";
 import { listProjects, projectIdOf } from "../../../../packages/fanqie/src/engine/work-store";
 import { createGateEngine } from "../../../../packages/core/src/gates";
-import type { HostToolDefinition } from "../../../../packages/host/src/index";
+import type { ToolDefinition as WriterToolDefinition } from "../../../../packages/core/src/tool";
 import { roleAllows } from "./roles";
 import { systemPrompt } from "./prompt";
 import { createBusinessTools } from "./tools";
@@ -76,11 +76,11 @@ export async function createSession(
     target.mode === "toutiao" ? toutiaoGateRules(config) : fanqieGateRules(config, businessRole),
     { requireApproval: true },
   );
-  let definitions: HostToolDefinition[] =
+  let definitions: WriterToolDefinition[] =
     target.mode === "toutiao"
       ? createToutiaoTools({ config, role: businessRole, gates: () => gates })
       : [
-          ...engineTools(config, gates, "throw"),
+          ...engineTools(config, gates, "throw", businessRole),
           ...createFanqieTools({ config, role: businessRole }),
         ];
   definitions = definitions.filter((tool) => roleAllows(role, tool.name, target.mode));

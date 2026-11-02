@@ -2,7 +2,7 @@
  * 写作层读作品：直接用引擎的存储层与作品选择逻辑（work 参数 → 本会话上次打开的作品 → 只有一部时用它）。
  * 这里只读；落盘一律走引擎工具。
  */
-import { WriterError, type HostToolExecution } from '../../host/src/index.js'
+import { WriterError, type ToolExecution } from '../../core/src/tool.js'
 import { bodyFingerprint } from './review.js'
 import { readChapter as engineReadChapter, readWorkMeta } from './engine/store.js'
 import { openWork as engineOpenWork } from './engine/tools/context.js'
@@ -47,7 +47,7 @@ export async function workAt(dir: string): Promise<WorkInfo> {
 }
 
 /** 按长篇工具同样的规则选作品 */
-export async function openWork(exec: HostToolExecution | undefined, work?: string, workingDir?: string): Promise<WorkInfo> {
+export async function openWork(exec: ToolExecution | undefined, work?: string, workingDir?: string): Promise<WorkInfo> {
   try {
     const { dir } = await engineOpenWork(exec as never, { work: work || undefined, working_dir: workingDir || undefined })
     return await workAt(dir)

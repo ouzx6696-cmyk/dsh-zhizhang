@@ -10,7 +10,7 @@ const ROOT = rootArg < 0
   ? path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
   : path.resolve(args[rootArg + 1]);
 const STRICT = args.includes("--strict");
-const LAYERS = { ui: 0, host: 0, core: 1, workbench: 1, toutiao: 2, fanqie: 2, app: 3, "host-generic": 2, desktop: 3 };
+const LAYERS = { ui: 0, core: 0, workbench: 1, toutiao: 2, fanqie: 2, desktop: 3 };
 const BROWSER_SAFE = ["packages/fanqie/src/engine/domain/manuscript.ts", "packages/fanqie/src/engine/domain/diagnostics.ts"];
 const problems = [], warnings = [], graph = new Map(), prefixes = new Map();
 let anyCount = 0, swallowedCount = 0;
@@ -20,7 +20,7 @@ const report = (file, message, staged = false) =>
 async function* walk(dir, pattern) {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     const file = path.join(dir, entry.name);
-    if (entry.isDirectory()) yield* walk(file, pattern);
+    if (entry.isDirectory() && !["node_modules", ".git", "build", "out", "out-test", "resources", "release", "bundle", "test-results", "playwright-report", "outputs", "acceptance-results", "__pycache__"].includes(entry.name)) yield* walk(file, pattern);
     else if (pattern.test(file)) yield file;
   }
 }
@@ -68,7 +68,7 @@ function checkDependencies(file) {
     if (BROWSER_SAFE.includes(file.rel) && spec.startsWith("node:"))
       report(file, "文本分析须保持浏览器可用，不能引用 node 内置模块");
     if (!spec.startsWith(".")) {
-      if (file.client && spec !== "react") report(file, `浏览器端不能引用 ${spec}`);
+      if (file.client && !["react", "react-dom"].includes(spec)) report(file, `浏览器端不能引用 ${spec}`);
       continue;
     }
     const target = path.resolve(path.dirname(file.file), spec);
@@ -132,11 +132,7 @@ const rules = [
       warnings.push(`${file.rel}: 超过 400 行，建议按功能拆分`);
   } },
   { name: "host-package", check(file) {
-    visit(file.ast, (node) => {
-      if (ts.isStringLiteralLike(node) && node.text.startsWith("@deepseek-ai/") && file.pkg !== "host")
-        report(file, `只能经由 packages/host 使用 ${node.text}`,
-          !file.deps.some((dep) => dep.spec === node.text));
-    });
+    if (file.source.includes(['@deepseek', '-ai/'].join(''))) report(file, '禁止引用已退役的宿主包');
   } },
   { name: "dependencies", check: checkDependencies },
   { name: "any-baseline", check(file, source) {
@@ -199,6 +195,13 @@ for (const dir of ["apps/desktop/src/styles", "packages/ui/src", "packages/workb
 }
 
 const repositoryRules = [
+  { name: "retired-package", async check() {
+    for await (const file of walk(ROOT, /\.(ts|tsx|js|jsx|mjs|json|ya?ml|md|py|css)$/)) {
+      const source = await readFile(file, 'utf8');
+      if (source.includes(['@deepseek', '-ai/'].join('')))
+        report({rel:path.relative(ROOT,file)}, '禁止引用已退役的宿主包');
+    }
+  } },
   { name: "runtime-cycles", check() {
     const active = new Set(), done = new Set(), stack = [];
     function check(file) {
@@ -228,7 +231,7 @@ const repositoryRules = [
   { name: "versions", async check() {
     const versions = [];
     for (const [file, kind] of [["package.json", "json"], ["apps/desktop/package.json", "json"],
-      ["bundle/package.json", "json"], ["packages/core/src/version.ts", "ts"], ["CHANGELOG.md", "md"]]) {
+      ["packages/core/src/version.ts", "ts"], ["CHANGELOG.md", "md"]]) {
       const source = await readFile(path.join(ROOT, file), "utf8");
       const version = kind === "json" ? JSON.parse(source).version : kind === "ts"
         ? source.match(/VERSION\s*=\s*"([^"]+)"/)?.[1] : source.match(/^##\s+([^\s·]+)/m)?.[1];

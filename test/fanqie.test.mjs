@@ -157,9 +157,8 @@ test('长篇编辑只能审读与出编辑候选，敏感写入不能执行', as
   assert.match(await editor.call('fanqie_chapter_read', { chapter: 'c001' }), /两张车票|迟川/)
   const original = await readChapter(work.dir, 'c001')
   for (const name of ['fanqie_candidate_accept', 'fanqie_chapter_save']) {
-    const denied = await editor.call(name, { chapter: 'c001' })
-    assert.equal(denied.denied, true, name)
-    assert.match(denied.reason, /fanqie\.editor_readonly/)
+    assert.equal(editor.tools.has(name), false)
+    await assert.rejects(editor.call(name, {chapter:'c001'}), /unknown tool/)
   }
   assert.equal((await editor.call('fanqie_review_report', { chapter: 'c001', verdict: '通过', hard_issues: [], levels: [], reread_full: true })).ok, true)
   assert.equal((await call('fanqie_review_get', { chapter: 'c001' })).fresh, true)
@@ -233,9 +232,9 @@ test('敏感工具不能跳过确认入口，拒绝确认不残留授权', async
   const { engineTools } = await import(buildUrl('fanqie/src/engine/bootstrap.js'))
   const tool = engineTools().find(t => t.name === 'fanqie_chapter_save')
   for (const args of [{ chapter: 'c001', status: 'final' }, { chapter: 'c001', force: true }])
-    await assert.rejects(tool.execute(args, { name: tool.name, arguments: args }), /确认/)
+    await assert.rejects(tool.execute(args, { cwd: await tempDir(), name: tool.name, arguments: args }), /确认/)
   const { createGateEngine } = await import(buildUrl('core/src/gates.js'))
-  const { executeTool } = await import(buildUrl('host-generic/src/index.js'))
+  const { executeTool } = await import(buildUrl('core/src/execute.js'))
   const gates = createGateEngine([{ id: 'proof', tool: 'proof', locked: true, check: () => ({ kind: 'ask', reason: '确认' }) }], { requireApproval: true })
   let writes = 0
   const definition = { name: 'proof', execute: async (_args, exec) => {
@@ -244,7 +243,7 @@ test('敏感工具不能跳过确认入口，拒绝确认不残留授权', async
     writes++
     return 'saved'
   }, output: { render: () => [] } }
-  const exec = { name: 'proof', arguments: {}, token: Symbol('proof') }
+  const exec = { cwd: await tempDir(), name: 'proof', arguments: {}, token: Symbol('proof') }
   await assert.rejects(executeTool(definition, {}, exec, { gates, bind: fn => fn(), confirm: async () => false }), /取消/)
   assert.equal(gates.consumeConfirmation(exec, 'proof'), false)
   await executeTool(definition, {}, { ...exec, token: Symbol('approved') }, { gates, bind: fn => fn(), confirm: async () => true })

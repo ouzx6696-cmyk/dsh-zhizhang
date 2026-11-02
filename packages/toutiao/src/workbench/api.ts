@@ -6,43 +6,29 @@
  *   POST /api/writer/toutiao/deliver {root,id?,action,note?,requestId?,confirm}  按钮指令发到对话
  *   POST /api/writer/toutiao/draft  {root,id,text}                    作者直接保存一版
  */
-import { WriterError } from '../../../host/src/index.js'
-import { deliver, deliveryProblem, promptSink, sessionFor } from '../../../core/src/sessions.js'
-import { API, type RouteContext, type WorkbenchMode } from '../../../workbench/src/server.js'
+import { API, ROUTES, sendError, type WorkbenchMode } from '../../../workbench/src/routes.js'
 import type { ToutiaoConfig } from '../env.js'
-import { adopt, articleDetail, buildToutiaoDelivery, listArticles, saveAuthorDraft, TOUTIAO_ACTIONS } from './data.js'
+import { adopt, articleDetail, listArticles, saveAuthorDraft, TOUTIAO_ACTIONS } from './data.js'
 
-const BASE = `${API}/toutiao`
-const ROUTES = { articles: `${BASE}/articles`, article: `${BASE}/article`, adopt: `${BASE}/adopt`, draft: `${BASE}/draft`, deliver: `${BASE}/deliver` }
-
-function fail(ctx: RouteContext, err: unknown) {
-  if (err instanceof WriterError) {
-    const status = err.code === 'NOT_FOUND' ? 404 : err.code === 'INVALID_ARGS' ? 400 : 409
-    return ctx.json(status, { ok: false, code: err.code, error: err.message })
-  }
-  ctx.json(500, { ok: false, code: 'failed', error: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200) })
-}
+const paths = { articles: API + ROUTES.articles, article: API + ROUTES.article,
+  adopt: API + ROUTES.adoptArticle, draft: API + ROUTES.saveArticle }
 
 const str = (x: unknown) => (typeof x === 'string' ? x : '')
 
 export function toutiaoApi(config: ToutiaoConfig, canDeliver?: () => boolean): WorkbenchMode {
   return {
-    routes: Object.values(ROUTES),
+    routes: Object.values(paths),
     async handle(ctx) {
-      const route = Object.entries(ROUTES).find(([, p]) => p === ctx.path)?.[0]
+      const route = Object.entries(paths).find(([, p]) => p === ctx.path)?.[0]
       if (!route) return false
-      const want = route === 'adopt' || route === 'draft' || route === 'deliver' ? 'POST' : 'GET'
+      const want = route === 'adopt' || route === 'draft' ? 'POST' : 'GET'
       if (ctx.method !== want) { ctx.json(405, { ok: false, code: 'method', error: `${want} required` }); return true }
       try {
         if (route === 'articles') {
           const data = await listArticles()
-          const sessions: Record<string, string> = {}
-          for (const root of data.roots) {
-            const s = await sessionFor(root)
-            if (s) sessions[root] = s.at
-          }
-          const sink = (canDeliver ? canDeliver() : !!promptSink())
-          ctx.json(200, { ok: true, ...data, actions: [...TOUTIAO_ACTIONS], sessions, deliver: sink, deliverReason: sink ? undefined : '当前宿主没有会话控制服务（headless 或不支持的 DSH 版本），无法发到对话' })
+          const sink = canDeliver ? canDeliver() : false
+          ctx.json(200, { ok: true, ...data, actions: [...TOUTIAO_ACTIONS], deliver: sink,
+            deliverReason: sink ? undefined : '请先保存模型连接' })
         } else if (route === 'article') {
           const root = ctx.url.searchParams.get('root') ?? '', id = ctx.url.searchParams.get('id') ?? ''
           if (!root || !id) ctx.json(400, { ok: false, code: 'bad_request', error: '须指明 root 与 id' })
@@ -64,24 +50,9 @@ export function toutiaoApi(config: ToutiaoConfig, canDeliver?: () => boolean): W
             const saved = await saveAuthorDraft(str(body.root), str(body.id), text, { rev: body.expectedRev as number, sha256: str(body.expectedSha256) }, config)
             ctx.json(200, { ok: true, id: str(body.id), ...saved })
           }
-        } else {
-          const body = await ctx.body(16_000)
-          if (!body) return true
-          if (body.confirm !== true || !str(body.root) || !str(body.action)) {
-            ctx.json(400, { ok: false, code: 'confirmation_required', error: '须明确确认、数据目录与动作。' })
-            return true
-          }
-          const problem = await deliveryProblem(str(body.root))
-          if (problem) { ctx.json(problem.code === 'no_session' ? 409 : 503, { ok: false, code: problem.code, error: problem.message }); return true }
-          const p = await buildToutiaoDelivery(str(body.root), { action: str(body.action), id: str(body.id) || undefined, note: str(body.note) || undefined })
-          try {
-            const sent = await deliver(str(body.root), p.text, str(body.requestId) || undefined)
-            ctx.json(200, { ok: true, action: p.action, id: p.id, requestId: sent.requestId, text: p.text })
-          } catch (err) {
-            ctx.json(502, { ok: false, code: String((err as { code?: string })?.code ?? 'deliver_failed'), error: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200) })
-          }
         }
-      } catch (err) { fail(ctx, err) }
+
+      } catch (err) { sendError(ctx, err) }
       return true
     },
   }

@@ -1,7 +1,7 @@
 /** 方法方案管理工具（toutiao_profile / fanqie_profile 共用实现）。删除方案只在写作台做（要确认）。 */
 import { readdir, stat } from 'node:fs/promises'
 import path from 'node:path'
-import { defineWriterTool, sessionCwd, WriterError, type HostContext, type HostToolDefinition, type JsonSchemaNode } from '../../host/src/index.js'
+import { defineWriterTool, WriterError, type ToolDefinition, type JsonSchemaNode } from './tool.js'
 import { readText, resolveInside } from './fsx.js'
 import {
   createProfile, listProfiles, PROFILE_LIMITS, profileDetail, renameProfile, resetMethod, saveMethod, activateProfile, type MethodLibrary,
@@ -28,7 +28,7 @@ export async function readMethodFolder(dir: string): Promise<{ id: string; text:
   return out
 }
 
-export function createProfileTool(name: string, lib: MethodLibrary, opts: { pinned?: string; host?: HostContext; methodTool: string }): HostToolDefinition {
+export function createProfileTool(name: string, lib: MethodLibrary, opts: { pinned?: string; methodTool: string }): ToolDefinition {
   return defineWriterTool<Record<string, unknown>>({
     name,
     description: `管理方法方案：模型读取的方法论按方案组织——默认（精炼版，推荐）、原版（上游原件）、用户方案一/二…（作者提交的版本，逐份覆盖默认或原版）。${opts.methodTool} 按当前方案取。`
@@ -48,7 +48,7 @@ export function createProfileTool(name: string, lib: MethodLibrary, opts: { pinn
     required: ['action'],
     async run(args, exec) {
       const action = str(args.action)
-      const cwd = sessionCwd(exec, opts.host)
+      const cwd = exec.cwd
       const profile = str(args.profile)
       const need = (v: string, k: string) => { if (!v) throw new WriterError('INVALID_ARGS', `参数 ${k} 必填`); return v }
       switch (action) {

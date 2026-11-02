@@ -27,10 +27,9 @@ import { envMultiDraftFlag } from "../engine/ports/multi-draft.js";
 import { readWorkMeta } from "../engine/work-store.js";
 import { NovelError } from "../engine/errors.js";
 import { MultiDraftPort } from "../engine/ports/multi-draft.js";
-import { deliver, deliveryProblem, sessionFor } from "../../../core/src/sessions.js";
-import { API, type RouteContext, type WorkbenchMode } from "../../../workbench/src/server.js";
+import { API, ROUTES, sendError, type RouteContext, type WorkbenchMode } from "../../../workbench/src/routes.js";
 import { chapterReviewInfo, finalizeProblem } from "../review.js";
-import { buildDeliveryPrompt, DELIVERY_ACTIONS } from "./delivery.js";
+import { DELIVERY_ACTIONS } from "./delivery.js";
 /** Soft body cap for panel reads (~400 KiB). */
 const PANEL_BODY_BYTE_CAP = 400 * 1024;
 function capPanelBody(body: string) {
@@ -52,24 +51,23 @@ const WB_API_PREFIX = API;
 export const FANQIE_ROUTES = [
     WB_API_PREFIX,
     `${WB_API_PREFIX}/health`,
-    `${WB_API_PREFIX}/diagnostics/capabilities`,
-    `${WB_API_PREFIX}/diagnostics/scan`,
-    `${WB_API_PREFIX}/diagnostics/stage`,
-    `${WB_API_PREFIX}/projects`,
+    API + ROUTES.capabilities,
+    API + ROUTES.diagnose,
+    API + ROUTES.stageRevision,
+    API + ROUTES.projects,
     `${WB_API_PREFIX}/works`,
-    `${WB_API_PREFIX}/snapshot`,
+    API + ROUTES.snapshot,
     `${WB_API_PREFIX}/library`,
     `${WB_API_PREFIX}/report`,
     `${WB_API_PREFIX}/inspiration`,
-    `${WB_API_PREFIX}/chapter`,
-    `${WB_API_PREFIX}/chapter/save`,
-    `${WB_API_PREFIX}/candidate`,
-    `${WB_API_PREFIX}/candidate/accept`,
-    `${WB_API_PREFIX}/chapter/review`,
-    `${WB_API_PREFIX}/chapter/finalize`,
-    `${WB_API_PREFIX}/revision/acknowledge`,
-    `${WB_API_PREFIX}/unify/prepare`,
-    `${WB_API_PREFIX}/agent/deliver`,
+    API + ROUTES.chapter,
+    API + ROUTES.saveChapter,
+    API + ROUTES.candidate,
+    API + ROUTES.accept,
+    API + ROUTES.reviewChapter,
+    API + ROUTES.finalizeChapter,
+    API + ROUTES.acknowledge,
+    API + ROUTES.unifyPrepare,
 ];
 
 async function pathExists(p: any) {
@@ -101,7 +99,7 @@ export async function resolveHttpPaths(config: PluginConfig) {
         return { ...paths, resolvedVia: "env.WRITER_NOVEL_ROOT" };
     }
     // Follow the workspace the Agent last wrote to (tools and HTTP share this process).
-    // Without this the panel resolves process.cwd() — the DSH profile dir — and shows
+    // Without this the panel resolves process.cwd() — the application profile directory — and shows
     // an empty library while the Agent writes to the session workspace.
     const lastBase = getLastToolBase() || (await loadLastToolBase());
     if (lastBase && (await pathExists(lastBase))) {
@@ -280,25 +278,15 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
     const route = async function fanqieRoute(ctx: RouteContext): Promise<unknown> {
         const { url, method, path: pathOnly } = ctx;
         try {
-            if (pathOnly === WB_API_PREFIX + "/diagnostics/capabilities") {
+            if (pathOnly === API + ROUTES.capabilities) {
                 if (method !== "GET") return ctx.json(405, { ok: false, code: "method", error: "GET required" });
-                // 投递可用：宿主有会话控制服务，且该项目有过主会话
-                const picked = await panelPaths(url, config);
-                const problem = picked.error ? { code: "bad_base", message: "项目未登记" } : await deliveryProblem((picked.paths as StoragePaths).base);
-                const target = picked.error ? undefined : await sessionFor((picked.paths as StoragePaths).base);
-                return ctx.json(200, {
-                    ok: true, quick: true, deep: false, reason: "模型深度调用尚未开放",
-                    deliver: !problem,
-                    deliverReason: problem?.message,
-                    deliverActions: DELIVERY_ACTIONS,
-                    target: target ? { at: target.at } : undefined,
-                });
+                return ctx.json(200, { ok: true, quick: true, deep: false, deliver: false,
+                    deliverReason: '请先保存模型连接', deliverActions: DELIVERY_ACTIONS });
             }
             if (["/diagnostics/scan", "/diagnostics/stage"].some(p => pathOnly === WB_API_PREFIX + p)) {
                 if (method !== "POST") return ctx.json(405, { ok: false, code: "method", error: "POST required" });
-                const parsed = await ctx.readBody(pathOnly.endsWith("/stage") ? 1024 * 1024 : 64000);
-                if (parsed.err) return ctx.json(parsed.err.status, parsed.err.payload);
-                const input = parsed.parsed;
+                const input = await ctx.body(pathOnly.endsWith("/stage") ? 1024 * 1024 : 64000);
+                if (!input) return;
                 const picked = await panelPaths(url, config, String(input.base ?? ""));
                 if (picked.error) return ctx.json(400, { ok: false, code: "bad_base", error: "项目未登记" });
                 try {
@@ -311,33 +299,11 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
                     return ctx.json(status, { ok: false, code, error: err instanceof Error ? err.message : String(err) });
                 }
             }
-            if (pathOnly === WB_API_PREFIX + "/agent/deliver") {
-                if (method !== "POST") return ctx.json(405, { ok: false, code: "method", error: "POST required" });
-                const body = await ctx.readBody(16_000);
-                if (body.err) return ctx.json(body.err.status, body.err.payload);
-                const input = body.parsed;
-                if (input.confirm !== true || typeof input.work !== "string" || typeof input.action !== "string")
-                    return ctx.json(400, { ok: false, code: "confirmation_required", error: "须明确确认、作品与动作。" });
-                const picked = await panelPaths(url, config, String(input.base ?? input.project ?? ""));
-                if (picked.error) return ctx.json(400, { ok: false, code: "bad_base", error: "项目未登记" });
-                const paths = picked.paths as StoragePaths;
-                const problem = await deliveryProblem(paths.base);
-                if (problem) return ctx.json(problem.code === "no_session" ? 409 : 503, { ok: false, code: problem.code, error: problem.message });
-                try {
-                    const dir = await resolveWorkDir(paths, input.work);
-                    const prompt = await buildDeliveryPrompt(dir, { action: input.action, chapter: typeof input.chapter === "string" ? input.chapter : undefined, note: typeof input.note === "string" ? input.note : undefined });
-                    const sent = await deliver(paths.base, prompt.text, typeof input.requestId === "string" ? input.requestId : undefined);
-                    return ctx.json(200, { ok: true, action: prompt.action, chapterId: prompt.chapterId, requestId: sent.requestId, text: prompt.text });
-                } catch (err) {
-                    const code = err instanceof NovelError ? err.code : (err as any)?.code ?? "deliver_failed";
-                    return ctx.json(err instanceof NovelError ? 400 : 502, { ok: false, code: String(code), error: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200) });
-                }
-            }
+
             if (["/chapter/review", "/chapter/finalize", "/revision/acknowledge"].some(route => pathOnly === WB_API_PREFIX + route)) {
                 if (method !== "POST") return ctx.json(405, { ok: false, error: "POST required" });
-                const body = await ctx.readBody();
-                if (body.err) return ctx.json(body.err.status, body.err.payload);
-                const input = body.parsed;
+                const input = await ctx.body();
+                if (!input) return;
                 if (input.confirm !== true || typeof input.work !== "string" || typeof input.chapter !== "string" || typeof input.expectedRevision !== "string")
                     return ctx.json(400, { ok: false, code: "confirmation_required", error: "须明确确认、作品、章节与实际已读版本。" });
                 const picked = await panelPaths(url, config, String(input.base ?? input.project ?? ""));
@@ -359,14 +325,12 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
                 } catch (err) { return ctx.json(409, { ok: false, code: err instanceof NovelError ? err.code : "chapter_action_failed", error: err instanceof Error ? err.message : String(err) }); }
             }
             // —— POST candidate adoption ——
-            if (pathOnly === `${WB_API_PREFIX}/candidate/accept`) {
+            if (pathOnly === API + ROUTES.accept) {
                 if (method !== "POST") {
                     return ctx.json(405, { ok: false, error: `method not allowed: ${method}` });
                 }
-                const body = await ctx.readBody();
-                if (body.err)
-                    return ctx.json(body.err.status, body.err.payload);
-                const parsed = body.parsed;
+                const parsed = await ctx.body();
+                if (!parsed) return;
                 const modeRaw = parsed.mode ?? "replace";
                 if (modeRaw !== "append" && modeRaw !== "replace") {
                     return ctx.json(400, { ok: false, code: "bad_mode", error: "mode 只支持 append / replace" });
@@ -415,7 +379,7 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
                 return ctx.json(200, result);
             }
             // —— unify/prepare (read-only brief; no disk write) ——
-            if (pathOnly === `${WB_API_PREFIX}/unify/prepare`) {
+            if (pathOnly === API + ROUTES.unifyPrepare) {
                 if (method !== "GET" && method !== "HEAD" && method !== "POST") {
                     return ctx.json(405, { ok: false, error: `method not allowed: ${method}` });
                 }
@@ -428,10 +392,8 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
                 let chapter = "";
                 let candidateIds = [];
                 if (method === "POST") {
-                    const body = await ctx.readBody();
-                    if (body.err)
-                        return ctx.json(body.err.status, body.err.payload);
-                    const parsed = body.parsed;
+                    const parsed = await ctx.body();
+                if (!parsed) return;
                     // A6: POST body base/project wins, same as accept.
                     const picked = await panelPaths(url, config, String(parsed.base ?? parsed.project ?? ""));
                     if (picked.error) {
@@ -441,7 +403,8 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
                     work = String(parsed.work ?? parsed.workKey ?? "");
                     chapter = String(parsed.chapter ?? parsed.chapterId ?? "");
                     if (Array.isArray(parsed.candidate_ids ?? parsed.candidateIds)) {
-                        candidateIds = parsed.candidate_ids ?? parsed.candidateIds;
+                        const ids = parsed.candidate_ids ?? parsed.candidateIds;
+                        if (Array.isArray(ids)) candidateIds = ids;
                     }
                 }
                 else {
@@ -473,11 +436,10 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
                 }
                 return ctx.json(200, result);
             }
-            if (pathOnly === `${WB_API_PREFIX}/chapter/save`) {
+            if (pathOnly === API + ROUTES.saveChapter) {
                 if (method !== "POST") return ctx.json(405, { ok: false, code: "method", error: "POST required" });
-                const body = await ctx.readBody(4 * 1024 * 1024);
-                if (body.err) return ctx.json(body.err.status, body.err.payload);
-                const input = body.parsed;
+                const input = await ctx.body(4 * 1024 * 1024);
+                if (!input) return;
                 if (typeof input.work !== "string" || typeof input.chapter !== "string" || typeof input.body !== "string" || typeof input.expectedRevision !== "string") {
                     return ctx.json(400, { ok: false, code: "bad_args", error: "须提交作品、章节、正文与实际已读版本。" });
                 }
@@ -533,7 +495,7 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
                 const product = buildProductView();
                 return ctx.json(200, {
                     ok: true,
-                    plugin: "dsh-writer",
+                    plugin: "writer-agent",
                     version: product.version,
                     toolCount: product.toolCount,
                     readOnlyGets: true,
@@ -544,7 +506,7 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
                     multiDraftEnabled: MultiDraftPort.isEnabled(),
                 });
             }
-            if (pathOnly === `${WB_API_PREFIX}/projects`) {
+            if (pathOnly === API + ROUTES.projects) {
                 const paths = await resolveHttpPaths(config);
                 const current = projectIdOf(paths.base);
                 const known = await listProjects({ refresh: url.searchParams.get("refresh") === "1" });
@@ -677,7 +639,7 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
                     product: buildProductView(),
                 });
             }
-            if (pathOnly === `${WB_API_PREFIX}/snapshot`) {
+            if (pathOnly === API + ROUTES.snapshot) {
                 const picked = await panelPaths(url, config);
                 if (picked.error) {
                     return ctx.json(400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
@@ -737,7 +699,7 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
                     resolvedVia: paths.resolvedVia,
                 });
             }
-            if (pathOnly === `${WB_API_PREFIX}/chapter`) {
+            if (pathOnly === API + ROUTES.chapter) {
                 const picked = await panelPaths(url, config);
                 if (picked.error) {
                     return ctx.json(400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
@@ -817,7 +779,7 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
                     });
                 }
             }
-            if (pathOnly === `${WB_API_PREFIX}/candidate`) {
+            if (pathOnly === API + ROUTES.candidate) {
                 const picked = await panelPaths(url, config);
                 if (picked.error) {
                     return ctx.json(400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });
@@ -900,13 +862,9 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
             return UNHANDLED;
         }
         catch (err) {
-            const recovering = err instanceof NovelError && (err.code === "recovery_required" || err.code === "library_recovery_required");
-            return ctx.json(recovering ? 409 : 500, {
-                ok: false,
-                ...(recovering ? { code: (err as NovelError).code } : {}),
-                error: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200),
-            });
+            sendError(ctx, err);
         }
+
     };
     const policy = () => ({ multiDraftEnabled: config.multiDraftEnabled === true || config.multiDraft?.enabled === true || envMultiDraftFlag() });
     return {

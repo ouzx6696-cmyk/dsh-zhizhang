@@ -1,3 +1,4 @@
+import { ROUTES } from "../routes.js";
 import {
   ApiError,
   type DesktopBridge,
@@ -28,37 +29,37 @@ async function call(
 function fanqie(bridge: DesktopBridge): FanqieData {
   return {
     projects: (refresh, signal) =>
-      call(bridge, "/projects", { query: { refresh: refresh ? 1 : "" }, signal }),
+      call(bridge, ROUTES.projects, { query: { refresh: refresh ? 1 : "" }, signal }),
     snapshot: (base, work, signal, scope = "all") =>
-      call(bridge, "/snapshot", { query: { base, work, scope }, signal }),
-    chapter: (base, work, id, signal) => call(bridge, "/chapter", { query: { base, work, id }, signal }),
-    saveChapter: (payload) => call(bridge, "/chapter/save", { method: "POST", body: payload }),
+      call(bridge, ROUTES.snapshot, { query: { base, work, scope }, signal }),
+    chapter: (base, work, id, signal) => call(bridge, ROUTES.chapter, { query: { base, work, id }, signal }),
+    saveChapter: (payload) => call(bridge, ROUTES.saveChapter, { method: "POST", body: payload }),
     candidate: (base, work, id, signal) =>
-      call(bridge, "/candidate", { query: { base, work, id }, signal }),
+      call(bridge, ROUTES.candidate, { query: { base, work, id }, signal }),
     diagnose: (payload, signal) =>
-      call(bridge, "/diagnostics/scan", { method: "POST", body: payload, signal }),
+      call(bridge, ROUTES.diagnose, { method: "POST", body: payload, signal }),
     stageRevision: (payload) =>
-      call(bridge, "/diagnostics/stage", { method: "POST", body: payload }),
-    accept: (payload) => call(bridge, "/candidate/accept", { method: "POST", body: payload }),
+      call(bridge, ROUTES.stageRevision, { method: "POST", body: payload }),
+    accept: (payload) => call(bridge, ROUTES.accept, { method: "POST", body: payload }),
     chapterAction: (action, payload) =>
-      call(bridge, action === "acknowledge" ? "/revision/acknowledge" : "/chapter/" + action, {
+      call(bridge, action === "acknowledge" ? ROUTES.acknowledge : action === "review" ? ROUTES.reviewChapter : ROUTES.finalizeChapter, {
         method: "POST",
         body: payload,
       }),
-    unifyPrepare: (payload) => call(bridge, "/unify/prepare", { method: "POST", body: payload }),
+    unifyPrepare: (payload) => call(bridge, ROUTES.unifyPrepare, { method: "POST", body: payload }),
     capabilities: (base, signal) =>
-      call(bridge, "/diagnostics/capabilities", { query: { base }, signal }),
-    deliver: (payload) => call(bridge, "/agent/deliver", { method: "POST", body: payload }),
+      call(bridge, ROUTES.capabilities, { query: { base }, signal }),
+    deliver: (payload) => call(bridge, ROUTES.deliver, { method: "POST", body: payload }),
   };
 }
 
 function toutiao(bridge: DesktopBridge): ToutiaoData {
   return {
-    articles: (signal) => call(bridge, "/toutiao/articles", { signal }),
+    articles: (signal) => call(bridge, ROUTES.articles, { signal }),
     article: (root, id, signal) =>
-      call(bridge, "/toutiao/article", { query: { root, id }, signal }),
+      call(bridge, ROUTES.article, { query: { root, id }, signal }),
     adopt: (article) =>
-      call(bridge, "/toutiao/adopt", {
+      call(bridge, ROUTES.adoptArticle, {
         method: "POST",
         body: {
           root: article.root,
@@ -68,9 +69,9 @@ function toutiao(bridge: DesktopBridge): ToutiaoData {
           confirm: true,
         },
       }),
-    saveDraft: (payload) => call(bridge, "/toutiao/draft", { method: "POST", body: payload }),
+    saveDraft: (payload) => call(bridge, ROUTES.saveArticle, { method: "POST", body: payload }),
     deliver: (payload) =>
-      call(bridge, "/toutiao/agent/deliver", { method: "POST", body: { ...payload, confirm: true } }),
+      call(bridge, ROUTES.deliverArticle, { method: "POST", body: { ...payload, confirm: true } }),
   };
 }
 

@@ -5,10 +5,7 @@
   grid-column: -2 / -1;
   grid-row: 1 / span 2;
   color: var(--wb-fg-3);
-  font: var(
-    --dsw-font-xxs-12,
-    var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui)
-  );
+  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
@@ -22,10 +19,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  font: var(
-    --dsw-font-xs-13,
-    var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui)
-  );
+  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
 }
 .wb-dialog-actions {
   display: flex;
@@ -39,17 +33,11 @@
 }
 .wb-form-label {
   color: var(--wb-fg-2);
-  font: var(
-    --dsw-font-xs-strong-13,
-    600 var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui)
-  );
+  font: 600 var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
 }
 .wb-form-hint {
   color: var(--wb-fg-3);
-  font: var(
-    --dsw-font-xxs-12,
-    var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui)
-  );
+  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
 }
 .wb-input-row {
   display: flex;
@@ -62,14 +50,11 @@
   gap: 12px;
   padding: 16px 20px;
   border-radius: var(--wb-r-xl);
-  border: 0.5px solid var(--dsw-alias-settings-card-stroke, var(--wb-line));
-  background: var(--dsw-alias-settings-card-fill, transparent);
+  border: 0.5px solid var(--wb-line);
+  background: transparent;
 }
 .wb-settings-title {
-  font: var(
-    --dsw-font-s-strong-14,
-    600 var(--ui-size-14)/var(--ui-size-22) var(--ui-font-ui)
-  );
+  font: 600 var(--ui-size-14)/var(--ui-size-22) var(--ui-font-ui);
 }
 /* ---------- hover (pointer devices only) ---------- */
 @media (hover: hover) {
@@ -82,7 +67,7 @@
     background: var(--wb-hover);
   }
   .wb-button-primary:not(:disabled):hover {
-    background: var(--dsw-alias-button-primary-hover, var(--wb-fg));
+    background: var(--wb-fg);
   }
   .wb-candidate-card:not(.wb-candidate-card-on):hover {
     background: var(--wb-hover);
@@ -183,17 +168,11 @@
   gap: 10px;
 }
 .wb-source-editor-head strong {
-  font: var(
-    --dsw-font-s-strong-14,
-    600 var(--ui-size-14)/var(--ui-size-22) var(--ui-font-ui)
-  );
+  font: 600 var(--ui-size-14)/var(--ui-size-22) var(--ui-font-ui);
 }
 .wb-source-editor-head > span:not(.wb-muted) {
   color: var(--wb-warn);
-  font: var(
-    --dsw-font-xxs-strong-12,
-    600 var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui)
-  );
+  font: 600 var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
 }
 .wb-source-note {
   margin: 0;

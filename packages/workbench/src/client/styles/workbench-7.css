@@ -44,18 +44,12 @@
   gap: 6px;
   padding: 4px 8px;
   color: var(--wb-fg-3);
-  font: var(
-    --dsw-font-xxs-strong-12,
-    600 var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui)
-  );
+  font: 600 var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
 }
 .wb-tt-delivery {
   max-width: 44rem;
   margin: 0 auto;
-  font: var(
-    --dsw-font-s-14,
-    var(--ui-size-14)/var(--ui-size-24) var(--ui-font-ui)
-  );
+  font: var(--ui-size-14)/var(--ui-size-24) var(--ui-font-ui);
 }
 .wb-tt-note {
   display: flex;
@@ -75,21 +69,15 @@
 }
 /* ======================================================================
  * 视觉与反馈：品牌标识、卡片层次、选中态、动作卡片、步骤条、提示栈、
- * 转圈与完成反馈、内容切换动效。全部只用 --wb-* / --dsw-* 变量。
+ * 转圈与完成反馈、内容切换动效。全部只用 --wb-* / --ui-* 变量。
  * ====================================================================== */
 .wb-root,
 .wb-scope,
 .wb-modal-root {
   --wb-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --wb-shadow-1: var(
-    --dsw-elevation-soft,
-    0 1px 2px color-mix(in srgb, canvastext 6%, transparent)
-  );
-  --wb-shadow-2: var(
-    --dsw-elevation-medium,
-    0 8px 24px color-mix(in srgb, canvastext 12%, transparent),
-    0 1px 3px color-mix(in srgb, canvastext 8%, transparent)
-  );
+  --wb-shadow-1: 0 1px 2px color-mix(in srgb, canvastext 6%, transparent);
+  --wb-shadow-2: 0 8px 24px color-mix(in srgb, canvastext 12%, transparent),
+    0 1px 3px color-mix(in srgb, canvastext 8%, transparent);
 }
 /* 页头：品牌标识 + 标题 */
 .wb-heading-brand {

@@ -3,11 +3,11 @@ import { buildDeliveryPrompt } from "../../../../packages/fanqie/src/workbench/d
 import { ensureStorage, listProjects, resolveWorkDir } from "../../../../packages/fanqie/src/engine/work-store";
 import { toutiaoApi } from "../../../../packages/toutiao/src/workbench/api";
 import { fanqieApi } from "../../../../packages/fanqie/src/workbench/api";
-import { profileRoutes } from "../../../../packages/core/src/profile-api";
+import { profileRoutes } from "../../../../packages/workbench/src/profile-api";
 import { toutiaoLibrary } from "../../../../packages/toutiao/src/methods";
 import { fanqieLibrary } from "../../../../packages/fanqie/src/forge";
 import { buildToutiaoDelivery } from "../../../../packages/toutiao/src/workbench/data";
-import { API, type RouteContext } from "../../../../packages/workbench/src/server";
+import { API, ROUTES, type RouteContext } from "../../../../packages/workbench/src/routes";
 import { selectTarget } from "./targets";
 import type { Runtime } from "./runtime";
 
@@ -42,7 +42,7 @@ async function performRequest(
       ? { work: String(body.work || options.query?.work) }
       : {}),
   };
-  if (operation.endsWith("/deliver") || operation === "/agent/deliver") {
+  if (operation === ROUTES.deliver || operation === ROUTES.deliverArticle) {
     await selectTarget(state, operationTarget);
     state.emit({ selection: state.target });
     const prompt =
@@ -73,7 +73,7 @@ async function performRequest(
     });
     return { status: 200, data: { ok: true, text: prompt.text } };
   }
-  if (operation.endsWith("/capabilities"))
+  if (operation === ROUTES.capabilities)
     return {
       status: 200,
       data: {
@@ -109,9 +109,6 @@ async function performRequest(
     },
     async body() {
       return body;
-    },
-    async readBody() {
-      return { parsed: body };
     },
   };
   for (const handler of modes) if (await handler.handle(ctx)) break;
@@ -159,7 +156,7 @@ export async function request(
   options: any = {},
 ): Promise<{ status: number; data: any }> {
   const id = options.body?.requestId;
-  if (!id || !operation.endsWith("/deliver"))
+  if (!id || !(operation === ROUTES.deliver || operation === ROUTES.deliverArticle))
     return performRequest(state, operation, options);
   const key = JSON.stringify([
     operation,

@@ -1,9 +1,9 @@
-import type { HostToolDefinition } from '../../../../host/src/index.js';
+import type { ToolDefinition } from '../../../../core/src/tool.js';
 import { formatToolError } from "../errors.js";
 import type { ExecContext } from "../types.js";
 
 export type { ExecContext };
-export function defineTool(def: any): HostToolDefinition & { run: HostToolDefinition["execute"] } {
+export function defineTool(def: any): ToolDefinition & { run: ToolDefinition["execute"] } {
     const run = def.execute;
     return {
         run,

@@ -6,7 +6,7 @@
  */
 import path from 'node:path'
 import { spawn } from 'node:child_process'
-import { WriterError } from '../../host/src/index.js'
+import { WriterError } from './tool.js'
 
 export interface ScriptResult {
   tool: string

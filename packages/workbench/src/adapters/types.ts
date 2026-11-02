@@ -99,7 +99,7 @@ export interface ProfilesData {
 }
 
 export interface WorkbenchData {
-  host: "desktop" | "dsh";
+  host: "desktop";
   fanqie: FanqieData;
   toutiao: ToutiaoData;
   profiles(mode: "fanqie" | "toutiao" | string): ProfilesData;

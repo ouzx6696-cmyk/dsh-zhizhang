@@ -19,11 +19,11 @@ async function guardFixture(t) {
     await mkdir(path.dirname(target), { recursive: true })
     await writeFile(target, source)
   }
-  for (const pkg of ['ui', 'host', 'core', 'workbench', 'toutiao', 'fanqie', 'app', 'host-generic'])
+  for (const pkg of ['ui', 'core', 'workbench', 'toutiao', 'fanqie'])
     await mkdir(path.join(root, 'packages', pkg, 'src'), { recursive: true })
   for (const dir of ['apps/desktop/src/styles', 'packages/workbench/src/client/styles'])
     await mkdir(path.join(root, dir), { recursive: true })
-  for (const file of ['package.json', 'apps/desktop/package.json', 'bundle/package.json'])
+  for (const file of ['package.json', 'apps/desktop/package.json', 'packages/unused/package.json'])
     await write(file, '{"version":"0.9.7"}')
   await write('packages/core/src/version.ts', 'export const VERSION = "0.9.7";')
   await write('CHANGELOG.md', '## 0.9.7\n')
@@ -37,10 +37,10 @@ async function guardFixture(t) {
 
 test('守卫：普通字符串调用不能绕过宿主边界', async (t) => {
   const { write, run } = await guardFixture(t)
-  await write('packages/workbench/src/client/example.jsx', '__dshRequire("@deepseek-ai/dsh-client-ui-primitives")')
+  await write('packages/workbench/src/client/example.jsx', 'loadModule("' + ['@deepseek', '-ai/retired'].join('') + '")')
   const result = run()
   assert.equal(result.status, 1)
-  assert.match(result.stderr, /只能经由 packages\/host/)
+  assert.match(result.stderr, /禁止引用已退役的宿主包/)
 })
 
 test('守卫：any 不能超过基线，类型断言和注解均计数', async (t) => {

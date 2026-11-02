@@ -1,84 +1,40 @@
-import { execFileSync } from "node:child_process";
 /** 写作层与引擎的衔接：会话追踪与投递、定稿条件（requireEditorPass）、单章审读信息、forge 正文体检、写作台路由组合、浏览器端区块。 */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { EventEmitter } from "node:events";
-import { saveChapter, setOutline, readChapter, ensureStorage } from "../../build/fanqie/src/engine/store.js";
-import { setPromptSink, sessionFor, rememberSession } from "../../build/core/src/sessions.js";
+import { saveChapter, setOutline, readChapter } from "../../build/fanqie/src/engine/store.js";
 import { buildDeliveryPrompt, pickNextChapter } from "../../build/fanqie/src/workbench/delivery.js";
 import { fanqieApi } from "../../build/fanqie/src/workbench/api.js";
-import { createWorkbenchHandler } from "../../build/workbench/src/server.js";
 import { bodyFingerprint, saveReview } from "../../build/fanqie/src/review.js";
 import { auditTools } from "../../build/fanqie/src/engine/tools/audit.js";
 import { worksTools } from "../../build/fanqie/src/engine/tools/works.js";
 import { setPluginConfig } from "../../build/fanqie/src/engine/tools/context.js";
 import { jpost, servePanel, withWork, loadComponents } from "./helpers.mjs";
 
-const mainExec = (cwd, id = "s-main", depth = 0) => ({ agent: { session: { id, header: { cwd, delegationDepth: depth } } } });
+const mainExec = (cwd, sessionId = "s-main") => ({cwd,sessionId});
 const get = (api, route) => fetch(`${api}${route}`);
 
-test("主会话追踪：子代理会话不覆盖，按数据根记录并落盘", async () => {
-    const work = await withWork("追踪");
-    try {
-        await ensureStorage(mainExec(work.base), { storageRoot: work.base });
-        assert.equal((await sessionFor(work.base)).sessionId, "s-main");
-        await ensureStorage(mainExec(work.base, "s-editor", 1), { storageRoot: work.base });
-        rememberSession(work.base, { agent: { session: { id: "s-child", header: {} }, options: { subagentDepth: 1 } } });
-        assert.equal((await sessionFor(work.base)).sessionId, "s-main");
-        await new Promise(r => setTimeout(r, 50));
-        const script = `import { sessionFor } from ${JSON.stringify(new URL("../../build/core/src/sessions.js", import.meta.url).href)}; console.log(JSON.stringify(await sessionFor(${JSON.stringify(work.base)})));`;
-        const restored = JSON.parse(execFileSync(process.execPath, ["--input-type=module", "-e", script], { encoding: "utf8" }));
-        assert.equal(restored.sessionId, "s-main", "新进程从 DSH_HOME 记录恢复");
-    }
-    finally {
-        await work.cleanup();
-    }
+test("工具执行缺少 cwd 时在执行前拒绝，不回落进程目录", async () => {
+    const { executeTool } = await import('../../build/core/src/execute.js');
+    const { createGateEngine } = await import('../../build/core/src/gates.js');
+    let writes = 0;
+    const tool = { name:'proof',execute:async()=>{writes++},output:{render:()=>[]} };
+    await assert.rejects(executeTool(tool, {}, {name:'proof',arguments:{}}, {
+        gates:createGateEngine([]),bind:run=>run(),confirm:async()=>true,
+    }), /缺少工作目录/);
+    assert.equal(writes,0);
 });
 
-test("写作台投递：能力探测、缺会话、缺宿主、成功投递三种动作", async () => {
-    const work = await withWork("投递");
-    const server = await servePanel({ storageRoot: work.base });
-    const sent = [];
-    try {
-        await setOutline(work.dir, "c001", { ending: "门开了" }, "第一章");
-        await saveChapter(work.dir, { id: "c001", title: "第一章", body: "她推开门。" });
-        await setOutline(work.dir, "c002", { ending: "雨停了" }, "第二章");
-        let caps = await (await get(server.api, "/diagnostics/capabilities")).json();
-        assert.equal(caps.deliver, false);
-        assert.match(caps.deliverReason, /会话控制服务/);
-        assert.equal((await jpost(server.api, "/agent/deliver", { work: work.key, action: "continue", confirm: true })).status, 503);
-        setPromptSink({ prompt: async (sessionId, text, requestId) => { sent.push({ sessionId, text, requestId }); } });
-        caps = await (await get(server.api, "/diagnostics/capabilities")).json();
-        assert.equal(caps.deliver, false);
-        assert.match(caps.deliverReason, /还没有会话/);
-        assert.equal((await jpost(server.api, "/agent/deliver", { work: work.key, action: "continue", confirm: true })).status, 409);
-        await ensureStorage(mainExec(work.base), { storageRoot: work.base });
-        caps = await (await get(server.api, "/diagnostics/capabilities")).json();
-        assert.equal(caps.deliver, true);
-        assert.deepEqual(caps.deliverActions, ["continue", "review", "revise"]);
-        assert.equal((await jpost(server.api, "/agent/deliver", { work: work.key, action: "continue" })).status, 400, "须明确确认");
-        assert.equal((await jpost(server.api, "/agent/deliver", { work: work.key, action: "rm -rf", confirm: true })).status, 400);
-        assert.equal((await jpost(server.api, "/agent/deliver", { work: work.key, action: "review", confirm: true })).status, 400, "审读须指明章节");
-        const ok = await jpost(server.api, "/agent/deliver", { work: work.key, action: "continue", confirm: true, requestId: "wb-test-000001" });
-        assert.equal(ok.status, 200);
-        const body = await ok.json();
-        assert.equal(body.chapterId, "c002");
-        assert.equal(sent.at(-1).sessionId, "s-main");
-        assert.equal(sent.at(-1).requestId, "wb-test-000001");
-        assert.match(sent.at(-1).text, /续写《投递》第 2 章「第二章」/);
-        assert.match(sent.at(-1).text, /上一章第 1 章「第一章」/);
-        assert.match(sent.at(-1).text, /不要定稿/);
-        assert.equal((await jpost(server.api, "/agent/deliver", { work: work.key, action: "review", chapter: "c001", confirm: true, note: "重点看结尾" })).status, 200);
-        assert.match(sent.at(-1).text, /派编辑子代理审读/);
-        assert.match(sent.at(-1).text, /作者附言：重点看结尾/);
-        setPromptSink({ prompt: async () => { throw Object.assign(new Error("prompt rejected"), { code: "session/agent-busy" }); } });
-        const busy = await jpost(server.api, "/agent/deliver", { work: work.key, action: "revise", chapter: "c001", confirm: true });
-        assert.equal(busy.status, 502);
-        assert.equal((await busy.json()).code, "session/agent-busy");
-    }
-    finally {
-        await server.close();
-        await work.cleanup();
+test("路由错误统一区分参数、缺失、冲突和基础设施故障", async () => {
+    const { sendError } = await import('../../build/workbench/src/routes.js');
+    const { WriterError } = await import('../../build/core/src/tool.js');
+    for (const [error,status] of [[new WriterError('NOT_FOUND','缺失'),404],
+        [new WriterError('INVALID_ARGS','输入错误'),400],[new WriterError('OUT_OF_ROOT','越界'),400],
+        [new WriterError('CONFLICT','冲突'),409],[new Error('磁盘读取失败'),500],
+        [Object.assign(new Error('权限不足'),{code:'EACCES'}),500]]) {
+        let response;
+        sendError({json:(status,data)=>{response={status,data}}},error);
+        assert.equal(response.status,status);
+        assert.equal(response.data.error,error.message);
     }
 });
 
@@ -156,21 +112,13 @@ test("forge 正文体检：章节与纯文本扫描后都追加在语感雷达�
     }
 });
 
-test("写作台路由组合：各模式按路径分派，同一套访问校验，未知路径 404", async () => {
-    const seen = [];
-    const fake = { routes: ["/api/writer/toutiao/articles"], async handle(ctx) { if (ctx.path !== "/api/writer/toutiao/articles") return false; seen.push(ctx.method); ctx.json(200, { ok: true, n: 1 }); return true; } };
-    const { routes, handler } = createWorkbenchHandler({}, [fake, fanqieApi({})]);
-    assert.ok(routes.includes("/api/writer/toutiao/articles") && routes.includes("/api/writer/agent/deliver"));
-    const call = (p, method = "GET", extra = {}) => new Promise((resolve) => {
-        const req = Object.assign(new EventEmitter(), { method, url: p, headers: { host: "127.0.0.1:1", ...extra }, socket: { remoteAddress: "127.0.0.1" } });
-        const res = { status: 0, headersSent: false, writeHead(s) { this.status = s; }, setHeader() { }, end(b) { resolve({ status: this.status, body: JSON.parse(b) }); } };
-        void handler(req, res);
-        setImmediate(() => req.emit("end"));
-    });
-    assert.deepEqual((await call("/api/writer/toutiao/articles")).body, { ok: true, n: 1 });
-    assert.equal((await call("/api/writer/toutiao/articles", "GET", { origin: "http://evil.example" })).status, 403);
-    assert.equal((await call("/api/writer/nope")).status, 404);
-    assert.deepEqual(seen, ["GET"]);
+test("写作台路由按真实路径处理，未知路径不接管", async () => {
+    const api = fanqieApi({});
+    assert.ok(api.routes.includes('/api/writer/projects'));
+    let response;
+    const url = new URL('app://writer/api/writer/nope');
+    assert.equal(await api.handle({url,path:url.pathname,method:'GET',body:async()=>({}),json:(_,data)=>{response=data;}}), false);
+    assert.equal(response, undefined);
 });
 
 test("写作台“写作 Agent”区块：按能力与回报渲染按钮", async () => {
