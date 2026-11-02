@@ -23,11 +23,10 @@ export function useDesktopController() {
   const selectionRequest = useRef(0);
   const pendingMessages = useRef<ChatMessage[] | null>(null);
   const input = useRef<HTMLTextAreaElement | null>(null);
+  const conversationId = useRef<string | undefined>(undefined);
   const archived = useRef<number | undefined>(undefined);
-  const { canLeave, canRestart, discardSource, trackMethodEdit, trackSourceEdit } = useDraftProtection(
-    focused,
-    (message) => set({ error: message }),
-  );
+  const { canLeave, canRestart, discardSource, trackMethodEdit, trackSourceEdit } =
+    useDraftProtection(focused, (message) => set({ error: message }));
   const contextRef = useRef<WorkspaceContext>(state.context);
   contextRef.current = state.context;
 
@@ -69,6 +68,7 @@ export function useDesktopController() {
     try {
       const value = await api.view(target, maximum, old);
       if (request !== viewRequest.current || scopeId(target) !== scopeId(selected.current)) return;
+      conversationId.current = value.conversationId;
       const known = new Set(value.messages.map((message) => message.writerMessageId)),
         extra = buffer.filter(
           (message) => !message.writerMessageId || !known.has(message.writerMessageId),
@@ -95,6 +95,7 @@ export function useDesktopController() {
     const request = ++selectionRequest.current;
     const { focus: nextFocus = {}, ...target } = next,
       previous = selected.current;
+    if (target.mode === "toutiao" && nextFocus.article) target.article = nextFocus.article;
     if (scopeId(previous) === scopeId(target)) {
       if (reopen) {
         await api.select(target);
@@ -178,10 +179,18 @@ export function useDesktopController() {
         void loadProjects().catch(fail);
       }
       const event = value.event;
-      if (!event) return;
+      if (!event || archived.current !== undefined) return;
+      if (
+        value.conversationId &&
+        conversationId.current &&
+        value.conversationId !== conversationId.current
+      )
+        return;
+      if (value.conversationId) conversationId.current = value.conversationId;
       if (value.phase) chatStore.set({ phase: value.phase });
       if (value.task && !value.editor) chatStore.set({ task: { ...value.task } });
       if (value.editor) return;
+      if (event.type === "task_preparing") chatStore.set({ busy: true });
       if (event.type === "agent_start") chatStore.set({ busy: true, stream: "" });
       if (event.type === "compaction_start" || event.type === "auto_retry_start")
         chatStore.set({ busy: true });
@@ -300,6 +309,9 @@ export function useDesktopController() {
   }
 
   async function deliver(action: string, note = "") {
+    if (archived.current !== undefined) throw new Error("请先返回当前对话");
+    if (action === "review" && state.context.hasCandidate)
+      throw new Error("编辑审读当前工作稿；请先采纳要审读的候选稿");
     return deliverAction(
       {
         selected: selected.current,
@@ -315,6 +327,7 @@ export function useDesktopController() {
   }
 
   async function command(name: string, args = "") {
+    if (archived.current !== undefined && name !== "新对话") throw new Error("请先返回当前对话");
     return runCommand({
       name,
       args,

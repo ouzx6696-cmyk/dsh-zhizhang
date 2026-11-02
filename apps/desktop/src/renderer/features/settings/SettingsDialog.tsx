@@ -13,7 +13,14 @@ type SettingsProps = {
   onWorkspace: () => void | Promise<void>;
   onImport: (mode: "fanqie" | "toutiao") => void | Promise<void>;
 };
-export function Settings({ state, onClose, onSaved, onWorkspace, onImport, canRestart }: SettingsProps) {
+export function Settings({
+  state,
+  onClose,
+  onSaved,
+  onWorkspace,
+  onImport,
+  canRestart,
+}: SettingsProps) {
   const [tab, setTab] = useState("models"),
     [models, setModels] = useState<any>(state.models),
     [appearance, setAppearance] = useState<any>(state.appearance),
@@ -128,6 +135,19 @@ export function Settings({ state, onClose, onSaved, onWorkspace, onImport, canRe
                     </button>
                   ))}
                 </div>
+                {roleTab === "editor" && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setModels((previous: any) => ({
+                        ...previous,
+                        editor: { ...previous.writer },
+                      }))
+                    }
+                  >
+                    编辑沿用写手连接（独立对话）
+                  </button>
+                )}
                 {roleTab !== "planner" ? (
                   <ModelFields
                     role={roleTab}
@@ -324,9 +344,7 @@ export function Settings({ state, onClose, onSaved, onWorkspace, onImport, canRe
                   {updates.state === "downloaded" && (
                     <button
                       onClick={async () => {
-                        if (
-                          canRestart() && await askConfirm("停止任务并重启安装更新？")
-                        )
+                        if (canRestart() && (await askConfirm("停止任务并重启安装更新？")))
                           void action(() => api.updates("install"));
                       }}
                     >

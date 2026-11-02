@@ -12,34 +12,53 @@ export async function sendPrompt(
   text: string,
   focusInput: Focus = {},
 ) {
-  const target = { ...targetInput };
+  const target = {
+    ...targetInput,
+    ...(targetInput.mode === "toutiao" && focusInput.article
+      ? { article: focusInput.article }
+      : {}),
+  };
   const focus = { ...focusInput };
   const key = host.key(target),
     generation = host.generations.get(key) || 0;
   const preparation = Symbol("preparing");
-  host.preparations.add(preparation);
+  host.preparations.set(preparation, { target, focus, generation });
   try {
     const session = await host.open(target);
     if ((host.generations.get(key) || 0) !== generation) throw new Error("任务已取消");
+    const entry = host.sessions.get(key)!;
+    if (session.isIdle) {
+      entry.task.name = text.slice(0, 100);
+      entry.task.current = "准备";
+    }
+    host.emit({
+      target,
+      task: entry.task,
+      phase: session.isIdle ? "正在准备任务…" : "正在准备追加要求，随后排队…",
+      event: { type: "task_preparing" },
+    });
+    host.emit({ running: host.running() });
     const prepared = await taskPrompt(host, target, text, focus);
     if ((host.generations.get(key) || 0) !== generation) throw new Error("任务已取消");
     await promptAccepted(session, prepared, (error) => {
       const current =
-        [...host.sessions.values()].find((entry) => entry.session === session)?.target ||
-        target;
+        [...host.sessions.values()].find((entry) => entry.session === session)?.target || target;
       host.emit({ target: current, error: explainError(error) });
       host.extras.log?.("model_error", { role: "writer" });
     });
+  } catch (error) {
+    if (host.sessions.get(host.key(target))?.session.isIdle)
+      host.emit({ target, event: { type: "agent_settled", aborted: true } });
+    throw error;
   } finally {
     host.preparations.delete(preparation);
+    host.emit({ running: host.running() });
+    if ((host.generations.get(key) || 0) !== generation)
+      host.emit({ target, event: { type: "agent_settled", aborted: true } });
   }
 }
 
-export async function notifyAuthor(
-  host: Sessions,
-  target: Target,
-  value: AuthorAction,
-) {
+export async function notifyAuthor(host: Sessions, target: Target, value: AuthorAction) {
   const session = host.sessions.get(host.key(target))?.session;
   if (!session) return;
   const names: Record<string, string> = {
@@ -53,9 +72,7 @@ export async function notifyAuthor(
     "/toutiao/draft": "保存作者稿",
   };
   const candidateSave = value.operation === "/chapter/save" && !!value.candidate;
-  const action = candidateSave
-    ? "保存候选正文"
-    : names[value.operation] || "更新方法方案";
+  const action = candidateSave ? "保存候选正文" : names[value.operation] || "更新方法方案";
   const objects: Record<string, string> = {
     "/candidate/accept": "当前候选稿",
     "/chapter/review": "当前章节",
@@ -66,11 +83,8 @@ export async function notifyAuthor(
     "/toutiao/adopt": "当前文章",
     "/toutiao/draft": "当前文章",
   };
-  const object = candidateSave
-    ? "当前候选稿"
-    : objects[value.operation] || "当前项目";
-  const revision =
-    typeof value.revision === "number" ? `；版本：${value.revision}` : "";
+  const object = candidateSave ? "当前候选稿" : objects[value.operation] || "当前项目";
+  const revision = typeof value.revision === "number" ? `；版本：${value.revision}` : "";
   const status = value.status ? `；状态：${statusLabel(target.mode, value.status)}` : "";
   const content = `作者已${action}；对象：${object}${revision}${status}。`;
   await session.sendCustomMessage(

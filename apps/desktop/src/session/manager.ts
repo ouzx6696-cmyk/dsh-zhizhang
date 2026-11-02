@@ -1,6 +1,7 @@
 import path from "node:path";
+import { rootIdentity } from "../../../../packages/core/src/identity";
 import { createHash } from "node:crypto";
-import { access, mkdir, rm } from "node:fs/promises";
+import { access, mkdir, rm, readdir, readFile } from "node:fs/promises";
 import { atomicWrite } from "../../../../packages/core/src/fsx";
 import type { Focus, Target } from "../context";
 import type { DesktopEvent } from "../renderer-contracts";
@@ -27,7 +28,7 @@ export class Sessions {
     SessionManager,
     { leaf: string | null; limit: number; messages: unknown[]; total: number }
   >();
-  preparations = new Set<symbol>();
+  preparations = new Map<symbol, { target: Target; focus: Focus; generation: number }>();
   generations = new Map<string, number>();
   historyCache: HistoryCache = new Map();
   sessions = new Map<string, SessionEntry>();
@@ -54,12 +55,51 @@ export class Sessions {
       .update(
         JSON.stringify({
           mode: target.mode,
-          root: path.resolve(target.root),
+          root: rootIdentity(target.root),
+          ...(target.article ? { article: target.article } : {}),
           ...(target.work ? { work: target.work } : {}),
         }),
       )
       .digest("hex")
       .slice(0, 24);
+  }
+
+  async directory(target: Target) {
+    const root = path.join(this.home, "sessions"),
+      current = path.join(root, this.key(target));
+    if (target.mode !== "fanqie") return current;
+    try {
+      await access(current);
+      return current;
+    } catch (error: any) {
+      if (error.code !== "ENOENT") throw error;
+    }
+    const dirs = await readdir(root).catch((error: any) => {
+      if (error.code === "ENOENT") return [];
+      throw error;
+    });
+    for (const dir of dirs) {
+      const marker = await readFile(path.join(root, dir, "current"), "utf8").catch((error: any) => {
+        if (error.code === "ENOENT" || error.code === "ENOTDIR") return "";
+        throw error;
+      });
+      if (!marker) continue;
+      const first = (await readFile(marker, "utf8")).split("\n", 1)[0];
+      const header = JSON.parse(first);
+      if (!header.cwd || rootIdentity(header.cwd) !== rootIdentity(target.root)) continue;
+      const oldKey = createHash("sha256")
+        .update(
+          JSON.stringify({
+            mode: target.mode,
+            root: path.resolve(header.cwd),
+            ...(target.work ? { work: target.work } : {}),
+          }),
+        )
+        .digest("hex")
+        .slice(0, 24);
+      if (dir === oldKey) return path.join(root, dir);
+    }
+    return current;
   }
 
   async open(
@@ -107,7 +147,7 @@ export class Sessions {
 
   async attachCreated(entry: SessionEntry, work: string) {
     const previous = { ...entry.target },
-      next = { ...previous, work };
+      next = { ...previous, ...(previous.mode === "toutiao" ? { article: work } : { work }) };
     const key = this.key(next),
       dir = path.join(this.home, "sessions", key);
     if (this.sessions.has(key)) return;
@@ -120,10 +160,7 @@ export class Sessions {
     );
     if (exists) return;
     await mkdir(dir, { recursive: true });
-    await atomicWrite(
-      path.join(dir, "current"),
-      entry.session.sessionManager.getSessionFile()!,
-    );
+    await atomicWrite(path.join(dir, "current"), entry.session.sessionManager.getSessionFile()!);
     await rm(path.join(this.home, "sessions", this.key(previous), "current"), {
       force: true,
     });
@@ -135,20 +172,33 @@ export class Sessions {
 
   running() {
     return [...this.sessions.values()]
-      .filter((entry) => !entry.session.isIdle)
+      .filter((entry) => !entry.session.isIdle || this.preparing(entry.target))
       .map((entry) => ({
         target: entry.target,
         focus: entry.focus,
-        phase: entry.phase || "任务处理中…",
+        phase:
+          (entry.phase || "任务处理中…") +
+          (entry.session.pendingMessageCount
+            ? `（另有 ${entry.session.pendingMessageCount} 条排队，停止会一并取消）`
+            : ""),
         task: entry.task,
       }));
+  }
+
+  preparing(target: Target) {
+    return [...this.preparations.values()].some(
+      (p) =>
+        this.key(p.target) === this.key(target) &&
+        p.generation === (this.generations.get(this.key(target)) || 0),
+    );
   }
 
   release(target: Target) {
     const key = this.key(target),
       entry = this.sessions.get(key);
-    if (entry?.session.isIdle && !this.children.has(entry.session)) {
-      entry.session.dispose();
+    if (!entry || (entry.session.isIdle && !this.children.has(entry.session))) {
+      this.generations.set(key, (this.generations.get(key) || 0) + 1);
+      entry?.session.dispose();
       this.sessions.delete(key);
     }
   }
@@ -158,21 +208,26 @@ export class Sessions {
     this.generations.set(key, (this.generations.get(key) || 0) + 1);
     if (this.opening.has(key)) await this.opening.get(key);
     const session = this.sessions.get(key)?.session;
-    if (session)
-      await Promise.all([this.children.get(session)?.abort(), session.abort()]);
+    session?.clearQueue();
+    if (session) await Promise.all([this.children.get(session)?.abort(), session.abort()]);
   }
 
   async dispose() {
+    for (const p of this.preparations.values()) {
+      const key = this.key(p.target);
+      this.generations.set(key, (this.generations.get(key) || 0) + 1);
+    }
     await Promise.allSettled(this.opening.values());
     for (const session of [
       ...this.children.values(),
       ...[...this.sessions.values()].map((entry) => entry.session),
     ]) {
+      session.clearQueue();
       await session.abort();
       session.dispose();
     }
     this.sessions.clear();
     this.historyCache.clear();
-    this.generations.clear();
+    this.preparations.clear();
   }
 }

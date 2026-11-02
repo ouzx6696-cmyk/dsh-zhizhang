@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Send, Plus, History, Feather, ArrowRight } from "lucide-react";
 import { Markdown } from "../../../Markdown";
 import { humanVersion } from "../../../commands";
-import { focusLabel, promptContext, toolLabel } from "../../../context";
+import { scopeId, focusLabel, promptContext, toolLabel } from "../../../context";
 import type { ChatMessage } from "../../state/store";
 import { useChatSelector } from "../../state/chatStore";
 import { desktop } from "../../state/desktop";
@@ -58,6 +58,8 @@ function ChatStream({
   );
 }
 
+const drafts = new Map<string, string>();
+
 export function AgentPanel({ app }: { app: DesktopController }) {
   const { state, selected, focus, context, fail, set, input } = app;
   const messages = useChatSelector((chat) => chat.messages);
@@ -77,7 +79,16 @@ export function AgentPanel({ app }: { app: DesktopController }) {
   const total = useChatSelector((chat) => chat.total);
   const archive = useChatSelector((chat) => chat.archive);
   const archives = useChatSelector((chat) => chat.archives);
-  const [draft, setDraft] = useState("");
+  const draftKey = scopeId(selected);
+  const [draft, updateDraft] = useState(drafts.get(draftKey) || "");
+  const setDraft = (value: string | ((current: string) => string)) => {
+    updateDraft((current) => {
+      const next = typeof value === "function" ? value(current) : value;
+      drafts.set(draftKey, next);
+      return next;
+    });
+  };
+  useEffect(() => updateDraft(drafts.get(draftKey) || ""), [draftKey]);
   const listRef = useRef<HTMLDivElement | null>(null);
   const stickToBottom = useRef(true);
   useEffect(() => {
@@ -306,7 +317,7 @@ export function AgentPanel({ app }: { app: DesktopController }) {
         <div className="quick-actions">
           {quick.map(([id, label]) => (
             <button
-              disabled={state.system?.access?.readOnly || !selected}
+              disabled={archive !== undefined || state.system?.access?.readOnly || !selected}
               key={id}
               onClick={() => app.command(id).catch(fail)}
             >

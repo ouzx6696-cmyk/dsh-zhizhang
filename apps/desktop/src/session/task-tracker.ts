@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { AgentSession, SessionManager } from "./pi-adapter";
 import type { Target } from "../context";
 import type { DesktopEvent } from "../renderer-contracts";
@@ -8,6 +9,7 @@ import type { SessionEntry, Task } from "./types";
 
 export function createTask(): Task {
   return {
+    id: randomUUID(),
     name: "",
     completed: [],
     current: "准备",
@@ -43,6 +45,8 @@ export function trackSession(options: {
               .join("\n");
       const parsed = promptContext(text);
       entry.focus = parsed.context?.focus || {};
+      entry.profile = parsed.context?.profile?.id;
+      task.id = randomUUID();
       task.name = parsed.text.slice(0, 100);
       task.startedAt = Date.now();
       task.completed = [];
@@ -60,8 +64,7 @@ export function trackSession(options: {
       const step = toolStep(event.toolName, target.mode);
       if (!task.completed.includes(step)) task.completed.push(step);
     }
-    if (event.type === "tool_execution_start")
-      task.current = toolStep(event.toolName, target.mode);
+    if (event.type === "tool_execution_start") task.current = toolStep(event.toolName, target.mode);
     if (event.type === "agent_settled") {
       const last = session.messages.findLast((message) => message.role === "assistant");
       const failure =
@@ -76,10 +79,8 @@ export function trackSession(options: {
         host.extras.log?.("model_error", { role });
       }
     }
-    if (event.type === "agent_start")
-      entry.phase = editor ? "编辑审读中…" : "正在创作…";
-    if (event.type === "tool_execution_start")
-      entry.phase = toolLabel(event.toolName) + "…";
+    if (event.type === "agent_start") entry.phase = editor ? "编辑审读中…" : "正在创作…";
+    if (event.type === "tool_execution_start") entry.phase = toolLabel(event.toolName) + "…";
     if (event.type === "compaction_start") entry.phase = "正在整理对话上下文…";
     if (event.type === "auto_retry_start") entry.phase = "模型连接重试中…";
     if (event.type === "agent_settled") entry.phase = "";
@@ -105,6 +106,7 @@ export function trackSession(options: {
       }
       host.emit({
         key: host.key(target),
+        conversationId: manager.getSessionId(),
         target,
         editor: !primary,
         role,

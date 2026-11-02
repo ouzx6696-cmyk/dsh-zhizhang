@@ -32,7 +32,7 @@ function App() {
       <TopBar app={app} />
       {system.target ? (
         <Workspace
-          key={scopeId(system.target) + state.workspaceKey}
+          key={scopeId({ ...system.target, article: undefined }) + state.workspaceKey}
           target={system.target}
           view={state.view}
           agent={<AgentPanel app={app} />}
@@ -51,7 +51,7 @@ function App() {
         <div className="studio-empty">
           <h1>你的下一篇，从这里开始</h1>
           <p>先连接模型并选择写作根，小说与头条会统一整理在本地。</p>
-          <button className="primary" onClick={() => set({ wizardStep: 0 })}>
+          <button className="primary" onClick={() => set({ wizardStep: 0, onboarding: true })}>
             开始设置
           </button>
         </div>

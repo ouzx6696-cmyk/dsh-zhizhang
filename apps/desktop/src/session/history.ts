@@ -5,25 +5,48 @@ import type { Target } from "../context";
 import { SessionManager } from "./pi-adapter";
 import type { Sessions } from "./manager";
 
-export async function conversations(host: Sessions, target: Target) {
-  const dir = path.join(host.home, "sessions", host.key(target));
+export async function conversations(
+  host: Sessions,
+  target: Target,
+): Promise<{ id: number; name: string; file: string; legacy?: boolean }[]> {
+  const dir = await host.directory(target);
   const history: string[] = JSON.parse(
     await readFile(path.join(dir, "history.json"), "utf8").catch((error) => {
       if (error.code === "ENOENT") return "[]";
       throw error;
     }),
   );
-  return history.map((file, index) => ({
-    id: index,
-    name: path.basename(file).replace(/\.jsonl$/, ""),
-    file,
-  }));
+  const legacy = target.article ? await conversations(host, { ...target, article: undefined }) : [];
+  if (target.article) {
+    const old = await readFile(
+      path.join(host.home, "sessions", host.key({ ...target, article: undefined }), "current"),
+      "utf8",
+    ).catch((error) => {
+      if (error.code === "ENOENT") return "";
+      throw error;
+    });
+    if (old) legacy.push({ id: legacy.length, file: old, name: "旧目录对话", legacy: true });
+  }
+  return [
+    ...history.map((file, index) => ({
+      id: index,
+      name: path.basename(file).replace(/\.jsonl$/, ""),
+      file,
+    })),
+    ...legacy.map((item, index) => ({
+      ...item,
+      id: history.length + index,
+      name: "旧目录对话 · " + item.name,
+      legacy: true,
+    })),
+  ];
 }
 
 export async function newConversation(host: Sessions, target: Target) {
   const entry = host.sessions.get(host.key(target));
-  if (entry && !entry.session.isIdle) throw new Error("请先停止当前任务，再开始新对话");
-  const dir = path.join(host.home, "sessions", host.key(target));
+  if (host.preparing(target) || (entry && !entry.session.isIdle))
+    throw new Error("请先停止当前任务，再开始新对话");
+  const dir = await host.directory(target);
   await mkdir(dir, { recursive: true });
   const current = await readFile(path.join(dir, "current"), "utf8").catch((error) => {
     if (error.code === "ENOENT") return "";
@@ -33,7 +56,10 @@ export async function newConversation(host: Sessions, target: Target) {
     const previous = await conversations(host, target);
     await atomicWrite(
       path.join(dir, "history.json"),
-      JSON.stringify([...previous.map((item) => item.file), current]),
+      JSON.stringify([
+        ...previous.filter((item) => !item.legacy).map((item) => item.file),
+        current,
+      ]),
     );
   }
   host.release(target);
@@ -84,13 +110,12 @@ export async function view(host: Sessions, target: Target, limit = 80, archive?:
     const marker =
       archive !== undefined
         ? (await conversations(host, target)).find((item) => item.id === archive)?.file || ""
-        : await readFile(
-            path.join(host.home, "sessions", host.key(target), "current"),
-            "utf8",
-          ).catch((error) => {
-            if (error.code === "ENOENT") return "";
-            throw error;
-          });
+        : await readFile(path.join(await host.directory(target), "current"), "utf8").catch(
+            (error) => {
+              if (error.code === "ENOENT") return "";
+              throw error;
+            },
+          );
     if (
       marker &&
       (await access(marker).then(
@@ -120,11 +145,16 @@ export async function view(host: Sessions, target: Target, limit = 80, archive?:
           .join("")
       : "";
   return {
+    conversationId: manager?.getSessionId(),
     messages: projected.messages,
     total: projected.total,
-    busy: entry ? !entry.session.isIdle : false,
+    busy: entry ? !entry.session.isIdle || host.preparing(target) : false,
     stream,
-    phase: entry?.phase || "",
+    phase:
+      entry?.phase ||
+      (!entry && ["user", "toolResult"].includes((projected.messages.at(-1) as any)?.role)
+        ? "上次对话尚未完成；先核对已保存稿件，需要时在设置检查作品恢复，再继续发送要求。"
+        : ""),
     focus: entry?.focus,
     task: entry?.task,
   };

@@ -1,3 +1,9 @@
+import {
+  ensureStorage,
+  resolveWorkDir,
+  readChapter,
+} from "../../../../packages/fanqie/src/engine/work-store";
+import { rootIdentity } from "../../../../packages/core/src/identity";
 import path from "node:path";
 import { Type } from "typebox";
 import type { SessionManager, ToolDefinition } from "./pi-adapter";
@@ -50,6 +56,7 @@ export function createBusinessTools(options: {
     onSaved,
   } = options;
 
+  const articleBasis = new Map<string, { rev: number; sha256: string }>();
   return definitions.map((def) => ({
     name: def.name,
     label: def.name,
@@ -57,20 +64,73 @@ export function createBusinessTools(options: {
     parameters: Type.Unsafe<any>(def.parameters),
     execute: async (callId, raw, signal) => {
       const entry = getEntry();
-      if (!roleAllows(role, def.name, target.mode))
-        throw new Error("当前角色无权执行此操作");
+      if (!roleAllows(role, def.name, target.mode)) throw new Error("当前角色无权执行此操作");
       signal?.throwIfAborted();
+      config.profile = entry.profile;
       const args = raw as Record<string, unknown>;
       if (def.name === "fanqie_status" && args.recovery === "resume")
         throw new Error("恢复写入请由作者在设置的作品恢复入口中检查、备份并确认");
+      if (
+        args.working_dir &&
+        rootIdentity(path.resolve(target.root, String(args.working_dir))) !==
+          rootIdentity(target.root)
+      )
+        throw new Error("本次任务不能切换项目目录");
+      if (
+        target.mode === "fanqie" &&
+        !target.work &&
+        (args.work ||
+          args.project ||
+          "work" in (def.parameters as any).properties ||
+          "project" in (def.parameters as any).properties)
+      )
+        throw new Error("请先从作品列表选择小说，或创建新作");
+      if (
+        target.mode === "toutiao" &&
+        !target.article &&
+        !["toutiao_method_get", "toutiao_profile"].includes(def.name) &&
+        args.id
+      )
+        throw new Error("请先从作品列表选择文章，或新建文章");
+      if (target.work && args.project && args.project !== target.work)
+        throw new Error("本次任务只能操作当前小说");
+      if (
+        (target.work && def.name === "fanqie_project_create") ||
+        (target.article && def.name === "toutiao_article_create")
+      )
+        throw new Error("请通过新作入口创建另一作品");
+      if (target.work && args.work && args.work !== target.work)
+        throw new Error("本次任务只能操作当前小说");
+      if (
+        target.article &&
+        !["toutiao_method_get", "toutiao_profile"].includes(def.name) &&
+        args.id &&
+        args.id !== target.article
+      )
+        throw new Error("本次任务只能操作当前文章");
       const input =
         target.mode === "fanqie"
           ? { ...(target.work ? { work: target.work } : {}), ...args }
           : args;
+      if (
+        def.name === "fanqie_chapter_save" &&
+        input.content !== undefined &&
+        !input.expected_revision
+      ) {
+        const dir = await resolveWorkDir(await ensureStorage(null, config), String(target.work));
+        const chapter = await readChapter(dir, String(input.chapter));
+        if (chapter.body.trim())
+          throw new Error("保存已有正文须提供已读取的 expected_revision；新正文可走候选稿流程");
+        input.expected_revision = chapter.revision;
+      }
+      if (def.name === "toutiao_draft_stage") {
+        const basis = articleBasis.get(String(input.id));
+        if (!basis) throw new Error("存稿前请先读取当前稿件；首次立项后可直接写初稿");
+        Object.assign(input, { expected_rev: basis.rev, expected_sha256: basis.sha256 });
+      }
       let createdWork: { base: string; key: string } | undefined;
       let stagedCandidate:
-        | { id: string; chapterId: string; work: string; base: string }
-        | undefined;
+        { id: string; chapterId: string; work: string; base: string } | undefined;
       const exec: HostToolExecution & {
         onWorkCreated: (base: string, key: string) => void;
         onCandidateStaged: (candidate: {
@@ -116,6 +176,42 @@ export function createBusinessTools(options: {
         bind: (run) => withPluginConfig(config, run),
         confirm: host.confirm,
       });
+      if (def.name === "toutiao_article_create") {
+        const meta = (value as any).article;
+        articleBasis.set(meta.id, { rev: 0, sha256: "" });
+      }
+      if (def.name === "toutiao_article_get" && input.include_draft)
+        articleBasis.set(String(input.id), (value as any).basis);
+      if (def.name === "toutiao_draft_get") {
+        const meta = await new ArticleStore(target.root).get(String(input.id));
+        const rev =
+          def.name === "toutiao_draft_get"
+            ? (value as any).rev
+            : (value as any).article?.current_rev;
+        const record =
+          def.name === "toutiao_draft_get"
+            ? (value as any).record
+            : meta.drafts.find((d) => d.rev === rev);
+        articleBasis.set(meta.id, { rev: rev ?? meta.current_rev, sha256: record?.sha256 || "" });
+      }
+      if (
+        def.name === "fanqie_chapter_save" &&
+        input.content !== undefined &&
+        !input.expected_revision
+      ) {
+        const dir = await resolveWorkDir(await ensureStorage(null, config), String(target.work));
+        const chapter = await readChapter(dir, String(input.chapter));
+        if (chapter.body.trim())
+          throw new Error("保存已有正文须提供已读取的 expected_revision；新正文可走候选稿流程");
+        input.expected_revision = chapter.revision;
+      }
+      if (def.name === "toutiao_draft_stage") {
+        const meta = await new ArticleStore(target.root).get(String(input.id));
+        articleBasis.set(meta.id, {
+          rev: meta.current_rev,
+          sha256: meta.drafts.find((d) => d.rev === meta.current_rev)?.sha256 || "",
+        });
+      }
       if (role === "planner" && PLANNING_WRITES.has(def.name))
         onSaved?.(
           def.name,
@@ -143,11 +239,20 @@ export function createBusinessTools(options: {
           });
         }
       }
+      if (target.mode === "toutiao" && def.name === "toutiao_article_create" && !target.article) {
+        const article = (value as any).id || (value as any).article?.id;
+        if (article) {
+          if (primary) await host.attachCreated(entry, String(article));
+          else {
+            target.article = String(article);
+            await onCreated?.(String(article));
+          }
+        }
+      }
       const text = content.map((item) => item.text).join("\n");
       const resultFocus: Focus = {
         ...entry.focus,
-        chapter:
-          typeof input.chapter === "string" ? input.chapter : entry.focus.chapter,
+        chapter: typeof input.chapter === "string" ? input.chapter : entry.focus.chapter,
         article:
           target.mode === "toutiao" && typeof input.id === "string"
             ? input.id
@@ -155,12 +260,8 @@ export function createBusinessTools(options: {
       };
       const resultTarget = {
         ...target,
-        ...(target.mode === "fanqie" && typeof input.work === "string"
-          ? { work: input.work }
-          : {}),
-        ...(stagedCandidate
-          ? { root: stagedCandidate.base, work: stagedCandidate.work }
-          : {}),
+        ...(target.mode === "fanqie" && typeof input.work === "string" ? { work: input.work } : {}),
+        ...(stagedCandidate ? { root: stagedCandidate.base, work: stagedCandidate.work } : {}),
       };
       if (stagedCandidate)
         Object.assign(resultFocus, {
@@ -190,8 +291,7 @@ export function createBusinessTools(options: {
                 target: resultTarget,
                 focus: resultFocus,
                 label: focusLabel(resultTarget, resultFocus),
-                draftLabel:
-                  typeof input.draft_label === "string" ? input.draft_label : undefined,
+                draftLabel: typeof input.draft_label === "string" ? input.draft_label : undefined,
                 summary:
                   resultKind === "candidate"
                     ? candidateSummary(text)

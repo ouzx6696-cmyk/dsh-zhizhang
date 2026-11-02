@@ -19,6 +19,7 @@ export function parseTarget(value: unknown): Target {
   return {
     mode: parseMode(source.mode),
     root: source.root,
+    ...(typeof source.article === "string" && source.article ? { article: source.article } : {}),
     ...(typeof source.work === "string" && source.work ? { work: source.work } : {}),
   };
 }

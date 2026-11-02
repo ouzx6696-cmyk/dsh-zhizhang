@@ -1,7 +1,16 @@
-export type Thinking = "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
+import type { Api, ModelThinkingLevel } from "./session/pi-adapter";
+export type Thinking = ModelThinkingLevel;
+export const APIS = [
+  "openai-completions",
+  "openai-responses",
+  "anthropic-messages",
+  "google-generative-ai",
+] as const;
 export type ModelConnection = {
   provider: string;
-  api: "openai-completions" | "anthropic-messages";
+  api: Api;
+  keyless?: boolean;
+  thinkingLevelMap?: Record<string, string | null>;
   baseUrl: string;
   apiKey: string;
   model: string;
@@ -85,57 +94,53 @@ export function defaultModels(): ModelSettings {
     planner: null,
   };
 }
-export function connection(
-  next: any,
-  previous: ModelConnection,
-): ModelConnection {
+export function connection(next: any, previous: ModelConnection): ModelConnection {
   const url = new URL(String(next.baseUrl || previous.baseUrl));
-  if (!["http:", "https:"].includes(url.protocol))
-    throw new Error("模型接口须为 HTTP(S) 地址");
+  if (!["http:", "https:"].includes(url.protocol)) throw new Error("模型接口须为 HTTP(S) 地址");
   const baseUrl = url.href.replace(/\/$/, "");
   const result: ModelConnection = {
     provider: String(next.provider || previous.provider),
+    keyless: next.keyless ?? previous.keyless ?? false,
+    thinkingLevelMap: next.thinkingLevelMap ?? previous.thinkingLevelMap,
     api: next.api || previous.api,
     baseUrl,
     model: String(next.model || previous.model).trim(),
-    apiKey: String(
-      next.apiKey || (baseUrl === previous.baseUrl ? previous.apiKey : ""),
-    ),
+    apiKey: String(next.apiKey || (baseUrl === previous.baseUrl ? previous.apiKey : "")),
     contextWindow: Number(next.contextWindow ?? previous.contextWindow),
     maxTokens: Number(next.maxTokens ?? previous.maxTokens),
     reasoning: next.reasoning ?? previous.reasoning,
     thinkingLevel: next.thinkingLevel || previous.thinkingLevel,
   };
   if (!result.model) throw new Error("请填写模型 ID");
-  if (!["openai-completions", "anthropic-messages"].includes(result.api))
+  if (
+    ![
+      ...APIS,
+      "mistral-conversations",
+      "azure-openai-responses",
+      "google-vertex",
+      "bedrock-converse-stream",
+      "openai-codex-responses",
+      "pi-messages",
+    ].includes(result.api)
+  )
     throw new Error("不支持的模型接口类型");
   if (
     !Number.isInteger(result.maxTokens) ||
     result.maxTokens <= 0 ||
     !Number.isInteger(result.contextWindow) ||
-    result.contextWindow <= result.maxTokens
+    result.contextWindow < result.maxTokens
   )
-    throw new Error("上下文窗口须大于最大输出，且均为正整数");
-  if (
-    !["off", "minimal", "low", "medium", "high", "xhigh"].includes(
-      result.thinkingLevel,
-    )
-  )
+    throw new Error("上下文窗口须不小于最大输出，且均为正整数");
+  if (!["off", "minimal", "low", "medium", "high", "xhigh", "max"].includes(result.thinkingLevel))
     throw new Error("不支持的思考档位");
   return result;
 }
-export function normalizeModels(
-  next: any,
-  previous = defaultModels(),
-): ModelSettings {
+export function normalizeModels(next: any, previous = defaultModels()): ModelSettings {
   const source = next.writer ? next : { writer: next };
   const writer = connection(source.writer || previous.writer, previous.writer);
   const editor = connection(source.editor || previous.editor, previous.editor);
-  if (!editor.apiKey && editor.baseUrl === writer.baseUrl)
-    editor.apiKey = writer.apiKey;
-  const planner = source.planner
-    ? connection(source.planner, previous.planner || writer)
-    : null;
+  if (!editor.apiKey && editor.baseUrl === writer.baseUrl) editor.apiKey = writer.apiKey;
+  const planner = source.planner ? connection(source.planner, previous.planner || writer) : null;
   if (planner && !planner.apiKey && planner.baseUrl === writer.baseUrl)
     planner.apiKey = writer.apiKey;
   return { writer, editor, planner };
@@ -144,7 +149,7 @@ export function publicModels(settings: ModelSettings) {
   return Object.fromEntries(
     Object.entries(settings).map(([role, value]) => [
       role,
-      value ? { ...value, apiKey: "", configured: !!value.apiKey } : null,
+      value ? { ...value, apiKey: "", configured: !!value.apiKey || !!value.keyless } : null,
     ]),
   );
 }

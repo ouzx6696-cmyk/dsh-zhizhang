@@ -71,7 +71,10 @@ export class Runtime {
           .some((item) => this.sessions.key(item.target) === this.sessions.key(eventTarget))
       )
         void lockRoot(this, eventTarget)
-          .then(releaseWorkspace)
+          .then(async (root) => {
+            if (!this.target || root !== (await lockRoot(this, this.target)))
+              await releaseWorkspace(root);
+          })
           .catch(() => {});
     }
     if (value.event?.type === "tool_execution_end")

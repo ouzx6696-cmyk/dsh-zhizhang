@@ -3,7 +3,7 @@ import type { Runtime } from "../runtime";
 import { handle } from "./handle";
 import { parseAppearance } from "./validate";
 import { connection } from "../../models";
-import { testConnection } from "../../session/pi-adapter";
+import { modelCatalog, discoverModels, testConnection } from "../../session/pi-adapter";
 import { explainError } from "../../diagnostics";
 
 export function registerModelsIpc(state: Runtime) {
@@ -18,8 +18,7 @@ export function registerModelsIpc(state: Runtime) {
     return state.settings.public();
   });
   handle("test-model", async (role, next) => {
-    if (role !== "writer" && role !== "editor" && role !== "planner")
-      throw new Error("未知角色");
+    if (role !== "writer" && role !== "editor" && role !== "planner") throw new Error("未知角色");
     const previous = state.model[role] || state.model.writer;
     try {
       const value = connection(next, previous);
@@ -29,6 +28,13 @@ export function registerModelsIpc(state: Runtime) {
     } catch (error) {
       throw new Error(explainError(error));
     }
+  });
+  handle("model-catalog", async (role, next, action) => {
+    const previous = state.model[role] || state.model.writer;
+    const value = connection(next, previous);
+    return action === "endpoint"
+      ? discoverModels(value)
+      : modelCatalog(path.join(state.home, "agent", "auth.json"), value, action === "refresh");
   });
   handle("appearance", async (next) => {
     await state.settings.saveUI({ appearance: parseAppearance(next) });

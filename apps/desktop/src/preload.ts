@@ -15,12 +15,12 @@ export const desktopAPI = {
   appearance: (next: Partial<Appearance>) => invoke("appearance", next),
   preferences: (text?: string) => invoke("preferences", text),
   search: (key: string) => invoke("search", key),
-  testModel: (role: keyof ModelSettings, next: ModelConnection) =>
-    invoke("test-model", role, next),
+  modelCatalog: (role: keyof ModelSettings, next: ModelConnection, action?: string) =>
+    invoke("model-catalog", role, next, action),
+  testModel: (role: keyof ModelSettings, next: ModelConnection) => invoke("test-model", role, next),
   newConversation: (target: Target) => invoke("new-conversation", target),
   conversations: (target: Target) => invoke("conversations", target),
-  export: (target: Target, focus: Focus, format: string) =>
-    invoke("export", target, focus, format),
+  export: (target: Target, focus: Focus, format: string) => invoke("export", target, focus, format),
   backup: () => invoke("backup"),
   storageHealth: () => invoke("storage-health"),
   recover: (expected: unknown) => invoke("recover", expected),
@@ -35,10 +35,8 @@ export const desktopAPI = {
   state: () => invoke("state"),
   choose: (mode: Target["mode"]) => invoke("choose", mode),
   model: (value: unknown) => invoke("model", value),
-  request: (operation: string, options: RequestOptions) =>
-    invoke("request", operation, options),
-  send: (text: string, target?: Target, focus?: Focus) =>
-    invoke("send", text, target, focus),
+  request: (operation: string, options: RequestOptions) => invoke("request", operation, options),
+  send: (text: string, target?: Target, focus?: Focus) => invoke("send", text, target, focus),
   stop: (target?: Target) => invoke("stop", target),
   subscribe: (callback: (value: DesktopEvent) => void) => {
     const listener = (_event: unknown, value: DesktopEvent) => callback(value);

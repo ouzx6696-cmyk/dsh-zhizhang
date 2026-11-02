@@ -6,7 +6,9 @@ import {
   createAgentSession,
   DefaultResourceLoader,
   SessionManager,
+  SettingsManager,
   runtimeModel,
+  clampThinkingLevel,
   type AgentSession,
   type ToolDefinition,
 } from "./pi-adapter";
@@ -39,16 +41,22 @@ export async function createSession(
   const target = { ...targetInput };
   const key = host.key(target);
   if (primary && host.sessions.has(key)) return host.sessions.get(key)!.session;
-  const dir = path.join(host.home, "sessions", key);
+  const dir = await host.directory(target);
   await mkdir(dir, { recursive: true });
   let manager = SessionManager.inMemory(target.root);
   if (primary) {
-    const marker = await readFile(path.join(dir, "current"), "utf8").catch((error) => { if (error.code === "ENOENT") return ""; throw error; });
+    const marker = await readFile(path.join(dir, "current"), "utf8").catch((error) => {
+      if (error.code === "ENOENT") return "";
+      throw error;
+    });
     manager =
       marker &&
       (await access(marker).then(
         () => true,
-        (error) => { if (error.code === "ENOENT") return false; throw error; },
+        (error) => {
+          if (error.code === "ENOENT") return false;
+          throw error;
+        },
       ))
         ? SessionManager.open(marker)
         : SessionManager.create(target.root, dir);
@@ -65,15 +73,16 @@ export async function createSession(
     python: host.python,
   };
   const gates = createGateEngine(
-    target.mode === "toutiao"
-      ? toutiaoGateRules(config)
-      : fanqieGateRules(config, businessRole),
+    target.mode === "toutiao" ? toutiaoGateRules(config) : fanqieGateRules(config, businessRole),
     { requireApproval: true },
   );
   let definitions: HostToolDefinition[] =
     target.mode === "toutiao"
       ? createToutiaoTools({ config, role: businessRole, gates: () => gates })
-      : [...engineTools(config, gates, "throw"), ...createFanqieTools({ config, role: businessRole })];
+      : [
+          ...engineTools(config, gates, "throw"),
+          ...createFanqieTools({ config, role: businessRole }),
+        ];
   definitions = definitions.filter((tool) => roleAllows(role, tool.name, target.mode));
   const readUrls = new Set<string>();
   const task = createTask();
@@ -100,7 +109,13 @@ export async function createSession(
   if (primary)
     customTools.push(...createDelegateTools({ host, target, manager, getEntry, getSession }));
   customTools.push(...createSourceTools({ host, target, readUrls }));
+  const settingsManager = SettingsManager.inMemory({
+    compaction: { enabled: true },
+    retry: { enabled: true },
+  });
   const loader = new DefaultResourceLoader({
+    settingsManager,
+    noContextFiles: true,
     cwd: target.root,
     agentDir: path.join(host.home, "agent"),
     noExtensions: true,
@@ -111,10 +126,8 @@ export async function createSession(
   });
   await loader.reload();
   const models = host.settings();
-  const settings = (
-    role === "planner" ? models.planner || models.writer : models[role]
-  )!;
-  if (!settings.apiKey)
+  const settings = (role === "planner" ? models.planner || models.writer : models[role])!;
+  if (!settings.apiKey && !settings.keyless)
     throw new Error(`请先设置${role === "editor" ? "编辑" : "写手"}模型的 API Key`);
   const { runtime, model } = await runtimeModel(
     settings,
@@ -126,8 +139,9 @@ export async function createSession(
     agentDir: path.join(host.home, "agent"),
     modelRuntime: runtime,
     model,
-    thinkingLevel: settings.reasoning ? settings.thinkingLevel : "off",
+    thinkingLevel: clampThinkingLevel(model, settings.thinkingLevel),
     resourceLoader: loader,
+    settingsManager,
     sessionManager: manager,
     tools: customTools.map((t) => t.name),
     customTools,

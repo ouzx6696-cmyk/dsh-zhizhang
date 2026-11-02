@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { ArrowRight, BookOpen, Check, Feather } from "lucide-react";
 import { ModelFields } from "../settings/ModelFields";
 import type { DesktopController } from "../../app/useDesktopController";
@@ -6,6 +6,7 @@ import { desktop } from "../../state/desktop";
 
 export function Onboarding({ app }: { app: DesktopController }) {
   const { state, fail, set } = app;
+  const [followWriter, setFollowWriter] = useState(true);
   const wizardModels = state.wizardModels;
   const writer = wizardModels?.writer;
   if (!wizardModels || !writer) return null;
@@ -50,14 +51,37 @@ export function Onboarding({ app }: { app: DesktopController }) {
               }}
               result={state.connectionResult}
             />
-            <p className="form-note">编辑默认用 DeepSeek Reasoner 开启思考；可稍后在设置中更换。</p>
+            <label className="checkbox">
+              <input
+                type="checkbox"
+                checked={followWriter}
+                onChange={(e) => setFollowWriter(e.target.checked)}
+              />
+              编辑沿用写手连接（保持独立对话）
+            </label>
+            {!followWriter && (
+              <ModelFields
+                role="editor"
+                model={wizardModels.editor}
+                onChange={(editor) => set({ wizardModels: { ...wizardModels, editor } })}
+                onTest={() =>
+                  desktop
+                    .testModel("editor", wizardModels.editor!)
+                    .then(() => {})
+                    .catch(fail)
+                }
+              />
+            )}
             <button
               className="primary"
               onClick={async () => {
                 try {
-                  if (!writer.apiKey && !writer.configured)
+                  if (!writer.apiKey && !writer.configured && !writer.keyless)
                     throw new Error("请填写写手模型的 API Key");
-                  await desktop.model(wizardModels);
+                  await desktop.model({
+                    ...wizardModels,
+                    editor: followWriter ? { ...writer } : wizardModels.editor,
+                  });
                   await app.syncState();
                   set({ wizardStep: 1 });
                 } catch (error) {

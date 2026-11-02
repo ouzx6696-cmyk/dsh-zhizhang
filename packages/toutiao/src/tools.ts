@@ -166,7 +166,7 @@ export function createToutiaoTools(deps: ToolDeps): HostToolDefinition[] {
         const out: Record<string, unknown> = {
           article: summary(m), headlines: m.headlines, qa: m.qa.slice(-3), history: m.history.slice(-8), card: card ?? null,
         }
-        if (args.include_draft && m.current_rev > 0) out.draft = await store.readDraft(m.id, m.current_rev)
+        if (args.include_draft) { out.draft = m.current_rev > 0 ? await store.readDraft(m.id, m.current_rev) : ""; out.basis = { rev: m.current_rev, sha256: store.currentDraft(m)?.sha256 || "" }; }
         return out
       },
     }),
@@ -222,19 +222,19 @@ export function createToutiaoTools(deps: ToolDeps): HostToolDefinition[] {
       },
     }),
 
-    defineWriterTool<{ id: string; text: string; role?: string; note?: string }>({
+    defineWriterTool<{ id: string; text: string; role?: string; note?: string; expected_rev?: number; expected_sha256?: string }>({
       name: 'toutiao_draft_stage',
       description: 'S4/S5 存一版稿件（只增不改，旧版保留）。新稿使状态回到 初稿待改，旧质检作废。text 为完整 Markdown，以 # 主标题 开头。',
       properties: deps.role === 'editor'
-        ? { id: ID, text: S('完整稿件 Markdown'), note: S('这一版改了什么') }
-        : { id: ID, text: S('完整稿件 Markdown'), role: E(['writer', 'author'], 'writer=你写的；author=作者亲手改的版本'), note: S('这一版改了什么') },
+        ? { id: ID, text: S('完整稿件 Markdown'), note: S('这一版改了什么'), expected_rev: I('依据版本'), expected_sha256: S('依据稿件哈希') }
+        : { id: ID, text: S('完整稿件 Markdown'), role: E(['writer', 'author'], 'writer=你写的；author=作者亲手改的版本'), note: S('这一版改了什么'), expected_rev: I('依据版本'), expected_sha256: S('依据稿件哈希') },
       required: ['id', 'text'],
       async run(args, exec) {
         const text = typeof args.text === 'string' ? args.text : ''
         if (!text.trim()) throw new WriterError('INVALID_ARGS', 'text 不能为空')
         // 角色由挂载决定，不信任参数：主写手不能把自己的稿子记成编辑版
         const role = deps.role === 'editor' ? 'editor' : (args.role === 'author' ? 'author' : 'writer')
-        const m = await st(exec).stageDraft(reqStr(args, 'id'), text.replace(/\r\n/g, '\n'), role, optStr(args, 'note') ?? '')
+        const m = await st(exec).stageDraft(reqStr(args, 'id'), text.replace(/\r\n/g, '\n'), role, optStr(args, 'note') ?? '', args.expected_rev === undefined ? undefined : { rev: args.expected_rev, sha256: args.expected_sha256 || '' })
         return { article: summary(m), rev: m.current_rev }
       },
     }),

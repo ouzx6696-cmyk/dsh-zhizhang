@@ -185,7 +185,7 @@ export class ArticleStore {
     await this.writable()
     return this.update(id, async (m) => {
       if (m.status === '已交稿') throw new WriterError('CONFLICT', '这篇已交稿，不能再改；需要改写请新开一篇')
-      if (expected && (m.current_rev !== expected.rev || this.currentDraft(m)?.sha256 !== expected.sha256))
+      if (expected && (m.current_rev !== expected.rev || (this.currentDraft(m)?.sha256 || '') !== expected.sha256))
         throw new WriterError('CONFLICT', '文章已变化，请保留当前修改并重新核对最新稿件。')
       const rev = m.current_rev + 1
       const file = this.draftPath(id, rev)

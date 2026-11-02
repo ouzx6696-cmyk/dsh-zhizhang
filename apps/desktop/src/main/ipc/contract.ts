@@ -18,6 +18,7 @@ export type RunningTask = {
   task?: TaskState;
 };
 export type SessionView = {
+  conversationId?: string;
   messages: any[];
   total: number;
   busy: boolean;
@@ -67,6 +68,7 @@ export interface IpcMap {
   running: { args: []; result: RunningTask[] };
   profiles: { args: []; result: boolean };
   model: { args: [unknown]; result: PublicSettings };
+  "model-catalog": { args: [keyof ModelSettings, ModelConnection, string?]; result: any };
   "test-model": {
     args: [keyof ModelSettings, ModelConnection];
     result: { latency: number; model: string };

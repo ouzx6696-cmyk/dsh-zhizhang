@@ -649,3 +649,108 @@ test("连续作品切换及持久化失败保留目标与租约一致", async ()
     await rm(base,{recursive:true,force:true});
   }
 });
+
+test("0.9.6：PI 作用范围、目录别名及显式内核配置", async () => {
+  const base = await mkdtemp(path.join(tmpdir(), "writer-scope-"));
+  process.env.DSH_HOME = path.join(base, "home");
+  const data = path.join(base, "project");
+  await mkdir(path.join(data, ".pi"), { recursive: true });
+  await writeFile(path.join(data, "AGENTS.md"), "AMBIENT_096_MUST_NOT_ENTER");
+  await writeFile(path.join(data, ".pi/settings.json"), '{"compaction":{"enabled":false}}');
+  const model = await fakeModel();
+  const host = new Sessions(
+    process.env.DSH_HOME,
+    "python3",
+    () => models(model.url),
+    () => {},
+    async () => true,
+  );
+  try {
+    const a = { mode: "fanqie", root: data, work: "a" };
+    const session = await host.open(a);
+    assert.equal(session.systemPrompt.includes("AMBIENT_096_MUST_NOT_ENTER"), false);
+    assert.equal(session.settingsManager.getCompactionEnabled(), true);
+    assert.equal(session.getActiveToolNames().includes("bash"), false);
+    const tool = session.agent.state.tools.find((t) => t.name === "fanqie_chapter_save");
+    await assert.rejects(
+      tool.execute("cross-work", { work: "b", chapter: "c001", content: "越界" }),
+      /当前小说/,
+    );
+    await assert.rejects(
+      tool.execute("cross-root", { working_dir: path.join(base, "other"), chapter: "c001" }),
+      /项目目录/,
+    );
+    if (process.platform !== "win32") {
+      const alias = path.join(base, "alias");
+      await symlink(data, alias, "dir");
+      assert.equal(host.key(a), host.key({ ...a, root: alias }));
+    }
+  } finally {
+    await host.dispose();
+    await model.close();
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("0.9.6：文章独立历史、旧依据冲突与准备阶段取消", async () => {
+  const base = await mkdtemp(path.join(tmpdir(), "writer-article-"));
+  process.env.DSH_HOME = path.join(base, "home");
+  const root = path.join(base, "articles"),
+    store = new ArticleStore(root);
+  const one = await store.create("one", {}),
+    two = await store.create("two", {});
+  const model = await fakeModel();
+  let release, entered;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  const ready = new Promise((resolve) => {
+    entered = resolve;
+  });
+  const host = new Sessions(
+    process.env.DSH_HOME,
+    "python3",
+    () => models(model.url),
+    () => {},
+    async () => true,
+    {},
+    async () => {},
+    {
+      preferences: async () => {
+        entered();
+        await gate;
+        return "";
+      },
+    },
+  );
+  const a = { mode: "toutiao", root, article: one.id },
+    b = { mode: "toutiao", root, article: two.id };
+  try {
+    assert.notEqual(host.key(a), host.key(b));
+    await store.stageDraft(one.id, "第一版", "writer", "");
+    const session = await host.open(a);
+    const tools = session.agent.state.tools;
+    await tools.find((t) => t.name === "toutiao_draft_get").execute("read", { id: one.id });
+    await store.stageDraft(one.id, "作者第二版", "author", "");
+    await assert.rejects(
+      tools
+        .find((t) => t.name === "toutiao_draft_stage")
+        .execute("stale", { id: one.id, text: "模型旧依据稿" }),
+      /文章已变化/,
+    );
+    assert.equal((await store.get(one.id)).current_rev, 2);
+    const pending = host.send(a, "准备中的任务", { article: one.id, intent: "inspect" });
+    const rejected = assert.rejects(pending, /任务已取消/);
+    await ready;
+    assert.equal(host.running().length, 1);
+    host.release(a);
+    release();
+    await rejected;
+    assert.equal(model.calls.length, 0);
+  } finally {
+    release();
+    await host.dispose();
+    await model.close();
+    await rm(base, { recursive: true, force: true });
+  }
+});

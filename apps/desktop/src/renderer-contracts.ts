@@ -20,6 +20,7 @@ export interface WorkspaceContext {
   };
 }
 export interface TaskState {
+  id?: string;
   name: string;
   completed: string[];
   current: string;
@@ -43,6 +44,7 @@ export interface WriterMessage {
 }
 export interface DesktopEvent {
   key?: string;
+  conversationId?: string;
   role?: "writer" | "editor" | "planner";
   target?: Target;
   navigate?: Target;

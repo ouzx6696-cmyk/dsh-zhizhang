@@ -1,3 +1,4 @@
+import { rootIdentity } from "../../../core/src/identity.js";
 /**
  * Local on-disk store for dsh-writer (Writing + shared path roots).
  *
@@ -160,9 +161,7 @@ function projectsFile() {
     return path.join(dshHome(), "writer-novel-projects.json");
 }
 /** Stable id for a workspace storage root (case/sep-insensitive). */
-export function projectIdOf(base: string) {
-    return path.resolve(base).replaceAll("\\", "/").toLowerCase();
-}
+export function projectIdOf(base: string) { return rootIdentity(base); }
 function projectNameOf(base: string) {
     const root = path.dirname(path.resolve(base));
     const parts = root.split(/[\\/]/).filter(Boolean);
@@ -323,7 +322,7 @@ export async function listProjects(opts: any = {}) {
         const recoveryPending = rowsWorks.some((w: any) => w.recoveryPending);
         const countsUnavailable = recoveryPending || Boolean(worksError);
         rows.push({
-            id: entry.id || projectIdOf(base),
+            id: projectIdOf(base),
             base,
             worksRoot: worksDir,
             name: entry.name || projectNameOf(base),

@@ -39,6 +39,9 @@ export function createDelegateTools(options: {
           chapter?: string;
           article?: string;
         };
+        if (request.work && request.work !== target.work) throw new Error("委派只能处理当前小说");
+        if (request.article && request.article !== target.article)
+          throw new Error("委派只能处理当前文章");
         const childTarget = {
           ...target,
           ...(request.work ? { work: request.work } : {}),
@@ -68,8 +71,10 @@ export function createDelegateTools(options: {
           delegate === "editor",
           delegate === "planner",
           async (work) => {
-            childTarget.work = work;
-            if (!target.work) await host.attachCreated(entry, work);
+            if (target.mode === "toutiao") childTarget.article = work;
+            else childTarget.work = work;
+            if (!(target.mode === "toutiao" ? target.article : target.work))
+              await host.attachCreated(entry, work);
           },
           (tool, receipt) => saved.push({ tool, receipt }),
         );
@@ -115,8 +120,7 @@ export function createDelegateTools(options: {
                 text:
                   result.summary +
                   ("saved" in result
-                    ? "\n" +
-                      result.saved?.map((item) => `${item.tool}: ${item.receipt}`).join("\n")
+                    ? "\n" + result.saved?.map((item) => `${item.tool}: ${item.receipt}`).join("\n")
                     : "") +
                   "\n\n" +
                   (child.getLastAssistantText() || "编辑未返回文字结论。"),
@@ -128,9 +132,7 @@ export function createDelegateTools(options: {
           host.children.delete(session);
           child.dispose();
           entry.phase =
-            delegate === "editor"
-              ? "编辑任务结束，正在整理结果…"
-              : "规划任务结束，正在整理结果…";
+            delegate === "editor" ? "编辑任务结束，正在整理结果…" : "规划任务结束，正在整理结果…";
         }
       },
     });

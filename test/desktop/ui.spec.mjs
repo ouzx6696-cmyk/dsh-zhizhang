@@ -284,7 +284,7 @@ test("命令面板、角色设置与新对话保留作品", async () => {
   await settings.getByRole("tab", { name: "独立编辑", exact: true }).click();
   await expect(
     settings.locator("fieldset").first().getByLabel("模型 ID", { exact: true }),
-  ).toHaveValue("deepseek-reasoner");
+  ).toHaveValue("mock-writer");
   await settings.getByRole("button", { name: "写作根与偏好", exact: true }).click();
   await settings.getByRole("button", { name: "检查占用和未完成写入", exact: true }).click();
   await expect(settings.getByText(/没有待恢复的写入/)).toBeVisible();

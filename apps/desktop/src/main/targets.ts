@@ -1,3 +1,4 @@
+import { physicalRoot } from "../../../../packages/core/src/identity";
 import path from "node:path";
 import type { Target } from "../context";
 import { rememberRoot } from "../../../../packages/toutiao/src/env";
@@ -31,7 +32,8 @@ export async function selectTarget(state: Runtime, next: Target) {
     const previous = state.target;
     const normalized = {
       mode: next.mode,
-      root: path.resolve(next.root),
+      root: physicalRoot(next.root),
+      ...(next.article ? { article: next.article } : {}),
       ...(next.work ? { work: next.work } : {}),
     };
     if (normalized.mode !== "toutiao") {
@@ -74,7 +76,8 @@ export async function selectTarget(state: Runtime, next: Target) {
           .some((item) => state.sessions.key(item.target) === state.sessions.key(previous))
       ) {
         try {
-          await releaseWorkspace(await lockRoot(state, previous));
+          const oldRoot = await lockRoot(state, previous);
+          if (oldRoot !== newRoot) await releaseWorkspace(oldRoot);
         } catch (error) {
           state.notice = "作品已切换，旧目录占用释放失败：" + String(error);
         }

@@ -2,6 +2,7 @@ export type Target = {
   mode: "toutiao" | "fanqie";
   root: string;
   work?: string;
+  article?: string;
 };
 export type Focus = {
   article?: string;
@@ -16,12 +17,10 @@ export type Focus = {
 };
 
 export const scopeId = (target?: Target | null) =>
-  target ? JSON.stringify([target.mode, target.root, target.work || ""]) : "";
+  target ? JSON.stringify([target.mode, target.root, target.work || "", target.article || ""]) : "";
 export const focusLabel = (target: Target, focus: Focus = {}) =>
   [
-    focus.workTitle ||
-      target.work ||
-      (target.mode === "fanqie" ? "长篇项目" : "今日头条"),
+    focus.workTitle || target.work || (target.mode === "fanqie" ? "长篇项目" : "今日头条"),
     focus.title || focus.chapter || focus.article,
     focus.source === "candidate"
       ? "候选稿"
@@ -37,9 +36,7 @@ export function promptText(text: string, context: unknown) {
   return `<writer-context>\n${JSON.stringify(context)}\n</writer-context>\n\n${text}`;
 }
 export function promptContext(text: string) {
-  const match = text.match(
-    /^<writer-context>\n([^\n]+)\n<\/writer-context>\n\n/,
-  );
+  const match = text.match(/^<writer-context>\n([^\n]+)\n<\/writer-context>\n\n/);
   return match
     ? { context: JSON.parse(match[1]), text: text.slice(match[0].length) }
     : { context: null, text };
@@ -47,8 +44,7 @@ export function promptContext(text: string) {
 export function toolLabel(name: string) {
   if (name === "writer_review") return "编辑审读";
   if (name === "writer_read_url") return "读取来源";
-  if (/review|qa_check|lint|ledger_check/.test(name))
-    return "检查稿件与审读结果";
+  if (/review|qa_check|lint|ledger_check/.test(name)) return "检查稿件与审读结果";
   if (/candidate.*accept/.test(name)) return "采纳候选稿";
   if (/candidate|draft_stage/.test(name)) return "准备与保存候选稿";
   if (/chapter_save|delivery_save|status/.test(name)) return "更新稿件状态";

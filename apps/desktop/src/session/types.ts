@@ -4,6 +4,7 @@ import type { FanqieConfig } from "../../../../packages/fanqie/src/config";
 import type { ToutiaoConfig } from "../../../../packages/toutiao/src/config";
 
 export type Task = {
+  id?: string;
   name: string;
   completed: string[];
   current: string;
@@ -18,6 +19,7 @@ export type SessionEntry = {
   target: Target;
   focus: Focus;
   phase: string;
+  profile?: string;
   task: Task;
 };
 
@@ -26,16 +28,10 @@ export type SessionOptions = { toutiao?: ToutiaoConfig; fanqie?: FanqieConfig };
 export type SessionExtras = {
   preferences?: () => Promise<string>;
   searchKey?: () => string;
-  log?: (
-    event: string,
-    fields: Record<string, string | number | boolean | undefined>,
-  ) => void;
+  log?: (event: string, fields: Record<string, string | number | boolean | undefined>) => void;
 };
 
-export type HistoryCache = Map<
-  string,
-  { stamp: string; manager: SessionManager }
->;
+export type HistoryCache = Map<string, { stamp: string; manager: SessionManager }>;
 
 export type AuthorAction = {
   operation: string;
