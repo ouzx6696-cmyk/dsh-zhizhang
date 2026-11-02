@@ -1,6 +1,6 @@
 import { assertNoPendingCard } from "../../storage/card-journal.js";
 import { withResourceLock } from "../../storage/process-lock.js";
-import { snapshotFile } from "../../storage/recovery-common.js";
+import { snapshotFile } from "../../storage/journal.js";
 import { createAnalysisJournal, finishAnalysisJournal } from "../../storage/analysis-journal.js";
 import { NovelError } from "../../errors.js";
 /** 分析 meta / bundle / 列表。 */
@@ -76,11 +76,7 @@ export async function commitAnalysisUpdate(paths: StoragePaths, sourceId: string
         { file: `${base}/${dataFile}`, before: dataBefore, content },
         { file: `${base}/meta.json`, before: metaBefore, content: JSON.stringify(next, null, 2) + "\n" },
     ] });
-    try { await finishAnalysisJournal(paths.library, journal); }
-    catch (err: any) {
-        if (err instanceof NovelError) throw err;
-        throw new NovelError("library_recovery_required", `拆书分析更新未完成（${err?.message ?? String(err)}）。请先检查恢复记录。`);
-    }
+    await finishAnalysisJournal(paths.library, journal);
 }
 
 export async function readAnalysisBundle(paths: StoragePaths, sourceId: any) {

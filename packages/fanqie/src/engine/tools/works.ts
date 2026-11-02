@@ -114,7 +114,7 @@ export function worksTools() {
                         const r = await resumePendingChapterSave(dir);
                         if (r.kind === "stage") return `已恢复候选 ${r.candidateId} 的暂存；候选正文与元数据已对齐。`;
                         if (r.kind === "lint") return `已恢复候选 ${r.candidateId} 的扫描留痕；凭据与审校账本已对齐。若候选正文已变，请重新扫描。`;
-                        return r.kind ? `已恢复${r.kind === "brief" ? "简报" : "兑付"}留痕；记录与审校账本已对齐。` : `已恢复章节 ${r.chapterId} 的保存；正文和作品目录已对齐。`;
+                        return r.kind === "brief" || r.kind === "payoff" ? `已恢复${r.kind === "brief" ? "简报" : "兑付"}留痕；记录与审校账本已对齐。` : `已恢复章节 ${r.chapterId} 的保存；正文和作品目录已对齐。`;
                     }
                     if (recovery === "inspect") {
                         const r = await inspectPendingAccept(dir);

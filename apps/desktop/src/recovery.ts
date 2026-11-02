@@ -4,7 +4,7 @@ import { readdir } from "node:fs/promises";
 import { workspaceAccess } from "../../../packages/core/src/workspace-lock";
 import { inspectPendingChapterSave, resumePendingChapterSave } from "../../../packages/fanqie/src/engine/storage/chapter-journal";
 import { inspectPendingAccept, resumePendingAccept } from "../../../packages/fanqie/src/engine/storage/accept-journal";
-import { ensureRecoveryOwnerInactive, snapshotFile } from "../../../packages/fanqie/src/engine/storage/recovery-common";
+import { ensureRecoveryOwnerInactive, snapshotFile } from "../../../packages/fanqie/src/engine/storage/journal";
 
 const CHAPTER = ".writer-chapter-pending.json";
 const ACCEPT = ".writer-accept-pending.json";

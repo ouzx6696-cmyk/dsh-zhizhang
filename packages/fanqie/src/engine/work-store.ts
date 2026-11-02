@@ -650,11 +650,7 @@ export async function stageCandidate(dir: string, input: any) {
         { file: `candidates/${bodyFile}`, before: null, content: input.body },
         { file: `candidates/${id}.json`, before: null, content: JSON.stringify(disk, null, 2) + "\n" },
     ] });
-    try { await finishChapterJournal(dir, journal); }
-    catch (err: any) {
-        if (err instanceof NovelError) throw err;
-        throw new NovelError("recovery_required", `候选 ${id} 暂存未完成（${err?.message ?? String(err)}），请先检查作品恢复记录。`);
-    }
+    await finishChapterJournal(dir, journal);
     return cand;
     });
 }
@@ -708,11 +704,7 @@ export async function markCandidateLinted(dir: string, candidateId: string, hitC
             { file: `candidates/${id}.json`, before: candidateBefore, content: JSON.stringify(diskMeta, null, 2) + "\n" },
             { file: "ledger.json", before: ledgerBefore, content: JSON.stringify(ledger, null, 2) + "\n" },
         ] });
-        try { await finishChapterJournal(dir, journal); }
-        catch (err: any) {
-            if (err instanceof NovelError) throw err;
-            throw new NovelError("recovery_required", `扫描留痕未完成（${err?.message ?? String(err)}），请先检查作品恢复记录。`);
-        }
+        await finishChapterJournal(dir, journal);
         return { token, lintedAt, hitCount, chapterId: cand.chapterId };
     });
 }
@@ -818,11 +810,7 @@ export async function acceptCandidate(dir: string, candidateId: string, mode: an
                     { file: "ledger.json", before: ledgerBefore, content: JSON.stringify(ledger, null, 2) + "\n" },
                 ],
             });
-            try { await finishAcceptJournal(dir, journalId); }
-            catch (err: any) {
-                if (err instanceof NovelError) throw err;
-                throw new NovelError("recovery_required", `采纳未完整提交（${err?.message ?? String(err)}）。请用 fanqie_status(work=作品, recovery=inspect) 检查，再决定是否恢复；不要重新采纳。`);
-            }
+            await finishAcceptJournal(dir, journalId);
             return { ...prepared.record, stateUpdate };
         }
     });
@@ -878,11 +866,7 @@ async function commitWorkRecord(dir: string, kind: "brief" | "payoff", chapterId
         { file: recordFile, before: recordBefore, content: recordContent },
         { file: "ledger.json", before: ledgerBefore, content: ledgerContent },
     ] });
-    try { await finishChapterJournal(dir, journal); }
-    catch (err: any) {
-        if (err instanceof NovelError) throw err;
-        throw new NovelError("recovery_required", `留痕更新未完成（${err?.message ?? String(err)}）。请先检查作品恢复记录。`);
-    }
+    await finishChapterJournal(dir, journal);
 }
 // —— § brief crumbs ——
 export async function readBriefCrumbs(dir: string) {

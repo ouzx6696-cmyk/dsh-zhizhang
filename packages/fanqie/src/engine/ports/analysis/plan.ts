@@ -6,7 +6,7 @@ import type { StoragePaths } from "../../types.js";
 import { NovelError } from "../../errors.js";
 import { withResourceLock } from "../../storage/process-lock.js";
 import { assertNoPendingCard } from "../../storage/card-journal.js";
-import { snapshotFile } from "../../storage/recovery-common.js";
+import { snapshotFile } from "../../storage/journal.js";
 import { createPlanJournal, finishPlanJournal } from "../../storage/plan-journal.js";
 import { AUTO_SAMPLE_HEAD, AUTO_SAMPLE_RATIO, AUTO_SAMPLE_TAIL } from "../../domain/workflow.js";
 import { assertSourceId, ensureDir, nowIso, readJson } from "./paths.js";
@@ -180,11 +180,7 @@ export async function writePlan(paths: StoragePaths, plan: any, options: { clear
         ];
         if (options.clearConfirm === true) writes.push({ file: `${prefix}/plan-confirm.json`, before: pendingBefore });
         const journal = await createPlanJournal(paths.library, { sourceId, clearConfirm: options.clearConfirm === true, writes });
-        try { await finishPlanJournal(paths.library, journal); }
-        catch (err: any) {
-            if (err instanceof NovelError) throw err;
-            throw new NovelError("library_recovery_required", `拆书计划更新未完成（${err?.message ?? String(err)}），请先检查恢复记录。`);
-        }
+        await finishPlanJournal(paths.library, journal);
     });
 }
 

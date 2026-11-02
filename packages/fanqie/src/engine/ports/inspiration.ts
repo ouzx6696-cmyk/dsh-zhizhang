@@ -10,7 +10,7 @@ import { withResourceLock } from "../storage/process-lock.js";
 import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { NovelError } from "../errors.js";
-import { snapshotFile } from "../storage/recovery-common.js";
+import { snapshotFile } from "../storage/journal.js";
 import { normalizeFoundation, validateStoryPace } from "../storage/work-meta.js";
 import { prepareChapterSaveUnlocked, readChapter } from "../storage/chapters.js";
 import { assertNoPendingInspiration, createInspirationJournal, finishInspirationJournal } from "../storage/inspiration-journal.js";

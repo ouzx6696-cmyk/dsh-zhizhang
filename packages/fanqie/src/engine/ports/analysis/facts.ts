@@ -8,7 +8,7 @@ import { NovelError } from "../../errors.js";
 import { HOOK_STRENGTHS, HOOK_TYPES } from "../../domain/card-schema.js";
 import { quoteOk } from "../../domain/evidence.js";
 import { analysisPaths, ensureDir, nowIso, readJsonl } from "./paths.js";
-import { snapshotFile } from "../../storage/recovery-common.js";
+import { snapshotFile } from "../../storage/journal.js";
 import { commitAnalysisUpdate } from "./meta.js";
 
 /** 白描硬禁：心理/评价词。desc 里出现即视为「替人物补动机/下判断」。 */

@@ -13,7 +13,7 @@ import { NovelError } from "../errors.js";
 import { assertNoPendingCard, createCardJournal, finishCardJournal } from "../storage/card-journal.js";
 import { createSourceJournal, finishSourceJournal } from "../storage/source-journal.js";
 import { createDiscardJournal, finishDiscardJournal } from "../storage/discard-journal.js";
-import { snapshotFile } from "../storage/recovery-common.js";
+import { snapshotFile } from "../storage/journal.js";
 import { withResourceLock } from "../storage/process-lock.js";
 import { atomicWrite, assertResourceId, } from "../work-store.js";
 import { readJsonCached } from "../file-cache.js";
@@ -256,13 +256,7 @@ export const LibraryPort = {
                 throw new NovelError("id_collision", "生成的书源 id 已存在；未覆盖原文件，请重新尝试。");
             idx.sources.unshift({ id: sourceId, title: meta.title, author: meta.author, createdAt: now });
             const journal = await createSourceJournal(paths.library, { sourceId, text, metaContent: JSON.stringify(meta, null, 2) + "\n", indexBefore, indexContent: JSON.stringify(idx, null, 2) + "\n" });
-            try {
-                await finishSourceJournal(paths.library, journal);
-            }
-            catch (err: any) {
-                if (err instanceof NovelError) throw err;
-                throw new NovelError("library_recovery_required", `书源 ${sourceId} 导入未完成（${err?.message ?? String(err)}）。请用 fanqie_library_list(recovery=inspect) 检查，不要重复导入。`);
-            }
+            await finishSourceJournal(paths.library, journal);
         });
         return {
             sourceId,
@@ -703,11 +697,7 @@ export const LibraryPort = {
                     { file: `candidates/${id}.json`, before: candidateBefore, content: JSON.stringify(acceptedCandidate, null, 2) + "\n" },
                 ],
             });
-            try { await finishCardJournal(paths.library, journalId); }
-            catch (err: any) {
-                if (err instanceof NovelError) throw err;
-                throw new NovelError("library_recovery_required", `卡采纳未完整提交（${err?.message ?? String(err)}）。请用 fanqie_library_list(recovery=inspect) 检查；不要重复采纳。`);
-            }
+            await finishCardJournal(paths.library, journalId);
             return {
                 cardId,
                 title: card.title,
@@ -734,11 +724,7 @@ export const LibraryPort = {
             fresh.cards = fresh.cards.filter((c: any) => c.id !== id);
             const cardBefore = await snapshotFile(path.join(d.cards, `${id}.json`));
             const journal = await createDiscardJournal(paths.library, { cardId: id, indexBefore, cardBefore, indexContent: JSON.stringify(fresh, null, 2) + "\n" });
-            try { await finishDiscardJournal(paths.library, journal); }
-            catch (err: any) {
-                if (err instanceof NovelError) throw err;
-                throw new NovelError("library_recovery_required", `删卡 ${id} 未完成（${err?.message ?? String(err)}）。请先检查恢复记录。`);
-            }
+            await finishDiscardJournal(paths.library, journal);
             return { cardId: id, title: hit.title, remaining: fresh.cards.length };
         });
     },
