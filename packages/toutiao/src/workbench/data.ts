@@ -56,14 +56,21 @@ export async function articleDetail(rootIn: string, id: string) {
   const m = await store.get(id)
   const card = (await store.readCard(id)) ?? {}
   const cur = store.currentDraft(m)
-  let draft = cur ? await store.readDraft(id, cur.rev).catch(() => '') : ''
+  let draft = '', problem: string | undefined
+  if (cur) {
+    try { draft = await store.readDraft(id, cur.rev) }
+    catch (error) {
+      if (!(error instanceof WriterError) || error.code !== 'NOT_FOUND') throw error
+      problem = '稿件文件缺失，请保留现有文件并核对；质检依据已不可用。'
+    }
+  }
   const truncated = draft.length > BODY_CAP
   if (truncated) draft = draft.slice(0, BODY_CAP) + '\n\n…（已截断）'
-  const delivery = m.delivered ? await readText(store.deliveryPath(id)).catch(() => undefined) : undefined
-  const qaValid = m.current_rev > 0 ? await validPassingQa(store, m) : { ok: false as const, reason: '还没有稿件' }
+  const delivery = m.delivered ? await readText(store.deliveryPath(id)) : undefined
+  const qaValid = problem ? { ok: false as const, reason: problem } : m.current_rev > 0 ? await validPassingQa(store, m) : { ok: false as const, reason: '还没有稿件' }
   const pick = (k: string) => (typeof card[k] === 'string' ? card[k] as string : undefined)
   return {
-    root, id: m.id, title: titleOf(m), status: m.status, line: m.line, genre: m.genre,
+    root, id: m.id, problem, title: titleOf(m), status: m.status, line: m.line, genre: m.genre,
     headlines: m.headlines, rev: m.current_rev, returnRounds: m.return_rounds, maxReturnRounds: MAX_RETURN_ROUNDS,
     card: { 主问题: pick('主问题'), 核心事实: pick('核心事实'), 读者: pick('读者') ?? pick('目标读者'), 出处: card['出处'] ?? undefined, present: Object.keys(card).length > 0 },
     draft: cur ? { rev: cur.rev, sha256: cur.sha256, role: cur.role, chars: cur.chars, at: cur.created_at, note: cur.note, text: draft, truncated } : null,

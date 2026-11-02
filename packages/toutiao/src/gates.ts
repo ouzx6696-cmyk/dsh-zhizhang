@@ -1,3 +1,4 @@
+import { WriterError } from '../../core/src/tool.js'
 /** 头条门禁规则。门禁只负责作者确认，业务合法性由工具检查。 */
 import type { GateRule } from '../../core/src/gates.js'
 import { storeFor, type ToutiaoConfig } from './env.js'
@@ -7,7 +8,11 @@ export function toutiaoGateRules(config: ToutiaoConfig): GateRule[] {
   const idOf = (a: Record<string, unknown>) => (typeof a.id === 'string' ? a.id.trim() : '')
   const load = async (exec: Parameters<GateRule['check']>[1], id: string) => {
     const store = storeFor(config, exec)
-    try { return { store, meta: await store.get(id) } } catch { return undefined }
+    try { return { store, meta: await store.get(id) } }
+    catch (error) {
+      if (error instanceof WriterError && error.code === 'NOT_FOUND') return undefined
+      throw error
+    }
   }
   return [
 

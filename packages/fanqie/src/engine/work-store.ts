@@ -1,3 +1,5 @@
+import { Diagnostics } from "../../../core/src/diagnostics.js";
+import { serialize, readText } from "../../../core/src/fsx.js";
 import { rootIdentity } from "../../../core/src/identity.js";
 /**
  * Local on-disk store for writer-agent (Writing + shared path roots).
@@ -99,23 +101,11 @@ function applicationStateRoot() {
 function toolBaseMarker() {
     return path.join(applicationStateRoot(), "writer-novel-last-root.json");
 }
-async function persistToolBase(base: string, works: string) {
-    try {
-        const file = toolBaseMarker();
-        await mkdir(path.dirname(file), { recursive: true });
-        const body = works ? { base, works, at: nowIso() } : { base, at: nowIso() };
-        await atomicWrite(file, JSON.stringify(body, null, 2) + "\n");
-    }
-    catch {
-        /* memory value still works for this process */
-    }
-}
-export function rememberToolBase(base: string, works: string) {
-    if (!base || base === lastToolBase)
-        return;
+export async function rememberToolBase(base: string, works: string) {
+    if (base === lastToolBase && works === lastWorksRoot) return;
+    await atomicWrite(toolBaseMarker(), JSON.stringify({ base, works, at: nowIso() }, null, 2) + "\n");
     lastToolBase = base;
-    lastWorksRoot = works || "";
-    void persistToolBase(base, works);
+    lastWorksRoot = works;
 }
 export function getLastToolBase() {
     return lastToolBase;
@@ -127,7 +117,6 @@ export async function loadLastToolBase() {
     // In a multi-process host the marker may appear later; re-check at most every 5s.
     if (Date.now() - lastMarkerReadAt < 5000)
         return "";
-    lastMarkerReadAt = Date.now();
     try {
         const raw = JSON.parse(await readFile(toolBaseMarker(), "utf8"));
         const base = typeof raw?.base === "string" ? raw.base : "";
@@ -142,9 +131,10 @@ export async function loadLastToolBase() {
             }
         }
     }
-    catch {
-        /* no marker yet */
+    catch (error) {
+        if (!isMissingFileError(error)) throw error;
     }
+    lastMarkerReadAt = Date.now();
     return "";
 }
 function projectsFile() {
@@ -160,16 +150,28 @@ function projectNameOf(base: string) {
 }
 let lastProjectBase = "";
 let lastProjectWorks = "";
-let projectsChain = Promise.resolve();
-async function readProjectsIndex() {
-    try {
-        const raw = JSON.parse(await readFile(projectsFile(), "utf8"));
-        const list = Array.isArray(raw?.projects) ? raw.projects : [];
-        return list.filter((p: ProjectEntry) => p && typeof p.base === "string" && path.isAbsolute(p.base));
+function validProject(value: unknown): value is ProjectEntry {
+    if (!value || typeof value !== 'object') return false;
+    const row = value as Record<string, unknown>;
+    return typeof row.id === 'string' && typeof row.base === 'string' && path.isAbsolute(row.base) &&
+        (row.works === undefined || typeof row.works === 'string' && path.isAbsolute(row.works)) &&
+        (row.worksRoot === undefined || typeof row.worksRoot === 'string' && path.isAbsolute(row.worksRoot)) &&
+        (row.name === undefined || typeof row.name === 'string') &&
+        (row.lastUsedAt === undefined || typeof row.lastUsedAt === 'string');
+}
+async function readProjectsIndex(): Promise<ProjectEntry[]> {
+    const text = await readText(projectsFile());
+    if (text === undefined) return [];
+    let raw: unknown;
+    try { raw = JSON.parse(text); }
+    catch (error) {
+        if (!(error instanceof SyntaxError)) throw error;
+        throw new NovelError('index_corrupt', '项目索引 JSON 损坏，已拒绝写入；请保留原文件并核对。');
     }
-    catch {
-        return [];
-    }
+    if (!raw || typeof raw !== 'object' || !('projects' in raw) ||
+        !Array.isArray(raw.projects) || !raw.projects.every(validProject))
+        throw new NovelError('index_corrupt', '项目索引格式损坏，已拒绝写入；请保留原文件并核对。');
+    return raw.projects;
 }
 async function upsertProjectFile(base: string, works: string) {
     const list = await readProjectsIndex();
@@ -188,21 +190,25 @@ async function upsertProjectFile(base: string, works: string) {
     next.sort((a: any, b: any) => String(b.lastUsedAt ?? "").localeCompare(String(a.lastUsedAt ?? "")));
     await atomicWrite(projectsFile(), JSON.stringify({ version: 1, projects: next }, null, 2) + "\n");
 }
-/**
- * Record this workspace in the cross-project index (best-effort, serialized).
- * Called from ensureStorage for tool calls only, so the panel can list projects.
- */
-export function rememberProject(base: string, works: string) {
-    if (!base || (base === lastProjectBase && (works ? works === lastProjectWorks : true)))
-        return projectsChain;
-    lastProjectBase = base;
-    if (works)
+/** Register only after a successful read-modify-write under the shared index lock. */
+export async function rememberProject(base: string, works: string) {
+    if (base === lastProjectBase && works === lastProjectWorks) return;
+    try {
+        await serialize(projectsFile(), async () => {
+            await mkdir(applicationStateRoot(), { recursive: true });
+            await withResourceLock(applicationStateRoot(), () => upsertProjectFile(base, works));
+        });
+        lastProjectBase = base;
         lastProjectWorks = works;
-    projectsChain = projectsChain.then(async () => {
-        await upsertProjectFile(base, works);
         projectsSummaryCache = null;
-    }).catch(() => { });
-    return projectsChain;
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        try { await new Diagnostics(stateRoot()).write('project_index_error', { message }); }
+        catch (diagnosticError) {
+            throw new AggregateError([error, diagnosticError], `项目登记失败：${message}；诊断记录也未能写入。`);
+        }
+        throw error;
+    }
 }
 const LOCAL_BOOK_EXTS = new Set([".txt", ".md", ".markdown"]);
 /** List candidate book files in a local shelf folder (read-only, no import). */
@@ -214,8 +220,9 @@ export async function listLocalBooks(sourceRoot: any, opts: any = {}) {
     try {
         names = await readdir(root);
     }
-    catch {
-        return [];
+    catch (error) {
+        if (isMissingFileError(error)) return [];
+        throw error;
     }
     const limit = typeof opts.limit === "number" ? opts.limit : 200;
     const rows = [];
@@ -234,8 +241,8 @@ export async function listLocalBooks(sourceRoot: any, opts: any = {}) {
                 bytes: st.size,
             });
         }
-        catch {
-            /* unreadable entry — skip */
+        catch (error) {
+            if (!isMissingFileError(error)) throw error;
         }
         if (rows.length >= limit)
             break;
@@ -384,8 +391,8 @@ export async function ensureStorage(exec: ExecContext | null, config: PluginConf
     // Tools pass exec; HTTP passes null. Remembering only tool roots lets the
     // Web panel follow the workspace the Agent is actually writing to.
     if (exec) {
-        rememberToolBase(paths.base, paths.works);
-        rememberProject(paths.base, paths.works);
+        await rememberToolBase(paths.base, paths.works);
+        await rememberProject(paths.base, paths.works);
     }
     return paths;
 }

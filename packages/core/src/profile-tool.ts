@@ -1,8 +1,8 @@
 /** 方法方案管理工具（toutiao_profile / fanqie_profile 共用实现）。删除方案只在写作台做（要确认）。 */
-import { readdir, stat } from 'node:fs/promises'
+import { stat } from 'node:fs/promises'
 import path from 'node:path'
 import { defineWriterTool, WriterError, type ToolDefinition, type JsonSchemaNode } from './tool.js'
-import { readText, resolveInside } from './fsx.js'
+import { listDir, readText, resolveInside } from './fsx.js'
 import {
   createProfile, listProfiles, PROFILE_LIMITS, profileDetail, renameProfile, resetMethod, saveMethod, activateProfile, type MethodLibrary,
 } from './profiles.js'
@@ -14,7 +14,7 @@ const str = (x: unknown) => (typeof x === 'string' ? x.trim() : '')
 export async function readMethodFolder(dir: string): Promise<{ id: string; text: string }[]> {
   const out: { id: string; text: string }[] = []
   const walk = async (d: string, depth: number) => {
-    for (const e of await readdir(d, { withFileTypes: true }).catch(() => [])) {
+    for (const e of await listDir(d)) {
       if (e.name.startsWith('.')) continue
       const p = path.join(d, e.name)
       if (e.isDirectory()) { if (depth < 4) await walk(p, depth + 1); continue }

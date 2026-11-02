@@ -1,5 +1,7 @@
 import { build } from "esbuild";
+import path from "node:path";
 const entries = [
+  ["runtime-effects", "test/desktop/runtime-effects.ts"],
   ["targets", "apps/desktop/src/main/targets.ts"],
   ["session", "apps/desktop/src/session/index.ts"],
   ["pi", "apps/desktop/src/session/pi-adapter.ts"],
@@ -20,6 +22,7 @@ for (const [name, entry] of entries)
     platform: "node",
     format: "esm",
     packages: "external",
+    ...(name === "runtime-effects" ? { alias: { electron: path.resolve("test/desktop/electron-fixture.mjs") } } : {}),
     outfile: `apps/desktop/out-test/${name}.mjs`,
     logLevel: "warning",
   });

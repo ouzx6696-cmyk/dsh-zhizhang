@@ -9,8 +9,7 @@ import type { Sessions } from "../session";
 import type { Settings } from "../settings";
 import type { FanqieConfig } from "../../../../packages/fanqie/src/config";
 import type { ToutiaoConfig } from "../../../../packages/toutiao/src/config";
-import { releaseWorkspace } from "../../../../packages/core/src/workspace-lock";
-import { lockRoot } from "./targets";
+import { releaseInactiveTarget } from "./targets";
 
 type WriterConfig = {
   toutiao?: ToutiaoConfig;
@@ -40,47 +39,45 @@ export class Runtime {
 
   emit(value: DesktopEvent) {
     if (value.error) value = { ...value, error: explainError(value.error) };
-    const eventTarget = value.target;
-    if (value.event?.type === "agent_settled") {
-      void this.diagnostics?.write("task_ended", {
-        mode: value.target?.mode,
-        work: value.target?.work,
-        aborted: value.event.aborted,
-      });
-      if (!value.editor && !this.window?.isFocused() && Notification.isSupported()) {
-        const notification = new Notification({
-          title: "写作 Agent",
-          body: value.event.aborted
-            ? "任务已停止，已保存结果保留"
-            : "写作任务已结束，等待你查看稿件与回报。",
-        });
-        notification.on("click", () => {
-          this.window?.show();
-          this.window?.focus();
-          this.emit({ navigate: value.target, focus: value.focus });
-        });
-        notification.show();
-      }
-      if (
-        eventTarget &&
-        this.target &&
-        this.sessions &&
-        this.sessions.key(eventTarget) !== this.sessions.key(this.target) &&
-        !this.sessions
-          .running()
-          .some((item) => this.sessions.key(item.target) === this.sessions.key(eventTarget))
-      )
-        void lockRoot(this, eventTarget)
-          .then(async (root) => {
-            if (!this.target || root !== (await lockRoot(this, this.target)))
-              await releaseWorkspace(root);
-          })
-          .catch(() => {});
-    }
-    if (value.event?.type === "tool_execution_end")
-      void this.diagnostics?.write("tool_ended", { tool: value.event.toolName });
     if (this.window && !this.window.isDestroyed())
       this.window.webContents.send("writer:event", value);
+  }
+
+  async sessionEvent(value: DesktopEvent) {
+    this.emit(value);
+    try {
+      if (value.event?.type === 'agent_settled') {
+        await Promise.all([
+          this.diagnostics.write('task_ended', {
+            mode: value.target?.mode, work: value.target?.work,
+            reason: value.event.reason, message: value.event.error,
+          }),
+          this.notifyTask(value),
+          value.target ? releaseInactiveTarget(this, value.target) : Promise.resolve(),
+        ]);
+      } else if (value.event?.type === 'tool_execution_end') {
+        await this.diagnostics.write('tool_ended', { tool: value.event.toolName });
+      }
+    } catch (error) {
+      this.notice = '任务结束后的处理失败：' + String(error);
+      this.emit({ error: this.notice });
+    }
+  }
+
+  private notifyTask(value: DesktopEvent) {
+    if (value.editor || this.window?.isFocused() || !Notification.isSupported()) return;
+    const reason = value.event?.reason;
+    const notification = new Notification({
+      title: '写作 Agent',
+      body: reason === 'failed' ? `任务失败：${value.event?.error || '请查看错误后重试'}`
+        : reason === 'cancelled' ? '任务已停止，已保存结果保留'
+        : '写作任务已结束，等待你查看稿件与回报。',
+    });
+    notification.on('click', () => {
+      this.window?.show(); this.window?.focus();
+      this.emit({ navigate: value.target, focus: value.focus });
+    });
+    notification.show();
   }
 
   confirm(text: string, signal?: AbortSignal): Promise<boolean> {

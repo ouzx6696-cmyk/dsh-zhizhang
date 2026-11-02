@@ -755,3 +755,107 @@ test("0.9.6：文章独立历史、旧依据冲突与准备阶段取消", async 
     await rm(base, { recursive: true, force: true });
   }
 });
+
+test('T3-05 准备阶段取消只发送一次 cancelled 结束事件', async () => {
+  const home = await mkdtemp(path.join(tmpdir(),'writer-settle-'))
+  process.env.WRITER_STATE_ROOT = home
+  const model = await fakeModel()
+  let entered, release
+  const ready = new Promise(resolve=>{entered=resolve})
+  const gate = new Promise(resolve=>{release=resolve})
+  const events = []
+  const host = new Sessions(home,'python3',()=>models(model.url),event=>events.push(event),async()=>true,
+    {},async()=>{}, {preferences:async()=>{entered();await gate;return ''}})
+  const target = {mode:'toutiao',root:path.join(home,'articles')}
+  try {
+    const pending = host.send(target,'准备中的任务')
+    const rejected = assert.rejects(pending,/任务已取消/)
+    await ready
+    await host.stop(target)
+    release()
+    await rejected
+    const settled = events.filter(event=>event.event?.type==='agent_settled')
+    assert.equal(settled.length,1)
+    assert.equal(settled[0].event.reason,'cancelled')
+    assert.equal(model.calls.length,0)
+  } finally {release();await host.dispose();await model.close();await rm(home,{recursive:true,force:true})}
+})
+
+test('T3-05 启动前失败标为 failed 并保留真实错误', async () => {
+  const home = await mkdtemp(path.join(tmpdir(),'writer-failed-'))
+  process.env.WRITER_STATE_ROOT = home
+  const model = await fakeModel(), events=[]
+  const host = new Sessions(home,'python3',()=>models(model.url),event=>events.push(event),async()=>true,
+    {},async()=>{}, {preferences:async()=>{throw new Error('材料文件不可读')}})
+  try {
+    await assert.rejects(host.send({mode:'toutiao',root:path.join(home,'articles')},'开始'),/材料文件不可读/)
+    const settled = events.filter(event=>event.event?.type==='agent_settled')
+    assert.equal(settled.length,1)
+    assert.equal(settled[0].event.reason,'failed')
+    assert.match(settled[0].event.error,/材料文件不可读/)
+  } finally {await host.dispose();await model.close();await rm(home,{recursive:true,force:true})}
+})
+
+test('T3-10 会话历史不可访问不能显示成空历史', async () => {
+  const home = await mkdtemp(path.join(tmpdir(),'writer-history-error-'))
+  const host = new Sessions(home,'python3',defaultModels,()=>{},async()=>false)
+  const target = {mode:'toutiao',root:path.join(home,'articles')}
+  try {
+    const directory = await host.directory(target)
+    await mkdir(directory,{recursive:true})
+    const file = path.join(home,'not-a-directory')
+    await writeFile(file,'x')
+    await writeFile(path.join(directory,'current'),path.join(file,'session.jsonl'))
+    await assert.rejects(host.view(target),error=>error.code==='ENOTDIR')
+  } finally {await host.dispose();await rm(home,{recursive:true,force:true})}
+})
+
+test('T3-11 后台工作区释放失败告知作者，保留锁以供核对', async () => {
+  const {Runtime,claimWorkspace,releaseWorkspace} = await import('../../apps/desktop/out-test/runtime-effects.mjs')
+  const home = await realpath(await mkdtemp(path.join(tmpdir(),'writer-release-error-')))
+  const previous = path.join(home,'previous'),current=path.join(home,'current')
+  await mkdir(previous);await mkdir(current)
+  const owner = await claimWorkspace(previous)
+  const lock = path.join(previous,'.writer-workspace-lock.json')
+  await rm(lock);await mkdir(lock)
+  const state = new Runtime(), events=[]
+  state.target={mode:'toutiao',root:current}
+  state.sessions={key:target=>target.root,running:()=>[]}
+  state.diagnostics={write:async()=>{}}
+  state.window={isDestroyed:()=>false,isFocused:()=>true,webContents:{send:(_,event)=>events.push(event)}}
+  try {
+    await state.sessionEvent({target:{mode:'toutiao',root:previous},event:{type:'agent_settled',reason:'done'}})
+    await new Promise(resolve=>setTimeout(resolve,80))
+    assert.ok(events.some(event=>/占用释放失败/.test(event.error||'')))
+    assert.ok(state.notice.includes('占用释放失败'))
+  } finally {
+    await rm(lock,{recursive:true});await writeFile(lock,JSON.stringify(owner.owner))
+    await releaseWorkspace(previous);await rm(home,{recursive:true,force:true})
+  }
+})
+
+test('T3-05 SDK 错误后正确结束，下一次成功任务有独立结束事件', async () => {
+  const home = await mkdtemp(path.join(tmpdir(),'writer-sdk-settle-'))
+  process.env.WRITER_STATE_ROOT = home
+  const model = await fakeModel({'mock-writer':[{status:401,error:'invalid api key'}]}),events=[]
+  let finish
+  const host = new Sessions(home,'python3',()=>models(model.url),event=>{
+    events.push(event)
+    if(event.event?.type==='agent_settled'&&!event.editor) finish?.()
+  },async()=>true)
+  const target={mode:'toutiao',root:path.join(home,'articles')}
+  try {
+    for (const expected of ['failed','done']) {
+      const ready=settled();finish=ready.finish
+      await host.send(target,'开始任务')
+      await ready.promise
+      const ended=events.filter(event=>event.event?.type==='agent_settled'&&!event.editor)
+      assert.equal(ended.at(-1).event.reason,expected)
+      assert.equal(ended.at(-1).error,undefined,'结束事件必须先让对话退出忙碌状态，再单独显示错误')
+    }
+    const ended=events.filter(event=>event.event?.type==='agent_settled'&&!event.editor)
+    assert.equal(ended.length,2)
+    assert.equal(new Set(ended.map(event=>event.event.taskId)).size,2)
+    assert.match(ended[0].event.error,/认证失败/)
+  } finally {await host.dispose();await model.close();await rm(home,{recursive:true,force:true})}
+})

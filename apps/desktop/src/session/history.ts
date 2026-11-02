@@ -120,7 +120,10 @@ export async function view(host: Sessions, target: Target, limit = 80, archive?:
       marker &&
       (await access(marker).then(
         () => true,
-        () => false,
+        (error) => {
+          if (error.code === 'ENOENT') return false;
+          throw error;
+        },
       ))
     ) {
       const info = await stat(marker, { bigint: true });

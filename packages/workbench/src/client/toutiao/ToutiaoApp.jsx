@@ -129,6 +129,7 @@ export function Body({ detail, onSave, readOnly = false, onEditState }) {
           ) : null}
         </div>
       </div>
+      {a.problem ? <Callout tone="danger" role="alert">{a.problem}</Callout> : null}
       <div className="wb-reader-body wb-enter" key={a.id + ":" + shown + ":" + (a.draft ? a.draft.rev : 0)} tabIndex={0}>
         {editing && shown === "draft" && a.draft ? (
           <SourceEditor

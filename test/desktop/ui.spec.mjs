@@ -525,4 +525,11 @@ test("今日头条使用同一套外壳与空态引导", async () => {
   await page.getByRole("button", { name: "写作", exact: true }).click();
   await expect(page.locator(".paper-ledger")).toBeHidden();
   await shot("desktop-toutiao-1440-light.png");
+  model.push("mock-writer", { status: 401, error: "invalid api key" });
+  const input = page.getByRole("textbox", { name: "写作要求" });
+  await input.fill("检查模型失败后的任务状态");
+  await input.press("Enter");
+  await expect(page.locator(".studio-error")).toContainText("模型认证失败");
+  await expect(page.getByRole("button", { name: "停止任务", exact: true })).toBeDisabled();
+  await expect(page.locator(".task-card")).not.toContainText("正在进行");
 });

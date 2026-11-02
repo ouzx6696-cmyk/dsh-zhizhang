@@ -67,7 +67,10 @@
       },
       "tool": "fanqie_forge_get",
       "local": [],
-      "patched": [],
+      "patched": [
+        "inspiration-forge-library/scripts/quote_check.py",
+        "inspiration-forge-library/scripts/novel_scanner.py"
+      ],
       "exclude": []
     },
     {

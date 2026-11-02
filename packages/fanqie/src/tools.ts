@@ -163,7 +163,7 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
         const r = args.analysis_text
           ? await withTempFiles([{ name: '拆解稿.md', text: str(args.analysis_text) }], ([p]) => go(p!))
           : await go(await localFile(exec, str(args.analysis)))
-        return { pass: r.pass, checked: r.checked, not_verbatim: r.not_verbatim, items: r.items }
+        return { pass: r.pass, checked: r.checked, not_verbatim: r.not_verbatim, items: r.items, warnings: r.warnings }
       },
     }),
 

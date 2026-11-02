@@ -218,7 +218,8 @@ export function useDesktopController() {
         chatStore.set({
           busy: false,
           stream: "",
-          phase: event.aborted ? "已停止，已保存结果保留" : "任务结束，等待你查看结果",
+          phase: event.reason === "failed" ? event.error || "任务失败，请查看错误后重试"
+            : event.reason === "cancelled" ? "已停止，已保存结果保留" : "任务结束，等待你查看结果",
         });
       }
     });

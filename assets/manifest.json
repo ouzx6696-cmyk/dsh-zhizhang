@@ -26,7 +26,7 @@
       "kind": "upstream",
       "version": "1.3.0",
       "files": 124,
-      "bytes": 622293,
+      "bytes": 622723,
       "loadable": 111,
       "byKind": {
         "meta": 5,
@@ -73,7 +73,7 @@
       "kind": "local",
       "version": null,
       "files": 2,
-      "bytes": 12006,
+      "bytes": 13512,
       "loadable": 0,
       "byKind": {
         "rule": 1,
@@ -527,18 +527,18 @@
     {
       "source": "inspiration-forge-suite",
       "kind": "rule",
-      "origin": "upstream",
+      "origin": "patched",
       "path": "packages/fanqie/skill/forge/inspiration-forge-library/scripts/novel_scanner.py",
-      "bytes": 6126,
-      "sha256": "501ad41e93984819fb96ee601d0e03606ddf601f1c39b6f329dacc3fcbbea78a"
+      "bytes": 6254,
+      "sha256": "5e31920f98968a99d6d14d86a6af684a5686e8253676a9c281b98791d1ca284b"
     },
     {
       "source": "inspiration-forge-suite",
       "kind": "rule",
-      "origin": "upstream",
+      "origin": "patched",
       "path": "packages/fanqie/skill/forge/inspiration-forge-library/scripts/quote_check.py",
-      "bytes": 4764,
-      "sha256": "778d5b4b9aadd789b03c8353b2fad1f78990c7e1e2dcd990c3f7bd5629850fb4"
+      "bytes": 5066,
+      "sha256": "977d2021ec8cfa7bfe6802aea4575eff93e884aae737098a33474bae3843b46f"
     },
     {
       "source": "inspiration-forge-suite",
@@ -2201,16 +2201,16 @@
       "kind": "rule",
       "origin": "local",
       "path": "packages/fanqie/skill/scripts/fanqie_bridge.py",
-      "bytes": 6978,
-      "sha256": "42d6a98a3a553ed5aa18d3e1474b6e64deedd833687600002038e1cebdc3194b"
+      "bytes": 7028,
+      "sha256": "dff0414729df2279fa5d6c8ae7e9347541398648d095f5445525746805a72b97"
     },
     {
       "source": "writer-fanqie-rules",
       "kind": "test",
       "origin": "local",
       "path": "packages/fanqie/skill/tests/test_bridge.py",
-      "bytes": 5028,
-      "sha256": "e7cd19a114f948b5aa60e56cc16498a9c5ba77ec5939c4b46f8be120c8038e7f"
+      "bytes": 6484,
+      "sha256": "c0a2a0eb2fa30d376470a8486c5fca3cb4b176aa8f35df89a8dcc3c2b7436d4c"
     },
     {
       "source": "engine-method-assets",

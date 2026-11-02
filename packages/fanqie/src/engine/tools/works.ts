@@ -394,7 +394,7 @@ export function worksTools() {
                     fail("position 必须是从 1 开始的整数");
                 const position = typeof args.position === "number" ? args.position : undefined;
                 if (status === "final" && config.requireEditorPass === true) {
-                    const body = contentArg ?? (await readChapter(dir, chapterId).catch(() => ({ body: "" }))).body ?? "";
+                    const body = contentArg ?? (await readChapter(dir, chapterId)).body;
                     const denied = await finalizeProblem(dir, chapterId, body, true);
                     if (denied)
                         fail(denied, "writer_finalize_blocked");

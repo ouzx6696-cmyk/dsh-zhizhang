@@ -7,11 +7,11 @@
  * 当前方案存在 <方案目录>/active.json；配置 <mode>.profile 可以钉死。
  * 方案目录：配置 profilesDir → WRITER_PROFILES_DIR → 应用状态目录/writer/profiles。
  */
-import { readdir, rm, stat } from 'node:fs/promises'
+import { rm, stat } from 'node:fs/promises'
 import { stateRoot } from './paths.js'
 import path from 'node:path'
 import { WriterError } from './tool.js'
-import { atomicWrite, readJson, readText, resolveInside } from './fsx.js'
+import { listDir, atomicWrite, readJson, readText, resolveInside } from './fsx.js'
 
 export type ProfileMode = 'toutiao' | 'fanqie'
 export type BuiltinProfile = 'default' | 'original'
@@ -100,7 +100,7 @@ function checkText(text: unknown): string {
 
 async function userMetas(mode: ProfileMode): Promise<ProfileMeta[]> {
   const out: ProfileMeta[] = []
-  for (const e of await readdir(modeDir(mode), { withFileTypes: true }).catch(() => [])) {
+  for (const e of await listDir(modeDir(mode))) {
     if (!e.isDirectory() || !USER_ID.test(e.name)) continue
     const m = await readJson<ProfileMeta>(path.join(modeDir(mode), e.name, 'profile.json'))
     if (m?.id === e.name) out.push({ ...m, mode, kind: 'user', base: m.base === 'original' ? 'original' : 'default' })
@@ -127,7 +127,7 @@ async function overrideIds(mode: ProfileMode, id: string): Promise<string[]> {
   const root = path.join(modeDir(mode), id, 'methods')
   const out: string[] = []
   const walk = async (d: string) => {
-    for (const e of await readdir(d, { withFileTypes: true }).catch(() => [])) {
+    for (const e of await listDir(d)) {
       const p = path.join(d, e.name)
       if (e.isDirectory()) await walk(p)
       else if (e.isFile() && e.name.endsWith('.md')) out.push(path.relative(root, p).split(path.sep).join('/').replace(/\.md$/, ''))

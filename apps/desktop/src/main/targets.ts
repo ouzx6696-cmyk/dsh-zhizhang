@@ -63,7 +63,8 @@ export async function selectTarget(state: Runtime, next: Target) {
           .running()
           .some((item) => state.sessions.key(item.target) === state.sessions.key(normalized))
       )
-        await releaseWorkspace(newRoot).catch(() => {});
+        try { await releaseWorkspace(newRoot); }
+        catch (releaseError) { await reportReleaseFailure(state, releaseError); }
       throw error;
     }
     if (normalized.mode === "toutiao") rememberRoot(normalized.root);
@@ -79,13 +80,30 @@ export async function selectTarget(state: Runtime, next: Target) {
           const oldRoot = await lockRoot(state, previous);
           if (oldRoot !== newRoot) await releaseWorkspace(oldRoot);
         } catch (error) {
-          state.notice = "作品已切换，旧目录占用释放失败：" + String(error);
+          await reportReleaseFailure(state, error);
         }
       }
       state.sessions.release(previous);
     }
     return normalized;
   });
+}
+
+export async function releaseInactiveTarget(state: Runtime, target: Target) {
+  if (!state.target || state.sessions.key(target) === state.sessions.key(state.target) ||
+    state.sessions.running().some(item => state.sessions.key(item.target) === state.sessions.key(target))) return;
+  try {
+    const root = await lockRoot(state, target);
+    if (!state.target || root !== await lockRoot(state, state.target)) await releaseWorkspace(root);
+  } catch (error) {
+    await reportReleaseFailure(state, error);
+  }
+}
+
+async function reportReleaseFailure(state: Runtime, error: unknown) {
+  state.notice = '作品占用释放失败，请保留现有文件并核对：' + String(error);
+  state.emit({ error: state.notice });
+  await state.diagnostics.write('workspace_release_failed', { message: String(error) });
 }
 
 export { releaseWorkspaces } from "../../../../packages/core/src/workspace-lock";

@@ -1,3 +1,4 @@
+export type TaskEndReason = "cancelled" | "failed" | "done";
 import type { ReactNode } from "react";
 import type { Target, Focus } from "./context";
 
@@ -62,6 +63,9 @@ export interface DesktopEvent {
     type: string;
     toolName?: string;
     aborted?: boolean;
+    reason?: TaskEndReason | "manual" | "threshold" | "overflow";
+    error?: string;
+    taskId?: string;
     message?: WriterMessage;
     assistantMessageEvent?: { type: string; delta?: string };
   };

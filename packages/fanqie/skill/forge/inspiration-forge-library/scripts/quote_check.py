@@ -27,12 +27,22 @@ CJK = re.compile(r'[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]')
 QUOTES = re.compile(r'“([^”\n]{1,300})”|「([^」\n]{1,300})」|『([^』\n]{1,300})』|"([^"\n]{1,300})"')
 
 
+try:
+    import opencc
+except ModuleNotFoundError as error:
+    if error.name != 'opencc':
+        raise
+    _converter = None
+else:
+    _converter = opencc.OpenCC('t2s')
+
+
+def normalization_warnings():
+    return ['未做繁简转换：未安装 opencc。'] if _converter is None else []
+
+
 def to_simplified(text):
-    try:
-        import opencc  # type: ignore
-        return opencc.OpenCC('t2s').convert(text)
-    except Exception:
-        return text
+    return _converter.convert(text) if _converter is not None else text
 
 
 def core(text):
@@ -50,10 +60,10 @@ def build_index(source_text):
 
 
 def check(source_path, analysis_path, min_chars=6):
-    src_text = Path(source_path).read_text(encoding='utf-8', errors='replace')
+    src_text = Path(source_path).read_text(encoding='utf-8')
     src, line_of = build_index(src_text)
     results = []
-    for no, line in enumerate(Path(analysis_path).read_text(encoding='utf-8', errors='replace').splitlines(), 1):
+    for no, line in enumerate(Path(analysis_path).read_text(encoding='utf-8').splitlines(), 1):
         for m in QUOTES.finditer(line):
             raw = next(g for g in m.groups() if g is not None)
             c = core(raw)
@@ -90,8 +100,10 @@ def main():
     res = check(a.source, a.analysis, a.min_chars)
     bad = [r for r in res if r['status'] != '逐字命中']
     if a.json:
-        print(json.dumps({'checked': len(res), 'not_verbatim': len(bad), 'items': res}, ensure_ascii=False, indent=2))
+        print(json.dumps({'checked': len(res), 'not_verbatim': len(bad), 'items': res, 'warnings': normalization_warnings()}, ensure_ascii=False, indent=2))
     else:
+        for warning in normalization_warnings():
+            print(warning)
         print(f'核对引文 {len(res)} 处：逐字命中 {len(res) - len(bad)}，未逐字命中 {len(bad)}。')
         for r in bad:
             print(f"- 第 {r['line']} 行［{r['status']}，重合 {r['overlap']:.0%}］“{r['quote']}”")

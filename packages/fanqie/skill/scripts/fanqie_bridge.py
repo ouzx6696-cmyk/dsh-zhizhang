@@ -143,7 +143,7 @@ def cmd_quote(source, analysis, min_chars):
     res = quote_check.check(source, analysis, int(min_chars))
     bad = [r for r in res if r['status'] != '逐字命中']
     out({'tool': 'quote', 'ok': True, 'checked': len(res), 'not_verbatim': len(bad),
-         'pass': not bad, 'items': res})
+         'pass': not bad, 'items': res, 'warnings': quote_check.normalization_warnings()})
 
 
 def main(argv):

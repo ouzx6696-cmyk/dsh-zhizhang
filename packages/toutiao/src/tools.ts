@@ -66,6 +66,11 @@ function summary(m: ArticleMeta) {
 export async function validPassingQa(store: ReturnType<typeof storeFor>, m: ArticleMeta) {
   const q = store.latestQaFor(m)
   if (!q) return { ok: false as const, reason: '当前版本还没跑质检（toutiao_qa_check）' }
+  try { await store.readDraft(m.id, m.current_rev) }
+  catch (error) {
+    if (!(error instanceof WriterError) || error.code !== 'NOT_FOUND') throw error
+    return { ok: false as const, reason: '稿件文件缺失，请保留现有文件并核对。' }
+  }
   const cardSha = await store.cardSha(m.id)
   if (q.card_sha256 !== cardSha) return { ok: false as const, reason: '立项卡在质检后改过，请重跑 toutiao_qa_check' }
   if (!q.pass) return { ok: false as const, reason: `当前版本质检未过线（${q.score} 分${q.hard_gates.length ? '，硬闸：' + q.hard_gates.join('、') : ''}）` }

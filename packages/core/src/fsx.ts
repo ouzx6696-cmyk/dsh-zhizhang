@@ -1,5 +1,5 @@
 /** 文件工具：原子写、根目录越界检查、按路径串行化。只用 Node 标准库。 */
-import { mkdir, readFile, rename, writeFile, rm, stat } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rename, writeFile, rm, stat } from 'node:fs/promises'
 import { randomBytes, createHash } from 'node:crypto'
 import path from 'node:path'
 import { WriterError } from './tool.js'
@@ -23,6 +23,15 @@ export async function atomicWrite(file: string, data: string): Promise<void> {
   } catch (err) {
     await rm(tmp, { force: true }).catch(() => undefined)
     throw err
+  }
+}
+
+/** Missing directories are empty; permission and IO errors remain visible. */
+export async function listDir(dir: string) {
+  try { return await readdir(dir, { withFileTypes: true }) }
+  catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return []
+    throw error
   }
 }
 

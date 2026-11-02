@@ -68,7 +68,7 @@ export async function start() {
     state.home,
     state.pythonPath(),
     () => state.model,
-    (event) => state.emit(event),
+    (event) => { void state.sessionEvent(event); },
     (text, signal) => state.confirm(text, signal),
     state.writerConfig,
     async (previous, next) => {

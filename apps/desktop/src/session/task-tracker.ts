@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { AgentSession, SessionManager } from "./pi-adapter";
 import type { Target } from "../context";
-import type { DesktopEvent } from "../renderer-contracts";
+import type { DesktopEvent, TaskEndReason } from "../renderer-contracts";
 import { promptContext, toolLabel, toolStep } from "../context";
 import { explainError } from "../diagnostics";
 import type { Sessions } from "./manager";
@@ -18,6 +18,26 @@ export function createTask(): Task {
     cost: 0,
     startedAt: 0,
   };
+}
+
+export function settleTask(
+  host: Sessions,
+  entry: Pick<SessionEntry, 'target' | 'focus' | 'task' | 'phase'>,
+  outcome: { reason: TaskEndReason; error?: string; primary: boolean; role: 'writer' | 'editor' | 'planner'; conversationId?: string },
+) {
+  if (entry.task.endedAt !== undefined) return;
+  const { reason, primary, role } = outcome;
+  const error = outcome.error ? explainError(outcome.error) : undefined;
+  entry.task.endedAt = Date.now();
+  entry.task.waiting = reason === 'failed' ? error || '任务失败，请核对错误后重试'
+    : reason === 'cancelled' ? '任务已停止，核对已保存结果' : '查看稿件与回报，决定是否采纳或定稿';
+  entry.phase = '';
+  host.emit({ target: entry.target, focus: entry.focus, task: entry.task, phase: '',
+    key: host.key(entry.target), role, editor: !primary, conversationId: outcome.conversationId,
+    event: { type: 'agent_settled', reason, error, taskId: entry.task.id, aborted: reason === 'cancelled' } });
+  if (error && primary) host.emit({ target: entry.target, error });
+  host.emit({ running: host.running() });
+  host.emit({ target: entry.target, refresh: true });
 }
 
 export function trackSession(options: {
@@ -66,26 +86,17 @@ export function trackSession(options: {
       if (!task.completed.includes(step)) task.completed.push(step);
     }
     if (event.type === "tool_execution_start") task.current = toolStep(event.toolName, target.mode);
-    if (event.type === "agent_settled") {
-      task.endedAt = Date.now();
-      const last = session.messages.findLast((message) => message.role === "assistant");
-      const failure =
-        last?.role === "assistant" && last.stopReason === "error"
-          ? explainError(last.errorMessage || "模型请求失败，请检查连接后重试")
-          : "";
-      task.waiting =
-        failure ||
-        (event.aborted ? "任务已停止，核对已保存结果" : "查看稿件与回报，决定是否采纳或定稿");
-      if (primary && failure) {
-        host.emit({ target, error: failure });
-        host.extras.log?.("model_error", { role });
-      }
+    if (event.type === 'agent_settled') {
+      const last = session.messages.findLast(message => message.role === 'assistant');
+      const cancelled = event.aborted || last?.role === 'assistant' && last.stopReason === 'aborted';
+      const failure = !cancelled && last?.role === 'assistant' && last.stopReason === 'error' ? last.errorMessage || '模型请求失败，请检查连接后重试' : undefined;
+      settleTask(host, entry, { reason: cancelled ? 'cancelled' : failure ? 'failed' : 'done', error: failure, primary, role, conversationId: manager.getSessionId() });
+      return;
     }
     if (event.type === "agent_start") entry.phase = editor ? "编辑审读中…" : "正在创作…";
     if (event.type === "tool_execution_start") entry.phase = toolLabel(event.toolName) + "…";
     if (event.type === "compaction_start") entry.phase = "正在整理对话上下文…";
     if (event.type === "auto_retry_start") entry.phase = "模型连接重试中…";
-    if (event.type === "agent_settled") entry.phase = "";
     const forward = () => {
       let forwarded: DesktopEvent["event"] = event;
       if (event.type === "message_end") {
@@ -126,10 +137,8 @@ export function trackSession(options: {
         "tool_execution_start",
         "compaction_start",
         "auto_retry_start",
-        "agent_settled",
       ].includes(event.type)
     )
       host.emit({ running: host.running() });
-    if (event.type === "agent_settled") host.emit({ target, refresh: true });
   });
 }

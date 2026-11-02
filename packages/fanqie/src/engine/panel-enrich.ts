@@ -27,7 +27,6 @@ function foundationFilledFields(f: any) {
     return keys.filter((k: any) => String(f[k] ?? "").trim().length > 0);
 }
 export async function buildLibraryView(paths: StoragePaths) {
-    await LibraryPort.ensureLibrary(paths);
     const sources = await LibraryPort.listSources(paths);
     const accepted = await LibraryPort.listCards(paths, { status: "accepted" });
     const drafted = await LibraryPort.listCards(paths, { status: "drafted" });

@@ -63,7 +63,7 @@ export function analysisTools() {
             required: ["source"],
             async execute(args: any, exec: ExecContext) {
                 const sourceId = asString(args, "source", { required: true });
-                const paths = await openLibrary(exec, args);
+                const paths = await openLibrary(exec, args, true);
                 return withResourceLock(paths.library, async () => {
                 await assertNoPendingCard(paths.library);
                 const { text, index: idx } = await LibraryPort.getSourceIndexed(paths, sourceId);
@@ -134,7 +134,7 @@ export function analysisTools() {
                 const sourceId = asString(args, "source", { required: true });
                 const kind = asString(args, "kind", { required: true });
                 const payload = args.payload ?? {};
-                const paths = await openLibrary(exec, args);
+                const paths = await openLibrary(exec, args, true);
                 return withResourceLock(paths.library, async () => {
                 await assertNoPendingCard(paths.library);
                 await ensureAnalysis(paths, sourceId, (await LibraryPort.getSource(paths, sourceId)).text);
@@ -166,7 +166,7 @@ export function analysisTools() {
             required: ["source"],
             async execute(args: any, exec: ExecContext) {
                 const sourceId = asString(args, "source", { required: true });
-                const paths = await openLibrary(exec, args);
+                const paths = await openLibrary(exec, args, true);
                 return withResourceLock(paths.library, async () => {
                 await assertNoPendingCard(paths.library);
                 const { meta: srcMeta, text, index: idx } = await LibraryPort.getSourceIndexed(paths, sourceId);
@@ -174,13 +174,12 @@ export function analysisTools() {
                 const bundle = await readAnalysisBundle(paths, sourceId);
                 const rows = await LibraryPort.listCards(paths, { sourceId });
                 const modules = [];
+                const unreadable: string[] = [];
                 for (const row of rows) {
                     try {
                         modules.push(toCardView(await LibraryPort.getCard(paths, row.id)));
                     }
-                    catch {
-                        /* skip unreadable card */
-                    }
+                    catch { unreadable.push(row.id); }
                 }
                 const v2Count = modules.filter((m: any) => !m.legacy).length;
                 const stats = bundle.chapters
@@ -206,7 +205,7 @@ export function analysisTools() {
                         autoCap: plan?.mode === "auto" && plan.planChapters < (bundle.meta?.totalChapters ?? 0),
                     },
                 );
-                const md = buildReport({
+                const report = buildReport({
                     sourceTitle: srcMeta.title,
                     plan,
                     meta: bundle.meta,
@@ -221,12 +220,15 @@ export function analysisTools() {
                     notes: asString(args, "notes"),
                     survey,
                 });
+                const warning = unreadable.length ? `${unreadable.length} 张卡不可读：${unreadable.join('、')}` : '';
+                const md = report + (warning ? `\n\n## 读取问题\n\n${warning}\n` : '');
                 const p = analysisPaths(paths, sourceId);
                 await atomicWrite(p.report, md);
                 // 报告由已提交数据确定性拼装并已落盘；回执只给 12 行结构预览确认，不再整页复述。
                 const preview = md.split("\n").slice(0, 12).join("\n");
                 return [
                     `报告已写入：library/analyses/${sourceId}/report.md`,
+                    ...(warning ? [warning] : []),
                     `- ${plan ? planLabel(plan) + " · " : ""}事实 ${bundle.chapters.length} 章 · 剧情条 ${bundle.plots.length} · 模块 ${modules.length}（v2 ${v2Count} / v1 ${modules.length - v2Count}）· 材料完备度 ${coverage.confidence}（机械指标）${coverage.needsReview ? "（needs_review）" : ""}`,
                     "",
                     "预览：",
@@ -250,7 +252,7 @@ export function analysisTools() {
                 const cardId = asString(args, "card", { required: true });
                 if (args.confirm !== true)
                     throw new NovelError("confirm_required", "删卡须 confirm=true");
-                const paths = await openLibrary(exec, args);
+                const paths = await openLibrary(exec, args, true);
                 const r = await LibraryPort.discardCard(paths, cardId);
                 return `已删除「${r.title}」（${r.cardId}），剩余 ${r.remaining} 张卡。`;
             },

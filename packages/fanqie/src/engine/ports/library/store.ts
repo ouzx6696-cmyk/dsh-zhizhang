@@ -6,9 +6,11 @@ import { randomUUID } from "node:crypto";
 import { readFile, access } from "node:fs/promises";
 import path from "node:path";
 import { atomicWrite, assertResourceId } from "../../storage/primitives.js";
+import { listDir } from "../../../../../core/src/fsx.js";
 import { withResourceLock } from "../../storage/process-lock.js";
 import { assertNoPendingCard } from "../../storage/card-journal.js";
 import { coerceAxis, coerceHumanFeel } from "./schema.js";
+import { NovelError } from "../../errors.js";
 import type { StoragePaths } from "../../types.js";
 
 export { nowIso } from "../../storage/primitives.js";
@@ -38,7 +40,6 @@ export async function emptyIndex() {
     return { schemaVersion: 1, sources: [], cards: [] };
 }
 export async function readIndex(paths: StoragePaths) {
-    return withResourceLock(paths.library, async () => {
     await assertNoPendingCard(paths.library);
     const { index } = libraryDirs(paths);
     try {
@@ -48,10 +49,15 @@ export async function readIndex(paths: StoragePaths) {
         return { ...raw, schemaVersion: raw.schemaVersion ?? 1, sources: raw.sources, cards: raw.cards };
     }
     catch (err: any) {
-        if (err?.code === "ENOENT") return emptyIndex();
+        if (err?.code === "ENOENT") {
+            const dirs = libraryDirs(paths);
+            const entries = await Promise.all([dirs.sources, dirs.cards, dirs.candidates, path.join(dirs.root, 'analyses')].map(listDir));
+            if (entries.some(files => files.length > 0))
+                throw new NovelError('library_index_missing', '拆书库索引缺失但仍有资产，请保留原文件并核对。');
+            return emptyIndex();
+        }
         throw err;
     }
-    });
 }
 export async function writeIndex(paths: StoragePaths, idx: any) {
     await assertNoPendingCard(paths.library);

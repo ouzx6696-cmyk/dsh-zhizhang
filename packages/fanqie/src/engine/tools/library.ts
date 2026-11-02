@@ -40,16 +40,16 @@ import {
     PLAN_BATCH_MIN,
     PLAN_BATCH_MAX,
 } from "../ports/analysis.js";
-import { ensureStorage, listLocalBooks } from "../store.js";
+import { storagePaths, ensureStorage, listLocalBooks } from "../store.js";
 import { AUTO_SAMPLE_HEAD, AUTO_SAMPLE_RATIO, AUTO_SAMPLE_TAIL } from "../domain/workflow.js";
 import { asArray, asString, asStringArray, config, fail } from "./context.js";
 import { S, B, E, WORKING_DIR } from "./schema.js";
 import { defineTool } from "./types.js";
 import type { ExecContext } from "./types.js";
 import type { StoragePaths } from "../types.js";
-export async function openLibrary(exec: ExecContext, args: any) {
-    const paths = await ensureStorage(exec, config, asString(args, "working_dir"));
-    await LibraryPort.ensureLibrary(paths);
+export async function openLibrary(exec: ExecContext, args: any, write: boolean) {
+    const paths = storagePaths(exec, config, asString(args, 'working_dir'));
+    if (write) await LibraryPort.ensureLibrary(paths);
     return paths;
 }
 /**
@@ -91,7 +91,7 @@ export function libraryTools() {
             required: ["title"],
             async execute(args: any, exec: ExecContext) {
                 const title = asString(args, "title", { required: true });
-                const paths = await openLibrary(exec, args);
+                const paths = await openLibrary(exec, args, true);
                 const fileResolved = await resolveBookFile(paths, exec, asString(args, "file"));
                 const result = await LibraryPort.importSource(paths, {
                     title,
@@ -129,7 +129,7 @@ export function libraryTools() {
             required: ["source"],
             async execute(args: any, exec: ExecContext) {
                 const sourceId = asString(args, "source", { required: true });
-                const paths = await openLibrary(exec, args);
+                const paths = await openLibrary(exec, args, true);
                 return withResourceLock(paths.library, async () => {
                 await assertNoPendingCard(paths.library);
                 const mode = asString(args, "mode") || "auto";
@@ -217,7 +217,7 @@ export function libraryTools() {
             required: ["source"],
             async execute(args: any, exec: ExecContext) {
                 const sourceId = asString(args, "source", { required: true });
-                const paths = await openLibrary(exec, args);
+                const paths = await openLibrary(exec, args, true);
                 return withResourceLock(paths.library, async () => {
                 await assertNoPendingCard(paths.library);
                 const plan = await readPlan(paths, sourceId);
@@ -411,7 +411,7 @@ export function libraryTools() {
                 const mind = args.mind && typeof args.mind === "object"
                     ? args.mind
                     : undefined;
-                const paths = await openLibrary(exec, args);
+                const paths = await openLibrary(exec, args, true);
                 const { candId, warnings } = await LibraryPort.stageCard(paths, {
                     title,
                     sourceId,
@@ -464,7 +464,7 @@ export function libraryTools() {
             required: ["candidate"],
             async execute(args: any, exec: ExecContext) {
                 const candId = asString(args, "candidate", { required: true });
-                const paths = await openLibrary(exec, args);
+                const paths = await openLibrary(exec, args, true);
                 const { cardId, title, warnings, judgment } = await LibraryPort.acceptCard(paths, candId);
                 return [
                     `已采纳技法卡「${title}」→ cardId=${cardId}`,
@@ -554,7 +554,7 @@ export function libraryTools() {
                     return `已恢复原卡采纳：候选 ${r.candidateId} → ${r.cardId}。卡、索引和候选状态已对齐；请阅读卡片并人工判断其可迁移性。不要重复采纳。`;
                 }
                 const what = (asString(args, "what") ?? "all").toLowerCase();
-                const paths = await openLibrary(exec, args);
+                const paths = await openLibrary(exec, args, false);
                 const sourceIds = asStringArray(args, "source_ids");
                 const axisRaw = asString(args, "axis");
                 const axis = axisRaw === "craft" ? "craft" : axisRaw === "mind" ? "mind" : undefined;
@@ -636,7 +636,7 @@ export function libraryTools() {
             required: [],
             async execute(args: any, exec: ExecContext) {
                 const query = asString(args, "query") ?? "";
-                const paths = await openLibrary(exec, args);
+                const paths = await openLibrary(exec, args, false);
                 const sourceIds = asStringArray(args, "source_ids");
                 const axisRaw = asString(args, "axis");
                 const axis = axisRaw === "craft" ? "craft" : axisRaw === "mind" ? "mind" : undefined;
@@ -668,7 +668,7 @@ export function libraryTools() {
             },
             required: [],
             async execute(args: any, exec: ExecContext) {
-                const paths = await openLibrary(exec, args);
+                const paths = await openLibrary(exec, args, false);
                 const axisRaw = asString(args, "axis");
                 const axis = axisRaw === "craft" ? "craft" : axisRaw === "mind" ? "mind" : undefined;
                 const rows = await LibraryPort.auditCards(paths, {
@@ -776,7 +776,7 @@ export function libraryTools() {
             },
             required: [],
             async execute(args: any, exec: ExecContext) {
-                const paths = await openLibrary(exec, args);
+                const paths = await openLibrary(exec, args, false);
                 const sourceIds = asStringArray(args, "source_ids");
                 const prefer = asString(args, "prefer_mind_source");
                 const craftCount = typeof args.craft_count === "number" ? args.craft_count : undefined;
@@ -825,7 +825,7 @@ export function libraryTools() {
             required: ["card"],
             async execute(args: any, exec: ExecContext) {
                 const cardId = asString(args, "card", { required: true });
-                const paths = await openLibrary(exec, args);
+                const paths = await openLibrary(exec, args, false);
                 const card = await LibraryPort.getCard(paths, cardId);
                 const axis = coerceAxis(card);
                 const mech = card.mechanisms

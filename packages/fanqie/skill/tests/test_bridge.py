@@ -113,6 +113,35 @@ def t_bad_cmd():
     assert r['ok'] is False and r['code'] == 'INVALID_ARGS'
 
 
+def t_quote_conversion_notice():
+    with tempfile.TemporaryDirectory() as d:
+        source, analysis = Path(d) / 'source.txt', Path(d) / 'analysis.md'
+        source.write_text('她把两张车票放在桌上。', encoding='utf-8')
+        analysis.write_text('“她把两张车票放在桌上”', encoding='utf-8')
+        script = HERE.parent / 'forge' / 'inspiration-forge-library' / 'scripts' / 'quote_check.py'
+        code = "import sys,runpy;sys.modules['opencc']=None;sys.argv=" + repr([str(script), str(source), str(analysis), '--json']) + ";runpy.run_path(" + repr(str(script)) + ",run_name='__main__')"
+        result = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True, encoding='utf-8')
+        report = json.loads(result.stdout)
+        assert any('未做繁简转换' in warning for warning in report.get('warnings', [])), report
+
+
+def t_scan_bom_encoding():
+    with tempfile.TemporaryDirectory() as d:
+        file = Path(d) / 'book.txt'
+        file.write_text('第一章 开始\n她推开门。', encoding='utf-8-sig')
+        report = run('scan', file, 5, '')
+        assert report['chapter_count'] == 1, report
+        assert report['encoding'] == 'utf-8-sig', report
+
+
+def t_scan_invalid_encoding():
+    with tempfile.TemporaryDirectory() as d:
+        file = Path(d) / 'book.txt'
+        file.write_bytes(b'\xff')
+        report = run('scan', file, 5, '')
+        assert report['ok'] is False, report
+
+
 for n, f in list(globals().items()):
     if n.startswith('t_'):
         case(n[2:], f)

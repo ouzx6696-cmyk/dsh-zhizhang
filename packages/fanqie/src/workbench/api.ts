@@ -70,13 +70,11 @@ export const FANQIE_ROUTES = [
     API + ROUTES.unifyPrepare,
 ];
 
-async function pathExists(p: any) {
-    try {
-        await access(p);
-        return true;
-    }
-    catch {
-        return false;
+async function pathExists(file: string) {
+    try { await access(file); return true; }
+    catch (error) {
+        if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return false;
+        throw error;
     }
 }
 /**
@@ -84,53 +82,12 @@ async function pathExists(p: any) {
  * Priority: config.storageRoot → env WRITER_NOVEL_ROOT → cwd/.writer if present → ensureStorage default.
  */
 export async function resolveHttpPaths(config: PluginConfig) {
-    if (config.storageRoot) {
-        const paths = await ensureStorage(null, config);
-        return { ...paths, resolvedVia: "config.storageRoot" };
-    }
-    const envRoot = (process.env.WRITER_NOVEL_ROOT ?? "").trim();
-    if (envRoot) {
-        const paths = await ensureStorage(null, {
-            storageRoot: path.resolve(envRoot),
-            libraryRoot: config.libraryRoot,
-            worksRoot: config.worksRoot,
-            sourceRoot: config.sourceRoot,
-        });
-        return { ...paths, resolvedVia: "env.WRITER_NOVEL_ROOT" };
-    }
-    // Follow the workspace the Agent last wrote to (tools and HTTP share this process).
-    // Without this the panel resolves process.cwd() — the application profile directory — and shows
-    // an empty library while the Agent writes to the session workspace.
-    const lastBase = getLastToolBase() || (await loadLastToolBase());
-    if (lastBase && (await pathExists(lastBase))) {
-        const paths = await ensureStorage(null, {
-            storageRoot: lastBase,
-            libraryRoot: config.libraryRoot,
-            worksRoot: config.worksRoot,
-            sourceRoot: config.sourceRoot,
-        });
-        return { ...paths, resolvedVia: "last-agent-tool" };
-    }
-    const cwdDot = path.resolve(process.cwd(), config.rootDir ?? ".writer");
-    if (await pathExists(cwdDot)) {
-        const paths = await ensureStorage(null, { storageRoot: cwdDot });
-        return { ...paths, resolvedVia: "cwd/.writer" };
-    }
-    // Walk up a few parents for a .writer (session cwd often workspace root)
-    let cur = process.cwd();
-    for (let i = 0; i < 4; i++) {
-        const candidate = path.join(cur, config.rootDir ?? ".writer");
-        if (await pathExists(candidate)) {
-            const paths = await ensureStorage(null, { storageRoot: candidate });
-            return { ...paths, resolvedVia: `walk:${candidate}` };
-        }
-        const parent = path.dirname(cur);
-        if (parent === cur)
-            break;
-        cur = parent;
-    }
-    const paths = await ensureStorage(null, config);
-    return { ...paths, resolvedVia: "ensureStorage(cwd)" };
+    const configured = config.storageRoot || process.env.WRITER_NOVEL_ROOT?.trim();
+    if (configured) return { ...await ensureStorage(null, { ...config, storageRoot: configured }), resolvedVia: 'config' };
+    const lastBase = getLastToolBase() || await loadLastToolBase();
+    if (lastBase && await pathExists(lastBase))
+        return { ...await ensureStorage(null, { ...config, storageRoot: lastBase }), resolvedVia: 'last-agent-tool' };
+    return { ...await ensureStorage(null, config), resolvedVia: 'cwd' };
 }
 /** Read-only unify brief pack — no disk writes. */
 async function prepareUnifyBrief(paths: StoragePaths, opts: any) {

@@ -25,14 +25,18 @@ HOOK_PATTERNS = {
 }
 
 def read_text_auto(file_path):
-    for enc in ("utf-8", "utf-8-sig", "gb18030", "gbk", "utf-16"):
-        try:
-            with open(file_path, "r", encoding=enc) as f:
-                return f.read(), enc
-        except UnicodeDecodeError:
-            continue
-    with open(file_path, "r", encoding="utf-8", errors="replace") as f:
-        return f.read(), "utf-8-replace"
+    with open(file_path, 'rb') as file:
+        data = file.read()
+    if data.startswith(b'\xef\xbb\xbf'):
+        return data.decode('utf-8-sig'), 'utf-8-sig'
+    if data.startswith((b'\xff\xfe', b'\xfe\xff')):
+        return data.decode('utf-16'), 'utf-16'
+    try:
+        return data.decode('utf-8'), 'utf-8'
+    except UnicodeDecodeError:
+        # GB18030 contains GBK; retrying GBK cannot recover a failed decode.
+        return data.decode('gb18030'), 'gb18030'
+
 
 def classify_hook(last_lines_text):
     matched = [name for name, pat in HOOK_PATTERNS.items() if pat.search(last_lines_text)]

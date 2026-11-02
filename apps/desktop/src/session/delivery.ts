@@ -1,3 +1,4 @@
+import { createTask, settleTask } from "./task-tracker";
 import type { Focus, Target } from "../context";
 import { explainError } from "../diagnostics";
 import { promptAccepted } from "./pi-adapter";
@@ -22,14 +23,16 @@ export async function sendPrompt(
   const key = host.key(target),
     generation = host.generations.get(key) || 0;
   const preparation = Symbol("preparing");
+  const preparingTask = createTask();
+  preparingTask.name = text.slice(0, 100);
+  preparingTask.startedAt = Date.now();
   host.preparations.set(preparation, { target, focus, generation });
   try {
     const session = await host.open(target);
     if ((host.generations.get(key) || 0) !== generation) throw new Error("任务已取消");
     const entry = host.sessions.get(key)!;
     if (session.isIdle) {
-      entry.task.name = text.slice(0, 100);
-      entry.task.current = "准备";
+      Object.assign(entry.task, preparingTask);
     }
     host.emit({
       target,
@@ -47,14 +50,18 @@ export async function sendPrompt(
       host.extras.log?.("model_error", { role: "writer" });
     });
   } catch (error) {
-    if (host.sessions.get(host.key(target))?.session.isIdle)
-      host.emit({ target, event: { type: "agent_settled", aborted: true } });
+    const cancelled = (host.generations.get(key) || 0) !== generation;
+    const entry = host.sessions.get(host.key(target));
+    if (!entry || entry.session.isIdle)
+      settleTask(host, entry || { target, focus, task: preparingTask, phase: '' }, {
+        reason: cancelled ? 'cancelled' : 'failed',
+        error: cancelled ? undefined : error instanceof Error ? error.message : String(error),
+        primary: true, role: 'writer',
+      });
     throw error;
   } finally {
     host.preparations.delete(preparation);
     host.emit({ running: host.running() });
-    if ((host.generations.get(key) || 0) !== generation)
-      host.emit({ target, event: { type: "agent_settled", aborted: true } });
   }
 }
 

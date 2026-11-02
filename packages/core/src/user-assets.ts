@@ -4,10 +4,10 @@
  * 经 toutiao_method_get / fanqie_forge_get 读取。只读，不覆盖插件自带的方法；
  * 自带方法的更新走 scripts/assets.mjs（见 docs/guides/ASSETS.md）。
  */
-import { readdir, stat } from 'node:fs/promises'
+import { stat } from 'node:fs/promises'
 import path from 'node:path'
 import { WriterError } from './tool.js'
-import { readText, resolveInside } from './fsx.js'
+import { listDir, readText, resolveInside } from './fsx.js'
 
 /** 资产配置段。dirs 之外的键现在一律报错；以后加键在这里登记（见 docs/guides/ASSETS.md「预留」）。 */
 export interface AssetsConfig {
@@ -50,11 +50,14 @@ export async function listUserAssets(cfg: AssetsConfig | undefined, cwd: string)
   const seen = new Set<string>()
   for (const raw of cfg?.dirs ?? []) {
     const dir = path.resolve(cwd, raw)
-    const st = await stat(dir).catch(() => undefined)
+    const st = await stat(dir).catch((error) => {
+      if (error.code === 'ENOENT') return undefined
+      throw error
+    })
     if (!st?.isDirectory()) { warnings.push(`资产目录不存在：${raw}`); continue }
     let count = 0
     const walk = async (d: string, depth: number) => {
-      const entries = await readdir(d, { withFileTypes: true }).catch(() => [])
+      const entries = await listDir(d)
       entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
       for (const e of entries) {
         if (e.name.startsWith('.') || e.name === 'node_modules' || e.name === '__pycache__') continue

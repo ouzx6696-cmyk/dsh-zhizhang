@@ -82,7 +82,6 @@ interface SourceCacheEntry {
 const sourceCache = new Map<string, SourceCacheEntry>();
 async function getSourceCached(paths: StoragePaths, sourceId: any) {
     const id = assertSourceId(sourceId);
-    await LibraryPort.ensureLibrary(paths);
     const d = libraryDirs(paths);
     const metaPath = path.join(d.sources, `${id}.json`);
     if (!(await fileExists(metaPath))) {
@@ -289,7 +288,6 @@ export const LibraryPort = {
         return { meta: cached.meta, text: cached.text, index: sourceIndexOf(cached.entry, cached.text) };
     },
     async listSources(paths: StoragePaths) {
-        await LibraryPort.ensureLibrary(paths);
         return (await readIndex(paths)).sources;
     },
     async dissectBrief(paths: StoragePaths, sourceId: any, opts: any = {}) {
@@ -744,7 +742,6 @@ export const LibraryPort = {
         });
     },
     async listCards(paths: StoragePaths, opts: any = {}) {
-        await LibraryPort.ensureLibrary(paths);
         const idx = await readIndex(paths);
         return filterCardRows(paths, idx.cards, {
             status: opts.status ?? "accepted",
@@ -755,7 +752,6 @@ export const LibraryPort = {
         });
     },
     async searchCards(paths: StoragePaths, query: any, opts: any = {}) {
-        await LibraryPort.ensureLibrary(paths);
         const tokens = tokenizeQuery(query);
         const tag = String(opts.tag ?? "").trim().toLowerCase();
         const hasFilter = Boolean(opts.sourceId ||
@@ -800,7 +796,6 @@ export const LibraryPort = {
      * 缺 mind 不阻断；没有任何可用卡时返回空原因。
      */
     async suggestCombo(paths: StoragePaths, input: any = {}) {
-        await LibraryPort.ensureLibrary(paths);
         const warnings = [];
         const nRaw = input.craftCount ?? 2;
         const craftCount = Math.max(1, Math.min(8, Math.floor(Number(nRaw) || 2)));
@@ -927,7 +922,6 @@ export const LibraryPort = {
         };
     },
     async auditCards(paths: StoragePaths, opts: any = {}) {
-        await LibraryPort.ensureLibrary(paths);
         const idx = await readIndex(paths);
         let rows = await filterCardRows(paths, idx.cards, {
             status: opts.status ?? "accepted",
@@ -987,7 +981,6 @@ export const LibraryPort = {
     },
     async getCard(paths: StoragePaths, cardId: any) {
         const id = assertResourceId(cardId, "卡 id");
-        await LibraryPort.ensureLibrary(paths);
         const d = libraryDirs(paths);
         const cardPath = path.join(d.cards, `${id}.json`);
         if (!(await fileExists(cardPath))) {
@@ -999,7 +992,6 @@ export const LibraryPort = {
     },
     async getCandidate(paths: StoragePaths, candId: any) {
         const id = assertResourceId(candId, "卡候选 id");
-        await LibraryPort.ensureLibrary(paths);
         const d = libraryDirs(paths);
         const candPath = path.join(d.candidates, `${id}.json`);
         if (!(await fileExists(candPath))) {
