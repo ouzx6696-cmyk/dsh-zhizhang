@@ -5,15 +5,15 @@ import { NovelError } from "../errors.js";
 import { readPlanning } from "../domain/planning.js";
 import { STORY_PACES } from "../domain/workflow.js";
 import { EMPTY_FOUNDATION } from "../types.js";
-import type { Foundation } from "../types.js";
+import type { Foundation, WorkMeta } from "../types.js";
 import { assertNoPendingAccept } from "./accept-journal.js";
 import { atomicWrite, nowIso } from "./primitives.js";
 /** Optional story pace is set only by an explicit author choice. */
-export function validateStoryPace(value: unknown): string | undefined {
+export function validateStoryPace(value: unknown): WorkMeta["pace"] {
     if (value === undefined || value === null || value === "") return undefined;
     if (typeof value !== "string" || !(STORY_PACES as readonly string[]).includes(value))
         throw new NovelError("bad_args", "节奏只支持快爽 / 稳推 / 慢燃");
-    return value;
+    return value as WorkMeta["pace"];
 }
 export function metaPath(dir: string) {
     return path.join(dir, "meta.json");
@@ -33,7 +33,7 @@ export function normalizeFoundation(raw: any): Foundation {
         style: String(raw.style ?? ""),
     };
 }
-export async function readWorkMeta(dir: string) {
+export async function readWorkMeta(dir: string):Promise<WorkMeta> {
     await assertNoPendingAccept(dir);
     const raw = await readFile(metaPath(dir), "utf8");
     const meta = JSON.parse(raw);

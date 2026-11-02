@@ -26,10 +26,11 @@ export const ROUTES = {
 
 export function sendError(ctx: Pick<RouteContext, 'json'>, error: unknown) {
   const domain = error instanceof Error && ['WriterError', 'NovelError'].includes(error.name)
-  const code = domain && 'code' in error && typeof error.code === 'string' ? error.code : 'failed'
+  const missing = error instanceof Error && 'code' in error && error.code === 'ENOENT'
+  const code = missing ? 'NOT_FOUND' : domain && 'code' in error && typeof error.code === 'string' ? error.code : 'failed'
   const status = code === 'NOT_FOUND' || code.endsWith('_not_found') ? 404
     : code === 'body_too_large' ? 413
-    : code === 'INVALID_ARGS' || code === 'OUT_OF_ROOT' || code.startsWith('bad_') || code === 'too_many_paragraphs' ? 400
+    : code === 'INVALID_ARGS' || code === 'OUT_OF_ROOT' || code.startsWith('bad_') || ['too_many_paragraphs','work_required','id_required','confirmation_required'].includes(code) ? 400
     : code !== 'failed' ? 409 : 500
   ctx.json(status, { ok: false, code, error: error instanceof Error ? error.message : String(error) })
 }

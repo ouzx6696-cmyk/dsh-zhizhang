@@ -8,11 +8,7 @@ import { readChapter as engineReadChapter, readWorkMeta } from './engine/store.j
 import { openWork as engineOpenWork } from './engine/tools/context.js'
 import { NovelError } from './engine/errors.js'
 
-export interface ChapterOutline {
-  pov?: string; targetWords?: number; locks?: string; knowledge?: string
-  synopsis?: string; conflict?: string; beats?: string; ending?: string
-  [k: string]: unknown
-}
+export type ChapterOutline = Partial<import("./engine/types.js").Outline>
 
 export interface ChapterRow { id: string; title: string; position: number; status: string; wordCount?: number }
 
@@ -61,9 +57,9 @@ function findRow(work: WorkInfo, id: string): ChapterRow | undefined {
 export async function readChapter(work: WorkInfo, id: string): Promise<ChapterRecord> {
   const row = findRow(work, id)
   if (!row) throw new WriterError('NOT_FOUND', `《${work.title}》没有这一章：${id}。现有：${work.chapters.map(c => `${c.position}.${c.title}（${c.id}）`).join('、') || '无'}`)
-  let rec: { body?: string; outline?: ChapterOutline; status?: string; title?: string; wordCount?: number }
+  let rec: Partial<import("./engine/types.js").Chapter>
   try {
-    rec = await engineReadChapter(work.dir, row.id) as typeof rec
+    rec = await engineReadChapter(work.dir, row.id)
   } catch (err) {
     if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') rec = {}
     else rethrow(err)

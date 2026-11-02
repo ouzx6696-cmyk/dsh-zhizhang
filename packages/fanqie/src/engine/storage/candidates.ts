@@ -160,7 +160,7 @@ function candidateBodyFile(disk: any, id: string): string {
   assertResourceId(disk.chapterId, "章节 id");
   return assertCandidateFile(disk.bodyFile ?? `${id}.md`);
 }
-async function readCandidateUnlocked(dir: string, candidateId: string) {
+async function readCandidateUnlocked(dir: string, candidateId: string):Promise<Candidate> {
   const id = assertResourceId(candidateId, "候选 id");
   const raw = await readFile(path.join(candidatesDir(dir), `${id}.json`), "utf8");
   const disk = JSON.parse(raw);
@@ -168,7 +168,7 @@ async function readCandidateUnlocked(dir: string, candidateId: string) {
   const body = await readFile(path.join(candidatesDir(dir), bodyFile), "utf8");
   return { ...disk, body };
 }
-export async function readCandidate(dir: string, candidateId: string) {
+export async function readCandidate(dir: string, candidateId: string):Promise<Candidate> {
   await assertNoPendingAccept(dir);
   return readCandidateUnlocked(dir, candidateId);
 }
@@ -242,15 +242,11 @@ export async function markCandidateLinted(
   });
 }
 /** True when candidate has a lint pass recorded at/after stagedAt. */
-export function candidateHasLintPass(cand: any) {
+export function candidateHasLintPass(cand: Candidate) {
   if (!cand.lintPassToken || !cand.lintedAt || !cand.lintBodyHash || typeof cand.body !== "string")
     return false;
   const actual = sha256(cand.body);
   return cand.lintBodyHash === actual && Date.parse(cand.lintedAt) >= Date.parse(cand.stagedAt);
-}
-/** Bind policy evaluation to the exact candidate later committed. */
-export function candidateGateFingerprint(cand: any) {
-  return sha256(JSON.stringify(candidateToDiskMeta(cand)) + "\0" + String(cand.body ?? ""));
 }
 /**
  * Accept a staged candidate into the chapter draft. Explicit tool only —
@@ -262,29 +258,32 @@ export function candidateGateFingerprint(cand: any) {
  * - lintPassToken provided but mismatches → refuse
  * - target chapter status is final → refuse unless force=true
  */
+interface CandidateAcceptOptions {
+  force?:boolean;expectedRevision?:string;lintPassToken?:string;
+  validate?:(candidate:Candidate)=>Promise<{outline:string}>;
+}
 export async function acceptCandidate(
   dir: string,
   candidateId: string,
-  mode: any = "replace",
-  opts: any = {},
+  mode: "append"|"replace" = "replace",
+  opts: CandidateAcceptOptions = {},
 ) {
   const id = assertResourceId(candidateId, "候选 id");
-  const acceptMode: "append" | "replace" = mode === "append" ? "append" : "replace";
+  const acceptMode = mode;
   return withResourceLock(dir, async () => {
     await assertNoPendingAccept(dir);
     const candidatePath = path.join(candidatesDir(dir), `${id}.json`);
     const candidateBefore = await snapshotFile(candidatePath);
     const cand = await readCandidateUnlocked(dir, id);
     const chapterId = assertResourceId(cand.chapterId, "章节 id");
-    if (opts.expectedCandidate && opts.expectedCandidate !== candidateGateFingerprint(cand))
-      throw new NovelError("candidate_changed", "候选在验收检查期间发生变化，请重新检查并扫描。");
     if (cand.acceptedAt)
       throw new NovelError(
         "candidate_already_accepted",
         `候选 ${id} 已于 ${cand.acceptedAt} 采纳，禁止重复写回。请重新暂存候选。`,
       );
     if (!cand.body.trim()) throw new NovelError("candidate_empty", `候选 ${id} 正文为空，拒绝采纳`);
-    const provided = opts.lintPassToken?.trim();
+    const checked = await opts.validate?.(cand);
+    const provided = opts.lintPassToken;
     if (provided && (!cand.lintPassToken || cand.lintPassToken !== provided))
       throw new NovelError(
         "lint_token_mismatch",
@@ -326,11 +325,11 @@ export async function acceptCandidate(
     try {
       const existing = await readChapter(dir, chapterId);
       title = existing.title;
-      if (opts.expectedOutline && opts.expectedOutline !== fingerprint(existing.outline))
+      if (checked && checked.outline !== fingerprint(existing.outline))
         throw new NovelError("context_changed", "章纲在采纳检查期间变化，请重核诊断与依据。");
       if (existing.status === "final") {
         existingFinal = true;
-        if (opts.force !== true)
+        if (!opts.force)
           throw new NovelError(
             "refuse_overwrite_final",
             `章节 ${chapterId} 已是 final，拒绝用候选取代。确需改稿请传 force=true，采纳后需重新定稿。`,
@@ -345,7 +344,7 @@ export async function acceptCandidate(
       title,
       body,
       status: "drafted",
-      force: opts.force === true,
+      force: opts.force,
       expectedRevision:
         acceptMode === "replace" ? (cand.targetRevision ?? opts.expectedRevision) : undefined,
       dependencies: cand.basis?.previous ? [cand.basis.previous] : [],

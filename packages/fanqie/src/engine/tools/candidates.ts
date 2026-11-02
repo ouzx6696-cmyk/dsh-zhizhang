@@ -349,7 +349,7 @@ export function candidatesTools() {
                 const brief = MultiDraftPort.formatUnifyBrief({
                     chapterId,
                     workKey: key,
-                    parents: parents.map((p: string) => MultiDraftPort.parentView(p)),
+                    parents: parents.map(p => MultiDraftPort.parentView(p)),
                 });
                 return [
                     brief,

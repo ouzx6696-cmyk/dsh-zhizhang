@@ -1,3 +1,5 @@
+import { asString } from "../parse.js";
+export { asObject, asString, asStringArray, boolArg } from "../parse.js";
 /**
  * Shared tool context: plugin config, session last-work, openWork helpers.
  */
@@ -35,21 +37,8 @@ export function rememberWork(exec: ExecContext, key: string) {
         lastWorkBySession.delete(oldest);
     }
 }
-export function fail(message: string, code: any = "bad_args") {
+export function fail(message: string, code: string = "bad_args"): never {
     throw new NovelError(code, message);
-}
-export function asString(args: any, key: string, opts: any = {}) {
-    const value = args?.[key];
-    if (value === undefined || value === null) {
-        if (opts.required)
-            fail(`参数 ${key} 必填`);
-        return undefined;
-    }
-    if (typeof value !== "string")
-        fail(`参数 ${key} 必须是字符串`);
-    if (opts.required && opts.trim !== false && value.trim().length === 0)
-        fail(`参数 ${key} 不能为空`);
-    return opts.trim === false ? value : value.trim();
 }
 /**
  * 字符串数组参数（如 card_ids / source_ids / tags）。
@@ -67,25 +56,6 @@ export function asArray(args: any, key: string, opts: any = {}) {
     if (!Array.isArray(value))
         fail(`参数 ${key} 必须是${opts.kind ?? "数组"}，收到 ${typeof value}`);
     return value;
-}
-
-export function asStringArray(args: any, key: string, opts: any = {}) {
-    const value = asArray(args, key, { ...opts, kind: "字符串数组" });
-    if (value === undefined)
-        return undefined;
-    const out = value.map((x: any) => String(x).trim()).filter(Boolean);
-    if (opts.required && out.length === 0)
-        fail(`参数 ${key} 不能为空`);
-    return out;
-}
-/**
- * 严格旗标透传：true/false 原样返回，未传保持 undefined。
- * AcceptPolicy 用 `?? PortConfig 默认值` 兜底——若调用方先用 Boolean() 把
- * undefined 抹成 false，配置默认值（defaultStrictLint 等）就永远不会生效。
- */
-export function boolArg(args: any, key: string): boolean | undefined {
-    const v = args?.[key];
-    return typeof v === "boolean" ? v : undefined;
 }
 
 export async function openWork(exec: ExecContext, args: any) {

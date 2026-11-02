@@ -4,7 +4,7 @@ import { mkdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { NovelError } from "../errors.js";
 import { CHAPTER_STATUSES, EMPTY_OUTLINE } from "../types.js";
-import type { Outline } from "../types.js";
+import type { Outline, Chapter } from "../types.js";
 import { assertResourceId, countWords, isMissingFileError, nowIso } from "./primitives.js";
 import { assertNoPendingAccept, snapshotFile } from "./accept-journal.js";
 import { createChapterJournal, finishChapterJournal } from "./chapter-journal.js";
@@ -97,7 +97,7 @@ export async function listChapters(dir: string) {
     const meta = await readWorkMeta(dir);
     return [...meta.chapters].sort((a: any, b: any) => a.position - b.position);
 }
-export async function readChapter(dir: string, chapterId: string) {
+export async function readChapter(dir: string, chapterId: string):Promise<Chapter> {
     await assertNoPendingAccept(dir);
     const file = chapterFile(dir, chapterId);
     const raw = await readFile(file, "utf8");

@@ -61,7 +61,7 @@ test('T3-03 当前目录回退保留全部库、作品与书源配置', async (t
   const cwd = path.join(state,'workspace')
   await mkdir(path.join(cwd,'.writer'),{recursive:true})
   await runChild(state, `process.chdir(${JSON.stringify(cwd)});
-    const {resolveHttpPaths} = await import(${JSON.stringify(buildUrl('fanqie/src/workbench/api.js'))});
+    const {resolveHttpPaths} = await import(${JSON.stringify(buildUrl('fanqie/src/workbench/paths.js'))});
     const assert = await import('node:assert/strict');
     const result = await resolveHttpPaths({worksRoot:'novels', libraryRoot:'shared-library', sourceRoot:'books'});
     assert.equal(result.works,${JSON.stringify(path.join(cwd,'novels'))});

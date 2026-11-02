@@ -2,14 +2,14 @@ import { WriterError } from "../../../core/src/tool.js";
 /** User/agent-facing errors: Chinese message only, never stack traces. */
 export class NovelError extends Error {
     code;
-    constructor(code: any, message: string) {
+    constructor(code: string, message: string) {
         super(message);
         this.name = "NovelError";
         this.code = code;
     }
 }
 /** Flatten any thrown value into a short Chinese line for tool output. */
-export function formatToolError(err: any) {
+export function formatToolError(err: unknown) {
     if (err instanceof NovelError || err instanceof WriterError)
         return `错误[${err.code}]：${err.message}`;
     if (err instanceof Error) {
@@ -17,4 +17,8 @@ export function formatToolError(err: any) {
         return `错误：${msg}`;
     }
     return `错误：${String(err).slice(0, 200)}`;
+}
+
+export function toErrorResult(error:unknown,fallback:string) {
+    return {ok:false as const,code:error instanceof NovelError || error instanceof WriterError?error.code:fallback,error:error instanceof Error?error.message:String(error)};
 }

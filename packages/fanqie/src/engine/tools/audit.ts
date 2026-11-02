@@ -175,7 +175,7 @@ export function auditTools() {
                 const chapterId = asString(args, "chapter", { required: true });
                 const { dir } = await openWork(exec, args);
                 const meta = await readWorkMeta(dir);
-                let chapter: any;
+                let chapter:Awaited<ReturnType<typeof readChapter>>;
                 try {
                     chapter = await readChapter(dir, chapterId);
                 }
@@ -185,7 +185,7 @@ export function auditTools() {
                 const candidateId = asString(args, "candidate");
                 let body = asString(args, "text", { trim: false });
                 let source = "chapter";
-                let sourceId = chapterId;
+                let sourceId:string|undefined = chapterId;
                 let label = `${chapter.title}（${chapterId}）`;
                 if (candidateId) {
                     const cand = await readCandidate(dir, candidateId);
@@ -205,7 +205,7 @@ export function auditTools() {
                 else {
                     body = chapter.body;
                 }
-                if (!String(body ?? "").trim())
+                if (!body?.trim())
                     fail("正文为空，无法兑付审计");
                 const result = PayoffAuditorPort.audit(chapter.outline, body, {
                     premise: meta.premise,
@@ -277,7 +277,7 @@ export function auditTools() {
                         craftCue = "";
                     }
                 }
-                if (!String(text ?? "").trim())
+                if (!text?.trim())
                     fail("正文为空，无法人味审计");
                 const result = HumanFeelAuditorPort.audit(text, { craftCue });
                 return HumanFeelAuditorPort.format(label, result);
@@ -321,7 +321,7 @@ export function auditTools() {
                     chapterId = ch.id;
                     label = `${ch.title}（${ch.id}）`;
                 }
-                if (!String(text ?? "").trim())
+                if (!text?.trim())
                     fail("正文为空，无法书感审计");
                 let prevBody = asString(args, "prev_text", { trim: false }) ?? null;
                 const prevChapterId = asString(args, "prev_chapter");

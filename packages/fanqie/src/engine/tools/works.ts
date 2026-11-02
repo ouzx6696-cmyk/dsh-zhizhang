@@ -1,3 +1,4 @@
+import { asEnum } from "../parse.js";
 /** Writing pillar — works, foundation, outline, chapters. */
 import {
     countWords,
@@ -387,9 +388,7 @@ export function worksTools() {
                         fail(firstDenyText(gate), firstDenyCode(gate));
                     bypassNoted = gate.messages.some((m: any) => m.code === "save_bypass_confirmed");
                 }
-                const status = asString(args, "status");
-                if (status && !CHAPTER_STATUSES.includes(status))
-                    fail(`非法 status：${status}`);
+                const status = asEnum(args, "status", CHAPTER_STATUSES);
                 if (args.position !== undefined && (!Number.isInteger(args.position) || args.position < 1))
                     fail("position 必须是从 1 开始的整数");
                 const position = typeof args.position === "number" ? args.position : undefined;

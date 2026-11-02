@@ -57,7 +57,7 @@ export async function openLibrary(exec: ExecContext, args: any, write: boolean) 
  * then against the configured local shelf (sourceRoot). Unresolved names fall
  * through so importSource reports its normal file_read_failed.
  */
-async function resolveBookFile(paths: StoragePaths, exec: ExecContext, raw: string) {
+async function resolveBookFile(paths: StoragePaths, exec: ExecContext, raw: string|undefined) {
     if (!raw || path.isAbsolute(raw))
         return raw;
     const cwd = exec.cwd;

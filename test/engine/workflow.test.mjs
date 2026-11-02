@@ -126,17 +126,17 @@ test("显式授权和定稿保护不接受字符串代替布尔值", async () =>
         await assert.rejects(resolveWorkDir(f.paths, "作品"), (e) => e.code === "work_not_found");
         await f.run("fanqie_project_create", { title: "作品" });
         await f.run("fanqie_outline_set", { work: "作品", chapter: "c001", ending: "结束" });
-        assert.match(await f.run("fanqie_chapter_save", { work: "作品", chapter: "c001", content: "夜".repeat(300), confirm_bypass: "true" }), /bypass_confirm_required/);
+        assert.match(await f.run("fanqie_chapter_save", { work: "作品", chapter: "c001", content: "夜".repeat(300), confirm_bypass: "true" }), /bad_args.*confirm_bypass.*布尔值/);
         await f.run("fanqie_chapter_save", { work: "作品", chapter: "c001", content: "已定稿正文", confirm_bypass: true });
         const reviewedRevision = (await readChapter(await resolveWorkDir(f.paths, "作品"), "c001")).revision;
         await f.run("fanqie_chapter_save", { work: "作品", chapter: "c001", status: "reviewed", expected_revision: reviewedRevision });
         await f.run("fanqie_chapter_save", { work: "作品", chapter: "c001", status: "final" });
         const candId = id(await f.run("fanqie_candidate_stage", { work: "作品", chapter: "c001", content: "替换内容" }), /(cand-[a-z0-9]+)/);
         await f.run("fanqie_style_lint", { work: "作品", candidate: candId });
-        assert.match(await f.run("fanqie_candidate_accept", { work: "作品", candidate: candId, force: "false", skip_brief: true }), /refuse_overwrite_final/);
+        assert.match(await f.run("fanqie_candidate_accept", { work: "作品", candidate: candId, force: "false", skip_brief: true }), /bad_args.*force.*布尔值/);
         const dir = await resolveWorkDir(f.paths, "作品");
         assert.equal((await readChapter(dir, "c001")).body, "已定稿正文");
-        assert.match(await f.run("fanqie_chapter_save", { work: "作品", chapter: "c001", content: "短稿覆盖", force: "true" }), /refuse_overwrite_final/);
+        assert.match(await f.run("fanqie_chapter_save", { work: "作品", chapter: "c001", content: "短稿覆盖", force: "true" }), /bad_args.*force.*布尔值/);
         await f.run("fanqie_chapter_save", { work: "作品", chapter: "c001", content: "明确修订", force: true });
         assert.equal((await readChapter(dir, "c001")).status, "drafted");
     }

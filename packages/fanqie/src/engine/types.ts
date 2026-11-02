@@ -2,7 +2,7 @@
  * On-disk + in-memory types for Writer Agent. No Postgres.
  *
  * 这些是「落盘契约」的类型：meta.json / ledger.json / 候选文件都按这里的形状读写。
- * 需要动态 JSON 的地方（拆书产物、卡模块）显式用 Record<string, any>，不要用隐式 any。
+ * 外部 JSON 在边界解析，领域对象接入读写函数。
  */
 export const SCHEMA_VERSION = 1;
 /** Five diagnostic evidence kinds for AI review *output* (agent-side; ledger stores them). */
@@ -52,9 +52,18 @@ export interface ChapterMeta {
     position: number;
     status: ChapterStatus;
     wordCount: number;
-    outline: Outline;
-    createdAt: string;
+    outline?: Outline;
+    createdAt?: string;
+    dependencies?: import("./domain/lifecycle.js").ChapterDependency[];
     updatedAt: string;
+}
+
+export interface Chapter extends Omit<ChapterMeta,"outline"> {
+    body:string;
+    outline:Outline;
+    revision:string;
+    review?:import("./domain/lifecycle.js").ChapterReview;
+    dependencies:import("./domain/lifecycle.js").ChapterDependency[];
 }
 
 export interface WorkMeta {
@@ -70,6 +79,7 @@ export interface WorkMeta {
     updatedAt: string;
     chapters: ChapterMeta[];
     planning?: { schemaVersion: 1; book?: { content: string; [key: string]: unknown }; volumes: Array<{ id: string; content: string; chapters: string[]; [key: string]: unknown }>; acts?: Array<{ id: string; content: string; chapters: string[]; [key: string]: unknown }>; [key: string]: unknown };
+    revisionImpacts?: Array<{chapterId:string;nextChapterId?:string;previousRevision?:string;revision:string;history:string;dependents:string[];reason:string;at:string}>;
     continuity?: { schemaVersion: 1; finalized: Array<{ chapterId: string; revision: string; excerpt: string; at: string }>; working: Array<{ chapterId: string; revision: string; excerpt: string; at: string }> };
 }
 

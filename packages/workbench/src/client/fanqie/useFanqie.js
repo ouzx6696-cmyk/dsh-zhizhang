@@ -316,7 +316,7 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
         if (!s.work || !s.chapterId || ids.length < 2) return;
         dispatch({ type: "unify", value: { busy: true, message: null, error: null } });
         try {
-          const data = await fanqie.unifyPrepare({ base: s.projectId || undefined, work: s.work, chapter: s.chapterId, candidate_ids: ids });
+          const data = await fanqie.unifyPrepare({ base: s.projectId || undefined, work: s.work, chapter: s.chapterId, candidateIds: ids });
           const brief = data.brief || "";
           try {
             if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(brief);
