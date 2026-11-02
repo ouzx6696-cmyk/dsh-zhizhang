@@ -5,9 +5,9 @@
 ## 当前交付
 
 - 实现提交：[`abf7204`](https://github.com/ouzx6696-cmyk/dsh-zhizhang/commit/abf7204d219013cadb6a980847d9273ae342585f)。
-- [Windows 构建 41338948556](https://github.com/ouzx6696-cmyk/dsh-zhizhang/actions/runs/41338948556)全部通过，产出 NSIS 安装器、免安装 ZIP、源码及 SHA-256 清单。
+- [正式发布构建 41365336677](https://github.com/ouzx6696-cmyk/dsh-zhizhang/actions/runs/41365336677)全部通过，产出 NSIS 安装器、免安装 ZIP、源码及 SHA-256 清单。
 - 实际打包客户端启动、随包 Python、版本及更新清单检查通过；下载后 10 个文件的 SHA-256 校验通过。
-- 安装器约 164 MB，ZIP 约 208 MB。未配置签名证书，状态为 NotSigned；没有发布 GitHub 正式 Release。
+- 安装器约 164 MB，ZIP 约 208 MB。未配置签名证书，状态为 NotSigned；已发布 [v0.9.5](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/v0.9.5)，并标记为 Latest。
 
 ## 本轮结果
 
@@ -20,3 +20,5 @@
 真实模型文学质量、作者评分与人工视觉验收、Windows 实机安装和跨版本自动更新尚未完成。不能用假模型、结构检查或打包成功替代这些结论。真实模型流程见[验收说明](ACCEPTANCE.md)。
 
 [桌面使用](guides/DESKTOP.md) · [架构](ARCHITECTURE.md) · [0.9.3 实施历史](history/0.9.3-IMPLEMENTATION.md) · [效率重构历史](history/NEXT-ITERATION-IMPLEMENTATION.md)
+
+正式发布标签指向 `ebfa2e8cfce9afc4680223b10eb5cfa96117941d`（包含实现后的文档收尾）；实现代码与上述 abf7204 一致。公开附件 11 项，SHA256SUMS 的 10 项与 GitHub 文件摘要全部匹配。

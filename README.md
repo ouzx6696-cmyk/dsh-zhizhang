@@ -6,7 +6,7 @@
 
 ## 下载 0.9.5
 
-Windows x64 安装器和免安装包已构建，下载 [Actions 构建产物](https://github.com/ouzx6696-cmyk/dsh-zhizhang/actions/runs/41338948556) 中的 **writer-windows-packages**（需登录 GitHub）。
+Windows x64 安装器和免安装包已正式发布，见 [0.9.5 下载页](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/v0.9.5)。
 
 | 文件                            | 用途                                 | 大小      |
 | ------------------------------- | ------------------------------------ | --------- |
@@ -15,7 +15,7 @@ Windows x64 安装器和免安装包已构建，下载 [Actions 构建产物](ht
 | `writer-agent-0.9.5-src.zip`    | 对应构建提交的源码                   | 约 2.4 MB |
 | `SHA256SUMS`                    | 下载文件的 SHA-256 校验清单          | —         |
 
-随包携带 Python 和中文字体，无需另外安装。此构建未签名，尚未发布为 GitHub 正式 Release；正式发布及自动更新以 [Releases](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases) 为准。
+随包携带 Python 和中文字体，无需另外安装。此版本未签名，已发布为 GitHub 正式 Release 并标记为 Latest；后续版本及自动更新以 [Releases](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases) 为准。
 
 ## 开始创作
 
@@ -46,7 +46,7 @@ Windows x64 安装器和免安装包已构建，下载 [Actions 构建产物](ht
 - 内部工具保留真实异常，精简重复回执与任务结束刷新；各编辑入口复用离开决策。
 - 保留必要的数据保护，常驻测试场景总数不增加；Windows 一次准备生成安装器与 ZIP。
 
-构建提交为 [`abf7204`](https://github.com/ouzx6696-cmyk/dsh-zhizhang/commit/abf7204d219013cadb6a980847d9273ae342585f)。核心、桌面与 Windows 界面检查通过，实际打包客户端及随包 Python 可启动，下载产物校验通过。真实模型文学质量、作者试用和 Windows 实机安装／更新仍待验收。详细证据与限制见[0.9.5 实施及验收记录](docs/history/0.9.5-IMPLEMENTATION.md)。
+构建提交为 [`ebfa2e8`](https://github.com/ouzx6696-cmyk/dsh-zhizhang/commit/ebfa2e8cfce9afc4680223b10eb5cfa96117941d)。核心、桌面与 Windows 界面检查通过，实际打包客户端及随包 Python 可启动，下载产物校验通过。真实模型文学质量、作者试用和 Windows 实机安装／更新仍待验收。详细证据与限制见[0.9.5 实施及验收记录](docs/history/0.9.5-IMPLEMENTATION.md)。
 
 ## 开发
 
