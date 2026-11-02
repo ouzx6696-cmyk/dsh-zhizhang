@@ -8,7 +8,7 @@
 
 源码与 `v0.9.7` 标签为 [`4612283`](https://github.com/ouzx6696-cmyk/dsh-zhizhang/commit/46122837a8c68d7061a29bee172f529a2216e457)。[Windows 原生构建 41414229424](https://github.com/ouzx6696-cmyk/dsh-zhizhang/actions/runs/41414229424) 全部通过，NSIS／ZIP、实际打包客户端启动及随包 Python 核对通过，下载后 10 项 SHA-256 与更新清单匹配。安装包未签名，约 163.2 MiB；免安装包约 205.8 MiB。
 
-下载 [Windows 发行包与源码](https://github.com/ouzx6696-cmyk/dsh-zhizhang/actions/runs/41414229424/artifacts/13127123157)，[0.9.7 发行草稿](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/untagged-5612d29b4e77752e7372) 记录构建及下载入口，尚未公开发布。Release 直传附件受当前认证限制，未新增持久化写权限工作流。完整检查、截图位置和实际限制见 [0.9.7 实施与发行构建验收](history/0.9.7-IMPLEMENTATION.md)。
+下载 [Windows 发行包与源码](https://github.com/ouzx6696-cmyk/dsh-zhizhang/actions/runs/41414229424/artifacts/13127123157)，[0.9.7 发行草稿](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases) 记录构建及下载入口，尚未公开发布。Release 直传附件受当前认证限制，未新增持久化写权限工作流。完整检查、截图位置和实际限制见 [0.9.7 实施与发行构建验收](history/0.9.7-IMPLEMENTATION.md)。
 
 ## 0.9.6 已同步源码
 
