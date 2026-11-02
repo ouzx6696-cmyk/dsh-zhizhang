@@ -1,10 +1,14 @@
-# 当前状态：0.9.7 本地候选；正式发行仍为 0.9.5
+# 当前状态：0.9.7 已构建；公开正式发行仍为 0.9.5
 
 2026-11-02（香港时间）。自有桌面客户端与内置 PI 是当前开发主线；DSH 仅保留存量兼容，不新增其他 Agent 工具适配。
 
-## 0.9.7 本地实施
+## 0.9.7 源码与发行包
 
-已合并 LAMP-REDESIGN 与 FRONTEND-PLAN，完成夜灯／晨光主题、统一排版与组件、全书仪表盘、头条五步与台账、方法阅读和对照、精简设置与引导、非遮挡提示及开发预览。全量梳理后集中校验通过：Node 97、Python 215、PI 运行时 12、GUI 6 个场景；类型、生产构建与架构守卫通过。用户已授权提交与发行构建，Windows 原生产物完成后补录。检查结果、截图位置和实际限制见 [0.9.7 实施与本地验收](history/0.9.7-IMPLEMENTATION.md)。
+已合并 LAMP-REDESIGN 与 FRONTEND-PLAN，完成夜灯／晨光主题、统一排版与组件、全书仪表盘、头条五步与台账、方法阅读和对照、精简设置与引导、非遮挡提示及开发预览。全量梳理后集中校验通过：Node 97、Python 215、PI 运行时 12、GUI 6 个场景；类型、生产构建与架构守卫通过。
+
+源码与 `v0.9.7` 标签为 [`4612283`](https://github.com/ouzx6696-cmyk/dsh-zhizhang/commit/46122837a8c68d7061a29bee172f529a2216e457)。[Windows 原生构建 41414229424](https://github.com/ouzx6696-cmyk/dsh-zhizhang/actions/runs/41414229424) 全部通过，NSIS／ZIP、实际打包客户端启动及随包 Python 核对通过，下载后 10 项 SHA-256 与更新清单匹配。安装包未签名，约 163.2 MiB；免安装包约 205.8 MiB。
+
+下载 [Windows 发行包与源码](https://github.com/ouzx6696-cmyk/dsh-zhizhang/actions/runs/41414229424/artifacts/13127123157)，[0.9.7 发行草稿](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/untagged-5612d29b4e77752e7372) 记录构建及下载入口，尚未公开发布。Release 直传附件受当前认证限制，未新增持久化写权限工作流。完整检查、截图位置和实际限制见 [0.9.7 实施与发行构建验收](history/0.9.7-IMPLEMENTATION.md)。
 
 ## 0.9.6 已同步源码
 
