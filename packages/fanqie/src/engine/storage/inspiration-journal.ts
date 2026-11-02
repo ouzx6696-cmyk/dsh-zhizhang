@@ -1,6 +1,7 @@
+import { sha256 } from "../../../../core/src/fsx.js";
 import { applyRecordedWrites } from "./recovery-common.js";
 /** Recover an inspiration apply across the work and inspiration directories. */
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { hostname } from "node:os";
 import { lstat, open, readFile, unlink } from "node:fs/promises";
 import path from "node:path";
@@ -12,7 +13,7 @@ import { withResourceLock } from "./process-lock.js";
 
 const JOURNAL = ".writer-inspiration-pending.json";
 const MARKER = ".writer-inspiration-pending.json";
-const hash = (s: string) => createHash("sha256").update(s).digest("hex");
+const hash = (s: string) => sha256(s);
 type Write = { target: "work" | "inspiration"; file: string; before: string | null; after: string; content: string };
 type Intent = { version: 1; id: string; owner: { pid: number; host: string }; createdAt: string; workRoot: string; workKey: string; candidateId: string; chapterId?: string; writes: Write[] };
 const isHash = (x: unknown) => typeof x === "string" && /^[a-f0-9]{64}$/.test(x);

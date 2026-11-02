@@ -55,10 +55,19 @@ export async function saveReview(workDir: string, r: ReviewReport): Promise<stri
 
 export async function latestReview(workDir: string, chapter: string): Promise<ReviewReport | undefined> {
   const dir = reviewDir(workDir, chapter)
-  let names: string[] = []
-  try { names = (await readdir(dir)).filter(n => n.endsWith('.json')).sort() } catch { return undefined }
-  const last = names.at(-1)
-  return last ? readJson<ReviewReport>(path.join(dir, last)) : undefined
+  let names: string[]
+  try { names = (await readdir(dir)).filter(name => name.endsWith('.json')) }
+  catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return undefined
+    throw error
+  }
+  const reports = await Promise.all(names.map(async name => {
+    const report = await readJson<ReviewReport>(path.join(dir, name))
+    if (!report || !Number.isFinite(Date.parse(report.at))) throw new Error(`审读回报时间无效：${name}`)
+    return report
+  }))
+  reports.sort((a,b) => Date.parse(b.at) - Date.parse(a.at))
+  return reports[0]
 }
 
 export function renderReview(r: ReviewReport, stale = false): string {

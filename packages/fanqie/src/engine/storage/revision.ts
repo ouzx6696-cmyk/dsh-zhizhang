@@ -1,19 +1,20 @@
+import { sha256 } from "../../../../core/src/fsx.js";
 /** Content identity and immutable history shared by every chapter write path. */
-import { createHash } from "node:crypto";
+
 import { lstat, mkdir, open, readFile } from "node:fs/promises";
 import path from "node:path";
 import { NovelError } from "../errors.js";
 import { assertResourceId } from "./primitives.js";
 
 export function chapterRevision(chapter: { body: string; outline: unknown; position: number }) {
-    return createHash("sha256").update(JSON.stringify([chapter.body, chapter.outline, chapter.position])).digest("hex");
+    return sha256(JSON.stringify([chapter.body, chapter.outline, chapter.position]));
 }
 
 /** Called under the work lock, before changing authoritative files. */
 export async function preserveChapter(dir: string, id: string, expectedHash: string) {
     const source = path.join(dir, "chapters", `${assertResourceId(id)}.md`);
     const bytes = await readFile(source);
-    const hash = createHash("sha256").update(bytes).digest("hex");
+    const hash = sha256(bytes);
     if (hash !== expectedHash) throw new NovelError("revision_conflict", "原稿在准备修订期间变化，未覆盖。");
     const folder = path.join(dir, "revisions", id);
     // Preserve lexical paths; do not resolve away linked ancestors.

@@ -1,11 +1,12 @@
+import { sha256 } from "../../../../core/src/fsx.js";
 /** Shared recovery primitives; operation modules retain format and target whitelists. */
-import { createHash } from "node:crypto";
+
 import { hostname } from "node:os";
 import { lstat, readFile, unlink } from "node:fs/promises";
 import { NovelError } from "../errors.js";
 import { atomicWrite, isMissingFileError } from "./primitives.js";
 type Snapshot = string | null;
-const hash = (value: Buffer) => createHash("sha256").update(value).digest("hex");
+const hash = (value: Buffer) => sha256(value);
 export async function snapshotFile(file: string): Promise<Snapshot> {
     try {
         const info = await lstat(file);
@@ -37,7 +38,7 @@ export async function applyRecordedWrites(writes: RecordedWrite[], code: string)
         if (now !== w.before) throw new NovelError(code, `${w.file} 在恢复期间变化，已停止。`);
         if (w.after === null) await unlink(w.file);
         else {
-            if (typeof w.content !== "string" || createHash("sha256").update(w.content).digest("hex") !== w.after)
+            if (typeof w.content !== "string" || sha256(w.content) !== w.after)
                 throw new NovelError(code, "恢复内容校验不正确。");
             await atomicWrite(w.file, w.content);
         }

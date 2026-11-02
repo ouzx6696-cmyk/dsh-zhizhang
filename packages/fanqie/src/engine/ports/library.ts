@@ -1,3 +1,4 @@
+import { sha256 } from "../../../../core/src/fsx.js";
 /**
  * LibraryPort — 拆书库支柱（live）。
  * User submits a novel → dissect brief → AI stages cards → explicit accept → searchable.
@@ -5,7 +6,7 @@
  * Technique cards ≠ MethodRegistry. 拒收百科/梗概/声纹/人设墙。
  * 兼容：旧卡无 axis 时按 humanFeel/mind 推断；kind 降为次标签。
  */
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { link, mkdir, open, readFile, readdir, stat, unlink } from "node:fs/promises";
 import path from "node:path";
 import { NovelError } from "../errors.js";
@@ -137,8 +138,8 @@ async function readSourceForEvidence(paths: StoragePaths, sourceId: string) {
     catch { throw new NovelError("bad_source", "书源不是有效 UTF-8，无法安全核对引文；请保留原文件并检查。"); }
     return {
         text, index: chapterIndex(text), sourceId: id, sourceFile: excerptName,
-        sourceHash: createHash("sha256").update(bytes).digest("hex"),
-        metaHash: createHash("sha256").update(metaBytes).digest("hex"),
+        sourceHash: sha256(bytes),
+        metaHash: sha256(metaBytes),
     };
 }
 /** 章索引按需派生一次，挂在缓存条目上；同一本书的多张卡共用。 */

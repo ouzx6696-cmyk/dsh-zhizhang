@@ -1,9 +1,6 @@
 /** Shared process-local synchronization and filesystem primitives. */
-import { lstat, mkdir, open, rename, rm } from "node:fs/promises";
-import path from "node:path";
 import { NovelError } from "../errors.js";
 import { serialize } from "../../../../core/src/fsx.js";
-let tmpSeq = 0;
 /** Shared queue, separate namespace from unrelated core file updates. */
 export function withLock<T>(key: string, fn: () => T | Promise<T>): Promise<T> {
     return serialize(`novel:${key}`, async () => fn());
@@ -31,49 +28,15 @@ export function assertResourceId(id: string, label: string = "id") {
     }
     return t;
 }
-/** Check lexical ancestors; links/reparse paths are not writable asset roots. */
-export async function assertSafeAncestors(file: string) {
-    for (let current = path.resolve(path.dirname(file)); ; current = path.dirname(current)) {
-        try {
-            const info = await lstat(current);
-            if (info.isSymbolicLink() || !info.isDirectory()) throw new NovelError("unsafe_path", `写入路径包含链接或非目录，拒绝越界风险：${current}`);
-        } catch (err: any) { if (err?.code !== "ENOENT") throw err; }
-        if (current === path.dirname(current)) break;
-    }
+export { atomicWrite, assertSafeAncestors, nowIso, isMissingFileError } from "../../../../core/src/fsx.js";
+
+export function assertCandidateFile(value: unknown): string {
+    if (typeof value !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]*\.md$/.test(value))
+        throw new NovelError("bad_candidate", "候选正文文件名非法，请保留文件并核对。");
+    return value;
 }
-export async function atomicWrite(file: string, content: string) {
-    await assertSafeAncestors(file);
-    await mkdir(path.dirname(file), { recursive: true });
-    await assertSafeAncestors(file);
-    try { if ((await lstat(file)).isSymbolicLink()) throw new NovelError("unsafe_path", `拒绝覆盖链接资产：${file}`); }
-    catch (err: any) { if (err?.code !== "ENOENT") throw err; }
-    const tmp = `${file}.${process.pid}.${Date.now()}.${tmpSeq++}.tmp`;
-    const handle = await open(tmp, "wx");
-    try {
-        await handle.writeFile(content, "utf8");
-        await handle.sync();
-    }
-    catch (err) {
-        await handle.close().catch(() => { });
-        await rm(tmp, { force: true }).catch(() => { });
-        throw err;
-    }
-    finally {
-        await handle.close().catch(() => { });
-    }
-    try {
-        await rename(tmp, file);
-    }
-    catch (err) {
-        // rename 目标被占用等失败时清掉 tmp，避免临时文件在磁盘上累积。
-        await rm(tmp, { force: true }).catch(() => { });
-        throw err;
-    }
-}
-export function nowIso() {
-    return new Date().toISOString();
-}
-/** Only "file is absent" is a valid reason to create a fresh chapter record. */
-export function isMissingFileError(err: any) {
-    return err?.code === "ENOENT";
+export function assertSourceId(value: unknown): string {
+    if (typeof value !== "string" || !/^src-[A-Za-z0-9_-]{1,64}$/.test(value))
+        throw new NovelError("bad_args", "sourceId 非法");
+    return value;
 }

@@ -1,3 +1,4 @@
+import { assertCandidateFile } from "./storage/primitives.js";
 import { writingActivity } from "./dashboard-query.js";
 import { SCHEMA_VERSION } from "./types.js";
 /** Read models for tools and panel; never imported by persistence. */
@@ -174,7 +175,7 @@ export async function buildPanelSnapshot(dir: string, pathsHint: any, opts: { sc
         if (c.lintPassToken && c.lintBodyHash && c.lintedAt) {
             try {
                 const id = assertResourceId(c.id, "候选 id");
-                const bodyFile = typeof c.bodyFile === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]*\.md$/.test(c.bodyFile) ? c.bodyFile : `${id}.md`;
+                const bodyFile = assertCandidateFile(c.bodyFile ?? `${id}.md`);
                 const body = await readTextCached(path.join(candidatesDir(dir), bodyFile));
                 hasLintPass = candidateHasLintPass({ ...c, body });
             }

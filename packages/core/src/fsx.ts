@@ -1,5 +1,5 @@
 /** 文件工具：原子写、根目录越界检查、按路径串行化。只用 Node 标准库。 */
-import { mkdir, readdir, readFile, rename, writeFile, rm, stat } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rename, open, lstat, rm, stat } from 'node:fs/promises'
 import { randomBytes, createHash } from 'node:crypto'
 import path from 'node:path'
 import { WriterError } from './tool.js'
@@ -13,17 +13,41 @@ export function resolveInside(root: string, ...rel: string[]): string {
   throw new WriterError('OUT_OF_ROOT', `路径越界：${rel.join('/')}`)
 }
 
-/** 先写同目录临时文件再 rename，避免半截文件。 */
-export async function atomicWrite(file: string, data: string): Promise<void> {
-  await mkdir(path.dirname(file), { recursive: true })
-  const tmp = `${file}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`
-  try {
-    await writeFile(tmp, data, 'utf8')
-    await rename(tmp, file)
-  } catch (err) {
-    await rm(tmp, { force: true }).catch(() => undefined)
-    throw err
+/** Reject links and non-directory ancestors before publishing a local file. */
+export async function assertSafeAncestors(file: string) {
+  for (let current = path.resolve(path.dirname(file)); ; current = path.dirname(current)) {
+    try {
+      const info = await lstat(current)
+      if (info.isSymbolicLink() || !info.isDirectory())
+        throw new WriterError('unsafe_path', `写入路径包含链接或非目录，拒绝越界风险：${current}`)
+    } catch (error) { if (!isMissingFileError(error)) throw error }
+    if (current === path.dirname(current)) break
   }
+}
+
+export async function atomicWrite(file: string, data: string): Promise<void> {
+  await assertSafeAncestors(file)
+  await mkdir(path.dirname(file), { recursive: true })
+  await assertSafeAncestors(file)
+  try {
+    if ((await lstat(file)).isSymbolicLink())
+      throw new WriterError('unsafe_path', `拒绝覆盖链接资产：${file}`)
+  } catch (error) { if (!isMissingFileError(error)) throw error }
+  const tmp = `${file}.${process.pid}.${randomBytes(8).toString('hex')}.tmp`
+  const handle = await open(tmp, 'wx')
+  try {
+    try { await handle.writeFile(data, 'utf8'); await handle.sync() }
+    finally { await handle.close() }
+    await rename(tmp, file)
+  } catch (error) {
+    try { await rm(tmp, { force: true }) }
+    catch (cleanupError) { throw new AggregateError([error, cleanupError], '原子写入失败，临时文件清理也失败') }
+    throw error
+  }
+}
+
+export function isMissingFileError(error: unknown) {
+  return error instanceof Error && 'code' in error && error.code === 'ENOENT'
 }
 
 /** Missing directories are empty; permission and IO errors remain visible. */
@@ -38,8 +62,8 @@ export async function listDir(dir: string) {
 export async function readText(file: string): Promise<string | undefined> {
   try {
     return await readFile(file, 'utf8')
-  } catch (err: any) {
-    if (err?.code === 'ENOENT') return undefined
+  } catch (err) {
+    if (isMissingFileError(err)) return undefined
     throw err
   }
 }
@@ -55,11 +79,16 @@ export async function readJson<T>(file: string): Promise<T | undefined> {
 }
 
 export async function exists(p: string): Promise<boolean> {
-  try { await stat(p); return true } catch (error: any) { if (error.code === "ENOENT") return false; throw error }
+  try { await stat(p); return true } catch (error) { if (isMissingFileError(error)) return false; throw error }
 }
 
-export function sha256(text: string): string {
-  return createHash('sha256').update(text, 'utf8').digest('hex')
+export function sha256(value: string | Uint8Array): string {
+  return createHash('sha256').update(value).digest('hex')
+}
+
+export function shortId(prefix: string, n = 12): string {
+  if (!Number.isSafeInteger(n) || n < 1 || n > 64) throw new RangeError('ID 长度必须为 1–64')
+  return `${prefix}-${randomBytes(Math.ceil(n / 2)).toString('hex').slice(0, n)}`
 }
 
 /** 同一进程内对同一 key 的异步操作串行执行（防止并发读改写 meta.json 丢更新）。 */
@@ -73,12 +102,5 @@ export function serialize<T>(key: string, fn: () => Promise<T>): Promise<T> {
   return run
 }
 
-/** 本地时间 + 时区偏移的 ISO 串 */
-export function nowIso(d: Date = new Date()): string {
-  // 本地时间 + 时区偏移（形如 YYYY-MM-DDTHH:mm:ss+08:00）。手工拼接，不依赖 toISOString。
-  const p2 = (n: number) => String(Math.trunc(Math.abs(n))).padStart(2, '0')
-  const off = -d.getTimezoneOffset()
-  const sign = off >= 0 ? '+' : '-'
-  return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}${sign}${p2(off / 60)}:${p2(off % 60)}`
-}
-
+/** UTC timestamps compare independently of the machine timezone. */
+export function nowIso(date: Date = new Date()): string { return date.toISOString() }

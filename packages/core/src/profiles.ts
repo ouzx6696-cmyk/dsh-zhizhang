@@ -11,7 +11,7 @@ import { rm, stat } from 'node:fs/promises'
 import { stateRoot } from './paths.js'
 import path from 'node:path'
 import { WriterError } from './tool.js'
-import { listDir, atomicWrite, readJson, readText, resolveInside } from './fsx.js'
+import { nowIso, listDir, atomicWrite, readJson, readText, resolveInside } from './fsx.js'
 
 export type ProfileMode = 'toutiao' | 'fanqie'
 export type BuiltinProfile = 'default' | 'original'
@@ -63,7 +63,6 @@ export function profilesRoot(): string {
   return path.join(stateRoot(), 'writer', 'profiles')
 }
 
-const nowIso = () => new Date().toISOString()
 const modeDir = (mode: ProfileMode) => path.join(profilesRoot(), mode)
 const isBuiltin = (id: string): id is BuiltinProfile => id === 'default' || id === 'original'
 const USER_ID = /^user-(\d{1,3})$/

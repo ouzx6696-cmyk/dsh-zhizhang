@@ -1,6 +1,8 @@
+import { assertSourceId } from "./primitives.js";
+import { sha256 } from "../../../../core/src/fsx.js";
 import { applyRecordedWrites } from "./recovery-common.js";
 /** Recover a facts or analysis aggregate update together with its progress metadata. */
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { hostname } from "node:os";
 import { lstat, open, readFile, unlink } from "node:fs/promises";
 import path from "node:path";
@@ -9,7 +11,7 @@ import { isMissingFileError } from "./primitives.js";
 import { snapshotFile, ensureRecoveryOwnerInactive } from "./recovery-common.js";
 import { withResourceLock } from "./process-lock.js";
 const FILE = ".writer-analysis-pending.json";
-const hash = (s: string) => createHash("sha256").update(s).digest("hex");
+const hash = (s: string) => sha256(s);
 type Write = { file: string; before: string | null; after: string; content: string };
 type Intent = { version: 1; id: string; owner: { pid: number; host: string }; createdAt: string; sourceId: string; dataFile: string; writes: Write[] };
 const allowed = new Set(["chapters.jsonl", "plots.jsonl", "rhythms.json", "characters.json"]);
@@ -17,7 +19,7 @@ export async function hasPendingAnalysis(library: string) { try { await lstat(pa
 export async function assertNoPendingAnalysis(library: string) { if (await hasPendingAnalysis(library)) throw new NovelError("library_recovery_required", "拆书分析更新尚未完成。请用 fanqie_library_list(recovery=inspect) 检查，再决定是否恢复。"); }
 async function readIntent(library: string): Promise<Intent> {
     let raw: string; try { const file = path.join(library, FILE); const st = await lstat(file); if (!st.isFile() || st.isSymbolicLink()) throw Error(); raw = await readFile(file, "utf8"); } catch (err) { if (isMissingFileError(err)) throw new NovelError("no_pending_analysis", "没有待恢复的拆书分析更新。"); throw new NovelError("library_recovery_invalid", "分析恢复记录不可读，请保留并核对。"); }
-    try { const j: Intent = JSON.parse(raw); if (j.version !== 1 || !/^[a-f0-9-]{36}$/.test(j.id) || !j.owner || !Number.isSafeInteger(j.owner.pid) || j.owner.pid < 1 || typeof j.owner.host !== "string" || typeof j.createdAt !== "string" || !/^src-[A-Za-z0-9_-]{1,64}$/.test(j.sourceId) || !allowed.has(j.dataFile)) throw Error(); const files = [`analyses/${j.sourceId}/${j.dataFile}`, `analyses/${j.sourceId}/meta.json`]; if (!Array.isArray(j.writes) || j.writes.length !== 2) throw Error(); for (let i = 0; i < 2; i++) { const w = j.writes[i]; if (!w || w.file !== files[i] || !(w.before === null || /^[a-f0-9]{64}$/.test(w.before)) || !/^[a-f0-9]{64}$/.test(w.after) || typeof w.content !== "string" || hash(w.content) !== w.after) throw Error(); } return j; } catch { throw new NovelError("library_recovery_invalid", "分析恢复记录损坏，请保留并核对。"); }
+    try { const j: Intent = JSON.parse(raw); assertSourceId(j.sourceId); if (j.version !== 1 || !/^[a-f0-9-]{36}$/.test(j.id) || !j.owner || !Number.isSafeInteger(j.owner.pid) || j.owner.pid < 1 || typeof j.owner.host !== "string" || typeof j.createdAt !== "string" || !allowed.has(j.dataFile)) throw Error(); const files = [`analyses/${j.sourceId}/${j.dataFile}`, `analyses/${j.sourceId}/meta.json`]; if (!Array.isArray(j.writes) || j.writes.length !== 2) throw Error(); for (let i = 0; i < 2; i++) { const w = j.writes[i]; if (!w || w.file !== files[i] || !(w.before === null || /^[a-f0-9]{64}$/.test(w.before)) || !/^[a-f0-9]{64}$/.test(w.after) || typeof w.content !== "string" || hash(w.content) !== w.after) throw Error(); } return j; } catch { throw new NovelError("library_recovery_invalid", "分析恢复记录损坏，请保留并核对。"); }
 }
 async function classify(library: string, j: Intent) { const writes = await Promise.all(j.writes.map(async w => { const cur = await snapshotFile(path.join(library, w.file)); return { file: w.file, state: cur === w.after ? "已写入" : cur === w.before ? "待写入" : "冲突" }; })); return { writes, conflict: writes.some(w => w.state === "冲突") }; }
 export async function createAnalysisJournal(library: string, input: { sourceId: string; dataFile: string; writes: Array<{ file: string; before: string | null; content: string }> }) {

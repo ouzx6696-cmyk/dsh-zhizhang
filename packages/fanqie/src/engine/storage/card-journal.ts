@@ -1,5 +1,7 @@
+import { assertSourceId } from "./primitives.js";
+import { sha256 } from "../../../../core/src/fsx.js";
 /** Recoverable library card acceptance. Its callers hold the library write lock. */
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { hostname } from "node:os";
 import { lstat, open, readFile, unlink } from "node:fs/promises";
 import path from "node:path";
@@ -13,7 +15,7 @@ import { assertNoPendingAnalysis } from "./analysis-journal.js";
 import { assertNoPendingPlan } from "./plan-journal.js";
 
 const JOURNAL = ".writer-card-pending.json";
-const hash = (s: string) => createHash("sha256").update(s, "utf8").digest("hex");
+const hash = (s: string) => sha256(s);
 const validHash = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f]{64}$/.test(v);
 type Snapshot = string | null;
 type Write = { file: string; before: Snapshot; after: string; content: string };
@@ -64,7 +66,8 @@ async function readJournal(library: string): Promise<Journal> {
         if (j.writes[0].before !== null) throw new Error();
         if (j.sourceGuard) {
             const g = j.sourceGuard;
-            if (!/^src-[A-Za-z0-9_-]{1,64}$/.test(g.sourceId) || !/^[A-Za-z0-9][A-Za-z0-9._-]*\.txt$/.test(g.sourceFile) ||
+            assertSourceId(g.sourceId);
+            if (!/^[A-Za-z0-9][A-Za-z0-9._-]*\.txt$/.test(g.sourceFile) ||
                 !validHash(g.metaHash) || !validHash(g.sourceHash)) throw new Error();
         }
     }

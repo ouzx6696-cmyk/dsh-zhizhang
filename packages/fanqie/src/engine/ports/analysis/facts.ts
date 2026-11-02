@@ -1,4 +1,5 @@
-import { createHash } from "node:crypto";
+import { sha256 } from "../../../../../core/src/fsx.js";
+
 import { assertNoPendingCard } from "../../storage/card-journal.js";
 /** 事实层：逐章白描校验与落盘。 */
 import { withResourceLock } from "../../storage/process-lock.js";
@@ -82,7 +83,7 @@ export async function upsertChapter(paths: StoragePaths, sourceId: any, facts: a
         await assertNoPendingCard(paths.library);
         const before = await snapshotFile(p.chapters);
         const rows = await readJsonl(p.chapters);
-        const rec = { ...facts, n: Number(facts.n), sourceStart: index.find(c => c.n === Number(facts.n) && (facts.sourceStart === undefined || c.start === facts.sourceStart))!.start, sourceHash: createHash("sha256").update(sourceText).digest("hex"), schemaVersion: 2, updatedAt: nowIso() };
+        const rec = { ...facts, n: Number(facts.n), sourceStart: index.find(c => c.n === Number(facts.n) && (facts.sourceStart === undefined || c.start === facts.sourceStart))!.start, sourceHash: sha256(sourceText), schemaVersion: 2, updatedAt: nowIso() };
         const at = rows.findIndex((r: any) => Number(r.n) === rec.n && (r.sourceStart === undefined || r.sourceStart === rec.sourceStart));
         if (at >= 0)
             rows[at] = rec;

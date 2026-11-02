@@ -1,5 +1,7 @@
+import { assertSourceId } from "./primitives.js";
+import { sha256 } from "../../../../core/src/fsx.js";
 /** Recover an interrupted source import without embedding the full book in the journal. */
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { hostname } from "node:os";
 import { lstat, open, readFile, unlink } from "node:fs/promises";
 import path from "node:path";
@@ -8,7 +10,7 @@ import { atomicWrite, isMissingFileError } from "./primitives.js";
 import { snapshotFile, ensureRecoveryOwnerInactive } from "./recovery-common.js";
 import { withResourceLock } from "./process-lock.js";
 const FILE = ".writer-source-pending.json";
-const hash = (s: string) => createHash("sha256").update(s).digest("hex");
+const hash = (s: string) => sha256(s);
 type Write = { file: string; before: string | null; after: string; content?: string };
 type Intent = { version: 1; id: string; owner: { pid: number; host: string }; createdAt: string; sourceId: string; stagedFile: string; writes: Write[] };
 export async function hasPendingSource(library: string) { try { await lstat(path.join(library, FILE)); return true; } catch (err) { if (isMissingFileError(err)) return false; throw err; } }
@@ -17,8 +19,8 @@ async function readIntent(library: string): Promise<Intent> {
     let raw: string;
     try { const file = path.join(library, FILE); const st = await lstat(file); if (!st.isFile() || st.isSymbolicLink()) throw Error(); raw = await readFile(file, "utf8"); } catch (err) { if (isMissingFileError(err)) throw new NovelError("no_pending_source", "没有待恢复的书源导入。"); throw new NovelError("library_recovery_invalid", "书源恢复记录不可读，请保留并核对。"); }
     try {
-        const j: Intent = JSON.parse(raw);
-        if (j.version !== 1 || !/^[a-f0-9-]{36}$/.test(j.id) || !j.owner || !Number.isSafeInteger(j.owner.pid) || j.owner.pid < 1 || typeof j.owner.host !== "string" || typeof j.createdAt !== "string" || !/^src-[A-Za-z0-9_-]{1,64}$/.test(j.sourceId)) throw Error();
+        const j: Intent = JSON.parse(raw); assertSourceId(j.sourceId);
+        if (j.version !== 1 || !/^[a-f0-9-]{36}$/.test(j.id) || !j.owner || !Number.isSafeInteger(j.owner.pid) || j.owner.pid < 1 || typeof j.owner.host !== "string" || typeof j.createdAt !== "string") throw Error();
         if (j.stagedFile !== `sources/.${j.sourceId}.pending.txt`) throw Error();
         const files = [`sources/${j.sourceId}.txt`, `sources/${j.sourceId}.json`, "index.json"];
         if (!Array.isArray(j.writes) || j.writes.length !== 3) throw Error();
@@ -34,7 +36,7 @@ async function classify(library: string, j: Intent) {
     return { writes, guards: [{ file: j.stagedFile, state: stageState }], conflict: writes.some(w => w.state === "冲突") || stageState === "冲突" };
 }
 export async function createSourceJournal(library: string, input: { sourceId: string; text: string; metaContent: string; indexBefore: string; indexContent: string }) {
-    if (!/^src-[A-Za-z0-9_-]{1,64}$/.test(input.sourceId)) throw new NovelError("bad_args", "书源 id 无效");
+    assertSourceId(input.sourceId);
     const stagedFile = `sources/.${input.sourceId}.pending.txt`; const staged = path.join(library, stagedFile);
     if (await snapshotFile(staged) !== null) throw new NovelError("id_collision", "临时书源已存在，未覆盖原文件。");
     await atomicWrite(staged, input.text);

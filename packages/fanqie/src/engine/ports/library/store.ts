@@ -2,31 +2,17 @@
  * 拆书库存储层 — 索引 / 路径 / 导入解码 / 过滤 / 排序。
  * 不包含卡 schema（见 schema.js）与机械审计（见 audit.js）。
  */
-import { randomUUID } from "node:crypto";
-import { readFile, access } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { atomicWrite, assertResourceId } from "../../storage/primitives.js";
-import { listDir } from "../../../../../core/src/fsx.js";
+import { listDir, exists as fileExists } from "../../../../../core/src/fsx.js";
 import { withResourceLock } from "../../storage/process-lock.js";
 import { assertNoPendingCard } from "../../storage/card-journal.js";
 import { coerceAxis, coerceHumanFeel } from "./schema.js";
 import { NovelError } from "../../errors.js";
 import type { StoragePaths } from "../../types.js";
 
-export { nowIso } from "../../storage/primitives.js";
-export function newId(prefix: string) {
-    return `${prefix}-${Date.now().toString(36)}${randomUUID().replace(/-/g, "").slice(0, 12)}`;
-}
-export async function fileExists(p: string) {
-    try {
-        await access(p);
-        return true;
-    }
-    catch (err: any) {
-        if (err?.code === "ENOENT") return false;
-        throw err;
-    }
-}
+export { nowIso, shortId as newId, exists as fileExists } from "../../../../../core/src/fsx.js";
 export function libraryDirs(paths: StoragePaths) {
     return {
         root: paths.library,

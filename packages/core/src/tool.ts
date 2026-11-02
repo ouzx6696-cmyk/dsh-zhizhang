@@ -40,7 +40,7 @@ export interface ToolDefinition {
 /** 业务失败的统一形状 */
 export interface ToolFailure {
   ok: false
-  code: 'INVALID_ARGS' | 'NOT_FOUND' | 'CONFLICT' | 'GATE_DENIED' | 'SCRIPT_FAILED' | 'TIMEOUT' | 'OUT_OF_ROOT' | 'NO_AGENT'
+  code: 'INVALID_ARGS' | 'NOT_FOUND' | 'CONFLICT' | 'GATE_DENIED' | 'SCRIPT_FAILED' | 'TIMEOUT' | 'OUT_OF_ROOT' | 'NO_AGENT' | 'unsafe_path'
   message: string
 }
 

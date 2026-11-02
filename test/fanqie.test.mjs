@@ -265,3 +265,19 @@ test('敏感工具不能跳过确认入口，拒绝确认不残留授权', async
   }), /变化|revision|审读/)
   assert.notEqual((await readChapter(work.dir, 'c001')).status, 'final')
 })
+
+test('T4 审读回报混合时区与 UTC 格式时按实际时间取最新', async () => {
+  const {call,work}=await setup()
+  const saved=await call('fanqie_review_report', {chapter:'c001',verdict:'通过',hard_issues:[],levels:[],reread_full:true})
+  const dir=path.join(work.dir,'writer-reviews','c001')
+  const file=path.join(dir,saved.saved)
+  const report=JSON.parse(await readFile(file,'utf8'))
+  const {unlink}=await import('node:fs/promises')
+  await unlink(file)
+  for(const [at,verdict] of [['2026-11-02T09:00:00+08:00','未通过'],['2026-11-02T02:00:00.000Z','通过']]) {
+    await writeFile(path.join(dir,`${at.replace(/[:.+]/g,'-')}.json`),JSON.stringify({...report,at,verdict}))
+  }
+  const latest=await call('fanqie_review_get',{chapter:'c001'})
+  assert.equal(latest.at,'2026-11-02T02:00:00.000Z')
+  assert.equal(latest.verdict,'通过')
+})

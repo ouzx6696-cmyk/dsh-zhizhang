@@ -1,3 +1,4 @@
+import { nowIso, shortId as newId, exists as fileExists } from "../../../../core/src/fsx.js";
 import { readReference } from "../services/reference.js";
 import { fingerprint } from "../domain/lifecycle.js";
 import { withResourceLock } from "../storage/process-lock.js";
@@ -6,8 +7,7 @@ import { withResourceLock } from "../storage/process-lock.js";
  * Session + Library cards + MethodRegistry develop/plan → stage foundation/outline → explicit accept (optional apply to work).
  * Does not silently foundation_set.
  */
-import { randomUUID } from "node:crypto";
-import { mkdir, readFile, access } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { NovelError } from "../errors.js";
 import { snapshotFile } from "../storage/recovery-common.js";
@@ -30,22 +30,6 @@ import {
 import { MethodRegistry } from "./methods.js";
 import { QualityPolicy } from "./quality-policy.js";
 import type { StoragePaths } from "../types.js";
-function nowIso() {
-    return new Date().toISOString();
-}
-function newId(prefix: string) {
-    return `${prefix}-${Date.now().toString(36)}${randomUUID().replace(/-/g, "").slice(0, 12)}`;
-}
-async function fileExists(p: string) {
-    try {
-        await access(p);
-        return true;
-    }
-    catch (err: any) {
-        if (err?.code === "ENOENT") return false;
-        throw err;
-    }
-}
 function inspDirs(paths: StoragePaths) {
     return {
         root: paths.inspiration,

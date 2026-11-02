@@ -1,6 +1,8 @@
+import { assertSourceId } from "../engine/storage/primitives.js";
+import { exists as pathExists } from "../../../core/src/fsx.js";
 import { diagnose, stageRevisionCandidate, bodyHash } from "../engine/services/diagnostics.js";
 import { buildPanelSnapshot, listChapterLensRows } from "../engine/panel-query.js";
-import { access, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import type { StoragePaths, PluginConfig } from "../engine/types.js";
 import path from "node:path";
 import {
@@ -70,13 +72,6 @@ export const FANQIE_ROUTES = [
     API + ROUTES.unifyPrepare,
 ];
 
-async function pathExists(file: string) {
-    try { await access(file); return true; }
-    catch (error) {
-        if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return false;
-        throw error;
-    }
-}
 /**
  * Resolve storage root for HTTP (no agent session).
  * Priority: config.storageRoot → env WRITER_NOVEL_ROOT → cwd/.writer if present → ensureStorage default.
@@ -528,9 +523,8 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
             }
             if (pathOnly === `${WB_API_PREFIX}/report`) {
                 const source = String(url.searchParams.get("source") ?? "").trim();
-                if (!/^src-[A-Za-z0-9_-]{1,64}$/.test(source)) {
-                    return ctx.json(400, { ok: false, code: "bad_id", error: "source 非法" });
-                }
+                try { assertSourceId(source); }
+                catch { return ctx.json(400, { ok: false, code: "bad_id", error: "source 非法" }); }
                 const picked = await panelPaths(url, config);
                 if (picked.error) {
                     return ctx.json(400, { ok: false, code: "bad_base", error: "未登记的项目（base 不在项目索引里）" });

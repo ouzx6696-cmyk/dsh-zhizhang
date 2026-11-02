@@ -4,16 +4,9 @@ import { mkdir } from "node:fs/promises";
 import { atomicWrite } from "../../storage/primitives.js";
 import { readJsonCached, readJsonlCached } from "../../file-cache.js";
 import type { StoragePaths } from "../../types.js";
-import { NovelError } from "../../errors.js";
 
-const SOURCE_ID_RE = /^src-[A-Za-z0-9_-]{1,64}$/;
-
-export function assertSourceId(id: string) {
-    const t = String(id ?? "").trim();
-    if (!SOURCE_ID_RE.test(t))
-        throw new NovelError("bad_args", `sourceId 非法：${t.slice(0, 80)}`);
-    return t;
-}
+import { assertSourceId } from "../../storage/primitives.js";
+export { assertSourceId } from "../../storage/primitives.js";
 
 export { nowIso } from "../../storage/primitives.js";
 

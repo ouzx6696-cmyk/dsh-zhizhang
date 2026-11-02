@@ -1,6 +1,7 @@
+import { sha256 } from "../../../../core/src/fsx.js";
 import { applyRecordedWrites } from "./recovery-common.js";
 /** Recover a direct chapter or outline save interrupted between chapter and metadata. */
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { hostname } from "node:os";
 import { lstat, open, readFile, unlink } from "node:fs/promises";
 import path from "node:path";
@@ -9,7 +10,7 @@ import { assertResourceId, isMissingFileError } from "./primitives.js";
 import { ensureRecoveryOwnerInactive, snapshotFile } from "./recovery-common.js";
 import { withResourceLock } from "./process-lock.js";
 const FILE = ".writer-chapter-pending.json";
-const hash = (s: string) => createHash("sha256").update(s).digest("hex");
+const hash = (s: string) => sha256(s);
 type Write = { file: string; before: string | null; after: string; content: string };
 type Intent = { version: 1 | 2 | 3 | 4 | 5; id: string; owner: { pid: number; host: string }; createdAt: string; chapterId: string; kind?: "brief" | "payoff" | "lint" | "stage"; candidateId?: string; writes: Write[] };
 export async function hasPendingChapterSave(dir: string) { try { await lstat(path.join(dir, FILE)); return true; } catch (err) { if (isMissingFileError(err)) return false; throw err; } }

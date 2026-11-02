@@ -1,3 +1,4 @@
+import { WriterError } from "../../../core/src/tool.js";
 /** User/agent-facing errors: Chinese message only, never stack traces. */
 export class NovelError extends Error {
     code;
@@ -9,7 +10,7 @@ export class NovelError extends Error {
 }
 /** Flatten any thrown value into a short Chinese line for tool output. */
 export function formatToolError(err: any) {
-    if (err instanceof NovelError)
+    if (err instanceof NovelError || err instanceof WriterError)
         return `错误[${err.code}]：${err.message}`;
     if (err instanceof Error) {
         const msg = (err.message || "未知错误").split("\n")[0].slice(0, 400);

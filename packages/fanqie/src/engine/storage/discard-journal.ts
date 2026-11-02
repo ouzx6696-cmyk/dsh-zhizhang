@@ -1,5 +1,6 @@
+import { sha256 } from "../../../../core/src/fsx.js";
 /** Recover an interrupted card discard without deleting a card changed after the request. */
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { hostname } from "node:os";
 import { lstat, open, readFile, unlink } from "node:fs/promises";
 import path from "node:path";
@@ -8,7 +9,7 @@ import { assertResourceId, atomicWrite, isMissingFileError } from "./primitives.
 import { snapshotFile, ensureRecoveryOwnerInactive } from "./recovery-common.js";
 import { withResourceLock } from "./process-lock.js";
 const FILE = ".writer-discard-pending.json";
-const hash = (s: string) => createHash("sha256").update(s).digest("hex");
+const hash = (s: string) => sha256(s);
 type Intent = { version: 1; id: string; owner: { pid: number; host: string }; createdAt: string; cardId: string; indexBefore: string; indexAfter: string; indexContent: string; cardBefore: string | null };
 export async function hasPendingDiscard(library: string) { try { await lstat(path.join(library, FILE)); return true; } catch (err) { if (isMissingFileError(err)) return false; throw err; } }
 export async function assertNoPendingDiscard(library: string) { if (await hasPendingDiscard(library)) throw new NovelError("library_recovery_required", "删卡操作尚未完成。请用 fanqie_library_list(recovery=inspect) 检查，再决定是否恢复。"); }

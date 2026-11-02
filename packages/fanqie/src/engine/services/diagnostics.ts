@@ -1,5 +1,6 @@
+import { sha256 } from "../../../../core/src/fsx.js";
 /** Locked source capture and candidate staging. Pure analysis lives in domain/. */
-import { createHash } from 'node:crypto';
+
 import { realpath } from 'node:fs/promises';
 import { parseManuscript } from '../domain/manuscript.js';
 import { analyzeManuscript, DIAGNOSTIC_LIMITS, ParagraphLimitError } from '../domain/diagnostics.js';
@@ -10,7 +11,7 @@ import { withResourceLock } from '../storage/process-lock.js';
 import { readChapter, readCandidate, readWorkMeta, listCandidates, stageCandidate } from '../work-store.js';
 import { NovelError } from '../errors.js';
 
-export const bodyHash = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex');
+export const bodyHash = (text: string) => sha256(text);
 const fail = (code: string, message: string): never => { throw new NovelError(code, message); };
 function object(value: unknown): Record<string, unknown> {
     if (!value || typeof value !== 'object' || Array.isArray(value)) fail('bad_source', '须提供有效对象');

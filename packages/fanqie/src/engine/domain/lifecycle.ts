@@ -1,7 +1,8 @@
+import { sha256 } from "../../../../core/src/fsx.js";
 /** Separate content identity, contextual applicability, and declared review. */
-import { createHash } from "node:crypto";
 
-export const fingerprint = (value: unknown) => createHash("sha256").update(JSON.stringify(value ?? null)).digest("hex");
+
+export const fingerprint = (value: unknown) => sha256(JSON.stringify(value ?? null));
 export interface ChapterDependency { chapterId: string; revision: string; kind: "final" | "working" }
 export interface ContextBasis {
     targetRevision: string;

@@ -1,7 +1,9 @@
+import { assertCandidateFile } from "./primitives.js";
+import { sha256 } from "../../../../core/src/fsx.js";
 import { snapshotFile, ensureRecoveryOwnerInactive, applyRecordedWrites } from "./recovery-common.js";
 export { snapshotFile, ensureRecoveryOwnerInactive } from "./recovery-common.js";
 /** Recoverable candidate acceptance for one work. */
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { hostname } from "node:os";
 import { lstat, open, readFile, unlink } from "node:fs/promises";
 import path from "node:path";
@@ -12,7 +14,7 @@ import { assertNoPendingChapterSave } from "./chapter-journal.js";
 import { assertResourceId, isMissingFileError } from "./primitives.js";
 
 const JOURNAL = ".writer-accept-pending.json";
-const hash = (s: string | Buffer) => createHash("sha256").update(s).digest("hex");
+const hash = (s: string | Buffer) => sha256(s);
 type Snapshot = string | null;
 type Write = { file: string; before: Snapshot; after: string; content: string };
 type Guard = { file: string; before: string };
@@ -74,7 +76,7 @@ async function readJournal(dir: string): Promise<Journal> {
                 !validHash(w.after) || typeof w.content !== "string" || hash(w.content) !== w.after) throw new Error();
         }
         const bodyFile = j.bodyFile;
-        if (typeof bodyFile !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]*\.md$/.test(bodyFile)) throw new Error();
+        assertCandidateFile(bodyFile);
         const g = j.guards[0];
         if (!g || g.file !== `candidates/${bodyFile}` || !validHash(g.before)) throw new Error();
     }

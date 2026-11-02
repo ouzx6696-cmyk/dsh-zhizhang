@@ -1,3 +1,4 @@
+import { sha256, shortId, exists } from "../../../core/src/fsx.js";
 import { Diagnostics } from "../../../core/src/diagnostics.js";
 import { serialize, readText } from "../../../core/src/fsx.js";
 import { rootIdentity } from "../../../core/src/identity.js";
@@ -21,7 +22,7 @@ import { snapshotFiles } from "../../../core/src/snapshots.js";
 import { mkdir, readdir, readFile, realpath, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { stateRoot } from "../../../core/src/paths.js";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { EMPTY_FOUNDATION, SCHEMA_VERSION } from "./types.js";
 import type { Candidate, ExecContext, PluginConfig, StoragePaths } from "./types.js";
 import { assertContextBasis } from "./storage/chapters.js";
@@ -30,7 +31,7 @@ import { fingerprint } from "./domain/lifecycle.js";
 import { NovelError } from "./errors.js";
 import { resolveHappenedText } from "./domain/foundation-outcome.js";
 import { readJsonCached } from "./file-cache.js";
-import { atomicWrite, assertSafeAncestors, assertResourceId, countWords, isMissingFileError, nowIso } from "./storage/primitives.js";
+import { atomicWrite, assertSafeAncestors, assertCandidateFile, assertResourceId, countWords, isMissingFileError, nowIso } from "./storage/primitives.js";
 import { chaptersDir, readChapter, prepareChapterSaveUnlocked } from "./storage/chapters.js";
 import { assertNoPendingAccept, createAcceptJournal, finishAcceptJournal, snapshotFile } from "./storage/accept-journal.js";
 import { createWorkRecordJournal, finishChapterJournal } from "./storage/chapter-journal.js";
@@ -438,8 +439,7 @@ export async function createWork(paths: StoragePaths, input: any) {
     let finalKey = "";
     // Reserve the directory atomically: even a directory without meta.json may contain user files.
     for (let attempt = 0; attempt < 20; attempt++) {
-        const suffix = randomUUID().replace(/-/g, "").slice(0, 8);
-        const candidate = attempt === 0 ? key : `${Array.from(key).slice(0, 51).join("")}-${suffix}`;
+        const candidate = attempt === 0 ? key : shortId(Array.from(key).slice(0, 51).join(""), 8);
         const proposed = workDir(paths, candidate);
         try {
             await mkdir(proposed);
@@ -468,16 +468,6 @@ export async function createWork(paths: StoragePaths, input: any) {
         throw new NovelError("partial_work_create", `作品目录 ${dir} 已创建，但初始化未完成（${err?.message ?? String(err)}）。原目录已保留，请核对后处理。`);
     }
     return { meta, dir };
-}
-async function exists(file: string) {
-    try {
-        await stat(file);
-        return true;
-    }
-    catch (err) {
-        if (isMissingFileError(err)) return false;
-        throw err;
-    }
 }
 export async function listWorks(paths: StoragePaths) {
     let names;
@@ -618,7 +608,7 @@ export async function stageCandidate(dir: string, input: any) {
         throw new NovelError("chapter_not_found", `目标章 ${chapterId} 不存在：先 outline_set（或 inspire_accept apply）建章纲，再交候选`);
     }
     // Date.now() 只能到毫秒；并发 stage 会在同一毫秒生成同一个 id 并互相覆盖。
-    const id = `cand-${randomUUID().replace(/-/g, "").slice(0, 12)}`;
+    const id = shortId("cand");
     await mkdir(candidatesDir(dir), { recursive: true });
     const bodyFile = `${id}.md`;
     if (await snapshotFile(path.join(candidatesDir(dir), bodyFile)) !== null || await snapshotFile(path.join(candidatesDir(dir), `${id}.json`)) !== null)
@@ -670,10 +660,10 @@ export async function stageCandidate(dir: string, input: any) {
 }
 /** Decode the same metadata contract for reads and list projections. */
 function candidateBodyFile(disk: any, id: string): string {
-    if (!disk || typeof disk !== "object" || Array.isArray(disk) || disk.id !== id || typeof disk.chapterId !== "string" || (disk.bodyFile !== undefined && (typeof disk.bodyFile !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]*\.md$/.test(disk.bodyFile))))
+    if (!disk || typeof disk !== "object" || Array.isArray(disk) || disk.id !== id || typeof disk.chapterId !== "string")
         throw new NovelError("bad_candidate", `候选 ${id} 元数据损坏，请保留文件并核对。`);
     assertResourceId(disk.chapterId, "章节 id");
-    return disk.bodyFile ?? `${id}.md`;
+    return assertCandidateFile(disk.bodyFile ?? `${id}.md`);
 }
 export async function readCandidate(dir: string, candidateId: string) {
     await assertNoPendingAccept(dir);
@@ -701,12 +691,12 @@ export async function markCandidateLinted(dir: string, candidateId: string, hitC
         if (expectedBody !== undefined && cand.body !== expectedBody)
             throw new NovelError("candidate_changed", "候选正文在扫描期间发生变化，请重新扫描。");
         const ledger = await readLedger(dir);
-        const token = `lint-${randomUUID().replace(/-/g, "").slice(0, 16)}`;
+        const token = shortId("lint", 16);
         const lintedAt = nowIso();
         const diskMeta = candidateToDiskMeta({
             ...cand,
             lintPassToken: token,
-            lintBodyHash: createHash("sha256").update(cand.body, "utf8").digest("hex"),
+            lintBodyHash: sha256(cand.body),
             lintedAt,
             lintHitCount: hitCount,
         });
@@ -729,12 +719,12 @@ export async function markCandidateLinted(dir: string, candidateId: string, hitC
 /** True when candidate has a lint pass recorded at/after stagedAt. */
 export function candidateHasLintPass(cand: any) {
     if (!cand.lintPassToken || !cand.lintedAt || !cand.lintBodyHash || typeof cand.body !== "string") return false;
-    const actual = createHash("sha256").update(cand.body, "utf8").digest("hex");
+    const actual = sha256(cand.body);
     return cand.lintBodyHash === actual && cand.lintedAt >= cand.stagedAt;
 }
 /** Bind policy evaluation to the exact candidate later committed. */
 export function candidateGateFingerprint(cand: any) {
-    return createHash("sha256").update(JSON.stringify(candidateToDiskMeta(cand))).update("\0").update(String(cand.body ?? "")).digest("hex");
+    return sha256(JSON.stringify(candidateToDiskMeta(cand)) + "\0" + String(cand.body ?? ""));
 }
 /**
  * Accept a staged candidate into the chapter draft. Explicit tool only —
@@ -766,7 +756,7 @@ export async function acceptCandidate(dir: string, candidateId: string, mode: an
         if (!candidateHasLintPass(cand)) {
             if (cand.lintPassToken) throw new NovelError("lint_required", `候选 ${id} 在扫描后变化，请重新扫描。`);
             cand.lintHitCount = lintStyle(cand.body).length;
-            cand.lintBodyHash = createHash("sha256").update(cand.body).digest("hex");
+            cand.lintBodyHash = sha256(cand.body);
             cand.lintedAt = nowIso();
             cand.lintPassToken = `inline-${randomUUID()}`;
         }
@@ -774,9 +764,9 @@ export async function acceptCandidate(dir: string, candidateId: string, mode: an
         if (cand.basis) await assertContextBasis(dir, cand.basis, chapterId);
         if (!cand.targetRevision && opts.expectedRevision === undefined)
             throw new NovelError("legacy_baseline_required", "旧候选无目标版本，请传 expected_revision 明确核对当前目标，或重新暂存。");
-        const bodyFile = typeof cand.bodyFile === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]*\.md$/.test(cand.bodyFile) ? cand.bodyFile : `${id}.md`;
+        const bodyFile = assertCandidateFile(cand.bodyFile ?? `${id}.md`);
         const bodyHash = await snapshotFile(path.join(candidatesDir(dir), bodyFile));
-        if (!bodyHash || bodyHash !== createHash("sha256").update(cand.body, "utf8").digest("hex"))
+        if (!bodyHash || bodyHash !== sha256(cand.body))
             throw new NovelError("candidate_changed", "候选正文在采纳期间发生变化，请重新检查并扫描。");
         {
             await assertNoPendingAccept(dir);

@@ -1,6 +1,8 @@
+import { assertSourceId } from "./primitives.js";
+import { sha256 } from "../../../../core/src/fsx.js";
 import { applyRecordedWrites } from "./recovery-common.js";
 /** Recover the authoritative reading plan, its human-readable view and scope together. */
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { hostname } from "node:os";
 import { lstat, open, readFile, unlink } from "node:fs/promises";
 import path from "node:path";
@@ -9,7 +11,7 @@ import { isMissingFileError } from "./primitives.js";
 import { snapshotFile, ensureRecoveryOwnerInactive } from "./recovery-common.js";
 import { withResourceLock } from "./process-lock.js";
 const FILE = ".writer-plan-pending.json";
-const hash = (s: string) => createHash("sha256").update(s).digest("hex");
+const hash = (s: string) => sha256(s);
 type Write = { file: string; before: string | null; after: string | null; content?: string };
 type Intent = { version: 1; id: string; owner: { pid: number; host: string }; createdAt: string; sourceId: string; clearConfirm: boolean; writes: Write[] };
 export async function hasPendingPlan(library: string) { try { await lstat(path.join(library, FILE)); return true; } catch (err) { if (isMissingFileError(err)) return false; throw err; } }
@@ -17,7 +19,7 @@ export async function assertNoPendingPlan(library: string) { if (await hasPendin
 async function readIntent(library: string): Promise<Intent> {
     let raw: string; try { const file = path.join(library, FILE); const st = await lstat(file); if (!st.isFile() || st.isSymbolicLink()) throw Error(); raw = await readFile(file, "utf8"); } catch (err) { if (isMissingFileError(err)) throw new NovelError("no_pending_plan", "没有待恢复的拆书计划。"); throw new NovelError("library_recovery_invalid", "计划恢复记录不可读，请保留并核对。"); }
     try {
-        const j: Intent = JSON.parse(raw); if (j.version !== 1 || !/^[a-f0-9-]{36}$/.test(j.id) || !j.owner || !Number.isSafeInteger(j.owner.pid) || j.owner.pid < 1 || typeof j.owner.host !== "string" || typeof j.createdAt !== "string" || !/^src-[A-Za-z0-9_-]{1,64}$/.test(j.sourceId) || typeof j.clearConfirm !== "boolean") throw Error();
+        const j: Intent = JSON.parse(raw); assertSourceId(j.sourceId); if (j.version !== 1 || !/^[a-f0-9-]{36}$/.test(j.id) || !j.owner || !Number.isSafeInteger(j.owner.pid) || j.owner.pid < 1 || typeof j.owner.host !== "string" || typeof j.createdAt !== "string" || typeof j.clearConfirm !== "boolean") throw Error();
         const base = `analyses/${j.sourceId}`; const files = [`${base}/plan.json`, `${base}/plan.md`, `${base}/meta.json`, ...(j.clearConfirm ? [`${base}/plan-confirm.json`] : [])];
         if (!Array.isArray(j.writes) || j.writes.length !== files.length) throw Error();
         for (let i = 0; i < files.length; i++) { const w = j.writes[i]; if (!w || w.file !== files[i] || !(w.before === null || /^[a-f0-9]{64}$/.test(w.before))) throw Error(); if (i === 3) { if (w.after !== null || w.content !== undefined) throw Error(); } else if (typeof w.content !== "string" || typeof w.after !== "string" || !/^[a-f0-9]{64}$/.test(w.after) || hash(w.content) !== w.after) throw Error(); }
