@@ -7,7 +7,7 @@ function fresh(re: any) {
 
 /** 解析章节目录：第1章 / 第一章 / 序章。返回 [{n,title,start,end}]。 */
 export function chapterIndex(text: string) {
-    const t = String(text ?? "").replace(/^\uFEFF/, "");
+    const t = text.replace(/^\uFEFF/, "");
     const out = [];
     const re = fresh(CHAPTER_HEADING_RE);
     let m;
@@ -23,18 +23,18 @@ export function chapterIndex(text: string) {
         if (parsed)
             out.push({ n: parsed.n, title: parsed.title, start: front.index, end: t.length });
     }
-    out.sort((a: any, b: any) => a.start - b.start);
+    out.sort((a, b) => a.start - b.start);
     for (let i = 0; i < out.length; i++)
         out[i].end = i + 1 < out.length ? out[i + 1].start : t.length;
     return out;
 }
 
 export function totalChapters(index: { n: number; title: string; start: number; end: number }[]) {
-    return index.filter((c: any) => c.n > 0).length;
+    return index.filter((c) => c.n > 0).length;
 }
 
 export function chapterText(text: string, index: { n: number; title: string; start: number; end: number }[], n: number) {
-    const matches = index.filter((c: any) => c.n === Number(n));
+    const matches = index.filter((c) => c.n === Number(n));
     const hit = matches.length === 1 ? matches[0] : null;
     if (!hit)
         return null;
@@ -42,12 +42,12 @@ export function chapterText(text: string, index: { n: number; title: string; sta
 }
 
 export function chapterTitle(index: { n: number; title: string; start: number; end: number }[], n: number) {
-    return index.find((c: any) => c.n === Number(n))?.title ?? "";
+    return index.find((c) => c.n === Number(n))?.title ?? "";
 }
 
 /** 百分比位置最近的章（用于 30/60/85 抽样）。 */
 export function nearestChapter(index: { n: number; title: string; start: number; end: number }[], ratio: any) {
-    const chapters = index.filter((c: any) => c.n > 0);
+    const chapters = index.filter((c) => c.n > 0);
     if (!chapters.length)
         return null;
     const target = chapters[0].start + (chapters[chapters.length - 1].start - chapters[0].start) * ratio;

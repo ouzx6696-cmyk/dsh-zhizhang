@@ -1,7 +1,7 @@
 /** Pure chapter outcome selection, shared by acceptance and manual state tools. */
 import { bodyTailOf, endingBodyOverlap } from "./ending-consistency.js";
-export function resolveHappenedText(opts: any) {
-    const ending = String(opts.ending ?? "").trim().replace(/\s+/g, " ");
+export function resolveHappenedText(opts: {ending?:string;body:string;minOverlap?:number}) {
+    const ending = (opts.ending ?? "").trim().replace(/\s+/g, " ");
     const bodyTail = bodyTailOf(opts.body);
     const minOverlap = opts.minOverlap ?? 0.35;
     if (!ending && !bodyTail) {
@@ -26,7 +26,7 @@ export function resolveHappenedText(opts: any) {
 }
 
 export function formatChapterOutcomeLine(chapterId: string, title: string, text: string) {
-    const t = String(text ?? "").trim().replace(/\s+/g, " ");
+    const t = text.trim().replace(/\s+/g, " ");
     if (!t) return "";
     const short = t.length > 200 ? `${t.slice(0, 200).trimEnd()}…` : t;
     const titleBit = title?.trim() ? `《${title.trim()}》` : "";

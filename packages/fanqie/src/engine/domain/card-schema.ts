@@ -6,13 +6,13 @@
  * `schemaVersion === 2 || layer` 的分支。
  */
 
-export const LAYERS = ["book", "arc", "unit", "chapter", "scene", "line"];
+const LAYERS = ["book", "arc", "unit", "chapter", "scene", "line"];
 export const DIMENSIONS = ["structure", "character", "rhythm", "hook", "prose", "commercial"];
 export const HOOK_TYPES = ["悬念", "冲突", "反差", "代入", "信息差", "反转", "新角色", "代价", "决定", "发现"];
 export const HOOK_STRENGTHS = ["弱", "中", "强"];
 
 /** v2 模块必填/可选字段的单一描述（校验、文档、工具 schema 都从这里读）。 */
-export const CARD_V2_FIELDS = [
+const CARD_V2_FIELDS = [
     { key: "readerWant", label: "读者想看什么", type: "string", required: true },
     { key: "emotionArc", label: "情绪走向", type: "string", required: true },
     { key: "dramaticUnit", label: "戏剧单元", type: "string", required: true },
@@ -26,7 +26,7 @@ export const CARD_V2_FIELDS = [
 ];
 
 /** 动态 JSON 卡（v1/v2 混用），字段逐个校验，所以用宽松记录类型。 */
-export type AnyRecord = Record<string, any>;
+type AnyRecord = Record<string, any>;
 
 export function deriveAxis(layer: string, dimension: string) {
     if (["book", "arc", "unit"].includes(layer))
@@ -95,7 +95,7 @@ export function validateModule(card: AnyRecord) {
         warnings.push("emotionArc 带章号：情绪走向写成了剧情梗概，应改成可迁移的情绪曲线（建立-延迟-触发-兑现-余波）");
     if (/第[0-9０-９]+章/.test(text(c.dramaticUnit)))
         warnings.push("dramaticUnit 带章号：戏剧单元应去专名、去章号，写成「谁对谁做什么」");
-    const evChapters = new Set((c.evidence ?? []).map((e: any) => text(e?.chapter)).filter(Boolean));
+    const evChapters = new Set((c.evidence ?? []).map((e: {chapter?:unknown}) => text(e?.chapter)).filter(Boolean));
     if (evChapters.size === 1 && (c.evidence ?? []).length > 1)
         warnings.push("证据全部来自同一章：机制可能只是单场景，建议补 1 条跨章证据");
     if (["book", "arc", "unit"].includes(layer) && dimension === "prose")
@@ -104,7 +104,7 @@ export function validateModule(card: AnyRecord) {
 }
 
 /** 是否 v2 模块（显式 layer/dimension 或 schemaVersion 2）。 */
-export function isV2Card(card: AnyRecord | null | undefined) {
+function isV2Card(card: AnyRecord | null | undefined) {
     return Boolean(card && (card.schemaVersion === 2 || card.layer || card.dimension));
 }
 

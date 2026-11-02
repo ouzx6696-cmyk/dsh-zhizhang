@@ -82,12 +82,12 @@ async function readPanelWork(dir: string) {
         else drafted++;
     }
     const revisionImpacts = Array.isArray(meta.revisionImpacts) ? meta.revisionImpacts : [];
-    const pendingCands = cands.filter((c: any) => c.pending);
+    const pendingCands = cands.filter((c) => c.pending);
     const pending = pendingCands.length;
     const multiDraftEnabledEarly = isMultiDraftEnabled();
     const nextHints = [
-        ...revisionImpacts.map((v: any) => `修订待核对：${v.chapterId}${v.nextChapterId ? ` → ${v.nextChapterId}` : ""}；${v.reason}`),
-        ...(cands.some((c: any) => c.unavailable) ? ["部分候选不可读，请检查原文件；没有将损坏当作无候选。"] : []),
+        ...revisionImpacts.map((v) => `修订待核对：${v.chapterId}${v.nextChapterId ? ` → ${v.nextChapterId}` : ""}；${v.reason}`),
+        ...(cands.some((c) => c.unavailable) ? ["部分候选不可读，请检查原文件；没有将损坏当作无候选。"] : []),
         ...Scheduler.panelRouteHints(),
         "采纳自动扫描；已有扫描凭据须仍有效。上下文按依据版本核对，旧格式才用时效窗口；skip_brief 可显式跳过简报门禁",
         "lint 命中>0 软警告 lint_hits_present；扫过≠过关。strict_lint / require_payoff / strict_human 可选硬拒",
@@ -95,7 +95,7 @@ async function readPanelWork(dir: string) {
     ];
     if (pending > 0)
         nextHints.unshift(`有 ${pending} 条待采纳候选，可在面板点「采纳」或用 fanqie_candidate_accept`);
-    if (pendingCands.some((c: any) => c.editOf)) {
+    if (pendingCands.some((c) => c.editOf)) {
         nextHints.unshift("有编辑候选：面板可确认采纳为工作稿；内容审读和定稿另行操作，A/B/C 兼容交互可用");
     }
     if (multiDraftEnabledEarly && pending >= 2) {
@@ -105,24 +105,24 @@ async function readPanelWork(dir: string) {
         nextHints.unshift("同章多份待采纳：开启 multiDraft 后可统一整理（默认关，不进主链）");
     }
     if (chapters.some(chapter => chapter.unavailable)) nextHints.unshift("部分章节不可读，请检查原文件；未将读取失败当作空白正文。");
-    if (chapters.some((c: any) => !c.situationLens))
+    if (chapters.some((c) => !c.situationLens))
         nextHints.unshift("部分章节缺 situationLens，建议 fanqie_outline_set");
-    if (chapters.some((c: any) => c.wordCount > 0 && !c.briefRecent)) {
+    if (chapters.some((c) => c.wordCount > 0 && !c.briefRecent)) {
         nextHints.unshift("部分章节没有近期简报记录；写作或修订时重新获取上下文，采纳时另核实际依据版本");
     }
-    const payoffWarn = Object.values(lastPayoffByChapter).filter((p: any) => !p.ok);
+    const payoffWarn = Object.values(lastPayoffByChapter).filter((p) => !p.ok);
     if (payoffWarn.length > 0) {
-        nextHints.unshift(`兑付审计有 ${payoffWarn.length} 章未过：${payoffWarn.map((p: any) => p.chapterId).join("、")}`);
+        nextHints.unshift(`兑付审计有 ${payoffWarn.length} 章未过：${payoffWarn.map((p) => p.chapterId).join("、")}`);
     }
 
     // Author-facing route hints for the writing panel. Model hints above keep tool names on purpose.
     const panelHints = [
-        ...revisionImpacts.map((v: any) => `第 ${v.chapterId} 章有修订待核对${v.nextChapterId ? `，并影响 ${v.nextChapterId}` : ""}`),
-        ...(cands.some((c: any) => c.unavailable) ? ["有候选文件读取失败，请检查原文件"] : []),
+        ...revisionImpacts.map((v) => `第 ${v.chapterId} 章有修订待核对${v.nextChapterId ? `，并影响 ${v.nextChapterId}` : ""}`),
+        ...(cands.some((c) => c.unavailable) ? ["有候选文件读取失败，请检查原文件"] : []),
     ];
     if (pending > 0)
         panelHints.unshift(`有 ${pending} 份候选等待采纳，可在右栏选择并采纳`);
-    if (pendingCands.some((c: any) => c.editOf)) {
+    if (pendingCands.some((c) => c.editOf)) {
         panelHints.unshift("有一份编辑修订稿，核对后可在右栏采纳为工作稿");
     }
     if (multiDraftEnabledEarly && pending >= 2) {
@@ -132,13 +132,13 @@ async function readPanelWork(dir: string) {
         panelHints.unshift("同章有多份候选；在设置中开启「多草稿整理」后可统一处理");
     }
     if (chapters.some(chapter => chapter.unavailable)) panelHints.unshift("有章节文件读取失败，请检查原文件");
-    if (chapters.some((c: any) => !c.situationLens))
+    if (chapters.some((c) => !c.situationLens))
         panelHints.unshift("有章节缺少「处境透镜」，可在命令面板补全章纲");
-    if (chapters.some((c: any) => c.wordCount > 0 && !c.briefRecent)) {
+    if (chapters.some((c) => c.wordCount > 0 && !c.briefRecent)) {
         panelHints.unshift("有章节缺少近期写作简报；写作或修订时会重新获取上下文");
     }
     if (payoffWarn.length > 0)
-        panelHints.unshift(`伏笔兑付核对有 ${payoffWarn.length} 章未通过：${payoffWarn.map((p: any) => p.chapterId).join("、")}`);
+        panelHints.unshift(`伏笔兑付核对有 ${payoffWarn.length} 章未通过：${payoffWarn.map((p) => p.chapterId).join("、")}`);
     return { meta, cands, pendingCands, briefs, now, chapters, words, final, drafted, planned, revisionImpacts, nextHints, panelHints, lastPayoffByChapter, multiDraftEnabledEarly };
 }
 export async function buildPanelHints(dir: string) {
@@ -157,7 +157,7 @@ export async function buildPanelSnapshot(dir: string, pathsHint: any, opts: { sc
     const payoffKeys = Object.keys(lastPayoffCapped);
     for (const k of payoffKeys.slice(0, Math.max(0, payoffKeys.length - 12)))
         delete lastPayoffCapped[k];
-    const recentBriefs = briefs.entries.filter((e: any) => {
+    const recentBriefs = briefs.entries.filter((e) => {
         const at = Date.parse(e.at);
         return Number.isFinite(at) && now - at <= BRIEF_RECENT_MS;
     });
@@ -170,7 +170,7 @@ export async function buildPanelSnapshot(dir: string, pathsHint: any, opts: { sc
                 .catch(error => ({ unavailable: true, summary: error.message })),
         ]);
     }
-    const candidateRows = await Promise.all([...pendingCands, ...cands.filter((c: any) => !c.pending).slice(0, 20)].map(async (c: any) => {
+    const candidateRows = await Promise.all([...pendingCands, ...cands.filter((c) => !c.pending).slice(0, 20)].map(async (c) => {
         let hasLintPass = false;
         if (c.lintPassToken && c.lintBodyHash && c.lintedAt) {
             try {
@@ -196,8 +196,8 @@ export async function buildPanelSnapshot(dir: string, pathsHint: any, opts: { sc
         threads: capText(meta.foundation.threads, 600),
         style: capText(meta.foundation.style, 600),
     };
-    const continuity = meta.continuity ? { finalizedCount: meta.continuity.finalized.length, workingCount: meta.continuity.working.length, finalized: meta.continuity.finalized.slice(-8).map((v: any) => ({ chapterId: v.chapterId, revision: v.revision, at: v.at })), working: meta.continuity.working.slice(-8).map((v: any) => ({ chapterId: v.chapterId, revision: v.revision, at: v.at })) } : null;
-    const ledgerRecent = ledger.entries.slice(-12).map((e: any) => ({ id: e.id, at: e.at, kind: e.kind, chapterId: e.chapterId, summary: e.summary, styleHitCount: e.styleHitCount }));
+    const continuity = meta.continuity ? { finalizedCount: meta.continuity.finalized.length, workingCount: meta.continuity.working.length, finalized: meta.continuity.finalized.slice(-8).map((v) => ({ chapterId: v.chapterId, revision: v.revision, at: v.at })), working: meta.continuity.working.slice(-8).map((v) => ({ chapterId: v.chapterId, revision: v.revision, at: v.at })) } : null;
+    const ledgerRecent = ledger.entries.slice(-12).map((e) => ({ id: e.id, at: e.at, kind: e.kind, chapterId: e.chapterId, summary: e.summary, styleHitCount: e.styleHitCount }));
     return {
         schemaVersion: SCHEMA_VERSION,
         generatedAt: nowIso(),
@@ -210,7 +210,7 @@ export async function buildPanelSnapshot(dir: string, pathsHint: any, opts: { sc
         totals: { chapters: chapters.length, words, final, drafted, planned },
         foundation: foundationView,
         chapters,
-        volumes:(meta.planning?.volumes || []).map((volume:any)=>({id:volume.id,title:volume.title,chapters:volume.chapters})),
+        volumes:(meta.planning?.volumes || []).map((volume)=>({id:volume.id,title:volume.title,chapters:volume.chapters})),
         ledgerRecent,
         candidates: candidateRows,
         revisionImpacts,

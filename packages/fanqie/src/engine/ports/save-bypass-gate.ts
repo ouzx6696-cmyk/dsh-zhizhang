@@ -4,7 +4,7 @@
 import { getPortConfig } from "./config.js";
 import { allow, deny, info } from "./types.js";
 export const SaveBypassGate = {
-    evaluate(opts: any) {
+    evaluate(opts: {contentProvided:boolean;wordCount:number;confirmBypass:boolean;threshold?:number}) {
         if (!opts.contentProvided) {
             return allow([info("save_meta_only", "仅元数据/status")]);
         }

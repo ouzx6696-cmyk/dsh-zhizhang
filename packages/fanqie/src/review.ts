@@ -6,7 +6,7 @@ import path from 'node:path'
 import { assertWorkspaceWritable } from '../../core/src/workspace-lock.js'
 import { readdir } from 'node:fs/promises'
 import { atomicWrite, readJson, resolveInside, sha256 } from '../../core/src/fsx.js'
-import { readWorkMeta } from './engine/store.js'
+import { readWorkMeta } from "./engine/storage/work-meta.js";
 
 /** 审读绑定的正文指纹：首尾各去一个换行，避免保存时的换行差异让回报误判过期 */
 export function bodyFingerprint(body: string): string {
@@ -41,7 +41,7 @@ function slug(s: string): string {
 }
 
 /** 审读回报跟着书走，数据备份会一并带上 */
-export function reviewDir(workDir: string, chapter: string): string {
+function reviewDir(workDir: string, chapter: string): string {
   return resolveInside(workDir, 'writer-reviews', slug(chapter))
 }
 

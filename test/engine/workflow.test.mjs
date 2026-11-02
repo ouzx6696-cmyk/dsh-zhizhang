@@ -1,27 +1,33 @@
-import { allTools } from "../../build/fanqie/src/engine/tools/index.js";
+import {createToolHarness} from "../helpers.mjs";
+import {formatToolError} from "../../build/fanqie/src/engine/errors.js";
+import {allTools} from "../../build/fanqie/src/engine/tools/index.js";
 /** The writing product's main path and author-controlled decisions. */
-import { test } from "node:test";
+import {test} from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import {mkdtemp, readFile, rm, stat, writeFile} from "node:fs/promises";
+import {tmpdir} from "node:os";
 import path from "node:path";
-import { LibraryPort, InspirationPort, MultiDraftPort, setPortConfig, resetPortConfig } from "../../build/fanqie/src/engine/ports/index.js";
-import { ensureStorage, createWork, setOutline, stageCandidate, readCandidate, buildPanelSnapshot, readChapter, readWorkMeta, resolveWorkDir } from "../../build/fanqie/src/engine/store.js";
-import { methodsTools } from "../../build/fanqie/src/engine/tools/methods.js";
-import { inspirationTools } from "../../build/fanqie/src/engine/tools/inspiration.js";
-import { VERSION } from "../../build/core/src/version.js";
+import {LibraryPort, InspirationPort, MultiDraftPort} from "../../build/fanqie/src/engine/ports/index.js";
+import {ensureStorage} from "../../build/fanqie/src/engine/storage/paths.js";
+import {createWork, resolveWorkDir} from "../../build/fanqie/src/engine/work-store.js";
+import {setOutline, readChapter} from "../../build/fanqie/src/engine/storage/chapters.js";
+import {stageCandidate, readCandidate} from "../../build/fanqie/src/engine/storage/candidates.js";
+import {buildPanelSnapshot} from "../../build/fanqie/src/engine/panel-query.js";
+import {readWorkMeta} from "../../build/fanqie/src/engine/storage/work-meta.js";
+import {methodsTools} from "../../build/fanqie/src/engine/tools/methods.js";
+import {inspirationTools} from "../../build/fanqie/src/engine/tools/inspiration.js";
+import {VERSION} from "../../build/core/src/version.js";
 const BOOK = [
     "第1章 差三罐", "凌晨两点，屏幕上的数字比昨天少了三罐咖啡。他把时间戳抄在纸条上。",
     "第2章 四秒", "他调出监控回放，侧窗的人影只用了四秒。",
 ].join("\n");
-const tools = new Map(allTools().map(tool => [tool.name, tool.execute]));
 async function setup() {
     const root = await mkdtemp(path.join(tmpdir(), "writer-novel-workflow-"));
     const paths = await ensureStorage(null, { storageRoot: root });
-    const run = async (name, args = {}) => {
-        const tool = tools.get(name);
-        assert.ok(tool, `missing tool ${name}`);
-        return await tool({ ...args, working_dir: root }, { cwd: root });
+    const harness=await createToolHarness({mode:'fanqie',cwd:root,config:{storageRoot:root}});
+    const run = async (name,args={})=>{
+        try {return (await harness.execute(name,args)).value;}
+        catch(error){return formatToolError(error);}
     };
     return { root, paths, run, close: () => rm(root, { recursive: true, force: true }) };
 }
@@ -159,16 +165,15 @@ test("多草稿默认关闭，开启后统一稿仍只是候选", async () => {
         const { dir, meta } = await createWork(f.paths, { title: "作品" });
         await setOutline(dir, "c001", { ending: "结束" }, "第一章");
         assert.match(await f.run("fanqie_candidate_unify_brief", { work: meta.key, chapter: "c001" }), new RegExp(MultiDraftPort.disabledCode));
-        setPortConfig({ multiDraftEnabled: true });
+        const enabled=await createToolHarness({mode:"fanqie",cwd:f.root,config:{storageRoot:f.root,multiDraft:{enabled:true}}});
         const first = await stageCandidate(dir, { chapterId: "c001", body: "甲稿" });
         const second = await stageCandidate(dir, { chapterId: "c001", body: "乙稿" });
-        const staged = await f.run("fanqie_candidate_unify_stage", { work: meta.key, content: "统一稿", candidate_ids: [first.id, second.id] });
+        const staged = (await enabled.execute("fanqie_candidate_unify_stage", { work: meta.key, content: "统一稿", candidate_ids: [first.id, second.id] })).value;
         const candidate = await readCandidate(dir, id(staged, /(cand-[a-z0-9]+)/));
         assert.deepEqual(candidate.unifyOf, [first.id, second.id]);
         assert.equal((await readChapter(dir, "c001")).body, "");
     }
     finally {
-        resetPortConfig();
         await f.close();
     }
 });
@@ -240,22 +245,62 @@ test("多个工具实例并行使用各自配置与会话作品", async () => {
 
 test("前章变更和插入前章使候选与审读依据失效", async () => {
     const { currentContextBasis } = await import('../../build/fanqie/src/engine/storage/chapters.js');
-    const { saveChapter, updateChapter, acceptCandidate } = await import('../../build/fanqie/src/engine/store.js');
+    const { updateChapter, acceptCandidate } = await import('../../build/fanqie/src/engine/work-store.js');
     const f = await setup();
     try {
         for (const insert of [false,true]) {
             const { dir } = await createWork(f.paths,{title:insert?'插入前章':'前章改稿'});
-            await saveChapter(dir,{id:'c001',title:'一',body:'旧前章。',position:1});
-            await saveChapter(dir,{id:'c002',title:'二',body:'现行正文。',position:3});
+            await updateChapter(dir,{id:'c001',title:'一',body:'旧前章。',position:1});
+            await updateChapter(dir,{id:'c002',title:'二',body:'现行正文。',position:3});
             const target = insert ? 'c001' : 'c002';
             const basis = await currentContextBasis(dir,target);
             const candidate = await stageCandidate(dir,{chapterId:target,body:'新候选。',capturedBasis:basis,expectedRevision:basis.targetRevision});
             await updateChapter(dir,{id:target,status:'reviewed',expectedRevision:basis.targetRevision});
-            if(insert) await saveChapter(dir,{id:'c000',title:'新增',body:'新增前章。',position:0});
-            else await saveChapter(dir,{id:'c001',title:'一',body:'前章改稿。'});
+            if(insert) await updateChapter(dir,{id:'c000',title:'新增',body:'新增前章。',position:0});
+            else await updateChapter(dir,{id:'c001',title:'一',body:'前章改稿。'});
             await assert.rejects(acceptCandidate(dir,candidate.id),error=>error.code==='dependency_changed');
             await assert.rejects(updateChapter(dir,{id:target,status:'final'}),error=>error.code==='dependency_changed');
             assert.equal((await readChapter(dir,target)).status,'reviewed');
         }
     } finally {await f.close();}
+});
+
+test('T5 灵感旧绑定只在项目初始化时迁移一次，坏来源报错且不覆盖索引',async()=>{
+    const f=await setup();
+    const {migrateInspirationBindings}=await import('../../build/fanqie/src/engine/storage/inspiration-migration.js');
+    try {
+        const {meta}=await createWork(f.paths,{title:'迁移作品'});
+        const {sourceId}=await LibraryPort.importSource(f.paths,{title:'原文',text:BOOK});
+        const staged=await LibraryPort.stageCard(f.paths,cardInput(sourceId));
+        const {cardId}=await LibraryPort.acceptCard(f.paths,staged.candId);
+        const {sessionId}=await InspirationPort.startSession(f.paths,{goal:'迁移',cardIds:[cardId]});
+        const {candId}=await InspirationPort.stageEmit(f.paths,sessionId,{kind:'foundation',payload:{planned:'寻找证据'}});
+        await InspirationPort.acceptEmit(f.paths,candId,{workKey:meta.key,apply:true});
+        const file=path.join(f.paths.inspiration,'bindings.json');
+        await rm(file);
+        await Promise.all([migrateInspirationBindings(f.paths),migrateInspirationBindings(f.paths)]);
+        const before=await readFile(file,'utf8');
+        assert.deepEqual(JSON.parse(before)[meta.key],[cardId]);
+        assert.deepEqual((await InspirationPort.resolveCardsForBrief(f.paths,{workKey:meta.key})).cardIds,[cardId]);
+        await writeFile(path.join(f.paths.inspiration,'sessions',`${sessionId}.json`),'{broken');
+        await rm(path.join(f.paths.inspiration,'candidates',`${candId}.json`));
+        await migrateInspirationBindings(f.paths);
+        assert.equal(await readFile(file,'utf8'),before);
+        assert.deepEqual((await InspirationPort.resolveCardsForBrief(f.paths,{workKey:meta.key})).cardIds,[cardId]);
+    } finally {await f.close();}
+    for(const failure of ['candidate','session','card']) {
+        const damaged=await setup();
+        try {
+            const root=damaged.paths.inspiration,file=path.join(root,'bindings.json'),at=new Date().toISOString();
+            await (await import('node:fs/promises')).mkdir(path.join(root,'candidates'),{recursive:true});
+            await (await import('node:fs/promises')).mkdir(path.join(root,'sessions'),{recursive:true});
+            const candidate={status:'accepted',appliedWorkKey:'legacy',sessionId:'insp-old',acceptedAt:at};
+            await writeFile(path.join(root,'candidates','icand-old.json'),failure === 'candidate'?'{broken':JSON.stringify(candidate));
+            if(failure !== 'session')await writeFile(path.join(root,'sessions','insp-old.json'),JSON.stringify({cardIds:['card-missing']}));
+            await writeFile(file,'{}');
+            await assert.rejects(migrateInspirationBindings(damaged.paths));
+            assert.equal(await readFile(file,'utf8'),'{}');
+            await assert.rejects(readFile(path.join(root,'.writer-bindings-migration.json')),e=>e.code==='ENOENT');
+        } finally {await damaged.close();}
+    }
 });

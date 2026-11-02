@@ -8,7 +8,7 @@ import { REVIEW_GUIDANCE } from "../domain/creative-guidance.js";
 import { allow, deny, info, warn } from "./types.js";
 import { VERSION } from "../../../../core/src/version.js";
 /** Canonical polish modes from the optimizer skill; default = polish-depolish. */
-export const EDIT_MODE_IDS = [
+const EDIT_MODE_IDS = [
     "polish-depolish",
     "polish-rhythm",
     "polish-condense",
@@ -17,7 +17,8 @@ export const EDIT_MODE_IDS = [
     "polish-literary",
     "proofread",
 ];
-const MODE_INFO = {
+interface ModeInfo {id:string;title:string;focus:string;lengthHint:string}
+const MODE_INFO:Record<string,ModeInfo> = {
     "polish-depolish": {
         id: "polish-depolish",
         title: "标准去AI味",
@@ -67,10 +68,10 @@ export const EditPort = {
     defaultMode: "polish-depolish",
     skillDoc: "fanqie_method_get ids=edit",
     listModes() {
-        return EDIT_MODE_IDS.map((id: string) => (MODE_INFO as Record<string, any>)[id]);
+        return EDIT_MODE_IDS.map((id: string) => MODE_INFO[id]);
     },
-    normalizeMode(raw: string) {
-        const s = String(raw ?? "").trim();
+    normalizeMode(raw?: string) {
+        const s = (raw ?? "").trim();
         if (!s)
             return EditPort.defaultMode;
         if (EDIT_MODE_IDS.includes(s))
@@ -96,10 +97,10 @@ export const EditPort = {
         }
         return EditPort.defaultMode;
     },
-    modeInfo(mode: any) {
+    modeInfo(mode?: string) {
         const id = EditPort.normalizeMode(mode);
         if (id in MODE_INFO)
-            return (MODE_INFO as Record<string, any>)[id];
+            return MODE_INFO[id];
         if (id.startsWith("polish-depolish-")) {
             const cat = id.slice("polish-depolish-".length);
             return {
@@ -116,7 +117,7 @@ export const EditPort = {
      * Applying an edit uses actual authorization; it does not declare review or final.
      * Depolish: keep breath & rough edges; forbid flattening for “去AI味”.
      */
-    formatEditBrief(input: any = {}) {
+    formatEditBrief(input: {mode?:string;shouldLandLine?:string;situation?:string} = {}) {
         const info = EditPort.modeInfo(input.mode);
         return [
             `【编辑过稿 · ${info.title}】`, REVIEW_GUIDANCE,
@@ -128,7 +129,7 @@ export const EditPort = {
     },
     /** Parse user/agent choice; null = unset (safety = B). */
     resolveChoice(raw: string) {
-        const s = String(raw ?? "").trim().toUpperCase();
+        const s = (raw ?? "").trim().toUpperCase();
         if (!s)
             return null;
         if (s === "A" || s === "B" || s === "C") return s;
@@ -140,7 +141,7 @@ export const EditPort = {
     /**
      * Soft hints after edit_stage — surface uniform_short_run etc. without blocking.
      */
-    softHintLines(hits: any) {
+    softHintLines(hits: {code:string;text:string}[]) {
         if (!hits.length)
             return [];
         const lines = ["【编辑软提示·不阻断】"];
@@ -153,7 +154,7 @@ export const EditPort = {
         return lines;
     },
     /** Receipt lines right after edit_stage (never accept here). */
-    afterStageLines(opts: any) {
+    afterStageLines(opts: {mode:string;editCandId:string;parentCandId:string;chapterId:string;softHits?:{code:string;text:string}[]}) {
         const info = EditPort.modeInfo(opts.mode);
         return [
             `编辑候选已暂存：${opts.editCandId}`,
@@ -174,7 +175,7 @@ export const EditPort = {
      * - acceptAfterEdit + confirm but candidate not an edit → deny
      * - no acceptAfterEdit → allow (normal / B accept)
      */
-    evaluateAcceptFlags(input: any) {
+    evaluateAcceptFlags(input: {acceptAfterEdit?:boolean;confirmAcceptAfterEdit?:boolean;candidateIsEdit:boolean}) {
         const wantA = input.acceptAfterEdit === true;
         const confirmed = input.confirmAcceptAfterEdit === true;
         const isEdit = input.candidateIsEdit === true;
@@ -200,7 +201,7 @@ export const EditPort = {
     acceptPathAReceiptLines() {
         return ["已应用编辑", "已采纳编辑工作稿（路径 A；审读与作者定稿另行核对）"];
     },
-    decideChoiceLines(choice: any, opts: any) {
+    decideChoiceLines(choice: "A"|"B"|"C", opts: {candId:string;parentId?:string;mode?:string}) {
         if (choice === "A") {
             return [
                 `路径 A 已就绪候选 ${opts.candId}：带 confirm_accept_after_edit=true 调用 edit_decide 或 candidate_accept(accept_after_edit=true)；采纳内置扫描。`,

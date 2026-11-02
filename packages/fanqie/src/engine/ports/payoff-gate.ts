@@ -1,6 +1,6 @@
 import { allow, deny, warn, info } from "./types.js";
 export const PayoffGate = {
-    evaluateAccept(opts: any) {
+    evaluateAccept(opts: {payoff:Awaited<ReturnType<typeof import("../storage/work-records.js").getRecentPayoffAudit>>;requirePayoff:boolean}) {
         const { payoff, requirePayoff } = opts;
         if (requirePayoff) {
             if (!payoff) {

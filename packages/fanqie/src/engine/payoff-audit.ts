@@ -13,7 +13,7 @@ import { DEFAULT_ENDING_LEXICON, scoreEnding } from "./domain/ending-consistency
  */
 const SCORE_UNDER = 0.5;
 const SCORE_OK = 0.75;
-function quoteAround(body: string, needle: any) {
+function quoteAround(body: string, needle: string | RegExp) {
     if (typeof needle === "string") {
         const i = body.indexOf(needle);
         if (i < 0)
@@ -29,7 +29,7 @@ function quoteAround(body: string, needle: any) {
     const end = Math.min(body.length, m.index + m[0].length + 24);
     return body.slice(start, end).replace(/\s+/g, " ").trim();
 }
-function outlinePromiseText(outline: any, premise: any) {
+function outlinePromiseText(outline: Partial<import("./types.js").Outline>, premise?: string) {
     return [outline.ending, outline.beats, outline.livedScene, outline.synopsis, outline.conflict, premise ?? ""]
         .filter(Boolean)
         .join("\n");
@@ -39,11 +39,11 @@ function outlinePromiseText(outline: any, premise: any) {
  * ok=true when no warning/error findings (info-only still ok).
  * opts.lexicon 可传 per-work 质量词表（quality-lexicon.json 的 endingKeywords）覆盖默认题材词。
  */
-export function auditPayoff(outline: any, body: string, opts: any = {}) {
+export function auditPayoff(outline: Partial<import("./types.js").Outline>, body: string, opts: {premise?:string;lexicon?:string[]} = {}) {
     const findings = [];
-    const text = String(body ?? "");
+    const text = body;
     const promiseBlob = outlinePromiseText(outline, opts.premise);
-    const endingText = String(outline?.ending ?? "").trim();
+    const endingText = (outline.ending ?? "").trim();
     const lexicon = Array.isArray(opts.lexicon) && opts.lexicon.length
         ? opts.lexicon
         : DEFAULT_ENDING_LEXICON;
@@ -121,9 +121,9 @@ export function auditPayoff(outline: any, body: string, opts: any = {}) {
         });
     }
     // livedScene hook nouns: if livedScene emphasizes 回放/侧窗 etc., soft-check presence
-    const livedScene = String(outline?.livedScene ?? "");
-    const livedHooks = ["回放", "侧窗", "时间戳", "属性", "推子", "底噪"].filter((k: any) => livedScene.includes(k));
-    const livedMiss = livedHooks.filter((k: any) => !text.includes(k));
+    const livedScene = (outline.livedScene ?? "");
+    const livedHooks = ["回放", "侧窗", "时间戳", "属性", "推子", "底噪"].filter((k) => livedScene.includes(k));
+    const livedMiss = livedHooks.filter((k) => !text.includes(k));
     if (livedHooks.length >= 2 && livedMiss.length === livedHooks.length) {
         findings.push({
             code: "lived_hooks_missing",
@@ -132,7 +132,7 @@ export function auditPayoff(outline: any, body: string, opts: any = {}) {
             promise: livedScene.slice(0, 100),
         });
     }
-    const warningCount = findings.filter((f: any) => f.severity === "warning" || f.severity === "error").length;
+    const warningCount = findings.filter((f) => f.severity === "warning" || f.severity === "error").length;
     return {
         ok: warningCount === 0,
         warningCount,
@@ -147,7 +147,7 @@ export function auditPayoff(outline: any, body: string, opts: any = {}) {
         },
     };
 }
-export function formatPayoffAudit(label: string, result: any) {
+export function formatPayoffAudit(label: string, result: ReturnType<typeof auditPayoff>) {
     const head = [
         `兑付审计 · ${label}`,
         `- 结论：${result.ok ? "ok（无警告）" : `warnings=${result.warningCount}`}`,
@@ -158,7 +158,7 @@ export function formatPayoffAudit(label: string, result: any) {
     if (result.findings.length === 0) {
         return [...head, "", "无发现。"].join("\n");
     }
-    const lines = result.findings.map((f: any, i: number) => {
+    const lines = result.findings.map((f, i: number) => {
         const bits = [`${i + 1}. [${f.severity}/${f.code}] ${f.message}`];
         if (f.promise)
             bits.push(`   承诺：${f.promise}`);

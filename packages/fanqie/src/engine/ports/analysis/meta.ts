@@ -110,7 +110,7 @@ export async function listAnalyses(paths: StoragePaths) {
     const root = path.join(paths.library, "analyses");
     let names = [];
     try {
-        names = (await readdir(root)).filter((x: any) => x.startsWith("src-"));
+        names = (await readdir(root)).filter((x) => x.startsWith("src-"));
     }
     catch (err: any) {
         if (err?.code === "ENOENT") return [];

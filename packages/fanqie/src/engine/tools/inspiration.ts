@@ -1,7 +1,10 @@
+import { parseEmissionArgs } from "../ports/inspiration-input.js";
 /** Inspiration pillar — session / forge / stage / accept (optional apply to work). */
 import { InspirationPort } from "../ports/index.js";
 import { inspectPendingInspiration, resumePendingInspiration } from "../storage/inspiration-journal.js";
-import { ensureStorage, readWorkMeta, resolveWorkDir } from "../store.js";
+import { ensureStorage } from "../storage/paths.js";
+import { readWorkMeta } from "../storage/work-meta.js";
+import { resolveWorkDir } from "../work-store.js";
 import { formatPlanningStatus } from "../domain/planning.js";
 import { asString, asStringArray, boolArg, config, fail, rememberWork } from "./context.js";
 import { B, E, S, WORKING_DIR } from "./schema.js";
@@ -31,7 +34,7 @@ export function inspirationTools() {
                 working_dir: WORKING_DIR,
             },
             required: ["goal"],
-            async execute(args: any, exec: ExecContext) {
+            async execute(args, exec) {
                 const goal = asString(args, "goal", { required: true });
                 const cardIds = asStringArray(args, "card_ids") ?? [];
                 const craftOnly = boolArg(args, "craft_only") ?? false;
@@ -64,7 +67,7 @@ export function inspirationTools() {
                 working_dir: WORKING_DIR,
             },
             required: ["session"],
-            async execute(args: any, exec: ExecContext) {
+            async execute(args, exec) {
                 const sessionId = asString(args, "session", { required: true });
                 const paths = await openInsp(exec, args);
                 return InspirationPort.forgeBrief(paths, sessionId);
@@ -84,20 +87,12 @@ export function inspirationTools() {
                 working_dir: WORKING_DIR,
             },
             required: ["session", "kind", "payload"],
-            async execute(args: any, exec: ExecContext) {
+            async execute(args, exec) {
                 const sessionId = asString(args, "session", { required: true });
-                const kind = asString(args, "kind", { required: true });
-                if (!["foundation", "outline", "book_plan", "volume_plan", "act_plan"].includes(kind)) {
-                    fail("kind 须为 foundation、outline、book_plan、volume_plan 或 act_plan");
-                }
-                if (!args.payload || typeof args.payload !== "object" || Array.isArray(args.payload)) {
-                    fail("payload 必须是对象");
-                }
-                const paths = await openInsp(exec, args);
-                const { candId, styleReminder } = await InspirationPort.stageEmit(paths, sessionId, {
-                    kind: kind,
-                    payload: args.payload,
-                });
+                const input=parseEmissionArgs(args);
+                const {kind}=input;
+                const paths=await openInsp(exec,args);
+                const {candId,styleReminder}=await InspirationPort.stageEmit(paths,sessionId,input);
                 return [
                     `灵感候选已暂存：${candId}`,
                     `- kind：${kind}`,
@@ -121,7 +116,7 @@ export function inspirationTools() {
                 working_dir: WORKING_DIR,
             },
             required: ["candidate", "work"],
-            async execute(args: any, exec: ExecContext) {
+            async execute(args, exec) {
                 const candId = asString(args, "candidate", { required: true });
                 const workKey = asString(args, "work", { required: true });
                 const apply = boolArg(args, "apply") ?? false;
@@ -160,7 +155,7 @@ export function inspirationTools() {
                 working_dir: WORKING_DIR,
             },
             required: [],
-            async execute(args: any, exec: ExecContext) {
+            async execute(args, exec) {
                 const paths = await openInsp(exec, args);
                 const recovery = asString(args, "recovery");
                 if (recovery === "inspect") {
@@ -190,7 +185,7 @@ export function inspirationTools() {
                     if (boolArg(args, "history") === true) {
                         const history = await InspirationPort.listWorkHistory(paths, meta.key);
                         return [`# 已应用的灵感候选 · ${meta.title}`, `共 ${history.total} 条；最多显示最近 50 条。`,
-                            ...history.rows.map((row: any) => `- ${row.at} · ${row.kind} · ${row.title || "未命名"} · ${row.id}`),
+                            ...history.rows.map((row) => `- ${row.at} · ${row.kind} · ${row.title || "未命名"} · ${row.id}`),
                             "用 fanqie_inspire_status(candidate=…) 查看候选内容；修改或恢复旧方案时需重新暂存并显式采纳。"].join("\n");
                     }
                     return formatPlanningStatus(meta);
@@ -212,7 +207,7 @@ export function inspirationTools() {
                     return "尚无灵感会话。用 fanqie_inspire_start 开启。";
                 return [
                     "灵感会话（最近更新在前）：",
-                    ...rows.map((r: any, i: number) => `${i + 1}. ${r.id} · ${r.goal.slice(0, 40)}${r.goal.length > 40 ? "…" : ""} · cards=${r.cardIds.length} · forge=${r.forgeAt ? "是" : "否"}`),
+                    ...rows.map((r, i: number) => `${i + 1}. ${r.id} · ${r.goal.slice(0, 40)}${r.goal.length > 40 ? "…" : ""} · cards=${r.cardIds.length} · forge=${r.forgeAt ? "是" : "否"}`),
                 ].join("\n");
             },
         }),

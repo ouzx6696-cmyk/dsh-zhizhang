@@ -40,9 +40,9 @@ export async function prepareUnifyBrief(
       return { ok: false, enabled: true, code: "bad_args", error: "请传 chapter 或 candidateIds" };
     }
     const pending = (await listCandidates(dir)).filter(
-      (c: any) => c.pending && c.chapterId === chapterArg,
+      (c) => c.pending && c.chapterId === chapterArg,
     );
-    ids = pending.map((c: any) => c.id);
+    ids = pending.map((c) => c.id);
   }
   if (ids.length < 2) {
     return {
@@ -85,7 +85,7 @@ export async function prepareUnifyBrief(
         error: `chapter=${chapterArg} 与候选章 ${chapterId} 不一致`,
       };
     }
-    const views = parents.map((p: any) => MultiDraftPort.parentView(p));
+    const views = parents.map((p) => MultiDraftPort.parentView(p));
     const brief = MultiDraftPort.formatUnifyBrief({
       chapterId,
       workKey: work,
@@ -97,7 +97,7 @@ export async function prepareUnifyBrief(
       chapterId,
       candidateIds: ids,
       brief,
-      parents: views.map((v: any) => ({
+      parents: views.map((v) => ({
         id: v.id,
         draftLabel: v.draftLabel,
         wordCount: v.wordCount,

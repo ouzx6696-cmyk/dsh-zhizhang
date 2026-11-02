@@ -108,7 +108,7 @@ function lastParagraphSpan(text: string) {
     }
     return null;
 }
-export interface StyleHit { category: string; start: number; end: number; match: string; hint: string }
+interface StyleHit { category: string; start: number; end: number; match: string; hint: string }
 /** Merge rule cursors in document order; retain at most `limit` results while counting all hits. */
 export function scanStyle(text: string, limit = 120, include: (start: number, end: number) => boolean = () => true) {
     const ranges = dialogueRanges(text);

@@ -1,13 +1,13 @@
 import { Scheduler, StyleLinterPort } from "../ports/index.js";
 import type { StoragePaths } from "../types.js";
-export function clip(text: string, max: any) {
+function clip(text: string, max: number) {
     const t = (text ?? "").trim();
     if (!t)
         return "（空）";
     return t.length <= max ? t : `${t.slice(0, max)}…`;
 }
 /** Lean outline preserves necessary causal steps and character knowledge without full method packs. */
-export function renderOutlineLean(o: any) {
+export function renderOutlineLean(o: import("../types.js").Outline) {
     const lines = [
         `- 视角：${o.pov || "（空）"}`,
         `- 人物知识边界：${o.knowledge || "（未额外声明；核对实际前文）"}`,
@@ -25,7 +25,7 @@ export function renderOutlineLean(o: any) {
         lines.push(`- 亲历：${clip(o.livedScene, 120)}`);
     return lines.join("\n");
 }
-export function renderOutline(o: any) {
+export function renderOutline(o: import("../types.js").Outline) {
     const lines = [
         `- 视角：${o.pov || "（空）"}`,
         `- 目标字数：${o.targetWords}`,
@@ -41,9 +41,9 @@ export function renderOutline(o: any) {
     ];
     return lines.join("\n");
 }
-export function renderStatus(meta: any, dir: string, paths: StoragePaths) {
-    const total = meta.chapters.reduce((s: string, c: any) => s + c.wordCount, 0);
-    const finalN = meta.chapters.filter((c: any) => c.status === "final").length;
+export function renderStatus(meta: import("../types.js").WorkMeta, dir: string, paths: StoragePaths) {
+    const total = meta.chapters.reduce((s, c) => s + c.wordCount, 0);
+    const finalN = meta.chapters.filter((c) => c.status === "final").length;
     const lines = [
         `# 长篇作品：${meta.title}`,
         `- key：${meta.key}`,
@@ -70,11 +70,11 @@ export function renderStatus(meta: any, dir: string, paths: StoragePaths) {
         "",
         "## 章节",
     ];
-    for (const ch of [...meta.chapters].sort((a: any, b: any) => a.position - b.position)) {
+    for (const ch of [...meta.chapters].sort((a, b) => a.position - b.position)) {
         lines.push(`${ch.position}. [${ch.status}] ${ch.title}（${ch.id}，${ch.wordCount} 字）`);
     }
     if (Array.isArray(meta.revisionImpacts) && meta.revisionImpacts.length)
-        lines.push("", "## 修订待核对", ...meta.revisionImpacts.map((v: any) => `- ${v.chapterId}${v.nextChapterId ? ` → ${v.nextChapterId}` : ""}：${v.reason}；相关后稿 ${(v.dependents ?? []).join("、") || "未记录明确依赖"}；历史 ${v.history}`));
+        lines.push("", "## 修订待核对", ...meta.revisionImpacts.map((v) => `- ${v.chapterId}${v.nextChapterId ? ` → ${v.nextChapterId}` : ""}：${v.reason}；相关后稿 ${(v.dependents ?? []).join("、") || "未记录明确依赖"}；历史 ${v.history}`));
     lines.push("", `下一步（默认）：${Scheduler.nextHint("work_status")}`);
     return lines.join("\n");
 }

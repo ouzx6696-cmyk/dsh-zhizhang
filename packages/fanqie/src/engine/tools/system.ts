@@ -1,11 +1,10 @@
 /** System / product map / panel — orient to the single creative loop. */
-import { buildPanelSnapshot } from "../store.js";
+import { buildPanelSnapshot } from "../panel-query.js";
 import { ProductMap } from "../ports/index.js";
 import { SYSTEM_BRIEF } from "./brief.js";
 import { openWork } from "./context.js";
 import { WORK_OPT, WORKING_DIR } from "./schema.js";
 import { defineTool } from "./types.js";
-import type { ExecContext } from "./types.js";
 export function systemTools() {
     return [
         defineTool({
@@ -39,7 +38,7 @@ export function systemTools() {
                 working_dir: WORKING_DIR,
             },
             required: [],
-            async execute(args: any, exec: ExecContext) {
+            async execute(args, exec) {
                 const { paths, dir } = await openWork(exec, args);
                 return JSON.stringify(await buildPanelSnapshot(dir, paths));
             },

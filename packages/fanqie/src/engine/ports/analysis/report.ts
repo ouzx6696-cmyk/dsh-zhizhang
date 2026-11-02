@@ -1,3 +1,4 @@
+import type { ReportInput, ChapterFact } from "./types.js";
 /**
  * 拆书报告 — 19 节固定清单，逐节纯渲染。
  *
@@ -11,41 +12,41 @@ import { AUTO_CONFIDENCE_CAP } from "../../domain/coverage.js";
 import { nowIso } from "./paths.js";
 import { planLabel } from "./plan.js";
 
-function mdTable(head: any, rows: any) {
-    const esc = (v: any) => String(v ?? "").replace(/\|/g, "\\|").replace(/\n/g, " ");
+function mdTable(head: string[], rows: unknown[][]) {
+    const esc = (v:unknown) => String(v ?? "").replace(/\|/g, "\\|").replace(/\n/g, " ");
     return [
         `| ${head.join(" | ")} |`,
         `| ${head.map(() => "---").join(" | ")} |`,
-        ...rows.map((r: any) => `| ${r.map(esc).join(" | ")} |`),
+        ...rows.map((r) => `| ${r.map(esc).join(" | ")} |`),
     ].join("\n");
 }
 
-function section(n: any) {
-    const hit = REPORT_SECTIONS.find((s: any) => s.n === n);
+function section(n: number) {
+    const hit = REPORT_SECTIONS.find((s) => s.n === n);
     if (!hit)
         throw new Error(`report section missing: ${n}`);
     return `## ${hit.n}. ${hit.title}`;
 }
 
-function listOr(items: any, empty: any, render: any) {
+function listOr<T>(items: T[]|undefined, empty: string, render: (value:T)=>string) {
     return items && items.length ? items.map(render).join("\n") : empty;
 }
 
-function pct(v: any) {
+function pct(v: number|undefined) {
     return `${Math.round(Number(v ?? 0) * 100)}%`;
 }
 
-function moduleTag(m: any) {
+function moduleTag(m: NonNullable<ReportInput["modules"]>[number]) {
     return (m?.schemaVersion === 2 || m?.layer) && !m?.legacy ? "v2" : "v1";
 }
 
-export function buildReport(input: any) {
+export function buildReport(input: ReportInput) {
     const {
         sourceTitle,
         meta,
         facts = [],
         plots = [],
-        rhythms = {},
+        rhythms:rhythmInput = {},
         characters = [],
         modules = [],
         coverage = {},
@@ -57,8 +58,8 @@ export function buildReport(input: any) {
     } = input;
 
     const fullPlan = plan?.mode === "full";
-    const planNums = new Set((plan?.chapters ?? []).map((c: any) => Number(c.n)));
-    const planDone = plan ? facts.filter((f: any) => planNums.has(Number(f.n))).length : 0;
+    const planNums = new Set((plan?.chapters ?? []).map((c) => Number(c.n)));
+    const planDone = plan ? facts.filter((f) => planNums.has(Number(f.n))).length : 0;
     const planOutside = plan ? facts.length - planDone : 0;
     const mark = plan
         ? fullPlan
@@ -67,13 +68,10 @@ export function buildReport(input: any) {
         : meta?.scope?.mode === "full" ? "" : "（早期观察）";
 
     const total = Number(meta?.totalChapters) || 0;
-    const factByN = new Map<number, any>(facts.map((f: any) => [Number(f.n), f]));
-    const first3 = facts.filter((f: any) => Number(f.n) >= 1 && Number(f.n) <= 3).sort((a: any, b: any) => Number(a.n) - Number(b.n));
-    const fsRows = Array.isArray(rhythms?.foreshadowing)
-        ? rhythms.foreshadowing
-        : Array.isArray(rhythms) && Array.isArray(rhythms[0]?.foreshadowing)
-            ? rhythms[0].foreshadowing
-            : [];
+    const factByN = new Map<number, ChapterFact>(facts.map((f) => [Number(f.n), f]));
+    const first3 = facts.filter((f) => Number(f.n) >= 1 && Number(f.n) <= 3).sort((a, b) => Number(a.n) - Number(b.n));
+    const rhythms=Array.isArray(rhythmInput)?{}:rhythmInput;
+    const fsRows=Array.isArray(rhythmInput)?rhythmInput[0]?.foreshadowing??[]:rhythms.foreshadowing??[];
 
     const lines = [];
     lines.push(`# 拆书报告 · ${sourceTitle}`);
@@ -95,7 +93,7 @@ export function buildReport(input: any) {
     ]));
     lines.push("");
     lines.push("### 阅读程度（提交者申报）");
-    const levelCount = (level: string) => facts.filter((f: any) => f.readingLevel === level).length;
+    const levelCount = (level: string) => facts.filter((f) => f.readingLevel === level).length;
     const declared = levelCount("正文已读") + levelCount("深读");
     lines.push(`- 正文已读 ${levelCount("正文已读")} 章 · 深读 ${levelCount("深读")} 章 · 未声明 ${facts.length - declared} 章。`);
     lines.push("- 阅读程度由提交者申报；旧记录默认未声明。代码测绘、原文交付与事实记录均不能自动证明阅读深度。");
@@ -117,24 +115,24 @@ export function buildReport(input: any) {
             lines.push("#### 分卷表");
             lines.push(mdTable(
                 ["卷", "章范围", "章数", "字数", "首章", "末章"],
-                survey.volumes.map((v: any) => [v.title ? `${v.name} ${v.title}` : v.name, `${v.from}–${v.to}`, v.chapters, v.chars, v.firstTitle, v.lastTitle]),
+                survey.volumes.map((v) => [v.title ? `${v.name} ${v.title}` : v.name, `${v.from}–${v.to}`, v.chapters, v.chars, v.firstTitle, v.lastTitle]),
             ));
         }
         if (survey.terms?.length) {
             lines.push("");
             lines.push("#### 高频词 Top 20（人物/地名/概念混排，只作分布参考）");
-            lines.push(mdTable(["词", "次数"], survey.terms.slice(0, 20).map((x: any) => [x.term, x.count])));
+            lines.push(mdTable(["词", "次数"], survey.terms.slice(0, 20).map((x) => [x.term, x.count])));
         }
         if (survey.heatmap?.rows?.length) {
-            const head = ["词", ...Array.from({ length: survey.heatmap.buckets }, (_: any, i: number) => `${i * 10}–${(i + 1) * 10}%`)];
+            const head = ["词", ...Array.from({ length: survey.heatmap.buckets }, (_, i: number) => `${i * 10}–${(i + 1) * 10}%`)];
             lines.push("");
             lines.push("#### 分布热力（按章序十等分）");
-            lines.push(mdTable(head, survey.heatmap.rows.map((r: any) => [r.term, ...r.counts])));
+            lines.push(mdTable(head, survey.heatmap.rows.map((r) => [r.term, ...r.counts])));
         }
         if (survey.anchors?.length) {
             lines.push("");
             lines.push("#### 锚点章 Top 15");
-            lines.push(mdTable(["章", "标题", "分", "理由"], survey.anchors.slice(0, 15).map((a: any) => [a.n, a.title, a.score, a.why])));
+            lines.push(mdTable(["章", "标题", "分", "理由"], survey.anchors.slice(0, 15).map((a) => [a.n, a.title, a.score, a.why])));
         }
     }
     lines.push("");
@@ -149,15 +147,15 @@ export function buildReport(input: any) {
 
     // 2
     lines.push(section(2) + mark);
-    const promise = modules.find((m: any) => m.layer === "book" && String(m.readerWant ?? "").trim())
-        ?? modules.find((m: any) => String(m.readerWant ?? "").trim());
+    const promise = modules.find((m) => m.layer === "book" && m.readerWant?.trim())
+        ?? modules.find((m) => m.readerWant?.trim());
     lines.push(promise ? `- 读者想看什么：${promise.readerWant}` : "- 未抽（需要 book 层模块）");
     lines.push("");
 
     // 3
     lines.push(section(3) + mark);
     lines.push(first3.length
-        ? mdTable(["章", "标题", "钩子", "强度", "功能"], first3.map((f: any) => [f.n, f.title, f.hook?.type ?? "—", f.hook?.strength ?? "—", (f.functions ?? []).join("/") || "—"]))
+        ? mdTable(["章", "标题", "钩子", "强度", "功能"], first3.map((f) => [f.n, f.title, f.hook?.type ?? "—", f.hook?.strength ?? "—", (f.functions ?? []).join("/") || "—"]))
         : "- 未拆 1–3 章");
     lines.push("");
 
@@ -165,7 +163,7 @@ export function buildReport(input: any) {
     lines.push(section(4) + mark);
     if (first3.length) {
         for (const f of first3)
-            lines.push(`- 第${f.n}章：${(f.events ?? []).slice(0, 2).map((e: any) => e.desc).join("；") || "（无事实）"}`);
+            lines.push(`- 第${f.n}章：${(f.events ?? []).slice(0, 2).map((e) => e.desc).join("；") || "（无事实）"}`);
     }
     else {
         lines.push("- 未拆 1–3 章");
@@ -173,60 +171,60 @@ export function buildReport(input: any) {
     lines.push("");
     lines.push("### 4.1 开篇十章节拍");
     const openCount = Math.min(10, Math.max(1, total || 10));
-    const openRows = Array.from({ length: openCount }, (_: any, i: number) => i + 1).map((n: any) => {
+    const openRows = Array.from({ length: openCount }, (_, i: number) => i + 1).map((n) => {
         const f = factByN.get(n);
         if (!f)
             return [n, "（未拆）", "—", "—", "—"];
         const events = f.events ?? [];
-        return [f.n, f.title, `${f.hook?.type ?? "—"}/${f.hook?.strength ?? "—"}`, events[0]?.desc ?? "—", `「${String(events[events.length - 1]?.quote ?? "").slice(0, 46)}」`];
+        return [f.n, f.title, `${f.hook?.type ?? "—"}/${f.hook?.strength ?? "—"}`, events[0]?.desc ?? "—", `「${(events[events.length - 1]?.quote ?? "").slice(0, 46)}」`];
     });
     lines.push(mdTable(["章", "标题", "钩子", "首个动作", "章末引文"], openRows));
     lines.push("");
-    lines.push(`- 开篇 1–${openCount} 已拆 ${openRows.filter((r: any) => r[1] !== "（未拆）").length}/${openCount}；缺章不补读、不替它编节拍。`);
+    lines.push(`- 开篇 1–${openCount} 已拆 ${openRows.filter((r) => r[1] !== "（未拆）").length}/${openCount}；缺章不补读、不替它编节拍。`);
     lines.push("");
 
     // 5
     lines.push(section(5) + mark);
-    lines.push(listOr(plots, "- 未聚合剧情条", (p: any) => `- **${p.title}**（第${(p.chapters ?? []).join("、")}章）：目标=${p.goal}；阻碍=${p.obstacle}；行动=${p.action}；结果=${p.result}；意外=${p.twist}；转弯=${p.turn}`));
+    lines.push(listOr(plots, "- 未聚合剧情条", (p) => `- **${p.title}**（第${(p.chapters ?? []).join("、")}章）：目标=${p.goal}；阻碍=${p.obstacle}；行动=${p.action}；结果=${p.result}；意外=${p.twist}；转弯=${p.turn}`));
     lines.push("");
 
     // 6
     lines.push(section(6));
     lines.push(plots.length
-        ? mdTable(["剧情", "章节", "目标", "阻碍", "结果", "转弯"], plots.map((p: any) => [p.title, (p.chapters ?? []).join("、"), p.goal, p.obstacle, p.result, p.turn]))
+        ? mdTable(["剧情", "章节", "目标", "阻碍", "结果", "转弯"], plots.map((p) => [p.title, (p.chapters ?? []).join("、"), p.goal, p.obstacle, p.result, p.turn]))
         : "- 未聚合");
     lines.push("");
 
     // 7
     lines.push(section(7) + mark);
     lines.push(rhythms?.points?.length
-        ? mdTable(["章", "情绪(-1..1)", "事件"], rhythms.points.map((p: any) => [p.chapter, p.emotion, p.event ?? ""]))
+        ? mdTable(["章", "情绪(-1..1)", "事件"], rhythms.points.map((p) => [p.chapter, p.emotion, p.event ?? ""]))
         : "- 未记录情绪点");
     lines.push("");
 
     // 8
     lines.push(section(8) + mark);
     lines.push(rhythms?.loops?.length
-        ? mdTable(["编号", "章节", "铺垫", "释放", "反应", "衔接"], rhythms.loops.map((l: any) => [l.id ?? "—", (l.range ?? []).join("–"), l.setup, l.release, l.reaction, l.transition]))
+        ? mdTable(["编号", "章节", "铺垫", "释放", "反应", "衔接"], rhythms.loops.map((l) => [l.id ?? "—", (l.range ?? []).join("–"), l.setup, l.release, l.reaction, l.transition]))
         : "- 未记录爽点循环");
     lines.push("");
 
     // 9
     lines.push(section(9) + mark);
     lines.push(rhythms?.hooks?.length
-        ? mdTable(["章", "类型", "钩子", "强度"], rhythms.hooks.map((h: any) => [h.chapter, h.type, h.text, h.strength ?? "—"]))
+        ? mdTable(["章", "类型", "钩子", "强度"], rhythms.hooks.map((h) => [h.chapter, h.type, h.text, h.strength ?? "—"]))
         : "- 未记录钩子");
     lines.push("");
     lines.push("### 9.1 爽点密度");
-    const hs = facts.filter((f: any) => f.hook?.strength);
-    const cnt = (v: any) => hs.filter((f: any) => f.hook.strength === v).length;
-    const ns = facts.map((f: any) => Number(f.n) || 0).filter((n: any) => n > 0);
+    const hs = facts.filter((f) => f.hook?.strength);
+    const cnt = (v:string) => hs.filter((f) => f.hook?.strength === v).length;
+    const ns = facts.map((f) => Number(f.n) || 0).filter((n) => n > 0);
     const span = ns.length ? Math.max(1, Math.max(...ns) - Math.min(...ns) + 1) : 0;
-    const gap = (v: any) => {
+    const gap = (v:string) => {
         const c = cnt(v);
         return c && span ? (span / c).toFixed(1) : "—";
     };
-    const ratioOf = (v: any) => `${Math.round((cnt(v) / Math.max(1, facts.length)) * 100)}%`;
+    const ratioOf = (v:string) => `${Math.round((cnt(v) / Math.max(1, facts.length)) * 100)}%`;
     lines.push(`- 样本章 ${facts.length} · 强钩子 ${cnt("强")}（${ratioOf("强")}）· 中钩子 ${cnt("中")}（${ratioOf("中")}）· 弱钩子 ${cnt("弱")}（${ratioOf("弱")}）`);
     if (plan && plan.mode === "auto" && plan.planChapters < total)
         lines.push(`- 抽样章内平均：每 ${(facts.length / Math.max(1, cnt("强"))).toFixed(1)} 个有事实记录的章一个强钩子（Auto 抽样，不能外推全书密度）`);
@@ -236,37 +234,37 @@ export function buildReport(input: any) {
         lines.push("- 无有效章号：先补事实层章号，才能算钩子间隔。");
     if (survey?.volumes?.length) {
         lines.push("");
-        lines.push(mdTable(["卷", "有事实记录的章", "强钩子"], survey.volumes.map((v: any) => {
-            const inside = facts.filter((f: any) => Number(f.n) >= v.from && Number(f.n) <= v.to);
-            return [v.name, inside.length, inside.filter((f: any) => f.hook?.strength === "强").length];
+        lines.push(mdTable(["卷", "有事实记录的章", "强钩子"], survey.volumes.map((v) => {
+            const inside = facts.filter((f) => Number(f.n) >= v.from && Number(f.n) <= v.to);
+            return [v.name, inside.length, inside.filter((f) => f.hook?.strength === "强").length];
         })));
     }
     lines.push("");
 
     // 10
     lines.push(section(10) + mark);
-    const hasName = fsRows.some((f: any) => f.name);
+    const hasName = fsRows.some((f) => f.name);
     lines.push(fsRows.length
         ? (hasName
-            ? mdTable(["伏笔", "埋设", "兑付"], fsRows.map((f: any) => [f.name, f.planted ?? f.plant ?? "—", f.paidOff ?? (f.status === "已兑现" ? f.payoff ?? "已兑现" : "未兑付")]))
-            : mdTable(["埋设", "兑付", "状态"], fsRows.map((f: any) => [f.plant ?? f.planted ?? "—", f.payoff ?? f.paidOff ?? "—", f.status ?? (f.paidOff ? "已兑现" : "未兑付")])))
+            ? mdTable(["伏笔", "埋设", "兑付"], fsRows.map((f) => [f.name, f.planted ?? f.plant ?? "—", f.paidOff ?? (f.status === "已兑现" ? f.payoff ?? "已兑现" : "未兑付")]))
+            : mdTable(["埋设", "兑付", "状态"], fsRows.map((f) => [f.plant ?? f.planted ?? "—", f.payoff ?? f.paidOff ?? "—", f.status ?? (f.paidOff ? "已兑现" : "未兑付")])))
         : "- 未记录伏笔");
     lines.push("");
 
     // 11
     lines.push(section(11) + mark);
-    lines.push(listOr(characters, "- 未记录人物", (c: any) => `- **${c.name}**（${c.role ?? "—"}）：面具=${c.mask}；真相=${c.truth}；弧光=${(c.arc ?? []).map((a: any) => `第${a.chapter}章 ${a.from}→${a.to}（压力：${a.pressure}）`).join("；")}`));
+    lines.push(listOr(characters, "- 未记录人物", (c) => `- **${c.name}**（${c.role ?? "—"}）：面具=${c.mask}；真相=${c.truth}；弧光=${(c.arc ?? []).map((a) => `第${a.chapter}章 ${a.from}→${a.to}（压力：${a.pressure}）`).join("；")}`));
     lines.push("");
 
     // 12
     lines.push(section(12) + mark);
-    lines.push(listOr(characters, "- 未记录", (c: any) => `- ${c.name}：${c.function ?? "—"}`));
+    lines.push(listOr(characters, "- 未记录", (c) => `- ${c.name}：${c.function ?? "—"}`));
     lines.push("");
 
     // 13
     lines.push(section(13));
     lines.push(stats?.length
-        ? mdTable(["章", "字数", "句数", "平均句长", "对话占比"], stats.map((s: any) => [s.n, s.chars, s.sentences, s.avgSentence, `${Math.round((s.dialogueRatio ?? 0) * 100)}%`]))
+        ? mdTable(["章", "字数", "句数", "平均句长", "对话占比"], stats.map((s) => [s.n, s.chars, s.sentences, s.avgSentence, `${Math.round((s.dialogueRatio ?? 0) * 100)}%`]))
         : "- 未统计");
     lines.push("");
 
@@ -275,13 +273,13 @@ export function buildReport(input: any) {
     lines.push(modules.length
         ? mdTable(
             ["标题", "层", "维度", "读者想看", "情绪走向", "戏剧单元", "版本"],
-            modules.map((m: any) => [
+            modules.map((m) => [
                 m.title ?? m.id ?? "（无题）",
                 m.layer ?? "—",
                 m.dimension ?? "—",
-                String(m.readerWant ?? "").slice(0, 40) || "—",
-                `${String(m.emotionArc ?? "").slice(0, 60)}${String(m.emotionArc ?? "").length > 60 ? "…" : ""}` || "—",
-                `${String(m.dramaticUnit ?? "").slice(0, 60)}${String(m.dramaticUnit ?? "").length > 60 ? "…" : ""}` || "—",
+                (m.readerWant??"").slice(0, 40) || "—",
+                `${(m.emotionArc??"").slice(0, 60)}${(m.emotionArc??"").length > 60 ? "…" : ""}` || "—",
+                `${(m.dramaticUnit??"").slice(0, 60)}${(m.dramaticUnit??"").length > 60 ? "…" : ""}` || "—",
                 moduleTag(m),
             ]),
         )
@@ -290,12 +288,12 @@ export function buildReport(input: any) {
 
     // 15
     lines.push(section(15));
-    lines.push(listOr(modules, "- 未产模块", (m: any) => `- **${m.title ?? m.id ?? "（无题）"}**：${m.transfer || "（未填怎么迁）"}（失败边界：${m.failWhen || "（未填）"}）`));
+    lines.push(listOr(modules, "- 未产模块", (m) => `- **${m.title ?? m.id ?? "（无题）"}**：${m.transfer || "（未填怎么迁）"}（失败边界：${m.failWhen || "（未填）"}）`));
     lines.push("");
 
     // 16
     lines.push(section(16));
-    lines.push(listOr(modules, "- 未记录", (m: any) => `- ${m.title ?? m.id ?? "（无题）"}：${(m.mustNotCopy ?? []).join("、") || "（未记录）"}`));
+    lines.push(listOr(modules, "- 未记录", (m) => `- ${m.title ?? m.id ?? "（无题）"}：${(m.mustNotCopy ?? []).join("、") || "（未记录）"}`));
     lines.push("");
 
     // 17
@@ -332,7 +330,7 @@ export function buildReport(input: any) {
     else {
         lines.push("- 材料完备度达标但尚无模块：阅读并核对事实后可进入 library_card_stage（v2：layer+dimension+5 项+evidence）→ card_accept。");
     }
-    const unpaid = fsRows.filter((f: any) => !(f.paidOff || f.status === "已兑现")).length;
+    const unpaid = fsRows.filter((f) => !(f.paidOff || f.status === "已兑现")).length;
     if (unpaid)
         lines.push(`- 未兑付伏笔 ${unpaid} 条：确认是长线还是漏记。`);
     return lines.join("\n") + "\n";

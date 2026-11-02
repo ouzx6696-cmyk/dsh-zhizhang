@@ -1,3 +1,5 @@
+import { asObject, asString, asStringArray } from '../../parse.js';
+import type { LibraryIndex, CardIndexRow, CardFilter, TechniqueCard } from './types.js';
 /**
  * 拆书库存储层 — 索引 / 路径 / 导入解码 / 过滤 / 排序。
  * 不包含卡 schema（见 schema.js）与机械审计（见 audit.js）。
@@ -22,16 +24,22 @@ export function libraryDirs(paths: StoragePaths) {
         index: path.join(paths.library, "index.json"),
     };
 }
-export async function emptyIndex() {
+export async function emptyIndex():Promise<LibraryIndex> {
     return { schemaVersion: 1, sources: [], cards: [] };
 }
-export async function readIndex(paths: StoragePaths) {
+export async function readIndex(paths: StoragePaths):Promise<LibraryIndex> {
     await assertNoPendingCard(paths.library);
     const { index } = libraryDirs(paths);
     try {
         const raw = JSON.parse(await readFile(index, "utf8"));
         if (!raw || typeof raw !== "object" || !Array.isArray(raw.sources) || !Array.isArray(raw.cards))
             throw new Error(`拆书库索引格式损坏：${index}`);
+        for(const row of [...raw.sources,...raw.cards]) {
+            const value=asObject(row,'拆书库索引条目');
+            asString(value,'id',{required:true});asString(value,'title',{required:true});
+            for(const key of ['sourceId','author','createdAt','status','updatedAt','axis','layer','dimension'])if(value[key] !== undefined && typeof value[key] !== 'string')throw new NovelError('library_index_invalid',`索引 ${key} 必须是字符串`);
+            if(value.tags !== undefined && (!Array.isArray(value.tags) || !value.tags.every((tag:unknown)=>typeof tag === 'string')))throw new NovelError('library_index_invalid','索引 tags 必须是字符串数组');
+        }
         return { ...raw, schemaVersion: raw.schemaVersion ?? 1, sources: raw.sources, cards: raw.cards };
     }
     catch (err: any) {
@@ -45,29 +53,29 @@ export async function readIndex(paths: StoragePaths) {
         throw err;
     }
 }
-export async function writeIndex(paths: StoragePaths, idx: any) {
+async function writeIndex(paths: StoragePaths, idx: LibraryIndex) {
     await assertNoPendingCard(paths.library);
     const { index } = libraryDirs(paths);
     await atomicWrite(index, JSON.stringify(idx, null, 2) + "\n");
 }
-export async function resolveSourceIdFilter(paths: StoragePaths, opts: any) {
+async function resolveSourceIdFilter(paths: StoragePaths, opts: CardFilter) {
     const ids = new Set();
     let active = false;
-    const one = String(opts.sourceId ?? "").trim();
+    const one = opts.sourceId??"";
     if (one) {
         active = true;
         ids.add(one);
     }
-    if (Array.isArray(opts.sourceIds)) {
+    if (opts.sourceIds) {
         for (const raw of opts.sourceIds) {
-            const id = String(raw ?? "").trim();
+            const id = raw;
             if (id) {
                 active = true;
                 ids.add(id);
             }
         }
     }
-    const titleQ = String(opts.sourceTitle ?? "").trim().toLowerCase();
+    const titleQ = (opts.sourceTitle??"").toLowerCase();
     if (titleQ) {
         active = true;
         const idx = await readIndex(paths);
@@ -79,15 +87,15 @@ export async function resolveSourceIdFilter(paths: StoragePaths, opts: any) {
     }
     return active ? ids : null;
 }
-export async function filterCardRows(paths: StoragePaths, rows: any, opts: any) {
+export async function filterCardRows(paths: StoragePaths, rows: CardIndexRow[], opts: CardFilter) {
     let out = rows;
     const status = opts.status ?? "accepted";
     if (status !== "all") {
-        out = out.filter((c: any) => c.status === status);
+        out = out.filter((c) => c.status === status);
     }
     const sourceSet = await resolveSourceIdFilter(paths, opts);
     if (sourceSet) {
-        out = out.filter((c: any) => sourceSet.has(c.sourceId));
+        out = out.filter((c) => sourceSet.has(c.sourceId));
     }
     if (opts.axis === "craft" || opts.axis === "mind") {
         const want = opts.axis;
@@ -106,10 +114,10 @@ export async function filterCardRows(paths: StoragePaths, rows: any, opts: any) 
     }
     return out;
 }
-export function comboScore(row: any, query: any, deepHay: any) {
+export function comboScore(row: CardIndexRow, query: string, deepHay: string) {
     const tokens = tokenizeQuery(query);
     if (!tokens.length) {
-        const t = Date.parse(row.updatedAt);
+        const t = Date.parse(row.updatedAt??"");
         return { score: Number.isFinite(t) ? t / 1e12 : 0, matched: 0 };
     }
     let score = 0;
@@ -135,7 +143,7 @@ export function comboScore(row: any, query: any, deepHay: any) {
     if (tokens.length > 1)
         score += matched * matched * 30;
     // slight recency tie-break
-    const t = Date.parse(row.updatedAt);
+    const t = Date.parse(row.updatedAt??"");
     if (Number.isFinite(t))
         score += (t % 10000) / 1e6;
     return { score, matched };
@@ -144,7 +152,7 @@ export function comboScore(row: any, query: any, deepHay: any) {
 // ===== 编码 / 路径 / 查询分词 / 证据审计 =====
 
 /** 解码书籍文件：UTF-8 严格校验 → GB18030 回退；避免 GBK 书导入成乱码。 */
-export function decodeBookBuffer(buf: any) {
+export function decodeBookBuffer(buf: Buffer) {
     if (buf.length >= 2 && buf[0] === 0xff && buf[1] === 0xfe) {
         return { text: new TextDecoder("utf-16le").decode(buf.subarray(2)), encoding: "utf-16le", converted: true };
     }
@@ -176,15 +184,15 @@ export function normalizeUserPath(raw: string) {
 }
 
 /** 查询分词：空格 / 逗号 / 顿号 / 分号 / 加号 都算分隔符。 */
-export function tokenizeQuery(query: any) {
-    return String(query ?? "")
+export function tokenizeQuery(query: string) {
+    return query
         .toLowerCase()
         .split(/[\s,，、;；/|+]+/)
-        .map((t: any) => t.trim())
-        .filter((t: any) => /[一-龥A-Za-z0-9]/.test(t));
+        .map((t) => t.trim())
+        .filter((t) => /[一-龥A-Za-z0-9]/.test(t));
 }
 
-export function cardDeepHay(card: any) {
+export function cardDeepHay(card: TechniqueCard) {
     const coerced = coerceHumanFeel(card.humanFeel);
     const hf = coerced
         ? `${coerced.writerCraft} ${coerced.characterState} ${coerced.stateOnPage} ${coerced.allowedEdges} ${coerced.failAsTemplate}`
@@ -196,7 +204,7 @@ export function cardDeepHay(card: any) {
         ? `${card.mind.sellIntoCost} ${card.mind.infoStaging} ${card.mind.pressureMachine} ${card.mind.debtAndSwap} ${card.mind.readerContract} ${card.mind.failAsEncyclopedia ?? ""}`
         : "";
     const mech = (card.mechanisms ?? [])
-        .map((m: any) => `${m.name} ${m.failWhen} ${m.rebuild} ${m.experience ?? ""} ${m.discard ?? ""}`)
+        .map((m) => `${m.name} ${m.failWhen} ${m.rebuild} ${m.experience ?? ""} ${m.discard ?? ""}`)
         .join(" ");
     const ho = card.handoff
         ? `${card.handoff.purpose ?? ""} ${card.handoff.experience ?? ""} ${card.handoff.rebuild ?? ""} ${card.handoff.discard ?? ""}`
@@ -219,7 +227,7 @@ export function cardDeepHay(card: any) {
         .join(" ");
     // 证据引文：按「第 N 章 + 引文」入库，检索时也要能命中
     const ev = (card.evidence ?? [])
-        .map((e: any) => `${e.chapter ?? ""} ${e.quote ?? ""}`)
+        .map((e) => `${e.chapter ?? ""} ${e.quote ?? ""}`)
         .join(" ");
     return `${card.body} ${mech} ${hf} ${bc} ${md} ${ho} ${v2} ${ev} ${card.kind ?? ""} ${card.readingRange ?? ""}`.toLowerCase();
 }
@@ -239,18 +247,18 @@ export async function reconcileIndex(paths: StoragePaths) {
             const id = assertResourceId(row.id, "卡 id");
             const p = path.join(d.cards, `${id}.json`);
             if (!(await fileExists(p))) continue;
-            const card = JSON.parse(await readFile(p, "utf8"));
+            const card = asObject(JSON.parse(await readFile(p, "utf8")),"技法卡元数据");
             const next = {
-                title: card.title ?? row.title,
-                sourceId: card.sourceId ?? row.sourceId,
-                tags: Array.isArray(card.tags) ? card.tags : row.tags,
+                title: asString(card,"title",{trim:false}) ?? row.title,
+                sourceId: asString(card,"sourceId",{trim:false}) ?? row.sourceId,
+                tags: asStringArray(card,"tags",{trim:false}) ?? row.tags,
                 axis: coerceAxis(card),
-                status: card.status ?? row.status,
-                updatedAt: card.updatedAt ?? row.updatedAt,
+                status: asString(card,"status",{trim:false}) ?? row.status,
+                updatedAt: asString(card,"updatedAt",{trim:false}) ?? row.updatedAt,
             };
             for (const [k, v] of Object.entries(next)) {
-                if (JSON.stringify(row[k]) !== JSON.stringify(v)) {
-                    row[k] = v;
+                if (JSON.stringify(row[k as keyof CardIndexRow]) !== JSON.stringify(v)) {
+                    Object.assign(row,{[k]:v});
                     changed += 1;
                 }
             }

@@ -1,3 +1,7 @@
+import { parseSourceMeta } from "./library/input.js";
+import type { SourceMeta } from "./library/types.js";
+import type { ImportSourceInput, StageCardInput, CardFilter, ComboInput, TechniqueCard } from './library/types.js';
+import { dissectBatchHeader, dissectBriefHeader } from '../method-templates.js';
 import { sha256 } from "../../../../core/src/fsx.js";
 /**
  * LibraryPort — 拆书库支柱（live）。
@@ -15,57 +19,22 @@ import { createSourceJournal, finishSourceJournal } from "../storage/source-jour
 import { createDiscardJournal, finishDiscardJournal } from "../storage/discard-journal.js";
 import { snapshotFile } from "../storage/journal.js";
 import { withResourceLock } from "../storage/process-lock.js";
-import { atomicWrite, assertResourceId, } from "../work-store.js";
+import { atomicWrite, assertResourceId } from "../work-store.js";
 import { readJsonCached } from "../file-cache.js";
 import { MethodRegistry } from "./methods.js";
 import { parseChapterNumber } from "../domain/chapter-heading.js";
 import { REPORT_SECTION_COUNT } from "../domain/report-sections.js";
-import { QualityPolicy } from "./quality-policy.js";
+
 import type { StoragePaths } from "../types.js";
-import {
-    chapterIndex,
-    chapterText,
-    chapterTitle,
-    nearestChapter,
-    totalChapters,
-    ensureAnalysis,
-    writeAnalysisMeta,
-    readAnalysisBundle,
-    deriveAxis,
-    validateModule,
-    verifyModuleEvidence,
-    verifyBodyQuotes,
-    assertSourceId,
-} from "./analysis.js";
-import {
-    normalizeMechanism,
-    normalizeHumanFeel,
-    normalizeBookCraft,
-    normalizeHandoff,
-    normalizeKind,
-    normalizeAxis,
-    coerceAxis,
-    normalizeMind,
-    warnCharacterStateWall,
-    readingArtifactWarnings,
-    admitCardContent,
-} from "./library/schema.js";
+import { chapterIndex, chapterText, chapterTitle, nearestChapter, totalChapters } from "./analysis/chapters.js";
+import { ensureAnalysis, writeAnalysisMeta, readAnalysisBundle } from "./analysis/meta.js";
+import { deriveAxis, validateModule } from "../domain/card-schema.js";
+import { verifyModuleEvidence } from "./analysis/evidence.js";
+import { verifyBodyQuotes } from "../domain/evidence.js";
+import { assertSourceId } from "../storage/primitives.js";
+import { normalizeMechanism, normalizeHumanFeel, normalizeBookCraft, normalizeHandoff, normalizeKind, normalizeAxis, coerceAxis, normalizeMind, warnCharacterStateWall, readingArtifactWarnings, admitCardContent } from "./library/schema.js";
 import { auditCardContent, normForMatch } from "./library/audit.js";
-import {
-    nowIso,
-    newId,
-    fileExists,
-    libraryDirs,
-    emptyIndex,
-    readIndex,
-    filterCardRows,
-    comboScore,
-    decodeBookBuffer,
-    normalizeUserPath,
-    tokenizeQuery,
-    cardDeepHay,
-    reconcileIndex,
-} from "./library/store.js";
+import { nowIso, newId, fileExists, libraryDirs, emptyIndex, readIndex, filterCardRows, comboScore, decodeBookBuffer, tokenizeQuery, cardDeepHay, reconcileIndex } from "./library/store.js";
 export * from "./library/schema.js";
 export { auditCardContent, normForMatch } from "./library/audit.js";
 // —— § 拆书源缓存（文本 + 章索引派生） ——
@@ -76,19 +45,19 @@ interface SourceCacheEntry {
     ctimeMs: number;
     ino: number;
     size: number;
-    meta: any;
+    meta: SourceMeta;
     text: string;
-    index?: any[];
+    index?: ReturnType<typeof chapterIndex>;
 }
 const sourceCache = new Map<string, SourceCacheEntry>();
-async function getSourceCached(paths: StoragePaths, sourceId: any) {
+async function getSourceCached(paths: StoragePaths, sourceId: string) {
     const id = assertSourceId(sourceId);
     const d = libraryDirs(paths);
     const metaPath = path.join(d.sources, `${id}.json`);
     if (!(await fileExists(metaPath))) {
         throw new NovelError("source_not_found", `找不到来源 ${id}`);
     }
-    const meta = await readJsonCached(metaPath);
+    const meta = parseSourceMeta(await readJsonCached<unknown>(metaPath),id);
     // excerptPath 来自磁盘元数据，仍须是 sources/ 下的单段文件名：
     // 不能让一个被改坏的 meta 把读取路径带出沙箱。
     const excerptName = typeof meta.excerptPath === "string" &&
@@ -129,7 +98,7 @@ async function readSourceForEvidence(paths: StoragePaths, sourceId: string) {
     const id = assertSourceId(sourceId);
     const d = libraryDirs(paths);
     const metaBytes = await readFile(path.join(d.sources, `${id}.json`));
-    const meta = JSON.parse(metaBytes.toString("utf8"));
+    const meta = parseSourceMeta(JSON.parse(metaBytes.toString("utf8")),id);
     const excerptName = typeof meta.excerptPath === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]*\.txt$/.test(meta.excerptPath)
         ? meta.excerptPath : `${id}.txt`;
     const bytes = await readFile(path.join(d.sources, excerptName));
@@ -202,18 +171,16 @@ export const LibraryPort = {
         return paths;
         });
     },
-    async importSource(paths: StoragePaths, input: any) {
+    async importSource(paths: StoragePaths, input: ImportSourceInput) {
         await LibraryPort.ensureLibrary(paths);
-        const title = String(input.title ?? "").trim();
+        const title = input.title;
         if (!title)
             throw new NovelError("bad_args", "title 不能为空");
         let text = input.text ?? "";
         let encoding = "utf8";
         let converted = false;
-        if ((!text || !String(text).trim()) && input.file) {
-            const cwd = input.exec.cwd;
-            const raw = normalizeUserPath(String(input.file));
-            const filePath = path.isAbsolute(raw) ? raw : path.resolve(cwd, raw);
+        if ((!text || !text.trim()) && input.file) {
+            const filePath = input.file;
             let buf;
             try {
                 buf = await readFile(filePath);
@@ -226,7 +193,6 @@ export const LibraryPort = {
             encoding = decoded.encoding;
             converted = decoded.converted;
         }
-        text = String(text ?? "");
         if (!text.trim())
             throw new NovelError("empty_body", "导入正文不能为空（传 text 或 file）");
         const sourceId = newId("src");
@@ -238,8 +204,8 @@ export const LibraryPort = {
             schemaVersion: 1,
             id: sourceId,
             title,
-            author: String(input.author ?? "").trim(),
-            readingRange: String(input.readingRange ?? "").trim() || "全文（已导入）",
+            author: input.author??"",
+            readingRange: input.readingRange || "全文（已导入）",
             excerptPath: `${sourceId}.txt`,
             charCount: text.length,
             encoding,
@@ -269,7 +235,7 @@ export const LibraryPort = {
                 : undefined,
         };
     },
-    async getSource(paths: StoragePaths, sourceId: any) {
+    async getSource(paths: StoragePaths, sourceId: string) {
         const cached = await getSourceCached(paths, sourceId);
         return { meta: cached.meta, text: cached.text };
     },
@@ -278,28 +244,28 @@ export const LibraryPort = {
      * stage / accept / audit 里被反复整读 + 全文正则重扫；这里按文本文件
      * mtime+size 缓存文本与章索引，未变时全部命中。
      */
-    async getSourceIndexed(paths: StoragePaths, sourceId: any) {
+    async getSourceIndexed(paths: StoragePaths, sourceId: string) {
         const cached = await getSourceCached(paths, sourceId);
         return { meta: cached.meta, text: cached.text, index: sourceIndexOf(cached.entry, cached.text) };
     },
     async listSources(paths: StoragePaths) {
         return (await readIndex(paths)).sources;
     },
-    async dissectBrief(paths: StoragePaths, sourceId: any, opts: any = {}) {
+    async dissectBrief(paths: StoragePaths, sourceId: string, opts: {mode?:string;from?:number;count?:number;maxChars?:number;includeRecommend?:boolean} = {}) {
         return withResourceLock(paths.library, async () => {
         await assertNoPendingCard(paths.library);
         const { meta, text, index: idx } = await LibraryPort.getSourceIndexed(paths, sourceId);
-        const mode = String(opts.mode ?? "").trim();
+        const mode = opts.mode??"";
         if (mode) {
             const total = totalChapters(idx);
             await ensureAnalysis(paths, sourceId, text);
             const prevScope = (await readAnalysisBundle(paths, sourceId)).meta?.scope ?? { mode: "none", chapters: 0 };
             let picked: number[] = [];
             if (mode === "opening") {
-                picked = [1, 2, 3].filter((n: number) => idx.some((c: any) => c.n === n));
+                picked = [1, 2, 3].filter((n: number) => idx.some((c) => c.n === n));
             }
             else if (mode === "sample") {
-                picked = [...new Set([0.1, 0.3, 0.6, 0.85].map((r: any) => Number(nearestChapter(idx, r))).filter((n: number) => Number.isFinite(n) && n > 0))];
+                picked = [...new Set([0.1, 0.3, 0.6, 0.85].map((r) => Number(nearestChapter(idx, r))).filter((n: number) => Number.isFinite(n) && n > 0))];
             }
             else {
                 const from = Math.max(1, Math.floor(Number(opts.from ?? 1) || 1));
@@ -311,7 +277,7 @@ export const LibraryPort = {
             // 若在这里写 scope.mode="full"，报告会去掉「抽样观察」标记、覆盖率可到 1.0，
             // 属可信度造假。全量 scope 只能由 library_plan(mode=full, 经作者同意) 产生。
             const scopeMode = mode === "opening" ? "opening" : mode === "sample" ? "sample" : "chapters";
-            const planned = mode === "sample" ? picked.length : picked.length ? Math.max(...picked.map((x: any) => Number(x))) : 0;
+            const planned = mode === "sample" ? picked.length : picked.length ? Math.max(...picked.map((x) => Number(x))) : 0;
             await writeAnalysisMeta(paths, sourceId, { scope: { mode: scopeMode, chapters: Math.max(planned, Number(prevScope.chapters ?? 0)) } });
             const budget = Math.max(4000, Math.min(Number(opts.maxChars ?? 15000), 30000));
             const batch = [];
@@ -330,12 +296,7 @@ export const LibraryPort = {
             }
             const bundle = await readAnalysisBundle(paths, sourceId);
             const facts = bundle.chapters;
-            const lines = [
-                `# 拆书批次 · ${meta.title}${meta.author ? `（${meta.author}）` : ""}`,
-                `- sourceId：${meta.id}`,
-                `- 全书章数：${total} · 已拆：${facts.length}`,
-                `- 本批：${batch.map((b: any) => `第${b.n}章`).join("、") || "（无）"}`,
-            ];
+            const lines = dissectBatchHeader(meta,total,facts.length,batch);
             if (mode === "full") {
                 lines.push("- 注意：无 plan 的 mode=full 只取 from 起数章，不是全量；全量须 library_plan(mode=full)（作者同意后）。本批按 chapters 记 scope。");
             }
@@ -355,52 +316,7 @@ export const LibraryPort = {
             : text.slice(0, maxChars) + `\n\n…（已截断，原文共 ${text.length} 字；完整在 sources/${meta.excerptPath}）`;
         const analyze = MethodRegistry.get("analyze");
         const recommend = opts.includeRecommend !== false ? MethodRegistry.get("recommend") : undefined;
-        const lines = [
-            `# 拆书简报 · ${meta.title}${meta.author ? `（${meta.author}）` : ""}`,
-            `- sourceId：${meta.id}`,
-            `- readingRange：${meta.readingRange}`,
-            `- 导入字数：${meta.charCount}`,
-            "",
-            "【工程说明】本工具只注入摘录与方法包，**不代写分析**。请你按双轴提炼后调用 fanqie_library_card_stage；须 fanqie_library_card_accept 才入库。",
-            "",
-            "## 双轴准入（只拆两样）",
-            QualityPolicy.surfaceLine(),
-            "",
-            "## 怎么算拆完（脚本核不了，必须真读）",
-            QualityPolicy.cardJudgmentLine(),
-            "拆完的标志不是字段齐，而是：每张卡都能回答上面五条；mind 卡另有一句「检验方法」（遮住结局，读者能否用已给信息推出___）；craft 卡能说清这一场怎么写。",
-            "禁止用「字段齐全 / 引文能搜到 / 审计通过」冒充合格。",
-            "",
-            "### A. craft（写作技法）→ 指导 **具体写作** / chapter_brief",
-            "算：场面取舍、信息怎么漏、节奏/小物、状态如何落纸、失败边界可迁到**另一本书的正文**。",
-            "必填：`axis=craft` + **humanFeel**（writerCraft / craftRange / characterState / stateOnPage / allowedEdges / failAsTemplate）。",
-            "另填：**bookCraft**（章级续写面 continueWhy / adjacentChange / failAsShortStory）——≠ 完整创作思维。",
-            "`characterState` = 这一刻场面状态（慌/赖/在算/会错半拍）；写法+状态，不是人设墙或台词范本。",
-            "",
-            "#### craft · 打碎僵硬（反完美感；书无关逻辑 + 本书载体）",
-            "对原文另问四句：①呼吸哪里故意不齐？②哪里半截、作者也没立刻补课？③关键信息从讲义出还是从误认/失手/身体/跑题漏？载体是什么？④第一反应哪里不对？戏完纸上还留什么？",
-            "逻辑名（可并列）：呼吸不齐 / 念头半截 / 信息侧漏 / 先错半拍 / 局部余震 / 口气拧着 / 意义不收齐——每条只记**逻辑名 + 本书载体**。",
-            "`allowedEdges` 写成「本场应落纸：…」（打碎正向句 + 本书载体）。`failAsTemplate` 点名僵硬版（句句收齐、反应全对、讲义说明、意义被收完）。",
-            "迁的是打碎逻辑名 + 本书载体；不同书的场面外壳各自不同，只记这一本自己怎么把文字写散。",
-            "",
-            "### B. mind（创作思维）→ 指点 **设定层 / 章纲 / 卷纲**（inspire）",
-            "算：能力与代价如何设计、冲突飞轮、信息分期、章/卷压力如何换、读者合同如何立——可迁到**另一本书的设定/纲**。",
-            "必填：`axis=mind` + **mind**（sellIntoCost / infoStaging / pressureMachine / debtAndSwap / readerContract / failAsEncyclopedia）。",
-            "mind 供 inspire 规划；lean 正文 brief 只吃 craft 写法+状态。",
-            "",
-            "### 准入样子（两轴）",
-            "- craft：可迁到另一本书正文的写法与场面状态",
-            "- mind：可迁到另一本书设定/纲的创作思维",
-            "- kind 是场面粒度次标签（craft|scene|book），axis 才是双轴",
-            "",
-            "### 其它",
-            "1. **mechanisms** 须含 `name` + `failWhen`；discard 写清丢弃的原作剧情与人名。",
-            "2. 可选 **handoff**；可选 **kind**（`craft`|`scene`|`book`）——axis=mind 才进创作思维轨。",
-            "3. 同一 source 宜拆：**多张 craft + 至少一张 mind**（完整迁技）；仅技法试写可后注明。",
-            "4. 缺证据块时 stage 可软警告通过；准入硬闸拦百科表与台词范本教嘴。",
-            "5. **质量面 · 毒点**：" + QualityPolicy.poisonPolicyLine(),
-            "",
-        ];
+        const lines = dissectBriefHeader(meta);
         if (analyze) {
             lines.push(MethodRegistry.formatForAgent(analyze));
             lines.push("");
@@ -418,38 +334,38 @@ export const LibraryPort = {
         return lines.join("\n");
         });
     },
-    async stageCard(paths: StoragePaths, input: any) {
+    async stageCard(paths: StoragePaths, input: StageCardInput) {
         await LibraryPort.ensureLibrary(paths);
-        const title = String(input.title ?? "").trim();
-        const body = String(input.body ?? "");
-        const sourceId = String(input.sourceId ?? "").trim();
+        const title = input.title;
+        const body = input.body;
+        const sourceId = input.sourceId;
         if (!title)
             throw new NovelError("bad_args", "title 不能为空");
         if (!sourceId)
             throw new NovelError("bad_args", "sourceId 不能为空");
         if (!body.trim())
             throw new NovelError("empty_body", "卡 body 不能为空");
-        if (!Array.isArray(input.mechanisms) || input.mechanisms.length === 0) {
+        if (input.mechanisms.length === 0) {
             throw new NovelError("bad_args", "mechanisms 至少一条");
         }
         await LibraryPort.getSource(paths, sourceId);
-        const mechanisms = input.mechanisms.map((m: any, i: number) => normalizeMechanism(m, i));
+        const mechanisms = input.mechanisms.map((m, i) => normalizeMechanism(m, i));
         const { handoff, warnings: w3 } = normalizeHandoff(input.handoff);
         const { kind, warnings: w4 } = normalizeKind(input.kind);
-        const tags = (input.tags ?? []).map((t: any) => String(t).trim()).filter(Boolean);
+        const tags = input.tags??[];
         const v2 = {
-            layer: String(input.layer ?? "").trim(),
-            dimension: String(input.dimension ?? "").trim(),
-            readerWant: String(input.readerWant ?? "").trim(),
-            emotionArc: String(input.emotionArc ?? "").trim(),
-            dramaticUnit: String(input.dramaticUnit ?? "").trim(),
-            replaceables: Array.isArray(input.replaceables) ? input.replaceables.map((x: any) => String(x).trim()).filter(Boolean) : [],
-            mustNotCopy: Array.isArray(input.mustNotCopy) ? input.mustNotCopy.map((x: any) => String(x).trim()).filter(Boolean) : [],
-            transfer: String(input.transfer ?? "").trim(),
-            failWhen: String(input.failWhen ?? "").trim(),
-            evidence: Array.isArray(input.evidence) ? input.evidence : [],
-            steps: Array.isArray(input.steps) ? input.steps.map((x: any) => String(x).trim()).filter(Boolean) : [],
-            bannedDiction: Array.isArray(input.bannedDiction) ? input.bannedDiction.map((x: any) => String(x).trim()).filter(Boolean) : [],
+            layer: input.layer??"",
+            dimension: input.dimension??"",
+            readerWant: input.readerWant??"",
+            emotionArc: input.emotionArc??"",
+            dramaticUnit: input.dramaticUnit??"",
+            replaceables: input.replaceables??[],
+            mustNotCopy: input.mustNotCopy??[],
+            transfer: input.transfer??"",
+            failWhen: input.failWhen??"",
+            evidence: input.evidence??[],
+            steps: input.steps??[],
+            bannedDiction: input.bannedDiction??[],
         };
         const hasV2 = Boolean(v2.layer || v2.dimension || v2.readerWant || v2.emotionArc || v2.dramaticUnit || v2.transfer || v2.failWhen || v2.replaceables.length || v2.mustNotCopy.length || v2.evidence.length);
         if (!hasV2 && (v2.steps.length > 0 || v2.bannedDiction.length > 0)) {
@@ -472,7 +388,7 @@ export const LibraryPort = {
         const peekFeel = input.humanFeel != null;
         const peekBook = input.bookCraft != null;
         const peekMind = input.mind != null;
-        const derivedAxis = hasV2 && !String(input.axis ?? "").trim() ? deriveAxis(v2.layer, v2.dimension) : input.axis;
+        const derivedAxis = hasV2 && !input.axis ? deriveAxis(v2.layer, v2.dimension) : input.axis;
         const { axis, warnings: wAxis } = normalizeAxis(derivedAxis, {
             hasHumanFeel: peekFeel,
             hasMind: peekMind,
@@ -505,7 +421,7 @@ export const LibraryPort = {
         if (kind === "book" && axis === "craft") {
             // ok: book is scene-granularity tag
         }
-        if (String(input.kind ?? "").trim().toLowerCase() === "book" && axis === "mind" && !mind) {
+        if (input.kind?.toLowerCase() === "book" && axis === "mind" && !mind) {
             wAxis.push("kind=book 不能冒充 mind：请填 mind 块或改 axis=craft");
         }
         const admit = admitCardContent({ title, body, axis, mechanisms });
@@ -542,12 +458,12 @@ export const LibraryPort = {
         }
         const candId = newId("lcand");
         const now = nowIso();
-        const card: Record<string, any> = {
+        const card: TechniqueCard = {
             schemaVersion: 1,
             id: candId,
             title,
             sourceId,
-            readingRange: String(input.readingRange ?? "").trim() || "见拆书简报",
+            readingRange: input.readingRange || "见拆书简报",
             axis,
             mechanisms,
             body: body.trim(),
@@ -581,9 +497,9 @@ export const LibraryPort = {
             // Snapshot only explicit reading declarations for cited chapters; quotes do not prove depth.
             const analysis = await readAnalysisBundle(paths, sourceId);
 
-            const chapterNums = [...new Set(v2.evidence.map((e: any) => parseChapterNumber(e?.chapter)).filter((n: any) => Number.isInteger(n) && n > 0))] as number[];
+            const chapterNums = [...new Set(v2.evidence.map((e) => parseChapterNumber(e?.chapter)).filter((n) => Number.isInteger(n) && n > 0))] as number[];
             const chapters = chapterNums.map((n) => {
-                const matches = analysis.chapters.filter((f: any) => Number(f.n) === n);
+                const matches = analysis.chapters.filter((f) => Number(f.n) === n);
                 const fact: any = matches.length === 1 ? matches[0] : undefined;
                 const level = fact?.readingLevel === "正文已读" || fact?.readingLevel === "深读" ? fact.readingLevel : "未声明";
                 return { chapter: n, readingLevel: level, sourceHash: fact?.sourceHash, sourceStart: fact?.sourceStart, sourceMatches: fact?.sourceHash ? fact.sourceHash === evidenceSourceHash : null };
@@ -612,7 +528,7 @@ export const LibraryPort = {
         });
         return { candId, title, warnings };
     },
-    async acceptCard(paths: StoragePaths, candId: any) {
+    async acceptCard(paths: StoragePaths, candId: string) {
         const id = assertResourceId(candId, "卡候选 id");
         await LibraryPort.ensureLibrary(paths);
         // 读候选 → 查已采纳 → 写卡 + 索引 + 回写候选全程持同一把库锁：
@@ -667,7 +583,7 @@ export const LibraryPort = {
             auditWarnings.unshift(...moduleWarnings);
             const cardId = newId("card");
             const now = nowIso();
-            const card: Record<string, any> = {
+            const card: TechniqueCard = {
                 ...staged,
                 id: cardId,
                 status: "accepted",
@@ -710,7 +626,7 @@ export const LibraryPort = {
             };
         });
     },
-    async discardCard(paths: StoragePaths, cardId: any) {
+    async discardCard(paths: StoragePaths, cardId: string) {
         const id = assertResourceId(cardId, "卡 id");
         await LibraryPort.ensureLibrary(paths);
         const d = libraryDirs(paths);
@@ -719,16 +635,16 @@ export const LibraryPort = {
             if (!indexBefore) throw new NovelError("library_index_missing", "拆书库索引缺失，请先检查原文件。");
             const fresh = await readIndex(paths);
             if (await snapshotFile(d.index) !== indexBefore) throw new NovelError("library_recovery_conflict", "索引在删卡准备期间变化，请重新检查。");
-            const hit = fresh.cards.find((c: any) => c.id === id);
+            const hit = fresh.cards.find((c) => c.id === id);
             if (!hit) throw new NovelError("card_not_found", `找不到卡 ${cardId}`);
-            fresh.cards = fresh.cards.filter((c: any) => c.id !== id);
+            fresh.cards = fresh.cards.filter((c) => c.id !== id);
             const cardBefore = await snapshotFile(path.join(d.cards, `${id}.json`));
             const journal = await createDiscardJournal(paths.library, { cardId: id, indexBefore, cardBefore, indexContent: JSON.stringify(fresh, null, 2) + "\n" });
             await finishDiscardJournal(paths.library, journal);
             return { cardId: id, title: hit.title, remaining: fresh.cards.length };
         });
     },
-    async listCards(paths: StoragePaths, opts: any = {}) {
+    async listCards(paths: StoragePaths, opts: CardFilter = {}) {
         const idx = await readIndex(paths);
         return filterCardRows(paths, idx.cards, {
             status: opts.status ?? "accepted",
@@ -738,9 +654,9 @@ export const LibraryPort = {
             axis: opts.axis,
         });
     },
-    async searchCards(paths: StoragePaths, query: any, opts: any = {}) {
+    async searchCards(paths: StoragePaths, query: string, opts: CardFilter = {}) {
         const tokens = tokenizeQuery(query);
-        const tag = String(opts.tag ?? "").trim().toLowerCase();
+        const tag = (opts.tag??"").toLowerCase();
         const hasFilter = Boolean(opts.sourceId ||
             (opts.sourceIds && opts.sourceIds.length) ||
             opts.sourceTitle ||
@@ -758,20 +674,20 @@ export const LibraryPort = {
             axis: opts.axis,
         });
         if (tag) {
-            pool = pool.filter((row: any) => (row.tags ?? []).some((t: any) => String(t).toLowerCase() === tag));
+            pool = pool.filter((row) => (row.tags ?? []).some((t) => String(t).toLowerCase() === tag));
         }
         if (!tokens.length)
             return pool;
         const hits = [];
         for (const row of pool) {
             const shallow = `${row.title} ${(row.tags ?? []).join(" ")} ${row.sourceId} ${row.axis ?? ""}`.toLowerCase();
-            if (tokens.every((t: any) => shallow.includes(t))) {
+            if (tokens.every((t) => shallow.includes(t))) {
                 hits.push(row);
                 continue;
             }
             try {
                 const card = await LibraryPort.getCard(paths, row.id);
-                if (tokens.every((t: any) => cardDeepHay(card).includes(t)))
+                if (tokens.every((t) => cardDeepHay(card).includes(t)))
                     hits.push({ ...row, axis: coerceAxis(card) });
             }
             catch (err) { throw err; }
@@ -782,15 +698,15 @@ export const LibraryPort = {
      * 推荐组合包：优先 1 mind + 最多 N craft；有用的 craft 可独立返回。
      * 缺 mind 不阻断；没有任何可用卡时返回空原因。
      */
-    async suggestCombo(paths: StoragePaths, input: any = {}) {
+    async suggestCombo(paths: StoragePaths, input: ComboInput = {}) {
         const warnings = [];
         const nRaw = input.craftCount ?? 2;
         const craftCount = Math.max(1, Math.min(8, Math.floor(Number(nRaw) || 2)));
         if (input.craftCount != null && Number(input.craftCount) !== craftCount) {
             warnings.push(`craftCount 已夹紧为 ${craftCount}（允许 1–8）`);
         }
-        const query = String(input.query ?? "").trim();
-        const preferMind = new Set((input.preferMindSourceIds ?? []).map((x: any) => String(x).trim()).filter(Boolean));
+        const query = input.query??"";
+        const preferMind = new Set(input.preferMindSourceIds??[]);
         const pool = await LibraryPort.listCards(paths, {
             status: "accepted",
             sourceIds: input.sourceIds,
@@ -831,11 +747,11 @@ export const LibraryPort = {
             catch (err) { throw err; }
             const cs = comboScore(row, query, deep);
             let score = cs.score;
-            if (preferMind.size && preferMind.has(row.sourceId))
+            if (preferMind.size && row.sourceId !== undefined && preferMind.has(row.sourceId))
                 score += 50;
             mindScored.push({ row, score, matched: cs.matched });
         }
-        mindScored.sort((a: any, b: any) => b.score - a.score);
+        mindScored.sort((a, b) => b.score - a.score);
         const mindRow = mindScored[0].row;
         // score crafts; prefer source diversity after mind's source
         const craftScored = [];
@@ -852,8 +768,8 @@ export const LibraryPort = {
                 score += 5;
             craftScored.push({ row, score, matched: cs.matched });
         }
-        craftScored.sort((a: any, b: any) => b.score - a.score);
-        if (query && !mindScored.some((s: any) => s.matched > 0) && !craftScored.some((s: any) => s.matched > 0)) {
+        craftScored.sort((a, b) => b.score - a.score);
+        if (query && !mindScored.some((s) => s.matched > 0) && !craftScored.some((s) => s.matched > 0)) {
             warnings.push(`主题词「${query}」在候选池无命中：已按更新时间兜底`);
         }
         const pickedCrafts = [];
@@ -870,7 +786,7 @@ export const LibraryPort = {
         }
         // fill remaining
         if (pickedCrafts.length < craftCount) {
-            const have = new Set(pickedCrafts.map((c: any) => c.id));
+            const have = new Set(pickedCrafts.map((c) => c.id));
             for (const { row } of craftScored) {
                 if (pickedCrafts.length >= craftCount)
                     break;
@@ -892,14 +808,14 @@ export const LibraryPort = {
             axis: "mind",
             tags: mindRow.tags,
         };
-        const craftRefs = pickedCrafts.map((c: any) => ({
+        const craftRefs = pickedCrafts.map((c) => ({
             id: c.id,
             title: c.title,
             sourceId: c.sourceId,
             axis: "craft",
             tags: c.tags,
         }));
-        const cardIds = [mindRef.id, ...craftRefs.map((c: any) => c.id)];
+        const cardIds = [mindRef.id, ...craftRefs.map((c) => c.id)];
         return {
             ok: true,
             cardIds,
@@ -908,7 +824,7 @@ export const LibraryPort = {
             warnings,
         };
     },
-    async auditCards(paths: StoragePaths, opts: any = {}) {
+    async auditCards(paths: StoragePaths, opts: CardFilter & {cardId?:string} = {}) {
         const idx = await readIndex(paths);
         let rows = await filterCardRows(paths, idx.cards, {
             status: opts.status ?? "accepted",
@@ -916,7 +832,7 @@ export const LibraryPort = {
             axis: opts.axis,
         });
         if (opts.cardId)
-            rows = rows.filter((r: any) => r.id === opts.cardId);
+            rows = rows.filter((r) => r.id === opts.cardId);
         const srcCache = new Map();
         const out = [];
         for (const row of rows) {
@@ -937,7 +853,7 @@ export const LibraryPort = {
                 const check = validateModule(card);
                 const bad = entry.text
                     ? verifyModuleEvidence(card, entry.text, entry.index)
-                    : (card.evidence ?? []).map((_: any, i: number) => `evidence[${i}] 来源缺失，无法核对`);
+                    : (card.evidence ?? []).map((_:unknown, i: number) => `evidence[${i}] 来源缺失，无法核对`);
                 const quotes = (card.evidence ?? []).length;
                 const bodyCheck = entry.text
                     ? verifyBodyQuotes(card, entry.text)
@@ -956,7 +872,7 @@ export const LibraryPort = {
                     bodyVerified: bodyCheck.ok,
                     bodyUnverifiable: bodyCheck.bad,
                     bodySkipped: bodyCheck.skipped ?? 0,
-                    warnings: [...check.errors, ...check.warnings.filter((w: any) => !w.includes("mechanisms 为空"))],
+                    warnings: [...check.errors, ...check.warnings.filter((w) => !w.includes("mechanisms 为空"))],
                     chapterOk: bad.length || bodyCheck.bad.length ? false : true,
                 });
                 continue;
@@ -966,7 +882,7 @@ export const LibraryPort = {
         }
         return out;
     },
-    async getCard(paths: StoragePaths, cardId: any) {
+    async getCard(paths: StoragePaths, cardId: string) {
         const id = assertResourceId(cardId, "卡 id");
         const d = libraryDirs(paths);
         const cardPath = path.join(d.cards, `${id}.json`);
@@ -977,7 +893,7 @@ export const LibraryPort = {
         const raw = await readJsonCached(cardPath);
         return { ...raw, axis: coerceAxis(raw) };
     },
-    async getCandidate(paths: StoragePaths, candId: any) {
+    async getCandidate(paths: StoragePaths, candId: string) {
         const id = assertResourceId(candId, "卡候选 id");
         const d = libraryDirs(paths);
         const candPath = path.join(d.candidates, `${id}.json`);

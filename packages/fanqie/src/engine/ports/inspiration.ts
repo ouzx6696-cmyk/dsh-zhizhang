@@ -1,3 +1,5 @@
+import type { StartInspirationInput, AcceptEmissionInput, StageEmissionInput, CardSelection } from './inspiration-input.js';
+import { readInspirationBindings } from "../storage/inspiration-migration.js";
 import { nowIso, shortId as newId, exists as fileExists } from "../../../../core/src/fsx.js";
 import { readReference } from "../services/reference.js";
 import { fingerprint } from "../domain/lifecycle.js";
@@ -7,7 +9,7 @@ import { withResourceLock } from "../storage/process-lock.js";
  * Session + Library cards + MethodRegistry develop/plan → stage foundation/outline → explicit accept (optional apply to work).
  * Does not silently foundation_set.
  */
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { NovelError } from "../errors.js";
 import { snapshotFile } from "../storage/journal.js";
@@ -56,17 +58,17 @@ export const InspirationPort = {
             { id: "accept_apply", title: "显式采纳（可选写入作品）", ready: true },
         ];
     },
-    async startSession(paths: StoragePaths, input: any) {
+    async startSession(paths: StoragePaths, input: StartInspirationInput) {
         await ensureInsp(paths);
         return withResourceLock(paths.inspiration, async () => {
             await assertNoPendingInspiration(paths.inspiration);
         await ensureInsp(paths);
-        const goal = String(input.goal ?? "").trim();
+        const goal = input.goal;
         if (!goal)
             throw new NovelError("bad_args", "goal 不能为空");
         // combo 回执里每张卡 id 会出现多次（card_ids 行 + 明细行），照抄传入是常态——
         // 不去重会让 forge 把同一张卡整段渲染两遍，分轴计数也翻倍。
-        const cardIds = [...new Set((input.cardIds ?? []).map((id: string) => String(id).trim()).filter(Boolean))];
+        const cardIds = [...new Set(input.cardIds??[])];
         const craftOnly = input.craftOnly === true;
         if (cardIds.length) await LibraryPort.ensureLibrary(paths);
         const pace = validateStoryPace(input.pace);
@@ -91,7 +93,7 @@ export const InspirationPort = {
             schemaVersion: 1,
             id: sessionId,
             goal,
-            genre: String(input.genre ?? "").trim(),
+            genre: input.genre??"",
             cardIds,
             referenceIds,
             ...(input.workKey ? { targetWorkKey: input.workKey, targetPlanningRevision: fingerprint((await readWorkMeta(await resolveWorkDir(paths, input.workKey)))) } : {}),
@@ -108,7 +110,7 @@ export const InspirationPort = {
         return { sessionId, craftOnly, mindCount, craftCount };
         });
     },
-    async getSession(paths: StoragePaths, sessionId: any) {
+    async getSession(paths: StoragePaths, sessionId: string) {
         await ensureInsp(paths);
         const d = inspDirs(paths);
         const p = path.join(d.sessions, `${assertResourceId(sessionId, "灵感会话 id")}.json`);
@@ -120,7 +122,6 @@ export const InspirationPort = {
     async listSessions(paths: StoragePaths) {
         await ensureInsp(paths);
         const d = inspDirs(paths);
-        const { readdir } = await import("node:fs/promises");
         const names = await readdir(d.sessions);
         const rows = [];
         for (const name of names) {
@@ -142,7 +143,7 @@ export const InspirationPort = {
                 throw new NovelError("bad_inspiration_session", `灵感会话 ${name} 不可读，请核对原文件。`);
             }
         }
-        rows.sort((a: any, b: any) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
+        rows.sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
         return rows;
     },
     /** Previously applied candidates remain available as an author-readable decision history. */
@@ -150,7 +151,6 @@ export const InspirationPort = {
         await ensureInsp(paths);
         return withResourceLock(paths.inspiration, async () => {
             await assertNoPendingInspiration(paths.inspiration);
-            const { readdir } = await import("node:fs/promises");
             const dir = inspDirs(paths).candidates;
             const names = (await readdir(dir)).filter(name => name.endsWith(".json"));
             const rows = [];
@@ -184,7 +184,7 @@ export const InspirationPort = {
             return candidate;
         });
     },
-    async forgeBrief(paths: StoragePaths, sessionId: any) {
+    async forgeBrief(paths: StoragePaths, sessionId: string) {
         await ensureInsp(paths);
         return withResourceLock(paths.inspiration, async () => {
             await assertNoPendingInspiration(paths.inspiration);
@@ -196,10 +196,10 @@ export const InspirationPort = {
         const develop = MethodRegistry.get("develop");
         const plan = MethodRegistry.get("plan");
         const tomato = MethodRegistry.get("tomato_four_q");
-        const mindCards = cards.filter((c: any) => coerceAxis(c) === "mind");
-        const craftCards = cards.filter((c: any) => coerceAxis(c) !== "mind");
-        const thinMind = mindCards.filter((c: any) => !c.mind && !c.layer).length;
-        const thinFeel = craftCards.filter((c: any) => !c.humanFeel && !c.layer).length;
+        const mindCards = cards.filter((c) => coerceAxis(c) === "mind");
+        const craftCards = cards.filter((c) => coerceAxis(c) !== "mind");
+        const thinMind = mindCards.filter((c) => !c.mind && !c.layer).length;
+        const thinFeel = craftCards.filter((c) => !c.humanFeel && !c.layer).length;
         const craftOnly = Boolean(session.craftOnly);
         const lines = [
             `# 灵感推演简报 · ${sessionId}`,
@@ -296,18 +296,14 @@ export const InspirationPort = {
         return brief;
         });
     },
-    async stageEmit(paths: StoragePaths, sessionId: any, input: any) {
+    async stageEmit(paths: StoragePaths, sessionId: string, input: StageEmissionInput) {
         await ensureInsp(paths);
         return withResourceLock(paths.inspiration, async () => {
             await assertNoPendingInspiration(paths.inspiration);
         const session = await InspirationPort.getSession(paths, sessionId);
-        const kind = input.kind;
+        const {kind,payload} = input;
         if (!["foundation", "outline", "book_plan", "volume_plan", "act_plan"].includes(kind)) {
             throw new NovelError("bad_args", "kind 须为 foundation、outline、book_plan、volume_plan 或 act_plan");
-        }
-        const payload = input.payload;
-        if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-            throw new NovelError("bad_args", "payload 必须是对象");
         }
         if (kind === "foundation") {
             const has = payload.locks ||
@@ -322,19 +318,19 @@ export const InspirationPort = {
             }
         }
         else if (kind === "outline") {
-            const chapter = String(payload.chapter ?? payload.chapterId ?? "").trim();
+            const chapter = payload.chapter;
             if (!chapter)
                 throw new NovelError("bad_args", "outline payload 须含 chapter");
             if (![payload.synopsis, payload.beats, payload.ending].some(v => typeof v === "string" && v.trim()))
                 throw new NovelError("bad_args", "章纲须提供具体经历、节点或落点，不强制钩子。");
         }
         else {
-            if (typeof payload.content !== "string" || !payload.content.trim())
+            if (!payload.content.trim())
                 throw new NovelError("empty_body", "规划 payload 须含非空 content");
             if (kind === "volume_plan" || kind === "act_plan") {
                 assertResourceId(payload.id, kind === "act_plan" ? "幕 id" : "卷 id");
                 if (kind === "act_plan" && payload.volumeId) assertResourceId(payload.volumeId, "卷 id");
-                if (payload.chapters !== undefined && (!Array.isArray(payload.chapters) || payload.chapters.some((id: any) => typeof id !== "string")))
+                if (payload.chapters !== undefined && (!Array.isArray(payload.chapters) || payload.chapters.some((id) => typeof id !== "string")))
                     throw new NovelError("bad_args", "卷规划 chapters 须为章节 id 数组");
                 for (const chapter of payload.chapters ?? []) assertResourceId(chapter, "章节 id");
             }
@@ -401,7 +397,7 @@ export const InspirationPort = {
         return { candId, kind, styleReminder };
         });
     },
-    async acceptEmit(paths: StoragePaths, candId: any, opts: any) {
+    async acceptEmit(paths: StoragePaths, candId: string, opts: AcceptEmissionInput) {
         await ensureInsp(paths);
         const id = assertResourceId(candId, "灵感候选 id");
         const d = inspDirs(paths);
@@ -417,7 +413,7 @@ export const InspirationPort = {
                 throw new NovelError("candidate_changed", "灵感候选在读取期间发生变化，请重新检查。");
             if (cand.status === "accepted" && cand.appliedWorkKey)
                 throw new NovelError("already_accepted", `灵感候选 ${id} 已采纳到 ${cand.appliedWorkKey}`);
-            let workKey = String(opts.workKey ?? "").trim();
+            let workKey = opts.workKey??"";
             if (!workKey) throw new NovelError("bad_args", "workKey 不能为空");
             const now = nowIso();
             if (opts.apply !== true) {
@@ -456,7 +452,7 @@ export const InspirationPort = {
                     writes.push({target: "work", file: "meta.json", before: metaBefore, content: JSON.stringify(meta, null, 2) + "\n"});
                     detail = `已 apply foundation → 作品「${meta.title}」（${meta.key}）：${Object.keys(patch).join("、")}${pace ? `；节奏 ${pace}` : ""}`;
                 } else if (cand.kind === "book_plan" || cand.kind === "volume_plan" || cand.kind === "act_plan") {
-                    if (typeof payload.content !== "string" || !payload.content.trim())
+                    if (!payload.content.trim())
                         throw new NovelError("empty_body", "规划内容为空，请检查候选。");
                     const planning = readPlanning(meta) ?? { schemaVersion: 1, volumes: [], acts: [] };
                     const source = {
@@ -471,20 +467,20 @@ export const InspirationPort = {
                         detail = `已应用全书规划 → 作品「${meta.title}」（${meta.key}）`;
                     } else if (cand.kind === "volume_plan") {
                         const volumeId = assertResourceId(payload.id, "卷 id");
-                        if (payload.chapters !== undefined && (!Array.isArray(payload.chapters) || payload.chapters.some((ch: any) => typeof ch !== "string")))
+                        if (payload.chapters !== undefined && (!Array.isArray(payload.chapters) || payload.chapters.some((ch:unknown) => typeof ch !== "string")))
                             throw new NovelError("bad_args", "卷规划 chapters 须为章节 id 数组");
-                        const chapters = [...new Set((payload.chapters ?? []).map((ch: string) => assertResourceId(ch, "章节 id")))];
-                        const index = planning.volumes.findIndex((v: any) => v && v.id === volumeId);
+                        const chapters = [...new Set<string>((payload.chapters ?? []).map((ch: string) => assertResourceId(ch, "章节 id")))];
+                        const index = planning.volumes.findIndex((v) => v && v.id === volumeId);
                         const volume = { ...(index < 0 ? {} : planning.volumes[index]), id: volumeId, title: typeof payload.title === "string" && payload.title.trim() ? payload.title.trim() : volumeId, content: payload.content, chapters, source, updatedAt: now };
                         if (index < 0) planning.volumes.push(volume); else planning.volumes[index] = volume;
                         detail = `已应用卷规划「${volume.title}」 → 作品「${meta.title}」`;
                     } else {
                         const actId = assertResourceId(payload.id, "幕 id");
                         const volumeId = payload.volumeId ? assertResourceId(payload.volumeId, "卷 id") : "";
-                        if (payload.chapters !== undefined && (!Array.isArray(payload.chapters) || payload.chapters.some((ch: any) => typeof ch !== "string")))
+                        if (payload.chapters !== undefined && (!Array.isArray(payload.chapters) || payload.chapters.some((ch:unknown) => typeof ch !== "string")))
                             throw new NovelError("bad_args", "幕规划 chapters 须为章节 id 数组");
-                        const chapters = [...new Set((payload.chapters ?? []).map((ch: string) => assertResourceId(ch, "章节 id")))];
-                        const index = planning.acts.findIndex((v: any) => v && v.id === actId);
+                        const chapters = [...new Set<string>((payload.chapters ?? []).map((ch: string) => assertResourceId(ch, "章节 id")))];
+                        const index = planning.acts.findIndex((v) => v && v.id === actId);
                         const act = { ...(index < 0 ? {} : planning.acts[index]), id: actId, title: typeof payload.title === "string" && payload.title.trim() ? payload.title.trim() : actId, content: payload.content, volumeId, chapters, source, updatedAt: now };
                         if (index < 0) planning.acts.push(act); else planning.acts[index] = act;
                         detail = `已应用幕规划「${act.title}」 → 作品「${meta.title}」`;
@@ -495,7 +491,7 @@ export const InspirationPort = {
                     meta.updatedAt = nowIso();
                     writes.push({target: "work", file: "meta.json", before: metaBefore, content: JSON.stringify(meta, null, 2) + "\n"});
                 } else if (cand.kind === "outline") {
-                    chapterId = assertResourceId(String(payload.chapter ?? payload.chapterId ?? "").trim(), "章节 id");
+                    chapterId = assertResourceId(payload.chapter, "章节 id");
                     const chapterPath = path.join(dir, "chapters", `${chapterId}.md`);
                     const chapterBefore = await snapshotFile(chapterPath);
                     let previous: any = null;
@@ -543,12 +539,12 @@ export const InspirationPort = {
      * Priority: explicit cardIds → inspire sessions applied to work → none.
      * 不做「按 genre 猜卡」：技法卡不含题材词，猜出来也是无关卡。
      */
-    async resolveCardsForBrief(paths: StoragePaths, opts: any = {}) {
+    async resolveCardsForBrief(paths: StoragePaths, opts: CardSelection = {}) {
         await ensureInsp(paths);
         await assertNoPendingInspiration(paths.inspiration);
         await LibraryPort.ensureLibrary(paths);
         const limit = Math.max(1, Math.min(opts.limit ?? 5, 12));
-        const explicit = (opts.cardIds ?? []).map((id: string) => String(id).trim()).filter(Boolean);
+        const explicit = opts.cardIds??[];
         if (explicit.length > 0) {
             const cards = [];
             for (const id of explicit.slice(0, limit)) {
@@ -558,7 +554,7 @@ export const InspirationPort = {
                 }
                 cards.push(card);
             }
-            cards.sort((a: any, b: any) => {
+            cards.sort((a, b) => {
                 const aa = coerceAxis(a) === "craft" ? 0 : 1;
                 const bb = coerceAxis(b) === "craft" ? 0 : 1;
                 return aa - bb;
@@ -567,104 +563,19 @@ export const InspirationPort = {
                 cards,
                 source: "explicit",
                 note: `显式 card_ids（${cards.length}；craft 优先）`,
-                cardIds: cards.map((c: any) => c.id),
+                cardIds: cards.map((c) => c.id),
             };
         }
-        const workKey = String(opts.workKey ?? "").trim();
+        const workKey = opts.workKey??"";
         if (workKey) {
             const d = inspDirs(paths);
-            // 快路径：bindings.json（acceptEmit apply 时维护的 workKey→cardIds 索引）。
-            try {
-                const bPath = path.join(d.root, "bindings.json");
-                if (await fileExists(bPath)) {
-                    const bindings = await readJsonCached(bPath);
-                    const indexed = Array.isArray(bindings?.[workKey]) ? bindings[workKey] : [];
-                    const cards = [];
-                    for (const id of indexed.slice(0, limit)) {
-                        try {
-                            const card = await LibraryPort.getCard(paths, id);
-                            if (card.status === "accepted")
-                                cards.push(card);
-                        }
-                        catch (error) {
-                            throw new NovelError("craft_source_unavailable", `绑定技法卡 ${id} 不可读：${error instanceof Error ? error.message : String(error)}`);
-                        }
-                    }
-                    if (cards.length > 0) {
-                        return {
-                            cards,
-                            source: "inspire_apply",
-                            note: `作品「${workKey}」绑定技法卡（${cards.length}；bindings 索引）`,
-                            cardIds: cards.map((c: any) => c.id),
-                        };
-                    }
-                }
+            const bindings=await readInspirationBindings(d.root);
+            const ids=bindings?.[workKey]??[],cards=[];
+            for(const id of ids.slice(0,limit)) {
+                const card=await LibraryPort.getCard(paths,id);
+                if(card.status === "accepted")cards.push(card);
             }
-            catch (error: any) {
-                if (error.code !== "ENOENT") throw error;
-            }
-            // 旧数据回退：索引出现前的 accept 记录，仍扫 candidates/ 目录。
-            const { readdir } = await import("node:fs/promises");
-            const names = await readdir(d.candidates).catch(() => []);
-            const hits = [];
-            for (const name of names) {
-                if (!name.endsWith(".json"))
-                    continue;
-                try {
-                    const cand = await readJsonCached(path.join(d.candidates, name));
-                    if (cand.status === "accepted" && cand.appliedWorkKey === workKey) {
-                        hits.push({
-                            at: cand.acceptedAt || cand.updatedAt || cand.createdAt,
-                            sessionId: cand.sessionId,
-                        });
-                    }
-                }
-                catch {
-                    /* skip */
-                }
-            }
-            hits.sort((a: any, b: any) => (b.at || "").localeCompare(a.at || ""));
-            const seen = new Set();
-            const cardIds = [];
-            for (const h of hits) {
-                try {
-                    const s = await InspirationPort.getSession(paths, h.sessionId);
-                    for (const id of s.cardIds) {
-                        if (seen.has(id))
-                            continue;
-                        seen.add(id);
-                        cardIds.push(id);
-                        if (cardIds.length >= limit)
-                            break;
-                    }
-                }
-                catch {
-                    /* skip */
-                }
-                if (cardIds.length >= limit)
-                    break;
-            }
-            if (cardIds.length > 0) {
-                const cards = [];
-                for (const id of cardIds) {
-                    try {
-                        const card = await LibraryPort.getCard(paths, id);
-                        if (card.status === "accepted")
-                            cards.push(card);
-                    }
-                    catch {
-                        /* skip */
-                    }
-                }
-                if (cards.length > 0) {
-                    return {
-                        cards,
-                        source: "inspire_apply",
-                        note: `作品「${workKey}」最近灵感 apply 绑定的技法卡（${cards.length}）`,
-                        cardIds: cards.map((c: any) => c.id),
-                    };
-                }
-            }
+            if(cards.length) return {cards,source:"inspire_apply",note:`作品「${workKey}」绑定技法卡（${cards.length}；bindings 索引）`,cardIds:cards.map(card=>card.id)};
         }
         // 未发布：删掉「按 genre 检索」这条分支。技法卡是写法卡，不含题材词，
         // 实测任何作品 genre 都命中 0 条；留着只会让人以为有自动注入。
@@ -681,7 +592,7 @@ export const InspirationPort = {
      * Craft shatter/feel cue blob for Accept + human_feel_audit (same source).
      * Empty string when no craft cards or cues.
      */
-    async resolveCraftCue(paths: StoragePaths, opts: any = {}) {
+    async resolveCraftCue(paths: StoragePaths, opts: CardSelection = {}) {
         try {
             const resolved = await InspirationPort.resolveCardsForBrief(paths, {
                 workKey: opts.workKey,
@@ -689,8 +600,8 @@ export const InspirationPort = {
                 limit: opts.limit ?? 5,
             });
             return resolved.cards
-                .filter((c: any) => coerceAxis(c) === "craft")
-                .map((c: any) => craftCueFromHumanFeel(coerceHumanFeel(c.humanFeel)))
+                .filter((c) => coerceAxis(c) === "craft")
+                .map((c) => craftCueFromHumanFeel(coerceHumanFeel(c.humanFeel)))
                 .join("\n");
         }
         catch (error) {
@@ -701,10 +612,10 @@ export const InspirationPort = {
      * Markdown section for chapter_brief.
      * lean：只主注 craft（写法+状态）；mind 不整段灌句式。
      */
-    formatCardsSection(cards: any, meta: any) {
+    formatCardsSection(cards: import("./library/types.js").TechniqueCard[], meta: {lean?:boolean;note:string;source:string}) {
         const lean = Boolean(meta.lean);
-        const craftCards = cards.filter((c: any) => coerceAxis(c) === "craft");
-        const mindCards = cards.filter((c: any) => coerceAxis(c) === "mind");
+        const craftCards = cards.filter((c) => coerceAxis(c) === "craft");
+        const mindCards = cards.filter((c) => coerceAxis(c) === "mind");
         const inject = lean ? craftCards : cards;
         const title = lean
             ? "## 技法卡（lean · craft 写法+状态）"
@@ -715,7 +626,7 @@ export const InspirationPort = {
                 : "（无卡注入；方法包只管流程纪律。）";
             return [title, meta.note, extra].join("\n");
         }
-        const thinFeel = craftCards.filter((c: any) => !c.humanFeel && !c.layer).length;
+        const thinFeel = craftCards.filter((c) => !c.humanFeel && !c.layer).length;
         const lines = [
             title,
             `- 来源：${meta.note}`,
@@ -741,14 +652,14 @@ export const InspirationPort = {
         }
         if (lean) {
             const cue = craftCards
-                .map((c: any) => craftCueFromHumanFeel(coerceHumanFeel(c.humanFeel)))
+                .map((c) => craftCueFromHumanFeel(coerceHumanFeel(c.humanFeel)))
                 .join("\n");
             if (hasShatterCraftCue(cue)) {
                 lines.push(`> ${ANTI_STIFFNESS_BRIEF_LINE}`, "");
             }
         }
         if (lean && mindCards.length > 0) {
-            lines.push(`- （另有 mind ${mindCards.length} 张未注入 lean：${mindCards.map((c: any) => c.id).join("、")}）`);
+            lines.push(`- （另有 mind ${mindCards.length} 张未注入 lean：${mindCards.map((c) => c.id).join("、")}）`);
         }
         return lines.join("\n").trimEnd();
     },

@@ -7,7 +7,7 @@ import { NovelError } from "../errors.js";
 import { withResourceLock } from "./process-lock.js";
 
 export type InputWrite = { file: string; before: string | null; content?: string; target?: "work" | "inspiration" };
-export type Confirmation = { id: string; fingerprint: string };
+type Confirmation = { id: string; fingerprint: string };
 type Write = InputWrite & { after: string | null };
 type Owner = { pid: number; host: string };
 export type Target = { file: string; root?: string; target?: "work" | "inspiration"; source?: string; absent?: boolean; present?: boolean; remove?: boolean };

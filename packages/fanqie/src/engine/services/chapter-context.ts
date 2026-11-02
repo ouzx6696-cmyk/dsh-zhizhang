@@ -13,7 +13,7 @@ import { listChapters, readChapter } from "../work-store.js";
 export async function resolvePrevChapter(dir: string, chapterId: string) {
     const chapters = await listChapters(dir);
     if (!chapters.length) return null;
-    const idx = chapters.findIndex((c: any) => c.id === chapterId);
+    const idx = chapters.findIndex((c) => c.id === chapterId);
     if (idx <= 0) return null;
     const prevMeta = chapters[idx - 1];
     try {

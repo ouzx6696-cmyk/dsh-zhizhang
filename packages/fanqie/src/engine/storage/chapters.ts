@@ -17,26 +17,24 @@ import { metaPath, readWorkMeta, validateStoryPace } from "./work-meta.js";
 export function chaptersDir(dir: string) {
     return path.join(dir, "chapters");
 }
-function normalizeOutline(raw: any): Outline {
+function normalizeOutline(value: unknown): Outline {
     const base = EMPTY_OUTLINE();
-    if (!raw || typeof raw !== "object")
-        return base;
+    if (value === undefined || value === null) return base;
+    const raw=asObject(value);
     return {
         ...raw,
-        pov: String(raw.pov ?? ""),
+        pov: (asString(raw, "pov", {trim:false}) ?? ""),
         targetWords: typeof raw.targetWords === "number" && raw.targetWords > 0 ? raw.targetWords : 2500,
-        locks: String(raw.locks ?? ""),
-        knowledge: String(raw.knowledge ?? ""),
-        synopsis: String(raw.synopsis ?? ""),
-        conflict: String(raw.conflict ?? ""),
-        beats: String(raw.beats ?? ""),
-        ending: String(raw.ending ?? ""),
-        situationLens: String(raw.situationLens ?? ""),
-        livedScene: String(raw.livedScene ?? ""),
+        locks: (asString(raw, "locks", {trim:false}) ?? ""),
+        knowledge: (asString(raw, "knowledge", {trim:false}) ?? ""),
+        synopsis: (asString(raw, "synopsis", {trim:false}) ?? ""),
+        conflict: (asString(raw, "conflict", {trim:false}) ?? ""),
+        beats: (asString(raw, "beats", {trim:false}) ?? ""),
+        ending: (asString(raw, "ending", {trim:false}) ?? ""),
+        situationLens: (asString(raw, "situationLens", {trim:false}) ?? ""),
+        livedScene: (asString(raw, "livedScene", {trim:false}) ?? ""),
         // stateLens；旧字段名 voiceTone 仍可读
-        stateLens: String(raw.stateLens ??
-            raw.voiceTone ??
-            ""),
+        stateLens: (asString(raw,"stateLens",{trim:false}) ?? asString(raw,"voiceTone",{trim:false}) ?? ""),
     };
 }
 function chapterFile(dir: string, id: string) {
@@ -95,7 +93,7 @@ function parseChapterMarkdown(raw: string, fallbackId: any) {
 // —— § chapters ——
 export async function listChapters(dir: string) {
     const meta = await readWorkMeta(dir);
-    return [...meta.chapters].sort((a: any, b: any) => a.position - b.position);
+    return [...meta.chapters].sort((a, b) => a.position - b.position);
 }
 export async function readChapter(dir: string, chapterId: string):Promise<Chapter> {
     await assertNoPendingAccept(dir);
@@ -157,8 +155,8 @@ export async function readChapterLenses(dir: string, ids: string[]) {
     return rows;
 }
 function precedingChapter(meta: any, chapterId: string) {
-    const ordered = [...meta.chapters].sort((a: any, b: any) => a.position - b.position);
-    const index = ordered.findIndex((c: any) => c.id === chapterId);
+    const ordered = [...meta.chapters].sort((a, b) => a.position - b.position);
+    const index = ordered.findIndex((c) => c.id === chapterId);
     return index > 0 ? ordered[index - 1] : undefined;
 }
 export async function assertContextBasis(dir: string, basis: ContextBasis, chapterId: string) {
@@ -182,10 +180,6 @@ export async function currentContextBasis(dir: string, chapterId: string): Promi
     }
     return contextBasis(meta, chapter, previous);
 }
-export async function saveChapter(dir: string, input: any) {
-    return withResourceLock(dir, () => saveChapterUnlocked(dir, input));
-}
-
 /** Caller must hold the work lock. */
 export async function prepareChapterSaveUnlocked(dir: string, input: any) {
     const metaBefore = await snapshotFile(metaPath(dir));
@@ -194,7 +188,7 @@ export async function prepareChapterSaveUnlocked(dir: string, input: any) {
     if (pace !== undefined) meta.pace = pace;
     const id = input.id?.trim() || `c${String(meta.chapters.length + 1).padStart(3, "0")}`;
     const chapterBefore = await snapshotFile(chapterFile(dir, id));
-    const existingIdx = meta.chapters.findIndex((c: any) => c.id === id);
+    const existingIdx = meta.chapters.findIndex((c) => c.id === id);
     let previous = null;
     if (existingIdx >= 0) {
         try {
@@ -253,13 +247,13 @@ export async function prepareChapterSaveUnlocked(dir: string, input: any) {
     }
     if (input.acknowledgeRevision === true) {
         if (!input.expectedRevision || input.expectedRevision !== revision) throw new NovelError("revision_conflict", "核对修订须提供当前 expected_revision。");
-        meta.revisionImpacts = (meta.revisionImpacts ?? []).filter((v: any) => v.chapterId !== id);
+        meta.revisionImpacts = (meta.revisionImpacts ?? []).filter((v) => v.chapterId !== id);
     }
     const continuity = meta.continuity ?? { schemaVersion: 1, finalized: [], working: [] };
     if (!Array.isArray(continuity.finalized) || !Array.isArray(continuity.working)) throw new NovelError("bad_continuity", "接续状态格式损坏，请核对元数据。");
     const entry = { chapterId: id, revision, excerpt: record.body.slice(-200), at: record.updatedAt };
-    continuity.finalized = continuity.finalized.filter((v: any) => v.chapterId !== id);
-    continuity.working = continuity.working.filter((v: any) => v.chapterId !== id);
+    continuity.finalized = continuity.finalized.filter((v) => v.chapterId !== id);
+    continuity.working = continuity.working.filter((v) => v.chapterId !== id);
     if (record.body.trim()) (status === "final" ? continuity.finalized : continuity.working).push(entry);
     meta.continuity = continuity;
     const summary = {
@@ -275,30 +269,30 @@ export async function prepareChapterSaveUnlocked(dir: string, input: any) {
         meta.chapters[existingIdx] = summary;
     else
         meta.chapters.push(summary);
-    meta.chapters.sort((a: any, b: any) => a.position - b.position);
+    meta.chapters.sort((a, b) => a.position - b.position);
     meta.updatedAt = nowIso();
     let history: string | undefined;
     if (previous && (changed || previous.revision !== revision)) {
         const before = chapterBefore;
         if (!before) throw new NovelError("revision_conflict", "原稿已缺失，未覆盖。");
         history = await preserveChapter(dir, id, before);
-        const next = meta.chapters.find((c: any) => c.position > position);
+        const next = meta.chapters.find((c) => c.position > position);
         const impacts = Array.isArray(meta.revisionImpacts) ? meta.revisionImpacts : [];
         const affected = new Set<string>();
         const queue = [id];
         for (let cursor = 0; cursor < queue.length; cursor++) {
             for (const chapter of meta.chapters) {
-                if (chapter.id !== id && !affected.has(chapter.id) && chapter.dependencies?.some((d: any) => d.chapterId === queue[cursor])) {
+                if (chapter.id !== id && !affected.has(chapter.id) && chapter.dependencies?.some((d) => d.chapterId === queue[cursor])) {
                     affected.add(chapter.id); queue.push(chapter.id);
                 }
             }
         }
-        meta.revisionImpacts = [...impacts.filter((v: any) => v.chapterId !== id), { chapterId: id, previousRevision: previous.revision, revision, history, nextChapterId: next?.id, dependents: [...affected], at: meta.updatedAt, reason: "正文已修改；请核对已有状态记录、相关后稿与简报依据" }];
+        meta.revisionImpacts = [...impacts.filter((v) => v.chapterId !== id), { chapterId: id, previousRevision: previous.revision, revision, history, nextChapterId: next?.id, dependents: [...affected], at: meta.updatedAt, reason: "正文已修改；请核对已有状态记录、相关后稿与简报依据" }];
     }
     return { record, history, chapterBefore, metaBefore, chapterPath: chapterFile(dir, id), chapterContent: serializeChapterMarkdown(record), metaContent: JSON.stringify(meta, null, 2) + "\n" };
 }
 /** Caller holds the work lock. */
-export async function saveChapterUnlocked(dir: string, input: any) {
+async function saveChapterUnlocked(dir: string, input: any) {
     let ledger: any;
     const ledgerPath = path.join(dir, "ledger.json");
     const ledgerBefore = input.ledgerEntry ? await snapshotFile(ledgerPath) : null;
@@ -377,3 +371,5 @@ export async function updateChapter(dir: string, input: { id: string; title?: st
         });
     });
 }
+
+import { asString, asObject } from "../parse.js";

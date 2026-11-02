@@ -75,7 +75,7 @@ export async function resolveWorkDir(paths: StoragePaths, keyOrTitle: any) {
   const direct = workDir(paths, keyOrTitle);
   if (await exists(metaPath(direct))) return direct;
   const all = await listWorks(paths);
-  const hit = all.find((w: any) => w.key === keyOrTitle || w.title === keyOrTitle);
+  const hit = all.find((w) => w.key === keyOrTitle || w.title === keyOrTitle);
   if (!hit) throw new NovelError("work_not_found", `找不到作品：${keyOrTitle}`);
   return workDir(paths, hit.key);
 }
@@ -100,7 +100,7 @@ export async function appendHappenedLine(
 ) {
   return withResourceLock(dir, async () => {
     const meta = await readWorkMeta(dir);
-    const existing = String(meta.foundation.happened ?? "");
+    const existing = meta.foundation.happened;
     const mark = `[${chapterId}]`;
     if (existing.includes(mark)) {
       if (!replace) return { meta, appended: false, line, reason: "already_recorded" };
@@ -125,7 +125,7 @@ export async function appendHappenedLine(
 export async function assembleManuscript(dir: string, paths: StoragePaths, opts: any = {}) {
   return withResourceLock(dir, async () => {
     const meta = await readWorkMeta(dir);
-    const chapters = [...meta.chapters].sort((a: any, b: any) => a.position - b.position);
+    const chapters = [...meta.chapters].sort((a, b) => a.position - b.position);
     const parts = [`# ${meta.title}`, ""];
     if (meta.premise) parts.push(`> ${meta.premise}`, "");
     let words = 0;
@@ -169,7 +169,6 @@ export { atomicWrite, assertResourceId, countWords, withLock } from "./storage/p
 export {
   listChapters,
   readChapter,
-  saveChapter,
   setOutline,
   updateChapter,
 } from "./storage/chapters.js";

@@ -8,9 +8,8 @@ import { readWorkMeta } from "../engine/work-store.js";
 import { NovelError } from "../engine/errors.js";
 
 export const DELIVERY_ACTIONS = ["continue", "review", "revise"] as const;
-export type DeliveryAction = (typeof DELIVERY_ACTIONS)[number];
+type DeliveryAction = (typeof DELIVERY_ACTIONS)[number];
 
-export const ENABLE_HINT_FANQIE = "";
 
 interface Row { id: string; title: string; position: number; status: string; wordCount?: number }
 
@@ -19,16 +18,16 @@ function label(row: Row) {
 }
 
 /** 下一章：按章序第一章还没有正文的（0 字；建章纲时状态是 planned，写了正文也可能仍是 planned，所以看字数）；都写过了就是新的一章 */
-export function pickNextChapter(rows: Row[]): Row | undefined {
+function pickNextChapter(rows: Row[]): Row | undefined {
     return rows.find(r => r.status !== "final" && !(Number(r.wordCount) > 0));
 }
 
-export async function buildDeliveryPrompt(dir: string, input: { action: string; chapter?: string; note?: string }, enableHint = ENABLE_HINT_FANQIE) {
+export async function buildDeliveryPrompt(dir: string, input: { action: string; chapter?: string; note?: string }, enableHint = "") {
     if (!(DELIVERY_ACTIONS as readonly string[]).includes(input.action))
         throw new NovelError("bad_action", `不支持的动作：${input.action}`);
     const action = input.action as DeliveryAction;
     const meta = await readWorkMeta(dir);
-    const rows: Row[] = [...((meta as any).chapters ?? [])].sort((a: Row, b: Row) => a.position - b.position);
+    const rows: Row[] = [...meta.chapters].sort((a: Row, b: Row) => a.position - b.position);
     const note = (input.note ?? "").trim().slice(0, 300);
     const named = input.chapter ? rows.find(r => r.id === input.chapter) : undefined;
     if (input.chapter && !named)

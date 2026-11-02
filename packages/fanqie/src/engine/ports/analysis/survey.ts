@@ -9,15 +9,15 @@ export async function readSurvey(paths: StoragePaths, sourceId: any) {
     return (await readJson(p.survey, null)) ?? null;
 }
 
-export async function writeSurvey(paths: StoragePaths, sourceId: any, survey: any) {
+async function writeSurvey(paths: StoragePaths, sourceId: any, survey: any) {
     const p = analysisPaths(paths, sourceId);
     await ensureDir(p.dir);
     await atomicWrite(p.survey, `${JSON.stringify(survey, null, 2)}\n`);
     return survey;
 }
 
-function factsKey(facts: any) {
-    return (facts ?? []).map((f: any) => `${f.n}:${f.updatedAt ?? ""}`).join("|");
+function factsKey(facts: {n:number;updatedAt?:string}[]) {
+    return facts.map((f) => `${f.n}:${f.updatedAt ?? ""}`).join("|");
 }
 
 /** 没有测绘、或事实层变了，就补/重建一次。 */

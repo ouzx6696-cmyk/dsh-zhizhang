@@ -1,6 +1,7 @@
+import type { AnalysisPlan, SourceChapter, ConsentParams } from './types.js';
 /** 抽样计划：Auto 10% 分层 / Full 全量（须显式同意）。 */
 import path from "node:path";
-import { readFile, unlink } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { atomicWrite } from "../../storage/primitives.js";
 import type { StoragePaths } from "../../types.js";
 import { NovelError } from "../../errors.js";
@@ -12,18 +13,18 @@ import { AUTO_SAMPLE_HEAD, AUTO_SAMPLE_RATIO, AUTO_SAMPLE_TAIL } from "../../dom
 import { assertSourceId, ensureDir, nowIso, readJson } from "./paths.js";
 
 export const PLAN_RATIO_DEFAULT = AUTO_SAMPLE_RATIO;
-export const PLAN_RATIO_MIN = 0.05;
-export const PLAN_RATIO_MAX = 1;
+const PLAN_RATIO_MIN = 0.05;
+const PLAN_RATIO_MAX = 1;
 export const PLAN_BATCH_DEFAULT = 30000;
 export const PLAN_BATCH_MIN = 4000;
 export const PLAN_BATCH_MAX = 100000;
 /** 10% 不足这个字数时，Auto 直接全读（小书）。 */
-export const PLAN_SMALL_BOOK_CHARS = 30000;
+const PLAN_SMALL_BOOK_CHARS = 30000;
 /** 估算：中文约 1.4 字/token；每批 5 分钟（含读 + 白描）。 */
-export const PLAN_CHARS_PER_TOKEN = 1.4;
-export const PLAN_MINUTES_PER_BATCH = 5;
+const PLAN_CHARS_PER_TOKEN = 1.4;
+const PLAN_MINUTES_PER_BATCH = 5;
 
-function planFiles(paths: StoragePaths, sourceId: any) {
+function planFiles(paths: StoragePaths, sourceId: string) {
     const id = assertSourceId(sourceId);
     const dir = path.join(paths.library, "analyses", id);
     return {
@@ -34,9 +35,9 @@ function planFiles(paths: StoragePaths, sourceId: any) {
     };
 }
 
-export function buildPlan(input: any) {
+export function buildPlan(input: {sourceId:string;title?:string;index:SourceChapter[];mode?:"auto"|"full";ratio?:number;batchChars?:number}):AnalysisPlan {
     const { sourceId, title, index, mode = "auto", ratio = PLAN_RATIO_DEFAULT, batchChars = PLAN_BATCH_DEFAULT } = input;
-    const numbers = index.map((c: any) => c.n);
+    const numbers = index.map((c) => c.n);
     if (new Set(numbers).size !== numbers.length) throw new NovelError("ambiguous_chapter_numbers", "原文存在重复章号，不能按章号合并阅读计划；请按实际位置选片段分析或先明确章界，原文已保留。");
     const full = mode === "full";
     const ratioNum = Number(ratio);
@@ -44,13 +45,13 @@ export function buildPlan(input: any) {
         throw new NovelError("bad_ratio", `比例须在 ${PLAN_RATIO_MIN}–${PLAN_RATIO_MAX} 之间（Auto 默认 ${PLAN_RATIO_DEFAULT}）`);
     }
     const chapters = index
-        .filter((c: any) => Number(c.n) > 0)
-        .map((c: any) => ({ n: Number(c.n), title: c.title, chars: Math.max(0, c.end - c.start) }))
-        .filter((c: any) => c.chars > 0);
+        .filter((c) => Number(c.n) > 0)
+        .map((c) => ({ n: Number(c.n), title: c.title, chars: Math.max(0, c.end - c.start) }))
+        .filter((c) => c.chars > 0);
     if (chapters.length === 0)
         throw new NovelError("bad_source", "没有可解析的章节（需「第N章 / 第一章 / 序章」标题）");
-    const totalChars = chapters.reduce((s: string, c: any) => s + c.chars, 0);
-    const picked = new Map();
+    const totalChars = chapters.reduce((s: number, c) => s + c.chars, 0);
+    const picked = new Map<number,string>();
     if (full) {
         for (const c of chapters)
             picked.set(c.n, "全量");
@@ -69,7 +70,7 @@ export function buildPlan(input: any) {
             const tail = Math.min(AUTO_SAMPLE_TAIL, chapters.length);
             for (let i = chapters.length - tail; i < chapters.length; i++)
                 picked.set(chapters[i].n, "收束");
-            const interior = chapters.filter((c: any) => !picked.has(c.n));
+            const interior = chapters.filter((c) => !picked.has(c.n));
             const want = Math.max(0, targetN - picked.size);
             if (want > 0 && interior.length > 0) {
                 const cum = [];
@@ -82,7 +83,7 @@ export function buildPlan(input: any) {
                 let taken = 0;
                 for (let k = 0; k < want && taken < interior.length; k++) {
                     const pos = (k + 0.5) * (total / want);
-                    let idx = cum.findIndex((v: any) => v >= pos);
+                    let idx = cum.findIndex((v) => v >= pos);
                     if (idx < 0)
                         idx = interior.length - 1;
                     while (idx < interior.length && picked.has(interior[idx].n))
@@ -96,8 +97,8 @@ export function buildPlan(input: any) {
         }
     }
     const picks = chapters
-        .filter((c: any) => picked.has(c.n))
-        .map((c: any) => ({ ...c, reason: picked.get(c.n) }));
+        .filter((c) => picked.has(c.n))
+        .map((c) => ({ ...c, reason: picked.get(c.n) }));
     const batches = [];
     let cur: { i: number; chapters: number[]; chars: number } | null = null;
     for (const p of picks) {
@@ -108,7 +109,7 @@ export function buildPlan(input: any) {
         cur.chapters.push(p.n);
         cur.chars += p.chars;
     }
-    const planChars = picks.reduce((s: number, p: any) => s + p.chars, 0);
+    const planChars = picks.reduce((s: number, p) => s + p.chars, 0);
     return {
         schemaVersion: 1,
         sourceId,
@@ -120,14 +121,14 @@ export function buildPlan(input: any) {
         planChapters: picks.length,
         planChars,
         batchChars,
-        chapters: picks.map((c: any) => ({ n: c.n, title: c.title, chars: c.chars, reason: c.reason })),
-        batches: batches.map((b: any) => ({ i: b.i, chapters: b.chapters, chars: b.chars })),
+        chapters: picks.map((c) => ({ n: c.n, title: c.title, chars: c.chars, reason: c.reason })),
+        batches: batches.map((b) => ({ i: b.i, chapters: b.chapters, chars: b.chars })),
         cursor: 0,
         createdAt: nowIso(),
     };
 }
 
-export function estimatePlan(plan: any) {
+export function estimatePlan(plan: AnalysisPlan) {
     const tokens = Math.round(plan.planChars / PLAN_CHARS_PER_TOKEN);
     const batches = plan.batches.length;
     const minutes = batches * PLAN_MINUTES_PER_BATCH;
@@ -142,18 +143,18 @@ export function estimatePlan(plan: any) {
     };
 }
 
-export function planLabel(plan: any) {
+export function planLabel(plan: AnalysisPlan|null|undefined) {
     if (!plan)
         return "未建计划（旧模式：按 from/count 取批）";
     if (plan.mode === "full")
         return `Full 全量（${plan.planChapters}/${plan.totalChapters} 章）`;
-    if (plan.chapters.length > 0 && plan.chapters.every((c: any) => c.reason === "auto:全读（小书）"))
+    if (plan.chapters.length > 0 && plan.chapters.every((c) => c.reason === "auto:全读（小书）"))
         return `Auto 全读（小书）· ${plan.planChapters}/${plan.totalChapters} 章`;
     const pct = Math.round((plan.planChars / Math.max(1, plan.totalChars)) * 100);
     return `Auto ${Math.round(plan.ratio * 100)}%（实取 ${pct}%：${plan.planChapters}/${plan.totalChapters} 章 / ${plan.planChars} 字）`;
 }
 
-export async function writePlan(paths: StoragePaths, plan: any, options: { clearConfirm?: boolean; confirmToken?: string } = {}) {
+export async function writePlan(paths: StoragePaths, plan: AnalysisPlan, options: { clearConfirm?: boolean; confirmToken?: string } = {}) {
     return withResourceLock(paths.library, async () => {
         await assertNoPendingCard(paths.library);
         const sourceId = assertSourceId(plan.sourceId);
@@ -184,7 +185,7 @@ export async function writePlan(paths: StoragePaths, plan: any, options: { clear
     });
 }
 
-export async function readPlan(paths: StoragePaths, sourceId: any) {
+export async function readPlan(paths: StoragePaths, sourceId: string):Promise<AnalysisPlan|null> {
     return withResourceLock(paths.library, async () => {
     await assertNoPendingCard(paths.library);
     const f = planFiles(paths, sourceId);
@@ -198,7 +199,7 @@ export async function readPlan(paths: StoragePaths, sourceId: any) {
     });
 }
 
-export function renderPlanMarkdown(plan: any) {
+function renderPlanMarkdown(plan: AnalysisPlan) {
     const est = estimatePlan(plan);
     const lines = [
         `# 抽样计划 · ${plan.title || plan.sourceId}`,
@@ -213,27 +214,15 @@ export function renderPlanMarkdown(plan: any) {
         "## 批次",
         "| 批 | 章 | 字数 |",
         "| --- | --- | --- |",
-        ...plan.batches.map((b: any) => `| ${b.i} | ${b.chapters.join("、")} | ${b.chars} |`),
+        ...plan.batches.map((b) => `| ${b.i} | ${b.chapters.join("、")} | ${b.chars} |`),
         "",
         "## 入选章与理由",
         "| 章 | 标题 | 字数 | 理由 |",
         "| --- | --- | --- | --- |",
-        ...plan.chapters.map((c: any) => `| ${c.n} | ${c.title} | ${c.chars} | ${c.reason} |`),
+        ...plan.chapters.map((c) => `| ${c.n} | ${c.title} | ${c.chars} | ${c.reason} |`),
         "",
     ];
     return lines.join("\n");
-}
-
-export async function deletePlan(paths: StoragePaths, sourceId: any) {
-    const f = planFiles(paths, sourceId);
-    for (const p of [f.json, f.md, f.pending]) {
-        try {
-            await unlink(p);
-        }
-        catch (err: any) {
-            if (err?.code !== "ENOENT") throw err;
-        }
-    }
 }
 
 export function makeConfirmToken() {
@@ -244,7 +233,7 @@ export function makeConfirmToken() {
  * Full 闸留痕：estimate + 参数快照（batchChars/totalChapters/planChapters）。
  * confirm 时断言参数一致——作者同意的是回执上的数字，不是换参后的重建计划。
  */
-export async function writePendingConfirm(paths: StoragePaths, sourceId: any, token: any, estimate: any, params?: any) {
+export async function writePendingConfirm(paths: StoragePaths, sourceId: string, token: string, estimate: ReturnType<typeof estimatePlan>, params?: ConsentParams) {
     const f = planFiles(paths, sourceId);
     await ensureDir(f.dir);
     const body = {
@@ -259,7 +248,7 @@ export async function writePendingConfirm(paths: StoragePaths, sourceId: any, to
     return body;
 }
 
-export async function readPendingConfirm(paths: StoragePaths, sourceId: any) {
+async function readPendingConfirm(paths: StoragePaths, sourceId: string) {
     const f = planFiles(paths, sourceId);
     try {
         return JSON.parse(await readFile(f.pending, "utf8"));
@@ -271,7 +260,7 @@ export async function readPendingConfirm(paths: StoragePaths, sourceId: any) {
 }
 
 /** Full 闸：token 必须存在、未过期、来源一致，且建计划参数与回执一致（若有快照）。 */
-export async function assertFullConsent(paths: StoragePaths, sourceId: any, token: any, current?: any) {
+export async function assertFullConsent(paths: StoragePaths, sourceId: string, token: string|undefined, current?: ConsentParams) {
     const pending = await readPendingConfirm(paths, sourceId);
     if (!pending)
         throw new NovelError("full_needs_consent", "Full 未生成成本回执：先调用 library_plan(mode=full) 看估算，再由作者明确同意");
@@ -283,9 +272,9 @@ export async function assertFullConsent(paths: StoragePaths, sourceId: any, toke
         throw new NovelError("bad_confirm_token", "确认 token 不正确：须原样回传 library_plan(mode=full) 回执里的 confirm_token");
     if (current && pending.params && typeof pending.params === "object") {
         const drift = [];
-        for (const key of ["batchChars", "totalChapters", "planChapters"]) {
-            const before = Number((pending.params as any)[key]);
-            const nowVal = Number((current as any)[key]);
+        for (const key of ["batchChars", "totalChapters", "planChapters"] as const) {
+            const before = Number(pending.params[key]);
+            const nowVal = Number(current[key]);
             if (Number.isFinite(before) && Number.isFinite(nowVal) && before !== nowVal) {
                 drift.push(`${key} ${before}→${nowVal}`);
             }
@@ -297,21 +286,12 @@ export async function assertFullConsent(paths: StoragePaths, sourceId: any, toke
     return pending;
 }
 
-export async function clearPendingConfirm(paths: StoragePaths, sourceId: any) {
-    try {
-        await unlink(planFiles(paths, sourceId).pending);
-    }
-    catch (err: any) {
-        if (err?.code !== "ENOENT") throw err;
-    }
-}
-
-export function planProgress(plan: any, facts: any) {
-    const have = new Set(facts.map((f: any) => Number(f.n)));
-    const done = plan.chapters.filter((c: any) => have.has(Number(c.n))).length;
+export function planProgress(plan: AnalysisPlan, facts: readonly {n:number}[]) {
+    const have = new Set(facts.map((f) => Number(f.n)));
+    const done = plan.chapters.filter((c) => have.has(Number(c.n))).length;
     let cursor = 0;
     for (const b of plan.batches) {
-        if (b.chapters.every((n: any) => have.has(Number(n))))
+        if (b.chapters.every((n) => have.has(Number(n))))
             cursor = b.i + 1;
         else
             break;
@@ -319,7 +299,7 @@ export function planProgress(plan: any, facts: any) {
     return {
         done,
         total: plan.chapters.length,
-        charsDone: plan.chapters.filter((c: any) => have.has(Number(c.n))).reduce((s: string, c: any) => s + (c.chars || 0), 0),
+        charsDone: plan.chapters.filter((c) => have.has(Number(c.n))).reduce((s: number, c) => s + (c.chars || 0), 0),
         cursor,
         batches: plan.batches.length,
         nextBatch: cursor < plan.batches.length ? plan.batches[cursor] : null,
@@ -327,10 +307,10 @@ export function planProgress(plan: any, facts: any) {
 }
 
 /** 事实章号是否在计划内；不在则返回提示（不硬拒，允许作者手补）。 */
-export function planMembership(plan: any, n: number) {
+export function planMembership(plan: AnalysisPlan|null|undefined, n: number) {
     if (!plan)
         return { inPlan: true, reason: null };
-    const hit = plan.chapters.find((c: any) => Number(c.n) === Number(n));
+    const hit = plan.chapters.find((c) => Number(c.n) === Number(n));
     return hit
         ? { inPlan: true, reason: hit.reason }
         : { inPlan: false, reason: `第 ${n} 章不在 ${planLabel(plan)} 计划内（手补会标为计划外）` };

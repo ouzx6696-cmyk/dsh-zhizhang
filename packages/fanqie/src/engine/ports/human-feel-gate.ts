@@ -13,8 +13,8 @@ const WOBBLE_RE = QUALITY_WOBBLE_RE;
 const TASK_DIALOGUE_RE = /^(?:把|拿|交|查|点|对|补|报|签|请|过来|过去|打开|关上|放回|拿走|核对|登记|确认|盘点|实点|差价|货架|收据|发票|金额|下次|现在|立刻|马上|必须|需要|应该|给我|你把|你去|你来|先|再|然后)/;
 const DIALOGUE_PAIR = /([“「])([\s\S]*?)([”」])/g;
 const MIN_CHARS = 120;
-export function auditHumanFeel(text: string, opts: any) {
-    const body = String(text ?? "").trim();
+export function auditHumanFeel(text: string, opts: {craftCue?:string} = {}) {
+    const body = text.trim();
     const hits = [];
     if (body.length < MIN_CHARS) {
         return {
@@ -53,7 +53,7 @@ export function auditHumanFeel(text: string, opts: any) {
         hits.push(stiff);
     const summary = hits.length === 0
         ? "人味诊断未发现命中"
-        : `人味软雷达命中 ${hits.length} 类：${hits.map((h: any) => h.code).join("、")}`;
+        : `人味软雷达命中 ${hits.length} 类：${hits.map(h => h.code).join("、")}`;
     return { hitCount: hits.length, hits, summary };
 }
 function detectUniformShortRun(sentences: string[]) {
@@ -116,7 +116,7 @@ function detectTaskDialogueWall(text: string) {
     return {
         code: "task_dialogue_wall",
         text: `任务句连排：对白约 ${task}/${lines.length} 句在办事（查/点/交/补…），人味偏薄。可掺半截话、跑题、停顿或没说出口的念头。`,
-        evidence: lines.slice(0, 3).map((l: any) => `「${l.slice(0, 24)}」`).join(" "),
+        evidence: lines.slice(0, 3).map(l => `「${l.slice(0, 24)}」`).join(" "),
     };
 }
 function detectObjectListCold(paras: string[]) {
@@ -218,7 +218,7 @@ function detectDomesticTrivia(sentences: string[]) {
  */
 const TIDY_MEANING_RE = /他明白了|她明白了|众人震惊|众人折服|恍然大悟|心中一清|一切都清楚了|终于懂了|顿时明白|心下了然/;
 const LECTURE_RE = /这说明|由此可见|规则如下|总共有|具体来说|换句话说|总而言之|综上所述|可以得出/;
-function detectStiffnessTidy(sentences: string[], craftCue: any) {
+function detectStiffnessTidy(sentences: string[], craftCue: string|undefined) {
     if (!craftCue || !hasShatterCraftCue(craftCue))
         return null;
     const short = sentences.filter((s: string) => s.length >= 4);
@@ -257,7 +257,7 @@ function splitSentences(text: string) {
         .map((s: string) => s.replace(/\s+/g, "").trim())
         .filter(Boolean);
 }
-export function formatHumanFeelAudit(label: string, result: any) {
+export function formatHumanFeelAudit(label: string, result: ReturnType<typeof auditHumanFeel>) {
     const head = [
         `人味软雷达 · ${label}`,
         `- 命中类数：${result.hitCount}`,
@@ -267,18 +267,18 @@ export function formatHumanFeelAudit(label: string, result: any) {
     ];
     if (result.hits.length === 0)
         return [...head, "", "未发现范文腔类命中。"].join("\n");
-    const lines = result.hits.map((h: any, i: number) => `${i + 1}. [${h.code}] ${h.text}${h.evidence ? `\n   例：${h.evidence}` : ""}`);
+    const lines = result.hits.map((h, i) => `${i + 1}. [${h.code}] ${h.text}${h.evidence ? `\n   例：${h.evidence}` : ""}`);
     return [...head, "", ...lines].join("\n");
 }
 export const HumanFeelGate = {
     audit: auditHumanFeel,
-    evaluateAccept(opts: any) {
+    evaluateAccept(opts: {body:string;strictHuman:boolean;craftCue?:string}) {
         const result = auditHumanFeel(opts.body, { craftCue: opts.craftCue });
         if (opts.strictHuman && result.hitCount > 0) {
-            return deny("human_feel_strict", `strict_human=true：人味软雷达命中 ${result.hitCount} 类（${result.hits.map((h: any) => h.code).join("、")}），拒绝采纳。请改稿后重扫，或关闭 strict_human（默认仅警告 human_feel_hits）。`);
+            return deny("human_feel_strict", `strict_human=true：人味软雷达命中 ${result.hitCount} 类（${result.hits.map(h => h.code).join("、")}），拒绝采纳。请改稿后重扫，或关闭 strict_human（默认仅警告 human_feel_hits）。`);
         }
         if (result.hitCount > 0) {
-            const msgs = result.hits.map((h: any) => warn("human_feel_hits", `${h.code}：${h.text}`));
+            const msgs = result.hits.map(h => warn("human_feel_hits", `${h.code}：${h.text}`));
             return allow(msgs);
         }
         return allow([info("human_feel_ok", result.summary)]);

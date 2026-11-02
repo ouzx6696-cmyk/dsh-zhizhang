@@ -1,9 +1,9 @@
-import { test } from 'node:test'
+import {test} from 'node:test';
 import assert from 'node:assert/strict'
-import { mkdir, readFile, writeFile, rm, readdir } from 'node:fs/promises'
+import {mkdir, readFile, writeFile, rm, readdir} from 'node:fs/promises';
 import path from 'node:path'
-import { spawn } from 'node:child_process'
-import { buildUrl, createToolHarness, tempDir, FIX } from './helpers.mjs'
+import {spawn} from 'node:child_process';
+import {buildUrl, createToolHarness, tempDir, FIX} from './helpers.mjs';
 
 const store = await import(buildUrl('fanqie/src/engine/work-store.js'))
 const { LibraryPort } = await import(buildUrl('fanqie/src/engine/ports/library.js'))
@@ -137,7 +137,7 @@ test('T3-08 定稿检查保留章节读取错误，不伪造成空正文', async
   t.after(()=>rm(root,{recursive:true,force:true}))
   const paths = await store.ensureStorage(null,{storageRoot:root})
   const work = await store.createWork(paths,{title:'读取失败'})
-  await store.saveChapter(work.dir,{id:'c001',title:'第一章',body:'旧正文。'})
+  await store.updateChapter(work.dir,{id:'c001',title:'第一章',body:'旧正文。'})
   const chapter = path.join(work.dir,'chapters/c001.md')
   await rm(chapter); await mkdir(chapter)
   const {createGateEngine} = await import(buildUrl('core/src/gates.js'))

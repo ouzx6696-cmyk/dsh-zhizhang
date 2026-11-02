@@ -16,7 +16,7 @@ export interface DiagnosticSource {
     pace: string | null;
 }
 export interface ParagraphEdit { start: number; end: number; before: string; after: string }
-export interface DiagnosticIssue {
+interface DiagnosticIssue {
     id: string;
     category: string;
     start: number;

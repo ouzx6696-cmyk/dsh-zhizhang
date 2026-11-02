@@ -1,18 +1,18 @@
 /** Source coordinates always refer to the original UTF-16 string, including CRLF. */
-export interface TextRun {
+interface TextRun {
     text: string;
     start: number;
     end: number;
     style?: string;
 }
-export interface Block {
+interface Block {
     kind: string;
     start: number;
     end: number;
     runs: TextRun[];
 }
 
-export function inlineRuns(text: string, offset: number): TextRun[] {
+function inlineRuns(text: string, offset: number): TextRun[] {
     const runs: TextRun[] = [];
     const pattern = /(`[^`\r\n]+`|\*\*[^*\r\n]+\*\*|\*[^*\r\n]+\*)/g;
     let position = 0, match;

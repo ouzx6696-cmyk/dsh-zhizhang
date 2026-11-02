@@ -44,7 +44,7 @@ export interface Outline {
     stateLens: string;
 }
 
-export type ChapterStatus = "planned" | "drafting" | "drafted" | "reviewed" | "final";
+type ChapterStatus = "planned" | "drafting" | "drafted" | "reviewed" | "final";
 
 export interface ChapterMeta {
     id: string;
@@ -155,7 +155,6 @@ export interface PluginConfig {
     requireEditorPass?: boolean;
     disabledGates?: string[];
     /** 内部：由 multiDraft.enabled 或 WRITER_NOVEL_MULTI_DRAFT 推出 */
-    multiDraftEnabled?: boolean;
     multiDraft?: { enabled?: boolean };
     [key: string]: unknown;
 }

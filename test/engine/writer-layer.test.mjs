@@ -1,16 +1,13 @@
 /** 写作层与引擎的衔接：会话追踪与投递、定稿条件（requireEditorPass）、单章审读信息、forge 正文体检、写作台路由组合、浏览器端区块。 */
-import { test } from "node:test";
+import {test} from "node:test";
 import assert from "node:assert/strict";
-import { saveChapter, setOutline, readChapter } from "../../build/fanqie/src/engine/store.js";
-import { buildDeliveryPrompt, pickNextChapter } from "../../build/fanqie/src/workbench/delivery.js";
-import { fanqieApi } from "../../build/fanqie/src/workbench/api.js";
-import { bodyFingerprint, saveReview } from "../../build/fanqie/src/review.js";
-import { auditTools } from "../../build/fanqie/src/engine/tools/audit.js";
-import { worksTools } from "../../build/fanqie/src/engine/tools/works.js";
-import { setPluginConfig } from "../../build/fanqie/src/engine/tools/context.js";
-import { jpost, servePanel, withWork, loadComponents } from "./helpers.mjs";
+import {updateChapter, setOutline, readChapter} from "../../build/fanqie/src/engine/storage/chapters.js";
+import {buildDeliveryPrompt} from "../../build/fanqie/src/workbench/delivery.js";
+import {fanqieApi} from "../../build/fanqie/src/workbench/api.js";
+import {bodyFingerprint, saveReview} from "../../build/fanqie/src/review.js";
+import {createToolHarness} from "../helpers.mjs";
+import {jpost, servePanel, withWork, loadComponents} from "./helpers.mjs";
 
-const mainExec = (cwd, sessionId = "s-main") => ({cwd,sessionId});
 const get = (api, route) => fetch(`${api}${route}`);
 
 test("工具执行缺少 cwd 时在执行前拒绝，不回落进程目录", async () => {
@@ -39,14 +36,22 @@ test("路由错误统一区分参数、缺失、冲突和基础设施故障", as
 });
 
 test("下一章选择：第一章没正文的，否则新的一章", async () => {
-    assert.equal(pickNextChapter([{ id: "a", position: 1, status: "final", wordCount: 100 }, { id: "b", position: 2, status: "planned" }]).id, "b");
-    assert.equal(pickNextChapter([{ id: "a", position: 1, status: "planned", wordCount: 100 }, { id: "b", position: 2, status: "planned", wordCount: 0 }]).id, "b");
-    assert.equal(pickNextChapter([{ id: "a", position: 1, status: "drafted", wordCount: 100 }]), undefined);
     const work = await withWork("空书");
     try {
         const p = await buildDeliveryPrompt(work.dir, { action: "continue" });
         assert.match(p.text, /新的一章（第 1 章/);
         await assert.rejects(buildDeliveryPrompt(work.dir, { action: "continue", chapter: "nope" }), /没有这一章/);
+        const {readFile,writeFile}=await import('node:fs/promises');
+        const path=await import('node:path');
+        const metaPath=path.join(work.dir,'meta.json'),meta=JSON.parse(await readFile(metaPath,'utf8'));
+        for(const [chapters,expected] of [
+            [[{id:'a',position:1,status:'final',wordCount:100},{id:'b',position:2,status:'planned',wordCount:0}],'b'],
+            [[{id:'a',position:1,status:'planned',wordCount:100},{id:'b',position:2,status:'planned',wordCount:0}],'b'],
+            [[{id:'a',position:1,status:'drafted',wordCount:100}],undefined],
+        ]) {
+            await writeFile(metaPath,JSON.stringify({...meta,chapters:chapters.map(row=>({...row,title:row.id}))}));
+            assert.equal((await buildDeliveryPrompt(work.dir,{action:'continue'})).chapterId,expected);
+        }
     }
     finally {
         await work.cleanup();
@@ -58,7 +63,7 @@ test("定稿条件：requireEditorPass 时写作台与工具两条路径都要�
     const server = await servePanel({ storageRoot: work.base, requireEditorPass: true });
     try {
         await setOutline(work.dir, "c001", { ending: "门开了" }, "第一章");
-        await saveChapter(work.dir, { id: "c001", title: "第一章", body: "她推开门。" });
+        await updateChapter(work.dir, { id: "c001", title: "第一章", body: "她推开门。" });
         let chapter = await (await get(server.api, `/chapter?work=${encodeURIComponent(work.key)}&id=c001`)).json();
         assert.equal(chapter.writer.editorReview, null);
         assert.equal(chapter.writer.requireEditorPass, true);
@@ -69,9 +74,8 @@ test("定稿条件：requireEditorPass 时写作台与工具两条路径都要�
         const blocked = await jpost(server.api, "/chapter/finalize", after);
         assert.equal(blocked.status, 409);
         assert.equal((await blocked.json()).code, "writer_finalize_blocked");
-        setPluginConfig({ storageRoot: work.base, requireEditorPass: true });
-        const save = worksTools().find(t => t.name === "fanqie_chapter_save");
-        assert.match(await save.execute({ work: work.key, chapter: "c001", status: "final" }, mainExec(work.base)), /还没有编辑审读回报/);
+        const harness=await createToolHarness({mode:'fanqie',cwd:work.base,config:{storageRoot:work.base,requireEditorPass:true}});
+        await assert.rejects(harness.execute('fanqie_chapter_save',{work:work.key,chapter:'c001',status:'final'}),/还没有编辑审读回报/);
         assert.notEqual((await readChapter(work.dir, "c001")).status, "final");
         const body = (await readChapter(work.dir, "c001")).body;
         const review = (verdict, sha) => saveReview(work.dir, { work: work.key, work_title: "门禁", chapter: "c001", chapter_title: "第一章", body_sha256: sha, verdict, hard_issues: [], levels: [], optional: [], reread_full: true, changed_scope: "未改", strengths: "", by: "editor", at: new Date().toISOString() });
@@ -87,7 +91,6 @@ test("定稿条件：requireEditorPass 时写作台与工具两条路径都要�
         assert.equal((await jpost(server.api, "/chapter/finalize", after)).status, 200);
     }
     finally {
-        setPluginConfig({});
         await server.close();
         await work.cleanup();
     }
@@ -96,18 +99,16 @@ test("定稿条件：requireEditorPass 时写作台与工具两条路径都要�
 test("forge 正文体检：章节与纯文本扫描后都追加在语感雷达之后", async () => {
     const work = await withWork("体检");
     try {
-        setPluginConfig({ storageRoot: work.base });
+        const harness=await createToolHarness({mode:"fanqie",cwd:work.base,config:{storageRoot:work.base}});
         await setOutline(work.dir, "c001", { ending: "门开了" }, "第一章");
-        await saveChapter(work.dir, { id: "c001", title: "第一章", body: "她推开门。他的嘴角勾起一抹弧度。" });
-        const lint = auditTools().find(t => t.name === "fanqie_style_lint");
-        const chapter = await lint.execute({ work: work.key, chapter: "c001" }, mainExec(work.base));
+        await updateChapter(work.dir, { id: "c001", title: "第一章", body: "她推开门。他的嘴角勾起一抹弧度。" });
+        const chapter = await harness.call("fanqie_style_lint",{work:work.key,chapter:"c001"});
         assert.match(chapter, /### forge 正文体检（\d+ 处，仅提示回看位置）/);
         assert.match(chapter, /\d+ 字 · \d+ 段/);
-        const plain = await lint.execute({ text: "他笑了笑。" }, mainExec(work.base));
+        const plain = await harness.call("fanqie_style_lint",{text:"他笑了笑。"});
         assert.match(plain, /### forge 正文体检/);
     }
     finally {
-        setPluginConfig({});
         await work.cleanup();
     }
 });

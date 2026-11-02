@@ -16,8 +16,6 @@ export function buildFanqieBrief(editorInstruction = `有 subagent 工具时派�
 - 规则脚本只给"值得回看的位置"，不打文学分，不按词频凑数；结论由你和编辑对照上下文判断。
 - 硬伤未解决保留草稿；审读通过不自动获得定稿权。` }
 
-export const FANQIE_BRIEF = buildFanqieBrief()
-
 export const FANQIE_EDITOR_BRIEF = `# 长篇编辑（审读）
 
 你是独立编辑，只审不定稿。采纳、定稿、改根基或章纲、入库这些长篇工具对你一律关闭。

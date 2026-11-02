@@ -29,7 +29,7 @@ export const EDITOR_TOOLS = new Set([
   'fanqie_review_report', 'fanqie_review_get', 'fanqie_quote_check', 'fanqie_library_scan',
 ])
 
-export interface FanqieToolDeps { config: FanqieConfig; role: Role }
+interface FanqieToolDeps { config: FanqieConfig; role: Role }
 
 const work = (exec: ToolExecution, key?: string) => openWork(exec, key || undefined)
 

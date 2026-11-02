@@ -20,8 +20,8 @@ const ASSETS = [
     { id: "novel_sense", title: "长篇接续", whenToUse: "续写与连读", body: "从前章实际正文接续，识别相邻单元的真实变化。计划不是已发生；正文角色说法不是客观真相。完整收束、安静体验和信息进展都可成立。" },
     { id: "recommend", title: "按目标选择方法", whenToUse: "决定当前任务需要什么", body: "按最终产物选分析、规划、写作或修订，补必要上游，不把所有步骤串成强制长链。平台信息须有当期来源。" },
 ];
-const BY_ID = new Map(ASSETS.map((a: any) => [a.id, a]));
-export const METHOD_ASSET_IDS = ASSETS.map((a: any) => a.id);
+const BY_ID = new Map(ASSETS.map(a => [a.id, a] as const));
+export const METHOD_ASSET_IDS = ASSETS.map(a => a.id);
 export function listMethodAssets() {
     return ASSETS.map(({ id, title, whenToUse }) => ({ id, title, whenToUse }));
 }
@@ -31,12 +31,12 @@ export function getMethodAsset(id: string) {
         return undefined;
     return BY_ID.get(key);
 }
-export function getMethodAssets(ids: any) {
+export function getMethodAssets(ids: readonly string[]) {
     const found = [];
     const missing = [];
     const seen = new Set();
     for (const raw of ids) {
-        const id = String(raw ?? "").trim();
+        const id = raw;
         if (!id || seen.has(id))
             continue;
         seen.add(id);
@@ -45,15 +45,6 @@ export function getMethodAssets(ids: any) {
             found.push(asset);
         else
             missing.push(id);
-        // includes 展开：依赖资产插在引用者之后；已显式列出或已展开过的只保留原位。
-        for (const dep of asset?.includes ?? []) {
-            if (seen.has(dep))
-                continue;
-            seen.add(dep);
-            const depAsset = BY_ID.get(dep);
-            if (depAsset)
-                found.push(depAsset);
-        }
     }
     return { found, missing };
 }
@@ -62,12 +53,12 @@ export function getMethodAssets(ids: any) {
 export const CHAPTER_BRIEF_ASSET_IDS = ["style_contract"];
 /** Full brief pack (explicit brief_mode=full). */
 export const CHAPTER_BRIEF_FULL_ASSET_IDS = ["novel_sense", "style_contract", "draft", "tomato_four_q"];
-export function formatAssetForAgent(asset: any) {
+export function formatAssetForAgent(asset: typeof ASSETS[number]) {
     return [`## 方法资产 · ${asset.id} · ${asset.title}`, `适用：${asset.whenToUse}`, "", asset.body].join("\n");
 }
 /** Truncate long foundation fields for brief injection. */
-export function truncateForBrief(text: string, max: any = 480) {
-    const t = String(text ?? "").trim();
+function truncateForBrief(text: string|undefined, max = 480) {
+    const t = (text??"").trim();
     if (!t)
         return "";
     if (t.length <= max)
@@ -86,30 +77,21 @@ function recentHappenedForBrief(value: string, max: number) {
     return `（记录过长，中间省略；完整记录可通过根基查看）\n${prefix}…${text.slice(-(max - prefix.length - 1))}`;
 }
 /** Soft max for pathological chapter length; typical chapters inject in full. */
-export const PREV_CHAPTER_BODY_SOFT_MAX = 16000;
-/**
- * Resolve previous-chapter prose for brief injection.
- * Prefers `body` (full); falls back to `bodyTail` for legacy callers.
- */
-export function resolvePreviousBody(prev: any) {
-    const raw = (prev.body?.trim() || prev.bodyTail?.trim() || "");
-    if (!raw)
-        return { text: "", clipped: false, source: "empty" };
-    const source = prev.body?.trim() ? "body" : "bodyTail";
-    if (raw.length <= PREV_CHAPTER_BODY_SOFT_MAX) {
-        return { text: raw, clipped: false, source };
-    }
-    return {
-        text: `${raw.slice(0, PREV_CHAPTER_BODY_SOFT_MAX / 2).trimEnd()}\n\n[中间正文省略；续写前请按需读取完整前章]\n\n${raw.slice(-PREV_CHAPTER_BODY_SOFT_MAX / 2).trimStart()}`,
-        clipped: true,
-        source,
-    };
+const PREV_CHAPTER_BODY_SOFT_MAX = 16000;
+function resolvePreviousBody(prev: {body?:string}) {
+    const raw=(prev.body??"").trim();
+    if(raw.length<=PREV_CHAPTER_BODY_SOFT_MAX)return {text:raw,clipped:false};
+    return {text:`${raw.slice(0,PREV_CHAPTER_BODY_SOFT_MAX/2).trimEnd()}\n\n[中间正文省略；续写前请按需读取完整前章]\n\n${raw.slice(-PREV_CHAPTER_BODY_SOFT_MAX/2).trimStart()}`,clipped:true};
+}
+interface ReaderContractInput {
+    premise:string;planned:string;threads:string;lean?:boolean;happened?:string;chapterEnding?:string;continuation?:boolean;warnings?:string[];
+    previous?:{id:string;title?:string;ending?:string;summary?:string;body?:string}|null;
 }
 /**
  * Top-of-brief「本书读者合同」— book identity for the drafting agent.
  * For n≥2, previous chapter **body** is primary; ending + happened are indexes.
  */
-export function formatReaderContract(input: any) {
+export function formatReaderContract(input: ReaderContractInput) {
     const lean = Boolean(input.lean);
     const planMax = lean ? 200 : 480;
     const threadMax = lean ? 200 : 480;
@@ -173,7 +155,7 @@ export function formatReaderContract(input: any) {
     else {
         lines.push("- 前章：（本章为开篇或尚无前章）");
     }
-    const warns = (input.warnings ?? []).map((w: any) => w.trim()).filter(Boolean);
+    const warns = input.warnings??[];
     if (warns.length > 0) {
         lines.push("### 书感软提示");
         for (const w of warns)

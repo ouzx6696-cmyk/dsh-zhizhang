@@ -1,4 +1,4 @@
-export const QUALITY_AXES = [
+const QUALITY_AXES = [
     {
         id: "feel",
         title: "人味",
@@ -34,9 +34,9 @@ export const QUALITY_AXES = [
  * Single poison policy — used by dissect / forge / reader contract / novel_sense tip.
  * Positive craft framing (what TO write); sensors still catch dump patterns in code.
  */
-export const QUALITY_POISON_POLICY = "质量写法：细节与代价嵌进动作与当场压力；顿号多件收获写成带阻力的场面；账与数字只当这一刻的压力线索；生活琐事留一件有戏的；物件随场面自然带着。";
+const QUALITY_POISON_POLICY = "质量写法：细节与代价嵌进动作与当场压力；顿号多件收获写成带阻力的场面；账与数字只当这一刻的压力线索；生活琐事留一件有戏的；物件随场面自然带着。";
 /** One-line variant for compact contract headers. */
-export const QUALITY_POISON_HINT = "写法提醒：细节嵌进动作与当场压力；账与数字当压力线索；物件自然带着即可。";
+const QUALITY_POISON_HINT = "写法提醒：细节嵌进动作与当场压力；账与数字当压力线索；物件自然带着即可。";
 /**
  * Book-debt / open-stake cues for NovelSense ending checks.
  * Situational openers only — deliberately EXCLUDES ledger-inventory words
@@ -46,14 +46,14 @@ export const QUALITY_BOOK_DEBT_CUE_RE = /下次|明天|后天|还没|还未|还�
 /** Living-person wobble shared by soft radars (optional import). */
 export const QUALITY_WOBBLE_RE = /愣|停住|停下|想说|算了|手指|嗓子|喉咙|没敢|差点|忽然|忘了|嘴边|半天|咽了|吞了|咬了|搓|攥|干笑|苦笑|没接|没答|偏开|避开|不想|懒得|随便|嗯了|啊了|叹|呼了口气|没敢说|话到嘴边|又咽/;
 /** 拆书验收五条：脚本核不了，只能真读原文回答。 */
-export const CARD_JUDGMENT_CRITERIA = [
+const CARD_JUDGMENT_CRITERIA = [
     "可操作：rebuild 是能照着做的动作，不是「让主角慢慢变强」",
     "特异性：把书名/人名换掉，这条机制还成立 → 说明没抓到这本书",
     "非梗概：讲写法/结构，不复述剧情",
     "状态落纸：craft 卡能说清这一场怎么写；mind 卡能说清信息按什么顺序交付",
     "失败边界：failWhen 指向具体写法失误，不是「效果不好」",
 ];
-export const CARD_JUDGMENT_LINE = "拆书验收：引文 100% ≠ 卡能用；字段齐 ≠ 拆完了。脚本只核已声明字段与字面引文，不能证明解释或阅读深度；能不能用要真读原文按五条判：可操作 / 特异性（换书名还成立=没抓到本书）/ 非梗概 / 状态落纸 / 失败边界具体。";
+const CARD_JUDGMENT_LINE = "拆书验收：引文 100% ≠ 卡能用；字段齐 ≠ 拆完了。脚本只核已声明字段与字面引文，不能证明解释或阅读深度；能不能用要真读原文按五条判：可操作 / 特异性（换书名还成立=没抓到本书）/ 非梗概 / 状态落纸 / 失败边界具体。";
 
 export const QualityPolicy = {
     id: "port.quality",
@@ -67,7 +67,7 @@ export const QualityPolicy = {
         return CARD_JUDGMENT_LINE;
     },
     cardJudgmentBlock() {
-        return [CARD_JUDGMENT_LINE, ...CARD_JUDGMENT_CRITERIA.map((c: any, i: number) => `${i + 1}. ${c}`)].join("\n");
+        return [CARD_JUDGMENT_LINE, ...CARD_JUDGMENT_CRITERIA.map((c, i: number) => `${i + 1}. ${c}`)].join("\n");
     },
     surfaceLine() {
         return "质量面（一体）：人味←技法卡写法+状态+HumanFeel（反僵硬）；书感←读者合同+novel_sense+NovelSense；毒点←本政策+人味软雷达码；兑付←ending/payoff；AI腔←style_contract/lint。雷达 0 ≠ 质量过关。";

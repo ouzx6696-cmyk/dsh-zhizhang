@@ -4,14 +4,14 @@
  */
 import { VERSION } from "../../../../core/src/version.js";
 /** Canonical default loop — same semantics as CREATIVE_LOOP_LINE; keep in sync via ProductMap. */
-export const SCHEDULER_DEFAULT_LINE = "按最终产物进入：片段分析（可不入库）｜规划（参考可选）｜正文写作或修订；已有依据直接复用，不自动跨阶段";
+const SCHEDULER_DEFAULT_LINE = "按最终产物进入：片段分析（可不入库）｜规划（参考可选）｜正文写作或修订；已有依据直接复用，不自动跨阶段";
 /** Writing segment only (after foundation/outline ready). */
-export const SCHEDULER_WRITE_LINE = "chapter_brief(lean) → 创作与回读 → candidate_stage → candidate_accept（内置扫描，编辑可选；采纳不等于定稿）";
+const SCHEDULER_WRITE_LINE = "chapter_brief(lean) → 创作与回读 → candidate_stage → candidate_accept（内置扫描，编辑可选；采纳不等于定稿）";
 /** Library segment. */
-export const SCHEDULER_LIBRARY_LINE = "library_import → library_plan（auto 10% / full 须同意）→ dissect_brief(batch) → facts_stage（白描）→ structure_stage（剧情/节奏/人物）→ card_stage（v2 模块）→ card_accept → report → combo_suggest";
+const SCHEDULER_LIBRARY_LINE = "library_import → library_plan（auto 10% / full 须同意）→ dissect_brief(batch) → facts_stage（白描）→ structure_stage（剧情/节奏/人物）→ card_stage（v2 模块）→ card_accept → report → combo_suggest";
 /** Inspiration segment. */
-export const SCHEDULER_INSPIRE_LINE = "inspire_start(goal，card_ids 可选) → forge_brief → stage → accept(apply=true)";
-export const SCHEDULER_BYPASSES = [
+const SCHEDULER_INSPIRE_LINE = "inspire_start(goal，card_ids 可选) → forge_brief → stage → accept(apply=true)";
+const SCHEDULER_BYPASSES = [
     {
         id: "diagnose.audit",
         title: "诊断 audit",
@@ -45,7 +45,7 @@ export const SCHEDULER_BYPASSES = [
     {
         id: "multi.draft",
         title: "多草稿统一整理",
-        when: "config.multiDraftEnabled 或 WRITER_NOVEL_MULTI_DRAFT=1；同章≥2 待采纳要对齐口气",
+        when: "config.multiDraft.enabled=true；同章≥2 待采纳要对齐口气",
         via: "candidate_stage(draft_label)×N → chapter_drafts → unify_brief → 整理 → unify_stage → accept（内置扫描）（默认链不进）",
     },
     {

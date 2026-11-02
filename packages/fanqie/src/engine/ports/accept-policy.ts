@@ -1,3 +1,11 @@
+import type { Candidate } from '../types.js';
+import type { GateDecision, GateMessage } from './types.js';
+interface PolicyInput {
+ candidate:Candidate;brief:Awaited<ReturnType<typeof import('../storage/work-records.js').getRecentBrief>>;
+ payoff:Awaited<ReturnType<typeof import('../storage/work-records.js').getRecentPayoffAudit>>;
+ skipBrief?:boolean;strictLint?:boolean;requirePayoff?:boolean;strictHuman?:boolean;strictNovel?:boolean;
+ prevBody:string|null;craftCue:string;acceptAfterEdit?:boolean;confirmAcceptAfterEdit?:boolean;
+}
 import { BriefGate } from "./brief-gate.js";
 import { LintGate } from "./lint-gate.js";
 import { PayoffGate } from "./payoff-gate.js";
@@ -15,7 +23,7 @@ const RECEIPT_TEXT_ONLY = new Set([
     "edit_accept_confirmed",
 ]);
 export const AcceptPolicy = {
-    evaluate(input: any) {
+    evaluate(input: PolicyInput) {
         const cfg = getPortConfig();
         const skipBrief = input.skipBrief === true;
         const strictLint = input.strictLint ?? cfg.defaultStrictLint;
@@ -36,14 +44,14 @@ export const AcceptPolicy = {
         const cheapOk = briefD.ok && lintD.ok && payoffD.ok && editD.ok;
         const humanD = cheapOk
             ? HumanFeelGate.evaluateAccept({
-                body: input.candidate.body ?? "",
+                body: input.candidate.body,
                 strictHuman,
                 craftCue: input.craftCue,
             })
             : allow([]);
         const novelD = cheapOk
             ? NovelSenseGate.evaluateAccept({
-                body: input.candidate.body ?? "",
+                body: input.candidate.body,
                 prevBody: input.prevBody,
                 strictNovel,
             })
@@ -63,15 +71,15 @@ export const AcceptPolicy = {
         return { ...merged, hitCount, receiptLines };
     },
 };
-function softAndInfo(messages: any) {
-    return messages.filter((m: any) => m.severity !== "error");
+function softAndInfo(messages: GateMessage[]) {
+    return messages.filter(m => m.severity !== "error");
 }
 /** First hard-error code for NovelError. */
-export function firstDenyCode(decision: any) {
-    const err = decision.messages.find((m: any) => m.severity === "error");
+export function firstDenyCode(decision: GateDecision) {
+    const err = decision.messages.find(m => m.severity === "error");
     return err?.code ?? "gate_denied";
 }
-export function firstDenyText(decision: any) {
-    const err = decision.messages.find((m: any) => m.severity === "error");
+export function firstDenyText(decision: GateDecision) {
+    const err = decision.messages.find(m => m.severity === "error");
     return err?.text ?? "拒绝";
 }

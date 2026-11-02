@@ -16,7 +16,7 @@ import { atomicWrite, isMissingFileError, nowIso } from "./primitives.js";
 import { assertNoPendingAccept } from "./accept-journal.js";
 
 import { withResourceLock } from "./process-lock.js";
-import { metaPath } from "./work-meta.js";
+import { parseWorkMeta, metaPath } from "./work-meta.js";
 
 /** 跨项目索引（应用状态目录/writer-novel-projects.json）里的一行。 */
 interface ProjectEntry {
@@ -160,8 +160,8 @@ async function upsertProjectFile(base: string, works: string) {
   const next: ProjectEntry[] = existing
     ? list.map((p: ProjectEntry) => (p === existing ? { ...p, ...entry } : p))
     : [...list, entry];
-  next.sort((a: any, b: any) =>
-    String(b.lastUsedAt ?? "").localeCompare(String(a.lastUsedAt ?? "")),
+  next.sort((a, b) =>
+    (b.lastUsedAt ?? "").localeCompare(a.lastUsedAt ?? ""),
   );
   await atomicWrite(projectsFile(), JSON.stringify({ version: 1, projects: next }, null, 2) + "\n");
 }
@@ -191,8 +191,8 @@ export async function rememberProject(base: string, works: string) {
 }
 const LOCAL_BOOK_EXTS = new Set([".txt", ".md", ".markdown"]);
 /** List candidate book files in a local shelf folder (read-only, no import). */
-export async function listLocalBooks(sourceRoot: any, opts: any = {}) {
-  const root = String(sourceRoot ?? "").trim();
+export async function listLocalBooks(sourceRoot: string, opts: any = {}) {
+  const root = sourceRoot.trim();
   if (!root) return [];
   let names;
   try {
@@ -259,7 +259,7 @@ export async function listProjects(opts: any = {}) {
     } catch {
       existsFlag = false;
     }
-    let works = [];
+    let works:Awaited<ReturnType<typeof listWorks>> = [];
     let worksError: string | undefined;
     if (existsFlag) {
       try {
@@ -276,7 +276,7 @@ export async function listProjects(opts: any = {}) {
         worksError = err instanceof Error ? err.message : String(err);
       }
     }
-    const rowsWorks = works.map((w: any) => {
+    const rowsWorks = works.map((w) => {
       const chapters = Array.isArray(w.chapters) ? w.chapters : [];
       return {
         key: w.key,
@@ -285,12 +285,12 @@ export async function listProjects(opts: any = {}) {
         chapters: w.recoveryPending ? null : chapters.length,
         wordCount: w.recoveryPending
           ? null
-          : chapters.reduce((x: any, c: any) => x + (c.wordCount || 0), 0),
+          : chapters.reduce((x, c) => x + (c.wordCount || 0), 0),
         updatedAt: w.updatedAt ?? "",
         recoveryPending: w.recoveryPending === true,
       };
     });
-    const recoveryPending = rowsWorks.some((w: any) => w.recoveryPending);
+    const recoveryPending = rowsWorks.some((w) => w.recoveryPending);
     const countsUnavailable = recoveryPending || Boolean(worksError);
     rows.push({
       id: projectIdOf(base),
@@ -303,14 +303,14 @@ export async function listProjects(opts: any = {}) {
       worksCount: worksError ? null : rowsWorks.length,
       chapters: countsUnavailable
         ? null
-        : rowsWorks.reduce((x: number, w: any) => x + w.chapters, 0),
-      words: countsUnavailable ? null : rowsWorks.reduce((x: number, w: any) => x + w.wordCount, 0),
+        : rowsWorks.reduce((x: number, w) => x + (w.chapters ?? 0), 0),
+      words: countsUnavailable ? null : rowsWorks.reduce((x: number, w) => x + (w.wordCount ?? 0), 0),
       recoveryPending,
       ...(worksError ? { error: worksError } : {}),
     });
   }
-  rows.sort((a: any, b: any) =>
-    String(b.lastUsedAt ?? "").localeCompare(String(a.lastUsedAt ?? "")),
+  rows.sort((a, b) =>
+    (b.lastUsedAt ?? "").localeCompare(a.lastUsedAt ?? ""),
   );
   projectsSummaryCache = rows;
   projectsSummaryAt = Date.now();
@@ -330,7 +330,7 @@ export async function listWorks(paths: StoragePaths) {
     const file = metaPath(path.join(paths.works, name));
     try {
       // Pending acceptance means counts may be between two valid versions.
-      const row = await readJsonCached(file);
+      const row = parseWorkMeta(await readJsonCached(file), file);
       if (
         !row ||
         typeof row !== "object" ||
@@ -352,6 +352,6 @@ export async function listWorks(paths: StoragePaths) {
       if (!isMissingFileError(err)) throw err;
     }
   }
-  rows.sort((a: any, b: any) => (a.updatedAt < b.updatedAt ? 1 : -1));
+  rows.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
   return rows;
 }

@@ -37,10 +37,12 @@ export function boolArg(args: Record<string, unknown>, key: string): boolean | u
   if (typeof value !== "boolean") throw new NovelError("bad_args", `参数 ${key} 必须是布尔值`);
   return value;
 }
+export function asStringArray(args:Record<string,unknown>,key:string,opts:{required:true;trim?:boolean}):string[];
+export function asStringArray(args:Record<string,unknown>,key:string,opts?:{required?:boolean;trim?:boolean}):string[]|undefined;
 export function asStringArray(
   args: Record<string, unknown>,
   key: string,
-  opts: { required?: boolean } = {},
+  opts: { required?: boolean; trim?:boolean } = {},
 ): string[] | undefined {
   const value = args[key];
   if (value === undefined) {
@@ -49,7 +51,7 @@ export function asStringArray(
   }
   if (!Array.isArray(value) || !value.every((item: unknown) => typeof item === "string"))
     throw new NovelError("bad_args", `参数 ${key} 必须是字符串数组`);
-  return value.map((item) => item.trim()).filter(Boolean);
+  return opts.trim === false?value:value.map((item) => item.trim()).filter(Boolean);
 }
 
 export function asEnum<T extends readonly string[]>(

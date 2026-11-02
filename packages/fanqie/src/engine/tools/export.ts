@@ -1,9 +1,8 @@
 /** Writing pillar — assemble（按章序汇编完书）。 */
-import { assembleManuscript } from "../store.js";
+import { assembleManuscript } from "../work-store.js";
 import { asString, boolArg, openWork } from "./context.js";
 import { B, S, WORK_OPT, WORKING_DIR } from "./schema.js";
 import { defineTool } from "./types.js";
-import type { ExecContext } from "./types.js";
 export function exportTools() {
     return [
         defineTool({
@@ -16,7 +15,7 @@ export function exportTools() {
                 output: S("可选相对路径，须位于 manuscripts 内，默认 manuscripts/<key>.md"),
             },
             required: [],
-            async execute(args: any, exec: ExecContext) {
+            async execute(args, exec) {
                 const { paths, dir } = await openWork(exec, args);
                 const result = await assembleManuscript(dir, paths, {
                     onlyFinal: boolArg(args, "only_final") ?? false,

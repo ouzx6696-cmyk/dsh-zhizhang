@@ -451,7 +451,7 @@ function routesFor(config: PluginConfig): Record<string, RouteHandler> {
   };
   return table;
 }
-export const FANQIE_ROUTES = [
+const FANQIE_ROUTES = [
   ...new Set(Object.keys(routesFor({})).map((key) => key.slice(key.indexOf(" ") + 1))),
 ];
 export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
@@ -468,7 +468,7 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
         return true;
       }
       try {
-        await withPortConfig({ multiDraftEnabled: config.multiDraft?.enabled === true }, () =>
+        await withPortConfig({ multiDraft: {enabled: config.multiDraft?.enabled === true} }, () =>
           route(ctx),
         );
       } catch (error) {

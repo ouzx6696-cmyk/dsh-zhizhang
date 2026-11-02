@@ -1,10 +1,10 @@
 import AxeBuilder from "@axe-core/playwright";
-import { test, expect, _electron as electron } from "@playwright/test";
-import { mkdtemp, rm, mkdir } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import {test, expect, _electron as electron} from "@playwright/test";
+import {mkdtemp, rm, mkdir} from "node:fs/promises";
+import {tmpdir} from "node:os";
 import path from "node:path";
-import { createRequire } from "node:module";
-import { fakeModel } from "./fake-model.mjs";
+import {createRequire} from "node:module";
+import {fakeModel} from "./fake-model.mjs";
 let app, page, home, root, model;
 const shot = async (name) => {
   const folder = path.resolve(process.env.WRITER_SCREENSHOT_DIR || "test-results/screenshots");
@@ -390,7 +390,7 @@ test("正文可在稿纸中直接编辑并保存", async () => {
   const store = await import("../../apps/desktop/out-test/work-store.mjs");
   const base = path.join(root, ".writer");
   const paths = await store.ensureStorage(
-    {},
+    null,
     { storageRoot: base, worksRoot: path.join(root, "novels") },
   );
   const work = await store.createWork(paths, { title: "编辑检查", key: "edit-check" });
@@ -409,7 +409,7 @@ test("正文可在稿纸中直接编辑并保存", async () => {
     },
     "雨夜",
   );
-  await store.saveChapter(work.dir, {
+  await store.updateChapter(work.dir, {
     id: "c001",
     title: "雨夜",
     body: "林川握着车票站在雨里。站台上的钟停在十一点。",

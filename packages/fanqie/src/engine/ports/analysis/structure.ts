@@ -7,7 +7,7 @@ import { analysisPaths, ensureDir, nowIso, readJson, readJsonl } from "./paths.j
 import { commitAnalysisUpdate } from "./meta.js";
 import { snapshotFile } from "../../storage/journal.js";
 
-export function validatePlot(plot: any) {
+function validatePlot(plot: any) {
     const errors = [];
     const p = plot ?? {};
     if (!String(p.title ?? "").trim())
@@ -21,7 +21,7 @@ export function validatePlot(plot: any) {
     return { errors, warnings: [] };
 }
 
-export function validateRhythm(r: any) {
+function validateRhythm(r: any) {
     const errors = [];
     const warnings: string[] = [];
     const v = r ?? {};
@@ -54,7 +54,7 @@ export function validateRhythm(r: any) {
     return { errors, warnings };
 }
 
-export function validateCharacter(c: any) {
+function validateCharacter(c: any) {
     const errors = [];
     const v = c ?? {};
     if (!String(v.name ?? "").trim())
@@ -89,12 +89,12 @@ export async function upsertPlot(paths: StoragePaths, sourceId: any, plot: any) 
         const before = await snapshotFile(p.plots);
         const rows = await readJsonl(p.plots);
         const rec = { ...plot, id: plot.id || `p${String(rows.length + 1).padStart(3, "0")}`, schemaVersion: 2, updatedAt: nowIso() };
-        const at = rows.findIndex((r: any) => r.id === rec.id);
+        const at = rows.findIndex((r) => r.id === rec.id);
         if (at >= 0)
             rows[at] = rec;
         else
             rows.push(rec);
-        await commitAnalysisUpdate(paths, sourceId, "plots.jsonl", before, rows.length ? rows.map((r: any) => JSON.stringify(r)).join("\n") + "\n" : "", () => ({ stage: "plots" }));
+        await commitAnalysisUpdate(paths, sourceId, "plots.jsonl", before, rows.length ? rows.map((r) => JSON.stringify(r)).join("\n") + "\n" : "", () => ({ stage: "plots" }));
         count = rows.length;
     });
     return { count };
@@ -137,7 +137,7 @@ export async function upsertCharacter(paths: StoragePaths, sourceId: any, charac
             throw new NovelError("bad_analysis", `人物记录格式损坏：${p.characters}；请保留原文件并核对。`);
         const rows = current;
         const rec = { ...character, schemaVersion: 2, updatedAt: nowIso() };
-        const at = rows.findIndex((r: any) => r.name === rec.name);
+        const at = rows.findIndex((r) => r.name === rec.name);
         if (at >= 0)
             rows[at] = rec;
         else

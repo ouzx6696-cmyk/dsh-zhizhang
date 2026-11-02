@@ -4,13 +4,14 @@
  */
 import { WriterError, type ToolExecution } from '../../core/src/tool.js'
 import { bodyFingerprint } from './review.js'
-import { readChapter as engineReadChapter, readWorkMeta } from './engine/store.js'
+import { readChapter as engineReadChapter } from "./engine/storage/chapters.js";
+import { readWorkMeta } from "./engine/storage/work-meta.js";
 import { openWork as engineOpenWork } from './engine/tools/context.js'
 import { NovelError } from './engine/errors.js'
 
-export type ChapterOutline = Partial<import("./engine/types.js").Outline>
+type ChapterOutline = Partial<import("./engine/types.js").Outline>
 
-export interface ChapterRow { id: string; title: string; position: number; status: string; wordCount?: number }
+interface ChapterRow { id: string; title: string; position: number; status: string; wordCount?: number }
 
 export interface ChapterRecord extends ChapterRow {
   outline: ChapterOutline
@@ -18,7 +19,7 @@ export interface ChapterRecord extends ChapterRow {
   bodySha256: string
 }
 
-export interface WorkInfo { key: string; title: string; dir: string; chapters: ChapterRow[] }
+interface WorkInfo { key: string; title: string; dir: string; chapters: ChapterRow[] }
 
 export { bodyFingerprint }
 
@@ -30,16 +31,13 @@ function rethrow(err: unknown): never {
   throw err
 }
 
-function sortRows(rows: unknown): ChapterRow[] {
-  return (Array.isArray(rows) ? rows : [])
-    .filter((r): r is ChapterRow => !!r && typeof r === 'object' && typeof (r as ChapterRow).id === 'string')
-    .map(r => ({ id: r.id, title: String(r.title ?? r.id), position: Number(r.position ?? 0), status: String(r.status ?? ''), wordCount: r.wordCount }))
-    .sort((a, b) => a.position - b.position)
+function sortRows(rows: import("./engine/types.js").ChapterMeta[]): ChapterRow[] {
+  return rows.map(({id,title,position,status,wordCount})=>({id,title,position,status,wordCount})).sort((a,b)=>a.position-b.position)
 }
 
-export async function workAt(dir: string): Promise<WorkInfo> {
+async function workAt(dir: string): Promise<WorkInfo> {
   const meta = await readWorkMeta(dir)
-  return { key: String(meta.key), title: String(meta.title ?? meta.key), dir, chapters: sortRows(meta.chapters) }
+  return { key: meta.key, title: meta.title, dir, chapters: sortRows(meta.chapters) }
 }
 
 /** 按长篇工具同样的规则选作品 */
@@ -65,7 +63,7 @@ export async function readChapter(work: WorkInfo, id: string): Promise<ChapterRe
     else rethrow(err)
   }
   const body = typeof rec.body === 'string' ? rec.body : ''
-  return { ...row, title: String(rec.title ?? row.title), status: String(rec.status ?? row.status), outline: rec.outline ?? {}, body, bodySha256: bodyFingerprint(body) }
+  return { ...row, title: rec.title ?? row.title, status: rec.status ?? row.status, outline: rec.outline ?? {}, body, bodySha256: bodyFingerprint(body) }
 }
 
 /** 解析章节选择：单章 id/序号，或 "3-5" 区间，或省略 = 全部 */

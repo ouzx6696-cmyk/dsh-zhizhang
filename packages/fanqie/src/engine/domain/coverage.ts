@@ -6,21 +6,21 @@
  */
 import { DIMENSIONS } from "./card-schema.js";
 
-export const COVERAGE_WEIGHTS = {
+const COVERAGE_WEIGHTS = {
     ratio: 0.4,
     quote: 0.3,
     structure: 0.2,
     dimensions: 0.1,
 };
-export const STRUCTURE_WEIGHTS = {
+const STRUCTURE_WEIGHTS = {
     survey: 0.4,
     plots: 0.2,
     rhythms: 0.2,
     characters: 0.2,
 };
 export const AUTO_CONFIDENCE_CAP = 0.84;
-export const REVIEW_THRESHOLD = 0.85;
-export const COVERAGE_DIMENSION_MAX = DIMENSIONS.length;
+const REVIEW_THRESHOLD = 0.85;
+const COVERAGE_DIMENSION_MAX = DIMENSIONS.length;
 
 export function textStats(text: unknown) {
     const raw = String(text ?? "");
@@ -38,7 +38,7 @@ export function textStats(text: unknown) {
     };
 }
 
-export interface CoverageExtra {
+interface CoverageExtra {
     survey?: unknown;
     plots?: unknown;
     rhythms?: { points?: unknown } | null;

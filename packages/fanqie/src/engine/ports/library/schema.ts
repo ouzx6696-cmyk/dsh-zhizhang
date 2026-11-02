@@ -1,3 +1,4 @@
+import type { CardAxis, MechanismInput, HumanFeelInput, BookCraftInput, MindInput, Handoff, BookCraft, Mind, TechniqueCard, CardEvidence } from "./types.js";
 /**
  * 卡 schema / 规范化 / 准入 / 格式化 — 从 library.js 拆出的纯逻辑。
  * 不读写磁盘；只依赖 errors.js。
@@ -5,27 +6,24 @@
 import { NovelError } from "../../errors.js";
 
 /** Shatter-logic cues (A–G) — book-agnostic anti-stiffness language on craft cards. */
-export const SHATTER_CRAFT_CUE_RE = /打碎|反僵硬|僵硬|呼吸不齐|半截|侧漏|错半拍|先错|余震|拧着|不收齐|信息从.{0,16}漏|打断后|第一反应.{0,12}(错|一半)|功能拍后|应落纸|本场不完美|本场打碎|别收成合格|别写成说明|长短起伏|意义不必/;
+const SHATTER_CRAFT_CUE_RE = /打碎|反僵硬|僵硬|呼吸不齐|半截|侧漏|错半拍|先错|余震|拧着|不收齐|信息从.{0,16}漏|打断后|第一反应.{0,12}(错|一半)|功能拍后|应落纸|本场不完美|本场打碎|别收成合格|别写成说明|长短起伏|意义不必/;
 /** Soft-warn: allowedEdges still written as permission ("可以/允许…"). */
-export const PERMISSION_EDGE_RE = /^(可以|允许)/;
-export const DEFAULT_FAIL_AS_TEMPLATE = "写成句句收齐、反应全对、说明段讲义、意义被作者收完的僵硬范文即失败";
+const PERMISSION_EDGE_RE = /^(可以|允许)/;
+const DEFAULT_FAIL_AS_TEMPLATE = "写成句句收齐、反应全对、说明段讲义、意义被作者收完的僵硬范文即失败";
 /** One-line anti-stiffness cue appended to lean brief when craft promises shatter. */
 export const ANTI_STIFFNESS_BRIEF_LINE = "本场反僵硬：按卡上的打碎逻辑写——呼吸可不一、念头可留半截、信息可侧漏、反应可先错；功能拍后可留余震；别把意义收成合格范文。";
-export function hasShatterCraftCue(...parts: any[]) {
+export function hasShatterCraftCue(...parts: (string|undefined)[]) {
     const blob = parts.filter(Boolean).join("\n");
     return blob.length > 0 && SHATTER_CRAFT_CUE_RE.test(blob);
 }
 
-export function normalizeMechanism(raw: any, i: number) {
-    if (!raw || typeof raw !== "object") {
-        throw new NovelError("bad_mechanism", `mechanisms[${i}] 必须是对象`);
-    }
+export function normalizeMechanism(raw: MechanismInput, i: number) {
     const m = raw;
-    const name = String(m.name ?? "").trim();
-    const experience = String(m.experience ?? "").trim();
-    const rebuild = String(m.rebuild ?? "").trim();
-    const discard = String(m.discard ?? "").trim();
-    const failWhen = String(m.failWhen ?? "").trim();
+    const name = (m.name ?? "").trim();
+    const experience = (m.experience ?? "").trim();
+    const rebuild = (m.rebuild ?? "").trim();
+    const discard = (m.discard ?? "").trim();
+    const failWhen = (m.failWhen ?? "").trim();
     if (!name)
         throw new NovelError("bad_mechanism", `mechanisms[${i}].name 不能为空`);
     if (!failWhen)
@@ -43,27 +41,23 @@ export function normalizeMechanism(raw: any, i: number) {
  * Accepts writerCraft/characterState shape and the older voice/realness field names.
  * Never hard-reject for migration.
  */
-export function normalizeHumanFeel(raw: any) {
+export function normalizeHumanFeel(raw?: HumanFeelInput) {
     const warnings: string[] = [];
     if (raw == null) {
         warnings.push("未填 humanFeel（活人证据）：兼容可过；新拆书请补 writerCraft / characterState / allowedEdges / failAsTemplate");
         return { warnings };
     }
-    if (typeof raw !== "object" || Array.isArray(raw)) {
-        warnings.push("humanFeel 须为对象，已忽略");
-        return { warnings };
-    }
     const h = raw;
     // Older field names
-    const legacyVoice = String(h.voice ?? "").trim();
-    const legacyVoiceRange = String(h.voiceRange ?? h.voice_range ?? "").trim();
-    const legacyRealness = String(h.realness ?? "").trim();
-    let writerCraft = String(h.writerCraft ?? h.writer_craft ?? "").trim();
-    let craftRange = String(h.craftRange ?? h.craft_range ?? "").trim();
-    let characterState = String(h.characterState ?? h.character_state ?? "").trim();
-    let stateOnPage = String(h.stateOnPage ?? h.state_on_page ?? "").trim();
-    const allowedEdges = String(h.allowedEdges ?? h.allowed_edges ?? "").trim();
-    const failAsTemplate = String(h.failAsTemplate ?? h.fail_as_template ?? "").trim();
+    const legacyVoice = (h.voice ?? "").trim();
+    const legacyVoiceRange = (h.voiceRange ?? h.voice_range ?? "").trim();
+    const legacyRealness = (h.realness ?? "").trim();
+    let writerCraft = (h.writerCraft ?? h.writer_craft ?? "").trim();
+    let craftRange = (h.craftRange ?? h.craft_range ?? "").trim();
+    let characterState = (h.characterState ?? h.character_state ?? "").trim();
+    let stateOnPage = (h.stateOnPage ?? h.state_on_page ?? "").trim();
+    const allowedEdges = (h.allowedEdges ?? h.allowed_edges ?? "").trim();
+    const failAsTemplate = (h.failAsTemplate ?? h.fail_as_template ?? "").trim();
     // Migrate legacy → new
     if (!writerCraft && legacyRealness) {
         writerCraft = legacyRealness;
@@ -110,34 +104,35 @@ export function normalizeHumanFeel(raw: any) {
     };
 }
 /** Coerce on-disk / in-memory humanFeel that may still be legacy voice shape. */
-export function coerceHumanFeel(raw: any) {
+function legacyFieldText(value:unknown) {return String(value??"").trim();}
+export function coerceHumanFeel(raw: unknown) {
     if (!raw || typeof raw !== "object")
         return undefined;
-    const h = raw;
+    const h = raw as Record<string,unknown>;
     if (typeof h.writerCraft === "string" || typeof h.characterState === "string") {
         return {
-            writerCraft: String(h.writerCraft ?? "").trim() || "（未填）",
-            craftRange: String(h.craftRange ?? h.voiceRange ?? "").trim() || "（见 readingRange）",
-            characterState: String(h.characterState ?? "").trim() || "（未填）",
-            stateOnPage: String(h.stateOnPage ?? h.voice ?? "").trim() || "（未填）",
-            allowedEdges: String(h.allowedEdges ?? "").trim() || "（未填）",
-            failAsTemplate: String(h.failAsTemplate ?? "").trim(),
+            writerCraft: legacyFieldText(h.writerCraft) || "（未填）",
+            craftRange: legacyFieldText(h.craftRange ?? h.voiceRange) || "（见 readingRange）",
+            characterState: legacyFieldText(h.characterState) || "（未填）",
+            stateOnPage: legacyFieldText(h.stateOnPage ?? h.voice) || "（未填）",
+            allowedEdges: legacyFieldText(h.allowedEdges) || "（未填）",
+            failAsTemplate: legacyFieldText(h.failAsTemplate),
         };
     }
     // pure legacy
     if (h.voice != null || h.realness != null || h.voiceRange != null) {
         return {
-            writerCraft: String(h.realness ?? "").trim() || "（未填）",
-            craftRange: String(h.voiceRange ?? "").trim() || "（见 readingRange）",
+            writerCraft: legacyFieldText(h.realness) || "（未填）",
+            craftRange: legacyFieldText(h.voiceRange) || "（见 readingRange）",
             characterState: "（旧卡未分状态）",
-            stateOnPage: String(h.voice ?? "").trim() || "（未填）",
-            allowedEdges: String(h.allowedEdges ?? "").trim() || "（未填）",
-            failAsTemplate: String(h.failAsTemplate ?? "").trim(),
+            stateOnPage: legacyFieldText(h.voice) || "（未填）",
+            allowedEdges: legacyFieldText(h.allowedEdges) || "（未填）",
+            failAsTemplate: legacyFieldText(h.failAsTemplate),
         };
     }
     return undefined;
 }
-export function craftCueFromHumanFeel(hf: any) {
+export function craftCueFromHumanFeel(hf: unknown) {
     const c = coerceHumanFeel(hf);
     if (!c)
         return "";
@@ -146,7 +141,7 @@ export function craftCueFromHumanFeel(hf: any) {
         .join("\n");
 }
 /** Format humanFeel for forge / brief / card_get. Missing → thin craft/state note. */
-export function formatHumanFeelBlock(hf: any) {
+export function formatHumanFeelBlock(hf: unknown) {
     const c = coerceHumanFeel(hf);
     if (!c) {
         return [
@@ -167,20 +162,16 @@ export function formatHumanFeelBlock(hf: any) {
 /**
  * Normalize optional bookCraft. Missing → soft warn; never hard-reject.
  */
-export function normalizeBookCraft(raw: any) {
+export function normalizeBookCraft(raw?: BookCraftInput) {
     const warnings: string[] = [];
     if (raw == null) {
         warnings.push("未填 bookCraft（继续证据）：兼容可过；新拆书请补 continueWhy / failAsShortStory");
         return { warnings };
     }
-    if (typeof raw !== "object" || Array.isArray(raw)) {
-        warnings.push("bookCraft 须为对象，已忽略");
-        return { warnings };
-    }
     const b = raw;
-    const continueWhy = String(b.continueWhy ?? b.continue_why ?? "").trim();
-    const adjacentChange = String(b.adjacentChange ?? b.adjacent_change ?? "").trim();
-    const failAsShortStory = String(b.failAsShortStory ?? b.fail_as_short_story ?? "").trim();
+    const continueWhy = (b.continueWhy ?? b.continue_why ?? "").trim();
+    const adjacentChange = (b.adjacentChange ?? b.adjacent_change ?? "").trim();
+    const failAsShortStory = (b.failAsShortStory ?? b.fail_as_short_story ?? "").trim();
     if (!continueWhy) {
         warnings.push("bookCraft.continueWhy 为空：未写收束后为何还想翻");
     }
@@ -199,7 +190,7 @@ export function normalizeBookCraft(raw: any) {
     return { bookCraft, warnings };
 }
 /** Format bookCraft for forge / brief / card_get. */
-export function formatBookCraftBlock(bc: any) {
+export function formatBookCraftBlock(bc: BookCraft|undefined) {
     if (!bc) {
         return [
             "⚠️ **书感偏薄**：本卡无 bookCraft（旧卡或未填）。",
@@ -222,21 +213,17 @@ export function formatBookCraftBlock(bc: any) {
 /**
  * Normalize optional handoff four-tuple. Missing → soft warn only.
  */
-export function normalizeHandoff(raw: any) {
+export function normalizeHandoff(raw?: Partial<Handoff>) {
     const warnings: string[] = [];
     if (raw == null) {
         warnings.push("未填 handoff（purpose/experience/rebuild/discard）：可选；有助于交接");
         return { warnings };
     }
-    if (typeof raw !== "object" || Array.isArray(raw)) {
-        warnings.push("handoff 须为对象，已忽略");
-        return { warnings };
-    }
     const h = raw;
-    const purpose = String(h.purpose ?? "").trim();
-    const experience = String(h.experience ?? "").trim();
-    const rebuild = String(h.rebuild ?? "").trim();
-    const discard = String(h.discard ?? "").trim();
+    const purpose = (h.purpose ?? "").trim();
+    const experience = (h.experience ?? "").trim();
+    const rebuild = (h.rebuild ?? "").trim();
+    const discard = (h.discard ?? "").trim();
     if (!purpose || !experience || !rebuild || !discard) {
         warnings.push("handoff 四项有空：已填默认占位");
     }
@@ -250,7 +237,7 @@ export function normalizeHandoff(raw: any) {
         warnings,
     };
 }
-export function formatHandoffBlock(h: any) {
+export function formatHandoffBlock(h: Handoff|undefined) {
     if (!h)
         return "（无 handoff）";
     return [
@@ -260,12 +247,12 @@ export function formatHandoffBlock(h: any) {
         `- discard：${h.discard}`,
     ].join("\n");
 }
-export function normalizeKind(raw: any) {
+export function normalizeKind(raw?: string) {
     const warnings: string[] = [];
     if (raw == null || raw === "") {
         return { warnings };
     }
-    let k = String(raw).trim().toLowerCase();
+    let k = (raw).trim().toLowerCase();
     if (k === "voice") {
         warnings.push("kind=voice 已迁为 craft（写法卡；非角色声纹）");
         k = "craft";
@@ -280,17 +267,17 @@ export function normalizeKind(raw: any) {
  * Normalize / infer axis. Missing → soft warn + default craft (compat).
  * kind=book never becomes mind.
  */
-export function normalizeAxis(raw: any, hints: any = {}) {
+export function normalizeAxis(raw: string|undefined, hints: {tags?:string[];hasMind?:boolean;hasHumanFeel?:boolean;hasBookCraft?:boolean;kind?:string} = {}):{axis:CardAxis;warnings:string[]} {
     const warnings: string[] = [];
-    const rawStr = raw == null || raw === "" ? "" : String(raw).trim().toLowerCase();
+    const rawStr = raw == null || raw === "" ? "" : (raw).trim().toLowerCase();
     if (rawStr === "craft" || rawStr === "mind") {
         return { axis: rawStr, warnings };
     }
     if (rawStr) {
         warnings.push(`axis 无效「${raw}」（须 craft|mind），已按证据推断`);
     }
-    const tags = (hints.tags ?? []).map((t: any) => String(t).toLowerCase());
-    const tagMind = tags.some((t: any) => t === "mind" || t.includes("思维") || t.includes("创作思维") || t === "planning");
+    const tags = (hints.tags ?? []).map(t => t.toLowerCase());
+    const tagMind = tags.some(t => t === "mind" || t.includes("思维") || t.includes("创作思维") || t === "planning");
     if (hints.hasMind || tagMind) {
         if (!rawStr)
             warnings.push("未声明 axis：按 mind 证据推断为 mind");
@@ -307,7 +294,7 @@ export function normalizeAxis(raw: any, hints: any = {}) {
     return { axis: "craft", warnings };
 }
 /** Coerce on-disk card axis for reads (never throw). */
-export function coerceAxis(card: any) {
+export function coerceAxis(card: {axis?:unknown;mind?:unknown;humanFeel?:unknown;tags?:unknown}):CardAxis {
     const raw = card.axis;
     if (raw === "craft" || raw === "mind")
         return raw;
@@ -317,33 +304,29 @@ export function coerceAxis(card: any) {
     const hf = card.humanFeel;
     if (hf && typeof hf === "object")
         return "craft";
-    const tags = Array.isArray(card.tags)
+    const tags:unknown[] = Array.isArray(card.tags)
         ? card.tags
         : [];
-    if (tags.some((t: any) => /mind|思维|planning/i.test(String(t))))
+    if (tags.some(t => /mind|思维|planning/i.test(String(t))))
         return "mind";
     return "craft";
 }
 /**
  * Normalize optional mind block. Missing → soft warn for mind-axis callers.
  */
-export function normalizeMind(raw: any) {
+export function normalizeMind(raw?: MindInput) {
     const warnings: string[] = [];
     if (raw == null) {
         warnings.push("未填 mind（创作思维）：mind 轴请补 sellIntoCost / infoStaging / pressureMachine / debtAndSwap / readerContract / failAsEncyclopedia");
         return { warnings };
     }
-    if (typeof raw !== "object" || Array.isArray(raw)) {
-        warnings.push("mind 须为对象，已忽略");
-        return { warnings };
-    }
     const m = raw;
-    const sellIntoCost = String(m.sellIntoCost ?? m.sell_into_cost ?? "").trim();
-    const infoStaging = String(m.infoStaging ?? m.info_staging ?? "").trim();
-    const pressureMachine = String(m.pressureMachine ?? m.pressure_machine ?? "").trim();
-    const debtAndSwap = String(m.debtAndSwap ?? m.debt_and_swap ?? "").trim();
-    const readerContract = String(m.readerContract ?? m.reader_contract ?? "").trim();
-    const failAsEncyclopedia = String(m.failAsEncyclopedia ?? m.fail_as_encyclopedia ?? "").trim();
+    const sellIntoCost = (m.sellIntoCost ?? m.sell_into_cost ?? "").trim();
+    const infoStaging = (m.infoStaging ?? m.info_staging ?? "").trim();
+    const pressureMachine = (m.pressureMachine ?? m.pressure_machine ?? "").trim();
+    const debtAndSwap = (m.debtAndSwap ?? m.debt_and_swap ?? "").trim();
+    const readerContract = (m.readerContract ?? m.reader_contract ?? "").trim();
+    const failAsEncyclopedia = (m.failAsEncyclopedia ?? m.fail_as_encyclopedia ?? "").trim();
     if (!sellIntoCost)
         warnings.push("mind.sellIntoCost 为空：未写卖点如何进能力/代价");
     if (!infoStaging)
@@ -369,7 +352,7 @@ export function normalizeMind(raw: any) {
         warnings,
     };
 }
-export function formatMindBlock(mind: any) {
+export function formatMindBlock(mind: Mind|undefined) {
     if (!mind) {
         return [
             "⚠️ **创作思维偏薄**：本卡无 mind 块。",
@@ -387,8 +370,8 @@ export function formatMindBlock(mind: any) {
     ].join("\n");
 }
 /** Soft warn if characterState looks like a personality wall. */
-export function warnCharacterStateWall(state: any) {
-    const s = String(state ?? "").trim();
+export function warnCharacterStateWall(state: string|undefined) {
+    const s = (state??"").trim();
     if (!s || s === "（未填）")
         return [];
     const warnings: string[] = [];
@@ -405,11 +388,11 @@ export function warnCharacterStateWall(state: any) {
  * Strip negation / disclaimer contexts that mention 声纹 without teaching voice.
  * Avoids false positives on「非声纹」「≠角色声纹」etc.
  */
-export function neutralizeVoiceNegations(text: string) {
-    return String(text ?? "").replace(/非声纹|禁止声纹|勿当[^。\n]{0,16}声纹|不是[^。\n]{0,12}声纹|≠[^。\n]{0,10}声纹|（非声纹）|\(非声纹\)|非角色声纹|勿学嘴|勿[^。\n]{0,8}声纹背诵|拒收[^。\n]{0,8}声纹|禁止[^。\n]{0,8}声纹|勿灌角色声纹|不灌角色声纹/g, " ");
+function neutralizeVoiceNegations(text: string) {
+    return text.replace(/非声纹|禁止声纹|勿当[^。\n]{0,16}声纹|不是[^。\n]{0,12}声纹|≠[^。\n]{0,10}声纹|（非声纹）|\(非声纹\)|非角色声纹|勿学嘴|勿[^。\n]{0,8}声纹背诵|拒收[^。\n]{0,8}声纹|禁止[^。\n]{0,8}声纹|勿灌角色声纹|不灌角色声纹/g, " ");
 }
 /** Collect short snippets around regex hits for reject receipts. */
-export function collectAdmitHits(hay: any, re: any, limit: number = 3) {
+function collectAdmitHits(hay: string, re: RegExp, limit: number = 3) {
     const flags = re.flags.includes("g") ? re.flags : `${re.flags}g`;
     const g = new RegExp(re.source, flags);
     const hits = [];
@@ -425,8 +408,8 @@ export function collectAdmitHits(hay: any, re: any, limit: number = 3) {
     }
     return hits;
 }
-function formatAdmitReject(kind: any, hits: any, fix: any) {
-    const shown = hits.length ? hits.map((h: any) => `「${h}」`).join(" ") : "（未截到片段）";
+function formatAdmitReject(kind: string, hits: string[], fix: string) {
+    const shown = hits.length ? hits.map(h => `「${h}」`).join(" ") : "（未截到片段）";
     return `拒收：${kind}。命中：${shown}。改法：${fix}`;
 }
 /**
@@ -434,9 +417,9 @@ function formatAdmitReject(kind: any, hits: any, fix: any) {
  * Soft path otherwise. Voice checks ignore negation disclaimers (非声纹…).
  */
 /** 读没读的痕迹：证据段、章号、设计决策/检验方法、写法段。只是形状检查，真读仍需人判。 */
-export function readingArtifactWarnings(body: string, axis: any) {
+export function readingArtifactWarnings(body: string, axis: CardAxis) {
     const w = [];
-    const text = String(body ?? "");
+    const text = body;
     if (!/^##\s*证据/m.test(text))
         w.push("缺「## 证据」段：没有原文引文，等于没读");
     if (!/第\s*[0-9一二三四五六七八九十百千零两]+\s*章/.test(text))
@@ -453,13 +436,13 @@ export function readingArtifactWarnings(body: string, axis: any) {
     return w;
 }
 
-export function admitCardContent(input: any) {
+export function admitCardContent(input: {title:string;body:string;axis:CardAxis;mechanisms:MechanismInput[]}) {
     const warnings: string[] = [];
     const title = input.title.trim();
     const body = input.body.trim();
     const raw = `${title}\n${body}`;
     const hay = raw.toLowerCase();
-    const mechNames = input.mechanisms.map((m: any) => m.name).join(" ");
+    const mechNames = input.mechanisms.map(m => m.name).join(" ");
     // Hard reject patterns — voice: scrub negations first (避免「非声纹」假阳)
     const voiceHay = neutralizeVoiceNegations(raw);
     const voiceRe = /声纹|台词范本|角色口气正例|模仿.{0,8}对白|背诵.{0,8}台词|专属声音/;
@@ -520,9 +503,9 @@ export function admitCardContent(input: any) {
  * craft: humanFeel + bookCraft + mechanisms
  * mind: mind + mechanisms（规划向）
  */
-export function formatModuleBlockV2(card: any) {
+export function formatModuleBlockV2(card: TechniqueCard) {
     const ev = (card.evidence ?? [])
-        .map((e: any) => `${String(e.chapter ?? "").trim()}「${String(e.quote ?? "").slice(0, 40)}…」`)
+        .map((e:CardEvidence) => `${String(e.chapter).trim()}「${e.quote.slice(0, 40)}…」`)
         .join("；");
     return [
         `- 层/维度：${card.layer ?? "—"}/${card.dimension ?? "—"}`,
@@ -535,16 +518,16 @@ export function formatModuleBlockV2(card: any) {
         `- 失败边界：${card.failWhen ?? "（未填）"}`,
         `- 证据：${ev || "（未填）"}`,
         ...(Array.isArray(card.readingEvidence?.chapters)
-            ? [`- 引用章阅读程度（提交时申报，非机械证明）：${card.readingEvidence.chapters.map((c: any) => `第${c.chapter}章 ${c.readingLevel}${c.sourceMatches === false ? "（历史来源版本，待重核）" : c.sourceMatches === null ? "（来源版本未知）" : ""}`).join("；") || "未声明"}`]
+            ? [`- 引用章阅读程度（提交时申报，非机械证明）：${card.readingEvidence.chapters.map(c => `第${c.chapter}章 ${c.readingLevel}${c.sourceMatches === false ? "（历史来源版本，待重核）" : c.sourceMatches === null ? "（来源版本未知）" : ""}`).join("；") || "未声明"}`]
             : ["- 引用章阅读程度：未声明（旧卡无申报快照）"]),
-        ...(Array.isArray(card.steps) && card.steps.length ? [`- 操作步骤：${card.steps.map((x: any, i: number) => `${i + 1}) ${x}`).join(" ")}`] : []),
+        ...(card.steps?.length ? [`- 操作步骤：${card.steps.map((x, i) => `${i + 1}) ${x}`).join(" ")}`] : []),
         ...(Array.isArray(card.bannedDiction) && card.bannedDiction.length ? [`- 禁用词句：${card.bannedDiction.join("、")}`] : []),
     ].join("\n");
 }
-export function formatTechniqueCardBlock(card: any) {
+export function formatTechniqueCardBlock(card: TechniqueCard) {
     const axis = coerceAxis(card);
     const mech = card.mechanisms
-        .map((m: any, i: number) => `${i + 1}. **${m.name}**\n   - 体验：${m.experience}\n   - 重建：${m.rebuild}\n   - 可弃：${m.discard}\n   - 失败边界：${m.failWhen}`)
+        .map((m, i) => `${i + 1}. **${m.name}**\n   - 体验：${m.experience}\n   - 重建：${m.rebuild}\n   - 可弃：${m.discard}\n   - 失败边界：${m.failWhen}`)
         .join("\n");
     const kindLine = card.kind
         ? `- kind（次标签）：${card.kind}`
@@ -610,7 +593,7 @@ export function formatTechniqueCardBlock(card: any) {
  * Lean block for chapter_brief：**仅 craft**。
  * mind 卡返回一行提示，不整段灌句式/规划正文。
  */
-export function formatTechniqueCardBlockLean(card: any) {
+export function formatTechniqueCardBlockLean(card: TechniqueCard) {
     const axis = coerceAxis(card);
     if (axis === "mind") {
         return [

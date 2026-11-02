@@ -14,7 +14,7 @@ import { commitAnalysisUpdate } from "./meta.js";
 /** 白描硬禁：心理/评价词。desc 里出现即视为「替人物补动机/下判断」。 */
 export const WHITE_DESC_HARD_RE = /(心里|心中|内心|觉得|认为|希望|害怕|恐惧|愤怒|悲伤|难过|失望|后悔|其实|显然|精彩|感人|震撼)/;
 /** 白描软警告：因果/意图词（原文事实可含，提示改写为动作）。 */
-export const WHITE_DESC_SOFT_RE = /(因为|所以|于是|想要|打算|决定)/;
+const WHITE_DESC_SOFT_RE = /(因为|所以|于是|想要|打算|决定)/;
 
 export function validateChapterFacts(facts: any, sourceText: any, index: { n: number; title: string; start: number; end: number }[]) {
     const errors = [];
@@ -23,7 +23,7 @@ export function validateChapterFacts(facts: any, sourceText: any, index: { n: nu
     const n = Number(f.n);
     if (f.readingLevel !== undefined && f.readingLevel !== "正文已读" && f.readingLevel !== "深读")
         errors.push("readingLevel 只接受正文已读或深读；未声明时请省略");
-    const matches = index.filter((c: any) => c.n === n && (f.sourceStart === undefined || c.start === f.sourceStart));
+    const matches = index.filter((c) => c.n === n && (f.sourceStart === undefined || c.start === f.sourceStart));
     const chapter = matches.length === 1 ? matches[0] : undefined;
     if (!Number.isInteger(n) || !chapter) {
         errors.push(`章号不存在：${f.n}`);
@@ -63,7 +63,7 @@ export function validateChapterFacts(facts: any, sourceText: any, index: { n: nu
         warnings.push("value 为空：建议记处境/关系/认知/情绪至少两项变化");
     }
     else {
-        const filled = ["situation", "relation", "cognition", "emotion"].filter((k: any) => String(f.value[k] ?? "").trim());
+        const filled = ["situation", "relation", "cognition", "emotion"].filter((k) => String(f.value[k] ?? "").trim());
         if (filled.length < 2)
             warnings.push("value 少于两项变化：本章的价值推进可能没记全");
     }
@@ -84,16 +84,16 @@ export async function upsertChapter(paths: StoragePaths, sourceId: any, facts: a
         const before = await snapshotFile(p.chapters);
         const rows = await readJsonl(p.chapters);
         const rec = { ...facts, n: Number(facts.n), sourceStart: index.find(c => c.n === Number(facts.n) && (facts.sourceStart === undefined || c.start === facts.sourceStart))!.start, sourceHash: sha256(sourceText), schemaVersion: 2, updatedAt: nowIso() };
-        const at = rows.findIndex((r: any) => Number(r.n) === rec.n && (r.sourceStart === undefined || r.sourceStart === rec.sourceStart));
+        const at = rows.findIndex((r) => Number(r.n) === rec.n && (r.sourceStart === undefined || r.sourceStart === rec.sourceStart));
         if (at >= 0)
             rows[at] = rec;
         else
             rows.push(rec);
-        rows.sort((a: any, b: any) => Number(a.n) - Number(b.n));
-        const content = rows.length ? rows.map((r: any) => JSON.stringify(r)).join("\n") + "\n" : "";
+        rows.sort((a, b) => Number(a.n) - Number(b.n));
+        const content = rows.length ? rows.map((r) => JSON.stringify(r)).join("\n") + "\n" : "";
         await commitAnalysisUpdate(paths, sourceId, "chapters.jsonl", before, content, meta => {
             const scope = meta.scope ?? { mode: "none", chapters: 0 };
-            const maxN = rows.reduce((m: any, r: any) => Math.max(m, Number(r.n) || 0), 0);
+            const maxN = rows.reduce((m, r) => Math.max(m, Number(r.n) || 0), 0);
             const planned = scope.mode === "sample" ? rows.length : scope.mode === "auto" || scope.mode === "full" ? 0 : maxN;
             return { stage: "facts", lastRead: Math.max(Number(meta.lastRead ?? 0), rec.n), scope: { ...scope, chapters: Math.max(Number(scope.chapters ?? 0), planned) } };
         });

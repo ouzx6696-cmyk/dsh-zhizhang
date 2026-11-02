@@ -16,7 +16,7 @@ import type { MethodLibrary } from '../../core/src/profiles.js'
 let resolved: string | undefined
 
 /** 插件自带的长篇 skill 目录：环境变量 → 打包后 <pkg>/skill-fanqie → 源码树 packages/fanqie/skill */
-export function fanqieSkillDir(): string {
+function fanqieSkillDir(): string {
   if (resolved) return resolved
   const here = path.dirname(fileURLToPath(import.meta.url))
   const candidates = [
@@ -33,10 +33,10 @@ export function fanqieSkillDir(): string {
   throw new WriterError('NOT_FOUND', `找不到长篇 skill 目录（试过 ${candidates.join(' ; ')}）`)
 }
 
-export const fanqieBridgeScript = () => path.join(fanqieSkillDir(), 'scripts', 'fanqie_bridge.py')
+const fanqieBridgeScript = () => path.join(fanqieSkillDir(), 'scripts', 'fanqie_bridge.py')
 
 /** 原文 → 长篇工具链 对照，写进每份方法的开头。 */
-export const ADAPTER_NOTE = `> 【写作 Agent 适配】本文出自 inspiration-forge-suite 1.3.0，原文保留。在本插件里作品数据全部由长篇工具管理：
+const ADAPTER_NOTE = `> 【写作 Agent 适配】本文出自 inspiration-forge-suite 1.3.0，原文保留。在本插件里作品数据全部由长篇工具管理：
 > 文中的自有目录（workspace/、chapters/、library/ 等）、init_project.py、archive_draft.py 等落盘指令**不要照做**，按下表换成工具：
 >
 > | 原文 | 本插件 |
@@ -90,7 +90,7 @@ export const KEY_METHODS: Record<string, string> = {
   'novel-writer/references/prose_craft': '句面与人味',
 }
 
-export async function getFanqieMethod(id: string): Promise<{ id: string; text: string }> {
+async function getFanqieMethod(id: string): Promise<{ id: string; text: string }> {
   let clean = id.trim().replace(/\\/g, '/').replace(/^\.?\//, '').replace(/\.md$/, '')
   if (!clean) throw new WriterError('INVALID_ARGS', '缺少方法 id')
   const root = path.join(fanqieSkillDir(), 'forge')
@@ -113,7 +113,7 @@ export async function getFanqieMethod(id: string): Promise<{ id: string; text: s
 let defaultResolved: string | undefined
 
 /** 长篇默认方案目录：环境变量 → 打包后 <pkg>/profiles/fanqie/default → 源码树 packages/fanqie/profiles/default */
-export function fanqieDefaultDir(): string {
+function fanqieDefaultDir(): string {
   if (defaultResolved) return defaultResolved
   const here = path.dirname(fileURLToPath(import.meta.url))
   const candidates = [
@@ -138,7 +138,7 @@ function loadDefaultIndex(): DefaultIndex {
 }
 
 /** 原版 id（含只写相对路径的写法）→ 默认方案 id */
-export function fanqieCanonical(id: string): string {
+function fanqieCanonical(id: string): string {
   const idx = loadDefaultIndex()
   const clean = id.trim().replace(/\\/g, '/').replace(/^\.?\//, '').replace(/\.md$/, '')
   if (idx.methods.some(m => m.id === clean)) return clean
@@ -203,9 +203,9 @@ interface LintReport {
 const LONG_PARA = 160
 
 /** forge manuscript_linter → 追加在语感雷达之后的 Markdown；与语感雷达已命中的片段重叠的套话不再重复列出 */
-export interface LintExtra { source: string; text: string; hits: number }
+interface LintExtra { source: string; text: string; hits: number }
 
-export function renderForgeLint(r: LintReport, known: string[]): LintExtra {
+function renderForgeLint(r: LintReport, known: string[]): LintExtra {
   const overlaps = (m: string) => known.some(k => k && (k.includes(m) || m.includes(k)))
   const long = r.overlong_paragraphs ?? []
   const cliches = (r.ai_cliches ?? []).filter(c => !overlaps(c.matched))

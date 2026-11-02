@@ -1,16 +1,4 @@
-/**
- * 引文核对 — 全插件唯一来源。
- *
- * 只做「这段引文能否在原文里查到」；不判断卡好不好。
- * 白描、模块 evidence 与卡正文的正式引文走逐字核对；宽松归一化仅供诊断定位。
- */
 
-/** 归一化：去空白与标点，只留汉字/字母/数字，避免排版差异误杀。 */
-export function normalizeQuoteText(input: unknown): string {
-    return String(input ?? "")
-        .toLowerCase()
-        .replace(/[^\u4e00-\u9fa5a-z0-9]/g, "");
-}
 
 /** Claimed literal quotations must occur verbatim; fuzzy normalization is diagnostic only. */
 export function quoteOk(quote: unknown, text: unknown): boolean {
@@ -25,7 +13,7 @@ const STRICT_CONTEXT_RE = /(原文|原著|原书|第\s*[0-9０-９一二三四�
  * 抽取卡正文里的引文（“…” / 「…」）。
  * 只把「声称来自原文」的引文算进核对范围；其余视为示例引语，跳过。
  */
-export function extractBodyQuotes(body: unknown): { quote: string; strict: boolean }[] {
+function extractBodyQuotes(body: unknown): { quote: string; strict: boolean }[] {
     const text = String(body ?? "");
     const out = [];
     const re = /[“「]([^”」]{1,2000})[”」]/g;

@@ -21,19 +21,19 @@ export const MethodRegistry = {
     get(id: string) {
         return getMethodAsset(id);
     },
-    getMany(ids: any) {
+    getMany(ids: string[]) {
         return getMethodAssets(ids);
     },
-    formatForAgent(asset: any) {
+    formatForAgent(asset: Parameters<typeof formatAssetForAgent>[0]) {
         return formatAssetForAgent(asset);
     },
     /** Default lean pack + extras; pass mode full for legacy four-pack. */
-    resolveBriefAssets(extraIds: any = [], mode: any = "lean") {
+    resolveBriefAssets(extraIds: string[] = [], mode: "lean"|"full" = "lean") {
         const base = mode === "full" ? CHAPTER_BRIEF_FULL_ASSET_IDS : CHAPTER_BRIEF_ASSET_IDS;
         return getMethodAssets([...base, ...extraIds]);
     },
     /** Top-of-brief「本书读者合同」. */
-    formatReaderContract(input: any) {
+    formatReaderContract(input: Parameters<typeof formatReaderContractText>[0]) {
         return formatReaderContractText(input);
     },
 };

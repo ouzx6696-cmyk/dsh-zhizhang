@@ -20,8 +20,8 @@ const RITUAL_MOTIFS = [
 const DEBT_CUE_RE = QUALITY_BOOK_DEBT_CUE_RE;
 /** Strong short-story closure cues. */
 const CLOSED_CUE_RE = /就像什么都没发生|一切(?:又)?恢复|一切如常|故事到此|就此结束|圆满|完整闭环|睡了个好觉|终于安心|尘埃落定|画上了句号|像从没发生过|岁月静好/;
-export function auditNovelSense(text: string, opts: any) {
-    const body = String(text ?? "").trim();
+export function auditNovelSense(text: string, opts: {prevBody?:string|null} = {}) {
+    const body = text.trim();
     const hits = [];
     if (body.length < MIN_CHARS) {
         return {
@@ -30,7 +30,7 @@ export function auditNovelSense(text: string, opts: any) {
             summary: `正文过短（${body.length} 字），书感软雷达跳过`,
         };
     }
-    const prev = String(opts?.prevBody ?? "").trim();
+    const prev = (opts.prevBody ?? "").trim();
     if (prev.length >= MIN_CHARS) {
         const iso = detectSameSkeletonRedemo(body, prev);
         if (iso)
@@ -47,12 +47,12 @@ export function auditNovelSense(text: string, opts: any) {
     }
     const summary = hits.length === 0
         ? "书感软雷达未命中（启发式；≠质量过关）"
-        : `书感软雷达命中 ${hits.length} 类：${hits.map((h: any) => h.code).join("、")}`;
+        : `书感软雷达命中 ${hits.length} 类：${hits.map(h => h.code).join("、")}`;
     return { hitCount: hits.length, hits, summary };
 }
-function detectSameSkeletonRedemo(curr: any, prev: any) {
-    const prevHits = RITUAL_MOTIFS.filter((m: any) => m.re.test(prev)).map((m: any) => m.id);
-    const currHits = RITUAL_MOTIFS.filter((m: any) => m.re.test(curr)).map((m: any) => m.id);
+function detectSameSkeletonRedemo(curr: string, prev: string) {
+    const prevHits = RITUAL_MOTIFS.filter(m => m.re.test(prev)).map(m => m.id);
+    const currHits = RITUAL_MOTIFS.filter(m => m.re.test(curr)).map(m => m.id);
     const shared = prevHits.filter((id: string) => currHits.includes(id));
     // Need a real ritual chain in both, not a single motif mention
     if (shared.length < 4) {
@@ -72,10 +72,10 @@ function detectSameSkeletonRedemo(curr: any, prev: any) {
         evidence: `前章母题=${prevHits.join(",")}；本章=${currHits.join(",")}`,
     };
 }
-function sharedPhraseReuse(curr: any, prev: any) {
-    const grams = (t: any) => {
+function sharedPhraseReuse(curr: string, prev: string) {
+    const grams = (t: string) => {
         const clean = t.replace(/\s+/g, "");
-        const out = new Set();
+        const out = new Set<string>();
         for (let i = 0; i + 4 <= clean.length; i++) {
             const g = clean.slice(i, i + 4);
             // skip pure punctuation / digits
@@ -147,7 +147,7 @@ function detectClosedShortStory(text: string) {
         evidence: tail.match(CLOSED_CUE_RE)?.[0] ?? tip.slice(0, 48),
     };
 }
-export function formatNovelSenseAudit(label: string, result: any) {
+export function formatNovelSenseAudit(label: string, result: ReturnType<typeof auditNovelSense>) {
     const head = [
         `书感软雷达 · ${label}`,
         `- 命中类数：${result.hitCount}`,
@@ -157,18 +157,18 @@ export function formatNovelSenseAudit(label: string, result: any) {
     ];
     if (result.hits.length === 0)
         return [...head, "", "未发现书感类命中。"].join("\n");
-    const lines = result.hits.map((h: any, i: number) => `${i + 1}. [${h.code}] ${h.text}${h.evidence ? `\n   例：${h.evidence}` : ""}`);
+    const lines = result.hits.map((h, i) => `${i + 1}. [${h.code}] ${h.text}${h.evidence ? `\n   例：${h.evidence}` : ""}`);
     return [...head, "", ...lines].join("\n");
 }
 export const NovelSenseGate = {
     audit: auditNovelSense,
-    evaluateAccept(opts: any) {
+    evaluateAccept(opts: {body:string;strictNovel:boolean;prevBody?:string|null}) {
         const result = auditNovelSense(opts.body, { prevBody: opts.prevBody });
         if (opts.strictNovel && result.hitCount > 0) {
-            return deny("novel_sense_strict", `strict_novel=true：书感软雷达命中 ${result.hitCount} 类（${result.hits.map((h: any) => h.code).join("、")}），拒绝采纳。请改稿后重扫，或关闭 strict_novel（默认仅警告 novel_sense_hits）。`);
+            return deny("novel_sense_strict", `strict_novel=true：书感软雷达命中 ${result.hitCount} 类（${result.hits.map(h => h.code).join("、")}），拒绝采纳。请改稿后重扫，或关闭 strict_novel（默认仅警告 novel_sense_hits）。`);
         }
         if (result.hitCount > 0) {
-            const msgs = result.hits.map((h: any) => warn("novel_sense_hits", `${h.code}：${h.text}`));
+            const msgs = result.hits.map(h => warn("novel_sense_hits", `${h.code}：${h.text}`));
             return allow(msgs);
         }
         return allow([info("novel_sense_ok", result.summary)]);

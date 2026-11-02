@@ -102,8 +102,8 @@ test('原件对照：头条方法与语料、forge 三件套都完整在包里�
   const forgeDocs = (await files(FORGE, '.md')).map(f => f.replace(/\.md$/, ''))
   assert.deepEqual(await listMethods(), forgeDocs)
   for (const pkg of ['inspiration-forge', 'inspiration-forge-library', 'novel-writer']) assert.ok(forgeDocs.includes(`${pkg}/SKILL`), `${pkg} 缺 SKILL`)
-  // 原文之间的 Markdown 链接，以及原文里只写相对路径的引用，都能经 getFanqieMethod 取到
-  const { getFanqieMethod } = await import(buildUrl('fanqie/src/forge.js'))
+  // 原文之间的 Markdown 链接，以及原文里只写相对路径的引用，都能经 方法库读取入口取到
+  const { fanqieLibrary } = await import(buildUrl('fanqie/src/forge.js'))
   const { readFile } = await import('node:fs/promises')
   const broken = []
   for (const id of forgeDocs) {
@@ -114,8 +114,8 @@ test('原件对照：头条方法与语料、forge 三件套都完整在包里�
     }
   }
   assert.deepEqual(broken, [], '方法原文里的链接指向不存在的文件')
-  assert.equal((await getFanqieMethod('references/editor_method.md')).id, 'novel-writer/references/editor_method')
-  assert.equal((await getFanqieMethod('./资产/幕转章纲')).id, 'inspiration-forge/资产/幕转章纲')
+  assert.equal((await fanqieLibrary.readOriginal('references/editor_method.md')).id, 'novel-writer/references/editor_method')
+  assert.equal((await fanqieLibrary.readOriginal('./资产/幕转章纲')).id, 'inspiration-forge/资产/幕转章纲')
 })
 
 test('源码构建：三套方法论每一份都能经工具加载；提到的工具名都存在', async () => {
@@ -127,7 +127,7 @@ test('源码构建：三套方法论每一份都能经工具加载；提到的�
   const names = new Set([...r.tt.tools.keys(), ...r.fq.tools.keys()])
   const sources = [
     (await import(buildUrl('toutiao/src/brief.js'))).TOUTIAO_BRIEF,
-    (await import(buildUrl('fanqie/src/brief.js'))).FANQIE_BRIEF,
+    (await import(buildUrl('fanqie/src/brief.js'))).buildFanqieBrief(),
     ...[...r.tt.tools.values(), ...r.fq.tools.values()].map(t => t.description ?? ''),
     ...r.texts,
   ]

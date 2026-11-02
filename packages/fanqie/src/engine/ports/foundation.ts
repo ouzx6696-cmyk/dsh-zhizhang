@@ -9,7 +9,7 @@
 import { readWorkMeta, appendHappenedLine } from "../work-store.js";
 import { bodyTailOf, endingBodyOverlap } from "../domain/ending-consistency.js";
 import { formatChapterOutcomeLine, resolveHappenedText } from "../domain/foundation-outcome.js";
-export const extractBodyOutcome = bodyTailOf;
+const extractBodyOutcome = bodyTailOf;
 export { endingBodyOverlap, resolveHappenedText };
 export const FoundationPort = {
     id: "port.foundation",
@@ -24,13 +24,13 @@ export const FoundationPort = {
      * Append a short happened line for a chapter. Idempotent per chapterId marker.
      * Skips when text empty (caller should still remind).
      */
-    async appendHappened(dir: string, input: any) {
-        const chapterId = String(input.chapterId ?? "").trim();
+    async appendHappened(dir: string, input: {chapterId:string;title?:string;text:string;replace?:boolean}) {
+        const chapterId = input.chapterId.trim();
         if (!chapterId) {
             const meta = await readWorkMeta(dir);
             return { meta, appended: false, line: "", reason: "empty_chapter_id" };
         }
-        const line = FoundationPort.formatChapterOutcomeLine(chapterId, input.title, input.text);
+        const line = FoundationPort.formatChapterOutcomeLine(chapterId, input.title ?? "", input.text);
         if (!line) {
             const meta = await readWorkMeta(dir);
             return { meta, appended: false, line: "", reason: "empty_text" };
@@ -40,9 +40,9 @@ export const FoundationPort = {
     /**
      * Candidate adoption updates working continuity; happened remains author material.
      */
-    acceptReceiptLines(opts: any) {
+    acceptReceiptLines(opts: {threads:string;endingVsBodyWarn?:string}) {
         const lines = [];
-        const threads = String(opts.threads ?? "").trim();
+        const threads = opts.threads.trim();
         if (opts.endingVsBodyWarn)
             lines.push(`- ending_vs_body：${opts.endingVsBodyWarn}`);
         lines.push("- 已采纳工作稿；定稿接续索引随定稿更新，作者 happened 保留不变。");

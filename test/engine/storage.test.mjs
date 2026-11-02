@@ -1,24 +1,32 @@
 /** User assets: recovery, compatibility, concurrency and offline backup. */
-import { test } from "node:test";
+import {test} from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import {mkdtemp, mkdir, readFile, rm, symlink, writeFile} from "node:fs/promises";
+import {tmpdir} from "node:os";
 import path from "node:path";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-import { pathToFileURL } from "node:url";
-import { ensureStorage, createWork, readWorkMeta, readChapter, readCandidate, readLedger, setOutline, stageCandidate, markCandidateLinted, atomicWrite, writeLedgerEntry, updateChapter, acceptCandidate, assertResourceId, assembleManuscript, listCandidates, buildPanelSnapshot } from "../../build/fanqie/src/engine/store.js";
-import { buildLibraryView } from "../../build/fanqie/src/engine/panel-enrich.js";
-import { InspirationPort, LibraryPort } from "../../build/fanqie/src/engine/ports/index.js";
-import { snapshotFile } from "../../build/fanqie/src/engine/storage/accept-journal.js";
-import { createInspirationJournal, inspectPendingInspiration, resumePendingInspiration } from "../../build/fanqie/src/engine/storage/inspiration-journal.js";
-import { createChapterJournal, createWorkRecordJournal, inspectPendingChapterSave, resumePendingChapterSave } from "../../build/fanqie/src/engine/storage/chapter-journal.js";
-import { createSourceJournal, inspectPendingSource, resumePendingSource } from "../../build/fanqie/src/engine/storage/source-journal.js";
-import { createDiscardJournal, resumePendingDiscard } from "../../build/fanqie/src/engine/storage/discard-journal.js";
-import { createAnalysisJournal, resumePendingAnalysis } from "../../build/fanqie/src/engine/storage/analysis-journal.js";
-import { createPlanJournal, resumePendingPlan } from "../../build/fanqie/src/engine/storage/plan-journal.js";
-import { inspectPendingCard, resumePendingCard } from "../../build/fanqie/src/engine/storage/card-journal.js";
-import { ensureAnalysis, readAnalysisBundle } from "../../build/fanqie/src/engine/ports/analysis.js";
+import {execFile} from "node:child_process";
+import {promisify} from "node:util";
+import {pathToFileURL} from "node:url";
+import {ensureStorage} from "../../build/fanqie/src/engine/storage/paths.js";
+import {createWork, assembleManuscript} from "../../build/fanqie/src/engine/work-store.js";
+import {readWorkMeta} from "../../build/fanqie/src/engine/storage/work-meta.js";
+import {readChapter, setOutline, updateChapter} from "../../build/fanqie/src/engine/storage/chapters.js";
+import {readCandidate, stageCandidate, markCandidateLinted, acceptCandidate, listCandidates} from "../../build/fanqie/src/engine/storage/candidates.js";
+import {readLedger, writeLedgerEntry} from "../../build/fanqie/src/engine/storage/ledger.js";
+import {atomicWrite} from "../../build/core/src/fsx.js";
+import {assertResourceId} from "../../build/fanqie/src/engine/storage/primitives.js";
+import {buildPanelSnapshot} from "../../build/fanqie/src/engine/panel-query.js";
+import {buildLibraryView} from "../../build/fanqie/src/engine/panel-enrich.js";
+import {InspirationPort, LibraryPort} from "../../build/fanqie/src/engine/ports/index.js";
+import {snapshotFile} from "../../build/fanqie/src/engine/storage/accept-journal.js";
+import {createInspirationJournal, inspectPendingInspiration, resumePendingInspiration} from "../../build/fanqie/src/engine/storage/inspiration-journal.js";
+import {createChapterJournal, createWorkRecordJournal, inspectPendingChapterSave, resumePendingChapterSave} from "../../build/fanqie/src/engine/storage/chapter-journal.js";
+import {createSourceJournal, inspectPendingSource, resumePendingSource} from "../../build/fanqie/src/engine/storage/source-journal.js";
+import {createDiscardJournal, resumePendingDiscard} from "../../build/fanqie/src/engine/storage/discard-journal.js";
+import {createAnalysisJournal, resumePendingAnalysis} from "../../build/fanqie/src/engine/storage/analysis-journal.js";
+import {createPlanJournal, resumePendingPlan} from "../../build/fanqie/src/engine/storage/plan-journal.js";
+import {inspectPendingCard, resumePendingCard} from "../../build/fanqie/src/engine/storage/card-journal.js";
+import {ensureAnalysis, readAnalysisBundle} from "../../build/fanqie/src/engine/ports/analysis/meta.js";
 async function fixture() {
     const root = await mkdtemp(path.join(tmpdir(), "writer-novel-rebuild-"));
     const paths = await ensureStorage({cwd:root}, { storageRoot: root });
@@ -244,7 +252,7 @@ test("多个进程同时追加候选时保留正文和留痕", async () => {
             await markCandidateLinted(dir, candidate.id, 0);
             ids.push(candidate.id);
         }
-        const moduleUrl = pathToFileURL(path.resolve("build/fanqie/src/engine/store.js")).href;
+        const moduleUrl = pathToFileURL(path.resolve("build/fanqie/src/engine/work-store.js")).href;
         const child = `import { acceptCandidate } from ${JSON.stringify(moduleUrl)}; await acceptCandidate(process.argv[1], process.argv[2], 'append');`;
         const run = promisify(execFile);
         await Promise.all(ids.map(id => run(process.execPath, ["--input-type=module", "-e", child, dir, id])));
@@ -327,7 +335,7 @@ test("章节保存和书源导入发生写入故障后可恢复", async () => {
         await setOutline(dir, "c001", { ending: "旧结尾" }, "第一章");
         await LibraryPort.ensureLibrary(f.paths);
         const run = promisify(execFile);
-        const storeUrl = pathToFileURL(path.resolve("build/fanqie/src/engine/store.js")).href;
+        const storeUrl = pathToFileURL(path.resolve("build/fanqie/src/engine/work-store.js")).href;
         const libUrl = pathToFileURL(path.resolve("build/fanqie/src/engine/ports/library.js")).href;
         const failChapter = `
       import fs from 'node:fs'; import path from 'node:path'; import { syncBuiltinESMExports } from 'node:module';
@@ -459,7 +467,7 @@ test("直接保存先核账本，中断后正文、目录和留痕一并恢复",
         await assert.rejects(updateChapter(dir, { id: "c001", body: "不能写进去" }));
         assert.equal((await readChapter(dir, "c001")).body, "");
         await writeFile(path.join(dir, "ledger.json"), JSON.stringify({ schemaVersion: 1, entries: [] }));
-        const storeUrl = pathToFileURL(path.resolve("build/fanqie/src/engine/store.js")).href;
+        const storeUrl = pathToFileURL(path.resolve("build/fanqie/src/engine/work-store.js")).href;
         const child = `
             import fs from 'node:fs'; import path from 'node:path'; import { syncBuiltinESMExports } from 'node:module';
             const dir = process.argv[1], original = fs.promises.rename;
@@ -507,13 +515,13 @@ test("坏候选保持可见且面板明确报告不可读", async () => {
 test('人工修订使用捕获依据，扫描采纳保留去重来源，节奏变化拒绝应用',async()=>{
  const {withWork}=await import('./helpers.mjs');
  const {diagnose,stageRevisionCandidate,bodyHash}=await import('../../build/fanqie/src/engine/services/diagnostics.js');
- const {recordBriefBreadcrumb,setFoundation,saveChapter}=await import('../../build/fanqie/src/engine/store.js');
+ const {recordBriefBreadcrumb,setFoundation,updateChapter}=await import('../../build/fanqie/src/engine/work-store.js');
  const {currentContextBasis}=await import('../../build/fanqie/src/engine/storage/chapters.js');
  const work=await withWork('020 来源闭环');
  try{
-  await saveChapter(work.dir,{id:'c001',title:'一',body:'旧正文。'});
+  await updateChapter(work.dir,{id:'c001',title:'一',body:'旧正文。'});
   await recordBriefBreadcrumb(work.dir,{chapterId:'c001',assetIds:[],basis:await currentContextBasis(work.dir,'c001')});
-  await saveChapter(work.dir,{id:'c001',title:'一',body:'他不禁退后。'});
+  await updateChapter(work.dir,{id:'c001',title:'一',body:'他不禁退后。'});
   const chapter=await readChapter(work.dir,'c001');
   const report=await diagnose(work.dir,{kind:'chapter',chapter:'c001',expectedRevision:chapter.revision,bodyHash:bodyHash(chapter.body)});
   const input={source:report.source,confirm:true,requestId:'roundtrip-revision',edits:[{...report.blocks[0],before:chapter.body,after:'他退到门边。'}]};
@@ -535,10 +543,10 @@ test('人工修订使用捕获依据，扫描采纳保留去重来源，节奏�
 
 test('CRLF 章节保留正文原始换行，快照读取实际文件元数据', async () => {
     const { withWork } = await import('./helpers.mjs');
-    const { saveChapter } = await import('../../build/fanqie/src/engine/store.js');
+    const { updateChapter } = await import('../../build/fanqie/src/engine/work-store.js');
     const work = await withWork('CRLF 兼容');
     try {
-        await saveChapter(work.dir,{id:'c001',title:'原题',body:'第一段。\n第二段。'});
+        await updateChapter(work.dir,{id:'c001',title:'原题',body:'第一段。\n第二段。'});
         const file = path.join(work.dir,'chapters','c001.md');
         const raw = (await readFile(file,'utf8')).replace(/\n/g,'\r\n').replace('原题','文件中改题');
         await writeFile(file,raw);

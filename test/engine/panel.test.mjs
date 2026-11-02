@@ -1,15 +1,17 @@
 import path from "node:path";
 /** HTTP contracts and the one generated-client boundary. Pure state lives in domain tests. */
-import { test } from "node:test";
+import {test} from "node:test";
 import assert from "node:assert/strict";
-import { readFile, writeFile } from "node:fs/promises";
-import { saveChapter, setOutline, stageCandidate, markCandidateLinted, recordBriefBreadcrumb, readChapter, updateChapter } from "../../build/fanqie/src/engine/store.js";
-import { initialState, reducer, bodyKey } from "../../packages/workbench/src/client/fanqie/state.js";
-import { jpost, servePanel, withWork, loadComponents } from "./helpers.mjs";
+import {readFile, writeFile} from "node:fs/promises";
+import {updateChapter, setOutline, readChapter} from "../../build/fanqie/src/engine/storage/chapters.js";
+import {stageCandidate, markCandidateLinted} from "../../build/fanqie/src/engine/storage/candidates.js";
+import {recordBriefBreadcrumb} from "../../build/fanqie/src/engine/storage/work-records.js";
+import {initialState, reducer, bodyKey} from "../../packages/workbench/src/client/fanqie/state.js";
+import {jpost, servePanel, withWork, loadComponents} from "./helpers.mjs";
 test("真实快照按版本使正文和候选失效，写作台不扫描无关库", async () => {
     const work = await withWork("面板读取"), server = await servePanel({ storageRoot: work.base });
     try {
-        await saveChapter(work.dir, { id: "c001", title: "一", body: "门外有人。" });
+        await updateChapter(work.dir, { id: "c001", title: "一", body: "门外有人。" });
         const candidate = await stageCandidate(work.dir, { chapterId: "c001", body: "候选正文。" });
         const snapshot = async scope => (await (await fetch(server.api + '/snapshot?work=' + encodeURIComponent(work.key) + '&scope=' + scope)).json());
         let state = { ...initialState(), work: work.key, view: 'chapters' };
@@ -28,7 +30,7 @@ test("真实快照按版本使正文和候选失效，写作台不扫描无关�
         assert.equal(state.chapter.status, 'idle');
         assert.notEqual(bodyKey(state,'chapter'), key);
         const reviewedKey = bodyKey(state, 'chapter');
-        await saveChapter(work.dir,{id:'c001',title:'一',body:'窗外无人。'});
+        await updateChapter(work.dir,{id:'c001',title:'一',body:'窗外无人。'});
         state = reducer(state,{type:'snapshot',selection:0,data:await snapshot('work'),signature:'body'});
         assert.notEqual(bodyKey(state,'chapter'),reviewedKey);
         const candidateVersion = first.snapshot.candidates[0].readVersion;
@@ -121,7 +123,7 @@ test('诊断修订 HTTP 绑定来源、幂等请求及损坏目录边界', async
     const { unlink } = await import('node:fs/promises');
     const work = await withWork('修订边界'), server = await servePanel({storageRoot:work.base});
     try {
-        await saveChapter(work.dir,{id:'c001',title:'一',body:'门外有人。'});
+        await updateChapter(work.dir,{id:'c001',title:'一',body:'门外有人。'});
         const chapter = await readChapter(work.dir,'c001');
         const response = await jpost(server.api,'/diagnostics/scan',{work:work.key,chapter:'c001',kind:'chapter',expectedRevision:chapter.revision,bodyHash:bodyHash(chapter.body)});
         assert.equal(response.status,200);
@@ -146,7 +148,7 @@ test('诊断修订 HTTP 绑定来源、幂等请求及损坏目录边界', async
         const blocked = await jpost(server.api,'/diagnostics/stage',{...input,requestId:'another-request'});
         assert.equal((await blocked.json()).code,'candidate_unavailable');
         await unlink(damaged);
-        await saveChapter(work.dir,{id:'c001',title:'一',body:'章节已变化。'});
+        await updateChapter(work.dir,{id:'c001',title:'一',body:'章节已变化。'});
         const stale = await jpost(server.api,'/diagnostics/stage',{...input,requestId:'another-request'});
         assert.equal((await stale.json()).code,'source_changed');
     } finally {await server.close();await work.cleanup();}

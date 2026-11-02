@@ -5,7 +5,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createServer } from "node:http";
-import { createWork, ensureStorage } from "../../build/fanqie/src/engine/store.js";
+import { createWork } from "../../build/fanqie/src/engine/work-store.js";
+import { ensureStorage } from "../../build/fanqie/src/engine/storage/paths.js";
 import { fanqieApi } from "../../build/fanqie/src/workbench/api.js";
 import { API } from "../../build/workbench/src/routes.js";
 export async function withWork(title = "测试作品") {

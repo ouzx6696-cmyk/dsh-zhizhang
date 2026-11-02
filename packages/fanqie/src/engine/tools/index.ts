@@ -25,5 +25,5 @@ export function allTools() {
 }
 export { defineTool } from "./types.js";
 export { SYSTEM_BRIEF } from "./brief.js";
-export { setPluginConfig, config } from "./context.js";
+export {config} from "./context.js";
 export { formatLint } from "./render.js";

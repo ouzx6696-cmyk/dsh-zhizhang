@@ -1,6 +1,6 @@
 /** Author confirmation rules pin the current chapter revision before approval. */
 import { WriterError } from '../../core/src/tool.js'
-import { readChapter as readStoredChapter } from "./engine/store.js";
+import { readChapter as readStoredChapter } from "./engine/storage/chapters.js";
 import type { GateRule } from '../../core/src/gates.js'
 import type { FanqieConfig } from './config.js'
 import { bodyFingerprint, editorPassProblem } from './review.js'

@@ -1,3 +1,4 @@
+import { migrateInspirationBindings } from "../../../../packages/fanqie/src/engine/storage/inspiration-migration";
 import { physicalRoot } from "../../../../packages/core/src/identity";
 import path from "node:path";
 import type { Target } from "../context";
@@ -50,6 +51,7 @@ export async function selectTarget(state: Runtime, next: Target) {
             ? { worksRoot: path.join(state.settings.workspace, "novels") }
             : {}),
       });
+      await migrateInspirationBindings(paths);
       await rememberProject(paths.base, paths.works);
     }
     const newRoot = await lockRoot(state, normalized);

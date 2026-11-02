@@ -83,7 +83,7 @@ export async function stageCandidate(dir: string, input: any) {
     // 候选必须指向已存在的章（章纲由 outline_set / inspire apply 建立）——否则 accept 的
     // brief/兑付闸都无从对照，错误还会迟到且语义不明（先撞 brief_required）。
     const meta = await readWorkMeta(dir);
-    if (!meta.chapters.some((c: any) => c.id === chapterId)) {
+    if (!meta.chapters.some((c) => c.id === chapterId)) {
       throw new NovelError(
         "chapter_not_found",
         `目标章 ${chapterId} 不存在：先 outline_set（或 inspire_accept apply）建章纲，再交候选`,
@@ -447,7 +447,7 @@ export async function listCandidates(dir: string) {
       });
     }
   }
-  rows.sort((a: any, b: any) => (a.stagedAt < b.stagedAt ? 1 : -1));
+  rows.sort((a, b) => (a.stagedAt < b.stagedAt ? 1 : -1));
   return rows;
 }
 

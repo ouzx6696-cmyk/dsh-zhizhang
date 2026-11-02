@@ -1,12 +1,12 @@
 // 番茄长篇：生产工具执行路径、真实存储、Python 规则与桌面复用的路由。
-import { test } from 'node:test'
+import {test} from 'node:test';
 import assert from 'node:assert/strict'
-import { readFile, writeFile } from 'node:fs/promises'
+import {readFile, writeFile} from 'node:fs/promises';
 import path from 'node:path'
-import { ROOT, createToolHarness, createRouteHarness, tempDir, buildUrl } from './helpers.mjs'
+import {ROOT, createToolHarness, createRouteHarness, tempDir, buildUrl} from './helpers.mjs';
 
 
-const { ensureStorage, createWork, setOutline, saveChapter, readChapter } = await import(buildUrl('fanqie/src/engine/store.js'))
+const { ensureStorage, createWork, setOutline, updateChapter, readChapter } = await import(buildUrl('fanqie/src/engine/work-store.js'))
 const EX = await readFile(path.join(ROOT, 'packages/fanqie/skill/forge/novel-writer/assets/examples/两张车票.md'), 'utf8')
 
 const OUTLINE = {
@@ -20,7 +20,7 @@ async function makeWork(cwd, { second = OUTLINE } = {}) {
   const paths = await ensureStorage(null, { storageRoot: path.join(cwd, '.writer') })
   const { dir, meta } = await createWork(paths, { title: '两张车票' })
   await setOutline(dir, 'c001', OUTLINE, T1)
-  await saveChapter(dir, { id: 'c001', title: T1, body: EX.trim() })
+  await updateChapter(dir, { id: 'c001', title: T1, body: EX.trim() })
   await setOutline(dir, 'c002', second, '第二章 站台')
   return { dir, key: meta.key }
 }
@@ -39,9 +39,10 @@ test('长篇工具集包含引擎与写作层，方法原文带对照表', async
   assert.ok(![...tools.keys()].some(name => name.startsWith('toutiao_')))
   assert.ok(!tools.has('fanqie_manuscript_lint'))
   assert.ok(gates.rules.length > 0)
-  const { FANQIE_BRIEF } = await import(buildUrl('fanqie/src/brief.js'))
-  assert.match(FANQIE_BRIEF, /番茄长篇/)
-  assert.match(FANQIE_BRIEF, /【写作台】/)
+  const { buildFanqieBrief } = await import(buildUrl('fanqie/src/brief.js'))
+  const brief=buildFanqieBrief()
+  assert.match(brief, /番茄长篇/)
+  assert.match(brief, /【写作台】/)
   const idx = await call('fanqie_forge_get', {})
   assert.ok(idx.key_methods.edit, '默认方案目录')
   const m = await call('fanqie_forge_get', { id: 'novel-writer/references/editor_method' })
@@ -112,7 +113,7 @@ test('审读回报：固定格式、有硬伤不能判通过、绑定正文版�
   const { readdir } = await import('node:fs/promises')
   assert.equal((await readdir(path.join(work.dir, 'writer-reviews', 'c001'))).length, 1, '回报存在作品目录里')
   assert.equal((await call('fanqie_review_get', { chapter: 'c001' })).fresh, true)
-  await saveChapter(work.dir, { id: 'c001', title: T1, body: EX.trim().replace('迟川的手停了。', '迟川的手停住了。') })
+  await updateChapter(work.dir, { id: 'c001', title: T1, body: EX.trim().replace('迟川的手停了。', '迟川的手停住了。') })
   const g2 = await call('fanqie_review_get', { chapter: 'c001' })
   assert.equal(g2.fresh, false)
   assert.match(g2.markdown, /回报过期/)
@@ -259,7 +260,7 @@ test('敏感工具不能跳过确认入口，拒绝确认不残留授权', async
   const input = { work: work.key, chapter: 'c001', status: 'final' }
   await assert.rejects(executeTool(boundTool, input, { cwd, name: boundTool.name, token: Symbol('stale') }, {
     gates: boundGates, bind: fn => withPluginConfig(config, fn), confirm: async () => {
-      await saveChapter(work.dir, { id: 'c001', title: '新稿', body: '作者在确认前改了正文。' })
+      await updateChapter(work.dir, { id: 'c001', title: '新稿', body: '作者在确认前改了正文。' })
       return true
     },
   }), /变化|revision|审读/)
@@ -292,4 +293,10 @@ test('T4 旧时区候选在 UTC 扫描后凭据仍有效',async()=>{
   await writeFile(file,JSON.stringify(meta))
   assert.match(await call('fanqie_style_lint',{candidate:candidate.id}),/token|凭据/)
   assert.equal(candidateHasLintPass(await readCandidate(work.dir,candidate.id)),true)
+})
+
+test('T5 工具边界拒绝非对象和错误数组元素类型',async()=>{
+  const {execute}=await setup()
+  for(const input of [null,[],42,'work'])await assert.rejects(execute('fanqie_project_list',input),e=>e.code==='bad_args')
+  await assert.rejects(execute('fanqie_library_list',{source_ids:[42]}),e=>e.code==='bad_args')
 })

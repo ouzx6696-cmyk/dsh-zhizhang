@@ -18,31 +18,34 @@ export function validateStoryPace(value: unknown): WorkMeta["pace"] {
 export function metaPath(dir: string) {
     return path.join(dir, "meta.json");
 }
-export function normalizeFoundation(raw: any): Foundation {
+export function normalizeFoundation(value: unknown): Foundation {
     const base = EMPTY_FOUNDATION();
-    if (!raw || typeof raw !== "object")
-        return base;
+    if (value === undefined || value === null) return base;
+    const raw=asObject(value);
     return {
         ...raw,
-        locks: String(raw.locks ?? ""),
-        happened: String(raw.happened ?? ""),
-        characters: String(raw.characters ?? ""),
-        readerKnowledge: String(raw.readerKnowledge ?? ""),
-        planned: String(raw.planned ?? ""),
-        threads: String(raw.threads ?? ""),
-        style: String(raw.style ?? ""),
+        locks: (asString(raw, "locks", {trim:false}) ?? ""),
+        happened: (asString(raw, "happened", {trim:false}) ?? ""),
+        characters: (asString(raw, "characters", {trim:false}) ?? ""),
+        readerKnowledge: (asString(raw, "readerKnowledge", {trim:false}) ?? ""),
+        planned: (asString(raw, "planned", {trim:false}) ?? ""),
+        threads: (asString(raw, "threads", {trim:false}) ?? ""),
+        style: (asString(raw, "style", {trim:false}) ?? ""),
     };
 }
 export async function readWorkMeta(dir: string):Promise<WorkMeta> {
     await assertNoPendingAccept(dir);
     const raw = await readFile(metaPath(dir), "utf8");
-    const meta = JSON.parse(raw);
+    return parseWorkMeta(JSON.parse(raw), metaPath(dir));
+}
+export function parseWorkMeta(raw:unknown, file:string):WorkMeta {
+    const meta = raw as WorkMeta;
     if (!meta || typeof meta !== "object" || Array.isArray(meta))
-        throw new NovelError("bad_work_meta", `作品元数据格式损坏：${metaPath(dir)}`);
+        throw new NovelError("bad_work_meta", `作品元数据格式损坏：${file}`);
     if (meta.chapters !== undefined && !Array.isArray(meta.chapters))
-        throw new NovelError("bad_work_meta", `作品章节目录格式损坏：${metaPath(dir)}`);
+        throw new NovelError("bad_work_meta", `作品章节目录格式损坏：${file}`);
     if (meta.foundation != null && (typeof meta.foundation !== "object" || Array.isArray(meta.foundation)))
-        throw new NovelError("bad_work_meta", `作品根基格式损坏：${metaPath(dir)}`);
+        throw new NovelError("bad_work_meta", `作品根基格式损坏：${file}`);
     const ids = new Set();
     for (const chapter of meta.chapters ?? []) {
         if (!chapter || typeof chapter.id !== "string" || ids.has(chapter.id) || typeof chapter.position !== "number" || !Number.isFinite(chapter.position))
@@ -62,3 +65,5 @@ export async function writeWorkMeta(dir: string, meta: any) {
     meta.updatedAt = nowIso();
     await atomicWrite(metaPath(dir), JSON.stringify(meta, null, 2) + "\n");
 }
+
+import { asString, asObject } from "../parse.js";

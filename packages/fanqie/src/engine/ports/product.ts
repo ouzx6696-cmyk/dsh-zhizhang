@@ -6,10 +6,8 @@ import { LibraryPort } from "./library.js";
 import { MethodRegistry } from "./methods.js";
 import { QualityPolicy } from "./quality-policy.js";
 import { VERSION } from "../../../../core/src/version.js";
-import { SCHEDULER_DEFAULT_LINE, Scheduler, } from "./scheduler.js";
+import { Scheduler } from "./scheduler.js";
 import { WORKFLOWS } from "../domain/workflow.js";
-/** Canonical one-liner — identical to Scheduler.defaultLine(). */
-export const CREATIVE_LOOP_LINE = SCHEDULER_DEFAULT_LINE;
 let toolCount = 0;
 
 export const ProductMap = {

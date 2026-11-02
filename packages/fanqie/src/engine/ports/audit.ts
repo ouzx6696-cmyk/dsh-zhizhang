@@ -11,10 +11,10 @@ export const StyleLinterPort = {
     lint(text: string) {
         return lintStyle(text);
     },
-    summarize(hits: any) {
+    summarize(hits: ReturnType<typeof lintStyle>) {
         return summarizeStyleLint(hits);
     },
-    format(label: string, hits: any, summary: any) {
+    format(label: string, hits: ReturnType<typeof lintStyle>, summary: ReturnType<typeof summarizeStyleLint>) {
         const head = [
             `语感雷达 · ${label}`,
             `- cliche_syntax：${summary.cliche_syntax}`,
@@ -27,7 +27,7 @@ export const StyleLinterPort = {
             return [...head, "", "未发现命中（对白区已豁免）。"].join("\n");
         const lines = hits
             .slice(0, 40)
-            .map((h: any, i: number) => `${i + 1}. [${h.category}] 「${h.match}」 @${h.start}-${h.end} · ${h.hint}`);
+            .map((h, i: number) => `${i + 1}. [${h.category}] 「${h.match}」 @${h.start}-${h.end} · ${h.hint}`);
         return [...head, "", ...lines, hits.length > 40 ? `…另有 ${hits.length - 40} 处` : ""]
             .filter(Boolean)
             .join("\n");

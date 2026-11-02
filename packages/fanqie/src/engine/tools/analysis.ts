@@ -3,36 +3,24 @@ import { withResourceLock } from "../storage/process-lock.js";
 /** 拆书分析层工具：事实 / 聚合 / 报告 / 删卡。 */
 import { LibraryPort } from "../ports/library.js";
 import { NovelError } from "../errors.js";
-import {
-    analysisPaths,
-    buildReport,
-    chapterText,
-    computeCoverage,
-    ensureAnalysis,
-    ensureSurvey,
-    planLabel,
-    planMembership,
-    planProgress,
-    quoteOk,
-    readAnalysisBundle,
-    readPlan,
-    textStats,
-    toCardView,
-    upsertChapter,
-    validateChapterFacts,
-    upsertPlot,
-    upsertCharacter,
-    writePlan,
-    writeRhythm,
-} from "../ports/analysis.js";
-import { atomicWrite } from "../store.js";
+import { analysisPaths } from "../ports/analysis/paths.js";
+import { buildReport } from "../ports/analysis/report.js";
+import { chapterText } from "../ports/analysis/chapters.js";
+import { computeCoverage, textStats } from "../domain/coverage.js";
+import { ensureAnalysis, readAnalysisBundle } from "../ports/analysis/meta.js";
+import { ensureSurvey } from "../ports/analysis/survey.js";
+import { planLabel, planMembership, planProgress, readPlan, writePlan } from "../ports/analysis/plan.js";
+import { quoteOk } from "../domain/evidence.js";
+import { toCardView } from "../domain/card-schema.js";
+import { upsertChapter, validateChapterFacts } from "../ports/analysis/facts.js";
+import { upsertPlot, upsertCharacter, writeRhythm } from "../ports/analysis/structure.js";
+import { atomicWrite } from "../../../../core/src/fsx.js";
 import { REPORT_SECTION_COUNT } from "../domain/report-sections.js";
 import { stepPrefix } from "../domain/workflow.js";
 import { asArray, asString } from "./context.js";
-import { openLibrary } from "./library.js";
+import { openLibrary } from "./library/context.js";
 import { S, B, WORKING_DIR } from "./schema.js";
 import { defineTool } from "./types.js";
-import type { ExecContext } from "./types.js";
 
 /** 引文通过率：逐条回到该章正文核对，而不是「非空即通过」。 */
 function quoteStatsOf(facts: any, text: string, index: { n: number; title: string; start: number; end: number }[]) {
@@ -61,7 +49,7 @@ export function analysisTools() {
                 working_dir: WORKING_DIR,
             },
             required: ["source"],
-            async execute(args: any, exec: ExecContext) {
+            async execute(args, exec) {
                 const sourceId = asString(args, "source", { required: true });
                 const paths = await openLibrary(exec, args, true);
                 return withResourceLock(paths.library, async () => {
@@ -109,7 +97,7 @@ export function analysisTools() {
                 }
                 const lines = [
                     "已记录 " + receipts.length + " 章事实（累计 " + bundle.chapters.length + " 章）",
-                    ...receipts.map((r: any) => "- 第" + r.n + "章：" + (r.warnings.length ? r.warnings.join("；") : "通过") + " · 阅读程度申报：" + r.readingLevel),
+                    ...receipts.map((r) => "- 第" + r.n + "章：" + (r.warnings.length ? r.warnings.join("；") : "通过") + " · 阅读程度申报：" + r.readingLevel),
                     "",
                     coverageLine,
                     planLine,
@@ -130,7 +118,7 @@ export function analysisTools() {
                 working_dir: WORKING_DIR,
             },
             required: ["source", "kind", "payload"],
-            async execute(args: any, exec: ExecContext) {
+            async execute(args, exec) {
                 const sourceId = asString(args, "source", { required: true });
                 const kind = asString(args, "kind", { required: true });
                 const payload = args.payload ?? {};
@@ -164,7 +152,7 @@ export function analysisTools() {
                 working_dir: WORKING_DIR,
             },
             required: ["source"],
-            async execute(args: any, exec: ExecContext) {
+            async execute(args, exec) {
                 const sourceId = asString(args, "source", { required: true });
                 const paths = await openLibrary(exec, args, true);
                 return withResourceLock(paths.library, async () => {
@@ -181,21 +169,21 @@ export function analysisTools() {
                     }
                     catch { unreadable.push(row.id); }
                 }
-                const v2Count = modules.filter((m: any) => !m.legacy).length;
+                const v2Count = modules.filter((m) => !m.legacy).length;
                 const stats = bundle.chapters
-                    .map((f: any) => {
+                    .map((f) => {
                         const t = chapterText(text, idx, f.n);
                         return t ? { n: f.n, ...textStats(t) } : null;
                     })
-                    .filter(Boolean);
+                    .filter((row):row is NonNullable<typeof row> => row !== null);
                 const plan = await readPlan(paths, sourceId);
                 const survey = await ensureSurvey(paths, sourceId, text, bundle.chapters, idx);
-                const planned = plan ? new Set(plan.chapters.map((c: any) => Number(c.n))) : null;
-                const scopedFacts = planned ? bundle.chapters.filter((f: any) => planned.has(Number(f.n))) : bundle.chapters;
+                const planned = plan ? new Set(plan.chapters.map((c) => Number(c.n))) : null;
+                const scopedFacts = planned ? bundle.chapters.filter((f) => planned.has(Number(f.n))) : bundle.chapters;
                 const coverage = computeCoverage(
                     bundle.meta,
                     scopedFacts,
-                    modules.filter((m: any) => !m.legacy),
+                    modules.filter((m) => !m.legacy),
                     quoteStatsOf(scopedFacts, text, idx),
                     {
                         survey,
@@ -248,7 +236,7 @@ export function analysisTools() {
                 working_dir: WORKING_DIR,
             },
             required: ["card"],
-            async execute(args: any, exec: ExecContext) {
+            async execute(args, exec) {
                 const cardId = asString(args, "card", { required: true });
                 if (args.confirm !== true)
                     throw new NovelError("confirm_required", "删卡须 confirm=true");

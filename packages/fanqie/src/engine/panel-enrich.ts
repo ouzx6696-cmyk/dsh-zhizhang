@@ -6,7 +6,8 @@ import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { readJsonCached } from "./file-cache.js";
 import { LibraryPort, coerceAxis } from "./ports/library.js";
-import { listAnalyses, readPlan, planProgress, planLabel, readAnalysisBundle } from "./ports/analysis.js";
+import { listAnalyses, readAnalysisBundle } from "./ports/analysis/meta.js";
+import { readPlan, planProgress, planLabel } from "./ports/analysis/plan.js";
 import { InspirationPort } from "./ports/inspiration.js";
 import { ProductMap } from "./ports/product.js";
 import { Scheduler } from "./ports/scheduler.js";
@@ -14,7 +15,7 @@ import { readPlanning } from "./domain/planning.js";
 import { assertNoPendingInspiration } from "./storage/inspiration-journal.js";
 import { listLocalBooks } from "./work-store.js";
 import type { StoragePaths } from "./types.js";
-function foundationFilledFields(f: any) {
+function foundationFilledFields(f: import("./types.js").Foundation) {
     const keys = [
         "locks",
         "happened",
@@ -23,8 +24,8 @@ function foundationFilledFields(f: any) {
         "planned",
         "threads",
         "style",
-    ];
-    return keys.filter((k: any) => String(f[k] ?? "").trim().length > 0);
+    ] as const;
+    return keys.filter((k) => f[k].trim().length > 0);
 }
 export async function buildLibraryView(paths: StoragePaths) {
     const sources = await LibraryPort.listSources(paths);
@@ -45,15 +46,15 @@ export async function buildLibraryView(paths: StoragePaths) {
     const suggestion = await LibraryPort.suggestCombo(paths, { craftCount: 2 });
     const combo = {
         ok: suggestion.ok, cardIds: suggestion.cardIds ?? [], mindTitle: suggestion.mind?.title ?? null,
-        craftTitles: (suggestion.crafts ?? []).map((card: any) => card.title), emptyReason: suggestion.emptyReason,
+        craftTitles: (suggestion.crafts ?? []).map((card) => card.title), emptyReason: suggestion.emptyReason,
     };
     const sourceRoot = paths.sourceRoot || "";
     let pending: any[] = [];
     if (sourceRoot) {
         try {
             const local = await listLocalBooks(sourceRoot, { limit: 40 });
-            const titles = new Set(sources.map((s: any) => s.title));
-            pending = local.filter((b: any) => !titles.has(b.title));
+            const titles = new Set(sources.map((s) => s.title));
+            pending = local.filter((b) => !titles.has(b.title));
         }
         catch {
             pending = [];
@@ -64,14 +65,14 @@ export async function buildLibraryView(paths: StoragePaths) {
         sourcesCount: sources.length,
         sourceRoot,
         pendingCount: pending.length,
-        pending: pending.slice(0, 12).map((b: any) => ({ name: b.name, bytes: b.bytes })),
-        sources: sources.slice(0, 12).map((s: any) => ({
+        pending: pending.slice(0, 12).map((b) => ({ name: b.name, bytes: b.bytes })),
+        sources: sources.slice(0, 12).map((s) => ({
             id: s.id,
             title: s.title,
             author: s.author ?? "",
         })),
         // Cap before the per-analysis plan/bundle reads — those are the expensive part.
-        analyses: await Promise.all(analyses.slice(0, 20).map(async (a: any) => {
+        analyses: await Promise.all(analyses.slice(0, 20).map(async (a) => {
             let plan = null;
             const p = await readPlan(paths, a.sourceId);
             if (p) {
@@ -92,7 +93,7 @@ export async function buildInspirationView(paths: StoragePaths, opts: any) {
     await assertNoPendingInspiration(paths.inspiration);
     const planning = readPlanning({ planning: opts.planning });
     const sessionsRaw = await InspirationPort.listSessions(paths);
-    const sessions = sessionsRaw.slice(0, 8).map((s: any) => ({
+    const sessions = sessionsRaw.slice(0, 8).map((s) => ({
         id: s.id,
         goal: s.goal,
         genre: s.genre ?? "",
@@ -143,9 +144,9 @@ export async function buildInspirationView(paths: StoragePaths, opts: any) {
     return {
         planning: planning ? {
             book: planning.book ? { content: planning.book.content.slice(0, 400), truncated: planning.book.content.length > 400 } : null,
-            volumes: planning.volumes.slice(0, 8).map((v: any) => ({ id: v.id, title: v.title || v.id, content: v.content.slice(0, 400), truncated: v.content.length > 400, chapters: v.chapters.slice(0, 30) })),
+            volumes: planning.volumes.slice(0, 8).map((v) => ({ id: v.id, title: v.title || v.id, content: v.content.slice(0, 400), truncated: v.content.length > 400, chapters: v.chapters.slice(0, 30) })),
             totalVolumes: planning.volumes.length,
-            acts: planning.acts.slice(0, 8).map((a: any) => ({ id: a.id, title: a.title || a.id, volumeId: a.volumeId || "", content: a.content.slice(0, 400), truncated: a.content.length > 400, chapters: a.chapters.slice(0, 30) })),
+            acts: planning.acts.slice(0, 8).map((a) => ({ id: a.id, title: a.title || a.id, volumeId: a.volumeId || "", content: a.content.slice(0, 400), truncated: a.content.length > 400, chapters: a.chapters.slice(0, 30) })),
             totalActs: planning.acts.length,
         } : null,
         sessionsCount: sessionsRaw.length,
@@ -172,7 +173,7 @@ export function buildProductView() {
         writeLine: Scheduler.writeLine(),
         version: ProductMap.version,
         toolCount: ProductMap.toolCount(),
-        pillars: ProductMap.pillars().map((p: any) => ({
+        pillars: ProductMap.pillars().map((p) => ({
             id: p.id,
             title: p.title,
             loopStage: p.loopStage,

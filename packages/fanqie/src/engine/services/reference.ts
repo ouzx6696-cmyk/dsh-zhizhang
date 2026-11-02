@@ -7,14 +7,14 @@ import { atomicWrite, assertResourceId } from "../storage/primitives.js";
 import { NovelError } from "../errors.js";
 import type { StoragePaths } from "../types.js";
 
-export interface TransferPackage {
+interface TransferPackage {
     experience: string;
     steps: string[];
     recreate: string[];
     discard: string[];
     failWhen: string;
 }
-export function validateTransfer(value: unknown): TransferPackage {
+function validateTransfer(value: unknown): TransferPackage {
     const t = value as TransferPackage;
     if (!t || typeof t.experience !== "string" || !t.experience.trim() || typeof t.failWhen !== "string" || !t.failWhen.trim() ||
         ![t.steps, t.recreate, t.discard].every(a => Array.isArray(a) && a.every(v => typeof v === "string" && v.trim().length > 0)) || !t.steps.length)

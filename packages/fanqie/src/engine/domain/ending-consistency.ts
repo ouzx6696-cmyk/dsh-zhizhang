@@ -21,7 +21,7 @@ const CN_CLOCK_RE = /零点[一二三四五六七八九十]{1,3}|凌晨[一二�
 
 const CN_DIGITS = ["零", "一", "二", "三", "四", "五", "六", "七", "八", "九"];
 /** 0–99 的中文数字（口语时刻用：零/一/…/十/十一/二十/二十一/五十九）。 */
-export function toCnNumber(n: number): string {
+function toCnNumber(n: number): string {
     const v = Math.floor(Number(n));
     if (!Number.isFinite(v) || v < 0 || v > 99)
         return String(v);
@@ -40,7 +40,7 @@ export function toCnNumber(n: number): string {
  * "00:40" ↔ 零点四十 / 0点40 / 零点40 / 00:40；"01:07" ↔ 一点零七 / 1点07 …
  * 此前别名只生成「零点40」，正文写中文数字时永远匹配不到。
  */
-export function clockAliases(token: string): string[] {
+function clockAliases(token: string): string[] {
     const out = [token];
     const m = token.match(/^(\d{1,2}):(\d{2})$/);
     if (!m)
@@ -58,7 +58,7 @@ export function clockAliases(token: string): string[] {
     return [...new Set(out)];
 }
 /** 中文时刻 token（零点四十）的等价写法（含阿拉伯形式）。 */
-export function cnClockAliases(token: string): string[] {
+function cnClockAliases(token: string): string[] {
     const m = token.match(/^(?:零点|凌晨)?([一二三四五六七八九十]{1,3})点?(?:([一二三四五六七八九十]{1,3}))?$/);
     const out = [token];
     if (!m)
@@ -87,7 +87,7 @@ export function cnClockAliases(token: string): string[] {
     return [...new Set(out)];
 }
 
-export interface WeightedToken {
+interface WeightedToken {
     text: string;
     weight: number;
     kind: "clock" | "lexicon" | "cjk" | "quoted" | "latin" | "bigram";
@@ -106,8 +106,8 @@ export const DEFAULT_ENDING_LEXICON = [
  *   CJK 整串 min(2, len/4)（4 字以上才算强证据）
  *   CJK bigram 0.25（只作弱兜底，不再能单独把分数抬过阈值）
  */
-export function tokenizeEnding(ending: any, lexicon: string[] = DEFAULT_ENDING_LEXICON): WeightedToken[] {
-    const t = String(ending ?? "").trim();
+function tokenizeEnding(ending: string, lexicon: string[] = DEFAULT_ENDING_LEXICON): WeightedToken[] {
+    const t = ending.trim();
     if (!t)
         return [];
     const byText = new Map<string, WeightedToken>();
@@ -139,7 +139,7 @@ export function tokenizeEnding(ending: any, lexicon: string[] = DEFAULT_ENDING_L
         put(m[0], 1.0, "latin");
     return [...byText.values()];
 }
-export interface EndingScore {
+interface EndingScore {
     /** 加权命中率 0–1；ending 无任何 token 时为 null（调用方按 unchecked 处理）。 */
     score: number | null;
     hits: string[];
@@ -154,7 +154,7 @@ export interface EndingScore {
     weak: boolean;
 }
 /** token 在正文中的命中（含时钟双向别名软匹配）。 */
-export function tokenHit(token: WeightedToken, text: string): boolean {
+function tokenHit(token: WeightedToken, text: string): boolean {
     if (text.includes(token.text))
         return true;
     if (token.kind === "clock") {
@@ -185,11 +185,11 @@ function isAnchor(tok: WeightedToken) {
  * 判定性 finding（missing/underdelivered）应由锚点驱动；无锚点的通用
  * ending 维持静默（旧口径），可用 per-work 词表解锁严格审计。
  */
-export function scoreEnding(ending: any, text: string, opts: { lexicon?: string[] } = {}): EndingScore {
+export function scoreEnding(ending: string, text: string, opts: { lexicon?: string[] } = {}): EndingScore {
     const tokens = tokenizeEnding(ending, opts.lexicon);
     if (tokens.length === 0)
         return { score: null, hits: [], misses: [], strongHits: 0, strongTotal: 0, anchorHits: 0, anchorTotal: 0, weak: true };
-    const body = String(text ?? "");
+    const body = text;
     const anchorTotal = tokens.filter((t) => isAnchor(t)).length;
     // 有锚点时强证据只算锚点：长句整串通常只是把锚点重说一遍，重复计入
     // 会把锚点已兑付的正文误压到 0.5 以下。无锚点才用 ≥4 字整串当强证据。
@@ -234,8 +234,8 @@ export function scoreEnding(ending: any, text: string, opts: { lexicon?: string[
     return { score, hits, misses, strongHits, strongTotal, anchorHits, anchorTotal, weak: strongTotalW < 1 };
 }
 /** 正文末拍（最后 1–2 句，至多 maxLen 字）——happened 选材与审计共用。 */
-export function bodyTailOf(body: any, maxLen: any = 120) {
-    const raw = String(body ?? "").trim().replace(/\s+/g, " ");
+export function bodyTailOf(body: string, maxLen: number = 120) {
+    const raw = body.trim().replace(/\s+/g, " ");
     if (!raw)
         return "";
     const slice = raw.length > maxLen * 2 ? raw.slice(-(maxLen * 2)) : raw;
@@ -255,8 +255,8 @@ export function bodyTailOf(body: any, maxLen: any = 120) {
     return picked;
 }
 /** 宽松 bigram 重叠（foundation 选 happened 用；非质量判定）。 */
-export function significantTokens(text: string): string[] {
-    const t = String(text ?? "").trim();
+function significantTokens(text: string): string[] {
+    const t = text.trim();
     if (!t)
         return [];
     const out = [];
@@ -272,14 +272,14 @@ export function significantTokens(text: string): string[] {
         if (inner.length >= 1)
             out.push(inner);
     }
-    return [...new Set(out.filter((x: any) => x.length >= 1))];
+    return [...new Set(out.filter((x) => x.length >= 1))];
 }
 /** 宽松重叠率（foundation 选材口径：空 ending=1，空 tail=0）。 */
-export function endingBodyOverlap(ending: any, bodyTail: any) {
+export function endingBodyOverlap(ending: string, bodyTail: string) {
     const tokens = significantTokens(ending);
     if (tokens.length === 0)
         return 1;
-    const hay = String(bodyTail ?? "");
+    const hay = bodyTail;
     if (!hay.trim())
         return 0;
     let hit = 0;

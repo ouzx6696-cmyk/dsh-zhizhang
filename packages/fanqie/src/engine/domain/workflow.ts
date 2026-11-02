@@ -10,7 +10,7 @@ export const AUTO_SAMPLE_HEAD = 10;
 export const AUTO_SAMPLE_TAIL = 3;
 export const AUTO_SAMPLE_RATIO = 0.1;
 
-export const DISSECT_STEPS: WorkflowStep[] = [
+const DISSECT_STEPS: WorkflowStep[] = [
     { n: 1, tool: "library_import", do: "交书（file 或 text）→ sourceId；回执看编码" },
     { n: 2, tool: "library_plan", do: "定档：auto 默认 10% 分层（前 10 章 + 后 3 章 + 等距）；full 须作者明确同意（成本回执 + confirm_token）" },
     { n: 3, tool: "library_dissect_brief(source, batch=n)", do: "按计划取本批原文（≤3 万字/批），一批一提交" },
@@ -22,7 +22,7 @@ export const DISSECT_STEPS: WorkflowStep[] = [
     { n: 9, tool: "library_combo_suggest", do: "1 book + N scene 组包 → inspire_start 或 chapter_brief" },
 ];
 
-export const WRITE_STEPS: WorkflowStep[] = [
+const WRITE_STEPS: WorkflowStep[] = [
     { n: 1, tool: "chapter_brief(lean)", do: "只吃 craft + 前章正文 + 处境；full 是旁路" },
     { n: 2, tool: "（创作）", do: "按 brief 写正文；不写梗概" },
     { n: 3, tool: "candidate_stage", do: "暂存候选，现行工作稿不变" },
@@ -30,16 +30,16 @@ export const WRITE_STEPS: WorkflowStep[] = [
     { n: 5, tool: "candidate_accept", do: "内置扫描并采纳工作稿；内容审读与作者定稿另行表达" },
 ];
 
-export const DISSECT_STEP_COUNT = DISSECT_STEPS.length;
-export const WRITE_STEP_COUNT = WRITE_STEPS.length;
+const DISSECT_STEP_COUNT = DISSECT_STEPS.length;
+const WRITE_STEP_COUNT = WRITE_STEPS.length;
 
-export interface WorkflowStep {
+interface WorkflowStep {
     n: number;
     tool: string;
     do: string;
 }
 
-export interface Workflow {
+interface Workflow {
     title: string;
     steps: WorkflowStep[];
     gate: string;
@@ -59,7 +59,7 @@ export const WORKFLOWS: Record<string, Workflow> = {
 };
 
 /** 回执/描述里的 "N/9"；未知 kind 返回空串。 */
-export function stepLabel(kind: string, n: number): string {
+function stepLabel(kind: string, n: number): string {
     const wf = WORKFLOWS[kind];
     if (!wf)
         return "";

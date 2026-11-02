@@ -27,7 +27,7 @@ export interface FanqieConfig extends PluginConfig {
   profile?: string
 }
 
-export type Issue = { message: string; path: (string | number)[] }
+type Issue = { message: string; path: (string | number)[] }
 
 const STRINGS = ['rootDir', 'storageRoot', 'worksRoot', 'libraryRoot', 'sourceRoot', 'python', 'profile'] as const
 const KNOWN = new Set<string>([...STRINGS, 'requireEditorPass', 'disabledGates', 'multiDraft', 'assets'])
