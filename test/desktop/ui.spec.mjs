@@ -493,6 +493,17 @@ test("停止任务走应用内确认并在 2 秒内收尾", async () => {
   await page.keyboard.press("Escape");
   const confirm = page.getByRole("dialog", { name: "确认操作" });
   await expect(confirm).toBeVisible();
+  await confirm.getByRole("button", { name: "取消", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await expect(confirm).toBeHidden();
+  await expect(stop).toBeEnabled();
+  await page.keyboard.press("Escape");
+  await expect(confirm).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(confirm).toBeHidden();
+  await expect(stop).toBeEnabled();
+  await page.keyboard.press("Escape");
+  await expect(confirm).toBeVisible();
   const started = Date.now();
   await confirm.getByRole("button", { name: "继续", exact: true }).click();
   await expect(stop).toBeDisabled({ timeout: 2000 });

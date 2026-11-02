@@ -20,7 +20,7 @@ export function useDesktopShortcuts(options: {
   latest.current = options;
   useEffect(() => {
     const keyboard = (event: KeyboardEvent) => {
-      if (event.defaultPrevented) return;
+      if (event.defaultPrevented || document.querySelector("dialog[open]")) return;
       const { selected, context, set, stop } = latest.current;
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
