@@ -1,4 +1,4 @@
-// 测试工具：一个最小"假宿主"，按 DSH ToolRuntime 的语义模拟 register / tools/pre-execute 瀑布 / ask→审批。
+// 工具与路由测试直接调用桌面使用的公共业务入口。
 import { mkdtemp, cp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -15,58 +15,76 @@ export async function tempDir(prefix = 'writer-') {
   return mkdtemp(path.join(tmpdir(), prefix))
 }
 
-export function fakeHost({ approve = 'allowed-once', services } = {}) {
-  const make = (root = false) => {
-    const tools = new Map()
-    const pre = []
-    const results = []
-    const sections = []
-    const ctx = {
-      tools: { register(def) { tools.set(def.name, def); return () => tools.delete(def.name) } },
-      on(event, fn) {
-        if (event === 'tools/pre-execute') { pre.push(fn); return () => pre.splice(pre.indexOf(fn), 1) }
-        if (event === 'tools/result') { results.push(fn); return () => results.splice(results.indexOf(fn), 1) }
-      },
-      get(name) { if (name === 'systemPrompt') return { section(s) { sections.push(s); return () => {} } } },
-    }
-    // services：模拟 Cordis inject（webServer、sessionController 等），只给宿主根上下文
-    if (root && services) {
-      ctx.inject = (deps, cb) => { if (deps.every(d => services[d])) cb({ ...ctx, ...services, effect: (run) => run() }) }
-    }
-    return { ctx, tools, pre, results, sections }
-  }
-  const root = make(true)
+export async function createToolHarness({ mode, role = 'writer', cwd, config = {}, confirm } = {}) {
+  const { createGateEngine } = await import(buildUrl('core/src/gates.js'))
+  const { executeTool } = await import(buildUrl('host-generic/src/index.js'))
+  const { withPluginConfig } = await import(buildUrl('fanqie/src/engine/tools/context.js'))
   const approvals = []
-  const host = {
-    root, approvals, approve,
-    agents: new Map(),
-    agent(id, cwd) {
-      if (!this.agents.has(id)) {
-        const scope = make()
-        this.agents.set(id, { id, ctx: scope.ctx, scope, session: { id, header: { cwd } } })
-      }
-      return this.agents.get(id)
-    },
-    async call(agent, name, args = {}) {
-      const scope = agent?.scope
-      const def = scope?.tools.get(name) ?? root.tools.get(name)
-      if (!def) throw new Error(`unknown tool ${name}`)
-      const exec = { callId: String(Math.random()), name, arguments: structuredClone(args), agent, token: Symbol('exec'), signal: new AbortController().signal }
-      const chain = [...root.pre, ...(scope?.pre ?? [])]
-      const run = async (i) => (i >= chain.length ? { kind: 'allow' } : chain[i](exec, () => run(i + 1)))
-      let decision = await run(0)
-      if (decision.kind === 'ask') {
-        approvals.push({ name, reason: decision.reason })
-        decision = this.approve === 'allowed-once' ? { kind: 'allow' } : { kind: 'deny', reason: 'the user rejected' }
-      }
-      if (decision.kind === 'deny') return { denied: true, reason: decision.reason }
-      let value, isError = false
-      try { value = await def.execute(args, exec) } catch (e) { isError = true; value = { error: String(e) } }
-      for (const fn of root.results) fn(exec, isError ? { isError } : { isError, value })
-      return value
-    },
+  let definitions, rules
+  if (mode === 'toutiao') {
+    const { createToutiaoTools, EDITOR_TOOLS } = await import(buildUrl('toutiao/src/tools.js'))
+    const { toutiaoGateRules } = await import(buildUrl('toutiao/src/gates.js'))
+    rules = toutiaoGateRules(config)
+    const gates = createGateEngine(rules, { requireApproval: true, disabled: config.disabledGates })
+    definitions = createToutiaoTools({ config, role, gates: () => gates })
+    if (role === 'editor') definitions = definitions.filter(tool => EDITOR_TOOLS.has(tool.name))
+    return harness(gates)
   }
-  return host
+  if (mode !== 'fanqie') throw new Error(`unknown mode ${mode}`)
+  const { createFanqieTools } = await import(buildUrl('fanqie/src/tools.js'))
+  const { engineTools } = await import(buildUrl('fanqie/src/engine/bootstrap.js'))
+  const { fanqieGateRules } = await import(buildUrl('fanqie/src/gates.js'))
+  const gates = createGateEngine(fanqieGateRules(config, role), { requireApproval: true, disabled: config.disabledGates })
+  definitions = [...engineTools(config, gates, 'throw'), ...createFanqieTools({ config, role })]
+  return harness(gates)
+
+  function harness(gates) {
+    const tools = new Map(definitions.map(tool => [tool.name, tool]))
+    const result = { mode, role, cwd, config, tools, gates, approvals, approved: true, execute, call }
+    async function execute(name, args = {}) {
+      const definition = tools.get(name)
+      if (!definition) throw new Error(`unknown tool ${name}`)
+      return executeTool(definition, args, {
+        cwd, role, name, arguments: args, sessionId: cwd + ':' + role,
+        token: Symbol(name), signal: new AbortController().signal,
+      }, {
+        gates, bind: run => withPluginConfig(config, run),
+        confirm: async (reason, signal) => {
+          approvals.push({ name, reason })
+          return confirm ? confirm(reason, signal) : result.approved
+        },
+      })
+    }
+    async function call(name, args = {}) {
+      if (!tools.has(name)) throw new Error(`unknown tool ${name}`)
+      try { return (await execute(name, args)).value }
+      catch (error) {
+        if (!error.code) return { denied: true, reason: error.message }
+        return { ok: false, code: error.code, message: error.message }
+      }
+    }
+    return result
+  }
+}
+
+export async function createRouteHarness(config = {}) {
+  const { profileRoutes } = await import(buildUrl('core/src/profile-api.js'))
+  const { toutiaoLibrary } = await import(buildUrl('toutiao/src/methods.js'))
+  const { fanqieLibrary } = await import(buildUrl('fanqie/src/forge.js'))
+  const { toutiaoApi } = await import(buildUrl('toutiao/src/workbench/api.js'))
+  const { fanqieApi } = await import(buildUrl('fanqie/src/workbench/api.js'))
+  const handlers = [toutiaoApi(config.toutiao || {}, () => true), fanqieApi(config.fanqie || {}),
+    profileRoutes('/api/writer/toutiao', toutiaoLibrary, () => config.toutiao?.profile),
+    profileRoutes('/api/writer/fanqie', fanqieLibrary, () => config.fanqie?.profile)]
+  return async (route, { method = 'GET', body = {} } = {}) => {
+    const url = new URL('/api/writer' + route, 'app://writer')
+    let response = new Response('{}', { status: 404 })
+    const ctx = { url, method, path: url.pathname,
+      json: (status, data) => { response = new Response(JSON.stringify(data), { status }) },
+      body: async () => body, readBody: async () => ({ parsed: body }) }
+    for (const handler of handlers) if (await handler.handle(ctx)) break
+    return response
+  }
 }
 
 export async function copyFixtures(dir) {

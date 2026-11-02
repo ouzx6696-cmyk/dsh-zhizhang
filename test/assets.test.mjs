@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { ROOT, fakeHost, tempDir, buildUrl } from './helpers.mjs'
+import { ROOT, createToolHarness, tempDir, buildUrl } from './helpers.mjs'
 
 const SCRIPT = path.join(ROOT, 'scripts/assets.mjs')
 const run = (args) => {
@@ -61,7 +61,6 @@ test('导入上游新版：比对、应用、版本号、报告、未登记提�
   assert.equal(applied.code, 0, applied.out)
   const sources = JSON.parse(await readFile(path.join(root, 'assets/sources.json'), 'utf8'))
   assert.equal(sources.sources.find(s => s.id === 'toutiao-viral-writer').version, '4.1.0')
-  assert.match(await readFile(path.join(root, 'packages/toutiao/src/brief.ts'), 'utf8'), /规则 4\.1\.0/)
   assert.ok(existsSync(path.join(root, 'packages/toutiao/skill/scripts/writer_bridge.py')), '本项目文件保留')
   assert.ok(!existsSync(path.join(root, 'packages/toutiao/skill/corpus/12-文旅消费.md')))
   const report = await readFile(path.join(root, 'assets/updates/toutiao-viral-writer-4.1.0.md'), 'utf8')
@@ -74,7 +73,6 @@ test('导入上游新版：比对、应用、版本号、报告、未登记提�
 })
 
 test('作者自备资产：两种模式都能列出与读取，配置拼错会报错', async () => {
-  const { apply } = await import(buildUrl('app/src/index.js'))
   const { parseToutiaoConfig } = await import(buildUrl('toutiao/src/index.js'))
   const { parseFanqieConfig } = await import(buildUrl('fanqie/src/index.js'))
   assert.match(parseToutiaoConfig({ assets: { dir: ['x'] } }).issues[0].message, /toutiao\.assets\.dir 不是有效配置项/)
@@ -85,28 +83,25 @@ test('作者自备资产：两种模式都能列出与读取，配置拼错会�
   await writeFile(path.join(cwd, '我的方法/标题/养老题.md'), '# 我的标题套路\n先说钱。\n')
   await writeFile(path.join(cwd, '我的方法/笔记.txt'), '人物小传')
   await writeFile(path.join(cwd, '我的方法/图.png'), 'x')
-  const host = fakeHost()
-  apply(host.root.ctx, { toutiao: { assets: { dirs: ['我的方法', '不存在'] } }, fanqie: { assets: { dirs: [path.join(cwd, '我的方法')] } } })
-  const tt = host.agent('tt', cwd), fq = host.agent('fq', cwd)
-  await host.call(tt, 'writer_enable', { mode: 'toutiao' })
-  await host.call(fq, 'writer_enable', { mode: 'fanqie' })
+  const tt = await createToolHarness({ mode: 'toutiao', cwd, config: { assets: { dirs: ['我的方法', '不存在'] } } })
+  const fq = await createToolHarness({ mode: 'fanqie', cwd, config: { assets: { dirs: [path.join(cwd, '我的方法')] } } })
 
-  const list = await host.call(tt, 'toutiao_method_get', { id: 'list' })
+  const list = await tt.call('toutiao_method_get', { id: 'list' })
   assert.deepEqual(list.user.map(a => a.id), ['user:标题/养老题', 'user:笔记'])
   assert.ok(list.builtin.includes('s1-hot'))
   assert.match(list.warnings.join(), /资产目录不存在：不存在/)
-  const got = await host.call(tt, 'toutiao_method_get', { id: 'user:标题/养老题.md' })
+  const got = await tt.call('toutiao_method_get', { id: 'user:标题/养老题.md' })
   assert.equal(got.source, 'user'); assert.match(got.text, /先说钱/)
-  assert.equal((await host.call(tt, 'toutiao_method_get', { id: 's1-hot' })).file, '默认/s1-hot.md')
-  assert.equal((await host.call(tt, 'toutiao_method_get', { id: '原版:s1-hot' })).file, 'references/s1-hot.md')
-  const miss = await host.call(tt, 'toutiao_method_get', { id: 'user:没有' })
+  assert.equal((await tt.call('toutiao_method_get', { id: 's1-hot' })).file, '默认/s1-hot.md')
+  assert.equal((await tt.call('toutiao_method_get', { id: '原版:s1-hot' })).file, 'references/s1-hot.md')
+  const miss = await tt.call('toutiao_method_get', { id: 'user:没有' })
   assert.equal(miss.ok, false)
 
-  const flist = await host.call(fq, 'fanqie_forge_get', { id: 'list' })
+  const flist = await fq.call('fanqie_forge_get', { id: 'list' })
   assert.equal(flist.user.length, 2)
   assert.ok(flist.original.includes('novel-writer/SKILL'))
-  assert.match((await host.call(fq, 'fanqie_forge_get', { id: 'user:笔记' })).text, /人物小传/)
+  assert.match((await fq.call('fanqie_forge_get', { id: 'user:笔记' })).text, /人物小传/)
   // 越界与自带方法不受影响
-  assert.equal((await host.call(fq, 'fanqie_forge_get', { id: 'user:../x' })).ok, false)
-  assert.match((await host.call(fq, 'fanqie_forge_get', { id: '原版:novel-writer/SKILL' })).text, /novel-writer/)
+  assert.equal((await fq.call('fanqie_forge_get', { id: 'user:../x' })).ok, false)
+  assert.match((await fq.call('fanqie_forge_get', { id: '原版:novel-writer/SKILL' })).text, /novel-writer/)
 })

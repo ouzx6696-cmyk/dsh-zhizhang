@@ -8,7 +8,7 @@
       "kind": "upstream",
       "version": "4.0.0",
       "files": 44,
-      "bytes": 332739,
+      "bytes": 332822,
       "loadable": 30,
       "byKind": {
         "meta": 1,
@@ -501,10 +501,10 @@
     {
       "source": "toutiao-viral-writer",
       "kind": "test",
-      "origin": "upstream",
+      "origin": "patched",
       "path": "packages/toutiao/skill/tests/test_gates.py",
-      "bytes": 47919,
-      "sha256": "ce7d8a1388830e05bc6ef09b5fcc6ba38e4029f7297faa4554c35209de838bf9"
+      "bytes": 48002,
+      "sha256": "ab68af757fce456c4ee02d6d5623c4387892d8da86070aefc602b752e401758f"
     },
     {
       "source": "inspiration-forge-suite",

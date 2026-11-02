@@ -4,26 +4,18 @@
 //   3. 写作台接口：列表、详情、全文（附底稿）、新建、保存、切换、删除须确认；配置固定方案时不许切换。
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createServer } from 'node:http'
 import { readdir, readFile, mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { ROOT, fakeHost, tempDir, buildUrl } from './helpers.mjs'
+import { ROOT, createToolHarness, createRouteHarness, tempDir, buildUrl } from './helpers.mjs'
 
 const TT = path.join(ROOT, 'packages/toutiao/profiles/default')
 const FQ = path.join(ROOT, 'packages/fanqie/profiles/default')
 
 async function toolNames() {
-  const txt = await readFile(path.join(ROOT, 'packages/toutiao/src/tools.ts'), 'utf8') + await readFile(path.join(ROOT, 'packages/fanqie/src/tools.ts'), 'utf8')
-  const names = new Set(['writer_enable', 'toutiao_profile', 'fanqie_profile'])
-  for (const m of txt.matchAll(/name: '((?:toutiao|fanqie)_[a-z_]+)'/g)) names.add(m[1])
-  const walk = async (d) => {
-    for (const e of await readdir(d, { withFileTypes: true })) {
-      const p = path.join(d, e.name)
-      if (e.isDirectory()) await walk(p)
-      else if (e.name.endsWith('.ts')) for (const m of (await readFile(p, 'utf8')).matchAll(/name: "(fanqie_[a-z_]+)"/g)) names.add(m[1])
-    }
-  }
-  await walk(path.join(ROOT, 'packages/fanqie/src/engine'))
+  const cwd = await tempDir()
+  const tt = await createToolHarness({ mode: 'toutiao', cwd })
+  const fq = await createToolHarness({ mode: 'fanqie', cwd })
+  const names = new Set([...tt.tools.keys(), ...fq.tools.keys()])
   return names
 }
 
@@ -69,14 +61,10 @@ test('默认方案：文件齐全、目录一致、别名完整、工具名真�
 })
 
 async function enable(config = {}) {
-  const { apply } = await import(buildUrl('app/src/index.js'))
-  const host = fakeHost()
-  apply(host.root.ctx, config)
   const cwd = await tempDir()
-  const tt = host.agent('tt', cwd), fq = host.agent('fq', cwd)
-  await host.call(tt, 'writer_enable', { mode: 'toutiao' })
-  await host.call(fq, 'writer_enable', { mode: 'fanqie' })
-  return { host, cwd, tt, fq, call: (a, n, x = {}) => host.call(a, n, x) }
+  const tt = await createToolHarness({ mode: 'toutiao', cwd, config: config.toutiao })
+  const fq = await createToolHarness({ mode: 'fanqie', cwd, config: config.fanqie })
+  return { cwd, tt, fq, call: (harness, name, args = {}) => harness.call(name, args) }
 }
 
 test('工具：默认 → 原版回落 → 用户方案一（导入、覆盖、切换、恢复）→ 用户方案二以原版为底', async () => {
@@ -134,29 +122,19 @@ test('工具：默认 → 原版回落 → 用户方案一（导入、覆盖、�
     assert.ok((await call(fq, 'fanqie_forge_get', {})).key_methods['novel-writer/SKILL'])
     assert.equal((await call(fq, 'fanqie_forge_get', { id: 'novel-writer/references/editor_method' })).from, 'original')
     // 编辑子代理看不到方案管理工具
-    const { host } = await enable()
-    const ed = host.agent('ed', cwd)
-    await host.call(ed, 'writer_enable', { mode: 'toutiao', role: 'editor' })
-    assert.ok(!ed.scope.tools.has('toutiao_profile') && ed.scope.tools.has('toutiao_method_get'))
+    const ed = await createToolHarness({ mode: 'toutiao', cwd, role: 'editor' })
+    assert.ok(!ed.tools.has('toutiao_profile') && ed.tools.has('toutiao_method_get'))
   } finally { delete process.env.WRITER_PROFILES_DIR }
 })
 
 test('写作台接口：方案列表、详情、全文、新建、保存、切换、删除；配置固定方案', async () => {
   process.env.WRITER_PROFILES_DIR = await tempDir('writer-profiles-')
-  const routes = new Map()
-  const services = { webServer: { register: (r) => { routes.set(r.path, r.handler); return () => routes.delete(r.path) } } }
-  const { apply } = await import(buildUrl('app/src/index.js'))
-  const host = fakeHost({ services })
-  apply(host.root.ctx, { fanqie: { profile: '原版' } })
-  const server = createServer((req, res) => {
-    const h = routes.get(new URL(req.url, 'http://x').pathname.replace(/\/+$/, ''))
-    if (!h) { res.writeHead(404); return res.end('{}') }
-    return h(req, res)
-  })
-  await new Promise(r => server.listen(0, '127.0.0.1', r))
-  const api = `http://127.0.0.1:${server.address().port}/api/writer`
-  const get = async (p) => (await fetch(api + p)).json()
-  const post = async (p, body) => { const r = await fetch(api + p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }); return { status: r.status, ...(await r.json()) } }
+  const request = await createRouteHarness({ fanqie: { profile: '原版' } })
+  const get = async (route) => (await request(route)).json()
+  const post = async (route, body) => {
+    const response = await request(route, { method: 'POST', body })
+    return { status: response.status, ...(await response.json()) }
+  }
   try {
     let l = await get('/toutiao/profiles')
     assert.equal(l.ok, true); assert.equal(l.active, 'default'); assert.equal(l.profiles[0].methods, 30)
@@ -183,7 +161,6 @@ test('写作台接口：方案列表、详情、全文、新建、保存、切�
     assert.equal((await get('/fanqie/profiles/method?profile=default&id=edit')).method.from, 'default')
     assert.equal((await post('/fanqie/profiles/save', { profile: 'default', id: 'edit', text: 'x' })).status, 409, '内置方案只读')
   } finally {
-    server.close()
     delete process.env.WRITER_PROFILES_DIR
   }
     const {setProfilesRoot, activeProfile}=await import(buildUrl('core/src/profiles.js'))

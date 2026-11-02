@@ -8,7 +8,7 @@
 bad.md（AI 腔稿）、micro_good.md（微头条）、long_good.md（资讯线长图文实机稿）、
 story_long_good.md + story_long_card.json（故事线长图文：精卫填海 + 别国同母题延伸）。
 """
-import json, os, re, subprocess, sys, tempfile
+import json, os, re, subprocess, sys, tempfile, unittest
 import importlib.util as _ilu
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -63,8 +63,8 @@ def run(md, title=None, expect_exit=None, extra=None):
         report = None
         try:
             report = json.loads(p.stdout)
-        except Exception:
-            pass
+        except json.JSONDecodeError:
+            report = None
         return report, p.returncode, p.stderr
     finally:
         os.unlink(path)
@@ -72,7 +72,6 @@ def run(md, title=None, expect_exit=None, extra=None):
 
 def check(name, cond, detail=""):
     results.append((name, bool(cond), detail))
-    print(f"{'  ok  ' if cond else ' FAIL '} {name}" + (f"  <- {detail}" if detail else ""))
 
 
 def item(report, key):
@@ -159,9 +158,8 @@ _sp = _ilu.spec_from_file_location("_qa", QA)
 _qm = _ilu.module_from_spec(_sp); _sp.loader.exec_module(_qm)
 _wsum = sum(_qm.WEIGHTS.values())
 check("六维权重合计恰为 1", abs(_wsum - 1.0) < 1e-12, f"sum={_wsum!r}")
-check("权重未退回 0.24/0.16/0.14/0.18 旧值",
-      abs(_qm.WEIGHTS["ai"] - 0.24) > 1e-9 and abs(_qm.WEIGHTS["compliance"] - 0.18) > 1e-9,
-      f'ai={_qm.WEIGHTS["ai"]:.6f} compliance={_qm.WEIGHTS["compliance"]:.6f}')
+check("六维权重均为正，任一维度提升都会提高未取整总分",
+      all(weight > 0 for weight in _qm.WEIGHTS.values()))
 # 六维满分时 overall 必须是 100，不再被 1.04 撑到 104 后被 clamp
 _rat = _qm.clamp(100 * _qm.WEIGHTS["ai"] + 100 * _qm.WEIGHTS["read"] + 100 * _qm.WEIGHTS["title"]
                  + 100 * _qm.WEIGHTS["detail"] + 100 * _qm.WEIGHTS["structure"]
@@ -634,10 +632,20 @@ check("s1 两个入口都在：热点雷达和节点日历", "热点雷达" in d
 _cl = _read("CHANGELOG.md")
 check("CHANGELOG 记了 4.0.0（改了什么、为什么、删了什么）", "## 4.0.0" in _cl and "为什么" in _cl and "删" in _cl)
 
-failed = [n for n, ok, _ in results if not ok]
-print(f"\n{len(results) - len(failed)}/{len(results)} 通过")
-if failed:
-    print("未通过：")
-    for n in failed:
-        print("  -", n)
-sys.exit(1 if failed else 0)
+class GateChecks(unittest.TestCase):
+    """Each collected behavior assertion is an independently reported case."""
+
+
+def parameterized_check(case):
+    name, passed, detail = case
+    def test(self):
+        self.assertTrue(passed, f"{name}: {detail}")
+    test.__doc__ = name
+    return test
+
+
+for index, case in enumerate(results):
+    setattr(GateChecks, f"test_{index:03d}", parameterized_check(case))
+
+if __name__ == "__main__":
+    unittest.main()

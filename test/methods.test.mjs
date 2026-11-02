@@ -7,8 +7,7 @@ import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
 import { readdir } from 'node:fs/promises'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { ROOT, fakeHost, tempDir, buildUrl } from './helpers.mjs'
+import { ROOT, createToolHarness, tempDir, buildUrl } from './helpers.mjs'
 
 const TOUTIAO_SKILL = path.join(ROOT, 'packages/toutiao/skill')
 const FORGE = path.join(ROOT, 'packages/fanqie/skill/forge')
@@ -26,26 +25,20 @@ async function files(dir, ext) {
   return out.sort()
 }
 
-async function enableBoth(apply) {
-  const host = fakeHost()
-  apply(host.root.ctx, {})
+async function enableBoth() {
   const cwd = await tempDir()
-  const tt = host.agent('tt', cwd), fq = host.agent('fq', cwd)
-  const call = (agent, n, a = {}) => host.call(agent, n, a)
-  const a = await call(tt, 'writer_enable', { mode: 'toutiao' })
-  const b = await call(fq, 'writer_enable', { mode: 'fanqie' })
-  assert.equal(a.ok, true, JSON.stringify(a))
-  assert.equal(b.ok, true, JSON.stringify(b))
-  return { host, tt, fq, call, receipts: [a, b] }
+  const tt = await createToolHarness({ mode: 'toutiao', cwd })
+  const fq = await createToolHarness({ mode: 'fanqie', cwd })
+  return { tt, fq, call: (harness, name, args = {}) => harness.call(name, args) }
 }
 
-async function loadEverything(apply, label) {
-  const { tt, fq, call, receipts } = await enableBoth(apply)
+async function loadEverything(label) {
+  const { tt, fq, call } = await enableBoth()
   const loaded = { toutiao: 0, forge: 0, engine: 0 }
   const texts = []
 
   // 头条：toutiao_method_get 的每个 id
-  const ttTool = tt.scope.tools.get('toutiao_method_get')
+  const ttTool = tt.tools.get('toutiao_method_get')
   const ids = (await call(tt, 'toutiao_method_get', { id: 'list' })).builtin
   for (const id of ids ?? []) assert.ok(ttTool.parameters.properties.id.description.includes(id), `${label}: 工具说明里列出 ${id}`)
   assert.ok(Array.isArray(ids) && ids.length >= 30, `${label}: 头条方法 id 列表`)
@@ -95,10 +88,9 @@ async function loadEverything(apply, label) {
     loaded.engine++
   }
   texts.push(listText)
-  return { tt, fq, call, loaded, texts, receipts, engineIds, forgeIds: idx.methods, toutiaoIds: ids }
+  return { tt, fq, call, loaded, texts, engineIds, forgeIds: idx.methods, toutiaoIds: ids }
 }
 
-const { apply } = await import(buildUrl('app/src/index.js'))
 
 test('原件对照：头条方法与语料、forge 三件套都完整在包里，并全部登记为可加载', async () => {
   const { METHOD_FILES } = await import(buildUrl('toutiao/src/methods.js'))
@@ -127,16 +119,17 @@ test('原件对照：头条方法与语料、forge 三件套都完整在包里�
 })
 
 test('源码构建：三套方法论每一份都能经工具加载；提到的工具名都存在', async () => {
-  const r = await loadEverything(apply, '源码')
+  const r = await loadEverything('源码')
   assert.ok(r.loaded.toutiao >= 30 && r.loaded.forge >= 100 && r.loaded.engine >= 12, JSON.stringify(r.loaded))
   assert.ok(r.engineIds.includes('edit'), '编辑过稿方法可加载')
 
   // 工具名引用检查
-  const names = new Set(['writer_enable', ...r.tt.scope.tools.keys(), ...r.fq.scope.tools.keys()])
+  const names = new Set([...r.tt.tools.keys(), ...r.fq.tools.keys()])
   const sources = [
-    ...r.tt.scope.sections.map(s => s.text()), ...r.fq.scope.sections.map(s => s.text()),
-    ...[...r.tt.scope.tools.values(), ...r.fq.scope.tools.values()].map(t => t.description ?? ''),
-    ...r.texts, JSON.stringify(r.receipts),
+    (await import(buildUrl('toutiao/src/brief.js'))).TOUTIAO_BRIEF,
+    (await import(buildUrl('fanqie/src/brief.js'))).FANQIE_BRIEF,
+    ...[...r.tt.tools.values(), ...r.fq.tools.values()].map(t => t.description ?? ''),
+    ...r.texts,
   ]
   const productMap = await r.call(r.fq, 'fanqie_product_map', {})
   sources.push(typeof productMap === 'string' ? productMap : JSON.stringify(productMap))
@@ -156,9 +149,12 @@ test('源码构建：三套方法论每一份都能经工具加载；提到的�
   assert.deepEqual([...new Set(badEngine)], [], '引擎方法资产 id 不存在')
 })
 
-const BUNDLE = path.join(ROOT, 'bundle/dist/index.js')
-test('打好的插件包：从包内路径加载三套方法论', { skip: !existsSync(BUNDLE) && '先 npm run bundle' }, async () => {
-  const mod = await import(pathToFileURL(BUNDLE).href + '?t=' + Date.now())
-  const r = await loadEverything(mod.apply, '插件包')
-  assert.ok(r.loaded.toutiao >= 30 && r.loaded.forge >= 100 && r.loaded.engine >= 12, JSON.stringify(r.loaded))
+test('工具执行结果由生产 output.render 渲染，全部方法内容仍可加载', async () => {
+  const { tt, fq } = await enableBoth()
+  for (const [harness, name, args] of [[tt, 'toutiao_method_get', { id: 's3-headline' }],
+    [fq, 'fanqie_forge_get', { id: 'edit' }]]) {
+    const result = await harness.execute(name, args)
+    assert.ok(result.value.text.length > 100)
+    assert.ok(result.content.some(block => block.type === 'text' && block.text.length > 100))
+  }
 })

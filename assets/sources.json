@@ -38,7 +38,8 @@
         "scripts/writer_bridge.py"
       ],
       "patched": [
-        "scripts/ledger.py"
+        "scripts/ledger.py",
+        "tests/test_gates.py"
       ],
       "exclude": []
     },
