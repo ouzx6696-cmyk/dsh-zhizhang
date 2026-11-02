@@ -1,0 +1,66 @@
+.studio-topbar {
+  height: 56px;
+  min-height: 56px;
+  background: var(--ui-panel);
+}
+.studio-paper-column {
+  background: transparent;
+  padding: 0 24px 32px;
+}
+.studio-paper-column .wb-manuscript {
+  background: linear-gradient(170deg, var(--ui-paper-2), var(--ui-paper));
+  border-radius: var(--ui-radius-lg);
+  box-shadow: var(--ui-paper-shadow);
+  border: 1px solid var(--ui-line-strong);
+  padding: 40px 48px;
+  line-height: 2;
+  color: var(--ui-text);
+}
+.studio-paper-column .wb-manuscript h1 {
+  font-family: var(--ui-font-body);
+  color: var(--ui-title);
+}
+.studio-error {
+  position: relative;
+  inset: auto;
+  max-width: none;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 10px 20px;
+  background: var(--ui-panel);
+  border: 0;
+  border-bottom: 1px solid var(--ui-danger);
+  box-shadow: none;
+  z-index: 21;
+}
+.studio-layout[data-fullwidth="true"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+.studio-layout[data-fullwidth="true"] > .studio-nav,
+.studio-layout[data-fullwidth="true"] > .studio-sidebar,
+.studio-layout[data-fullwidth="true"] > .drawer-scrim {
+  display: none;
+}
+.studio-layout[data-fullwidth="true"] > .studio-paper-column {
+  max-width: 1320px;
+  width: 100%;
+  margin: auto;
+  grid-column: 1;
+}
+.studio-paper-column .ui-manuscript-heading h1 {
+  text-align: center;
+  font-family: var(--ui-font-body);
+  font-size: var(--ui-size-24);
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 0 0 28px;
+  color: var(--ui-title);
+}
+.writer-desktop button.wb-button-primary {
+  background: var(--ui-primary-fill);
+  color: var(--ui-on-accent);
+  border-color: transparent;
+}
+.writer-desktop button.wb-button-ghost {
+  background: transparent;
+}

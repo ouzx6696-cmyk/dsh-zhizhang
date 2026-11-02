@@ -1,3 +1,4 @@
+import { Manuscript } from "./Manuscript.jsx";
 /**
  * 方法方案：页头按钮 + 弹窗。左列方案（默认 / 原版 / 用户方案N），中列方法清单，右列全文。
  * 内置方案只读；用户方案可逐份保存、恢复底稿、新增、改名、删除；新建时可导入 .md 文件或整个文件夹。
@@ -119,7 +120,7 @@ function NewProfileForm({ profiles, base, onCancel, onCreate, busy }) {
 
 function InlineProfiles({children}) { return <section className="wb-pf">{children}</section>; }
 
-export function ProfilesDialog({ mode, api, onClose, onChanged, inline = false, onEditState, confirm }) {
+export function ProfilesDialog({ renderContent = text => <Manuscript text={text}/>, mode, api, onClose, onChanged, inline = false, onEditState, confirm }) {
   const Frame = inline ? InlineProfiles : PanelModal;
   const { notices, push, dismiss } = useNotices();
   const [list, setList] = useState({ status: "loading", profiles: [], active: "", pinned: false });
@@ -128,6 +129,7 @@ export function ProfilesDialog({ mode, api, onClose, onChanged, inline = false, 
   const [filter, setFilter] = useState("");
   const [method, setMethod] = useState(null); // { id, text, base_text, from }
   const [draft, setDraft] = useState("");
+  const [modeView, setModeView] = useState("read");
   const [showBase, setShowBase] = useState(false);
   const [busy, setBusy] = useState("");
   const [creating, setCreating] = useState(false);
@@ -172,6 +174,7 @@ export function ProfilesDialog({ mode, api, onClose, onChanged, inline = false, 
       setMethod({ ...r.method, base_text: r.base_text });
       setDraft(r.method.text);
       setShowBase(false);
+      setModeView("read");
     } catch (e) { push("danger", errText(e)); }
     setBusy("");
   }, [api, sel, dirty, push, busy]);
@@ -212,6 +215,7 @@ export function ProfilesDialog({ mode, api, onClose, onChanged, inline = false, 
     if (!clean) return;
     setAdding(null);
     setMethod({ id: clean, text: "", from: "user", added: true });
+    setModeView("edit");
     setDraft("# " + clean + "\n\n");
   };
 
@@ -322,19 +326,20 @@ export function ProfilesDialog({ mode, api, onClose, onChanged, inline = false, 
               {method ? (
                 <>
                   <div className="wb-pf-editor-head">
-                    <span className="wb-pf-editor-id">{method.id}</span>
+                    <span className="wb-pf-editor-id">{rows.find(row => row.id === method.id)?.title || "方法篇目"}</span>
                     <span className="wb-muted">{t("pfBytes", { n: countChars(draft) })}</span>
                     {dirty ? <Tag tone="warning">{t("pfUnsaved")}</Tag> : null}
                   </div>
                   {!editable ? <Callout tone="info">{t("pfReadonly")}</Callout> : null}
-                  <textarea
+                  <div className="ui-tabs" role="group" aria-label="方法阅读方式"><button aria-pressed={modeView === "read"} onClick={() => setModeView("read")}>阅读</button>{editable && <button aria-pressed={modeView === "edit"} onClick={() => setModeView("edit")}>编辑</button>}{method.base_text && <button aria-pressed={modeView === "compare"} onClick={() => setModeView("compare")}>和默认对照</button>}</div>
+                  {modeView === "edit" ? (<textarea
                     className="wb-pf-textarea"
                     value={draft}
                     readOnly={!editable}
                     spellCheck={false}
                     aria-label={method.id}
                     onChange={(e) => setDraft(e.target.value)}
-                  />
+                  />) : modeView === "compare" ? <div className="wb-pf-compare"><div className="wb-pf-reading"><h3>默认方案</h3>{renderContent(method.base_text || "")}</div><div className="wb-pf-reading"><h3>当前方案</h3>{renderContent(draft)}</div></div> : <div className="wb-pf-reading">{renderContent(draft)}</div>}
                   {showBase && method.base_text ? <pre className="wb-pf-base" aria-label={t("pfShowBase")}>{method.base_text}</pre> : null}
                   {editable ? (
                     <div className="wb-pf-actions">

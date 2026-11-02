@@ -23,7 +23,11 @@ const bundlePkg = JSON.parse(await readFile(path.join(root, "bundle", "package.j
 const ID = bundlePkg.name;
 
 const banner = [
-  "/* " + ID + " " + pkg.version + " — 写作台浏览器端（scripts/build-client.mjs 生成；源码 packages/workbench/src/client/） */",
+  "/* " +
+    ID +
+    " " +
+    pkg.version +
+    " — 写作台浏览器端（scripts/build-client.mjs 生成；源码 packages/workbench/src/client/） */",
   "window.__ModuleLoader__.load({",
   "  id: " + JSON.stringify(ID) + ",",
   "  factory: function (require) {",
@@ -44,8 +48,27 @@ const result = await build({
   jsxFactory: "React.createElement",
   jsxFragment: "React.Fragment",
   external: ["react"],
-  loader: { ".css": "text" },
-  define: { __WB_VERSION__: JSON.stringify(pkg.version), __WB_PACKAGE__: JSON.stringify(ID), "process.env.NODE_ENV": '"production"' },
+  plugins: [
+    {
+      name: "inline-ui-styles",
+      setup(builder) {
+        builder.onLoad({ filter: /\.css$/ }, async (args) => {
+          const result = await build({
+            entryPoints: [args.path],
+            bundle: true,
+            write: false,
+            logLevel: "silent",
+          });
+          return { contents: result.outputFiles[0].text, loader: "text" };
+        });
+      },
+    },
+  ],
+  define: {
+    __WB_VERSION__: JSON.stringify(pkg.version),
+    __WB_PACKAGE__: JSON.stringify(ID),
+    "process.env.NODE_ENV": '"production"',
+  },
   legalComments: "none",
   charset: "utf8",
   minifySyntax: true,
@@ -63,17 +86,31 @@ for (const pattern of forbidden) {
 }
 // Colours belong to the host theme: the stylesheet may only use --dsw-* tokens.
 const css = await readFile(path.join(clientDir, "styles.css"), "utf8");
-const literal = css.replace(/\/\*[\s\S]*?\*\//g, "").match(/#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|oklch)\(/);
+const literal = css
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .match(/#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|oklch)\(/);
 if (literal) throw new Error("client CSS contains a colour literal: " + literal[0]);
 let descriptor = null;
 runInNewContext(code, {
-  window: { __ModuleLoader__: { load: (value) => { descriptor = value; } } },
+  window: {
+    __ModuleLoader__: {
+      load: (value) => {
+        descriptor = value;
+      },
+    },
+  },
   console,
 });
 if (!descriptor || descriptor.id !== ID || typeof descriptor.factory !== "function") {
   throw new Error("client bundle did not register through window.__ModuleLoader__.load");
 }
-const fakeReact = { createElement: () => null, Component: class {}, Fragment: "f", memo: (c) => c, useState: () => [null, () => {}] };
+const fakeReact = {
+  createElement: () => null,
+  Component: class {},
+  Fragment: "f",
+  memo: (c) => c,
+  useState: () => [null, () => {}],
+};
 const exportsObj = descriptor.factory((id) => {
   if (id === "react") return fakeReact;
   throw new Error("missing " + id);

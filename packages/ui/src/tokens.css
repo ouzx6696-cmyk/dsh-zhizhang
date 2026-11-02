@@ -1,9 +1,21 @@
 /* Shared design tokens. DSH supplies --dsw-*; the desktop shell maps the same
    aliases to its palette, so components never name a colour or font directly. */
 :where(:root, .ui-scope, .wb-scope, .wb-root, .wb-modal-root) {
-  --ui-font-ui: var(--dsw-font-family, "Noto Sans SC", "Microsoft YaHei", sans-serif);
-  --ui-font-body: var(--ui-paper-font, "Noto Serif SC", "Songti SC", Georgia, serif);
-  --ui-font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ui-font-ui: var(
+    --dsw-font-family,
+    "Noto Sans SC",
+    "Microsoft YaHei",
+    sans-serif
+  );
+  --ui-font-body: var(
+    --ui-body-family,
+    "Noto Serif SC",
+    "Songti SC",
+    Georgia,
+    serif
+  );
+  --ui-font-mono:
+    "JetBrains Mono", "Noto Sans Mono CJK SC", "Noto Sans SC", monospace;
 
   --ui-space-1: 4px;
   --ui-space-2: 8px;
@@ -17,23 +29,65 @@
   --ui-radius-lg: 14px;
 
   --ui-bg: var(--dsw-alias-bg-layer-1, Canvas);
-  --ui-panel: var(--dsw-alias-settings-card-fill, var(--dsw-alias-bg-layer-1, Canvas));
+  --ui-panel: var(
+    --dsw-alias-settings-card-fill,
+    var(--dsw-alias-bg-layer-1, Canvas)
+  );
   --ui-paper: var(--dsw-alias-bg-layer-2, Canvas);
-  --ui-line: var(--dsw-alias-border-l2, color-mix(in srgb, CanvasText 14%, transparent));
-  --ui-line-strong: var(--dsw-alias-border-l4, color-mix(in srgb, CanvasText 24%, transparent));
+  --ui-line: var(
+    --dsw-alias-border-l2,
+    color-mix(in srgb, CanvasText 14%, transparent)
+  );
+  --ui-line-strong: var(
+    --dsw-alias-border-l4,
+    color-mix(in srgb, CanvasText 24%, transparent)
+  );
   --ui-text: var(--dsw-alias-label-primary, CanvasText);
-  --ui-text-2: var(--dsw-alias-label-secondary, color-mix(in srgb, CanvasText 72%, transparent));
-  --ui-text-3: var(--dsw-alias-label-tertiary, color-mix(in srgb, CanvasText 56%, transparent));
-  --ui-accent: var(--dsw-alias-state-business-primary, var(--dsw-alias-link, LinkText));
-  --ui-accent-soft: var(--dsw-alias-state-business-tertiary, color-mix(in srgb, LinkText 12%, transparent));
+  --ui-text-2: var(
+    --dsw-alias-label-secondary,
+    color-mix(in srgb, CanvasText 72%, transparent)
+  );
+  --ui-text-3: var(
+    --dsw-alias-label-tertiary,
+    color-mix(in srgb, CanvasText 56%, transparent)
+  );
+  --ui-accent: var(
+    --dsw-alias-state-business-primary,
+    var(--dsw-alias-link, LinkText)
+  );
+  --ui-accent-soft: var(
+    --dsw-alias-state-business-tertiary,
+    color-mix(in srgb, LinkText 12%, transparent)
+  );
   --ui-on-accent: var(--dsw-alias-label-primary-inverted, Canvas);
-  --ui-success: var(--dsw-alias-state-success-primary, color-mix(in srgb, CanvasText 65%, LinkText));
-  --ui-warning: var(--dsw-alias-state-warn-primary, color-mix(in srgb, CanvasText 55%, Mark));
-  --ui-danger: var(--dsw-alias-state-error-primary, color-mix(in srgb, CanvasText 55%, LinkText));
-  --ui-hover: var(--dsw-alias-interactive-bg-hover, color-mix(in srgb, CanvasText 6%, transparent));
-  --ui-active: var(--dsw-alias-interactive-bg-active, color-mix(in srgb, CanvasText 10%, transparent));
-  --ui-mask: var(--dsw-alias-bg-mask-1, color-mix(in srgb, CanvasText 45%, transparent));
-  --ui-shadow-1: var(--dsw-elevation-soft, 0 1px 2px color-mix(in srgb, CanvasText 8%, transparent));
+  --ui-success: var(
+    --dsw-alias-state-success-primary,
+    color-mix(in srgb, CanvasText 65%, LinkText)
+  );
+  --ui-warning: var(
+    --dsw-alias-state-warn-primary,
+    color-mix(in srgb, CanvasText 55%, Mark)
+  );
+  --ui-danger: var(
+    --dsw-alias-state-error-primary,
+    color-mix(in srgb, CanvasText 55%, LinkText)
+  );
+  --ui-hover: var(
+    --dsw-alias-interactive-bg-hover,
+    color-mix(in srgb, CanvasText 6%, transparent)
+  );
+  --ui-active: var(
+    --dsw-alias-interactive-bg-active,
+    color-mix(in srgb, CanvasText 10%, transparent)
+  );
+  --ui-mask: var(
+    --dsw-alias-bg-mask-1,
+    color-mix(in srgb, CanvasText 45%, transparent)
+  );
+  --ui-shadow-1: var(
+    --dsw-elevation-soft,
+    0 1px 2px color-mix(in srgb, CanvasText 8%, transparent)
+  );
   --ui-shadow-2: var(
     --dsw-elevation-medium,
     0 8px 24px color-mix(in srgb, CanvasText 12%, transparent),
@@ -41,30 +95,165 @@
   );
 }
 
-.ui-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--ui-space-1);
-  padding: 1px 7px;
-  border-radius: var(--ui-radius-sm);
-  background: color-mix(in srgb, var(--ui-text) 7%, transparent);
-  color: var(--ui-text-2);
-  font: 600 11px/18px var(--ui-font-ui);
-  white-space: nowrap;
+:root[data-writer-desktop],
+.ui-theme-preview[data-theme="dark"] {
+  color-scheme: dark;
+  --ui-bg: #101419;
+  --ui-bg-glow: #1d2630;
+  --ui-panel: #141a20;
+  --ui-paper: #1b2229;
+  --ui-paper-2: #222a32;
+  --ui-line: #ffffff0f;
+  --ui-line-strong: #ffffff1c;
+  --ui-fill: #ffffff08;
+  --ui-fill-strong: #ffffff12;
+  --ui-text: #ece6da;
+  --ui-text-2: #b9b2a5;
+  --ui-text-3: #aaa397;
+  --ui-title: #f3e7cf;
+  --ui-accent: #e2a74e;
+  --ui-accent-hover: #f0bc69;
+  --ui-accent-soft: #e2a74e24;
+  --ui-on-accent: #16130d;
+  --ui-info: #9cc0e0;
+  --ui-success: #8fc29f;
+  --ui-danger: #e8857a;
+  --ui-warning: #e2a74e;
+  --ui-primary-fill: linear-gradient(135deg, #f3c879, #e2a74e);
+  --ui-mask: #070a0dcc;
+  --ui-shadow-1: 0 12px 40px #00000024;
+  --ui-shadow-2: 0 24px 80px #00000070;
+  --ui-paper-shadow: 0 -12px 60px #e2a74e08, 0 24px 60px #00000044;
+  --ui-glow: 0 0 20px #e2a74e30;
+  --ui-radius-sm: 10px;
+  --ui-radius-md: 14px;
+  --ui-radius-lg: 20px;
+  --ui-body-size: 18px;
+  --ui-body-family: "Noto Serif SC", serif;
+  --ui-control-height: 36px;
+  --ui-blur: blur(16px);
+  --ui-transition: 150ms ease;
 }
-.ui-badge[data-tone="info"] {
-  background: var(--ui-accent-soft);
-  color: var(--ui-accent);
+:root[data-writer-desktop][data-theme="light"],
+.ui-theme-preview[data-theme="light"] {
+  color-scheme: light;
+  --ui-bg: #f1ebe0;
+  --ui-bg-glow: #f9f4ea;
+  --ui-panel: #f6f1e8;
+  --ui-paper: #fffcf6;
+  --ui-paper-2: #f8f3eb;
+  --ui-line: #2a252015;
+  --ui-line-strong: #2a25202a;
+  --ui-fill: #2a252006;
+  --ui-fill-strong: #2a25200d;
+  --ui-text: #2a2520;
+  --ui-text-2: #5b544b;
+  --ui-text-3: #686156;
+  --ui-title: #32291b;
+  --ui-accent: #8a5410;
+  --ui-accent-hover: #73430a;
+  --ui-accent-soft: #e2a74e22;
+  --ui-info: #2f5f86;
+  --ui-success: #265d3f;
+  --ui-danger: #a3463c;
+  --ui-warning: #8a5410;
+  --ui-mask: #1d1914aa;
+  --ui-shadow-1: 0 8px 24px #5337160d;
+  --ui-shadow-2: 0 24px 80px #53371630;
+  --ui-paper-shadow: 0 -10px 60px #e2a74e15, 0 16px 48px #53371612;
 }
-.ui-badge[data-tone="warn"] {
-  background: color-mix(in srgb, var(--ui-warning) 14%, transparent);
-  color: var(--ui-warning);
+:root[data-font="sans"] {
+  --ui-body-family: "Noto Sans SC", sans-serif;
 }
-.ui-badge[data-tone="success"] {
-  background: color-mix(in srgb, var(--ui-success) 14%, transparent);
-  color: var(--ui-success);
+:root[data-transparency="reduced"] {
+  --ui-blur: none;
 }
-.ui-badge[data-tone="danger"] {
-  background: color-mix(in srgb, var(--ui-danger) 14%, transparent);
-  color: var(--ui-danger);
+.writer-desktop {
+  --ui-font-ui: "Noto Sans SC", sans-serif;
+  --ui-font-body: var(--ui-body-family);
+  --ui-panel-bg: var(--ui-panel);
+  --ui-hover: var(--ui-fill-strong);
+  --ui-active: var(--ui-accent-soft);
+  --dsw-alias-bg-layer-1: var(--ui-panel);
+  --dsw-alias-bg-layer-2: var(--ui-paper);
+  --dsw-alias-bg-mask-1: var(--ui-mask);
+  --dsw-alias-bg-document-selection: var(--ui-accent-soft);
+  --dsw-alias-border-l2: var(--ui-line);
+  --dsw-alias-border-l4: var(--ui-line-strong);
+  --dsw-alias-label-primary: var(--ui-text);
+  --dsw-alias-label-secondary: var(--ui-text-2);
+  --dsw-alias-label-tertiary: var(--ui-text-3);
+  --dsw-alias-label-primary-inverted: var(--ui-on-accent);
+  --dsw-alias-button-primary-fill: var(--ui-accent);
+  --dsw-alias-button-primary-hover: var(--ui-accent-hover);
+  --dsw-alias-interactive-bg-active: var(--ui-accent-soft);
+  --dsw-alias-interactive-bg-hover: var(--ui-fill-strong);
+  --dsw-alias-link: var(--ui-accent);
+  --dsw-alias-settings-card-fill: var(--ui-paper);
+  --dsw-alias-settings-card-stroke: var(--ui-line);
+  --dsw-alias-state-business-primary: var(--ui-accent);
+  --dsw-alias-state-business-tertiary: var(--ui-accent-soft);
+  --dsw-alias-state-error-primary: var(--ui-danger);
+  --dsw-alias-state-success-primary: var(--ui-success);
+  --dsw-alias-state-warn-primary: var(--ui-warning);
+  --dsw-alias-state-idle-primary: var(--ui-text-3);
+  --dsw-font-family: var(--ui-font-ui);
+  --dsw-elevation-soft: var(--ui-shadow-1);
+  --dsw-elevation-medium: var(--ui-shadow-2);
+}
+
+:root {
+  --ui-size-12: 12px;
+  --ui-size-13: 13px;
+  --ui-size-14: 14px;
+  --ui-size-15: 15px;
+  --ui-size-16: 16px;
+  --ui-size-18: 18px;
+  --ui-size-20: 20px;
+  --ui-size-22: 22px;
+  --ui-size-24: 24px;
+  --ui-size-26: 26px;
+  --ui-size-28: 28px;
+  --ui-size-32: 32px;
+  --ui-size-36: 36px;
+  --ui-size-40: 40px;
+  --ui-overlay-1: #000;
+}
+
+.writer-desktop {
+  --ui-font-ui: inherit;
+  --ui-font-body: inherit;
+  --ui-font-mono: inherit;
+  --ui-space-1: inherit;
+  --ui-space-2: inherit;
+  --ui-space-3: inherit;
+  --ui-space-4: inherit;
+  --ui-space-5: inherit;
+  --ui-space-6: inherit;
+  --ui-radius-sm: inherit;
+  --ui-radius-md: inherit;
+  --ui-radius-lg: inherit;
+  --ui-bg: inherit;
+  --ui-panel: inherit;
+  --ui-paper: inherit;
+  --ui-line: inherit;
+  --ui-line-strong: inherit;
+  --ui-text: inherit;
+  --ui-text-2: inherit;
+  --ui-text-3: inherit;
+  --ui-accent: inherit;
+  --ui-accent-soft: inherit;
+  --ui-on-accent: inherit;
+  --ui-success: inherit;
+  --ui-warning: inherit;
+  --ui-danger: inherit;
+  --ui-hover: inherit;
+  --ui-active: inherit;
+  --ui-mask: inherit;
+  --ui-shadow-1: inherit;
+  --ui-shadow-2: inherit;
+}
+
+:root {
+  --ui-font-step: 1px;
 }

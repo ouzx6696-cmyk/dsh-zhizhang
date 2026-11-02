@@ -113,6 +113,8 @@ export function parseAppearance(value: unknown): Partial<Appearance> {
     if (!["serif", "sans"].includes(String(source.font))) throw new Error("参数无效：正文字体");
     result.font = source.font as Appearance["font"];
   }
+  if (typeof source.reducedTransparency === "boolean")
+    result.reducedTransparency = source.reducedTransparency;
   if (source.fontSize !== undefined) {
     const size = Number(source.fontSize);
     if (!Number.isInteger(size) || size < 14 || size > 28) throw new Error("参数无效：正文字号");

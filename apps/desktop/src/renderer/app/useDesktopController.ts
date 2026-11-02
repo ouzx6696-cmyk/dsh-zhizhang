@@ -147,7 +147,10 @@ export function useDesktopController() {
       document.documentElement.dataset.theme =
         appearance.theme === "system" ? (media.matches ? "dark" : "light") : appearance.theme;
       document.documentElement.dataset.font = appearance.font;
-      document.documentElement.style.setProperty("--paper-font-size", appearance.fontSize + "px");
+      document.documentElement.dataset.transparency = appearance.reducedTransparency
+        ? "reduced"
+        : "normal";
+      document.documentElement.style.setProperty("--ui-body-size", appearance.fontSize + "px");
     };
     update();
     media.addEventListener("change", update);

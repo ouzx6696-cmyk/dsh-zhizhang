@@ -1,0 +1,82 @@
+.wb-pf-textarea,
+.wb-pf-base {
+  flex: 1 1 auto;
+  min-height: 160px;
+  width: 100%;
+  resize: none;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--wb-r-md);
+  border: 0.5px solid var(--wb-line-strong);
+  background: var(--wb-layer);
+  color: var(--wb-fg);
+  font: var(--ui-size-13)/1.75 var(--ui-font-mono);
+  white-space: pre-wrap;
+  overflow: auto;
+}
+.wb-pf-textarea[readonly] {
+  background: var(--wb-hover);
+}
+.wb-pf-base {
+  flex: 0 1 40%;
+  color: var(--wb-fg-2);
+}
+.wb-pf-placeholder {
+  flex: 1 1 auto;
+  justify-content: center;
+  color: var(--wb-fg-3);
+}
+.wb-pf-new {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 560px;
+}
+.wb-file-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  cursor: pointer;
+  border-radius: var(--wb-r-sm);
+  box-shadow: inset 0 0 0 0.5px var(--wb-line-strong);
+  font: var(
+    --dsw-font-xs-strong-13,
+    500 var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui)
+  );
+}
+.wb-file-button input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .wb-pf-item:not(.wb-pf-item-on):hover,
+  .wb-pf-method:not(.wb-pf-method-on):hover,
+  .wb-file-button:hover {
+    background: var(--wb-hover);
+  }
+}
+@media (max-width: 900px) {
+  .wb-pf-grid {
+    grid-template-columns: 1fr;
+    overflow: auto;
+  }
+  .wb-pf-span {
+    grid-column: auto;
+  }
+  .wb-pf-methods {
+    border: 0;
+    padding: 0;
+  }
+  .wb-pf-list,
+  .wb-pf-methods-list {
+    max-height: 220px;
+  }
+  .wb-pf-textarea {
+    min-height: 320px;
+  }
+}

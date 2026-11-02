@@ -1,7 +1,7 @@
 /** Editing, ledger and author-draft copy, kept separate from the main table. */
 export const EDITOR_COPY = {
   editorToggle: "编辑正文",
-  editorTitle: "正文源码",
+  editorTitle: "编辑正文",
   editorDirty: "有未保存修改",
   editorClean: "已同步到当前版本",
   editorSave: "保存修改",

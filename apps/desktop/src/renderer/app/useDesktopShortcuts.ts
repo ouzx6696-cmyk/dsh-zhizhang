@@ -20,6 +20,7 @@ export function useDesktopShortcuts(options: {
   latest.current = options;
   useEffect(() => {
     const keyboard = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
       const { selected, context, set, stop } = latest.current;
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
@@ -44,6 +45,7 @@ export function useDesktopShortcuts(options: {
           return;
         }
         if (chatStore.get().busy) {
+          event.preventDefault();
           void askConfirm("停止当前任务？已保存的稿件不会撤销。").then((ok) => {
             if (ok)
               void stop(selected.current || undefined).catch((error) =>

@@ -11,6 +11,7 @@ import { PluginDetailSection } from "./shared/Settings.jsx";
 import { Icon } from "./shared/ui.jsx";
 import css from "./styles.css";
 import tokens from "../../../ui/src/tokens.css";
+import components from "../../../ui/src/components.css";
 import { HOST_PACKAGE } from "./shared/host.js";
 
 export const PLUGIN_ID = HOST_PACKAGE;
@@ -29,7 +30,7 @@ export function ensureStyles() {
   const tag = document.createElement("style");
   tag.dataset.plugin = PLUGIN_ID;
   tag.dataset.pluginCss = tagId;
-  tag.textContent = tokens + "\n" + css;
+  tag.textContent = tokens + components + "\n" + css;
   document.head.appendChild(tag);
 }
 
@@ -43,7 +44,19 @@ export const inject = ["slots"];
 /** DSH owns contribution lifetime through the declared slots service and plugin fiber. */
 export function apply(ctx) {
   ensureStyles();
-  ctx.slots.inject("main", () => ctx.slots.register({ name: "main", key: PANEL_ID, inject: () => ({}) }, App));
-  ctx.slots.inject("sidebar.panellist", () => ctx.slots.register({ name: "sidebar.panellist", id: PANEL_ID, order: PANEL_ORDER, label: () => t("panelLabel") }, SidebarIcon));
-  ctx.slots.inject("plugins.detail.section", () => ctx.slots.register({ name: "plugins.detail.section", id: SETTINGS_KEY, inject: () => ({}) }, PluginDetailSection));
+  ctx.slots.inject("main", () =>
+    ctx.slots.register({ name: "main", key: PANEL_ID, inject: () => ({}) }, App),
+  );
+  ctx.slots.inject("sidebar.panellist", () =>
+    ctx.slots.register(
+      { name: "sidebar.panellist", id: PANEL_ID, order: PANEL_ORDER, label: () => t("panelLabel") },
+      SidebarIcon,
+    ),
+  );
+  ctx.slots.inject("plugins.detail.section", () =>
+    ctx.slots.register(
+      { name: "plugins.detail.section", id: SETTINGS_KEY, inject: () => ({}) },
+      PluginDetailSection,
+    ),
+  );
 }

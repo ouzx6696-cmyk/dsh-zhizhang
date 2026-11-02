@@ -14,7 +14,7 @@ const FANQIE: Record<string, { label: string; tone: StatusTone }> = {
 };
 
 const TOUTIAO: Record<string, { label: string; tone: StatusTone }> = {
-  初稿待改: { label: "待写", tone: "neutral" },
+  初稿待改: { label: "待改稿", tone: "neutral" },
   待验收: { label: "待验收", tone: "info" },
   验收退回: { label: "待改", tone: "danger" },
   已验收: { label: "已验收", tone: "success" },
@@ -22,7 +22,8 @@ const TOUTIAO: Record<string, { label: string; tone: StatusTone }> = {
 };
 
 export function statusInfo(mode: StatusMode, status?: string) {
-  if (!status) return { label: mode === "toutiao" ? "待写" : "待规划", tone: "neutral" as StatusTone };
+  if (!status)
+    return { label: mode === "toutiao" ? "待写" : "待规划", tone: "neutral" as StatusTone };
   const table = mode === "toutiao" ? TOUTIAO : FANQIE;
   if (table[status]) return table[status];
   if (/[\u4e00-\u9fa5]/.test(status)) return { label: status, tone: "neutral" as StatusTone };
@@ -31,3 +32,21 @@ export function statusInfo(mode: StatusMode, status?: string) {
 
 export const statusLabel = (mode: StatusMode, status?: string) => statusInfo(mode, status).label;
 export const statusTone = (mode: StatusMode, status?: string) => statusInfo(mode, status).tone;
+
+export const ARTICLE_STEPS = ["立项", "成稿", "红笔", "质检", "交稿"];
+export function articleProgress(
+  article?: {
+    status?: string;
+    draft?: unknown;
+    rev?: number;
+    qa?: { pass?: boolean; rev?: number }[];
+    card?: { present?: boolean };
+  } | null,
+) {
+  if (!article) return 0;
+  if (article.status === "已交稿") return 5;
+  if (article.status === "已验收") return 4;
+  if (article.status === "待验收") return 3;
+  if (article.status === "验收退回") return 2;
+  return article.draft || article.rev ? 2 : article.card?.present ? 1 : 0;
+}

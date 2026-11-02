@@ -26,7 +26,7 @@ function floorBoundary(boundaries, value) {
   return boundaries[Math.max(0, hi)];
 }
 
-export const Manuscript = React.memo(function Manuscript({ text, issues = EMPTY_ISSUES, annotationId = 'wb-reader' }) {
+export const Manuscript = React.memo(function Manuscript({ text, title, issues = EMPTY_ISSUES, annotationId = 'wb-reader' }) {
   function marked(run) {
     if (run.text === '\n') return <br key={run.start} />;
     const hits = issues.filter(hit => hit.start < run.end && hit.end > run.start);
@@ -60,8 +60,8 @@ export const Manuscript = React.memo(function Manuscript({ text, issues = EMPTY_
     if (next) { event.preventDefault(); next.focus(); next.scrollIntoView({ block: 'center' }); }
   }
 
-  return <article className="wb-manuscript" onKeyDown={nextMark}>
-    {parseManuscript(text).map(block => React.createElement(block.kind, { key: block.start },
-      block.kind === 'hr' ? undefined : block.kind === 'pre' ? <code>{block.runs.map(run => run.text).join('')}</code> : block.runs.map(marked)))}
-  </article>;
+  const body = parseManuscript(text).map(block => React.createElement(block.kind, { key: block.start },
+    block.kind === 'hr' ? undefined : block.kind === 'pre' ? <code>{block.runs.map(run => run.text).join('')}</code> : block.runs.map(marked)));
+  if (title && !/^#\s/m.test(text || "")) body.unshift(<header key="chapter-heading" className="ui-manuscript-heading"><h1>{title}</h1></header>);
+  return <article className="wb-manuscript" onKeyDown={nextMark}>{body}</article>;
 });

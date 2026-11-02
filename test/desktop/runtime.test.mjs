@@ -510,7 +510,7 @@ test("停止任务同时取消父会话与子角色会话", async () => {
   );
   const order = [];
   const child = { abort: async () => { order.push("child"); } };
-  const parent = { abort: async () => { order.push("parent"); }, isIdle: true };
+  const parent = { clearQueue() {}, abort: async () => { order.push("parent"); }, isIdle: true };
   const target = { mode: "fanqie", root: home };
   sessions.sessions.set(sessions.key(target), {
     session: parent,

@@ -1,0 +1,291 @@
+.wb-flag {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  corner-shape: round;
+  font: var(
+    --dsw-font-xxxs-strong-11,
+    600 var(--ui-size-12)/var(--ui-size-16) var(--ui-font-ui)
+  );
+}
+.wb-flag[data-tone="warning"] {
+  color: var(--wb-warn);
+  background: var(--wb-warn-soft);
+}
+.wb-flag[data-tone="danger"] {
+  color: var(--wb-bad);
+  background: var(--wb-bad-soft);
+}
+/* reader */
+.wb-reader {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+.wb-reader-bar {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 0.5px solid var(--wb-line);
+}
+.wb-reader-heading {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.wb-reader-title {
+  font: var(
+    --dsw-font-m-18,
+    600 var(--ui-size-18)/var(--ui-size-26) var(--ui-font-ui)
+  );
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wb-reader-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  color: var(--wb-fg-3);
+  font: var(
+    --dsw-font-xxs-12,
+    var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui)
+  );
+}
+.wb-reader-tools {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.wb-font-tools {
+  display: inline-flex;
+  gap: 2px;
+}
+.wb-reader-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 24px 24px 48px;
+  scroll-padding-top: 16px;
+}
+.wb-reader-body:focus-visible {
+  outline-offset: -2px;
+}
+.wb-reader-empty {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: 24px;
+}
+.wb-pane-loading {
+  max-width: 40rem;
+  margin: 0 auto;
+}
+.wb-reader-body > .wb-callout {
+  max-width: 40rem;
+  margin: 0 auto 16px;
+}
+.wb-manuscript {
+  --wb-size: calc(17px + var(--wb-font-step, 0) * 1px);
+  max-width: 38em;
+  margin: 0 auto;
+  font-family: var(--wb-manuscript-font);
+  font-size: var(--wb-size);
+  line-height: 1.9;
+  letter-spacing: 0.01em;
+  color: var(--wb-fg);
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+.wb-manuscript p {
+  margin: 0 0 0.9em;
+  text-indent: 2em;
+}
+.wb-manuscript h1,
+.wb-manuscript h2,
+.wb-manuscript h3 {
+  margin: 1.4em 0 0.6em;
+  line-height: 1.4;
+  font-family: var(--dsw-font-family, var(--ui-font-ui));
+  font-weight: 600;
+  text-indent: 0;
+}
+.wb-manuscript h1 {
+  font-size: 1.3em;
+}
+.wb-manuscript h2 {
+  font-size: 1.15em;
+}
+.wb-manuscript h3 {
+  font-size: 1.02em;
+}
+.wb-manuscript blockquote {
+  margin: 0 0 1em;
+  padding: 2px 0 2px 1em;
+  border-left: 2px solid var(--wb-line-strong);
+  color: var(--wb-fg-2);
+}
+.wb-manuscript blockquote p {
+  text-indent: 0;
+}
+.wb-manuscript hr {
+  border: 0;
+  border-top: 0.5px solid var(--wb-line-strong);
+  margin: 1.6em auto;
+  width: 40%;
+}
+.wb-manuscript code {
+  font: var(
+    --dsw-font-markdown-code,
+    var(--ui-size-12)/var(--ui-size-18) var(--ui-font-mono)
+  );
+  padding: 1px 5px;
+  border-radius: var(--wb-r-xs);
+  background: var(--wb-hover);
+}
+.wb-manuscript pre {
+  margin: 0 0 1em;
+  padding: 12px;
+  overflow: auto;
+  border-radius: var(--wb-r-lg);
+  background: var(--dsw-alias-markdown-code-block, var(--wb-hover));
+  font: var(
+    --dsw-font-markdown-code-block-small,
+    var(--ui-size-12)/var(--ui-size-18) var(--ui-font-mono)
+  );
+  text-indent: 0;
+}
+.wb-manuscript pre code {
+  padding: 0;
+  background: none;
+}
+.wb-manuscript ::selection {
+  background: var(--dsw-alias-bg-document-selection, var(--wb-accent-soft));
+}
+.wb-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+.wb-split-col {
+  min-width: 0;
+}
+.wb-split-head {
+  position: sticky;
+  top: -24px;
+  z-index: 1;
+  margin: -24px 0 12px;
+  padding: 12px 0 8px;
+  background: var(--wb-card);
+  color: var(--wb-fg-3);
+  font: var(
+    --dsw-font-xxs-strong-12,
+    600 var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui)
+  );
+  border-bottom: 0.5px solid var(--wb-line);
+}
+.wb-split .wb-manuscript {
+  max-width: none;
+}
+/* inspector */
+.wb-inspector {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 8px;
+}
+.wb-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 0;
+}
+.wb-section + .wb-section,
+.wb-section + .wb-disclosure,
+.wb-disclosure + .wb-section,
+.wb-disclosure + .wb-disclosure {
+  border-top: 0.5px solid var(--wb-line);
+}
+.wb-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.wb-section-title {
+  color: var(--wb-fg-2);
+  font: var(
+    --dsw-font-xs-strong-13,
+    600 var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui)
+  );
+}
+.wb-count {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  corner-shape: round;
+  background: var(--wb-warn-soft);
+  color: var(--wb-warn);
+  font: var(
+    --dsw-font-xxxs-strong-11,
+    600 var(--ui-size-12)/var(--ui-size-16) var(--ui-font-ui)
+  );
+}
+.wb-stepper {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+.wb-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+  text-align: center;
+}
+.wb-step::before {
+  content: "";
+  position: absolute;
+  top: 8px;
+  right: 50%;
+  width: 100%;
+  height: 0;
+  border-top: 0.5px solid var(--wb-line-strong);
+  z-index: 0;
+}
+.wb-step:first-child::before {
+  display: none;
+}
+.wb-step[data-state="done"]::before,
+.wb-step[data-state="current"]::before {
+  border-top-color: var(--wb-ok);
+}
+.wb-step-mark {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  corner-shape: round;
+  background: var(--wb-card);
+  box-shadow: inset 0 0 0 1px var(--wb-line-strong);
+  color: var(--wb-ok);
+}

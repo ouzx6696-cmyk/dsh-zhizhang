@@ -28,6 +28,7 @@ export interface TaskState {
   tokens: number;
   cost: number;
   startedAt: number;
+  endedAt?: number;
 }
 export interface UpdateStatus {
   state: "idle" | "checking" | "current" | "available" | "downloading" | "downloaded" | "error";
@@ -73,6 +74,8 @@ export interface WorkspaceProps {
   tab: string;
   setTab: (tab: string) => void;
   onView?: (view: string) => void;
+  onReview?: () => void;
+  onNewChapter?: () => void;
   drawer: boolean;
   setDrawer: (open: boolean) => void;
   readOnly?: boolean;

@@ -1,0 +1,285 @@
+@container wb-panel (max-width: 520px) {
+  .wb-toasts {
+    right: 12px;
+    left: 12px;
+    bottom: 12px;
+    width: auto;
+  }
+}
+/* 减少动效 */
+@media (prefers-reduced-motion: reduce) {
+  .wb-root *,
+  .wb-modal-root *,
+  .wb-scope * {
+    animation-duration: 1ms;
+    animation-iteration-count: 1;
+    transition-duration: 1ms;
+  }
+  .wb-spinner {
+    animation: wb-spin 1.6s linear infinite;
+  }
+}
+.wb-tt-score {
+  font-variant-numeric: tabular-nums;
+}
+.wb-tt-score[data-pass="true"] {
+  color: var(--wb-ok);
+  background: var(--wb-ok-soft);
+}
+.wb-tt-score[data-pass="false"] {
+  color: var(--wb-bad);
+  background: var(--wb-bad-soft);
+}
+/* 全书概况：阶段卡片、下一步列表 */
+.wb-hint {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  transition: background-color 140ms var(--wb-ease);
+}
+.wb-hint > .wb-icon {
+  margin-top: 4px;
+  color: var(--wb-fg-3);
+}
+.wb-hint-urgent > .wb-icon {
+  color: var(--wb-warn);
+}
+.wb-more-chevron {
+  display: inline-flex;
+  transform: rotate(90deg);
+  transition: transform 180ms var(--wb-ease);
+}
+.wb-more-open {
+  transform: rotate(-90deg);
+}
+.wb-pipeline-body {
+  animation: wb-enter 260ms var(--wb-ease);
+}
+.wb-card {
+  transition:
+    box-shadow 160ms var(--wb-ease),
+    transform 160ms var(--wb-ease);
+}
+.wb-card-step {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-bottom: 4px;
+  border-radius: 50%;
+  corner-shape: round;
+  background: var(--wb-accent-soft);
+  color: var(--wb-accent);
+  font: var(
+    --dsw-font-xxs-strong-12,
+    600 var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui)
+  );
+}
+@media (hover: hover) {
+  .wb-card:hover {
+    box-shadow: var(--wb-shadow-2);
+    transform: translateY(-1px);
+  }
+  .wb-row-button:hover {
+    background: var(--wb-hover);
+  }
+}
+/* ---------- 方法方案 ---------- */
+.wb-profile-button {
+  gap: 6px;
+}
+.wb-profile-button-name {
+  max-width: 8em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 6px;
+  border-radius: var(--wb-r-xs);
+  background: var(--wb-accent-soft);
+  color: var(--wb-fg);
+  font: var(
+    --dsw-font-xxs-12,
+    var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui)
+  );
+}
+.wb-modal.wb-modal-wide {
+  width: min(1180px, 100%);
+  height: min(780px, calc(100% - 32px));
+  display: flex;
+  flex-direction: column;
+}
+.wb-modal-wide .wb-modal-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-bottom: 20px;
+}
+.wb-modal-wide .wb-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.wb-pf-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 220px 300px minmax(0, 1fr);
+  gap: 12px;
+}
+.wb-pf-col {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.wb-pf-span {
+  grid-column: 2 / 4;
+  overflow: auto;
+}
+.wb-pf-list,
+.wb-pf-methods-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow: auto;
+  min-height: 0;
+}
+.wb-pf-profiles .wb-pf-list {
+  flex: 1 1 auto;
+}
+.wb-pf-item,
+.wb-pf-method {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  cursor: pointer;
+  color: var(--wb-fg);
+  background: transparent;
+  border-radius: var(--wb-r-sm);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transition:
+    background-color 160ms var(--wb-ease, ease),
+    box-shadow 160ms var(--wb-ease, ease);
+}
+.wb-pf-item-on,
+.wb-pf-method-on {
+  background: var(--wb-accent-soft);
+  box-shadow: inset 2px 0 0 var(--wb-accent);
+}
+.wb-pf-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.wb-pf-item-name {
+  font: var(
+    --dsw-font-s-strong-14,
+    600 var(--ui-size-14)/var(--ui-size-22) var(--ui-font-ui)
+  );
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wb-pf-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--wb-fg-3);
+  font: var(
+    --dsw-font-xxs-12,
+    var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui)
+  );
+}
+.wb-pf-item-note {
+  color: var(--wb-fg-2);
+  font: var(
+    --dsw-font-xxs-12,
+    var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui)
+  );
+}
+.wb-pf-new-button {
+  align-self: flex-start;
+}
+.wb-pf-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.wb-pf-subhead {
+  font: var(
+    --dsw-font-base-strong-16,
+    600 var(--ui-size-16)/var(--ui-size-24) var(--ui-font-ui)
+  );
+}
+.wb-pf-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  justify-content: flex-end;
+}
+.wb-pf-head .wb-pf-actions {
+  justify-content: flex-start;
+}
+.wb-pf-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--wb-fg-3);
+}
+.wb-pf-methods {
+  border-left: 0.5px solid var(--wb-line);
+  border-right: 0.5px solid var(--wb-line);
+  padding: 0 12px;
+}
+.wb-pf-methods-list {
+  flex: 1 1 auto;
+}
+.wb-pf-method {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+}
+.wb-pf-method-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.wb-pf-method-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(
+    --dsw-font-xs-13,
+    var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui)
+  );
+}
+.wb-pf-method-id {
+  color: var(--wb-fg-3);
+  font: var(--ui-size-12)/var(--ui-size-16) var(--ui-font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wb-pf-empty {
+  padding: 12px;
+  text-align: center;
+}
+.wb-pf-add {
+  margin-top: 4px;
+}
+.wb-pf-editor-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.wb-pf-editor-id {
+  font: 600 var(--ui-size-13)/var(--ui-size-20) var(--ui-font-mono);
+}

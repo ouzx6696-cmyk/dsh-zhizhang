@@ -1,3 +1,5 @@
+import { Markdown } from "../../../Markdown";
+import { Dialog } from "../../../../../../packages/ui/src/primitives";
 import React, { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { profilesApi } from "../../../../../../packages/workbench/src/client/shared/api.js";
@@ -54,6 +56,7 @@ function MethodsEditor({
       mode={mode}
       api={api}
       inline
+      renderContent={(text: string) => <Markdown text={text} />}
       onEditState={onEditState}
       onClose={() => {}}
       onChanged={() => {}}
@@ -63,6 +66,7 @@ function MethodsEditor({
 }
 
 export function WorkspaceLayout({
+  fullWidth = false,
   navigation,
   center,
   inspector,
@@ -74,6 +78,7 @@ export function WorkspaceLayout({
   setDrawer,
   onMethodEditState,
 }: {
+  fullWidth?: boolean;
   navigation: ReactNode;
   center: ReactNode;
   inspector: ReactNode;
@@ -97,18 +102,8 @@ export function WorkspaceLayout({
     setMethodsMounted(true);
     setMethodsOpen(true);
   };
-  useEffect(() => {
-    if (!methodsOpen) return;
-    const close = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.stopPropagation();
-      setMethodsOpen(false);
-    };
-    document.addEventListener("keydown", close, true);
-    return () => document.removeEventListener("keydown", close, true);
-  }, [methodsOpen]);
   return (
-    <div className="studio-layout">
+    <div className="studio-layout" data-fullwidth={fullWidth}>
       <nav className={"studio-nav " + (navOpen ? "expanded" : "")}>
         <button
           className="nav-toggle icon-button"
@@ -154,25 +149,25 @@ export function WorkspaceLayout({
         </div>
       </aside>
       {methodsMounted && (
-        <div
-          className="studio-backdrop methods-backdrop"
-          style={{ display: methodsOpen ? undefined : "none" }}
+        <Dialog
+          open={methodsOpen}
+          title="方法方案"
+          className="methods-page"
+          onClose={() => setMethodsOpen(false)}
         >
-          <section className="methods-page" role="dialog" aria-modal="true" aria-label="方法方案">
-            <header>
-              <h2>方法方案</h2>
-              <button
-                className="icon-button"
-                aria-label="关闭方法方案"
-                autoFocus
-                onClick={() => setMethodsOpen(false)}
-              >
-                ×
-              </button>
-            </header>
-            <MethodsEditor mode={mode} onEditState={onMethodEditState} />
-          </section>
-        </div>
+          <header>
+            <h2>方法方案</h2>
+            <button
+              className="icon-button"
+              aria-label="关闭方法方案"
+              autoFocus
+              onClick={() => setMethodsOpen(false)}
+            >
+              ×
+            </button>
+          </header>
+          <MethodsEditor mode={mode} onEditState={onMethodEditState} />
+        </Dialog>
       )}
     </div>
   );

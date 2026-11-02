@@ -1,15 +1,12 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { atomicWrite } from "../../../packages/core/src/fsx";
-import {
-  defaultModels,
-  normalizeModels,
-  publicModels,
-} from "./models";
+import { defaultModels, normalizeModels, publicModels } from "./models";
 export type Appearance = {
   theme: "system" | "light" | "dark";
   font: "serif" | "sans";
   fontSize: number;
+  reducedTransparency?: boolean;
 };
 type Secrets = {
   available: () => boolean;
@@ -19,7 +16,7 @@ type Secrets = {
 export class Settings {
   models = defaultModels();
   workspace = "";
-  appearance: Appearance = { theme: "system", font: "serif", fontSize: 18 };
+  appearance: Appearance = { theme: "dark", font: "serif", fontSize: 18 };
   searchKey = "";
   notices: string[] = [];
   constructor(
@@ -28,15 +25,12 @@ export class Settings {
   ) {}
   async readObject(file: string): Promise<Record<string, any>> {
     try {
-      const value = JSON.parse(
-        await readFile(path.join(this.home, file), "utf8"),
-      );
+      const value = JSON.parse(await readFile(path.join(this.home, file), "utf8"));
       if (!value || typeof value !== "object" || Array.isArray(value))
         throw new Error("配置须为对象");
       return value;
     } catch (error: any) {
-      if (error.code !== "ENOENT")
-        this.notices.push(`${file} 无法读取，已使用默认设置。`);
+      if (error.code !== "ENOENT") this.notices.push(`${file} 无法读取，已使用默认设置。`);
       return {};
     }
   }
@@ -93,16 +87,10 @@ export class Settings {
       const { apiKey, ...metadata } = value;
       stored[role] = {
         ...metadata,
-        secret:
-          apiKey && this.secrets.available()
-            ? this.secrets.encrypt(apiKey)
-            : undefined,
+        secret: apiKey && this.secrets.available() ? this.secrets.encrypt(apiKey) : undefined,
       };
     }
-    await atomicWrite(
-      path.join(this.home, "model.json"),
-      JSON.stringify(stored, null, 2),
-    );
+    await atomicWrite(path.join(this.home, "model.json"), JSON.stringify(stored, null, 2));
     this.models = proposed;
     return this.secrets.available()
       ? ""
@@ -110,15 +98,10 @@ export class Settings {
   }
   async saveUI(next: { workspace?: string; appearance?: Partial<Appearance> }) {
     if (next.workspace !== undefined) this.workspace = next.workspace;
-    if (next.appearance)
-      this.appearance = { ...this.appearance, ...next.appearance };
+    if (next.appearance) this.appearance = { ...this.appearance, ...next.appearance };
     await atomicWrite(
       path.join(this.home, "desktop.json"),
-      JSON.stringify(
-        { workspace: this.workspace, appearance: this.appearance },
-        null,
-        2,
-      ),
+      JSON.stringify({ workspace: this.workspace, appearance: this.appearance }, null, 2),
     );
   }
   async saveSearch(key: string) {
@@ -127,9 +110,7 @@ export class Settings {
     await atomicWrite(
       path.join(this.home, "search.json"),
       JSON.stringify({
-        secret: this.secrets.available()
-          ? this.secrets.encrypt(value)
-          : undefined,
+        secret: this.secrets.available() ? this.secrets.encrypt(value) : undefined,
       }),
     );
     this.searchKey = value;
@@ -148,8 +129,7 @@ export class Settings {
     }
   }
   async savePreferences(text: string) {
-    if (Buffer.byteLength(text) > 32768)
-      throw new Error("作者偏好请控制在 32 KB 内");
+    if (Buffer.byteLength(text) > 32768) throw new Error("作者偏好请控制在 32 KB 内");
     const file = this.preferencesFile();
     await atomicWrite(file, text);
   }

@@ -49,6 +49,7 @@ export function trackSession(options: {
       task.id = randomUUID();
       task.name = parsed.text.slice(0, 100);
       task.startedAt = Date.now();
+      task.endedAt = undefined;
       task.completed = [];
       task.current = "读材料";
       task.waiting = "";
@@ -66,6 +67,7 @@ export function trackSession(options: {
     }
     if (event.type === "tool_execution_start") task.current = toolStep(event.toolName, target.mode);
     if (event.type === "agent_settled") {
+      task.endedAt = Date.now();
       const last = session.messages.findLast((message) => message.role === "assistant");
       const failure =
         last?.role === "assistant" && last.stopReason === "error"

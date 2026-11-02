@@ -1,0 +1,45 @@
+.wb-pf-profiles .wb-pf-item {
+  align-items: stretch;
+  justify-content: flex-start;
+  white-space: normal;
+  text-align: left;
+}
+.wb-pf-item-note {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.wb-pf-reading .ui-markdown {
+  font-family: var(--ui-font-body);
+  font-size: var(--ui-size-16);
+  line-height: 2;
+}
+.wb-pf-reading .ui-markdown h1,
+.wb-pf-reading .ui-markdown h2 {
+  font-family: var(--ui-font-body);
+}
+.ui-markdown table {
+  border-collapse: collapse;
+  width: 100%;
+  font-family: var(--ui-font-ui);
+  font-size: var(--ui-size-13);
+}
+.ui-markdown th,
+.ui-markdown td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--ui-line);
+  text-align: left;
+  vertical-align: top;
+}
+.ui-markdown code {
+  font-family: var(--ui-font-mono);
+  font-size: var(--ui-size-13);
+  overflow-wrap: anywhere;
+}
+.ui-markdown pre {
+  overflow: auto;
+  white-space: pre-wrap;
+  padding: 12px;
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-fill);
+}

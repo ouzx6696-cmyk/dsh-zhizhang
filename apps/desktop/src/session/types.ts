@@ -12,6 +12,7 @@ export type Task = {
   tokens: number;
   cost: number;
   startedAt: number;
+  endedAt?: number;
 };
 
 export type SessionEntry = {

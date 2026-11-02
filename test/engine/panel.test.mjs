@@ -1,3 +1,4 @@
+import path from "node:path";
 /** HTTP contracts and the one generated-client boundary. Pure state lives in domain tests. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -246,4 +247,22 @@ test('诊断修订 HTTP 绑定来源、幂等请求及损坏目录边界', async
         const stale = await jpost(server.api,'/diagnostics/stage',{...input,requestId:'another-request'});
         assert.equal((await stale.json()).code,'source_changed');
     } finally {await server.close();await work.cleanup();}
+});
+
+test("仪表盘按保存版本统计七天字数增加，不重复计算旧稿", async () => {
+    const { writingActivity } = await import("../../build/fanqie/src/engine/dashboard-query.js");
+    const { mkdir } = await import("node:fs/promises");
+    const work = await withWork("字数统计");
+    try {
+        await mkdir(path.join(work.dir,"revisions","c001"),{recursive:true});
+        const version = (date,words) => `---\n${JSON.stringify({updatedAt:date,wordCount:words})}\n---\n\n正文\n`;
+        await writeFile(path.join(work.dir,"revisions","c001","old.md"),version(new Date(2026,9,26,1).toISOString(),80));
+        await writeFile(path.join(work.dir,"revisions","c001","draft.md"),version(new Date(2026,9,30,1).toISOString(),100));
+        await writeFile(path.join(work.dir,"chapters","c001.md"),version(new Date(2026,10,2,1).toISOString(),140));
+        const result = await writingActivity(work.dir,[{id:"c001"}],new Date(2026,10,2,12));
+        assert.equal(result.days.length,7);
+        assert.equal(result.days.find(day=>day.date==="2026-10-30").words,20);
+        assert.equal(result.days.at(-1).words,40);
+        assert.equal(result.days.reduce((sum,day)=>sum+day.words,0),60);
+    } finally { await work.cleanup(); }
 });

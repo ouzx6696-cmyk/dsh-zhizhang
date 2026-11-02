@@ -1,31 +1,6 @@
 import React from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import rehypeSanitize from "rehype-sanitize";
+import { Markdown as MarkdownView } from "../../../packages/ui/src/markdown";
 import { desktop } from "./renderer/state/desktop";
-export const Markdown = React.memo(function Markdown({ text }: { text: string }) {
-  return (
-    <div className="studio-markdown">
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeSanitize]}
-        skipHtml
-        components={{
-          a: ({ href, children }) => (
-            <a
-              href={href}
-              onClick={(event) => {
-                event.preventDefault();
-                if (href) void desktop.openExternal(href);
-              }}
-            >
-              {children}
-            </a>
-          ),
-        }}
-      >
-        {text}
-      </ReactMarkdown>
-    </div>
-  );
+export const Markdown = React.memo(function Markdown({text}:{text:string}) {
+ return <div className="studio-markdown"><MarkdownView text={text} onLink={(href:string)=>void desktop.openExternal(href)}/></div>;
 });

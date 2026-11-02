@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { desktop } from "../../state/desktop";
 import { Check, LoaderCircle } from "lucide-react";
+import { API_LABELS, COPY } from "../../../../../../packages/ui/src/copy";
 import { APIS, PROVIDERS } from "../../../models";
 
 export function ModelFields({
@@ -90,68 +91,23 @@ export function ModelFields({
         </select>
       </label>
       <label>
-        接口地址
-        <input
-          type="url"
-          value={model.baseUrl}
-          onChange={(event) => onChange({ ...model, baseUrl: event.target.value })}
-        />
-      </label>
-      <p className="form-note">
-        填写基础地址，端口直接写在地址中，例如 http://127.0.0.1:11434/v1；保留代理路径。
-      </p>
-      <label>
-        接口类型
-        <select value={model.api} onChange={(e) => onChange({ ...model, api: e.target.value })}>
-          {Array.from(new Set([...APIS, model.api])).map((api) => (
-            <option key={api} value={api}>
-              {api}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        选择模型
-        <select
-          value=""
-          onChange={(e) => {
-            const item = catalog.models.find((m: any) => m.id === e.target.value);
-            if (item)
-              onChange({
-                ...model,
-                ...item,
-                model: item.id,
-                thinkingLevel: item.levels?.includes(model.thinkingLevel)
-                  ? model.thinkingLevel
-                  : item.levels?.[0] || "off",
-              });
-          }}
-        >
-          <option value="">从列表选择，也可手填</option>
-          {catalog.models.map((m: any) => (
-            <option key={m.id} value={m.id}>
-              {m.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <div className="button-row">
-        <button type="button" disabled={loading} onClick={() => load("refresh")}>
-          刷新 PI 目录
-        </button>
-        <button type="button" disabled={loading} onClick={() => load("endpoint")}>
-          抓取当前端点模型
-        </button>
-      </div>
-      <p className="form-note">{catalog.source}</p>
-      {catalogError && <p className="form-error">{catalogError}</p>}
-      <label>
-        模型 ID
+        模型
         <input
           value={model.model}
-          onChange={(event) => onChange({ ...model, model: event.target.value })}
+          list={`model-options-${role}`}
+          onChange={(event) => {
+            const item = catalog.models.find((item: any) => item.id === event.target.value);
+            onChange({ ...model, ...item, model: event.target.value });
+          }}
         />
       </label>
+      <datalist id={`model-options-${role}`}>
+        {catalog.models.map((item: any) => (
+          <option value={item.id} key={item.id}>
+            {item.name}
+          </option>
+        ))}
+      </datalist>
       <label>
         API Key
         <input
@@ -162,16 +118,79 @@ export function ModelFields({
           onChange={(event) => onChange({ ...model, apiKey: event.target.value })}
         />
       </label>
-      <label className="checkbox">
-        <input
-          type="checkbox"
-          checked={!!model.keyless}
-          onChange={(e) => onChange({ ...model, keyless: e.target.checked })}
-        />
-        本地服务无需 Key
-      </label>
       <details className="model-advanced">
-        <summary>高级</summary>
+        <summary>高级连接与模型设置</summary>
+        <label>
+          接口地址
+          <input
+            type="url"
+            value={model.baseUrl}
+            onChange={(event) => onChange({ ...model, baseUrl: event.target.value })}
+          />
+        </label>
+        <p className="form-note">
+          填写基础地址，端口直接写在地址中，例如 http://127.0.0.1:11434/v1；保留代理路径。
+        </p>
+        <label>
+          接口类型
+          <select value={model.api} onChange={(e) => onChange({ ...model, api: e.target.value })}>
+            {Array.from(new Set([...APIS, model.api])).map((api) => (
+              <option key={api} value={api}>
+                {API_LABELS[api] || "其他兼容接口"}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          选择模型
+          <select
+            value=""
+            onChange={(e) => {
+              const item = catalog.models.find((m: any) => m.id === e.target.value);
+              if (item)
+                onChange({
+                  ...model,
+                  ...item,
+                  model: item.id,
+                  thinkingLevel: item.levels?.includes(model.thinkingLevel)
+                    ? model.thinkingLevel
+                    : item.levels?.[0] || "off",
+                });
+            }}
+          >
+            <option value="">从列表选择，也可手填</option>
+            {catalog.models.map((m: any) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="button-row">
+          <button type="button" disabled={loading} onClick={() => load("refresh")}>
+            刷新模型列表
+          </button>
+          <button type="button" disabled={loading} onClick={() => load("endpoint")}>
+            从当前服务获取模型
+          </button>
+        </div>
+        <p className="form-note">
+          {catalog.source?.startsWith("PI")
+            ? COPY.modelList
+            : catalog.source
+              ? "当前服务提供的模型（容量需核对）"
+              : ""}
+        </p>
+        {catalogError && <p className="form-error">{catalogError}</p>}
+        <label className="checkbox">
+          <input
+            type="checkbox"
+            checked={!!model.keyless}
+            onChange={(e) => onChange({ ...model, keyless: e.target.checked })}
+          />
+          本地服务无需 Key
+        </label>
+
         <div className="field-grid">
           <label>
             上下文窗口
@@ -227,9 +246,7 @@ export function ModelFields({
       </button>
       {result && (
         <p className={result.error ? "form-error" : "form-note"}>
-          {result.busy
-            ? "正在发送最短连接请求…"
-            : result.error || `连接成功 · ${result.latency} ms`}
+          {result.busy ? "正在发送最短连接请求…" : result.error || `已连接 · ${result.latency} ms`}
         </p>
       )}
     </fieldset>

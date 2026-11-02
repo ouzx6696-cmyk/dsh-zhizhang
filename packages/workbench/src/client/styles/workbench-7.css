@@ -1,0 +1,291 @@
+.wb-edit-diff textarea {
+  width: 100%;
+  min-height: 120px;
+  color: var(--wb-fg);
+  background: var(--wb-layer);
+  font: inherit;
+}
+@container wb-panel (max-width: 650px) {
+  .wb-edit-diff {
+    grid-template-columns: 1fr;
+  }
+}
+/* 写作 Agent */
+.wb-writer-review {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 6px;
+  margin: 2px 0 6px;
+}
+.wb-writer-review .wb-muted {
+  flex-basis: 100%;
+  margin: 0;
+}
+.wb-writer-summary {
+  flex-basis: 100%;
+  margin: 2px 0 0;
+  font-size: var(--ui-size-12);
+  line-height: 1.5;
+  color: var(--wb-fg-2);
+}
+/* ---------- writing modes ---------- */
+.wb-tt-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.wb-tt-group + .wb-tt-group {
+  margin-top: 8px;
+}
+.wb-tt-group-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  color: var(--wb-fg-3);
+  font: var(
+    --dsw-font-xxs-strong-12,
+    600 var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui)
+  );
+}
+.wb-tt-delivery {
+  max-width: 44rem;
+  margin: 0 auto;
+  font: var(
+    --dsw-font-s-14,
+    var(--ui-size-14)/var(--ui-size-24) var(--ui-font-ui)
+  );
+}
+.wb-tt-note {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.wb-tt-note textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 52px;
+  padding: 6px 8px;
+  border: 1px solid var(--wb-line-strong);
+  border-radius: var(--wb-r-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+/* ======================================================================
+ * 视觉与反馈：品牌标识、卡片层次、选中态、动作卡片、步骤条、提示栈、
+ * 转圈与完成反馈、内容切换动效。全部只用 --wb-* / --dsw-* 变量。
+ * ====================================================================== */
+.wb-root,
+.wb-scope,
+.wb-modal-root {
+  --wb-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --wb-shadow-1: var(
+    --dsw-elevation-soft,
+    0 1px 2px color-mix(in srgb, canvastext 6%, transparent)
+  );
+  --wb-shadow-2: var(
+    --dsw-elevation-medium,
+    0 8px 24px color-mix(in srgb, canvastext 12%, transparent),
+    0 1px 3px color-mix(in srgb, canvastext 8%, transparent)
+  );
+}
+/* 页头：品牌标识 + 标题 */
+.wb-heading-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.wb-heading-text {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.wb-brand {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--wb-r-lg);
+  color: var(--wb-accent);
+  background: var(--wb-accent-soft);
+  box-shadow: inset 0 0 0 0.5px
+    color-mix(in srgb, var(--wb-accent) 30%, transparent);
+}
+.wb-brand[data-mode="toutiao"] {
+  color: var(--wb-warn);
+  background: var(--wb-warn-soft);
+  box-shadow: inset 0 0 0 0.5px
+    color-mix(in srgb, var(--wb-warn) 30%, transparent);
+}
+.wb-header {
+  padding-bottom: 12px;
+  border-bottom: 0.5px solid var(--wb-line);
+}
+.wb-stats .wb-tag {
+  height: 22px;
+  padding: 0 10px;
+}
+/* 三栏卡片：层次与粘性栏头 */
+.wb-column {
+  box-shadow: var(--wb-shadow-1);
+  transition: box-shadow 200ms var(--wb-ease);
+}
+.wb-column-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--wb-card);
+  text-transform: none;
+}
+.wb-column-reader {
+  background: var(--wb-layer);
+}
+/* 列表行：悬停、选中强调条 */
+.wb-chapter-row {
+  position: relative;
+  transition:
+    background-color 140ms var(--wb-ease),
+    transform 140ms var(--wb-ease);
+}
+.wb-chapter-row-on {
+  background: var(--wb-accent-soft);
+}
+.wb-chapter-row-on::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--wb-accent);
+  animation: wb-grow 220ms var(--wb-ease);
+}
+.wb-chapter-row-on .wb-chapter-title {
+  color: var(--wb-fg);
+  font-weight: 600;
+}
+@media (hover: hover) {
+  .wb-chapter-row:not(.wb-chapter-row-on):hover {
+    background: var(--wb-hover);
+  }
+  .wb-column:hover {
+    box-shadow: var(--wb-shadow-2);
+  }
+}
+@keyframes wb-grow {
+  from {
+    transform: scaleY(0.3);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+/* 区块分隔更轻 */
+.wb-section + .wb-section {
+  border-top: 0.5px solid var(--wb-line);
+}
+/* 按钮：按下回弹、进行中与完成 */
+.wb-button {
+  transition:
+    background-color 120ms ease,
+    opacity 120ms ease,
+    transform 120ms var(--wb-ease),
+    box-shadow 120ms ease;
+}
+.wb-button:not(:disabled):active {
+  transform: scale(0.97);
+}
+@media (hover: hover) {
+  .wb-button-outline:not(:disabled):hover,
+  .wb-button-ghost:not(:disabled):hover {
+    background: var(--wb-hover);
+  }
+  .wb-button-primary:not(:disabled):hover {
+    box-shadow: var(--wb-shadow-2);
+  }
+}
+.wb-action {
+  display: inline-flex;
+}
+.wb-action-busy {
+  cursor: progress;
+}
+.wb-action-done .wb-button-icon,
+.wb-action-done .wb-icon {
+  color: var(--wb-ok);
+  animation: wb-pop 360ms var(--wb-ease);
+}
+@keyframes wb-pop {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: none;
+  }
+}
+/* 转圈 */
+.wb-spinner {
+  display: inline-block;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  corner-shape: round;
+  border: 1.6px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-top-color: currentColor;
+  animation: wb-spin 700ms linear infinite;
+}
+@keyframes wb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* 动作卡片（写作 Agent） */
+.wb-action-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.wb-action-card {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 10px 10px 10px;
+  text-align: left;
+  border: 0;
+  border-radius: var(--wb-r-md);
+  background: var(--wb-layer);
+  color: var(--wb-fg);
+  cursor: pointer;
+  box-shadow: inset 0 0 0 0.5px var(--wb-line-strong);
+  font: inherit;
+  transition:
+    box-shadow 160ms var(--wb-ease),
+    transform 160ms var(--wb-ease),
+    background-color 160ms var(--wb-ease);
+}
+.wb-action-card-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--wb-r-sm);
+  background: var(--wb-hover);
+  color: var(--wb-fg-2);
+  transition:
+    background-color 160ms var(--wb-ease),
+    color 160ms var(--wb-ease);
+}

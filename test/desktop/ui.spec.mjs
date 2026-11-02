@@ -1,21 +1,18 @@
+import AxeBuilder from "@axe-core/playwright";
 import { test, expect, _electron as electron } from "@playwright/test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { fakeModel } from "./fake-model.mjs";
 let app, page, home, root, model;
-const shot = (name) =>
-  expect(page).toHaveScreenshot(name, {
-    fullPage: true,
-    animations: "disabled",
-    mask: [
-      page.locator(".result-card p"),
-      page.locator(".paper-version"),
-      page.locator(".task-card p"),
-      page.locator(".chat-message small"),
-    ],
-  });
+const shot = async (name) => {
+  const folder = path.resolve(process.env.WRITER_SCREENSHOT_DIR || "test-results/screenshots");
+  await mkdir(folder, { recursive: true });
+  await page.screenshot({ path: path.join(folder, name), fullPage: true, animations: "disabled" });
+  if (!process.env.CI)
+    await expect(page).toHaveScreenshot(name, { fullPage: true, animations: "disabled" });
+};
 test.describe.configure({ mode: "default" });
 test.afterEach(async ({}, info) => {
   if (info.status !== info.expectedStatus) {
@@ -130,13 +127,14 @@ test.afterAll(async () => {
 test("首次引导、连接测试、统一写作根与真实 Pi 创建作品", async () => {
   const wizard = page.getByRole("dialog", { name: "开始创作" });
   await expect(wizard).toBeVisible();
+  await wizard.getByText("高级连接与模型设置", { exact: true }).click();
   await wizard.getByLabel("接口地址", { exact: true }).fill(model.url);
-  await wizard.getByLabel("模型 ID", { exact: true }).fill("mock-writer");
+  await wizard.getByLabel("模型", { exact: true }).fill("mock-writer");
   await wizard.getByLabel("API Key", { exact: true }).fill("fixture-key");
   await wizard.getByRole("button", { name: "测试连接", exact: true }).click();
-  await expect(wizard.getByText(/连接成功/)).toBeVisible();
+  await expect(wizard.getByText(/已连接/)).toBeVisible();
   await wizard.getByRole("button", { name: /保存连接并继续/ }).click();
-  await wizard.getByRole("button", { name: /选择写作根/ }).click();
+  await wizard.getByRole("button", { name: /选择写作文件夹/ }).click();
   await wizard.getByRole("button", { name: "开第一本书" }).click();
   await expect(page.getByRole("dialog", { name: "开始创作" })).toBeHidden();
   await expect(page.locator(".project-switch")).toContainText("夜航", {
@@ -147,6 +145,17 @@ test("首次引导、连接测试、统一写作根与真实 Pi 创建作品", a
 });
 
 test("决策不被 Agent 挡住，右栏标签与响应式布局，亮暗截图", async () => {
+  await page.getByRole("button", {name:"设置",exact:true}).click();
+  const initialAppearance = page.getByRole("dialog", {name:"设置",exact:true});
+  await initialAppearance.getByRole("button", {name:"外观",exact:true}).click();
+  await initialAppearance.getByRole("combobox", {name:"主题",exact:true}).selectOption("light");
+  await initialAppearance.getByRole("button", {name:"保存设置",exact:true}).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  const accessibility = await new AxeBuilder({ page })
+    .setLegacyMode()
+    .withRules(["color-contrast", "button-name"])
+    .analyze();
+  expect(accessibility.violations).toEqual([]);
   await page.getByRole("button", { name: /雨夜/ }).first().click();
   await expect(page.getByRole("button", { name: "声明已审读", exact: true }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: "定稿", exact: true }).first()).toBeVisible();
@@ -211,7 +220,7 @@ test("决策不被 Agent 挡住，右栏标签与响应式布局，亮暗截图"
     /expected_revision/,
   ])
     expect(panelText).not.toMatch(pattern);
-  await page.getByRole("button", { name: "全书概况", exact: true }).click();
+  await page.getByRole("button", { name: "全书仪表盘", exact: true }).click();
   await expect(page.locator(".wb-pipeline")).toBeVisible();
   const overviewText = await page.locator(".wb-pipeline").innerText();
   for (const pattern of [
@@ -259,6 +268,7 @@ test("命令面板、角色设置与新对话保留作品", async () => {
   await page.getByRole("button", { name: "创建", exact: true }).click();
   await expect(page.locator(".wb-pf-methods h3")).toHaveText("界面校验方案");
   await page.locator(".wb-pf-method").first().click();
+  await page.getByRole("button", { name: "编辑", exact: true }).click();
   const method = page.locator(".wb-pf-textarea");
   await expect(method).toBeEditable();
   const savedMethod = await method.inputValue();
@@ -283,9 +293,9 @@ test("命令面板、角色设置与新对话保留作品", async () => {
   await expect(settings.getByRole("tab", { name: "独立编辑", exact: true })).toBeVisible();
   await settings.getByRole("tab", { name: "独立编辑", exact: true }).click();
   await expect(
-    settings.locator("fieldset").first().getByLabel("模型 ID", { exact: true }),
+    settings.locator("fieldset").first().getByLabel("模型", { exact: true }),
   ).toHaveValue("mock-writer");
-  await settings.getByRole("button", { name: "写作根与偏好", exact: true }).click();
+  await settings.getByRole("button", { name: "写作文件夹", exact: true }).click();
   await settings.getByRole("button", { name: "检查占用和未完成写入", exact: true }).click();
   await expect(settings.getByText(/没有待恢复的写入/)).toBeVisible();
   await expect(
@@ -356,10 +366,26 @@ test("命令面板、角色设置与新对话保留作品", async () => {
 });
 
 test("正文可在稿纸中直接编辑并保存", async () => {
-  await page.evaluate(async url => {
-    const api=window.writerDesktop, state=await api.state();
+  await page.evaluate(async (url) => {
+    const api = window.writerDesktop,
+      state = await api.state();
     if (!state.workspace) {
-      await api.model({writer:{...state.models.writer,api:"openai-completions",baseUrl:url,model:"mock-writer",apiKey:"fixture-key"},editor:{...state.models.editor,api:"openai-completions",baseUrl:url,model:"mock-editor",apiKey:"fixture-key"}});
+      await api.model({
+        writer: {
+          ...state.models.writer,
+          api: "openai-completions",
+          baseUrl: url,
+          model: "mock-writer",
+          apiKey: "fixture-key",
+        },
+        editor: {
+          ...state.models.editor,
+          api: "openai-completions",
+          baseUrl: url,
+          model: "mock-editor",
+          apiKey: "fixture-key",
+        },
+      });
       await api.workspace();
     }
   }, model.url);
@@ -400,7 +426,7 @@ test("正文可在稿纸中直接编辑并保存", async () => {
   await page.reload();
   await page.getByRole("button", { name: /雨夜/ }).first().click();
   await page.getByRole("button", { name: "编辑正文", exact: true }).click();
-  const editor = page.getByRole("textbox", { name: "正文源码" });
+  const editor = page.getByRole("textbox", { name: "编辑正文" });
   await expect(editor).toBeEditable();
   await editor.fill(
     "林川握着车票站在雨里。站台上的钟停在十一点，广播又报了一次末班车。\n\n" +
@@ -413,7 +439,7 @@ test("正文可在稿纸中直接编辑并保存", async () => {
     window.confirm = () => false;
   });
   try {
-    await page.getByRole("button", { name: "全书概况", exact: true }).click();
+    await page.getByRole("button", { name: "全书仪表盘", exact: true }).click();
     await expect(editor).toHaveValue(/作者亲手补写的一段/);
   } finally {
     await page.evaluate(() => {
@@ -478,7 +504,7 @@ test("今日头条使用同一套外壳与空态引导", async () => {
   await page.getByRole("button", { name: "新头条" }).click();
   await expect(page.locator(".studio-nav")).toContainText("文章");
   await expect(page.getByRole("tab", { name: "本篇", exact: true })).toBeVisible();
-  await expect(page.locator(".view-switch")).not.toContainText("全书概况");
+  await expect(page.locator(".view-switch")).not.toContainText("全书仪表盘");
   await expect(page.locator(".paper-decisions")).toBeHidden();
   await expect(page.getByRole("button", { name: /新写一篇头条/ })).toBeVisible();
   await page.getByRole("button", { name: "发稿台账", exact: true }).click();

@@ -10,7 +10,7 @@ import { SourceEditor } from "../shared/SourceEditor.jsx";
 
 
 
-function BodyPane({ slot, kind, issues = EMPTY_ISSUES, annotationId }) {
+function BodyPane({ slot, kind, title, issues = EMPTY_ISSUES, annotationId }) {
   if (slot.status === "loading" || slot.status === "idle") {
     return (
       <div className="wb-pane-loading" role="status">
@@ -28,7 +28,7 @@ function BodyPane({ slot, kind, issues = EMPTY_ISSUES, annotationId }) {
       {slot.truncated ? (
         <Callout tone="warning">{kind === "candidate" ? t("candidateTruncated") : t("truncated", { size: formatBytes(slot.bodyBytes || 400 * 1024) })}</Callout>
       ) : null}
-      <Manuscript text={slot.body} issues={issues} annotationId={annotationId} />
+      <Manuscript title={title} text={slot.body} issues={issues} annotationId={annotationId} />
     </>
   );
 }
@@ -176,17 +176,17 @@ export function Reader({ state, view, actions, annotationId: providedAnnotationI
           <div className="wb-split">
             <section className="wb-split-col" aria-label={t("officialColumn")}>
               <h3 className="wb-split-head">{t("officialColumn")}</h3>
-              <BodyPane slot={state.chapter} kind="official" issues={issues("chapter")} annotationId={annotationId} />
+              <BodyPane title={current.title} slot={state.chapter} kind="official" issues={issues("chapter")} annotationId={annotationId} />
             </section>
             <section className="wb-split-col" aria-label={t("candidateColumn", { id: activeCand.draftLabel || "当前" })}>
               <h3 className="wb-split-head">{t("candidateColumn", { id: activeCand.draftLabel || "当前" })}</h3>
-              <BodyPane slot={state.candidate} kind="candidate" issues={issues("candidate")} annotationId={annotationId} />
+              <BodyPane title={current.title} slot={state.candidate} kind="candidate" issues={issues("candidate")} annotationId={annotationId} />
             </section>
           </div>
         ) : readerView === "candidate" ? (
-          <BodyPane slot={state.candidate} kind="candidate" issues={issues("candidate")} annotationId={annotationId} />
+          <BodyPane title={current.title} slot={state.candidate} kind="candidate" issues={issues("candidate")} annotationId={annotationId} />
         ) : (
-          <BodyPane slot={state.chapter} kind="official" issues={issues("chapter")} annotationId={annotationId} />
+          <BodyPane title={current.title} slot={state.chapter} kind="official" issues={issues("chapter")} annotationId={annotationId} />
         )}
       </div>
     </div>

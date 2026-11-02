@@ -1,3 +1,4 @@
+import { writingActivity } from "./dashboard-query.js";
 import { SCHEMA_VERSION } from "./types.js";
 /** Read models for tools and panel; never imported by persistence. */
 import path from "node:path";
@@ -204,6 +205,7 @@ export async function buildPanelSnapshot(dir: string, pathsHint: any, opts: { sc
         genre: meta.genre,
         dir,
         storageBase: paths.base,
+        activity: opts.scope === "work" ? undefined : await writingActivity(dir, meta.chapters).catch(error => ({ unavailable: true, error: error.message })),
         totals: { chapters: chapters.length, words, final, drafted, planned },
         foundation: foundationView,
         chapters,

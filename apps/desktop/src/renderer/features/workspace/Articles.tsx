@@ -1,4 +1,6 @@
-import React, { useEffect } from "react";
+import { ARTICLE_STEPS, articleProgress } from "../../../../../../packages/ui/src/status";
+import { Steps } from "../../../../../../packages/ui/src/primitives";
+import React, { useEffect, useState } from "react";
 import { useToutiao } from "../../../../../../packages/workbench/src/client/toutiao/useToutiao.js";
 import {
   ArticleList,
@@ -22,6 +24,11 @@ function Ledger({
   onOpen: (root: string, id: string) => void;
   onWrite: () => void;
 }) {
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState("");
+  const visible = articles.filter(
+    (a) => (!status || a.status === status) && (!query || String(a.title).includes(query)),
+  );
   if (!articles.length)
     return (
       <div className="paper-ledger">
@@ -37,6 +44,25 @@ function Ledger({
   return (
     <div className="paper-ledger">
       <h1>{t("ttLedgerTitle")}</h1>
+      <div className="lamp-ledger-tools">
+        <input
+          type="search"
+          aria-label="搜索文章"
+          placeholder="搜索标题"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <select
+          aria-label="筛选文章状态"
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+        >
+          <option value="">全部状态</option>
+          {[...new Set(articles.map((a) => a.status))].map((status) => (
+            <option key={status}>{status}</option>
+          ))}
+        </select>
+      </div>
       <table>
         <thead>
           <tr>
@@ -49,7 +75,7 @@ function Ledger({
           </tr>
         </thead>
         <tbody>
-          {articles.map((row) => (
+          {visible.map((row) => (
             <tr key={row.root + "|" + row.id}>
               <td>
                 <strong>{row.title}</strong>
@@ -109,21 +135,12 @@ export function Articles(props: WorkspaceProps) {
   const startNew = async () => {
     if (await tt.actions.deliver("new")) openAgent();
   };
-  const stage = !a
-    ? 0
-    : a.status === "已交稿"
-      ? 6
-      : a.status === "已验收"
-        ? 5
-        : a.status === "待验收"
-          ? 4
-          : a.status === "验收退回"
-            ? 3
-            : 2;
+  const stage = articleProgress(a);
   return (
     <>
       {tt.list.error && <p role="alert">{tt.list.error}</p>}
       <WorkspaceLayout
+        fullWidth={props.view === "overview"}
         tab={props.tab}
         setTab={props.setTab}
         drawer={props.drawer}
@@ -136,7 +153,6 @@ export function Articles(props: WorkspaceProps) {
             <h2>文章</h2>
             <ArticleList
               articles={tt.list.articles}
-              statuses={tt.list.statuses || []}
               sel={tt.sel}
               onSelect={tt.actions.select}
             />
@@ -157,25 +173,7 @@ export function Articles(props: WorkspaceProps) {
               {a ? (
                 <div className="paper-decisions">
                   <StatusBadge mode="toutiao" status={a.status} />
-                  <ol className="paper-steps" aria-label="头条进度">
-                    {[
-                      "S1 找题",
-                      "S2 立项",
-                      "S3 标题",
-                      "S4 成文",
-                      "S5 红笔",
-                      "S6 质检",
-                      "S7 交稿",
-                    ].map((step, index) => (
-                      <li
-                        key={step}
-                        data-state={index < stage ? "done" : index === stage ? "current" : "todo"}
-                        aria-current={index === stage ? "step" : undefined}
-                      >
-                        {step}
-                      </li>
-                    ))}
-                  </ol>
+                  <Steps steps={ARTICLE_STEPS} current={stage} label="头条进度" />
                   {a.qa?.length ? (
                     <span
                       className="paper-qa"

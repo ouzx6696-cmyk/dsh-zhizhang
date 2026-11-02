@@ -8,9 +8,10 @@ import {
   PanelRightOpen,
   X,
   AlertCircle,
-  Feather,
   LoaderCircle,
 } from "lucide-react";
+import { Brand } from "../../../../../../packages/ui/src/primitives";
+import { COPY } from "../../../../../../packages/ui/src/copy";
 import { scopeId, focusLabel } from "../../../context";
 import type { DesktopController } from "../../app/useDesktopController";
 
@@ -45,7 +46,7 @@ export function TopBar({ app }: { app: DesktopController }) {
         ]
       : [
           ["writing", "写作"],
-          ["overview", "全书概况"],
+          ["overview", COPY.overview],
           ["library", "拆书库"],
         ];
   if (!system) return null;
@@ -53,15 +54,14 @@ export function TopBar({ app }: { app: DesktopController }) {
     <>
       <header className="studio-topbar">
         <div className="studio-brand">
-          <Feather size={18} />
+          <Brand />
         </div>
         <button className="project-switch" onClick={() => set({ picker: !state.picker })}>
           <BookOpen size={15} />
           <span>
-            {focus.workTitle ||
-              focus.title ||
-              selected?.work ||
-              (selected?.mode === "toutiao" ? "今日头条" : "选择作品")}
+            {selected?.mode === "toutiao"
+              ? "今日头条"
+              : focus.workTitle || focus.title || selected?.work || "选择作品"}
           </span>
           <ChevronDown size={13} />
         </button>
@@ -107,14 +107,16 @@ export function TopBar({ app }: { app: DesktopController }) {
         </div>
         <button className="command-button" onClick={() => set({ palette: true, query: "" })}>
           <Command size={14} />
-          <span>Ctrl K</span>
+          <span>
+            搜索与命令 <kbd>Ctrl K</kbd>
+          </span>
         </button>
         <button
           className="icon-button"
           aria-label="设置"
           onClick={() => set({ settingsOpen: true })}
         >
-          <SettingsIcon size={17} />
+          <SettingsIcon size={17} /> 设置
         </button>
         <button
           className="sidebar-open icon-button"
@@ -143,7 +145,7 @@ export function TopBar({ app }: { app: DesktopController }) {
               <Plus size={14} />
               新头条
             </button>
-            <button onClick={() => app.chooseWorkspace().catch(fail)}>选择写作根</button>
+            <button onClick={() => app.chooseWorkspace().catch(fail)}>选择写作文件夹</button>
           </div>
         </div>
       )}

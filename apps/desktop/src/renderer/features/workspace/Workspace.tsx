@@ -24,7 +24,7 @@ function Novel(props: WorkspaceProps) {
       type: "view",
       view: props.view === "writing" ? "chapters" : "overview",
     });
-    if (props.view === "library") dispatch({ type: "tab", tab: "library" });
+    if (props.view !== "writing") dispatch({ type: "tab", tab: props.view === "library" ? "library" : "overview" });
   }, [props.view]);
   useEffect(() => {
     const chapter = view.current,
@@ -100,6 +100,7 @@ function Novel(props: WorkspaceProps) {
           : "";
   const decisions = (
     <div className="paper-decisions">
+      <strong className="paper-chapter-title">{current?.title || "当前章节"}</strong>
       <StatusBadge mode="fanqie" status={meta?.status || current?.status} />
       <ol className="paper-steps" aria-label="章节进度">
         {["规划", "写作", "审读", "定稿"].map((step, index) => (
@@ -115,6 +116,9 @@ function Novel(props: WorkspaceProps) {
       {versionLabel ? <span className="paper-version">{versionLabel}</span> : null}
       {current && (
         <>
+          <button disabled={!canRead || props.readOnly} onClick={props.onReview}>
+            派编辑审读
+          </button>
           <button
             disabled={!canRead || props.readOnly}
             onClick={() => dispatch({ type: "openDialog", dialog: { kind: "review" } })}
@@ -184,12 +188,25 @@ function Novel(props: WorkspaceProps) {
           />
         </section>
       ))}
+      <button disabled={!props.target.work || props.readOnly} onClick={props.onNewChapter}>
+        ＋ 规划下一章
+      </button>
     </>
   );
 
   const center =
     props.view !== "writing" ? (
-      <Pipeline state={state} view={view} actions={actions} />
+      <Pipeline
+        state={state}
+        view={view}
+        actions={{
+          ...actions,
+          dispatch: (event: any) => {
+            actions.dispatch(event);
+            if (event.type === "view" && event.view === "chapters") props.onView?.("writing");
+          },
+        }}
+      />
     ) : (
       <>
         {decisions}

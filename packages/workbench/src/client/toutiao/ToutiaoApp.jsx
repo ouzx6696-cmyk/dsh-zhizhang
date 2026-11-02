@@ -3,9 +3,11 @@ import React from "react";
 import { formatClock, formatCount, t } from "../shared/copy.js";
 import { useToutiao } from "./useToutiao.js";
 import { ActionButton, Button, Icon, Modal, SegmentedControl, Spinner, StateDot, Tag, cx } from "../shared/ui.jsx";
-import { ActionCard, Callout, Empty, Notices, Section, Skeleton, Steps, WithCode } from "../shared/common.jsx";
+import { ActionCard, Callout, Empty, Notices, Section, Skeleton, WithCode } from "../shared/common.jsx";
 import { Manuscript } from "../shared/Manuscript.jsx";
 import { SourceEditor } from "../shared/SourceEditor.jsx";
+import { ARTICLE_STEPS, articleProgress } from "../../../../ui/src/status.js";
+import { Steps as AuthorSteps } from "../../../../ui/src/primitives.jsx";
 import { statusInfo } from "../../../../ui/src/status.js";
 
 const { useState } = React;
@@ -14,15 +16,6 @@ const TAG_TONE = { neutral: "neutral", info: "info", warn: "warning", success: "
 const statusLabel = (status) => statusInfo("toutiao", status).label;
 const statusTone = (status) => TAG_TONE[statusInfo("toutiao", status).tone];
 const STATUS_DOT = { 初稿待改: "warning", 待验收: "warning", 已验收: "done", 验收退回: "error", 已交稿: "done" };
-const PIPELINE = ["立项", "成稿", "待验收", "已验收", "已交稿"];
-
-function pipelineAt(a) {
-  if (!a.card.present && !a.draft) return { current: 0 };
-  if (a.status === "验收退回") return { current: 1, tone: "danger" };
-  const at = { 初稿待改: 1, 待验收: 2, 已验收: 3, 已交稿: 4 }[a.status];
-  return { current: at === undefined ? 1 : at, tone: a.status === "初稿待改" ? "warning" : undefined };
-}
-
 function QaText({ qa, rev }) {
   if (!qa) return <span className="wb-muted">{t("ttQaNone")}</span>;
   const text = qa.pass ? t("ttQaPass", { score: qa.score }) : t("ttQaFail", { score: qa.score });
@@ -40,12 +33,16 @@ function matches(a, q) {
   return String(a.title).toLowerCase().includes(k) || String(a.id).toLowerCase().includes(k);
 }
 
-export function ArticleList({ articles, statuses, sel, onSelect }) {
+export function ArticleList({ articles, sel, onSelect }) {
   const [query, setQuery] = useState("");
   const visible = articles.filter((a) => matches(a, query));
-  const groups = (statuses.length ? statuses : [...new Set(articles.map((a) => a.status))])
-    .map((status) => ({ status, rows: visible.filter((a) => a.status === status) }))
-    .filter((g) => g.rows.length);
+  const weekOf = (article) => {
+    const date = new Date(article.updatedAt || article.createdAt || article.id.slice(0,10));
+    if (Number.isNaN(date.getTime())) return "较早的文章";
+    date.setDate(date.getDate() - (date.getDay() + 6) % 7);
+    return [date.getFullYear(), String(date.getMonth() + 1).padStart(2,"0"), String(date.getDate()).padStart(2,"0")].join("-") + " 当周";
+  };
+  const groups = [...new Set(visible.map(weekOf))].sort((a,b) => a === "较早的文章" ? 1 : b === "较早的文章" ? -1 : b.localeCompare(a)).map(status => ({status, rows:visible.filter(article => weekOf(article) === status)}));
   return (
     <div className="wb-chapter-nav">
       {articles.length > 6 ? (
@@ -59,9 +56,9 @@ export function ArticleList({ articles, statuses, sel, onSelect }) {
       ) : null}
       {!groups.length ? <Empty hint={t("ttFilterEmpty")} /> : null}
       {groups.map((g) => (
-        <section key={g.status} className="wb-tt-group" aria-label={statusLabel(g.status)}>
+        <section key={g.status} className="wb-tt-group" aria-label={g.status}>
           <h3 className="wb-tt-group-head">
-            <StateDot state={STATUS_DOT[g.status] || "idle"} size={8} /> {statusLabel(g.status)} <span className="wb-count">{g.rows.length}</span>
+            <StateDot state={STATUS_DOT[g.status] || "idle"} size={8} /> {g.status} <span className="wb-count">{g.rows.length}</span>
           </h3>
           <ul className="wb-chapter-list">
             {g.rows.map((a) => {
@@ -175,7 +172,8 @@ export function ToutiaoSide({ tt, hideAgent = false }) {
       {a ? (
         <>
           <Section title={t("ttFacts")} aside={<Tag tone={statusTone(a.status)}>{statusLabel(a.status)}</Tag>}>
-            <Steps steps={PIPELINE} {...pipelineAt(a)} label={t("ttPipeline")} />
+            <AuthorSteps steps={ARTICLE_STEPS} current={articleProgress(a)} label={t("ttPipeline")} />
+            {a.qa?.length ? <div className="lamp-qa-score">{a.qa[a.qa.length-1].score}<small> 分</small></div> : null}
             <dl className="wb-facts">
               <div className="wb-fact"><dt>{t("ttLine")}</dt><dd>{a.line} · {a.genre}</dd></div>
               <div className="wb-fact"><dt>{t("ttRounds")}</dt><dd>{t("ttRoundsValue", { n: a.returnRounds, max: a.maxReturnRounds })}</dd></div>
@@ -311,7 +309,7 @@ export function ToutiaoApp({ modeSwitch, version }) {
           <h2 className="wb-column-head">{t("ttArticles")}</h2>
           <div className="wb-column-body">
             {list.articles.length ? (
-              <>{list.error && <Callout tone="danger" role="alert">{list.error}</Callout>}<ArticleList articles={list.articles} statuses={list.statuses || []} sel={sel} onSelect={actions.select} /></>
+              <>{list.error && <Callout tone="danger" role="alert">{list.error}</Callout>}<ArticleList articles={list.articles} sel={sel} onSelect={actions.select} /></>
             ) : (
               <div className="wb-onboarding wb-onboarding-compact">
                 <Empty icon="inbox" title={t("ttEmpty")} />

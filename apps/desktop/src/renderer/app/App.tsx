@@ -1,8 +1,11 @@
+import { DesignPreview } from "../features/settings/DesignPreview";
 import React from "react";
 import { createRoot } from "react-dom/client";
 import "@fontsource/noto-sans-sc/400.css";
 import "@fontsource/noto-sans-sc/600.css";
 import "@fontsource/noto-serif-sc/400.css";
+import "@fontsource/noto-serif-sc/600.css";
+import "../../../../../packages/ui/src/components.css";
 import "../../../../../packages/ui/src/tokens.css";
 import "../../../../../packages/workbench/src/client/styles.css";
 import "../../desktop.css";
@@ -39,6 +42,14 @@ function App() {
           tab={state.tab}
           setTab={(tab) => set({ tab })}
           onView={app.changeView}
+          onReview={() => void app.deliver("review").catch(app.fail)}
+          onNewChapter={() =>
+            void app
+              .sendText("【写作台】为本书规划下一章。先确认标题、冲突和章纲，不自动写正文。", {
+                intent: "plan",
+              })
+              .catch(app.fail)
+          }
           drawer={state.drawer}
           setDrawer={(drawer) => set({ drawer })}
           readOnly={system.access?.readOnly}
@@ -50,7 +61,7 @@ function App() {
       ) : (
         <div className="studio-empty">
           <h1>你的下一篇，从这里开始</h1>
-          <p>先连接模型并选择写作根，小说与头条会统一整理在本地。</p>
+          <p>先连接模型并选择写作文件夹，小说与头条会统一整理在本地。</p>
           <button className="primary" onClick={() => set({ wizardStep: 0, onboarding: true })}>
             开始设置
           </button>
@@ -77,4 +88,6 @@ function App() {
   );
 }
 
-createRoot(document.getElementById("root")!).render(<App />);
+const preview =
+  import.meta.env.DEV && new URLSearchParams(window.location.search).has("ui-preview");
+createRoot(document.getElementById("root")!).render(preview ? <DesignPreview /> : <App />);

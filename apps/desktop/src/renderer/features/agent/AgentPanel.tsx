@@ -1,3 +1,4 @@
+import { TaskProgress } from "./TaskProgress";
 import React, { useEffect, useRef, useState } from "react";
 import { Send, Plus, History, Feather, ArrowRight } from "lucide-react";
 import { Markdown } from "../../../Markdown";
@@ -5,6 +6,7 @@ import { humanVersion } from "../../../commands";
 import { scopeId, focusLabel, promptContext, toolLabel } from "../../../context";
 import type { ChatMessage } from "../../state/store";
 import { useChatSelector } from "../../state/chatStore";
+import { ARTICLE_STEPS } from "../../../../../../packages/ui/src/status";
 import { desktop } from "../../state/desktop";
 import type { DesktopController } from "../../app/useDesktopController";
 
@@ -109,7 +111,7 @@ export function AgentPanel({ app }: { app: DesktopController }) {
   };
   const steps =
     selected?.mode === "toutiao"
-      ? ["S1 找题", "S2 立项", "S3 标题", "S4 成文", "S5 红笔", "S6 质检", "S7 交稿"]
+      ? ARTICLE_STEPS
       : ["读材料", "规划", "起草", "自检", "出候选", "送审"];
   const quick =
     context.kind === "article"
@@ -181,6 +183,13 @@ export function AgentPanel({ app }: { app: DesktopController }) {
     if (message.role === "toolResult") {
       const result = message.details?.writerResult;
       if (result) return <div key={index}>{resultCard(result, candidateNumbers.get(index))}</div>;
+      if (message.isError)
+        return (
+          <div className="result-card failed" key={index} role="alert">
+            <strong>{toolLabel(message.toolName || "")}未完成</strong>
+            <Markdown text={original} />
+          </div>
+        );
       return (
         <div className="tool-action" key={index}>
           {toolLabel(message.toolName || "")}
@@ -220,39 +229,13 @@ export function AgentPanel({ app }: { app: DesktopController }) {
   }
   return (
     <div className="agent-panel">
-      {task && (
-        <section className="task-card" aria-label="当前任务">
-          <header>
-            <strong>
-              {busy ? "正在进行" : "任务结束"} ·{" "}
-              {task.name?.startsWith("【写作台】") ? actionTitle(task.name) : task.name || phase}
-            </strong>
-            <button
-              className="stop-task"
-              disabled={!busy}
-              aria-label="停止任务"
-              onClick={() => app.stop().catch(fail)}
-            >
-              停止
-            </button>
-          </header>
-          <div className="task-track">
-            {steps.map((step) => (
-              <span
-                key={step}
-                title={step}
-                className={
-                  task.completed?.includes(step) ? "done" : task.current === step ? "current" : ""
-                }
-              />
-            ))}
-          </div>
-          <p>
-            {task.completed?.length ? "已完成：" + task.completed.join(" → ") + " · " : ""}
-            {busy ? "当前：" + (task.current || phase) : task.waiting}
-          </p>
-        </section>
-      )}
+      <TaskProgress
+        task={task}
+        busy={busy}
+        phase={phase}
+        steps={steps}
+        onStop={() => void app.stop().catch(app.fail)}
+      />
       <div className="conversation-tools">
         <button
           onClick={async () => {
@@ -306,7 +289,29 @@ export function AgentPanel({ app }: { app: DesktopController }) {
             查看更早记录
           </button>
         )}
-        {messages.map(renderMessage)}
+        {messages.map((message, index) => {
+          const plainTool = (m: ChatMessage) =>
+            m.role === "toolResult" && !m.details?.writerResult && !m.isError;
+          if (!plainTool(message)) return renderMessage(message, index);
+          if (
+            index > 0 &&
+            messages[index - 1].details?.writerResult &&
+            messages[index - 1].toolName === message.toolName
+          )
+            return null;
+          if (index > 0 && plainTool(messages[index - 1])) return null;
+          const names = new Set<string>();
+          for (let i = index; i < messages.length && plainTool(messages[i]); i++)
+            names.add(toolLabel(messages[i].toolName || ""));
+          return (
+            <details className="lamp-tool-summary" key={index}>
+              <summary>已完成 {names.size} 项准备与检查</summary>
+              {[...names].map((name) => (
+                <p key={name}>{name}</p>
+              ))}
+            </details>
+          );
+        })}
         <ChatStream
           hasMessages={messages.length > 0}
           listRef={listRef}
