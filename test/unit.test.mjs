@@ -1,14 +1,97 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import path from 'node:path'
-import { readFile } from 'node:fs/promises'
-import { FIX, tempDir, buildUrl } from './helpers.mjs'
+import { readFile, mkdir, writeFile, rm } from 'node:fs/promises'
+import { spawnSync } from 'node:child_process'
+import { FIX, ROOT, tempDir, buildUrl } from './helpers.mjs'
 
 const { resolveInside, serialize, atomicWrite, readJson } = await import(buildUrl('core/src/fsx.js'))
 const { parseContract, locatePython, runScript } = await import(buildUrl('core/src/runner.js'))
 const { createGateEngine } = await import(buildUrl('core/src/gates.js'))
 const { checkCard } = await import(buildUrl('toutiao/src/card.js'))
 const { ArticleStore, canTransition } = await import(buildUrl('toutiao/src/store.js'))
+
+async function guardFixture(t) {
+  const root = await tempDir('writer-guard-')
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const write = async (file, source) => {
+    const target = path.join(root, file)
+    await mkdir(path.dirname(target), { recursive: true })
+    await writeFile(target, source)
+  }
+  for (const pkg of ['ui', 'host', 'core', 'workbench', 'toutiao', 'fanqie', 'app', 'host-generic'])
+    await mkdir(path.join(root, 'packages', pkg, 'src'), { recursive: true })
+  for (const dir of ['apps/desktop/src/styles', 'packages/workbench/src/client/styles'])
+    await mkdir(path.join(root, dir), { recursive: true })
+  for (const file of ['package.json', 'apps/desktop/package.json', 'bundle/package.json'])
+    await write(file, '{"version":"0.9.7"}')
+  await write('packages/core/src/version.ts', 'export const VERSION = "0.9.7";')
+  await write('CHANGELOG.md', '## 0.9.7\n')
+  await write('scripts/any-baseline.json', '{"any":0}')
+  const run = (strict = true) => spawnSync(process.execPath,
+    [path.join(ROOT, 'scripts/architecture-guard.mjs'), '--root', root, ...(strict ? ['--strict'] : [])],
+    { encoding: 'utf8' })
+  assert.equal(run().status, 0, '合法仓库必须通过严格模式')
+  return { write, run }
+}
+
+test('守卫：普通字符串调用不能绕过宿主边界', async (t) => {
+  const { write, run } = await guardFixture(t)
+  await write('packages/workbench/src/client/example.jsx', '__dshRequire("@deepseek-ai/dsh-client-ui-primitives")')
+  const result = run()
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /只能经由 packages\/host/)
+})
+
+test('守卫：any 不能超过基线，类型断言和注解均计数', async (t) => {
+  const { write, run } = await guardFixture(t)
+  await write('packages/core/src/example.ts', 'const a: any = 1; const b = a as any; const c = <any>a;')
+  const result = run()
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /any 数量 3 超过基线 0/)
+})
+
+test('守卫：组件前缀不能跨样式文件，普通模式暂时提示', async (t) => {
+  const { write, run } = await guardFixture(t)
+  await write('packages/ui/src/modal.css', '.wb-modal-head { display: flex; }')
+  await write('packages/ui/src/overlay.css', '@media (min-width: 1em) { .wb-modal-body { display: block; } }')
+  assert.equal(run(false).status, 0)
+  const result = run()
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /组件前缀 wb-modal 必须唯一/)
+})
+
+test('守卫：空 catch 和字面量回退须说明原因，认识 ENOENT 的分支不误报', async (t) => {
+  const { write, run } = await guardFixture(t)
+  const cases = ['try {} catch {}', 'try {} catch (e) {}', 'try {} catch { return []; }',
+    'promise.catch(() => undefined)', 'promise.catch(() => {})', 'promise.catch(() => "")',
+    'promise.catch(() => ({}))', 'promise.catch(() => { return false; })']
+  for (const source of cases) {
+    await write('packages/core/src/example.js', `async function example() { ${source} }`)
+    const result = run()
+    assert.equal(result.status, 1, source)
+    assert.match(result.stdout, /吞错=1/)
+  }
+  await write('packages/core/src/example.js', 'try {} catch (error) { if (error.code === "ENOENT") return []; throw error; }')
+  assert.equal(run().status, 0)
+  for (const source of ['// allow-catch: 进程退出时尽力清理\npromise.catch(() => {})',
+    'try {} catch {} // allow-catch: 进程退出时尽力清理']) {
+    await write('packages/core/src/example.js', source)
+    assert.equal(run().status, 0)
+  }
+})
+
+test('守卫：history 目录在严格模式失败，CSS 长度只提示且文档数量不设限', async (t) => {
+  const { write, run } = await guardFixture(t)
+  await write('packages/ui/src/long.css', '\n'.repeat(301))
+  for (let i = 0; i < 11; i++) await write(`docs/guide-${i}.md`, 'guide')
+  assert.equal(run().status, 0)
+  await write('docs/history/old.md', 'old')
+  assert.equal(run(false).status, 0)
+  const result = run()
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /docs\/history\/ 目录不得存在/)
+})
 
 test('resolveInside 拒绝越界', () => {
   assert.equal(resolveInside('/a/b', 'c'), path.resolve('/a/b/c'))

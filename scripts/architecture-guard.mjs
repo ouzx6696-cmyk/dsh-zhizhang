@@ -1,258 +1,258 @@
-// 架构守卫：
-//   1. 只有 packages/host 可以提到宿主包 @deepseek-ai/*（包括字符串动态导入）；
-//   2. 包之间只能按分层向下依赖，源码里没有运行时依赖环；
-//   3. 长篇引擎的存储层不依赖业务/查询代码，文本分析保持浏览器可用；
-//   4. 写作台浏览器端只能引用浏览器可用模块，宿主判断走 adapters；
-//   5. 桌面 Pi SDK 只在 session/pi-adapter.ts 导入，渲染层只经 state/desktop.ts 访问预加载桥；
-//   6. 样式禁止 !important，桌面/写作台组件文件不超过 400 行（提示）；
-//   7. 版本号在 package/bundle/version/CHANGELOG 一致，docs 根目录不超过 10 份。
 import ts from "typescript";
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const PKGS = path.join(ROOT, "packages");
-const LAYERS = {
-  ui: 0,
-  host: 0,
-  core: 1,
-  workbench: 1,
-  toutiao: 2,
-  fanqie: 2,
-  app: 3,
-  "host-generic": 2,
-  desktop: 3,
-};
-const BROWSER_SAFE = [
-  "fanqie/src/engine/domain/manuscript.ts",
-  "fanqie/src/engine/domain/diagnostics.ts",
-];
-const problems = [];
-const warnings = [];
+// --root audits another checkout; --strict enforces rules staged for later cleanup.
+const args = process.argv.slice(2);
+const rootArg = args.indexOf("--root");
+const ROOT = rootArg < 0
+  ? path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
+  : path.resolve(args[rootArg + 1]);
+const STRICT = args.includes("--strict");
+const LAYERS = { ui: 0, host: 0, core: 1, workbench: 1, toutiao: 2, fanqie: 2, app: 3, "host-generic": 2, desktop: 3 };
+const BROWSER_SAFE = ["packages/fanqie/src/engine/domain/manuscript.ts", "packages/fanqie/src/engine/domain/diagnostics.ts"];
+const problems = [], warnings = [], graph = new Map(), prefixes = new Map();
+let anyCount = 0, swallowedCount = 0;
+const report = (file, message, staged = false) =>
+  (staged && !STRICT ? warnings : problems).push(`${file.rel}: ${message}`);
 
-async function* walk(dir) {
-  for (const e of await readdir(dir, { withFileTypes: true })) {
-    const p = path.join(dir, e.name);
-    if (e.isDirectory()) yield* walk(p);
-    else if (/\.(ts|tsx|js|jsx)$/.test(p)) yield p;
-  }
-}
-
-const graph = new Map();
-for (const pkg of Object.keys(LAYERS)) {
-  for await (const file of walk(
-    pkg === "desktop" ? path.join(ROOT, "apps/desktop/src") : path.join(PKGS, pkg, "src"),
-  )) {
-    const rel = path.relative(PKGS, file).split(path.sep).join("/");
-    const text = await readFile(file, "utf8");
-    if (text.includes("@ts-nocheck")) problems.push(`${rel}: 不许关闭类型检查`);
-    const renderer =
-      pkg === "desktop" &&
-      (rel.startsWith("../apps/desktop/src/renderer/") || /\.(jsx|tsx)$/.test(file));
-    if (
-      renderer &&
-      text.includes("window.writerDesktop") &&
-      !rel.endsWith("apps/desktop/src/renderer/state/desktop.ts")
-    )
-      problems.push(`${rel}: 渲染层只能经 state/desktop.ts 访问预加载桥`);
-    if (
-      (pkg === "desktop" || rel.startsWith("workbench/src/client/")) &&
-      text.split(/\r?\n/).length > 400
-    )
-      warnings.push(`${rel}: 超过 400 行，建议按功能拆分`);
-    if (pkg === "desktop" && file.endsWith(".jsx") && !/^\/\/ @ts-check\r?\n/.test(text))
-      problems.push(`${rel}: 桌面 JSX 必须显式启用 @ts-check 并纳入 renderer 检查`);
-    const client = rel.startsWith("workbench/src/client/");
-    if (client && text.includes("window.writerDesktop"))
-      problems.push(`${rel}: 浏览器端只能通过 adapters 判断宿主，不能直接访问预加载桥`);
-    const ast = ts.createSourceFile(
-      file,
-      text,
-      ts.ScriptTarget.Latest,
-      true,
-      file.endsWith("x") ? ts.ScriptKind.JSX : undefined,
-    );
-    const deps = [];
-    const visit = (node) => {
-      let lit,
-        typeOnly = false;
-      if (ts.isImportDeclaration(node)) {
-        lit = node.moduleSpecifier;
-        const c = node.importClause;
-        typeOnly =
-          !!c?.isTypeOnly ||
-          (!!c &&
-            !c.name &&
-            c.namedBindings &&
-            ts.isNamedImports(c.namedBindings) &&
-            c.namedBindings.elements.length > 0 &&
-            c.namedBindings.elements.every((x) => x.isTypeOnly));
-      } else if (ts.isExportDeclaration(node) && node.moduleSpecifier) {
-        lit = node.moduleSpecifier;
-        typeOnly = node.isTypeOnly;
-      } else if (
-        ts.isCallExpression(node) &&
-        node.expression.kind === ts.SyntaxKind.ImportKeyword
-      ) {
-        lit = node.arguments[0];
-      }
-      if (lit && ts.isStringLiteralLike(lit)) deps.push({ spec: lit.text, typeOnly });
-      if (
-        ts.isAsExpression(node) &&
-        ts.isStringLiteralLike(node.expression) &&
-        node.expression.text.startsWith("@deepseek-ai/")
-      )
-        deps.push({ spec: node.expression.text, typeOnly: false });
-      ts.forEachChild(node, visit);
-    };
-    visit(ast);
-    const edges = [];
-    for (const { spec, typeOnly } of deps) {
-      if (
-        pkg === "desktop" &&
-        spec.startsWith("@earendil-works/pi-") &&
-        !rel.endsWith("apps/desktop/src/session/pi-adapter.ts")
-      )
-        problems.push(`${rel}: PI SDK 只能在 session/pi-adapter.ts 使用`);
-      if (renderer && (spec.startsWith("node:") || spec === "electron"))
-        problems.push(`${rel}: 渲染层不能访问 ${spec}`);
-      if (spec.startsWith("@deepseek-ai/") && pkg !== "host")
-        problems.push(`${rel}: 只能经由 packages/host 使用 ${spec}`);
-      if (!spec.startsWith(".")) {
-        if (client && spec !== "react") problems.push(`${rel}: 浏览器端不能引用 ${spec}`);
-        continue;
-      }
-      const target = path.resolve(path.dirname(file), spec);
-      const trel = path.relative(PKGS, target).split(path.sep).join("/");
-      const tpkg = trel.split("/")[0];
-      if (
-        renderer &&
-        !trel.startsWith("../apps/desktop/src/") &&
-        !trel.startsWith("workbench/src/client/") &&
-        !trel.startsWith("ui/src/") &&
-        !BROWSER_SAFE.includes(trel)
-      )
-        problems.push(`${rel}: 渲染层不能深入服务端模块 ${trel}`);
-      if (client) {
-        const tts = trel.replace(/\.js$/, ".ts");
-        if (
-          !trel.startsWith("workbench/src/client/") &&
-          !trel.startsWith("workbench/src/adapters/") &&
-          !trel.startsWith("ui/src/") &&
-          !BROWSER_SAFE.includes(tts)
-        )
-          problems.push(`${rel}: 浏览器端只能引用浏览器可用模块，不能引用 ${trel}`);
-      }
-      if (!client && tpkg in LAYERS && tpkg !== pkg && LAYERS[tpkg] >= LAYERS[pkg])
-        problems.push(`${rel}: ${pkg} 不能依赖同层或上层包 ${tpkg}`);
-      if (
-        rel.startsWith("fanqie/src/engine/storage/") &&
-        /fanqie\/src\/engine\/(panel-|work-store|ports\/)/.test(trel)
-      )
-        problems.push(`${rel}: 存储层不能依赖业务/查询代码 ${trel}`);
-      if (BROWSER_SAFE.includes(rel) && /\/(storage|ports)\//.test(trel))
-        problems.push(`${rel}: 文本分析须保持浏览器可用，不能引用 ${trel}`);
-      if (!typeOnly) {
-        const resolved = ts.resolveModuleName(
-          spec,
-          file,
-          { moduleResolution: ts.ModuleResolutionKind.Bundler, allowJs: true },
-          ts.sys,
-        ).resolvedModule;
-        if (resolved) edges.push(path.resolve(resolved.resolvedFileName));
-      }
-    }
-    if (BROWSER_SAFE.includes(rel) && deps.some((d) => d.spec.startsWith("node:")))
-      problems.push(`${rel}: 文本分析须保持浏览器可用，不能引用 node 内置模块`);
-    graph.set(file, edges);
-  }
-}
-
-// 运行时依赖环
-const active = new Set(),
-  done = new Set(),
-  stack = [];
-function check(file) {
-  if (active.has(file)) {
-    problems.push(
-      "依赖环：" +
-        [...stack.slice(stack.indexOf(file)), file].map((p) => path.relative(PKGS, p)).join(" → "),
-    );
-    return;
-  }
-  if (done.has(file) || !graph.has(file)) return;
-  active.add(file);
-  stack.push(file);
-  for (const next of graph.get(file)) check(next);
-  stack.pop();
-  active.delete(file);
-  done.add(file);
-}
-for (const file of graph.keys()) check(file);
-
-async function* styles(dir) {
+async function* walk(dir, pattern) {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     const file = path.join(dir, entry.name);
-    if (entry.isDirectory()) yield* styles(file);
-    else if (entry.name.endsWith(".css")) yield file;
-  }
-}
-for (const dir of [
-  "apps/desktop/src/styles",
-  "packages/ui/src",
-  "packages/workbench/src/client/styles",
-]) {
-  for await (const file of styles(path.join(ROOT, dir))) {
-    const css = (await readFile(file, "utf8")).replace(/\/\*[\s\S]*?\*\//g, "");
-    const rel = path.relative(ROOT, file);
-    if (css.includes("!important")) problems.push(`${rel}: 禁止 !important`);
-    if (rel.endsWith("tokens.css")) continue;
-    if (css.split("\n").length > 300) problems.push(`${rel}: 样式超过 300 行`);
-    if (/#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?|oklch)\(/i.test(css))
-      problems.push(`${rel}: 颜色须使用 tokens`);
-    if (/\[data-theme/.test(css)) problems.push(`${rel}: 主题只能切换 tokens`);
-    if (/(?:^|[;{\s])font(?:-size)?\s*:[^;{}]*\b\d+(?:\.\d+)?px/.test(css))
-      problems.push(`${rel}: 字号须使用 tokens`);
+    if (entry.isDirectory()) yield* walk(file, pattern);
+    else if (pattern.test(file)) yield file;
   }
 }
 
-if (warnings.length)
-  console.warn("架构守卫提示：\n" + [...new Set(warnings)].map((p) => "  - " + p).join("\n"));
+function visit(node, check) {
+  check(node);
+  ts.forEachChild(node, (child) => visit(child, check));
+}
 
-const versionFiles = [
-  ["package.json", path.join(ROOT, "package.json"), "json"],
-  ["apps/desktop/package.json", path.join(ROOT, "apps/desktop/package.json"), "json"],
-  ["bundle/package.json", path.join(ROOT, "bundle/package.json"), "json"],
-  ["packages/core/src/version.ts", path.join(ROOT, "packages/core/src/version.ts"), "ts"],
-  ["CHANGELOG.md", path.join(ROOT, "CHANGELOG.md"), "md"],
+function sourceInfo(file, source, pkg) {
+  const rel = path.relative(ROOT, file).split(path.sep).join("/");
+  const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  const deps = [];
+  visit(ast, (node) => {
+    let lit, typeOnly = false;
+    if (ts.isImportDeclaration(node)) {
+      lit = node.moduleSpecifier;
+      const clause = node.importClause;
+      typeOnly = !!clause?.isTypeOnly || (!!clause && !clause.name &&
+        clause.namedBindings && ts.isNamedImports(clause.namedBindings) &&
+        clause.namedBindings.elements.length > 0 &&
+        clause.namedBindings.elements.every((item) => item.isTypeOnly));
+    } else if (ts.isExportDeclaration(node) && node.moduleSpecifier) {
+      lit = node.moduleSpecifier;
+      typeOnly = node.isTypeOnly;
+    } else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+      lit = node.arguments[0];
+    }
+    if (lit && ts.isStringLiteralLike(lit)) deps.push({ spec: lit.text, typeOnly });
+  });
+  return { file, rel, pkg, ast, deps, source,
+    client: rel.startsWith("packages/workbench/src/client/"),
+    renderer: pkg === "desktop" && (rel.includes("/renderer/") || /\.(jsx|tsx)$/.test(file)),
+  };
+}
+
+function checkDependencies(file) {
+  const edges = [];
+  for (const { spec, typeOnly } of file.deps) {
+    if (file.pkg === "desktop" && spec.startsWith("@earendil-works/pi-") &&
+        !file.rel.endsWith("/session/pi-adapter.ts"))
+      report(file, "PI SDK 只能在 session/pi-adapter.ts 使用");
+    if (file.renderer && (spec.startsWith("node:") || spec === "electron"))
+      report(file, `渲染层不能访问 ${spec}`);
+    if (BROWSER_SAFE.includes(file.rel) && spec.startsWith("node:"))
+      report(file, "文本分析须保持浏览器可用，不能引用 node 内置模块");
+    if (!spec.startsWith(".")) {
+      if (file.client && spec !== "react") report(file, `浏览器端不能引用 ${spec}`);
+      continue;
+    }
+    const target = path.resolve(path.dirname(file.file), spec);
+    const rel = path.relative(ROOT, target).split(path.sep).join("/");
+    const targetPackage = rel.split("/")[1];
+    const browserSafe = BROWSER_SAFE.includes(rel.replace(/\.js$/, ".ts"));
+    if (file.renderer && !rel.startsWith("apps/desktop/src/") &&
+        !rel.startsWith("packages/workbench/src/client/") &&
+        !rel.startsWith("packages/ui/src/") && !browserSafe)
+      report(file, `渲染层不能深入服务端模块 ${rel}`);
+    if (file.client && !rel.startsWith("packages/workbench/src/client/") &&
+        !rel.startsWith("packages/workbench/src/adapters/") &&
+        !rel.startsWith("packages/ui/src/") && !browserSafe)
+      report(file, `浏览器端只能引用浏览器可用模块，不能引用 ${rel}`);
+    if (!file.client && targetPackage in LAYERS && targetPackage !== file.pkg &&
+        LAYERS[targetPackage] >= LAYERS[file.pkg])
+      report(file, `${file.pkg} 不能依赖同层或上层包 ${targetPackage}`);
+    if (file.rel.startsWith("packages/fanqie/src/engine/storage/") &&
+        /fanqie\/src\/engine\/(panel-|work-store|ports\/)/.test(rel))
+      report(file, `存储层不能依赖业务/查询代码 ${rel}`);
+    if (BROWSER_SAFE.includes(file.rel) && /\/(storage|ports)\//.test(rel))
+      report(file, `文本分析须保持浏览器可用，不能引用 ${rel}`);
+    if (!typeOnly) {
+      const resolved = ts.resolveModuleName(spec, file.file,
+        { moduleResolution: ts.ModuleResolutionKind.Bundler, allowJs: true }, ts.sys).resolvedModule;
+      if (resolved) edges.push(path.resolve(resolved.resolvedFileName));
+    }
+  }
+  graph.set(file.file, edges);
+}
+
+function literal(node) {
+  if (!node) return true;
+  if (ts.isParenthesizedExpression(node)) return literal(node.expression);
+  return ts.isLiteralExpression(node) || ts.isObjectLiteralExpression(node) ||
+    ts.isArrayLiteralExpression(node) || [ts.SyntaxKind.NullKeyword, ts.SyntaxKind.TrueKeyword,
+      ts.SyntaxKind.FalseKeyword, ts.SyntaxKind.VoidExpression].includes(node.kind) ||
+    (ts.isIdentifier(node) && node.text === "undefined");
+}
+
+function swallowed(body) {
+  if (!ts.isBlock(body)) return literal(body);
+  return body.statements.length === 0 || (body.statements.length === 1 &&
+    ts.isReturnStatement(body.statements[0]) && literal(body.statements[0].expression));
+}
+
+const rules = [
+  { name: "type-checking", check(file, source) {
+    if (source.includes("@ts-nocheck")) report(file, "不许关闭类型检查");
+    if (file.pkg === "desktop" && file.file.endsWith(".jsx") && !/^\/\/ @ts-check\r?\n/.test(source))
+      report(file, "桌面 JSX 必须显式启用 @ts-check 并纳入 renderer 检查");
+  } },
+  { name: "renderer-bridge", check(file, source) {
+    if (file.renderer && source.includes("window.writerDesktop") && !file.rel.endsWith("/renderer/state/desktop.ts"))
+      report(file, "渲染层只能经 state/desktop.ts 访问预加载桥");
+    if (file.client && source.includes("window.writerDesktop"))
+      report(file, "浏览器端只能通过 adapters 判断宿主，不能直接访问预加载桥");
+  } },
+  { name: "component-length", check(file, source) {
+    if ((file.pkg === "desktop" || file.client) && source.split(/\r?\n/).length > 400)
+      warnings.push(`${file.rel}: 超过 400 行，建议按功能拆分`);
+  } },
+  { name: "host-package", check(file) {
+    visit(file.ast, (node) => {
+      if (ts.isStringLiteralLike(node) && node.text.startsWith("@deepseek-ai/") && file.pkg !== "host")
+        report(file, `只能经由 packages/host 使用 ${node.text}`,
+          !file.deps.some((dep) => dep.spec === node.text));
+    });
+  } },
+  { name: "dependencies", check: checkDependencies },
+  { name: "any-baseline", check(file, source) {
+    anyCount += [...source.matchAll(/:\s*any\b|\bas\s+any\b|<any>/g)].length;
+  } },
+  { name: "swallowed-error", check(file, source) {
+    const lines = source.split(/\r?\n/);
+    visit(file.ast, (node) => {
+      const caught = ts.isCatchClause(node) ? swallowed(node.block) :
+        ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) &&
+        node.expression.name.text === "catch" && node.arguments.length > 0 &&
+        ts.isArrowFunction(node.arguments[0]) && swallowed(node.arguments[0].body);
+      if (!caught) return;
+      const { line } = file.ast.getLineAndCharacterOfPosition(node.getStart(file.ast));
+      if ([lines[line], lines[line - 1]].some((text) => /\/\/\s*allow-catch:\s*\S/.test(text))) return;
+      swallowedCount++;
+      report(file, `${line + 1}: 吞错须注明 // allow-catch: 原因`, true);
+    });
+  } },
 ];
-const versions = [];
-for (const [label, file, kind] of versionFiles) {
-  const text = await readFile(file, "utf8");
-  const version =
-    kind === "json"
-      ? JSON.parse(text).version
-      : kind === "ts"
-        ? text.match(/VERSION\s*=\s*"([^"]+)"/)?.[1]
-        : text.match(/^##\s+([^\s·]+)/m)?.[1];
-  versions.push({ label, version });
+
+const styleRules = [
+  { name: "style-important", check(file, source) {
+    if (source.includes("!important")) report(file, "禁止 !important");
+  } },
+  { name: "style-tokens", check(file, source) {
+    if (file.rel.endsWith("tokens.css")) return;
+    if (source.split("\n").length > 300) warnings.push(`${file.rel}: 样式超过 300 行，建议按组件组织`);
+    if (/#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?|oklch)\(/i.test(source)) report(file, "颜色须使用 tokens");
+    if (/\[data-theme/.test(source)) report(file, "主题只能切换 tokens");
+    if (/(?:^|[;{\s])font(?:-size)?\s*:[^;{}]*\b\d+(?:\.\d+)?px/.test(source)) report(file, "字号须使用 tokens");
+  } },
+  { name: "component-prefix", check(file, source) {
+    // Read selector preludes, including those inside media/supports blocks, never declarations.
+    for (const selector of source.matchAll(/(?:^|(?<=[{}]))\s*([^{}]+)\{/g)) {
+      if (selector[1].trim().startsWith("@")) continue;
+      for (const match of selector[1].matchAll(/\.([a-zA-Z_][\w]*-[\w]+)/g)) {
+        const prefix = match[1].split("-").slice(0, 2).join("-");
+        if (!prefixes.has(prefix)) prefixes.set(prefix, new Set());
+        prefixes.get(prefix).add(file.rel);
+      }
+    }
+  } },
+];
+
+for (const pkg of Object.keys(LAYERS)) {
+  const dir = path.join(ROOT, pkg === "desktop" ? "apps/desktop/src" : `packages/${pkg}/src`);
+  for await (const file of walk(dir, /\.(ts|tsx|js|jsx)$/)) {
+    const source = await readFile(file, "utf8");
+    const info = sourceInfo(file, source, pkg);
+    for (const rule of rules) rule.check(info, source);
+  }
 }
-const distinct = [...new Set(versions.map((v) => v.version))];
-if (distinct.length !== 1 || !distinct[0])
-  problems.push(`版本号不一致：${versions.map((v) => `${v.label}=${v.version}`).join("，")}`);
+for (const dir of ["apps/desktop/src/styles", "packages/ui/src", "packages/workbench/src/client/styles"]) {
+  for await (const file of walk(path.join(ROOT, dir), /\.css$/)) {
+    const source = (await readFile(file, "utf8")).replace(/\/\*[\s\S]*?\*\//g, "");
+    const info = { rel: path.relative(ROOT, file) };
+    for (const rule of styleRules) rule.check(info, source);
+  }
+}
 
-const docsRoot = await readdir(path.join(ROOT, "docs"));
-const rootDocs = docsRoot.filter((name) => name.endsWith(".md"));
-if (rootDocs.length > 10)
-  problems.push(
-    `docs 根目录有 ${rootDocs.length} 份文档，应不超过 10 份；迭代报告放 docs/history/，使用说明放 docs/guides/`,
-  );
-
+const repositoryRules = [
+  { name: "runtime-cycles", check() {
+    const active = new Set(), done = new Set(), stack = [];
+    function check(file) {
+      if (active.has(file)) {
+        problems.push("依赖环：" + [...stack.slice(stack.indexOf(file)), file]
+          .map((item) => path.relative(ROOT, item)).join(" → "));
+        return;
+      }
+      if (done.has(file) || !graph.has(file)) return;
+      active.add(file); stack.push(file);
+      for (const next of graph.get(file)) check(next);
+      stack.pop(); active.delete(file); done.add(file);
+    }
+    for (const file of graph.keys()) check(file);
+  } },
+  { name: "component-prefix", check() {
+    for (const [prefix, files] of prefixes) {
+      if (files.size > 1) report({ rel: [...files].join(", ") }, `组件前缀 ${prefix} 必须唯一`, true);
+    }
+  } },
+  { name: "any-baseline", async check() {
+    const baseline = JSON.parse(await readFile(path.join(ROOT, "scripts/any-baseline.json"), "utf8"));
+    if (!Number.isInteger(baseline.any) || baseline.any < 0 || anyCount > baseline.any)
+      problems.push(`any 数量 ${anyCount} 超过基线 ${baseline.any}`);
+    console.log(`架构守卫计数：any=${anyCount}（基线 ${baseline.any}），吞错=${swallowedCount}`);
+  } },
+  { name: "versions", async check() {
+    const versions = [];
+    for (const [file, kind] of [["package.json", "json"], ["apps/desktop/package.json", "json"],
+      ["bundle/package.json", "json"], ["packages/core/src/version.ts", "ts"], ["CHANGELOG.md", "md"]]) {
+      const source = await readFile(path.join(ROOT, file), "utf8");
+      const version = kind === "json" ? JSON.parse(source).version : kind === "ts"
+        ? source.match(/VERSION\s*=\s*"([^"]+)"/)?.[1] : source.match(/^##\s+([^\s·]+)/m)?.[1];
+      versions.push({ file, version });
+    }
+    if (new Set(versions.map((item) => item.version)).size !== 1 || !versions[0].version)
+      problems.push(`版本号不一致：${versions.map((item) => `${item.file}=${item.version}`).join("，")}`);
+  } },
+  { name: "history-directory", async check() {
+    // Enforced with --strict until documentation is consolidated in T9.
+    if (!STRICT) return;
+    try {
+      await stat(path.join(ROOT, "docs/history"));
+    } catch (error) {
+      if (error.code === "ENOENT") return;
+      throw error;
+    }
+    problems.push("docs/history/ 目录不得存在");
+  } },
+];
+for (const rule of repositoryRules) await rule.check();
+if (warnings.length) console.warn("架构守卫提示：\n" + [...new Set(warnings)].map((item) => "  - " + item).join("\n"));
 if (problems.length) {
-  console.error("架构守卫失败：\n" + [...new Set(problems)].map((p) => "  - " + p).join("\n"));
+  console.error("架构守卫失败：\n" + [...new Set(problems)].map((item) => "  - " + item).join("\n"));
   process.exit(1);
 }
-console.log(
-  `架构守卫通过：${graph.size} 个源文件，分层、宿主边界、存储边界、浏览器边界与依赖环检查均通过；${warnings.length} 条提示`,
-);
+console.log(`架构守卫通过：${graph.size} 个源文件；${warnings.length} 条提示`);
