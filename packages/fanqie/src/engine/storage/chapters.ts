@@ -11,7 +11,7 @@ import { createChapterJournal, finishChapterJournal } from "./chapter-journal.js
 import { withResourceLock } from "./process-lock.js";
 import { contextBasis, fingerprint } from "../domain/lifecycle.js";
 import type { ContextBasis, ChapterDependency, ChapterReview } from "../domain/lifecycle.js";
-import { readLedger, LEDGER_MAX_ENTRIES } from "./ledger.js";
+import { readLedger, appendLedger } from "./ledger.js";
 import { chapterRevision, preserveChapter } from "./revision.js";
 import { metaPath, readWorkMeta, validateStoryPace } from "./work-meta.js";
 export function chaptersDir(dir: string) {
@@ -308,8 +308,7 @@ export async function saveChapterUnlocked(dir: string, input: any) {
     const { chapterBefore, metaBefore } = prepared;
     try {
         if (ledger) {
-            ledger.entries.push({ at: nowIso(), chapterId: prepared.record.id, kind: "chapter_save_direct", summary: input.ledgerEntry, history: prepared.history });
-            ledger.entries = ledger.entries.slice(-LEDGER_MAX_ENTRIES);
+            appendLedger(ledger,{ chapterId: prepared.record.id, kind: "chapter_save_direct", summary: input.ledgerEntry, history: prepared.history });
         }
         const journal = await createChapterJournal(dir, { chapterId: prepared.record.id, writes: [
             { file: `chapters/${prepared.record.id}.md`, before: chapterBefore, content: prepared.chapterContent },

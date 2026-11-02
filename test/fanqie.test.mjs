@@ -281,3 +281,15 @@ test('T4 审读回报混合时区与 UTC 格式时按实际时间取最新', asy
   assert.equal(latest.at,'2026-11-02T02:00:00.000Z')
   assert.equal(latest.verdict,'通过')
 })
+
+test('T4 旧时区候选在 UTC 扫描后凭据仍有效',async()=>{
+  const {call,work}=await setup()
+  const {stageCandidate,candidateHasLintPass,readCandidate}=await import(buildUrl('fanqie/src/engine/work-store.js'))
+  const candidate=await stageCandidate(work.dir,{chapterId:'c001',body:'她把车票折好，放进口袋。'})
+  const file=path.join(work.dir,'candidates',`${candidate.id}.json`)
+  const meta=JSON.parse(await readFile(file,'utf8'))
+  meta.stagedAt=new Date(Date.now()+7*60*60*1000).toISOString().replace('Z','+08:00')
+  await writeFile(file,JSON.stringify(meta))
+  assert.match(await call('fanqie_style_lint',{candidate:candidate.id}),/token|凭据/)
+  assert.equal(candidateHasLintPass(await readCandidate(work.dir,candidate.id)),true)
+})

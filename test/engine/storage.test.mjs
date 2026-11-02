@@ -7,7 +7,7 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { pathToFileURL } from "node:url";
-import { ensureStorage, createWork, readWorkMeta, readChapter, readCandidate, readLedger, setOutline, stageCandidate, markCandidateLinted, atomicWrite, appendLedger, updateChapter, acceptCandidate, assertResourceId, assembleManuscript, listCandidates, buildPanelSnapshot } from "../../build/fanqie/src/engine/store.js";
+import { ensureStorage, createWork, readWorkMeta, readChapter, readCandidate, readLedger, setOutline, stageCandidate, markCandidateLinted, atomicWrite, writeLedgerEntry, updateChapter, acceptCandidate, assertResourceId, assembleManuscript, listCandidates, buildPanelSnapshot } from "../../build/fanqie/src/engine/store.js";
 import { buildLibraryView } from "../../build/fanqie/src/engine/panel-enrich.js";
 import { InspirationPort, LibraryPort } from "../../build/fanqie/src/engine/ports/index.js";
 import { snapshotFile } from "../../build/fanqie/src/engine/storage/accept-journal.js";
@@ -21,7 +21,7 @@ import { inspectPendingCard, resumePendingCard } from "../../build/fanqie/src/en
 import { ensureAnalysis, readAnalysisBundle } from "../../build/fanqie/src/engine/ports/analysis.js";
 async function fixture() {
     const root = await mkdtemp(path.join(tmpdir(), "writer-novel-rebuild-"));
-    const paths = await ensureStorage({}, { storageRoot: root });
+    const paths = await ensureStorage({cwd:root}, { storageRoot: root });
     return { root, paths, close: () => rm(root, { recursive: true, force: true }) };
 }
 test("灵感应用中断后保护作者修改并恢复原操作", async () => {
@@ -263,7 +263,7 @@ test("损坏资产和非法路径不会被当成空文件覆盖", async () => {
         const { dir } = await createWork(f.paths, { title: "作品" });
         const ledger = path.join(dir, "ledger.json");
         await writeFile(ledger, "{损坏");
-        await assert.rejects(appendLedger(dir, { kind: "note", summary: "不可覆盖" }));
+        await assert.rejects(writeLedgerEntry(dir, { kind: "note", summary: "不可覆盖" }));
         assert.equal(await readFile(ledger, "utf8"), "{损坏");
         await LibraryPort.ensureLibrary(f.paths);
         const index = path.join(f.paths.library, "index.json");
@@ -472,7 +472,10 @@ test("直接保存先核账本，中断后正文、目录和留痕一并恢复",
         assert.equal((await inspectPendingChapterSave(dir)).writes.length, 3);
         await resumePendingChapterSave(dir);
         assert.equal((await readChapter(dir, "c001")).body, "恢复后的实际正文");
-        assert.equal((await readLedger(dir)).entries.at(-1).kind, "chapter_save_direct");
+        const entry=(await readLedger(dir)).entries.at(-1);
+        assert.equal(entry.kind, "chapter_save_direct");
+        assert.equal(typeof entry.id,"string");
+        assert.ok(entry.id.length>0);
     } finally { await f.close(); }
 });
 

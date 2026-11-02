@@ -1,6 +1,6 @@
 import { fingerprint } from "../domain/lifecycle.js";
 /** Writing pillar — style lint, review ledger, payoff audit. */
-import { appendLedger, readCandidate, readChapter, readLedger, readWorkMeta, storePayoffAudit, } from "../store.js";
+import { writeLedgerEntry, readCandidate, readChapter, readLedger, readWorkMeta, storePayoffAudit, } from "../store.js";
 import { resolvePrevChapter } from "../services/chapter-context.js";
 import { loadEndingLexicon } from "../quality-lexicon.js";
 import { LintGate, PayoffAuditorPort, StyleLinterPort, HumanFeelAuditorPort, NovelSenseAuditorPort, InspirationPort, Scheduler, } from "../ports/index.js";
@@ -69,7 +69,7 @@ export function auditTools() {
                     label = `${ch.title}（${ch.id}）`;
                     const hits = StyleLinterPort.lint(text);
                     const summary = StyleLinterPort.summarize(hits);
-                    await appendLedger(dir, {
+                    await writeLedgerEntry(dir, {
                         chapterId,
                         kind: "style_lint",
                         summary: `语感雷达章节 ${chapterId}：${hits.length} 处命中（诊断，不签发 accept token）`,
@@ -155,7 +155,7 @@ export function auditTools() {
                         fail("issues_json 不是合法 JSON");
                     }
                 }
-                const entry = await appendLedger(dir, { chapterId, kind, summary, dims, issues });
+                const entry = await writeLedgerEntry(dir, { chapterId, kind, summary, dims, issues });
                 return `已记入审校留痕 ${entry.id}：${entry.summary}`;
             },
         }),

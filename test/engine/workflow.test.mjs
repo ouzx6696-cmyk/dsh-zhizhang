@@ -186,17 +186,17 @@ test("全书、卷、幕规划仅在采纳后进入对应章节并保留来源",
         const act = await InspirationPort.stageEmit(f.paths, sessionId, { kind: "act_plan", payload: { id: "a1", title: "一幕", content: "幕计划", volumeId: "v1", chapters: ["c001"] } });
         await InspirationPort.acceptEmit(f.paths, act.candId, { workKey: meta.key, apply: true });
         const tool = methodsTools().find(t => t.name === "fanqie_chapter_brief");
-        const brief = await tool.execute({ chapter: "c001", work: meta.key, working_dir: f.root, skip_cards: true }, {});
+        const brief = await tool.execute({ chapter: "c001", work: meta.key, working_dir: f.root, skip_cards: true }, {cwd:f.root});
         for (const expected of ["全书计划", "卷计划", "幕计划", "悬疑慢燃", "不证明实际阅读"])
             assert.ok(brief.includes(expected), expected);
         const panel = await buildPanelSnapshot(dir, f.paths, { includeHtml: false });
         assert.equal(panel.inspiration.planning.volumes.length, 1);
         assert.equal(panel.inspiration.planning.acts.length, 1);
         const status = inspirationTools().find(t => t.name === "fanqie_inspire_status");
-        const history = await status.execute({ work: meta.key, history: true, working_dir: f.root }, {});
+        const history = await status.execute({ work: meta.key, history: true, working_dir: f.root }, {cwd:f.root});
         assert.ok(history.includes(book.candId));
         assert.ok(history.includes(vol.candId));
-        const detail = await status.execute({ candidate: act.candId, working_dir: f.root }, {});
+        const detail = await status.execute({ candidate: act.candId, working_dir: f.root }, {cwd:f.root});
         assert.ok(detail.includes("幕计划"));
     }
     finally {
