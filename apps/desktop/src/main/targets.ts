@@ -50,6 +50,7 @@ export async function selectTarget(state: Runtime, next: Target) {
     const newRoot = await lockRoot(state, normalized);
     const access = await claimWorkspace(newRoot);
     try {
+      if (normalized.mode === "toutiao") await rememberRoot(normalized.root);
       await atomicWrite(path.join(state.home, "target.json"), JSON.stringify(normalized));
     } catch (error) {
       if (
@@ -63,7 +64,6 @@ export async function selectTarget(state: Runtime, next: Target) {
         }
       throw error;
     }
-    if (normalized.mode === "toutiao") rememberRoot(normalized.root);
     state.target = normalized;
     state.access = access;
     if (previous && !state.sessions.same(previous, normalized)) {

@@ -16,7 +16,8 @@ import { WorkspaceLayout } from "./WorkspaceLayout";
 import { Articles } from "./Articles";
 function Novel(props: WorkspaceProps) {
   const annotationId = React.useId();
-  const { state, view, actions, sourceGuard } = useFanqie({
+  const {onContext} = props;
+  const { state, view, actions } = useFanqie({
       onTarget: props.onTarget,
       onSourceEditState: props.onSourceEditState,
     }),
@@ -28,13 +29,14 @@ function Novel(props: WorkspaceProps) {
     });
     if (props.view !== "writing")
       dispatch({ type: "tab", tab: props.view === "library" ? "library" : "overview" });
-  }, [props.view]);
+  }, [props.view, dispatch]);
+  const {current,activeCand} = view;
   useEffect(() => {
-    const chapter = view.current;
-    props.onContext({
+    const chapter = current;
+    onContext({
       chapter,
-      hasCandidate: !!view.activeCand,
-      candidate: view.activeCand,
+      hasCandidate: !!activeCand,
+      candidate: activeCand,
       review: state.chapter.writer?.editorReview,
       kind: "novel",
       outlineReady: [
@@ -55,17 +57,8 @@ function Novel(props: WorkspaceProps) {
         refresh: actions.refresh,
       },
     });
-  }, [
-    view.current,
-    view.activeCand,
-    state.chapter,
-    state.edit,
-    sourceGuard.dirty,
-    view.snap?.title,
-    actions.refresh,
-  ]);
-  const current = view.current,
-    meta = state.chapter.meta,
+  }, [current, activeCand, state.chapter, onContext, actions.diagnostics.save, actions.refresh]);
+  const meta = state.chapter.meta,
     review = meta?.review;
   const reviewed = review?.revision === meta?.revision && review?.result === "pass";
   const canRead = state.chapter.status === "ready" && !state.chapter.truncated;

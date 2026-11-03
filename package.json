@@ -1,11 +1,11 @@
 {
   "name": "writer-agent",
-  "version": "0.9.7",
+  "version": "0.9.8",
   "private": true,
-  "description": "基于内置 PI 的独立写作客户端：今日头条与番茄长篇，保留 DSH 存量兼容",
+  "description": "基于内置 PI 的独立写作客户端：今日头条与番茄长篇",
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.19.0"
   },
   "scripts": {
     "guard": "node scripts/architecture-guard.mjs",
@@ -45,5 +45,8 @@
   },
   "workspaces": [
     "apps/desktop"
-  ]
+  ],
+  "overrides": {
+    "undici": "8.12.3"
+  }
 }

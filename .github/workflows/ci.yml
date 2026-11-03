@@ -69,7 +69,6 @@ jobs:
         with:
           name: desktop-ui-results
           path: test-results/
-        if: needs.scope.outputs.package == 'true'
       - run: node ../../scripts/prepare-desktop-python.mjs && npx electron-builder --win nsis zip --x64 --publish never
         working-directory: apps/desktop
         if: needs.scope.outputs.package == 'true'

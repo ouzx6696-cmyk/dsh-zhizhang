@@ -149,6 +149,7 @@ export async function readChapterLenses(dir: string, ids: string[]) {
     for (let offset = 0; offset < ids.length; offset += 16) {
         rows.push(...await Promise.all(ids.slice(offset, offset + 16).map(async id => {
             try { return { id, lens: await readChapterLens(dir, id) }; }
+            // allow-catch: batch receipts preserve each unreadable chapter and its error for the UI.
             catch (error) { return { id, error: error instanceof Error ? error.message : String(error) }; }
         })));
     }

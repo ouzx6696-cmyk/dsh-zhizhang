@@ -96,6 +96,7 @@ const chains = new Map<string, Promise<unknown>>()
 export function serialize<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const prev = chains.get(key) ?? Promise.resolve()
   const run = prev.then(fn, fn)
+  // allow-catch: queue continuation only; the original rejecting promise is returned to the caller.
   const tail = run.catch(() => undefined)
   chains.set(key, tail)
   void tail.then(() => { if (chains.get(key) === tail) chains.delete(key) })

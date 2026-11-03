@@ -1,3 +1,4 @@
+import { isMissingFileError } from "../../core/src/fsx.js";
 import { PLANNER_TOOLS } from "../../core/src/tool-roles.js";
 /** 写作层工具：forge 方法、章纲检查、旧账对照、拆书测绘、引文核对、编辑审读回报。只读作品，不写正文。 */
 import path from "node:path";
@@ -65,7 +66,7 @@ async function localFile(exec: ToolExecution, p: string): Promise<string> {
   if (!p.trim()) throw new WriterError("INVALID_ARGS", "缺少文件路径");
   const cwd = exec.cwd;
   const abs = resolveInside(cwd, p);
-  const st = await stat(abs).catch(() => undefined);
+  const st = await stat(abs).catch(error => { if (isMissingFileError(error)) return undefined; throw error; });
   if (!st?.isFile()) throw new WriterError("NOT_FOUND", `文件不存在：${p}`);
   return abs;
 }

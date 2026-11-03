@@ -22,8 +22,8 @@ export const AUTO_CONFIDENCE_CAP = 0.84;
 const REVIEW_THRESHOLD = 0.85;
 const COVERAGE_DIMENSION_MAX = DIMENSIONS.length;
 
-export function textStats(text: unknown) {
-    const raw = String(text ?? "");
+export function textStats(text: string) {
+    const raw = text;
     const chars = raw.replace(/\s/g, "").length;
     const sentences = raw.match(/[^。！？!?…]+[。！？!?…]+/g) ?? [];
     const avgSentence = sentences.length

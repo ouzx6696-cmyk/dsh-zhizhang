@@ -11,7 +11,7 @@ import { sha256 } from "../../../../core/src/fsx.js";
  * 兼容：旧卡无 axis 时按 humanFeel/mind 推断；kind 降为次标签。
  */
 import { randomUUID } from "node:crypto";
-import { link, mkdir, open, readFile, readdir, stat, unlink } from "node:fs/promises";
+import { link, mkdir, open, readFile, readdir, stat, rm } from "node:fs/promises";
 import path from "node:path";
 import { NovelError } from "../errors.js";
 import { assertNoPendingCard, createCardJournal, finishCardJournal } from "../storage/card-journal.js";
@@ -165,7 +165,7 @@ export const LibraryPort = {
                 try { await link(tmp, d.index); }
                 catch (err: any) { if (err?.code !== "EEXIST") throw err; }
             }
-            finally { await unlink(tmp).catch(() => {}); }
+            finally { await rm(tmp, { force: true }); }
         }
         await reconcileIndex(paths);
         return paths;
@@ -497,7 +497,7 @@ export const LibraryPort = {
             // Snapshot only explicit reading declarations for cited chapters; quotes do not prove depth.
             const analysis = await readAnalysisBundle(paths, sourceId);
 
-            const chapterNums = [...new Set(v2.evidence.map((e) => parseChapterNumber(e?.chapter)).filter((n) => Number.isInteger(n) && n > 0))] as number[];
+            const chapterNums = [...new Set(v2.evidence.map((e) => parseChapterNumber(e.chapter)).filter((n) => Number.isInteger(n) && n > 0))] as number[];
             const chapters = chapterNums.map((n) => {
                 const matches = analysis.chapters.filter((f) => Number(f.n) === n);
                 const fact: any = matches.length === 1 ? matches[0] : undefined;

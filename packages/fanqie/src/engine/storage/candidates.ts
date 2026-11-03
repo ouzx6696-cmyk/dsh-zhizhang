@@ -76,7 +76,7 @@ function candidateToDiskMeta(cand: Candidate): CandidateMeta {
 }
 export async function stageCandidate(dir: string, input: any) {
   return withResourceLock(dir, async () => {
-    if (!String(input.body ?? "").trim()) {
+    if (!input.body.trim()) {
       throw new NovelError("candidate_empty", "候选正文为空，拒绝暂存");
     }
     const chapterId = assertResourceId(input.chapterId, "章节 id");

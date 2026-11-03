@@ -192,8 +192,9 @@ export const fanqieLibrary: MethodLibrary = {
     try {
       const r = await getFanqieMethod(id);
       return { id: r.id, text: r.text, file: `${r.id}.md` };
-    } catch {
-      return undefined;
+    } catch (error) {
+      if (error instanceof WriterError && error.code === "NOT_FOUND") return undefined;
+      throw error;
     }
   },
   canonical: fanqieCanonical,
@@ -238,6 +239,6 @@ export async function withTempFiles<T>(
     }
     return await fn(paths);
   } finally {
-    await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+    await rm(dir, { recursive: true, force: true });
   }
 }

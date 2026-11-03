@@ -162,21 +162,17 @@ export function decodeBookBuffer(buf: Buffer) {
     try {
         return { text: new TextDecoder("utf-8", { fatal: true }).decode(buf), encoding: "utf-8", converted: false };
     }
-    catch {
-        /* not valid utf-8 */
-    }
+    catch (error) { if (!(error instanceof TypeError)) throw error; }
     try {
         return { text: new TextDecoder("gb18030").decode(buf), encoding: "gb18030", converted: true };
     }
-    catch {
-        /* gb18030 unavailable */
-    }
+    catch (error) { if (!(error instanceof RangeError)) throw error; }
     return { text: buf.toString("utf8"), encoding: "utf-8-lossy", converted: true };
 }
 
 /** 兼容 MSYS 风格 /d/foo/bar 与带引号路径。 */
 export function normalizeUserPath(raw: string) {
-    let p = String(raw ?? "").trim().replace(/^["']|["']$/g, "");
+    let p = raw.trim().replace(/^["']|["']$/g, "");
     const msys = p.match(/^\/([a-zA-Z])\/(.*)$/);
     if (msys)
         p = `${msys[1].toUpperCase()}:/${msys[2]}`;

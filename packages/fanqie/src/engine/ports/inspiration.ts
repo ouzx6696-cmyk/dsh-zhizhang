@@ -378,8 +378,8 @@ export const InspirationPort = {
                         withFeel += 1;
                 }
             }
-            catch {
-                /* skip missing */
+            catch (error) {
+                if (!(error instanceof NovelError && error.code === "card_not_found")) throw error;
             }
         }
         const craftOnly = Boolean(session.craftOnly);

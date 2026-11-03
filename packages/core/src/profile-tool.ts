@@ -2,7 +2,7 @@
 import { stat } from 'node:fs/promises'
 import path from 'node:path'
 import { defineWriterTool, WriterError, type ToolDefinition, type JsonSchemaNode } from './tool.js'
-import { listDir, readText, resolveInside } from './fsx.js'
+import { isMissingFileError, listDir, readText, resolveInside } from './fsx.js'
 import {
   createProfile, listProfiles, PROFILE_LIMITS, profileDetail, renameProfile, resetMethod, saveMethod, activateProfile, type MethodLibrary,
 } from './profiles.js'
@@ -63,7 +63,7 @@ export function createProfileTool(name: string, lib: MethodLibrary, opts: { pinn
           const dir = str(args.from_dir)
           if (dir) {
             const abs = resolveInside(cwd, dir)
-            if (!(await stat(abs).catch(() => undefined))?.isDirectory()) throw new WriterError('NOT_FOUND', `文件夹不存在：${dir}`)
+            if (!(await stat(abs).catch(error => { if (isMissingFileError(error)) return undefined; throw error; }))?.isDirectory()) throw new WriterError('NOT_FOUND', `文件夹不存在：${dir}`)
             files = await readMethodFolder(abs)
             if (!files.length) throw new WriterError('INVALID_ARGS', `${dir} 里没有 .md 文件`)
           }

@@ -97,8 +97,8 @@ export async function editorPassProblem(workDir: string, chapter: { id: string; 
 }
 
 async function chapterTitle(dir: string, chapterId: string): Promise<string> {
-  const meta = await readWorkMeta(dir).catch(() => undefined) as { chapters?: { id: string; title?: string }[] } | undefined
-  return meta?.chapters?.find(c => c.id === chapterId)?.title ?? chapterId
+  const meta = await readWorkMeta(dir)
+  return meta.chapters.find(c => c.id === chapterId)?.title ?? chapterId
 }
 
 /** 定稿前的写作层条件（requireEditorPass）；工具定稿与写作台定稿都经过这里。返回拒绝理由，undefined 表示放行 */

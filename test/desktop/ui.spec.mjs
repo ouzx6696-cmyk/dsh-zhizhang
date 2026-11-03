@@ -6,6 +6,7 @@ import path from "node:path";
 import {createRequire} from "node:module";
 import {fakeModel} from "./fake-model.mjs";
 let app, page, home, root, model;
+const rendererErrors = [];
 const shot = async (name) => {
   const folder = path.resolve(process.env.WRITER_SCREENSHOT_DIR || "test-results/screenshots");
   await mkdir(folder, { recursive: true });
@@ -24,6 +25,7 @@ test.afterEach(async ({}, info) => {
         contentType: "image/png",
       });
   }
+  expect(rendererErrors.splice(0)).toEqual([]);
 });
 test.beforeAll(async () => {
   home = await mkdtemp(path.join(tmpdir(), "writer-ui-app-"));
@@ -107,6 +109,7 @@ test.beforeAll(async () => {
     },
   });
   page = await app.firstWindow();
+  page.on("pageerror", (error) => rendererErrors.push(error.message));
   await page.setViewportSize({ width: 1440, height: 1000 });
   await app.evaluate(({ dialog }, directory) => {
     dialog.showOpenDialog = async () => ({

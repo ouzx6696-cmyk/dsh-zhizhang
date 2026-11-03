@@ -3,14 +3,13 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-// --root audits another checkout; --strict enforces rules staged for later cleanup.
+// --root audits another checkout using the same required rules.
 const args = process.argv.slice(2);
 const rootArg = args.indexOf("--root");
 const ROOT =
   rootArg < 0
     ? path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
     : path.resolve(args[rootArg + 1]);
-const STRICT = args.includes("--strict");
 const LAYERS = { ui: 0, core: 0, workbench: 1, toutiao: 2, fanqie: 2, desktop: 3 };
 const BROWSER_SAFE = [
   "packages/core/src/errors.ts",
@@ -22,8 +21,7 @@ const problems = [],
   prefixes = new Map();
 let anyCount = 0,
   swallowedCount = 0;
-const report = (file, message, staged = false) =>
-  (staged && !STRICT ? warnings : problems).push(`${file.rel}: ${message}`);
+const report = (file, message) => problems.push(`${file.rel}: ${message}`);
 
 async function* walk(dir, pattern) {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -280,7 +278,7 @@ const rules = [
         if ([lines[line], lines[line - 1]].some((text) => /\/\/\s*allow-catch:\s*\S/.test(text)))
           return;
         swallowedCount++;
-        report(file, `${line + 1}: 吞错须注明 // allow-catch: 原因`, true);
+        report(file, `${line + 1}: 吞错须注明 // allow-catch: 原因`);
       });
     },
   },

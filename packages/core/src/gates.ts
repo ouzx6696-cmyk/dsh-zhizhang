@@ -1,3 +1,4 @@
+import { errorText } from "./errors.js";
 /**
  * 门禁引擎。
  *
@@ -70,9 +71,10 @@ export function createGateEngine(rules: GateRule[], config: GateConfig = {}): Ga
         let outcome: GateOutcome
         try {
           outcome = await rule.check(args, exec)
-        } catch (err: any) {
+        // allow-catch: gate failures return an explicit deny with the error, never authorization.
+        } catch (err) {
           // 门禁自身出错按拒绝处理（失败即关闭）
-          return { kind: 'deny', reason: `门禁 ${rule.id} 检查出错：${err?.message ?? err}`, info: { name: 'WriterGate', code: 'GATE_ERROR' } }
+          return { kind: 'deny', reason: `门禁 ${rule.id} 检查出错：${errorText(err)}`, info: { name: 'WriterGate', code: 'GATE_ERROR' } }
         }
         if (!outcome) continue
         if (outcome.kind === 'deny') {

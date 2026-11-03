@@ -90,6 +90,7 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
     },
     [setEdit, canLeaveSource, pushNotice, dismissNotice, clearNotices],
   );
+  // derive reads only snapshot and the selected IDs; body/editor state must not invalidate it.
   const view = useMemo(() => derive(state), [state.snapshot, state.chapterId, state.candidateId]); // eslint-disable-line react-hooks/exhaustive-deps
   const viewRef = useRef(view);
   viewRef.current = view;
@@ -178,7 +179,7 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
     } finally {
       if (inflight.current === ctrl) inflight.current = null;
     }
-  }, []);
+  }, [dispatch]);
 
   useEffect(() => {
     // 未形成有效快照不代表作者选择了项目根；后台写入期间尤其不能清掉作品。
@@ -210,6 +211,9 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
       },
     });
   }, [
+    view,
+    state.chapter,
+    state.candidate,
     state.base,
     state.snapshot?.workKey,
     state.snapshot?.title,
@@ -250,7 +254,7 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
           });
       });
     return () => ctrl.abort();
-  }, [state.projectId, state.selection, state.bodyEpoch, state.lastRefresh]);
+  }, [state.projectId, state.selection, state.bodyEpoch, state.lastRefresh, dispatch]);
 
   // Current chapter body, fetched on demand and keyed so polls never refetch it.
   const chapterKey = bodyKey(state, "chapter");
@@ -288,7 +292,7 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
         });
       });
     return () => ctrl.abort();
-  }, [chapterKey]);
+  }, [chapterKey, dispatch]);
 
   // Candidate body for the candidate and split views.
   const candidateKey = bodyKey(state, "candidate");
@@ -325,7 +329,7 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
         });
       });
     return () => ctrl.abort();
-  }, [candidateKey]);
+  }, [candidateKey, dispatch]);
 
   const actions = useMemo(() => {
     const notify = (tone, text) => dispatch({ type: "notice", tone, text });
@@ -497,8 +501,9 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
           try {
             if (navigator.clipboard && navigator.clipboard.writeText)
               await navigator.clipboard.writeText(brief);
+          // allow-catch: optional clipboard copy; the visible message retains the next-step instructions.
           } catch {
-            /* clipboard permission denied: the message still explains the next step */
+            /* clipboard permission denied */
           }
           if (
             !alive.current ||
@@ -524,7 +529,7 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
         }
       },
     };
-  }, [refresh]);
+  }, [refresh, dispatch]);
 
   const diagnostics = useDiagnostics({
     state,

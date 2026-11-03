@@ -14,10 +14,10 @@ import { desktop } from "../state/desktop";
 import { useDesktopShortcuts } from "./useDesktopShortcuts";
 
 const api = desktop;
+const set = desktopStore.set;
 
 export function useDesktopController() {
   const state = useDesktop();
-  const set = desktopStore.set;
   const selected = useRef<Target | null>(null);
   const focused = useRef<Focus>({});
   const limit = useRef(DEFAULT_HISTORY_LIMIT);
@@ -131,7 +131,12 @@ export function useDesktopController() {
     chatStore.set({ archives: await api.conversations(chosen) });
   }
 
+  // Event subscriptions stay mounted; dereference the current controller on each event.
+  const handlers = useRef({ syncState, selectSnapshot, loadProjects, jump, refreshWorkspace, fail });
+  handlers.current = { syncState, selectSnapshot, loadProjects, jump, refreshWorkspace, fail };
+
   useEffect(() => {
+    const {syncState, selectSnapshot, loadProjects, fail} = handlers.current;
     void (async () => {
       const value = await syncState();
       if (value.target) await selectSnapshot(value.target, false);
@@ -160,6 +165,7 @@ export function useDesktopController() {
 
   useEffect(() => {
     const unsubscribe = api.subscribe((value) => {
+      const {jump, selectSnapshot, loadProjects, refreshWorkspace, fail} = handlers.current;
       if (value.running) set({ running: value.running });
       if (value.updates)
         set((current) => ({

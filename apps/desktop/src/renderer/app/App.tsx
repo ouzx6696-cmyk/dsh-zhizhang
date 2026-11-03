@@ -1,3 +1,4 @@
+import type { WorkspaceContext } from "../../renderer-contracts";
 import { COPY as viewCopy } from "../../../../../packages/ui/src/copy.js";
 import { DesignPreview } from "../features/settings/DesignPreview";
 import React from "react";
@@ -24,6 +25,7 @@ import { ConfirmDialog } from "../features/confirm/ConfirmDialog";
 function App() {
   const app = useDesktopController();
   const { system, state, set } = app;
+  const onContext = React.useCallback((context: WorkspaceContext) => set({context}), [set]);
   if (!system)
     return (
       <div className="startup">
@@ -54,7 +56,7 @@ function App() {
           drawer={state.drawer}
           setDrawer={(drawer) => set({ drawer })}
           readOnly={system.access?.readOnly}
-          onContext={(context) => set({ context })}
+          onContext={onContext}
           onTarget={(next) => void app.selectSnapshot(next).catch(app.fail)}
           onSourceEditState={app.trackSourceEdit}
           onMethodEditState={app.trackMethodEdit}

@@ -1,3 +1,4 @@
+import { errorText } from "../../../../core/src/errors.js";
 import { useNotices } from "../../../../ui/src/use-notices.js";
 import { COPY as viewCopy } from "../../../../ui/src/copy.js";
 import { Manuscript } from "./Manuscript.jsx";
@@ -7,7 +8,7 @@ import { Manuscript } from "./Manuscript.jsx";
  */
 import { canLeaveEdit } from "./useSourceGuard.js";
 import React from "react";
-import { ApiError, profilesApi } from "./api.js";
+import { profilesApi } from "./api.js";
 import { t } from "../../../../ui/src/copy.js";
 import { Button, cx, Icon, Spinner, Tag } from "./ui.jsx";
 import { Dialog } from "../../../../ui/src/primitives.jsx";
@@ -15,7 +16,6 @@ import { Callout, Notices } from "./common.jsx";
 
 const { useCallback, useEffect, useMemo, useState } = React;
 const MODE_NAME = { fanqie: viewCopy.modeFanqie, toutiao: viewCopy.ttTitle };
-const errText = (e) => (e instanceof ApiError || e instanceof Error ? e.message : String(e));
 const countChars = (s) => (s || "").replace(/\s/g, "").length;
 
 /** 页头按钮：显示当前方案名，点开弹窗 */
@@ -23,15 +23,17 @@ export function ProfilesButton({ mode }) {
   const api = useMemo(() => profilesApi(mode), [mode]);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(null);
+  const [error, setError] = useState("");
   const refreshActive = useCallback(() => {
     api
       .list()
-      .then((r) => setActive(r.profiles.find((p) => p.active) || null))
-      .catch(() => setActive(null));
+      .then((r) => { setActive(r.profiles.find((p) => p.active) || null); setError(""); })
+      .catch((error) => setError(errorText(error)));
   }, [api]);
   useEffect(refreshActive, [refreshActive]);
   return (
     <>
+      {error ? <p role="alert">{error}</p> : null}
       <Button
         variant="ghost"
         size="sm"
@@ -217,7 +219,7 @@ export function ProfilesDialog({
               : r.active,
         );
       } catch (e) {
-        setList((l) => ({ ...l, status: "error", error: errText(e) }));
+        setList((l) => ({ ...l, status: "error", error: errorText(e) }));
       }
     },
     [api],
@@ -232,7 +234,7 @@ export function ProfilesDialog({
       try {
         setDetail(await api.detail(id));
       } catch (e) {
-        push("danger", errText(e));
+        push("danger", errorText(e));
       }
     },
     [api, push],
@@ -274,7 +276,7 @@ export function ProfilesDialog({
         setShowBase(false);
         setModeView("read");
       } catch (e) {
-        push("danger", errText(e));
+        push("danger", errorText(e));
       }
       setBusy("");
     },
@@ -288,7 +290,7 @@ export function ProfilesDialog({
       if (ok) push("success", ok(r));
       return r;
     } catch (e) {
-      push("danger", errText(e));
+      push("danger", errorText(e));
       return undefined;
     } finally {
       setBusy("");
@@ -324,7 +326,7 @@ export function ProfilesDialog({
     ).then(async (r) => {
       if (!r) return;
       await Promise.all([loadDetail(sel), loadList(sel)]);
-      const still = (await api.detail(sel).catch(() => null))?.methods.some(
+      const still = (await api.detail(sel)).methods.some(
         (m) => m.id === method.id,
       );
       if (still) openMethod(method.id);
@@ -332,7 +334,7 @@ export function ProfilesDialog({
         setMethod(null);
         setDraft("");
       }
-    });
+    }).catch((error) => push("danger", errorText(error)));
   const create = (payload) =>
     run(
       "create",

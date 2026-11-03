@@ -4,6 +4,7 @@
  * - 带超时与取消运行脚本；
  * - stdout 必须是且只是一个 JSON 对象，含 tool/rules_version/ok；否则一律 SCRIPT_FAILED，绝不当作通过。
  */
+import { isMissingFileError } from "./fsx.js";
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { WriterError } from './tool.js'
@@ -88,7 +89,7 @@ async function findPython(explicit?: string): Promise<PythonCommand> {
       const r = await exec(c.cmd, [...c.prefix, '-c', 'import sys;print("%d.%d"%sys.version_info[:2])'], { timeoutMs: 15000 })
       const m = /^(\d+)\.(\d+)/.exec(r.stdout.trim())
       if (r.code === 0 && m && (Number(m[1]) > 3 || (Number(m[1]) === 3 && Number(m[2]) >= 8))) return c
-    } catch { /* 下一个 */ }
+    } catch (error) { if (!isMissingFileError(error)) throw error; }
   }
   throw new WriterError('SCRIPT_FAILED', `找不到 Python 3.8+（试过：${tried.join('、')}）。请安装 Python，或在插件配置里填写 python 路径。`)
 }

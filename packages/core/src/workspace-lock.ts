@@ -1,3 +1,4 @@
+import { isMissingFileError } from "./fsx.js";
 /** A host owns an open workspace; other processes may read but cannot write. */
 import { open, readFile, unlink, realpath } from "node:fs/promises";
 import { readFileSync, unlinkSync } from "node:fs";
@@ -116,8 +117,8 @@ process.once("exit", () => {
         JSON.parse(readFileSync(path.join(root, FILE), "utf8")).id === owner.id
       )
         unlinkSync(path.join(root, FILE));
-    } catch {
-      /* only remove our own extant lock */
+    } catch (error) {
+      if (!isMissingFileError(error)) console.error("退出时释放作品锁失败：", error);
     }
   }
 });

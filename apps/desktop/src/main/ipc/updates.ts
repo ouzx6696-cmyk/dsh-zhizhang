@@ -33,6 +33,7 @@ export function initUpdates(state: Runtime) {
     state.updateState = { state: "error", message: "暂时无法检查更新，请稍后重试" };
     state.emit({ updates: state.updateState });
   });
+  // allow-catch: updater emits its error event above, which records and displays the failure.
   if (app.isPackaged) void autoUpdater.checkForUpdates().catch(() => {});
 }
 

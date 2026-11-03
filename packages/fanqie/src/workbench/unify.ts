@@ -26,6 +26,7 @@ export async function prepareUnifyBrief(
   try {
     dir = await resolveWorkDir(paths, work);
   } catch (err) {
+    if (!(err instanceof NovelError && err.code === "work_not_found")) throw err;
     return {
       ok: false,
       enabled: true,

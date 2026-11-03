@@ -92,7 +92,7 @@ function summary(m: ArticleMeta) {
 }
 
 /** 当前版本是否有仍然有效（稿件与立项卡都未改）的过线质检 */
-export async function validPassingQa(store: ReturnType<typeof storeFor>, m: ArticleMeta) {
+export async function validPassingQa(store: Awaited<ReturnType<typeof storeFor>>, m: ArticleMeta) {
   const q = store.latestQaFor(m);
   if (!q) return { ok: false as const, reason: "当前版本还没跑质检（toutiao_qa_check）" };
   try {
@@ -199,13 +199,14 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
       },
       required: ["slug"],
       async run(args, exec) {
-        const m = await st(exec).create(reqStr(args, "slug"), {
+        const store = await st(exec);
+        const m = await store.create(reqStr(args, "slug"), {
           date: optStr(args, "date"),
           titleHint: optStr(args, "title_hint"),
           line: optStr(args, "line"),
           genre: optStr(args, "genre"),
         });
-        return { article: summary(m), root: st(exec).root };
+        return { article: summary(m), root: store.root };
       },
     }),
 
@@ -214,9 +215,10 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
       description: "列出本工作区的头条文章（可按状态筛）。",
       properties: { status: E(STATUSES, "只看某个状态") },
       async run(args, exec) {
-        const all = await st(exec).list();
+        const store = await st(exec);
+        const all = await store.list();
         const rows = all.filter((m) => !args.status || m.status === args.status).map(summary);
-        return { root: st(exec).root, count: rows.length, articles: rows };
+        return { root: store.root, count: rows.length, articles: rows };
       },
     }),
 
@@ -227,7 +229,7 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
       properties: { id: ID, include_draft: B("是否附当前稿件全文") },
       required: ["id"],
       async run(args, exec) {
-        const store = st(exec);
+        const store = await st(exec);
         const m = await store.get(reqStr(args, "id"));
         const card = await store.readCard(m.id);
         const out: Record<string, unknown> = {
@@ -256,7 +258,7 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
         const card = args.card;
         if (!card || typeof card !== "object" || Array.isArray(card))
           throw new WriterError("INVALID_ARGS", "card 必须是对象");
-        return await saveCard(st(exec), id, card, TITLE_MAX);
+        return await saveCard(await st(exec), id, card, TITLE_MAX);
       },
     }),
 
@@ -267,7 +269,7 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
       required: ["id", "patch"],
       async run(args, exec) {
         const id = reqStr(args, "id");
-        const store = st(exec);
+        const store = await st(exec);
         const cur = (await store.readCard(id)) ?? {};
         if (!args.patch || typeof args.patch !== "object" || Array.isArray(args.patch))
           throw new WriterError("INVALID_ARGS", "patch 必须是对象");
@@ -301,7 +303,7 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
             "INVALID_ARGS",
             `超过 ${TITLE_MAX} 字硬上限：${over.map((t) => `${t}（${[...t].length}字）`).join("；")}`,
           );
-        const store = st(exec);
+        const store = await st(exec);
         await store.update(id, (m) => {
           m.headlines = { main, alts };
         });
@@ -356,7 +358,7 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
         // 角色由挂载决定，不信任参数：主写手不能把自己的稿子记成编辑版
         const role =
           deps.role === "editor" ? "editor" : args.role === "author" ? "author" : "writer";
-        const m = await st(exec).stageDraft(
+        const m = await (await st(exec)).stageDraft(
           reqStr(args, "id"),
           text.replace(/\r\n/g, "\n"),
           role,
@@ -375,7 +377,7 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
       properties: { id: ID, rev: I("版本号，默认当前版") },
       required: ["id"],
       async run(args, exec) {
-        const store = st(exec);
+        const store = await st(exec);
         const m = await store.get(reqStr(args, "id"));
         const rev = Number(args.rev ?? m.current_rev);
         if (!rev) throw new WriterError("NOT_FOUND", "还没有稿件");
@@ -406,7 +408,7 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
       },
       required: ["id", "rows"],
       async run(args, exec) {
-        const store = st(exec);
+        const store = await st(exec);
         const id = reqStr(args, "id");
         const m = await store.get(id);
         if (!Array.isArray(args.rows) || args.rows.length === 0)
@@ -435,7 +437,7 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
       },
       required: ["id"],
       async run(args, exec) {
-        const store = st(exec);
+        const store = await st(exec);
         const id = reqStr(args, "id");
         const m = await store.get(id);
         const cur = store.currentDraft(m);
@@ -491,7 +493,7 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
       properties: { id: ID, to: E(STATUSES, "目标状态"), note: S("原因或说明") },
       required: ["id", "to"],
       async run(args, exec) {
-        const store = st(exec);
+        const store = await st(exec);
         const id = reqStr(args, "id");
         const to = reqStr(args, "to") as Status;
         if (!STATUSES.includes(to))
@@ -550,6 +552,7 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
           });
           mm.status = to;
         });
+        // allow-catch: article status is already committed; report ledger failure explicitly for repair.
         const ledger = await syncLedgerStatus(config, store, m).catch((e: any) => ({
           synced: false,
           message: String(e?.message ?? e),
@@ -565,7 +568,7 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
       properties: { id: ID, markdown: S("交稿单 Markdown 全文") },
       required: ["id", "markdown"],
       async run(args, exec) {
-        const store = st(exec);
+        const store = await st(exec);
         const id = reqStr(args, "id");
         const m = await store.get(id);
         if (m.status !== "已验收")
@@ -611,7 +614,7 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
       properties: { id: ID },
       required: ["id"],
       async run(args, exec) {
-        const store = st(exec);
+        const store = await st(exec);
         const id = reqStr(args, "id");
         const m = await store.get(id);
         if (!(await store.readCard(id))) throw new WriterError("NOT_FOUND", "没有立项卡");
@@ -642,7 +645,7 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
       description: "S1/S2 读发稿台账最近若干行，防撞题撞脸。",
       properties: { last: I("最近几行，默认 10") },
       async run(args, exec) {
-        const store = st(exec);
+        const store = await st(exec);
         const r = await bridge(
           config,
           [
@@ -664,7 +667,7 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
       properties: { original: S("原文"), revised: S("作者改后"), motive: S("作者的动机") },
       required: ["original", "revised", "motive"],
       async run(args, exec) {
-        const store = st(exec);
+        const store = await st(exec);
         await store.writable();
         const line = `- ${today()}：${reqStr(args, "original")} → ${reqStr(args, "revised")} → ${reqStr(args, "motive")}\n`;
         const prev = await readText(store.feedbackPath);
@@ -679,7 +682,7 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
       description: "开工先读作者改稿反馈。同类动机满三次，提醒作者固化进方法。",
       properties: {},
       async run(_a, exec) {
-        const store = st(exec);
+        const store = await st(exec);
         const text = (await readText(store.feedbackPath)) ?? "";
         return { text, entries: text.split("\n").filter((l) => l.startsWith("- ")).length };
       },
@@ -697,7 +700,7 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
 }
 
 async function saveCard(
-  store: ReturnType<typeof storeFor>,
+  store: Awaited<ReturnType<typeof storeFor>>,
   id: string,
   card: Record<string, unknown>,
   titleMax: number,
@@ -716,7 +719,7 @@ async function saveCard(
 /** 文章状态变化后同步台账里同标题那一行（若已记账） */
 export async function syncLedgerStatus(
   config: ToutiaoConfig,
-  store: ReturnType<typeof storeFor>,
+  store: Awaited<ReturnType<typeof storeFor>>,
   m: ArticleMeta,
 ) {
   const title = String((await store.readCard(m.id))?.["主标题"] ?? "");

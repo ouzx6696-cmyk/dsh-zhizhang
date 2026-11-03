@@ -12,7 +12,7 @@ import {
   revisionPayload,
 } from "./edit-state.js";
 
-const { useEffect, useRef, useState } = React;
+const { useCallback, useEffect, useRef, useState } = React;
 
 export function useDiagnostics({ state, stateRef, alive, setEdit, refresh, notify }) {
   const scope = diagnosticScope(state);
@@ -23,8 +23,8 @@ export function useDiagnostics({ state, stateRef, alive, setEdit, refresh, notif
   }
   const [status, setStatus] = useState({ key, busy: false, error: "" });
   useEffect(() => () => operation.current.controller?.abort(), [key]);
-  const current = (generation) =>
-    alive.current && operation.current.key === key && operation.current.generation === generation;
+  const current = useCallback((generation) =>
+    alive.current && operation.current.key === key && operation.current.generation === generation, [alive, key]);
 
   async function scan() {
     const snapshot = stateRef.current,
@@ -78,7 +78,7 @@ export function useDiagnostics({ state, stateRef, alive, setEdit, refresh, notif
     }
   }
 
-  async function save() {
+  const save = useCallback(async () => {
     const snapshot = stateRef.current,
       edit = snapshot.edit;
     if (
@@ -107,7 +107,7 @@ export function useDiagnostics({ state, stateRef, alive, setEdit, refresh, notif
     } finally {
       if (current(generation)) setStatus((value) => ({ ...value, busy: false }));
     }
-  }
+  }, [stateRef, alive, setEdit, notify, refresh, current, key]);
 
   function update(transform) {
     const edit = stateRef.current.edit;

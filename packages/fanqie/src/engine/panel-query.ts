@@ -165,7 +165,9 @@ export async function buildPanelSnapshot(dir: string, pathsHint: any, opts: { sc
     let library, inspiration;
     if (opts.scope !== 'work') {
         [library, inspiration] = await Promise.all([
+            // allow-catch: optional library summary returns unavailable with the actual error to the author.
             buildLibraryView(paths).catch(error => ({ unavailable: true, recoveryPending: error instanceof NovelError && error.code === 'library_recovery_required', summary: error.message })),
+            // allow-catch: optional planning summary returns unavailable with the actual error.
             buildInspirationView(paths, { workKey: meta.key, foundation: meta.foundation, planning: meta.planning, chapters })
                 .catch(error => ({ unavailable: true, summary: error.message })),
         ]);
@@ -179,7 +181,7 @@ export async function buildPanelSnapshot(dir: string, pathsHint: any, opts: { sc
                 const body = await readTextCached(path.join(candidatesDir(dir), bodyFile));
                 hasLintPass = candidateHasLintPass({ ...c, body });
             }
-            catch { /* Missing or unreadable candidate is not a valid scan. */ }
+            catch (error) { c.unavailable = true; c.error = error instanceof Error ? error.message : String(error); }
         }
         return {
             unavailable: c.unavailable, error: c.error,
@@ -206,6 +208,7 @@ export async function buildPanelSnapshot(dir: string, pathsHint: any, opts: { sc
         genre: meta.genre,
         dir,
         storageBase: paths.base,
+        // allow-catch: optional activity view surfaces its error instead of inventing zero activity.
         activity: opts.scope === "work" ? undefined : await writingActivity(dir, meta.chapters).catch(error => ({ unavailable: true, error: error.message })),
         totals: { chapters: chapters.length, words, final, drafted, planned },
         foundation: foundationView,

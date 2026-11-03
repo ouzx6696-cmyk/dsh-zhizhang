@@ -106,15 +106,16 @@ function Ledger({
 }
 
 export function Articles(props: WorkspaceProps) {
+  const {onContext} = props;
   const tt = useToutiao({ onTarget: props.onTarget, onSourceEditState: props.onSourceEditState }),
     a: any = tt.detail.article;
   useEffect(() => {
-    props.onContext({
+    onContext({
       article: a || undefined,
       kind: "article",
       actions: { refresh: tt.actions.refresh },
     });
-  }, [a, tt.selected, tt.actions.refresh, tt.sourceGuard.dirty]);
+  }, [a, tt.selected, tt.actions.refresh, tt.sourceGuard.dirty, onContext]);
   const adopt = async () => {
     if (!a) return;
     if (await askConfirm(viewText("articlesText6", { value0: a.title, value1: a.rev })))

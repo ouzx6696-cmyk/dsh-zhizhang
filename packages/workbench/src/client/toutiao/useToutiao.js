@@ -127,18 +127,16 @@ export function useToutiao({ onTarget, onSourceEditState } = {}) {
           : {},
       });
   }, [
-    selected?.root,
-    selected?.id,
-    selected?.title,
+    selected,
+    detail.article?.id,
     detail.status,
     detail.article?.rev,
     list.currentRoot,
     sourceGuard.dirty,
   ]);
-  const stamp = selected ? selected.updatedAt : "";
   useEffect(() => {
     if (selected) loadDetail(sel.root, sel.id);
-  }, [sel.root, sel.id, stamp, !!selected, loadDetail]);
+  }, [sel.root, sel.id, selected, loadDetail]);
 
   const select = useCallback(
     (root, id) => {
@@ -152,10 +150,7 @@ export function useToutiao({ onTarget, onSourceEditState } = {}) {
   );
 
   // 投递目标数据目录：选中文章的目录；没选就用最近有会话的目录
-  const pickRoot = () => {
-    if (selected) return selected.root;
-    return list.currentRoot || "";
-  };
+  const root = selected?.root || list.currentRoot || "";
 
   const saveDraft = useCallback(
     async (text, basis) => {
@@ -175,7 +170,6 @@ export function useToutiao({ onTarget, onSourceEditState } = {}) {
 
   const deliver = useCallback(
     async (action, note) => {
-      const root = pickRoot();
       if (!root) {
         notify("danger", t("ttNoSession"));
         return false;
@@ -200,7 +194,7 @@ export function useToutiao({ onTarget, onSourceEditState } = {}) {
         setBusy("");
       }
     },
-    [sel.id, selected, list.sessions, list.roots, notify],
+    [sel.id, root, notify],
   );
 
   const adoptReady =
@@ -226,7 +220,7 @@ export function useToutiao({ onTarget, onSourceEditState } = {}) {
     [selected, adoptReady, loadList, notify],
   );
 
-  const deliverRoot = pickRoot();
+  const deliverRoot = root;
   const deliverOff = !list.deliver
     ? t("ttDeliverOff", { reason: list.deliverReason || "" })
     : !deliverRoot

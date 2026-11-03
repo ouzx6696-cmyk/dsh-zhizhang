@@ -96,6 +96,7 @@ test("守卫：空 catch 和字面量回退须说明原因，认识 ENOENT 的�
   ];
   for (const source of cases) {
     await write("packages/core/src/example.js", `async function example() { ${source} }`);
+    assert.equal(run(false).status, 1, source);
     const result = run();
     assert.equal(result.status, 1, source);
     assert.match(result.stdout, /吞错=1/);

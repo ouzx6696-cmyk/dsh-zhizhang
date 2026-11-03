@@ -7,7 +7,7 @@ import { MAX_RETURN_ROUNDS } from './store.js'
 export function toutiaoGateRules(config: ToutiaoConfig): GateRule[] {
   const idOf = (a: Record<string, unknown>) => (typeof a.id === 'string' ? a.id.trim() : '')
   const load = async (exec: Parameters<GateRule['check']>[1], id: string) => {
-    const store = storeFor(config, exec)
+    const store = await storeFor(config, exec)
     try { return { store, meta: await store.get(id) } }
     catch (error) {
       if (error instanceof WriterError && error.code === 'NOT_FOUND') return undefined

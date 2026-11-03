@@ -16,7 +16,7 @@ export function countWords(text: string) {
 const SAFE_RESOURCE_ID = /^[^/\\\u0000-\u001f]{1,64}$/;
 const WINDOWS_RESERVED_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
 export function assertResourceId(id: string, label: string = "id") {
-    const t = String(id ?? "").trim();
+    const t = id.trim();
     if (!t ||
         !SAFE_RESOURCE_ID.test(t) ||
         t === "." ||

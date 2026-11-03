@@ -11,6 +11,7 @@
  *   POST …/profiles/delete {profile, confirm: true}
  * 这里不依赖写作台包（同层），上下文按结构对上 RouteContext 即可。
  */
+import { WriterError } from "../../core/src/tool.js";
 import { sendError } from './routes.js'
 import {
   createProfile, deleteProfile, findProfile, listProfiles, profileDetail, readMethod, renameProfile, resetMethod, saveMethod, activateProfile,
@@ -48,7 +49,7 @@ export function profileRoutes(base: string, lib: MethodLibrary, pinned?: () => s
         let baseText: string | undefined
         if (m.from === 'user') {
           const meta = await findProfile(lib.mode, profile)
-          baseText = await readMethod(lib, meta.base ?? 'default', m.id, pin).then(b => b.text).catch(() => undefined)
+          baseText = await readMethod(lib, meta.base ?? 'default', m.id, pin).then(b => b.text).catch(error => { if (error instanceof WriterError && error.code === 'NOT_FOUND') return undefined; throw error; })
         }
         return ctx.json(200, { ok: true, method: m, base_text: baseText }), true
       }

@@ -7,11 +7,11 @@
  * 当前方案存在 <方案目录>/active.json；配置 <mode>.profile 可以钉死。
  * 方案目录：配置 profilesDir → WRITER_PROFILES_DIR → 应用状态目录/writer/profiles。
  */
-import { rm, stat } from 'node:fs/promises'
+import { rm } from 'node:fs/promises'
 import { stateRoot } from './paths.js'
 import path from 'node:path'
 import { WriterError } from './tool.js'
-import { nowIso, listDir, atomicWrite, readJson, readText, resolveInside } from './fsx.js'
+import { exists, nowIso, listDir, atomicWrite, readJson, readText, resolveInside } from './fsx.js'
 
 export type ProfileMode = 'toutiao' | 'fanqie'
 export type BuiltinProfile = 'default' | 'original'
@@ -305,7 +305,7 @@ export async function resetMethod(lib: MethodLibrary, key: string, id: string): 
   const meta = await editable(lib.mode, key)
   const mid = lib.canonical(checkMethodId(id))
   const file = resolveInside(path.join(modeDir(lib.mode), meta.id, 'methods'), `${mid}.md`)
-  const had = !!(await stat(file).catch(() => undefined))
+  const had = await exists(file)
   if (had) await rm(file, { force: true })
   return { profile: await touch(lib.mode, meta), id: mid, removed: had }
 }

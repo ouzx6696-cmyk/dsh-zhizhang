@@ -24,6 +24,7 @@ export function readPref(key, fallback = "") {
   try {
     const value = window.localStorage.getItem(PREFIX + key);
     return value == null ? fallback : value;
+  // allow-catch: viewing preferences only; denied localStorage must not block opening author files.
   } catch {
     return fallback;
   }
@@ -35,6 +36,7 @@ export function writePref(key, value) {
     if (window.localStorage.getItem(PREFIX + key) === next) return;
     if (next) window.localStorage.setItem(PREFIX + key, next);
     else window.localStorage.removeItem(PREFIX + key);
+  // allow-catch: viewing preferences only; denied localStorage must not block opening author files.
   } catch {
     /* storage unavailable */
   }

@@ -198,3 +198,26 @@ test('T3-01 索引 IO 故障向上抛出，同进程修复后可以重新登记'
     await store.rememberProject(${JSON.stringify(base)},'');
     assert.equal(JSON.parse(await fs.readFile(${JSON.stringify(file)},'utf8')).projects.length,1);`)
 })
+
+test('T10 头条目录索引损坏阻止工具写入，修复后同进程可重试且保留旧目录', async (t) => {
+  const state=await tempDir();
+  t.after(()=>rm(state,{recursive:true,force:true}));
+  const index=path.join(state,'writer-toutiao-roots.json');
+  await writeFile(index,'{broken');
+  const cwd=path.join(state,'workspace');
+  await mkdir(cwd);
+  await runChild(state, `
+    const assert=await import('node:assert/strict');
+    const fs=await import('node:fs/promises');
+    const {createToolHarness}=await import(${JSON.stringify(new URL('./helpers.mjs',import.meta.url).href)});
+    const harness=await createToolHarness({mode:'toutiao',cwd:${JSON.stringify(cwd)}});
+    const failed=await harness.call('toutiao_article_create',{slug:'retry'});
+    assert.equal(failed.ok,false);
+    assert.match(failed.message,/损坏/);
+    assert.equal(await fs.readFile(${JSON.stringify(index)},'utf8'),'{broken');
+    await fs.writeFile(${JSON.stringify(index)},JSON.stringify(['/existing/articles']));
+    const created=await harness.call('toutiao_article_create',{slug:'retry'});
+    const roots=JSON.parse(await fs.readFile(${JSON.stringify(index)},'utf8'));
+    assert.deepEqual(roots,['/existing/articles',created.root]);
+  `);
+});

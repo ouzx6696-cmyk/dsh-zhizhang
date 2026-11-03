@@ -1,3 +1,4 @@
+import { errorText } from "../../../../../../packages/core/src/errors.js";
 import { COPY as viewCopy } from "../../../../../../packages/ui/src/copy.js";
 import { Markdown } from "../../../Markdown";
 import { Dialog } from "../../../../../../packages/ui/src/primitives";
@@ -19,7 +20,7 @@ function MethodsPane({
   onOpen: () => void;
   active: boolean;
 }) {
-  const [name, setName] = useState(viewCopy.workspaceLayoutText1);
+  const [name, setName] = useState<string>(viewCopy.workspaceLayoutText1);
   useEffect(() => {
     if (!active) return;
     let running = true;
@@ -32,7 +33,7 @@ function MethodsPane({
               viewCopy.workspaceLayoutText1,
           );
       })
-      .catch(() => {});
+      .catch((error: unknown) => { if (running) setName(errorText(error)); });
     return () => {
       running = false;
     };
