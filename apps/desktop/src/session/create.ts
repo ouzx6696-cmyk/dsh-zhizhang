@@ -76,7 +76,7 @@ export async function createSession(
   );
   let definitions: WriterToolDefinition[] =
     target.mode === "toutiao"
-      ? createToutiaoTools({ config, role: role, gates: () => gates })
+      ? await createToutiaoTools({ config, role: role, gates: () => gates })
       : [
           ...engineTools(config, gates, "throw", role),
           ...createFanqieTools({ config, role: role }),
@@ -110,6 +110,7 @@ export async function createSession(
     retry: { enabled: true },
     cacheWarming: "streaming",
   });
+  const prompt = await systemPrompt(target, role, config);
   const loader = new DefaultResourceLoader({
     settingsManager,
     noContextFiles: true,
@@ -118,7 +119,7 @@ export async function createSession(
     noExtensions: true,
     noSkills: true,
     noPromptTemplates: true,
-    systemPromptOverride: () => systemPrompt(target, role),
+    systemPromptOverride: () => prompt,
     appendSystemPromptOverride: () => [],
   });
   await loader.reload();

@@ -16,7 +16,6 @@ import {
 import { getPortConfig } from "../ports/config.js";
 import { NovelError, toErrorResult } from "../errors.js";
 import { fingerprint } from "../domain/lifecycle.js";
-import { lintStyle } from "../style-linter.js";
 import { resolvePrevBody } from "./chapter-context.js";
 export interface AcceptInput {
   paths: import("../types.js").StoragePaths;
@@ -57,7 +56,6 @@ export async function runAccept(input: AcceptInput) {
             : null;
         const craftCue = await InspirationPort.resolveCraftCue(paths, { workKey, limit: 5 }),
           prevBody = await resolvePrevBody(dir, candidate.chapterId);
-        if (!candidate.lintPassToken) candidate.lintHitCount = lintStyle(candidate.body).length;
         const panelEdit = input.panel && candidate.editOf && !input.acceptAfterEdit;
         const acceptAfterEdit = panelEdit ? true : input.acceptAfterEdit,
           confirmAcceptAfterEdit = panelEdit ? true : input.confirmAcceptAfterEdit;

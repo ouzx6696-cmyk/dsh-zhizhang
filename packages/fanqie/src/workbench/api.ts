@@ -1,3 +1,4 @@
+import { withPluginConfig } from "../engine/runtime-config.js";
 import path from "node:path";
 import { readText } from "../../../core/src/fsx.js";
 import {
@@ -468,8 +469,8 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
         return true;
       }
       try {
-        await withPortConfig({ multiDraft: {enabled: config.multiDraft?.enabled === true} }, () =>
-          route(ctx),
+        await withPortConfig({ multiDraft: { enabled: config.multiDraft?.enabled === true } }, () =>
+          withPluginConfig(config, () => route(ctx)),
         );
       } catch (error) {
         sendError(ctx, error);

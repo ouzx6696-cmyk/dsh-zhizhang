@@ -8,6 +8,12 @@ import { execFile } from "node:child_process";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+process.env.WRITER_TOUTIAO_SKILL_DIR = fileURLToPath(
+  new URL("../../packages/toutiao/skill", import.meta.url),
+);
+process.env.WRITER_TOUTIAO_DEFAULT_DIR = fileURLToPath(
+  new URL("../../packages/toutiao/profiles/default", import.meta.url),
+);
 import { ArticleStore } from "../../apps/desktop/out-test/article-store.mjs";
 import { fakeModel } from "./fake-model.mjs";
 import { Sessions } from "../../apps/desktop/out-test/session.mjs";

@@ -17,7 +17,11 @@ import type { Sessions } from "./manager";
 const CLIENT_NOTICE =
   "【独立客户端调用说明】当前模式与角色已启用，不调用 writer_enable。任务开头的 writer-context 是发送时的对象与已保存状态。它不是完整阅读凭据，版本变化时重读。主会话需要规划或拆书时使用 writer_plan。按任务用既有工具读取必要规划、前章和正文；压缩摘要不代替作品事实。作者切页不改变本次任务。";
 
-export function systemPrompt(target: Target, role: "writer" | "editor" | "planner") {
+export async function systemPrompt(
+  target: Target,
+  role: "writer" | "editor" | "planner",
+  config: import("../../../../packages/toutiao/src/config").ToutiaoConfig,
+) {
   if (role === "planner")
     return `你是${target.mode === "fanqie" ? "长篇" : "头条"}规划角色。按作者目标读取必要材料，完成规划或指定原文拆解，使用当前工具保存结果并回报具体对象。正文交给写手。方法按任务读取。`;
   const editor = role === "editor";
@@ -25,8 +29,9 @@ export function systemPrompt(target: Target, role: "writer" | "editor" | "planne
     target.mode === "toutiao"
       ? editor
         ? TOUTIAO_EDITOR_BRIEF
-        : buildToutiaoBrief(
+        : await buildToutiaoBrief(
             "S5 红笔与 S6 质检使用 writer_review 派独立编辑，传入 article 和完整任务；编辑交回回报后再推进验收。",
+            config,
           )
       : [
           SYSTEM_BRIEF,

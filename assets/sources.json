@@ -15,12 +15,7 @@
         "file": "SKILL.md",
         "pattern": "全链路写作（(\\d+\\.\\d+\\.\\d+)）"
       },
-      "versionRefs": [
-        {
-          "file": "packages/toutiao/src/brief.ts",
-          "pattern": "规则 (\\d+\\.\\d+\\.\\d+)"
-        }
-      ],
+      "versionRefs": [],
       "registry": {
         "type": "toutiao-methods",
         "file": "packages/toutiao/src/methods.ts",

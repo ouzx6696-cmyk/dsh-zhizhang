@@ -8,8 +8,13 @@ import argparse
 import json
 import os
 import re
-import stat
+import sys
 from urllib.parse import unquote, urlsplit
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'novel-writer/scripts'))
+from safe_io import has_linked_ancestor
+
+CHAPTER_WORDS_MIN, CHAPTER_WORDS_MAX = 1500, 6000
 
 BLOCKS = ('剧情梗概', '核心冲突与看点', '情节推进节点', '章末落点')
 FIELDS = ('视角', '目标篇幅', '锁定事实', '人物知识边界')
@@ -76,21 +81,9 @@ def _format_text(text, name):
     return issues
 
 
-def _linked(path):
-    """Read-only checker must not follow links while examining project inputs."""
-    for part in [path] + list(path.parents):
-        try:
-            item = part.lstat()
-        except FileNotFoundError:
-            continue
-        if stat.S_ISLNK(item.st_mode) or bool(getattr(item, 'st_file_attributes', 0) & 0x400):
-            return True
-    return False
-
-
 def _paths(root):
     outlines = root / 'workspace/outlines'
-    if _linked(outlines):
+    if has_linked_ancestor(outlines):
         return [], [f'章纲路径包含链接/目录联接，未读取：{outlines}']
     if not outlines.is_dir():
         return [], [f'没有章纲目录：{outlines}；若本轮不交章纲，无需运行本检查']
@@ -109,12 +102,12 @@ def check(root):
     issues.extend(sequence_issues(paths, 'C', '章纲'))
     for folder, prefix, label in (('volumes', 'V', '卷纲'), ('acts', 'A', '幕纲')):
         directory = root / 'workspace' / folder
-        if _linked(directory):
+        if has_linked_ancestor(directory):
             issues.append(f'{label} 路径包含链接，未读取')
         elif directory.is_dir():
             issues.extend(sequence_issues(list(directory.glob('*.md')), prefix, label))
     for path in paths:
-        if _linked(path):
+        if has_linked_ancestor(path):
             issues.append(f'{path.name} 是链接，未读取')
             continue
         try:
@@ -156,7 +149,7 @@ def inspect(root, mode='readiness'):
         count = len(paths)
     elif not root.is_dir():
         add('error', 'missing_root', f'作品根不存在：{root}')
-    elif _linked(root / 'workspace/outlines'):
+    elif has_linked_ancestor(root / 'workspace/outlines'):
         add('error', 'unsafe_path', '章纲路径包含链接或目录联接，未读取')
     else:
         paths, missing = _paths(root)
@@ -167,7 +160,7 @@ def inspect(root, mode='readiness'):
             add('error' if '重复' in message else 'warning', 'sequence', message)
         for folder, prefix, label in (('volumes', 'V', '卷纲'), ('acts', 'A', '幕纲')):
             directory = root / 'workspace' / folder
-            if _linked(directory):
+            if has_linked_ancestor(directory):
                 add('warning', 'unsafe_optional_path', f'{label}包含链接，未检查')
             elif directory.is_dir():
                 for message in sequence_issues(list(directory.glob('*.md')), prefix, label):
@@ -176,7 +169,7 @@ def inspect(root, mode='readiness'):
                 add('not_applicable', 'optional_layer', f'无{label}目录；本轮可不需要')
         for path in paths:
             rel = path.relative_to(root).as_posix()
-            if _linked(path):
+            if has_linked_ancestor(path):
                 add('error', 'unsafe_path', '章纲是链接，未读取', rel)
                 continue
             try:
@@ -226,7 +219,7 @@ def inspect(root, mode='readiness'):
                     add('warning', 'external_link', '绝对路径引用未读取，需人工核授权与位置', rel)
                     continue
                 full = Path(os.path.abspath(path.parent / dest))
-                if not full.is_relative_to(root) or _linked(full):
+                if not full.is_relative_to(root) or has_linked_ancestor(full):
                     add('warning', 'external_link', '根外/链接引用未读取，需人工核授权与位置', rel)
                 elif not full.is_file():
                     add('error', 'broken_link', f'本地文件链接不存在或非文件：{value}', rel)
@@ -254,6 +247,42 @@ def main(argv=None):
             print(f"- {issue['severity']} {issue['path']}: {issue['message']}")
         print(report['limits'])
     return 1 if report['counts']['error'] else 0
+
+
+
+
+def inspect_records(chapters, mode='readiness'):
+    """Inspect an explicit structured outline without adapting or reading a file."""
+    if mode not in ('format', 'readiness'):
+        raise ValueError('mode must be format or readiness')
+    issues = []
+    def add(level, chapter, field, message):
+        issues.append({'level': level, 'chapter': chapter, 'field': field, 'message': message})
+    positions = sorted(chapter.get('position', 0) for chapter in chapters)
+    if len(positions) != len(set(positions)):
+        add('error', '', 'position', '章节序号重复')
+    for a, b in [(a + 1, b - 1) for a, b in zip(positions, positions[1:]) if b - a > 1]:
+        add('warn', '', 'position', f'章节序号缺 {a}' + (f'–{b}' if b > a else ''))
+    for chapter in chapters:
+        cid, fields = chapter['id'], chapter['fields']
+        for label in BLOCKS + FIELDS:
+            value = fields.get(label)
+            if label == '目标篇幅':
+                number = value if isinstance(value, (int, float)) else None
+                if number is None or number <= 0:
+                    add('error', cid, label, '目标篇幅未设')
+                elif not (CHAPTER_WORDS_MIN <= number <= CHAPTER_WORDS_MAX):
+                    add('warn', cid, label, f'目标篇幅 {int(number)} 字，超出番茄单章常见区间 {CHAPTER_WORDS_MIN}–{CHAPTER_WORDS_MAX}')
+                continue
+            text = value if isinstance(value, str) else ''
+            if mode == 'readiness' and _empty(text):
+                add('error', cid, label, '为空')
+                continue
+            hits = _placeholders(text)
+            if hits:
+                add('error', cid, label, '发现显式未填占位：' + '、'.join(hits[:3]))
+    errors = sum(issue['level'] == 'error' for issue in issues)
+    return {'mode': mode, 'pass': not errors, 'checked': len(chapters), 'errors': errors, 'issues': issues}
 
 
 if __name__ == '__main__':

@@ -1,3 +1,4 @@
+import { loadLimits } from "./rule-limits.js";
 import { PLANNER_TOOLS } from "../../core/src/tool-roles.js";
 /** 头条工具集。全部返回结构化 JSON；业务失败返回 ok:false。 */
 import { appendFile } from "node:fs/promises";
@@ -26,8 +27,6 @@ import {
   type ArticleMeta,
   type Status,
 } from "./store.js";
-
-export const TITLE_MAX = 34;
 
 const S = (description: string): JsonSchemaNode => ({ type: "string", description });
 const I = (description: string): JsonSchemaNode => ({ type: "integer", description });
@@ -113,8 +112,9 @@ export async function validPassingQa(store: ReturnType<typeof storeFor>, m: Arti
   return { ok: true as const, qa: q };
 }
 
-export function createToutiaoTools(deps: ToolDeps): ToolDefinition[] {
+export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition[]> {
   const { config } = deps;
+  const { titleMax: TITLE_MAX } = await loadLimits(config);
   const st = (exec: ToolExecution) => storeFor(config, exec);
 
   return [
@@ -256,7 +256,7 @@ export function createToutiaoTools(deps: ToolDeps): ToolDefinition[] {
         const card = args.card;
         if (!card || typeof card !== "object" || Array.isArray(card))
           throw new WriterError("INVALID_ARGS", "card 必须是对象");
-        return await saveCard(st(exec), id, card);
+        return await saveCard(st(exec), id, card, TITLE_MAX);
       },
     }),
 
@@ -276,7 +276,7 @@ export function createToutiaoTools(deps: ToolDeps): ToolDefinition[] {
           if (v === null) delete next[k];
           else next[k] = v;
         }
-        return await saveCard(store, id, next);
+        return await saveCard(store, id, next, TITLE_MAX);
       },
     }),
 
@@ -306,7 +306,12 @@ export function createToutiaoTools(deps: ToolDeps): ToolDefinition[] {
           m.headlines = { main, alts };
         });
         const card = (await store.readCard(id)) ?? {};
-        const saved = await saveCard(store, id, { ...card, 主标题: main, 备选标题: alts });
+        const saved = await saveCard(
+          store,
+          id,
+          { ...card, 主标题: main, 备选标题: alts },
+          TITLE_MAX,
+        );
         return {
           headlines: { main, alts },
           lengths: [main, ...alts].map((t) => [...t].length),
@@ -695,8 +700,9 @@ async function saveCard(
   store: ReturnType<typeof storeFor>,
   id: string,
   card: Record<string, unknown>,
+  titleMax: number,
 ) {
-  const issues = checkCard(card, TITLE_MAX);
+  const issues = checkCard(card, titleMax);
   const sha = await store.writeCard(id, card);
   const line = typeof card["内容线"] === "string" ? card["内容线"] : "";
   const genre = typeof card["体裁"] === "string" ? card["体裁"] : "";

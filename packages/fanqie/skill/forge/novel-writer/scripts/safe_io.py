@@ -39,6 +39,12 @@ def is_link(path: Path) -> bool:
     )
 
 
+def has_linked_ancestor(path: Path) -> bool:
+    """Inspect lexical ancestors without resolving away a link."""
+    path = absolute(path)
+    return any(is_link(part) for part in [path] + list(path.parents))
+
+
 def check_chain(path: Path) -> None:
     """Check existing lexical ancestors without resolving away a link."""
     path = absolute(path)

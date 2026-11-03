@@ -160,7 +160,7 @@ function candidateBodyFile(disk: any, id: string): string {
   assertResourceId(disk.chapterId, "章节 id");
   return assertCandidateFile(disk.bodyFile ?? `${id}.md`);
 }
-async function readCandidateUnlocked(dir: string, candidateId: string):Promise<Candidate> {
+async function readCandidateUnlocked(dir: string, candidateId: string): Promise<Candidate> {
   const id = assertResourceId(candidateId, "候选 id");
   const raw = await readFile(path.join(candidatesDir(dir), `${id}.json`), "utf8");
   const disk = JSON.parse(raw);
@@ -168,7 +168,7 @@ async function readCandidateUnlocked(dir: string, candidateId: string):Promise<C
   const body = await readFile(path.join(candidatesDir(dir), bodyFile), "utf8");
   return { ...disk, body };
 }
-export async function readCandidate(dir: string, candidateId: string):Promise<Candidate> {
+export async function readCandidate(dir: string, candidateId: string): Promise<Candidate> {
   await assertNoPendingAccept(dir);
   return readCandidateUnlocked(dir, candidateId);
 }
@@ -259,13 +259,15 @@ export function candidateHasLintPass(cand: Candidate) {
  * - target chapter status is final → refuse unless force=true
  */
 interface CandidateAcceptOptions {
-  force?:boolean;expectedRevision?:string;lintPassToken?:string;
-  validate?:(candidate:Candidate)=>Promise<{outline:string}>;
+  force?: boolean;
+  expectedRevision?: string;
+  lintPassToken?: string;
+  validate?: (candidate: Candidate) => Promise<{ outline: string }>;
 }
 export async function acceptCandidate(
   dir: string,
   candidateId: string,
-  mode: "append"|"replace" = "replace",
+  mode: "append" | "replace" = "replace",
   opts: CandidateAcceptOptions = {},
 ) {
   const id = assertResourceId(candidateId, "候选 id");
@@ -282,6 +284,7 @@ export async function acceptCandidate(
         `候选 ${id} 已于 ${cand.acceptedAt} 采纳，禁止重复写回。请重新暂存候选。`,
       );
     if (!cand.body.trim()) throw new NovelError("candidate_empty", `候选 ${id} 正文为空，拒绝采纳`);
+    if (!cand.lintPassToken) cand.lintHitCount = (await lintStyle(cand.body)).length;
     const checked = await opts.validate?.(cand);
     const provided = opts.lintPassToken;
     if (provided && (!cand.lintPassToken || cand.lintPassToken !== provided))
@@ -292,7 +295,6 @@ export async function acceptCandidate(
     if (!candidateHasLintPass(cand)) {
       if (cand.lintPassToken)
         throw new NovelError("lint_required", `候选 ${id} 在扫描后变化，请重新扫描。`);
-      cand.lintHitCount = lintStyle(cand.body).length;
       cand.lintBodyHash = sha256(cand.body);
       cand.lintedAt = nowIso();
       cand.lintPassToken = `inline-${randomUUID()}`;

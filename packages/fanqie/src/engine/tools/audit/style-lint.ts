@@ -9,7 +9,6 @@ import { formatLint } from "../render.js";
 import { S, WORK_OPT, WORKING_DIR } from "../schema.js";
 import { defineTool } from "../types.js";
 
-import { extraLintText } from "./context.js";
 export const styleLint = defineTool({
   name: "fanqie_style_lint",
   description:
@@ -27,12 +26,11 @@ export const styleLint = defineTool({
     if (candidateId) {
       const { dir } = await openWork(exec, args);
       const cand = await readCandidate(dir, candidateId);
-      const hits = StyleLinterPort.lint(cand.body);
-      const summary = StyleLinterPort.summarize(hits);
+      const scan = await StyleLinterPort.scan(cand.body),
+        hits = scan.hits;
       const pass = await LintGate.issueToken(dir, candidateId, hits.length, cand.body);
       return [
-        formatLint(`候选 ${candidateId} → ${cand.chapterId}`, hits, summary),
-        await extraLintText(cand.body, undefined, hits),
+        formatLint(`候选 ${candidateId} → ${cand.chapterId}`, scan),
         "",
         `lintPassToken：${pass.token}`,
         `lintHitCount：${pass.hitCount}（命中数；token 只证明已扫过，扫过≠过关）`,
@@ -51,8 +49,8 @@ export const styleLint = defineTool({
       const ch = await readChapter(dir, chapterId);
       text = ch.body;
       label = `${ch.title}（${ch.id}）`;
-      const hits = StyleLinterPort.lint(text);
-      const summary = StyleLinterPort.summarize(hits);
+      const scan = await StyleLinterPort.scan(text),
+        hits = scan.hits;
       await writeLedgerEntry(dir, {
         chapterId,
         kind: "style_lint",
@@ -60,21 +58,15 @@ export const styleLint = defineTool({
         styleHitCount: hits.length,
       });
       return [
-        formatLint(label, hits, summary),
-        await extraLintText(text, ch.title, hits),
+        formatLint(label, scan),
         "",
         "说明：章节扫描是诊断，不绑定候选；候选采纳会扫描当前字节。",
       ]
         .filter((line) => line !== undefined)
         .join("\n");
     }
-    const hits = StyleLinterPort.lint(text);
-    return [
-      formatLint(label, hits, StyleLinterPort.summarize(hits)),
-      await extraLintText(text, undefined, hits),
-      "",
-      "说明：纯 text 扫描是诊断；候选采纳会扫描当前字节。",
-    ]
+    const scan = await StyleLinterPort.scan(text);
+    return [formatLint(label, scan), "", "说明：纯 text 扫描是诊断；候选采纳会扫描当前字节。"]
       .filter((line) => line !== undefined)
       .join("\n");
   },

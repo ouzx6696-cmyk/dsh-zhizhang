@@ -4,176 +4,364 @@ import assert from "node:assert/strict";
 import { scoreEnding } from "../../build/fanqie/src/engine/domain/ending-consistency.js";
 import { parseChapterHeading } from "../../build/fanqie/src/engine/domain/chapter-heading.js";
 import { toCardView } from "../../build/fanqie/src/engine/domain/card-schema.js";
-import { computeCoverage, AUTO_CONFIDENCE_CAP } from "../../build/fanqie/src/engine/domain/coverage.js";
+import {
+  computeCoverage,
+  AUTO_CONFIDENCE_CAP,
+} from "../../build/fanqie/src/engine/domain/coverage.js";
 import { auditPayoff } from "../../build/fanqie/src/engine/payoff-audit.js";
 import { formatReaderContract } from "../../build/fanqie/src/engine/method-assets.js";
 import { EMPTY_OUTLINE } from "../../build/fanqie/src/engine/types.js";
 import { lintStyle } from "../../build/fanqie/src/engine/style-linter.js";
-import { LintGate, HumanFeelGate, AcceptPolicy } from "../../build/fanqie/src/engine/ports/index.js";
+import {
+  LintGate,
+  HumanFeelGate,
+  AcceptPolicy,
+} from "../../build/fanqie/src/engine/ports/index.js";
 test("末拍检测理解时间别名，并对缺失落点一致告警", () => {
-    assert.ok(scoreEnding("他 00:40 刷卡进楼。", "他零点四十刷卡进楼，没回头。").strongHits > 0);
-    const ending = "他把侧窗的窗框钉死，回放里再也没有那扇窗。";
-    const body = "她把账本合上，没再说话。灯灭之后雨停了半拍。";
-    const findings = auditPayoff({ ...EMPTY_OUTLINE(), ending }, body).findings;
-    assert.ok(findings.some((finding) => finding.code === "ending_missing"));
-    const contract = formatReaderContract({ premise: "p", planned: "pl", threads: "t", lean: true, continuation: true, previous: { id: "c001", title: "一", ending, body } });
-    assert.ok(contract.includes("前章纲末与正文可能不一致"));
+  assert.ok(scoreEnding("他 00:40 刷卡进楼。", "他零点四十刷卡进楼，没回头。").strongHits > 0);
+  const ending = "他把侧窗的窗框钉死，回放里再也没有那扇窗。";
+  const body = "她把账本合上，没再说话。灯灭之后雨停了半拍。";
+  const findings = auditPayoff({ ...EMPTY_OUTLINE(), ending }, body).findings;
+  assert.ok(findings.some((finding) => finding.code === "ending_missing"));
+  const contract = formatReaderContract({
+    premise: "p",
+    planned: "pl",
+    threads: "t",
+    lean: true,
+    continuation: true,
+    previous: { id: "c001", title: "一", ending, body },
+  });
+  assert.ok(contract.includes("前章纲末与正文可能不一致"));
 });
 test("中文章标题与旧卡格式仍可读取", () => {
-    assert.equal(parseChapterHeading("第一章 开端")?.n, 1);
-    assert.equal(parseChapterHeading("第12章 对峙")?.n, 12);
-    assert.equal(parseChapterHeading("没有标题"), null);
-    assert.equal(toCardView({ id: "c1", title: "旧卡", body: "动作", status: "accepted" }).legacy, true);
-    assert.equal(toCardView({ id: "c2", title: "新卡", body: "x", status: "accepted", mechanisms: [{ name: "m", failWhen: "f" }], layer: "scene", dimension: "hook" }).legacy, false);
+  assert.equal(parseChapterHeading("第一章 开端")?.n, 1);
+  assert.equal(parseChapterHeading("第12章 对峙")?.n, 12);
+  assert.equal(parseChapterHeading("没有标题"), null);
+  assert.equal(
+    toCardView({ id: "c1", title: "旧卡", body: "动作", status: "accepted" }).legacy,
+    true,
+  );
+  assert.equal(
+    toCardView({
+      id: "c2",
+      title: "新卡",
+      body: "x",
+      status: "accepted",
+      mechanisms: [{ name: "m", failWhen: "f" }],
+      layer: "scene",
+      dimension: "hook",
+    }).legacy,
+    false,
+  );
 });
-test("机械检测只报告信号，不声称创作质量合格", () => {
-    assert.ok(lintStyle("他心中涌起一股难以言喻的感动，不禁叹了口气。").length > 0);
-    assert.equal(lintStyle("他把伞收进桶里，没说话。").length, 0);
-    assert.equal(LintGate.evaluateAccept({ hitCount: 2, strictLint: false }).ok, true);
-    assert.equal(LintGate.evaluateAccept({ hitCount: 2, strictLint: true }).ok, false);
-    assert.equal(HumanFeelGate.evaluateAccept({ body: "他觉得很难过，心中一沉。".repeat(20) }).ok, true);
-    const coverage = computeCoverage({ scope: { chapters: 4, mode: "full" } }, [{ n: 1 }, { n: 2 }, { n: 3 }, { n: 4 }], [{ dimension: "hook" }, { dimension: "rhythm" }], { total: 2, ok: 2 }, { survey: true, plots: [{}], rhythms: [{}], characters: [{}], autoCap: true });
-    assert.equal(coverage.capped, true);
-    assert.ok(coverage.confidence <= AUTO_CONFIDENCE_CAP);
+test("机械检测只报告信号，不声称创作质量合格", async () => {
+  assert.ok((await lintStyle("他心中涌起一股难以言喻的感动，不禁叹了口气。")).length > 0);
+  assert.equal((await lintStyle("他把伞收进桶里，没说话。")).length, 0);
+  assert.equal(LintGate.evaluateAccept({ hitCount: 2, strictLint: false }).ok, true);
+  assert.equal(LintGate.evaluateAccept({ hitCount: 2, strictLint: true }).ok, false);
+  assert.equal(
+    HumanFeelGate.evaluateAccept({ body: "他觉得很难过，心中一沉。".repeat(20) }).ok,
+    true,
+  );
+  const coverage = computeCoverage(
+    { scope: { chapters: 4, mode: "full" } },
+    [{ n: 1 }, { n: 2 }, { n: 3 }, { n: 4 }],
+    [{ dimension: "hook" }, { dimension: "rhythm" }],
+    { total: 2, ok: 2 },
+    { survey: true, plots: [{}], rhythms: [{}], characters: [{}], autoCap: true },
+  );
+  assert.equal(coverage.capped, true);
+  assert.ok(coverage.confidence <= AUTO_CONFIDENCE_CAP);
 });
 test("编辑候选采纳前须明确确认", () => {
-    const candidate = { body: "编辑稿", lintHitCount: 0, editOf: "cand-parent" };
-    const denied = AcceptPolicy.evaluate({ candidate, brief: null, payoff: null, skipBrief: true, acceptAfterEdit: true, confirmAcceptAfterEdit: false });
-    assert.equal(denied.ok, false);
-    assert.ok(denied.messages.some((m) => m.code === "edit_accept_confirm_required"));
-    assert.equal(AcceptPolicy.evaluate({ candidate, brief: null, payoff: null, skipBrief: true, acceptAfterEdit: true, confirmAcceptAfterEdit: true }).ok, true);
+  const candidate = { body: "编辑稿", lintHitCount: 0, editOf: "cand-parent" };
+  const denied = AcceptPolicy.evaluate({
+    candidate,
+    brief: null,
+    payoff: null,
+    skipBrief: true,
+    acceptAfterEdit: true,
+    confirmAcceptAfterEdit: false,
+  });
+  assert.equal(denied.ok, false);
+  assert.ok(denied.messages.some((m) => m.code === "edit_accept_confirm_required"));
+  assert.equal(
+    AcceptPolicy.evaluate({
+      candidate,
+      brief: null,
+      payoff: null,
+      skipBrief: true,
+      acceptAfterEdit: true,
+      confirmAcceptAfterEdit: true,
+    }).ok,
+    true,
+  );
 });
 
 test("证据按实际原文核对，心理词不误拒对白，重号不静默合并", async () => {
-    const { quoteOk } = await import("../../build/fanqie/src/engine/domain/evidence.js");
-    assert.equal(quoteOk("她说我害怕", "她说：我害怕。"), false);
-    assert.equal(quoteOk("她说：我害怕。", "她说：我害怕。"), true);
-    const { chapterIndex, chapterText } = await import("../../build/fanqie/src/engine/ports/analysis/chapters.js");
-    const { validateChapterFacts } = await import("../../build/fanqie/src/engine/ports/analysis/facts.js");
-    const { buildPlan } = await import("../../build/fanqie/src/engine/ports/analysis/plan.js");
-    const text = "第一章 夜归\n她说：我害怕。随后关门。\n第一章 番外\n他打开窗。";
-    const index = chapterIndex(text);
-    assert.equal(chapterText(text, index, 1), null);
-    assert.throws(() => buildPlan({ sourceId: "src-test", index }), e => e.code === "ambiguous_chapter_numbers");
-    const result = validateChapterFacts({ n: 1, sourceStart: index[0].start, events: [{ desc: "她说：我害怕。随后关门。", quote: "她说：我害怕。随后关门。" }] }, text, index);
-    assert.equal(result.errors.length, 0);
-    assert.ok(result.warnings.length > 0);
+  const { quoteOk } = await import("../../build/fanqie/src/engine/domain/evidence.js");
+  assert.equal(quoteOk("她说我害怕", "她说：我害怕。"), false);
+  assert.equal(quoteOk("她说：我害怕。", "她说：我害怕。"), true);
+  const { chapterIndex, chapterText } =
+    await import("../../build/fanqie/src/engine/ports/analysis/chapters.js");
+  const { validateChapterFacts } =
+    await import("../../build/fanqie/src/engine/ports/analysis/facts.js");
+  const { buildPlan } = await import("../../build/fanqie/src/engine/ports/analysis/plan.js");
+  const text = "第一章 夜归\n她说：我害怕。随后关门。\n第一章 番外\n他打开窗。";
+  const index = chapterIndex(text);
+  assert.equal(chapterText(text, index, 1), null);
+  assert.throws(
+    () => buildPlan({ sourceId: "src-test", index }),
+    (e) => e.code === "ambiguous_chapter_numbers",
+  );
+  const result = validateChapterFacts(
+    {
+      n: 1,
+      sourceStart: index[0].start,
+      events: [{ desc: "她说：我害怕。随后关门。", quote: "她说：我害怕。随后关门。" }],
+    },
+    text,
+    index,
+  );
+  assert.equal(result.errors.length, 0);
+  assert.ok(result.warnings.length > 0);
 });
 
-test("源位置解析与限量扫描保留原字节坐标及精确总数",async()=>{
-    const {parseManuscript}=await import('../../build/fanqie/src/engine/domain/manuscript.js');
-    const {scanStyle}=await import('../../build/fanqie/src/engine/style-linter.js');
-    const text='😀 **门外**有人。\r\n第二行。\r\n\r\n`原样`';
-    const blocks=parseManuscript(text);assert.equal(blocks.length,2);
-    for(const b of blocks)for(const r of b.runs)if(r.text!=='\n')assert.equal(text.slice(r.start,r.end),r.text);
-    const scan=scanStyle('他不禁退后。'.repeat(20),3);assert.equal(scan.hits.length,3);assert.equal(scan.totalHits,20);
+test("源位置解析与限量扫描保留原字节坐标及精确总数", async () => {
+  const { parseManuscript } = await import("../../build/fanqie/src/engine/domain/manuscript.js");
+  const { scanStyle } = await import("../../build/fanqie/src/engine/style-linter.js");
+  const text = "😀 **门外**有人。\r\n第二行。\r\n\r\n`原样`";
+  const blocks = parseManuscript(text);
+  assert.equal(blocks.length, 2);
+  for (const b of blocks)
+    for (const r of b.runs) if (r.text !== "\n") assert.equal(text.slice(r.start, r.end), r.text);
+  const scan = await scanStyle("他不禁退后。".repeat(20), 3);
+  assert.equal(scan.hits.length, 3);
+  assert.equal(scan.totalHits, 20);
 });
 
-test('限量诊断按正文顺序保留，代码与对白不触发叙述规则或重复统计', async () => {
-    const { scanStyle } = await import('../../build/fanqie/src/engine/style-linter.js');
-    const { analyzeManuscript } = await import('../../build/fanqie/src/engine/domain/diagnostics.js');
-    const scan = scanStyle('他感到害怕。\n他不禁退后。\n不是刀而是伞。', 1);
-    assert.equal(scan.hits[0].start, 0);
-    assert.equal(scan.totalHits, 3);
-    const skipped = analyzeManuscript('# 他不禁退后\n\n> 他不禁退后\n\n`他不禁退后。他不禁退后。`\n\n“他不禁退后。他不禁退后。”\n\n```\n他不禁退后\n```');
-    assert.equal(skipped.totalHits, 0);
-    assert.equal(skipped.summary.sentenceCount, 0);
-    const text = '外面有人。外面有人。\n\n他不禁退后。'.repeat(80);
-    const report = analyzeManuscript(text);
-    assert.equal(report.scanComplete, true);
-    assert.equal(report.limited, true);
-    assert.equal(report.issues.length, 120);
-    for (let i = 1; i < report.issues.length; i++) assert.ok(report.issues[i].start >= report.issues[i - 1].start);
-    for (const issue of report.issues) assert.equal(text.slice(issue.start, issue.end), issue.match);
-    assert.ok(report.issues.some(issue => issue.origin === 'statistic'));
+test("限量诊断按正文顺序保留，代码与对白不触发叙述规则或重复统计", async () => {
+  const { scanStyle } = await import("../../build/fanqie/src/engine/style-linter.js");
+  const { analyzeManuscript } = await import("../../build/fanqie/src/engine/domain/diagnostics.js");
+  const scan = await scanStyle("他感到害怕。\n他不禁退后。\n不是刀而是伞。", 1);
+  assert.equal(scan.hits[0].start, 0);
+  assert.equal(scan.totalHits, 3);
+  const skipped = await analyzeManuscript(
+    "# 他不禁退后\n\n> 他不禁退后\n\n`他不禁退后。他不禁退后。`\n\n“他不禁退后。他不禁退后。”\n\n```\n他不禁退后\n```",
+  );
+  assert.equal(skipped.totalHits, 0);
+  assert.equal(skipped.summary.sentenceCount, 0);
+  const text = "外面有人。外面有人。\n\n他不禁退后。".repeat(80);
+  const report = await analyzeManuscript(text);
+  assert.equal(report.scanComplete, true);
+  assert.equal(report.limited, true);
+  assert.equal(report.issues.length, 120);
+  for (let i = 1; i < report.issues.length; i++)
+    assert.ok(report.issues[i].start >= report.issues[i - 1].start);
+  for (const issue of report.issues) assert.equal(text.slice(issue.start, issue.end), issue.match);
+  assert.ok(report.issues.some((issue) => issue.origin === "statistic"));
 });
 
-test('对白范围按配对符号识别，未闭合引号不会吞掉叙述', async () => {
-    const { dialogueRanges, lintStyle } = await import('../../build/fanqie/src/engine/style-linter.js');
-    assert.deepEqual(dialogueRanges('“甲「乙」丙”外。'),[[0,7]]);
-    assert.equal(lintStyle('“'.repeat(30000)+'他不禁退后。').length,1);
-    assert.equal(lintStyle('“他不禁退后。”').length,0);
-    assert.equal(lintStyle('“未闭合，他不禁退后。').length,1);
-    const { parseManuscript } = await import('../../build/fanqie/src/engine/domain/manuscript.js');
-    assert.equal(parseManuscript('*a*'.repeat(100000))[0].runs.length,100000);
+test("对白范围按配对符号识别，未闭合引号不会吞掉叙述", async () => {
+  const { scanStyle, lintStyle } = await import("../../build/fanqie/src/engine/style-linter.js");
+  assert.deepEqual((await scanStyle("“甲「乙」丙”外。")).dialogueRanges, [[0, 7]]);
+  assert.equal((await lintStyle("“".repeat(30000) + "他不禁退后。")).length, 1);
+  assert.equal((await lintStyle("“他不禁退后。”")).length, 0);
+  assert.equal((await lintStyle("“未闭合，他不禁退后。")).length, 1);
+  const { parseManuscript } = await import("../../build/fanqie/src/engine/domain/manuscript.js");
+  assert.equal(parseManuscript("*a*".repeat(100000))[0].runs.length, 100000);
 });
 
 test("客户端拒收旧项目响应，摘要版本与手动刷新使旧正文失效", async () => {
-    const { reducer, initialState, bodyKey } = await import("../../packages/workbench/src/client/fanqie/state.js");
-    let state = { ...initialState(), projectId: "a", work: "同名作品", view: "chapters", chapterId: "c001", snapshot: { chapters: [{ id: "c001", updatedAt: "v1" }], candidates: [] } };
-    const key = bodyKey(state, "chapter");
-    state = reducer(state, { type: "body", slot: "chapter", value: { key, status: "ready", body: "项目甲正文", meta: { id: "c001", revision: "r1" } } });
-    state = reducer(state, { type: "openDialog", dialog: { kind: "review" } });
-    const confirmation = state.dialog;
-    assert.equal(confirmation.meta.revision, "r1");
-    state = reducer(state, { type: "selectProject", id: "b" });
-    assert.equal(state.dialog, null);
-    assert.equal(state.chapter.body, "");
-    const selected = state;
-    state = reducer(state, { type: "snapshot", selection: 0, data: { snapshot: { workKey: "旧作品", chapters: [] } }, signature: "late" });
-    assert.equal(state, selected);
-    state = reducer(state, { type: "body", slot: "chapter", value: { key, status: "ready", body: "迟到旧正文" } });
-    assert.equal(state, selected);
-    state = reducer(state, { type: "snapshot", selection: state.selection, data: { projectId: "b", snapshot: { workKey: "同名作品", chapters: [{ id: "c001", updatedAt: "v2" }], candidates: [] } }, signature: "new" });
-    const nextKey = bodyKey(state, "chapter");
-    assert.notEqual(nextKey, key);
-    state = reducer(state, { type: "body", slot: "chapter", value: { key: nextKey, status: "ready", body: "项目乙正文", meta: { id: "c001", revision: "r2" } } });
-    state = reducer(state, { type: "reloadBodies" });
-    assert.equal(state.chapter.status, "idle");
-    assert.notEqual(bodyKey(state, "chapter"), nextKey);
-    assert.equal(confirmation.meta.revision, "r1");
-    const failedKey = bodyKey(state, "chapter");
-    state = reducer(state, {type: "body", slot: "chapter", value: {key: failedKey, status: "error", error: "写入尚未结束"}});
-    state = reducer(state, {type: "snapshot", selection: state.selection, data: {projectId: "b", snapshot: state.snapshot}, signature: "new"});
-    assert.equal(state.chapter.status, "idle");
-    assert.notEqual(bodyKey(state, "chapter"), failedKey);
+  const { reducer, initialState, bodyKey } =
+    await import("../../packages/workbench/src/client/fanqie/state.js");
+  let state = {
+    ...initialState(),
+    projectId: "a",
+    work: "同名作品",
+    view: "chapters",
+    chapterId: "c001",
+    snapshot: { chapters: [{ id: "c001", updatedAt: "v1" }], candidates: [] },
+  };
+  const key = bodyKey(state, "chapter");
+  state = reducer(state, {
+    type: "body",
+    slot: "chapter",
+    value: { key, status: "ready", body: "项目甲正文", meta: { id: "c001", revision: "r1" } },
+  });
+  state = reducer(state, { type: "openDialog", dialog: { kind: "review" } });
+  const confirmation = state.dialog;
+  assert.equal(confirmation.meta.revision, "r1");
+  state = reducer(state, { type: "selectProject", id: "b" });
+  assert.equal(state.dialog, null);
+  assert.equal(state.chapter.body, "");
+  const selected = state;
+  state = reducer(state, {
+    type: "snapshot",
+    selection: 0,
+    data: { snapshot: { workKey: "旧作品", chapters: [] } },
+    signature: "late",
+  });
+  assert.equal(state, selected);
+  state = reducer(state, {
+    type: "body",
+    slot: "chapter",
+    value: { key, status: "ready", body: "迟到旧正文" },
+  });
+  assert.equal(state, selected);
+  state = reducer(state, {
+    type: "snapshot",
+    selection: state.selection,
+    data: {
+      projectId: "b",
+      snapshot: {
+        workKey: "同名作品",
+        chapters: [{ id: "c001", updatedAt: "v2" }],
+        candidates: [],
+      },
+    },
+    signature: "new",
+  });
+  const nextKey = bodyKey(state, "chapter");
+  assert.notEqual(nextKey, key);
+  state = reducer(state, {
+    type: "body",
+    slot: "chapter",
+    value: {
+      key: nextKey,
+      status: "ready",
+      body: "项目乙正文",
+      meta: { id: "c001", revision: "r2" },
+    },
+  });
+  state = reducer(state, { type: "reloadBodies" });
+  assert.equal(state.chapter.status, "idle");
+  assert.notEqual(bodyKey(state, "chapter"), nextKey);
+  assert.equal(confirmation.meta.revision, "r1");
+  const failedKey = bodyKey(state, "chapter");
+  state = reducer(state, {
+    type: "body",
+    slot: "chapter",
+    value: { key: failedKey, status: "error", error: "写入尚未结束" },
+  });
+  state = reducer(state, {
+    type: "snapshot",
+    selection: state.selection,
+    data: { projectId: "b", snapshot: state.snapshot },
+    signature: "new",
+  });
+  assert.equal(state.chapter.status, "idle");
+  assert.notEqual(bodyKey(state, "chapter"), failedKey);
 });
 
-
-test('段落撤销重做保留完整修改，来源切换与正文变化阻止误绑', async () => {
-    const { changeParagraph, moveHistory, revisionPayload, editMatches, diagnosticScope } = await import('../../packages/workbench/src/client/fanqie/edit-state.js');
-    let state = {selection:0,projectId:'p',work:'w',chapterId:'c001',diagnosticKind:'chapter',chapter:{status:'ready',body:'门外有人。',meta:{revision:'rev',bodyHash:'hash'}}};
-    let edit = {scope:diagnosticScope(state),base:'p',work:'w',original:state.chapter.body,report:{source:{kind:'chapter',targetRevision:'rev',bodyHash:'hash'},blocks:[{start:0,end:5}]},edits:{},history:[],future:[],dirty:false};
-    edit = changeParagraph(edit, 0, '门外无人。');
-    const id = edit.requestId;
-    assert.equal(edit.dirty, true);
-    edit = moveHistory(edit);
-    assert.equal(edit.dirty, false);
-    edit = moveHistory(edit, true);
-    assert.equal(edit.dirty, true);
-    assert.notEqual(edit.requestId, id);
-    assert.deepEqual(revisionPayload(edit).edits, [{start:0,end:5,before:'门外有人。',after:'门外无人。'}]);
-    state = {...state,edit};
-    assert.equal(editMatches(state,'chapter'),true);
-    assert.equal(editMatches({...state,work:'other'},'chapter'),false);
-    assert.equal(editMatches({...state,chapter:{...state.chapter,meta:{revision:'rev',bodyHash:'changed'}}},'chapter'),false);
-    for(let i=0;i<80;i++) edit=changeParagraph(edit,0,'稿'.repeat(40000)+i);
-    assert.ok(edit.history.length > 0 && edit.history.length < 50);
-    assert.ok(JSON.stringify(edit.history).length * 2 < 2 * 1024 * 1024);
+test("段落撤销重做保留完整修改，来源切换与正文变化阻止误绑", async () => {
+  const { changeParagraph, moveHistory, revisionPayload, editMatches, diagnosticScope } =
+    await import("../../packages/workbench/src/client/fanqie/edit-state.js");
+  let state = {
+    selection: 0,
+    projectId: "p",
+    work: "w",
+    chapterId: "c001",
+    diagnosticKind: "chapter",
+    chapter: { status: "ready", body: "门外有人。", meta: { revision: "rev", bodyHash: "hash" } },
+  };
+  let edit = {
+    scope: diagnosticScope(state),
+    base: "p",
+    work: "w",
+    original: state.chapter.body,
+    report: {
+      source: { kind: "chapter", targetRevision: "rev", bodyHash: "hash" },
+      blocks: [{ start: 0, end: 5 }],
+    },
+    edits: {},
+    history: [],
+    future: [],
+    dirty: false,
+  };
+  edit = changeParagraph(edit, 0, "门外无人。");
+  const id = edit.requestId;
+  assert.equal(edit.dirty, true);
+  edit = moveHistory(edit);
+  assert.equal(edit.dirty, false);
+  edit = moveHistory(edit, true);
+  assert.equal(edit.dirty, true);
+  assert.notEqual(edit.requestId, id);
+  assert.deepEqual(revisionPayload(edit).edits, [
+    { start: 0, end: 5, before: "门外有人。", after: "门外无人。" },
+  ]);
+  state = { ...state, edit };
+  assert.equal(editMatches(state, "chapter"), true);
+  assert.equal(editMatches({ ...state, work: "other" }, "chapter"), false);
+  assert.equal(
+    editMatches(
+      { ...state, chapter: { ...state.chapter, meta: { revision: "rev", bodyHash: "changed" } } },
+      "chapter",
+    ),
+    false,
+  );
+  for (let i = 0; i < 80; i++) edit = changeParagraph(edit, 0, "稿".repeat(40000) + i);
+  assert.ok(edit.history.length > 0 && edit.history.length < 50);
+  assert.ok(JSON.stringify(edit.history).length * 2 < 2 * 1024 * 1024);
 });
-
 
 test("番茄长篇配置：校验并补默认值，未知字段报错", async () => {
-    const { parseFanqieConfig } = await import("../../build/fanqie/src/config.js");
-    const ok = parseFanqieConfig({ storageRoot: "/data", multiDraft: { enabled: true }, requireEditorPass: true });
-    assert.deepEqual(ok.issues, []);
-    assert.equal(ok.value.rootDir, ".writer");
-    assert.equal(ok.value.storageRoot, "/data");
-    assert.equal(ok.value.multiDraft.enabled, true);
-    assert.equal(parseFanqieConfig({}).value.worksRoot, undefined);
-    assert.equal(parseFanqieConfig({ worksRoot: "  ", libraryRoot: "" }).value.worksRoot, undefined);
-    assert.ok(parseFanqieConfig({ multiDraft: { enabled: "yes" } }).issues.length > 0);
-    assert.ok(parseFanqieConfig({ allowLanPanel: true }).issues.length > 0);
-    assert.ok(parseFanqieConfig({ requireEditorPass: "yes" }).issues.length > 0);
+  const { parseFanqieConfig } = await import("../../build/fanqie/src/config.js");
+  const ok = parseFanqieConfig({
+    storageRoot: "/data",
+    multiDraft: { enabled: true },
+    requireEditorPass: true,
+  });
+  assert.deepEqual(ok.issues, []);
+  assert.equal(ok.value.rootDir, ".writer");
+  assert.equal(ok.value.storageRoot, "/data");
+  assert.equal(ok.value.multiDraft.enabled, true);
+  assert.equal(parseFanqieConfig({}).value.worksRoot, undefined);
+  assert.equal(parseFanqieConfig({ worksRoot: "  ", libraryRoot: "" }).value.worksRoot, undefined);
+  assert.ok(parseFanqieConfig({ multiDraft: { enabled: "yes" } }).issues.length > 0);
+  assert.ok(parseFanqieConfig({ allowLanPanel: true }).issues.length > 0);
+  assert.ok(parseFanqieConfig({ requireEditorPass: "yes" }).issues.length > 0);
 });
 
-
-
 test("默认展示模板不能制造卡片的诊断依据", async () => {
-  const {normalizeHumanFeel, craftCueFromHumanFeel, hasShatterCraftCue, DEFAULT_FAIL_AS_TEMPLATE} = await import('../../build/fanqie/src/engine/ports/library/schema.js');
-  const raw={writerCraft:'物件描写',characterState:'平静',stateOnPage:'窗边看雨',allowedEdges:'一处动作细节'};
-  const normalized=normalizeHumanFeel(raw);
-  assert.equal(hasShatterCraftCue(craftCueFromHumanFeel(normalized.humanFeel)),false);
-  assert.equal(hasShatterCraftCue(craftCueFromHumanFeel({...raw,failAsTemplate:DEFAULT_FAIL_AS_TEMPLATE})),false);
-  assert.equal(hasShatterCraftCue(craftCueFromHumanFeel({...raw,allowedEdges:'打断后留半截'})),true);
+  const {
+    normalizeHumanFeel,
+    craftCueFromHumanFeel,
+    hasShatterCraftCue,
+    DEFAULT_FAIL_AS_TEMPLATE,
+  } = await import("../../build/fanqie/src/engine/ports/library/schema.js");
+  const raw = {
+    writerCraft: "物件描写",
+    characterState: "平静",
+    stateOnPage: "窗边看雨",
+    allowedEdges: "一处动作细节",
+  };
+  const normalized = normalizeHumanFeel(raw);
+  assert.equal(hasShatterCraftCue(craftCueFromHumanFeel(normalized.humanFeel)), false);
+  assert.equal(
+    hasShatterCraftCue(craftCueFromHumanFeel({ ...raw, failAsTemplate: DEFAULT_FAIL_AS_TEMPLATE })),
+    false,
+  );
+  assert.equal(
+    hasShatterCraftCue(craftCueFromHumanFeel({ ...raw, allowedEdges: "打断后留半截" })),
+    true,
+  );
+});
+
+test("统一文风规则保留 Python 独有规则，并按同一位置去重而非跨段子串去重", async () => {
+  const { scanStyle } = await import("../../build/fanqie/src/engine/style-linter.js");
+  const text =
+    "😀他不禁退后。与此同时，他倒吸一口凉气。他无法确定。心中涌起一股悲凉。\n另一处一股难以言喻的滋味。";
+  const result = await scanStyle(text, Infinity);
+  assert.equal(result.hits[0].start, 3);
+  for (const hit of result.hits) assert.equal(text.slice(hit.start, hit.end), hit.match);
+  for (const word of ["与此同时", "倒吸一口凉气", "无法确定", "一股难以言喻的"])
+    assert.ok(
+      result.hits.some((hit) => hit.match === word),
+      word,
+    );
+  assert.equal(result.hits.filter((hit) => hit.match.startsWith("心中涌起")).length, 1);
+  const quote = await scanStyle('"与此同时，他倒吸一口凉气。"');
+  assert.equal(quote.totalHits, 0);
+  assert.equal(quote.statistics.dialogueHits, 2);
 });

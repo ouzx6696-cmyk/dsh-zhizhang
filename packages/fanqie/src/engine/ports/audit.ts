@@ -3,58 +3,80 @@
  * Sensors stay pure; this file is the only place tools should import them from
  * when wiring (gates/tests may still import sensors for unit isolation).
  */
-import { lintStyle, summarizeStyleLint } from "../style-linter.js";
-import { auditPayoff, formatPayoffAudit, } from "../payoff-audit.js";
-import { auditHumanFeel, formatHumanFeelAudit, } from "./human-feel-gate.js";
-import { auditNovelSense, formatNovelSenseAudit, } from "./novel-sense-gate.js";
+import { lintStyle, scanStyle, summarizeStyleLint } from "../style-linter.js";
+import { auditPayoff, formatPayoffAudit } from "../payoff-audit.js";
+import { auditHumanFeel, formatHumanFeelAudit } from "./human-feel-gate.js";
+import { auditNovelSense, formatNovelSenseAudit } from "./novel-sense-gate.js";
 export const StyleLinterPort = {
-    lint(text: string) {
-        return lintStyle(text);
-    },
-    summarize(hits: ReturnType<typeof lintStyle>) {
-        return summarizeStyleLint(hits);
-    },
-    format(label: string, hits: ReturnType<typeof lintStyle>, summary: ReturnType<typeof summarizeStyleLint>) {
-        const head = [
-            `语感雷达 · ${label}`,
-            `- cliche_syntax：${summary.cliche_syntax}`,
-            `- lazy_emotion：${summary.lazy_emotion}`,
-            `- process_skip：${summary.process_skip}`,
-            `- slogan_ending：${summary.slogan_ending}`,
-            `- 合计：${hits.length}`,
-        ];
-        if (hits.length === 0)
-            return [...head, "", "未发现命中（对白区已豁免）。"].join("\n");
-        const lines = hits
-            .slice(0, 40)
-            .map((h, i: number) => `${i + 1}. [${h.category}] 「${h.match}」 @${h.start}-${h.end} · ${h.hint}`);
-        return [...head, "", ...lines, hits.length > 40 ? `…另有 ${hits.length - 40} 处` : ""]
-            .filter(Boolean)
-            .join("\n");
-    },
+  lint(text: string) {
+    return lintStyle(text);
+  },
+  scan(text: string) {
+    return scanStyle(text, Infinity);
+  },
+  format(label: string, scan: Awaited<ReturnType<typeof scanStyle>>) {
+    const { hits, statistics } = scan,
+      summary = summarizeStyleLint(hits);
+    const head = [
+      `语感雷达 · ${label}`,
+      ...Object.entries(summary).map(([key, value]) => `- ${key}：${value}`),
+      `- 合计：${hits.length}`,
+    ];
+    const details = hits.length
+      ? hits
+          .slice(0, 40)
+          .map(
+            (hit, index) =>
+              `${index + 1}. [${hit.category}] 「${hit.match}」 @${hit.start}-${hit.end} · ${hit.hint}`,
+          )
+      : ["未发现命中（对白区已豁免）。"];
+    const extra = [
+      `### forge 正文体检（${statistics.overlong.length} 处，仅提示回看位置）`,
+      `- ${statistics.cjkChars} 字 · ${statistics.paragraphs} 段 · 平均每段 ${statistics.average} 字`,
+      ...statistics.overlong
+        .slice(0, 8)
+        .map(
+          ([line, chars, preview]) =>
+            `- 超长段（第 ${line} 行，${chars} 字，手机上难读）：${preview}`,
+        ),
+    ];
+    if (statistics.dialogueHits)
+      extra.push(`- 台词里另有 ${statistics.dialogueHits} 处套话（人物口吻，通常保留）`);
+    if (!statistics.overlong.length) extra.push("- 没有超长段；套话位置见上方同次扫描结果");
+    return [
+      ...head,
+      "",
+      ...details,
+      hits.length > 40 ? `…另有 ${hits.length - 40} 处` : "",
+      "",
+      ...extra,
+    ]
+      .filter(Boolean)
+      .join("\n");
+  },
 };
 export const PayoffAuditorPort = {
-    audit(outline: any, body: string, opts: any) {
-        return auditPayoff(outline, body, opts);
-    },
-    format(label: string, result: any) {
-        return formatPayoffAudit(label, result);
-    },
+  audit(outline: any, body: string, opts: any) {
+    return auditPayoff(outline, body, opts);
+  },
+  format(label: string, result: any) {
+    return formatPayoffAudit(label, result);
+  },
 };
 export const HumanFeelAuditorPort = {
-    /** Pass craftCue so stiffness_tidy matches Accept (shatter cues from craft cards). */
-    audit(text: string, opts: any) {
-        return auditHumanFeel(text, opts);
-    },
-    format(label: string, result: any) {
-        return formatHumanFeelAudit(label, result);
-    },
+  /** Pass craftCue so stiffness_tidy matches Accept (shatter cues from craft cards). */
+  audit(text: string, opts: any) {
+    return auditHumanFeel(text, opts);
+  },
+  format(label: string, result: any) {
+    return formatHumanFeelAudit(label, result);
+  },
 };
 export const NovelSenseAuditorPort = {
-    audit(text: string, opts: any) {
-        return auditNovelSense(text, opts);
-    },
-    format(label: string, result: any) {
-        return formatNovelSenseAudit(label, result);
-    },
+  audit(text: string, opts: any) {
+    return auditNovelSense(text, opts);
+  },
+  format(label: string, result: any) {
+    return formatNovelSenseAudit(label, result);
+  },
 };

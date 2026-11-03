@@ -44,8 +44,6 @@ FIELD_MAP = [
     ('knowledge', '人物知识边界'),
 ]
 assert [f for _, f in FIELD_MAP] == list(check_outline.BLOCKS) + list(check_outline.FIELDS)
-# 番茄连载单章常见篇幅区间（只提示，不否决）
-WORDS_MIN, WORDS_MAX = 1500, 6000
 
 
 def out(obj, code=0):
@@ -63,40 +61,11 @@ def cmd_outline(path):
     data = json.loads(Path(path).read_text(encoding='utf-8'))
     mode = data.get('mode', 'readiness')
     chapters = data.get('chapters') or []
-    issues = []
-
-    def add(level, chapter, field, message):
-        issues.append({'level': level, 'chapter': chapter, 'field': field, 'message': message})
-
-    positions = sorted(c.get('position', 0) for c in chapters)
-    if len(positions) != len(set(positions)):
-        add('error', '', 'position', '章节序号重复')
-    gaps = [(a + 1, b - 1) for a, b in zip(positions, positions[1:]) if b - a > 1]
-    for a, b in gaps:
-        add('warn', '', 'position', f'章节序号缺 {a}' + (f'–{b}' if b > a else ''))
-
-    for ch in chapters:
-        cid = str(ch.get('id', ''))
-        ol = ch.get('outline') or {}
-        for key, label in FIELD_MAP:
-            value = ol.get(key)
-            if key == 'targetWords':
-                n = value if isinstance(value, (int, float)) else None
-                if n is None or n <= 0:
-                    add('error', cid, label, '目标篇幅未设')
-                elif not (WORDS_MIN <= n <= WORDS_MAX):
-                    add('warn', cid, label, f'目标篇幅 {int(n)} 字，超出番茄单章常见区间 {WORDS_MIN}–{WORDS_MAX}')
-                continue
-            text = value if isinstance(value, str) else ''
-            if mode == 'readiness' and check_outline._empty(text):
-                add('error', cid, label, '为空')
-                continue
-            hits = check_outline._placeholders(text)
-            if hits:
-                add('error', cid, label, '发现显式未填占位：' + '、'.join(hits[:3]))
-    errors = [i for i in issues if i['level'] == 'error']
-    out({'tool': 'outline', 'ok': True, 'mode': mode, 'pass': not errors,
-         'checked': len(chapters), 'errors': len(errors), 'issues': issues,
+    records = [{'id': str(chapter.get('id', '')), 'position': chapter.get('position', 0),
+                'fields': {label: (chapter.get('outline') or {}).get(key) for key, label in FIELD_MAP}}
+               for chapter in chapters]
+    report = check_outline.inspect_records(records, mode)
+    out({'tool': 'outline', 'ok': True, **report,
          'field_map': {k: v for k, v in FIELD_MAP},
          'note': '只查接口、空值与显式占位；不判断动机、因果、可写性或文学质量。'})
 
@@ -123,6 +92,12 @@ def cmd_lint(long_para, files):
         reports.append(r)
     out({'tool': 'lint', 'ok': True, 'reports': reports,
          'note': '命中只是值得回看的位置，不是错误判定；台词里的命中通常保留。'})
+
+
+def cmd_style(file):
+    request = json.loads(Path(file).read_text(encoding='utf-8'))
+    result = manuscript_linter.scan_style(request['text'], request.get('limit'), request.get('ranges'))
+    out({'tool': 'style', 'ok': True, **result})
 
 
 def cmd_scan(file, top, keywords):
@@ -157,6 +132,8 @@ def main(argv):
             cmd_ledger(rest)
         elif cmd == 'lint' and len(rest) >= 2:
             cmd_lint(rest[0], rest[1:])
+        elif cmd == 'style' and len(rest) == 1:
+            cmd_style(rest[0])
         elif cmd == 'scan' and len(rest) == 3:
             cmd_scan(*rest)
         elif cmd == 'quote' and len(rest) == 3:

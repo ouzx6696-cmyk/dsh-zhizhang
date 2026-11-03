@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""writer-agent 插件与头条规则脚本之间的桥。只依赖 Python 3 标准库。
+"""桌面客户端与头条规则脚本之间的桥。只依赖 Python 3 标准库。
 
 所有子命令向 stdout 输出且只输出一个 JSON 对象（dev-plan §5.1 契约）：
 
-    {"tool": ..., "rules_version": ..., "ok": bool, ...子命令字段..., "raw": ...}
+    {"tool": ..., "rules_version": ..., "ok": bool, ...子命令字段...}
 
 规则本身仍只在 rules.py / qa_check.py / ledger.py / fetch_hot.py 里，本文件不复制任何规则。
 
@@ -22,9 +22,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 import rules as R  # noqa: E402
+import qa_check as Q
 import ledger as L  # noqa: E402
 
-TITLE_MAX = 34  # qa_check.py 的硬闸值（“标题超34字”）；保持一致，见 qa_check.py title_too_long
+TITLE_MAX = R.TITLE_MAX
 
 
 def emit(tool, ok, **fields):
@@ -44,19 +45,12 @@ def run_script(args, timeout):
 
 
 def cmd_qa(a):
-    args = [os.path.join(HERE, "qa_check.py"), a.file, "--json", "--ledger", a.ledger or os.devnull]
-    if a.card:
-        args += ["--card", a.card]
-    if a.mode:
-        args += ["--mode", a.mode]
-    if a.title:
-        args += ["--title", a.title]
-    code, out, err = run_script(args, 120)
-    if code == 2 or not out.strip().startswith("{"):
-        # 2 = 读不到稿件/立项卡/缺标题：业务输入错误，不是“打回”
-        emit("qa", False, code="INVALID_INPUT", message=(out.strip() or err.strip())[:800], raw=out + err)
+    try:
+        r = Q.evaluate_file(a.file, card_file=a.card, mode=a.mode, title_override=a.title,
+                            ledger=a.ledger or os.devnull)
+    except Q.QAInputError as exc:
+        emit("qa", False, code="INVALID_INPUT", message=str(exc)[:800])
         return 0
-    r = json.loads(out)
     fails = [{"code": "ITEM_" + i["key"].upper(), "message": i["note"], "score": i["score"]}
              for i in r.get("items", []) if i.get("status") == "fail"]
     card_fail = [{"code": "CARD", "message": m} for lv, m in r.get("card_checks", []) if lv == "fail"]
@@ -67,13 +61,12 @@ def cmd_qa(a):
          warnings=list(r.get("risk_flags", [])) + list(r.get("hints", [])) + card_warn,
          hard_gates=list(r.get("hard_gates", [])),
          verdict=r.get("verdict", ""), title=r.get("title", ""), title_len=r.get("title_len", 0),
-         chars=r.get("chars", 0), report=r, raw=out)
+         chars=r.get("chars", 0), report=r)
     return 0
 
 
 def cmd_rules(a):
-    code, out, err = run_script([os.path.join(HERE, "qa_check.py"), "--rules"], 30)
-    emit("rules", code == 0, markdown=out, raw=err)
+    emit("rules", True, markdown=Q.rules_markdown())
     return 0
 
 
@@ -93,15 +86,15 @@ def cmd_hot(a):
         try:
             code, out, err = run_script(args, 110)
         except subprocess.TimeoutExpired:
-            emit("hot", False, code="TIMEOUT", message="抓榜超时；改用网页搜索，再不行请作者粘贴热榜", raw="")
+            emit("hot", False, code="TIMEOUT", message="抓榜超时；改用网页搜索，再不行请作者粘贴热榜")
             return 0
         if code != 0 or not os.path.isfile(path):
             emit("hot", False, code="FETCH_FAILED",
-                 message="热榜抓取失败（退出码 %d）；改用网页搜索，再不行请作者粘贴热榜" % code, raw=out + err)
+                 message="热榜抓取失败（退出码 %d）；改用网页搜索，再不行请作者粘贴热榜" % code)
             return 0
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
-    emit("hot", True, items=data, raw=out)
+    emit("hot", True, items=data)
     return 0
 
 
@@ -120,10 +113,10 @@ def cmd_ledger_add(a):
     with open(a.card, encoding="utf-8") as f:
         c = json.load(f)
     if c.get("体裁") not in R.GENRE_MODE:
-        emit("ledger-add", False, code="INVALID_INPUT", message="立项卡体裁应为 长图文/短图文/微头条", raw="")
+        emit("ledger-add", False, code="INVALID_INPUT", message="立项卡体裁应为 长图文/短图文/微头条")
         return 0
     if c.get("内容线") and c.get("内容线") not in R.LINES:
-        emit("ledger-add", False, code="INVALID_INPUT", message="立项卡内容线应为 " + "/".join(R.LINES), raw="")
+        emit("ledger-add", False, code="INVALID_INPUT", message="立项卡内容线应为 " + "/".join(R.LINES))
         return 0
     rows = L.read(a.ledger)
     row = L.row_from_card(c, a.date, a.status)
@@ -131,7 +124,7 @@ def cmd_ledger_add(a):
     hits = [r for r in rows if identity and r.get("文章ID") == identity]
     legacy = [r for r in rows if not r.get("文章ID") and r.get("主标题") == row["主标题"]]
     if len(hits) > 1 or (not hits and len(legacy) > 1):
-        emit("ledger-add", False, code="INVALID_INPUT", message="旧台账存在歧义，请核对重复记录", raw="")
+        emit("ledger-add", False, code="INVALID_INPUT", message="旧台账存在歧义，请核对重复记录")
         return 0
     if identity:
         row["文章ID"] = identity
@@ -141,11 +134,11 @@ def cmd_ledger_add(a):
         if identity:
             existing["文章ID"] = identity
         L.write(a.ledger, rows)
-        emit("ledger-add", True, row=existing, existing=True, raw="")
+        emit("ledger-add", True, row=existing, existing=True)
         return 0
     rows.append(row)
     L.write(a.ledger, rows)
-    emit("ledger-add", True, row=row, raw="")
+    emit("ledger-add", True, row=row)
     return 0
 
 
@@ -155,21 +148,21 @@ def cmd_ledger_status(a):
     if not hit:
         hit = [r for r in rows if not r.get("文章ID") and r.get("主标题") == a.title]
     if len(hit) > 1:
-        emit("ledger-status", False, code="INVALID_INPUT", message="旧台账存在同标题记录，请先核对", raw="")
+        emit("ledger-status", False, code="INVALID_INPUT", message="旧台账存在同标题记录，请先核对")
         return 0
     if not hit:
-        emit("ledger-status", False, code="NOT_FOUND", message="台账里没有“%s”" % a.title, raw="")
+        emit("ledger-status", False, code="NOT_FOUND", message="台账里没有“%s”" % a.title)
         return 0
     hit[-1]["状态"] = a.to
     L.write(a.ledger, rows)
-    emit("ledger-status", True, row=hit[-1], raw="")
+    emit("ledger-status", True, row=hit[-1])
     return 0
 
 
 def cmd_ledger_show(a):
     rows = L.read(a.ledger)
     out = [dict(r, 内容线=r.get("内容线") or R.line_of(r)) for r in rows[-a.last:]]
-    emit("ledger-show", True, rows=out, total=len(rows), raw="")
+    emit("ledger-show", True, rows=out, total=len(rows))
     return 0
 
 
@@ -198,7 +191,7 @@ def main():
                 return fn(a)
         return fn(a)
     except Exception as e:  # 契约：任何异常也只输出一个 JSON
-        emit(a.cmd, False, code="SCRIPT_FAILED", message="%s: %s" % (type(e).__name__, e), raw="")
+        emit(a.cmd, False, code="SCRIPT_FAILED", message="%s: %s" % (type(e).__name__, e))
         return 0
 
 

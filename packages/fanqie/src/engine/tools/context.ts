@@ -1,29 +1,17 @@
+import { config } from "../runtime-config.js";
+export { config, withPluginConfig } from "../runtime-config.js";
 import { asString } from "../parse.js";
 export { asObject, asString, asStringArray, boolArg } from "../parse.js";
 /**
  * Shared tool context: plugin config, session last-work, openWork helpers.
  */
 import { claimWorkspace } from "../../../../core/src/workspace-lock.js";
-import { AsyncLocalStorage } from "node:async_hooks";
 import { NovelError } from "../errors.js";
-import type { ExecContext, PluginConfig } from "../types.js";
+import type { ExecContext } from "../types.js";
 import { ensureStorage } from "../storage/paths.js";
 import { listWorks } from "../storage/projects.js";
 import { readWorkMeta } from "../storage/work-meta.js";
 import { resolveWorkDir } from "../work-store.js";
-const configurations = new AsyncLocalStorage<PluginConfig>();
-const DEFAULT_CONFIG: PluginConfig = {};
-export const config = new Proxy<PluginConfig>(
-  {},
-  {
-    get: (_target, key: string) => (configurations.getStore() ?? DEFAULT_CONFIG)[key],
-    ownKeys: () => Reflect.ownKeys(configurations.getStore() ?? DEFAULT_CONFIG),
-    getOwnPropertyDescriptor: () => ({ enumerable: true, configurable: true }),
-  },
-);
-export function withPluginConfig<T>(value: PluginConfig, run: () => T): T {
-  return configurations.run(value, run);
-}
 const lastWorkBySession = new Map<string, string>();
 const MAX_SESSIONS = 500;
 function sessionKey(exec: ExecContext) {
