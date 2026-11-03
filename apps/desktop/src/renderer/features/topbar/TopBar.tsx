@@ -1,3 +1,4 @@
+import { COPY as viewCopy } from "../../../../../../packages/ui/src/copy.js";
 import React, { useEffect, useRef, useState } from "react";
 import {
   BookOpen,
@@ -41,13 +42,13 @@ export function TopBar({ app }: { app: DesktopController }) {
   const views: [string, string][] =
     selected?.mode === "toutiao"
       ? [
-          ["writing", "写作"],
-          ["overview", "发稿台账"],
+          ["writing", viewCopy.tabWriting],
+          ["overview", viewCopy.ttLedgerTitle],
         ]
       : [
-          ["writing", "写作"],
+          ["writing", viewCopy.tabWriting],
           ["overview", COPY.overview],
-          ["library", "拆书库"],
+          ["library", viewCopy.topBarText1],
         ];
   if (!system) return null;
   return (
@@ -60,8 +61,8 @@ export function TopBar({ app }: { app: DesktopController }) {
           <BookOpen size={15} />
           <span>
             {selected?.mode === "toutiao"
-              ? "今日头条"
-              : focus.workTitle || focus.title || selected?.work || "选择作品"}
+              ? viewCopy.ttTitle
+              : focus.workTitle || focus.title || selected?.work || viewCopy.topBarText2}
           </span>
           <ChevronDown size={13} />
         </button>
@@ -79,7 +80,10 @@ export function TopBar({ app }: { app: DesktopController }) {
         <span className="model-status">
           <i data-ready={system.models.writer?.configured} />
           {system.models.writer?.model}
-          <small> · 编辑 {system.models.editor?.model}</small>
+          <small>
+            {viewCopy.topBarText3}
+            {system.models.editor?.model}
+          </small>
         </span>
         <div className="export-menu" ref={exportMenu}>
           <button
@@ -88,19 +92,19 @@ export function TopBar({ app }: { app: DesktopController }) {
             aria-expanded={exportOpen}
             onClick={() => setExportOpen((open) => !open)}
           >
-            导出
+            {viewCopy.agentPanelText18}
             <ChevronDown size={13} />
           </button>
           {exportOpen && (
-            <div className="export-options" role="menu" aria-label="导出">
+            <div className="export-options" role="menu" aria-label={viewCopy.agentPanelText18}>
               <button role="menuitem" onClick={() => exportAs("copy")}>
-                复制标题与正文
+                {viewCopy.topBarText4}
               </button>
               <button role="menuitem" onClick={() => exportAs("txt")}>
-                导出 TXT
+                {viewCopy.topBarText5}
               </button>
               <button role="menuitem" onClick={() => exportAs("docx")}>
-                导出 Word
+                {viewCopy.topBarText6}
               </button>
             </div>
           )}
@@ -108,19 +112,21 @@ export function TopBar({ app }: { app: DesktopController }) {
         <button className="command-button" onClick={() => set({ palette: true, query: "" })}>
           <Command size={14} />
           <span>
-            搜索与命令 <kbd>Ctrl K</kbd>
+            {viewCopy.topBarText7}
+            <kbd>Ctrl K</kbd>
           </span>
         </button>
         <button
           className="icon-button"
-          aria-label="设置"
+          aria-label={viewCopy.settingsDialogText2}
           onClick={() => set({ settingsOpen: true })}
         >
-          <SettingsIcon size={17} /> 设置
+          <SettingsIcon size={17} />
+          {viewCopy.topBarText8}
         </button>
         <button
           className="sidebar-open icon-button"
-          aria-label="打开右栏"
+          aria-label={viewCopy.topBarText9}
           onClick={() => set({ drawer: !state.drawer })}
         >
           <PanelRightOpen size={18} />
@@ -128,32 +134,37 @@ export function TopBar({ app }: { app: DesktopController }) {
       </header>
       {state.picker && (
         <div className="project-menu">
-          <h3>最近作品</h3>
+          <h3>{viewCopy.topBarText10}</h3>
           {state.projects.map((item, index) => (
             <button key={index} onClick={() => app.jump(item.target, item.focus).catch(fail)}>
               <BookOpen size={14} />
               {item.label}
-              <small>{item.target.mode === "fanqie" ? "长篇" : "头条"}</small>
+              <small>
+                {item.target.mode === "fanqie" ? viewCopy.topBarText11 : viewCopy.topBarText12}
+              </small>
             </button>
           ))}
           <div className="menu-actions">
             <button onClick={() => app.newWork("fanqie").catch(fail)}>
               <Plus size={14} />
-              新书
+              {viewCopy.topBarText13}
             </button>
             <button onClick={() => app.newWork("toutiao").catch(fail)}>
               <Plus size={14} />
-              新头条
+              {viewCopy.topBarText14}
             </button>
-            <button onClick={() => app.chooseWorkspace().catch(fail)}>选择写作文件夹</button>
+            <button onClick={() => app.chooseWorkspace().catch(fail)}>
+              {viewCopy.onboardingText4}
+            </button>
           </div>
         </div>
       )}
       {system.access?.readOnly && (
         <div className="readonly-banner">
           <AlertCircle size={15} />
-          当前作品由 {system.access.owner?.host || "另一应用"} 占用，只读。关闭另一应用中的作品后，
-          重新打开即可写入。
+          {viewCopy.topBarText15}
+          {system.access.owner?.host || viewCopy.topBarText16}
+          {viewCopy.topBarText17}
         </div>
       )}
       {state.running.filter((item) => scopeId(item.target) !== scopeId(selected)).length > 0 && (
@@ -175,7 +186,11 @@ export function TopBar({ app }: { app: DesktopController }) {
         <div className="studio-error" role="alert">
           <AlertCircle size={16} />
           {state.error}
-          <button className="icon-button" aria-label="关闭提示" onClick={() => set({ error: "" })}>
+          <button
+            className="icon-button"
+            aria-label={viewCopy.topBarText18}
+            onClick={() => set({ error: "" })}
+          >
             <X size={15} />
           </button>
         </div>

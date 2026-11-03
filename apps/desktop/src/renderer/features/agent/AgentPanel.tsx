@@ -1,9 +1,11 @@
+import { COPY as viewCopy, t as viewText } from "../../../../../../packages/ui/src/copy.js";
 import { writerResult } from "../../../writer-result";
 import { TaskProgress } from "./TaskProgress";
 import React, { useEffect, useRef, useState } from "react";
 import { Send, Plus, History, Feather, ArrowRight } from "lucide-react";
 import { Markdown } from "../../../Markdown";
-import { humanVersion, actionTitle } from "../../../commands";
+import { humanVersion, actionTitle } from "../../format";
+import { getCommand } from "../../../commands";
 import { scopeId, focusLabel, promptContext, toolLabel } from "../../../context";
 import type { ChatMessage } from "../../state/store";
 import { useChatSelector } from "../../state/chatStore";
@@ -45,7 +47,7 @@ function ChatStream({
   return (
     <div className="chat-empty">
       <Feather size={24} />
-      <p>从一句想法开始，或选择下方动作。稿件、候选与作者决定都会保留在作品里。</p>
+      <p>{viewCopy.agentPanelText1}</p>
     </div>
   );
 }
@@ -102,45 +104,53 @@ export function AgentPanel({ app }: { app: DesktopController }) {
   const steps =
     selected?.mode === "toutiao"
       ? ARTICLE_STEPS
-      : ["读材料", "规划", "起草", "自检", "出候选", "送审"];
-  const quick =
+      : [
+          viewCopy.agentPanelText2,
+          viewCopy.tabInspiration,
+          viewCopy.agentPanelText3,
+          viewCopy.agentPanelText4,
+          viewCopy.agentPanelText5,
+          viewCopy.agentPanelText6,
+        ];
+  const quickChoices =
     context.kind === "article"
-      ? context.article?.status === "已交稿"
+      ? context.article?.status === viewCopy.toutiaoAppText4
         ? [
-            ["续写", "继续推进"],
-            ["交稿", "准备交稿"],
+            [viewCopy.agentPanelText7, viewCopy.ttContinue],
+            [viewCopy.agentPanelText8, viewCopy.agentPanelText9],
           ]
         : [
-            ["续写", "继续推进"],
-            ["派编辑", "派编辑红笔"],
-            ["质检", "质检"],
+            [viewCopy.agentPanelText7, viewCopy.ttContinue],
+            [viewCopy.agentPanelText10, viewCopy.ttReview],
+            [viewCopy.ttQa, viewCopy.ttQa],
           ]
       : context.chapter && !context.outlineReady
         ? [
-            ["补全章纲", "补全章纲"],
-            ["拆书", "参考拆书"],
+            [viewCopy.agentPanelText11, viewCopy.agentPanelText11],
+            [viewCopy.agentPanelText12, viewCopy.agentPanelText13],
           ]
         : context.hasCandidate
           ? [
-              ["对照采纳", "对照采纳"],
-              ["派编辑", "派编辑审"],
-              ["改本章", "按回报修改"],
+              [viewCopy.agentPanelText14, viewCopy.agentPanelText14],
+              [viewCopy.agentPanelText10, viewCopy.agentPanelText15],
+              [viewCopy.agentPanelText16, viewCopy.deliverRevise],
             ]
-          : context.review?.verdict && context.review.verdict !== "通过"
+          : context.review?.verdict && context.review.verdict !== viewCopy.reviewPass
             ? [
-                ["改本章", "按回报修改"],
-                ["派编辑", "重新审读"],
+                [viewCopy.agentPanelText16, viewCopy.deliverRevise],
+                [viewCopy.agentPanelText10, viewCopy.agentPanelText17],
               ]
             : context.chapter?.status === "final"
               ? [
-                  ["续写", "续写下一章"],
-                  ["导出", "导出定稿"],
+                  [viewCopy.agentPanelText7, viewCopy.deliverContinue],
+                  [viewCopy.agentPanelText18, viewCopy.agentPanelText19],
                 ]
               : [
-                  ["续写", "继续写作"],
-                  ["派编辑", "派编辑审"],
-                  ["质检", "检查本章"],
+                  [viewCopy.agentPanelText7, viewCopy.agentPanelText20],
+                  [viewCopy.agentPanelText10, viewCopy.agentPanelText15],
+                  [viewCopy.ttQa, viewCopy.agentPanelText21],
                 ];
+  const quick = quickChoices.map(([id, label]) => ({ ...getCommand(id), label }));
   function resultCard(
     result: import("../../../renderer-contracts").WriterResult,
     candidateNumber?: number,
@@ -148,16 +158,16 @@ export function AgentPanel({ app }: { app: DesktopController }) {
     const title =
       result.kind === "candidate"
         ? result.draftLabel
-          ? `候选稿「${result.draftLabel}」`
-          : `候选稿${candidateNumber ? " " + candidateNumber : ""}`
+          ? viewText("agentPanelText22", { value0: result.draftLabel })
+          : viewText("agentPanelText23", { value0: candidateNumber ? " " + candidateNumber : "" })
         : (
             {
-              review: "审读回报",
-              qa: "质检结果",
-              delivery: "交稿单",
-              planning: "规划回报",
+              review: viewCopy.agentPanelText24,
+              qa: viewCopy.agentPanelText25,
+              delivery: viewCopy.ttViewDelivery,
+              planning: viewCopy.agentPanelText26,
             } as Record<string, string>
-          )[result.kind] || "任务回报";
+          )[result.kind] || viewCopy.agentPanelText27;
     return (
       <div
         className={"result-card " + (result.failed ? "failed" : "")}
@@ -166,7 +176,8 @@ export function AgentPanel({ app }: { app: DesktopController }) {
         <strong>{title}</strong>
         <p>{result.summary}</p>
         <button onClick={() => app.jump(result.target, result.focus).catch(fail)}>
-          对照查看 <ArrowRight size={14} />
+          {viewCopy.agentPanelText28}
+          <ArrowRight size={14} />
         </button>
       </div>
     );
@@ -181,7 +192,10 @@ export function AgentPanel({ app }: { app: DesktopController }) {
       if (message.isError)
         return (
           <div className="result-card failed" key={index} role="alert">
-            <strong>{toolLabel(message.toolName || "")}未完成</strong>
+            <strong>
+              {toolLabel(message.toolName || "")}
+              {viewCopy.agentPanelText29}
+            </strong>
             <Markdown text={original} />
           </div>
         );
@@ -193,14 +207,14 @@ export function AgentPanel({ app }: { app: DesktopController }) {
     }
     const parsed =
       message.role === "user" ? promptContext(original) : { text: original, context: null };
-    if (message.role === "user" && parsed.text.startsWith("【写作台】")) {
+    if (message.role === "user" && parsed.text.startsWith(viewCopy.agentPanelText30)) {
       return (
         <article className="chat-message user action-capsule" key={index}>
-          <small>你 · 发起动作</small>
+          <small>{viewCopy.agentPanelText31}</small>
           <details>
             <summary>
-              <span>{actionTitle(parsed.text) || "已发起写作动作"}</span>
-              <span className="action-capsule-more">查看指令</span>
+              <span>{actionTitle(parsed.text) || viewCopy.agentPanelText32}</span>
+              <span className="action-capsule-more">{viewCopy.agentPanelText33}</span>
             </summary>
             <div className="action-capsule-body">
               <Markdown text={parsed.text} />
@@ -212,7 +226,11 @@ export function AgentPanel({ app }: { app: DesktopController }) {
     return (
       <article className={"chat-message " + message.role} key={index}>
         <small>
-          {message.role === "user" ? "你" : message.role === "custom" ? "作者操作" : "Agent"}
+          {message.role === "user"
+            ? viewCopy.agentPanelText34
+            : message.role === "custom"
+              ? viewCopy.agentPanelText35
+              : "Agent"}
           {parsed.context?.focus?.title ? " · " + parsed.context.focus.title : ""}
           {parsed.context?.focus?.revision
             ? " · " + humanVersion(parsed.context.focus.revision)
@@ -243,10 +261,10 @@ export function AgentPanel({ app }: { app: DesktopController }) {
           }}
         >
           <History size={13} />
-          历史
+          {viewCopy.agentPanelText36}
         </button>
         <select
-          aria-label="历史对话"
+          aria-label={viewCopy.agentPanelText37}
           value={archive ?? "current"}
           onChange={async (event) => {
             const value = event.target.value === "current" ? undefined : Number(event.target.value);
@@ -255,14 +273,17 @@ export function AgentPanel({ app }: { app: DesktopController }) {
             await app.loadView(selected!, 80, value);
           }}
         >
-          <option value="current">当前对话</option>
+          <option value="current">{viewCopy.agentPanelText38}</option>
           {archives.map((item) => (
             <option key={item.id} value={item.id}>
               {item.name}
             </option>
           ))}
         </select>
-        <button title="新对话，保留作品" onClick={() => app.command("新对话").catch(fail)}>
+        <button
+          title={viewCopy.agentPanelText39}
+          onClick={() => app.command(viewCopy.agentPanelText40).catch(fail)}
+        >
           <Plus size={14} />
         </button>
       </div>
@@ -281,7 +302,7 @@ export function AgentPanel({ app }: { app: DesktopController }) {
               void app.loadView(selected!, app.limit.current, archive).catch(fail);
             }}
           >
-            查看更早记录
+            {viewCopy.agentPanelText41}
           </button>
         )}
         {messages.map((message, index) => {
@@ -300,7 +321,11 @@ export function AgentPanel({ app }: { app: DesktopController }) {
             names.add(toolLabel(messages[i].toolName || ""));
           return (
             <details className="lamp-tool-summary" key={index}>
-              <summary>已完成 {names.size} 项准备与检查</summary>
+              <summary>
+                {viewCopy.agentPanelText42}
+                {names.size}
+                {viewCopy.agentPanelText43}
+              </summary>
               {[...names].map((name) => (
                 <p key={name}>{name}</p>
               ))}
@@ -315,7 +340,7 @@ export function AgentPanel({ app }: { app: DesktopController }) {
       </div>
       <div className="agent-input-area">
         <div className="quick-actions">
-          {quick.map(([id, label]) => (
+          {quick.map(({ id, label }) => (
             <button
               disabled={archive !== undefined || state.system?.access?.readOnly || !selected}
               key={id}
@@ -324,21 +349,21 @@ export function AgentPanel({ app }: { app: DesktopController }) {
               {label}
             </button>
           ))}
-          <button onClick={() => set({ palette: true, query: "" })}>/ 更多命令</button>
+          <button onClick={() => set({ palette: true, query: "" })}>
+            {viewCopy.agentPanelText44}
+          </button>
         </div>
         <form onSubmit={submit}>
           <div className="input-target">
-            {selected ? focusLabel(selected, focus) : "尚未选择作品"}
+            {selected ? focusLabel(selected, focus) : viewCopy.agentPanelText45}
             {focus.revision !== undefined ? " · " + humanVersion(focus.revision) : ""}
           </div>
-          {busy && task && <small className="running-target">运行任务仍处理发送时的对象</small>}
-          {focus.dirty && (
-            <small className="form-warning">段落尚未保存；Agent 使用已保存稿件。</small>
-          )}
+          {busy && task && <small className="running-target">{viewCopy.agentPanelText46}</small>}
+          {focus.dirty && <small className="form-warning">{viewCopy.agentPanelText47}</small>}
           <textarea
             ref={input}
-            aria-label="写作要求"
-            placeholder="继续说要求，Enter 发送 · Shift+Enter 换行"
+            aria-label={viewCopy.agentPanelText48}
+            placeholder={viewCopy.agentPanelText49}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
@@ -354,18 +379,18 @@ export function AgentPanel({ app }: { app: DesktopController }) {
           />
           <footer>
             <span>
-              {task?.tokens ? task.tokens.toLocaleString() + " tokens" : "本地作品 · 由你决定"}
+              {task?.tokens ? task.tokens.toLocaleString() + " tokens" : viewCopy.agentPanelText50}
               {task?.tokens
-                ? " · " + (task.cost > 0 ? "$" + task.cost.toFixed(4) : "费用以服务商账单为准")
+                ? " · " + (task.cost > 0 ? "$" + task.cost.toFixed(4) : viewCopy.agentPanelText51)
                 : ""}
             </span>
             <button
               className="primary"
               disabled={!selected || archive !== undefined}
-              aria-label="发送"
+              aria-label={viewCopy.agentPanelText52}
             >
               <Send size={14} />
-              {busy ? "排队" : "发送"}
+              {busy ? viewCopy.agentPanelText53 : viewCopy.agentPanelText52}
             </button>
           </footer>
         </form>

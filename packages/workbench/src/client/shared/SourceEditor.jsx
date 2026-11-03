@@ -1,7 +1,7 @@
 /** Full-chapter source editor shared by the novel and Toutiao readers. */
 import React from "react";
 import { Button } from "./ui.jsx";
-import { t } from "./copy.js";
+import { t } from "../../../../ui/src/copy.js";
 
 const { useEffect, useRef, useState } = React;
 
@@ -57,8 +57,7 @@ export function SourceEditor({ initial, title, note, hint, onSave, onCancel, onS
       event.preventDefault();
       event.stopImmediatePropagation();
       if (savingRef.current) return;
-      if (textRef.current === initialRef.current || discardRef.current)
-        cancelRef.current();
+      if (textRef.current === initialRef.current || discardRef.current) cancelRef.current();
       else setDiscard(true);
     };
     window.addEventListener("keydown", keyboard, true);

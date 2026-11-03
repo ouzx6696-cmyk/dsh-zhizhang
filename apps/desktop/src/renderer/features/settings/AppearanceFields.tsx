@@ -1,3 +1,4 @@
+import { COPY as viewCopy } from "../../../../../../packages/ui/src/copy.js";
 import { FONT_SIZE, type Appearance } from "../../../appearance";
 import React from "react";
 import { Toggle } from "../../../../../../packages/ui/src/primitives";
@@ -11,19 +12,19 @@ export function AppearanceFields({
   return (
     <>
       <label>
-        正文字体
+        {viewCopy.appearanceFieldsText1}
         <select
           value={appearance.font}
           onChange={(event) =>
             onChange({ ...appearance, font: event.target.value as Appearance["font"] })
           }
         >
-          <option value="serif">思源宋体</option>
-          <option value="sans">思源黑体</option>
+          <option value="serif">{viewCopy.appearanceFieldsText2}</option>
+          <option value="sans">{viewCopy.appearanceFieldsText3}</option>
         </select>
       </label>
       <label>
-        正文字号
+        {viewCopy.appearanceFieldsText4}
         <input
           type="range"
           min={FONT_SIZE.min}
@@ -37,11 +38,11 @@ export function AppearanceFields({
           }
         />
       </label>
-      <div className="lamp-theme-options" aria-label="主题预览">
+      <div className="lamp-theme-options" aria-label={viewCopy.appearanceFieldsText5}>
         {[
-          ["dark", "夜灯"],
-          ["light", "晨光"],
-          ["system", "跟随系统"],
+          ["dark", viewCopy.appearanceFieldsText6],
+          ["light", viewCopy.appearanceFieldsText7],
+          ["system", viewCopy.appearanceFieldsText8],
         ].map(([theme, label]) => (
           <button
             key={theme}
@@ -69,19 +70,22 @@ export function AppearanceFields({
             fontFamily: appearance.font === "serif" ? "var(--ui-font-body)" : "var(--ui-font-ui)",
           }}
         >
-          <h3>灯下的一页</h3>
-          <p>雨停了。林川合上笔记本，窗外的末班车正慢慢驶过。那些还没写完的故事，明天可以继续。</p>
-          <small>{appearance.fontSize} 字号 · 阅读与编辑使用相同排版</small>
+          <h3>{viewCopy.appearanceFieldsText9}</h3>
+          <p>{viewCopy.appearanceFieldsText10}</p>
+          <small>
+            {appearance.fontSize}
+            {viewCopy.appearanceFieldsText11}
+          </small>
         </div>
       </div>
       <Toggle
-        label="减少透明效果"
+        label={viewCopy.appearanceFieldsText12}
         checked={!!appearance.reducedTransparency}
         onChange={(reducedTransparency: boolean) =>
           onChange({ ...appearance, reducedTransparency })
         }
       />
-      <p className="form-note">字体随应用提供；稿纸行宽与行距针对长篇阅读设置。</p>
+      <p className="form-note">{viewCopy.appearanceFieldsText13}</p>
     </>
   );
 }

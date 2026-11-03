@@ -51,11 +51,11 @@ test('守卫：any 不能超过基线，类型断言和注解均计数', async (
   assert.match(result.stderr, /any 数量 3 超过基线 0/)
 })
 
-test('守卫：组件前缀不能跨样式文件，普通模式暂时提示', async (t) => {
+test('守卫：组件前缀不能跨样式文件', async (t) => {
   const { write, run } = await guardFixture(t)
   await write('packages/ui/src/modal.css', '.wb-modal-head { display: flex; }')
   await write('packages/ui/src/overlay.css', '@media (min-width: 1em) { .wb-modal-body { display: block; } }')
-  assert.equal(run(false).status, 0)
+  assert.equal(run(false).status, 1)
   const result = run()
   assert.equal(result.status, 1)
   assert.match(result.stderr, /组件前缀 wb-modal 必须唯一/)
@@ -181,3 +181,12 @@ test('稿件只增不改，哈希记录', async () => {
   assert.deepEqual(await s.list(issues), [])
   assert.equal(issues[0].id, m.id)
 })
+
+
+test('守卫：JSX 文案从共享文案表读取',async(t)=>{
+ const {write,run}=await guardFixture(t);
+ await write('packages/workbench/src/client/example.jsx','export const View=()=> <button>中文文案</button>');
+ const result=run(false);assert.equal(result.status,1);assert.match(result.stderr,/JSX 中文文案/);
+ await write('packages/workbench/src/client/example.jsx','export const View=({copy})=> <button>{copy.title}</button>');
+ assert.equal(run(false).status,0);
+});

@@ -1,88 +1,75 @@
-@container wb-panel (max-width: 520px) {
-  .wb-toasts {
-    right: 12px;
-    left: 12px;
-    bottom: 12px;
-    width: auto;
-  }
+.wb-pf-reading {
+  padding: 24px;
+  overflow: auto;
+  font: var(--ui-size-16)/2 var(--ui-font-body);
+  white-space: pre-wrap;
 }
-/* 减少动效 */
-@media (prefers-reduced-motion: reduce) {
-  .wb-root *,
-  .wb-modal-root *,
-  .wb-scope * {
-    animation-duration: 1ms;
-    animation-iteration-count: 1;
-    transition-duration: 1ms;
-  }
-  .wb-spinner {
-    animation: wb-spin 1.6s linear infinite;
-  }
-}
-.wb-tt-score {
-  font-variant-numeric: tabular-nums;
-}
-.wb-tt-score[data-pass="true"] {
-  color: var(--wb-ok);
-  background: var(--wb-ok-soft);
-}
-.wb-tt-score[data-pass="false"] {
-  color: var(--wb-bad);
-  background: var(--wb-bad-soft);
-}
-/* 全书概况：阶段卡片、下一步列表 */
-.wb-hint {
+.wb-pf-compare {
   display: grid;
-  grid-template-columns: 12px minmax(0, 1fr);
-  gap: 8px;
-  align-items: start;
-  transition: background-color 140ms var(--wb-ease);
+  grid-template-columns: 1fr 1fr;
+  min-height: 0;
+  overflow: auto;
+  gap: 12px;
 }
-.wb-hint > .wb-icon {
-  margin-top: 4px;
-  color: var(--wb-fg-3);
+.wb-pf-compare pre {
+  margin: 0;
+  padding: 16px;
+  white-space: pre-wrap;
+  font: var(--ui-size-13)/1.75 var(--ui-font-mono);
 }
-.wb-hint-urgent > .wb-icon {
-  color: var(--wb-warn);
+.wb-pf-method-id {
+  display: none;
 }
-.wb-more-chevron {
-  display: inline-flex;
-  transform: rotate(90deg);
-  transition: transform 180ms var(--wb-ease);
+.wb-pf-item {
+  min-width: 0;
+  text-align: left;
 }
-.wb-more-open {
-  transform: rotate(-90deg);
+.wb-pf-item-note {
+  overflow-wrap: anywhere;
 }
-.wb-pipeline-body {
-  animation: wb-enter 260ms var(--wb-ease);
+.wb-pf-textarea {
+  font-family: var(--ui-font-mono);
 }
-.wb-card {
-  transition:
-    box-shadow 160ms var(--wb-ease),
-    transform 160ms var(--wb-ease);
+.wb-pf-col {
+  min-width: 0;
 }
-.wb-card-step {
-  display: inline-grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  margin-bottom: 4px;
-  border-radius: 50%;
-  corner-shape: round;
-  background: var(--wb-accent-soft);
-  color: var(--wb-accent);
-  font: 600 var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
+.wb-pf-reading {
+  flex: 1;
+  min-height: 0;
 }
-@media (hover: hover) {
-  .wb-card:hover {
-    box-shadow: var(--wb-shadow-2);
-    transform: translateY(-1px);
-  }
-  .wb-row-button:hover {
-    background: var(--wb-hover);
-  }
+.wb-pf-reading .wb-manuscript {
+  padding: 0;
+  background: none;
+  box-shadow: none;
 }
-/* ---------- 方法方案 ---------- */
+.wb-pf-reading h1,
+.wb-pf-reading h2,
+.wb-pf-reading h3 {
+  font-family: var(--ui-font-body);
+}
+.wb-pf-compare .wb-manuscript {
+  padding: 0;
+}
+.wb-pf-profiles .wb-pf-item {
+  align-items: stretch;
+  justify-content: flex-start;
+  white-space: normal;
+  text-align: left;
+}
+.wb-pf-item-note {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.wb-pf-reading .ui-markdown {
+  font-family: var(--ui-font-body);
+  font-size: var(--ui-size-16);
+  line-height: 2;
+}
+.wb-pf-reading .ui-markdown h1,
+.wb-pf-reading .ui-markdown h2 {
+  font-family: var(--ui-font-body);
+}
 .wb-profile-button {
   gap: 6px;
 }
@@ -96,24 +83,6 @@
   background: var(--wb-accent-soft);
   color: var(--wb-fg);
   font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
-}
-.wb-modal.wb-modal-wide {
-  width: min(1180px, 100%);
-  height: min(780px, calc(100% - 32px));
-  display: flex;
-  flex-direction: column;
-}
-.wb-modal-wide .wb-modal-content {
-  flex: 1 1 auto;
-  min-height: 0;
-  padding-bottom: 20px;
-}
-.wb-modal-wide .wb-modal-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
 }
 .wb-pf-grid {
   flex: 1 1 auto;
@@ -261,4 +230,72 @@
 }
 .wb-pf-editor-id {
   font: 600 var(--ui-size-13)/var(--ui-size-20) var(--ui-font-mono);
+}
+.wb-pf-textarea,
+.wb-pf-base {
+  flex: 1 1 auto;
+  min-height: 160px;
+  width: 100%;
+  resize: none;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--wb-r-md);
+  border: 0.5px solid var(--wb-line-strong);
+  background: var(--wb-layer);
+  color: var(--wb-fg);
+  font: var(--ui-size-13)/1.75 var(--ui-font-mono);
+  white-space: pre-wrap;
+  overflow: auto;
+}
+.wb-pf-textarea[readonly] {
+  background: var(--wb-hover);
+}
+.wb-pf-base {
+  flex: 0 1 40%;
+  color: var(--wb-fg-2);
+}
+.wb-pf-placeholder {
+  flex: 1 1 auto;
+  justify-content: center;
+  color: var(--wb-fg-3);
+}
+.wb-pf-new {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 560px;
+}
+@media (hover: hover) {
+  .wb-pf-item:not(.wb-pf-item-on):hover,
+  .wb-pf-method:not(.wb-pf-method-on):hover {
+    background: var(--wb-hover);
+  }
+}
+@media (max-width: 900px) {
+  .wb-pf-grid {
+    grid-template-columns: 1fr;
+    overflow: auto;
+  }
+}
+@media (max-width: 900px) {
+  .wb-pf-span {
+    grid-column: auto;
+  }
+}
+@media (max-width: 900px) {
+  .wb-pf-methods {
+    border: 0;
+    padding: 0;
+  }
+}
+@media (max-width: 900px) {
+  .wb-pf-list,
+  .wb-pf-methods-list {
+    max-height: 220px;
+  }
+}
+@media (max-width: 900px) {
+  .wb-pf-textarea {
+    min-height: 320px;
+  }
 }

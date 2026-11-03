@@ -1,11 +1,13 @@
+import { COPY as viewCopy } from "../../../../ui/src/copy.js";
 /**
  * Confirmation dialogs. Every write the panel can make (accept, review,
  * finalize, acknowledge) goes through one of these with an explicit checkbox
  * or button; nothing is written on a single click.
  */
 import React from "react";
-import { formatCount, t } from "../shared/copy.js";
-import { Button, Checkbox, Modal, SegmentedControl } from "../shared/ui.jsx";
+import { formatCount, t } from "../../../../ui/src/copy.js";
+import { Button, Checkbox, SegmentedControl } from "../shared/ui.jsx";
+import { Dialog } from "../../../../ui/src/primitives.jsx";
 import { Callout } from "../shared/common.jsx";
 
 const { useState } = React;
@@ -36,41 +38,54 @@ function AcceptDialog({ cand, onAccept, onClose }) {
     if (!busy) onClose();
   };
   return (
-    <Modal
+    <Dialog
       open
       onClose={close}
       title={t("acceptTitle")}
       closeLabel={t("close")}
-      description={t("acceptSummary", { id: cand.draftLabel ? "「" + cand.draftLabel + "」" : "当前候选稿", words: formatCount(cand.wordCount || 0) })}
+      description={t("acceptSummary", {
+        id: cand.draftLabel ? "「" + cand.draftLabel + "」" : viewCopy.dialogsText1,
+        words: formatCount(cand.wordCount || 0),
+      })}
       footer={
         <div className="wb-scope">
           <div className="wb-dialog-actions">
-          <Button variant="ghost" onClick={close} disabled={busy}>
-            {t("cancel")}
-          </Button>
-          <Button variant="primary" onClick={submit} disabled={!confirmed || busy}>
-            {busy ? t("acceptBusy") : t("acceptSubmit")}
-          </Button>
+            <Button variant="ghost" onClick={close} disabled={busy}>
+              {t("cancel")}
+            </Button>
+            <Button variant="primary" onClick={submit} disabled={!confirmed || busy}>
+              {busy ? t("acceptBusy") : t("acceptSubmit")}
+            </Button>
           </div>
         </div>
       }
     >
       <div className="wb-scope">
-      <div className="wb-dialog-body">
-        {isEdit ? <Callout tone="info">{t("acceptEditNote")}</Callout> : null}
-        {!cand.hasLintPass ? <Callout tone="warning">{t("acceptNoLint")}</Callout> : null}
-        <Checkbox checked={confirmed} disabled={busy} onChange={setConfirmed} label={isEdit ? t("acceptConfirmEdit") : t("acceptConfirm")} />
-        <Checkbox checked={force} disabled={busy} onChange={setForce} label={t("acceptForce")} />
-        <Checkbox checked={skipBrief} disabled={busy} onChange={setSkipBrief} label={t("acceptSkipBrief")} />
-        <p className="wb-muted">{t("acceptFooter")}</p>
-        {error ? (
-          <Callout tone="danger" role="alert">
-            {error}
-          </Callout>
-        ) : null}
+        <div className="wb-dialog-body">
+          {isEdit ? <Callout tone="info">{t("acceptEditNote")}</Callout> : null}
+          {!cand.hasLintPass ? <Callout tone="warning">{t("acceptNoLint")}</Callout> : null}
+          <Checkbox
+            checked={confirmed}
+            disabled={busy}
+            onChange={setConfirmed}
+            label={isEdit ? t("acceptConfirmEdit") : t("acceptConfirm")}
+          />
+          <Checkbox checked={force} disabled={busy} onChange={setForce} label={t("acceptForce")} />
+          <Checkbox
+            checked={skipBrief}
+            disabled={busy}
+            onChange={setSkipBrief}
+            label={t("acceptSkipBrief")}
+          />
+          <p className="wb-muted">{t("acceptFooter")}</p>
+          {error ? (
+            <Callout tone="danger" role="alert">
+              {error}
+            </Callout>
+          ) : null}
+        </div>
       </div>
-      </div>
-    </Modal>
+    </Dialog>
   );
 }
 
@@ -92,7 +107,12 @@ function ChapterActionDialog({ kind, chapter, meta, onSubmit, onClose }) {
     setBusy(true);
     setError(null);
     try {
-      await onSubmit(kind, kind === "review" ? { result, ...(summary.trim() ? { summary: summary.trim() } : {}) } : undefined);
+      await onSubmit(
+        kind,
+        kind === "review"
+          ? { result, ...(summary.trim() ? { summary: summary.trim() } : {}) }
+          : undefined,
+      );
     } catch (err) {
       setError(errorText(err));
       setBusy(false);
@@ -102,7 +122,7 @@ function ChapterActionDialog({ kind, chapter, meta, onSubmit, onClose }) {
     if (!busy) onClose();
   };
   return (
-    <Modal
+    <Dialog
       open
       onClose={close}
       title={t(copy.title)}
@@ -111,57 +131,57 @@ function ChapterActionDialog({ kind, chapter, meta, onSubmit, onClose }) {
       footer={
         <div className="wb-scope">
           <div className="wb-dialog-actions">
-          <Button variant="ghost" onClick={close} disabled={busy}>
-            {t("cancel")}
-          </Button>
-          <Button variant="primary" onClick={submit} disabled={busy}>
-            {busy ? t("actionBusy") : t(copy.submit)}
-          </Button>
+            <Button variant="ghost" onClick={close} disabled={busy}>
+              {t("cancel")}
+            </Button>
+            <Button variant="primary" onClick={submit} disabled={busy}>
+              {busy ? t("actionBusy") : t(copy.submit)}
+            </Button>
           </div>
         </div>
       }
     >
       <div className="wb-scope">
-      <div className="wb-dialog-body">
-        {kind === "review" ? (
-          <>
-            <div className="wb-form-row">
-              <span className="wb-form-label" id="wb-review-result-label">
-                {t("reviewResultLabel")}
-              </span>
-              <SegmentedControl
-                id="wb-review-result"
-                label={t("reviewResultLabel")}
-                value={result}
-                disabled={busy}
-                onChange={setResult}
-                options={[
-                  { value: "pass", label: t("reviewPass") },
-                  { value: "blocked", label: t("reviewBlocked") },
-                ]}
-              />
-            </div>
-            <label className="wb-form-row">
-              <span className="wb-form-label">{t("reviewSummaryLabel")}</span>
-              <textarea
-                className="wb-textarea"
-                rows={3}
-                value={summary}
-                disabled={busy}
-                placeholder={t("reviewSummaryPlaceholder")}
-                onChange={(e) => setSummary(e.target.value)}
-              />
-            </label>
-          </>
-        ) : null}
-        {error ? (
-          <Callout tone="danger" role="alert">
-            {error}
-          </Callout>
-        ) : null}
+        <div className="wb-dialog-body">
+          {kind === "review" ? (
+            <>
+              <div className="wb-form-row">
+                <span className="wb-form-label" id="wb-review-result-label">
+                  {t("reviewResultLabel")}
+                </span>
+                <SegmentedControl
+                  id="wb-review-result"
+                  label={t("reviewResultLabel")}
+                  value={result}
+                  disabled={busy}
+                  onChange={setResult}
+                  options={[
+                    { value: "pass", label: t("reviewPass") },
+                    { value: "blocked", label: t("reviewBlocked") },
+                  ]}
+                />
+              </div>
+              <label className="wb-form-row">
+                <span className="wb-form-label">{t("reviewSummaryLabel")}</span>
+                <textarea
+                  className="wb-textarea"
+                  rows={3}
+                  value={summary}
+                  disabled={busy}
+                  placeholder={t("reviewSummaryPlaceholder")}
+                  onChange={(e) => setSummary(e.target.value)}
+                />
+              </label>
+            </>
+          ) : null}
+          {error ? (
+            <Callout tone="danger" role="alert">
+              {error}
+            </Callout>
+          ) : null}
+        </div>
       </div>
-      </div>
-    </Modal>
+    </Dialog>
   );
 }
 
@@ -169,6 +189,21 @@ export function Dialogs({ state, actions }) {
   const dialog = state.dialog;
   if (!dialog) return null;
   const close = () => actions.dispatch({ type: "closeDialog" });
-  if (dialog.kind === "accept") return <AcceptDialog cand={dialog.cand} onAccept={(cand, opts) => actions.accept(cand, opts, dialog)} onClose={close} />;
-  return <ChapterActionDialog kind={dialog.kind} chapter={dialog.chapter} meta={dialog.meta} onSubmit={(kind, extra) => actions.chapterAction(kind, extra, dialog)} onClose={close} />;
+  if (dialog.kind === "accept")
+    return (
+      <AcceptDialog
+        cand={dialog.cand}
+        onAccept={(cand, opts) => actions.accept(cand, opts, dialog)}
+        onClose={close}
+      />
+    );
+  return (
+    <ChapterActionDialog
+      kind={dialog.kind}
+      chapter={dialog.chapter}
+      meta={dialog.meta}
+      onSubmit={(kind, extra) => actions.chapterAction(kind, extra, dialog)}
+      onClose={close}
+    />
+  );
 }

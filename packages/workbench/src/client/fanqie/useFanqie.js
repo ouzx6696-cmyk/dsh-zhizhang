@@ -1,3 +1,5 @@
+import { useNotices } from "../../../../ui/src/use-notices.js";
+import { newRequestId } from "../../../../ui/src/request.js";
 import { canLeaveEdit, useSourceGuard } from "../shared/useSourceGuard.js";
 /**
  * Data side of the panel: one reducer and event refreshes and on-demand body
@@ -6,8 +8,8 @@ import { canLeaveEdit, useSourceGuard } from "../shared/useSourceGuard.js";
  */
 import React from "react";
 import { fanqie } from "../shared/api.js";
-import { t } from "../shared/copy.js";
-import { diagnosticCopy } from "../shared/copy-diagnostic.js";
+import { t } from "../../../../ui/src/copy.js";
+import { diagnosticCopy } from "../../../../ui/src/copy.js";
 import { useDiagnostics } from "./useDiagnostics.js";
 import { diagnosticScope } from "./edit-state.js";
 import { PREF, writePref } from "../shared/prefs.js";
@@ -15,15 +17,18 @@ import { bodyKey, derive, initialState, reducer, snapshotSignature } from "./sta
 
 const { useCallback, useEffect, useMemo, useReducer, useRef } = React;
 
-
 function messageOf(err) {
   if (!err) return "";
   if (err.code === "forbidden") return t("forbiddenHint");
   if (err.code === "rate_limited") return t("rateLimitedHint");
-  return (err.code && err.code !== "network" && err.code !== "timeout" ? "[" + err.code + "] " : "") + (err.message || String(err));
+  return (
+    (err.code && err.code !== "network" && err.code !== "timeout" ? "[" + err.code + "] " : "") +
+    (err.message || String(err))
+  );
 }
 
 export function useFanqie({ onTarget, onSourceEditState } = {}) {
+  const { notices, push: pushNotice, dismiss: dismissNotice, clear: clearNotices } = useNotices();
   const sourceGuard = useSourceGuard(onSourceEditState);
   const canLeaveSource = sourceGuard.canLeave;
   const targetSink = useRef(onTarget);
@@ -31,26 +36,60 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
   const [state, rawDispatch] = useReducer(reducer, undefined, initialState);
   const ref = useRef(state);
   ref.current = state;
-  const setEdit = useCallback(value => {
+  const setEdit = useCallback((value) => {
     ref.current = { ...ref.current, edit: value };
     rawDispatch({ type: "edit", value });
   }, []);
-  const dispatch = useCallback(action => {
-    const previous = ref.current;
-    const navigation = ["selectProject", "selectWork", "selectChapter", "selectCandidate", "view", "readerView", "diagnosticKind", "reloadBodies"].includes(action.type);
-    if (navigation) {
-      const next = reducer(previous, action);
-      const changesSource = diagnosticScope(next) !== diagnosticScope(previous) || next.view !== previous.view || action.type === "reloadBodies";
-      if (action.type !== "reloadBodies" && (changesSource || next.readerView !== previous.readerView) && !canLeaveSource()) return false;
-      if (changesSource && previous.edit) {
-        if (!canLeaveEdit(previous.edit, window.confirm)) return false;
-        setEdit(null);
+  const dispatch = useCallback(
+    (action) => {
+      if (action.type === "notice") {
+        pushNotice(action.tone, action.text);
+        return true;
       }
-      ref.current = { ...next, edit: ref.current.edit };
-    }
-    rawDispatch(action);
-    return true;
-  }, [setEdit, canLeaveSource]);
+      if (action.type === "dismissNotice") {
+        dismissNotice(action.id);
+        return true;
+      }
+
+      const previous = ref.current;
+      const navigation = [
+        "selectProject",
+        "selectWork",
+        "selectChapter",
+        "selectCandidate",
+        "view",
+        "readerView",
+        "diagnosticKind",
+        "reloadBodies",
+      ].includes(action.type);
+      if (navigation) {
+        const next = reducer(previous, action);
+        const changesSource =
+          diagnosticScope(next) !== diagnosticScope(previous) ||
+          next.view !== previous.view ||
+          action.type === "reloadBodies";
+        if (
+          action.type !== "reloadBodies" &&
+          (changesSource || next.readerView !== previous.readerView) &&
+          !canLeaveSource()
+        )
+          return false;
+        if (changesSource && previous.edit) {
+          if (!canLeaveEdit(previous.edit, window.confirm)) return false;
+          setEdit(null);
+        }
+        ref.current = { ...next, edit: ref.current.edit };
+      }
+      if (
+        action.type === "selectProject" ||
+        (action.type === "selectWork" && action.work !== previous.work)
+      )
+        clearNotices();
+      rawDispatch(action);
+      return true;
+    },
+    [setEdit, canLeaveSource, pushNotice, dismissNotice, clearNotices],
+  );
   const view = useMemo(() => derive(state), [state.snapshot, state.chapterId, state.candidateId]); // eslint-disable-line react-hooks/exhaustive-deps
   const viewRef = useRef(view);
   viewRef.current = view;
@@ -67,9 +106,14 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
   }, []);
 
   useEffect(() => {
-    const handler = event => { if(ref.current.edit?.dirty){event.preventDefault();event.returnValue="";} };
-    window.addEventListener("beforeunload",handler);
-    return ()=>window.removeEventListener("beforeunload",handler);
+    const handler = (event) => {
+      if (ref.current.edit?.dirty) {
+        event.preventDefault();
+        event.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
   }, []);
 
   // Persist viewing choices (never author data).
@@ -100,8 +144,17 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
         try {
           const data = await fanqie.projects(!soft && projects, ctrl.signal);
           if (Array.isArray(data.projects)) {
-            projectId = projectId && data.projects.some(p => p.id === projectId) ? projectId : data.current || "";
-            if (alive.current && !ctrl.signal.aborted) dispatch({ type: "projects", selection, projects: data.projects, current: projectId });
+            projectId =
+              projectId && data.projects.some((p) => p.id === projectId)
+                ? projectId
+                : data.current || "";
+            if (alive.current && !ctrl.signal.aborted)
+              dispatch({
+                type: "projects",
+                selection,
+                projects: data.projects,
+                current: projectId,
+              });
           }
         } catch (err) {
           if (err.code === "aborted") throw err;
@@ -109,7 +162,12 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
         }
       }
       if (!alive.current || ctrl.signal.aborted || ref.current.selection !== selection) return;
-      const data = await fanqie.snapshot(projectId, selected.work, ctrl.signal, selected.view === "chapters" ? "work" : "all");
+      const data = await fanqie.snapshot(
+        projectId,
+        selected.work,
+        ctrl.signal,
+        selected.view === "chapters" ? "work" : "all",
+      );
       if (!alive.current || ctrl.signal.aborted) return;
       failures.current = 0;
       dispatch({ type: "snapshot", selection, data, signature: snapshotSignature(data) });
@@ -125,18 +183,47 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
   useEffect(() => {
     // 未形成有效快照不代表作者选择了项目根；后台写入期间尤其不能清掉作品。
     if (!state.base || !state.snapshot?.workKey) return;
-    const current = state.view === 'chapters' ? view.current : null;
-    const candidate = current && state.readerView !== 'official' ? view.activeCand : null;
-    const loaded = state.readerView === 'candidate' ? state.candidate : state.chapter;
+    const current = state.view === "chapters" ? view.current : null;
+    const candidate = current && state.readerView !== "official" ? view.activeCand : null;
+    const loaded = state.readerView === "candidate" ? state.candidate : state.chapter;
     targetSink.current?.({
-      mode: 'fanqie', root: state.base, ...(state.snapshot?.workKey ? { work: state.snapshot.workKey } : {}),
-      focus: { workTitle: state.snapshot?.title, chapter: current?.id, title: current?.title,
-        candidate: candidate?.id, source: current ? (state.readerView === 'split' ? 'split' : candidate ? 'candidate' : 'chapter') : undefined,
-        revision: loaded.status === 'ready' ? (loaded.meta?.revision ?? loaded.meta?.readVersion) : undefined,
-        dirty: !!state.edit?.dirty || sourceGuard.dirty }
+      mode: "fanqie",
+      root: state.base,
+      ...(state.snapshot?.workKey ? { work: state.snapshot.workKey } : {}),
+      focus: {
+        workTitle: state.snapshot?.title,
+        chapter: current?.id,
+        title: current?.title,
+        candidate: candidate?.id,
+        source: current
+          ? state.readerView === "split"
+            ? "split"
+            : candidate
+              ? "candidate"
+              : "chapter"
+          : undefined,
+        revision:
+          loaded.status === "ready"
+            ? (loaded.meta?.revision ?? loaded.meta?.readVersion)
+            : undefined,
+        dirty: !!state.edit?.dirty || sourceGuard.dirty,
+      },
     });
-  }, [state.base, state.snapshot?.workKey, state.snapshot?.title, state.view, state.readerView, state.chapterId, view.activeCand?.id, state.chapter.status, state.chapter.meta, state.candidate.status, state.candidate.meta, state.edit?.dirty, sourceGuard.dirty]);
-
+  }, [
+    state.base,
+    state.snapshot?.workKey,
+    state.snapshot?.title,
+    state.view,
+    state.readerView,
+    state.chapterId,
+    view.activeCand?.id,
+    state.chapter.status,
+    state.chapter.meta,
+    state.candidate.status,
+    state.candidate.meta,
+    state.edit?.dirty,
+    sourceGuard.dirty,
+  ]);
 
   // First load, and a full reload whenever the selected project or work changes.
   useEffect(() => {
@@ -146,9 +233,22 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
   // 写作 Agent 投递能力：换项目、换作品、手动刷新时重查（便宜的 GET，不进轮询）
   useEffect(() => {
     const ctrl = new AbortController();
-    fanqie.capabilities(state.projectId, ctrl.signal)
-      .then((data) => { if (alive.current) dispatch({ type: "deliver", value: { caps: { deliver: !!data.deliver, reason: data.deliverReason || "" } } }); })
-      .catch((err) => { if (alive.current && err.code !== "aborted") dispatch({ type: "deliver", value: { caps: { deliver: false, reason: messageOf(err) } } }); });
+    fanqie
+      .capabilities(state.projectId, ctrl.signal)
+      .then((data) => {
+        if (alive.current)
+          dispatch({
+            type: "deliver",
+            value: { caps: { deliver: !!data.deliver, reason: data.deliverReason || "" } },
+          });
+      })
+      .catch((err) => {
+        if (alive.current && err.code !== "aborted")
+          dispatch({
+            type: "deliver",
+            value: { caps: { deliver: false, reason: messageOf(err) } },
+          });
+      });
     return () => ctrl.abort();
   }, [state.projectId, state.selection, state.bodyEpoch, state.lastRefresh]);
 
@@ -156,7 +256,8 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
   const chapterKey = bodyKey(state, "chapter");
   useEffect(() => {
     if (!chapterKey) return undefined;
-    if (ref.current.chapter.key === chapterKey && ref.current.chapter.status === "ready") return undefined;
+    if (ref.current.chapter.key === chapterKey && ref.current.chapter.status === "ready")
+      return undefined;
     const ctrl = new AbortController();
     const { projectId, work, chapterId } = ref.current;
     dispatch({ type: "body", slot: "chapter", value: { status: "loading", key: chapterKey } });
@@ -166,12 +267,25 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
         dispatch({
           type: "body",
           slot: "chapter",
-          value: { status: "ready", key: chapterKey, body: data.body || "", meta: data.meta || null, outline: data.outline || null, truncated: !!data.truncated, bodyBytes: data.bodyBytes || 0, writer: data.writer || null },
+          value: {
+            status: "ready",
+            key: chapterKey,
+            body: data.body || "",
+            meta: data.meta || null,
+            outline: data.outline || null,
+            truncated: !!data.truncated,
+            bodyBytes: data.bodyBytes || 0,
+            writer: data.writer || null,
+          },
         });
       })
       .catch((err) => {
         if (err.code === "aborted") return;
-        dispatch({ type: "body", slot: "chapter", value: { status: "error", key: chapterKey, error: messageOf(err) } });
+        dispatch({
+          type: "body",
+          slot: "chapter",
+          value: { status: "error", key: chapterKey, error: messageOf(err) },
+        });
       });
     return () => ctrl.abort();
   }, [chapterKey]);
@@ -180,7 +294,8 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
   const candidateKey = bodyKey(state, "candidate");
   useEffect(() => {
     if (!candidateKey) return undefined;
-    if (ref.current.candidate.key === candidateKey && ref.current.candidate.status === "ready") return undefined;
+    if (ref.current.candidate.key === candidateKey && ref.current.candidate.status === "ready")
+      return undefined;
     const ctrl = new AbortController();
     const { projectId, work } = ref.current;
     const id = viewRef.current.activeCand.id;
@@ -191,12 +306,23 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
         dispatch({
           type: "body",
           slot: "candidate",
-          value: { status: "ready", key: candidateKey, body: data.body || "", meta: { ...(data.meta || {}), id }, truncated: !!data.truncated, bodyBytes: data.bodyBytes || 0 },
+          value: {
+            status: "ready",
+            key: candidateKey,
+            body: data.body || "",
+            meta: { ...(data.meta || {}), id },
+            truncated: !!data.truncated,
+            bodyBytes: data.bodyBytes || 0,
+          },
         });
       })
       .catch((err) => {
         if (err.code === "aborted") return;
-        dispatch({ type: "body", slot: "candidate", value: { status: "error", key: candidateKey, error: messageOf(err) } });
+        dispatch({
+          type: "body",
+          slot: "candidate",
+          value: { status: "error", key: candidateKey, error: messageOf(err) },
+        });
       });
     return () => ctrl.abort();
   }, [candidateKey]);
@@ -204,14 +330,23 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
   const actions = useMemo(() => {
     const notify = (tone, text) => dispatch({ type: "notice", tone, text });
     return {
-      refresh: () => { if (!dispatch({ type: "reloadBodies" })) return; return refresh({ projects: true }); },
+      refresh: () => {
+        if (!dispatch({ type: "reloadBodies" })) return;
+        return refresh({ projects: true });
+      },
       dispatch,
       notify,
       /** Adopt a candidate through the same Accept gates as the tool. */
       async accept(cand, opts, target) {
         const s = ref.current;
         if (s.edit?.dirty || s.edit?.saving) throw new Error(diagnosticCopy.finishEditing);
-        if (!target || target.selection !== s.selection || target.projectId !== s.projectId || target.work !== s.work || target.cand?.id !== cand.id)
+        if (
+          !target ||
+          target.selection !== s.selection ||
+          target.projectId !== s.projectId ||
+          target.work !== s.work ||
+          target.cand?.id !== cand.id
+        )
           throw new Error("当前作品或候选已切换，请重新确认。");
         const chapterMeta = target.meta;
         const isEdit = !!cand.editOf;
@@ -220,7 +355,8 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
             base: s.projectId || undefined,
             work: s.work,
             candidate: cand.id,
-            expectedRevision: chapterMeta && chapterMeta.id === cand.chapterId ? chapterMeta.revision : undefined,
+            expectedRevision:
+              chapterMeta && chapterMeta.id === cand.chapterId ? chapterMeta.revision : undefined,
             confirm: true,
             force: !!opts.force,
             skipBrief: !!opts.skipBrief,
@@ -246,14 +382,33 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
         const s = ref.current;
         if (s.edit?.dirty || s.edit?.saving) throw new Error(diagnosticCopy.finishEditing);
         const meta = target?.meta;
-        if (!target || target.selection !== s.selection || target.projectId !== s.projectId || target.work !== s.work || target.chapterId !== s.chapterId || meta?.id !== s.chapterId || !meta?.revision || s.chapter.status !== "ready" || s.chapter.truncated || s.chapter.meta?.revision !== meta.revision)
+        if (
+          !target ||
+          target.selection !== s.selection ||
+          target.projectId !== s.projectId ||
+          target.work !== s.work ||
+          target.chapterId !== s.chapterId ||
+          meta?.id !== s.chapterId ||
+          !meta?.revision ||
+          s.chapter.status !== "ready" ||
+          s.chapter.truncated ||
+          s.chapter.meta?.revision !== meta.revision
+        )
           throw new Error("章节或已读版本已变化，请完整加载后重新确认。");
         try {
           await fanqie.chapterAction(kind, {
-            base: target.projectId || undefined, work: target.work, chapter: target.chapterId,
-            expectedRevision: meta.revision, confirm: true, ...(extra || {}),
+            base: target.projectId || undefined,
+            work: target.work,
+            chapter: target.chapterId,
+            expectedRevision: meta.revision,
+            confirm: true,
+            ...(extra || {}),
           });
-          if (alive.current && ref.current.selection === s.selection && ref.current.chapterId === s.chapterId) {
+          if (
+            alive.current &&
+            ref.current.selection === s.selection &&
+            ref.current.chapterId === s.chapterId
+          ) {
             dispatch({ type: "closeDialog" });
             dispatch({ type: "reloadBodies" });
             notify("success", t("actionDone"));
@@ -270,10 +425,17 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
       async deliver(action, chapterId) {
         const s = ref.current;
         if (!s.work) return false;
-        const requestId = "wb-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
+        const requestId = newRequestId("wb");
         dispatch({ type: "deliver", value: { busy: action, message: null, error: null } });
         try {
-          await fanqie.deliver({ base: s.projectId || undefined, work: s.work, chapter: chapterId || undefined, action, confirm: true, requestId });
+          await fanqie.deliver({
+            base: s.projectId || undefined,
+            work: s.work,
+            chapter: chapterId || undefined,
+            action,
+            confirm: true,
+            requestId,
+          });
           if (!alive.current || ref.current.selection !== s.selection) return true;
           dispatch({ type: "deliver", value: { busy: "", message: t("deliverDone") } });
           dispatch({ type: "notice", tone: "success", text: t("deliverDone") });
@@ -281,14 +443,21 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
         } catch (err) {
           if (!alive.current || ref.current.selection !== s.selection) return false;
           dispatch({ type: "deliver", value: { busy: "", error: messageOf(err) } });
-          dispatch({ type: "notice", tone: "danger", text: t("deliverFailed", { reason: messageOf(err) }) });
+          dispatch({
+            type: "notice",
+            tone: "danger",
+            text: t("deliverFailed", { reason: messageOf(err) }),
+          });
           return false;
         }
       },
       async saveChapter({ body, expectedRevision, candidateId, scope, force }) {
         const s = ref.current;
         if (!s.work || !s.chapterId) throw new Error(t("chapterSaveMissing"));
-        if (scope && (s.projectId !== scope.base || s.work !== scope.work || s.chapterId !== scope.chapter))
+        if (
+          scope &&
+          (s.projectId !== scope.base || s.work !== scope.work || s.chapterId !== scope.chapter)
+        )
           throw new Error("编辑对象已变化，请先保留当前修改再重新打开章节。");
         const data = await fanqie.saveChapter({
           base: s.projectId || undefined,
@@ -297,7 +466,9 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
           body,
           expectedRevision,
           force: force === true,
-          ...(candidateId ? { mode: "candidate", editOf: candidateId, draftLabel: "作者修订" } : {}),
+          ...(candidateId
+            ? { mode: "candidate", editOf: candidateId, draftLabel: "作者修订" }
+            : {}),
         });
         await refresh({ soft: false });
         if (candidateId && data.candidateId) {
@@ -316,25 +487,57 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
         if (!s.work || !s.chapterId || ids.length < 2) return;
         dispatch({ type: "unify", value: { busy: true, message: null, error: null } });
         try {
-          const data = await fanqie.unifyPrepare({ base: s.projectId || undefined, work: s.work, chapter: s.chapterId, candidateIds: ids });
+          const data = await fanqie.unifyPrepare({
+            base: s.projectId || undefined,
+            work: s.work,
+            chapter: s.chapterId,
+            candidateIds: ids,
+          });
           const brief = data.brief || "";
           try {
-            if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(brief);
+            if (navigator.clipboard && navigator.clipboard.writeText)
+              await navigator.clipboard.writeText(brief);
           } catch {
             /* clipboard permission denied: the message still explains the next step */
           }
-          if (!alive.current || ref.current.selection !== s.selection || ref.current.chapterId !== s.chapterId) return;
-          dispatch({ type: "unify", value: { busy: false, message: t("unifyDone", { n: (data.candidateIds || ids).length }) } });
+          if (
+            !alive.current ||
+            ref.current.selection !== s.selection ||
+            ref.current.chapterId !== s.chapterId
+          )
+            return;
+          dispatch({
+            type: "unify",
+            value: {
+              busy: false,
+              message: t("unifyDone", { n: (data.candidateIds || ids).length }),
+            },
+          });
         } catch (err) {
-          if (!alive.current || ref.current.selection !== s.selection || ref.current.chapterId !== s.chapterId) return;
+          if (
+            !alive.current ||
+            ref.current.selection !== s.selection ||
+            ref.current.chapterId !== s.chapterId
+          )
+            return;
           dispatch({ type: "unify", value: { busy: false, error: messageOf(err) } });
         }
       },
     };
   }, [refresh]);
 
-  const diagnostics = useDiagnostics({ state, stateRef: ref, alive, setEdit, refresh: actions.refresh, notify: actions.notify });
-  return { state, view, sourceGuard, actions: { ...actions, diagnostics, sourceEditState: sourceGuard.report } };
+  const diagnostics = useDiagnostics({
+    state,
+    stateRef: ref,
+    alive,
+    setEdit,
+    refresh: actions.refresh,
+    notify: actions.notify,
+  });
+  return {
+    state: { ...state, notices },
+    view,
+    sourceGuard,
+    actions: { ...actions, diagnostics, sourceEditState: sourceGuard.report },
+  };
 }
-
-export const __messageOf = messageOf;

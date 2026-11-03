@@ -13,7 +13,7 @@
   background: var(--ui-accent-soft);
   color: var(--ui-accent);
 }
-.ui-badge[data-tone="warn"] {
+.ui-badge[data-tone="warning"] {
   background: color-mix(in srgb, var(--ui-warning) 14%, transparent);
   color: var(--ui-warning);
 }
@@ -42,21 +42,6 @@
 .ui-button-primary {
   background: var(--ui-primary-fill);
   color: var(--ui-on-accent);
-}
-.ui-tabs {
-  display: flex;
-  gap: 16px;
-  border-bottom: 1px solid var(--ui-line);
-}
-.ui-tabs > button {
-  border: 0;
-  border-radius: 0;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-}
-.ui-tabs > [aria-selected="true"] {
-  border-bottom-color: var(--ui-accent);
-  color: var(--ui-title);
 }
 .ui-card {
   background: var(--ui-fill);
@@ -149,76 +134,6 @@
   left: 21px;
   background: var(--ui-on-accent);
 }
-.lamp-dashboard {
-  padding: 28px 0;
-  display: grid;
-  gap: 20px;
-}
-.lamp-dashboard h1 {
-  font: 600 var(--ui-size-26)/1.4 var(--ui-font-body);
-  color: var(--ui-title);
-  margin: 0;
-}
-.lamp-stats {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
-}
-.lamp-dashboard-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
-  gap: 20px;
-}
-.lamp-bars {
-  height: 140px;
-  display: flex;
-  align-items: end;
-  gap: 12px;
-  margin-top: 24px;
-}
-.lamp-bar {
-  flex: 1;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: end;
-  gap: 8px;
-}
-.lamp-bar i {
-  width: 100%;
-  max-width: 36px;
-  background: var(--ui-primary-fill);
-  border-radius: 5px 5px 0 0;
-  min-height: 2px;
-}
-.lamp-bar small {
-  font-size: var(--ui-size-12);
-}
-.lamp-progress {
-  display: flex;
-  height: 8px;
-  overflow: hidden;
-  border-radius: 8px;
-  background: var(--ui-fill-strong);
-  margin: 18px 0;
-}
-.lamp-progress > span {
-  background: var(--ui-success);
-}
-.lamp-progress > span + span {
-  background: var(--ui-accent);
-}
-.lamp-next {
-  display: grid;
-  gap: 12px;
-}
-.lamp-next > div {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
 .lamp-task-meta {
   display: flex;
   gap: 10px;
@@ -246,48 +161,164 @@
   font-family: var(--ui-font-body);
   color: var(--ui-title);
 }
-.wb-pf-reading {
-  padding: 24px;
-  overflow: auto;
-  font: var(--ui-size-16)/2 var(--ui-font-body);
-  white-space: pre-wrap;
-}
-.wb-pf-compare {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  min-height: 0;
-  overflow: auto;
-  gap: 12px;
-}
-.wb-pf-compare pre {
-  margin: 0;
-  padding: 16px;
-  white-space: pre-wrap;
-  font: var(--ui-size-13)/1.75 var(--ui-font-mono);
-}
-.wb-pf-method-id {
-  display: none;
-}
-.wb-pf-item {
-  min-width: 0;
-  text-align: left;
-}
-.wb-pf-item-note {
-  overflow-wrap: anywhere;
-}
-.wb-pf-textarea {
-  font-family: var(--ui-font-mono);
-}
 .lamp-qa-score {
   font: 600 var(--ui-size-40)/1.5 var(--ui-font-body);
   color: var(--ui-accent);
 }
-.paper-ledger {
-  width: 100%;
-  max-width: none;
-  padding: 28px 0;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none;
+    transition: none;
+    scroll-behavior: auto;
+  }
 }
-.paper-ledger table {
-  width: 100%;
+@media (prefers-reduced-transparency: reduce) {
+  .studio-backdrop {
+    backdrop-filter: none;
+  }
+}
+.ui-dialog {
+  margin: auto;
+  padding: 24px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 48px);
+  overflow: auto;
+  border: 1px solid var(--ui-line-strong);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-panel);
+  color: var(--ui-text);
+  box-shadow: var(--ui-shadow-2);
+  font: var(--ui-size-14)/1.6 var(--ui-font-ui);
+}
+.ui-dialog::backdrop {
+  background: var(--ui-mask);
+  backdrop-filter: var(--ui-blur);
+}
+.ui-dialog:not([open]) {
+  display: none;
+}
+.ui-dialog.onboarding {
+  width: 560px;
+}
+.ui-dialog.onboarding > .primary {
+  position: sticky;
+  bottom: 0;
+  align-self: stretch;
+}
+.ui-dialog.methods-page {
+  width: 1280px;
+  height: min(85dvh, 900px);
+  padding: 20px;
+}
+.ui-dialog.command-dialog {
+  width: 620px;
+  padding: 16px;
+}
+.ui-dialog .command-list {
+  display: grid;
+  gap: 6px;
+}
+.ui-dialog .command-list > button {
+  justify-content: space-between;
+  text-align: left;
+}
+.ui-dialog .command-list small {
+  display: block;
+}
+.lamp-theme-options {
+  display: flex;
+  gap: 12px;
+  margin: 12px 0 24px;
+}
+.lamp-theme-options button[aria-pressed="true"] {
+  border-color: var(--ui-accent);
+  background: var(--ui-accent-soft);
+}
+.lamp-settings-preview {
+  margin: 24px 0;
+}
+.ui-dialog.onboarding .model-fields {
+  max-height: 55dvh;
+  overflow: auto;
+}
+.ui-dialog.onboarding .model-fields > legend {
+  display: none;
+}
+.lamp-component-preview {
+  max-width: 1100px;
+  margin: 32px auto;
+  padding: 24px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+.lamp-component-preview > h1,
+.lamp-component-preview > p {
+  grid-column: 1/-1;
+}
+.lamp-preview-section {
+  padding: 24px;
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  border-radius: var(--ui-radius-lg);
+  display: grid;
+  gap: 20px;
+}
+.lamp-preview-section > header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.ui-button-danger {
+  color: var(--ui-danger);
+}
+@media (max-width: 900px) {
+  .lamp-component-preview {
+    grid-template-columns: 1fr;
+  }
+}
+small {
+  font-size: var(--ui-size-12);
+}
+.ui-dialog[open].onboarding {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 32px;
+}
+.lamp-qa-score small {
+  font-family: var(--ui-font-ui);
+  font-weight: 400;
+}
+.ui-markdown table {
   border-collapse: collapse;
+  width: 100%;
+  font-family: var(--ui-font-ui);
+  font-size: var(--ui-size-13);
+}
+.ui-markdown th,
+.ui-markdown td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--ui-line);
+  text-align: left;
+  vertical-align: top;
+}
+.ui-markdown code {
+  font-family: var(--ui-font-mono);
+  font-size: var(--ui-size-13);
+  overflow-wrap: anywhere;
+}
+.ui-markdown pre {
+  overflow: auto;
+  white-space: pre-wrap;
+  padding: 12px;
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-fill);
+}
+
+.ui-dialog.wb-modal {
+  padding: 0;
+  max-height: calc(100dvh - 32px);
 }

@@ -1,18 +1,13 @@
+import { COPY as viewCopy } from "../../../../ui/src/copy.js";
+import { statusLabel as canonicalStatusLabel } from "../../../../ui/src/status.js";
+const statusLabel = (status) => canonicalStatusLabel("fanqie", status);
 import { chapterName } from "../../../../ui/src/copy.js";
 import { Dashboard } from "./Dashboard.jsx";
 /** Whole-book overview: product loop, reference library, planning, writing, ledger. */
 import React from "react";
-import { formatCount, t } from "../shared/copy.js";
+import { formatCount, t } from "../../../../ui/src/copy.js";
 import { Button, SegmentedControl, Tag } from "../shared/ui.jsx";
-import {
-  Callout,
-  Empty,
-  Foundation,
-  Section,
-  StatusDot,
-  clip,
-  statusLabel,
-} from "../shared/common.jsx";
+import { Callout, Empty, Foundation, Section, StatusDot, clip } from "../shared/common.jsx";
 
 function Library({ library }) {
   if (!library) return <Empty hint={t("libraryNone")} />;
@@ -28,8 +23,14 @@ function Library({ library }) {
         <Tag tone="neutral">{t("librarySources", { n: library.sourcesCount || 0 })}</Tag>
         <Tag tone="success">{t("libraryAccepted", { n: library.acceptedCount || 0 })}</Tag>
         <Tag tone="quiet">{t("libraryDrafted", { n: library.draftedCount || 0 })}</Tag>
-        <Tag tone="info">写法卡 {library.craftCount || 0}</Tag>
-        <Tag tone="info">立意卡 {library.mindCount || 0}</Tag>
+        <Tag tone="info">
+          {viewCopy.pipelineText1}
+          {library.craftCount || 0}
+        </Tag>
+        <Tag tone="info">
+          {viewCopy.pipelineText2}
+          {library.mindCount || 0}
+        </Tag>
       </div>
       {library.summary ? <p className="wb-muted">{clip(library.summary, 240)}</p> : null}
       {(library.analyses || []).length ? (
@@ -38,13 +39,14 @@ function Library({ library }) {
             {library.analyses.map((a) => (
               <li key={a.sourceId} className="wb-row">
                 <span className="wb-row-title">
-                  {library.sources?.find((source) => source.id === a.sourceId)?.title || "拆书记录"}
+                  {library.sources?.find((source) => source.id === a.sourceId)?.title ||
+                    viewCopy.pipelineText3}
                 </span>
                 <span className="wb-row-meta">
                   {[
                     a.stage,
                     a.facts + "/" + a.totalChapters,
-                    a.plots ? "情节 " + a.plots : "",
+                    a.plots ? viewCopy.pipelineText4 + a.plots : "",
                     a.plan ? a.plan.label + " " + a.plan.done + "/" + a.plan.total : "",
                   ]
                     .filter(Boolean)
@@ -70,8 +72,8 @@ function Library({ library }) {
         <ul className="wb-card-grid">
           {library.sources.map((s) => (
             <li key={s.id} className="wb-card">
-              <span className="wb-card-title">{s.title || "未命名资料"}</span>
-              <span className="wb-card-text">{s.author || "资料库"}</span>
+              <span className="wb-card-title">{s.title || viewCopy.pipelineText5}</span>
+              <span className="wb-card-text">{s.author || viewCopy.pipelineText6}</span>
             </li>
           ))}
         </ul>
@@ -80,7 +82,7 @@ function Library({ library }) {
         <p className="wb-muted">
           {t("libraryCombo")}：
           {library.combo.ok
-            ? "立意「" +
+            ? viewCopy.pipelineText7 +
               (library.combo.mindTitle || "—") +
               "」+ " +
               ((library.combo.craftTitles || []).join("、") || "—")
@@ -221,7 +223,7 @@ function Writing({ snap, pending, onAccept, onOpenChapter }) {
                   onClick={() => onOpenChapter(c.id)}
                 >
                   <StatusDot status={c.status} />
-                  <span className="wb-row-title">{c.title || "未命名章节"}</span>
+                  <span className="wb-row-title">{c.title || viewCopy.chapterListText1}</span>
                   <span className="wb-row-meta">
                     {statusLabel(c.status)}
                     {c.situationLens ? " · " + clip(c.situationLens, 48) : ""}
@@ -243,11 +245,13 @@ function Writing({ snap, pending, onAccept, onOpenChapter }) {
             {pending.map((c, index) => (
               <li key={c.id} className="wb-row">
                 <span className="wb-row-title">
-                  {c.draftLabel ? "「" + c.draftLabel + "」" : "候选 " + (index + 1)}
+                  {c.draftLabel
+                    ? "「" + c.draftLabel + "」"
+                    : viewCopy.inspectorText1 + (index + 1)}
                 </span>
                 <span className="wb-row-meta">
-                  {"→ 目标章节 · " + t("words", { n: formatCount(c.wordCount || 0) })}
-                  {c.hasLintPass ? " · 已扫描" : ""}
+                  {viewCopy.pipelineText8 + t("words", { n: formatCount(c.wordCount || 0) })}
+                  {c.hasLintPass ? viewCopy.inspectorText2 : ""}
                   {c.editOf ? " · " + t("candidateEdit") : ""}
                   {c.unifyOf && c.unifyOf.length ? " · " + t("unify") : ""}
                 </span>
@@ -297,7 +301,7 @@ function Ledger({ snap }) {
                 <span className="wb-row-title">
                   {chapterName(snap.chapters || [], e.chapterId)}
                 </span>
-                <span className="wb-row-meta">已整理写作上下文</span>
+                <span className="wb-row-meta">{viewCopy.pipelineText9}</span>
                 <span className="wb-row-end">{e.at}</span>
               </li>
             ))}
@@ -316,7 +320,9 @@ function Ledger({ snap }) {
                   {chapterName(snap.chapters || [], e.chapterId)}
                 </span>
                 <span className="wb-row-meta">
-                  {(e.ok ? "通过" : "需核对 " + e.warningCount) + " · " + clip(e.summary, 80)}
+                  {(e.ok ? viewCopy.reviewPass : viewCopy.pipelineText10 + e.warningCount) +
+                    " · " +
+                    clip(e.summary, 80)}
                 </span>
               </li>
             ))}
@@ -330,7 +336,7 @@ function Ledger({ snap }) {
 export function Pipeline({ state, view, actions }) {
   const { dispatch } = actions;
   const snap = view.snap;
-  if (!snap) return <Empty hint={state.error || "选择作品后，这里会显示全书进展。"}/>;
+  if (!snap) return <Empty hint={state.error || viewCopy.pipelineText11} />;
   const tabs = [
     { value: "overview", label: t("tabOverview") },
     { value: "library", label: t("tabLibrary") },
@@ -357,7 +363,7 @@ export function Pipeline({ state, view, actions }) {
   else
     body = (
       <Dashboard
-        snap={{...snap, totals:snap.totals || {}}}
+        snap={{ ...snap, totals: snap.totals || {} }}
         onOpen={(id) => {
           dispatch({ type: "selectChapter", id });
           dispatch({ type: "view", view: "chapters" });

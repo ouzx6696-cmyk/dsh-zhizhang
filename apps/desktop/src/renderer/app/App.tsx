@@ -1,3 +1,4 @@
+import { COPY as viewCopy } from "../../../../../packages/ui/src/copy.js";
 import { DesignPreview } from "../features/settings/DesignPreview";
 import React from "react";
 import { createRoot } from "react-dom/client";
@@ -27,7 +28,7 @@ function App() {
     return (
       <div className="startup">
         <LoaderCircle className="spin" />
-        正在打开写作 Agent…
+        {viewCopy.appText1}
       </div>
     );
   return (
@@ -45,7 +46,7 @@ function App() {
           onReview={() => void app.deliver("review").catch(app.fail)}
           onNewChapter={() =>
             void app
-              .sendText("【写作台】为本书规划下一章。先确认标题、冲突和章纲，不自动写正文。", {
+              .sendText(viewCopy.appText2, {
                 intent: "plan",
               })
               .catch(app.fail)
@@ -60,10 +61,10 @@ function App() {
         />
       ) : (
         <div className="studio-empty">
-          <h1>你的下一篇，从这里开始</h1>
-          <p>先连接模型并选择写作文件夹，小说与头条会统一整理在本地。</p>
+          <h1>{viewCopy.appText3}</h1>
+          <p>{viewCopy.appText4}</p>
           <button className="primary" onClick={() => set({ wizardStep: 0, onboarding: true })}>
-            开始设置
+            {viewCopy.appText5}
           </button>
         </div>
       )}

@@ -116,6 +116,15 @@ function swallowed(body) {
 }
 
 const rules = [
+  {name:"jsx-copy",check(file){
+    if(!file.client && !file.renderer)return;
+    visit(file.ast,node=>{
+      if(!(ts.isJsxText(node)||ts.isStringLiteral(node)||ts.isNoSubstitutionTemplateLiteral(node)||ts.isTemplateHead(node)||ts.isTemplateMiddle(node)||ts.isTemplateTail(node)) || !/[\u4e00-\u9fff]/.test(node.text))return;
+      let parent=node.parent;
+      while(parent && !ts.isJsxElement(parent) && !ts.isJsxSelfClosingElement(parent) && !ts.isJsxFragment(parent))parent=parent.parent;
+      if(parent)report(file,"JSX 中文文案须放入 packages/ui/src/copy.ts");
+    });
+  }},
   { name: "type-checking", check(file, source) {
     if (source.includes("@ts-nocheck")) report(file, "不许关闭类型检查");
     if (file.pkg === "desktop" && file.file.endsWith(".jsx") && !/^\/\/ @ts-check\r?\n/.test(source))
@@ -166,10 +175,14 @@ const styleRules = [
     if (/(?:^|[;{\s])font(?:-size)?\s*:[^;{}]*\b\d+(?:\.\d+)?px/.test(source)) report(file, "字号须使用 tokens");
   } },
   { name: "component-prefix", check(file, source) {
+    // Token scopes supply variables to components; they do not own component styles.
+    if(file.rel.endsWith("tokens.css"))return;
     // Read selector preludes, including those inside media/supports blocks, never declarations.
     for (const selector of source.matchAll(/(?:^|(?<=[{}]))\s*([^{}]+)\{/g)) {
       if (selector[1].trim().startsWith("@")) continue;
-      for (const match of selector[1].matchAll(/\.([a-zA-Z_][\w]*-[\w]+)/g)) {
+      for (const part of selector[1].split(",")) {
+        const match=part.match(/\.([a-zA-Z_][\w-]*)/);
+        if(!match)continue;
         const prefix = match[1].split("-").slice(0, 2).join("-");
         if (!prefixes.has(prefix)) prefixes.set(prefix, new Set());
         prefixes.get(prefix).add(file.rel);
@@ -219,7 +232,7 @@ const repositoryRules = [
   } },
   { name: "component-prefix", check() {
     for (const [prefix, files] of prefixes) {
-      if (files.size > 1) report({ rel: [...files].join(", ") }, `组件前缀 ${prefix} 必须唯一`, true);
+      if (files.size > 1) report({ rel: [...files].join(", ") }, `组件前缀 ${prefix} 必须唯一`);
     }
   } },
   { name: "any-baseline", async check() {

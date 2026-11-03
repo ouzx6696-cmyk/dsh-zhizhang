@@ -168,3 +168,21 @@ test("写作台今日头条模式：按状态与质检渲染采用和写作 Agen
     assert.deepEqual(labels(done), ["新写一篇"]);
 });
 
+
+test('T7 按周分组的标题没有文章状态点，行状态仍可见',()=>{
+ const h=(type,props,...children)=>({type,props:props||{},children:children.flat()});
+ const react={createElement:h,Component:class{},Fragment:'fragment',memo:c=>c,useState:v=>[v,()=>{}]};
+ const {ArticleList}=loadComponents(react);
+ const tree=ArticleList({articles:[{root:'/book',id:'2026-11-02-one',title:'周一',status:'已交稿',updatedAt:'2026-11-02T10:00:00Z'}],sel:{},onSelect:()=>{}});
+ let headings=0,dots=0;
+ function visit(node,heading=false){
+  if(!node || typeof node!=='object')return;
+  if(Array.isArray(node)){node.forEach(child=>visit(child,heading));return;}
+  if(typeof node.type==='function'){visit(node.type({...node.props,children:node.children}),heading);return;}
+  heading=heading || node.props.className==='wb-tt-group-head';
+  if(node.props.className==='wb-tt-group-head')headings++;
+  if(String(node.props.className).includes('wb-state-dot')){assert.equal(heading,false);dots++;}
+  visit(node.children,heading);
+ }
+ visit(tree);assert.equal(headings,1);assert.ok(dots>0,'文章行保留真实状态点');
+});

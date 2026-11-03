@@ -1,6 +1,8 @@
+import { COPY as viewCopy } from "../../../../ui/src/copy.js";
+import { Steps } from "../../../../ui/src/primitives.jsx";
 /** Right column: chapter lifecycle, author actions, candidates and context. */
 import React from "react";
-import { formatCount, t } from "../shared/copy.js";
+import { formatCount, t } from "../../../../ui/src/copy.js";
 import { Button, Icon, Tag, cx } from "../shared/ui.jsx";
 import { ActionCard, Callout, Foundation, Hints, Section, StatusTag } from "../shared/common.jsx";
 
@@ -17,23 +19,12 @@ function stageIndex(status) {
 }
 
 function Lifecycle({ status }) {
-  const at = stageIndex(status);
   return (
-    <ol className="wb-stepper" aria-label={t("lifecycle")}>
-      {STAGES.map(([value, key], i) => (
-        <li
-          key={value}
-          className="wb-step"
-          data-state={i < at ? "done" : i === at ? "current" : "todo"}
-          aria-current={i === at ? "step" : undefined}
-        >
-          <span className="wb-step-mark" aria-hidden="true">
-            {i < at ? <Icon name="check" size={10} /> : null}
-          </span>
-          <span className="wb-step-label">{t(key)}</span>
-        </li>
-      ))}
-    </ol>
+    <Steps
+      steps={STAGES.map(([, key]) => t(key))}
+      current={stageIndex(status)}
+      label={t("lifecycle")}
+    />
   );
 }
 
@@ -108,7 +99,7 @@ export function WriterAgent({ state, actions, chapterId, writer, bodyReady }) {
             onClick={() => send("review", chapterId)}
           />
         ) : null}
-        {chapterId && review && !review.stale && review.verdict !== "通过" ? (
+        {chapterId && review && !review.stale && review.verdict !== viewCopy.reviewPass ? (
           <ActionCard
             icon="wand"
             title={t("deliverRevise")}
@@ -279,12 +270,14 @@ export function Inspector({ state, view, actions, hideAgent = false, compact = f
                       }
                     >
                       <span className="wb-candidate-card-title">
-                        {pc.draftLabel ? "「" + pc.draftLabel + "」" : "候选 " + (index + 1)}
+                        {pc.draftLabel
+                          ? "「" + pc.draftLabel + "」"
+                          : viewCopy.inspectorText1 + (index + 1)}
                       </span>
                       <span className="wb-candidate-card-meta">
                         {t("words", { n: formatCount(pc.wordCount || 0) })}
-                        {pc.hasLintPass ? " · 已扫描" : ""}
-                        {pc.lintHitCount ? " · 提示 " + pc.lintHitCount : ""}
+                        {pc.hasLintPass ? viewCopy.inspectorText2 : ""}
+                        {pc.lintHitCount ? viewCopy.inspectorText3 + pc.lintHitCount : ""}
                         {pc.editOf ? " · " + t("candidateEdit") : ""}
                       </span>
                       {pc.note ? <span className="wb-candidate-card-note">{pc.note}</span> : null}

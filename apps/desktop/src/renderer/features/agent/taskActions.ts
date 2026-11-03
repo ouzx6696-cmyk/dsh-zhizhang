@@ -1,3 +1,4 @@
+import { newRequestId } from "../../../../../../packages/ui/src/request";
 import type { Focus, Target } from "../../../context";
 import type { DesktopState } from "../../state/store";
 import { desktop } from "../../state/desktop";
@@ -37,7 +38,7 @@ export async function startNewWork(
         action: "new",
         note,
         confirm: true,
-        requestId: crypto.randomUUID(),
+        requestId: newRequestId("desktop"),
       },
     });
   else
@@ -63,7 +64,7 @@ export async function deliverAction(deps: TaskActionDependencies, action: string
           action,
           note,
           confirm: true,
-          requestId: crypto.randomUUID(),
+          requestId: newRequestId("desktop"),
         }
       : {
           root: target.root,
@@ -71,7 +72,7 @@ export async function deliverAction(deps: TaskActionDependencies, action: string
           action,
           note,
           confirm: true,
-          requestId: crypto.randomUUID(),
+          requestId: newRequestId("desktop"),
         };
   await desktop.request(target.mode === "fanqie" ? "/agent/deliver" : "/toutiao/agent/deliver", {
     method: "POST",

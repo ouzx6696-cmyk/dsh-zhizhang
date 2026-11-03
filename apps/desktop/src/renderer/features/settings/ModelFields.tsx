@@ -1,3 +1,4 @@
+import { COPY as viewCopy, t as viewText } from "../../../../../../packages/ui/src/copy.js";
 import { errorText } from "../../../../../../packages/core/src/errors.js";
 import type { ModelConnection, Thinking } from "../../../models";
 import type { ConnectionResult } from "../../state/store";
@@ -87,11 +88,17 @@ export function ModelFields({
   };
   return (
     <fieldset className="model-fields">
-      <legend>{role === "writer" ? "写手" : role === "editor" ? "独立编辑" : "规划"}</legend>
+      <legend>
+        {role === "writer"
+          ? viewCopy.modelFieldsText1
+          : role === "editor"
+            ? viewCopy.modelFieldsText2
+            : viewCopy.tabInspiration}
+      </legend>
       <label>
-        服务商
+        {viewCopy.modelFieldsText3}
         <select value={model.provider} onChange={(event) => preset(event.target.value)}>
-          <option value="custom">自定义连接</option>
+          <option value="custom">{viewCopy.modelFieldsText4}</option>
           {(catalog.providers || [])
             .filter((p) => !PROVIDERS.some((row) => row.id === p.id))
             .map((p) => (
@@ -107,7 +114,7 @@ export function ModelFields({
         </select>
       </label>
       <label>
-        模型
+        {viewCopy.modelFieldsText5}
         <input
           value={model.model}
           list={`model-options-${role}`}
@@ -129,39 +136,37 @@ export function ModelFields({
         <input
           type="password"
           autoComplete="off"
-          placeholder={model.configured ? "已保存，留空保持" : "编辑可沿用同一接口的写手 Key"}
+          placeholder={model.configured ? viewCopy.modelFieldsText6 : viewCopy.modelFieldsText7}
           value={model.apiKey || ""}
           onChange={(event) => onChange({ ...model, apiKey: event.target.value })}
         />
       </label>
       <details className="model-advanced">
-        <summary>高级连接与模型设置</summary>
+        <summary>{viewCopy.modelFieldsText8}</summary>
         <label>
-          接口地址
+          {viewCopy.modelFieldsText9}
           <input
             type="url"
             value={model.baseUrl}
             onChange={(event) => onChange({ ...model, baseUrl: event.target.value })}
           />
         </label>
-        <p className="form-note">
-          填写基础地址，端口直接写在地址中，例如 http://127.0.0.1:11434/v1；保留代理路径。
-        </p>
+        <p className="form-note">{viewCopy.modelFieldsText10}</p>
         <label>
-          接口类型
+          {viewCopy.modelFieldsText11}
           <select
             value={model.api}
             onChange={(e) => onChange({ ...model, api: e.target.value as ModelConnection["api"] })}
           >
             {Array.from(new Set([...APIS, model.api])).map((api) => (
               <option key={api} value={api}>
-                {API_LABELS[api] || "其他兼容接口"}
+                {API_LABELS[api] || viewCopy.modelFieldsText12}
               </option>
             ))}
           </select>
         </label>
         <label>
-          选择模型
+          {viewCopy.modelFieldsText13}
           <select
             value=""
             onChange={(e) => {
@@ -177,7 +182,7 @@ export function ModelFields({
                 });
             }}
           >
-            <option value="">从列表选择，也可手填</option>
+            <option value="">{viewCopy.modelFieldsText14}</option>
             {catalog.models.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.name}
@@ -187,17 +192,17 @@ export function ModelFields({
         </label>
         <div className="button-row">
           <button type="button" disabled={loading} onClick={() => load("refresh")}>
-            刷新模型列表
+            {viewCopy.refreshModels}
           </button>
           <button type="button" disabled={loading} onClick={() => load("endpoint")}>
-            从当前服务获取模型
+            {viewCopy.modelFieldsText15}
           </button>
         </div>
         <p className="form-note">
           {catalog.source?.startsWith("PI")
             ? COPY.modelList
             : catalog.source
-              ? "当前服务提供的模型（容量需核对）"
+              ? viewCopy.modelFieldsText16
               : ""}
         </p>
         {catalogError && <p className="form-error">{catalogError}</p>}
@@ -207,12 +212,12 @@ export function ModelFields({
             checked={!!model.keyless}
             onChange={(e) => onChange({ ...model, keyless: e.target.checked })}
           />
-          本地服务无需 Key
+          {viewCopy.modelFieldsText17}
         </label>
 
         <div className="field-grid">
           <label>
-            上下文窗口
+            {viewCopy.modelFieldsText18}
             <input
               type="number"
               min="1024"
@@ -224,7 +229,7 @@ export function ModelFields({
             />
           </label>
           <label>
-            最大输出
+            {viewCopy.modelFieldsText19}
             <input
               type="number"
               min="1"
@@ -240,11 +245,11 @@ export function ModelFields({
             checked={model.reasoning}
             onChange={(event) => onChange({ ...model, reasoning: event.target.checked })}
           />
-          启用模型思考能力
+          {viewCopy.modelFieldsText20}
         </label>
         {model.reasoning && (
           <label>
-            思考档位
+            {viewCopy.modelFieldsText21}
             <select
               value={model.thinkingLevel}
               onChange={(event) =>
@@ -259,15 +264,20 @@ export function ModelFields({
         )}
       </details>
       {catalog.thinkingLevel && catalog.thinkingLevel !== model.thinkingLevel && (
-        <p className="form-note">此模型实际使用思考档位：{catalog.thinkingLevel}</p>
+        <p className="form-note">
+          {viewCopy.modelFieldsText22}
+          {catalog.thinkingLevel}
+        </p>
       )}
       <button type="button" onClick={onTest} disabled={result?.busy}>
         {result?.busy ? <LoaderCircle size={14} className="spin" /> : <Check size={14} />}
-        测试连接
+        {viewCopy.modelFieldsText23}
       </button>
       {result && (
         <p className={result.error ? "form-error" : "form-note"}>
-          {result.busy ? "正在发送最短连接请求…" : result.error || `已连接 · ${result.latency} ms`}
+          {result.busy
+            ? viewCopy.modelFieldsText24
+            : result.error || viewText("modelFieldsText25", { value0: result.latency })}
         </p>
       )}
     </fieldset>

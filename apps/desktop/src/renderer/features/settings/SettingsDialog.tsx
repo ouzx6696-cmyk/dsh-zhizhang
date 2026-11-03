@@ -1,3 +1,4 @@
+import { COPY as viewCopy, t as viewText } from "../../../../../../packages/ui/src/copy.js";
 import { errorText } from "../../../../../../packages/core/src/errors.js";
 import { useConnectionTest } from "./useConnectionTest";
 import { AppearanceFields } from "./AppearanceFields";
@@ -59,7 +60,7 @@ export function Settings({
     try {
       const result = await operation();
       if (result && typeof result === "object" && "file" in result)
-        setMessage("已保存到 " + result.file);
+        setMessage(viewCopy.settingsDialogText1 + result.file);
       return result;
     } catch (error) {
       setMessage(errorText(error));
@@ -81,22 +82,22 @@ export function Settings({
       onClose();
     });
   return (
-    <Dialog title="设置" className="studio-settings" onClose={onClose}>
+    <Dialog title={viewCopy.settingsDialogText2} className="studio-settings" onClose={onClose}>
       <header>
-        <h2>设置</h2>
-        <button className="icon-button" aria-label="关闭设置" onClick={onClose}>
+        <h2>{viewCopy.settingsDialogText2}</h2>
+        <button className="icon-button" aria-label={viewCopy.settingsDialogText3} onClick={onClose}>
           <X size={18} />
         </button>
       </header>
       <div className="settings-body">
-        <nav className="settings-nav" aria-label="设置分区">
+        <nav className="settings-nav" aria-label={viewCopy.settingsDialogText4}>
           {[
-            ["models", "模型"],
-            ["workspace", "写作文件夹"],
-            ["appearance", "外观"],
-            ["shortcuts", "快捷键"],
-            ["resources", "备份与诊断"],
-            ["about", "关于"],
+            ["models", viewCopy.modelFieldsText5],
+            ["workspace", viewCopy.workspace],
+            ["appearance", viewCopy.settingsDialogText5],
+            ["shortcuts", viewCopy.settingsDialogText6],
+            ["resources", viewCopy.settingsDialogText7],
+            ["about", viewCopy.settingsDialogText8],
           ].map(([id, label]) => (
             <button
               aria-current={tab === id ? "page" : undefined}
@@ -111,16 +112,14 @@ export function Settings({
         <div className="settings-content">
           {tab === "models" && (
             <>
-              <p className="form-note">
-                保存连接会停止当前任务。编辑与写手保持独立对话，可使用相同连接。
-              </p>
+              <p className="form-note">{viewCopy.settingsDialogText9}</p>
               {!state.secureStorage && (
                 <p className="form-warning">
                   <Shield size={16} />
-                  系统安全存储不可用，Key 只保留到本次应用关闭。
+                  {viewCopy.settingsDialogText10}
                 </p>
               )}
-              <div className="role-tabs" role="tablist" aria-label="模型角色">
+              <div className="role-tabs" role="tablist" aria-label={viewCopy.settingsDialogText11}>
                 {(["writer", "editor", "planner"] as const).map((role) => (
                   <button
                     key={role}
@@ -129,13 +128,17 @@ export function Settings({
                     className={roleTab === role ? "active" : ""}
                     onClick={() => setRoleTab(role)}
                   >
-                    {role === "writer" ? "写手" : role === "editor" ? "独立编辑" : "规划"}
+                    {role === "writer"
+                      ? viewCopy.modelFieldsText1
+                      : role === "editor"
+                        ? viewCopy.modelFieldsText2
+                        : viewCopy.tabInspiration}
                   </button>
                 ))}
               </div>
               {roleTab === "editor" && (
                 <Toggle
-                  label="编辑沿用写手连接（独立对话）"
+                  label={viewCopy.settingsDialogText12}
                   checked={editorLinked}
                   onChange={(checked: boolean) => {
                     setEditorLinked(checked);
@@ -177,7 +180,7 @@ export function Settings({
                       checked={false}
                       onChange={() => setModels((previous) => ({ ...previous, planner: null }))}
                     />
-                    改为跟随写手模型
+                    {viewCopy.settingsDialogText13}
                   </label>
                 </>
               ) : (
@@ -192,43 +195,43 @@ export function Settings({
                       }))
                     }
                   />
-                  规划与拆书使用独立模型
+                  {viewCopy.settingsDialogText14}
                 </label>
               )}
             </>
           )}
           {tab === "workspace" && (
             <>
-              <h3>写作文件夹</h3>
-              <p className="path-label">{state.workspace || "尚未选择"}</p>
-              <p className="form-note">
-                小说位于 novels，头条位于 toutiao；作者偏好由两种模式共用。导入旧目录不会移动原稿。
-              </p>
+              <h3>{viewCopy.workspace}</h3>
+              <p className="path-label">{state.workspace || viewCopy.settingsDialogText15}</p>
+              <p className="form-note">{viewCopy.settingsDialogText16}</p>
               <div className="button-row">
                 <button onClick={() => action(onWorkspace)}>
                   <FolderOpen size={16} />
-                  选择写作文件夹
+                  {viewCopy.onboardingText4}
                 </button>
-                <button onClick={() => action(() => onImport("fanqie"))}>导入长篇目录</button>
-                <button onClick={() => action(() => onImport("toutiao"))}>导入头条目录</button>
+                <button onClick={() => action(() => onImport("fanqie"))}>
+                  {viewCopy.settingsDialogText17}
+                </button>
+                <button onClick={() => action(() => onImport("toutiao"))}>
+                  {viewCopy.settingsDialogText18}
+                </button>
               </div>
-              <h3>作者偏好</h3>
-              <p className="form-note">
-                记录文风、人称习惯、常用垂类和希望避免的表达。每次任务会带入这些偏好。
-              </p>
+              <h3>{viewCopy.settingsDialogText19}</h3>
+              <p className="form-note">{viewCopy.settingsDialogText20}</p>
               <textarea
                 className="preferences-editor"
                 value={preferences ?? ""}
                 disabled={preferences === null}
                 onChange={(event) => setPreferences(event.target.value)}
-                placeholder="例如：第三人称限知；对白简短；不要替角色解释情绪。"
+                placeholder={viewCopy.settingsDialogText21}
               />
-              <h3>当前作品状态与恢复</h3>
+              <h3>{viewCopy.settingsDialogText22}</h3>
               <button
                 disabled={busy}
                 onClick={() => action(async () => setHealth(await api.storageHealth()))}
               >
-                检查占用和未完成写入
+                {viewCopy.settingsDialogText23}
               </button>
               {health && (
                 <div role="status">
@@ -254,7 +257,7 @@ export function Settings({
                         })
                       }
                     >
-                      备份后恢复原操作
+                      {viewCopy.settingsDialogText24}
                     </button>
                   )}
                 </div>
@@ -266,53 +269,62 @@ export function Settings({
           )}
           {tab === "shortcuts" && (
             <div>
-              <h3>写作快捷键</h3>
+              <h3>{viewCopy.settingsDialogText25}</h3>
               <p>
-                <kbd>Ctrl K</kbd> 搜索与命令
+                <kbd>Ctrl K</kbd>
+                {viewCopy.settingsDialogText26}
               </p>
               <p>
-                <kbd>Ctrl S</kbd> 保存当前编辑
+                <kbd>Ctrl S</kbd>
+                {viewCopy.settingsDialogText27}
               </p>
               <p>
-                <kbd>Ctrl 1 / 2 / 3</kbd> 切换右栏
+                <kbd>Ctrl 1 / 2 / 3</kbd>
+                {viewCopy.settingsDialogText28}
               </p>
               <p>
-                <kbd>Esc</kbd> 关闭浮层或停止任务
+                <kbd>Esc</kbd>
+                {viewCopy.settingsDialogText29}
               </p>
-              <p>减少动效会沿用系统设置。</p>
+              <p>{viewCopy.settingsDialogText30}</p>
             </div>
           )}
           {tab === "about" && (
             <div>
               <Brand />
-              <h3>写作 Agent · {state.version}</h3>
-              <p>一盏灯，一页稿纸。基于内置写作内核，作品保存在自己的文件夹。</p>
-              <h3>应用更新</h3>
+              <h3>
+                {viewCopy.settingsDialogText31}
+                {state.version}
+              </h3>
+              <p>{viewCopy.settingsDialogText32}</p>
+              <h3>{viewCopy.settingsDialogText33}</h3>
               <p>
                 {updates.state === "available"
-                  ? `发现 ${updates.version}`
+                  ? viewText("settingsDialogText34", { value0: updates.version })
                   : updates.state === "downloaded"
-                    ? "更新已下载，确认后重启安装"
+                    ? viewCopy.settingsDialogText35
                     : updates.state === "downloading"
-                      ? `正在下载 ${updates.percent}%`
-                      : updates.message || "启动时检查更新，下载和安装均由你决定。"}
+                      ? viewText("settingsDialogText36", { value0: updates.percent })
+                      : updates.message || viewCopy.settingsDialogText37}
               </p>
               <div className="button-row">
-                <button onClick={() => action(() => api.updates())}>检查更新</button>
+                <button onClick={() => action(() => api.updates())}>
+                  {viewCopy.settingsDialogText38}
+                </button>
                 {updates.state === "available" && (
                   <button onClick={() => action(() => api.updates("download"))}>
                     <Download size={16} />
-                    下载更新
+                    {viewCopy.settingsDialogText39}
                   </button>
                 )}
                 {updates.state === "downloaded" && (
                   <button
                     onClick={async () => {
-                      if (canRestart() && (await askConfirm("停止任务并重启安装更新？")))
+                      if (canRestart() && (await askConfirm(viewCopy.settingsDialogText40)))
                         void action(() => api.updates("install"));
                     }}
                   >
-                    重启安装
+                    {viewCopy.settingsDialogText41}
                   </button>
                 )}
               </div>
@@ -321,13 +333,10 @@ export function Settings({
           {tab === "resources" && (
             <>
               <button disabled={busy} onClick={() => action(() => api.backup())}>
-                备份写作文件夹
+                {viewCopy.settingsDialogText42}
               </button>
-              <h3>资料检索（可选）</h3>
-              <p className="form-note">
-                未配置搜索时，Agent
-                只能读取你提供的公开链接。搜索摘要不算已核实出处，资讯事实须继续读取原网页。
-              </p>
+              <h3>{viewCopy.settingsDialogText43}</h3>
+              <p className="form-note">{viewCopy.settingsDialogText44}</p>
               <label>
                 Tavily API Key
                 <input
@@ -337,7 +346,11 @@ export function Settings({
                     setSearchKey(event.target.value);
                     setSearchChanged(true);
                   }}
-                  placeholder={state.searchConfigured ? "已配置，留空保持" : "可不填"}
+                  placeholder={
+                    state.searchConfigured
+                      ? viewCopy.settingsDialogText45
+                      : viewCopy.settingsDialogText46
+                  }
                 />
               </label>
               <button
@@ -347,11 +360,13 @@ export function Settings({
                   setSearchChanged(true);
                 }}
               >
-                清除搜索 Key
+                {viewCopy.settingsDialogText47}
               </button>
-              <h3>诊断</h3>
-              <p className="form-note">诊断包仅含版本、去敏配置与运行事件，不含 Key 或稿件正文。</p>
-              <button onClick={() => action(() => api.diagnostics())}>导出诊断包</button>
+              <h3>{viewCopy.settingsDialogText48}</h3>
+              <p className="form-note">{viewCopy.settingsDialogText49}</p>
+              <button onClick={() => action(() => api.diagnostics())}>
+                {viewCopy.settingsDialogText50}
+              </button>
             </>
           )}
         </div>
@@ -362,9 +377,9 @@ export function Settings({
         </p>
       )}
       <footer>
-        <button onClick={onClose}>取消</button>
+        <button onClick={onClose}>{viewCopy.cancel}</button>
         <button className="primary" disabled={busy} onClick={save}>
-          保存设置
+          {viewCopy.settingsDialogText51}
         </button>
       </footer>
     </Dialog>

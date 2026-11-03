@@ -1,33 +1,38 @@
 export type StatusMode = "fanqie" | "toutiao";
-export type StatusTone = "neutral" | "info" | "warn" | "success" | "danger";
+export type StatusTone = "neutral" | "info" | "warning" | "success" | "danger";
 
-const FANQIE: Record<string, { label: string; tone: StatusTone }> = {
-  drafting: { label: "草稿", tone: "neutral" },
-  draft: { label: "草稿", tone: "neutral" },
-  drafted: { label: "草稿", tone: "neutral" },
-  planned: { label: "待规划", tone: "neutral" },
-  staged: { label: "待审", tone: "info" },
-  reviewed: { label: "已审", tone: "success" },
-  accepted: { label: "已审", tone: "success" },
-  final: { label: "定稿", tone: "success" },
-  live: { label: "已交稿", tone: "success" },
+const FANQIE: Record<string, { label: string; tone: StatusTone; dot: string }> = {
+  drafting: { label: "草稿", tone: "neutral", dot: "warning" },
+  draft: { label: "草稿", tone: "neutral", dot: "warning" },
+  drafted: { label: "草稿", tone: "neutral", dot: "warning" },
+  planned: { label: "待规划", tone: "neutral", dot: "idle" },
+  staged: { label: "待审", tone: "info", dot: "warning" },
+  reviewed: { label: "已审", tone: "success", dot: "done" },
+  accepted: { label: "已审", tone: "success", dot: "done" },
+  final: { label: "定稿", tone: "success", dot: "done" },
+  live: { label: "已交稿", tone: "success", dot: "done" },
 };
 
-const TOUTIAO: Record<string, { label: string; tone: StatusTone }> = {
-  初稿待改: { label: "待改稿", tone: "neutral" },
-  待验收: { label: "待验收", tone: "info" },
-  验收退回: { label: "待改", tone: "danger" },
-  已验收: { label: "已验收", tone: "success" },
-  已交稿: { label: "已交稿", tone: "success" },
+const TOUTIAO: Record<string, { label: string; tone: StatusTone; dot: string }> = {
+  初稿待改: { label: "待改稿", tone: "neutral", dot: "warning" },
+  待验收: { label: "待验收", tone: "info", dot: "warning" },
+  验收退回: { label: "待改", tone: "danger", dot: "error" },
+  已验收: { label: "已验收", tone: "success", dot: "done" },
+  已交稿: { label: "已交稿", tone: "success", dot: "done" },
 };
 
 export function statusInfo(mode: StatusMode, status?: string) {
   if (!status)
-    return { label: mode === "toutiao" ? "待写" : "待规划", tone: "neutral" as StatusTone };
+    return {
+      label: mode === "toutiao" ? "待写" : "待规划",
+      tone: "neutral" as StatusTone,
+      dot: "idle",
+    };
   const table = mode === "toutiao" ? TOUTIAO : FANQIE;
   if (table[status]) return table[status];
-  if (/[\u4e00-\u9fa5]/.test(status)) return { label: status, tone: "neutral" as StatusTone };
-  return { label: "状态未知", tone: "warn" as StatusTone };
+  if (/[\u4e00-\u9fa5]/.test(status))
+    return { label: status, tone: "neutral" as StatusTone, dot: "idle" };
+  return { label: "状态未知", tone: "warning" as StatusTone, dot: "warning" };
 }
 
 export const statusLabel = (mode: StatusMode, status?: string) => statusInfo(mode, status).label;

@@ -1,18 +1,35 @@
+import { COPY as viewCopy, t as viewText } from "../../../../ui/src/copy.js";
+import { statusLabel as canonicalStatusLabel } from "../../../../ui/src/status.js";
+const statusLabel = (status) => canonicalStatusLabel("fanqie", status);
 /** Left column: chapters with their pending candidates, filter and keyboard walk. */
 import React from "react";
-import { formatCount, t } from "../shared/copy.js";
+import { formatCount, t } from "../../../../ui/src/copy.js";
 import { Icon, SegmentedControl, cx } from "../shared/ui.jsx";
-import { Empty, StatusDot, clip, statusLabel } from "../shared/common.jsx";
+import { Empty, StatusDot, clip } from "../shared/common.jsx";
 
 const { memo, useMemo, useState } = React;
 
 function matches(chapter, query) {
   if (!query) return true;
   const q = query.toLowerCase();
-  return String(chapter.title || "").toLowerCase().includes(q) || String(chapter.id || "").toLowerCase().includes(q);
+  return (
+    String(chapter.title || "")
+      .toLowerCase()
+      .includes(q) ||
+    String(chapter.id || "")
+      .toLowerCase()
+      .includes(q)
+  );
 }
 
-function ChapterListImpl({ chapters, byChapter, impacts, chapterId, onSelectChapter, onSelectCandidate }) {
+function ChapterListImpl({
+  chapters,
+  byChapter,
+  impacts,
+  chapterId,
+  onSelectChapter,
+  onSelectCandidate,
+}) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
   const showTools = chapters.length > 6;
@@ -29,7 +46,13 @@ function ChapterListImpl({ chapters, byChapter, impacts, chapterId, onSelectChap
 
   // Arrow keys walk the chapter rows; Enter/Space are native button activation.
   const onKeyDown = (event) => {
-    if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "Home" && event.key !== "End") return;
+    if (
+      event.key !== "ArrowDown" &&
+      event.key !== "ArrowUp" &&
+      event.key !== "Home" &&
+      event.key !== "End"
+    )
+      return;
     const rows = Array.from(event.currentTarget.querySelectorAll("[data-wb-row]"));
     const at = rows.indexOf(document.activeElement);
     if (!rows.length) return;
@@ -50,7 +73,12 @@ function ChapterListImpl({ chapters, byChapter, impacts, chapterId, onSelectChap
           <label className="wb-search">
             <Icon name="search" size={14} />
             <span className="wb-visually-hidden">{t("chapterFilter")}</span>
-            <input type="search" value={query} placeholder={t("chapterFilterPlaceholder")} onChange={(e) => setQuery(e.target.value)} />
+            <input
+              type="search"
+              value={query}
+              placeholder={t("chapterFilterPlaceholder")}
+              onChange={(e) => setQuery(e.target.value)}
+            />
           </label>
           <SegmentedControl
             id="wb-chapter-filter"
@@ -85,7 +113,7 @@ function ChapterListImpl({ chapters, byChapter, impacts, chapterId, onSelectChap
                     <StatusDot status={c.status} />
                     <span className="wb-chapter-text">
                       <span className="wb-chapter-title" title={c.title}>
-                        {c.title || "未命名章节"}
+                        {c.title || viewCopy.chapterListText1}
                       </span>
                       <span className="wb-chapter-meta">
                         {statusLabel(c.status)}
@@ -94,15 +122,19 @@ function ChapterListImpl({ chapters, byChapter, impacts, chapterId, onSelectChap
                       </span>
                     </span>
                     <span className="wb-chapter-flags">
-                      {impacts.has(c.id) ? <span className="wb-flag" data-tone="danger">{t("impactBadge")}</span> : null}
+                      {impacts.has(c.id) ? (
+                        <span className="wb-flag" data-tone="danger">
+                          {t("impactBadge")}
+                        </span>
+                      ) : null}
                     </span>
                   </button>
                   {cands.length ? (
                     <button
                       type="button"
                       className="wb-candidate-badge"
-                      aria-label={`查看 ${cands.length} 个候选`}
-                      title={`查看 ${cands.length} 个候选`}
+                      aria-label={viewText("chapterListText2", { value0: cands.length })}
+                      title={viewText("chapterListText2", { value0: cands.length })}
                       onClick={() => onSelectCandidate(c.id, cands[cands.length - 1].id)}
                     >
                       {cands.length}

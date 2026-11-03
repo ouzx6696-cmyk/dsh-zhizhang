@@ -8,7 +8,7 @@ import { desktopStore, useDesktop, type ChatMessage } from "../state/store";
 import { chatStore } from "../state/chatStore";
 import { PREF, readPref } from "../../../../../packages/workbench/src/client/shared/prefs.js";
 import { remember } from "../state/prefs";
-import { runCommand } from "../features/commands/runCommand";
+import { runCommand } from "../../commands";
 import { deliverAction, startNewWork } from "../features/agent/taskActions";
 import { desktop } from "../state/desktop";
 import { useDesktopShortcuts } from "./useDesktopShortcuts";

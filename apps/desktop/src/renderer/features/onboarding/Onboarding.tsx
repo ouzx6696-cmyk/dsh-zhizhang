@@ -1,3 +1,4 @@
+import { COPY as viewCopy } from "../../../../../../packages/ui/src/copy.js";
 import { useConnectionTest } from "../settings/useConnectionTest";
 import { Dialog, Brand } from "../../../../../../packages/ui/src/primitives";
 import React, { useState } from "react";
@@ -14,18 +15,24 @@ export function Onboarding({ app }: { app: DesktopController }) {
   const writer = wizardModels?.writer;
   if (!wizardModels || !writer) return null;
   return (
-    <Dialog title="开始创作" className="onboarding" onClose={() => set({ onboarding: false })}>
+    <Dialog
+      title={viewCopy.onboardingText1}
+      className="onboarding"
+      onClose={() => set({ onboarding: false })}
+    >
       <div className="onboarding-brand">
         <Brand />
-        <h1>写作 Agent</h1>
-        <p>把想法写成作品，让决定留在你手中。</p>
+        <h1>{viewCopy.ttAgent}</h1>
+        <p>{viewCopy.onboardingText2}</p>
       </div>
       <ol className="onboarding-steps">
-        {["连接模型", "选择写作文件夹", "开始创作"].map((label, index) => (
-          <li key={label} data-active={state.wizardStep === index}>
-            {index < state.wizardStep ? <Check size={13} /> : index + 1} {label}
-          </li>
-        ))}
+        {[viewCopy.onboardingText3, viewCopy.onboardingText4, viewCopy.onboardingText1].map(
+          (label, index) => (
+            <li key={label} data-active={state.wizardStep === index}>
+              {index < state.wizardStep ? <Check size={13} /> : index + 1} {label}
+            </li>
+          ),
+        )}
       </ol>
       {state.wizardStep === 0 && (
         <>
@@ -46,7 +53,7 @@ export function Onboarding({ app }: { app: DesktopController }) {
               checked={followWriter}
               onChange={(e) => setFollowWriter(e.target.checked)}
             />
-            编辑沿用写手连接（保持独立对话）
+            {viewCopy.onboardingText5}
           </label>
           {!followWriter && (
             <ModelFields
@@ -62,7 +69,7 @@ export function Onboarding({ app }: { app: DesktopController }) {
             onClick={async () => {
               try {
                 if (!writer.apiKey && !writer.configured && !writer.keyless)
-                  throw new Error("请填写写手模型的 API Key");
+                  throw new Error(viewCopy.onboardingText6);
                 await desktop.model({
                   ...wizardModels,
                   editor: followWriter ? { ...writer } : wizardModels.editor,
@@ -74,16 +81,15 @@ export function Onboarding({ app }: { app: DesktopController }) {
               }
             }}
           >
-            保存连接并继续 <ArrowRight size={14} />
+            {viewCopy.onboardingText7}
+            <ArrowRight size={14} />
           </button>
         </>
       )}
       {state.wizardStep === 1 && (
         <div className="wizard-root">
-          <h2>作品都在你自己的目录里</h2>
-          <p>
-            写作根下统一管理 novels、toutiao 和共用偏好。已有稿件仍可从设置中导入，不会搬动原文件。
-          </p>
+          <h2>{viewCopy.onboardingText8}</h2>
+          <p>{viewCopy.onboardingText9}</p>
           <button
             className="primary"
             onClick={async () => {
@@ -96,7 +102,8 @@ export function Onboarding({ app }: { app: DesktopController }) {
               }
             }}
           >
-            选择写作文件夹 <ArrowRight size={14} />
+            {viewCopy.onboardingText10}
+            <ArrowRight size={14} />
           </button>
         </div>
       )}
@@ -104,18 +111,18 @@ export function Onboarding({ app }: { app: DesktopController }) {
         <div className="start-options">
           <button onClick={() => app.newWork("fanqie").catch(fail)}>
             <BookOpen />
-            开第一本书
+            {viewCopy.onboardingText11}
           </button>
           <button onClick={() => app.newWork("toutiao").catch(fail)}>
             <Feather />
-            写一篇头条
+            {viewCopy.onboardingText12}
           </button>
           <button
             onClick={() => {
               set({ picker: true, onboarding: false });
             }}
           >
-            打开已有作品
+            {viewCopy.onboardingText13}
           </button>
         </div>
       )}

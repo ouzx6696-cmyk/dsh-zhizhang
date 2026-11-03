@@ -193,50 +193,6 @@ small {
 .paper-start p {
   margin: 0;
 }
-.paper-ledger {
-  max-width: 72em;
-  margin: 16px auto;
-  padding: 24px 28px;
-  background: var(--ui-paper);
-  border: 1px solid var(--ui-line);
-  border-radius: 10px;
-  box-shadow: var(--ui-shadow-1);
-  overflow-x: auto;
-}
-.paper-ledger h1 {
-  font-family: var(--ui-font-body);
-  font-size: var(--ui-size-22);
-  font-weight: 400;
-  margin: 0 0 16px;
-}
-.paper-ledger table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--ui-size-12);
-}
-.paper-ledger th {
-  padding: 8px 6px;
-  border-bottom: 1px solid var(--ui-line);
-  color: var(--ui-text-3);
-  font-weight: 400;
-  text-align: left;
-  white-space: nowrap;
-}
-.paper-ledger td {
-  padding: 10px 6px;
-  border-bottom: 1px solid color-mix(in srgb, var(--ui-line) 70%, transparent);
-  vertical-align: middle;
-}
-.paper-ledger td strong {
-  display: block;
-  font-weight: 500;
-}
-.paper-ledger td small {
-  font-size: var(--ui-size-12);
-}
-.paper-ledger tbody tr:hover {
-  background: var(--ui-accent-soft);
-}
 .paper-steps {
   display: flex;
   align-items: center;

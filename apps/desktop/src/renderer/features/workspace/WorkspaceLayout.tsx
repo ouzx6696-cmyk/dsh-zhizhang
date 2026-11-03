@@ -1,3 +1,4 @@
+import { COPY as viewCopy } from "../../../../../../packages/ui/src/copy.js";
 import { Markdown } from "../../../Markdown";
 import { Dialog } from "../../../../../../packages/ui/src/primitives";
 import React, { useEffect, useMemo, useState } from "react";
@@ -18,7 +19,7 @@ function MethodsPane({
   onOpen: () => void;
   active: boolean;
 }) {
-  const [name, setName] = useState("默认");
+  const [name, setName] = useState(viewCopy.workspaceLayoutText1);
   useEffect(() => {
     if (!active) return;
     let running = true;
@@ -26,7 +27,10 @@ function MethodsPane({
       .list()
       .then((result: any) => {
         if (running)
-          setName(result.profiles?.find((profile: any) => profile.active)?.name || "默认");
+          setName(
+            result.profiles?.find((profile: any) => profile.active)?.name ||
+              viewCopy.workspaceLayoutText1,
+          );
       })
       .catch(() => {});
     return () => {
@@ -35,9 +39,12 @@ function MethodsPane({
   }, [mode, active]);
   return (
     <div className="method-cta">
-      <p>当前方案：{name}</p>
+      <p>
+        {viewCopy.workspaceLayoutText2}
+        {name}
+      </p>
       <button className="primary" onClick={onOpen}>
-        打开方法方案
+        {viewCopy.workspaceLayoutText3}
       </button>
     </div>
   );
@@ -92,8 +99,8 @@ export function WorkspaceLayout({
 }) {
   const tabs: [string, string][] = [
     ["agent", "Agent"],
-    ["chapter", mode === "toutiao" ? "本篇" : "本章"],
-    ["methods", "方法方案"],
+    ["chapter", mode === "toutiao" ? viewCopy.workspaceLayoutText4 : viewCopy.inspector],
+    ["methods", viewCopy.pfButton],
   ];
   const [navOpen, setNavOpen] = useState(false);
   const [methodsOpen, setMethodsOpen] = useState(false);
@@ -107,7 +114,7 @@ export function WorkspaceLayout({
       <nav className={"studio-nav " + (navOpen ? "expanded" : "")}>
         <button
           className="nav-toggle icon-button"
-          aria-label="展开章节导航"
+          aria-label={viewCopy.workspaceLayoutText5}
           onClick={() => setNavOpen(!navOpen)}
         >
           <Menu size={18} />
@@ -119,7 +126,7 @@ export function WorkspaceLayout({
         <button
           type="button"
           className="drawer-scrim"
-          aria-label="关闭右侧面板遮罩"
+          aria-label={viewCopy.workspaceLayoutText6}
           onClick={() => setDrawer(false)}
         />
       )}
@@ -132,7 +139,7 @@ export function WorkspaceLayout({
           ))}
           <button
             className="drawer-close icon-button"
-            aria-label="收起右栏"
+            aria-label={viewCopy.workspaceLayoutText7}
             onClick={() => setDrawer(false)}
           >
             <PanelRightClose size={16} />
@@ -151,15 +158,15 @@ export function WorkspaceLayout({
       {methodsMounted && (
         <Dialog
           open={methodsOpen}
-          title="方法方案"
+          title={viewCopy.pfButton}
           className="methods-page"
           onClose={() => setMethodsOpen(false)}
         >
           <header>
-            <h2>方法方案</h2>
+            <h2>{viewCopy.pfButton}</h2>
             <button
               className="icon-button"
-              aria-label="关闭方法方案"
+              aria-label={viewCopy.workspaceLayoutText8}
               autoFocus
               onClick={() => setMethodsOpen(false)}
             >

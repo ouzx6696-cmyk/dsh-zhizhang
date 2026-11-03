@@ -10,7 +10,15 @@ export const TABS = ["overview", "library", "inspiration", "writing", "ledger"];
 export const READER_VIEWS = ["official", "candidate", "split"];
 export const FONT_STEPS = [-2, -1, 0, 1, 2, 3];
 
-const idleBody = { status: "idle", key: "", body: "", meta: null, truncated: false, bodyBytes: 0, error: null };
+const idleBody = {
+  status: "idle",
+  key: "",
+  body: "",
+  meta: null,
+  truncated: false,
+  bodyBytes: 0,
+  error: null,
+};
 
 export function initialState() {
   const fontStep = Number(readPref(PREF.fontStep, "0"));
@@ -48,25 +56,27 @@ export function initialState() {
     edit: null,
     diagnosticKind: "chapter",
     dialog: null, // { kind: 'accept', cand } | { kind: 'review'|'finalize'|'acknowledge' }
-    notices: [],
     unify: { busy: false, message: null, error: null },
     // 写作 Agent 投递
     deliver: { caps: null, busy: "", message: null, error: null },
   };
 }
 
-let noticeSeq = 0;
-
 export function reducer(state, action) {
   switch (action.type) {
-    case "diagnosticKind": return { ...state, diagnosticKind: action.kind };
-    case "edit": return { ...state, edit: action.value };
+    case "diagnosticKind":
+      return { ...state, diagnosticKind: action.kind };
+    case "edit":
+      return { ...state, edit: action.value };
     case "projects":
       if (action.selection !== state.selection) return state;
       return {
         ...state,
         projects: action.projects,
-        projectId: state.projectId && action.projects.some((p) => p.id === state.projectId) ? state.projectId : action.current || state.projectId,
+        projectId:
+          state.projectId && action.projects.some((p) => p.id === state.projectId)
+            ? state.projectId
+            : action.current || state.projectId,
       };
     case "loading":
       return { ...state, loading: true };
@@ -85,7 +95,9 @@ export function reducer(state, action) {
         phase: "ready",
         loading: false,
         // 写入期间的读取失败随下一次实际刷新失效，完成后重新读取正文。
-        bodyEpoch: state.bodyEpoch + ([state.chapter, state.candidate].some(slot => slot.status === "error") ? 1 : 0),
+        bodyEpoch:
+          state.bodyEpoch +
+          ([state.chapter, state.candidate].some((slot) => slot.status === "error") ? 1 : 0),
         hostOk: true,
         error: null,
         lastRefresh: new Date().toISOString(),
@@ -121,7 +133,6 @@ export function reducer(state, action) {
         projectId: action.id,
         base: "",
         dialog: null,
-        notices: [],
         unify: { busy: false, message: null, error: null },
         selection: state.selection + 1,
         work: "",
@@ -139,7 +150,22 @@ export function reducer(state, action) {
     case "selectWork":
       return action.work === state.work
         ? state
-        : { ...state, work: action.work, selection: state.selection + 1, snapshot: null, signature: "", chapterId: "", candidateId: "", chapter: idleBody, candidate: idleBody, dialog: null, notices: [], unify: { busy: false, message: null, error: null }, empty: false, needWork: false, phase: "boot" };
+        : {
+            ...state,
+            work: action.work,
+            selection: state.selection + 1,
+            snapshot: null,
+            signature: "",
+            chapterId: "",
+            candidateId: "",
+            chapter: idleBody,
+            candidate: idleBody,
+            dialog: null,
+            unify: { busy: false, message: null, error: null },
+            empty: false,
+            needWork: false,
+            phase: "boot",
+          };
     case "view":
       return { ...state, view: action.view };
     case "tab":
@@ -149,7 +175,12 @@ export function reducer(state, action) {
     case "fontStep":
       return { ...state, fontStep: action.step };
     case "selectChapter":
-      if (action.id === state.chapterId) return { ...state, diagnosticKind: "chapter", readerView: state.readerView === "split" ? "split" : "official" };
+      if (action.id === state.chapterId)
+        return {
+          ...state,
+          diagnosticKind: "chapter",
+          readerView: state.readerView === "split" ? "split" : "official",
+        };
       return {
         ...state,
         chapterId: action.id,
@@ -170,10 +201,22 @@ export function reducer(state, action) {
         diagnosticKind: "candidate",
         readerView: state.readerView === "split" ? "split" : "candidate",
         chapter: action.chapterId === state.chapterId ? state.chapter : idleBody,
-        candidate: action.chapterId === state.chapterId && action.id === derive(state).activeCand?.id ? state.candidate : idleBody,
+        candidate:
+          action.chapterId === state.chapterId && action.id === derive(state).activeCand?.id
+            ? state.candidate
+            : idleBody,
       };
     case "readerView":
-      return { ...state, readerView: action.view, diagnosticKind: action.view === "official" ? "chapter" : action.view === "candidate" ? "candidate" : state.diagnosticKind };
+      return {
+        ...state,
+        readerView: action.view,
+        diagnosticKind:
+          action.view === "official"
+            ? "chapter"
+            : action.view === "candidate"
+              ? "candidate"
+              : state.diagnosticKind,
+      };
     case "body": {
       const slot = action.slot; // chapter | candidate
       if (action.value.key !== bodyKey(state, slot)) return state;
@@ -182,16 +225,20 @@ export function reducer(state, action) {
     case "reloadBodies":
       return { ...state, bodyEpoch: state.bodyEpoch + 1, chapter: idleBody, candidate: idleBody };
     case "openDialog":
-      return { ...state, dialog: { ...action.dialog, selection: state.selection, projectId: state.projectId, work: state.work, chapterId: action.dialog.cand?.chapterId || state.chapterId, meta: state.chapter.meta, chapter: derive(state).current } };
+      return {
+        ...state,
+        dialog: {
+          ...action.dialog,
+          selection: state.selection,
+          projectId: state.projectId,
+          work: state.work,
+          chapterId: action.dialog.cand?.chapterId || state.chapterId,
+          meta: state.chapter.meta,
+          chapter: derive(state).current,
+        },
+      };
     case "closeDialog":
       return { ...state, dialog: null };
-    case "notice": {
-      noticeSeq += 1;
-      const notices = state.notices.filter((n) => n.text !== action.text).concat({ id: noticeSeq, tone: action.tone, text: action.text });
-      return { ...state, notices: notices.slice(-3) };
-    }
-    case "dismissNotice":
-      return { ...state, notices: state.notices.filter((n) => n.id !== action.id) };
     case "unify":
       return { ...state, unify: { ...state.unify, ...action.value } };
     case "deliver":
@@ -215,19 +262,23 @@ export function derive(state) {
   const impacts = new Set(((snap && snap.revisionImpacts) || []).map((v) => v.chapterId));
   const current = chapters.find((c) => c.id === state.chapterId) || null;
   const chapterPending = byChapter.get(state.chapterId) || [];
-  const activeCand = chapterPending.find((c) => c.id === state.candidateId) || chapterPending[0] || null;
+  const activeCand =
+    chapterPending.find((c) => c.id === state.candidateId) || chapterPending[0] || null;
   return { snap, chapters, pending, byChapter, impacts, current, chapterPending, activeCand };
 }
 
 /** Stable comparison key for a snapshot response (bodies are never included). */
 export function snapshotSignature(data) {
-  try {
-    // generatedAt changes on every read; it says nothing about the content.
-    const snap = data.snapshot ? { ...data.snapshot, generatedAt: undefined, html: undefined } : null;
-    return JSON.stringify([data.projectId, data.base, data.empty, data.needWork, data.message, data.works, snap]);
-  } catch {
-    return String(Date.now());
-  }
+  const snap = data.snapshot ? { ...data.snapshot, generatedAt: undefined, html: undefined } : null;
+  return JSON.stringify([
+    data.projectId,
+    data.base,
+    data.empty,
+    data.needWork,
+    data.message,
+    data.works,
+    snap,
+  ]);
 }
 
 /** Bind body responses to the selected project, work, chapter and observed version. */
@@ -235,5 +286,14 @@ export function bodyKey(state, slot) {
   if (state.view !== "chapters" || !state.work || !state.chapterId) return "";
   const view = derive(state);
   if (slot === "candidate" && (state.readerView === "official" || !view.activeCand)) return "";
-  return JSON.stringify([state.projectId, state.work, state.chapterId, slot === "chapter" ? (view.current?.readVersion || view.current?.revision || view.current?.updatedAt) : view.activeCand?.id, slot === "chapter" ? "" : (view.activeCand?.readVersion || view.activeCand?.stagedAt), state.bodyEpoch]);
+  return JSON.stringify([
+    state.projectId,
+    state.work,
+    state.chapterId,
+    slot === "chapter"
+      ? view.current?.readVersion || view.current?.revision || view.current?.updatedAt
+      : view.activeCand?.id,
+    slot === "chapter" ? "" : view.activeCand?.readVersion || view.activeCand?.stagedAt,
+    state.bodyEpoch,
+  ]);
 }

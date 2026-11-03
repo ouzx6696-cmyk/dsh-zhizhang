@@ -1,4 +1,5 @@
-import { actionTitle } from "../../../commands";
+import { COPY as viewCopy } from "../../../../../../packages/ui/src/copy.js";
+import { actionTitle } from "../../format";
 import React, { useEffect, useState } from "react";
 import type { TaskState } from "../../../renderer-contracts";
 export function TaskProgress({
@@ -24,29 +25,38 @@ export function TaskProgress({
   return (
     <>
       {task && (
-        <section className="task-card" aria-label="当前任务">
+        <section className="task-card" aria-label={viewCopy.taskProgressText1}>
           <header>
             <strong>
-              {busy ? "正在进行" : "任务结束"} ·{" "}
-              {task.name.startsWith("【写作台】") ? actionTitle(task.name) : task.name || phase}
+              {busy ? viewCopy.taskProgressText2 : viewCopy.taskProgressText3} ·{" "}
+              {task.name.startsWith(viewCopy.agentPanelText30)
+                ? actionTitle(task.name)
+                : task.name || phase}
             </strong>
             <button
               className="stop-task"
               disabled={!busy}
-              aria-label="停止任务"
+              aria-label={viewCopy.taskProgressText4}
               onClick={() => onStop()}
             >
-              停止
+              {viewCopy.taskProgressText5}
             </button>
           </header>
           <div className="lamp-task-meta">
             <span>{task.current}</span>
             {task.startedAt > 0 && (busy || task.endedAt) && (
               <span>
-                已用 {Math.max(0, Math.floor(((task.endedAt ?? now) - task.startedAt) / 1000))} 秒
+                {viewCopy.taskProgressText6}
+                {Math.max(0, Math.floor(((task.endedAt ?? now) - task.startedAt) / 1000))}
+                {viewCopy.taskProgressText7}
               </span>
             )}
-            {task.cost > 0 && <span>估算 ${task.cost.toFixed(4)}</span>}
+            {task.cost > 0 && (
+              <span>
+                {viewCopy.taskProgressText8}
+                {task.cost.toFixed(4)}
+              </span>
+            )}
           </div>
           <div className="task-track">
             {steps.map((step) => (
@@ -60,8 +70,10 @@ export function TaskProgress({
             ))}
           </div>
           <p>
-            {task.completed.length ? "已完成：" + task.completed.join(" → ") + " · " : ""}
-            {busy ? "当前：" + (task.current || phase) : task.waiting}
+            {task.completed.length
+              ? viewCopy.taskProgressText9 + task.completed.join(" → ") + " · "
+              : ""}
+            {busy ? viewCopy.taskProgressText10 + (task.current || phase) : task.waiting}
           </p>
         </section>
       )}

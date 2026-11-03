@@ -7,41 +7,6 @@ export function Button({ variant = "secondary", className = "", children, ...pro
     </button>
   );
 }
-export function Tabs({ items, value, onChange, label, className = "" }) {
-  const move = (event) => {
-    const at = items.findIndex((item) => item.value === value);
-    const next =
-      event.key === "Home"
-        ? 0
-        : event.key === "End"
-          ? items.length - 1
-          : event.key === "ArrowRight"
-            ? (at + 1) % items.length
-            : event.key === "ArrowLeft"
-              ? (at - 1 + items.length) % items.length
-              : -1;
-    if (next < 0) return;
-    event.preventDefault();
-    onChange(items[next].value);
-    event.currentTarget.parentElement.children[next].focus();
-  };
-  return (
-    <div className={`ui-tabs ${className}`} role="tablist" aria-label={label}>
-      {items.map((item) => (
-        <button
-          key={item.value}
-          role="tab"
-          aria-selected={item.value === value}
-          tabIndex={item.value === value ? 0 : -1}
-          onKeyDown={move}
-          onClick={() => onChange(item.value)}
-        >
-          {item.label}
-        </button>
-      ))}
-    </div>
-  );
-}
 export function Steps({ steps, current, label }) {
   return (
     <ol className="ui-steps" aria-label={label}>
@@ -97,7 +62,17 @@ export function Brand() {
   );
 }
 
-export function Dialog({ open = true, title, className = "", onClose, children }) {
+/** @param {{open?:boolean,title:string,className?:string,onClose:()=>void,children?:React.ReactNode,closeLabel?:string,description?:React.ReactNode,footer?:React.ReactNode}} props */
+export function Dialog({
+  open = true,
+  title,
+  className = "",
+  onClose,
+  children,
+  closeLabel,
+  description,
+  footer,
+}) {
   const ref = React.useRef(null);
   React.useEffect(() => {
     const node = ref.current;
@@ -105,17 +80,55 @@ export function Dialog({ open = true, title, className = "", onClose, children }
     else node.close();
     return () => node.close();
   }, [open]);
+  const framed = closeLabel !== undefined || description !== undefined || footer !== undefined;
   return (
     <dialog
       ref={ref}
       aria-label={title}
-      className={`ui-dialog ${className}`}
+      className={`ui-dialog ${framed ? "wb-modal" : ""} ${className}`}
       onCancel={(event) => {
         event.preventDefault();
+        event.stopPropagation();
         onClose();
       }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") event.stopPropagation();
+      }}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) {
+          const box = event.currentTarget.getBoundingClientRect();
+          if (
+            event.clientX < box.left ||
+            event.clientX > box.right ||
+            event.clientY < box.top ||
+            event.clientY > box.bottom
+          )
+            onClose();
+        }
+      }}
     >
-      {children}
+      {framed ? (
+        <>
+          <div className="wb-modal-content">
+            <div className="wb-modal-header">
+              <h2 className="wb-modal-title">{title}</h2>
+              <button
+                type="button"
+                className="wb-icon-button"
+                aria-label={closeLabel}
+                onClick={onClose}
+              >
+                ×
+              </button>
+            </div>
+            {description ? <p className="wb-modal-description">{description}</p> : null}
+            <div className="wb-modal-body">{children}</div>
+          </div>
+          {footer !== undefined ? <div className="wb-modal-footer">{footer}</div> : null}
+        </>
+      ) : (
+        children
+      )}
     </dialog>
   );
 }

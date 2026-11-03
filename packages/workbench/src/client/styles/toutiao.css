@@ -1,0 +1,51 @@
+.wb-tt-group-head {
+  color: var(--ui-text-3);
+}
+.wb-tt-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.wb-tt-group + .wb-tt-group {
+  margin-top: 8px;
+}
+.wb-tt-group-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  color: var(--wb-fg-3);
+  font: 600 var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
+}
+.wb-tt-delivery {
+  max-width: 44rem;
+  margin: 0 auto;
+  font: var(--ui-size-14)/var(--ui-size-24) var(--ui-font-ui);
+}
+.wb-tt-note {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.wb-tt-note textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 52px;
+  padding: 6px 8px;
+  border: 1px solid var(--wb-line-strong);
+  border-radius: var(--wb-r-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.wb-tt-score {
+  font-variant-numeric: tabular-nums;
+}
+.wb-tt-score[data-pass="true"] {
+  color: var(--wb-ok);
+  background: var(--wb-ok-soft);
+}
+.wb-tt-score[data-pass="false"] {
+  color: var(--wb-bad);
+  background: var(--wb-bad-soft);
+}

@@ -1,3 +1,4 @@
+import { COPY as viewCopy } from "../../../../../../packages/ui/src/copy.js";
 import { Dialog } from "../../../../../../packages/ui/src/primitives";
 import React from "react";
 import { Search, ArrowRight } from "lucide-react";
@@ -7,12 +8,16 @@ import type { DesktopController } from "../../app/useDesktopController";
 export function CommandPalette({ app }: { app: DesktopController }) {
   const { state, fail, set } = app;
   return (
-    <Dialog title="命令面板" className="command-dialog" onClose={() => set({ palette: false })}>
+    <Dialog
+      title={viewCopy.commandPaletteText1}
+      className="command-dialog"
+      onClose={() => set({ palette: false })}
+    >
       <label className="command-search">
         <Search size={18} />
         <input
           autoFocus
-          placeholder="输入命令或任务附言…"
+          placeholder={viewCopy.commandPaletteText2}
           value={state.query}
           onChange={(event) => set({ query: event.target.value })}
         />
@@ -20,9 +25,10 @@ export function CommandPalette({ app }: { app: DesktopController }) {
       <div className="command-list">
         {COMMANDS.filter(
           (item) =>
-            !state.query ||
-            item.id.includes(state.query.split(/\s+/)[0].replace(/^\//, "")) ||
-            item.label.includes(state.query),
+            item.palette !== false &&
+            (!state.query ||
+              item.id.includes(state.query.split(/\s+/)[0].replace(/^\//, "")) ||
+              item.label.includes(state.query)),
         ).map((item) => (
           <button
             key={item.id}

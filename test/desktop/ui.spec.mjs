@@ -157,6 +157,8 @@ test("决策不被 Agent 挡住，右栏标签与响应式布局，亮暗截图"
   await page.getByRole("button", { name: /雨夜/ }).first().click();
   await expect(page.getByRole("button", { name: "声明已审读", exact: true }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: "定稿", exact: true }).first()).toBeVisible();
+  const listStyle=await page.locator(".studio-nav .wb-chapter-list").evaluate(element=>({listStyle:getComputedStyle(element).listStyleType,padding:getComputedStyle(element).paddingLeft}));
+  expect(listStyle).toEqual({listStyle:"none",padding:"0px"});
   const columns = await page
     .locator(".studio-layout")
     .evaluate((element) => getComputedStyle(element).gridTemplateColumns);

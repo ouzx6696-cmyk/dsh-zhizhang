@@ -1,3 +1,5 @@
+import { humanVersion } from "../../format";
+import { COPY as viewCopy } from "../../../../../../packages/ui/src/copy.js";
 import React, { useEffect } from "react";
 import { useFanqie } from "../../../../../../packages/workbench/src/client/fanqie/useFanqie.js";
 import { ChapterList } from "../../../../../../packages/workbench/src/client/fanqie/ChapterList.jsx";
@@ -24,7 +26,8 @@ function Novel(props: WorkspaceProps) {
       type: "view",
       view: props.view === "writing" ? "chapters" : "overview",
     });
-    if (props.view !== "writing") dispatch({ type: "tab", tab: props.view === "library" ? "library" : "overview" });
+    if (props.view !== "writing")
+      dispatch({ type: "tab", tab: props.view === "library" ? "library" : "overview" });
   }, [props.view]);
   useEffect(() => {
     const chapter = view.current;
@@ -82,19 +85,18 @@ function Novel(props: WorkspaceProps) {
           : 0;
   const revision = meta?.revision ?? current?.revision,
     updatedAt = meta?.updatedAt || current?.updatedAt,
-    savedTime = updatedAt ? String(updatedAt).slice(11, 16) : "",
-    versionLabel =
-      typeof revision === "number"
-        ? `第 ${revision} 版${savedTime ? " · " + savedTime : ""}`
-        : savedTime
-          ? `已保存 · ${savedTime}`
-          : "";
+    versionLabel = revision !== undefined || updatedAt ? humanVersion(revision, updatedAt) : "";
   const decisions = (
     <div className="paper-decisions">
-      <strong className="paper-chapter-title">{current?.title || "当前章节"}</strong>
+      <strong className="paper-chapter-title">{current?.title || viewCopy.workspaceText3}</strong>
       <StatusBadge mode="fanqie" status={meta?.status || current?.status} />
-      <ol className="paper-steps" aria-label="章节进度">
-        {["规划", "写作", "审读", "定稿"].map((step, index) => (
+      <ol className="paper-steps" aria-label={viewCopy.lifecycle}>
+        {[
+          viewCopy.tabInspiration,
+          viewCopy.tabWriting,
+          viewCopy.designPreviewText8,
+          viewCopy.finalizeTitle,
+        ].map((step, index) => (
           <li
             key={step}
             data-state={index < stage ? "done" : index === stage ? "current" : "todo"}
@@ -108,14 +110,14 @@ function Novel(props: WorkspaceProps) {
       {current && (
         <>
           <button disabled={!canRead || props.readOnly} onClick={props.onReview}>
-            派编辑审读
+            {viewCopy.designPreviewText4}
           </button>
           <button
             disabled={!canRead || props.readOnly}
             onClick={() => dispatch({ type: "openDialog", dialog: { kind: "review" } })}
           >
             <FileCheck size={14} />
-            声明已审读
+            {viewCopy.reviewTitle}
           </button>
           {view.activeCand ? (
             <button
@@ -127,19 +129,19 @@ function Novel(props: WorkspaceProps) {
                 })
               }
             >
-              采纳候选
+              {viewCopy.acceptTitle}
             </button>
           ) : null}
           <button
             className="primary"
             disabled={finalizeBlocked}
             title={
-              state.chapter.writer?.finalizeBlocked || (!reviewed ? "请先完整审读当前版本" : "")
+              state.chapter.writer?.finalizeBlocked || (!reviewed ? viewCopy.workspaceText4 : "")
             }
             onClick={() => dispatch({ type: "openDialog", dialog: { kind: "finalize" } })}
           >
             <Check size={14} />
-            定稿
+            {viewCopy.finalizeTitle}
           </button>
         </>
       )}
@@ -158,12 +160,12 @@ function Novel(props: WorkspaceProps) {
   if (ungrouped.length)
     groups.push({
       id: "ungrouped",
-      title: groups.length ? "未分卷" : "",
+      title: groups.length ? viewCopy.workspaceText5 : "",
       rows: ungrouped,
     });
   const navigation = (
     <>
-      <h2>章节</h2>
+      <h2>{viewCopy.writingChapters}</h2>
       {groups.map((group: any) => (
         <section className="nav-volume" key={group.id}>
           {group.title && <h3>{group.title}</h3>}
@@ -180,7 +182,7 @@ function Novel(props: WorkspaceProps) {
         </section>
       ))}
       <button disabled={!props.target.work || props.readOnly} onClick={props.onNewChapter}>
-        ＋ 规划下一章
+        {viewCopy.workspaceText6}
       </button>
     </>
   );
@@ -203,11 +205,8 @@ function Novel(props: WorkspaceProps) {
         {decisions}
         {!view.snap ? (
           <div className="studio-empty">
-            <h1>从一个故事开始</h1>
-            <p>
-              {state.error ||
-                "使用“新书”命令，告诉 Agent 书名、题材或一句话想法。已有作品可从顶栏切换。"}
-            </p>
+            <h1>{viewCopy.workspaceText7}</h1>
+            <p>{state.error || viewCopy.workspaceText8}</p>
           </div>
         ) : (
           <Reader

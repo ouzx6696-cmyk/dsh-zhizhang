@@ -1,0 +1,196 @@
+.wb-notice-banner {
+  flex-shrink: 0;
+  width: 100%;
+  padding: 8px 16px;
+  background: var(--ui-panel);
+  color: var(--ui-text);
+}
+.wb-notice-banner .wb-toast {
+  position: static;
+  max-width: none;
+  box-shadow: none;
+}
+.wb-modal {
+  position: relative;
+  width: min(480px, 100%);
+  max-height: calc(100% - 32px);
+  overflow: auto;
+  border: 0;
+  border-radius: var(--wb-r-panel);
+  background: canvas;
+  color: var(--wb-fg);
+  box-shadow: 0 0 0 0.5px var(--wb-line-strong);
+  font: var(--ui-size-14)/var(--ui-size-22) var(--ui-font-ui);
+}
+.wb-modal-content {
+  padding: 24px 24px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.wb-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.wb-modal-title {
+  margin: 0;
+  font: 600 var(--ui-size-18)/var(--ui-size-26) var(--ui-font-ui);
+  font-weight: 600;
+}
+.wb-modal-description {
+  margin: 0;
+  color: var(--wb-fg-2);
+}
+.wb-modal-footer {
+  padding: 12px 24px 24px;
+}
+.wb-notices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.wb-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
+}
+.wb-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.wb-spinner {
+  display: inline-block;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  corner-shape: round;
+  border: 1.6px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-top-color: currentColor;
+  animation: wb-spin 700ms linear infinite;
+}
+.wb-modal {
+  animation: wb-modal-in 220ms var(--wb-ease);
+  box-shadow: var(--wb-shadow-2);
+}
+.wb-toasts {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+  width: min(380px, calc(100% - 40px));
+  pointer-events: none;
+}
+.wb-toast {
+  pointer-events: auto;
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) 24px;
+  gap: 10px;
+  align-items: start;
+  padding: 12px 12px 14px 14px;
+  border-radius: var(--wb-r-lg);
+  background: var(--wb-layer);
+  color: var(--wb-fg);
+  box-shadow:
+    var(--wb-shadow-2),
+    inset 0 0 0 0.5px var(--wb-line-strong);
+  animation: wb-toast-in 260ms var(--wb-ease);
+}
+.wb-toast-leave {
+  animation: wb-toast-out 180ms ease forwards;
+}
+.wb-toast-icon {
+  display: grid;
+  place-items: center;
+  height: 22px;
+  color: var(--wb-accent);
+}
+.wb-toast[data-tone="success"] .wb-toast-icon {
+  color: var(--wb-ok);
+}
+.wb-toast[data-tone="warning"] .wb-toast-icon {
+  color: var(--wb-warn);
+}
+.wb-toast[data-tone="danger"] .wb-toast-icon {
+  color: var(--wb-bad);
+}
+.wb-toast[data-tone="danger"] {
+  box-shadow:
+    var(--wb-shadow-2),
+    inset 0 0 0 1px color-mix(in srgb, var(--wb-bad) 45%, transparent);
+}
+.wb-toast-body {
+  min-width: 0;
+}
+.wb-toast-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
+  padding-top: 1px;
+}
+.wb-toast-close {
+  width: 24px;
+  height: 24px;
+  margin: -1px -4px 0 0;
+}
+.wb-toast-timer {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  background: currentColor;
+  opacity: 0.18;
+  transform-origin: left center;
+  animation-name: wb-timer;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+.wb-toast[data-tone="success"] .wb-toast-timer {
+  background: var(--wb-ok);
+  opacity: 0.5;
+}
+.wb-toast:hover .wb-toast-timer,
+.wb-toast:focus-within .wb-toast-timer {
+  animation-play-state: paused;
+}
+@container wb-panel (max-width: 520px) {
+  .wb-toasts {
+    right: 12px;
+    left: 12px;
+    bottom: 12px;
+    width: auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wb-spinner {
+    animation: wb-spin 1.6s linear infinite;
+  }
+}
+.wb-modal.wb-modal-wide {
+  width: min(1180px, 100%);
+  height: min(780px, calc(100% - 32px));
+  display: flex;
+  flex-direction: column;
+}
+.wb-modal-wide .wb-modal-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-bottom: 20px;
+}
+.wb-modal-wide .wb-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

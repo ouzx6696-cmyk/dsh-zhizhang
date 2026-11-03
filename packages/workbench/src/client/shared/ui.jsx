@@ -120,106 +120,16 @@ function LocalCheckbox({ checked, onChange, label, disabled = false, title, clas
   );
 }
 
-function LocalModal({
-  open,
-  onClose,
-  title,
-  closeLabel,
-  description,
-  children,
-  footer,
-  className,
-}) {
-  const dialog = useRef(null);
-  const closeRef = useRef(onClose);
-  closeRef.current = onClose;
-  useEffect(() => {
-    if (!open) return undefined;
-    const previous = typeof document !== "undefined" ? document.activeElement : null;
-    if (dialog.current) dialog.current.focus();
-    const onKey = (event) => {
-      if (event.key === "Escape") {
-        event.stopPropagation();
-        closeRef.current();
-      } else if (event.key === "Tab" && dialog.current) {
-        const controls = Array.from(
-          dialog.current.querySelectorAll(
-            'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex="0"]',
-          ),
-        );
-        const first = controls[0],
-          last = controls[controls.length - 1];
-        if (!first) {
-          event.preventDefault();
-          dialog.current.focus();
-        } else if (
-          event.shiftKey &&
-          (document.activeElement === first || document.activeElement === dialog.current)
-        ) {
-          event.preventDefault();
-          last.focus();
-        } else if (
-          !event.shiftKey &&
-          (document.activeElement === last || document.activeElement === dialog.current)
-        ) {
-          event.preventDefault();
-          first.focus();
-        }
-      }
-    };
-    document.addEventListener("keydown", onKey, true);
-    return () => {
-      document.removeEventListener("keydown", onKey, true);
-      if (previous && typeof previous.focus === "function") previous.focus();
-    };
-  }, [open]);
-  if (!open) return null;
-  const node = (
-    <div className="wb-modal-root" role="presentation">
-      <div className="wb-modal-mask" aria-hidden="true" onClick={onClose} />
-      <div
-        ref={dialog}
-        tabIndex={-1}
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        className={cx("wb-modal", className)}
-      >
-        <div className="wb-modal-content">
-          <div className="wb-modal-header">
-            <h2 className="wb-modal-title">{title}</h2>
-            <button
-              type="button"
-              className="wb-icon-button"
-              aria-label={closeLabel}
-              onClick={onClose}
-            >
-              <Icon name="close" />
-            </button>
-          </div>
-          {description ? <p className="wb-modal-description">{description}</p> : null}
-          {children !== undefined ? <div className="wb-modal-body">{children}</div> : null}
-        </div>
-        {footer !== undefined ? <div className="wb-modal-footer">{footer}</div> : null}
-      </div>
-    </div>
-  );
-  return toBody(node);
-}
-
 export const Button = LocalButton;
 export const Tag = LocalTag;
 export const StateDot = LocalStateDot;
 export const SegmentedControl = LocalSegmentedControl;
 export const Checkbox = LocalCheckbox;
-export const Modal = LocalModal;
-/** 写作台自己的弹窗（宽版布局用，不换成宿主组件） */
-export const PanelModal = LocalModal;
 export { cx };
 
 /** Portal overlays share the desktop document. */
 export function toBody(node) {
-  return typeof document === 'undefined' ? node : createPortal(node, document.body);
+  return typeof document === "undefined" ? node : createPortal(node, document.body);
 }
 
 const ICONS = {

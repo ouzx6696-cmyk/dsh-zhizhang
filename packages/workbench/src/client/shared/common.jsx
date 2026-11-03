@@ -1,46 +1,23 @@
 import { chapterName } from "../../../../ui/src/copy.js";
 /** 两种模式共用的展示组件（纯 props）。 */
 import React from "react";
-import { t } from "./copy.js";
+import { t } from "../../../../ui/src/copy.js";
 import { statusInfo } from "../../../../ui/src/status.js";
 import { Button, Icon, Spinner, StateDot, Tag, cx, toBody } from "./ui.jsx";
 
 const { useCallback, useEffect, useRef, useState } = React;
-
-const TAG_TONE = {
-  neutral: "neutral",
-  info: "info",
-  warn: "warning",
-  success: "success",
-  danger: "danger",
-};
-export const STATUS_DOT = {
-  final: "done",
-  reviewed: "done",
-  accepted: "done",
-  staged: "warning",
-  drafted: "warning",
-  draft: "warning",
-  drafting: "warning",
-  planned: "idle",
-};
-
-export function statusLabel(status) {
-  return statusInfo("fanqie", status).label;
-}
 
 export function clip(value, n) {
   const text = String(value == null ? "" : value).trim();
   return text.length <= n ? text : text.slice(0, n) + "…";
 }
 
-export function StatusTag({ status }) {
-  const info = statusInfo("fanqie", status);
-  return <Tag tone={TAG_TONE[info.tone]}>{info.label}</Tag>;
+export function StatusTag({ status, mode = "fanqie" }) {
+  const info = statusInfo(mode, status);
+  return <Tag tone={info.tone}>{info.label}</Tag>;
 }
-
-export function StatusDot({ status }) {
-  return <StateDot state={STATUS_DOT[status] || "idle"} size={8} />;
+export function StatusDot({ status, mode = "fanqie" }) {
+  return <StateDot state={statusInfo(mode, status).dot} size={8} />;
 }
 
 export function Section({ title, aside, children, className }) {
@@ -237,35 +214,6 @@ export function ActionCard({ icon, title, hint, onClick, disabled, busy, primary
         <Icon name="chevron" size={14} />
       </span>
     </button>
-  );
-}
-
-/** 步骤条：current 之前已完成，current 为当前（tone 可为 warning / danger） */
-export function Steps({ steps, current, tone, label }) {
-  return (
-    <ol
-      className="wb-stepper"
-      aria-label={label}
-      style={{ gridTemplateColumns: "repeat(" + steps.length + ", 1fr)" }}
-    >
-      {steps.map((name, i) => {
-        const state = i < current ? "done" : i === current ? "current" : "todo";
-        return (
-          <li
-            key={name}
-            className="wb-step"
-            data-state={state}
-            data-tone={i === current ? tone : undefined}
-            aria-current={i === current ? "step" : undefined}
-          >
-            <span className="wb-step-mark" aria-hidden="true">
-              {state === "done" ? <Icon name="check" size={10} /> : null}
-            </span>
-            <span className="wb-step-label">{name}</span>
-          </li>
-        );
-      })}
-    </ol>
   );
 }
 
