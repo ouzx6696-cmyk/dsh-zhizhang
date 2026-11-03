@@ -1,75 +1,55 @@
 # 写作 Agent
 
-基于内置 PI 的独立桌面写作客户端，面向中文长篇小说与今日头条创作。规划、写作、独立审读、作者修改与版本存储在同一个工作区完成，作品保存在本地。
+**0.9.8**：基于内置 PI SDK 的独立 Electron 写作客户端，面向中文长篇小说与今日头条创作。作品保存在本地；模型协助规划、写作和独立审读，作者决定采纳、定稿及交稿。
 
-开发主线是自有写作内核与客户端。模型负责协助创作，作者决定采纳、定稿和交稿。
+## 使用
 
-## 下载 0.9.5
+1. 配置模型接口、模型 ID 和 Key，点击“测试连接”。支持 DeepSeek、Kimi、通义千问、智谱及 OpenAI / Anthropic 兼容接口，具体权限以服务商为准。
+2. 选择写作根，新建长篇或头条文章；写手、编辑和规划可分别配置模型。
+3. 在稿纸中阅读和修改，在右栏查看任务、审读与方法方案；核对后确认采纳或定稿。
+4. 导出 TXT、DOCX 或复制正文。应用不登录或自动发布到平台。
 
-Windows x64 安装器和免安装包已正式发布，见 [0.9.5 下载页](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/v0.9.5)。
+写作根包含 `novels/`、`toutiao/` 和 `.writer/`。设置可打开既有目录、备份与检查未完成写入。停止任务保留已落盘内容。模型请求会把相关创作内容发送至配置的服务商。
 
-| 文件                            | 用途                                 | 大小      |
-| ------------------------------- | ------------------------------------ | --------- |
-| `WriterAgent-0.9.5-win-x64.exe` | 安装器，可选择安装位置               | 约 164 MB |
-| `WriterAgent-0.9.5-win-x64.zip` | 免安装，解压后运行 `WriterAgent.exe` | 约 208 MB |
-| `writer-agent-0.9.5-src.zip`    | 对应构建提交的源码                   | 约 2.4 MB |
-| `SHA256SUMS`                    | 下载文件的 SHA-256 校验清单          | —         |
+## 0.9.8 改进
 
-随包携带 Python 和中文字体，无需另外安装。此版本未签名，已发布为 GitHub 正式 Release 并标记为 Latest；后续版本及自动更新以 [Releases](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases) 为准。
+- 退役 DSH 适配，保留独立桌面入口；DSH 插件形态最后版本为 v0.9.7。
+- 损坏索引、稿件和资料明确报错；原子写、路径约束、合作锁与八类恢复日志集中维护，作者确认绑定实际版本。
+- 主会话持久化并复用提示前缀，PI 管理自动压缩与 streaming 缓存保温；诊断记录普通输入、输出、缓存读写 token 和估算费用。
+- 统一 IPC 参数解析、设置与会话迁移、共享状态/文案/Dialog/Steps；组件样式按职责归属。
+- 头条 QA 进程内调用，标题上限与规则版本从 Python 加载；长篇文风规则统一由 Python 扫描，保留 UTF-16 原文坐标。
 
-## 开始创作
-
-1. 启动客户端，填写模型接口、模型 ID 和 Key，使用“测试连接”确认可用。
-2. 选择统一写作根。新小说、文章、资料和作者偏好会在该目录中整理。
-3. 新建长篇或头条文章，告诉 Agent 你的目标；在稿纸中阅读和修改，在右栏查看任务、审读与方法方案。
-4. 核对候选或修订后，由作者确认采纳、定稿或交稿。需要分享时导出 TXT、DOCX 或复制正文。
-
-支持 DeepSeek、Kimi、通义千问、智谱及 OpenAI / Anthropic 兼容接口，具体模型与权限以服务商为准。写手、独立编辑和规划角色可分别配置模型。模型请求会把相关创作内容发送至所配置的服务商。
-
-已有作品可通过设置中的“打开旧长篇目录 / 打开旧头条目录”继续使用。详见[桌面使用说明](docs/guides/DESKTOP.md)。
-
-## 能做什么
-
-- **长篇创作**：规划与章纲、章节写作、候选对照、独立审读、作者修订、采纳和定稿，保留版本及审读依据。
-- **头条创作**：立项、逐版改稿、质检、作者采用、交稿单与台账，旧稿继续保留。
-- **作者工作台**：正文直接编辑、任务进度、历史对话、命令面板，以及亮暗主题和本地中文字体。
-- **方法与资料**：切换原版、默认和用户方法方案，管理资料与作者偏好；可读取公开网页，搜索需配置相应服务。
-- **作品管理**：本地目录存储、导出、备份、写入恢复及跨入口占用检查。
-
-应用不登录或自动发布到写作平台。停止任务保留已经落盘的内容，不撤销已完成的写入。
-
-## 0.9.5 的改进
-
-- 作品切换在成功后统一提交；读取或保存失败保留旧目标，连续切换不会混用访问状态。
-- 损坏文章与方法方案明确报告问题；会话读取故障不再静默变成新会话。
-- 卡片默认解释不再制造诊断依据，规划、写手和编辑提示与实际工具一致。
-- 内部工具保留真实异常，精简重复回执与任务结束刷新；各编辑入口复用离开决策。
-- 保留必要的数据保护，常驻测试场景总数不增加；Windows 一次准备生成安装器与 ZIP。
-
-构建提交为 [`ebfa2e8`](https://github.com/ouzx6696-cmyk/dsh-zhizhang/commit/ebfa2e8cfce9afc4680223b10eb5cfa96117941d)。核心、桌面与 Windows 界面检查通过，实际打包客户端及随包 Python 可启动，下载产物校验通过。真实模型文学质量、作者试用和 Windows 实机安装／更新仍待验收。详细证据与限制见[0.9.5 实施及验收记录](docs/history/0.9.5-IMPLEMENTATION.md)。
+缓存命中受服务商、代理支持和 TTL 影响，压缩或更改前缀可能触发新缓存写入；未知价格不视为免费，实际费用以账单为准。设计与观测口径见[架构说明](docs/ARCHITECTURE.md#pi-上下文与缓存费用)。
 
 ## 开发
 
-当前源码为 **0.9.7**：夜灯／晨光双主题、全书仪表盘、头条五步与台账、方法阅读和对照、精简模型设置与外观预览。源码已同步 GitHub，[Windows 安装器、免安装包与源码](https://github.com/ouzx6696-cmyk/dsh-zhizhang/actions/runs/41414229424/artifacts/13127123157) 已构建并校验，尚未公开发布。证据与限制见 [0.9.7 实施与发行构建验收](docs/history/0.9.7-IMPLEMENTATION.md)；上方下载区仍指向公开正式发行。
-
-需要 Node.js ≥22（推荐 24）和 Python 3。
+需要 Node.js ≥22（推荐 24）、npm 和 Python 3；Windows 可用 `WRITER_PYTHON` 指定解释器。
 
 ```bash
 npm ci
-npm run desktop:dev       # 启动桌面开发
-npm run verify            # 架构守卫、Python 规则与核心业务
-npm run verify:desktop    # 桌面类型、构建、会话与少量 GUI 场景
+npm run desktop:dev
+npm run verify          # 架构守卫、导出审计、Python 与 Node 回归
+npm run lint
+npm run desktop:build
+npm run test:desktop    # 真实 PI + 本地假模型
+npm run test:desktop:ui # Playwright 驱动 Electron，需要显示服务
 ```
 
-按改动运行受影响的检查；相关输入没有变化时复用通过结果。GUI 需要桌面环境，Windows 原生打包流程见[桌面说明](docs/guides/DESKTOP.md#windows-构建与更新)。
+Linux GUI 测试可使用 `CI=1 DISPLAY=:99 npm run test:desktop:ui`，需先启动 Xvfb。方法资产通过 `npm run assets -- check` 核对；主动更新资产后运行 `npm run assets -- manifest`。
 
-| 位置                                  | 职责                                       |
-| ------------------------------------- | ------------------------------------------ |
-| `apps/desktop`                        | Electron、自有 PI 会话、角色协作与桌面界面 |
-| `packages/core`                       | 共同存储、版本、执行门禁和资源管理         |
-| `packages/fanqie`、`packages/toutiao` | 长篇与头条业务、规则及方法资产             |
-| `packages/workbench`、`packages/ui`   | 共享工作台、数据接口与界面基础             |
+| 路径 | 职责 |
+| --- | --- |
+| `apps/desktop` | Electron、IPC、PI 会话和桌面界面 |
+| `packages/core` | 工具执行、门禁、存储基础、锁、方法方案 |
+| `packages/fanqie`、`packages/toutiao` | 长篇与头条业务、Python 规则和方法资产 |
+| `packages/workbench`、`packages/ui` | 路由契约、共享写作区和设计系统 |
 
-[架构说明](docs/ARCHITECTURE.md) · [当前状态](docs/STATUS.md) · [变更记录](CHANGELOG.md) · [方法方案](docs/guides/PROFILES.md) · [资产说明](docs/guides/ASSETS.md)
+## 构建与下载
 
-DSH 插件形态最后版本为 v0.9.7。
+当前 0.9.8 为本轮源码版本，尚未公开发布。既有公开版本见 [Releases](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases)；不要把旧版附件当作本版。
+
+Windows 原生构建 `npm run verify:release`，或先 `npm run desktop:build`，再执行桌面 workspace 的 `pack`（NSIS）和 `pack:portable`（ZIP）。产物含固定版本且校验过的 Windows CPython、字体和许可证；未配置证书时为未签名包。CI 会整理源码与 SHA-256 清单。平台与已执行验证见[当前状态](docs/STATUS.md)。
+
+真实模型质量、实际缓存费用、Windows 实机安装和跨版本更新需要对应条件验证，流程见[真实模型验收](docs/ACCEPTANCE.md)。
+
+[桌面使用](docs/guides/DESKTOP.md) · [架构](docs/ARCHITECTURE.md) · [变更记录](CHANGELOG.md) · [方法方案](docs/guides/PROFILES.md) · [资产维护](docs/guides/ASSETS.md)

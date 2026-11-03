@@ -2,11 +2,7 @@
 
 返回值统一为 JSON 对象：成功 `{ok:true, ...}`，业务失败 `{ok:false, code, message}`，code ∈ INVALID_ARGS / NOT_FOUND / CONFLICT / GATE_DENIED / SCRIPT_FAILED / TIMEOUT / OUT_OF_ROOT / NO_AGENT。
 
-## 入口
-
-| 工具 | 参数 | 说明 |
-|---|---|---|
-| writer_enable | mode, role | 全局唯一可见的写作工具。mode=toutiao 挂头条工具、总则、门禁；mode=fanqie 挂长篇引擎工具与硬规则 + 写作层工具、补充规则、门禁；role=editor 为编辑子代理。一个会话只能一种模式、一种角色，冲突返回 CONFLICT |
+桌面按当前作品模式与角色注册工具，写手、编辑和规划的工具权限由客户端限定。
 
 # 今日头条（mode=toutiao）
 
@@ -73,6 +69,4 @@
 | fanqie.editor_readonly | 编辑 | 采纳、定稿、改根基/章纲、入库、开书等写入类工具 | 拒绝 | 否 |
 | 模式隔离（全局） | — | toutiao_* ↔ fanqie_* | 拒绝 | 否 |
 
-# 写作台接口（只接受本机，或按 workbench 配置的局域网与令牌）
-- 番茄长篇：`/api/writer/*`（projects、works、snapshot、chapter、candidate、candidate/accept、chapter/review、chapter/finalize、revision/acknowledge、diagnostics/*、unify/prepare、agent/deliver），见 [WORKBENCH.md](WORKBENCH.md)。
-- 今日头条：`GET /api/writer/toutiao/articles`、`GET /api/writer/toutiao/article?root=&id=`、`POST /api/writer/toutiao/adopt {root,id,confirm}`、`POST /api/writer/toutiao/deliver {root,id?,action=new|continue|review|revise,note?,requestId?,confirm}`。
+写作台通过桌面 IPC 调用业务路由，不启动 HTTP 服务；路由契约见 `packages/workbench/src/routes.ts`。

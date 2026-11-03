@@ -112,7 +112,7 @@ jobs:
           version="$(node -p 'require("./package.json").version')"
           mkdir -p release-artifacts
           cp apps/desktop/release/*.exe apps/desktop/release/*.zip apps/desktop/release/*.blockmap "apps/desktop/release/$WRITER_UPDATE_FILE" apps/desktop/release/RELEASE-CONDITIONS.json release-artifacts/
-          cp "docs/history/${version}-IMPLEMENTATION.md" docs/guides/DESKTOP.md README.md release-artifacts/
+          cp CHANGELOG.md docs/STATUS.md docs/guides/DESKTOP.md README.md release-artifacts/
           git archive --format=zip --prefix="writer-agent-${version}/" -o "release-artifacts/writer-agent-${version}-src.zip" HEAD
           (cd release-artifacts && sha256sum *.zip *.exe *.blockmap *.yml *.json *.md > SHA256SUMS)
       - uses: actions/upload-artifact@v4

@@ -54,16 +54,10 @@
 **对话里**（作者明确要求时）：`toutiao_profile` / `fanqie_profile`，action = `list` / `show` / `use` / `create`（`from_dir` 导入会话目录下的文件夹）/ `save`（`text` 或 `file`）/ `reset` / `rename`。删除只在写作台做。编辑子代理看不到这两个工具。
 
 **配置**：
-```yaml
-- id: writer
-  config:
-    profilesDir: 'D:/写作/方法方案'   # 可选；默认 $DSH_HOME/writer/profiles
-    toutiao:
-      profile: 用户方案一               # 可选；固定方案，写作台与工具都不能切换
-```
+在 userData 的 `writer.json` 中设置 `profilesDir`；模式下的 `profile` 可固定方案，例如 `{"profilesDir":"D:/写作/方法方案","toutiao":{"profile":"用户方案一"}}`。
 
 ## 存放
-`<方案目录>/active.json` 记各模式当前方案；`<方案目录>/<mode>/user-N/profile.json` + `methods/<id>.md` 是用户方案。方案目录按 配置 `profilesDir` → 环境变量 `WRITER_PROFILES_DIR` → `$DSH_HOME/writer/profiles` → `~/.dsh-writer/profiles` 取第一个。
+`<方案目录>/active.json` 记各模式当前方案；`<方案目录>/<mode>/user-N/profile.json` + `methods/<id>.md` 是用户方案。方案目录按 配置 `profilesDir` → 环境变量 `WRITER_PROFILES_DIR` → 应用状态目录的 `writer/profiles` 取第一个。
 
 限制：每种模式最多 20 个用户方案、每个方案最多 300 份、单份最大 256KB、方案名最多 24 字；方法 id 不许越级或含 `< > : " | ? *`。
 

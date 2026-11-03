@@ -431,15 +431,13 @@ const repositoryRules = [
   {
     name: "history-directory",
     async check() {
-      // Enforced with --strict until documentation is consolidated in T9.
-      if (!STRICT) return;
       try {
-        await stat(path.join(ROOT, "docs/history"));
+        await stat(path.join(ROOT, "docs", "history"));
       } catch (error) {
         if (error.code === "ENOENT") return;
         throw error;
       }
-      problems.push("docs/history/ 目录不得存在");
+      problems.push("文档历史目录不得存在");
     },
   },
 ];

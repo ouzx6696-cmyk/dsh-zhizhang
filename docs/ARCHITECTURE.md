@@ -1,21 +1,35 @@
 # 架构
 
-## 桌面调用链与事实归属
+Electron 是唯一客户端，PI SDK 1.4.0 管理模型会话。代码只能向下依赖；架构守卫检查依赖环、存储边界、浏览器边界、文案和组件样式归属。
 
-## 包与分层
+| 包 | 可依赖的项目层 | 职责 |
+| --- | --- | --- |
+| `apps/desktop` | core、toutiao、fanqie、workbench、ui | Electron 主进程、IPC、PI 会话和桌面界面 |
+| `packages/workbench` | core、ui；路由由桌面注入业务处理器 | 路由契约、方法方案接口、共享写作区 |
+| `packages/fanqie` | core、workbench 路由契约 | 长篇工具、领域规则、存储和查询 |
+| `packages/toutiao` | core、workbench 路由契约 | 立项、逐版稿件、质检、采用、交稿和台账 |
+| `packages/core` | Node 标准库 | 工具执行、门禁、原子文件、路径沙箱、锁、方案、Python 运行器 |
+| `packages/ui` | React | 设计 token、原语、状态映射和共享文案 |
 
-只能向下依赖；`scripts/architecture-guard.mjs` 还检查宿主边界、引擎存储边界、浏览器端边界和依赖环。
+`apps/desktop/src/main` 在 IPC 边界解析参数。`session/pi-adapter.ts` 是唯一 PI SDK 导入边界，`session` 组织写手、编辑和规划任务；编辑与规划拥有明确工具白名单。渲染层使用单一 store，功能模块组合共享写作区，不直接访问 Node 存储。
 
-## 一次启用
-1. Agent 调 `writer_enable(mode, role)`。`core/mode` 认领会话模式，冲突返回 CONFLICT。
-2. 对应模式在调用方 Agent 作用域上注册工具、常驻段落、门禁（`tools/pre-execute`）。编辑角色只挂审读相关能力或拒绝写入。
-3. 工具解析数据目录时，`core/sessions` 记下这个目录最近的主会话（子代理不记）。
+`core/execute.ts` 的 `executeTool` 统一执行门禁、作者确认和工具调用。`core/fsx.ts` 负责 fsync 原子替换、防符号链接、读盘、哈希、ID、UTC 时间和路径约束；领域层不复制这些能力。
 
-## 独立桌面入口
+头条工具的标题上限和规则版本来自 Python `rules.py`，启动时通过 bridge 加载并缓存。QA 的立项卡和六维评分在同一 Python 进程执行。方法根由桌面显式传入；方法原文不随任务动态重写。
 
-`apps/desktop/src/session/pi-adapter.ts` 是唯一 Pi SDK 导入边界；`session/` 管理写手、独立编辑和规划角色、精简交接与既有会话文件。Electron main 由 `main/index.ts` 启动，IPC 按领域放在 `main/ipc/*`。渲染层是 `renderer/app` 组装、`renderer/state` 单 store 与 `renderer/features/*` 功能模块；React 工作区直接复用写作台组件。工具调用经 host-generic 回到原业务，不重建方法或存储。
+长篇 `engine/domain` 定义版本、证据和工作流，`services` 编排采纳与诊断，`storage` 管理持久化，`ports` 适配参考库与质量策略。通用 journal 执行八类多文件意图，恢复确认绑定日志 ID 和完整指纹。文风规则唯一源为 Python `manuscript_linter.py`，TS 校验返回的 UTF-16 坐标并展示。详见[长篇存储与恢复](engine/ARCHITECTURE.md)。
 
-统一根将书放在 novels、文章放在 toutiao、资料与作者偏好放在 .writer。跨入口的作品租约与轻量快照在 core，共享业务写入检查租约。0.9.3 继续基于内置 PI 完善自有客户端的会话、角色协作、上下文和作品一致性，见[开发计划](history/PLAN-0.9.3.md)；不新增其他 Agent 工具适配。
+`workbench/src/routes.ts` 统一路由名称、输入及错误映射；业务处理器通过表分发。界面正文按需读取，迟到响应按作品和版本隔离。确认窗口保存打开时的来源版本，写入在锁内重新读取同一份候选，校验内容哈希后提交。
+
+`ui` 集中用户文案、状态文字与色调、Dialog 和 Steps。CSS 按组件职责分组，一个组件前缀只在一处维护。
+
+## 数据流与事实归属
+
+作者操作 → preload/IPC 参数解析 → 会话任务或业务路由 → `executeTool`/共同业务服务 → 领域规则 → 合作锁、原子文件与 journal → 本地作品。读取结果通过 IPC 回到 store，工具进度和模型 usage 通过会话事件更新界面。
+
+作品文件是事实来源，聊天中的“完成”不等于落盘成功。写作根保存 `novels/`、`toutiao/` 和 `.writer/`；应用 userData 保存模型配置、会话入口、界面偏好和去敏日志。读操作不隐式迁移或创建目录，旧索引在初始化时只迁移一次。非法或损坏数据报错，不用空数据覆盖。
+
+合作锁不能阻止外部编辑，原子替换也不是跨文件事务。多文件写入中断保留恢复意图，作者核对后继续；恢复不覆盖整本书或任意删除遗留文件。
 
 ## PI 上下文与缓存费用
 

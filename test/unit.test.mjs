@@ -114,16 +114,16 @@ test("守卫：空 catch 和字面量回退须说明原因，认识 ENOENT 的�
   }
 });
 
-test("守卫：history 目录在严格模式失败，CSS 长度只提示且文档数量不设限", async (t) => {
+test("守卫：history 目录始终失败，CSS 长度只提示且文档数量不设限", async (t) => {
   const { write, run } = await guardFixture(t);
   await write("packages/ui/src/long.css", "\n".repeat(301));
   for (let i = 0; i < 11; i++) await write(`docs/guide-${i}.md`, "guide");
   assert.equal(run().status, 0);
-  await write("docs/history/old.md", "old");
-  assert.equal(run(false).status, 0);
+  await write(path.join("docs", "history", "old.md"), "old");
+  assert.equal(run(false).status, 1);
   const result = run();
   assert.equal(result.status, 1);
-  assert.match(result.stderr, /docs\/history\/ 目录不得存在/);
+  assert.match(result.stderr, /文档历史目录不得存在/);
 });
 
 test("resolveInside 拒绝越界", () => {

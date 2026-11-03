@@ -30,7 +30,7 @@ forge 的"节奏档位"在引擎里对应作品级 `pace`（`fanqie_foundation_s
 - **实现**：`engine/tools/audit.ts` 调 `forge.ts forgeLint`；追加文本不影响雷达命中数与 lintPassToken；Python 不可用时只附一行"追加体检暂不可用"。
 
 ## 4. 编辑子代理
-- 主写手用 DSH 自带 `subagent` 派出编辑；编辑调用 `writer_enable mode=fanqie role=editor`。
+- 主写手通过桌面独立编辑任务发起审读；编辑使用独立 PI 会话和受限工具集。
 - 编辑能读、能出**编辑候选**（`fanqie_candidate_edit_brief/stage`），不能采纳、定稿、改根基或章纲、入库。
 - 回报固定走 `fanqie_review_report`：结论、四类硬伤（关键剧情与落点、本书硬约束、人物认知、正文接续）、L1–L3 定位、是否完整回读、实际改动范围。回报绑定正文 SHA-256（首尾换行归一），正文一改即过期。存在作品目录 `writer-reviews/<章 id>/<时间>.json`。
 
