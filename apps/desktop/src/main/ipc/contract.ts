@@ -19,7 +19,7 @@ export type RunningTask = {
 };
 export type SessionView = {
   conversationId?: string;
-  messages: any[];
+  messages: import("../../renderer-contracts").WriterMessage[];
   total: number;
   busy: boolean;
   stream: string;
@@ -57,7 +57,7 @@ export interface IpcMap {
   backup: { args: []; result: { file: string } | null };
   "storage-health": { args: []; result: StorageHealth };
   recover: {
-    args: [unknown];
+    args: [{ id: string; fingerprint: string }];
     result: { file: string | null; state: unknown } | null;
   };
   diagnostics: { args: []; result: { file: string } | null };
@@ -68,16 +68,22 @@ export interface IpcMap {
   running: { args: []; result: RunningTask[] };
   profiles: { args: []; result: boolean };
   model: { args: [unknown]; result: PublicSettings };
-  "model-catalog": { args: [keyof ModelSettings, ModelConnection, string?]; result: any };
+  "model-catalog": {
+    args: [keyof ModelSettings, Partial<ModelConnection>, string?];
+    result:
+      | Awaited<ReturnType<typeof import("../../session/pi-adapter").modelCatalog>>
+      | Awaited<ReturnType<typeof import("../../session/pi-adapter").discoverModels>>;
+  };
   "test-model": {
-    args: [keyof ModelSettings, ModelConnection];
+    args: [keyof ModelSettings, Partial<ModelConnection>];
     result: { latency: number; model: string };
   };
   appearance: {
     args: [Partial<PublicSettings["appearance"]>];
     result: PublicSettings["appearance"];
   };
-  preferences: { args: [string?]; result: string };
+  preferences: { args: []; result: string };
+  "save-preferences": { args: [string]; result: string };
   search: { args: [string]; result: PublicSettings };
   request: { args: [string, RequestOptions?]; result: RequestResult };
   send: { args: [string, Target?, Focus?]; result: true | undefined };
@@ -87,3 +93,71 @@ export interface IpcMap {
 export type IpcChannel = keyof IpcMap;
 export type IpcArgs<K extends IpcChannel> = IpcMap[K]["args"];
 export type IpcResult<K extends IpcChannel> = IpcMap[K]["result"];
+
+import {
+  asRecord,
+  parseMode,
+  parseTarget,
+  parseFocus,
+  parseText,
+  parseOperation,
+  parseRequestOptions,
+  parseAppearance,
+  parseLimit,
+  parseArchive,
+  parseChoice,
+  parseRecovery,
+  parseExternal,
+} from "./validate";
+import { parseConnectionInput } from "../../models";
+const role = (value: unknown) => parseChoice(value, ["writer", "editor", "planner"] as const);
+export const IPC_PARSERS: { [K in IpcChannel]: (args: unknown[]) => IpcArgs<K> } = {
+  state: () => [],
+  choose: ([mode]) => [parseMode(mode)],
+  workspace: () => [],
+  projects: () => [],
+  "new-target": ([mode]) => [parseMode(mode)],
+  "new-conversation": ([target]) => [parseTarget(target)],
+  conversations: ([target]) => [parseTarget(target)],
+  export: ([target, focus, format]) => [
+    parseTarget(target),
+    parseFocus(focus),
+    parseChoice(format, ["copy", "txt", "docx"] as const),
+  ],
+  backup: () => [],
+  "storage-health": () => [],
+  recover: ([expected]) => [parseRecovery(expected)],
+  diagnostics: () => [],
+  updates: ([action]) => [
+    action === undefined
+      ? undefined
+      : parseChoice(action, ["check", "download", "install"] as const),
+  ],
+  external: ([url]) => [parseExternal(url)],
+  select: ([target]) => [parseTarget(target)],
+  view: ([target, limit, archive]) => [
+    parseTarget(target),
+    parseLimit(limit),
+    parseArchive(archive),
+  ],
+  running: () => [],
+  profiles: () => [],
+  model: ([value]) => [asRecord(value, "模型设置")],
+  "model-catalog": ([value, next, action]) => [
+    role(value),
+    parseConnectionInput(next),
+    action === undefined ? undefined : parseChoice(action, ["refresh", "endpoint"] as const),
+  ],
+  "test-model": ([value, next]) => [role(value), parseConnectionInput(next)],
+  appearance: ([next]) => [parseAppearance(next)],
+  preferences: () => [],
+  "save-preferences": ([text]) => [parseText(text)],
+  search: ([key]) => [parseText(key)],
+  request: ([operation, options]) => [parseOperation(operation), parseRequestOptions(options)],
+  send: ([text, target, focus]) => [
+    parseText(text),
+    target === undefined ? undefined : parseTarget(target),
+    parseFocus(focus),
+  ],
+  stop: ([target]) => [target === undefined ? undefined : parseTarget(target)],
+};

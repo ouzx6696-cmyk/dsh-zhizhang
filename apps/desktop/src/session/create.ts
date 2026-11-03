@@ -20,7 +20,6 @@ import { fanqieGateRules } from "../../../../packages/fanqie/src/gates";
 import { listProjects, projectIdOf } from "../../../../packages/fanqie/src/engine/work-store";
 import { createGateEngine } from "../../../../packages/core/src/gates";
 import type { ToolDefinition as WriterToolDefinition } from "../../../../packages/core/src/tool";
-import { roleAllows } from "./roles";
 import { systemPrompt } from "./prompt";
 import { createBusinessTools } from "./tools";
 import { createDelegateTools } from "./editor-task";
@@ -36,8 +35,7 @@ export async function createSession(
   onCreated?: (work: string) => Promise<void>,
   onSaved?: (tool: string, output: string) => void,
 ): Promise<AgentSession> {
-  const editor = role === "editor",
-    primary = role === "writer";
+  const primary = role === "writer";
   const target = { ...targetInput };
   const key = host.key(target);
   if (primary && host.sessions.has(key)) return host.sessions.get(key)!.session;
@@ -61,7 +59,7 @@ export async function createSession(
         ? SessionManager.open(marker)
         : SessionManager.create(target.root, dir);
   }
-  const businessRole = editor ? "editor" : "writer";
+
   const project =
     target.mode === "fanqie"
       ? (await listProjects()).find((p) => p.id === projectIdOf(target.root))
@@ -73,17 +71,16 @@ export async function createSession(
     python: host.python,
   };
   const gates = createGateEngine(
-    target.mode === "toutiao" ? toutiaoGateRules(config) : fanqieGateRules(config, businessRole),
+    target.mode === "toutiao" ? toutiaoGateRules(config) : fanqieGateRules(config, role),
     { requireApproval: true },
   );
   let definitions: WriterToolDefinition[] =
     target.mode === "toutiao"
-      ? createToutiaoTools({ config, role: businessRole, gates: () => gates })
+      ? createToutiaoTools({ config, role: role, gates: () => gates })
       : [
-          ...engineTools(config, gates, "throw", businessRole),
-          ...createFanqieTools({ config, role: businessRole }),
+          ...engineTools(config, gates, "throw", role),
+          ...createFanqieTools({ config, role: role }),
         ];
-  definitions = definitions.filter((tool) => roleAllows(role, tool.name, target.mode));
   const readUrls = new Set<string>();
   const task = createTask();
   let entry: SessionEntry;
@@ -95,7 +92,6 @@ export async function createSession(
       host,
       target,
       role,
-      primary,
       manager,
       gates,
       config,
@@ -152,11 +148,6 @@ export async function createSession(
   trackSession({
     host,
     entry,
-    session,
-    manager,
-    target,
-    primary,
-    editor,
     role,
     onUserMessage: () => readUrls.clear(),
   });

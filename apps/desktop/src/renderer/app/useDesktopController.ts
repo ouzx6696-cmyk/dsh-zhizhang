@@ -1,3 +1,5 @@
+import { errorText } from "../../../../../packages/core/src/errors.js";
+import { DEFAULT_HISTORY_LIMIT } from "../../history-options";
 import { useDraftProtection } from "./useDraftProtection";
 import { useEffect, useRef } from "react";
 import { scopeId, type Focus, type Target } from "../../context";
@@ -18,7 +20,7 @@ export function useDesktopController() {
   const set = desktopStore.set;
   const selected = useRef<Target | null>(null);
   const focused = useRef<Focus>({});
-  const limit = useRef(80);
+  const limit = useRef(DEFAULT_HISTORY_LIMIT);
   const viewRequest = useRef(0);
   const selectionRequest = useRef(0);
   const pendingMessages = useRef<ChatMessage[] | null>(null);
@@ -31,7 +33,7 @@ export function useDesktopController() {
   contextRef.current = state.context;
 
   function fail(error: unknown) {
-    set({ error: error instanceof Error ? error.message : String(error) });
+    set({ error: errorText(error) });
   }
 
   function refreshWorkspace() {
@@ -61,7 +63,7 @@ export function useDesktopController() {
     set({ projects: await api.projects() });
   }
 
-  async function loadView(target: Target, maximum = 80, old?: number) {
+  async function loadView(target: Target, maximum = DEFAULT_HISTORY_LIMIT, old?: number) {
     const request = ++viewRequest.current,
       buffer: ChatMessage[] = [];
     pendingMessages.current = buffer;
@@ -114,9 +116,8 @@ export function useDesktopController() {
         ? readPref(PREF.work) === (target.work || "")
         : readPref(PREF.ttRoot) === target.root);
     remember(target, nextFocus, preserve);
-    selected.current = target;
     archived.current = undefined;
-    limit.current = 80;
+    limit.current = DEFAULT_HISTORY_LIMIT;
     chatStore.set({
       archive: undefined,
       messages: [],
@@ -202,7 +203,6 @@ export function useDesktopController() {
           stream: current.stream + (event.assistantMessageEvent?.delta || ""),
         }));
       if (event.type === "message_end") {
-        if (archived.current !== undefined) return;
         const message = event.message as ChatMessage | undefined;
         if (!message) return;
         if (pendingMessages.current) pendingMessages.current.push(message);
@@ -218,8 +218,12 @@ export function useDesktopController() {
         chatStore.set({
           busy: false,
           stream: "",
-          phase: event.reason === "failed" ? event.error || "任务失败，请查看错误后重试"
-            : event.reason === "cancelled" ? "已停止，已保存结果保留" : "任务结束，等待你查看结果",
+          phase:
+            event.reason === "failed"
+              ? event.error || "任务失败，请查看错误后重试"
+              : event.reason === "cancelled"
+                ? "已停止，已保存结果保留"
+                : "任务结束，等待你查看结果",
         });
       }
     });

@@ -1,7 +1,6 @@
 import path from "node:path";
 import type { Runtime } from "../runtime";
 import { handle } from "./handle";
-import { parseAppearance } from "./validate";
 import { connection } from "../../models";
 import { modelCatalog, discoverModels, testConnection } from "../../session/pi-adapter";
 import { explainError } from "../../diagnostics";
@@ -18,7 +17,6 @@ export function registerModelsIpc(state: Runtime) {
     return state.settings.public();
   });
   handle("test-model", async (role, next) => {
-    if (role !== "writer" && role !== "editor" && role !== "planner") throw new Error("未知角色");
     const previous = state.model[role] || state.model.writer;
     try {
       const value = connection(next, previous);
@@ -37,15 +35,16 @@ export function registerModelsIpc(state: Runtime) {
       : modelCatalog(path.join(state.home, "agent", "auth.json"), value, action === "refresh");
   });
   handle("appearance", async (next) => {
-    await state.settings.saveUI({ appearance: parseAppearance(next) });
+    await state.settings.saveUI({ appearance: next });
     return state.settings.appearance;
   });
-  handle("preferences", async (text) => {
-    if (typeof text === "string") await state.settings.savePreferences(text);
+  handle("preferences", () => state.settings.preferences());
+  handle("save-preferences", async (text) => {
+    await state.settings.savePreferences(text);
     return state.settings.preferences();
   });
   handle("search", async (key) => {
-    await state.settings.saveSearch(String(key));
+    await state.settings.saveSearch(key);
     await state.sessions.dispose();
     state.emit({ running: [] });
     return state.settings.public();

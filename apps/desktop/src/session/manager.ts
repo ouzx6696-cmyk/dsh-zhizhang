@@ -1,10 +1,12 @@
+import { migrateSessionHistory } from "./migration";
+import { DEFAULT_HISTORY_LIMIT } from "../history-options";
 import path from "node:path";
 import { rootIdentity } from "../../../../packages/core/src/identity";
 import { createHash } from "node:crypto";
-import { access, mkdir, rm, readdir, readFile } from "node:fs/promises";
+import { access, mkdir, rm } from "node:fs/promises";
 import { atomicWrite } from "../../../../packages/core/src/fsx";
 import type { Focus, Target } from "../context";
-import type { DesktopEvent } from "../renderer-contracts";
+import type { DesktopEvent, WriterMessage } from "../renderer-contracts";
 import type { ModelSettings } from "../models";
 import type { AgentSession, SessionManager } from "./pi-adapter";
 import { createSession } from "./create";
@@ -26,7 +28,7 @@ import type {
 export class Sessions {
   projectedHistory = new WeakMap<
     SessionManager,
-    { leaf: string | null; limit: number; messages: unknown[]; total: number }
+    { leaf: string | null; limit: number; messages: WriterMessage[]; total: number }
   >();
   preparations = new Map<symbol, { target: Target; focus: Focus; generation: number }>();
   generations = new Map<string, number>();
@@ -36,15 +38,54 @@ export class Sessions {
   children = new Map<AgentSession, AgentSession>();
 
   constructor(
-    public home: string,
-    public python: string,
-    public settings: () => ModelSettings,
-    public emit: (event: DesktopEvent) => void,
-    public confirm: (text: string, signal?: AbortSignal) => Promise<boolean>,
-    public options: SessionOptions = {},
-    public created: (previous: Target, next: Target) => Promise<void> = async () => {},
-    public extras: SessionExtras = {},
+    private setup: {
+      home: string;
+      python: string;
+      settings: () => ModelSettings;
+      emit: (event: DesktopEvent) => void;
+      confirm: (text: string, signal?: AbortSignal) => Promise<boolean>;
+      options: SessionOptions;
+      created: (previous: Target, next: Target) => Promise<void>;
+      extras: SessionExtras;
+    },
   ) {}
+  get home() {
+    return this.setup.home;
+  }
+  get python() {
+    return this.setup.python;
+  }
+  get settings() {
+    return this.setup.settings;
+  }
+  get emit() {
+    return this.setup.emit;
+  }
+  get confirm() {
+    return this.setup.confirm;
+  }
+  get options() {
+    return this.setup.options;
+  }
+  get created() {
+    return this.setup.created;
+  }
+  get extras() {
+    return this.setup.extras;
+  }
+  same(a: Target, b: Target) {
+    return this.key(a) === this.key(b);
+  }
+  isRunning(target: Target) {
+    return (
+      this.preparing(target) ||
+      this.opening.has(this.key(target)) ||
+      this.running().some((row) => this.same(row.target, target))
+    );
+  }
+  async initialize(target: Target) {
+    return migrateSessionHistory(this, target);
+  }
 
   hasPending() {
     return this.preparations.size > 0 || this.opening.size > 0;
@@ -65,41 +106,7 @@ export class Sessions {
   }
 
   async directory(target: Target) {
-    const root = path.join(this.home, "sessions"),
-      current = path.join(root, this.key(target));
-    if (target.mode !== "fanqie") return current;
-    try {
-      await access(current);
-      return current;
-    } catch (error: any) {
-      if (error.code !== "ENOENT") throw error;
-    }
-    const dirs = await readdir(root).catch((error: any) => {
-      if (error.code === "ENOENT") return [];
-      throw error;
-    });
-    for (const dir of dirs) {
-      const marker = await readFile(path.join(root, dir, "current"), "utf8").catch((error: any) => {
-        if (error.code === "ENOENT" || error.code === "ENOTDIR") return "";
-        throw error;
-      });
-      if (!marker) continue;
-      const first = (await readFile(marker, "utf8")).split("\n", 1)[0];
-      const header = JSON.parse(first);
-      if (!header.cwd || rootIdentity(header.cwd) !== rootIdentity(target.root)) continue;
-      const oldKey = createHash("sha256")
-        .update(
-          JSON.stringify({
-            mode: target.mode,
-            root: path.resolve(header.cwd),
-            ...(target.work ? { work: target.work } : {}),
-          }),
-        )
-        .digest("hex")
-        .slice(0, 24);
-      if (dir === oldKey) return path.join(root, dir);
-    }
-    return current;
+    return path.join(this.home, "sessions", this.key(target));
   }
 
   async open(
@@ -137,7 +144,7 @@ export class Sessions {
     return startNewConversation(this, target);
   }
 
-  async view(target: Target, limit = 80, archive?: number) {
+  async view(target: Target, limit = DEFAULT_HISTORY_LIMIT, archive?: number) {
     return viewHistory(this, target, limit, archive);
   }
 

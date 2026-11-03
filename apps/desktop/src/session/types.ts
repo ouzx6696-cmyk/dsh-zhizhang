@@ -3,17 +3,7 @@ import type { Focus, Target } from "../context";
 import type { FanqieConfig } from "../../../../packages/fanqie/src/config";
 import type { ToutiaoConfig } from "../../../../packages/toutiao/src/config";
 
-export type Task = {
-  id?: string;
-  name: string;
-  completed: string[];
-  current: string;
-  waiting: string;
-  tokens: number;
-  cost: number;
-  startedAt: number;
-  endedAt?: number;
-};
+export type Task = import("../renderer-contracts").TaskState;
 
 export type SessionEntry = {
   session: AgentSession;

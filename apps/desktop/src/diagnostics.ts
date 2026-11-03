@@ -1,6 +1,7 @@
+import { errorText } from "../../../packages/core/src/errors.js";
 export { Diagnostics } from "../../../packages/core/src/diagnostics";
 export function explainError(error: unknown) {
-  const text = String(error instanceof Error ? error.message : error);
+  const text = errorText(error);
   if (/401|invalid.*key|authentication|unauthorized/i.test(text))
     return "模型认证失败：请检查服务商、接口地址和 API Key。";
   if (/402|quota|insufficient|balance|credit/i.test(text))

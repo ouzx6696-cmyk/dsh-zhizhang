@@ -22,12 +22,11 @@ export async function createToolHarness({ mode, role = 'writer', cwd, config = {
   const approvals = []
   let definitions, rules
   if (mode === 'toutiao') {
-    const { createToutiaoTools, EDITOR_TOOLS } = await import(buildUrl('toutiao/src/tools.js'))
+    const { createToutiaoTools } = await import(buildUrl('toutiao/src/tools.js'))
     const { toutiaoGateRules } = await import(buildUrl('toutiao/src/gates.js'))
     rules = toutiaoGateRules(config)
     const gates = createGateEngine(rules, { requireApproval: true, disabled: config.disabledGates })
     definitions = createToutiaoTools({ config, role, gates: () => gates })
-    if (role === 'editor') definitions = definitions.filter(tool => EDITOR_TOOLS.has(tool.name))
     return harness(gates)
   }
   if (mode !== 'fanqie') throw new Error(`unknown mode ${mode}`)

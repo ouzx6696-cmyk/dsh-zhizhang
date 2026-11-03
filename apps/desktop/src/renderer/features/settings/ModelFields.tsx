@@ -1,9 +1,20 @@
+import { errorText } from "../../../../../../packages/core/src/errors.js";
+import type { ModelConnection, Thinking } from "../../../models";
+import type { ConnectionResult } from "../../state/store";
 import React, { useEffect, useState } from "react";
 import { desktop } from "../../state/desktop";
 import { Check, LoaderCircle } from "lucide-react";
 import { API_LABELS, COPY } from "../../../../../../packages/ui/src/copy";
 import { APIS, PROVIDERS } from "../../../models";
 
+type ProviderChoice = Partial<ModelConnection> & { id: string; name?: string };
+type Catalog = {
+  models: (Partial<ModelConnection> & { id: string; name: string; levels?: Thinking[] })[];
+  providers?: ProviderChoice[];
+  levels?: Thinking[];
+  thinkingLevel?: Thinking;
+  source?: string;
+};
 export function ModelFields({
   role,
   model,
@@ -12,12 +23,12 @@ export function ModelFields({
   result,
 }: {
   role: "writer" | "editor" | "planner";
-  model: any;
-  onChange: (value: any) => void;
+  model: ModelConnection & { configured: boolean };
+  onChange: (value: ModelConnection & { configured: boolean }) => void;
   onTest: () => void;
-  result?: any;
+  result?: ConnectionResult;
 }) {
-  const [catalog, setCatalog] = useState<any>({ models: [], levels: ["off"] });
+  const [catalog, setCatalog] = useState<Catalog>({ models: [], levels: ["off"] });
   const [catalogError, setCatalogError] = useState("");
   const [loading, setLoading] = useState(false);
   const load = async (action?: string) => {
@@ -25,31 +36,36 @@ export function ModelFields({
     setCatalogError("");
     try {
       const value = await desktop.modelCatalog(role, model, action);
-      setCatalog((current: any) => ({ ...current, ...value }));
+      setCatalog((current) => ({ ...current, ...value }));
     } catch (error) {
-      setCatalogError(String(error instanceof Error ? error.message : error));
+      setCatalogError(errorText(error));
     } finally {
       setLoading(false);
     }
   };
+  const latestModel = React.useRef(model);
+  latestModel.current = model;
   useEffect(() => {
     let active = true;
-    desktop
-      .modelCatalog(role, model)
-      .then((value) => {
-        if (active) setCatalog(value);
-      })
-      .catch((error) => {
-        if (active) setCatalogError(String(error));
-      });
+    const timer = window.setTimeout(() => {
+      setCatalogError("");
+      desktop
+        .modelCatalog(role, latestModel.current)
+        .then((value) => {
+          if (active) setCatalog(value);
+        })
+        .catch((error) => {
+          if (active) setCatalogError(String(error));
+        });
+    }, 400);
     return () => {
       active = false;
+      window.clearTimeout(timer);
     };
-  }, [model, role]);
+  }, [model.provider, model.baseUrl, role]);
   const preset = (id: string) => {
-    const item =
-      catalog.providers?.find((row: any) => row.id === id) ||
-      PROVIDERS.find((row) => row.id === id);
+    const item: ProviderChoice | undefined =
+      catalog.providers?.find((row) => row.id === id) || PROVIDERS.find((row) => row.id === id);
     if (!item) {
       onChange({ ...model, provider: "custom" });
       return;
@@ -57,10 +73,10 @@ export function ModelFields({
     onChange({
       ...model,
       provider: id,
-      api: item.api,
-      baseUrl: item.baseUrl,
-      model: item.model,
-      contextWindow: item.contextWindow,
+      api: item.api ?? model.api,
+      baseUrl: item.baseUrl ?? model.baseUrl,
+      model: item.model ?? model.model,
+      contextWindow: item.contextWindow ?? model.contextWindow,
       maxTokens: item.maxTokens || 8192,
       thinkingLevelMap: item.thinkingLevelMap,
       apiKey: "",
@@ -71,14 +87,14 @@ export function ModelFields({
   };
   return (
     <fieldset className="model-fields">
-      <legend>{role === "writer" ? "写手" : role === "editor" ? "独立编辑" : "规划与拆书"}</legend>
+      <legend>{role === "writer" ? "写手" : role === "editor" ? "独立编辑" : "规划"}</legend>
       <label>
         服务商
         <select value={model.provider} onChange={(event) => preset(event.target.value)}>
           <option value="custom">自定义连接</option>
           {(catalog.providers || [])
-            .filter((p: any) => !PROVIDERS.some((row) => row.id === p.id))
-            .map((p: any) => (
+            .filter((p) => !PROVIDERS.some((row) => row.id === p.id))
+            .map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name || p.id}
               </option>
@@ -96,13 +112,13 @@ export function ModelFields({
           value={model.model}
           list={`model-options-${role}`}
           onChange={(event) => {
-            const item = catalog.models.find((item: any) => item.id === event.target.value);
+            const item = catalog.models.find((item) => item.id === event.target.value);
             onChange({ ...model, ...item, model: event.target.value });
           }}
         />
       </label>
       <datalist id={`model-options-${role}`}>
-        {catalog.models.map((item: any) => (
+        {catalog.models.map((item) => (
           <option value={item.id} key={item.id}>
             {item.name}
           </option>
@@ -133,7 +149,10 @@ export function ModelFields({
         </p>
         <label>
           接口类型
-          <select value={model.api} onChange={(e) => onChange({ ...model, api: e.target.value })}>
+          <select
+            value={model.api}
+            onChange={(e) => onChange({ ...model, api: e.target.value as ModelConnection["api"] })}
+          >
             {Array.from(new Set([...APIS, model.api])).map((api) => (
               <option key={api} value={api}>
                 {API_LABELS[api] || "其他兼容接口"}
@@ -146,7 +165,7 @@ export function ModelFields({
           <select
             value=""
             onChange={(e) => {
-              const item = catalog.models.find((m: any) => m.id === e.target.value);
+              const item = catalog.models.find((m) => m.id === e.target.value);
               if (item)
                 onChange({
                   ...model,
@@ -159,7 +178,7 @@ export function ModelFields({
             }}
           >
             <option value="">从列表选择，也可手填</option>
-            {catalog.models.map((m: any) => (
+            {catalog.models.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.name}
               </option>
@@ -228,7 +247,9 @@ export function ModelFields({
             思考档位
             <select
               value={model.thinkingLevel}
-              onChange={(event) => onChange({ ...model, thinkingLevel: event.target.value })}
+              onChange={(event) =>
+                onChange({ ...model, thinkingLevel: event.target.value as Thinking })
+              }
             >
               {(catalog.levels || ["off"]).map((level: string) => (
                 <option key={level}>{level}</option>

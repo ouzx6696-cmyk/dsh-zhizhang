@@ -1,3 +1,4 @@
+import { errorText } from "../../../../../packages/core/src/errors.js";
 import { useEffect, useRef } from "react";
 import type { MutableRefObject } from "react";
 import type { Target } from "../../context";
@@ -49,7 +50,7 @@ export function useDesktopShortcuts(options: {
           void askConfirm("停止当前任务？已保存的稿件不会撤销。").then((ok) => {
             if (ok)
               void stop(selected.current || undefined).catch((error) =>
-                set({ error: error instanceof Error ? error.message : String(error) }),
+                set({ error: errorText(error) }),
               );
           });
         } else set({ drawer: false });

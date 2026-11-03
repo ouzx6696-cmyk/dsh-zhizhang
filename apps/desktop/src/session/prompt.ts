@@ -1,14 +1,8 @@
+import { resolveFanqiePaths, resolveFanqieWork } from "../main/storage";
 import type { Focus, Target } from "../context";
 import { focusLabel, promptText } from "../context";
 import type { ChapterMeta } from "../../../../packages/fanqie/src/engine/types";
-import {
-  ensureStorage,
-  listProjects,
-  projectIdOf,
-  readChapter,
-  readWorkMeta,
-  resolveWorkDir,
-} from "../../../../packages/fanqie/src/engine/work-store";
+import { readChapter, readWorkMeta } from "../../../../packages/fanqie/src/engine/work-store";
 import { activeProfile } from "../../../../packages/core/src/profiles";
 import { ArticleStore } from "../../../../packages/toutiao/src/store";
 import { chapterReviewInfo } from "../../../../packages/fanqie/src/review";
@@ -52,12 +46,7 @@ export function systemPrompt(target: Target, role: "writer" | "editor" | "planne
 }
 
 async function paths(host: Sessions, target: Target) {
-  const project = (await listProjects()).find((p) => p.id === projectIdOf(target.root));
-  return ensureStorage(null, {
-    ...host.options.fanqie,
-    storageRoot: target.root,
-    ...(project?.worksRoot ? { worksRoot: project.worksRoot } : {}),
-  });
+  return resolveFanqiePaths(host.options, target);
 }
 
 export async function taskPrompt(host: Sessions, target: Target, text: string, focus: Focus) {
@@ -65,7 +54,7 @@ export async function taskPrompt(host: Sessions, target: Target, text: string, f
   let saved: unknown;
   if (target.mode === "fanqie" && target.work) {
     const storage = await paths(host, target);
-    const dir = await resolveWorkDir(storage, target.work);
+    const dir = await resolveFanqieWork(host.options, target);
     const meta = await readWorkMeta(dir);
     const chapters: ChapterMeta[] = meta.chapters;
     const row = chapters.find((c) => c.id === focus.chapter);
@@ -150,7 +139,7 @@ export async function reviewResult(
 ) {
   let summary = "尚无对应的审读结果，请核对稿件与回报。";
   if (target.mode === "fanqie" && target.work && focus.chapter) {
-    const dir = await resolveWorkDir(await paths(host, target), target.work);
+    const dir = await resolveFanqieWork(host.options, target);
     const chapter = await readChapter(dir, focus.chapter);
     const info = await chapterReviewInfo(
       dir,

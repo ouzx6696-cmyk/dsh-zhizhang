@@ -1,3 +1,4 @@
+import { actionTitle } from "../../../commands";
 import React, { useEffect, useState } from "react";
 import type { TaskState } from "../../../renderer-contracts";
 export function TaskProgress({
@@ -20,11 +21,6 @@ export function TaskProgress({
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [busy, task?.id]);
-  const actionTitle = (text: string) =>
-    text
-      .replace(/^【写作台】/, "")
-      .split(/[。\n]/)[0]
-      .slice(0, 44);
   return (
     <>
       {task && (
@@ -32,7 +28,7 @@ export function TaskProgress({
           <header>
             <strong>
               {busy ? "正在进行" : "任务结束"} ·{" "}
-              {task.name?.startsWith("【写作台】") ? actionTitle(task.name) : task.name || phase}
+              {task.name.startsWith("【写作台】") ? actionTitle(task.name) : task.name || phase}
             </strong>
             <button
               className="stop-task"
@@ -58,13 +54,13 @@ export function TaskProgress({
                 key={step}
                 title={step}
                 className={
-                  task.completed?.includes(step) ? "done" : task.current === step ? "current" : ""
+                  task.completed.includes(step) ? "done" : task.current === step ? "current" : ""
                 }
               />
             ))}
           </div>
           <p>
-            {task.completed?.length ? "已完成：" + task.completed.join(" → ") + " · " : ""}
+            {task.completed.length ? "已完成：" + task.completed.join(" → ") + " · " : ""}
             {busy ? "当前：" + (task.current || phase) : task.waiting}
           </p>
         </section>

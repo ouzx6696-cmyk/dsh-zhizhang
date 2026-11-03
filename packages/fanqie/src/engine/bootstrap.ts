@@ -1,3 +1,4 @@
+import { PLANNER_TOOLS } from "../../../core/src/tool-roles.js";
 import type { PluginConfig } from "./types.js";
 import type { ToolExecution } from "../../../core/src/tool.js";
 import { asObject } from "./parse.js";
@@ -6,7 +7,7 @@ import { WriterError } from "../../../core/src/tool.js";
 import { withPluginConfig } from "./tools/context.js";
 import { withPortConfig } from "./ports/config.js";
 import { allTools } from "./tools/index.js";
-export const EDITOR_ENGINE = new Set([
+const EDITOR_ENGINE = new Set([
   "fanqie_project_list",
   "fanqie_project_open",
   "fanqie_status",
@@ -30,12 +31,16 @@ export function engineTools(
   pluginConfig: PluginConfig = {},
   gates?: GateEngine,
   errors: "text" | "throw" = "throw",
-  role: "writer" | "editor" = "writer",
+  role: "writer" | "editor" | "planner" = "writer",
 ) {
   const boundConfig = { ...pluginConfig };
   const policy = { multiDraft: { enabled: boundConfig.multiDraft?.enabled === true } };
   return allTools()
-    .filter((tool) => role !== "editor" || EDITOR_ENGINE.has(tool.name))
+    .filter((tool) =>
+      role === "planner"
+        ? PLANNER_TOOLS.has(tool.name)
+        : role !== "editor" || EDITOR_ENGINE.has(tool.name),
+    )
     .map((tool) => ({
       ...tool,
       execute: async (raw: unknown, exec: ToolExecution) => {

@@ -13,7 +13,8 @@ export const desktopAPI = {
   projects: () => invoke("projects"),
   newTarget: (mode: Target["mode"]) => invoke("new-target", mode),
   appearance: (next: Partial<Appearance>) => invoke("appearance", next),
-  preferences: (text?: string) => invoke("preferences", text),
+  preferences: (text?: string) =>
+    text === undefined ? invoke("preferences") : invoke("save-preferences", text),
   search: (key: string) => invoke("search", key),
   modelCatalog: (role: keyof ModelSettings, next: ModelConnection, action?: string) =>
     invoke("model-catalog", role, next, action),
@@ -23,7 +24,7 @@ export const desktopAPI = {
   export: (target: Target, focus: Focus, format: string) => invoke("export", target, focus, format),
   backup: () => invoke("backup"),
   storageHealth: () => invoke("storage-health"),
-  recover: (expected: unknown) => invoke("recover", expected),
+  recover: (expected: { id: string; fingerprint: string }) => invoke("recover", expected),
   diagnostics: () => invoke("diagnostics"),
   updates: (action?: string) => invoke("updates", action),
   openExternal: (url: string) => invoke("external", url),

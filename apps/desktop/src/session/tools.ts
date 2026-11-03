@@ -1,19 +1,20 @@
-import {
-  ensureStorage,
-  resolveWorkDir,
-  readChapter,
-} from "../../../../packages/fanqie/src/engine/work-store";
+import { asRecord } from "../main/ipc/validate";
+import { resolveFanqieWork } from "../main/storage";
+import { readChapter } from "../../../../packages/fanqie/src/engine/work-store";
 import { rootIdentity } from "../../../../packages/core/src/identity";
 import path from "node:path";
 import { Type } from "typebox";
 import type { SessionManager, ToolDefinition } from "./pi-adapter";
 import type { Focus, Target } from "../context";
 import { focusLabel } from "../context";
-import { PLANNING_WRITES, roleAllows } from "./roles";
+import { PLANNING_WRITES } from "./roles";
 import { ArticleStore } from "../../../../packages/toutiao/src/store";
 import { executeTool } from "../../../../packages/core/src/execute";
 import { withPluginConfig } from "../../../../packages/fanqie/src/engine/tools/context";
-import type { ToolDefinition as WriterToolDefinition, ToolExecution } from "../../../../packages/core/src/tool";
+import type {
+  ToolDefinition as WriterToolDefinition,
+  ToolExecution,
+} from "../../../../packages/core/src/tool";
 import type { createGateEngine } from "../../../../packages/core/src/gates";
 import type { Sessions } from "./manager";
 import type { SessionEntry } from "./types";
@@ -31,10 +32,10 @@ export function createBusinessTools(options: {
   host: Sessions;
   target: Target;
   role: "writer" | "editor" | "planner";
-  primary: boolean;
   manager: SessionManager;
   gates: ReturnType<typeof createGateEngine>;
-  config: any;
+  config: import("../../../../packages/fanqie/src/config").FanqieConfig &
+    import("../../../../packages/toutiao/src/config").ToutiaoConfig;
   definitions: WriterToolDefinition[];
   readUrls: Set<string>;
   getEntry: () => SessionEntry;
@@ -45,7 +46,6 @@ export function createBusinessTools(options: {
     host,
     target,
     role,
-    primary,
     manager,
     gates,
     config,
@@ -56,18 +56,18 @@ export function createBusinessTools(options: {
     onSaved,
   } = options;
 
+  const primary = role === "writer";
   const articleBasis = new Map<string, { rev: number; sha256: string }>();
   return definitions.map((def) => ({
     name: def.name,
     label: def.name,
     description: def.description,
-    parameters: Type.Unsafe<any>(def.parameters),
+    parameters: Type.Unsafe<Record<string, unknown>>(def.parameters),
     execute: async (callId, raw, signal) => {
       const entry = getEntry();
-      if (!roleAllows(role, def.name, target.mode)) throw new Error("当前角色无权执行此操作");
       signal?.throwIfAborted();
       config.profile = entry.profile;
-      const args = raw as Record<string, unknown>;
+      const args = asRecord(raw, "工具参数");
       if (def.name === "fanqie_status" && args.recovery === "resume")
         throw new Error("恢复写入请由作者在设置的作品恢复入口中检查、备份并确认");
       if (
@@ -81,8 +81,8 @@ export function createBusinessTools(options: {
         !target.work &&
         (args.work ||
           args.project ||
-          "work" in (def.parameters as any).properties ||
-          "project" in (def.parameters as any).properties)
+          "work" in (def.parameters.properties ?? {}) ||
+          "project" in (def.parameters.properties ?? {}))
       )
         throw new Error("请先从作品列表选择小说，或创建新作");
       if (
@@ -92,14 +92,15 @@ export function createBusinessTools(options: {
         args.id
       )
         throw new Error("请先从作品列表选择文章，或新建文章");
-      if (target.work && args.project && args.project !== target.work)
-        throw new Error("本次任务只能操作当前小说");
       if (
         (target.work && def.name === "fanqie_project_create") ||
         (target.article && def.name === "toutiao_article_create")
       )
         throw new Error("请通过新作入口创建另一作品");
-      if (target.work && args.work && args.work !== target.work)
+      if (
+        target.work &&
+        [args.work, args.project].some((value) => value !== undefined && value !== target.work)
+      )
         throw new Error("本次任务只能操作当前小说");
       if (
         target.article &&
@@ -117,7 +118,7 @@ export function createBusinessTools(options: {
         input.content !== undefined &&
         !input.expected_revision
       ) {
-        const dir = await resolveWorkDir(await ensureStorage(null, config), String(target.work));
+        const dir = await resolveFanqieWork({ fanqie: config }, target);
         const chapter = await readChapter(dir, String(input.chapter));
         if (chapter.body.trim())
           throw new Error("保存已有正文须提供已读取的 expected_revision；新正文可走候选稿流程");
@@ -159,11 +160,12 @@ export function createBusinessTools(options: {
         const card = def.name.endsWith("patch")
           ? {
               ...(await new ArticleStore(target.root).readCard(String(input.id))),
-              ...(input.patch as object),
+              ...asRecord(input.patch, "立项卡修改"),
             }
-          : (input.card as any);
+          : asRecord(input.card, "立项卡");
         if (card?.["内容线"] === "资讯线")
-          for (const source of card["出处"] || []) {
+          for (const item of Array.isArray(card["出处"]) ? card["出处"] : []) {
+            const source = asRecord(item, "出处");
             const url = String(source["链接"] || "");
             if (!readUrls.has(url) && !readUrls.has(new URL(url).href))
               throw new Error(
@@ -177,34 +179,25 @@ export function createBusinessTools(options: {
         confirm: host.confirm,
       });
       if (def.name === "toutiao_article_create") {
-        const meta = (value as any).article;
-        articleBasis.set(meta.id, { rev: 0, sha256: "" });
+        const meta = asRecord(asRecord(value, "立项回执").article, "文章");
+        articleBasis.set(String(meta.id), { rev: 0, sha256: "" });
       }
       if (def.name === "toutiao_article_get" && input.include_draft)
-        articleBasis.set(String(input.id), (value as any).basis);
+        articleBasis.set(
+          String(input.id),
+          asRecord(value, "文章读取回执").basis as { rev: number; sha256: string },
+        );
       if (def.name === "toutiao_draft_get") {
         const meta = await new ArticleStore(target.root).get(String(input.id));
-        const rev =
-          def.name === "toutiao_draft_get"
-            ? (value as any).rev
-            : (value as any).article?.current_rev;
+        const result = asRecord(value, "稿件读取回执");
         const record =
-          def.name === "toutiao_draft_get"
-            ? (value as any).record
-            : meta.drafts.find((d) => d.rev === rev);
-        articleBasis.set(meta.id, { rev: rev ?? meta.current_rev, sha256: record?.sha256 || "" });
+          result.record === undefined ? undefined : asRecord(result.record, "稿件记录");
+        articleBasis.set(meta.id, {
+          rev: typeof result.rev === "number" ? result.rev : meta.current_rev,
+          sha256: typeof record?.sha256 === "string" ? record.sha256 : "",
+        });
       }
-      if (
-        def.name === "fanqie_chapter_save" &&
-        input.content !== undefined &&
-        !input.expected_revision
-      ) {
-        const dir = await resolveWorkDir(await ensureStorage(null, config), String(target.work));
-        const chapter = await readChapter(dir, String(input.chapter));
-        if (chapter.body.trim())
-          throw new Error("保存已有正文须提供已读取的 expected_revision；新正文可走候选稿流程");
-        input.expected_revision = chapter.revision;
-      }
+
       if (def.name === "toutiao_draft_stage") {
         const meta = await new ArticleStore(target.root).get(String(input.id));
         articleBasis.set(meta.id, {
@@ -215,38 +208,32 @@ export function createBusinessTools(options: {
       if (role === "planner" && PLANNING_WRITES.has(def.name))
         onSaved?.(
           def.name,
-          (content as any[])
+          content
             .filter((c) => c.type === "text")
             .map((c) => ("text" in c ? c.text : ""))
             .join("\n"),
         );
-      if (
-        (primary || role === "planner") &&
-        createdWork &&
-        !target.work &&
-        path.resolve(createdWork.base) === target.root
-      ) {
+      const articleCreated =
+        target.mode === "toutiao" && def.name === "toutiao_article_create" && !target.article
+          ? asRecord(asRecord(value, "立项回执").article, "文章").id
+          : undefined;
+      const workCreated =
+        createdWork && !target.work && path.resolve(createdWork.base) === target.root
+          ? createdWork.key
+          : undefined;
+      const created = workCreated ?? articleCreated;
+      if ((primary || role === "planner") && typeof created === "string") {
         try {
-          if (primary) await host.attachCreated(entry, createdWork.key);
+          if (primary) await host.attachCreated(entry, created);
           else {
-            target.work = createdWork.key;
-            await onCreated?.(createdWork.key);
+            Object.assign(
+              target,
+              target.mode === "fanqie" ? { work: created } : { article: created },
+            );
+            await onCreated?.(created);
           }
         } catch (error) {
-          host.emit({
-            target,
-            error: "作品已创建，但对话关联未完成：" + String(error),
-          });
-        }
-      }
-      if (target.mode === "toutiao" && def.name === "toutiao_article_create" && !target.article) {
-        const article = (value as any).id || (value as any).article?.id;
-        if (article) {
-          if (primary) await host.attachCreated(entry, String(article));
-          else {
-            target.article = String(article);
-            await onCreated?.(String(article));
-          }
+          host.emit({ target, error: "作品已创建，但对话关联未完成：" + String(error) });
         }
       }
       const text = content.map((item) => item.text).join("\n");
@@ -281,7 +268,8 @@ export function createBusinessTools(options: {
             : /candidate_.*stage|draft_stage/.test(def.name)
               ? "candidate"
               : null;
-      const output = value as any;
+      const output = typeof value === "object" && value !== null ? asRecord(value, "工具回执") : {};
+      const qa = output.qa && typeof output.qa === "object" ? asRecord(output.qa, "质检回执") : {};
       return {
         content,
         details: resultKind
@@ -300,7 +288,7 @@ export function createBusinessTools(options: {
                       : resultKind === "delivery"
                         ? "交稿单已保存"
                         : resultKind === "qa"
-                          ? `质检 ${output.score ?? output.qa?.score ?? ""} ${output.verdict || ""}`.trim()
+                          ? `质检 ${output.score ?? qa.score ?? ""} ${output.verdict || ""}`.trim()
                           : "任务已完成",
                 failed: output?.ok === false,
               },

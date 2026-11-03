@@ -146,7 +146,7 @@ test("决策不被 Agent 挡住，右栏标签与响应式布局，亮暗截图"
   await page.getByRole("button", {name:"设置",exact:true}).click();
   const initialAppearance = page.getByRole("dialog", {name:"设置",exact:true});
   await initialAppearance.getByRole("button", {name:"外观",exact:true}).click();
-  await initialAppearance.getByRole("combobox", {name:"主题",exact:true}).selectOption("light");
+  await initialAppearance.getByRole("button", {name:"晨光",exact:true}).click();
   await initialAppearance.getByRole("button", {name:"保存设置",exact:true}).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   const accessibility = await new AxeBuilder({ page })
@@ -237,7 +237,7 @@ test("决策不被 Agent 挡住，右栏标签与响应式布局，亮暗截图"
   await page.getByRole("button", { name: "设置", exact: true }).click();
   const appearance = page.getByRole("dialog", { name: "设置", exact: true });
   await appearance.getByRole("button", { name: "外观", exact: true }).click();
-  await appearance.getByRole("combobox", { name: "主题", exact: true }).selectOption("dark");
+  await appearance.getByRole("button", {name:"夜灯",exact:true}).click();
   await appearance.getByRole("button", { name: "保存设置", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await shot("desktop-1440-dark.png");

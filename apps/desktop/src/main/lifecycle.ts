@@ -1,5 +1,6 @@
+import { readText } from "../../../../packages/core/src/fsx";
 import path from "node:path";
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { app, safeStorage } from "electron";
 import { Runtime } from "./runtime";
@@ -14,10 +15,7 @@ import { parseToutiaoConfig } from "../../../../packages/toutiao/src/config";
 import { parseFanqieConfig } from "../../../../packages/fanqie/src/config";
 import { setStateRoot } from "../../../../packages/core/src/paths";
 import { setProfilesRoot } from "../../../../packages/core/src/profiles";
-import {
-  setWorkspaceHost,
-  releaseWorkspaces,
-} from "../../../../packages/core/src/workspace-lock";
+import { setWorkspaceHost, releaseWorkspaces } from "../../../../packages/core/src/workspace-lock";
 import { VERSION } from "../../../../packages/core/src/version";
 
 export async function start() {
@@ -25,10 +23,7 @@ export async function start() {
   const state = new Runtime();
   state.resources = app.isPackaged
     ? path.join(process.resourcesPath, "writer")
-    : path.resolve(
-        path.dirname(fileURLToPath(import.meta.url)),
-        "../../resources/writer",
-      );
+    : path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../resources/writer");
   process.env.WRITER_TOUTIAO_SKILL_DIR = path.join(state.resources, "skill");
   process.env.WRITER_FANQIE_SKILL_DIR = path.join(state.resources, "skill-fanqie");
   process.env.WRITER_TOUTIAO_DEFAULT_DIR = path.join(state.resources, "profiles/toutiao/default");
@@ -37,16 +32,14 @@ export async function start() {
   await mkdir(state.home, { recursive: true });
   setStateRoot(state.home);
   setProfilesRoot(
-    await readFile(path.join(state.home, "profiles-directory"), "utf8").catch(() =>
+    (await readText(path.join(state.home, "profiles-directory"))) ??
       path.join(state.home, "profiles"),
-    ),
   );
   setWorkspaceHost("独立客户端");
   state.settings = new Settings(state.home, {
     available: () =>
       safeStorage.isEncryptionAvailable() &&
-      (process.platform !== "linux" ||
-        safeStorage.getSelectedStorageBackend() !== "basic_text"),
+      (process.platform !== "linux" || safeStorage.getSelectedStorageBackend() !== "basic_text"),
     encrypt: (text) => safeStorage.encryptString(text).toString("base64"),
     decrypt: (text) => safeStorage.decryptString(Buffer.from(text, "base64")),
   });
@@ -64,27 +57,29 @@ export async function start() {
     toutiao: toutiao.issues.length ? parseToutiaoConfig({}).value : toutiao.value,
     fanqie: fanqie.issues.length ? parseFanqieConfig({}).value : fanqie.value,
   };
-  state.sessions = new Sessions(
-    state.home,
-    state.pythonPath(),
-    () => state.model,
-    (event) => { void state.sessionEvent(event); },
-    (text, signal) => state.confirm(text, signal),
-    state.writerConfig,
-    async (previous, next) => {
-      if (state.target && state.sessions.key(state.target) === state.sessions.key(previous)) {
+  state.sessions = new Sessions({
+    home: state.home,
+    python: state.pythonPath(),
+    settings: () => state.model,
+    emit: (event) => {
+      void state.sessionEvent(event);
+    },
+    confirm: (text, signal) => state.confirm(text, signal),
+    options: state.writerConfig,
+    created: async (previous, next) => {
+      if (state.target && state.sessions.same(state.target, previous)) {
         state.emit({ navigate: next });
       }
     },
-    {
+    extras: {
       preferences: () => state.settings.preferences(),
       searchKey: () => state.settings.searchKey,
       log: (event, fields) => {
         void state.diagnostics.write(event, fields);
       },
     },
-  );
-  const saved = await readFile(path.join(state.home, "target.json"), "utf8").catch(() => "");
+  });
+  const saved = (await readText(path.join(state.home, "target.json"))) ?? "";
   let notice = state.settings.notices.join("\n");
   if (saved) {
     try {

@@ -1,0 +1,1 @@
+export const DEFAULT_HISTORY_LIMIT = 80;

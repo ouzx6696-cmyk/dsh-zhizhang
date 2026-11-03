@@ -1,3 +1,4 @@
+import { createStore } from "./createStore";
 import { useSyncExternalStore } from "react";
 import type { TaskState } from "../../renderer-contracts";
 import type { ChatMessage, ConversationItem } from "./store";
@@ -24,26 +25,7 @@ const initialChat: ChatState = {
   archives: [],
 };
 
-class ChatStore {
-  state: ChatState = initialChat;
-  private listeners = new Set<() => void>();
-  subscribe = (listener: () => void) => {
-    this.listeners.add(listener);
-    return () => {
-      this.listeners.delete(listener);
-    };
-  };
-  get = () => this.state;
-  set = (patch: Partial<ChatState> | ((state: ChatState) => Partial<ChatState>)) => {
-    this.state = {
-      ...this.state,
-      ...(typeof patch === "function" ? patch(this.state) : patch),
-    };
-    for (const listener of this.listeners) listener();
-  };
-}
-
-export const chatStore = new ChatStore();
+export const chatStore = createStore<ChatState>(initialChat);
 
 export function useChatSelector<T>(selector: (state: ChatState) => T): T {
   return useSyncExternalStore(

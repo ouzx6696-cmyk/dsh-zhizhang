@@ -5,7 +5,6 @@ import { atomicWrite } from "../../../../../packages/core/src/fsx";
 import type { Runtime } from "../runtime";
 import { selectTarget } from "../targets";
 import { handle } from "./handle";
-import { parseMode } from "./validate";
 import { listProjects } from "../../../../../packages/fanqie/src/engine/work-store";
 import { listArticles } from "../../../../../packages/toutiao/src/workbench/data";
 import { setProfilesRoot } from "../../../../../packages/core/src/profiles";
@@ -13,24 +12,18 @@ import { VERSION } from "../../../../../packages/core/src/version";
 import type { ProjectItem, RendererState } from "./contract";
 
 export function registerWorkspaceIpc(state: Runtime) {
-  handle(
-    "state",
-    (): RendererState => ({
-      target: state.target,
-      notice: state.notice,
-      access: state.access,
-      ...state.settings.public(),
-      version: VERSION,
-      updates: state.updateState,
-    }),
-  );
+  handle("state", (): RendererState => ({
+    target: state.target,
+    notice: state.notice,
+    access: state.access,
+    ...state.settings.public(),
+    version: VERSION,
+    updates: state.updateState,
+  }));
   handle("choose", async (value) => {
-    const mode = parseMode(value);
+    const mode = value;
     const result = await dialog.showOpenDialog(state.window!, {
-      title:
-        mode === "fanqie"
-          ? "选择长篇数据根（包含 works，或空目录）"
-          : "选择头条文章目录",
+      title: mode === "fanqie" ? "选择长篇数据根（包含 works，或空目录）" : "选择头条文章目录",
       properties: ["openDirectory", "createDirectory"],
     });
     return result.canceled ? null : selectTarget(state, { mode, root: result.filePaths[0] });
@@ -76,7 +69,7 @@ export function registerWorkspaceIpc(state: Runtime) {
     return items;
   });
   handle("new-target", async (value) => {
-    const mode = parseMode(value);
+    const mode = value;
     if (!state.settings.workspace) throw new Error("请先选择统一写作根");
     return selectTarget(state, {
       mode,
@@ -96,9 +89,6 @@ export function registerWorkspaceIpc(state: Runtime) {
     return !result.canceled;
   });
   handle("external", (value) => {
-    const parsed = new URL(String(value));
-    if (!["http:", "https:"].includes(parsed.protocol))
-      throw new Error("只支持公开网页链接");
-    return shell.openExternal(parsed.href);
+    return shell.openExternal(value);
   });
 }

@@ -1,5 +1,6 @@
+import { FONT_SIZE } from "../../appearance";
 import type { Focus, Target } from "../../context";
-import type { Appearance } from "../../settings";
+import type { Appearance } from "../../appearance";
 import type { RequestOptions } from "./contract";
 
 export function asRecord(value: unknown, label: string): Record<string, unknown> {
@@ -78,7 +79,9 @@ export function parseOperation(value: unknown): string {
 export function parseRequestOptions(value: unknown): RequestOptions {
   if (value === undefined || value === null) return {};
   const source = asRecord(value, "请求参数");
-  const method = source.method === undefined ? undefined : String(source.method).toUpperCase();
+  if (source.method !== undefined && typeof source.method !== "string")
+    throw new Error("参数无效：请求方法");
+  const method = source.method?.toUpperCase();
   if (method && method !== "GET" && method !== "POST") throw new Error("参数无效：请求方法");
   let query: Record<string, unknown> | undefined;
   if (source.query !== undefined) {
@@ -113,25 +116,54 @@ export function parseAppearance(value: unknown): Partial<Appearance> {
     if (!["serif", "sans"].includes(String(source.font))) throw new Error("参数无效：正文字体");
     result.font = source.font as Appearance["font"];
   }
-  if (typeof source.reducedTransparency === "boolean")
+  if (source.reducedTransparency !== undefined) {
+    if (typeof source.reducedTransparency !== "boolean") throw new Error("参数无效：透明效果");
     result.reducedTransparency = source.reducedTransparency;
+  }
   if (source.fontSize !== undefined) {
-    const size = Number(source.fontSize);
-    if (!Number.isInteger(size) || size < 14 || size > 28) throw new Error("参数无效：正文字号");
+    const size = source.fontSize;
+    if (
+      typeof size !== "number" ||
+      !Number.isInteger(size) ||
+      size < FONT_SIZE.min ||
+      size > FONT_SIZE.max
+    )
+      throw new Error("参数无效：正文字号");
     result.fontSize = size;
   }
   return result;
 }
 
-export function parseLimit(value: unknown): number | undefined {
-  if (value === undefined || value === null) return undefined;
-  const limit = Number(value);
-  return Number.isFinite(limit) ? limit : undefined;
+import { DEFAULT_HISTORY_LIMIT } from "../../history-options";
+export function parseLimit(value: unknown): number {
+  if (value === undefined) return DEFAULT_HISTORY_LIMIT;
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 10000)
+    throw new Error("参数无效：历史条数");
+  return value;
 }
 
 export function parseArchive(value: unknown): number | undefined {
   if (value === undefined || value === null) return undefined;
-  const archive = Number(value);
-  if (!Number.isInteger(archive) || archive < 0) throw new Error("参数无效：历史对话");
+  const archive = value;
+  if (typeof archive !== "number" || !Number.isInteger(archive) || archive < 0)
+    throw new Error("参数无效：历史对话");
   return archive;
+}
+
+export function parseChoice<const T extends readonly string[]>(
+  value: unknown,
+  choices: T,
+): T[number] {
+  if (typeof value !== "string" || !choices.includes(value))
+    throw new Error("参数无效：" + String(value));
+  return value;
+}
+export function parseRecovery(value: unknown) {
+  const row = asRecord(value, "恢复条件");
+  return { id: parseText(row.id), fingerprint: parseText(row.fingerprint) };
+}
+export function parseExternal(value: unknown) {
+  const url = new URL(parseText(value));
+  if (!["https:", "http:"].includes(url.protocol)) throw new Error("只支持公开网页链接");
+  return url.href;
 }

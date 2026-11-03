@@ -11,7 +11,7 @@ const ROOT = rootArg < 0
   : path.resolve(args[rootArg + 1]);
 const STRICT = args.includes("--strict");
 const LAYERS = { ui: 0, core: 0, workbench: 1, toutiao: 2, fanqie: 2, desktop: 3 };
-const BROWSER_SAFE = ["packages/fanqie/src/engine/domain/manuscript.ts", "packages/fanqie/src/engine/domain/diagnostics.ts"];
+const BROWSER_SAFE = ["packages/core/src/errors.ts", "packages/fanqie/src/engine/domain/manuscript.ts", "packages/fanqie/src/engine/domain/diagnostics.ts"];
 const problems = [], warnings = [], graph = new Map(), prefixes = new Map();
 let anyCount = 0, swallowedCount = 0;
 const report = (file, message, staged = false) =>

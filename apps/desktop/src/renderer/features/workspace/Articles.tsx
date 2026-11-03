@@ -109,10 +109,8 @@ export function Articles(props: WorkspaceProps) {
     a: any = tt.detail.article;
   useEffect(() => {
     props.onContext({
-      target: props.target,
       article: a || undefined,
       kind: "article",
-      dirty: tt.sourceGuard.dirty,
       actions: { refresh: tt.actions.refresh },
     });
   }, [a, tt.selected, tt.actions.refresh, tt.sourceGuard.dirty]);

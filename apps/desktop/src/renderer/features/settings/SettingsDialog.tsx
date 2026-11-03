@@ -1,3 +1,5 @@
+import { errorText } from "../../../../../../packages/core/src/errors.js";
+import { useConnectionTest } from "./useConnectionTest";
 import { AppearanceFields } from "./AppearanceFields";
 import { Dialog, Brand, Toggle } from "../../../../../../packages/ui/src/primitives";
 import React, { useEffect, useState } from "react";
@@ -24,19 +26,16 @@ export function Settings({
   canRestart,
 }: SettingsProps) {
   const [tab, setTab] = useState("models"),
-    [models, setModels] = useState<any>(state.models),
-    [appearance, setAppearance] = useState<any>(state.appearance),
+    [models, setModels] = useState(state.models),
+    [appearance, setAppearance] = useState(state.appearance),
     [preferences, setPreferences] = useState<string | null>(null),
     [searchKey, setSearchKey] = useState(""),
-    [test, setTest] = useState<Record<string, any>>({
-      writer: undefined,
-      editor: undefined,
-      planner: undefined,
-    }),
-    [health, setHealth] = useState<any>(null),
+    [health, setHealth] = useState<Awaited<ReturnType<typeof api.storageHealth>> | null>(null),
     [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false),
-    [updates, setUpdates] = useState<any>(state.updates || {});
+    [updates, setUpdates] = useState(state.updates);
+  const { results: test, run: testConnection } = useConnectionTest();
+  const [searchChanged, setSearchChanged] = useState(false);
   const [editorLinked, setEditorLinked] = useState(
     JSON.stringify(state.models.editor) === JSON.stringify(state.models.writer),
   );
@@ -46,7 +45,7 @@ export function Settings({
     api
       .preferences()
       .then(setPreferences)
-      .catch((error) => setMessage(error instanceof Error ? error.message : String(error)));
+      .catch((error) => setMessage(errorText(error)));
   }, [state.workspace]);
   useEffect(() => {
     const unsubscribe = api.subscribe((value) => {
@@ -58,34 +57,26 @@ export function Settings({
     setBusy(true);
     setMessage("");
     try {
-      const result = (await operation()) as any;
-      if (result?.file) setMessage("已保存到 " + result.file);
+      const result = await operation();
+      if (result && typeof result === "object" && "file" in result)
+        setMessage("已保存到 " + result.file);
       return result;
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
+      setMessage(errorText(error));
     } finally {
       setBusy(false);
     }
   };
-  const testRole = (role: "writer" | "editor" | "planner") =>
-    action(async () => {
-      setTest((previous: any) => ({ ...previous, [role]: { busy: true } }));
-      try {
-        const result = await api.testModel(role, models[role]);
-        setTest((previous: any) => ({ ...previous, [role]: result }));
-      } catch (error) {
-        setTest((previous: any) => ({
-          ...previous,
-          [role]: { error: error instanceof Error ? error.message : String(error) },
-        }));
-      }
-    });
+  const testRole = (role: "writer" | "editor" | "planner") => {
+    const model = models[role];
+    if (model) void testConnection(role, model);
+  };
   const save = () =>
     action(async () => {
       if (JSON.stringify(models) !== JSON.stringify(state.models)) await api.model(models);
       await api.appearance(appearance);
       if (state.workspace && preferences !== null) await api.preferences(preferences);
-      if (searchKey) await api.search(searchKey);
+      if (searchChanged) await api.search(searchKey);
       await onSaved();
       onClose();
     });
@@ -138,7 +129,7 @@ export function Settings({
                     className={roleTab === role ? "active" : ""}
                     onClick={() => setRoleTab(role)}
                   >
-                    {role === "writer" ? "写手" : role === "editor" ? "独立编辑" : "规划与拆书"}
+                    {role === "writer" ? "写手" : role === "editor" ? "独立编辑" : "规划"}
                   </button>
                 ))}
               </div>
@@ -149,7 +140,7 @@ export function Settings({
                   onChange={(checked: boolean) => {
                     setEditorLinked(checked);
                     if (checked)
-                      setModels((previous: any) => ({
+                      setModels((previous) => ({
                         ...previous,
                         editor: { ...previous.writer },
                       }));
@@ -162,7 +153,7 @@ export function Settings({
                   model={models[roleTab]}
                   onChange={(value) => {
                     if (roleTab === "editor") setEditorLinked(false);
-                    setModels((previous: any) => ({
+                    setModels((previous) => ({
                       ...previous,
                       [roleTab]: value,
                       ...(roleTab === "writer" && editorLinked ? { editor: { ...value } } : {}),
@@ -176,9 +167,7 @@ export function Settings({
                   <ModelFields
                     role="planner"
                     model={models.planner}
-                    onChange={(value) =>
-                      setModels((previous: any) => ({ ...previous, planner: value }))
-                    }
+                    onChange={(value) => setModels((previous) => ({ ...previous, planner: value }))}
                     onTest={() => testRole("planner")}
                     result={test.planner}
                   />
@@ -186,9 +175,7 @@ export function Settings({
                     <input
                       type="checkbox"
                       checked={false}
-                      onChange={() =>
-                        setModels((previous: any) => ({ ...previous, planner: null }))
-                      }
+                      onChange={() => setModels((previous) => ({ ...previous, planner: null }))}
                     />
                     改为跟随写手模型
                   </label>
@@ -199,7 +186,7 @@ export function Settings({
                     type="checkbox"
                     checked={false}
                     onChange={() =>
-                      setModels((previous: any) => ({
+                      setModels((previous) => ({
                         ...previous,
                         planner: { ...previous.writer, apiKey: "" },
                       }))
@@ -236,9 +223,6 @@ export function Settings({
                 onChange={(event) => setPreferences(event.target.value)}
                 placeholder="例如：第三人称限知；对白简短；不要替角色解释情绪。"
               />
-              <button disabled={busy} onClick={() => action(() => api.backup())}>
-                备份写作根
-              </button>
               <h3>当前作品状态与恢复</h3>
               <button
                 disabled={busy}
@@ -251,7 +235,7 @@ export function Settings({
                   <p>
                     {health.label}：{health.reason}
                   </p>
-                  {health.files.map((item: any) => (
+                  {health.files.map((item) => (
                     <p key={item.file}>
                       {item.file}：{item.state}
                     </p>
@@ -303,28 +287,6 @@ export function Settings({
               <Brand />
               <h3>写作 Agent · {state.version}</h3>
               <p>一盏灯，一页稿纸。基于内置写作内核，作品保存在自己的文件夹。</p>
-              <button onClick={() => action(() => api.updates())}>检查更新</button>
-            </div>
-          )}
-          {tab === "resources" && (
-            <>
-              <button disabled={busy} onClick={() => action(() => api.backup())}>
-                备份写作文件夹
-              </button>
-              <h3>资料检索（可选）</h3>
-              <p className="form-note">
-                未配置搜索时，Agent
-                只能读取你提供的公开链接。搜索摘要不算已核实出处，资讯事实须继续读取原网页。
-              </p>
-              <label>
-                Tavily API Key
-                <input
-                  type="password"
-                  value={searchKey}
-                  onChange={(event) => setSearchKey(event.target.value)}
-                  placeholder={state.searchConfigured ? "已配置，留空保持" : "可不填"}
-                />
-              </label>
               <h3>应用更新</h3>
               <p>
                 {updates.state === "available"
@@ -354,6 +316,39 @@ export function Settings({
                   </button>
                 )}
               </div>
+            </div>
+          )}
+          {tab === "resources" && (
+            <>
+              <button disabled={busy} onClick={() => action(() => api.backup())}>
+                备份写作文件夹
+              </button>
+              <h3>资料检索（可选）</h3>
+              <p className="form-note">
+                未配置搜索时，Agent
+                只能读取你提供的公开链接。搜索摘要不算已核实出处，资讯事实须继续读取原网页。
+              </p>
+              <label>
+                Tavily API Key
+                <input
+                  type="password"
+                  value={searchKey}
+                  onChange={(event) => {
+                    setSearchKey(event.target.value);
+                    setSearchChanged(true);
+                  }}
+                  placeholder={state.searchConfigured ? "已配置，留空保持" : "可不填"}
+                />
+              </label>
+              <button
+                disabled={busy}
+                onClick={() => {
+                  setSearchKey("");
+                  setSearchChanged(true);
+                }}
+              >
+                清除搜索 Key
+              </button>
               <h3>诊断</h3>
               <p className="form-note">诊断包仅含版本、去敏配置与运行事件，不含 Key 或稿件正文。</p>
               <button onClick={() => action(() => api.diagnostics())}>导出诊断包</button>

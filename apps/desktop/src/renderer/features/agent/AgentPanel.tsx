@@ -1,8 +1,9 @@
+import { writerResult } from "../../../writer-result";
 import { TaskProgress } from "./TaskProgress";
 import React, { useEffect, useRef, useState } from "react";
 import { Send, Plus, History, Feather, ArrowRight } from "lucide-react";
 import { Markdown } from "../../../Markdown";
-import { humanVersion } from "../../../commands";
+import { humanVersion, actionTitle } from "../../../commands";
 import { scopeId, focusLabel, promptContext, toolLabel } from "../../../context";
 import type { ChatMessage } from "../../state/store";
 import { useChatSelector } from "../../state/chatStore";
@@ -10,23 +11,12 @@ import { ARTICLE_STEPS } from "../../../../../../packages/ui/src/status";
 import { desktop } from "../../state/desktop";
 import type { DesktopController } from "../../app/useDesktopController";
 
-function actionTitle(text: string) {
-  const raw = text.replace(/^【写作台】\s*/, "");
-  let title = raw.split(/[。\n]/)[0] || raw;
-  title = title.split("：")[0] || title;
-  title = title
-    .replace(/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/gi, "")
-    .replace(/[，,、；;\s]+$/g, "")
-    .trim();
-  return title.length > 44 ? title.slice(0, 44) + "…" : title;
-}
-
 function messageBody(message: ChatMessage) {
   return typeof message.content === "string"
     ? message.content
     : (message.content || [])
-        .filter((item: any) => item.type === "text")
-        .map((item: any) => item.text)
+        .filter((item) => item.type === "text")
+        .map((item) => item.text)
         .join("\n");
 }
 
@@ -68,7 +58,7 @@ export function AgentPanel({ app }: { app: DesktopController }) {
   const candidateNumbers = new Map<number, number>();
   const chapterCounts = new Map<string, number>();
   messages.forEach((message, index) => {
-    const result = message.role === "toolResult" ? message.details?.writerResult : null;
+    const result = message.role === "toolResult" ? writerResult(message) : null;
     if (result?.kind !== "candidate") return;
     const key = [result.target?.root, result.target?.work, result.focus?.chapter].join("|");
     const number = (chapterCounts.get(key) || 0) + 1;
@@ -151,18 +141,23 @@ export function AgentPanel({ app }: { app: DesktopController }) {
                   ["派编辑", "派编辑审"],
                   ["质检", "检查本章"],
                 ];
-  function resultCard(result: any, candidateNumber?: number) {
+  function resultCard(
+    result: import("../../../renderer-contracts").WriterResult,
+    candidateNumber?: number,
+  ) {
     const title =
       result.kind === "candidate"
         ? result.draftLabel
           ? `候选稿「${result.draftLabel}」`
           : `候选稿${candidateNumber ? " " + candidateNumber : ""}`
-        : {
-            review: "审读回报",
-            qa: "质检结果",
-            delivery: "交稿单",
-            planning: "规划回报",
-          }[result.kind as string] || "任务回报";
+        : (
+            {
+              review: "审读回报",
+              qa: "质检结果",
+              delivery: "交稿单",
+              planning: "规划回报",
+            } as Record<string, string>
+          )[result.kind] || "任务回报";
     return (
       <div
         className={"result-card " + (result.failed ? "failed" : "")}
@@ -181,7 +176,7 @@ export function AgentPanel({ app }: { app: DesktopController }) {
     if (!original) return null;
     if (message.role === "custom" && message.display === false) return null;
     if (message.role === "toolResult") {
-      const result = message.details?.writerResult;
+      const result = writerResult(message);
       if (result) return <div key={index}>{resultCard(result, candidateNumbers.get(index))}</div>;
       if (message.isError)
         return (
@@ -197,7 +192,7 @@ export function AgentPanel({ app }: { app: DesktopController }) {
       );
     }
     const parsed =
-      message.role === "user" ? promptContext(original) : { text: original, context: null as any };
+      message.role === "user" ? promptContext(original) : { text: original, context: null };
     if (message.role === "user" && parsed.text.startsWith("【写作台】")) {
       return (
         <article className="chat-message user action-capsule" key={index}>
@@ -291,11 +286,11 @@ export function AgentPanel({ app }: { app: DesktopController }) {
         )}
         {messages.map((message, index) => {
           const plainTool = (m: ChatMessage) =>
-            m.role === "toolResult" && !m.details?.writerResult && !m.isError;
+            m.role === "toolResult" && !writerResult(m) && !m.isError;
           if (!plainTool(message)) return renderMessage(message, index);
           if (
             index > 0 &&
-            messages[index - 1].details?.writerResult &&
+            writerResult(messages[index - 1]) &&
             messages[index - 1].toolName === message.toolName
           )
             return null;

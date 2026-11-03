@@ -1,3 +1,5 @@
+import type { WriterMessage } from "../renderer-contracts";
+import { DEFAULT_HISTORY_LIMIT } from "../history-options";
 import path from "node:path";
 import { access, mkdir, readFile, rm, stat } from "node:fs/promises";
 import { atomicWrite } from "../../../../packages/core/src/fsx";
@@ -16,30 +18,11 @@ export async function conversations(
       throw error;
     }),
   );
-  const legacy = target.article ? await conversations(host, { ...target, article: undefined }) : [];
-  if (target.article) {
-    const old = await readFile(
-      path.join(host.home, "sessions", host.key({ ...target, article: undefined }), "current"),
-      "utf8",
-    ).catch((error) => {
-      if (error.code === "ENOENT") return "";
-      throw error;
-    });
-    if (old) legacy.push({ id: legacy.length, file: old, name: "旧目录对话", legacy: true });
-  }
-  return [
-    ...history.map((file, index) => ({
-      id: index,
-      name: path.basename(file).replace(/\.jsonl$/, ""),
-      file,
-    })),
-    ...legacy.map((item, index) => ({
-      ...item,
-      id: history.length + index,
-      name: "旧目录对话 · " + item.name,
-      legacy: true,
-    })),
-  ];
+  return history.map((file, index) => ({
+    id: index,
+    name: path.basename(file).replace(/\.jsonl$/, ""),
+    file,
+  }));
 }
 
 export async function newConversation(host: Sessions, target: Target) {
@@ -56,10 +39,7 @@ export async function newConversation(host: Sessions, target: Target) {
     const previous = await conversations(host, target);
     await atomicWrite(
       path.join(dir, "history.json"),
-      JSON.stringify([
-        ...previous.filter((item) => !item.legacy).map((item) => item.file),
-        current,
-      ]),
+      JSON.stringify([...previous.map((item) => item.file), current]),
     );
   }
   host.release(target);
@@ -68,12 +48,12 @@ export async function newConversation(host: Sessions, target: Target) {
 
 function history(host: Sessions, manager: SessionManager, limit: number) {
   const leaf = manager.getLeafId();
-  const cap = Math.max(1, Math.min(10000, Number(limit) || 80));
+  const cap = limit;
   const cached = host.projectedHistory.get(manager);
   if (cached?.leaf === leaf && cached.limit >= cap)
     return { messages: cached.messages.slice(-cap), total: cached.total };
   const branch = manager.getBranch();
-  const messages: unknown[] = [];
+  const messages: WriterMessage[] = [];
   let total = 0;
   for (let index = branch.length - 1; index >= 0; index--) {
     const entry = branch[index];
@@ -103,7 +83,12 @@ function history(host: Sessions, manager: SessionManager, limit: number) {
   return { messages: messages.slice(-cap), total };
 }
 
-export async function view(host: Sessions, target: Target, limit = 80, archive?: number) {
+export async function view(
+  host: Sessions,
+  target: Target,
+  limit = DEFAULT_HISTORY_LIMIT,
+  archive?: number,
+) {
   const entry = archive === undefined ? host.sessions.get(host.key(target)) : undefined;
   let manager = entry?.session.sessionManager;
   if (!manager) {
@@ -121,7 +106,7 @@ export async function view(host: Sessions, target: Target, limit = 80, archive?:
       (await access(marker).then(
         () => true,
         (error) => {
-          if (error.code === 'ENOENT') return false;
+          if (error.code === "ENOENT") return false;
           throw error;
         },
       ))
@@ -138,7 +123,7 @@ export async function view(host: Sessions, target: Target, limit = 80, archive?:
   }
   const projected = manager
     ? history(host, manager, limit)
-    : { messages: [] as unknown[], total: 0 };
+    : { messages: [] as WriterMessage[], total: 0 };
   const streaming = entry?.session.agent.state.streamingMessage;
   const stream =
     streaming?.role === "assistant"
@@ -155,7 +140,7 @@ export async function view(host: Sessions, target: Target, limit = 80, archive?:
     stream,
     phase:
       entry?.phase ||
-      (!entry && ["user", "toolResult"].includes((projected.messages.at(-1) as any)?.role)
+      (!entry && ["user", "toolResult"].includes(projected.messages.at(-1)?.role ?? "")
         ? "上次对话尚未完成；先核对已保存稿件，需要时在设置检查作品恢复，再继续发送要求。"
         : ""),
     focus: entry?.focus,

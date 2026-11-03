@@ -20,5 +20,3 @@ export function remember(target: Target, focus: Focus = {}, preserve = false) {
     if (!preserve) writePref(PREF.ttArticle, focus.article || "");
   }
 }
-
-export { readPref };

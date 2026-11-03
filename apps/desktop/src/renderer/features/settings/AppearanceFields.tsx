@@ -1,30 +1,22 @@
+import { FONT_SIZE, type Appearance } from "../../../appearance";
 import React from "react";
 import { Toggle } from "../../../../../../packages/ui/src/primitives";
 export function AppearanceFields({
   appearance,
   onChange,
 }: {
-  appearance: any;
-  onChange: (value: any) => void;
+  appearance: Appearance;
+  onChange: (value: Appearance) => void;
 }) {
   return (
     <>
       <label>
-        主题
-        <select
-          value={appearance.theme}
-          onChange={(event) => onChange({ ...appearance, theme: event.target.value })}
-        >
-          <option value="system">跟随系统</option>
-          <option value="light">晨光 · 浅色</option>
-          <option value="dark">夜灯 · 深色</option>
-        </select>
-      </label>
-      <label>
         正文字体
         <select
           value={appearance.font}
-          onChange={(event) => onChange({ ...appearance, font: event.target.value })}
+          onChange={(event) =>
+            onChange({ ...appearance, font: event.target.value as Appearance["font"] })
+          }
         >
           <option value="serif">思源宋体</option>
           <option value="sans">思源黑体</option>
@@ -34,8 +26,8 @@ export function AppearanceFields({
         正文字号
         <input
           type="range"
-          min="16"
-          max="22"
+          min={FONT_SIZE.min}
+          max={FONT_SIZE.max}
           value={appearance.fontSize}
           onChange={(event) =>
             onChange({
@@ -54,7 +46,7 @@ export function AppearanceFields({
           <button
             key={theme}
             aria-pressed={appearance.theme === theme}
-            onClick={() => onChange({ ...appearance, theme })}
+            onClick={() => onChange({ ...appearance, theme: theme as Appearance["theme"] })}
           >
             {label}
           </button>

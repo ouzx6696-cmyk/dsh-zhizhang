@@ -27,21 +27,12 @@ function Novel(props: WorkspaceProps) {
     if (props.view !== "writing") dispatch({ type: "tab", tab: props.view === "library" ? "library" : "overview" });
   }, [props.view]);
   useEffect(() => {
-    const chapter = view.current,
-      ready = state.chapter.status === "ready";
+    const chapter = view.current;
     props.onContext({
-      target: props.target,
-      focus: {
-        workTitle: view.snap?.title,
-        chapter: chapter?.id,
-        title: chapter?.title,
-      },
       chapter,
       hasCandidate: !!view.activeCand,
       candidate: view.activeCand,
       review: state.chapter.writer?.editorReview,
-      dirty: !!state.edit?.dirty || sourceGuard.dirty,
-      ready,
       kind: "novel",
       outlineReady: [
         "pov",

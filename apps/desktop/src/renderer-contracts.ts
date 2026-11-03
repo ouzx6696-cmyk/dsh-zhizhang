@@ -4,11 +4,7 @@ import type { Target, Focus } from "./context";
 
 /** Facts consumed by the renderer, separate from Electron and SDK objects. */
 export interface WorkspaceContext {
-  target?: Target;
-  focus?: Focus;
   kind?: "novel" | "article";
-  dirty?: boolean;
-  ready?: boolean;
   outlineReady?: boolean;
   hasCandidate?: boolean;
   chapter?: { id: string; status?: string };
@@ -38,16 +34,28 @@ export interface UpdateStatus {
   version?: string;
   percent?: number;
 }
+export interface WriterResult {
+  kind: string;
+  target: Target;
+  focus: Focus;
+  draftLabel?: string;
+  summary: string;
+  failed?: boolean;
+}
 export interface WriterMessage {
   role: string;
   content?: string | { type: string; text?: string }[];
   writerMessageId?: string;
   errorMessage?: string;
+  details?: unknown;
+  toolName?: string;
+  isError?: boolean;
+  customType?: string;
+  display?: boolean;
+  timestamp?: number;
 }
 export interface DesktopEvent {
-  key?: string;
   conversationId?: string;
-  role?: "writer" | "editor" | "planner";
   target?: Target;
   navigate?: Target;
   selection?: Target & { focus?: Focus };

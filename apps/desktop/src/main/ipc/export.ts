@@ -2,15 +2,12 @@ import { dialog, clipboard } from "electron";
 import { writeFile } from "node:fs/promises";
 import type { Runtime } from "../runtime";
 import { handle } from "./handle";
-import { parseFocus, parseTarget } from "./validate";
 import { exportContent, wordDocument } from "../../exports";
 
 export function registerExportIpc(state: Runtime) {
   handle("export", async (target, focus, format) => {
-    if (!["copy", "txt", "docx"].includes(format))
-      throw new Error("参数无效：导出格式");
-    const next = parseTarget(target);
-    const content = await exportContent(next, parseFocus(focus));
+    const next = target;
+    const content = await exportContent(next, focus, state.writerConfig);
     const answer = await dialog.showMessageBox(state.window!, {
       type: content.issues.length ? "warning" : "info",
       title: "导出与发布检查",
@@ -33,9 +30,7 @@ export function registerExportIpc(state: Runtime) {
     if (result.canceled || !result.filePath) return null;
     await writeFile(
       result.filePath,
-      extension === "docx"
-        ? await wordDocument(content.title, content.text)
-        : content.text,
+      extension === "docx" ? await wordDocument(content.title, content.text) : content.text,
     );
     return { file: result.filePath };
   });

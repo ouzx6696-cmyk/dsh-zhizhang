@@ -1,0 +1,136 @@
+button.icon-button {
+  padding: 6px;
+  border-color: transparent;
+  background: transparent;
+}
+.studio-topbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--ui-line);
+  z-index: 20;
+}
+.studio-brand {
+  display: flex;
+  color: var(--ui-accent);
+  padding: 0 4px 0 0;
+}
+.project-switch {
+  max-width: 260px;
+  border-color: var(--ui-line);
+  background: transparent;
+}
+.project-switch span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.view-switch {
+  display: flex;
+  gap: 2px;
+}
+.view-switch button {
+  border: 0;
+  background: transparent;
+  padding: 5px 9px;
+  font-size: var(--ui-size-12);
+}
+.view-switch .active {
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
+}
+.model-status {
+  margin-left: auto;
+  white-space: nowrap;
+  font-size: var(--ui-size-12);
+  color: var(--ui-text-3);
+}
+.model-status i {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ui-warning);
+  margin-right: 5px;
+}
+.model-status i[data-ready="true"] {
+  background: var(--ui-success);
+}
+.export-menu {
+  position: relative;
+}
+.export-trigger {
+  min-height: 28px;
+  padding: 0 8px;
+  border-color: transparent;
+  background: transparent;
+  font-size: var(--ui-size-12);
+}
+.export-options {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  min-width: 156px;
+  padding: 4px;
+  border: 1px solid var(--ui-line);
+  border-radius: 8px;
+  background: var(--ui-paper);
+  box-shadow: var(--ui-shadow-2);
+}
+.export-options button {
+  justify-content: flex-start;
+  border: 0;
+  background: transparent;
+  padding: 6px 8px;
+  font-size: var(--ui-size-12);
+}
+.export-options button:hover {
+  background: var(--ui-accent-soft);
+}
+@media (max-width: 1199px) {
+  .model-status small {
+    display: none;
+  }
+}
+@media (max-width: 1199px) {
+  .studio-topbar {
+    gap: 5px;
+  }
+}
+@media (max-width: 1199px) {
+  .view-switch button {
+    padding: 5px 6px;
+  }
+}
+@media (max-width: 1199px) {
+  .project-switch {
+    max-width: 190px;
+  }
+}
+@media (max-width: 959px) {
+  .model-status {
+    display: none;
+  }
+}
+@media (max-width: 959px) {
+  .view-switch {
+    margin-right: auto;
+  }
+}
+@media (max-width: 959px) {
+  .project-switch {
+    max-width: 170px;
+  }
+}
+.studio-topbar .view-switch .active {
+  background: var(--ui-fill-strong);
+  color: var(--ui-text);
+}
+.studio-topbar {
+  height: 56px;
+  min-height: 56px;
+  background: var(--ui-panel);
+}

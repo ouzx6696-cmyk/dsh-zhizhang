@@ -44,6 +44,8 @@ export async function promptWithSignal(
     signal?.removeEventListener("abort", abort);
   }
 }
+const PROVIDER_IDS: Record<string, string> = { kimi: "moonshotai-cn" };
+const providerId = (id: string) => PROVIDER_IDS[id] ?? id;
 export async function runtimeModel(settings: ModelConnection, authPath: string, role: string) {
   const runtime = await ModelRuntime.create({
     authPath,
@@ -52,10 +54,7 @@ export async function runtimeModel(settings: ModelConnection, authPath: string, 
     refreshOnCreate: true,
     allowModelNetwork: false,
   });
-  const catalog = runtime.getModel(
-    settings.provider === "kimi" ? "moonshotai-cn" : settings.provider,
-    settings.model,
-  );
+  const catalog = runtime.getModel(providerId(settings.provider), settings.model);
   runtime.registerProvider("writer-" + role, {
     baseUrl: settings.baseUrl,
     apiKey: settings.keyless ? "local" : settings.apiKey,
@@ -119,7 +118,7 @@ export async function testConnection(settings: ModelConnection, authPath: string
 
 export async function modelCatalog(authPath: string, settings: ModelConnection, refresh = false) {
   const { runtime, model } = await runtimeModel(settings, authPath, "catalog");
-  const provider = settings.provider === "kimi" ? "moonshotai-cn" : settings.provider;
+  const provider = providerId(settings.provider);
   if (refresh) {
     const result = await runtime.refresh({
       providers: [provider],
@@ -147,7 +146,7 @@ export async function modelCatalog(authPath: string, settings: ModelConnection, 
             }
           : null;
       })
-      .filter(Boolean),
+      .filter((value): value is NonNullable<typeof value> => value !== null),
     source: "PI 模型目录",
     models: runtime.getModels(provider).map((m) => ({
       id: m.id,
@@ -167,7 +166,7 @@ export async function modelCatalog(authPath: string, settings: ModelConnection, 
 export async function discoverModels(settings: ModelConnection) {
   if (settings.api !== "openai-completions" && settings.api !== "openai-responses")
     throw new Error("此自定义接口请使用 PI 目录或手填模型 ID");
-  const response = await fetch(settings.baseUrl.replace(/\/$/, "") + "/models", {
+  const response = await fetch(settings.baseUrl + "/models", {
     headers: settings.apiKey ? { Authorization: "Bearer " + settings.apiKey } : {},
     signal: AbortSignal.timeout(10000),
   });

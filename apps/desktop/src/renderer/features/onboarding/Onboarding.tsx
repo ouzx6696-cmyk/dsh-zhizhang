@@ -1,15 +1,15 @@
+import { useConnectionTest } from "../settings/useConnectionTest";
 import { Dialog, Brand } from "../../../../../../packages/ui/src/primitives";
 import React, { useState } from "react";
 import { ArrowRight, BookOpen, Check, Feather } from "lucide-react";
 import { ModelFields } from "../settings/ModelFields";
 import type { DesktopController } from "../../app/useDesktopController";
 import { desktop } from "../../state/desktop";
-import type { ConnectionResult } from "../../state/store";
 
 export function Onboarding({ app }: { app: DesktopController }) {
   const { state, fail, set } = app;
   const [followWriter, setFollowWriter] = useState(true);
-  const [editorResult, setEditorResult] = useState<ConnectionResult>(null);
+  const { results, run: testConnection } = useConnectionTest();
   const wizardModels = state.wizardModels;
   const writer = wizardModels?.writer;
   if (!wizardModels || !writer) return null;
@@ -37,21 +37,8 @@ export function Onboarding({ app }: { app: DesktopController }) {
                 wizardModels: { ...current.wizardModels!, writer: value },
               }))
             }
-            onTest={async () => {
-              set({ connectionResult: { busy: true } });
-              try {
-                set({
-                  connectionResult: await desktop.testModel("writer", writer),
-                });
-              } catch (error) {
-                set({
-                  connectionResult: {
-                    error: error instanceof Error ? error.message : String(error),
-                  },
-                });
-              }
-            }}
-            result={state.connectionResult}
+            onTest={() => void testConnection("writer", writer)}
+            result={results.writer}
           />
           <label className="checkbox">
             <input
@@ -66,17 +53,8 @@ export function Onboarding({ app }: { app: DesktopController }) {
               role="editor"
               model={wizardModels.editor}
               onChange={(editor) => set({ wizardModels: { ...wizardModels, editor } })}
-              result={editorResult}
-              onTest={async () => {
-                setEditorResult({ busy: true });
-                try {
-                  setEditorResult(await desktop.testModel("editor", wizardModels.editor!));
-                } catch (error) {
-                  setEditorResult({
-                    error: error instanceof Error ? error.message : String(error),
-                  });
-                }
-              }}
+              result={results.editor}
+              onTest={() => void testConnection("editor", wizardModels.editor)}
             />
           )}
           <button

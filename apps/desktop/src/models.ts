@@ -94,7 +94,34 @@ export function defaultModels(): ModelSettings {
     planner: null,
   };
 }
-export function connection(next: any, previous: ModelConnection): ModelConnection {
+export type ConnectionInput = Partial<ModelConnection>;
+export function parseConnectionInput(value: unknown): ConnectionInput {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error("模型连接须为对象");
+  const row = value as Record<string, unknown>;
+  for (const key of ["provider", "api", "baseUrl", "apiKey", "model", "thinkingLevel"])
+    if (row[key] !== undefined && typeof row[key] !== "string")
+      throw new Error(`模型 ${key} 须为文本`);
+  for (const key of ["contextWindow", "maxTokens"])
+    if (row[key] !== undefined && (typeof row[key] !== "number" || !Number.isFinite(row[key])))
+      throw new Error(`模型 ${key} 须为数字`);
+  for (const key of ["reasoning", "keyless"])
+    if (row[key] !== undefined && typeof row[key] !== "boolean")
+      throw new Error(`模型 ${key} 须为布尔值`);
+  if (row.thinkingLevelMap !== undefined) {
+    const map = row.thinkingLevelMap;
+    if (
+      !map ||
+      typeof map !== "object" ||
+      Array.isArray(map) ||
+      Object.values(map).some((v) => v !== null && typeof v !== "string")
+    )
+      throw new Error("思考档位映射无效");
+  }
+  return row as ConnectionInput;
+}
+export function connection(value: unknown, previous: ModelConnection): ModelConnection {
+  const next = parseConnectionInput(value);
   const url = new URL(String(next.baseUrl || previous.baseUrl));
   if (!["http:", "https:"].includes(url.protocol)) throw new Error("模型接口须为 HTTP(S) 地址");
   const baseUrl = url.href.replace(/\/$/, "");
@@ -135,8 +162,9 @@ export function connection(next: any, previous: ModelConnection): ModelConnectio
     throw new Error("不支持的思考档位");
   return result;
 }
-export function normalizeModels(next: any, previous = defaultModels()): ModelSettings {
-  const source = next.writer ? next : { writer: next };
+export function normalizeModels(next: unknown, previous = defaultModels()): ModelSettings {
+  if (!next || typeof next !== "object" || Array.isArray(next)) throw new Error("模型设置须为对象");
+  const source = next as Record<string, unknown>;
   const writer = connection(source.writer || previous.writer, previous.writer);
   const editor = connection(source.editor || previous.editor, previous.editor);
   if (!editor.apiKey && editor.baseUrl === writer.baseUrl) editor.apiKey = writer.apiKey;
@@ -145,11 +173,21 @@ export function normalizeModels(next: any, previous = defaultModels()): ModelSet
     planner.apiKey = writer.apiKey;
   return { writer, editor, planner };
 }
-export function publicModels(settings: ModelSettings) {
-  return Object.fromEntries(
-    Object.entries(settings).map(([role, value]) => [
-      role,
-      value ? { ...value, apiKey: "", configured: !!value.apiKey || !!value.keyless } : null,
-    ]),
-  );
+export type PublicConnection = ModelConnection & { configured: boolean };
+export type PublicModels = {
+  writer: PublicConnection;
+  editor: PublicConnection;
+  planner: PublicConnection | null;
+};
+export function publicModels(settings: ModelSettings): PublicModels {
+  const expose = (value: ModelConnection): PublicConnection => ({
+    ...value,
+    apiKey: "",
+    configured: !!value.apiKey || !!value.keyless,
+  });
+  return {
+    writer: expose(settings.writer),
+    editor: expose(settings.editor),
+    planner: settings.planner ? expose(settings.planner) : null,
+  };
 }

@@ -1,3 +1,4 @@
+import { errorText } from "../../../../packages/core/src/errors.js";
 import { createTask, settleTask } from "./task-tracker";
 import type { Focus, Target } from "../context";
 import { explainError } from "../diagnostics";
@@ -53,10 +54,10 @@ export async function sendPrompt(
     const cancelled = (host.generations.get(key) || 0) !== generation;
     const entry = host.sessions.get(host.key(target));
     if (!entry || entry.session.isIdle)
-      settleTask(host, entry || { target, focus, task: preparingTask, phase: '' }, {
-        reason: cancelled ? 'cancelled' : 'failed',
-        error: cancelled ? undefined : error instanceof Error ? error.message : String(error),
-        primary: true, role: 'writer',
+      settleTask(host, entry || { target, focus, task: preparingTask, phase: "" }, {
+        reason: cancelled ? "cancelled" : "failed",
+        error: cancelled ? undefined : errorText(error),
+        role: "writer",
       });
     throw error;
   } finally {
@@ -68,29 +69,20 @@ export async function sendPrompt(
 export async function notifyAuthor(host: Sessions, target: Target, value: AuthorAction) {
   const session = host.sessions.get(host.key(target))?.session;
   if (!session) return;
-  const names: Record<string, string> = {
-    "/candidate/accept": "采纳候选稿",
-    "/chapter/review": "声明已审读",
-    "/chapter/finalize": "定稿",
-    "/revision/acknowledge": "核对修订影响",
-    "/diagnostics/stage": "保存修订候选",
-    "/chapter/save": "保存章节正文",
-    "/toutiao/adopt": "采用文章",
-    "/toutiao/draft": "保存作者稿",
+  const operations: Record<string, { action: string; object: string }> = {
+    "/candidate/accept": { action: "采纳候选稿", object: "当前候选稿" },
+    "/chapter/review": { action: "声明已审读", object: "当前章节" },
+    "/chapter/finalize": { action: "定稿", object: "当前章节" },
+    "/revision/acknowledge": { action: "核对修订影响", object: "当前修订" },
+    "/diagnostics/stage": { action: "保存修订候选", object: "修订候选" },
+    "/chapter/save": { action: "保存章节正文", object: "当前章节" },
+    "/toutiao/adopt": { action: "采用文章", object: "当前文章" },
+    "/toutiao/draft": { action: "保存作者稿", object: "当前文章" },
   };
-  const candidateSave = value.operation === "/chapter/save" && !!value.candidate;
-  const action = candidateSave ? "保存候选正文" : names[value.operation] || "更新方法方案";
-  const objects: Record<string, string> = {
-    "/candidate/accept": "当前候选稿",
-    "/chapter/review": "当前章节",
-    "/chapter/finalize": "当前章节",
-    "/revision/acknowledge": "当前修订",
-    "/diagnostics/stage": "修订候选",
-    "/chapter/save": "当前章节",
-    "/toutiao/adopt": "当前文章",
-    "/toutiao/draft": "当前文章",
-  };
-  const object = candidateSave ? "当前候选稿" : objects[value.operation] || "当前项目";
+  const { action, object } =
+    value.operation === "/chapter/save" && value.candidate
+      ? { action: "保存候选正文", object: "当前候选稿" }
+      : (operations[value.operation] ?? { action: "更新方法方案", object: "当前项目" });
   const revision = typeof value.revision === "number" ? `；版本：${value.revision}` : "";
   const status = value.status ? `；状态：${statusLabel(target.mode, value.status)}` : "";
   const content = `作者已${action}；对象：${object}${revision}${status}。`;

@@ -1,3 +1,4 @@
+import { resolveFanqieWork } from "./storage";
 import { migrateInspirationBindings } from "../../../../packages/fanqie/src/engine/storage/inspiration-migration";
 import { physicalRoot } from "../../../../packages/core/src/identity";
 import path from "node:path";
@@ -8,7 +9,6 @@ import {
   ensureStorage,
   listProjects,
   projectIdOf,
-  resolveWorkDir,
   rememberProject,
 } from "../../../../packages/fanqie/src/engine/work-store";
 import { claimWorkspace, releaseWorkspace } from "../../../../packages/core/src/workspace-lock";
@@ -16,15 +16,7 @@ import type { Runtime } from "./runtime";
 
 export async function lockRoot(state: Runtime, value: Target) {
   if (value.mode === "toutiao" || !value.work) return value.root;
-  const project = (await listProjects()).find((item) => item.id === projectIdOf(value.root));
-  return resolveWorkDir(
-    await ensureStorage(null, {
-      ...state.writerConfig.fanqie,
-      storageRoot: value.root,
-      worksRoot: project?.worksRoot,
-    }),
-    value.work,
-  );
+  return resolveFanqieWork(state.writerConfig, value);
 }
 
 export async function selectTarget(state: Runtime, next: Target) {
@@ -54,30 +46,28 @@ export async function selectTarget(state: Runtime, next: Target) {
       await migrateInspirationBindings(paths);
       await rememberProject(paths.base, paths.works);
     }
+    await state.sessions.initialize(normalized);
     const newRoot = await lockRoot(state, normalized);
     const access = await claimWorkspace(newRoot);
     try {
       await atomicWrite(path.join(state.home, "target.json"), JSON.stringify(normalized));
     } catch (error) {
       if (
-        (!previous || state.sessions.key(previous) !== state.sessions.key(normalized)) &&
-        !state.sessions
-          .running()
-          .some((item) => state.sessions.key(item.target) === state.sessions.key(normalized))
+        (!previous || !state.sessions.same(previous, normalized)) &&
+        !state.sessions.isRunning(normalized)
       )
-        try { await releaseWorkspace(newRoot); }
-        catch (releaseError) { await reportReleaseFailure(state, releaseError); }
+        try {
+          await releaseWorkspace(newRoot);
+        } catch (releaseError) {
+          await reportReleaseFailure(state, releaseError);
+        }
       throw error;
     }
     if (normalized.mode === "toutiao") rememberRoot(normalized.root);
     state.target = normalized;
     state.access = access;
-    if (previous && state.sessions.key(previous) !== state.sessions.key(normalized)) {
-      if (
-        !state.sessions
-          .running()
-          .some((item) => state.sessions.key(item.target) === state.sessions.key(previous))
-      ) {
+    if (previous && !state.sessions.same(previous, normalized)) {
+      if (!state.sessions.isRunning(previous)) {
         try {
           const oldRoot = await lockRoot(state, previous);
           if (oldRoot !== newRoot) await releaseWorkspace(oldRoot);
@@ -92,20 +82,25 @@ export async function selectTarget(state: Runtime, next: Target) {
 }
 
 export async function releaseInactiveTarget(state: Runtime, target: Target) {
-  if (!state.target || state.sessions.key(target) === state.sessions.key(state.target) ||
-    state.sessions.running().some(item => state.sessions.key(item.target) === state.sessions.key(target))) return;
+  if (
+    !state.target ||
+    state.sessions.same(target, state.target) ||
+    state.sessions.isRunning(target)
+  )
+    return;
   try {
     const root = await lockRoot(state, target);
-    if (!state.target || root !== await lockRoot(state, state.target)) await releaseWorkspace(root);
+    if (!state.target || root !== (await lockRoot(state, state.target)))
+      await releaseWorkspace(root);
   } catch (error) {
     await reportReleaseFailure(state, error);
   }
 }
 
 async function reportReleaseFailure(state: Runtime, error: unknown) {
-  state.notice = '作品占用释放失败，请保留现有文件并核对：' + String(error);
+  state.notice = "作品占用释放失败，请保留现有文件并核对：" + String(error);
   state.emit({ error: state.notice });
-  await state.diagnostics.write('workspace_release_failed', { message: String(error) });
+  await state.diagnostics.write("workspace_release_failed", { message: String(error) });
 }
 
 export { releaseWorkspaces } from "../../../../packages/core/src/workspace-lock";
