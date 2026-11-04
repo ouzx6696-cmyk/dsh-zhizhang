@@ -46,7 +46,15 @@ Linux GUI 测试可使用 `CI=1 DISPLAY=:99 npm run test:desktop:ui`，需先启
 
 ## 构建与下载
 
-0.9.8 已从提交 `6198356` 在 Linux 交叉构建 Windows x64 免安装 ZIP，压缩包完整性、实际依赖版本及随包 Python/规则桥接经检查通过。NSIS 安装器受当前容器的 32 位 WoW64 崩溃阻塞，未作为成品交付；Windows 原生 CI、实机安装和更新仍待验证。本版尚未公开发布。既有公开版本见 [Releases](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases)；不要把旧版附件当作本版。
+**0.9.8 已正式发布**，发行提交为 `6ac4e13`，已通过 [Windows 原生构建与发布检查](https://github.com/ouzx6696-cmyk/dsh-zhizhang/actions/runs/41874988698)。
+
+| 下载 | 用途 |
+| --- | --- |
+| [Windows x64 安装器](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/download/v0.9.8/WriterAgent-0.9.8-win-x64.exe) | 安装后使用 |
+| [Windows x64 免安装 ZIP](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/download/v0.9.8/WriterAgent-0.9.8-win-x64.zip) | 解压后运行 WriterAgent.exe |
+| [源码](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/download/v0.9.8/writer-agent-0.9.8-src.zip) · [SHA256SUMS](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/download/v0.9.8/SHA256SUMS) | 对应发行提交及下载校验 |
+
+完整附件见 [v0.9.8 发行页](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/v0.9.8)。本版未签名；实际打包客户端启动、随包 Python、更新清单和附件校验已通过。
 
 Windows 原生构建 `npm run verify:release`，或先 `npm run desktop:build`，再执行桌面 workspace 的 `pack`（NSIS）和 `pack:portable`（ZIP）。产物含固定版本且校验过的 Windows CPython、字体和许可证；未配置证书时为未签名包。CI 会整理源码与 SHA-256 清单。平台与已执行验证见[当前状态](docs/STATUS.md)。
 
