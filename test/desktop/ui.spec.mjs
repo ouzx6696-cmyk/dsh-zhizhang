@@ -516,8 +516,11 @@ test("停止任务走应用内确认并在 2 秒内收尾", async () => {
 });
 
 test("今日头条使用同一套外壳与空态引导", async () => {
+  const requestsBefore = model.calls.length;
   await page.locator(".project-switch").click();
   await page.getByRole("button", { name: "新头条" }).click();
+  await expect.poll(() => model.calls.length, { timeout: 10000 }).toBeGreaterThan(requestsBefore);
+  await expect(page.getByRole("button", { name: "停止任务", exact: true })).toBeDisabled();
   await expect(page.locator(".studio-nav")).toContainText("文章");
   await expect(page.getByRole("tab", { name: "本篇", exact: true })).toBeVisible();
   await expect(page.locator(".view-switch")).not.toContainText("全书仪表盘");
