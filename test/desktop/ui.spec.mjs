@@ -487,10 +487,12 @@ test("正文可在稿纸中直接编辑并保存", async () => {
 });
 
 test("停止任务走应用内确认并在 2 秒内收尾", async () => {
+  const requestsBefore = model.calls.length;
   model.push("mock-writer", { wait: true });
   const input = page.getByRole("textbox", { name: "写作要求" });
   await input.fill("等待模型时停止");
   await input.press("Enter");
+  await expect.poll(() => model.calls.length, { timeout: 10000 }).toBeGreaterThan(requestsBefore);
   const stop = page.getByRole("button", { name: "停止任务" });
   await expect(stop).toBeVisible({ timeout: 10000 });
   await page.keyboard.press("Escape");

@@ -289,8 +289,8 @@ export function useDesktopController() {
   async function sendText(value: string, snapshot: Focus = focused.current) {
     if (!selected.current) throw new Error("先选择作品或开始新作");
     if (archived.current !== undefined) throw new Error("当前查看的是旧对话，请先返回当前对话");
-    await api.send(value, selected.current, { ...snapshot });
     set({ tab: "agent", drawer: true, error: "" });
+    await api.send(value, selected.current, { ...snapshot });
   }
 
   async function submit(value: string) {
