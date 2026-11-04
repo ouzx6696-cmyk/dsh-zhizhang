@@ -901,8 +901,12 @@ test("T3-10 会话历史不可访问不能显示成空历史", async () => {
     await mkdir(directory, { recursive: true });
     const file = path.join(home, "not-a-directory");
     await writeFile(file, "x");
-    await writeFile(path.join(directory, "current"), path.join(file, "session.jsonl"));
-    await assert.rejects(host.view(target), (error) => error.code === "ENOTDIR");
+    for (const marker of [path.join(file, "session.jsonl"), path.join(file, "nested", "session.jsonl")]) {
+      await writeFile(path.join(directory, "current"), marker);
+      await assert.rejects(host.view(target), (error) => error.code === "ENOTDIR" || error.code === "unsafe_path");
+    }
+    await writeFile(path.join(directory, "current"), path.join(home, "missing", "session.jsonl"));
+    assert.deepEqual((await host.view(target)).messages, []);
   } finally {
     await host.dispose();
     await rm(home, { recursive: true, force: true });

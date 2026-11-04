@@ -2,7 +2,7 @@ import type { WriterMessage } from "../renderer-contracts";
 import { DEFAULT_HISTORY_LIMIT } from "../history-options";
 import path from "node:path";
 import { access, mkdir, readFile, rm, stat } from "node:fs/promises";
-import { atomicWrite } from "../../../../packages/core/src/fsx";
+import { atomicWrite, assertSafeAncestors } from "../../../../packages/core/src/fsx";
 import type { Target } from "../context";
 import { SessionManager } from "./pi-adapter";
 import type { Sessions } from "./manager";
@@ -105,8 +105,12 @@ export async function view(
       marker &&
       (await access(marker).then(
         () => true,
-        (error) => {
-          if (error.code === "ENOENT") return false;
+        async (error) => {
+          if (error.code === "ENOENT") {
+            // Windows also reports ENOENT when an ancestor is a file.
+            await assertSafeAncestors(marker);
+            return false;
+          }
           throw error;
         },
       ))
