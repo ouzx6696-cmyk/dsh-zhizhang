@@ -1,9 +1,11 @@
 name: release
 on:
+  push:
+    tags: ['v*']
   workflow_dispatch:
     inputs:
       tag:
-        description: 已创建的发行草稿标签，例如 v0.9.2
+        description: 已创建的发行草稿标签，例如 v0.9.8
         required: true
         type: string
 permissions:
@@ -25,12 +27,24 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          TAG: ${{ inputs.tag }}
+          TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           version="${TAG#v}"
           test "$(node -p 'require("./package.json").version')" = "$version"
-          test "$(gh release view "$TAG" --json isDraft --jq .isDraft)" = true
           (cd release-artifacts && sha256sum --check SHA256SUMS)
+          if ! gh release view "$TAG" --json isDraft --jq .isDraft > "$RUNNER_TEMP/release-draft"; then
+            node --input-type=module <<'JS'
+          import {readFileSync,writeFileSync} from 'node:fs';
+          import path from 'node:path';
+          const {version}=JSON.parse(readFileSync('package.json','utf8'));
+          const changelog=readFileSync('CHANGELOG.md','utf8');
+          const start=changelog.indexOf(`## ${version}`),end=changelog.indexOf('\n## ',start+1);
+          if(start<0) throw new Error('发行版本缺少变更记录');
+          writeFileSync(path.join(process.env.RUNNER_TEMP,'release-notes.md'),changelog.slice(start,end<0?undefined:end));
+          JS
+            gh release create "$TAG" --draft --target "$GITHUB_SHA" --title "$TAG" --notes-file "$RUNNER_TEMP/release-notes.md"
+          fi
+          test "$(gh release view "$TAG" --json isDraft --jq .isDraft)" = true
           if ! git ls-remote --exit-code origin "refs/tags/$TAG" >/dev/null; then
             gh api --method POST "repos/$GH_REPO/git/refs" -f ref="refs/tags/$TAG" -f sha="$GITHUB_SHA" >/dev/null
           fi
