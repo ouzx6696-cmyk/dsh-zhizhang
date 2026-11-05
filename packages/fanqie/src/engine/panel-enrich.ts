@@ -8,7 +8,7 @@ import { readJsonCached } from "./file-cache.js";
 import { LibraryPort, coerceAxis } from "./ports/library.js";
 import { listAnalyses, readAnalysisBundle } from "./ports/analysis/meta.js";
 import { readPlan, planProgress, planLabel } from "./ports/analysis/plan.js";
-import { InspirationPort } from "./ports/inspiration.js";
+import { InspirationPort, ensureInsp } from "./ports/inspiration.js";
 import { ProductMap } from "./ports/product.js";
 import { Scheduler } from "./ports/scheduler.js";
 import { readPlanning } from "./domain/planning.js";
@@ -106,6 +106,8 @@ export async function buildInspirationView(
     await assertNoPendingInspiration(paths.inspiration);
     const planning = readPlanning({ planning: opts.planning });
     const candDir = path.join(paths.inspiration, "candidates");
+    // 冷工作区首次访问时 candidates 目录由本调用建出；先建目录再并行读，避免 readdir 撞上未创建。
+    await ensureInsp(paths);
     const [sessionsRaw, names] = await Promise.all([
         InspirationPort.listSessions(paths),
         readdir(candDir),

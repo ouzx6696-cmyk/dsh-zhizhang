@@ -4,10 +4,11 @@
  * 经 toutiao_method_get / fanqie_forge_get 读取。只读，不覆盖插件自带的方法；
  * 自带方法的更新走 scripts/assets.mjs（见 docs/guides/ASSETS.md）。
  */
-import { stat } from 'node:fs/promises'
+import { lstat, stat } from 'node:fs/promises'
+import type { Stats } from 'node:fs'
 import path from 'node:path'
 import { WriterError } from './tool.js'
-import { listDir, readText, resolveInside } from './fsx.js'
+import { isMissingFileError, listDir, readText, resolveInside } from './fsx.js'
 
 /** 资产配置段。dirs 之外的键现在一律报错；以后加键在这里登记（见 docs/guides/ASSETS.md「预留」）。 */
 export interface AssetsConfig {
@@ -43,6 +44,33 @@ export interface UserAssetList { assets: UserAsset[]; warnings: string[] }
 const isUserExt = (name: string) => USER_EXTS.some(e => name.toLowerCase().endsWith(e))
 const stripExt = (rel: string) => rel.replace(/\.(md|txt|json)$/i, '')
 
+/** stat 资产目录：不存在返回 undefined；路径中混有普通文件时抛 ENOTDIR——Windows 把这种情况报成 ENOENT，若不区分会伪装成「目录不存在」。 */
+async function statAssetDir(dir: string): Promise<Stats | undefined> {
+  try {
+    return await stat(dir)
+  } catch (error) {
+    if (!isMissingFileError(error)) throw error
+  }
+  let probe = path.dirname(dir)
+  while (probe !== path.dirname(probe)) {
+    let info: Stats
+    try {
+      info = await lstat(probe)
+    } catch (error) {
+      if (!isMissingFileError(error)) throw error
+      probe = path.dirname(probe)
+      continue
+    }
+    if (!info.isDirectory()) {
+      const masquerade: NodeJS.ErrnoException = new Error(`资产路径中混有普通文件：${probe}`)
+      masquerade.code = 'ENOTDIR'
+      throw masquerade
+    }
+    return undefined
+  }
+  return undefined
+}
+
 /** 列出作者自备资产；同 id 先到先得，其余记警告。目录不存在只警告，不报错。 */
 export async function listUserAssets(cfg: AssetsConfig | undefined, cwd: string): Promise<UserAssetList> {
   const assets: UserAsset[] = []
@@ -50,10 +78,7 @@ export async function listUserAssets(cfg: AssetsConfig | undefined, cwd: string)
   const seen = new Set<string>()
   for (const raw of cfg?.dirs ?? []) {
     const dir = path.resolve(cwd, raw)
-    const st = await stat(dir).catch((error) => {
-      if (error.code === 'ENOENT') return undefined
-      throw error
-    })
+    const st = await statAssetDir(dir)
     if (!st?.isDirectory()) { warnings.push(`资产目录不存在：${raw}`); continue }
     let count = 0
     const walk = async (d: string, depth: number) => {

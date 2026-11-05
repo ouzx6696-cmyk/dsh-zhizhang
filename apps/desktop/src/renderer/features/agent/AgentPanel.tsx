@@ -137,9 +137,11 @@ export function AgentPanel({ app }: { app: DesktopController }) {
       />
       <div className="conversation-tools">
         <button
+          disabled={!selected}
           onClick={async () => {
+            if (!selected) return;
             try {
-              app.setChat({ archives: await desktop.conversations(selected!) });
+              app.setChat({ archives: await desktop.conversations(selected) });
               set({ palette: false });
             } catch (error) {
               fail(error);
@@ -153,10 +155,11 @@ export function AgentPanel({ app }: { app: DesktopController }) {
           aria-label={viewCopy.agentPanelText37}
           value={archive ?? "current"}
           onChange={async (event) => {
+            if (!selected) return;
             const value = event.target.value === "current" ? undefined : Number(event.target.value);
             app.archived.current = value;
             app.setChat({ archive: value });
-            await app.loadView(selected!, 80, value);
+            await app.loadView(selected, 80, value);
           }}
         >
           <option value="current">{viewCopy.agentPanelText38}</option>
@@ -184,8 +187,9 @@ export function AgentPanel({ app }: { app: DesktopController }) {
         {messages.length < total && (
           <button
             onClick={() => {
+              if (!selected) return;
               app.limit.current += 80;
-              void app.loadView(selected!, app.limit.current, archive).catch(fail);
+              void app.loadView(selected, app.limit.current, archive).catch(fail);
             }}
           >
             {viewCopy.agentPanelText41}

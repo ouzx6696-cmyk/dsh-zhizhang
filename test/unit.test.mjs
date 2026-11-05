@@ -227,6 +227,21 @@ test("稿件只增不改，哈希记录", async () => {
   assert.equal(issues[0].id, m.id);
 });
 
+test("R3 文章目录日期取本地日期（跨时区）", () => {
+  const run = (tz) =>
+    spawnSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "-e",
+        `import { localDate } from ${JSON.stringify(buildUrl("toutiao/src/store.js"))}; console.log(localDate(new Date("1970-01-01T20:00:00Z")));`,
+      ],
+      { encoding: "utf8", env: { ...process.env, TZ: tz } },
+    );
+  assert.equal(run("UTC").stdout.trim(), "1970-01-01");
+  assert.equal(run("Asia/Tokyo").stdout.trim(), "1970-01-02");
+});
+
 test("守卫：JSX 文案从共享文案表读取", async (t) => {
   const { write, run } = await guardFixture(t);
   await write(

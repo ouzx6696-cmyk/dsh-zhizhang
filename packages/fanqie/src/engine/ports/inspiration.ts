@@ -39,7 +39,7 @@ function inspDirs(paths: StoragePaths) {
         candidates: path.join(paths.inspiration, "candidates"),
     };
 }
-async function ensureInsp(paths: StoragePaths) {
+export async function ensureInsp(paths: StoragePaths) {
     const d = inspDirs(paths);
     await Promise.all([
         mkdir(d.sessions, { recursive: true }),

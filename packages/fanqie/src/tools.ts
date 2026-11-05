@@ -195,6 +195,7 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
       async run(args, exec) {
         const w = await work(exec, args.work);
         let rows = pickChapters(w, args.chapters);
+        if (rows.length === 0) throw new WriterError("NOT_FOUND", `找不到章节：${args.chapters}`);
         if (args.include_previous !== false) {
           const first = rows[0]!;
           const prev = [...w.chapters].reverse().find((c) => c.position < first.position);

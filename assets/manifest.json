@@ -8,7 +8,7 @@
       "kind": "upstream",
       "version": "4.0.0",
       "files": 44,
-      "bytes": 338152,
+      "bytes": 338597,
       "loadable": 30,
       "byKind": {
         "meta": 1,
@@ -395,8 +395,8 @@
       "kind": "rule",
       "origin": "patched",
       "path": "packages/toutiao/skill/scripts/ledger.py",
-      "bytes": 6331,
-      "sha256": "f4b666c7410203f62573bc3e89093efcc98f74439ddd656319c1c9ce1062c750"
+      "bytes": 6776,
+      "sha256": "b11277e1cb0cc3835a2ebed87f1ace7b3f1d2f4867e73391d267e45b82f7884d"
     },
     {
       "source": "toutiao-viral-writer",

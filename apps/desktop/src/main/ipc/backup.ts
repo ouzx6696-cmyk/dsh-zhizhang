@@ -13,10 +13,9 @@ async function backupDirectory(state: Runtime, source: string) {
     properties: ["openDirectory", "createDirectory"],
   });
   if (result.canceled) return null;
-  const output = path.join(
-    result.filePaths[0],
-    "写作备份-" + new Date().toISOString().replace(/[:.]/g, "-"),
-  );
+  const now = new Date();
+  const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}_${String(now.getHours()).padStart(2, "0")}-${String(now.getMinutes()).padStart(2, "0")}-${String(now.getSeconds()).padStart(2, "0")}`;
+  const output = path.join(result.filePaths[0], `写作备份-${stamp}`);
   await promisify(execFile)(
     process.execPath,
     [

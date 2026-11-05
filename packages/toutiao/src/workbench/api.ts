@@ -36,9 +36,10 @@ export function toutiaoApi(config: ToutiaoConfig, canDeliver?: () => boolean): W
         } else if (route === 'adopt') {
           const body = await ctx.body(16_000)
           if (!body) return true
-          if (body.confirm !== true || !str(body.root) || !str(body.id)) ctx.json(400, { ok: false, code: 'confirmation_required', error: '须明确确认、数据目录与文章。' })
+          const sha256 = typeof body.expectedSha256 === 'string' ? body.expectedSha256 : ''
+          if (body.confirm !== true || !str(body.root) || !str(body.id) || !Number.isInteger(body.expectedRev) || Number(body.expectedRev) < 1 || !/^[a-f0-9]{64}$/.test(sha256)) ctx.json(400, { ok: false, code: 'bad_args', error: '须明确确认、数据目录、文章及实际已读版本。' })
           else {
-            const m = await adopt(str(body.root), str(body.id), { rev: body.expectedRev as number, sha256: str(body.expectedSha256) }, config)
+            const m = await adopt(str(body.root), str(body.id), { rev: Number(body.expectedRev), sha256 }, config)
             ctx.json(200, { ok: true, id: m.id, status: m.status })
           }
         } else if (route === 'draft') {

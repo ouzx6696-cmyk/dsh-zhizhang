@@ -68,8 +68,12 @@ export function canTransition(from: Status, to: Status): boolean {
 export { nowIso } from '../../core/src/fsx.js'
 import { nowIso } from '../../core/src/fsx.js'
 
+export function localDate(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
 export function today(): string {
-  return nowIso().slice(0, 10)
+  return localDate(new Date())
 }
 
 const SLUG_RE = /^[\p{L}\p{N}][\p{L}\p{N}_-]{0,40}$/u

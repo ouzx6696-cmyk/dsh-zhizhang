@@ -33,7 +33,17 @@ def locked(path):
     # OS locks are released on process exit, including cancellation/crashes.
     lock = os.path.realpath(path) + ".lock"
     os.makedirs(os.path.dirname(lock), exist_ok=True)
-    fd = os.open(lock, os.O_CREAT | os.O_RDWR, 0o600)
+    deadline = time.monotonic() + 10
+    while True:
+        try:
+            # Concurrent first-time creation of the same lock file can fail
+            # transiently with EACCES on Windows; retry within the deadline.
+            fd = os.open(lock, os.O_CREAT | os.O_RDWR, 0o600)
+            break
+        except PermissionError:
+            if time.monotonic() >= deadline:
+                raise RuntimeError("台账被其他进程占用，请稍后重试：" + lock)
+            time.sleep(0.05)
     try:
         if os.fstat(fd).st_size == 0:
             os.write(fd, b"\0")
