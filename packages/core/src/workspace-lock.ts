@@ -65,7 +65,11 @@ export async function claimWorkspace(root: string) {
     return { readOnly: false, owner: previous };
   if (previous && !live(previous)) {
     const current = await ownerAt(key);
-    if (current?.id === previous.id) await unlink(path.join(key, FILE));
+    // 两个进程可能同时清理同一把陈旧锁；后写者容忍 ENOENT 后照常走 open('wx')。
+    if (current?.id === previous.id)
+      await unlink(path.join(key, FILE)).catch((error) => {
+        if (!isMissingFileError(error)) throw error;
+      });
   }
   const owner: WorkspaceOwner = {
     id: randomUUID(),

@@ -11,7 +11,7 @@ import { rm } from 'node:fs/promises'
 import { stateRoot } from './paths.js'
 import path from 'node:path'
 import { WriterError } from './tool.js'
-import { exists, nowIso, listDir, atomicWrite, readJson, readText, resolveInside } from './fsx.js'
+import { exists, nowIso, listDir, atomicWrite, readJson, readText, resolveInside, serialize } from './fsx.js'
 
 export type ProfileMode = 'toutiao' | 'fanqie'
 export type BuiltinProfile = 'default' | 'original'
@@ -160,9 +160,11 @@ export async function activateProfile(mode: ProfileMode, key: string, pinned?: s
   if (pinned) {
     throw new WriterError('CONFLICT', `配置里 ${mode}.profile 已固定为「${pinned}」，要切换请先改配置`)
   }
-  const cur = (await readJson<Record<string, string>>(activeFile())) ?? {}
-  cur[mode] = m.id
-  await atomicWrite(activeFile(), JSON.stringify(cur, null, 2) + '\n')
+  await serialize(activeFile(), async () => {
+    const cur = (await readJson<Record<string, string>>(activeFile())) ?? {}
+    cur[mode] = m.id
+    await atomicWrite(activeFile(), JSON.stringify(cur, null, 2) + '\n')
+  })
   return m
 }
 
@@ -265,6 +267,11 @@ export interface CreateProfileInput {
 }
 
 export async function createProfile(lib: MethodLibrary, input: CreateProfileInput = {}): Promise<ProfileMeta> {
+  // user-N 编号与目录创建必须整体互斥，否则并发新建会分到同一编号互相覆盖。
+  return serialize(path.join(profilesRoot(), lib.mode), () => createProfileUnlocked(lib, input))
+}
+
+async function createProfileUnlocked(lib: MethodLibrary, input: CreateProfileInput): Promise<ProfileMeta> {
   const users = await userMetas(lib.mode)
   if (users.length >= PROFILE_LIMITS.profilesPerMode) throw new WriterError('CONFLICT', `每种模式最多 ${PROFILE_LIMITS.profilesPerMode} 个用户方案，先删掉不用的`)
   const n = users.reduce((mx, u) => Math.max(mx, Number(u.id.match(USER_ID)![1])), 0) + 1
@@ -336,9 +343,12 @@ export async function renameProfile(mode: ProfileMode, key: string, name: string
 
 export async function deleteProfile(mode: ProfileMode, key: string): Promise<{ id: string; was_active: boolean }> {
   const meta = await editable(mode, key)
-  const cur = (await readJson<Record<string, string>>(activeFile())) ?? {}
-  const wasActive = cur[mode] === meta.id
-  if (wasActive) { delete cur[mode]; await atomicWrite(activeFile(), JSON.stringify(cur, null, 2) + '\n') }
+  const was_active = await serialize(activeFile(), async () => {
+    const cur = (await readJson<Record<string, string>>(activeFile())) ?? {}
+    const wasActive = cur[mode] === meta.id
+    if (wasActive) { delete cur[mode]; await atomicWrite(activeFile(), JSON.stringify(cur, null, 2) + '\n') }
+    return wasActive
+  })
   await rm(path.join(modeDir(mode), meta.id), { recursive: true, force: true })
-  return { id: meta.id, was_active: wasActive }
+  return { id: meta.id, was_active }
 }

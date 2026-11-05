@@ -9,7 +9,7 @@ import {
   type ToolExecution,
   type JsonSchemaNode,
 } from "../../core/src/tool.js";
-import { atomicWrite, readJson, readText, sha256 } from "../../core/src/fsx.js";
+import { atomicWrite, readJson, readText, serialize, sha256 } from "../../core/src/fsx.js";
 import type { GateEngine } from "../../core/src/gates.js";
 import { checkCard } from "./card.js";
 import { bridge, storeFor, type ToutiaoConfig } from "./env.js";
@@ -286,18 +286,19 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
       async run(args, exec) {
         const id = reqStr(args, "id");
         const store = await st(exec);
-        const cur = (await store.readCard(id)) ?? {};
-        if (!args.patch || typeof args.patch !== "object" || Array.isArray(args.patch))
-          throw new WriterError("INVALID_ARGS", "patch 必须是对象");
-        const next: Record<string, unknown> = { ...cur };
-        for (const [k, v] of Object.entries(args.patch)) {
-          if (v === null) delete next[k];
-          else next[k] = v;
-        }
-        return await saveCard(store, id, next, TITLE_MAX);
+        return await serialize(store.cardPath(id), async () => {
+          const cur = (await store.readCard(id)) ?? {};
+          if (!args.patch || typeof args.patch !== "object" || Array.isArray(args.patch))
+            throw new WriterError("INVALID_ARGS", "patch 必须是对象");
+          const next: Record<string, unknown> = { ...cur };
+          for (const [k, v] of Object.entries(args.patch)) {
+            if (v === null) delete next[k];
+            else next[k] = v;
+          }
+          return await saveCard(store, id, next, TITLE_MAX);
+        });
       },
     }),
-
     defineWriterTool<{ id: string; main: string; alts?: string[] }>({
       name: "toutiao_headline_set",
       description: `S3 定标题：1 主 4 备，每条不超过 ${TITLE_MAX} 字；同时回填立项卡 主标题 / 备选标题。`,
@@ -323,13 +324,10 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
         await store.update(id, (m) => {
           m.headlines = { main, alts };
         });
-        const card = (await store.readCard(id)) ?? {};
-        const saved = await saveCard(
-          store,
-          id,
-          { ...card, 主标题: main, 备选标题: alts },
-          TITLE_MAX,
-        );
+        const saved = await serialize(store.cardPath(id), async () => {
+          const card = (await store.readCard(id)) ?? {};
+          return saveCard(store, id, { ...card, 主标题: main, 备选标题: alts }, TITLE_MAX);
+        });
         return {
           headlines: { main, alts },
           lengths: [main, ...alts].map((t) => [...t].length),
@@ -429,7 +427,6 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
         const m = await store.get(id);
         if (!Array.isArray(args.rows) || args.rows.length === 0)
           throw new WriterError("INVALID_ARGS", "rows 不能为空");
-        const prev = (await readJson<unknown[]>(store.editsPath(id))) ?? [];
         const rows = args.rows.map((r) => ({
           rev: m.current_rev,
           原句: r.原句,
@@ -438,8 +435,12 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
           at: nowIso(),
         }));
         await store.writable();
-        await atomicWrite(store.editsPath(id), JSON.stringify([...prev, ...rows], null, 2));
-        return { added: rows.length, total: prev.length + rows.length };
+        const total = await serialize(store.editsPath(id), async () => {
+          const prev = (await readJson<unknown[]>(store.editsPath(id))) ?? [];
+          await atomicWrite(store.editsPath(id), JSON.stringify([...prev, ...rows], null, 2));
+          return prev.length + rows.length;
+        });
+        return { added: rows.length, total };
       },
     }),
 

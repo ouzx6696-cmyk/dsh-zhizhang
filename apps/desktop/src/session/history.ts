@@ -27,7 +27,11 @@ export async function conversations(
 
 export async function newConversation(host: Sessions, target: Target) {
   const entry = host.sessions.get(host.key(target));
-  if (host.preparing(target) || (entry && !entry.session.isIdle))
+  if (
+    host.preparing(target) ||
+    host.compactions.has(host.key(target)) ||
+    (entry && !entry.session.isIdle)
+  )
     throw new Error("请先停止当前任务，再开始新对话");
   const dir = await host.directory(target);
   await mkdir(dir, { recursive: true });
