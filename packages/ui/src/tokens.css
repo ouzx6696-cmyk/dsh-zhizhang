@@ -123,39 +123,13 @@
   --ui-size-22: 22px;
   --ui-size-24: 24px;
   --ui-size-26: 26px;
-  --ui-size-28: 28px;
   --ui-size-32: 32px;
-  --ui-size-36: 36px;
   --ui-size-40: 40px;
   --ui-overlay-1: #000;
   --ui-font-step: 1px;
 }
 
 .writer-desktop {
-  --ui-panel-bg: var(--ui-panel);
-  --dsw-alias-bg-layer-1: var(--ui-panel);
-  --dsw-alias-bg-layer-2: var(--ui-paper);
-  --dsw-alias-bg-mask-1: var(--ui-mask);
-  --dsw-alias-bg-document-selection: var(--ui-accent-soft);
-  --dsw-alias-border-l2: var(--ui-line);
-  --dsw-alias-border-l4: var(--ui-line-strong);
-  --dsw-alias-label-primary: var(--ui-text);
-  --dsw-alias-label-secondary: var(--ui-text-2);
-  --dsw-alias-label-tertiary: var(--ui-text-3);
-  --dsw-alias-label-primary-inverted: var(--ui-on-accent);
-  --dsw-alias-button-primary-fill: var(--ui-accent);
-  --dsw-alias-button-primary-hover: var(--ui-accent-hover);
-  --dsw-alias-interactive-bg-active: var(--ui-accent-soft);
-  --dsw-alias-interactive-bg-hover: var(--ui-fill-strong);
-  --dsw-alias-link: var(--ui-accent);
-  --dsw-alias-settings-card-fill: var(--ui-paper);
-  --dsw-alias-settings-card-stroke: var(--ui-line);
-  --dsw-alias-state-business-primary: var(--ui-accent);
-  --dsw-alias-state-business-tertiary: var(--ui-accent-soft);
-  --dsw-alias-state-error-primary: var(--ui-danger);
-  --dsw-alias-state-success-primary: var(--ui-success);
-  --dsw-alias-state-warn-primary: var(--ui-warning);
-  --dsw-alias-state-idle-primary: var(--ui-text-3);
   --dsw-font-family: var(--ui-font-ui);
   --dsw-elevation-soft: var(--ui-shadow-1);
   --dsw-elevation-medium: var(--ui-shadow-2);

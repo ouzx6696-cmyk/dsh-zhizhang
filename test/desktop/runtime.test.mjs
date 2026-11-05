@@ -8,12 +8,6 @@ import { execFile } from "node:child_process";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-process.env.WRITER_TOUTIAO_SKILL_DIR = fileURLToPath(
-  new URL("../../packages/toutiao/skill", import.meta.url),
-);
-process.env.WRITER_TOUTIAO_DEFAULT_DIR = fileURLToPath(
-  new URL("../../packages/toutiao/profiles/default", import.meta.url),
-);
 import { ArticleStore } from "../../apps/desktop/out-test/article-store.mjs";
 import { fakeModel } from "./fake-model.mjs";
 import { Sessions } from "../../apps/desktop/out-test/session.mjs";
@@ -122,6 +116,7 @@ test("真实 Pi：建书归属、候选定位、独立编辑、角色模型、�
         input: { work: "station", chapter: "c001", status: "final" },
       },
       { text: "请作者查看审读回报，当前仍是草稿。" },
+      { text: "已收到交接，按当前正文继续写作。" },
       { status: 401, error: "Unauthorized" },
     ],
     "mock-planner": [
@@ -268,12 +263,26 @@ test("真实 Pi：建书归属、候选定位、独立编辑、角色模型、�
     const conversations = await sessions.conversations(attached.next);
     assert.equal(conversations.length, 1);
     assert.ok((await sessions.view(attached.next, 80, 0)).messages.length > 0);
-    const handoff = await sessions.handoffPreview(attached.next, {
+    const handoff = settled();
+    onSettled = handoff.finish;
+    await sessions.send(attached.next, "交接本章，按当前正文继续写作。", {
       chapter: "c001",
       intent: "write",
     });
-    assert.match(handoff, /briefRecorded/);
-    assert.ok(!handoff.includes("MAIN-PRIVATE"));
+    await handoff.promise;
+    const handoffCall = model.calls
+      .filter((call) => call.model === "mock-writer")
+      .at(-1);
+    assert.ok(handoffCall);
+    const handoffText = handoffCall.messages
+      .map((message) =>
+        typeof message.content === "string"
+          ? message.content
+          : (message.content || []).map((part) => part.text || "").join("\n"),
+      )
+      .join("\n");
+    assert.match(handoffText, /briefRecorded/);
+    assert.ok(!handoffText.includes("MAIN-PRIVATE"));
     const failure = settled();
     onSettled = failure.finish;
     await sessions.send(attached.next, "检查连接错误的反馈", {
@@ -570,23 +579,42 @@ test("首轮审读交接允许无旧回报，恢复须先备份并拒绝锁和�
   const paths = await ensureStorage(null, { storageRoot: path.join(base, "data") });
   const work = await createWork(paths, { title: "恢复前" });
   await setOutline(work.dir, "c001", { synopsis: "站台" }, "第一章");
+  const model = await fakeModel({ "mock-writer": [{ text: "收到交接，开始审读。" }] });
+  let onSettled = () => {};
   const sessions = new Sessions({
     home: appHome,
     python: "python3",
-    settings: defaultModels,
-    emit: () => {},
+    settings: () => models(model.url),
+    emit: (event) => {
+      if (event.event?.type === "agent_settled" && !event.editor) onSettled();
+    },
     confirm: async () => false,
     options: {},
     created: async () => {},
     extras: {},
   });
   try {
-    const preview = await sessions.handoffPreview(
+    const handoff = settled();
+    onSettled = handoff.finish;
+    await sessions.send(
       { mode: "fanqie", root: paths.base, work: work.meta.key },
+      "交接审读第一章。",
       { chapter: "c001", intent: "review" },
     );
-    assert.match(preview, /尚无本章的审读回报/);
-    assert.match(preview, /revision/);
+    await handoff.promise;
+    const handoffCall = model.calls
+      .filter((call) => call.model === "mock-writer")
+      .at(-1);
+    assert.ok(handoffCall);
+    const handoffText = handoffCall.messages
+      .map((message) =>
+        typeof message.content === "string"
+          ? message.content
+          : (message.content || []).map((part) => part.text || "").join("\n"),
+      )
+      .join("\n");
+    assert.match(handoffText, /尚无本章的审读回报/);
+    assert.match(handoffText, /revision/);
     const metaFile = path.join(work.dir, "meta.json"),
       chapterFile = path.join(work.dir, "chapters/c001.md");
     const oldMeta = await readFile(metaFile, "utf8"),
@@ -646,6 +674,7 @@ test("首轮审读交接允许无旧回报，恢复须先备份并拒绝锁和�
     );
   } finally {
     await sessions.dispose();
+    await model.close();
     await rm(base, { recursive: true, force: true });
   }
 });

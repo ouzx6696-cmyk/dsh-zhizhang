@@ -19,9 +19,9 @@ export interface AssetsConfig {
 export type AssetIssue = { message: string; path: (string | number)[] }
 
 export const USER_PREFIX = 'user:'
-export const USER_EXTS = ['.md', '.txt', '.json'] as const
+const USER_EXTS = ['.md', '.txt', '.json'] as const
 /** 单份上限、每个目录最多收录多少份、最深几层：防止误指到大目录 */
-export const USER_LIMITS = { fileBytes: 256 * 1024, filesPerDir: 300, depth: 4 } as const
+const USER_LIMITS = { fileBytes: 256 * 1024, filesPerDir: 300, depth: 4 } as const
 const KNOWN = new Set(['dirs'])
 
 export function parseAssetsConfig(input: unknown, at: string[]): { value?: AssetsConfig; issues: AssetIssue[] } {

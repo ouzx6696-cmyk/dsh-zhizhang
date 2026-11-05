@@ -15,7 +15,6 @@ import {
   newConversation as startNewConversation,
   view as viewHistory,
 } from "./history";
-import { taskPrompt } from "./prompt";
 import type {
   AuthorAction,
   HistoryCache,
@@ -145,10 +144,6 @@ export class Sessions {
 
   async view(target: Target, limit = DEFAULT_HISTORY_LIMIT, archive?: number) {
     return viewHistory(this, target, limit, archive);
-  }
-
-  async handoffPreview(target: Target, focus: Focus = {}) {
-    return taskPrompt(this, target, "交接", focus);
   }
 
   async attachCreated(entry: SessionEntry, work: string) {

@@ -16,8 +16,6 @@ import { syncLedgerStatus, validPassingQa } from '../tools.js'
 
 export const TOUTIAO_ACTIONS = ['new', 'continue', 'review', 'revise'] as const
 export type ToutiaoAction = (typeof TOUTIAO_ACTIONS)[number]
-export const ENABLE_HINT_TOUTIAO = ''
-
 const BODY_CAP = 200_000
 
 function titleOf(m: ArticleMeta) {
@@ -133,7 +131,7 @@ export async function adopt(rootIn: string, id: string, expected: { rev: number;
 }
 
 /** 写作台按钮 → 对话消息。正文仍由 Agent 在会话里写；作者附言 ≤300 字原样附在末尾。 */
-export async function buildToutiaoDelivery(rootIn: string, input: { action: string; id?: string; note?: string }, enableHint = ENABLE_HINT_TOUTIAO) {
+export async function buildToutiaoDelivery(rootIn: string, input: { action: string; id?: string; note?: string }, enableHint = '') {
   if (!(TOUTIAO_ACTIONS as readonly string[]).includes(input.action)) throw new WriterError('INVALID_ARGS', `不支持的动作：${input.action}`)
   const action = input.action as ToutiaoAction
   const root = await knownRoot(rootIn)

@@ -41,7 +41,7 @@ export interface GateEngine {
 }
 
 /** 规则的工具名匹配：精确，或 `前缀*` */
-export function toolMatches(pattern: string, name: string): boolean {
+function toolMatches(pattern: string, name: string): boolean {
   return pattern.endsWith('*') ? name.startsWith(pattern.slice(0, -1)) : pattern === name
 }
 

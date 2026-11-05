@@ -90,12 +90,6 @@ export const Scheduler = {
     writeLine() {
         return SCHEDULER_WRITE_LINE;
     },
-    libraryLine() {
-        return SCHEDULER_LIBRARY_LINE;
-    },
-    inspireLine() {
-        return SCHEDULER_INSPIRE_LINE;
-    },
     bypasses() {
         return SCHEDULER_BYPASSES;
     },
@@ -138,17 +132,6 @@ export const Scheduler = {
             Scheduler.formatDiagram(),
             "",
             "分喂：mind→inspire 设定/纲；craft→lean brief 写法+状态。迷路先看本图或 fanqie_product_map。",
-        ].join("\n");
-    },
-    /**
-     * 启用回执用的紧凑定向（约 0.5K 字符）。全图留在 fanqie_product_map
-     * 工具与常驻 SYSTEM_BRIEF 里——启用瞬间不再整页复述调度文本。
-     */
-    formatEnableSummary() {
-        return [
-            `- 全链：${SCHEDULER_DEFAULT_LINE}`,
-            `- 旁路（显式才走）：${SCHEDULER_BYPASSES.map((b) => b.id).join(" / ")}`,
-            "- 迷路先调 fanqie_product_map（调度全图）；硬规则全文 fanqie_system_brief",
         ].join("\n");
     },
 };

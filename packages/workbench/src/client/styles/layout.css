@@ -1,50 +1,7 @@
-/* 页面骨架：顶栏、栏位、区块、标题与状态标记。 */
+/* 页面骨架：工具栏、区块、折叠与状态标记。 */
 .wb-icon {
   flex: 0 0 auto;
   display: block;
-}
-
-.wb-header {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.wb-header-main {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 16px;
-  align-items: flex-start;
-  justify-content: space-between;
-}
-
-.wb-heading {
-  min-width: 0;
-  flex: 1 1 240px;
-}
-
-.wb-title {
-  font: 600 var(--ui-size-24)/var(--ui-size-32) var(--ui-font-ui);
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.wb-subtitle {
-  margin-top: 2px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-  color: var(--wb-fg-3);
-  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
-}
-
-.wb-subtle-path {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .wb-toolbar {
@@ -52,11 +9,6 @@
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
-}
-
-.wb-mode-switch,
-.wb-view-switch {
-  min-width: 180px;
 }
 
 .wb-icon-button {
@@ -122,116 +74,6 @@
 .wb-segment:disabled {
   opacity: 0.45;
   cursor: default;
-}
-
-.wb-boot {
-  padding: 24px 0;
-  max-width: 40rem;
-}
-
-.wb-onboarding {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  align-items: stretch;
-  max-width: 36rem;
-  margin: 24px auto;
-  padding: 24px;
-  border-radius: var(--wb-r-xl);
-  border: 0.5px solid var(--wb-line);
-  background: var(--wb-card);
-}
-
-.wb-onboarding .wb-empty {
-  padding: 0;
-}
-
-.wb-onboarding-steps {
-  counter-reset: wb-step;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.wb-onboarding-steps li {
-  counter-increment: wb-step;
-  display: grid;
-  grid-template-columns: 24px 1fr;
-  gap: 10px;
-  align-items: baseline;
-}
-
-.wb-onboarding-steps li::before {
-  content: counter(wb-step);
-  display: inline-grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  corner-shape: round;
-  background: var(--wb-hover);
-  color: var(--wb-fg-2);
-  font: 600 var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
-}
-
-.wb-crash {
-  margin: 0;
-  padding: 12px;
-  max-height: 160px;
-  overflow: auto;
-  border-radius: var(--wb-r-md);
-  background: var(--wb-hover);
-  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-mono);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.wb-footer {
-  margin-top: auto;
-  color: var(--wb-fg-3);
-  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
-}
-
-.wb-view-panel {
-  flex: 1 1 auto;
-  min-height: 560px;
-  display: flex;
-  flex-direction: column;
-}
-
-.wb-workbench {
-  flex: 1 1 auto;
-  display: grid;
-  grid-template-columns: minmax(200px, 248px) minmax(0, 1fr) minmax(260px, 316px);
-  grid-template-rows: minmax(0, 1fr);
-  gap: 12px;
-  min-height: 0;
-}
-
-.wb-column {
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  border-radius: var(--wb-r-xl);
-  border: 0.5px solid var(--wb-line);
-  background: var(--wb-card);
-  overflow: hidden;
-}
-
-.wb-column-head {
-  flex: 0 0 auto;
-  padding: 12px 16px 8px;
-  color: var(--wb-fg-3);
-  font: 600 var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
-  letter-spacing: 0.04em;
-}
-
-.wb-column-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
-  padding: 0 8px 12px;
 }
 
 .wb-flag {
@@ -332,10 +174,6 @@
   font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
 }
 
-.wb-settings-title {
-  font: 600 var(--ui-size-14)/var(--ui-size-22) var(--ui-font-ui);
-}
-
 @media (hover: hover) {
   .wb-icon-button:hover,
   .wb-segment:not(.wb-segment-on):not(:disabled):hover {
@@ -355,139 +193,14 @@
   }
 }
 
-@container wb-panel (max-width: 1080px) {
-  .wb-view-panel {
-    flex: 0 0 auto;
-    min-height: 0;
-  }
-}
-
-@container wb-panel (max-width: 1080px) {
-  .wb-workbench {
-    grid-template-columns: minmax(200px, 240px) minmax(0, 1fr);
-    grid-template-rows: min(78vh, 760px) auto;
-  }
-}
-
-@container wb-panel (max-width: 1080px) {
-  .wb-column-inspector {
-    grid-column: 1 / -1;
-  }
-}
-
-@container wb-panel (max-width: 1080px) {
-  .wb-column-inspector .wb-inspector {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    column-gap: 24px;
-  }
-}
-
-@container wb-panel (max-width: 1080px) {
-  .wb-column-inspector .wb-section,
-  .wb-column-inspector .wb-disclosure {
-    border-top: 0;
-  }
-}
-
-@container wb-panel (max-width: 700px) {
-  .wb-workbench {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto;
-  }
-}
-
-@container wb-panel (max-width: 700px) {
-  .wb-column-nav {
-    max-height: 320px;
-  }
-}
-
-@container wb-panel (max-width: 700px) {
-  .wb-column-reader {
-    height: 72vh;
-  }
-}
-
 @container wb-panel (max-width: 700px) {
   .wb-toolbar {
     width: 100%;
   }
 }
 
-.wb-heading-brand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.wb-heading-text {
-  min-width: 0;
-  flex: 1 1 auto;
-}
-
-.wb-brand {
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: var(--wb-r-lg);
-  color: var(--wb-accent);
-  background: var(--wb-accent-soft);
-  box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--wb-accent) 30%, transparent);
-}
-
-.wb-brand[data-mode="toutiao"] {
-  color: var(--wb-warn);
-  background: var(--wb-warn-soft);
-  box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--wb-warn) 30%, transparent);
-}
-
-.wb-header {
-  padding-bottom: 12px;
-  border-bottom: 0.5px solid var(--wb-line);
-}
-
-.wb-column {
-  box-shadow: var(--wb-shadow-1);
-  transition: box-shadow 200ms var(--wb-ease);
-}
-
-.wb-column-head {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--wb-card);
-  text-transform: none;
-}
-
-.wb-column-reader {
-  background: var(--wb-layer);
-}
-
-@media (hover: hover) {
-  .wb-column:hover {
-    box-shadow: var(--wb-shadow-2);
-  }
-}
-
 .wb-section + .wb-section {
   border-top: 0.5px solid var(--wb-line);
-}
-
-.wb-onboarding {
-  box-shadow: var(--wb-shadow-1);
-  animation: wb-enter 320ms var(--wb-ease);
-}
-
-.wb-onboarding-compact {
-  margin: 12px 4px;
-  padding: 16px;
-  box-shadow: none;
 }
 
 .wb-enter {

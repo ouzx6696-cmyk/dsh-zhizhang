@@ -69,7 +69,7 @@ const USER_ID = /^user-(\d{1,3})$/
 
 const DIGITS = '零一二三四五六七八九'
 /** 1 → 一，10 → 十，12 → 十二，25 → 二十五 */
-export function chineseNumber(n: number): string {
+function chineseNumber(n: number): string {
   if (n < 10) return DIGITS[n]!
   if (n < 20) return '十' + (n % 10 ? DIGITS[n % 10] : '')
   if (n < 100) return DIGITS[Math.floor(n / 10)] + '十' + (n % 10 ? DIGITS[n % 10] : '')

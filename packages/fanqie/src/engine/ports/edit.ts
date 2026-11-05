@@ -67,9 +67,6 @@ export const EditPort = {
     version: VERSION,
     defaultMode: "polish-depolish",
     skillDoc: "fanqie_method_get ids=edit",
-    listModes() {
-        return EDIT_MODE_IDS.map((id: string) => MODE_INFO[id]);
-    },
     normalizeMode(raw?: string) {
         const s = (raw ?? "").trim();
         if (!s)

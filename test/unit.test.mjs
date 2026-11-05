@@ -32,15 +32,10 @@ async function guardFixture(t) {
   await write("packages/core/src/version.ts", 'export const VERSION = "0.9.7";');
   await write("CHANGELOG.md", "## 0.9.7\n");
   await write("scripts/any-baseline.json", '{"any":0}');
-  const run = (strict = true) =>
+  const run = () =>
     spawnSync(
       process.execPath,
-      [
-        path.join(ROOT, "scripts/architecture-guard.mjs"),
-        "--root",
-        root,
-        ...(strict ? ["--strict"] : []),
-      ],
+      [path.join(ROOT, "scripts/architecture-guard.mjs"), "--root", root],
       { encoding: "utf8" },
     );
   assert.equal(run().status, 0, "合法仓库必须通过严格模式");

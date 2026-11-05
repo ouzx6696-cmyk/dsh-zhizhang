@@ -165,7 +165,7 @@ export * from "./storage/projects.js";
 export * from "./storage/candidates.js";
 export * from "./storage/work-records.js";
 export { readLedger, writeLedgerEntry } from "./storage/ledger.js";
-export { atomicWrite, assertResourceId, countWords, withLock } from "./storage/primitives.js";
+export { atomicWrite, assertResourceId, countWords } from "./storage/primitives.js";
 export {
   listChapters,
   readChapter,
