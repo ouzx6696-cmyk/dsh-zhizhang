@@ -8,7 +8,7 @@ import type { Focus, Target } from "../context";
 import type { DesktopEvent, WriterMessage } from "../renderer-contracts";
 import type { ModelSettings } from "../models";
 import type { AgentSession, SessionManager } from "./pi-adapter";
-import { createSession } from "./create";
+import { createSession, sessionFilePath } from "./create";
 import { notifyAuthor, sendPrompt } from "./delivery";
 import {
   conversations as listConversations,
@@ -117,13 +117,14 @@ export class Sessions {
     if (editor || planner)
       return createSession(this, target, editor ? "editor" : "planner", onCreated, onSaved);
     const key = this.key(target);
-    if (this.sessions.has(key)) return this.sessions.get(key)!.session;
-    if (!this.opening.has(key))
-      this.opening.set(
-        key,
-        createSession(this, target, "writer").finally(() => this.opening.delete(key)),
-      );
-    return this.opening.get(key)!;
+    const existing = this.sessions.get(key);
+    if (existing) return existing.session;
+    let opening = this.opening.get(key);
+    if (!opening) {
+      opening = createSession(this, target, "writer").finally(() => this.opening.delete(key));
+      this.opening.set(key, opening);
+    }
+    return opening;
   }
 
   async send(target: Target, text: string, focus: Focus = {}) {
@@ -154,7 +155,7 @@ export class Sessions {
     if (this.sessions.has(key)) return;
     if (await exists(path.join(dir, "current"))) return;
     await mkdir(dir, { recursive: true });
-    await atomicWrite(path.join(dir, "current"), entry.session.sessionManager.getSessionFile()!);
+    await atomicWrite(path.join(dir, "current"), sessionFilePath(entry.session.sessionManager));
     await rm(path.join(this.home, "sessions", this.key(previous), "current"), {
       force: true,
     });

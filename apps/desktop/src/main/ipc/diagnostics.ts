@@ -6,7 +6,7 @@ import { VERSION } from "../../../../../packages/core/src/version";
 
 export function registerDiagnosticsIpc(state: Runtime) {
   handle("diagnostics", async () => {
-    const result = await dialog.showSaveDialog(state.window!, {
+    const result = await dialog.showSaveDialog(state.windowOrThrow(), {
       title: "导出诊断包",
       defaultPath: "写作Agent-诊断.json",
     });

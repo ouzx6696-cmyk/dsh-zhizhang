@@ -116,10 +116,13 @@ export async function analyzeManuscript(text: string) {
   for (const block of blocks) {
     const slice = masked.slice(block.start, block.end);
     let previousStart = "";
-    for (const match of slice.matchAll(/(?:^|[。！？!?])\s*([\u4e00-\u9fff]{2,4})/g)) {
+    // exec 循环代替 matchAll：RegExpExecArray 的 index 是必有字段，matchAll 结果的 index 类型可缺省
+    const sentenceStart = /(?:^|[。！？!?])\s*([\u4e00-\u9fff]{2,4})/g;
+    let match: RegExpExecArray | null;
+    while ((match = sentenceStart.exec(slice))) {
       if (match[1] === previousStart)
         addStatistic(
-          block.start + match.index! + match[0].lastIndexOf(match[1]),
+          block.start + match.index + match[0].lastIndexOf(match[1]),
           match[1],
           "repeat",
           "相邻句起句重复：核对是否承担递进或人物声音；无作用时调整后一句组织。",
@@ -128,10 +131,12 @@ export async function analyzeManuscript(text: string) {
     }
     const phrases = new Map<string, number>(),
       reported = new Set<string>();
-    for (const run of slice.matchAll(/[\u4e00-\u9fff]{4,}/g)) {
+    const phraseRun = /[\u4e00-\u9fff]{4,}/g;
+    let run: RegExpExecArray | null;
+    while ((run = phraseRun.exec(slice))) {
       for (let offset = 0; offset <= run[0].length - 4; offset++) {
         const phrase = run[0].slice(offset, offset + 4),
-          position = run.index! + offset;
+          position = run.index + offset;
         const first = phrases.get(phrase);
         if (first === undefined) phrases.set(phrase, position);
         else if (position - first >= 4 && !reported.has(phrase)) {

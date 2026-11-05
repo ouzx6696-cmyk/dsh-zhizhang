@@ -27,10 +27,10 @@ function remember(file: string, entry: CacheEntry) {
     textCache.set(file, entry);
     textBytes += entry.text.length * 2;
     while (textCache.size > MAX_ENTRIES || textBytes > MAX_TEXT_BYTES) {
-        const oldest = textCache.keys().next().value;
+        const oldest = textCache.entries().next().value;
         if (oldest === undefined) break;
-        textBytes -= textCache.get(oldest)!.text.length * 2;
-        textCache.delete(oldest);
+        textBytes -= oldest[1].text.length * 2;
+        textCache.delete(oldest[0]);
     }
 }
 

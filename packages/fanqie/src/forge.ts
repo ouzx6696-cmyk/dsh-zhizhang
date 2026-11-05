@@ -108,7 +108,7 @@ async function getFanqieMethod(id: string): Promise<{ id: string; text: string }
     // 原文里常只写相对路径（references/writing.md）：唯一匹配时直接取
     const hits = (await listMethods()).filter((m) => m.endsWith(`/${clean}`));
     if (hits.length === 1) {
-      clean = hits[0]!;
+      clean = hits[0];
       text = await readText(resolveInside(root, `${clean}.md`));
     }
   }
@@ -171,9 +171,10 @@ function fanqieCanonical(id: string): string {
     .replace(/\.md$/, "");
   if (idx.methods.some((m) => m.id === clean)) return clean;
   const aliases = idx.aliases ?? {};
-  if (aliases[clean]) return aliases[clean]!;
+  const alias = aliases[clean];
+  if (alias) return alias;
   const hits = Object.keys(aliases).filter((k) => k.endsWith(`/${clean}`));
-  return hits.length === 1 ? aliases[hits[0]!]! : clean;
+  return hits.length === 1 ? aliases[hits[0]] : clean;
 }
 
 export const fanqieLibrary: MethodLibrary = {

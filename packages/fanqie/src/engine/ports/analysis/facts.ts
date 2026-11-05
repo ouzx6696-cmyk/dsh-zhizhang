@@ -16,7 +16,11 @@ export const WHITE_DESC_HARD_RE = /(心里|心中|内心|觉得|认为|希望|�
 /** 白描软警告：因果/意图词（原文事实可含，提示改写为动作）。 */
 const WHITE_DESC_SOFT_RE = /(因为|所以|于是|想要|打算|决定)/;
 
-export function validateChapterFacts(facts: any, sourceText: any, index: { n: number; title: string; start: number; end: number }[]) {
+/** 原文里的一个章节定位。 */
+interface ChapterRef { n: number; title: string; start: number; end: number }
+
+/** 校验单章事实；通过时带出命中的章节定位，调用方不必再查一遍 index。 */
+export function validateChapterFacts(facts: any, sourceText: any, index: ChapterRef[]): { errors: string[]; warnings: string[]; chapter?: ChapterRef } {
     const errors = [];
     const warnings: string[] = [];
     const f = facts ?? {};
@@ -69,12 +73,12 @@ export function validateChapterFacts(facts: any, sourceText: any, index: { n: nu
     }
     if (f.unknowns !== undefined && !Array.isArray(f.unknowns))
         errors.push("unknowns 必须是数组（原文没写的动机/身份/后果写这里）");
-    return { errors, warnings };
+    return { errors, warnings, chapter };
 }
 
-export async function upsertChapter(paths: StoragePaths, sourceId: any, facts: any, sourceText: any, index: { n: number; title: string; start: number; end: number }[]) {
-    const { errors, warnings } = validateChapterFacts(facts, sourceText, index);
-    if (errors.length)
+export async function upsertChapter(paths: StoragePaths, sourceId: any, facts: any, sourceText: any, index: ChapterRef[]) {
+    const { errors, warnings, chapter } = validateChapterFacts(facts, sourceText, index);
+    if (errors.length || !chapter)
         throw new NovelError("bad_facts", `事实未通过：${errors.join("；")}`);
     const p = analysisPaths(paths, sourceId);
     await ensureDir(p.dir);
@@ -83,7 +87,7 @@ export async function upsertChapter(paths: StoragePaths, sourceId: any, facts: a
         await assertNoPendingCard(paths.library);
         const before = await snapshotFile(p.chapters);
         const rows = await readJsonl(p.chapters);
-        const rec = { ...facts, n: Number(facts.n), sourceStart: index.find(c => c.n === Number(facts.n) && (facts.sourceStart === undefined || c.start === facts.sourceStart))!.start, sourceHash: sha256(sourceText), schemaVersion: 2, updatedAt: nowIso() };
+        const rec = { ...facts, n: Number(facts.n), sourceStart: chapter.start, sourceHash: sha256(sourceText), schemaVersion: 2, updatedAt: nowIso() };
         const at = rows.findIndex((r) => Number(r.n) === rec.n && (r.sourceStart === undefined || r.sourceStart === rec.sourceStart));
         if (at >= 0)
             rows[at] = rec;

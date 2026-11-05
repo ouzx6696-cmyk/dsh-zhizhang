@@ -29,6 +29,14 @@ import { createTask, trackSession } from "./task-tracker";
 import type { Sessions } from "./manager";
 import type { SessionEntry } from "./types";
 
+/** 会话文件路径：persist 模式的 SessionManager 在构造时就分配好路径（首条消息才落盘）。
+ * SDK 类型标为可缺省，真缺了说明 SDK 行为变了，如实报错而不是写坏 "current" 指针。 */
+export function sessionFilePath(manager: SessionManager): string {
+  const file = manager.getSessionFile();
+  if (file === undefined) throw new Error("会话文件路径尚未分配，无法写入会话指针");
+  return file;
+}
+
 export async function createSession(
   host: Sessions,
   targetInput: Target,
@@ -147,7 +155,7 @@ export async function createSession(
   });
   if (primary) {
     host.sessions.set(key, entry);
-    await atomicWrite(path.join(dir, "current"), manager.getSessionFile()!);
+    await atomicWrite(path.join(dir, "current"), sessionFilePath(manager));
   }
   return session;
 }

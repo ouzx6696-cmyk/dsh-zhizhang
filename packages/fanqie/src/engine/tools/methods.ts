@@ -267,7 +267,7 @@ export function methodsTools() {
                         `其余 ${meta.continuity.finalized.length + meta.continuity.working.length - finalized.length - working.length} 条索引未注入；相关早先事实按章纲与实际出处定点补读。`,
                         "索引仅含来源与末尾摘录，不是全书事实台账；旧章没有索引不代表未定稿。人物说法不自动等于客观事实。");
                 }
-                const basis = contextBasis(meta, chapter, prev && !prev.missing ? { chapterId: prev.meta.id, revision: prev.revision!, kind: prev.meta.status === "final" ? "final" : "working" } : undefined);
+                const basis = contextBasis(meta, chapter, prev && !prev.missing ? { chapterId: prev.meta.id, revision: prev.revision, kind: prev.meta.status === "final" ? "final" : "working" } : undefined);
                 const usedIds = [...found.map((a) => a.id), ...cardIdsForCrumb];
                 await recordBriefBreadcrumb(dir, { chapterId, assetIds: usedIds, basis });
                 lines.push("", `（已留痕 brief-crumbs：${chapterId} · ${usedIds.join(",") || "(none)"} · mode=${lean ? "lean" : "full"}）`);

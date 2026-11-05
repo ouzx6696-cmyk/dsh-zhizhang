@@ -46,7 +46,8 @@ export async function writingActivity(dir: string, chapters: { id: string }[], n
         .filter((v): v is { at: string; words: number } => !!v)
         .sort((a, b) => a.at.localeCompare(b.at))) {
         const day = localDay(new Date(version.at));
-        if (daily.has(day)) daily.set(day, daily.get(day)! + Math.max(0, version.words - previous));
+        const prev = daily.get(day);
+        if (prev !== undefined) daily.set(day, prev + Math.max(0, version.words - previous));
         previous = version.words;
       }
     }

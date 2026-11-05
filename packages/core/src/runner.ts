@@ -76,7 +76,7 @@ async function findPython(explicit?: string): Promise<PythonCommand> {
     if (!s || !s.trim()) return
     if (path.isAbsolute(s.trim())) { candidates.push({ cmd: s.trim(), prefix: [] }); return }
     const parts = s.trim().split(/\s+/)
-    candidates.push({ cmd: parts[0]!, prefix: parts.slice(1) })
+    candidates.push({ cmd: parts[0], prefix: parts.slice(1) })
   }
   add(explicit)
   add(process.env.WRITER_PYTHON)

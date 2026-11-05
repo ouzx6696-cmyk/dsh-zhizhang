@@ -93,4 +93,6 @@ function App() {
 
 const preview =
   import.meta.env.DEV && new URLSearchParams(window.location.search).has("ui-preview");
-createRoot(document.getElementById("root")!).render(preview ? <DesignPreview /> : <App />);
+const root = document.getElementById("root");
+if (!root) throw new Error("找不到界面挂载点 #root，无法启动界面");
+createRoot(root).render(preview ? <DesignPreview /> : <App />);

@@ -62,9 +62,12 @@ export function createSourceTools(options: {
         searches++;
         const provider = host.extras.searchProvider?.() ?? "exa";
         const mode = host.extras.searchMode?.() ?? "lite";
+        // 工具注册时 searchKey 已确认可用；执行时若没了说明配置被改动，如实报错
+        const key = host.extras.searchKey?.();
+        if (key === undefined) throw new Error("搜索 Key 已不可用，请在设置里重新配置后再试");
         const result = await searchSources(
           (args as { query: string }).query,
-          host.extras.searchKey!(),
+          key,
           signal,
           provider,
           mode,

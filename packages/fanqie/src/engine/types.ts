@@ -169,6 +169,12 @@ export interface ExecContext {
     [key: string]: any;
 }
 
+/**
+ * openWork 只需要的字段：cwd 定位存储、sessionId 记住"会话上次作品"。
+ * 供写作层（ToolExecution）等没有索引签名的上下文显式适配，替代 as never。
+ */
+export type OpenWorkContext = { cwd: string; sessionId?: string };
+
 export const EMPTY_FOUNDATION = (): Foundation => ({
     locks: "",
     happened: "",

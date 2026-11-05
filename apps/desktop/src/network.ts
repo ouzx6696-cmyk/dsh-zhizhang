@@ -64,10 +64,11 @@ export async function readSource(
         },
         (response) => {
           const status = response.statusCode || 0;
-          if (status >= 300 && status < 400 && response.headers.location) {
+          const location = status >= 300 && status < 400 ? response.headers.location : undefined;
+          if (location !== undefined) {
             response.destroy();
             resolve({
-              location: new URL(response.headers.location!, url).href,
+              location: new URL(location, url).href,
             });
             return;
           }

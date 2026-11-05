@@ -26,7 +26,8 @@ import {
 import { NovelError } from "../errors.js";
 
 export const bodyHash = (text: string) => sha256(text);
-const fail = (code: string, message: string): never => {
+// 显式标注返回类型：让类型系统把 fail(...) 之后当作不可达，守卫才能收窄后续属性
+const fail: (code: string, message: string) => never = (code, message) => {
   throw new NovelError(code, message);
 };
 function object(value: unknown): Record<string, unknown> {
@@ -36,17 +37,14 @@ function object(value: unknown): Record<string, unknown> {
 }
 function sourceSelector(value: unknown) {
   const source = object(value);
-  if (
-    typeof source.chapter !== "string" ||
-    (source.kind !== "chapter" && source.kind !== "candidate") ||
-    (source.kind === "candidate" && typeof source.candidate !== "string")
-  )
+  if (typeof source.chapter !== "string" || (source.kind !== "chapter" && source.kind !== "candidate"))
     fail("bad_source", "须指定章节和源类型");
-  return {
-    chapter: source.chapter as string,
-    kind: source.kind as DiagnosticSource["kind"],
-    candidate: source.candidate as string | undefined,
-  };
+  // 判别联合：kind=candidate 时 candidate 必有，调用方不必断言
+  if (source.kind === "candidate") {
+    if (typeof source.candidate !== "string") fail("bad_source", "须指定章节和源类型");
+    return { kind: "candidate" as const, chapter: source.chapter, candidate: source.candidate };
+  }
+  return { kind: "chapter" as const, chapter: source.chapter };
 }
 /** Normalize known fields: JSON property order and unrelated keys do not change identity. */
 function sourceIdentity(value: unknown): DiagnosticSource {
@@ -76,7 +74,7 @@ async function capture(dir: string, value: unknown): Promise<CapturedDiagnosticS
   const chapter = await readChapter(dir, selector.chapter),
     meta = await readWorkMeta(dir);
   const candidate =
-    selector.kind === "candidate" ? await readCandidate(dir, selector.candidate!) : null;
+    selector.kind === "candidate" ? await readCandidate(dir, selector.candidate) : null;
   if (
     candidate &&
     (candidate.chapterId !== chapter.id ||

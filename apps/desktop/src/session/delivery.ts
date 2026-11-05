@@ -32,7 +32,9 @@ export async function sendPrompt(
   try {
     const session = await host.open(target);
     if ((host.generations.get(key) || 0) !== generation) throw new Error("任务已取消");
-    const entry = host.sessions.get(key)!;
+    // open() 生成代号未变时必然已登记；查不到即会话已被新建/关闭动作移除，等同任务取消
+    const entry = host.sessions.get(key);
+    if (!entry) throw new Error("任务已取消");
     if (session.isIdle) {
       Object.assign(entry.task, preparingTask);
     }

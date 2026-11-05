@@ -9,6 +9,7 @@ import type { Sessions } from "../session";
 import type { Settings } from "../settings";
 import type { FanqieConfig } from "../../../../packages/fanqie/src/config";
 import type { ToutiaoConfig } from "../../../../packages/toutiao/src/config";
+import { WriterError } from "../../../../packages/core/src/tool";
 import { releaseInactiveTarget } from "./targets";
 import { taskEndCopy } from "../../../../packages/ui/src/copy";
 
@@ -42,6 +43,13 @@ export class Runtime {
     if (value.error) value = { ...value, error: explainError(value.error) };
     if (this.window && !this.window.isDestroyed())
       this.window.webContents.send("writer:event", value);
+  }
+
+  /** 弹对话框必须挂在窗口上；窗口尚未创建或已销毁（正在退出）时如实报错。 */
+  windowOrThrow(): BrowserWindow {
+    if (!this.window || this.window.isDestroyed())
+      throw new WriterError("NOT_FOUND", "界面窗口尚未就绪或已关闭，无法弹出对话框");
+    return this.window;
   }
 
   async sessionEvent(value: DesktopEvent) {

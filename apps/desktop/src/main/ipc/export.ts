@@ -8,7 +8,7 @@ export function registerExportIpc(state: Runtime) {
   handle("export", async (target, focus, format) => {
     const next = target;
     const content = await exportContent(next, focus, state.writerConfig);
-    const answer = await dialog.showMessageBox(state.window!, {
+    const answer = await dialog.showMessageBox(state.windowOrThrow(), {
       type: content.issues.length ? "warning" : "info",
       title: "导出与发布检查",
       message: [...content.issues, content.reminder].join("\n"),
@@ -22,7 +22,7 @@ export function registerExportIpc(state: Runtime) {
       return { copied: true as const };
     }
     const extension = format === "docx" ? "docx" : "txt",
-      result = await dialog.showSaveDialog(state.window!, {
+      result = await dialog.showSaveDialog(state.windowOrThrow(), {
         title: "导出稿件",
         defaultPath: content.title.replace(/[<>:"/\\|?*]/g, "_") + "." + extension,
         filters: [{ name: extension, extensions: [extension] }],

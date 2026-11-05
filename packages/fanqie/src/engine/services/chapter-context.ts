@@ -19,11 +19,12 @@ export async function resolvePrevChapter(dir: string, chapterId: string) {
     const prevMeta = chapters[idx - 1];
     try {
         const prev = await readChapter(dir, prevMeta.id);
-        return { meta: prevMeta, body: prev.body || "", outline: prev.outline, revision: prev.revision, missing: false };
+        // missing 用字面量类型：调用方 !prev.missing 时 revision 收窄为必有
+        return { meta: prevMeta, body: prev.body || "", outline: prev.outline, revision: prev.revision, missing: false as const };
     }
     catch (err) {
         if (!isMissingFileError(err)) throw err;
-        return { meta: prevMeta, body: "", outline: EMPTY_OUTLINE(), revision: undefined, missing: true };
+        return { meta: prevMeta, body: "", outline: EMPTY_OUTLINE(), revision: undefined, missing: true as const };
     }
 }
 

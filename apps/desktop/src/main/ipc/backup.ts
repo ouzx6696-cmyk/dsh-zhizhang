@@ -8,7 +8,7 @@ import { lockRoot } from "../targets";
 import { inspectRecovery, recoverWork } from "../../recovery";
 
 async function backupDirectory(state: Runtime, source: string) {
-  const result = await dialog.showOpenDialog(state.window!, {
+  const result = await dialog.showOpenDialog(state.windowOrThrow(), {
     title: "选择备份保存位置（写作根以外）",
     properties: ["openDirectory", "createDirectory"],
   });

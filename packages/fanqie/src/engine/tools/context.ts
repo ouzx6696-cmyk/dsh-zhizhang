@@ -7,7 +7,7 @@ export { asObject, asString, asStringArray, boolArg } from "../parse.js";
  */
 import { claimWorkspace } from "../../../../core/src/workspace-lock.js";
 import { NovelError } from "../errors.js";
-import type { ExecContext } from "../types.js";
+import type { ExecContext, OpenWorkContext } from "../types.js";
 import { ensureStorage } from "../storage/paths.js";
 import { listWorks } from "../storage/projects.js";
 import { readWorkMeta } from "../storage/work-meta.js";
@@ -46,7 +46,7 @@ export function asArray(args: any, key: string, opts: any = {}) {
   return value;
 }
 
-export async function openWork(exec: ExecContext, args: Record<string, unknown>) {
+export async function openWork(exec: OpenWorkContext, args: Record<string, unknown>) {
   const paths = await ensureStorage(exec, config, asString(args, "working_dir"));
   let key = asString(args, "work");
   if (!key) {

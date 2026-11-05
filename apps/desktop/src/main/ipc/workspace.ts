@@ -22,14 +22,14 @@ export function registerWorkspaceIpc(state: Runtime) {
   }));
   handle("choose", async (value) => {
     const mode = value;
-    const result = await dialog.showOpenDialog(state.window!, {
+    const result = await dialog.showOpenDialog(state.windowOrThrow(), {
       title: mode === "fanqie" ? "选择长篇数据根（包含 works，或空目录）" : "选择头条文章目录",
       properties: ["openDirectory", "createDirectory"],
     });
     return result.canceled ? null : selectTarget(state, { mode, root: result.filePaths[0] });
   });
   handle("workspace", async () => {
-    const result = await dialog.showOpenDialog(state.window!, {
+    const result = await dialog.showOpenDialog(state.windowOrThrow(), {
       title: "选择统一写作根",
       properties: ["openDirectory", "createDirectory"],
     });
@@ -79,7 +79,7 @@ export function registerWorkspaceIpc(state: Runtime) {
     });
   });
   handle("profiles", async () => {
-    const result = await dialog.showOpenDialog(state.window!, {
+    const result = await dialog.showOpenDialog(state.windowOrThrow(), {
       title: "选择用户方法方案根目录",
       properties: ["openDirectory", "createDirectory"],
     });

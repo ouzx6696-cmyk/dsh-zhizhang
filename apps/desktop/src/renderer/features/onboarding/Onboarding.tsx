@@ -39,11 +39,7 @@ export function Onboarding({ app }: { app: DesktopController }) {
           <ModelFields
             role="writer"
             model={writer}
-            onChange={(value) =>
-              set((current) => ({
-                wizardModels: { ...current.wizardModels!, writer: value },
-              }))
-            }
+            onChange={(value) => set({ wizardModels: { ...wizardModels, writer: value } })}
             onTest={() => void testConnection("writer", writer)}
             result={results.writer}
           />

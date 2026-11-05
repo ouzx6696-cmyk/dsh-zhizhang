@@ -39,19 +39,16 @@ export async function listArticles() {
     catch (error) { rootIssues.push({ root, error: error instanceof Error ? error.message : String(error) }) }
     return { root, metas, rootIssues }
   }))
-  for (const { root, metas, rootIssues } of perRoot) {
-    issues.push(...rootIssues)
-    for (const m of metas) {
-      const q = m.qa.at(-1)
-      rows.push({
-        root, id: m.id, title: titleOf(m), status: m.status, line: m.line, genre: m.genre, rev: m.current_rev,
-        qa: q ? { score: q.score, pass: q.pass, rev: q.rev, current: q.rev === m.current_rev } : null,
-        delivered: m.delivered, returnRounds: m.return_rounds, updatedAt: m.updated_at,
-      })
-    }
+  const pairs = perRoot.flatMap(({ root, metas }) => metas.map(m => ({ root, m })))
+  pairs.sort((a, b) => (STATUSES.indexOf(a.m.status) - STATUSES.indexOf(b.m.status)) || String(b.m.updated_at).localeCompare(String(a.m.updated_at)))
+  for (const { root, m } of pairs) {
+    const q = m.qa.at(-1)
+    rows.push({
+      root, id: m.id, title: titleOf(m), status: m.status, line: m.line, genre: m.genre, rev: m.current_rev,
+      qa: q ? { score: q.score, pass: q.pass, rev: q.rev, current: q.rev === m.current_rev } : null,
+      delivered: m.delivered, returnRounds: m.return_rounds, updatedAt: m.updated_at,
+    })
   }
-  const order = new Map(STATUSES.map((s, i) => [s as string, i]))
-  rows.sort((a, b) => (order.get(String(a.status))! - order.get(String(b.status))!) || String(b.updatedAt).localeCompare(String(a.updatedAt)))
   return { roots, statuses: [...STATUSES], articles: rows, issues }
 }
 

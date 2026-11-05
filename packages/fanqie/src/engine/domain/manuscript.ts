@@ -36,10 +36,13 @@ function inlineRuns(text: string, offset: number): TextRun[] {
 export function parseManuscript(text: string): Block[] {
     const blocks: Block[] = [];
     let paragraph: Block | undefined, code: Block | undefined;
-    for (const match of text.matchAll(/[^\r\n]*(?:\r\n|\r|\n|$)/g)) {
-        if (!match[0]) continue;
+    // exec 循环代替 matchAll：RegExpExecArray 的 index 是必有字段，matchAll 结果的 index 类型可缺省
+    const linePattern = /[^\r\n]*(?:\r\n|\r|\n|$)/g;
+    let match: RegExpExecArray | null;
+    while ((match = linePattern.exec(text))) {
+        if (!match[0]) { linePattern.lastIndex += 1; continue; } // $ 的零宽匹配：exec 不自动推进 lastIndex，须手动步进否则死循环
         const line = match[0].replace(/[\r\n]+$/, '');
-        const start = match.index!, end = start + line.length;
+        const start = match.index, end = start + line.length;
         if (code) {
             code.end = end;
             if (line.startsWith('```')) { code = undefined; continue; }
@@ -60,9 +63,10 @@ export function parseManuscript(text: string): Block[] {
             continue;
         }
         const heading = /^(#{1,3})\s+/.exec(line), quote = /^>\s?/.exec(line);
-        if (heading || quote) {
+        const prefix = heading ?? quote;
+        if (prefix) {
             paragraph = undefined;
-            const skip = (heading || quote)![0].length;
+            const skip = prefix[0].length;
             blocks.push({ kind: heading ? 'h' + heading[1].length : 'blockquote', start, end, runs: inlineRuns(line.slice(skip), start + skip) });
             continue;
         }

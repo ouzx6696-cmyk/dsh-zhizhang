@@ -121,8 +121,11 @@ export async function view(
       manager = cached?.stamp === stamp ? cached.manager : SessionManager.open(marker);
       host.historyCache.delete(marker);
       host.historyCache.set(marker, { stamp, manager });
-      while (host.historyCache.size > 4)
-        host.historyCache.delete(host.historyCache.keys().next().value!);
+      while (host.historyCache.size > 4) {
+        const oldest = host.historyCache.keys().next();
+        if (oldest.done) break;
+        host.historyCache.delete(oldest.value);
+      }
     }
   }
   const projected = manager

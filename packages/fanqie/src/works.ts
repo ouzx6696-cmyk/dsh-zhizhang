@@ -41,9 +41,9 @@ async function workAt(dir: string): Promise<WorkInfo> {
 }
 
 /** 按长篇工具同样的规则选作品 */
-export async function openWork(exec: ToolExecution | undefined, work?: string, workingDir?: string): Promise<WorkInfo> {
+export async function openWork(exec: ToolExecution, work?: string, workingDir?: string): Promise<WorkInfo> {
   try {
-    const { dir } = await engineOpenWork(exec as never, { work: work || undefined, working_dir: workingDir || undefined })
+    const { dir } = await engineOpenWork(exec, { work: work || undefined, working_dir: workingDir || undefined })
     return await workAt(dir)
   } catch (err) { rethrow(err) }
 }

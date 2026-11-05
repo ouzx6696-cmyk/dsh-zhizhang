@@ -30,8 +30,12 @@ export function checkCard(card: Record<string, unknown>, titleMax: number): Card
   const strings: [string, string][] = [];
   walk(card, "", strings);
   for (const [p, s] of strings) {
-    if (BRACKET.test(s)) fail(p, `还是模板占位：${s.match(BRACKET)![0]}`);
-    else if (CURLY.test(s)) fail(p, `出现 {xx}，会被质检判未替换占位符：${s.match(CURLY)![0]}`);
+    const bracket = s.match(BRACKET);
+    if (bracket) fail(p, `还是模板占位：${bracket[0]}`);
+    else {
+      const curly = s.match(CURLY);
+      if (curly) fail(p, `出现 {xx}，会被质检判未替换占位符：${curly[0]}`);
+    }
   }
 
   const line = str(card["内容线"]);

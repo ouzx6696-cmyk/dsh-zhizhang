@@ -160,7 +160,7 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
           chapters,
         });
         const r = await withTempFiles([{ name: "outline.json", text: input }], ([p]) =>
-          bridge(config.python, ["outline", p!], { signal: exec.signal }),
+          bridge(config.python, ["outline", p], { signal: exec.signal }),
         );
         const titleOf = new Map(chapters.map((c) => [c.id, `${c.position}.${c.title}`]));
         const issues = (r.issues as { chapter: string }[]).map((i) => ({
@@ -195,7 +195,7 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
         let rows = pickChapters(w, args.chapters);
         if (rows.length === 0) throw new WriterError("NOT_FOUND", `找不到章节：${args.chapters}`);
         if (args.include_previous !== false) {
-          const first = rows[0]!;
+          const first = rows[0];
           const prev = [...w.chapters].reverse().find((c) => c.position < first.position);
           if (prev && !rows.includes(prev)) rows = [prev, ...rows];
         }
@@ -227,7 +227,10 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
       required: ["file"],
       async run(args, exec) {
         const f = await localFile(exec, args.file);
-        const top = Number.isInteger(args.top) && args.top! > 0 ? Math.min(args.top!, 100) : 10;
+        const top =
+          typeof args.top === "number" && Number.isInteger(args.top) && args.top > 0
+            ? Math.min(args.top, 100)
+            : 10;
         const r = await bridge(config.python, ["scan", f, String(top), args.keywords ?? ""], {
           signal: exec.signal,
         });
@@ -255,7 +258,9 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
       async run(args, exec) {
         const src = await localFile(exec, args.source);
         const mc = String(
-          Number.isInteger(args.min_chars) && args.min_chars! > 0 ? args.min_chars : 6,
+          typeof args.min_chars === "number" && Number.isInteger(args.min_chars) && args.min_chars > 0
+            ? args.min_chars
+            : 6,
         );
         const go = (ana: string) =>
           bridge(config.python, ["quote", src, ana, mc], { signal: exec.signal });
@@ -263,7 +268,7 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
           throw new WriterError("INVALID_ARGS", "analysis 与 analysis_text 二选一必填");
         const r = args.analysis_text
           ? await withTempFiles([{ name: "拆解稿.md", text: args.analysis_text }], ([p]) =>
-              go(p!),
+              go(p),
             )
           : await go(await localFile(exec, args.analysis ?? ""));
         return {

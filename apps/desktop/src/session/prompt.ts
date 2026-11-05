@@ -80,7 +80,8 @@ export async function taskPrompt(host: Sessions, target: Target, text: string, f
         ...host.options.fanqie,
         storageRoot: target.root,
         worksRoot: storage.works,
-      }).find((tool) => tool.name === "fanqie_chapter_brief")!;
+      }).find((tool) => tool.name === "fanqie_chapter_brief");
+      if (!definition) throw new Error("引擎工具列表里没有 fanqie_chapter_brief，无法生成交接简报");
       brief = await definition.execute(
         {
           work: target.work,

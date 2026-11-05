@@ -66,11 +66,13 @@ export function profilesRoot(): string {
 const modeDir = (mode: ProfileMode) => path.join(profilesRoot(), mode)
 const isBuiltin = (id: string): id is BuiltinProfile => id === 'default' || id === 'original'
 const USER_ID = /^user-(\d{1,3})$/
+/** user-N → N（id 均已通过 USER_ID 校验，不必再 match） */
+const userSeq = (id: string) => Number(id.slice('user-'.length))
 
 const DIGITS = '零一二三四五六七八九'
 /** 1 → 一，10 → 十，12 → 十二，25 → 二十五 */
 function chineseNumber(n: number): string {
-  if (n < 10) return DIGITS[n]!
+  if (n < 10) return DIGITS[n]
   if (n < 20) return '十' + (n % 10 ? DIGITS[n % 10] : '')
   if (n < 100) return DIGITS[Math.floor(n / 10)] + '十' + (n % 10 ? DIGITS[n % 10] : '')
   return String(n)
@@ -107,7 +109,7 @@ async function userMetas(mode: ProfileMode): Promise<ProfileMeta[]> {
   }))
   return loaded
     .filter((m): m is ProfileMeta => m !== undefined)
-    .sort((a, b) => Number(a.id.match(USER_ID)![1]) - Number(b.id.match(USER_ID)![1]))
+    .sort((a, b) => userSeq(a.id) - userSeq(b.id))
 }
 
 function builtinMeta(mode: ProfileMode, id: BuiltinProfile): ProfileMeta {
@@ -174,7 +176,7 @@ export async function activateProfile(mode: ProfileMode, key: string, pinned?: s
 function forced(id: string): { force?: BuiltinProfile; id: string } {
   const m = id.match(/^(原版|original|默认|default)[:：](.+)$/)
   if (!m) return { id }
-  return { force: m[1] === '原版' || m[1] === 'original' ? 'original' : 'default', id: m[2]! }
+  return { force: m[1] === '原版' || m[1] === 'original' ? 'original' : 'default', id: m[2] }
 }
 
 async function readBuiltin(lib: MethodLibrary, which: BuiltinProfile, id: string): Promise<{ hit: MethodText; from: BuiltinProfile } | undefined> {
@@ -241,7 +243,9 @@ export async function profileDetail(lib: MethodLibrary, key: string, pinned?: st
     listProfiles(lib, pinned),
     lib.defaultIds(),
   ])
-  const summary = list.profiles.find(p => p.id === meta.id)!
+  // meta 来自 findProfile、list 来自 listProfiles，两次目录读取之间方案可能被并发删除。
+  const summary = list.profiles.find(p => p.id === meta.id)
+  if (!summary) throw new WriterError('NOT_FOUND', `没有这个方案：${meta.name}`)
   const titles = new Map(def.map(d => [d.id, d.title]))
   if (meta.id === 'default') return { profile: summary, methods: def.map(d => ({ id: d.id, title: d.title, from: 'default', overridden: false })) }
   if (meta.id === 'original') return { profile: summary, methods: (await lib.originalIds()).map(id => ({ id, from: 'original', overridden: false })) }
@@ -274,7 +278,7 @@ export async function createProfile(lib: MethodLibrary, input: CreateProfileInpu
 async function createProfileUnlocked(lib: MethodLibrary, input: CreateProfileInput): Promise<ProfileMeta> {
   const users = await userMetas(lib.mode)
   if (users.length >= PROFILE_LIMITS.profilesPerMode) throw new WriterError('CONFLICT', `每种模式最多 ${PROFILE_LIMITS.profilesPerMode} 个用户方案，先删掉不用的`)
-  const n = users.reduce((mx, u) => Math.max(mx, Number(u.id.match(USER_ID)![1])), 0) + 1
+  const n = users.reduce((mx, u) => Math.max(mx, userSeq(u.id)), 0) + 1
   const id = `user-${n}`
   const name = input.name?.trim() ? checkName(input.name) : `用户方案${chineseNumber(n)}`
   if ([...users.map(u => u.name), ...Object.values(BUILTIN_NAMES)].includes(name)) throw new WriterError('CONFLICT', `已有同名方案：${name}`)
