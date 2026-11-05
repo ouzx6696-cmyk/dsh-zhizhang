@@ -1,24 +1,10 @@
-.paper-ledger {
-  width: 100%;
-  max-width: none;
-  padding: 28px 0;
-}
-.paper-ledger table {
-  width: 100%;
-  border-collapse: collapse;
-}
-.paper-ledger th,
-.paper-ledger td {
-  padding: 12px;
-  border-bottom: 1px solid var(--ui-line);
-  text-align: left;
-}
 .lamp-ledger-tools {
   display: flex;
   gap: 12px;
   margin: 20px 0;
 }
 .paper-ledger {
+  width: 100%;
   max-width: 72em;
   margin: 16px auto;
   padding: 24px 28px;
@@ -50,6 +36,7 @@
 .paper-ledger td {
   padding: 10px 6px;
   border-bottom: 1px solid color-mix(in srgb, var(--ui-line) 70%, transparent);
+  text-align: left;
   vertical-align: middle;
 }
 .paper-ledger td strong {

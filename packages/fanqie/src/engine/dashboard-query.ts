@@ -17,31 +17,38 @@ export async function writingActivity(dir: string, chapters: { id: string }[], n
     return localDay(date);
   });
   const daily = new Map(dates.map((date) => [date, 0]));
-  for (const chapter of chapters) {
-    const folder = path.join(dir, "revisions", chapter.id);
-    const names = await readdir(folder).catch((error) => {
-      if (error.code === "ENOENT") return [];
-      throw error;
-    });
-    const versions = await Promise.all(
-      [
-        ...names.filter((name) => name.endsWith(".md")).map((name) => path.join(folder, name)),
-        path.join(dir, "chapters", chapter.id + ".md"),
-      ].map(async (file) => {
-        const raw = await readTextCached(file);
-        const front = /^---\r?\n([\s\S]*?)\r?\n---/.exec(raw);
-        if (!front) return null;
-        const metadata = JSON.parse(front[1]);
-        return { at: String(metadata.updatedAt || ""), words: Number(metadata.wordCount || 0) };
+  for (let offset = 0; offset < chapters.length; offset += 16) {
+    const batch = chapters.slice(offset, offset + 16);
+    const batchVersions = await Promise.all(
+      batch.map(async (chapter) => {
+        const folder = path.join(dir, "revisions", chapter.id);
+        const names = await readdir(folder).catch((error) => {
+          if (error.code === "ENOENT") return [];
+          throw error;
+        });
+        return Promise.all(
+          [
+            ...names.filter((name) => name.endsWith(".md")).map((name) => path.join(folder, name)),
+            path.join(dir, "chapters", chapter.id + ".md"),
+          ].map(async (file) => {
+            const raw = await readTextCached(file);
+            const front = /^---\r?\n([\s\S]*?)\r?\n---/.exec(raw);
+            if (!front) return null;
+            const metadata = JSON.parse(front[1]);
+            return { at: String(metadata.updatedAt || ""), words: Number(metadata.wordCount || 0) };
+          }),
+        );
       }),
     );
-    let previous = 0;
-    for (const version of versions
-      .filter((v): v is { at: string; words: number } => !!v)
-      .sort((a, b) => a.at.localeCompare(b.at))) {
-      const day = localDay(new Date(version.at));
-      if (daily.has(day)) daily.set(day, daily.get(day)! + Math.max(0, version.words - previous));
-      previous = version.words;
+    for (const versions of batchVersions) {
+      let previous = 0;
+      for (const version of versions
+        .filter((v): v is { at: string; words: number } => !!v)
+        .sort((a, b) => a.at.localeCompare(b.at))) {
+        const day = localDay(new Date(version.at));
+        if (daily.has(day)) daily.set(day, daily.get(day)! + Math.max(0, version.words - previous));
+        previous = version.words;
+      }
     }
   }
   return {

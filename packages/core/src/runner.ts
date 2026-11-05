@@ -100,8 +100,8 @@ export async function runScript(python: PythonCommand, script: string, args: str
   let r: Proc
   try {
     r = await exec(python.cmd, [...python.prefix, script, ...args], { ...opts, timeoutMs })
-  } catch (err: any) {
-    throw new WriterError('SCRIPT_FAILED', `无法启动 Python：${err?.message ?? err}`)
+  } catch (err) {
+    throw new WriterError('SCRIPT_FAILED', `无法启动 Python：${err instanceof Error ? err.message : String(err)}`)
   }
   if (r.timedOut) throw new WriterError('TIMEOUT', `脚本超时（${Math.round(timeoutMs / 1000)} 秒）：${script.split(/[\\/]/).pop()}`)
   if (opts.signal?.aborted) throw new WriterError('SCRIPT_FAILED', '已取消')

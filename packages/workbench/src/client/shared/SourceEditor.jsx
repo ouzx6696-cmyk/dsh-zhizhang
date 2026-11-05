@@ -3,7 +3,15 @@ import React from "react";
 import { Button } from "./ui.jsx";
 import { t } from "../../../../ui/src/copy.js";
 
-const { useEffect, useRef, useState } = React;
+const { useEffect, useMemo, useRef, useState } = React;
+
+function countNonWhitespaceChars(text) {
+  let count = 0;
+  for (const char of text) {
+    if (!/\s/.test(char)) count += 1;
+  }
+  return count;
+}
 
 export function SourceEditor({ initial, title, note, hint, onSave, onCancel, onStateChange }) {
   const [text, setText] = useState(initial);
@@ -64,7 +72,7 @@ export function SourceEditor({ initial, title, note, hint, onSave, onCancel, onS
     return () => window.removeEventListener("keydown", keyboard, true);
   }, []);
 
-  const count = [...text].filter((char) => !/\s/.test(char)).length;
+  const count = useMemo(() => countNonWhitespaceChars(text), [text]);
 
   return (
     <div className="wb-source-editor">

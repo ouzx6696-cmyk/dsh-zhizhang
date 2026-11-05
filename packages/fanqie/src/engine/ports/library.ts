@@ -882,7 +882,7 @@ export const LibraryPort = {
         }
         return out;
     },
-    async getCard(paths: StoragePaths, cardId: string) {
+    async getCard(paths: StoragePaths, cardId: string): Promise<TechniqueCard> {
         const id = assertResourceId(cardId, "卡 id");
         const d = libraryDirs(paths);
         const cardPath = path.join(d.cards, `${id}.json`);
@@ -890,7 +890,7 @@ export const LibraryPort = {
             throw new NovelError("card_not_found", `找不到技法卡 ${id}`);
         }
         // mtime 缓存：combo 深打分 / 深检索 / 面板轮询会反复读同一批卡。
-        const raw = await readJsonCached(cardPath);
+        const raw = await readJsonCached<TechniqueCard>(cardPath);
         return { ...raw, axis: coerceAxis(raw) };
     },
     async getCandidate(paths: StoragePaths, candId: string) {

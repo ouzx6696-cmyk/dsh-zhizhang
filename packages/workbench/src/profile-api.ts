@@ -26,17 +26,18 @@ export interface ProfileRouteContext {
   body(limit?: number): Promise<Record<string, unknown> | undefined>
 }
 
-const GETS = ['', '/detail', '/method'] as const
+const GETS = new Set(['', '/detail', '/method'])
 const POSTS = ['/use', '/create', '/save', '/reset', '/rename', '/delete'] as const
 const str = (x: unknown) => (typeof x === 'string' ? x.trim() : '')
 
 export function profileRoutes(base: string, lib: MethodLibrary, pinned?: () => string | undefined) {
   const root = `${base}/profiles`
   const routes = [...GETS, ...POSTS].map(s => root + s)
+  const routeSet = new Set(routes)
   async function handle(ctx: ProfileRouteContext): Promise<boolean> {
-    if (!routes.includes(ctx.path)) return false
+    if (!routeSet.has(ctx.path)) return false
     const sub = ctx.path.slice(root.length)
-    const want = (GETS as readonly string[]).includes(sub) ? 'GET' : 'POST'
+    const want = GETS.has(sub) ? 'GET' : 'POST'
     if (ctx.method !== want) { ctx.json(405, { ok: false, code: 'method', error: `${want} required` }); return true }
     const pin = pinned?.()
     try {

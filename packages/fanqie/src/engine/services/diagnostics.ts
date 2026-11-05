@@ -162,9 +162,10 @@ export async function stageRevisionCandidate(dir: string, value: unknown) {
       (candidate) => candidate.revisionSource?.requestId === requestId,
     );
     if (prior.length) {
-      if (prior.length !== 1 || prior[0].revisionSource.digest !== digest)
+      const first = prior[0];
+      if (prior.length !== 1 || !first.revisionSource || first.revisionSource.digest !== digest)
         fail("request_conflict", "同一请求标识对应不同修改");
-      return { candidateId: prior[0].id, reused: true };
+      return { candidateId: first.id, reused: true };
     }
     // An unreadable row may contain this request; fail closed instead of duplicating it.
     if (catalogue.some((candidate) => candidate.unavailable))

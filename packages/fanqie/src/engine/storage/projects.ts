@@ -191,7 +191,7 @@ export async function rememberProject(base: string, works: string) {
 }
 const LOCAL_BOOK_EXTS = new Set([".txt", ".md", ".markdown"]);
 /** List candidate book files in a local shelf folder (read-only, no import). */
-export async function listLocalBooks(sourceRoot: string, opts: any = {}) {
+export async function listLocalBooks(sourceRoot: string, opts: { limit?: number } = {}) {
   const root = sourceRoot.trim();
   if (!root) return [];
   let names;
@@ -228,7 +228,7 @@ let projectsSummaryCache: ProjectSummary[] | null = null;
  * Known workspaces with a cheap per-project summary (works/chapters/words).
  * Summaries are derived from each project's own .writer — never authoritative copies.
  */
-export async function listProjects(opts: any = {}) {
+export async function listProjects(opts: { ttl?: number; refresh?: boolean } = {}) {
   const ttl = typeof opts.ttl === "number" ? opts.ttl : 5000;
   if (!opts.refresh && projectsSummaryCache && Date.now() - projectsSummaryAt < ttl) {
     return projectsSummaryCache;
@@ -246,69 +246,72 @@ export async function listProjects(opts: any = {}) {
       lastUsedAt: "",
     });
   }
-  const rows = [];
-  for (const entry of list) {
-    const base = path.resolve(entry.base);
-    const worksDir =
-      typeof entry.works === "string" && path.isAbsolute(entry.works)
-        ? entry.works
-        : path.join(base, "works");
-    let existsFlag = false;
-    try {
-      existsFlag = (await stat(worksDir)).isDirectory();
-    } catch {
-      existsFlag = false;
-    }
-    let works:Awaited<ReturnType<typeof listWorks>> = [];
-    let worksError: string | undefined;
-    if (existsFlag) {
+  const rows = await Promise.all(
+    list.map(async (entry) => {
+      const base = path.resolve(entry.base);
+      const worksDir =
+        typeof entry.works === "string" && path.isAbsolute(entry.works)
+          ? entry.works
+          : path.join(base, "works");
+      let existsFlag = false;
       try {
-        works = await listWorks({
-          base,
-          works: worksDir,
-          manuscripts: path.join(base, "manuscripts"),
-          library: path.join(base, "library"),
-          inspiration: path.join(base, "inspiration"),
-          sourceRoot: "",
-        });
-      } catch (err) {
-        works = [];
-        worksError = err instanceof Error ? err.message : String(err);
+        existsFlag = (await stat(worksDir)).isDirectory();
+      } catch {
+        existsFlag = false;
       }
-    }
-    const rowsWorks = works.map((w) => {
-      const chapters = Array.isArray(w.chapters) ? w.chapters : [];
+      let works: Awaited<ReturnType<typeof listWorks>> = [];
+      let worksError: string | undefined;
+      if (existsFlag) {
+        try {
+          works = await listWorks({
+            base,
+            works: worksDir,
+            manuscripts: path.join(base, "manuscripts"),
+            library: path.join(base, "library"),
+            inspiration: path.join(base, "inspiration"),
+            sourceRoot: "",
+          });
+        } catch (err) {
+          works = [];
+          worksError = err instanceof Error ? err.message : String(err);
+        }
+      }
+      const rowsWorks = works.map((w) => {
+        const chapters = Array.isArray(w.chapters) ? w.chapters : [];
+        return {
+          key: w.key,
+          title: w.title,
+          genre: w.genre ?? "",
+          chapters: w.recoveryPending ? null : chapters.length,
+          wordCount: w.recoveryPending
+            ? null
+            : chapters.reduce((x, c) => x + (c.wordCount || 0), 0),
+          updatedAt: w.updatedAt ?? "",
+          recoveryPending: w.recoveryPending === true,
+        };
+      });
+      const recoveryPending = rowsWorks.some((w) => w.recoveryPending);
+      const countsUnavailable = recoveryPending || Boolean(worksError);
       return {
-        key: w.key,
-        title: w.title,
-        genre: w.genre ?? "",
-        chapters: w.recoveryPending ? null : chapters.length,
-        wordCount: w.recoveryPending
+        id: projectIdOf(base),
+        base,
+        worksRoot: worksDir,
+        name: entry.name || projectNameOf(base),
+        lastUsedAt: entry.lastUsedAt ?? "",
+        exists: existsFlag,
+        works: rowsWorks,
+        worksCount: worksError ? null : rowsWorks.length,
+        chapters: countsUnavailable
           ? null
-          : chapters.reduce((x, c) => x + (c.wordCount || 0), 0),
-        updatedAt: w.updatedAt ?? "",
-        recoveryPending: w.recoveryPending === true,
+          : rowsWorks.reduce((x: number, w) => x + (w.chapters ?? 0), 0),
+        words: countsUnavailable
+          ? null
+          : rowsWorks.reduce((x: number, w) => x + (w.wordCount ?? 0), 0),
+        recoveryPending,
+        ...(worksError ? { error: worksError } : {}),
       };
-    });
-    const recoveryPending = rowsWorks.some((w) => w.recoveryPending);
-    const countsUnavailable = recoveryPending || Boolean(worksError);
-    rows.push({
-      id: projectIdOf(base),
-      base,
-      worksRoot: worksDir,
-      name: entry.name || projectNameOf(base),
-      lastUsedAt: entry.lastUsedAt ?? "",
-      exists: existsFlag,
-      works: rowsWorks,
-      worksCount: worksError ? null : rowsWorks.length,
-      chapters: countsUnavailable
-        ? null
-        : rowsWorks.reduce((x: number, w) => x + (w.chapters ?? 0), 0),
-      words: countsUnavailable ? null : rowsWorks.reduce((x: number, w) => x + (w.wordCount ?? 0), 0),
-      recoveryPending,
-      ...(worksError ? { error: worksError } : {}),
-    });
-  }
+    }),
+  );
   rows.sort((a, b) =>
     (b.lastUsedAt ?? "").localeCompare(a.lastUsedAt ?? ""),
   );
@@ -326,30 +329,40 @@ export async function listWorks(paths: StoragePaths) {
     throw err;
   }
   const rows = [];
-  for (const name of names) {
-    const file = metaPath(path.join(paths.works, name));
-    try {
-      // Pending acceptance means counts may be between two valid versions.
-      const row = parseWorkMeta(await readJsonCached(file), file);
-      if (
-        !row ||
-        typeof row !== "object" ||
-        Array.isArray(row) ||
-        (row.chapters !== undefined && !Array.isArray(row.chapters))
-      )
-        throw new NovelError("bad_work_meta", `作品元数据格式损坏：${file}`);
-      let recoveryPending = false;
-      let recoveryHint = "";
-      try {
-        await assertNoPendingAccept(path.join(paths.works, name));
-      } catch (err) {
-        if (!(err instanceof NovelError) || err.code !== "recovery_required") throw err;
-        recoveryPending = true;
-        recoveryHint = err.message;
-      }
-      rows.push({ ...row, chapters: row.chapters ?? [], recoveryPending, recoveryHint });
-    } catch (err) {
-      if (!isMissingFileError(err)) throw err;
+  for (let offset = 0; offset < names.length; offset += 16) {
+    const batch = names.slice(offset, offset + 16);
+    const loaded = await Promise.all(
+      batch.map(async (name) => {
+        const dir = path.join(paths.works, name);
+        const file = metaPath(dir);
+        try {
+          // Pending acceptance means counts may be between two valid versions.
+          const row = parseWorkMeta(await readJsonCached(file), file);
+          if (
+            !row ||
+            typeof row !== "object" ||
+            Array.isArray(row) ||
+            (row.chapters !== undefined && !Array.isArray(row.chapters))
+          )
+            throw new NovelError("bad_work_meta", `作品元数据格式损坏：${file}`);
+          let recoveryPending = false;
+          let recoveryHint = "";
+          try {
+            await assertNoPendingAccept(dir);
+          } catch (err) {
+            if (!(err instanceof NovelError) || err.code !== "recovery_required") throw err;
+            recoveryPending = true;
+            recoveryHint = err.message;
+          }
+          return { ...row, chapters: row.chapters ?? [], recoveryPending, recoveryHint };
+        } catch (err) {
+          if (isMissingFileError(err)) return undefined;
+          throw err;
+        }
+      }),
+    );
+    for (const item of loaded) {
+      if (item !== undefined) rows.push(item);
     }
   }
   rows.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));

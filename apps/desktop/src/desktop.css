@@ -1,4 +1,6 @@
 @import "./styles/shell.css";
+@import "./styles/paper.css";
+@import "./styles/dialogs.css";
 @import "./styles/topbar.css";
 @import "./styles/agent.css";
 @import "./styles/settings.css";

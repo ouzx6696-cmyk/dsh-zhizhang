@@ -36,8 +36,8 @@ export async function readJson(file: string, fallback: any) {
     }
 }
 
-export async function readJsonl(file: string) {
-    return readJsonlCached(file);
+export async function readJsonl<T = Record<string, any>>(file: string) {
+    return readJsonlCached<T>(file);
 }
 
 export async function ensureDir(dir: string) {

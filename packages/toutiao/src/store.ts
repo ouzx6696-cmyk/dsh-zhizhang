@@ -16,7 +16,7 @@ import { claimWorkspace, assertWorkspaceWritable } from "../../core/src/workspac
 import { readdir } from 'node:fs/promises'
 import path from 'node:path'
 import { WriterError } from '../../core/src/tool.js'
-import { atomicWrite, exists, readJson, readText, resolveInside, serialize, sha256 } from '../../core/src/fsx.js'
+import { atomicWrite, exists, isMissingFileError, readJson, readText, resolveInside, serialize, sha256 } from '../../core/src/fsx.js'
 
 export const STATUSES = ['初稿待改', '待验收', '已验收', '验收退回', '已交稿'] as const
 export type Status = typeof STATUSES[number]
@@ -139,18 +139,25 @@ export class ArticleStore {
 
   async list(issues?: { root: string; id?: string; error: string }[]): Promise<ArticleMeta[]> {
     let names: string[] = []
-    try { names = await readdir(this.root) } catch (error: any) { if (error.code === "ENOENT") return []; throw error }
+    try { names = await readdir(this.root) } catch (error) { if (isMissingFileError(error)) return []; throw error }
+    const validNames = names.filter(n => ID_RE.test(n))
     const out: ArticleMeta[] = []
-    for (const n of names) {
-      if (!ID_RE.test(n)) continue
-      try {
-        const m = await this.get(n)
-        if (!Array.isArray(m.qa) || !Array.isArray(m.drafts) || typeof m.updated_at !== 'string' || !m.headlines || !STATUSES.includes(m.status))
-          throw new WriterError('CONFLICT', `文章元数据格式损坏：${n}`)
-        out.push(m)
-      } catch (error) {
-        if (!issues) throw error
-        issues.push({root: this.root, id: n, error: error instanceof Error ? error.message : String(error)})
+    for (let offset = 0; offset < validNames.length; offset += 16) {
+      const batch = validNames.slice(offset, offset + 16)
+      const results = await Promise.all(batch.map(async (n) => {
+        try {
+          const m = await this.get(n)
+          if (!Array.isArray(m.qa) || !Array.isArray(m.drafts) || typeof m.updated_at !== 'string' || !m.headlines || !STATUSES.includes(m.status))
+            throw new WriterError('CONFLICT', `文章元数据格式损坏：${n}`)
+          return { ok: true as const, meta: m }
+        } catch (error) {
+          if (!issues) throw error
+          return { ok: false as const, id: n, error: error instanceof Error ? error.message : String(error) }
+        }
+      }))
+      for (const r of results) {
+        if (r.ok) out.push(r.meta)
+        else issues?.push({ root: this.root, id: r.id, error: r.error })
       }
     }
     out.sort((a, b) => b.updated_at.localeCompare(a.updated_at))

@@ -1,0 +1,56 @@
+/* 数据视图：管线、统计与更新时间。 */
+.wb-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.wb-updated {
+  margin-left: auto;
+  color: var(--wb-fg-3);
+  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
+  font-variant-numeric: tabular-nums;
+}
+
+.wb-count {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  corner-shape: round;
+  background: var(--wb-warn-soft);
+  color: var(--wb-warn);
+  font: 600 var(--ui-size-12)/var(--ui-size-16) var(--ui-font-ui);
+}
+
+.wb-pipeline {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.wb-pipeline-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 72rem;
+}
+
+@container wb-panel (max-width: 700px) {
+  .wb-updated {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+.wb-stats .wb-tag {
+  height: 22px;
+  padding: 0 10px;
+}
+
+.wb-pipeline-body {
+  animation: wb-enter 260ms var(--wb-ease);
+}

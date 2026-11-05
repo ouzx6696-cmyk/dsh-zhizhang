@@ -1,14 +1,3 @@
-.wb-source-text {
-  font-family: var(--ui-font-body);
-  font-size: var(--ui-body-size);
-  line-height: 2;
-}
-.wb-source-editor .wb-source-text {
-  font-family: var(--ui-font-body);
-  font-size: var(--ui-body-size);
-  line-height: 2;
-  padding: 40px 48px;
-}
 .wb-candidate-badge {
   flex: 0 0 auto;
   display: inline-grid;
@@ -165,6 +154,29 @@
 .wb-manuscript ::selection {
   background: var(--wb-accent-soft);
 }
+.wb-manuscript mark {
+  color: inherit;
+  background: var(--wb-warn-soft);
+  text-decoration: underline wavy var(--wb-warn);
+  cursor: pointer;
+}
+.wb-manuscript mark[data-category="lazy_emotion"] {
+  background: var(--wb-bad-soft);
+  text-decoration: underline dotted var(--wb-bad);
+}
+.wb-manuscript mark[data-category="rhythm"] {
+  background: var(--wb-accent-soft);
+  text-decoration: underline dashed var(--wb-accent);
+}
+.wb-manuscript mark[data-category="process_skip"],
+.wb-manuscript mark[data-category="slogan_ending"] {
+  background: var(--wb-active);
+  text-decoration: underline solid var(--wb-accent);
+}
+.wb-manuscript mark:focus-visible {
+  outline: 2px solid var(--wb-accent);
+  outline-offset: 2px;
+}
 .wb-split {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -229,8 +241,6 @@
   .wb-split {
     grid-template-columns: 1fr;
   }
-}
-@container wb-panel (max-width: 860px) {
   .wb-split-head {
     position: static;
     margin: 0 0 12px;
@@ -277,26 +287,9 @@
   font-size: calc(var(--ui-size-15) + var(--wb-font-step, 0) * var(--ui-font-step));
   line-height: 2;
 }
-.wb-manuscript mark {
-  color: inherit;
-  background: var(--wb-warn-soft);
-  text-decoration: underline wavy var(--wb-warn);
-  cursor: pointer;
-}
-.wb-manuscript mark[data-category="lazy_emotion"] {
-  background: var(--wb-bad-soft);
-  text-decoration: underline dotted var(--wb-bad);
-}
-.wb-manuscript mark[data-category="rhythm"] {
-  background: var(--wb-accent-soft);
-  text-decoration: underline dashed var(--wb-accent);
-}
-.wb-manuscript mark[data-category="process_skip"],
-.wb-manuscript mark[data-category="slogan_ending"] {
-  background: var(--wb-active);
-  text-decoration: underline solid var(--wb-accent);
-}
-.wb-manuscript mark:focus-visible {
-  outline: 2px solid var(--wb-accent);
-  outline-offset: 2px;
+.wb-source-editor .wb-source-text {
+  font-family: var(--ui-font-body);
+  font-size: var(--ui-body-size);
+  line-height: 2;
+  padding: 40px 48px;
 }

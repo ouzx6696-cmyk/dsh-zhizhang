@@ -20,13 +20,25 @@ export function TopBar({ app }: { app: DesktopController }) {
   const { state, system, selected, focus, fail, set } = app;
   const [exportOpen, setExportOpen] = useState(false);
   const exportMenu = useRef<HTMLDivElement | null>(null);
+  const projectSwitch = useRef<HTMLButtonElement | null>(null);
+  const projectMenu = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
-    if (!exportOpen) return;
+    if (!exportOpen && !state.picker) return;
     const close = (event: PointerEvent) => {
-      if (!exportMenu.current?.contains(event.target as Node)) setExportOpen(false);
+      const target = event.target as Node;
+      if (exportOpen && !exportMenu.current?.contains(target)) setExportOpen(false);
+      if (
+        state.picker &&
+        !projectMenu.current?.contains(target) &&
+        !projectSwitch.current?.contains(target)
+      ) {
+        set({ picker: false });
+      }
     };
     const escape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setExportOpen(false);
+      if (event.key !== "Escape") return;
+      if (exportOpen) setExportOpen(false);
+      if (state.picker) set({ picker: false });
     };
     document.addEventListener("pointerdown", close);
     document.addEventListener("keydown", escape);
@@ -34,7 +46,7 @@ export function TopBar({ app }: { app: DesktopController }) {
       document.removeEventListener("pointerdown", close);
       document.removeEventListener("keydown", escape);
     };
-  }, [exportOpen]);
+  }, [exportOpen, state.picker, set]);
   const exportAs = (format: string) => {
     setExportOpen(false);
     app.exportFile(format).catch(fail);
@@ -51,13 +63,22 @@ export function TopBar({ app }: { app: DesktopController }) {
           ["library", viewCopy.topBarText1],
         ];
   if (!system) return null;
+  const backgroundRunning = state.running.filter(
+    (item) => scopeId(item.target) !== scopeId(selected),
+  );
   return (
     <>
       <header className="studio-topbar">
         <div className="studio-brand">
           <Brand />
         </div>
-        <button className="project-switch" onClick={() => set({ picker: !state.picker })}>
+        <button
+          ref={projectSwitch}
+          className="project-switch"
+          aria-haspopup="menu"
+          aria-expanded={state.picker}
+          onClick={() => set({ picker: !state.picker })}
+        >
           <BookOpen size={15} />
           <span>
             {selected?.mode === "toutiao"
@@ -133,7 +154,7 @@ export function TopBar({ app }: { app: DesktopController }) {
         </button>
       </header>
       {state.picker && (
-        <div className="project-menu">
+        <div className="project-menu" ref={projectMenu} role="menu">
           <h3>{viewCopy.topBarText10}</h3>
           {state.projects.map((item, index) => (
             <button key={index} onClick={() => app.jump(item.target, item.focus).catch(fail)}>
@@ -167,19 +188,17 @@ export function TopBar({ app }: { app: DesktopController }) {
           {viewCopy.topBarText17}
         </div>
       )}
-      {state.running.filter((item) => scopeId(item.target) !== scopeId(selected)).length > 0 && (
+      {backgroundRunning.length > 0 && (
         <div className="background-tasks">
-          {state.running
-            .filter((item) => scopeId(item.target) !== scopeId(selected))
-            .map((item) => (
-              <button
-                key={scopeId(item.target)}
-                onClick={() => app.jump(item.target, item.focus).catch(fail)}
-              >
-                <LoaderCircle size={13} className="spin" />
-                {focusLabel(item.target, item.focus)} · {item.phase}
-              </button>
-            ))}
+          {backgroundRunning.map((item) => (
+            <button
+              key={scopeId(item.target)}
+              onClick={() => app.jump(item.target, item.focus).catch(fail)}
+            >
+              <LoaderCircle size={13} className="spin" />
+              {focusLabel(item.target, item.focus)} · {item.phase}
+            </button>
+          ))}
         </div>
       )}
       {state.error && (

@@ -92,7 +92,7 @@ export async function upsertChapter(paths: StoragePaths, sourceId: any, facts: a
         rows.sort((a, b) => Number(a.n) - Number(b.n));
         const content = rows.length ? rows.map((r) => JSON.stringify(r)).join("\n") + "\n" : "";
         await commitAnalysisUpdate(paths, sourceId, "chapters.jsonl", before, content, meta => {
-            const scope = meta.scope ?? { mode: "none", chapters: 0 };
+            const scope = (meta.scope ?? { mode: "none", chapters: 0 }) as { mode?: string; chapters?: number };
             const maxN = rows.reduce((m, r) => Math.max(m, Number(r.n) || 0), 0);
             const planned = scope.mode === "sample" ? rows.length : scope.mode === "auto" || scope.mode === "full" ? 0 : maxN;
             return { stage: "facts", lastRead: Math.max(Number(meta.lastRead ?? 0), rec.n), scope: { ...scope, chapters: Math.max(Number(scope.chapters ?? 0), planned) } };

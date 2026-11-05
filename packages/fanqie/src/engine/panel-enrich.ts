@@ -14,8 +14,8 @@ import { Scheduler } from "./ports/scheduler.js";
 import { readPlanning } from "./domain/planning.js";
 import { assertNoPendingInspiration } from "./storage/inspiration-journal.js";
 import { listLocalBooks } from "./work-store.js";
-import type { StoragePaths } from "./types.js";
-function foundationFilledFields(f: import("./types.js").Foundation) {
+import type { Foundation, StoragePaths } from "./types.js";
+function foundationFilledFields(f: Foundation) {
     const keys = [
         "locks",
         "happened",
@@ -28,16 +28,22 @@ function foundationFilledFields(f: import("./types.js").Foundation) {
     return keys.filter((k) => f[k].trim().length > 0);
 }
 export async function buildLibraryView(paths: StoragePaths) {
-    const sources = await LibraryPort.listSources(paths);
-    const accepted = await LibraryPort.listCards(paths, { status: "accepted" });
-    const drafted = await LibraryPort.listCards(paths, { status: "drafted" });
+    const [sources, accepted, drafted, analyses] = await Promise.all([
+        LibraryPort.listSources(paths),
+        LibraryPort.listCards(paths, { status: "accepted" }),
+        LibraryPort.listCards(paths, { status: "drafted" }),
+        listAnalyses(paths),
+    ]);
     let craftCount = 0;
     let mindCount = 0;
-    for (const row of accepted) {
-        let axis = row.axis;
-        if (axis !== "craft" && axis !== "mind") {
-            axis = coerceAxis(await LibraryPort.getCard(paths, row.id));
-        }
+    const axes = await Promise.all(
+        accepted.map(async (row) =>
+            row.axis === "craft" || row.axis === "mind"
+                ? row.axis
+                : coerceAxis(await LibraryPort.getCard(paths, row.id)),
+        ),
+    );
+    for (const axis of axes) {
         if (axis === "mind")
             mindCount += 1;
         else
@@ -49,7 +55,7 @@ export async function buildLibraryView(paths: StoragePaths) {
         craftTitles: (suggestion.crafts ?? []).map((card) => card.title), emptyReason: suggestion.emptyReason,
     };
     const sourceRoot = paths.sourceRoot || "";
-    let pending: any[] = [];
+    let pending: { name: string; bytes: number; title: string }[] = [];
     if (sourceRoot) {
         try {
             const local = await listLocalBooks(sourceRoot, { limit: 40 });
@@ -60,7 +66,6 @@ export async function buildLibraryView(paths: StoragePaths) {
             pending = [];
         }
     }
-    const analyses = await listAnalyses(paths);
     return {
         sourcesCount: sources.length,
         sourceRoot,
@@ -89,10 +94,22 @@ export async function buildLibraryView(paths: StoragePaths) {
         summary: LibraryPort.summary,
     };
 }
-export async function buildInspirationView(paths: StoragePaths, opts: any) {
+export async function buildInspirationView(
+    paths: StoragePaths,
+    opts: {
+        workKey?: string;
+        foundation: Foundation;
+        planning?: unknown;
+        chapters: { situationLens?: string; livedScene?: string; stateLens?: string }[];
+    },
+) {
     await assertNoPendingInspiration(paths.inspiration);
     const planning = readPlanning({ planning: opts.planning });
-    const sessionsRaw = await InspirationPort.listSessions(paths);
+    const candDir = path.join(paths.inspiration, "candidates");
+    const [sessionsRaw, names] = await Promise.all([
+        InspirationPort.listSessions(paths),
+        readdir(candDir),
+    ]);
     const sessions = sessionsRaw.slice(0, 8).map((s) => ({
         id: s.id,
         goal: s.goal,
@@ -103,14 +120,20 @@ export async function buildInspirationView(paths: StoragePaths, opts: any) {
     }));
     let pendingEmits = 0;
     let acceptedEmits = 0;
-    const appliedCandIds = [];
-    const candDir = path.join(paths.inspiration, "candidates");
-    const names = await readdir(candDir);
-    for (const name of names) {
-        if (!name.endsWith(".json"))
-            continue;
-        try {
-            const raw = await readJsonCached(path.join(candDir, name));
+    const appliedCandIds: string[] = [];
+    const jsonNames = names.filter((name) => name.endsWith(".json"));
+    for (let offset = 0; offset < jsonNames.length; offset += 16) {
+        const batch = jsonNames.slice(offset, offset + 16);
+        const items = await Promise.all(
+            batch.map(async (name) => {
+                try {
+                    return await readJsonCached(path.join(candDir, name));
+                } catch {
+                    throw new Error(`灵感候选 ${name} 不可读，请核对原文件。`);
+                }
+            }),
+        );
+        for (const raw of items) {
             if (raw.status === "staged")
                 pendingEmits += 1;
             if (raw.status === "accepted")
@@ -118,9 +141,6 @@ export async function buildInspirationView(paths: StoragePaths, opts: any) {
             if (raw.appliedWorkKey && raw.appliedWorkKey === opts.workKey && raw.id) {
                 appliedCandIds.push(raw.id);
             }
-        }
-        catch {
-            throw new Error(`灵感候选 ${name} 不可读，请核对原文件。`);
         }
     }
     const filled = foundationFilledFields(opts.foundation);

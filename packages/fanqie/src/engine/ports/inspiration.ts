@@ -1,6 +1,6 @@
 import type { StartInspirationInput, AcceptEmissionInput, StageEmissionInput, CardSelection } from './inspiration-input.js';
 import { readInspirationBindings } from "../storage/inspiration-migration.js";
-import { nowIso, shortId as newId, exists as fileExists } from "../../../../core/src/fsx.js";
+import { nowIso, shortId as newId, exists as fileExists, isMissingFileError } from "../../../../core/src/fsx.js";
 import { readReference } from "../services/reference.js";
 import { fingerprint } from "../domain/lifecycle.js";
 import { withResourceLock } from "../storage/process-lock.js";
@@ -41,8 +41,10 @@ function inspDirs(paths: StoragePaths) {
 }
 async function ensureInsp(paths: StoragePaths) {
     const d = inspDirs(paths);
-    await mkdir(d.sessions, { recursive: true });
-    await mkdir(d.candidates, { recursive: true });
+    await Promise.all([
+        mkdir(d.sessions, { recursive: true }),
+        mkdir(d.candidates, { recursive: true }),
+    ]);
 }
 export const InspirationPort = {
     id: "port.inspiration",
@@ -74,10 +76,10 @@ export const InspirationPort = {
         const pace = validateStoryPace(input.pace);
         let mindCount = 0;
         let craftCount = 0;
-        for (const id of cardIds) {
-            const card = await LibraryPort.getCard(paths, id);
+        const loadedCards = await Promise.all(cardIds.map((id) => LibraryPort.getCard(paths, id)));
+        for (const card of loadedCards) {
             if (card.status !== "accepted") {
-                throw new NovelError("card_not_accepted", `卡 ${id} 尚未 accept，不能用于灵感`);
+                throw new NovelError("card_not_accepted", `卡 ${card.id} 尚未 accept，不能用于灵感`);
             }
             const axis = coerceAxis(card);
             if (axis === "mind")
@@ -86,10 +88,10 @@ export const InspirationPort = {
                 craftCount += 1;
         }
         const referenceIds = [...new Set<string>(input.referenceIds ?? [])];
-        for (const id of referenceIds) await readReference(paths, id);
+        await Promise.all(referenceIds.map((id) => readReference(paths, id)));
         const sessionId = newId("insp");
         const now = nowIso();
-        const session: Record<string, any> = {
+        const session: Record<string, unknown> = {
             schemaVersion: 1,
             id: sessionId,
             goal,
@@ -122,27 +124,24 @@ export const InspirationPort = {
     async listSessions(paths: StoragePaths) {
         await ensureInsp(paths);
         const d = inspDirs(paths);
-        const names = await readdir(d.sessions);
-        const rows = [];
-        for (const name of names) {
-            if (!name.endsWith(".json"))
-                continue;
+        const names = (await readdir(d.sessions)).filter((name) => name.endsWith(".json"));
+        const rows = await Promise.all(names.map(async (name) => {
             try {
                 // mtime 缓存：面板每 ~6s 轮询都会全量列会话。
                 const s = await readJsonCached(path.join(d.sessions, name));
-                rows.push({
+                return {
                     id: s.id,
                     goal: s.goal,
                     genre: s.genre,
                     cardIds: s.cardIds,
                     forgeAt: s.forgeAt,
                     updatedAt: s.updatedAt,
-                });
+                };
             }
             catch {
                 throw new NovelError("bad_inspiration_session", `灵感会话 ${name} 不可读，请核对原文件。`);
             }
-        }
+        }));
         rows.sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
         return rows;
     },
@@ -153,15 +152,21 @@ export const InspirationPort = {
             await assertNoPendingInspiration(paths.inspiration);
             const dir = inspDirs(paths).candidates;
             const names = (await readdir(dir)).filter(name => name.endsWith(".json"));
-            const rows = [];
+            const rows: Array<{ id: string; kind: string; title: string; at: string }> = [];
             for (const name of names) {
-                let cand: any;
+                let cand: Record<string, unknown> | null = null;
                 try { cand = JSON.parse(await readFile(path.join(dir, name), "utf8")); }
                 catch { throw new NovelError("bad_inspiration_candidate", `灵感候选 ${name} 无法读取；请保留原文件并核对。`); }
                 if (!cand || typeof cand !== "object" || Array.isArray(cand) || typeof cand.id !== "string" || cand.id !== name.slice(0, -5))
                     throw new NovelError("bad_inspiration_candidate", `灵感候选 ${name} 格式损坏；请保留原文件并核对。`);
                 if (cand.status === "accepted" && cand.appliedWorkKey === workKey) {
-                    rows.push({ id: cand.id, kind: cand.kind, title: cand.payload?.title || cand.payload?.id || cand.payload?.chapter || "", at: cand.acceptedAt || cand.updatedAt || cand.createdAt || "" });
+                    const payload = (cand.payload ?? {}) as Record<string, unknown>;
+                    rows.push({
+                        id: cand.id,
+                        kind: String(cand.kind ?? ""),
+                        title: String(payload.title || payload.id || payload.chapter || ""),
+                        at: String(cand.acceptedAt || cand.updatedAt || cand.createdAt || ""),
+                    });
                 }
             }
             rows.sort((a, b) => String(b.at).localeCompare(String(a.at)));
@@ -173,10 +178,10 @@ export const InspirationPort = {
         return withResourceLock(paths.inspiration, async () => {
             await assertNoPendingInspiration(paths.inspiration);
             const id = assertResourceId(candidateId, "灵感候选 id");
-            let candidate: any;
+            let candidate: Record<string, unknown> | null = null;
             try { candidate = JSON.parse(await readFile(path.join(inspDirs(paths).candidates, `${id}.json`), "utf8")); }
-            catch (err: any) {
-                if (err?.code === "ENOENT") throw new NovelError("candidate_not_found", `找不到灵感候选 ${id}`);
+            catch (err: unknown) {
+                if (isMissingFileError(err)) throw new NovelError("candidate_not_found", `找不到灵感候选 ${id}`);
                 throw new NovelError("bad_inspiration_candidate", `灵感候选 ${id} 无法读取；请保留原文件并核对。`);
             }
             if (!candidate || typeof candidate !== "object" || Array.isArray(candidate) || candidate.id !== id)
@@ -189,10 +194,7 @@ export const InspirationPort = {
         return withResourceLock(paths.inspiration, async () => {
             await assertNoPendingInspiration(paths.inspiration);
         const session = await InspirationPort.getSession(paths, sessionId);
-        const cards = [];
-        for (const id of session.cardIds) {
-            cards.push(await LibraryPort.getCard(paths, id));
-        }
+        const cards = await Promise.all((session.cardIds as string[]).map((id) => LibraryPort.getCard(paths, id)));
         const develop = MethodRegistry.get("develop");
         const plan = MethodRegistry.get("plan");
         const tomato = MethodRegistry.get("tomato_four_q");
@@ -494,10 +496,10 @@ export const InspirationPort = {
                     chapterId = assertResourceId(payload.chapter, "章节 id");
                     const chapterPath = path.join(dir, "chapters", `${chapterId}.md`);
                     const chapterBefore = await snapshotFile(chapterPath);
-                    let previous: any = null;
+                    let previous: Awaited<ReturnType<typeof readChapter>> | null = null;
                     try { previous = await readChapter(dir, chapterId); }
-                    catch (err: any) { if (err?.code !== "ENOENT") throw err; }
-                    const patch: Record<string, any> = {};
+                    catch (err: unknown) { if (!isMissingFileError(err)) throw err; }
+                    const patch: Record<string, unknown> = {};
                     for (const key of ["pov", "locks", "knowledge", "synopsis", "conflict", "beats", "ending", "situationLens", "livedScene", "stateLens"])
                         if (typeof payload[key] === "string") patch[key] = payload[key];
                     if (!patch.stateLens && typeof payload.voiceTone === "string" && payload.voiceTone.trim()) patch.stateLens = payload.voiceTone;
@@ -526,9 +528,9 @@ export const InspirationPort = {
                 try {
                     const journal = await createInspirationJournal(paths, { workKey, candidateId: id, chapterId, writes });
                     await finishInspirationJournal(paths, journal);
-                } catch (err: any) {
+                } catch (err: unknown) {
                     if (err instanceof NovelError) throw err;
-                    throw new NovelError("inspiration_recovery_required", `灵感应用未完成（${err?.message ?? String(err)}）。请用 fanqie_inspire_status(recovery=inspect) 检查，不要重复应用。`);
+                    throw new NovelError("inspiration_recovery_required", `灵感应用未完成（${err instanceof Error ? err.message : String(err)}）。请用 fanqie_inspire_status(recovery=inspect) 检查，不要重复应用。`);
                 }
                 return {candId:id, applied:true, workKey, detail, bindingWarning:""};
             });
@@ -546,14 +548,13 @@ export const InspirationPort = {
         const limit = Math.max(1, Math.min(opts.limit ?? 5, 12));
         const explicit = opts.cardIds??[];
         if (explicit.length > 0) {
-            const cards = [];
-            for (const id of explicit.slice(0, limit)) {
+            const cards = await Promise.all(explicit.slice(0, limit).map(async (id) => {
                 const card = await LibraryPort.getCard(paths, id);
                 if (card.status !== "accepted") {
                     throw new NovelError("card_not_accepted", `技法卡 ${id} 尚未 accept，不能注入 chapter_brief`);
                 }
-                cards.push(card);
-            }
+                return card;
+            }));
             cards.sort((a, b) => {
                 const aa = coerceAxis(a) === "craft" ? 0 : 1;
                 const bb = coerceAxis(b) === "craft" ? 0 : 1;
@@ -570,11 +571,9 @@ export const InspirationPort = {
         if (workKey) {
             const d = inspDirs(paths);
             const bindings=await readInspirationBindings(d.root);
-            const ids=bindings?.[workKey]??[],cards=[];
-            for(const id of ids.slice(0,limit)) {
-                const card=await LibraryPort.getCard(paths,id);
-                if(card.status === "accepted")cards.push(card);
-            }
+            const ids=bindings?.[workKey]??[];
+            const loaded = await Promise.all(ids.slice(0, limit).map((id) => LibraryPort.getCard(paths, id)));
+            const cards = loaded.filter((card) => card.status === "accepted");
             if(cards.length) return {cards,source:"inspire_apply",note:`作品「${workKey}」绑定技法卡（${cards.length}；bindings 索引）`,cardIds:cards.map(card=>card.id)};
         }
         // 未发布：删掉「按 genre 检索」这条分支。技法卡是写法卡，不含题材词，

@@ -1,6 +1,6 @@
 import { assertCandidateFile } from "./storage/primitives.js";
 import { writingActivity } from "./dashboard-query.js";
-import { type ChapterMeta, SCHEMA_VERSION } from "./types.js";
+import { type ChapterMeta, type StoragePaths, SCHEMA_VERSION } from "./types.js";
 /** Read models for tools and panel; never imported by persistence. */
 import path from "node:path";
 import { readChapterLenses } from "./storage/chapters.js";
@@ -15,7 +15,7 @@ import { isMultiDraftEnabled } from './ports/multi-draft.js';
 import { Scheduler } from "./ports/scheduler.js";
 import { BRIEF_RECENT_MS } from "./domain/constants.js";
 const candidatesDir = (dir: string) => path.join(dir, "candidates");
-function pathsFromWorkDir(dir: string) {
+function pathsFromWorkDir(dir: string): StoragePaths {
     const works = path.dirname(dir);
     const base = path.dirname(works);
     return {
@@ -61,7 +61,7 @@ async function readPanelWork(dir: string) {
     const [meta, cands, briefs, payoffs] = await Promise.all([
         readWorkMeta(dir), listCandidates(dir), readBriefCrumbs(dir), readPayoffAudits(dir),
     ]);
-    const lastPayoffByChapter: Record<string, any> = {};
+    const lastPayoffByChapter: Record<string, (typeof payoffs.entries)[number]> = {};
     for (const e of payoffs.entries) {
         lastPayoffByChapter[e.chapterId] = e;
     }
@@ -146,12 +146,12 @@ async function readPanelWork(dir: string) {
 export async function buildPanelHints(dir: string) {
     return { nextHints: (await readPanelWork(dir)).nextHints };
 }
-export async function buildPanelSnapshot(dir: string, pathsHint: any, opts: { scope?: 'work' | 'all' } = {}) {
+export async function buildPanelSnapshot(dir: string, pathsHint?: StoragePaths | null, opts: { scope?: 'work' | 'all' } = {}) {
     const paths = pathsHint ?? pathsFromWorkDir(dir);
     const [work, ledger] = await Promise.all([readPanelWork(dir), readLedger(dir)]);
     const { meta, pendingCands, cands, briefs, now, chapters, words, final, drafted, planned, revisionImpacts, nextHints, panelHints, lastPayoffByChapter, multiDraftEnabledEarly } = work;
     // Export only the last 12 chapters' payoffs; hints above already used the full map.
-    const lastPayoffCapped: Record<string, any> = {};
+    const lastPayoffCapped: Record<string, (typeof lastPayoffByChapter)[string]> = {};
     for (const ch of meta.chapters) {
         if (lastPayoffByChapter[ch.id])
             lastPayoffCapped[ch.id] = lastPayoffByChapter[ch.id];
@@ -164,14 +164,16 @@ export async function buildPanelSnapshot(dir: string, pathsHint: any, opts: { sc
         return Number.isFinite(at) && now - at <= BRIEF_RECENT_MS;
     });
     const product = buildProductView();
-    let library, inspiration;
+    let library, inspiration, activity;
     if (opts.scope !== 'work') {
-        [library, inspiration] = await Promise.all([
+        [library, inspiration, activity] = await Promise.all([
             // allow-catch: optional library summary returns unavailable with the actual error to the author.
             buildLibraryView(paths).catch(error => ({ unavailable: true, recoveryPending: error instanceof NovelError && error.code === 'library_recovery_required', summary: error.message })),
             // allow-catch: optional planning summary returns unavailable with the actual error.
             buildInspirationView(paths, { workKey: meta.key, foundation: meta.foundation, planning: meta.planning, chapters })
                 .catch(error => ({ unavailable: true, summary: error.message })),
+            // allow-catch: optional activity view surfaces its error instead of inventing zero activity.
+            writingActivity(dir, meta.chapters).catch(error => ({ unavailable: true, error: error.message })),
         ]);
     }
     const candidateRows = await Promise.all([...pendingCands, ...cands.filter((c) => !c.pending).slice(0, 20)].map(async (c) => {
@@ -210,8 +212,7 @@ export async function buildPanelSnapshot(dir: string, pathsHint: any, opts: { sc
         genre: meta.genre,
         dir,
         storageBase: paths.base,
-        // allow-catch: optional activity view surfaces its error instead of inventing zero activity.
-        activity: opts.scope === "work" ? undefined : await writingActivity(dir, meta.chapters).catch(error => ({ unavailable: true, error: error.message })),
+        activity,
         totals: { chapters: chapters.length, words, final, drafted, planned },
         foundation: foundationView,
         chapters,

@@ -133,8 +133,10 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
         const cwd = exec.cwd;
         if (id === "list") {
           const act = await activeProfile("toutiao", config.profile);
-          const detail = await profileDetail(toutiaoLibrary, act.id, config.profile);
-          const user = await listUserAssets(config.assets, cwd);
+          const [detail, user] = await Promise.all([
+            profileDetail(toutiaoLibrary, act.id, config.profile),
+            listUserAssets(config.assets, cwd),
+          ]);
           return {
             profile: act.name,
             profile_id: act.id,
@@ -469,6 +471,7 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
         });
         const warn =
           cardText === undefined ? ["没有立项卡，未做立项卡与台账核对；交稿前必须补卡并重跑"] : [];
+        const report = r.report && typeof r.report === "object" ? (r.report as { items?: unknown[] }) : undefined;
         return {
           pass: rec.pass,
           score: rec.score,
@@ -481,7 +484,7 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
           chars: r.chars,
           rules_version: r.rules_version,
           rev: cur.rev,
-          items: (r.report as any)?.items ?? [],
+          items: report?.items ?? [],
         };
       },
     }),
@@ -553,9 +556,9 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
           mm.status = to;
         });
         // allow-catch: article status is already committed; report ledger failure explicitly for repair.
-        const ledger = await syncLedgerStatus(config, store, m).catch((e: any) => ({
+        const ledger = await syncLedgerStatus(config, store, m).catch((e: unknown) => ({
           synced: false,
-          message: String(e?.message ?? e),
+          message: e instanceof Error ? e.message : String(e),
         }));
         return { article: summary(m), ledger };
       },

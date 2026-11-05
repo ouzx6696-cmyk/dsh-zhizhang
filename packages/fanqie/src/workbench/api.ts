@@ -456,12 +456,13 @@ function routesFor(config: PluginConfig): Record<string, RouteHandler> {
 const FANQIE_ROUTES = [
   ...new Set(Object.keys(routesFor({})).map((key) => key.slice(key.indexOf(" ") + 1))),
 ];
+const FANQIE_ROUTE_SET = new Set(FANQIE_ROUTES);
 export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
   const routes = routesFor(config);
   return {
     routes: FANQIE_ROUTES,
     async handle(ctx) {
-      if (!FANQIE_ROUTES.includes(ctx.path)) return false;
+      if (!FANQIE_ROUTE_SET.has(ctx.path)) return false;
       const method =
         ctx.method === "HEAD" && ctx.path !== API + ROUTES.capabilities ? "GET" : ctx.method;
       const route = routes[`${method} ${ctx.path}`];

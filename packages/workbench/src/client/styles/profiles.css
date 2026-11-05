@@ -1,8 +1,29 @@
 .wb-pf-reading {
+  flex: 1;
+  min-height: 0;
   padding: 24px;
   overflow: auto;
   font: var(--ui-size-16)/2 var(--ui-font-body);
   white-space: pre-wrap;
+}
+.wb-pf-reading .wb-manuscript {
+  padding: 0;
+  background: none;
+  box-shadow: none;
+}
+.wb-pf-reading h1,
+.wb-pf-reading h2,
+.wb-pf-reading h3 {
+  font-family: var(--ui-font-body);
+}
+.wb-pf-reading .ui-markdown {
+  font-family: var(--ui-font-body);
+  font-size: var(--ui-size-16);
+  line-height: 2;
+}
+.wb-pf-reading .ui-markdown h1,
+.wb-pf-reading .ui-markdown h2 {
+  font-family: var(--ui-font-body);
 }
 .wb-pf-compare {
   display: grid;
@@ -17,58 +38,8 @@
   white-space: pre-wrap;
   font: var(--ui-size-13)/1.75 var(--ui-font-mono);
 }
-.wb-pf-method-id {
-  display: none;
-}
-.wb-pf-item {
-  min-width: 0;
-  text-align: left;
-}
-.wb-pf-item-note {
-  overflow-wrap: anywhere;
-}
-.wb-pf-textarea {
-  font-family: var(--ui-font-mono);
-}
-.wb-pf-col {
-  min-width: 0;
-}
-.wb-pf-reading {
-  flex: 1;
-  min-height: 0;
-}
-.wb-pf-reading .wb-manuscript {
-  padding: 0;
-  background: none;
-  box-shadow: none;
-}
-.wb-pf-reading h1,
-.wb-pf-reading h2,
-.wb-pf-reading h3 {
-  font-family: var(--ui-font-body);
-}
 .wb-pf-compare .wb-manuscript {
   padding: 0;
-}
-.wb-pf-profiles .wb-pf-item {
-  align-items: stretch;
-  justify-content: flex-start;
-  white-space: normal;
-  text-align: left;
-}
-.wb-pf-item-note {
-  white-space: normal;
-  overflow-wrap: anywhere;
-  min-width: 0;
-}
-.wb-pf-reading .ui-markdown {
-  font-family: var(--ui-font-body);
-  font-size: var(--ui-size-16);
-  line-height: 2;
-}
-.wb-pf-reading .ui-markdown h1,
-.wb-pf-reading .ui-markdown h2 {
-  font-family: var(--ui-font-body);
 }
 .wb-profile-button {
   gap: 6px;
@@ -92,6 +63,7 @@
   gap: 12px;
 }
 .wb-pf-col {
+  min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -114,6 +86,7 @@
 }
 .wb-pf-item,
 .wb-pf-method {
+  min-width: 0;
   width: 100%;
   text-align: left;
   border: 0;
@@ -128,6 +101,12 @@
   transition:
     background-color 160ms var(--wb-ease, ease),
     box-shadow 160ms var(--wb-ease, ease);
+}
+.wb-pf-profiles .wb-pf-item {
+  align-items: stretch;
+  justify-content: flex-start;
+  white-space: normal;
+  text-align: left;
 }
 .wb-pf-item-on,
 .wb-pf-method-on {
@@ -156,6 +135,9 @@
 .wb-pf-item-note {
   color: var(--wb-fg-2);
   font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 .wb-pf-new-button {
   align-self: flex-start;
@@ -210,6 +192,7 @@
   font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
 }
 .wb-pf-method-id {
+  display: none;
   color: var(--wb-fg-3);
   font: var(--ui-size-12)/var(--ui-size-16) var(--ui-font-mono);
   overflow: hidden;
@@ -276,25 +259,17 @@
     grid-template-columns: 1fr;
     overflow: auto;
   }
-}
-@media (max-width: 900px) {
   .wb-pf-span {
     grid-column: auto;
   }
-}
-@media (max-width: 900px) {
   .wb-pf-methods {
     border: 0;
     padding: 0;
   }
-}
-@media (max-width: 900px) {
   .wb-pf-list,
   .wb-pf-methods-list {
     max-height: 220px;
   }
-}
-@media (max-width: 900px) {
   .wb-pf-textarea {
     min-height: 320px;
   }

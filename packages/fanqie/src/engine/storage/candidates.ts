@@ -34,6 +34,17 @@ import { metaPath, readWorkMeta } from "./work-meta.js";
 
 /** Persist candidate JSON without dropping optional multi-draft / edit fields. */
 type CandidateMeta = Omit<Candidate, "body">;
+
+/**
+ * 列表投影：正常行带读取版本与字数；损坏文件的降级条目只保证 id / 章节 / 时间，
+ * 其余字段不可用，由 unavailable 标记交给界面显示。
+ */
+export type CandidateListRow = Omit<Candidate, "body"> & {
+  readVersion?: string;
+  pending: boolean;
+  unavailable?: boolean;
+  error?: string;
+};
 const OPTIONAL_META_KEYS = [
   "revisionSource",
   "targetRevision",
@@ -74,7 +85,7 @@ function candidateToDiskMeta(cand: Candidate): CandidateMeta {
   }
   return disk;
 }
-export async function stageCandidate(dir: string, input: any) {
+export async function stageCandidate(dir: string, input: Record<string, any>) {
   return withResourceLock(dir, async () => {
     if (!input.body.trim()) {
       throw new NovelError("candidate_empty", "候选正文为空，拒绝暂存");
@@ -148,7 +159,7 @@ export async function stageCandidate(dir: string, input: any) {
   });
 }
 /** Decode the same metadata contract for reads and list projections. */
-function candidateBodyFile(disk: any, id: string): string {
+function candidateBodyFile(disk: Record<string, unknown> | null | undefined, id: string): string {
   if (
     !disk ||
     typeof disk !== "object" ||
@@ -158,7 +169,7 @@ function candidateBodyFile(disk: any, id: string): string {
   )
     throw new NovelError("bad_candidate", `候选 ${id} 元数据损坏，请保留文件并核对。`);
   assertResourceId(disk.chapterId, "章节 id");
-  return assertCandidateFile(disk.bodyFile ?? `${id}.md`);
+  return assertCandidateFile(typeof disk.bodyFile === "string" ? disk.bodyFile : `${id}.md`);
 }
 async function readCandidateUnlocked(dir: string, candidateId: string): Promise<Candidate> {
   const id = assertResourceId(candidateId, "候选 id");
@@ -180,7 +191,7 @@ export async function readCandidate(dir: string, candidateId: string): Promise<C
 export async function markCandidateLinted(
   dir: string,
   candidateId: string,
-  hitCount: any,
+  hitCount: number,
   expectedBody?: string,
 ) {
   const id = assertResourceId(candidateId, "候选 id");
@@ -398,7 +409,7 @@ export async function acceptCandidate(
   });
 }
 
-export async function listCandidates(dir: string) {
+export async function listCandidates(dir: string): Promise<CandidateListRow[]> {
   let names;
   try {
     names = await readdir(candidatesDir(dir));
@@ -406,48 +417,57 @@ export async function listCandidates(dir: string) {
     if (isMissingFileError(err)) return [];
     throw err;
   }
-  const rows = [];
-  for (const name of names) {
-    if (!name.endsWith(".json")) continue;
-    try {
-      // mtime 缓存：面板每轮轮询都全量列候选，未变的候选不必重读。
-      const raw = await readJsonCached(path.join(candidatesDir(dir), name));
-      const bodyFile = candidateBodyFile(raw, name.slice(0, -5));
-      const bodyStat = await stat(path.join(candidatesDir(dir), bodyFile));
-      const metaStat = await stat(path.join(candidatesDir(dir), name));
-      if (!bodyStat.isFile())
-        throw new NovelError("bad_candidate", `候选 ${raw.id} 正文不是普通文件。`);
-      // wordCount is persisted at stage time; only legacy rows re-read the body.
-      let wordCount = typeof raw.wordCount === "number" ? raw.wordCount : 0;
-      if (typeof raw.wordCount !== "number") {
-        const body = await readFile(path.join(candidatesDir(dir), bodyFile), "utf8");
-        wordCount = countWords(body);
-      }
-      rows.push({
-        ...raw,
-        readVersion: [
-          metaStat.mtimeMs,
-          metaStat.ctimeMs,
-          metaStat.ino,
-          metaStat.size,
-          bodyStat.mtimeMs,
-          bodyStat.ctimeMs,
-          bodyStat.ino,
-          bodyStat.size,
-        ].join(":"),
-        wordCount,
-        pending: !raw.acceptedAt,
-      });
-    } catch (err) {
-      rows.push({
-        id: name.slice(0, -5),
-        chapterId: "",
-        stagedAt: "",
-        pending: false,
-        unavailable: true,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
+  const jsonNames = names.filter((name) => name.endsWith(".json"));
+  const rows: CandidateListRow[] = [];
+  for (let offset = 0; offset < jsonNames.length; offset += 16) {
+    const batch = jsonNames.slice(offset, offset + 16);
+    const batchRows = await Promise.all(
+      batch.map(async (name): Promise<CandidateListRow> => {
+        try {
+          const metaFile = path.join(candidatesDir(dir), name);
+          // mtime 缓存：面板每轮轮询都全量列候选，未变的候选不必重读。
+          const [raw, metaStat] = await Promise.all([readJsonCached<CandidateMeta>(metaFile), stat(metaFile)]);
+          const bodyFile = candidateBodyFile(raw, name.slice(0, -5));
+          const bodyPath = path.join(candidatesDir(dir), bodyFile);
+          const bodyStat = await stat(bodyPath);
+          if (!bodyStat.isFile())
+            throw new NovelError("bad_candidate", `候选 ${raw.id} 正文不是普通文件。`);
+          // wordCount is persisted at stage time; only legacy rows re-read the body.
+          let wordCount = typeof raw.wordCount === "number" ? raw.wordCount : 0;
+          if (typeof raw.wordCount !== "number") {
+            const body = await readFile(bodyPath, "utf8");
+            wordCount = countWords(body);
+          }
+          return {
+            ...raw,
+            readVersion: [
+              metaStat.mtimeMs,
+              metaStat.ctimeMs,
+              metaStat.ino,
+              metaStat.size,
+              bodyStat.mtimeMs,
+              bodyStat.ctimeMs,
+              bodyStat.ino,
+              bodyStat.size,
+            ].join(":"),
+            wordCount,
+            pending: !raw.acceptedAt,
+          };
+          // allow-catch: 单个损坏候选转为 unavailable 条目展示，不阻塞列表其余项
+        } catch (err) {
+          // 损坏候选降级为占位条目：只保证 id 与编号，其余字段由 unavailable 标记为不可用。
+          return {
+            id: name.slice(0, -5),
+            chapterId: "",
+            stagedAt: "",
+            pending: false,
+            unavailable: true,
+            error: err instanceof Error ? err.message : String(err),
+          } as CandidateListRow;
+        }
+      }),
+    );
+    rows.push(...batchRows);
   }
   rows.sort((a, b) => (a.stagedAt < b.stagedAt ? 1 : -1));
   return rows;

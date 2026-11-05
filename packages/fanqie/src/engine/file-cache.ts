@@ -2,6 +2,7 @@
  * Acceptance and recovery use uncached bytes; cache hits are not integrity proofs.
  */
 import { readFile, stat } from "node:fs/promises";
+import { isMissingFileError } from "../../../core/src/fsx.js";
 
 interface CacheEntry {
     mtimeMs: number;
@@ -9,6 +10,7 @@ interface CacheEntry {
     ino: number;
     size: number;
     text: string;
+    jsonl?: Record<string, unknown>[];
 }
 
 const MAX_ENTRIES = 800;
@@ -32,41 +34,54 @@ function remember(file: string, entry: CacheEntry) {
     }
 }
 
-/** Cached polling read; callers needing integrity must read and hash the file directly. */
-export async function readTextCached(file: string): Promise<string> {
+async function readEntryCached(file: string): Promise<CacheEntry> {
     const st = await stat(file);
     const hit = textCache.get(file);
     if (hit && hit.mtimeMs === st.mtimeMs && hit.ctimeMs === st.ctimeMs && hit.ino === st.ino && hit.size === st.size)
-        return hit.text;
+        return hit;
     const text = await readFile(file, "utf8");
     const after = await stat(file);
+    const entry: CacheEntry = { mtimeMs: after.mtimeMs, ctimeMs: after.ctimeMs, ino: after.ino, size: after.size, text };
     if (st.mtimeMs === after.mtimeMs && st.ctimeMs === after.ctimeMs && st.ino === after.ino && st.size === after.size)
-        remember(file, { mtimeMs: after.mtimeMs, ctimeMs: after.ctimeMs, ino: after.ino, size: after.size, text });
-    return text;
+        remember(file, entry);
+    return entry;
+}
+
+/** Cached polling read; callers needing integrity must read and hash the file directly. */
+export async function readTextCached(file: string): Promise<string> {
+    return (await readEntryCached(file)).text;
 }
 
 /** readTextCached + JSON.parse；解析失败照常抛错（坏文件不缓存）。 */
-export async function readJsonCached<T = any>(file: string): Promise<T> {
+export async function readJsonCached<T = Record<string, any>>(file: string): Promise<T> {
     return JSON.parse(await readTextCached(file)) as T;
 }
 
-/** JSONL: an absent file is empty; malformed or inaccessible files remain visible errors. */
-export async function readJsonlCached(file: string): Promise<any[]> {
-    let raw: string;
+/**
+ * JSONL: an absent file is empty; malformed or inaccessible files remain visible errors.
+ * 缓存层只负责解析与复用行对象，具体行结构由调用方声明。
+ * 命中缓存时返回行对象的浅拷贝：调用方只读，嵌套字段与缓存共享引用。
+ */
+export async function readJsonlCached<T = Record<string, any>>(file: string): Promise<T[]> {
+    let entry: CacheEntry;
     try {
-        raw = await readTextCached(file);
+        entry = await readEntryCached(file);
     }
-    catch (err: any) {
-        if (err?.code === "ENOENT") return [];
+    catch (err) {
+        if (isMissingFileError(err)) return [];
         throw err;
     }
-    const out = [];
-    const lines = raw.split("\n");
+    if (entry.jsonl) {
+        return entry.jsonl.map((item) => ({ ...item })) as T[];
+    }
+    const out: Record<string, unknown>[] = [];
+    const lines = entry.text.split("\n");
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
         if (!line) continue;
         try { out.push(JSON.parse(line)); }
         catch { throw new Error(`分析文件 JSONL 格式损坏：${file}，第 ${i + 1} 行`); }
     }
-    return out;
+    entry.jsonl = out;
+    return out.map((item) => ({ ...item })) as T[];
 }

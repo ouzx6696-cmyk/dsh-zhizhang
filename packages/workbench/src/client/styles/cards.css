@@ -1,0 +1,238 @@
+/* 内容容器：卡片、空态、骨架屏、事实表与门禁。 */
+.wb-code {
+  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-mono);
+  padding: 1px 6px;
+  border-radius: var(--wb-r-xs);
+  background: var(--wb-hover);
+  overflow-wrap: anywhere;
+}
+
+.wb-empty {
+  padding: 24px 12px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+}
+
+.wb-empty-title {
+  font: 600 var(--ui-size-16)/var(--ui-size-24) var(--ui-font-ui);
+}
+
+.wb-empty-hint {
+  color: var(--wb-fg-3);
+  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
+  max-width: 32rem;
+}
+
+.wb-skeleton-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.wb-skeleton {
+  display: block;
+  height: 12px;
+  border-radius: var(--wb-r-xs);
+  background: linear-gradient(
+    90deg,
+    var(--wb-skeleton) 25%,
+    var(--wb-hover) 50%,
+    var(--wb-skeleton) 75%
+  );
+  background-size: 300% 100%;
+  animation: wb-shimmer 1.4s ease-in-out infinite;
+}
+
+.wb-skeleton-short {
+  width: 55%;
+}
+
+@keyframes wb-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
+.wb-gates {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wb-gate {
+  display: grid;
+  grid-template-columns: 8px 1fr;
+  gap: 8px;
+  align-items: baseline;
+  color: var(--wb-fg-2);
+  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
+}
+
+.wb-gate::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  corner-shape: round;
+  background: var(--wb-fg-3);
+  transform: translateY(-1px);
+}
+
+.wb-gate[data-state="ok"]::before {
+  background: var(--wb-ok);
+}
+
+.wb-gate[data-state="todo"]::before {
+  background: var(--wb-warn);
+}
+
+.wb-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wb-fact dt {
+  color: var(--wb-fg-3);
+  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
+}
+
+.wb-fact dd {
+  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.wb-card-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
+.wb-card-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wb-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: var(--wb-r-xl);
+  border: 0.5px solid var(--wb-line);
+  background: var(--wb-card);
+}
+
+.wb-card-kicker {
+  color: var(--wb-fg-3);
+  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
+}
+
+.wb-card-title {
+  font: 600 var(--ui-size-14)/var(--ui-size-22) var(--ui-font-ui);
+}
+
+.wb-card-text {
+  color: var(--wb-fg-2);
+  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
+  overflow-wrap: anywhere;
+}
+
+.wb-edit-diff {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.wb-edit-diff pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 260px;
+  overflow: auto;
+  border: 0.5px solid var(--wb-line);
+  border-radius: var(--wb-r-sm);
+  padding: 10px;
+  background: var(--wb-card);
+}
+
+.wb-edit-diff textarea {
+  width: 100%;
+  min-height: 120px;
+  color: var(--wb-fg);
+  background: var(--wb-layer);
+  font: inherit;
+}
+
+@container wb-panel (max-width: 650px) {
+  .wb-edit-diff {
+    grid-template-columns: 1fr;
+  }
+}
+
+.wb-writer-review {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 6px;
+  margin: 2px 0 6px;
+}
+
+.wb-writer-review .wb-muted {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.wb-writer-summary {
+  flex-basis: 100%;
+  margin: 2px 0 0;
+  font-size: var(--ui-size-12);
+  line-height: 1.5;
+  color: var(--wb-fg-2);
+}
+
+.wb-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 6px;
+  border-radius: 50%;
+  corner-shape: round;
+  background: var(--wb-hover);
+  color: var(--wb-fg-3);
+}
+
+.wb-card {
+  transition:
+    box-shadow 160ms var(--wb-ease),
+    transform 160ms var(--wb-ease);
+}
+
+.wb-card-step {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-bottom: 4px;
+  border-radius: 50%;
+  corner-shape: round;
+  background: var(--wb-accent-soft);
+  color: var(--wb-accent);
+  font: 600 var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
+}
+
+@media (hover: hover) {
+  .wb-card:hover {
+    box-shadow: var(--wb-shadow-2);
+    transform: translateY(-1px);
+  }
+}

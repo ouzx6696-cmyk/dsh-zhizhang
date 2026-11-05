@@ -9,7 +9,7 @@ export interface ChapterFact {
     n:number;title?:string;readingLevel?:string;hook?:{type?:string;text?:string;strength?:string};functions?:string[];
     events?:{desc?:string;quote?:string;loc?:string}[];sourceHash?:string;sourceStart?:number;
 }
-interface Plot {title?:string;chapters?:number[];goal?:string;obstacle?:string;action?:string;result?:string;twist?:string;turn?:string}
+export interface Plot {title?:string;chapters?:number[];goal?:string;obstacle?:string;action?:string;result?:string;twist?:string;turn?:string}
 interface Foreshadowing {name?:string;planted?:string|number;plant?:string|number;paidOff?:string|number;payoff?:string|number;status?:string}
 interface Rhythm {
     points?:{chapter:number;emotion:number;event?:string}[];

@@ -1,0 +1,244 @@
+/* 稿纸与长篇正文区。 */
+.studio-paper-column {
+  overflow-y: auto;
+  min-width: 0;
+}
+
+.paper-decisions {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--ui-line);
+  padding: 10px 0;
+  position: sticky;
+  top: 0;
+  background: var(--ui-bg);
+  z-index: 3;
+  flex-wrap: wrap;
+}
+
+.paper-decisions button {
+  padding: 3px 7px;
+  font-size: var(--ui-size-12);
+}
+
+.paper-start {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--ui-line);
+  color: var(--ui-text-3);
+  font-size: var(--ui-size-12);
+}
+
+.paper-start p {
+  margin: 0;
+}
+
+.paper-steps {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 auto 0 2px;
+  padding: 0;
+  list-style: none;
+  font-size: var(--ui-size-12);
+  color: var(--ui-text-3);
+}
+
+.paper-steps li {
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.paper-steps li[data-state="current"] {
+  color: var(--ui-accent);
+  background: var(--ui-accent-soft);
+  font-weight: 600;
+}
+
+.paper-steps li[data-state="done"] {
+  color: var(--ui-success);
+}
+
+.paper-steps li + li::before {
+  content: "›";
+  margin-right: 6px;
+  color: var(--ui-line);
+}
+
+.paper-version {
+  font-size: var(--ui-size-12);
+  color: var(--ui-text-3);
+  white-space: nowrap;
+}
+
+.paper-qa {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ui-success) 14%, transparent);
+  color: var(--ui-success);
+  font-size: var(--ui-size-12);
+  white-space: nowrap;
+}
+
+.paper-qa[data-pass="false"] {
+  background: color-mix(in srgb, var(--ui-danger) 14%, transparent);
+  color: var(--ui-danger);
+}
+
+.studio-paper-column .wb-reader {
+  background: transparent;
+  border: 0;
+  min-height: 0;
+  height: auto;
+}
+
+.studio-paper-column .wb-reader-body {
+  overflow: visible;
+  padding: 12px 0 32px;
+}
+
+.studio-paper-column .wb-reader-bar {
+  width: 100%;
+  max-width: calc(38 * var(--ui-body-size));
+  margin: 0 auto;
+  border: 0;
+  padding: 16px 0;
+  background: transparent;
+}
+
+.studio-paper-column .wb-reader[data-view="split"] .wb-reader-bar {
+  max-width: calc(76 * var(--ui-body-size));
+}
+
+.studio-paper-column .wb-reader-title {
+  font-size: var(--ui-size-18);
+  line-height: 1.5;
+}
+
+.studio-paper-column .wb-manuscript {
+  font: var(--ui-body-size) / 2 var(--ui-font-body);
+  max-width: 38em;
+  margin: 0 auto;
+  min-height: clamp(420px, calc(100vh - 210px), 860px);
+}
+
+.studio-paper-column .wb-split .wb-manuscript {
+  min-height: 520px;
+}
+
+.studio-paper-column .wb-source-editor {
+  max-width: calc(38 * var(--ui-body-size));
+}
+
+.studio-paper-column .wb-manuscript p {
+  max-width: 38em;
+  margin: 0 auto 0.65em;
+  text-indent: 2em;
+}
+
+.studio-paper-column .wb-manuscript [data-changed="true"] {
+  background: color-mix(in srgb, var(--ui-accent-soft) 35%, transparent);
+}
+
+.studio-paper-column .wb-root {
+  background: transparent;
+}
+
+.studio-empty {
+  padding: 60px 30px;
+  text-align: center;
+  color: var(--ui-text-3);
+}
+
+.studio-empty h1 {
+  font-family: var(--ui-font-body);
+  font-weight: 400;
+  font-size: var(--ui-size-26);
+  color: var(--ui-text);
+}
+
+.studio-markdown h1,
+.studio-markdown h2,
+.studio-markdown h3 {
+  font-family: var(--ui-font-ui);
+  font-size: var(--ui-size-14);
+}
+
+.studio-markdown p {
+  margin: 0 0 9px;
+}
+
+.studio-markdown ul,
+.studio-markdown ol {
+  padding-left: 20px;
+}
+
+.studio-markdown blockquote {
+  margin: 6px 0;
+  border-left: 2px solid var(--ui-accent);
+  padding-left: 10px;
+  color: var(--ui-text-3);
+}
+
+.studio-markdown pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-line);
+  border-radius: 5px;
+  padding: 10px;
+  font: var(--ui-size-12)/1.6 var(--ui-font-mono);
+  max-height: 340px;
+  overflow: auto;
+}
+
+.studio-markdown table {
+  border-collapse: collapse;
+  font-size: var(--ui-size-12);
+  max-width: 100%;
+}
+
+.studio-markdown td,
+.studio-markdown th {
+  border: 1px solid var(--ui-line);
+  padding: 5px;
+}
+
+.paper-decisions > .primary {
+  box-shadow: var(--ui-glow);
+}
+
+.studio-paper-column {
+  background: transparent;
+  padding: 0 24px 32px;
+}
+
+.studio-paper-column .wb-manuscript {
+  background: linear-gradient(170deg, var(--ui-paper-2), var(--ui-paper));
+  border-radius: var(--ui-radius-lg);
+  box-shadow: var(--ui-paper-shadow);
+  border: 1px solid var(--ui-line-strong);
+  padding: 40px 48px;
+  line-height: 2;
+  color: var(--ui-text);
+}
+
+.studio-paper-column .wb-manuscript h1 {
+  font-family: var(--ui-font-body);
+  color: var(--ui-title);
+}
+
+.studio-paper-column .ui-manuscript-heading h1 {
+  text-align: center;
+  font-family: var(--ui-font-body);
+  font-size: var(--ui-size-24);
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 0 0 28px;
+  color: var(--ui-title);
+}

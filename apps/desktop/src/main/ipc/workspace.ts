@@ -46,8 +46,10 @@ export function registerWorkspaceIpc(state: Runtime) {
     return { target: chosen, ...state.settings.public() };
   });
   handle("projects", async () => {
-    const projects = await listProjects({ refresh: true }),
-      articles = await listArticles(),
+    const [projects, articles] = await Promise.all([
+        listProjects({ refresh: true }),
+        listArticles(),
+      ]),
       items: ProjectItem[] = [];
     for (const project of projects)
       for (const work of project.works || [])

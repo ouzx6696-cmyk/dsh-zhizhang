@@ -22,8 +22,8 @@ export function setWorkspaceHost(value: string) {
 async function ownerAt(root: string): Promise<WorkspaceOwner | null> {
   try {
     return JSON.parse(await readFile(path.join(root, FILE), "utf8"));
-  } catch (error: any) {
-    if (error.code === "ENOENT") return null;
+  } catch (error) {
+    if (isMissingFileError(error)) return null;
     throw error;
   }
 }
@@ -32,8 +32,8 @@ function live(owner: WorkspaceOwner) {
   try {
     process.kill(owner.pid, 0);
     return true;
-  } catch (error: any) {
-    return error.code !== "ESRCH";
+  } catch (error) {
+    return !(error instanceof Error && "code" in error && error.code === "ESRCH");
   }
 }
 export async function workspaceAccess(root: string) {
@@ -83,8 +83,8 @@ export async function claimWorkspace(root: string) {
     }
     held.set(key, owner);
     return { readOnly: false, owner };
-  } catch (error: any) {
-    if (error.code === "EEXIST")
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "EEXIST")
       return { readOnly: true, owner: await ownerAt(key) };
     throw error;
   }

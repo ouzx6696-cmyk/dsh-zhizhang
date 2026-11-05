@@ -13,22 +13,28 @@ export function resolveInside(root: string, ...rel: string[]): string {
   throw new WriterError('OUT_OF_ROOT', `路径越界：${rel.join('/')}`)
 }
 
-/** Reject links and non-directory ancestors before publishing a local file. */
-export async function assertSafeAncestors(file: string) {
-  for (let current = path.resolve(path.dirname(file)); ; current = path.dirname(current)) {
+/** Reject links and non-directory ancestors before publishing a local file. Returns true if immediate parent exists. */
+export async function assertSafeAncestors(file: string): Promise<boolean> {
+  const immediate = path.resolve(path.dirname(file))
+  let immediateExists = false
+  for (let current = immediate; ; current = path.dirname(current)) {
     try {
       const info = await lstat(current)
       if (info.isSymbolicLink() || !info.isDirectory())
         throw new WriterError('unsafe_path', `写入路径包含链接或非目录，拒绝越界风险：${current}`)
+      if (current === immediate) immediateExists = true
     } catch (error) { if (!isMissingFileError(error)) throw error }
     if (current === path.dirname(current)) break
   }
+  return immediateExists
 }
 
 export async function atomicWrite(file: string, data: string): Promise<void> {
-  await assertSafeAncestors(file)
-  await mkdir(path.dirname(file), { recursive: true })
-  await assertSafeAncestors(file)
+  const parentReady = await assertSafeAncestors(file)
+  if (!parentReady) {
+    await mkdir(path.dirname(file), { recursive: true })
+    await assertSafeAncestors(file)
+  }
   try {
     if ((await lstat(file)).isSymbolicLink())
       throw new WriterError('unsafe_path', `拒绝覆盖链接资产：${file}`)
@@ -54,7 +60,7 @@ export function isMissingFileError(error: unknown) {
 export async function listDir(dir: string) {
   try { return await readdir(dir, { withFileTypes: true }) }
   catch (error) {
-    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return []
+    if (isMissingFileError(error)) return []
     throw error
   }
 }

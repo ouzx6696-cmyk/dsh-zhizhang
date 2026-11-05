@@ -7,11 +7,13 @@ import { NovelError } from "../../errors.js";
 import path from "node:path";
 import { readdir } from "node:fs/promises";
 import { atomicWrite } from "../../storage/primitives.js";
+import { isMissingFileError } from "../../../../../core/src/fsx.js";
 import type { StoragePaths } from "../../types.js";
 import { analysisPaths, assertSourceId, ensureDir, nowIso, readJson, readJsonl } from "./paths.js";
+import type { ChapterFact, Plot } from "./types.js";
 import { chapterIndex, totalChapters } from "./chapters.js";
 
-export async function ensureAnalysis(paths: StoragePaths, sourceId: any, sourceText: any) {
+export async function ensureAnalysis(paths: StoragePaths, sourceId: string, sourceText: string) {
     return withResourceLock(paths.library, async () => {
         await assertNoPendingCard(paths.library);
     const p = analysisPaths(paths, sourceId);
@@ -48,7 +50,7 @@ export async function ensureAnalysis(paths: StoragePaths, sourceId: any, sourceT
     });
 }
 
-export async function writeAnalysisMeta(paths: StoragePaths, sourceId: any, patch: any) {
+export async function writeAnalysisMeta(paths: StoragePaths, sourceId: string, patch: Record<string, unknown>) {
     return withResourceLock(paths.library, async () => {
         await assertNoPendingCard(paths.library);
     const p = analysisPaths(paths, sourceId);
@@ -62,7 +64,7 @@ export async function writeAnalysisMeta(paths: StoragePaths, sourceId: any, patc
 }
 
 /** Caller holds the library lock and has already captured the data file before reading it. */
-export async function commitAnalysisUpdate(paths: StoragePaths, sourceId: string, dataFile: string, dataBefore: string | null, content: string, patch: (meta: any) => any) {
+export async function commitAnalysisUpdate(paths: StoragePaths, sourceId: string, dataFile: string, dataBefore: string | null, content: string, patch: (meta: Record<string, unknown>) => Record<string, unknown>) {
     const p = analysisPaths(paths, sourceId);
     const metaBefore = await snapshotFile(p.meta);
     const current = (await readJson(p.meta, null)) ?? { schemaVersion: 2, sourceId, stage: "meta" };
@@ -79,14 +81,14 @@ export async function commitAnalysisUpdate(paths: StoragePaths, sourceId: string
     await finishAnalysisJournal(paths.library, journal);
 }
 
-export async function readAnalysisBundle(paths: StoragePaths, sourceId: any) {
+export async function readAnalysisBundle(paths: StoragePaths, sourceId: string) {
     return withResourceLock(paths.library, async () => {
     await assertNoPendingCard(paths.library);
     const p = analysisPaths(paths, sourceId);
     const [meta, chapters, plots, rhythms, characters, survey] = await Promise.all([
         readJson(p.meta, null),
-        readJsonl(p.chapters),
-        readJsonl(p.plots),
+        readJsonl<ChapterFact>(p.chapters),
+        readJsonl<Plot>(p.plots),
         readJson(p.rhythms, null),
         readJson(p.characters, null),
         readJson(p.survey, null),
@@ -108,23 +110,20 @@ export async function readAnalysisBundle(paths: StoragePaths, sourceId: any) {
 
 export async function listAnalyses(paths: StoragePaths) {
     const root = path.join(paths.library, "analyses");
-    let names = [];
+    let names: string[] = [];
     try {
         names = (await readdir(root)).filter((x) => x.startsWith("src-"));
     }
-    catch (err: any) {
-        if (err?.code === "ENOENT") return [];
+    catch (err: unknown) {
+        if (isMissingFileError(err)) return [];
         throw err;
     }
-    const out = [];
-    for (const id of names) {
+    const items = await Promise.all(names.map(async (id) => {
         const p = analysisPaths(paths, id);
         const meta = await readJson(p.meta, null);
-        if (!meta)
-            continue;
-        const chapters = await readJsonl(p.chapters);
-        const plots = await readJsonl(p.plots);
-        out.push({
+        if (!meta) return null;
+        const [chapters, plots] = await Promise.all([readJsonl(p.chapters), readJsonl(p.plots)]);
+        return {
             sourceId: assertSourceId(id),
             stage: meta.stage,
             facts: chapters.length,
@@ -132,7 +131,7 @@ export async function listAnalyses(paths: StoragePaths) {
             scope: meta.scope,
             plots: plots.length,
             updatedAt: meta.updatedAt,
-        });
-    }
-    return out;
+        };
+    }));
+    return items.filter((item): item is NonNullable<typeof item> => item !== null);
 }

@@ -1,6 +1,6 @@
 # 写作 Agent
 
-**当前源码为 0.9.9 开发版，尚未发布。** 最近正式版为下方下载区的 0.9.8。
+**当前源码为 0.9.9.1 开发版，尚未发布。** 最近正式版为下方下载区的 0.9.8。
 
 基于内置 PI SDK 的独立 Electron 写作客户端，面向中文长篇小说与今日头条创作。作品保存在本地；模型协助规划、写作和独立审读，作者决定采纳、定稿及交稿。
 
@@ -12,6 +12,12 @@
 4. 导出 TXT、DOCX 或复制正文。应用不登录或自动发布到平台。
 
 写作根包含 `novels/`、`toutiao/` 和 `.writer/`。设置可打开既有目录、备份与检查未完成写入。停止任务保留已落盘内容。模型请求会把相关创作内容发送至配置的服务商。
+
+## 0.9.9.1 性能与前后端梳理优化
+
+- **后端 I/O 与缓存加速**：`atomicWrite` 复用父目录安全校验结果，省去已存在目录的冗余 `mkdir` 与二次祖先链 `lstat`；`readJsonlCached` 缓存解析后的 JSONL 行并在命中时浅拷贝返回；长篇面板快照、拆书库、灵感候选、章节修订统计、项目与作品扫描、头条多根文章列举、方法方案加载以及桌面 `projects` IPC 全面改为批量受控并发（`Promise.all`），路由匹配改用 `Set` 常数查找。
+- **前端渲染与交互打磨**：`Markdown` 组件提升插件常量并接入 `React.memo`；`AgentPanel` 拆出独立 `AgentMessages` 并缓存候选编号与快捷动作，输入草稿不再触发历史消息列表重渲染；`SourceEditor` 字数统计消除逐字符数组分配；桌面顶栏项目切换菜单补齐点击外部与 `Escape` 关闭及无障碍菜单属性。
+- **架构整洁与零守卫告警**：拆分全部超长组件/Hook（`AgentPanel`、`useDesktopController`、`useFanqie`、`ToutiaoApp`、`Profiles`）与超长样式表（`shell.css`、`base.css` 等），清理 `tokens.css`、`ledger.css`、`reader.css`、`profiles.css` 重复覆盖规则；`any` 基线由 128 降至 99，架构守卫 0 失败、0 提示。
 
 ## 0.9.9 开发版功能
 
@@ -58,16 +64,12 @@ Linux GUI 测试可使用 `CI=1 DISPLAY=:99 npm run test:desktop:ui`，需先启
 
 **0.9.8 已正式发布**，发行提交为 `6ac4e13`，已通过 [Windows 原生构建与发布检查](https://github.com/ouzx6696-cmyk/dsh-zhizhang/actions/runs/41874988698)。
 
-| 下载 | 用途 |
+| 文件 | 适用场景 |
 | --- | --- |
-| [Windows x64 安装器](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/download/v0.9.8/WriterAgent-0.9.8-win-x64.exe) | 安装后使用 |
-| [Windows x64 免安装 ZIP](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/download/v0.9.8/WriterAgent-0.9.8-win-x64.zip) | 解压后运行 WriterAgent.exe |
-| [源码](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/download/v0.9.8/writer-agent-0.9.8-src.zip) · [SHA256SUMS](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/download/v0.9.8/SHA256SUMS) | 对应发行提交及下载校验 |
+| [WriterAgent-Setup-0.9.8.exe](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/download/v0.9.8/WriterAgent-Setup-0.9.8.exe) | Windows x64 安装包（含内置 Python，支持后续通过 GitHub Releases 自动更新） |
+| [WriterAgent-Portable-0.9.8-x64.zip](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/download/v0.9.8/WriterAgent-Portable-0.9.8-x64.zip) | Windows x64 免安装便携包（解压即用） |
+| [SHA256SUMS.txt](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/download/v0.9.8/SHA256SUMS.txt) | 发行包 SHA-256 校验值 |
 
-完整附件见 [v0.9.8 发行页](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/v0.9.8)。本版未签名；实际打包客户端启动、随包 Python、更新清单和附件校验已通过。
+> **未签名说明**：当前发行包尚未使用 Windows 代码签名证书签名，首次运行可能弹出 SmartScreen 提示，核对 `SHA256SUMS.txt` 后可选择“更多信息 → 仍要运行”。
 
-Windows 原生构建 `npm run verify:release`，或先 `npm run desktop:build`，再执行桌面 workspace 的 `pack`（NSIS）和 `pack:portable`（ZIP）。产物含固定版本且校验过的 Windows CPython、字体和许可证；未配置证书时为未签名包。CI 会整理源码与 SHA-256 清单。平台与已执行验证见[当前状态](docs/STATUS.md)。
-
-真实模型质量、实际缓存费用、Windows 实机安装和跨版本更新需要对应条件验证，流程见[真实模型验收](docs/ACCEPTANCE.md)。
-
-[桌面使用](docs/guides/DESKTOP.md) · [架构](docs/ARCHITECTURE.md) · [变更记录](CHANGELOG.md) · [方法方案](docs/guides/PROFILES.md) · [资产维护](docs/guides/ASSETS.md)
+完整状态、已验证范围与待验收项见 [当前状态](docs/STATUS.md)，架构细节见 [架构说明](docs/ARCHITECTURE.md)，版本记录见 [CHANGELOG](CHANGELOG.md)。

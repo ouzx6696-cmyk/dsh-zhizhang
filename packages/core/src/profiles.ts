@@ -98,13 +98,16 @@ function checkText(text: unknown): string {
 }
 
 async function userMetas(mode: ProfileMode): Promise<ProfileMeta[]> {
-  const out: ProfileMeta[] = []
-  for (const e of await listDir(modeDir(mode))) {
-    if (!e.isDirectory() || !USER_ID.test(e.name)) continue
+  const entries = (await listDir(modeDir(mode))).filter(e => e.isDirectory() && USER_ID.test(e.name))
+  const loaded = await Promise.all(entries.map(async (e) => {
     const m = await readJson<ProfileMeta>(path.join(modeDir(mode), e.name, 'profile.json'))
-    if (m?.id === e.name) out.push({ ...m, mode, kind: 'user', base: m.base === 'original' ? 'original' : 'default' })
-  }
-  return out.sort((a, b) => Number(a.id.match(USER_ID)![1]) - Number(b.id.match(USER_ID)![1]))
+    if (m?.id !== e.name) return undefined
+    const meta: ProfileMeta = { ...m, mode, kind: 'user', base: m.base === 'original' ? 'original' : 'default' }
+    return meta
+  }))
+  return loaded
+    .filter((m): m is ProfileMeta => m !== undefined)
+    .sort((a, b) => Number(a.id.match(USER_ID)![1]) - Number(b.id.match(USER_ID)![1]))
 }
 
 function builtinMeta(mode: ProfileMode, id: BuiltinProfile): ProfileMeta {
@@ -126,11 +129,12 @@ async function overrideIds(mode: ProfileMode, id: string): Promise<string[]> {
   const root = path.join(modeDir(mode), id, 'methods')
   const out: string[] = []
   const walk = async (d: string) => {
-    for (const e of await listDir(d)) {
+    const entries = await listDir(d)
+    await Promise.all(entries.map(async (e) => {
       const p = path.join(d, e.name)
       if (e.isDirectory()) await walk(p)
       else if (e.isFile() && e.name.endsWith('.md')) out.push(path.relative(root, p).split(path.sep).join('/').replace(/\.md$/, ''))
-    }
+    }))
   }
   await walk(root)
   return out.sort()
@@ -207,33 +211,44 @@ export async function readMethod(lib: MethodLibrary, profileKey: string | undefi
 export interface ProfileSummary extends ProfileMeta { active: boolean; pinned: boolean; methods: number; overrides?: number }
 
 export async function listProfiles(lib: MethodLibrary, pinned?: string): Promise<{ active: string; activeName: string; pinned: boolean; profiles: ProfileSummary[] }> {
-  const act = await activeProfile(lib.mode, pinned)
-  const def = await lib.defaultIds()
-  const orig = await lib.originalIds()
+  const [act, def, orig, users] = await Promise.all([
+    activeProfile(lib.mode, pinned),
+    lib.defaultIds(),
+    lib.originalIds(),
+    userMetas(lib.mode),
+  ])
+  const defIds = def.map(d => d.id)
+  const userRows = await Promise.all(users.map(async (u) => {
+    const ov = await overrideIds(lib.mode, u.id)
+    const baseIds = u.base === 'original' ? orig : defIds
+    return { ...u, active: act.id === u.id, pinned: act.pinned && act.id === u.id, methods: new Set([...baseIds, ...ov]).size, overrides: ov.length }
+  }))
   const out: ProfileSummary[] = [
     { ...builtinMeta(lib.mode, 'default'), active: act.id === 'default', pinned: act.pinned && act.id === 'default', methods: def.length },
     { ...builtinMeta(lib.mode, 'original'), active: act.id === 'original', pinned: act.pinned && act.id === 'original', methods: orig.length },
+    ...userRows,
   ]
-  for (const u of await userMetas(lib.mode)) {
-    const ov = await overrideIds(lib.mode, u.id)
-    const baseIds = u.base === 'original' ? orig : def.map(d => d.id)
-    out.push({ ...u, active: act.id === u.id, pinned: act.pinned && act.id === u.id, methods: new Set([...baseIds, ...ov]).size, overrides: ov.length })
-  }
   return { active: act.id, activeName: act.name, pinned: act.pinned, profiles: out }
 }
 
 export interface ProfileMethodRow { id: string; title?: string; from: 'user' | BuiltinProfile; overridden: boolean; added?: boolean }
 
 export async function profileDetail(lib: MethodLibrary, key: string, pinned?: string): Promise<{ profile: ProfileSummary; methods: ProfileMethodRow[] }> {
-  const meta = await findProfile(lib.mode, key)
-  const list = await listProfiles(lib, pinned)
+  const [meta, list, def] = await Promise.all([
+    findProfile(lib.mode, key),
+    listProfiles(lib, pinned),
+    lib.defaultIds(),
+  ])
   const summary = list.profiles.find(p => p.id === meta.id)!
-  const def = await lib.defaultIds()
   const titles = new Map(def.map(d => [d.id, d.title]))
   if (meta.id === 'default') return { profile: summary, methods: def.map(d => ({ id: d.id, title: d.title, from: 'default', overridden: false })) }
   if (meta.id === 'original') return { profile: summary, methods: (await lib.originalIds()).map(id => ({ id, from: 'original', overridden: false })) }
-  const ov = new Set(await overrideIds(lib.mode, meta.id))
-  const baseIds = meta.base === 'original' ? await lib.originalIds() : def.map(d => d.id)
+  const [ovList, origIds] = await Promise.all([
+    overrideIds(lib.mode, meta.id),
+    meta.base === 'original' ? lib.originalIds() : Promise.resolve(def.map(d => d.id)),
+  ])
+  const ov = new Set(ovList)
+  const baseIds = origIds
   const rows: ProfileMethodRow[] = baseIds.map(id => ({ id, title: titles.get(id), from: ov.has(id) ? 'user' : meta.base ?? 'default', overridden: ov.has(id) }))
   for (const id of ov) if (!baseIds.includes(id)) rows.push({ id, from: 'user', overridden: true, added: true })
   return { profile: summary, methods: rows }
@@ -269,10 +284,11 @@ export async function createProfile(lib: MethodLibrary, input: CreateProfileInpu
   const at = nowIso()
   const meta: ProfileMeta = { id, name, mode: lib.mode, kind: 'user', base, note: input.note?.trim().slice(0, 200) || undefined, created_at: at, updated_at: at }
   if (copyFrom) {
-    for (const mid of await overrideIds(lib.mode, copyFrom.id)) {
+    const copyIds = await overrideIds(lib.mode, copyFrom.id)
+    await Promise.all(copyIds.map(async (mid) => {
       const text = await readText(resolveInside(path.join(modeDir(lib.mode), copyFrom.id, 'methods'), `${mid}.md`))
       if (text !== undefined) await atomicWrite(resolveInside(dir, 'methods', `${mid}.md`), text)
-    }
+    }))
   }
   for (const f of checked) await atomicWrite(resolveInside(dir, 'methods', `${f.id}.md`), f.text)
   await atomicWrite(path.join(dir, 'profile.json'), JSON.stringify(meta, null, 2) + '\n')

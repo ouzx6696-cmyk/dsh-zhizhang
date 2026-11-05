@@ -33,9 +33,15 @@ export async function listArticles() {
   const roots = await listKnownRoots()
   const rows: Record<string, unknown>[] = []
   const issues: { root: string; id?: string; error: string }[] = []
-  for (const root of roots) {
+  const perRoot = await Promise.all(roots.map(async (root) => {
+    const rootIssues: { root: string; id?: string; error: string }[] = []
     let metas: ArticleMeta[] = []
-    try { metas = await new ArticleStore(root).list(issues) } catch (error) { issues.push({root, error: error instanceof Error ? error.message : String(error)}); continue }
+    try { metas = await new ArticleStore(root).list(rootIssues) }
+    catch (error) { rootIssues.push({ root, error: error instanceof Error ? error.message : String(error) }) }
+    return { root, metas, rootIssues }
+  }))
+  for (const { root, metas, rootIssues } of perRoot) {
+    issues.push(...rootIssues)
     for (const m of metas) {
       const q = m.qa.at(-1)
       rows.push({
