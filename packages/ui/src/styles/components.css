@@ -215,6 +215,11 @@
   width: 620px;
   padding: 16px;
 }
+/* 宿主 ui-dialog 内嵌 workbench 的 .wb-modal 时的口径。 */
+.ui-dialog.wb-modal {
+  padding: 0;
+  max-height: calc(100dvh - 32px);
+}
 .ui-dialog .command-list {
   display: grid;
   gap: 6px;

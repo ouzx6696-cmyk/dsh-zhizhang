@@ -10,6 +10,11 @@ const ROOT =
   rootArg < 0
     ? path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
     : path.resolve(args[rootArg + 1]);
+if (rootArg >= 0) args.splice(rootArg, 2);
+if (args.length) {
+  console.error(`未知参数：${args.join(" ")}`);
+  process.exit(1);
+}
 const LAYERS = { ui: 0, core: 0, workbench: 1, toutiao: 2, fanqie: 2, desktop: 3 };
 const BROWSER_SAFE = [
   "packages/core/src/errors.ts",
@@ -20,6 +25,7 @@ const problems = [],
   graph = new Map(),
   prefixes = new Map();
 let anyCount = 0,
+  nonNullCount = 0,
   swallowedCount = 0;
 const report = (file, message) => problems.push(`${file.rel}: ${message}`);
 
@@ -257,7 +263,15 @@ const rules = [
   {
     name: "any-baseline",
     check(file, source) {
-      anyCount += [...source.matchAll(/:\s*any\b|\bas\s+any\b|<any>/g)].length;
+      // 去注释后再数，覆盖 Record<string, any> 等 99 口径看不见的写法；.any() 是 API 名不算。
+      const code = source
+        .replace(/\/\*[\s\S]*?\*\//g, " ")
+        .split(/\r?\n/)
+        .map((line) => line.replace(/(^|[^:])\/\/.*$/, "$1"))
+        .join("\n");
+      anyCount += [...code.matchAll(/(?<!\.)\bany\b/g)].length;
+      // 属性访问/元素访问的非空断言；!:(确定赋值声明)、!=、!== 不算。
+      nonNullCount += [...code.matchAll(/(?<=[A-Za-z0-9_$)\]])!(?![=:])/g)].length;
     },
   },
   {
@@ -398,7 +412,11 @@ const repositoryRules = [
       );
       if (!Number.isInteger(baseline.any) || baseline.any < 0 || anyCount > baseline.any)
         problems.push(`any 数量 ${anyCount} 超过基线 ${baseline.any}`);
-      console.log(`架构守卫计数：any=${anyCount}（基线 ${baseline.any}），吞错=${swallowedCount}`);
+      if (!Number.isInteger(baseline.nonNull) || baseline.nonNull < 0 || nonNullCount > baseline.nonNull)
+        problems.push(`非空断言 ! 数量 ${nonNullCount} 超过基线 ${baseline.nonNull}`);
+      console.log(
+        `架构守卫计数：any=${anyCount}（基线 ${baseline.any}），非空断言=${nonNullCount}（基线 ${baseline.nonNull}），吞错=${swallowedCount}`,
+      );
     },
   },
   {

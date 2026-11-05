@@ -31,7 +31,7 @@ async function guardFixture(t) {
     await write(file, '{"version":"0.9.7"}');
   await write("packages/core/src/version.ts", 'export const VERSION = "0.9.7";');
   await write("CHANGELOG.md", "## 0.9.7\n");
-  await write("scripts/any-baseline.json", '{"any":0}');
+  await write("scripts/any-baseline.json", '{"any":0,"nonNull":0}');
   const run = () =>
     spawnSync(
       process.execPath,
