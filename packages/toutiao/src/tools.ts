@@ -43,6 +43,20 @@ function reqStr(args: Record<string, unknown>, key: string): string {
   if (typeof v !== "string" || !v.trim()) throw new WriterError("INVALID_ARGS", `参数 ${key} 必填`);
   return v.trim();
 }
+/** 脚本输出是信任边界：字段缺省视为空，类型不符即判脚本失败，不让坏数据混进回执。 */
+function scriptArray(value: unknown, label: string): unknown[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) throw new WriterError("SCRIPT_FAILED", `质检脚本输出异常：${label} 应为数组`);
+  return value;
+}
+function scriptStrArray(value: unknown, label: string): string[] {
+  const out: string[] = [];
+  for (const item of scriptArray(value, label)) {
+    if (typeof item !== "string") throw new WriterError("SCRIPT_FAILED", `质检脚本输出异常：${label} 含非字符串项`);
+    out.push(item);
+  }
+  return out;
+}
 function optStr(args: Record<string, unknown>, key: string): string | undefined {
   const v = args[key];
   if (v === undefined || v === null) return undefined;
@@ -391,7 +405,7 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
       },
     }),
 
-    defineWriterTool<{ id: string; rows: { 原句?: string; 改后?: string; 病型?: string }[] }>({
+    defineWriterTool<{ id: string; rows: { 原句: string; 改后: string; 病型: string }[] }>({
       name: "toutiao_edit_record",
       description:
         "S5 记录红笔三联改写留痕（病灶原句 → 改后 → 病型/为什么），累加保存，交稿单第八节用。",
@@ -418,9 +432,9 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
         const prev = (await readJson<unknown[]>(store.editsPath(id))) ?? [];
         const rows = args.rows.map((r) => ({
           rev: m.current_rev,
-          原句: String(r.原句 ?? ""),
-          改后: String(r.改后 ?? ""),
-          病型: String(r.病型 ?? ""),
+          原句: r.原句,
+          改后: r.改后,
+          病型: r.病型,
           at: nowIso(),
         }));
         await store.writable();
@@ -455,13 +469,15 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
         if (cardText !== undefined) a.push("--card", store.cardPath(id));
         if (args.mode) a.push("--mode", args.mode);
         const r = await bridge(config, a, { timeoutMs: 120_000, signal: exec.signal });
+        const hardGates = scriptStrArray(r.hard_gates, "hard_gates");
+        const fails = scriptArray(r.fails, "fails");
         const rec = {
           rev: cur.rev,
           sha256: cur.sha256,
           pass: r.pass === true,
           score: Number(r.score ?? 0),
-          hard_gates: (r.hard_gates as string[]) ?? [],
-          fail_count: ((r.fails as unknown[]) ?? []).length,
+          hard_gates: hardGates,
+          fail_count: fails.length,
           rules_version: r.rules_version,
           card_sha256: cardText === undefined ? null : sha256(cardText),
           at: nowIso(),
@@ -476,9 +492,9 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
           pass: rec.pass,
           score: rec.score,
           verdict: r.verdict,
-          hard_gates: rec.hard_gates,
-          fails: r.fails,
-          warnings: [...warn, ...((r.warnings as string[]) ?? [])],
+          hard_gates: hardGates,
+          fails,
+          warnings: [...warn, ...scriptStrArray(r.warnings, "warnings")],
           title: r.title,
           title_len: r.title_len,
           chars: r.chars,

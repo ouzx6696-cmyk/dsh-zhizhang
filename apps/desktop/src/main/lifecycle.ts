@@ -6,6 +6,7 @@ import { app, safeStorage } from "electron";
 import { Runtime } from "./runtime";
 import { createMainWindow } from "./window";
 import { selectTarget } from "./targets";
+import { parseTarget } from "./ipc/validate";
 import { registerIpc } from "./ipc/register";
 import { initUpdates } from "./ipc/updates";
 import { Sessions } from "../session";
@@ -86,7 +87,7 @@ export async function start() {
   let notice = state.settings.notices.join("\n");
   if (saved) {
     try {
-      await selectTarget(state, JSON.parse(saved));
+      await selectTarget(state, parseTarget(JSON.parse(saved)));
     } catch (error) {
       notice = "最近项目恢复未完成，请重新选择目录：" + String(error);
     }

@@ -94,7 +94,7 @@ export async function articleDetail(rootIn: string, id: string) {
 /** 作者在写作台直接保存：新增作者版稿件，旧版保留，状态回到初稿待改。 */
 export async function saveAuthorDraft(rootIn: string, id: string, text: string, expected: { rev: number; sha256: string }, config: ToutiaoConfig = {}) {
   const root = await knownRoot(rootIn)
-  const clean = String(text ?? '').replace(/\r\n/g, '\n')
+  const clean = text.replace(/\r\n/g, '\n')
   if (!clean.trim()) throw new WriterError('INVALID_ARGS', '正文不能为空')
   const store = new ArticleStore(root)
   const m = await store.stageDraft(id, clean, 'author', '作者在写作台保存', expected)
@@ -115,7 +115,7 @@ export async function articleManuscript(rootIn: string, id: string) {
 export async function adopt(rootIn: string, id: string, expected: { rev: number; sha256: string }, config: ToutiaoConfig = {}): Promise<ArticleMeta> {
   const root = await knownRoot(rootIn)
   const store = new ArticleStore(root)
-  if (!Number.isInteger(expected?.rev) || expected.rev < 1 || !/^[a-f0-9]{64}$/.test(expected.sha256))
+  if (!Number.isInteger(expected.rev) || expected.rev < 1 || !/^[a-f0-9]{64}$/.test(expected.sha256))
     throw new WriterError('INVALID_ARGS', '须指明已经加载的文章版本与正文指纹')
   const m = await store.update(id, async (mm) => {
     const draft = store.currentDraft(mm)

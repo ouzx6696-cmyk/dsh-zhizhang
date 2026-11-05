@@ -164,10 +164,12 @@ export function createBusinessTools(options: {
               ...asRecord(input.patch, "立项卡修改"),
             }
           : asRecord(input.card, "立项卡");
-        if (card?.["内容线"] === "资讯线")
-          for (const item of Array.isArray(card["出处"]) ? card["出处"] : []) {
+        if (card["内容线"] === "资讯线") {
+          const sources = card["出处"];
+          if (!Array.isArray(sources)) throw new Error("资讯线立项卡须提供出处列表");
+          for (const item of sources) {
             const source = asRecord(item, "出处");
-            const url = String(source["链接"] || "");
+            const url = typeof source["链接"] === "string" ? source["链接"] : "";
             if (url === "作者素材" || url === "用户素材") continue;
             let normalized: string;
             try { normalized = new URL(url).href; }
@@ -177,6 +179,7 @@ export function createBusinessTools(options: {
                 "资讯出处须是本次已通过 writer_read_url 读取的网址；请先读取：" + url,
               );
           }
+        }
       }
       const { value, content } = await executeTool(def, input, exec, {
         gates,
@@ -303,7 +306,7 @@ export function createBusinessTools(options: {
                         : resultKind === "qa"
                           ? `质检 ${output.score ?? qa.score ?? ""} ${output.verdict || ""}`.trim()
                           : "任务已完成",
-                failed: output?.ok === false,
+                failed: output.ok === false,
               },
             }
           : {},

@@ -41,8 +41,6 @@ const WORK = S("长篇作品 key 或标题；只有一部作品时可省略");
 const CHAPTERS = S('章节：章 id / 序号，或区间如 "3-5"；省略 = 全部');
 const CHAPTER = S("章 id、标题或序号");
 
-const str = (v: unknown) => (typeof v === "string" ? v : "");
-
 /** 编辑角色可见的长篇工具 */
 const EDITOR_TOOLS = new Set([
   "fanqie_forge_get",
@@ -98,7 +96,7 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
         ),
       },
       async run(args, exec) {
-        const id = str(args.id).trim();
+        const id = args.id?.trim();
         const cwd = exec.cwd;
         const act = await activeProfile("fanqie", config.profile);
         if (!id) {
@@ -217,7 +215,7 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
       },
     }),
 
-    defineWriterTool<{ file?: string; top?: number; keywords?: string }>({
+    defineWriterTool<{ file: string; top?: number; keywords?: string }>({
       name: "fanqie_library_scan",
       description:
         "拆书测绘：读本地 TXT/MD 小说，识别卷章、统计字数与关键词次数、给出前 N 章开篇明细与章末片段。文件须在会话工作目录内。",
@@ -228,9 +226,9 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
       },
       required: ["file"],
       async run(args, exec) {
-        const f = await localFile(exec, str(args.file));
+        const f = await localFile(exec, args.file);
         const top = Number.isInteger(args.top) && args.top! > 0 ? Math.min(args.top!, 100) : 10;
-        const r = await bridge(config.python, ["scan", f, String(top), str(args.keywords)], {
+        const r = await bridge(config.python, ["scan", f, String(top), args.keywords ?? ""], {
           signal: exec.signal,
         });
         const { tool: _t, rules_version, ok: _o, ...rest } = r;
@@ -239,7 +237,7 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
     }),
 
     defineWriterTool<{
-      source?: string;
+      source: string;
       analysis?: string;
       analysis_text?: string;
       min_chars?: number;
@@ -255,17 +253,19 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
       },
       required: ["source"],
       async run(args, exec) {
-        const src = await localFile(exec, str(args.source));
+        const src = await localFile(exec, args.source);
         const mc = String(
           Number.isInteger(args.min_chars) && args.min_chars! > 0 ? args.min_chars : 6,
         );
         const go = (ana: string) =>
           bridge(config.python, ["quote", src, ana, mc], { signal: exec.signal });
+        if (!args.analysis_text && !args.analysis)
+          throw new WriterError("INVALID_ARGS", "analysis 与 analysis_text 二选一必填");
         const r = args.analysis_text
-          ? await withTempFiles([{ name: "拆解稿.md", text: str(args.analysis_text) }], ([p]) =>
+          ? await withTempFiles([{ name: "拆解稿.md", text: args.analysis_text }], ([p]) =>
               go(p!),
             )
-          : await go(await localFile(exec, str(args.analysis)));
+          : await go(await localFile(exec, args.analysis ?? ""));
         return {
           pass: r.pass,
           checked: r.checked,
@@ -276,7 +276,17 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
       },
     }),
 
-    defineWriterTool<Record<string, unknown>>({
+    defineWriterTool<{
+      work?: string;
+      chapter: string;
+      verdict: string;
+      hard_issues: { category: string; location: string; basis: string; impact?: string; fix: string }[];
+      levels: { level: string; location: string; symptom: string; fix: string }[];
+      optional?: string[];
+      reread_full: boolean;
+      changed_scope?: string;
+      strengths?: string;
+    }>({
       name: "fanqie_review_report",
       description:
         '提交编辑审读回报（固定格式，绑定当前正文版本）：结论 通过/未通过/结构性冲突；四类硬伤（关键剧情与落点、本书硬约束、人物认知、正文接续）逐条写位置、依据、最小修改方向；L1 结构与单元 / L2 场面与交锋 / L3 句面与声音 定位；可选建议单列。有硬伤不能判"通过"。正文一改，回报自动过期。',
@@ -324,19 +334,18 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
       },
       required: ["chapter", "verdict", "hard_issues", "levels", "reread_full"],
       async run(args, exec) {
-        const w = await work(exec, str(args.work));
-        const ch = await readChapter(w, str(args.chapter));
+        const w = await work(exec, args.work);
+        const ch = await readChapter(w, args.chapter);
         if (!ch.body.trim()) throw new WriterError("CONFLICT", `${ch.title} 还没有正文，无从审读`);
-        const verdict = str(args.verdict) as ReviewReport["verdict"];
+        const verdict = args.verdict as ReviewReport["verdict"];
         if (!VERDICTS.includes(verdict))
           throw new WriterError("INVALID_ARGS", `verdict 只能是 ${VERDICTS.join(" / ")}`);
-        const arr = (v: unknown) => (Array.isArray(v) ? v : []) as Record<string, unknown>[];
-        const hard = arr(args.hard_issues).map((h) => ({
-          category: str(h.category),
-          location: str(h.location),
-          basis: str(h.basis),
-          impact: str(h.impact) || undefined,
-          fix: str(h.fix),
+        const hard = args.hard_issues.map((h) => ({
+          category: h.category,
+          location: h.location,
+          basis: h.basis,
+          impact: h.impact || undefined,
+          fix: h.fix,
         }));
         for (const h of hard) {
           if (!(HARD_CATEGORIES as readonly string[]).includes(h.category))
@@ -344,11 +353,11 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
           if (!h.location || !h.basis || !h.fix)
             throw new WriterError("INVALID_ARGS", "每条硬伤都要写位置、依据、修改方向");
         }
-        const levels = arr(args.levels).map((l) => ({
-          level: str(l.level),
-          location: str(l.location),
-          symptom: str(l.symptom),
-          fix: str(l.fix),
+        const levels = args.levels.map((l) => ({
+          level: l.level,
+          location: l.location,
+          symptom: l.symptom,
+          fix: l.fix,
         }));
         for (const l of levels)
           if (!(LEVELS as readonly string[]).includes(l.level))
@@ -357,10 +366,7 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
           throw new WriterError("INVALID_ARGS", '还有四类硬伤，不能判"通过"');
         if (verdict === "通过" && args.reread_full !== true)
           throw new WriterError("INVALID_ARGS", '没有完整回读当前正文，不能判"通过"');
-        const optional = (Array.isArray(args.optional) ? args.optional : [])
-          .map(String)
-          .filter(Boolean)
-          .slice(0, 3);
+        const optional = (args.optional ?? []).filter(Boolean).slice(0, 3);
         const report: ReviewReport = {
           work: w.key,
           work_title: w.title,
@@ -372,8 +378,8 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
           levels,
           optional,
           reread_full: args.reread_full === true,
-          changed_scope: str(args.changed_scope),
-          strengths: str(args.strengths),
+          changed_scope: args.changed_scope ?? "",
+          strengths: args.strengths ?? "",
           by: deps.role === "editor" ? "editor" : "writer",
           at: nowIso(),
         };
@@ -387,14 +393,14 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
       },
     }),
 
-    defineWriterTool<{ work?: string; chapter?: string }>({
+    defineWriterTool<{ work?: string; chapter: string }>({
       name: "fanqie_review_get",
       description: "取某章最新的编辑审读回报，并告诉你它是否仍对应当前正文（正文改过就过期）。",
       properties: { work: WORK, chapter: CHAPTER },
       required: ["chapter"],
       async run(args, exec) {
         const w = await work(exec, args.work);
-        const ch = await readChapter(w, str(args.chapter));
+        const ch = await readChapter(w, args.chapter);
         const r = await latestReview(w.dir, ch.id);
         if (!r) return { found: false, chapter: ch.id };
         const fresh = r.body_sha256 === ch.bodySha256;

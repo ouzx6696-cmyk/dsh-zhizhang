@@ -17,6 +17,7 @@ import {
 export { getSupportedThinkingLevels, clampThinkingLevel };
 const catalogStore = new InMemoryModelsStore();
 import type { ModelConnection } from "../models";
+import { asRecord } from "../main/ipc/validate.js";
 /** Keep cancellation attached through context preparation and SDK prompt startup. */
 export async function promptWithSignal(
   session: AgentSession,
@@ -171,9 +172,17 @@ export async function discoverModels(settings: ModelConnection) {
     signal: AbortSignal.timeout(10000),
   });
   if (!response.ok) throw new Error(`模型列表请求失败（${response.status}），可保留配置并手填模型`);
-  const body = (await response.json()) as { data: { id: string }[] };
+  const body = asRecord(await response.json(), "模型列表响应");
+  if (!Array.isArray(body["data"]))
+    throw new Error("模型列表响应格式异常：data 应为列表，可保留配置并手填模型");
   return {
     source: "当前端点（仅模型 ID，容量与思考能力需确认）",
-    models: body.data.map((m) => ({ id: m.id, name: m.id })),
+    models: body["data"].map((m) => {
+      const item = asRecord(m, "模型条目");
+      const id = item["id"];
+      if (typeof id !== "string" || !id)
+        throw new Error("模型列表响应格式异常：模型条目缺字符串 id");
+      return { id, name: id };
+    }),
   };
 }
