@@ -87,7 +87,7 @@ export interface ToutiaoData {
 }
 
 export interface ProfilesData {
-  list(signal?: AbortSignal): Promise<Json>;
+  list(signal?: AbortSignal): Promise<Awaited<ReturnType<typeof import("../../../core/src/profiles.js").listProfiles>>>;
   detail(profile: string, signal?: AbortSignal): Promise<Json>;
   method(profile: string, id: string, signal?: AbortSignal): Promise<Json>;
   use(profile: string): Promise<Json>;

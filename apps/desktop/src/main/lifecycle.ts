@@ -72,7 +72,10 @@ export async function start() {
       }
     },
     extras: {
+      context: () => state.settings.context,
       preferences: () => state.settings.preferences(),
+      searchProvider: () => state.settings.searchProvider,
+      searchMode: () => state.settings.searchMode,
       searchKey: () => state.settings.searchKey,
       log: (event, fields) => {
         void state.diagnostics.write(event, fields);

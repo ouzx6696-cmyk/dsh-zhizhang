@@ -16,7 +16,9 @@ export interface WorkspaceContext {
     refresh?: () => void | Promise<void>;
   };
 }
+export type TokenUsage = { input: number; output: number; cacheRead: number; cacheWrite: number };
 export interface TaskState {
+  usage?: TokenUsage;
   id?: string;
   name: string;
   completed: string[];

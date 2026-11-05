@@ -1,3 +1,4 @@
+import { ContextPanel } from "./ContextPanel";
 import { COPY as viewCopy, t as viewText } from "../../../../../../packages/ui/src/copy.js";
 import { writerResult } from "../../../writer-result";
 import { TaskProgress } from "./TaskProgress";
@@ -242,6 +243,16 @@ export function AgentPanel({ app }: { app: DesktopController }) {
   }
   return (
     <div className="agent-panel">
+      {state.system && (
+        <ContextPanel
+          key={`${draftKey}:${app.conversationId ?? "new"}`}
+          target={selected ?? undefined}
+          busy={busy || archive !== undefined}
+          task={task}
+          initialSettings={state.system.context}
+          onSaved={app.syncState}
+        />
+      )}
       <TaskProgress
         task={task}
         busy={busy}
@@ -342,7 +353,12 @@ export function AgentPanel({ app }: { app: DesktopController }) {
         <div className="quick-actions">
           {quick.map(({ id, label }) => (
             <button
-              disabled={archive !== undefined || state.system?.access?.readOnly || !selected}
+              disabled={
+                archive !== undefined ||
+                state.system?.access?.readOnly ||
+                !selected ||
+                (selected.mode === "toutiao" && !selected.article && !focus.article)
+              }
               key={id}
               onClick={() => app.command(id).catch(fail)}
             >

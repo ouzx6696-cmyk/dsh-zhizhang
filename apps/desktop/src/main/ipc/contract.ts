@@ -1,3 +1,4 @@
+import { parseContextSettings, type ContextSettings } from "../../context-settings";
 import type { Focus, Target } from "../../context";
 import type { ModelConnection, ModelSettings } from "../../models";
 import type { TaskState, UpdateStatus } from "../../renderer-contracts";
@@ -46,6 +47,12 @@ export interface WorkspaceChoice extends PublicSettings {
 }
 
 export interface IpcMap {
+  "context-settings": { args: [ContextSettings]; result: PublicSettings };
+  "context-usage": {
+    args: [Target];
+    result: Awaited<ReturnType<typeof import("../../session/usage").sessionUsage>>;
+  };
+  compact: { args: [Target, string]; result: { tokensBefore: number; summary: string } };
   state: { args: []; result: RendererState };
   choose: { args: [Target["mode"]]; result: Target | null };
   workspace: { args: []; result: WorkspaceChoice | null };
@@ -84,7 +91,22 @@ export interface IpcMap {
   };
   preferences: { args: []; result: string };
   "save-preferences": { args: [string]; result: string };
-  search: { args: [string]; result: PublicSettings };
+  "test-search": {
+    args: [
+      string | undefined,
+      import("../../network").SearchProvider,
+      import("../../network").SearchMode,
+    ];
+    result: { results: number; cost?: number };
+  };
+  search: {
+    args: [
+      string | undefined,
+      import("../../network").SearchProvider?,
+      import("../../network").SearchMode?,
+    ];
+    result: PublicSettings;
+  };
   request: { args: [string, RequestOptions?]; result: RequestResult };
   send: { args: [string, Target?, Focus?]; result: true | undefined };
   stop: { args: [Target?]; result: void };
@@ -95,7 +117,6 @@ export type IpcArgs<K extends IpcChannel> = IpcMap[K]["args"];
 export type IpcResult<K extends IpcChannel> = IpcMap[K]["result"];
 
 import {
-  asRecord,
   parseMode,
   parseTarget,
   parseFocus,
@@ -112,6 +133,9 @@ import {
 import { parseConnectionInput } from "../../models";
 const role = (value: unknown) => parseChoice(value, ["writer", "editor", "planner"] as const);
 export const IPC_PARSERS: { [K in IpcChannel]: (args: unknown[]) => IpcArgs<K> } = {
+  "context-settings": ([value]) => [parseContextSettings(value)],
+  "context-usage": ([target]) => [parseTarget(target)],
+  compact: ([target, instructions]) => [parseTarget(target), parseText(instructions)],
   state: () => [],
   choose: ([mode]) => [parseMode(mode)],
   workspace: () => [],
@@ -142,7 +166,7 @@ export const IPC_PARSERS: { [K in IpcChannel]: (args: unknown[]) => IpcArgs<K> }
   ],
   running: () => [],
   profiles: () => [],
-  model: ([value]) => [asRecord(value, "模型设置")],
+  model: ([value]) => [value],
   "model-catalog": ([value, next, action]) => [
     role(value),
     parseConnectionInput(next),
@@ -152,7 +176,16 @@ export const IPC_PARSERS: { [K in IpcChannel]: (args: unknown[]) => IpcArgs<K> }
   appearance: ([next]) => [parseAppearance(next)],
   preferences: () => [],
   "save-preferences": ([text]) => [parseText(text)],
-  search: ([key]) => [parseText(key)],
+  "test-search": ([key, provider, mode]) => [
+    key === undefined ? undefined : parseText(key),
+    parseChoice(provider, ["exa", "tavily"] as const),
+    parseChoice(mode, ["lite", "auto"] as const),
+  ],
+  search: ([key, provider, mode]) => [
+    key === undefined ? undefined : parseText(key),
+    provider === undefined ? undefined : parseChoice(provider, ["exa", "tavily"] as const),
+    mode === undefined ? undefined : parseChoice(mode, ["lite", "auto"] as const),
+  ],
   request: ([operation, options]) => [parseOperation(operation), parseRequestOptions(options)],
   send: ([text, target, focus]) => [
     parseText(text),

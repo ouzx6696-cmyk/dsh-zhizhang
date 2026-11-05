@@ -23,6 +23,7 @@ export async function sendPrompt(
   const focus = { ...focusInput };
   const key = host.key(target),
     generation = host.generations.get(key) || 0;
+  if (host.compactions.has(key)) throw new Error("当前会话正在压缩，请等待完成后发送消息");
   const preparation = Symbol("preparing");
   const preparingTask = createTask();
   preparingTask.name = text.slice(0, 100);

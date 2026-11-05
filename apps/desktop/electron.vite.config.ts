@@ -20,6 +20,17 @@ export default defineConfig({
     },
   },
   renderer: {
+    plugins: [
+      {
+        name: "desktop-woff2",
+        enforce: "pre",
+        transform(code: string, id: string) {
+          // Electron supports WOFF2; legacy WOFF copies only inflate the installer.
+          if (id.includes("/@fontsource/") && id.endsWith(".css"))
+            return code.replace(/,\s*url\([^)]*\.woff\)\s*format\(['"]woff['"]\)/g, "");
+        },
+      },
+    ],
     root: ".",
     define: { __WB_VERSION__: JSON.stringify(VERSION) },
     build: { rollupOptions: { input: path.resolve("index.html") } },

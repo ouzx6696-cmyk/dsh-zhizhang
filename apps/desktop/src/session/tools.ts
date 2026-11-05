@@ -1,3 +1,4 @@
+import { sha256 } from "../../../../packages/core/src/fsx";
 import { asRecord } from "../main/ipc/validate";
 import { resolveFanqieWork } from "../main/storage";
 import { readChapter } from "../../../../packages/fanqie/src/engine/work-store";
@@ -167,7 +168,11 @@ export function createBusinessTools(options: {
           for (const item of Array.isArray(card["出处"]) ? card["出处"] : []) {
             const source = asRecord(item, "出处");
             const url = String(source["链接"] || "");
-            if (!readUrls.has(url) && !readUrls.has(new URL(url).href))
+            if (url === "作者素材" || url === "用户素材") continue;
+            let normalized: string;
+            try { normalized = new URL(url).href; }
+            catch { throw new Error("出处须填写作者素材或有效 HTTP(S) 网址：" + url); }
+            if (!readUrls.has(url) && !readUrls.has(normalized))
               throw new Error(
                 "资讯出处须是本次已通过 writer_read_url 读取的网址；请先读取：" + url,
               );
@@ -178,6 +183,14 @@ export function createBusinessTools(options: {
         bind: (run) => withPluginConfig(config, run),
         confirm: host.confirm,
       });
+      if (def.name === "fanqie_forge_get" || def.name === "toutiao_method_get") {
+        const method = asRecord(value, "方法回执");
+        if (typeof method.id === "string" && typeof method.text === "string" && typeof method.profile === "string") {
+          const receipt = { id: method.id, profile: method.profile, hash: sha256(method.text) };
+          entry.methods.set(method.id, receipt);
+          host.extras.log?.("method_loaded", { ...receipt, taskId: entry.task.id, conversationId: manager.getSessionId() });
+        }
+      }
       if (def.name === "toutiao_article_create") {
         const meta = asRecord(asRecord(value, "立项回执").article, "文章");
         articleBasis.set(String(meta.id), { rev: 0, sha256: "" });

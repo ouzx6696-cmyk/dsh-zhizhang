@@ -125,7 +125,9 @@ test.afterAll(async () => {
   if (root) await rm(root, { recursive: true, force: true });
 });
 
-test("首次引导、连接测试、统一写作根与真实 Pi 创建作品", async () => {
+test("桌面完整旅程：创作、审读、修改、取消、上下文和搜索设置", async () => {
+  test.setTimeout(180000);
+await test.step("首次引导、连接测试、统一写作根与真实 Pi 创建作品", async () => {
   const wizard = page.getByRole("dialog", { name: "开始创作" });
   await expect(wizard).toBeVisible();
   await wizard.getByText("高级连接与模型设置", { exact: true }).click();
@@ -143,9 +145,10 @@ test("首次引导、连接测试、统一写作根与真实 Pi 创建作品", a
   });
   await expect(page.locator(".studio-nav")).toContainText("雨夜");
   await expect(page.locator(".quick-actions")).toContainText("派编辑审");
-});
 
-test("决策不被 Agent 挡住，右栏标签与响应式布局，亮暗截图", async () => {
+expect(rendererErrors.splice(0)).toEqual([]);
+});
+await test.step("决策不被 Agent 挡住，右栏标签与响应式布局，亮暗截图", async () => {
   await page.getByRole("button", {name:"设置",exact:true}).click();
   const initialAppearance = page.getByRole("dialog", {name:"设置",exact:true});
   await initialAppearance.getByRole("button", {name:"外观",exact:true}).click();
@@ -251,9 +254,10 @@ test("决策不被 Agent 挡住，右栏标签与响应式布局，亮暗截图"
   await page.setViewportSize({ width: 900, height: 900 });
   await shot("desktop-900-dark.png");
   await page.setViewportSize({ width: 1440, height: 1000 });
-});
 
-test("命令面板、角色设置与新对话保留作品", async () => {
+expect(rendererErrors.splice(0)).toEqual([]);
+});
+await test.step("命令面板、角色设置与新对话保留作品", async () => {
   await page.getByRole("tab", { name: "Agent", exact: true }).click();
   const candidate = page.locator('.result-card[data-kind="candidate"]').first();
   await expect(candidate).toBeVisible();
@@ -366,9 +370,12 @@ test("命令面板、角色设置与新对话保留作品", async () => {
     workBefore,
   );
   await expect(page.locator(".chat-messages")).toContainText("从一句想法开始");
-});
+  const idleUsage = await page.evaluate(async () => { const api = window.writerDesktop; return api.contextUsage((await api.state()).target); });
+  expect(idleUsage.stats).toBeNull();
 
-test("正文可在稿纸中直接编辑并保存", async () => {
+expect(rendererErrors.splice(0)).toEqual([]);
+});
+await test.step("正文可在稿纸中直接编辑并保存", async () => {
   await page.evaluate(async (url) => {
     const api = window.writerDesktop,
       state = await api.state();
@@ -484,9 +491,10 @@ test("正文可在稿纸中直接编辑并保存", async () => {
   await expect(page.locator(".studio-paper-column .wb-manuscript")).toContainText(
     "后台先保存的新正文。",
   );
-});
 
-test("停止任务走应用内确认并在 2 秒内收尾", async () => {
+expect(rendererErrors.splice(0)).toEqual([]);
+});
+await test.step("停止任务走应用内确认并在 2 秒内收尾", async () => {
   const requestsBefore = model.calls.length;
   model.push("mock-writer", { wait: true });
   const input = page.getByRole("textbox", { name: "写作要求" });
@@ -513,9 +521,10 @@ test("停止任务走应用内确认并在 2 秒内收尾", async () => {
   await confirm.getByRole("button", { name: "继续", exact: true }).click();
   await expect(stop).toBeDisabled({ timeout: 2000 });
   expect(Date.now() - started).toBeLessThan(2000);
-});
 
-test("今日头条使用同一套外壳与空态引导", async () => {
+expect(rendererErrors.splice(0)).toEqual([]);
+});
+await test.step("今日头条使用同一套外壳与空态引导", async () => {
   const requestsBefore = model.calls.length;
   await page.locator(".project-switch").click();
   await page.getByRole("button", { name: "新头条" }).click();
@@ -542,4 +551,105 @@ test("今日头条使用同一套外壳与空态引导", async () => {
   await expect(page.locator(".studio-error")).toContainText("模型认证失败");
   await expect(page.getByRole("button", { name: "停止任务", exact: true })).toBeDisabled();
   await expect(page.locator(".task-card")).not.toContainText("正在进行");
+
+expect(rendererErrors.splice(0)).toEqual([]);
+});
+await test.step("上下文设置持久化、统计可展开，原生窗口尺寸改变后工作区铺满", async () => {
+  const panel = page.locator('.context-panel');
+  await panel.locator('summary').click();
+  await expect(panel).toContainText('累计输入');
+  await expect(panel).toContainText('最近请求');
+  for (const height of [700, 650]) {
+    await page.setViewportSize({ width: 1100, height });
+    const inputBounds = await page.locator('.agent-input-area').boundingBox();
+    expect(inputBounds.y + inputBounds.height).toBeLessThanOrEqual(height + 1);
+  }
+  await shot('desktop-context-1100.png');
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const enabled = panel.getByRole('checkbox', {name:'自动压缩'});
+  await enabled.uncheck();
+  await panel.getByRole('button', {name:'保存压缩设置',exact:true}).click();
+  await expect(panel.getByRole('status')).toContainText('压缩设置已保存');
+  expect(await page.evaluate(async () => (await window.writerDesktop.state()).context.enabled)).toBe(false);
+  await enabled.check();
+  await panel.getByRole('button', {name:'保存压缩设置',exact:true}).click();
+  await expect(panel.getByRole('button', {name:'保存压缩设置',exact:true})).toBeEnabled();
+  await panel.locator('summary').click();
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Emulation.clearDeviceMetricsOverride');
+  const checkFill = async () => {
+    await expect.poll(async () => page.evaluate(() => {
+      const shell = document.querySelector('.writer-desktop').getBoundingClientRect();
+      return Math.abs(shell.width-innerWidth)<2 && Math.abs(shell.height-innerHeight)<2 && document.documentElement.scrollWidth<=innerWidth;
+    })).toBe(true);
+  };
+  for (const size of [{width:1366,height:768},{width:1920,height:1080},{width:2560,height:1440}]) {
+    await app.evaluate(({BrowserWindow}, size) => BrowserWindow.getAllWindows()[0].setBounds({...size,x:0,y:0}),size);
+    await checkFill();
+  }
+  if (process.platform === 'win32') {
+    await app.evaluate(({BrowserWindow}) => BrowserWindow.getAllWindows()[0].maximize());
+    await expect.poll(() => app.evaluate(({BrowserWindow}) => BrowserWindow.getAllWindows()[0].isMaximized())).toBe(true);
+    await checkFill();
+    await app.evaluate(({BrowserWindow}) => BrowserWindow.getAllWindows()[0].unmaximize());
+    await app.evaluate(({BrowserWindow}) => BrowserWindow.getAllWindows()[0].setFullScreen(true));
+    await expect.poll(() => app.evaluate(({BrowserWindow}) => BrowserWindow.getAllWindows()[0].isFullScreen())).toBe(true);
+    await checkFill();
+    await app.evaluate(({BrowserWindow}) => BrowserWindow.getAllWindows()[0].setFullScreen(false));
+  }
+  await cdp.detach();
+
+expect(rendererErrors.splice(0)).toEqual([]);
+});
+await test.step("手动压缩使用真实 PI 接口，完成后可查看摘要并继续发送", async () => {
+  const input=page.getByRole('textbox',{name:'写作要求'});
+  const before=model.calls.length;
+  await input.fill('压缩测试素材：阿禾对花生过敏。');await input.press('Enter');
+  await expect.poll(()=>model.calls.length).toBeGreaterThan(before);
+  await expect(page.getByRole('button',{name:'停止任务',exact:true})).toBeDisabled();
+  const panel=page.locator('.context-panel');await panel.locator(':scope > summary').click();
+  await panel.getByRole('spinbutton',{name:'近期保留 token'}).fill('0');
+  await panel.getByRole('button',{name:'保存压缩设置',exact:true}).click();
+  await expect(panel.getByRole('button',{name:'保存压缩设置',exact:true})).toBeEnabled();
+  await panel.getByRole('button',{name:'压缩当前会话',exact:true}).click();
+  await expect(panel.getByRole('status')).toContainText('压缩完成');
+  const summary=panel.getByText('最近压缩摘要（原始历史保留）',{exact:true});
+  await summary.click();await expect(panel.locator('pre')).toBeVisible();
+  await expect(panel.locator('pre')).not.toBeEmpty();
+  await panel.getByRole('spinbutton',{name:'近期保留 token'}).fill('20000');
+  await panel.getByRole('button',{name:'保存压缩设置',exact:true}).click();
+  await expect(panel.getByRole('button',{name:'保存压缩设置',exact:true})).toBeEnabled();
+  await panel.locator(':scope > summary').click();
+  const next=model.calls.length;
+  await input.fill('继续核对已保存素材');await input.press('Enter');
+  await expect.poll(()=>model.calls.length).toBeGreaterThan(next);
+  await expect(page.getByRole('button',{name:'停止任务',exact:true})).toBeDisabled();
+
+expect(rendererErrors.splice(0)).toEqual([]);
+});
+await test.step("Exa 设置可保存和清除 Key，公开状态不暴露密钥", async () => {
+  const resources = async () => {
+    await page.getByRole('button',{name:'设置',exact:true}).click();
+    const dialog=page.getByRole('dialog',{name:'设置',exact:true});
+    await dialog.getByRole('button',{name:'备份与诊断',exact:true}).click();
+    return dialog;
+  };
+  let dialog=await resources();
+  await dialog.getByRole('combobox',{name:'搜索服务',exact:true}).selectOption('exa');
+  await dialog.getByRole('combobox',{name:'搜索模式',exact:true}).selectOption('lite');
+  await dialog.getByLabel('exa API Key',{exact:true}).fill('fixture-exa-secret');
+  await dialog.getByRole('button',{name:'保存设置',exact:true}).click();
+  await expect(dialog).toBeHidden();
+  const state=await page.evaluate(()=>window.writerDesktop.state());
+  expect(state.searchConfigured).toBe(true);
+  expect(state.searchProvider).toBe('exa');
+  expect(JSON.stringify(state)).not.toContain('fixture-exa-secret');
+  dialog=await resources();
+  await dialog.getByRole('button',{name:'清除搜索 Key',exact:true}).click();
+  await dialog.getByRole('button',{name:'保存设置',exact:true}).click();
+  await expect(dialog).toBeHidden();
+  expect(await page.evaluate(async ()=>(await window.writerDesktop.state()).searchConfigured)).toBe(false);
+
+expect(rendererErrors.splice(0)).toEqual([]);
+});
 });

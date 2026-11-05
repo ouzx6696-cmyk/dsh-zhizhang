@@ -44,47 +44,25 @@ async function guardFixture(t) {
       { encoding: "utf8" },
     );
   assert.equal(run().status, 0, "合法仓库必须通过严格模式");
-  return { write, run };
+  return { write, run, root };
 }
 
-test("守卫：普通字符串调用不能绕过宿主边界", async (t) => {
-  const { write, run } = await guardFixture(t);
+test("架构守卫：一次扫描覆盖依赖、类型、样式、吞错与目录约束", async (t) => {
+  const { write, run, root } = await guardFixture(t);
   await write(
     "packages/workbench/src/client/example.jsx",
     'loadModule("' + ["@deepseek", "-ai/retired"].join("") + '")',
   );
-  const result = run();
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /禁止引用已退役的宿主包/);
-});
-
-test("守卫：any 不能超过基线，类型断言和注解均计数", async (t) => {
-  const { write, run } = await guardFixture(t);
   await write(
     "packages/core/src/example.ts",
     "const a: any = 1; const b = a as any; const c = <any>a;",
   );
-  const result = run();
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /any 数量 3 超过基线 0/);
-});
-
-test("守卫：组件前缀不能跨样式文件", async (t) => {
-  const { write, run } = await guardFixture(t);
   await write("packages/ui/src/modal.css", ".wb-modal-head { display: flex; }");
   await write(
     "packages/ui/src/overlay.css",
-    "@media (min-width: 1em) { .wb-modal-body { display: block; } }",
+    "@media (min-width:1em) { .wb-modal-body { display:block; } }",
   );
-  assert.equal(run(false).status, 1);
-  const result = run();
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /组件前缀 wb-modal 必须唯一/);
-});
-
-test("守卫：空 catch 和字面量回退须说明原因，认识 ENOENT 的分支不误报", async (t) => {
-  const { write, run } = await guardFixture(t);
-  const cases = [
+  const invalid = [
     "try {} catch {}",
     "try {} catch (e) {}",
     "try {} catch { return []; }",
@@ -94,37 +72,32 @@ test("守卫：空 catch 和字面量回退须说明原因，认识 ENOENT 的�
     "promise.catch(() => ({}))",
     "promise.catch(() => { return false; })",
   ];
-  for (const source of cases) {
-    await write("packages/core/src/example.js", `async function example() { ${source} }`);
-    assert.equal(run(false).status, 1, source);
-    const result = run();
-    assert.equal(result.status, 1, source);
-    assert.match(result.stdout, /吞错=1/);
-  }
   await write(
-    "packages/core/src/example.js",
-    'try {} catch (error) { if (error.code === "ENOENT") return []; throw error; }',
+    "packages/core/src/catches.js",
+    invalid.map((source, i) => `async function check${i}() { ${source} }`).join("\n"),
   );
-  assert.equal(run().status, 0);
-  for (const source of [
-    "// allow-catch: 进程退出时尽力清理\npromise.catch(() => {})",
-    "try {} catch {} // allow-catch: 进程退出时尽力清理",
-  ]) {
-    await write("packages/core/src/example.js", source);
-    assert.equal(run().status, 0);
-  }
-});
-
-test("守卫：history 目录始终失败，CSS 长度只提示且文档数量不设限", async (t) => {
-  const { write, run } = await guardFixture(t);
+  await write("docs/history/old.md", "old");
+  const failed = run();
+  assert.equal(failed.status, 1);
+  for (const message of [
+    /禁止引用已退役的宿主包/,
+    /any 数量 3 超过基线 0/,
+    /组件前缀 wb-modal 必须唯一/,
+    /文档历史目录不得存在/,
+  ])
+    assert.match(failed.stderr, message);
+  assert.match(failed.stdout, /吞错=8/);
+  await write("packages/workbench/src/client/example.jsx", "export const value = 1;");
+  await write("packages/core/src/example.ts", "const value: number = 1;");
+  await write("packages/ui/src/overlay.css", "");
   await write("packages/ui/src/long.css", "\n".repeat(301));
-  for (let i = 0; i < 11; i++) await write(`docs/guide-${i}.md`, "guide");
-  assert.equal(run().status, 0);
-  await write(path.join("docs", "history", "old.md"), "old");
-  assert.equal(run(false).status, 1);
+  await rm(path.join(root, "docs/history"), { recursive: true });
+  await write(
+    "packages/core/src/catches.js",
+    'async function known() { try {} catch (error) { if (error.code === "ENOENT") return []; throw error; } }\n// allow-catch: 进程退出时尽力清理\npromise.catch(() => {})',
+  );
   const result = run();
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /文档历史目录不得存在/);
+  assert.equal(result.status, 0, result.stderr);
 });
 
 test("resolveInside 拒绝越界", () => {

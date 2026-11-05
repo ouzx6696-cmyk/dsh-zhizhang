@@ -190,7 +190,9 @@ export const fanqieLibrary: MethodLibrary = {
   },
   async readOriginal(id) {
     try {
-      const r = await getFanqieMethod(id);
+      const index = loadDefaultIndex();
+      const original = Object.entries(KEY_METHODS).find(([key]) => index.aliases?.[key] === id)?.[0];
+      const r = await getFanqieMethod(original ?? id);
       return { id: r.id, text: r.text, file: `${r.id}.md` };
     } catch (error) {
       if (error instanceof WriterError && error.code === "NOT_FOUND") return undefined;

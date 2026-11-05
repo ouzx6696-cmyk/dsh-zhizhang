@@ -52,7 +52,7 @@ export function useDesktopController() {
       wizardModels: current.wizardModels || value.models,
       onboarding:
         current.onboarding === null
-          ? !value.models.writer?.configured || !value.workspace
+          ? !value.models.writer.configured || !value.workspace
           : current.onboarding,
     }));
     if (value.notice) set({ error: value.notice });
@@ -76,7 +76,7 @@ export function useDesktopController() {
           (message) => !message.writerMessageId || !known.has(message.writerMessageId),
         );
       chatStore.set({
-        messages: [...value.messages, ...extra],
+        messages: [...value.messages, ...extra].slice(-maximum),
         total: value.total + extra.length,
         busy: value.busy,
         phase: value.phase || "",
@@ -132,11 +132,18 @@ export function useDesktopController() {
   }
 
   // Event subscriptions stay mounted; dereference the current controller on each event.
-  const handlers = useRef({ syncState, selectSnapshot, loadProjects, jump, refreshWorkspace, fail });
+  const handlers = useRef({
+    syncState,
+    selectSnapshot,
+    loadProjects,
+    jump,
+    refreshWorkspace,
+    fail,
+  });
   handlers.current = { syncState, selectSnapshot, loadProjects, jump, refreshWorkspace, fail };
 
   useEffect(() => {
-    const {syncState, selectSnapshot, loadProjects, fail} = handlers.current;
+    const { syncState, selectSnapshot, loadProjects, fail } = handlers.current;
     void (async () => {
       const value = await syncState();
       if (value.target) await selectSnapshot(value.target, false);
@@ -164,9 +171,23 @@ export function useDesktopController() {
   }, [state.system?.appearance]);
 
   useEffect(() => {
+    let frame = 0,
+      delta = "",
+      streamScope = "";
+    const clearStream = () => {
+      cancelAnimationFrame(frame);
+      frame = 0;
+      delta = "";
+    };
     const unsubscribe = api.subscribe((value) => {
-      const {jump, selectSnapshot, loadProjects, refreshWorkspace, fail} = handlers.current;
-      if (value.running) set({ running: value.running });
+      const { jump, selectSnapshot, loadProjects, refreshWorkspace, fail } = handlers.current;
+      if (value.running) {
+        set({ running: value.running });
+        if (archived.current === undefined)
+          chatStore.set({
+            busy: value.running.some((row) => scopeId(row.target) === scopeId(selected.current)),
+          });
+      }
       if (value.updates)
         set((current) => ({
           system: current.system ? { ...current.system, updates: value.updates! } : null,
@@ -204,10 +225,28 @@ export function useDesktopController() {
       if (event.type === "agent_start") chatStore.set({ busy: true, stream: "" });
       if (event.type === "compaction_start" || event.type === "auto_retry_start")
         chatStore.set({ busy: true });
-      if (event.type === "message_update" && event.assistantMessageEvent?.type === "text_delta")
-        chatStore.set((current) => ({
-          stream: current.stream + (event.assistantMessageEvent?.delta || ""),
-        }));
+      if (event.type === "message_update" && event.assistantMessageEvent?.type === "text_delta") {
+        const nextScope = scopeId(value.target) + value.conversationId;
+        if (nextScope !== streamScope) {
+          clearStream();
+          streamScope = nextScope;
+        }
+        delta += event.assistantMessageEvent.delta;
+        if (!frame) {
+          const key = scopeId(value.target),
+            id = value.conversationId;
+          frame = requestAnimationFrame(() => {
+            if (
+              key === scopeId(selected.current) &&
+              id === conversationId.current &&
+              archived.current === undefined
+            )
+              chatStore.set((current) => ({ stream: current.stream + delta }));
+            frame = 0;
+            delta = "";
+          });
+        }
+      }
       if (event.type === "message_end") {
         const message = event.message as ChatMessage | undefined;
         if (!message) return;
@@ -217,10 +256,14 @@ export function useDesktopController() {
             messages: [...current.messages, message].slice(-limit.current),
             total: current.total + 1,
           }));
-        if (message.role === "assistant") chatStore.set({ stream: "" });
+        if (message.role === "assistant") {
+          clearStream();
+          chatStore.set({ stream: "" });
+        }
         if (message.errorMessage) set({ error: message.errorMessage });
       }
       if (event.type === "agent_settled") {
+        clearStream();
         chatStore.set({
           busy: false,
           stream: "",
@@ -234,6 +277,7 @@ export function useDesktopController() {
       }
     });
     return () => {
+      clearStream();
       unsubscribe();
     };
   }, []);
@@ -371,6 +415,9 @@ export function useDesktopController() {
   }
 
   return {
+    get conversationId() {
+      return conversationId.current;
+    },
     state,
     system: state.system,
     selected: selected.current,

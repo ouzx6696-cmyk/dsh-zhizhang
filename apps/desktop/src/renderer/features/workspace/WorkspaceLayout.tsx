@@ -26,14 +26,12 @@ function MethodsPane({
     let running = true;
     profilesApi(mode)
       .list()
-      .then((result: any) => {
-        if (running)
-          setName(
-            result.profiles?.find((profile: any) => profile.active)?.name ||
-              viewCopy.workspaceLayoutText1,
-          );
+      .then((result) => {
+        if (running) setName(result.activeName);
       })
-      .catch((error: unknown) => { if (running) setName(errorText(error)); });
+      .catch((error: unknown) => {
+        if (running) setName(errorText(error));
+      });
     return () => {
       running = false;
     };

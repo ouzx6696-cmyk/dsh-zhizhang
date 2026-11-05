@@ -1,9 +1,19 @@
+import { sessionUsage } from "../../session/usage";
 import type { Runtime } from "../runtime";
 import { handle } from "./handle";
 import { request } from "../operations";
 import { selectTarget } from "../targets";
 
 export function registerSessionIpc(state: Runtime) {
+  handle("context-usage", (target) => sessionUsage(state.sessions, target));
+  handle("compact", (target, instructions) => state.sessions.compact(target, instructions));
+  handle("context-settings", async (value) => {
+    if (state.sessions.running().length || state.sessions.hasPending())
+      throw new Error("请等待所有任务结束后修改压缩设置");
+    await state.settings.saveContext(value);
+    await state.sessions.dispose();
+    return state.settings.public();
+  });
   handle("new-conversation", async (next) => {
     await state.sessions.newConversation(next);
     return true as const;

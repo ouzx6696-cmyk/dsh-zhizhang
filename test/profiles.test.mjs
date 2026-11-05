@@ -301,3 +301,18 @@ test("写作台接口：方案列表、详情、全文、新建、保存、切�
   setProfilesRoot(undefined);
   await fs.rm(broken, { recursive: true, force: true });
 });
+
+
+test("原版方案支持常驻提示中的写作方法入口，保留用户覆盖", async () => {
+  const { readMethod } = await import("../build/core/src/profiles.js");
+  const { fanqieLibrary } = await import("../build/fanqie/src/forge.js");
+  for (const id of ["overview", "write-chapter", "rhythm", "prose", "edit"]) {
+    const original = await readMethod(fanqieLibrary, "original", id);
+    assert.equal(original.from, "original");
+    assert.ok(original.text.length > 100);
+    const current = await readMethod(fanqieLibrary, "default", id);
+    assert.equal(current.id, id);
+    assert.equal(current.from, "default");
+  }
+  await assert.rejects(readMethod(fanqieLibrary, "original", "missing-method"), /没有这份方法/);
+});

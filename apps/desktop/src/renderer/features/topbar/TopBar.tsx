@@ -78,11 +78,11 @@ export function TopBar({ app }: { app: DesktopController }) {
           ))}
         </nav>
         <span className="model-status">
-          <i data-ready={system.models.writer?.configured} />
-          {system.models.writer?.model}
+          <i data-ready={system.models.writer.configured} />
+          {system.models.writer.model}
           <small>
             {viewCopy.topBarText3}
-            {system.models.editor?.model}
+            {system.models.editor.model}
           </small>
         </span>
         <div className="export-menu" ref={exportMenu}>

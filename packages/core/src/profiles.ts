@@ -1,6 +1,6 @@
 /**
  * 方法方案：模型读取的方法论按"方案"组织，每种写作模式各有一套。
- *   default  默认    插件自带的精炼版（推荐）
+ *   default  默认    客户端自带的精炼版（推荐）
  *   original 原版    上游原件，保留作参考与兜底
  *   user-N   用户方案N 作者提交的版本：以某个内置方案为底，逐份覆盖或新增
  * 读取顺序：用户方案的覆盖 → 它的底（默认或原版）；默认里没有的 id 回落到原版。
@@ -17,7 +17,7 @@ export type ProfileMode = 'toutiao' | 'fanqie'
 export type BuiltinProfile = 'default' | 'original'
 export const BUILTIN_NAMES: Record<BuiltinProfile, string> = { default: '默认', original: '原版' }
 export const BUILTIN_NOTES: Record<BuiltinProfile, string> = {
-  default: '插件精炼版：去重、去空话、对齐质检规则与工具（推荐）',
+  default: '内置精炼版：去重、去空话、对齐质检规则与工具（推荐）',
   original: '上游原件，未改动；作参考与兜底',
 }
 export const PROFILE_LIMITS = { textBytes: 256 * 1024, methodsPerProfile: 300, profilesPerMode: 20, nameChars: 24 } as const
@@ -206,7 +206,7 @@ export async function readMethod(lib: MethodLibrary, profileKey: string | undefi
 
 export interface ProfileSummary extends ProfileMeta { active: boolean; pinned: boolean; methods: number; overrides?: number }
 
-export async function listProfiles(lib: MethodLibrary, pinned?: string): Promise<{ active: string; pinned: boolean; profiles: ProfileSummary[] }> {
+export async function listProfiles(lib: MethodLibrary, pinned?: string): Promise<{ active: string; activeName: string; pinned: boolean; profiles: ProfileSummary[] }> {
   const act = await activeProfile(lib.mode, pinned)
   const def = await lib.defaultIds()
   const orig = await lib.originalIds()
@@ -219,7 +219,7 @@ export async function listProfiles(lib: MethodLibrary, pinned?: string): Promise
     const baseIds = u.base === 'original' ? orig : def.map(d => d.id)
     out.push({ ...u, active: act.id === u.id, pinned: act.pinned && act.id === u.id, methods: new Set([...baseIds, ...ov]).size, overrides: ov.length })
   }
-  return { active: act.id, pinned: act.pinned, profiles: out }
+  return { active: act.id, activeName: act.name, pinned: act.pinned, profiles: out }
 }
 
 export interface ProfileMethodRow { id: string; title?: string; from: 'user' | BuiltinProfile; overridden: boolean; added?: boolean }

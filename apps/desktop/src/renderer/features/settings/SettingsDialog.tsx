@@ -31,6 +31,9 @@ export function Settings({
     [appearance, setAppearance] = useState(state.appearance),
     [preferences, setPreferences] = useState<string | null>(null),
     [searchKey, setSearchKey] = useState(""),
+    [searchProvider, setSearchProvider] = useState(state.searchProvider),
+    [searchMode, setSearchMode] = useState(state.searchMode),
+    [searchKeyChanged, setSearchKeyChanged] = useState(false),
     [health, setHealth] = useState<Awaited<ReturnType<typeof api.storageHealth>> | null>(null),
     [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false),
@@ -68,6 +71,10 @@ export function Settings({
       setBusy(false);
     }
   };
+  const testSearch = () => action(async () => {
+    const result = await api.testSearch(searchKeyChanged ? searchKey : undefined, searchProvider, searchMode);
+    setMessage(viewCopy.searchTestSuccess + result.results + (result.cost === undefined ? viewCopy.searchPriceUnknown : ` · $${result.cost}`));
+  });
   const testRole = (role: "writer" | "editor" | "planner") => {
     const model = models[role];
     if (model) void testConnection(role, model);
@@ -77,7 +84,7 @@ export function Settings({
       if (JSON.stringify(models) !== JSON.stringify(state.models)) await api.model(models);
       await api.appearance(appearance);
       if (state.workspace && preferences !== null) await api.preferences(preferences);
-      if (searchChanged) await api.search(searchKey);
+      if (searchChanged) await api.search(searchKeyChanged ? searchKey : undefined, searchProvider, searchMode);
       await onSaved();
       onClose();
     });
@@ -337,13 +344,15 @@ export function Settings({
               </button>
               <h3>{viewCopy.settingsDialogText43}</h3>
               <p className="form-note">{viewCopy.settingsDialogText44}</p>
-              <label>
-                Tavily API Key
+              <label>{viewCopy.searchSettingsText1}<select value={searchProvider} onChange={e => { setSearchProvider(e.target.value === "exa" ? "exa" : "tavily"); setSearchChanged(true); }}><option value="exa">Exa</option><option value="tavily">Tavily</option></select></label>
+              <label>{viewCopy.searchSettingsText2}<select value={searchMode} onChange={e => { setSearchMode(e.target.value === "auto" ? "auto" : "lite"); setSearchChanged(true); }}><option value="lite">{viewCopy.searchSettingsText3}</option><option value="auto">{viewCopy.searchSettingsText4}</option></select></label>
+              <label>{searchProvider} API Key
                 <input
                   type="password"
                   value={searchKey}
                   onChange={(event) => {
                     setSearchKey(event.target.value);
+                    setSearchKeyChanged(true);
                     setSearchChanged(true);
                   }}
                   placeholder={
@@ -353,10 +362,13 @@ export function Settings({
                   }
                 />
               </label>
+              <p className="form-note">{viewCopy.searchTestFee}</p>
+              <button disabled={busy} onClick={() => void testSearch()}>{viewCopy.searchTestButton}</button>
               <button
                 disabled={busy}
                 onClick={() => {
                   setSearchKey("");
+                  setSearchKeyChanged(true);
                   setSearchChanged(true);
                 }}
               >

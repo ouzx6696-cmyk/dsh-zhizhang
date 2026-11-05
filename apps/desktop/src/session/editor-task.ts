@@ -91,11 +91,6 @@ export function createDelegateTools(options: {
             (last.stopReason === "error" || last.stopReason === "aborted")
           )
             throw new Error(last.errorMessage || "编辑已停止，未交回完整结论");
-          for (const message of child.messages)
-            if (message.role === "assistant") {
-              entry.task.tokens += message.usage.totalTokens || 0;
-              entry.task.cost += message.usage.cost.total || 0;
-            }
           const result =
             delegate === "editor"
               ? {
@@ -129,6 +124,13 @@ export function createDelegateTools(options: {
             details: { writerResult: result },
           };
         } finally {
+          const stats = child.getSessionStats();
+          entry.task.tokens += stats.tokens.total;
+          entry.task.cost += stats.cost;
+          entry.task.usage.input += stats.tokens.input;
+          entry.task.usage.output += stats.tokens.output;
+          entry.task.usage.cacheRead += stats.tokens.cacheRead;
+          entry.task.usage.cacheWrite += stats.tokens.cacheWrite;
           host.children.delete(session);
           child.dispose();
           entry.phase =

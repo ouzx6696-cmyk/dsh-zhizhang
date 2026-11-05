@@ -765,3 +765,7 @@ small {
 .writer-desktop button.wb-button-ghost {
   background: transparent;
 }
+
+html[data-writer-desktop], html[data-writer-desktop] body, html[data-writer-desktop] #root { width: 100%; height: 100%; margin: 0; }
+html[data-writer-desktop] body { overflow: hidden; }
+.writer-desktop.wb-scope { width: 100%; min-width: 0; }

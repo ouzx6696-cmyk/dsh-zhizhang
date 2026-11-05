@@ -1,6 +1,6 @@
 import { assertCandidateFile } from "./storage/primitives.js";
 import { writingActivity } from "./dashboard-query.js";
-import { SCHEMA_VERSION } from "./types.js";
+import { type ChapterMeta, SCHEMA_VERSION } from "./types.js";
 /** Read models for tools and panel; never imported by persistence. */
 import path from "node:path";
 import { readChapterLenses } from "./storage/chapters.js";
@@ -29,14 +29,16 @@ function pathsFromWorkDir(dir: string) {
 }
 // —— § panel snapshot ——
 /** Display-only clip: snapshot/lens fields carry working text, not source of truth. */
-function capText(s: any, n: number) {
-    const t = String(s ?? "");
-    if (t.length <= n)
-        return t;
-    return `${Array.from(t).slice(0, n).join("")}…`;
+function capText(text: string, limit: number) {
+    let end = 0, count = 0;
+    for (const character of text) {
+        if (count++ === limit) return text.slice(0, end) + "…";
+        end += character.length;
+    }
+    return text;
 }
 /** Shared chapter projection for the workbench and planning overview. */
-async function chapterRows(dir: string, chapters: any[]) {
+async function chapterRows(dir: string, chapters: ChapterMeta[]) {
     const ordered = [...chapters].sort((a, b) => a.position - b.position);
     const lenses = await readChapterLenses(dir, ordered.map(chapter => chapter.id));
     return ordered.map((chapter, index) => {
@@ -81,7 +83,7 @@ async function readPanelWork(dir: string) {
         else if (chapter.status === 'planned') planned++;
         else drafted++;
     }
-    const revisionImpacts = Array.isArray(meta.revisionImpacts) ? meta.revisionImpacts : [];
+    const revisionImpacts = meta.revisionImpacts ?? [];
     const pendingCands = cands.filter((c) => c.pending);
     const pending = pendingCands.length;
     const multiDraftEnabledEarly = isMultiDraftEnabled();

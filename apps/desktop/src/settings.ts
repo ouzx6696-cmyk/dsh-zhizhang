@@ -1,9 +1,11 @@
+import type { SearchProvider, SearchMode } from "./network";
+import { DEFAULT_CONTEXT, parseContextSettings, type ContextSettings } from "./context-settings";
 import path from "node:path";
 import { atomicWrite, readText } from "../../../packages/core/src/fsx";
 import { defaultModels, normalizeModels, publicModels } from "./models";
 import { FONT_SIZE, type Appearance } from "./appearance";
 export type { Appearance } from "./appearance";
-import { parseAppearance, asRecord } from "./main/ipc/validate";
+import { parseAppearance, asRecord, parseChoice } from "./main/ipc/validate";
 import { Diagnostics } from "../../../packages/core/src/diagnostics";
 type Secrets = {
   available: () => boolean;
@@ -15,6 +17,9 @@ export class Settings {
   workspace = "";
   appearance: Appearance = { theme: "dark", font: "serif", fontSize: FONT_SIZE.default };
   searchKey = "";
+  searchProvider: SearchProvider = "exa";
+  searchMode: SearchMode = "lite";
+  context: ContextSettings = { ...DEFAULT_CONTEXT };
   notices: string[] = [];
   constructor(
     readonly home: string,
@@ -22,7 +27,8 @@ export class Settings {
   ) {}
   async readObject(file: string): Promise<Record<string, unknown>> {
     try {
-      const value = JSON.parse((await readText(path.join(this.home, file))) || "{}");
+      const text = await readText(path.join(this.home, file));
+      const value = text === undefined ? {} : JSON.parse(text);
       if (!value || typeof value !== "object" || Array.isArray(value))
         throw new Error("配置须为对象");
       return value;
@@ -38,6 +44,7 @@ export class Settings {
       if (ui.workspace !== undefined && typeof ui.workspace !== "string")
         throw new Error("写作根须为文本");
       this.workspace = ui.workspace ?? "";
+      if (ui.context !== undefined) this.context = parseContextSettings(ui.context);
       if (ui.appearance !== undefined)
         this.appearance = { ...this.appearance, ...parseAppearance(ui.appearance) };
     } catch (error) {
@@ -77,6 +84,14 @@ export class Settings {
       this.notices.push("模型配置无效，已恢复默认模型，请重新连接：" + String(error));
     }
     const search = await this.readObject("search.json");
+    this.searchProvider =
+      search.provider === undefined
+        ? search.secret
+          ? "tavily"
+          : "exa"
+        : parseChoice(search.provider, ["exa", "tavily"] as const);
+    this.searchMode =
+      search.mode === undefined ? "lite" : parseChoice(search.mode, ["lite", "auto"] as const);
     if (search.secret) {
       try {
         if (!this.secrets.available()) throw new Error("系统安全存储不可用");
@@ -93,7 +108,10 @@ export class Settings {
       models: publicModels(this.models),
       workspace: this.workspace,
       appearance: this.appearance,
+      searchProvider: this.searchProvider,
+      searchMode: this.searchMode,
       searchConfigured: !!this.searchKey,
+      context: this.context,
       secureStorage: this.secrets.available(),
     };
   }
@@ -117,23 +135,43 @@ export class Settings {
       ? ""
       : "系统安全存储不可用，Key 仅在本次运行中保留；下次启动需重新填写。";
   }
-  async saveUI(next: { workspace?: string; appearance?: Partial<Appearance> }) {
-    if (next.workspace !== undefined) this.workspace = next.workspace;
-    if (next.appearance) this.appearance = { ...this.appearance, ...next.appearance };
+  async saveUI(next: {
+    workspace?: string;
+    appearance?: Partial<Appearance>;
+    context?: ContextSettings;
+  }) {
+    const workspace = next.workspace ?? this.workspace;
+    const appearance = { ...this.appearance, ...next.appearance };
+    const context = next.context ?? this.context;
     await atomicWrite(
       path.join(this.home, "desktop.json"),
-      JSON.stringify({ workspace: this.workspace, appearance: this.appearance }, null, 2),
+      JSON.stringify({ workspace, appearance, context }, null, 2),
     );
+    this.workspace = workspace;
+    this.appearance = appearance;
+    this.context = context;
   }
-  async saveSearch(key: string) {
-    const value = key.trim();
+  async saveContext(context: ContextSettings) {
+    await this.saveUI({ context });
+  }
+  async saveSearch(
+    key: string | undefined,
+    provider = this.searchProvider,
+    mode = this.searchMode,
+  ) {
+    const value =
+      key === undefined ? (provider === this.searchProvider ? this.searchKey : "") : key.trim();
     await atomicWrite(
       path.join(this.home, "search.json"),
       JSON.stringify({
+        provider,
+        mode,
         secret: this.secrets.available() ? this.secrets.encrypt(value) : undefined,
       }),
     );
     this.searchKey = value;
+    this.searchProvider = provider;
+    this.searchMode = mode;
   }
   preferencesFile() {
     if (!this.workspace) throw new Error("请先选择统一写作根");

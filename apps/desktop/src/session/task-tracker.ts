@@ -12,6 +12,7 @@ export function createTask(): Task {
     completed: [],
     current: "准备",
     waiting: "",
+    usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     tokens: 0,
     cost: 0,
     startedAt: 0,
@@ -56,7 +57,7 @@ export function settleTask(
     },
   });
   if (error && primary) host.emit({ target: entry.target, error });
-  host.emit({ running: host.running() });
+  queueMicrotask(() => host.emit({ running: host.running() }));
   host.emit({ target: entry.target, refresh: true });
 }
 
@@ -66,13 +67,31 @@ export function trackSession(options: {
   role: "writer" | "editor" | "planner";
   onUserMessage?: () => void;
 }) {
-  const { host,entry,role }=options;
-  const {session,target}=entry;
-  const manager=session.sessionManager;
+  const { host, entry, role } = options;
+  const { session, target } = entry;
+  const manager = session.sessionManager;
   const primary = role === "writer",
     editor = role === "editor";
   const task = entry.task;
+  let requestId = "",
+    startedAt = 0;
+  let firstEventMs: number | undefined, firstTextMs: number | undefined;
   session.subscribe((event) => {
+    if (event.type === "turn_start") {
+      requestId = randomUUID();
+      startedAt = Date.now();
+      firstEventMs = undefined;
+      firstTextMs = undefined;
+    }
+    if (event.type === "message_update") {
+      if (firstEventMs === undefined && startedAt) firstEventMs = Date.now() - startedAt;
+      if (
+        event.assistantMessageEvent.type === "text_delta" &&
+        firstTextMs === undefined &&
+        startedAt
+      )
+        firstTextMs = Date.now() - startedAt;
+    }
     if (event.type === "message_end" && event.message.role === "user") {
       const content = event.message.content;
       const text =
@@ -84,6 +103,7 @@ export function trackSession(options: {
               .join("\n");
       const parsed = promptContext(text);
       entry.focus = parsed.context?.focus || {};
+      if (entry.profile !== parsed.context?.profile?.id) entry.methods.clear();
       entry.profile = parsed.context?.profile?.id;
       task.id = randomUUID();
       task.name = parsed.text.slice(0, 100);
@@ -92,6 +112,7 @@ export function trackSession(options: {
       task.completed = [];
       task.current = "读材料";
       task.waiting = "";
+      task.usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
       task.tokens = 0;
       task.cost = 0;
       options.onUserMessage?.();
@@ -100,8 +121,20 @@ export function trackSession(options: {
       task.tokens += event.message.usage.totalTokens || 0;
       task.cost += event.message.usage.cost.total || 0;
       const usage = event.message.usage;
+      task.usage.input += usage.input;
+      task.usage.output += usage.output;
+      task.usage.cacheRead += usage.cacheRead;
+      task.usage.cacheWrite += usage.cacheWrite;
       host.extras.log?.("model_usage", {
         role,
+        requestId,
+        startedAt,
+        firstEventMs,
+        firstTextMs,
+        durationMs: startedAt ? Date.now() - startedAt : undefined,
+        stopReason: event.message.stopReason,
+        taskId: task.id,
+        conversationId: manager.getSessionId(),
         model: event.message.model,
         provider: event.message.provider,
         input: usage.input,
@@ -110,6 +143,22 @@ export function trackSession(options: {
         cacheWrite: usage.cacheWrite,
         totalTokens: usage.totalTokens,
         cost: usage.cost.total,
+      });
+    }
+    if (event.type === "compaction_end") {
+      if (event.result) entry.methods.clear();
+      host.extras.log?.("context_compacted", {
+        conversationId: manager.getSessionId(),
+        taskId: task.id,
+        reason: event.reason,
+        aborted: event.aborted,
+        success: !!event.result,
+        tokensBefore: event.result?.tokensBefore,
+        input: event.result?.usage?.input,
+        output: event.result?.usage?.output,
+        cacheRead: event.result?.usage?.cacheRead,
+        cost: event.result?.usage?.cost.total,
+        error: event.errorMessage,
       });
     }
     if (event.type === "tool_execution_end" && !event.isError) {
@@ -122,8 +171,12 @@ export function trackSession(options: {
       const cancelled =
         event.aborted || (last?.role === "assistant" && last.stopReason === "aborted");
       const failure =
-        !cancelled && last?.role === "assistant" && last.stopReason === "error"
-          ? last.errorMessage || "模型请求失败，请检查连接后重试"
+        !cancelled &&
+        last?.role === "assistant" &&
+        (last.stopReason === "error" || last.stopReason === "length")
+          ? last.stopReason === "length"
+            ? "输出达到模型上限，任务未确认完成；请核对已保存内容后继续或调整输出预算"
+            : last.errorMessage || "模型请求失败，请检查连接后重试"
           : undefined;
       settleTask(host, entry, {
         reason: cancelled ? "cancelled" : failure ? "failed" : "done",
@@ -170,9 +223,13 @@ export function trackSession(options: {
     if (event.type === "message_end") queueMicrotask(forward);
     else forward();
     if (
-      ["agent_start", "tool_execution_start", "compaction_start", "auto_retry_start"].includes(
-        event.type,
-      )
+      [
+        "agent_start",
+        "tool_execution_start",
+        "compaction_start",
+        "compaction_end",
+        "auto_retry_start",
+      ].includes(event.type)
     )
       host.emit({ running: host.running() });
   });

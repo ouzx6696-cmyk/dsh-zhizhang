@@ -2,9 +2,8 @@ import { migrateSessionHistory } from "./migration";
 import { DEFAULT_HISTORY_LIMIT } from "../history-options";
 import path from "node:path";
 import { rootIdentity } from "../../../../packages/core/src/identity";
-import { createHash } from "node:crypto";
 import { access, mkdir, rm } from "node:fs/promises";
-import { atomicWrite } from "../../../../packages/core/src/fsx";
+import { atomicWrite, sha256 } from "../../../../packages/core/src/fsx";
 import type { Focus, Target } from "../context";
 import type { DesktopEvent, WriterMessage } from "../renderer-contracts";
 import type { ModelSettings } from "../models";
@@ -30,6 +29,7 @@ export class Sessions {
     SessionManager,
     { leaf: string | null; limit: number; messages: WriterMessage[]; total: number }
   >();
+  compactions = new Set<string>();
   preparations = new Map<symbol, { target: Target; focus: Focus; generation: number }>();
   generations = new Map<string, number>();
   historyCache: HistoryCache = new Map();
@@ -77,10 +77,12 @@ export class Sessions {
     return this.key(a) === this.key(b);
   }
   isRunning(target: Target) {
+    const key = this.key(target);
     return (
+      this.compactions.has(key) ||
       this.preparing(target) ||
-      this.opening.has(this.key(target)) ||
-      this.running().some((row) => this.same(row.target, target))
+      this.opening.has(key) ||
+      this.sessions.get(key)?.session.isIdle === false
     );
   }
   async initialize(target: Target) {
@@ -92,17 +94,14 @@ export class Sessions {
   }
 
   key(target: Target) {
-    return createHash("sha256")
-      .update(
-        JSON.stringify({
-          mode: target.mode,
-          root: rootIdentity(target.root),
-          ...(target.article ? { article: target.article } : {}),
-          ...(target.work ? { work: target.work } : {}),
-        }),
-      )
-      .digest("hex")
-      .slice(0, 24);
+    return sha256(
+      JSON.stringify({
+        mode: target.mode,
+        root: rootIdentity(target.root),
+        ...(target.article ? { article: target.article } : {}),
+        ...(target.work ? { work: target.work } : {}),
+      }),
+    ).slice(0, 24);
   }
 
   async directory(target: Target) {
@@ -179,7 +178,12 @@ export class Sessions {
 
   running() {
     return [...this.sessions.values()]
-      .filter((entry) => !entry.session.isIdle || this.preparing(entry.target))
+      .filter(
+        (entry) =>
+          !entry.session.isIdle ||
+          this.preparing(entry.target) ||
+          this.compactions.has(this.key(entry.target)),
+      )
       .map((entry) => ({
         target: entry.target,
         focus: entry.focus,
@@ -207,6 +211,27 @@ export class Sessions {
       this.generations.set(key, (this.generations.get(key) || 0) + 1);
       entry?.session.dispose();
       this.sessions.delete(key);
+    }
+  }
+
+  async compact(target: Target, instructions: string) {
+    const key = this.key(target),
+      generation = this.generations.get(key) || 0;
+    if (this.isRunning(target)) throw new Error("请先等待当前任务结束或停止任务，再压缩上下文");
+    this.compactions.add(key);
+    try {
+      const history = await this.view(target);
+      if (history.total === 0) throw new Error("当前历史较短或没有对话，暂无可压缩内容");
+      const session = await this.open(target);
+      if ((this.generations.get(key) || 0) !== generation) throw new Error("压缩已取消");
+      if (!session.isIdle || session.pendingMessageCount) throw new Error("当前会话尚未空闲");
+      return await session.compact(
+        "保留作者限制、已确定事实、完成与待办事项、文件和章节标识、已读方法与来源。摘要不代替最新版本依据。\n" +
+          instructions,
+      );
+    } finally {
+      this.compactions.delete(key);
+      this.emit({ running: this.running() });
     }
   }
 

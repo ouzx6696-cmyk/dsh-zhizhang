@@ -1,3 +1,4 @@
+import { DEFAULT_CONTEXT, compactionSettings } from "../context-settings";
 import path from "node:path";
 import { access, mkdir, readFile } from "node:fs/promises";
 import { atomicWrite } from "../../../../packages/core/src/fsx";
@@ -38,7 +39,6 @@ export async function createSession(
   const primary = role === "writer";
   const target = { ...targetInput };
   const key = host.key(target);
-  if (primary && host.sessions.has(key)) return host.sessions.get(key)!.session;
   const dir = await host.directory(target);
   await mkdir(dir, { recursive: true });
   let manager = SessionManager.inMemory(target.root);
@@ -74,7 +74,7 @@ export async function createSession(
     target.mode === "toutiao" ? toutiaoGateRules(config) : fanqieGateRules(config, role),
     { requireApproval: true },
   );
-  let definitions: WriterToolDefinition[] =
+  const definitions: WriterToolDefinition[] =
     target.mode === "toutiao"
       ? await createToutiaoTools({ config, role: role, gates: () => gates })
       : [
@@ -104,9 +104,11 @@ export async function createSession(
   ];
   if (primary)
     customTools.push(...createDelegateTools({ host, target, manager, getEntry, getSession }));
-  customTools.push(...createSourceTools({ host, target, readUrls }));
+  customTools.push(...createSourceTools({ host, target, readUrls, taskId: () => task.id }));
+  const models = host.settings();
+  const settings = role === "planner" ? models.planner ?? models.writer : models[role];
   const settingsManager = SettingsManager.inMemory({
-    compaction: { enabled: true },
+    compaction: compactionSettings(host.extras.context?.() ?? DEFAULT_CONTEXT, settings.contextWindow, settings.maxTokens),
     retry: { enabled: true },
     cacheWarming: "streaming",
   });
@@ -123,8 +125,6 @@ export async function createSession(
     appendSystemPromptOverride: () => [],
   });
   await loader.reload();
-  const models = host.settings();
-  const settings = (role === "planner" ? models.planner || models.writer : models[role])!;
   if (!settings.apiKey && !settings.keyless)
     throw new Error(`请先设置${role === "editor" ? "编辑" : "写手"}模型的 API Key`);
   const { runtime, model } = await runtimeModel(
@@ -145,7 +145,7 @@ export async function createSession(
     customTools,
   }));
   session.agent.toolExecution = "sequential";
-  entry = { session, target, focus: {}, phase: "", task };
+  entry = { session, target, focus: {}, phase: "", task, methods: new Map() };
   trackSession({
     host,
     entry,

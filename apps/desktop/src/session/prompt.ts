@@ -15,7 +15,7 @@ import { buildFanqieBrief, FANQIE_EDITOR_BRIEF } from "../../../../packages/fanq
 import type { Sessions } from "./manager";
 
 const CLIENT_NOTICE =
-  "【独立客户端调用说明】当前模式与角色已启用，不调用 writer_enable。任务开头的 writer-context 是发送时的对象与已保存状态。它不是完整阅读凭据，版本变化时重读。主会话需要规划或拆书时使用 writer_plan。按任务用既有工具读取必要规划、前章和正文；压缩摘要不代替作品事实。作者切页不改变本次任务。";
+  "【独立客户端调用说明】当前模式与角色已启用，不调用 writer_enable。任务开头的 writer-context 是发送时的对象与已保存状态。它不是完整阅读凭据，版本变化时重读。主会话需要规划或拆书时使用 writer_plan。按任务用既有工具读取必要规划、前章和正文；压缩摘要不代替作品事实。作者切页不改变本次任务。作者明确限定素材时，立项卡、标题和正文都不得添加未提供的事实或合成人物；方法中的示范不是本次素材。局部修改必须保留范围外原文，字数和修改范围以实际保存结果核对，不满足时如实说明。工具报告过期依据或版本冲突时，重新读取当前版本并重建候选，不重复提交同一失败参数。";
 
 export async function systemPrompt(
   target: Target,
