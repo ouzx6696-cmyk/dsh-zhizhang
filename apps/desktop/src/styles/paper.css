@@ -1,4 +1,4 @@
-/* 稿纸与长篇正文区。 */
+/* 稿纸与长篇正文区。本文件是宿主壳对 .wb-reader/.wb-manuscript/.wb-split 的唯一覆盖处。 */
 .studio-paper-column {
   overflow-y: auto;
   min-width: 0;

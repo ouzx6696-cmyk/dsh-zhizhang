@@ -19,8 +19,9 @@
   border-radius: var(--wb-r-panel);
   background: canvas;
   color: var(--wb-fg);
-  box-shadow: 0 0 0 0.5px var(--wb-line-strong);
+  box-shadow: var(--wb-shadow-2);
   font: var(--ui-size-14)/var(--ui-size-22) var(--ui-font-ui);
+  animation: wb-modal-in 220ms var(--wb-ease);
 }
 .wb-modal-content {
   padding: 24px 24px 8px;
@@ -71,9 +72,10 @@
   border-top-color: currentColor;
   animation: wb-spin 700ms linear infinite;
 }
-.wb-modal {
-  animation: wb-modal-in 220ms var(--wb-ease);
-  box-shadow: var(--wb-shadow-2);
+/* 宿主 ui-dialog 内嵌 wb-modal 时的口径（原在 ui/components.css，前缀归属本文件）。 */
+.ui-dialog.wb-modal {
+  padding: 0;
+  max-height: calc(100dvh - 32px);
 }
 .wb-toasts {
   position: fixed;

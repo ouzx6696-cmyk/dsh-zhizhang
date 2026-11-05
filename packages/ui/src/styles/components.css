@@ -215,10 +215,6 @@
   width: 620px;
   padding: 16px;
 }
-.ui-dialog.wb-modal {
-  padding: 0;
-  max-height: calc(100dvh - 32px);
-}
 .ui-dialog .command-list {
   display: grid;
   gap: 6px;

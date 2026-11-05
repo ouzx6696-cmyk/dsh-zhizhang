@@ -54,3 +54,139 @@
 .wb-pipeline-body {
   animation: wb-enter 260ms var(--wb-ease);
 }
+
+.wb-dashboard {
+  padding: 28px 0;
+  display: grid;
+  gap: 20px;
+}
+.wb-dashboard h1 {
+  font: 600 var(--ui-size-26)/1.4 var(--ui-font-body);
+  color: var(--ui-title);
+  margin: 0;
+}
+.wb-dashboard-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+.wb-dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 20px;
+}
+.wb-dashboard-bars {
+  height: 140px;
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  margin-top: 24px;
+}
+.wb-dashboard-bar {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: end;
+  gap: 8px;
+}
+.wb-dashboard-bar i {
+  width: 100%;
+  max-width: 36px;
+  background: var(--ui-primary-fill);
+  border-radius: 5px 5px 0 0;
+  min-height: 2px;
+}
+.wb-dashboard-bar small {
+  font-size: var(--ui-size-12);
+}
+.wb-dashboard-progress {
+  display: flex;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--ui-fill-strong);
+  margin: 18px 0;
+}
+.wb-dashboard-progress > span {
+  background: var(--ui-success);
+}
+.wb-dashboard-progress > span + span {
+  background: var(--ui-accent);
+}
+.wb-dashboard-next {
+  display: grid;
+  gap: 12px;
+}
+.wb-dashboard-next > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+@media (max-width: 1100px) {
+  .wb-dashboard-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 1100px) {
+  .wb-dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.wb-callout[data-tone="warning"] ~ .wb-callout[data-tone="warning"] {
+  background: transparent;
+  border-color: transparent;
+  color: var(--ui-text-2);
+}
+.wb-callout {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: var(--wb-r-md);
+  background: var(--wb-accent-soft);
+  color: var(--wb-fg);
+  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
+}
+.wb-callout > .wb-icon {
+  margin-top: 3px;
+}
+.wb-callout[data-tone="success"] {
+  background: var(--wb-ok-soft);
+}
+.wb-callout[data-tone="warning"] {
+  background: var(--wb-warn-soft);
+}
+.wb-callout[data-tone="warning"] > .wb-icon {
+  color: var(--wb-warn);
+}
+.wb-callout[data-tone="danger"] {
+  background: var(--wb-bad-soft);
+  color: var(--wb-bad);
+}
+.wb-callout-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.wb-callout-close {
+  margin: -4px -6px -4px 0;
+  width: 24px;
+  height: 24px;
+}
+.wb-callout-detail {
+  margin-top: 4px;
+}
+.wb-callout-detail > summary {
+  cursor: pointer;
+  color: var(--wb-fg-3);
+}
+.wb-callout-detail > div {
+  margin-top: 6px;
+  color: var(--wb-fg-2);
+  max-height: 240px;
+  overflow: auto;
+}
