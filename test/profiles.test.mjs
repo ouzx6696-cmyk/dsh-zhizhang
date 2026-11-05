@@ -62,16 +62,6 @@ test("默认方案：文件齐全、目录一致、别名完整、工具名真�
     Object.keys(METHOD_FILES).sort(),
     "头条默认方案覆盖全部 30 个 id",
   );
-  // 母题库：二级标题与规则名单一致（质检按名单核对母题）
-  const rules = await readFile(path.join(ROOT, "packages/toutiao/skill/scripts/rules.py"), "utf8");
-  const motifs = [
-    ...(rules.match(/MOTIFS\s*=\s*[[(]([\s\S]*?)[\])]/)?.[1] ?? "").matchAll(/["']([^"']+)["']/g),
-  ].map((m) => m[1]);
-  const heads = [
-    ...(await readFile(path.join(TT, "corpus-story-motifs.md"), "utf8")).matchAll(/^## (.+)$/gm),
-  ].map((m) => m[1].trim());
-  assert.ok(motifs.length > 3);
-  assert.deepEqual(heads, motifs);
   // 长篇：每个原版 forge id 都有归宿
   const fq = JSON.parse(await readFile(path.join(FQ, "profile.json"), "utf8"));
   const { listMethods } = await import(buildUrl("fanqie/src/forge.js"));

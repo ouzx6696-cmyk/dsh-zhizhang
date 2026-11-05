@@ -8,7 +8,7 @@
 bad.md（AI 腔稿）、micro_good.md（微头条）、long_good.md（资讯线长图文实机稿）、
 story_long_good.md + story_long_card.json（故事线长图文：精卫填海 + 别国同母题延伸）。
 """
-import json, os, re, subprocess, sys, tempfile, unittest
+import atexit, json, os, re, shutil, subprocess, sys, tempfile, unittest
 import importlib.util as _ilu
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -365,6 +365,7 @@ rtn, ctn, _ = run(GOOD, title="35元的外卖商家只到手6.08元：这笔账�
 check("标题数字正文没出现 → 硬闸", "标题数字正文没接住" in rtn["hard_gates"] and ctn == 1, rtn["hard_gates"])
 
 tmpd = tempfile.mkdtemp()
+atexit.register(shutil.rmtree, tmpd, ignore_errors=True)
 _card_n = [0]
 def _card(**kw):
     c = json.loads(json.dumps(_brief)); c.update(kw)

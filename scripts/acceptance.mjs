@@ -321,8 +321,10 @@ if (!process.argv.includes("--run")) {
 }
 const configFile = flag("--config");
 if (!configFile) throw new Error("真实验收须显式提供 --config");
-if ((await list(path.join(output, "default"))).length)
-  throw new Error("输出目录已有验收作品，请使用新的 --output，避免混入旧记录");
+for (const scope of ["default", "original"]) {
+  if ((await list(path.join(output, scope))).length)
+    throw new Error(`输出目录已有验收作品（${scope}），请使用新的 --output，避免混入旧记录`);
+}
 const config = JSON.parse(await readFile(path.resolve(configFile), "utf8"));
 if (!Array.isArray(config.newsUrls) || config.newsUrls.length < 2)
   throw new Error("请提供至少两个真实新闻链接");

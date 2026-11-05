@@ -8,7 +8,7 @@
       "kind": "upstream",
       "version": "4.0.0",
       "files": 44,
-      "bytes": 338719,
+      "bytes": 338792,
       "loadable": 30,
       "byKind": {
         "meta": 1,
@@ -503,8 +503,8 @@
       "kind": "test",
       "origin": "patched",
       "path": "packages/toutiao/skill/tests/test_gates.py",
-      "bytes": 48002,
-      "sha256": "ab68af757fce456c4ee02d6d5623c4387892d8da86070aefc602b752e401758f"
+      "bytes": 48075,
+      "sha256": "9e91f7caf5079e651aedf93d70586888f0b64f0b153f04768fef152e4bb407ec"
     },
     {
       "source": "inspiration-forge-suite",
