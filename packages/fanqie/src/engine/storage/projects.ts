@@ -256,7 +256,8 @@ export async function listProjects(opts: { ttl?: number; refresh?: boolean } = {
       let existsFlag = false;
       try {
         existsFlag = (await stat(worksDir)).isDirectory();
-      } catch {
+      } catch (error) {
+        if (!isMissingFileError(error)) throw error;
         existsFlag = false;
       }
       let works: Awaited<ReturnType<typeof listWorks>> = [];

@@ -8,7 +8,7 @@
       "kind": "upstream",
       "version": "4.0.0",
       "files": 44,
-      "bytes": 338597,
+      "bytes": 338719,
       "loadable": 30,
       "byKind": {
         "meta": 1,
@@ -387,8 +387,8 @@
       "kind": "rule",
       "origin": "upstream",
       "path": "packages/toutiao/skill/scripts/fetch_hot.py",
-      "bytes": 15283,
-      "sha256": "65d2dfceb1057c2b0e6cebe115de2a5befa327b0343c5f77764a18aff5400e70"
+      "bytes": 15405,
+      "sha256": "2377ff60561e7a8f3abb0d2d986ad6ecbfdd21434244f5f9401e7d8b93832b7b"
     },
     {
       "source": "toutiao-viral-writer",

@@ -7,7 +7,7 @@ import type { LibraryIndex, CardIndexRow, CardFilter, TechniqueCard } from './ty
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { atomicWrite, assertResourceId } from "../../storage/primitives.js";
-import { listDir, exists as fileExists } from "../../../../../core/src/fsx.js";
+import { listDir, exists as fileExists, isMissingFileError } from "../../../../../core/src/fsx.js";
 import { withResourceLock } from "../../storage/process-lock.js";
 import { assertNoPendingCard } from "../../storage/card-journal.js";
 import { coerceAxis, coerceHumanFeel } from "./schema.js";
@@ -42,8 +42,8 @@ export async function readIndex(paths: StoragePaths):Promise<LibraryIndex> {
         }
         return { ...raw, schemaVersion: raw.schemaVersion ?? 1, sources: raw.sources, cards: raw.cards };
     }
-    catch (err: any) {
-        if (err?.code === "ENOENT") {
+    catch (err) {
+        if (isMissingFileError(err)) {
             const dirs = libraryDirs(paths);
             const entries = await Promise.all([dirs.sources, dirs.cards, dirs.candidates, path.join(dirs.root, 'analyses')].map(listDir));
             if (entries.some(files => files.length > 0))

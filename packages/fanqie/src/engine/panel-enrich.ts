@@ -14,6 +14,7 @@ import { Scheduler } from "./ports/scheduler.js";
 import { readPlanning } from "./domain/planning.js";
 import { assertNoPendingInspiration } from "./storage/inspiration-journal.js";
 import { listLocalBooks } from "./work-store.js";
+import { isMissingFileError } from "../../../core/src/fsx.js";
 import type { Foundation, StoragePaths } from "./types.js";
 function foundationFilledFields(f: Foundation) {
     const keys = [
@@ -62,7 +63,9 @@ export async function buildLibraryView(paths: StoragePaths) {
             const titles = new Set(sources.map((s) => s.title));
             pending = local.filter((b) => !titles.has(b.title));
         }
-        catch {
+        catch (error) {
+            // 拆书根目录未建时面板显示「无待导入」；其余 IO 故障照常抛出。
+            if (!isMissingFileError(error)) throw error;
             pending = [];
         }
     }

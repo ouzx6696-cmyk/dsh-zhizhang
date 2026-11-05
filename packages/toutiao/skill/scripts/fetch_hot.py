@@ -137,7 +137,7 @@ def douyin():
                 "https://www.douyin.com/aweme/v1/web/hot/search/list/"):
         try:
             j = get(url, referer="https://www.douyin.com/")
-        except Exception:
+        except (OSError, ValueError):  # allow-catch: 备用热榜接口常空包或限流，逐个探测下一个；只放行网络与解析错误
             continue
         words = j.get("word_list") or (j.get("data", {}) or {}).get("word_list") or []
         if words: break

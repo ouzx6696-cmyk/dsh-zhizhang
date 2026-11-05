@@ -1,4 +1,5 @@
 import { WriterError } from "../../../core/src/tool.js";
+import { errorText } from "../../../core/src/errors.js";
 /** User/agent-facing errors: Chinese message only, never stack traces. */
 export class NovelError extends Error {
     code;
@@ -19,6 +20,6 @@ export function formatToolError(err: unknown) {
     return `错误：${String(err).slice(0, 200)}`;
 }
 
-export function toErrorResult(error:unknown,fallback:string) {
-    return {ok:false as const,code:error instanceof NovelError || error instanceof WriterError?error.code:fallback,error:error instanceof Error?error.message:String(error)};
+export function toErrorResult(error: NovelError | WriterError) {
+    return {ok:false as const, code:error.code, error:errorText(error)};
 }

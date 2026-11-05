@@ -1,5 +1,6 @@
 /** Cooperative filesystem lock for writers in different processes sharing a resource. */
 import { assertWorkspaceWritable } from "../../../../core/src/workspace-lock.js";
+import { errorText } from "../../../../core/src/errors.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import { mkdir, open, readFile, realpath, rmdir, unlink } from "node:fs/promises";
@@ -54,12 +55,12 @@ export async function withResourceLock<T>(root: string, fn: () => Promise<T>): P
         finally {
             let current: any;
             try { current = JSON.parse(await readFile(ownerFile, "utf8")); }
-            catch { throw new NovelError("resource_lock_invalid", `锁记录不可读，已保留 ${dir}，请人工核对。`); }
+            catch (error) { throw new NovelError("resource_lock_invalid", `锁记录不可读，已保留 ${dir}，请人工核对。（${errorText(error)}）`); }
             if (current.id !== owner.id)
                 throw new NovelError("resource_lock_invalid", `锁所有权变化，已保留 ${dir}，请人工核对。`);
             await unlink(ownerFile);
             try { await rmdir(dir); }
-            catch { throw new NovelError("resource_lock_invalid", `锁目录未能移除：${dir}，请人工核对。`); }
+            catch (error) { throw new NovelError("resource_lock_invalid", `锁目录未能移除：${dir}，请人工核对。（${errorText(error)}）`); }
         }
     });
 }

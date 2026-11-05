@@ -15,6 +15,7 @@ import {
 } from "../ports/index.js";
 import { getPortConfig } from "../ports/config.js";
 import { NovelError, toErrorResult } from "../errors.js";
+import { WriterError } from "../../../../core/src/tool.js";
 import { fingerprint } from "../domain/lifecycle.js";
 import { resolvePrevBody } from "./chapter-context.js";
 export interface AcceptInput {
@@ -84,7 +85,9 @@ export async function runAccept(input: AcceptInput) {
       },
     });
   } catch (error) {
-    return toErrorResult(error, "accept_failed");
+    // 只有领域错误映射为结果码；未知错误向上抛给路由层，避免误标。
+    if (!(error instanceof NovelError || error instanceof WriterError)) throw error;
+    return toErrorResult(error);
   }
   const state = saved.stateUpdate;
   const receipt = [

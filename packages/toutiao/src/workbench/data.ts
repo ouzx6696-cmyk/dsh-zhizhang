@@ -8,6 +8,7 @@
 import { snapshotFiles } from "../../../core/src/snapshots.js"
 import path from 'node:path'
 import { readText } from '../../../core/src/fsx.js'
+import { errorText } from '../../../core/src/errors.js'
 import { WriterError } from '../../../core/src/tool.js'
 import { listKnownRoots, type ToutiaoConfig } from '../env.js'
 import { ArticleStore, MAX_RETURN_ROUNDS, nowIso, STATUSES, type ArticleMeta } from '../store.js'
@@ -98,7 +99,7 @@ export async function saveAuthorDraft(rootIn: string, id: string, text: string, 
   const store = new ArticleStore(root)
   const m = await store.stageDraft(id, clean, 'author', '作者在写作台保存', expected)
   let warning: string | undefined
-  await syncLedgerStatus(config, store, m).catch(() => { warning = "正文已保存，台账状态未能同步，请稍后核对台账。" })
+  await syncLedgerStatus(config, store, m).catch((error: unknown) => { warning = `正文已保存，台账状态未能同步（${errorText(error)}），请稍后核对台账。` })
   const cur = store.currentDraft(m)
   return { rev: m.current_rev, status: m.status, chars: cur?.chars ?? 0, sha256: cur?.sha256, ...(warning ? { warning } : {}) }
 }

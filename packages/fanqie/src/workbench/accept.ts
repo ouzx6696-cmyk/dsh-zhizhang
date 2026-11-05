@@ -1,6 +1,7 @@
 import { resolveWorkDir } from "../engine/work-store.js";
 import { runAccept, type AcceptInput } from "../engine/services/accept.js";
-import { toErrorResult } from "../engine/errors.js";
+import { toErrorResult, NovelError } from "../engine/errors.js";
+import { WriterError } from "../../../core/src/tool.js";
 import type { StoragePaths } from "../engine/types.js";
 type PanelAcceptInput = Omit<AcceptInput, "paths" | "dir" | "workKey" | "candidateId" | "panel"> & {
   work: string;
@@ -29,6 +30,8 @@ export async function runPanelAccept(paths: StoragePaths, req: PanelAcceptInput)
       panel: true,
     });
   } catch (error) {
-    return toErrorResult(error, "work_not_found");
+    // 只有领域错误映射为结果码；磁盘故障等未知错误抛给 sendError，避免伪装成「作品不存在」。
+    if (!(error instanceof NovelError || error instanceof WriterError)) throw error;
+    return toErrorResult(error);
   }
 }

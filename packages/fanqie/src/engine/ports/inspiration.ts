@@ -1,6 +1,7 @@
 import type { StartInspirationInput, AcceptEmissionInput, StageEmissionInput, CardSelection } from './inspiration-input.js';
 import { readInspirationBindings } from "../storage/inspiration-migration.js";
 import { nowIso, shortId as newId, exists as fileExists, isMissingFileError } from "../../../../core/src/fsx.js";
+import { errorText } from "../../../../core/src/errors.js";
 import { readReference } from "../services/reference.js";
 import { fingerprint } from "../domain/lifecycle.js";
 import { withResourceLock } from "../storage/process-lock.js";
@@ -138,8 +139,8 @@ export const InspirationPort = {
                     updatedAt: s.updatedAt,
                 };
             }
-            catch {
-                throw new NovelError("bad_inspiration_session", `灵感会话 ${name} 不可读，请核对原文件。`);
+            catch (error) {
+                throw new NovelError("bad_inspiration_session", `灵感会话 ${name} 不可读，请核对原文件。原因：${errorText(error)}`);
             }
         }));
         rows.sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));

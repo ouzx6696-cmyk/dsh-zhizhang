@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 import { atomicWrite } from "../../storage/primitives.js";
 import type { StoragePaths } from "../../types.js";
 import { NovelError } from "../../errors.js";
+import { isMissingFileError } from "../../../../../core/src/fsx.js";
 import { withResourceLock } from "../../storage/process-lock.js";
 import { assertNoPendingCard } from "../../storage/card-journal.js";
 import { snapshotFile } from "../../storage/journal.js";
@@ -192,9 +193,9 @@ export async function readPlan(paths: StoragePaths, sourceId: string):Promise<An
     try {
         return JSON.parse(await readFile(f.json, "utf8"));
     }
-    catch (err: any) {
-        if (err?.code === "ENOENT") return null;
-        throw err;
+    catch (err) {
+        if (!isMissingFileError(err)) throw err;
+        return null;
     }
     });
 }
@@ -253,9 +254,9 @@ async function readPendingConfirm(paths: StoragePaths, sourceId: string) {
     try {
         return JSON.parse(await readFile(f.pending, "utf8"));
     }
-    catch (err: any) {
-        if (err?.code === "ENOENT") return null;
-        throw err;
+    catch (err) {
+        if (!isMissingFileError(err)) throw err;
+        return null;
     }
 }
 

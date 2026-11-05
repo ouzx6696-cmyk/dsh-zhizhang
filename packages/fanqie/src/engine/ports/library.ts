@@ -2,7 +2,8 @@ import { parseSourceMeta } from "./library/input.js";
 import type { SourceMeta } from "./library/types.js";
 import type { ImportSourceInput, StageCardInput, CardFilter, ComboInput, TechniqueCard } from './library/types.js';
 import { dissectBatchHeader, dissectBriefHeader } from '../method-templates.js';
-import { sha256 } from "../../../../core/src/fsx.js";
+import { sha256, isMissingFileError } from "../../../../core/src/fsx.js";
+import { errorText } from "../../../../core/src/errors.js";
 /**
  * LibraryPort — 拆书库支柱（live）。
  * User submits a novel → dissect brief → AI stages cards → explicit accept → searchable.
@@ -69,8 +70,8 @@ async function getSourceCached(paths: StoragePaths, sourceId: string) {
     try {
         st = await stat(textPath);
     }
-    catch (err: any) {
-        if (err?.code === "ENOENT") throw new NovelError("source_not_found", `书源正文缺失：${id}；请检查并保留已有文件。`);
+    catch (err) {
+        if (isMissingFileError(err)) throw new NovelError("source_not_found", `书源正文缺失：${id}；请检查并保留已有文件。`);
         throw err;
     }
     const hit = sourceCache.get(textPath);
@@ -152,7 +153,7 @@ export const LibraryPort = {
             const managed = [d.sources, d.cards, d.candidates, path.join(d.root, "analyses")];
             const contents = await Promise.all(managed.map(async (dir) => {
                 try { return await readdir(dir); }
-                catch (err: any) { if (err?.code === "ENOENT") return []; throw err; }
+                catch (err) { if (!isMissingFileError(err)) throw err; return []; }
             }));
             if (contents.some((items) => items.length > 0) && !(await fileExists(d.index)))
                 throw new NovelError("library_index_missing", "拆书库索引缺失但目录中仍有资产；请保留原文件并检查，不自动创建空索引。");
@@ -185,8 +186,8 @@ export const LibraryPort = {
             try {
                 buf = await readFile(filePath);
             }
-            catch {
-                throw new NovelError("file_read_failed", `无法读取文件：${input.file}（已尝试路径：${filePath}）`);
+            catch (error) {
+                throw new NovelError("file_read_failed", `无法读取文件：${input.file}（已尝试路径：${filePath}；${errorText(error)}）`);
             }
             const decoded = decodeBookBuffer(buf);
             text = decoded.text;
@@ -843,10 +844,11 @@ export const LibraryPort = {
                     const src = await LibraryPort.getSourceIndexed(paths, card.sourceId);
                     entry = { text: src.text, norm: normForMatch(src.text), index: src.index };
                 }
-                catch {
-                    // source 缺失：引文一律记为未命中
-                    entry = { text: "", norm: normForMatch(""), index: [] };
-                }
+            catch (error) {
+                if (!isMissingFileError(error)) throw error;
+                // source 缺失：引文一律记为未命中
+                entry = { text: "", norm: normForMatch(""), index: [] };
+            }
                 srcCache.set(card.sourceId, entry);
             }
             if (card.schemaVersion === 2 || card.layer) {

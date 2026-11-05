@@ -6,6 +6,7 @@ import { readJsonCached, readJsonlCached } from "../../file-cache.js";
 import type { StoragePaths } from "../../types.js";
 
 import { assertSourceId } from "../../storage/primitives.js";
+import { isMissingFileError } from "../../../../../core/src/fsx.js";
 export { assertSourceId } from "../../storage/primitives.js";
 
 export { nowIso } from "../../storage/primitives.js";
@@ -30,9 +31,9 @@ export async function readJson(file: string, fallback: any) {
         // mtime 缓存：分析 bundle 在面板轮询里被反复整读，未变时直接命中。
         return await readJsonCached(file);
     }
-    catch (err: any) {
-        if (err?.code === "ENOENT") return fallback;
-        throw err;
+    catch (err) {
+        if (!isMissingFileError(err)) throw err;
+        return fallback;
     }
 }
 
