@@ -20,7 +20,7 @@ export const outlineSet = defineTool({
   async execute(args, exec) {
     const chapterId = asString(args, "chapter", { required: true });
     const { dir } = await openWork(exec, args);
-    const patch: Record<string, any> = {};
+    const patch: Record<string, unknown> = {};
     for (const key of Object.keys(OUTLINE_PROPS)) {
       if (args[key] === undefined || args[key] === null) continue;
       if (key === "targetWords") {

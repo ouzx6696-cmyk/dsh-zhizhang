@@ -56,27 +56,27 @@ export const StyleLinterPort = {
   },
 };
 export const PayoffAuditorPort = {
-  audit(outline: any, body: string, opts: any) {
+  audit(outline: Partial<import("../types.js").Outline>, body: string, opts: { premise?: string; lexicon?: string[]; title?: string }) {
     return auditPayoff(outline, body, opts);
   },
-  format(label: string, result: any) {
+  format(label: string, result: ReturnType<typeof auditPayoff>) {
     return formatPayoffAudit(label, result);
   },
 };
 export const HumanFeelAuditorPort = {
   /** Pass craftCue so stiffness_tidy matches Accept (shatter cues from craft cards). */
-  audit(text: string, opts: any) {
+  audit(text: string, opts: { craftCue?: string }) {
     return auditHumanFeel(text, opts);
   },
-  format(label: string, result: any) {
+  format(label: string, result: ReturnType<typeof auditHumanFeel>) {
     return formatHumanFeelAudit(label, result);
   },
 };
 export const NovelSenseAuditorPort = {
-  audit(text: string, opts: any) {
+  audit(text: string, opts: { prevBody?: string | null }) {
     return auditNovelSense(text, opts);
   },
-  format(label: string, result: any) {
+  format(label: string, result: ReturnType<typeof auditNovelSense>) {
     return formatNovelSenseAudit(label, result);
   },
 };

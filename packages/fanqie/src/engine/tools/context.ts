@@ -7,17 +7,17 @@ export { asObject, asString, asStringArray, boolArg } from "../parse.js";
  */
 import { claimWorkspace } from "../../../../core/src/workspace-lock.js";
 import { NovelError } from "../errors.js";
-import type { ExecContext, OpenWorkContext } from "../types.js";
+import type { OpenWorkContext } from "../types.js";
 import { ensureStorage } from "../storage/paths.js";
 import { listWorks } from "../storage/projects.js";
 import { readWorkMeta } from "../storage/work-meta.js";
 import { resolveWorkDir } from "../work-store.js";
 const lastWorkBySession = new Map<string, string>();
 const MAX_SESSIONS = 500;
-function sessionKey(exec: ExecContext) {
+function sessionKey(exec: OpenWorkContext) {
   return exec.sessionId ?? "default";
 }
-export function rememberWork(exec: ExecContext, key: string) {
+export function rememberWork(exec: OpenWorkContext, key: string) {
   const sk = `${sessionKey(exec)}:${JSON.stringify(config)}`;
   lastWorkBySession.delete(sk);
   lastWorkBySession.set(sk, key);
@@ -36,8 +36,8 @@ export function fail(message: string, code: string = "bad_args"): never {
  * 与 asString 保持同一口径：类型不对就硬拒，绝不静默降级成空数组——
  * 静默降级会让调用方拿到"没卡/没结果"的正常回执，排查成本极高。
  */
-export function asArray(args: any, key: string, opts: any = {}) {
-  const value = args?.[key];
+export function asArray(args: Record<string, unknown>, key: string, opts: { required?: boolean; kind?: string } = {}) {
+  const value = args[key];
   if (value === undefined || value === null) {
     if (opts.required) fail(`参数 ${key} 必填`);
     return undefined;

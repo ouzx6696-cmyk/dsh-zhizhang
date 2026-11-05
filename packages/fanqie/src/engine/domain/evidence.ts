@@ -30,7 +30,7 @@ function extractBodyQuotes(body: unknown): { quote: string; strict: boolean }[] 
 }
 
 /** 卡正文引文核对汇总；total 只算 strict。 */
-export function verifyBodyQuotes(card: any, sourceText: unknown) {
+export function verifyBodyQuotes(card: { body?: unknown } | undefined, sourceText: unknown) {
     const rows = extractBodyQuotes(card?.body);
     const strict = rows.filter((r) => r.strict);
     const bad = strict.filter((r) => !quoteOk(r.quote, sourceText)).map((r) => r.quote);

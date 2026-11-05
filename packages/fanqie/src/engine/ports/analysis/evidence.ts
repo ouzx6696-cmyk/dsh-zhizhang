@@ -2,11 +2,12 @@
 import { parseChapterNumber } from "../../domain/chapter-heading.js";
 import { quoteOk } from "../../domain/evidence.js";
 import { chapterText } from "./chapters.js";
+import type { CardEvidence } from "../library/types.js";
 
 export {quoteOk, verifyBodyQuotes} from "../../domain/evidence.js";
 
 /** 模块证据核对：引文必须能在对应章找到。返回 bad 描述数组。 */
-export function verifyModuleEvidence(card: any, sourceText: any, index: { n: number; title: string; start: number; end: number }[]) {
+export function verifyModuleEvidence(card: { evidence?: CardEvidence[] } | undefined, sourceText: string, index: { n: number; title: string; start: number; end: number }[]) {
     const bad = [];
     for (const [i, e] of (card?.evidence ?? []).entries()) {
         const n = parseChapterNumber(e?.chapter);

@@ -1,4 +1,4 @@
-import { sha256 } from "../../../../core/src/fsx.js";
+import { sha256, isFsError } from "../../../../core/src/fsx.js";
 /** Content identity and immutable history shared by every chapter write path. */
 
 import { lstat, mkdir, readFile } from "node:fs/promises";
@@ -22,14 +22,14 @@ export async function preserveChapter(dir: string, id: string, expectedHash: str
     for (let p = folder; ; p = path.dirname(p)) { chain.push(p); if (p === path.dirname(p)) break; }
     for (const p of chain.reverse()) {
         try { const st = await lstat(p); if (st.isSymbolicLink() || !st.isDirectory()) throw new NovelError("unsafe_history_path", `历史目录不是普通目录：${p}`); }
-        catch (err: any) { if (err?.code !== "ENOENT") throw err; await mkdir(p); }
+        catch (err) { if (!isFsError(err, "ENOENT")) throw err; await mkdir(p); }
     }
     const relative = `revisions/${id}/${hash}.md`;
     const file = path.join(dir, relative);
     try {
         await createExclusive(file, bytes);
     } catch (error) {
-        if (!(error instanceof Error && "code" in error && error.code === "EEXIST")) throw error;
+        if (!isFsError(error, "EEXIST")) throw error;
         const st = await lstat(file);
         if (!st.isFile() || st.isSymbolicLink() || !(await readFile(file)).equals(bytes))
             throw new NovelError("history_conflict", "历史副本不完整或已变化，未覆盖原稿。");

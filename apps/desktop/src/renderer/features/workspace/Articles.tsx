@@ -12,7 +12,7 @@ import { Notices } from "../../../../../../packages/workbench/src/client/shared/
 import { t } from "../../../../../../packages/ui/src/copy.js";
 import { Check } from "lucide-react";
 import { StatusBadge } from "../../../../../../packages/ui/src/status-badge";
-import type { WorkspaceProps } from "../../../renderer-contracts";
+import type { ArticleDetail, ArticleRow, WorkspaceProps } from "../../../renderer-contracts";
 import { askConfirm } from "../../state/confirm";
 import { WorkspaceLayout } from "./WorkspaceLayout";
 
@@ -21,7 +21,7 @@ function Ledger({
   onOpen,
   onWrite,
 }: {
-  articles: any[];
+  articles: ArticleRow[];
   onOpen: (root: string, id: string) => void;
   onWrite: () => void;
 }) {
@@ -101,10 +101,18 @@ function Ledger({
   );
 }
 
+/** useToutiao 的 JS 推断把 detail.article 初始值收窄成 null；经函数边界按回执形状恢复详情。 */
+function isArticleDetail(value: unknown): value is ArticleDetail {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function articleOf(value: unknown): ArticleDetail | null {
+  return isArticleDetail(value) ? value : null;
+}
+
 export function Articles(props: WorkspaceProps) {
   const {onContext} = props;
   const tt = useToutiao({ onTarget: props.onTarget, onSourceEditState: props.onSourceEditState }),
-    a: any = tt.detail.article;
+    a = articleOf(tt.detail.article);
   useEffect(() => {
     onContext({
       article: a || undefined,

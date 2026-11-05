@@ -1,15 +1,17 @@
 /** L0 测绘缓存 — 与事实层联动，事实变了就重建。 */
 import { atomicWrite } from "../../storage/primitives.js";
 import { buildSurvey } from "../survey.js";
+import type { ChapterIndexRow, SurveyReport } from "../survey.js";
 import { analysisPaths, ensureDir, readJson } from "./paths.js";
 import type { StoragePaths } from "../../types.js";
+import type { ChapterFact } from "./types.js";
 
-export async function readSurvey(paths: StoragePaths, sourceId: any) {
+export async function readSurvey(paths: StoragePaths, sourceId: string) {
     const p = analysisPaths(paths, sourceId);
-    return (await readJson(p.survey, null)) ?? null;
+    return (await readJson<SurveyReport | null>(p.survey, null)) ?? null;
 }
 
-async function writeSurvey(paths: StoragePaths, sourceId: any, survey: any) {
+async function writeSurvey(paths: StoragePaths, sourceId: string, survey: SurveyReport) {
     const p = analysisPaths(paths, sourceId);
     await ensureDir(p.dir);
     await atomicWrite(p.survey, `${JSON.stringify(survey, null, 2)}\n`);
@@ -21,7 +23,7 @@ function factsKey(facts: {n:number;updatedAt?:string}[]) {
 }
 
 /** 没有测绘、或事实层变了，就补/重建一次。 */
-export async function ensureSurvey(paths: StoragePaths, sourceId: string, sourceText: string, facts: any[] = [], index: any[]) {
+export async function ensureSurvey(paths: StoragePaths, sourceId: string, sourceText: string, facts: ChapterFact[] = [], index: ChapterIndexRow[]) {
     const old = await readSurvey(paths, sourceId);
     const key = factsKey(facts);
     if (old

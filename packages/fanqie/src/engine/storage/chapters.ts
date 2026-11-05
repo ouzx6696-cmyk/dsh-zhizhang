@@ -1,10 +1,11 @@
 /** Chapter encoding, reads and serialized updates; the store facade re-exports the public API. */
 import { snapshotFiles } from "../../../../core/src/snapshots.js";
+import { errorText } from "../../../../core/src/errors.js";
 import { mkdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { NovelError } from "../errors.js";
 import { CHAPTER_STATUSES, EMPTY_OUTLINE } from "../types.js";
-import type { Outline, Chapter } from "../types.js";
+import type { Outline, Chapter, ChapterStatus, Ledger, WorkMeta } from "../types.js";
 import { assertResourceId, countWords, isMissingFileError, nowIso } from "./primitives.js";
 import { assertNoPendingAccept, snapshotFile } from "./accept-journal.js";
 import { createChapterJournal, finishChapterJournal } from "./chapter-journal.js";
@@ -16,6 +17,27 @@ import { chapterRevision, preserveChapter } from "./revision.js";
 import { metaPath, readWorkMeta, validateStoryPace } from "./work-meta.js";
 export function chaptersDir(dir: string) {
     return path.join(dir, "chapters");
+}
+/** prepare 阶段的章节记录：revision 先算后回填，故可缺省。 */
+type ChapterDraft = Omit<Chapter, "revision"> & { revision?: string };
+/** 章节保存入参（updateChapter / setOutline / 候选落稿 / 灵感套用共用的落盘契约）。 */
+export interface ChapterSaveInput {
+    id?: string;
+    title: string;
+    body: string;
+    position?: number;
+    status?: ChapterStatus;
+    force?: boolean;
+    expectedRevision?: string;
+    outline?: Record<string, unknown>;
+    dependencies?: ChapterDependency[];
+    workPace?: string;
+    reviewDeclaration?: boolean;
+    reviewResult?: "pass" | "blocked";
+    reviewSummary?: string;
+    reviewedBy?: string;
+    acknowledgeRevision?: boolean;
+    ledgerEntry?: string;
 }
 function normalizeOutline(value: unknown): Outline {
     const base = EMPTY_OUTLINE();
@@ -40,11 +62,11 @@ function normalizeOutline(value: unknown): Outline {
 function chapterFile(dir: string, id: string) {
     return path.join(chaptersDir(dir), `${assertResourceId(id, "章节 id")}.md`);
 }
-function serializeChapterMarkdown(record: any) {
+function serializeChapterMarkdown(record: ChapterDraft) {
     const { body: _body, revision: _revision, ...fm } = record;
     return `---\n${JSON.stringify(fm, null, 2)}\n---\n\n${record.body ?? ""}\n`;
 }
-function parseChapterMarkdown(raw: string, fallbackId: any) {
+function parseChapterMarkdown(raw: string, fallbackId: string) {
     const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n)?([\s\S]*)$/);
     if (!match) {
         return {
@@ -108,8 +130,29 @@ export async function readChapter(dir: string, chapterId: string):Promise<Chapte
  */
 const CHAPTER_LENS_CACHE_BYTES = 8 * 1024 * 1024;
 let chapterLensBytes = 0;
-const chapterLensCache = new Map();
-async function readChapterLens(dir: string, chapterId: string) {
+/** 面板轮询用的章节透镜。 */
+interface ChapterLens {
+    revision: string;
+    readVersion: string;
+    updatedAt: string;
+    status: ChapterStatus;
+    title: string;
+    wordCount: number;
+    situationLens: string;
+    livedScene: string;
+    stateLens: string;
+}
+/** 面板轮询用的章节透镜缓存项。 */
+interface ChapterLensCacheEntry {
+    mtimeMs: number;
+    ctimeMs: number;
+    ino: number;
+    size: number;
+    lens: ChapterLens;
+    bytes: number;
+}
+const chapterLensCache = new Map<string, ChapterLensCacheEntry>();
+async function readChapterLens(dir: string, chapterId: string): Promise<ChapterLens> {
     const file = chapterFile(dir, chapterId);
     const st = await stat(file);
     const hit = chapterLensCache.get(file);
@@ -135,10 +178,10 @@ async function readChapterLens(dir: string, chapterId: string) {
         chapterLensBytes += bytes;
     }
     while (chapterLensBytes > CHAPTER_LENS_CACHE_BYTES) {
-        const oldest = chapterLensCache.keys().next().value;
+        const oldest = chapterLensCache.entries().next().value;
         if (oldest === undefined) break;
-        chapterLensBytes -= chapterLensCache.get(oldest).bytes;
-        chapterLensCache.delete(oldest);
+        chapterLensBytes -= oldest[1].bytes;
+        chapterLensCache.delete(oldest[0]);
     }
     return lens;
 }
@@ -155,7 +198,7 @@ export async function readChapterLenses(dir: string, ids: string[]) {
     }
     return rows;
 }
-function precedingChapter(meta: any, chapterId: string) {
+function precedingChapter(meta: WorkMeta, chapterId: string) {
     const ordered = [...meta.chapters].sort((a, b) => a.position - b.position);
     const index = ordered.findIndex((c) => c.id === chapterId);
     return index > 0 ? ordered[index - 1] : undefined;
@@ -182,7 +225,7 @@ export async function currentContextBasis(dir: string, chapterId: string): Promi
     return contextBasis(meta, chapter, previous);
 }
 /** Caller must hold the work lock. */
-export async function prepareChapterSaveUnlocked(dir: string, input: any) {
+export async function prepareChapterSaveUnlocked(dir: string, input: ChapterSaveInput) {
     const metaBefore = await snapshotFile(metaPath(dir));
     const meta = await readWorkMeta(dir);
     const pace = validateStoryPace(input.workPace);
@@ -215,7 +258,7 @@ export async function prepareChapterSaveUnlocked(dir: string, input: any) {
     let status = changed && (previous?.status === "final" || previous?.status === "reviewed") ? "drafted" : input.status && CHAPTER_STATUSES.includes(input.status)
         ? input.status
         : previous?.status ?? "drafted";
-    const record = {
+    const record: ChapterDraft = {
         ...previous,
         id,
         title: input.title.trim() || previous?.title || id,
@@ -276,7 +319,8 @@ export async function prepareChapterSaveUnlocked(dir: string, input: any) {
     if (previous && (changed || previous.revision !== revision)) {
         const before = chapterBefore;
         if (!before) throw new NovelError("revision_conflict", "原稿已缺失，未覆盖。");
-        history = await preserveChapter(dir, id, before);
+        const preserved = await preserveChapter(dir, id, before);
+        history = preserved;
         const next = meta.chapters.find((c) => c.position > position);
         const impacts = Array.isArray(meta.revisionImpacts) ? meta.revisionImpacts : [];
         const affected = new Set<string>();
@@ -288,13 +332,13 @@ export async function prepareChapterSaveUnlocked(dir: string, input: any) {
                 }
             }
         }
-        meta.revisionImpacts = [...impacts.filter((v) => v.chapterId !== id), { chapterId: id, previousRevision: previous.revision, revision, history, nextChapterId: next?.id, dependents: [...affected], at: meta.updatedAt, reason: "正文已修改；请核对已有状态记录、相关后稿与简报依据" }];
+        meta.revisionImpacts = [...impacts.filter((v) => v.chapterId !== id), { chapterId: id, previousRevision: previous.revision, revision, history: preserved, nextChapterId: next?.id, dependents: [...affected], at: meta.updatedAt, reason: "正文已修改；请核对已有状态记录、相关后稿与简报依据" }];
     }
     return { record, history, chapterBefore, metaBefore, chapterPath: chapterFile(dir, id), chapterContent: serializeChapterMarkdown(record), metaContent: JSON.stringify(meta, null, 2) + "\n" };
 }
 /** Caller holds the work lock. */
-async function saveChapterUnlocked(dir: string, input: any) {
-    let ledger: any;
+async function saveChapterUnlocked(dir: string, input: ChapterSaveInput) {
+    let ledger: Ledger | undefined;
     const ledgerPath = path.join(dir, "ledger.json");
     const ledgerBefore = input.ledgerEntry ? await snapshotFile(ledgerPath) : null;
     if (input.ledgerEntry) ledger = await readLedger(dir);
@@ -312,13 +356,13 @@ async function saveChapterUnlocked(dir: string, input: any) {
         ] });
         await finishChapterJournal(dir, journal);
     }
-    catch (err: any) {
+    catch (err) {
         if (err instanceof NovelError) throw err;
-        throw new NovelError("recovery_required", `章节 ${prepared.record.id} 保存未完成（${err?.message ?? String(err)}）。请用 fanqie_status(work=作品, recovery=inspect) 检查，不要重复保存。`);
+        throw new NovelError("recovery_required", `章节 ${prepared.record.id} 保存未完成（${errorText(err)}）。请用 fanqie_status(work=作品, recovery=inspect) 检查，不要重复保存。`);
     }
     return prepared.record;
 }
-export async function setOutline(dir: string, chapterId: string, patch: any, title?: string, options: { pace?: string } = {}) {
+export async function setOutline(dir: string, chapterId: string, patch: Record<string, unknown>, title?: string, options: { pace?: string } = {}) {
     return withResourceLock(dir, async () => {
         let previous = null;
         try {
@@ -343,9 +387,9 @@ export async function setOutline(dir: string, chapterId: string, patch: any, tit
 }
 
 /** Apply a direct chapter edit using the current content inside the work lock. */
-export async function updateChapter(dir: string, input: { id: string; title?: string; body?: string; status?: string; position?: number; force?: boolean; expectedRevision?: string; ledgerEntry?: string; reviewSummary?: string; reviewResult?: "pass" | "blocked"; reviewedBy?: string; acknowledgeRevision?: boolean }) {
+export async function updateChapter(dir: string, input: { id: string; title?: string; body?: string; status?: ChapterStatus; position?: number; force?: boolean; expectedRevision?: string; ledgerEntry?: string; reviewSummary?: string; reviewResult?: "pass" | "blocked"; reviewedBy?: string; acknowledgeRevision?: boolean }) {
     return withResourceLock(dir, async () => {
-        let previous;
+        let previous: Chapter | undefined;
         try {
             previous = await readChapter(dir, input.id);
         }

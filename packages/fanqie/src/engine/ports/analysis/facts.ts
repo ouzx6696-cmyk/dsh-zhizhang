@@ -10,6 +10,7 @@ import { quoteOk } from "../../domain/evidence.js";
 import { analysisPaths, ensureDir, nowIso, readJsonl } from "./paths.js";
 import { snapshotFile } from "../../storage/journal.js";
 import { commitAnalysisUpdate } from "./meta.js";
+import type { ChapterFactsInput } from "./types.js";
 
 /** 白描硬禁：心理/评价词。desc 里出现即视为「替人物补动机/下判断」。 */
 export const WHITE_DESC_HARD_RE = /(心里|心中|内心|觉得|认为|希望|害怕|恐惧|愤怒|悲伤|难过|失望|后悔|其实|显然|精彩|感人|震撼)/;
@@ -20,7 +21,7 @@ const WHITE_DESC_SOFT_RE = /(因为|所以|于是|想要|打算|决定)/;
 interface ChapterRef { n: number; title: string; start: number; end: number }
 
 /** 校验单章事实；通过时带出命中的章节定位，调用方不必再查一遍 index。 */
-export function validateChapterFacts(facts: any, sourceText: any, index: ChapterRef[]): { errors: string[]; warnings: string[]; chapter?: ChapterRef } {
+export function validateChapterFacts(facts: ChapterFactsInput, sourceText: string, index: ChapterRef[]): { errors: string[]; warnings: string[]; chapter?: ChapterRef } {
     const errors = [];
     const warnings: string[] = [];
     const f = facts ?? {};
@@ -67,7 +68,9 @@ export function validateChapterFacts(facts: any, sourceText: any, index: Chapter
         warnings.push("value 为空：建议记处境/关系/认知/情绪至少两项变化");
     }
     else {
-        const filled = ["situation", "relation", "cognition", "emotion"].filter((k) => String(f.value[k] ?? "").trim());
+        const value = f.value;
+        const valueKeys: Array<keyof NonNullable<ChapterFactsInput["value"]>> = ["situation", "relation", "cognition", "emotion"];
+        const filled = valueKeys.filter((k) => String(value[k] ?? "").trim());
         if (filled.length < 2)
             warnings.push("value 少于两项变化：本章的价值推进可能没记全");
     }
@@ -76,7 +79,7 @@ export function validateChapterFacts(facts: any, sourceText: any, index: Chapter
     return { errors, warnings, chapter };
 }
 
-export async function upsertChapter(paths: StoragePaths, sourceId: any, facts: any, sourceText: any, index: ChapterRef[]) {
+export async function upsertChapter(paths: StoragePaths, sourceId: string, facts: ChapterFactsInput, sourceText: string, index: ChapterRef[]) {
     const { errors, warnings, chapter } = validateChapterFacts(facts, sourceText, index);
     if (errors.length || !chapter)
         throw new NovelError("bad_facts", `事实未通过：${errors.join("；")}`);

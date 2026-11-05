@@ -11,6 +11,17 @@ import { askConfirm } from "../../state/confirm";
 
 export type EditState = { dirty: boolean; saving: boolean };
 
+/** 方法面板只读当前方案名；回执缺该字段时保持默认标题。 */
+function hasActiveName(value: unknown): value is { activeName: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    "activeName" in value &&
+    typeof value.activeName === "string"
+  );
+}
+
 function MethodsPane({
   mode,
   onOpen,
@@ -27,7 +38,7 @@ function MethodsPane({
     profilesApi(mode)
       .list()
       .then((result) => {
-        if (running) setName(result.activeName);
+        if (running && hasActiveName(result)) setName(result.activeName);
       })
       .catch((error: unknown) => {
         if (running) setName(errorText(error));

@@ -1,4 +1,5 @@
-export type Json = any;
+/** 服务端回执体：调用方按路由形状收窄；这里只承诺它是 JSON 值。 */
+export type Json = unknown;
 
 export class ApiError extends Error {
   status: number;
@@ -37,20 +38,12 @@ export type SaveChapterInput = {
   editOf?: string;
   draftLabel?: string;
 };
-export type SavedChapter = { ok: boolean; chapterId: string; revision?: string; candidateId?: string; status?: string };
 export type SaveDraftInput = {
   root: string;
   id: string;
   text: string;
   expectedRev: number;
   expectedSha256: string;
-};
-export type SavedDraft = {
-  rev: number;
-  status: string;
-  chars: number;
-  sha256: string;
-  warning?: string;
 };
 
 export interface FanqieData {
@@ -62,7 +55,7 @@ export interface FanqieData {
     id: string,
     signal?: AbortSignal,
   ): Promise<Json>;
-  saveChapter(payload: SaveChapterInput): Promise<SavedChapter>;
+  saveChapter(payload: SaveChapterInput): Promise<Json>;
   candidate(
     base: string | undefined,
     work: string | undefined,
@@ -81,13 +74,14 @@ export interface FanqieData {
 export interface ToutiaoData {
   articles(signal?: AbortSignal): Promise<Json>;
   article(root: string, id: string, signal?: AbortSignal): Promise<Json>;
-  adopt(article: Json): Promise<Json>;
-  saveDraft(payload: SaveDraftInput): Promise<SavedDraft>;
-  deliver(payload: Json): Promise<Json>;
+  /** article 为 articleDetail 台账行/详情：adopt 只读 root/id/rev/draft.sha256。 */
+  adopt(article: { root: string; id: string; rev: number; draft: { sha256: string } }): Promise<Json>;
+  saveDraft(payload: SaveDraftInput): Promise<Json>;
+  deliver(payload: Record<string, unknown>): Promise<Json>;
 }
 
 export interface ProfilesData {
-  list(signal?: AbortSignal): Promise<Awaited<ReturnType<typeof import("../../../core/src/profiles.js").listProfiles>>>;
+  list(signal?: AbortSignal): Promise<Json>;
   detail(profile: string, signal?: AbortSignal): Promise<Json>;
   method(profile: string, id: string, signal?: AbortSignal): Promise<Json>;
   use(profile: string): Promise<Json>;

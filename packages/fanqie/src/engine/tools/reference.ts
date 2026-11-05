@@ -12,7 +12,7 @@ export function referenceTools() {
             quotes: { type: "array", items: { type: "string" }, description: "需要核对的逐字短引文" },
             transfer_json: S("可选迁移包 JSON：experience、steps[]、recreate[]、discard[]、failWhen"), save: B("明确保存至工作区 analyses；不入公共库"), working_dir: WORKING_DIR },
         required: ["text", "question"],
-        async execute(args: any, exec: any) {
+        async execute(args, exec) {
             const text = asString(args, "text", { required: true, trim: false }), question = asString(args, "question", { required: true });
             const report = asString(args, "report", { trim: false });
             const transfer = asString(args, "transfer_json");

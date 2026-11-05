@@ -85,7 +85,22 @@ function candidateToDiskMeta(cand: Candidate): CandidateMeta {
   }
   return disk;
 }
-export async function stageCandidate(dir: string, input: Record<string, any>) {
+/** 暂存候选的入参：正文与目标章必填，其余元数据按 Candidate 落盘契约可选。 */
+export interface StageCandidateInput {
+    body: string;
+    chapterId: string;
+    expectedRevision?: string;
+    capturedBasis?: import("../domain/lifecycle.js").ContextBasis;
+    revisionSource?: import("../types.js").Candidate["revisionSource"];
+    source?: string;
+    note?: string;
+    editOf?: string;
+    editMode?: string;
+    draftLabel?: string;
+    variantGroup?: string;
+    unifyOf?: string[];
+}
+export async function stageCandidate(dir: string, input: StageCandidateInput) {
   return withResourceLock(dir, async () => {
     if (!input.body.trim()) {
       throw new NovelError("candidate_empty", "候选正文为空，拒绝暂存");

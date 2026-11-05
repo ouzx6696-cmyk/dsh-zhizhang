@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
-import type { ExecContext, PluginConfig, StoragePaths } from "../types.js";
+import type { OpenWorkContext, PluginConfig, StoragePaths } from "../types.js";
 
 import { NovelError } from "../errors.js";
 
@@ -26,7 +26,7 @@ function resolveRoot(raw: string | undefined, cwd: string, fallback: string): st
   return raw ? path.resolve(cwd, raw) : fallback;
 }
 export function storagePaths(
-  exec: ExecContext | null,
+  exec: OpenWorkContext | null,
   config: PluginConfig,
   workingDir?: string,
 ): StoragePaths {
@@ -59,7 +59,7 @@ export function storagePaths(
   };
 }
 export async function ensureStorage(
-  exec: ExecContext | null,
+  exec: OpenWorkContext | null,
   config: PluginConfig,
   workingDir?: string,
 ): Promise<StoragePaths> {

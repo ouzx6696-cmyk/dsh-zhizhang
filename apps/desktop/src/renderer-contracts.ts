@@ -2,6 +2,9 @@ export type TaskEndReason = "cancelled" | "failed" | "done";
 import type { ReactNode } from "react";
 import type { Target, Focus } from "./context";
 
+/** 头条台账/详情的服务端形状；渲染层经此引用，不直接深入服务端模块。 */
+export type { ArticleRow, ArticleDetail } from "../../../packages/toutiao/src/workbench/data";
+
 /** Facts consumed by the renderer, separate from Electron and SDK objects. */
 export interface WorkspaceContext {
   kind?: "novel" | "article";

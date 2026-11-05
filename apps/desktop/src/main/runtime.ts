@@ -34,7 +34,7 @@ export class Runtime {
   };
   maintenance = false;
   updateState: UpdateStatus = { state: "idle" };
-  deliveries = new Map<string, Promise<{ status: number; data: any }>>();
+  deliveries = new Map<string, Promise<{ status: number; data: unknown }>>();
   writerConfig: WriterConfig = {};
   notice = "";
   private confirmations = Promise.resolve();

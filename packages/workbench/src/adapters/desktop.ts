@@ -10,6 +10,11 @@ import {
   type WorkbenchData,
 } from "./types.js";
 
+/** 回执对象判型；非对象回执按空对象处理，错误文案走默认值。 */
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 async function call(
   bridge: DesktopBridge,
   path: string,
@@ -18,10 +23,17 @@ async function call(
   if (signal?.aborted) throw new ApiError("aborted", { code: "aborted" });
   const result = await bridge.request(path, { method, query, body });
   if (signal?.aborted) throw new ApiError("aborted", { code: "aborted" });
-  if (result.status >= 400 || result.data?.ok === false)
-    throw new ApiError(result.data?.error || result.data?.message || "操作失败", {
+  const data = isJsonObject(result.data) ? result.data : {};
+  const message =
+    typeof data.error === "string" && data.error
+      ? data.error
+      : typeof data.message === "string" && data.message
+        ? data.message
+        : "操作失败";
+  if (result.status >= 400 || data.ok === false)
+    throw new ApiError(message, {
       status: result.status,
-      code: result.data?.code,
+      code: typeof data.code === "string" ? data.code : undefined,
     });
   return result.data;
 }

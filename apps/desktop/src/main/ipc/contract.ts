@@ -34,7 +34,7 @@ export type RequestOptions = {
   query?: Record<string, unknown>;
   body?: unknown;
 };
-export type RequestResult = { status: number; data: any };
+export type RequestResult = { status: number; data: unknown };
 export type RendererState = PublicSettings & {
   target?: Target;
   notice: string;

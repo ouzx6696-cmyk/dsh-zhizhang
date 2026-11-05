@@ -5,6 +5,7 @@
  * Auto 抽样封顶，避免「读 10% 却给全书 0.95」的假自信。
  */
 import { DIMENSIONS } from "./card-schema.js";
+import type { AnalysisMeta, ChapterFact, Module } from "../ports/analysis/types.js";
 
 const COVERAGE_WEIGHTS = {
     ratio: 0.4,
@@ -47,9 +48,9 @@ interface CoverageExtra {
 }
 
 export function computeCoverage(
-    meta: any,
-    facts: any[],
-    modules: any[],
+    meta: AnalysisMeta | null | undefined,
+    facts: ChapterFact[],
+    modules: Module[],
     quoteStats: { total: number; ok: number } | null | undefined,
     extra: CoverageExtra = {},
 ) {

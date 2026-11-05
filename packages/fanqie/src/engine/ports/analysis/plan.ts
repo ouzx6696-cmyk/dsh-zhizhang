@@ -1,4 +1,4 @@
-import type { AnalysisPlan, SourceChapter, ConsentParams } from './types.js';
+import type { AnalysisMeta, AnalysisPlan, SourceChapter, ConsentParams } from './types.js';
 /** 抽样计划：Auto 10% 分层 / Full 全量（须显式同意）。 */
 import path from "node:path";
 import { atomicWrite } from "../../storage/primitives.js";
@@ -169,7 +169,7 @@ export async function writePlan(paths: StoragePaths, plan: AnalysisPlan, options
             if (await snapshotFile(f.pending) !== pendingBefore)
                 throw new NovelError("library_recovery_conflict", "全量确认凭据在准备期间变化，请重新检查。");
         }
-        const meta = (await readJson(metaPath, null)) ?? { schemaVersion: 2, sourceId, stage: "meta" };
+        const meta: AnalysisMeta = (await readJson<AnalysisMeta | null>(metaPath, null)) ?? { schemaVersion: 2, sourceId, stage: "meta" };
         if (!meta || typeof meta !== "object" || Array.isArray(meta)) throw new NovelError("bad_analysis", "拆书分析元数据损坏，请保留并核对。");
         const nextMeta = { ...meta, scope: { ...(meta.scope ?? {}), mode: plan.mode, chapters: plan.planChapters }, updatedAt: nowIso() };
         if (await snapshotFile(metaPath) !== metaBefore) throw new NovelError("library_recovery_conflict", "计划元数据在准备期间变化，请重新检查。");

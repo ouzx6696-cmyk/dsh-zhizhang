@@ -9,13 +9,53 @@
  */
 
 import { cnNumber, VOLUME_HEADING_RE } from "../domain/chapter-heading.js";
+import type { ChapterFact } from "./analysis/types.js";
 
 export { cnNumber };
 
+/** 章节索引行（章节切分产物）。 */
+export interface ChapterIndexRow {
+    n: number;
+    title: string;
+    start: number;
+    end: number;
+}
+
+/** 卷标记：解析产物或调用方传入的 volumeMarkers（报告侧还会带 from/to）。 */
+export interface VolumeMarker {
+    no?: number;
+    name?: string;
+    title?: string;
+    start: number;
+    end: number;
+    from?: number | null;
+    to?: number | null;
+}
+
+/** survey.json 的落盘契约：buildSurvey 产出，ensureSurvey 补 factsKey/factsCount。 */
+export interface SurveyReport {
+    schemaVersion: number;
+    createdAt: string;
+    totalChars: number;
+    rawChars: number;
+    lines: number;
+    chapterCount: number;
+    avgChapterChars: number;
+    minChapterChars: number;
+    maxChapterChars: number;
+    dialogueRatio: number;
+    volumes: Array<{ no?: number; name?: string; title?: string; from: number | null; to: number | null; chapters: number; chars: number; firstTitle: string; lastTitle: string }>;
+    terms: Array<{ term: string; count: number }>;
+    heatmap: { buckets: number; size: number; rows: Array<{ term: string; counts: number[] }> };
+    anchors: Array<{ n: number; title: string; score: number; why: string }>;
+    factsCount?: number;
+    factsKey?: string;
+}
+
 /** 解析卷标记行：第一卷 / 第二卷 … 返回 [{no,name,title,start,end}]。 */
-function parseVolumes(text: string) {
+function parseVolumes(text: string): VolumeMarker[] {
     const t = text;
-    const marks = [];
+    const marks: VolumeMarker[] = [];
     const re = new RegExp(VOLUME_HEADING_RE.source, VOLUME_HEADING_RE.flags);
     let m;
     while ((m = re.exec(t))) {
@@ -37,7 +77,7 @@ const STOP_WORDS = new Set(`自己 已经 好像 时候 最后 起来 知道 开
  */
 function topTerms(text: string, { minCount = 30, limit = 40 } = {}) {
     const t = text;
-    const map = new Map();
+    const map = new Map<string, number>();
     const re = /[\u4e00-\u9fa5]+/g;
     let m;
     while ((m = re.exec(t))) {
@@ -77,20 +117,12 @@ function topTerms(text: string, { minCount = 30, limit = 40 } = {}) {
 
 const ANCHOR_RE = /(决战|真相|牺牲|背叛|晋升|突破|最后|结束|开始|告白|重逢|葬礼|遗产|遗言|决裂|宣战|复仇|死亡|死|杀|救|婚礼|告别)/g;
 
-/** 章节索引行（章节切分产物）。 */
-interface ChapterIndexRow {
-    n: number;
-    title: string;
-    start: number;
-    end: number;
-}
-
 /** 锚点章：关键词密度 + 事实钩子强度 + 卷首卷末加成。 */
-function anchorChapters(text: string, index: ChapterIndexRow[], { facts = [], volumes = [], limit = 60 }: { facts?: any[]; volumes?: any[]; limit?: number } = {}) {
-    const factMap = new Map((facts ?? []).map((f) => [f.n, f]));
+function anchorChapters(text: string, index: ChapterIndexRow[], { facts = [], volumes = [], limit = 60 }: { facts?: ChapterFact[]; volumes?: VolumeMarker[]; limit?: number } = {}) {
+    const factMap = new Map<number, ChapterFact>((facts ?? []).map((f): [number, ChapterFact] => [f.n, f]));
     const firsts = new Set(volumes.map((v) => v.from));
     const lasts = new Set(volumes.map((v) => v.to));
-    const rows = [];
+    const rows: Array<{ n: number; title: string; score: number; why: string }> = [];
     for (const c of index) {
         if (!(c.n > 0))
             continue;
@@ -111,7 +143,7 @@ function anchorChapters(text: string, index: ChapterIndexRow[], { facts = [], vo
 }
 
 /** 主入口：全书测绘。 */
-export function buildSurvey(text: string, index: ChapterIndexRow[], { facts = [], volumeMarkers }: { facts?: any[]; volumeMarkers?: any[] } = {}): Record<string, any> {
+export function buildSurvey(text: string, index: ChapterIndexRow[], { facts = [], volumeMarkers }: { facts?: ChapterFact[]; volumeMarkers?: VolumeMarker[] } = {}): SurveyReport {
     const t = text;
     const volumes = volumeMarkers ?? parseVolumes(t);
     const chapters = index.filter((c) => c.n > 0);
@@ -140,7 +172,7 @@ export function buildSurvey(text: string, index: ChapterIndexRow[], { facts = []
         buckets,
         size,
         rows: heatTerms.map(({ term }) => {
-            const counts = new Array(buckets).fill(0);
+            const counts: number[] = new Array(buckets).fill(0);
             for (const c of chapters) {
                 const b = Math.min(buckets - 1, Math.floor((c.n - 1) / size));
                 const body = t.slice(c.start, c.end);

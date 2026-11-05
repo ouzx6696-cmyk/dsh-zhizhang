@@ -53,7 +53,7 @@ export async function readTextCached(file: string): Promise<string> {
 }
 
 /** readTextCached + JSON.parse；解析失败照常抛错（坏文件不缓存）。 */
-export async function readJsonCached<T = Record<string, any>>(file: string): Promise<T> {
+export async function readJsonCached<T = Record<string, unknown>>(file: string): Promise<T> {
     return JSON.parse(await readTextCached(file)) as T;
 }
 
@@ -62,7 +62,7 @@ export async function readJsonCached<T = Record<string, any>>(file: string): Pro
  * 缓存层只负责解析与复用行对象，具体行结构由调用方声明。
  * 命中缓存时返回行对象的浅拷贝：调用方只读，嵌套字段与缓存共享引用。
  */
-export async function readJsonlCached<T = Record<string, any>>(file: string): Promise<T[]> {
+export async function readJsonlCached<T = Record<string, unknown>>(file: string): Promise<T[]> {
     let entry: CacheEntry;
     try {
         entry = await readEntryCached(file);

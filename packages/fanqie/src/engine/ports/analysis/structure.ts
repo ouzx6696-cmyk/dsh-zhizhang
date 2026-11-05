@@ -7,9 +7,14 @@ import { analysisPaths, ensureDir, nowIso, readJson, readJsonl } from "./paths.j
 import { commitAnalysisUpdate } from "./meta.js";
 import { snapshotFile } from "../../storage/journal.js";
 
-function validatePlot(plot: any) {
+/** 模型提交的 payload 是任意 JSON；校验层逐字段判型，这里只收窄成可读的记录。 */
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function validatePlot(plot: unknown) {
     const errors = [];
-    const p = plot ?? {};
+    const p = isRecord(plot) ? plot : {};
     if (!String(p.title ?? "").trim())
         errors.push("title 为空");
     if (!Array.isArray(p.chapters) || !p.chapters.length)
@@ -21,10 +26,10 @@ function validatePlot(plot: any) {
     return { errors, warnings: [] };
 }
 
-function validateRhythm(r: any) {
+function validateRhythm(r: unknown) {
     const errors = [];
     const warnings: string[] = [];
-    const v = r ?? {};
+    const v = isRecord(r) ? r : {};
     if (!Array.isArray(v.points) || !v.points.length)
         errors.push("points 不能为空（情绪折线）");
     else {
@@ -54,9 +59,9 @@ function validateRhythm(r: any) {
     return { errors, warnings };
 }
 
-function validateCharacter(c: any) {
+function validateCharacter(c: unknown) {
     const errors = [];
-    const v = c ?? {};
+    const v = isRecord(c) ? c : {};
     if (!String(v.name ?? "").trim())
         errors.push("name 为空");
     if (!String(v.mask ?? "").trim())
@@ -76,7 +81,7 @@ function validateCharacter(c: any) {
     return { errors, warnings: [] };
 }
 
-export async function upsertPlot(paths: StoragePaths, sourceId: any, plot: any) {
+export async function upsertPlot(paths: StoragePaths, sourceId: string, plot: unknown) {
     const { errors } = validatePlot(plot);
     if (errors.length)
         throw new NovelError("bad_plot", `剧情条未通过：${errors.join("；")}`);
@@ -88,7 +93,8 @@ export async function upsertPlot(paths: StoragePaths, sourceId: any, plot: any) 
         await assertNoPendingCard(paths.library);
         const before = await snapshotFile(p.plots);
         const rows = await readJsonl(p.plots);
-        const rec = { ...plot, id: plot.id || `p${String(rows.length + 1).padStart(3, "0")}`, schemaVersion: 2, updatedAt: nowIso() };
+        const raw = isRecord(plot) ? plot : {};
+        const rec = { ...raw, id: raw.id || `p${String(rows.length + 1).padStart(3, "0")}`, schemaVersion: 2, updatedAt: nowIso() };
         const at = rows.findIndex((r) => r.id === rec.id);
         if (at >= 0)
             rows[at] = rec;
@@ -100,7 +106,7 @@ export async function upsertPlot(paths: StoragePaths, sourceId: any, plot: any) 
     return { count };
 }
 
-export async function writeRhythm(paths: StoragePaths, sourceId: any, rhythm: any) {
+export async function writeRhythm(paths: StoragePaths, sourceId: string, rhythm: unknown) {
     const { errors, warnings } = validateRhythm(rhythm);
     if (errors.length)
         throw new NovelError("bad_rhythm", `节奏表未通过：${errors.join("；")}`);
@@ -109,20 +115,22 @@ export async function writeRhythm(paths: StoragePaths, sourceId: any, rhythm: an
     await withResourceLock(paths.library, async () => {
         await assertNoPendingCard(paths.library);
         const before = await snapshotFile(p.rhythms);
+        const r = isRecord(rhythm) ? rhythm : {};
         const rec = {
             schemaVersion: 2,
-            points: rhythm.points ?? [],
-            loops: rhythm.loops ?? [],
-            hooks: rhythm.hooks ?? [],
-            foreshadowing: rhythm.foreshadowing ?? [],
+            points: r.points ?? [],
+            loops: r.loops ?? [],
+            hooks: r.hooks ?? [],
+            foreshadowing: r.foreshadowing ?? [],
             updatedAt: nowIso(),
         };
         await commitAnalysisUpdate(paths, sourceId, "rhythms.json", before, `${JSON.stringify(rec, null, 2)}\n`, () => ({ stage: "rhythm" }));
     });
-    return { warnings, loops: rhythm.loops?.length ?? 0 };
+    const r = isRecord(rhythm) ? rhythm : {};
+    return { warnings, loops: Array.isArray(r.loops) ? r.loops.length : 0 };
 }
 
-export async function upsertCharacter(paths: StoragePaths, sourceId: any, character: any) {
+export async function upsertCharacter(paths: StoragePaths, sourceId: string, character: unknown) {
     const { errors } = validateCharacter(character);
     if (errors.length)
         throw new NovelError("bad_character", `人物未通过：${errors.join("；")}`);
@@ -132,12 +140,13 @@ export async function upsertCharacter(paths: StoragePaths, sourceId: any, charac
     await withResourceLock(paths.library, async () => {
         await assertNoPendingCard(paths.library);
         const before = await snapshotFile(p.characters);
-        const current = await readJson(p.characters, []);
+        const current = await readJson<Record<string, unknown>[]>(p.characters, []);
         if (!Array.isArray(current))
             throw new NovelError("bad_analysis", `人物记录格式损坏：${p.characters}；请保留原文件并核对。`);
         const rows = current;
-        const rec = { ...character, schemaVersion: 2, updatedAt: nowIso() };
-        const at = rows.findIndex((r) => r.name === rec.name);
+        const raw = isRecord(character) ? character : {};
+        const rec = { ...raw, schemaVersion: 2, updatedAt: nowIso() };
+        const at = rows.findIndex((r) => r.name === raw.name);
         if (at >= 0)
             rows[at] = rec;
         else

@@ -23,7 +23,7 @@ export const foundationSet = defineTool({
   required: [],
   async execute(args, exec) {
     const { dir } = await openWork(exec, args);
-    const patch: Record<string, any> = {};
+    const patch: Record<string, unknown> = {};
     for (const key of [
       "locks",
       "happened",

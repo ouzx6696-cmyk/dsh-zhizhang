@@ -81,7 +81,7 @@ export const MultiDraftPort = {
     );
     return lines.join("\n");
   },
-  afterUnifyStageLines(opts: any) {
+  afterUnifyStageLines(opts: { unifyCandId: string; chapterId: string; parentIds: string[]; wordCount: number }) {
     return [
       `统一整理候选已暂存：${opts.unifyCandId}`,
       `- 章：${opts.chapterId}`,

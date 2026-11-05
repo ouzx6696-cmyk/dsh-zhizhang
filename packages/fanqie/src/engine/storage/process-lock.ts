@@ -1,5 +1,6 @@
 /** Cooperative filesystem lock for writers in different processes sharing a resource. */
 import { assertWorkspaceWritable } from "../../../../core/src/workspace-lock.js";
+import { isFsError } from "../../../../core/src/fsx.js";
 import { errorText } from "../../../../core/src/errors.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
@@ -12,6 +13,14 @@ import { assertSafeAncestors, withLock } from "./primitives.js";
 const held = new AsyncLocalStorage<Set<string>>();
 const LOCK_DIR = ".writer-write-lock";
 const WAIT_MS = 10000;
+
+/** owner.json 的落盘形状；由本模块独占写出。 */
+interface LockOwner {
+    id: string;
+    pid: number;
+    host: string;
+    createdAt: string;
+}
 
 /**
  * The lock is never broken on a timeout or PID check. If a process dies, an
@@ -31,8 +40,8 @@ export async function withResourceLock<T>(root: string, fn: () => Promise<T>): P
         const deadline = Date.now() + WAIT_MS;
         for (;;) {
             try { await mkdir(dir); break; }
-            catch (err: any) {
-                if (err?.code !== "EEXIST") throw err;
+            catch (err) {
+                if (!isFsError(err, "EEXIST")) throw err;
                 if (Date.now() >= deadline)
                     throw new NovelError("resource_locked", `资源正被其他进程使用，或遗留写入锁：${dir}。请先确认没有进程正在写入，再人工核对锁和未完成操作；不会仅凭超时自动清锁。`);
                 await new Promise((resolve) => setTimeout(resolve, 50));
@@ -53,7 +62,7 @@ export async function withResourceLock<T>(root: string, fn: () => Promise<T>): P
             return await held.run(next, fn);
         }
         finally {
-            let current: any;
+            let current: LockOwner;
             try { current = JSON.parse(await readFile(ownerFile, "utf8")); }
             catch (error) { throw new NovelError("resource_lock_invalid", `锁记录不可读，已保留 ${dir}，请人工核对。（${errorText(error)}）`); }
             if (current.id !== owner.id)

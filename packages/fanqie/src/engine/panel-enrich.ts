@@ -9,6 +9,7 @@ import { LibraryPort, coerceAxis } from "./ports/library.js";
 import { listAnalyses, readAnalysisBundle } from "./ports/analysis/meta.js";
 import { readPlan, planProgress, planLabel } from "./ports/analysis/plan.js";
 import { InspirationPort, ensureInsp } from "./ports/inspiration.js";
+import type { StoredCandidate } from "./ports/inspiration.js";
 import { ProductMap } from "./ports/product.js";
 import { Scheduler } from "./ports/scheduler.js";
 import { readPlanning } from "./domain/planning.js";
@@ -132,7 +133,7 @@ export async function buildInspirationView(
         const items = await Promise.all(
             batch.map(async (name) => {
                 try {
-                    return await readJsonCached(path.join(candDir, name));
+                    return await readJsonCached<StoredCandidate>(path.join(candDir, name));
                 } catch {
                     throw new Error(`灵感候选 ${name} 不可读，请核对原文件。`);
                 }

@@ -18,6 +18,6 @@ export interface ChapterReview {
     declaredBy: string;
     at: string;
 }
-export function contextBasis(meta: any, chapter: { revision: string }, previous?: ChapterDependency): ContextBasis {
+export function contextBasis(meta: import("../types.js").WorkMeta, chapter: { revision: string }, previous?: ChapterDependency): ContextBasis {
     return { targetRevision: chapter.revision, foundation: fingerprint(meta.foundation), planning: fingerprint(meta.planning), ...(previous ? { previous } : {}) };
 }

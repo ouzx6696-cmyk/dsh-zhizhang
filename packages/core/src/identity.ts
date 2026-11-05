@@ -1,12 +1,13 @@
 import path from "node:path";
 import { realpathSync } from "node:fs";
+import { isMissingFileError } from "./fsx.js";
 
 export function physicalRoot(root: string): string {
   const resolved = path.resolve(root);
   try {
     return realpathSync.native(resolved);
-  } catch (error: any) {
-    if (error.code === "ENOENT") return resolved;
+  } catch (error) {
+    if (isMissingFileError(error)) return resolved;
     throw error;
   }
 }

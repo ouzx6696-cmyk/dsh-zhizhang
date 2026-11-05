@@ -1,4 +1,5 @@
 import { assertWorkspaceWritable } from "./workspace-lock.js";
+import { isMissingFileError } from "./fsx.js";
 import { mkdir, copyFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -9,8 +10,8 @@ export async function snapshotFiles(root: string, files: string[]) {
   for (const file of files) {
     try {
       if ((await stat(file)).isFile()) existing.push(file);
-    } catch (error: any) {
-      if (error.code !== "ENOENT") throw error;
+    } catch (error) {
+      if (!isMissingFileError(error)) throw error;
     }
   }
   if (!existing.length) return;

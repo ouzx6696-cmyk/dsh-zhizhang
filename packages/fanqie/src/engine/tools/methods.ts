@@ -1,4 +1,5 @@
 /** Shared MethodRegistry tools + chapter_brief (writing entry that injects craft packs). */
+import { isFsError } from "../../../../core/src/fsx.js";
 import { contextBasis } from "../domain/lifecycle.js";
 import { buildPanelHints } from "../panel-query.js";
 import { readChapter } from "../storage/chapters.js";
@@ -41,11 +42,11 @@ export function methodsTools() {
                 id: S("单个资产 id（与 ids 二选一或并用）"),
             },
             required: [],
-            async execute(args: any) {
+            async execute(args) {
                 // ids 兼容「逗号分隔字符串」与「字符串数组」两种形态；
                 // 此前同时按两种类型硬校验，任何一种传法都会被另一种的校验拒绝。
                 const raw = [];
-                const idsArg = args?.ids;
+                const idsArg = args.ids;
                 if (typeof idsArg === "string") {
                     raw.push(...idsArg.split(/[,，\s]+/));
                 }
@@ -100,12 +101,12 @@ export function methodsTools() {
                 const lean = modeRaw !== "full";
                 const { paths, dir, key } = await openWork(exec, args);
                 const meta = await readWorkMeta(dir);
-                let chapter: any;
+                let chapter: Awaited<ReturnType<typeof readChapter>> | undefined;
                 try {
                     chapter = await readChapter(dir, chapterId);
                 }
-                catch (err: any) {
-                    if (err?.code !== "ENOENT") throw err;
+                catch (err) {
+                    if (!isFsError(err, "ENOENT")) throw err;
                     fail(`章节不存在：${chapterId}`, "not_found");
                 }
                 const extraRaw = asString(args, "extra_assets") ?? "";
@@ -261,7 +262,7 @@ export function methodsTools() {
                 if (meta.continuity) {
                     const preceding = [...meta.chapters].filter((c) => c.position < chapter.position).sort((a, b) => a.position - b.position).slice(-3);
                     const selectedIds = new Set([chapterId, ...preceding.map((c) => c.id), ...(chapter.dependencies ?? []).map((d: import("../domain/lifecycle.js").ChapterDependency) => d.chapterId)]);
-                    const select = (entries: any[]) => entries.filter(v => selectedIds.has(v.chapterId));
+                    const select = (entries: Array<{ chapterId: string }>) => entries.filter(v => selectedIds.has(v.chapterId));
                     const finalized = select(meta.continuity.finalized), working = select(meta.continuity.working);
                     lines.push("", "## 相关接续索引", `已定稿来源：${JSON.stringify(finalized)}`, `条件工作来源：${JSON.stringify(working)}`,
                         `其余 ${meta.continuity.finalized.length + meta.continuity.working.length - finalized.length - working.length} 条索引未注入；相关早先事实按章纲与实际出处定点补读。`,

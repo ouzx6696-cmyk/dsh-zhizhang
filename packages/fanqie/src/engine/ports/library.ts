@@ -2,7 +2,7 @@ import { parseSourceMeta } from "./library/input.js";
 import type { SourceMeta } from "./library/types.js";
 import type { ImportSourceInput, StageCardInput, CardFilter, ComboInput, TechniqueCard } from './library/types.js';
 import { dissectBatchHeader, dissectBriefHeader } from '../method-templates.js';
-import { readJson, sha256, isMissingFileError } from "../../../../core/src/fsx.js";
+import { readJson, sha256, isMissingFileError, isFsError } from "../../../../core/src/fsx.js";
 import { errorText } from "../../../../core/src/errors.js";
 /**
  * LibraryPort — 拆书库支柱（live）。
@@ -164,7 +164,7 @@ export const LibraryPort = {
                 try { await handle.writeFile(JSON.stringify(await emptyIndex(), null, 2) + "\n", "utf8"); await handle.sync(); }
                 finally { await handle.close(); }
                 try { await link(tmp, d.index); }
-                catch (err: any) { if (err?.code !== "EEXIST") throw err; }
+                catch (err) { if (!isFsError(err, "EEXIST")) throw err; }
             }
             finally { await rm(tmp, { force: true }); }
         }
@@ -501,7 +501,7 @@ export const LibraryPort = {
             const chapterNums = [...new Set(v2.evidence.map((e) => parseChapterNumber(e.chapter)).filter((n) => Number.isInteger(n) && n > 0))] as number[];
             const chapters = chapterNums.map((n) => {
                 const matches = analysis.chapters.filter((f) => Number(f.n) === n);
-                const fact: any = matches.length === 1 ? matches[0] : undefined;
+                const fact = matches.length === 1 ? matches[0] : undefined;
                 const level = fact?.readingLevel === "正文已读" || fact?.readingLevel === "深读" ? fact.readingLevel : "未声明";
                 return { chapter: n, readingLevel: level, sourceHash: fact?.sourceHash, sourceStart: fact?.sourceStart, sourceMatches: fact?.sourceHash ? fact.sourceHash === evidenceSourceHash : null };
             });
@@ -578,8 +578,8 @@ export const LibraryPort = {
                         auditWarnings.unshift(`证据引文 ${audit.evidenceVerified}/${audit.evidenceQuotes} 可在原文中核对，${audit.unverifiable.length} 条未命中`);
                     }
                 }
-                catch (err: any) {
-                    auditWarnings.push(`旧卡原文未能核对（${err?.message ?? String(err)}）；采纳前须人工检查来源。`);
+                catch (err) {
+                    auditWarnings.push(`旧卡原文未能核对（${errorText(err)}）；采纳前须人工检查来源。`);
                 }
             }
             auditWarnings.unshift(...moduleWarnings);

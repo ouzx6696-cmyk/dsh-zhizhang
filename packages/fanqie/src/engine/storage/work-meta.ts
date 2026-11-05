@@ -61,7 +61,7 @@ export function parseWorkMeta(raw:unknown, file:string):WorkMeta {
     meta.chapters = meta.chapters ?? [];
     return meta;
 }
-export async function writeWorkMeta(dir: string, meta: any) {
+export async function writeWorkMeta(dir: string, meta: WorkMeta) {
     meta.updatedAt = nowIso();
     await atomicWrite(metaPath(dir), JSON.stringify(meta, null, 2) + "\n");
 }

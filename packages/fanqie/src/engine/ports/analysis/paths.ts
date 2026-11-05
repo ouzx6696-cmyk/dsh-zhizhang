@@ -11,7 +11,7 @@ export { assertSourceId } from "../../storage/primitives.js";
 
 export { nowIso } from "../../storage/primitives.js";
 
-export function analysisPaths(paths: StoragePaths, sourceId: any) {
+export function analysisPaths(paths: StoragePaths, sourceId: string) {
     const id = assertSourceId(sourceId);
     const dir = path.join(paths.library, "analyses", id);
     return {
@@ -26,10 +26,11 @@ export function analysisPaths(paths: StoragePaths, sourceId: any) {
     };
 }
 
-export async function readJson(file: string, fallback: any) {
+/** 带缺失兜底的 JSON 读；T 由调用方按落盘契约声明。 */
+export async function readJson<T>(file: string, fallback: T): Promise<T> {
     try {
         // mtime 缓存：分析 bundle 在面板轮询里被反复整读，未变时直接命中。
-        return await readJsonCached(file);
+        return await readJsonCached<T>(file);
     }
     catch (err) {
         if (!isMissingFileError(err)) throw err;
@@ -37,7 +38,7 @@ export async function readJson(file: string, fallback: any) {
     }
 }
 
-export async function readJsonl<T = Record<string, any>>(file: string) {
+export async function readJsonl<T = Record<string, unknown>>(file: string) {
     return readJsonlCached<T>(file);
 }
 

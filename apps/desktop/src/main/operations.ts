@@ -19,6 +19,16 @@ function textField(body: Record<string, unknown>, key: string) {
   if (value !== undefined && typeof value !== "string") throw new Error(`参数无效：${key}`);
   return value;
 }
+/** 回执字段宽松读取：字符串原样，其余当缺失（AuthorAction 的可选字段）。 */
+function responseText(data: Record<string, unknown>, key: string): string | undefined {
+  const value = data[key];
+  return typeof value === "string" ? value : undefined;
+}
+/** 回执修订标识：字符串或数字原样透传（与历史宽松读取一致），其余当缺失。 */
+function responseId(data: Record<string, unknown>, key: string): string | number | undefined {
+  const value = data[key];
+  return typeof value === "string" || typeof value === "number" ? value : undefined;
+}
 async function resolveOperationTarget(state: Runtime, operation: string, options: RequestOptions) {
   const selected = state.target;
   if (!selected) throw new Error("请先选择创作目录");
@@ -102,8 +112,9 @@ async function route(
   };
   for (const handler of modes) if (await handler.handle(ctx)) break;
   if (url.pathname === API + "/toutiao/articles") {
-    response.data.currentRoot = selected.root;
-    response.data.deliverReason = state.model.writer.apiKey ? undefined : "请先保存模型连接";
+    const data = asRecord(response.data, "响应内容");
+    data.currentRoot = selected.root;
+    data.deliverReason = state.model.writer.apiKey ? undefined : "请先保存模型连接";
   }
   return response;
 }
@@ -125,14 +136,15 @@ async function notifyWrite(
       !target.work && target.mode === selected.mode && target.root === selected.root
         ? selected
         : target;
+    const data = asRecord(response.data, "回执内容");
     await state.sessions.notify(bound, {
       operation,
       article: textField(body, "id"),
       chapter:
-        textField(body, "chapter") || textField(body, "chapterId") || response.data.chapterId,
-      candidate: textField(body, "candidate") || response.data.candidateId,
-      revision: response.data.revision || response.data.rev,
-      status: response.data.status,
+        textField(body, "chapter") || textField(body, "chapterId") || responseText(data, "chapterId"),
+      candidate: textField(body, "candidate") || responseText(data, "candidateId"),
+      revision: responseId(data, "revision") || responseId(data, "rev"),
+      status: responseText(data, "status"),
       profile: textField(body, "profile"),
     });
   } catch (error) {

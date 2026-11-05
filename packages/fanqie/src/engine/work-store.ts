@@ -1,4 +1,5 @@
-import { shortId, exists } from "../../../core/src/fsx.js";
+import { shortId, exists, isFsError } from "../../../core/src/fsx.js";
+import { errorText } from "../../../core/src/errors.js";
 
 import { mkdir, realpath } from "node:fs/promises";
 import path from "node:path";
@@ -20,7 +21,15 @@ import {
   writeWorkMeta,
 } from "./storage/work-meta.js";
 
-export async function createWork(paths: StoragePaths, input: any) {
+/** 工具/工作台共用的建作输入；key 缺省时用 title 生成目录名。 */
+export interface CreateWorkInput {
+  key?: string;
+  title: string;
+  genre?: string;
+  premise?: string;
+}
+
+export async function createWork(paths: StoragePaths, input: CreateWorkInput) {
   const key = slugify(input.key?.trim() || input.title);
   await assertSafeAncestors(path.join(paths.works, ".root-check"));
   await mkdir(paths.works, { recursive: true });
@@ -35,8 +44,8 @@ export async function createWork(paths: StoragePaths, input: any) {
       dir = proposed;
       finalKey = path.basename(proposed);
       break;
-    } catch (err: any) {
-      if (err?.code !== "EEXIST") throw err;
+    } catch (err) {
+      if (!isFsError(err, "EEXIST")) throw err;
     }
   }
   if (!dir)
@@ -62,16 +71,16 @@ export async function createWork(paths: StoragePaths, input: any) {
       JSON.stringify({ schemaVersion: SCHEMA_VERSION, workKey: finalKey, entries: [] }, null, 2) +
         "\n",
     );
-  } catch (err: any) {
+  } catch (err) {
     throw new NovelError(
       "partial_work_create",
-      `作品目录 ${dir} 已创建，但初始化未完成（${err?.message ?? String(err)}）。原目录已保留，请核对后处理。`,
+      `作品目录 ${dir} 已创建，但初始化未完成（${errorText(err)}）。原目录已保留，请核对后处理。`,
     );
   }
   return { meta, dir };
 }
 
-export async function resolveWorkDir(paths: StoragePaths, keyOrTitle: any) {
+export async function resolveWorkDir(paths: StoragePaths, keyOrTitle: string) {
   const direct = workDir(paths, keyOrTitle);
   if (await exists(metaPath(direct))) return direct;
   const all = await listWorks(paths);
@@ -80,7 +89,7 @@ export async function resolveWorkDir(paths: StoragePaths, keyOrTitle: any) {
   return workDir(paths, hit.key);
 }
 
-export async function setFoundation(dir: string, patch: any, options: { pace?: string } = {}) {
+export async function setFoundation(dir: string, patch: Record<string, unknown>, options: { pace?: string } = {}) {
   const pace = validateStoryPace(options.pace);
   return withResourceLock(dir, async () => {
     const meta = await readWorkMeta(dir);
@@ -122,7 +131,7 @@ export async function appendHappenedLine(
   });
 }
 
-export async function assembleManuscript(dir: string, paths: StoragePaths, opts: any = {}) {
+export async function assembleManuscript(dir: string, paths: StoragePaths, opts: { onlyFinal?: boolean; outputRel?: string } = {}) {
   return withResourceLock(dir, async () => {
     const meta = await readWorkMeta(dir);
     const chapters = [...meta.chapters].sort((a, b) => a.position - b.position);

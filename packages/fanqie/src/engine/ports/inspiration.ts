@@ -41,7 +41,9 @@ function inspDirs(paths: StoragePaths) {
     };
 }
 /** 落盘灵感候选（stageEmit 写入）的宽松视图：字段来自 JSON，以运行时校验为准。 */
-type StoredCandidate = {
+/** 落盘灵感候选（stageEmit 写入）的宽松视图：字段来自 JSON，以运行时校验为准。 */
+export type StoredCandidate = {
+    id?: string;
     referenceVersions?: { id: string; revision: string }[];
     referenceIds?: string[];
     cardIds?: string[];
@@ -55,6 +57,22 @@ type StoredCandidate = {
     targetPlanningRevision?: unknown;
     payload?: Record<string, unknown>;
 };
+/** 灵感会话的落盘契约（startSession 写入，面板与工具只读）。 */
+export interface InspirationSession {
+    schemaVersion: number;
+    id: string;
+    goal: string;
+    genre: string;
+    cardIds: string[];
+    referenceIds?: string[];
+    craftOnly?: boolean;
+    pace?: string;
+    targetWorkKey?: string;
+    targetPlanningRevision?: string;
+    forgeAt?: string;
+    createdAt: string;
+    updatedAt: string;
+}
 export async function ensureInsp(paths: StoragePaths) {
     const d = inspDirs(paths);
     await Promise.all([
@@ -135,7 +153,7 @@ export const InspirationPort = {
         if (!(await fileExists(p))) {
             throw new NovelError("session_not_found", `找不到灵感会话 ${sessionId}`);
         }
-        return readJsonCached(p);
+        return readJsonCached<InspirationSession>(p);
     },
     async listSessions(paths: StoragePaths) {
         await ensureInsp(paths);
@@ -144,7 +162,7 @@ export const InspirationPort = {
         const rows = await Promise.all(names.map(async (name) => {
             try {
                 // mtime 缓存：面板每 ~6s 轮询都会全量列会话。
-                const s = await readJsonCached(path.join(d.sessions, name));
+                const s = await readJsonCached<InspirationSession>(path.join(d.sessions, name));
                 return {
                     id: s.id,
                     goal: s.goal,

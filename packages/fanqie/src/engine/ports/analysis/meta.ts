@@ -10,7 +10,9 @@ import { atomicWrite } from "../../storage/primitives.js";
 import { isMissingFileError } from "../../../../../core/src/fsx.js";
 import type { StoragePaths } from "../../types.js";
 import { analysisPaths, assertSourceId, ensureDir, nowIso, readJson, readJsonl } from "./paths.js";
-import type { ChapterFact, Plot } from "./types.js";
+import type { SurveyReport } from "../survey.js";
+import type { Character, Rhythm } from "./types.js";
+import type { AnalysisMeta, ChapterFact, Plot } from "./types.js";
 import { chapterIndex, totalChapters } from "./chapters.js";
 
 export async function ensureAnalysis(paths: StoragePaths, sourceId: string, sourceText: string) {
@@ -18,7 +20,7 @@ export async function ensureAnalysis(paths: StoragePaths, sourceId: string, sour
         await assertNoPendingCard(paths.library);
     const p = analysisPaths(paths, sourceId);
     await ensureDir(p.dir);
-    let meta = await readJson(p.meta, null);
+    let meta = await readJson<AnalysisMeta | null>(p.meta, null);
     if (meta !== null && (typeof meta !== "object" || Array.isArray(meta)))
         throw new NovelError("bad_analysis", `分析元数据格式损坏：${p.meta}`);
     if (!meta) {
@@ -54,7 +56,7 @@ export async function writeAnalysisMeta(paths: StoragePaths, sourceId: string, p
     return withResourceLock(paths.library, async () => {
         await assertNoPendingCard(paths.library);
     const p = analysisPaths(paths, sourceId);
-    const current = (await readJson(p.meta, null)) ?? { schemaVersion: 2, sourceId, stage: "meta" };
+    const current = (await readJson<AnalysisMeta | null>(p.meta, null)) ?? { schemaVersion: 2, sourceId, stage: "meta" };
     if (typeof current !== "object" || Array.isArray(current))
         throw new NovelError("bad_analysis", `分析元数据格式损坏：${p.meta}`);
     const next = { ...current, ...patch, updatedAt: nowIso() };
@@ -67,7 +69,7 @@ export async function writeAnalysisMeta(paths: StoragePaths, sourceId: string, p
 export async function commitAnalysisUpdate(paths: StoragePaths, sourceId: string, dataFile: string, dataBefore: string | null, content: string, patch: (meta: Record<string, unknown>) => Record<string, unknown>) {
     const p = analysisPaths(paths, sourceId);
     const metaBefore = await snapshotFile(p.meta);
-    const current = (await readJson(p.meta, null)) ?? { schemaVersion: 2, sourceId, stage: "meta" };
+    const current = (await readJson<AnalysisMeta | null>(p.meta, null)) ?? { schemaVersion: 2, sourceId, stage: "meta" };
     if (!current || typeof current !== "object" || Array.isArray(current))
         throw new NovelError("bad_analysis", "拆书分析元数据格式损坏，请保留并核对。");
     const next = { ...current, ...patch(current), updatedAt: nowIso() };
@@ -86,12 +88,12 @@ export async function readAnalysisBundle(paths: StoragePaths, sourceId: string) 
     await assertNoPendingCard(paths.library);
     const p = analysisPaths(paths, sourceId);
     const [meta, chapters, plots, rhythms, characters, survey] = await Promise.all([
-        readJson(p.meta, null),
+        readJson<AnalysisMeta | null>(p.meta, null),
         readJsonl<ChapterFact>(p.chapters),
         readJsonl<Plot>(p.plots),
-        readJson(p.rhythms, null),
-        readJson(p.characters, null),
-        readJson(p.survey, null),
+        readJson<Rhythm | null>(p.rhythms, null),
+        readJson<Character[] | null>(p.characters, null),
+        readJson<SurveyReport | null>(p.survey, null),
     ]);
     if (meta !== null && (typeof meta !== "object" || Array.isArray(meta)))
         throw new NovelError("bad_analysis", `分析元数据格式损坏：${p.meta}`);
@@ -120,7 +122,7 @@ export async function listAnalyses(paths: StoragePaths) {
     }
     const items = await Promise.all(names.map(async (id) => {
         const p = analysisPaths(paths, id);
-        const meta = await readJson(p.meta, null);
+        const meta = await readJson<AnalysisMeta | null>(p.meta, null);
         if (!meta) return null;
         const [chapters, plots] = await Promise.all([readJsonl(p.chapters), readJsonl(p.plots)]);
         return {

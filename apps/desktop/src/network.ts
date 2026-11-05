@@ -2,6 +2,7 @@ export type SearchProvider = "exa" | "tavily";
 export type SearchMode = "lite" | "auto";
 import { VERSION } from "../../../packages/core/src/version";
 import { lookup } from "node:dns/promises";
+import type { LookupAddress, LookupOptions } from "node:dns";
 import http from "node:http";
 import https from "node:https";
 import { isIP } from "node:net";
@@ -57,10 +58,10 @@ export async function readSource(
             "Accept-Encoding": "identity",
             "User-Agent": `WriterAgent/${VERSION}`,
           },
-          lookup: ((_host: unknown, options: any, callback: any) =>
+          lookup: ((_host: string, options: LookupOptions, callback: (err: NodeJS.ErrnoException | null, address: string | LookupAddress[], family?: number) => void) =>
             options?.all
               ? callback(null, [chosen])
-              : callback(null, chosen.address, chosen.family)) as any,
+              : callback(null, chosen.address, chosen.family)),
         },
         (response) => {
           const status = response.statusCode || 0;

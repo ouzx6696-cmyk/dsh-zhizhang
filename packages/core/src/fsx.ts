@@ -52,8 +52,13 @@ export async function atomicWrite(file: string, data: string): Promise<void> {
   }
 }
 
+/** Node fs 调用的错误对象带 errno 的 code 字段；按码识别才允许降级。 */
+export function isFsError(error: unknown, code: string) {
+  return error instanceof Error && 'code' in error && error.code === code
+}
+
 export function isMissingFileError(error: unknown) {
-  return error instanceof Error && 'code' in error && error.code === 'ENOENT'
+  return isFsError(error, 'ENOENT')
 }
 
 /** Missing directories are empty; permission and IO errors remain visible. */

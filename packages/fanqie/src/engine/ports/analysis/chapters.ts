@@ -1,7 +1,7 @@
 /** 章节目录 — 支持阿拉伯/中文数字与序章。 */
 import { CHAPTER_HEADING_RE, FRONT_HEADING_RE, parseChapterHeading, } from "../../domain/chapter-heading.js";
 
-function fresh(re: any) {
+function fresh(re: RegExp) {
     return new RegExp(re.source, re.flags);
 }
 
@@ -46,7 +46,7 @@ export function chapterTitle(index: { n: number; title: string; start: number; e
 }
 
 /** 百分比位置最近的章（用于 30/60/85 抽样）。 */
-export function nearestChapter(index: { n: number; title: string; start: number; end: number }[], ratio: any) {
+export function nearestChapter(index: { n: number; title: string; start: number; end: number }[], ratio: number) {
     const chapters = index.filter((c) => c.n > 0);
     if (!chapters.length)
         return null;

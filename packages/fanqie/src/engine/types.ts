@@ -4,6 +4,8 @@
  * 这些是「落盘契约」的类型：meta.json / ledger.json / 候选文件都按这里的形状读写。
  * 外部 JSON 在边界解析，领域对象接入读写函数。
  */
+import type { ToolExecution } from "../../../core/src/tool.js";
+
 export const SCHEMA_VERSION = 1;
 /** Five diagnostic evidence kinds for AI review *output* (agent-side; ledger stores them). */
 export const REVIEW_EVIDENCE_KINDS = [
@@ -44,7 +46,7 @@ export interface Outline {
     stateLens: string;
 }
 
-type ChapterStatus = "planned" | "drafting" | "drafted" | "reviewed" | "final";
+export type ChapterStatus = "planned" | "drafting" | "drafted" | "reviewed" | "final";
 
 export interface ChapterMeta {
     id: string;
@@ -160,13 +162,10 @@ export interface PluginConfig {
 }
 
 /** 工具执行上下文。 */
-export interface ExecContext {
+export interface ExecContext extends ToolExecution {
     failure?: { code: string; message: string };
     onWorkCreated?: (base: string, key: string) => void;
     onCandidateStaged?: (candidate: { id: string; chapterId: string; work: string; base: string }) => void;
-    cwd: string;
-    sessionId?: string;
-    [key: string]: any;
 }
 
 /**

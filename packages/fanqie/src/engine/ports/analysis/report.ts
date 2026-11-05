@@ -235,7 +235,7 @@ export function buildReport(input: ReportInput) {
     if (survey?.volumes?.length) {
         lines.push("");
         lines.push(mdTable(["卷", "有事实记录的章", "强钩子"], survey.volumes.map((v) => {
-            const inside = facts.filter((f) => Number(f.n) >= v.from && Number(f.n) <= v.to);
+            const inside = facts.filter((f) => Number(f.n) >= Number(v.from) && Number(f.n) <= Number(v.to));
             return [v.name, inside.length, inside.filter((f) => f.hook?.strength === "强").length];
         })));
     }

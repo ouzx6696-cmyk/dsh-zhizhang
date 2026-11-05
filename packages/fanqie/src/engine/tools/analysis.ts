@@ -17,13 +17,14 @@ import { upsertPlot, upsertCharacter, writeRhythm } from "../ports/analysis/stru
 import { atomicWrite } from "../../../../core/src/fsx.js";
 import { REPORT_SECTION_COUNT } from "../domain/report-sections.js";
 import { stepPrefix } from "../domain/workflow.js";
+import type { ChapterFact } from "../ports/analysis/types.js";
 import { asArray, asString } from "./context.js";
 import { openLibrary } from "./library/context.js";
 import { S, B, WORKING_DIR } from "./schema.js";
 import { defineTool } from "./types.js";
 
 /** 引文通过率：逐条回到该章正文核对，而不是「非空即通过」。 */
-function quoteStatsOf(facts: any, text: string, index: { n: number; title: string; start: number; end: number }[]) {
+function quoteStatsOf(facts: ChapterFact[], text: string, index: { n: number; title: string; start: number; end: number }[]) {
     let total = 0;
     let ok = 0;
     for (const f of facts) {

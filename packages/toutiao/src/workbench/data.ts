@@ -11,12 +11,29 @@ import { readText } from '../../../core/src/fsx.js'
 import { errorText } from '../../../core/src/errors.js'
 import { WriterError } from '../../../core/src/tool.js'
 import { listKnownRoots, type ToutiaoConfig } from '../env.js'
-import { ArticleStore, MAX_RETURN_ROUNDS, nowIso, STATUSES, type ArticleMeta } from '../store.js'
+import { ArticleStore, MAX_RETURN_ROUNDS, nowIso, STATUSES, type ArticleMeta, type Status } from '../store.js'
 import { syncLedgerStatus, validPassingQa } from '../tools.js'
 
 export const TOUTIAO_ACTIONS = ['new', 'continue', 'review', 'revise'] as const
 export type ToutiaoAction = (typeof TOUTIAO_ACTIONS)[number]
 const BODY_CAP = 200_000
+
+/** 台账行（listArticles 产出，作者面板直接消费）。 */
+export interface ArticleRow {
+  root: string
+  id: string
+  title: string
+  status: Status
+  line: string
+  genre: string
+  rev: number
+  qa: { score: number; pass: boolean; rev: number; current: boolean } | null
+  delivered: boolean
+  returnRounds: number
+  updatedAt: string
+}
+/** 单篇详情（articleDetail 产出）。 */
+export type ArticleDetail = Awaited<ReturnType<typeof articleDetail>>
 
 function titleOf(m: ArticleMeta) {
   return m.headlines.main || m.title_hint || m.id
@@ -30,7 +47,7 @@ async function knownRoot(root: string): Promise<string> {
 
 export async function listArticles() {
   const roots = await listKnownRoots()
-  const rows: Record<string, unknown>[] = []
+    const rows: ArticleRow[] = []
   const issues: { root: string; id?: string; error: string }[] = []
   const perRoot = await Promise.all(roots.map(async (root) => {
     const rootIssues: { root: string; id?: string; error: string }[] = []

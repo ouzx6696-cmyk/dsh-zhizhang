@@ -122,7 +122,7 @@ export const libraryPlan = defineTool({
           totalChapters: plan.totalChapters,
           planChapters: est.chapters,
         });
-        (plan as any).consent = {
+        plan.consent = {
           at: new Date().toISOString(),
           note: asString(args, "note") || "作者明确要求全量",
         };

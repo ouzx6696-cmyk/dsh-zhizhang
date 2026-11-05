@@ -10,7 +10,7 @@ import { asString, asStringArray, boolArg, config, fail, rememberWork } from "./
 import { B, E, S, WORKING_DIR } from "./schema.js";
 import { defineTool } from "./types.js";
 import type { ExecContext } from "./types.js";
-async function openInsp(exec: ExecContext, args: any) {
+async function openInsp(exec: ExecContext, args: Record<string, unknown>) {
     const paths = await ensureStorage(exec, config, asString(args, "working_dir"));
     return paths;
 }

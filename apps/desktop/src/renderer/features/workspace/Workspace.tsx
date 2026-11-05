@@ -14,6 +14,24 @@ import { StatusBadge } from "../../../../../../packages/ui/src/status-badge";
 import type { WorkspaceProps } from "../../../renderer-contracts";
 import { WorkspaceLayout } from "./WorkspaceLayout";
 import { Articles } from "./Articles";
+/** 快照章节行（panel-query chapterRows 产出；分组只读 id）。 */
+interface SnapshotChapterRow {
+  id: string;
+}
+/** 快照卷分组（meta.planning.volumes 映射；chapters 为卷内章节 id）。 */
+interface SnapshotVolume {
+  id: string;
+  title?: string;
+  chapters: string[];
+}
+/** 左侧导航的卷分组行。 */
+interface VolumeGroup {
+  id: string;
+  title?: string;
+  chapters?: string[];
+  rows: SnapshotChapterRow[];
+}
+
 function Novel(props: WorkspaceProps) {
   const annotationId = React.useId();
   const {onContext} = props;
@@ -140,16 +158,16 @@ function Novel(props: WorkspaceProps) {
       )}
     </div>
   );
-  const assigned = new Set(),
-    groups = (view.snap?.volumes || []).map((volume: any) => ({
-      ...volume,
-      rows: view.chapters.filter((chapter: any) => {
-        if (!volume.chapters.includes(chapter.id) || assigned.has(chapter.id)) return false;
-        assigned.add(chapter.id);
-        return true;
-      }),
-    }));
-  const ungrouped = view.chapters.filter((chapter: any) => !assigned.has(chapter.id));
+  const assigned = new Set<string>();
+  const groups: VolumeGroup[] = (view.snap?.volumes || []).map((volume: SnapshotVolume) => ({
+    ...volume,
+    rows: view.chapters.filter((chapter: SnapshotChapterRow) => {
+      if (!volume.chapters.includes(chapter.id) || assigned.has(chapter.id)) return false;
+      assigned.add(chapter.id);
+      return true;
+    }),
+  }));
+  const ungrouped = view.chapters.filter((chapter: SnapshotChapterRow) => !assigned.has(chapter.id));
   if (ungrouped.length)
     groups.push({
       id: "ungrouped",
@@ -159,7 +177,7 @@ function Novel(props: WorkspaceProps) {
   const navigation = (
     <>
       <h2>{viewCopy.writingChapters}</h2>
-      {groups.map((group: any) => (
+      {groups.map((group) => (
         <section className="nav-volume" key={group.id}>
           {group.title && <h3>{group.title}</h3>}
           <ChapterList
@@ -187,7 +205,7 @@ function Novel(props: WorkspaceProps) {
         view={view}
         actions={{
           ...actions,
-          dispatch: (event: any) => {
+          dispatch: (event: { type: string; view?: string }) => {
             actions.dispatch(event);
             if (event.type === "view" && event.view === "chapters") props.onView?.("writing");
           },
