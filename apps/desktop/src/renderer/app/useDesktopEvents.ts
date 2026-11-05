@@ -1,4 +1,5 @@
 import { useEffect, type RefObject } from "react";
+import { taskEndCopy } from "../../../../../packages/ui/src/copy";
 import { scopeId, type Focus, type Target } from "../../context";
 import { chatStore } from "../state/chatStore";
 import { desktopStore, type ChatMessage, type SystemState } from "../state/store";
@@ -167,12 +168,7 @@ export function useDesktopEvents({
         chatStore.set({
           busy: false,
           stream: "",
-          phase:
-            event.reason === "failed"
-              ? event.error || "任务失败，请查看错误后重试"
-              : event.reason === "cancelled"
-                ? "已停止，已保存结果保留"
-                : "任务结束，等待你查看结果",
+          phase: taskEndCopy(event.reason, event.error),
         });
       }
     });

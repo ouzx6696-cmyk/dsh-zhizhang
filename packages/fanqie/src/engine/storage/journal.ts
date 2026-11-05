@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { hostname } from "node:os";
-import { lstat, open, readFile, unlink } from "node:fs/promises";
+import { lstat, readFile, unlink } from "node:fs/promises";
 import path from "node:path";
 import { atomicWrite, isMissingFileError, nowIso, sha256 } from "../../../../core/src/fsx.js";
 import { NovelError } from "../errors.js";
+import { createExclusive } from "./primitives.js";
 import { withResourceLock } from "./process-lock.js";
 
 export type InputWrite = { file: string; before: string | null; content?: string; target?: "work" | "inspiration" };
@@ -58,19 +59,8 @@ async function applyRecordedWrites(writes: Write[], code: string) {
 async function removeIfMissingAllowed(file: string) {
     try { await unlink(file); } catch (error) { if (!isMissingFileError(error)) throw error; }
 }
-async function createExclusive(file: string, value: object) {
-    const handle = await open(file, "wx", 0o600);
-    try {
-        try { await handle.writeFile(JSON.stringify(value, null, 2) + "\n"); await handle.sync(); }
-        finally { await handle.close(); }
-    } catch (error) {
-        try { await removeIfMissingAllowed(file); }
-        catch (cleanupError) { throw new AggregateError([error, cleanupError], "恢复记录写入与清理均失败"); }
-        throw error;
-    }
-}
 async function ensureMarker(file: string, id: string, code: string) {
-    try { await createExclusive(file, { id }); }
+    try { await createExclusive(file, JSON.stringify({ id }, null, 2) + "\n"); }
     catch (error) {
         if (!(error instanceof Error && 'code' in error && error.code === "EEXIST")) throw error;
         await snapshotFile(file);
@@ -136,7 +126,7 @@ export function journal<M extends object, C>(spec: Spec<M, C>) {
         const r = {version:1, id:randomUUID(), owner:{pid:process.pid,host:hostname()}, createdAt:nowIso(), ...fields,
             ...(Array.isArray(writes) ? {writes:writes.map((value: unknown) => {const w=object(value);return {...w,after:typeof w.content === "string" ? sha256(w.content) : w.after ?? null};})} : {})};
         const j = decode(JSON.stringify(r), context);
-        try { await createExclusive(journalPath(context), r); }
+        try { await createExclusive(journalPath(context), JSON.stringify(r, null, 2) + "\n"); }
         catch (error) { if (error instanceof Error && 'code' in error && error.code === "EEXIST") throw problem("required", `已有待恢复的${spec.label}，请先检查。`); throw error; }
         if (j.marker) await ensureMarker(j.marker, j.id, code("conflict"));
         return j.id;

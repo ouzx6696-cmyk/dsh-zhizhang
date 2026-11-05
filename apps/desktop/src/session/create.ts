@@ -1,7 +1,7 @@
 import { DEFAULT_CONTEXT, compactionSettings } from "../context-settings";
 import path from "node:path";
-import { access, mkdir, readFile } from "node:fs/promises";
-import { atomicWrite } from "../../../../packages/core/src/fsx";
+import { mkdir, readFile } from "node:fs/promises";
+import { atomicWrite, exists } from "../../../../packages/core/src/fsx";
 import type { Target } from "../context";
 import {
   createAgentSession,
@@ -48,14 +48,7 @@ export async function createSession(
       throw error;
     });
     manager =
-      marker &&
-      (await access(marker).then(
-        () => true,
-        (error) => {
-          if (error.code === "ENOENT") return false;
-          throw error;
-        },
-      ))
+      marker && (await exists(marker))
         ? SessionManager.open(marker)
         : SessionManager.create(target.root, dir);
   }

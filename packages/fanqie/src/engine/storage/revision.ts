@@ -1,10 +1,10 @@
 import { sha256 } from "../../../../core/src/fsx.js";
 /** Content identity and immutable history shared by every chapter write path. */
 
-import { lstat, mkdir, open, readFile } from "node:fs/promises";
+import { lstat, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { NovelError } from "../errors.js";
-import { assertResourceId } from "./primitives.js";
+import { assertResourceId, createExclusive } from "./primitives.js";
 
 export function chapterRevision(chapter: { body: string; outline: unknown; position: number }) {
     return sha256(JSON.stringify([chapter.body, chapter.outline, chapter.position]));
@@ -27,10 +27,9 @@ export async function preserveChapter(dir: string, id: string, expectedHash: str
     const relative = `revisions/${id}/${hash}.md`;
     const file = path.join(dir, relative);
     try {
-        const h = await open(file, "wx", 0o600);
-        try { await h.writeFile(bytes); await h.sync(); } finally { await h.close(); }
-    } catch (err: any) {
-        if (err?.code !== "EEXIST") throw err;
+        await createExclusive(file, bytes);
+    } catch (error) {
+        if (!(error instanceof Error && "code" in error && error.code === "EEXIST")) throw error;
         const st = await lstat(file);
         if (!st.isFile() || st.isSymbolicLink() || !(await readFile(file)).equals(bytes))
             throw new NovelError("history_conflict", "历史副本不完整或已变化，未覆盖原稿。");

@@ -724,6 +724,21 @@ export function formatClock(iso?: string) {
   return date.toLocaleTimeString("zh-CN", { hour12: false });
 }
 
+/** "YYYY-MM-DD HH:mm" in the local timezone; empty when the timestamp is unusable. */
+export function formatDateTime(iso?: string) {
+  const date = iso ? new Date(iso) : null;
+  if (!date || Number.isNaN(date.getTime())) return "";
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+/** 结束文案三处共用（通知、界面 phase、错误解释），文本以通知版为基准。 */
+export function taskEndCopy(reason: string | undefined, error?: string): string {
+  if (reason === "failed") return `任务失败：${error || "请查看错误后重试"}`;
+  if (reason === "cancelled") return "任务已停止，已保存结果保留";
+  return "写作任务已结束，等待你查看稿件与回报。";
+}
+
 /** Human byte size (KB/MB) for truncation notices. */
 export function formatBytes(n: unknown) {
   const value = Number(n) || 0;

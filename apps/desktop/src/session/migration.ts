@@ -1,16 +1,16 @@
 import path from "node:path";
-import { createHash } from "node:crypto";
 import {
   atomicWrite,
   exists,
   listDir,
   readText,
   serialize,
+  sha256,
 } from "../../../../packages/core/src/fsx";
 import { rootIdentity } from "../../../../packages/core/src/identity";
 import type { Sessions } from "./manager";
 import type { Target } from "../context";
-function parseHistory(text: string | undefined): string[] {
+export function parseHistory(text: string | undefined): string[] {
   const rows: unknown = JSON.parse(text ?? "[]");
   if (!Array.isArray(rows) || !rows.every((row: unknown) => typeof row === "string"))
     throw new Error("会话历史索引损坏");
@@ -41,16 +41,13 @@ export async function migrateSessionHistory(host: Sessions, target: Target) {
         )
           throw new Error("旧会话头损坏：" + current);
         if (rootIdentity(header.cwd) !== rootIdentity(target.root)) continue;
-        const oldKey = createHash("sha256")
-          .update(
-            JSON.stringify({
-              mode: target.mode,
-              root: path.resolve(header.cwd),
-              ...(target.work ? { work: target.work } : {}),
-            }),
-          )
-          .digest("hex")
-          .slice(0, 24);
+        const oldKey = sha256(
+          JSON.stringify({
+            mode: target.mode,
+            root: path.resolve(header.cwd),
+            ...(target.work ? { work: target.work } : {}),
+          }),
+        ).slice(0, 24);
         if (entry.name !== oldKey) continue;
         await atomicWrite(path.join(dir, "current"), current);
         const history = parseHistory(await readText(path.join(old, "history.json")));

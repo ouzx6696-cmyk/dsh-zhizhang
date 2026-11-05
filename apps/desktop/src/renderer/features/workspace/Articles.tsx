@@ -1,4 +1,4 @@
-import { COPY as viewCopy, t as viewText } from "../../../../../../packages/ui/src/copy.js";
+import { COPY as viewCopy, formatDateTime, t as viewText } from "../../../../../../packages/ui/src/copy.js";
 import { ARTICLE_STEPS, articleProgress } from "../../../../../../packages/ui/src/status";
 import { Steps } from "../../../../../../packages/ui/src/primitives";
 import React, { useEffect, useState } from "react";
@@ -89,11 +89,7 @@ function Ledger({
               </td>
               <td>{row.rev || "—"}</td>
               <td>{row.qa?.score ?? "—"}</td>
-              <td>
-                {row.updatedAt
-                  ? new Date(row.updatedAt).toLocaleString("zh-CN", { hour12: false })
-                  : "—"}
-              </td>
+              <td>{formatDateTime(row.updatedAt) || "—"}</td>
               <td>
                 <button onClick={() => onOpen(row.root, row.id)}>{t("ttLedgerOpen")}</button>
               </td>

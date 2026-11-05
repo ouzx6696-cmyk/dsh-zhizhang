@@ -2,7 +2,7 @@ import { COPY as viewCopy } from "../../../../ui/src/copy.js";
 import { Steps } from "../../../../ui/src/primitives.jsx";
 /** Right column: chapter lifecycle, author actions, candidates and context. */
 import React from "react";
-import { formatCount, t } from "../../../../ui/src/copy.js";
+import { formatCount, formatDateTime, t } from "../../../../ui/src/copy.js";
 import { Button, Icon, Tag, cx } from "../shared/ui.jsx";
 import { ActionCard, Callout, Foundation, Hints, Section, StatusTag } from "../shared/common.jsx";
 
@@ -67,7 +67,7 @@ export function WriterAgent({ state, actions, chapterId, writer, bodyReady }) {
               <p className="wb-muted">
                 {t("editorHard", { n: review.hardIssues || 0 })} ·{" "}
                 {t("editorLevels", { n: review.levels || 0 })}
-                {review.at ? " · " + String(review.at).slice(0, 16).replace("T", " ") : ""}
+                {review.at ? " · " + formatDateTime(review.at) : ""}
               </p>
               {review.summary ? <p className="wb-writer-summary">{review.summary}</p> : null}
             </div>

@@ -10,6 +10,7 @@ import type { Settings } from "../settings";
 import type { FanqieConfig } from "../../../../packages/fanqie/src/config";
 import type { ToutiaoConfig } from "../../../../packages/toutiao/src/config";
 import { releaseInactiveTarget } from "./targets";
+import { taskEndCopy } from "../../../../packages/ui/src/copy";
 
 type WriterConfig = {
   toutiao?: ToutiaoConfig;
@@ -66,12 +67,9 @@ export class Runtime {
 
   private notifyTask(value: DesktopEvent) {
     if (value.editor || this.window?.isFocused() || !Notification.isSupported()) return;
-    const reason = value.event?.reason;
     const notification = new Notification({
       title: '写作 Agent',
-      body: reason === 'failed' ? `任务失败：${value.event?.error || '请查看错误后重试'}`
-        : reason === 'cancelled' ? '任务已停止，已保存结果保留'
-        : '写作任务已结束，等待你查看稿件与回报。',
+      body: taskEndCopy(value.event?.reason, value.event?.error),
     });
     notification.on('click', () => {
       this.window?.show(); this.window?.focus();

@@ -2,7 +2,7 @@ import { parseSourceMeta } from "./library/input.js";
 import type { SourceMeta } from "./library/types.js";
 import type { ImportSourceInput, StageCardInput, CardFilter, ComboInput, TechniqueCard } from './library/types.js';
 import { dissectBatchHeader, dissectBriefHeader } from '../method-templates.js';
-import { sha256, isMissingFileError } from "../../../../core/src/fsx.js";
+import { readJson, sha256, isMissingFileError } from "../../../../core/src/fsx.js";
 import { errorText } from "../../../../core/src/errors.js";
 /**
  * LibraryPort — 拆书库支柱（live）。
@@ -545,7 +545,8 @@ export const LibraryPort = {
             const indexBefore = await snapshotFile(d.index);
             if (indexBefore === null)
                 throw new NovelError("library_index_missing", "拆书库索引缺失，请先核对原文件。");
-            const staged = JSON.parse(await readFile(candPath, "utf8"));
+            const staged = await readJson<TechniqueCard>(candPath);
+            if (!staged) throw new NovelError("candidate_not_found", `找不到技法卡候选 ${id}`);
             if (staged.status === "accepted" || staged.acceptedCardId) {
                 throw new NovelError("candidate_already_accepted", `卡候选 ${id} 已采纳${staged.acceptedCardId ? `（${staged.acceptedCardId}）` : ""}，不能重复入库。请重新 card_stage。`);
             }

@@ -1,6 +1,6 @@
 import type { StartInspirationInput, AcceptEmissionInput, StageEmissionInput, CardSelection } from './inspiration-input.js';
 import { readInspirationBindings } from "../storage/inspiration-migration.js";
-import { nowIso, shortId as newId, exists as fileExists, isMissingFileError } from "../../../../core/src/fsx.js";
+import { nowIso, readJson, shortId as newId, exists as fileExists, isMissingFileError } from "../../../../core/src/fsx.js";
 import { errorText } from "../../../../core/src/errors.js";
 import { readReference } from "../services/reference.js";
 import { fingerprint } from "../domain/lifecycle.js";
@@ -10,7 +10,7 @@ import { withResourceLock } from "../storage/process-lock.js";
  * Session + Library cards + MethodRegistry develop/plan → stage foundation/outline → explicit accept (optional apply to work).
  * Does not silently foundation_set.
  */
-import { mkdir, readFile, readdir } from "node:fs/promises";
+import { mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
 import { NovelError } from "../errors.js";
 import { snapshotFile } from "../storage/journal.js";
@@ -40,6 +40,21 @@ function inspDirs(paths: StoragePaths) {
         candidates: path.join(paths.inspiration, "candidates"),
     };
 }
+/** 落盘灵感候选（stageEmit 写入）的宽松视图：字段来自 JSON，以运行时校验为准。 */
+type StoredCandidate = {
+    referenceVersions?: { id: string; revision: string }[];
+    referenceIds?: string[];
+    cardIds?: string[];
+    status?: unknown;
+    appliedWorkKey?: unknown;
+    kind?: unknown;
+    pace?: unknown;
+    sourceGoal?: unknown;
+    sessionId?: unknown;
+    targetWorkKey?: unknown;
+    targetPlanningRevision?: unknown;
+    payload?: Record<string, unknown>;
+};
 export async function ensureInsp(paths: StoragePaths) {
     const d = inspDirs(paths);
     await Promise.all([
@@ -155,10 +170,8 @@ export const InspirationPort = {
             const names = (await readdir(dir)).filter(name => name.endsWith(".json"));
             const rows: Array<{ id: string; kind: string; title: string; at: string }> = [];
             for (const name of names) {
-                let cand: Record<string, unknown> | null = null;
-                try { cand = JSON.parse(await readFile(path.join(dir, name), "utf8")); }
-                catch { throw new NovelError("bad_inspiration_candidate", `灵感候选 ${name} 无法读取；请保留原文件并核对。`); }
-                if (!cand || typeof cand !== "object" || Array.isArray(cand) || typeof cand.id !== "string" || cand.id !== name.slice(0, -5))
+                const cand = await readJson<Record<string, unknown>>(path.join(dir, name));
+                if (!cand || Array.isArray(cand) || typeof cand.id !== "string" || cand.id !== name.slice(0, -5))
                     throw new NovelError("bad_inspiration_candidate", `灵感候选 ${name} 格式损坏；请保留原文件并核对。`);
                 if (cand.status === "accepted" && cand.appliedWorkKey === workKey) {
                     const payload = (cand.payload ?? {}) as Record<string, unknown>;
@@ -179,13 +192,9 @@ export const InspirationPort = {
         return withResourceLock(paths.inspiration, async () => {
             await assertNoPendingInspiration(paths.inspiration);
             const id = assertResourceId(candidateId, "灵感候选 id");
-            let candidate: Record<string, unknown> | null = null;
-            try { candidate = JSON.parse(await readFile(path.join(inspDirs(paths).candidates, `${id}.json`), "utf8")); }
-            catch (err: unknown) {
-                if (isMissingFileError(err)) throw new NovelError("candidate_not_found", `找不到灵感候选 ${id}`);
-                throw new NovelError("bad_inspiration_candidate", `灵感候选 ${id} 无法读取；请保留原文件并核对。`);
-            }
-            if (!candidate || typeof candidate !== "object" || Array.isArray(candidate) || candidate.id !== id)
+            const candidate = await readJson<Record<string, unknown>>(path.join(inspDirs(paths).candidates, `${id}.json`));
+            if (!candidate) throw new NovelError("candidate_not_found", `找不到灵感候选 ${id}`);
+            if (Array.isArray(candidate) || candidate.id !== id)
                 throw new NovelError("bad_inspiration_candidate", `灵感候选 ${id} 格式损坏；请保留原文件并核对。`);
             return candidate;
         });
@@ -409,7 +418,8 @@ export const InspirationPort = {
             await assertNoPendingInspiration(paths.inspiration);
             const candidateBefore = await snapshotFile(candPath);
             if (candidateBefore === null) throw new NovelError("candidate_not_found", `找不到灵感候选 ${id}`);
-            const cand = JSON.parse(await readFile(candPath, "utf8"));
+            const cand = await readJson<StoredCandidate>(candPath);
+            if (!cand) throw new NovelError("candidate_not_found", `灵感候选 ${id} 在读取期间消失，请重新检查。`);
             for (const ref of cand.referenceVersions ?? []) if (fingerprint(await readReference(paths, ref.id)) !== ref.revision)
                 throw new NovelError("reference_changed", "所选分析成果已变化，请核对并重新准备规划。");
             if (await snapshotFile(candPath) !== candidateBefore)
@@ -455,7 +465,7 @@ export const InspirationPort = {
                     writes.push({target: "work", file: "meta.json", before: metaBefore, content: JSON.stringify(meta, null, 2) + "\n"});
                     detail = `已 apply foundation → 作品「${meta.title}」（${meta.key}）：${Object.keys(patch).join("、")}${pace ? `；节奏 ${pace}` : ""}`;
                 } else if (cand.kind === "book_plan" || cand.kind === "volume_plan" || cand.kind === "act_plan") {
-                    if (!payload.content.trim())
+                    if (typeof payload.content !== "string" || !payload.content.trim())
                         throw new NovelError("empty_body", "规划内容为空，请检查候选。");
                     const planning = readPlanning(meta) ?? { schemaVersion: 1, volumes: [], acts: [] };
                     const source = {
@@ -469,20 +479,22 @@ export const InspirationPort = {
                         planning.book = { ...(planning.book ?? {}), content: payload.content, source, updatedAt: now };
                         detail = `已应用全书规划 → 作品「${meta.title}」（${meta.key}）`;
                     } else if (cand.kind === "volume_plan") {
-                        const volumeId = assertResourceId(payload.id, "卷 id");
-                        if (payload.chapters !== undefined && (!Array.isArray(payload.chapters) || payload.chapters.some((ch:unknown) => typeof ch !== "string")))
+                        const volumeId = assertResourceId(typeof payload.id === "string" ? payload.id : "", "卷 id");
+                        const planChapters = payload.chapters;
+                        if (planChapters !== undefined && (!Array.isArray(planChapters) || planChapters.some((ch: unknown) => typeof ch !== "string")))
                             throw new NovelError("bad_args", "卷规划 chapters 须为章节 id 数组");
-                        const chapters = [...new Set<string>((payload.chapters ?? []).map((ch: string) => assertResourceId(ch, "章节 id")))];
+                        const chapters = [...new Set<string>((planChapters ?? []).map((ch: string) => assertResourceId(ch, "章节 id")))];
                         const index = planning.volumes.findIndex((v) => v && v.id === volumeId);
                         const volume = { ...(index < 0 ? {} : planning.volumes[index]), id: volumeId, title: typeof payload.title === "string" && payload.title.trim() ? payload.title.trim() : volumeId, content: payload.content, chapters, source, updatedAt: now };
                         if (index < 0) planning.volumes.push(volume); else planning.volumes[index] = volume;
                         detail = `已应用卷规划「${volume.title}」 → 作品「${meta.title}」`;
                     } else {
-                        const actId = assertResourceId(payload.id, "幕 id");
-                        const volumeId = payload.volumeId ? assertResourceId(payload.volumeId, "卷 id") : "";
-                        if (payload.chapters !== undefined && (!Array.isArray(payload.chapters) || payload.chapters.some((ch:unknown) => typeof ch !== "string")))
+                        const actId = assertResourceId(typeof payload.id === "string" ? payload.id : "", "幕 id");
+                        const volumeId = typeof payload.volumeId === "string" && payload.volumeId ? assertResourceId(payload.volumeId, "卷 id") : "";
+                        const planChapters = payload.chapters;
+                        if (planChapters !== undefined && (!Array.isArray(planChapters) || planChapters.some((ch: unknown) => typeof ch !== "string")))
                             throw new NovelError("bad_args", "幕规划 chapters 须为章节 id 数组");
-                        const chapters = [...new Set<string>((payload.chapters ?? []).map((ch: string) => assertResourceId(ch, "章节 id")))];
+                        const chapters = [...new Set<string>((planChapters ?? []).map((ch: string) => assertResourceId(ch, "章节 id")))];
                         const index = planning.acts.findIndex((v) => v && v.id === actId);
                         const act = { ...(index < 0 ? {} : planning.acts[index]), id: actId, title: typeof payload.title === "string" && payload.title.trim() ? payload.title.trim() : actId, content: payload.content, volumeId, chapters, source, updatedAt: now };
                         if (index < 0) planning.acts.push(act); else planning.acts[index] = act;
@@ -494,7 +506,7 @@ export const InspirationPort = {
                     meta.updatedAt = nowIso();
                     writes.push({target: "work", file: "meta.json", before: metaBefore, content: JSON.stringify(meta, null, 2) + "\n"});
                 } else if (cand.kind === "outline") {
-                    chapterId = assertResourceId(payload.chapter, "章节 id");
+                    chapterId = assertResourceId(typeof payload.chapter === "string" ? payload.chapter : "", "章节 id");
                     const chapterPath = path.join(dir, "chapters", `${chapterId}.md`);
                     const chapterBefore = await snapshotFile(chapterPath);
                     let previous: Awaited<ReturnType<typeof readChapter>> | null = null;
@@ -512,9 +524,7 @@ export const InspirationPort = {
                 } else throw new NovelError("bad_args", "灵感候选类型损坏，请保留原文件并检查。");
                 const bPath = path.join(d.root, "bindings.json");
                 const bBefore = await snapshotFile(bPath);
-                const bindings = bBefore === null ? {} : JSON.parse(await readFile(bPath, "utf8"));
-                if (!bindings || typeof bindings !== "object" || Array.isArray(bindings) || (bindings[workKey] !== undefined && !Array.isArray(bindings[workKey])))
-                    throw new NovelError("bad_bindings", "参考卡绑定索引格式损坏；请保留并检查原文件。");
+                const bindings = (await readInspirationBindings(d.root)) ?? {};
                 const ids = Array.isArray(cand.cardIds) ? cand.cardIds : [];
                 const next = [...ids, ...(bindings[workKey] ?? [])].filter((v, i, arr) => arr.indexOf(v) === i).slice(0, 24);
                 if (next.length) {

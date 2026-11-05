@@ -2,9 +2,10 @@ import type { WriterMessage } from "../renderer-contracts";
 import { DEFAULT_HISTORY_LIMIT } from "../history-options";
 import path from "node:path";
 import { access, mkdir, readFile, rm, stat } from "node:fs/promises";
-import { atomicWrite, assertSafeAncestors } from "../../../../packages/core/src/fsx";
+import { atomicWrite, assertSafeAncestors, readText } from "../../../../packages/core/src/fsx";
 import type { Target } from "../context";
 import { SessionManager } from "./pi-adapter";
+import { parseHistory } from "./migration";
 import type { Sessions } from "./manager";
 
 export async function conversations(
@@ -12,12 +13,7 @@ export async function conversations(
   target: Target,
 ): Promise<{ id: number; name: string; file: string; legacy?: boolean }[]> {
   const dir = await host.directory(target);
-  const history: string[] = JSON.parse(
-    await readFile(path.join(dir, "history.json"), "utf8").catch((error) => {
-      if (error.code === "ENOENT") return "[]";
-      throw error;
-    }),
-  );
+  const history: string[] = parseHistory(await readText(path.join(dir, "history.json")));
   return history.map((file, index) => ({
     id: index,
     name: path.basename(file).replace(/\.jsonl$/, ""),

@@ -5,9 +5,8 @@ import type { ExecContext, PluginConfig, StoragePaths } from "../types.js";
 
 import { NovelError } from "../errors.js";
 
-import { assertSafeAncestors } from "./primitives.js";
+import { assertSafeAncestors, WINDOWS_RESERVED_NAME } from "./primitives.js";
 
-const RESERVED_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
 export function slugify(title: string) {
   const cleaned = Array.from(
     title
@@ -20,7 +19,7 @@ export function slugify(title: string) {
     .slice(0, 60)
     .join("");
   if (cleaned.length === 0) return `work-${Date.now().toString(36)}`;
-  return RESERVED_NAME.test(cleaned) ? `_${cleaned}` : cleaned;
+  return WINDOWS_RESERVED_NAME.test(cleaned) ? `_${cleaned}` : cleaned;
 }
 
 function resolveRoot(raw: string | undefined, cwd: string, fallback: string): string {

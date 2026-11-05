@@ -1,7 +1,6 @@
-import { sha256 } from "../../../../core/src/fsx.js";
+import { readJson, sha256 } from "../../../../core/src/fsx.js";
 /** Local analysis artifacts stay outside the shared library until explicitly promoted. */
 import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { atomicWrite, assertResourceId } from "../storage/primitives.js";
 import { NovelError } from "../errors.js";
@@ -37,10 +36,11 @@ export async function analyzeReference(paths: StoragePaths, input: { text: strin
     return artifact;
 }
 export async function readReference(paths: StoragePaths, id: string) {
-    const artifact = JSON.parse(await readFile(path.join(paths.base, "analyses", `${assertResourceId(id)}.json`), "utf8"));
-    if (!artifact || artifact.schemaVersion !== 1 || artifact.id !== id || !/^[a-f0-9]{64}$/.test(artifact.sourceHash) || typeof artifact.report !== "string")
+    const artifact = await readJson<Record<string, unknown>>(path.join(paths.base, "analyses", `${assertResourceId(id)}.json`));
+    if (!artifact || artifact.schemaVersion !== 1 || artifact.id !== id || typeof artifact.sourceHash !== "string" || !/^[a-f0-9]{64}$/.test(artifact.sourceHash) || typeof artifact.report !== "string")
         throw new NovelError("bad_reference", "工作区分析成果格式损坏。");
-    if (typeof artifact.sourceText !== "string" || sha256(artifact.sourceText) !== artifact.sourceHash || !Array.isArray(artifact.quotes) || artifact.quotes.some((q: unknown) => typeof q !== "string" || !artifact.sourceText.includes(q)))
+    const { sourceText, quotes } = artifact;
+    if (typeof sourceText !== "string" || sha256(sourceText) !== artifact.sourceHash || !Array.isArray(quotes) || quotes.some((q) => typeof q !== "string" || !sourceText.includes(q)))
         throw new NovelError("bad_reference", "工作区原文快照或引文校验不一致。");
     if (artifact.transfer) validateTransfer(artifact.transfer);
     return artifact;

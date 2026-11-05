@@ -1,4 +1,5 @@
 import { errorText } from "../../../packages/core/src/errors.js";
+import { taskEndCopy } from "../../../packages/ui/src/copy.js";
 export { Diagnostics } from "../../../packages/core/src/diagnostics";
 export function explainError(error: unknown) {
   const text = errorText(error);
@@ -10,6 +11,6 @@ export function explainError(error: unknown) {
     return "请求过于频繁：请稍后重试，或在服务商调整限额。";
   if (/ENOTFOUND|ECONN|fetch failed|network|timeout|timed out/i.test(text))
     return "网络连接失败或超时：请检查接口地址、网络和代理后重试。";
-  if (/abort/i.test(text)) return "任务已停止，已经保存的结果保留。";
+  if (/abort/i.test(text)) return taskEndCopy("cancelled");
   return text;
 }

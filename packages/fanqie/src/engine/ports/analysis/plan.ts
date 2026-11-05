@@ -1,11 +1,10 @@
 import type { AnalysisPlan, SourceChapter, ConsentParams } from './types.js';
 /** 抽样计划：Auto 10% 分层 / Full 全量（须显式同意）。 */
 import path from "node:path";
-import { readFile } from "node:fs/promises";
 import { atomicWrite } from "../../storage/primitives.js";
 import type { StoragePaths } from "../../types.js";
 import { NovelError } from "../../errors.js";
-import { isMissingFileError } from "../../../../../core/src/fsx.js";
+import { readJson as readJsonFile } from "../../../../../core/src/fsx.js";
 import { withResourceLock } from "../../storage/process-lock.js";
 import { assertNoPendingCard } from "../../storage/card-journal.js";
 import { snapshotFile } from "../../storage/journal.js";
@@ -190,13 +189,7 @@ export async function readPlan(paths: StoragePaths, sourceId: string):Promise<An
     return withResourceLock(paths.library, async () => {
     await assertNoPendingCard(paths.library);
     const f = planFiles(paths, sourceId);
-    try {
-        return JSON.parse(await readFile(f.json, "utf8"));
-    }
-    catch (err) {
-        if (!isMissingFileError(err)) throw err;
-        return null;
-    }
+    return (await readJsonFile<AnalysisPlan>(f.json)) ?? null;
     });
 }
 
@@ -249,15 +242,16 @@ export async function writePendingConfirm(paths: StoragePaths, sourceId: string,
     return body;
 }
 
-async function readPendingConfirm(paths: StoragePaths, sourceId: string) {
+/** Full 闸回执的宽松视图：字段来自 JSON，以 assertFullConsent 的运行时校验为准。 */
+type PendingConsent = {
+    sourceId?: unknown;
+    token?: unknown;
+    expiresAt?: unknown;
+    params?: Record<string, unknown>;
+};
+async function readPendingConfirm(paths: StoragePaths, sourceId: string): Promise<PendingConsent | null> {
     const f = planFiles(paths, sourceId);
-    try {
-        return JSON.parse(await readFile(f.pending, "utf8"));
-    }
-    catch (err) {
-        if (!isMissingFileError(err)) throw err;
-        return null;
-    }
+    return (await readJsonFile<PendingConsent>(f.pending)) ?? null;
 }
 
 /** Full 闸：token 必须存在、未过期、来源一致，且建计划参数与回执一致（若有快照）。 */

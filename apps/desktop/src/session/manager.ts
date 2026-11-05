@@ -2,8 +2,8 @@ import { migrateSessionHistory } from "./migration";
 import { DEFAULT_HISTORY_LIMIT } from "../history-options";
 import path from "node:path";
 import { rootIdentity } from "../../../../packages/core/src/identity";
-import { access, mkdir, rm } from "node:fs/promises";
-import { atomicWrite, sha256 } from "../../../../packages/core/src/fsx";
+import { mkdir, rm } from "node:fs/promises";
+import { atomicWrite, exists, sha256 } from "../../../../packages/core/src/fsx";
 import type { Focus, Target } from "../context";
 import type { DesktopEvent, WriterMessage } from "../renderer-contracts";
 import type { ModelSettings } from "../models";
@@ -152,14 +152,7 @@ export class Sessions {
     const key = this.key(next),
       dir = path.join(this.home, "sessions", key);
     if (this.sessions.has(key)) return;
-    const exists = await access(path.join(dir, "current")).then(
-      () => true,
-      (error) => {
-        if (error.code === "ENOENT") return false;
-        throw error;
-      },
-    );
-    if (exists) return;
+    if (await exists(path.join(dir, "current"))) return;
     await mkdir(dir, { recursive: true });
     await atomicWrite(path.join(dir, "current"), entry.session.sessionManager.getSessionFile()!);
     await rm(path.join(this.home, "sessions", this.key(previous), "current"), {

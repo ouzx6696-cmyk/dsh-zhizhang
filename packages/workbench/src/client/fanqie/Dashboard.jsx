@@ -1,7 +1,7 @@
 import { COPY as viewCopy, t as viewText } from "../../../../ui/src/copy.js";
 import React from "react";
 import { Stat, Card, Button } from "../../../../ui/src/primitives.jsx";
-import { chapterName } from "../../../../ui/src/copy.js";
+import { chapterName, formatDateTime } from "../../../../ui/src/copy.js";
 
 export function Dashboard({ snap, onOpen }) {
   const chapters = snap.chapters || [],
@@ -79,7 +79,7 @@ export function Dashboard({ snap, onOpen }) {
                 : event.kind?.includes("review")
                   ? viewCopy.dashboardText29
                   : viewCopy.dashboardText30}
-              <small> · {event.at?.slice(0, 16).replace("T", " ")}</small>
+              <small> · {formatDateTime(event.at)}</small>
             </p>
           ))
         ) : (

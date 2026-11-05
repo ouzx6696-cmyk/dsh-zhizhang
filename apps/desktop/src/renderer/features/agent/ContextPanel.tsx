@@ -1,4 +1,4 @@
-import { COPY as viewCopy } from "../../../../../../packages/ui/src/copy.js";
+import { COPY as viewCopy, formatCount } from "../../../../../../packages/ui/src/copy.js";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { scopeId, type Target } from "../../../context";
 import { type ContextSettings } from "../../../context-settings";
@@ -6,8 +6,8 @@ import { desktop } from "../../state/desktop";
 import { errorText } from "../../../../../../packages/core/src/errors.js";
 
 type Usage = Awaited<ReturnType<typeof desktop.contextUsage>>;
-const count = (value: number) => value.toLocaleString("zh-CN");
-const cacheCount = (value: number) => (value > 0 ? count(value) : viewCopy.contextCacheUnknown);
+const cacheCount = (value: number) =>
+  value > 0 ? formatCount(value) : viewCopy.contextCacheUnknown;
 export function ContextPanel({
   target,
   busy,
@@ -91,23 +91,23 @@ export function ContextPanel({
         {viewCopy.contextPanelText1}
         {context?.tokens == null
           ? viewCopy.contextPanelText2
-          : `≈${count(context.tokens)} / ${count(context.contextWindow)} · ${context.percent?.toFixed(1)}%`}
+          : `≈${formatCount(context.tokens)} / ${formatCount(context.contextWindow)} · ${context.percent?.toFixed(1)}%`}
         {usage?.compacting ? viewCopy.contextPanelText3 : ""}
       </summary>
       <p>{viewCopy.contextPanelText4}</p>
       {task?.usage && (
         <p>
           {viewCopy.contextTaskUsage}{" "}
-          {count(task.usage.input + task.usage.cacheRead + task.usage.cacheWrite)} /{" "}
-          {count(task.usage.output)} / {count(task.usage.cacheRead)}
+          {formatCount(task.usage.input + task.usage.cacheRead + task.usage.cacheWrite)} /{" "}
+          {formatCount(task.usage.output)} / {formatCount(task.usage.cacheRead)}
         </p>
       )}
       {usage?.recent && (
         <p>
           {viewCopy.contextPanelText5}
-          {count(usage.recent.input + usage.recent.cacheRead + usage.recent.cacheWrite)}
+          {formatCount(usage.recent.input + usage.recent.cacheRead + usage.recent.cacheWrite)}
           {viewCopy.contextPanelText6}
-          {count(usage.recent.output)}
+          {formatCount(usage.recent.output)}
           {viewCopy.contextPanelText7}
           {cacheCount(usage.recent.cacheRead)}
         </p>
@@ -127,17 +127,17 @@ export function ContextPanel({
           <summary>{viewCopy.contextLastCompaction}</summary>
           <p>
             {usage.compaction.at} · {viewCopy.contextBeforeCompaction}{" "}
-            {count(usage.compaction.tokensBefore)}
+            {formatCount(usage.compaction.tokensBefore)}
           </p>
           <p>
             {viewCopy.contextSummaryUsage}{" "}
             {usage.compaction.input == null
               ? viewCopy.contextPanelText2
-              : count(usage.compaction.input)}{" "}
+              : formatCount(usage.compaction.input)}{" "}
             /{" "}
             {usage.compaction.output == null
               ? viewCopy.contextPanelText2
-              : count(usage.compaction.output)}
+              : formatCount(usage.compaction.output)}
           </p>
           <pre>{usage.compaction.summary}</pre>
         </details>
@@ -145,9 +145,9 @@ export function ContextPanel({
       {tokens && (
         <dl>
           <dt>{viewCopy.contextPanelText9}</dt>
-          <dd>{count(input)}</dd>
+          <dd>{formatCount(input)}</dd>
           <dt>{viewCopy.contextPanelText10}</dt>
-          <dd>{count(tokens.input)}</dd>
+          <dd>{formatCount(tokens.input)}</dd>
           <dt>{viewCopy.contextPanelText11}</dt>
           <dd>
             {cacheCount(tokens.cacheRead)}
@@ -158,7 +158,7 @@ export function ContextPanel({
           <dt>{viewCopy.contextPanelText12}</dt>
           <dd>{cacheCount(tokens.cacheWrite)}</dd>
           <dt>{viewCopy.contextPanelText13}</dt>
-          <dd>{count(tokens.output)}</dd>
+          <dd>{formatCount(tokens.output)}</dd>
           <dt>{viewCopy.contextPanelText14}</dt>
           <dd>
             {estimatedCost > 0 ? `$${estimatedCost.toFixed(4)}` : viewCopy.contextPanelText15}
@@ -232,7 +232,7 @@ export function ContextPanel({
             }
             setMessage(
               viewCopy.contextPanelText24 +
-                count(result.tokensBefore) +
+                formatCount(result.tokensBefore) +
                 viewCopy.contextPanelText25,
             );
           })
