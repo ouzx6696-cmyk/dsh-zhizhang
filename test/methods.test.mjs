@@ -61,49 +61,65 @@ async function loadEverything(label) {
     loaded.toutiao++;
   }
 
-  // forge：fanqie_forge_get 目录与每一份
-  const idx = await call(fq, "fanqie_forge_get", {});
-  assert.equal(idx.ok, true, JSON.stringify(idx).slice(0, 300));
-  const flist = await call(fq, "fanqie_forge_get", { id: "list" });
-  idx.methods = flist.original;
-  for (const key of Object.keys(idx.key_methods))
-    assert.ok(flist.methods.includes(key), `${label}: 常用入口 ${key} 不存在`);
-  // 原版：每一份都能强制读出原件
-  for (const id of idx.methods) {
-    const r = await call(fq, "fanqie_forge_get", { id: "原版:" + id });
-    assert.equal(r.ok, true, `${label}: fanqie_forge_get 原版:${id}`);
-    assert.match(r.text, /写作 Agent 适配/);
+  // 引擎工具面：fanqie_method_list 列两来源并集，fanqie_method_get 逐份读取
+  const list = await call(fq, "fanqie_method_list", {});
+  assert.equal(typeof list, "string", JSON.stringify(list).slice(0, 300));
+  const [profileSection, engineSection = ""] = list.split("## 引擎资产");
+  const profileIds = [...profileSection.matchAll(/^- `([^`]+)`/gm)].map((m) => m[1]);
+  const engineIds = [...engineSection.matchAll(/^- `([^`]+)`/gm)].map((m) => m[1]);
+  assert.ok(profileIds.length >= 17, `${label}: 默认方案目录 ${list.slice(0, 200)}`);
+  assert.ok(engineIds.length >= 10, `${label}: 引擎方法资产目录 ${list.slice(0, 200)}`);
+  // 原版：每一份都能强制读出原件（附工具对照表）
+  const { listMethods } = await import(buildUrl("fanqie/src/forge.js"));
+  const forgeIds = await listMethods();
+  for (const id of forgeIds) {
+    const r = await call(fq, "fanqie_method_get", { ids: "原版:" + id });
+    assert.ok(
+      r.startsWith(`## 方法 · ${id}（方案「原版」）`),
+      `${label}: fanqie_method_get 原版:${id} → ${r.slice(0, 120)}`,
+    );
+    assert.match(r, /写作 Agent 适配/);
     loaded.forge++;
   }
-  // 默认方案：每一份都能读，原版 id 也能对到默认方案
-  for (const id of flist.methods) {
-    const r = await call(fq, "fanqie_forge_get", { id });
-    assert.equal(r.from, "default", `${label}: fanqie_forge_get ${id}`);
-    texts.push(r.text);
+  // 默认方案：每一份都能读
+  for (const id of profileIds) {
+    const r = await call(fq, "fanqie_method_get", { ids: id });
+    assert.ok(
+      r.startsWith(`## 方法 · ${id}（方案「默认」）`),
+      `${label}: fanqie_method_get ${id} → ${r.slice(0, 120)}`,
+    );
+    texts.push(r);
     loaded.fanqieDefault = (loaded.fanqieDefault ?? 0) + 1;
   }
-  texts.push(
-    (await call(fq, "fanqie_forge_get", { id: "原版:" + idx.methods[0] })).text
-      .split("\n")
-      .slice(0, 12)
-      .join("\n"),
-  );
-
-  // 引擎方法资产：fanqie_method_list / fanqie_method_get
-  const list = await call(fq, "fanqie_method_list", {});
-  const listText = typeof list === "string" ? list : JSON.stringify(list);
-  const engineIds = [...listText.matchAll(/^- \*?\*?`?([a-z_]+)`?/gm)].map((m) => m[1]);
-  assert.ok(engineIds.length >= 12, `${label}: 引擎方法资产目录 ${listText.slice(0, 200)}`);
+  // 引擎方法资产：逐份加载；方案别名会遮蔽同名引擎 id（plan → templates-plan），两种标题都算命中
   for (const id of engineIds) {
     const r = await call(fq, "fanqie_method_get", { ids: id });
-    const text = typeof r === "string" ? r : JSON.stringify(r);
-    assert.match(text, new RegExp(`方法资产 · ${id} · `), `${label}: fanqie_method_get ${id}`);
-    assert.ok(text.length > 80, `${label}: ${id} 内容为空`);
-    texts.push(text);
+    assert.ok(
+      typeof r === "string" && r.length > 80,
+      `${label}: fanqie_method_get ${id} → ${String(r).slice(0, 120)}`,
+    );
+    assert.match(r, /^## 方法(?:资产)? · /, `${label}: fanqie_method_get ${id} 返回形态不符`);
+    texts.push(r);
     loaded.engine++;
   }
-  texts.push(listText);
-  return { tt, fq, call, loaded, texts, engineIds, forgeIds: idx.methods, toutiaoIds: ids };
+  assert.match(
+    await call(fq, "fanqie_method_get", { ids: "contract:style" }),
+    /^## 方法资产 · contract:style · /,
+    "契约资产按引擎资产标题返回",
+  );
+  assert.match(
+    await call(fq, "fanqie_method_get", { ids: "plan" }),
+    /^## 方法 · templates-plan（方案「默认」）/,
+    "方案别名遮蔽同名引擎 id",
+  );
+  texts.push(
+    (await call(fq, "fanqie_method_get", { ids: "原版:" + forgeIds[0] }))
+      .split("\n")
+      .slice(1, 25)
+      .join("\n"),
+  );
+  texts.push(list);
+  return { tt, fq, call, loaded, texts, engineIds, forgeIds, profileIds, toutiaoIds: ids };
 }
 
 test("原件对照：头条方法与语料、forge 三件套都完整在包里，并全部登记为可加载", async () => {
@@ -152,10 +168,13 @@ test("原件对照：头条方法与语料、forge 三件套都完整在包里�
 test("源码构建：三套方法论每一份都能经工具加载；提到的工具名都存在", async () => {
   const r = await loadEverything("源码");
   assert.ok(
-    r.loaded.toutiao >= 30 && r.loaded.forge >= 100 && r.loaded.engine >= 12,
+    r.loaded.toutiao >= 30 &&
+      r.loaded.forge >= 100 &&
+      r.loaded.engine >= 10 &&
+      r.loaded.fanqieDefault >= 17,
     JSON.stringify(r.loaded),
   );
-  assert.ok(r.engineIds.includes("edit"), "编辑过稿方法可加载");
+  assert.ok(r.profileIds.includes("edit"), "编辑过稿方法可加载");
 
   // 工具名引用检查
   const names = new Set([...r.tt.tools.keys(), ...r.fq.tools.keys()]);
@@ -192,18 +211,20 @@ test("源码构建：三套方法论每一份都能经工具加载；提到的�
   assert.deepEqual([...new Set(badForge)], [], "forge 方法 id 不存在");
   const badEngine = [...all.matchAll(/fanqie_method_get[^\n]{0,12}?ids?=([a-z_]+)/g)]
     .map((m) => m[1])
-    .filter((id) => !r.engineIds.includes(id));
-  assert.deepEqual([...new Set(badEngine)], [], "引擎方法资产 id 不存在");
+    .filter((id) => !r.engineIds.includes(id) && !r.profileIds.includes(id));
+  assert.deepEqual([...new Set(badEngine)], [], "fanqie_method_get 点名的方法 id 不存在");
 });
 
 test("工具执行结果由生产 output.render 渲染，全部方法内容仍可加载", async () => {
   const { tt, fq } = await enableBoth();
   for (const [harness, name, args] of [
     [tt, "toutiao_method_get", { id: "s3-headline" }],
-    [fq, "fanqie_forge_get", { id: "edit" }],
+    [fq, "fanqie_method_get", { ids: "edit" }],
   ]) {
     const result = await harness.execute(name, args);
-    assert.ok(result.value.text.length > 100);
+    // toutiao_method_get 返回对象回执，fanqie_method_get（引擎版）返回字符串
+    const text = typeof result.value === "string" ? result.value : result.value.text;
+    assert.ok(text.length > 100);
     assert.ok(result.content.some((block) => block.type === "text" && block.text.length > 100));
   }
 });

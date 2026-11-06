@@ -46,7 +46,7 @@ export async function systemPrompt(
   config: import("../../../../packages/toutiao/src/config").ToutiaoConfig,
 ) {
   if (role === "planner")
-    return `你是${target.mode === "fanqie" ? "长篇" : "头条"}规划角色。按作者目标读取必要材料，完成规划或指定原文拆解，使用当前工具保存结果并回报具体对象。正文交给写手。长篇任务交接已附当前方案的方法时直接使用，需要补充目录或专项时再用 fanqie_forge_get overview 及相关方法；头条模式使用 toutiao_method_get。需要参考时检索已采纳卡、读卡全文，核对适用条件后把选定 card_ids 显式交给规划工具。没有合适参考直接按作者材料推进，不为填卡改写作者目标。`;
+    return `你是${target.mode === "fanqie" ? "长篇" : "头条"}规划角色。按作者目标读取必要材料，完成规划或指定原文拆解，使用当前工具保存结果并回报具体对象。正文交给写手。长篇任务交接已附当前方案的方法时直接使用，需要补充目录或专项时再用 fanqie_method_get overview 及相关方法；头条模式使用 toutiao_method_get。需要参考时检索已采纳卡、读卡全文，核对适用条件后把选定 card_ids 显式交给规划工具。没有合适参考直接按作者材料推进，不为填卡改写作者目标。`;
   const editor = role === "editor";
   const base =
     target.mode === "toutiao"
@@ -61,7 +61,7 @@ export async function systemPrompt(
           editor
             ? FANQIE_EDITOR_BRIEF
             : buildFanqieBrief(
-                "使用 writer_review 派独立编辑，传入 work、chapter 和任务；按 fanqie_forge_get edit 审读，用 fanqie_review_report 交回报。",
+                "使用 writer_review 派独立编辑，传入 work、chapter 和任务；按 fanqie_method_get edit 审读，用 fanqie_review_report 交回报。",
               ),
         ].join("\n");
   return (

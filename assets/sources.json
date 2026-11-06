@@ -61,7 +61,7 @@
       "registry": {
         "type": "forge-tree"
       },
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "local": [],
       "patched": [
         "inspiration-forge-library/scripts/quote_check.py",
@@ -83,7 +83,7 @@
       "mode": "fanqie",
       "kind": "profile",
       "dest": "packages/fanqie/profiles/default",
-      "tool": "fanqie_forge_get"
+      "tool": "fanqie_method_get"
     },
     {
       "id": "writer-fanqie-rules",

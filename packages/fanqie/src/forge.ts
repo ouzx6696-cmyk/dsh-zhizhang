@@ -56,7 +56,7 @@ const ADAPTER_NOTE = `> 【写作 Agent 适配】本文出自 inspiration-forge-
 > | 拆书卡入库 | fanqie_library_card_stage → fanqie_library_card_accept |
 > | 编辑回报 | fanqie_review_report（四类硬伤 + L1–L3 固定格式） |
 >
-> 文中提到同套件的其他文件（如 references/writing.md、资产/幕转章纲.md），用 fanqie_forge_get 取：id = 套件名/相对路径去掉 .md，例如 novel-writer/references/writing；只写相对路径也能认出来。
+> 文中提到同套件的其他文件（如 references/writing.md、资产/幕转章纲.md），用 fanqie_method_get 取（原版:id 强制读原件）：id = 套件名/相对路径去掉 .md，例如 novel-writer/references/writing；只写相对路径也能认出来。
 `;
 
 const IGNORED = new Set(["LICENSE"]);

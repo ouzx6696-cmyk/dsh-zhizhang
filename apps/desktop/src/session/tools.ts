@@ -29,6 +29,37 @@ function candidateSummary(text: string) {
   return `候选稿${words ? ` · ${words} 字` : ""} · ${at}`;
 }
 
+/**
+ * 方法回执（entry.methods 的 {id, profile, hash} 凭据，供重复读取去重、压缩清空与前端展示）。
+ * toutiao_method_get 返回 {id, text, profile} 对象回执；fanqie_method_get（引擎版）返回拼接字符串，
+ * 每份方法以标题行「## 方法 · <id>（方案「<方案名>」）」或「## 方法资产 · <id> · <标题>」开头。
+ * 方法原文里可能有与段分隔符同款的「---」横线，所以按标题行定位、取相邻标题之间的内容，
+ * hash 按这段实际进入上下文的内容计算；引擎资产没有方案，profile 记 engine；
+ * 解析不出标题行的部分（如「（未找到：…）」提示）不记回执，工具结果照常返回。
+ */
+function methodReceipts(
+  tool: string,
+  value: unknown,
+): { id: string; profile: string; hash: string }[] {
+  if (tool === "toutiao_method_get") {
+    const method = asRecord(value, "方法回执");
+    if (
+      typeof method.id === "string" &&
+      typeof method.text === "string" &&
+      typeof method.profile === "string"
+    )
+      return [{ id: method.id, profile: method.profile, hash: sha256(method.text) }];
+    return [];
+  }
+  if (typeof value !== "string") return [];
+  const titles = [...value.matchAll(/^## 方法(?:资产)? · (.+?)(?:（方案「(.+?)」）| · .*)$/gm)];
+  return titles.map((m, i) => {
+    const start = (m.index ?? 0) + m[0].length;
+    const next = titles[i + 1]?.index ?? value.length;
+    return { id: m[1], profile: m[2] ?? "engine", hash: sha256(value.slice(start, next)) };
+  });
+}
+
 export function createBusinessTools(options: {
   host: Sessions;
   target: Target;
@@ -190,14 +221,8 @@ export function createBusinessTools(options: {
         bind: (run) => withPluginConfig(config, run),
         confirm: host.confirm,
       });
-      if (def.name === "fanqie_forge_get" || def.name === "toutiao_method_get") {
-        const method = asRecord(value, "方法回执");
-        if (
-          typeof method.id === "string" &&
-          typeof method.text === "string" &&
-          typeof method.profile === "string"
-        ) {
-          const receipt = { id: method.id, profile: method.profile, hash: sha256(method.text) };
+      if (def.name === "fanqie_method_get" || def.name === "toutiao_method_get") {
+        for (const receipt of methodReceipts(def.name, value)) {
           const duplicate = entry.methods.get(receipt.id)?.hash === receipt.hash;
           entry.methods.set(receipt.id, receipt);
           host.extras.log?.("method_loaded", {

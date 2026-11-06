@@ -48,7 +48,7 @@ export function toolLabel(name: string) {
   if (/candidate.*accept/.test(name)) return "采纳候选稿";
   if (/candidate|draft_stage/.test(name)) return "准备与保存候选稿";
   if (/chapter_save|delivery_save|status/.test(name)) return "更新稿件状态";
-  if (/method|forge_get|profile/.test(name)) return "查阅方法方案";
+  if (/method|profile/.test(name)) return "查阅方法方案";
   if (/create|outline|foundation/.test(name)) return "整理作品与规划";
   return "读取创作材料";
 }

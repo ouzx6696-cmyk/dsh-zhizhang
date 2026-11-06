@@ -4,7 +4,7 @@
 - 代码都在 `packages/fanqie`：引擎（`engine/`：作品存储、`fanqie_*` 创作工具链、硬规则）、写作层（forge 方法、章纲/旧账检查、编辑审读、门禁）、写作台接口（`workbench/`）。`writer_enable mode=fanqie` 一次挂上引擎与写作层。
 - 作品数据（根基、章纲、正文、候选、拆书库）只有一份，默认在 `<会话目录>/.writer/`。写作层直接用引擎的存储层与作品选择（`works.ts`）；落盘一律走引擎工具。编辑审读回报是写作层自己的文件，存在作品目录 `writer-reviews/<章 id>/`。
 - forge 三件套（inspiration-forge 规划、inspiration-forge-library 拆书、novel-writer 写作与编辑）原文放在 `packages/fanqie/skill/forge/`，**一字未改**。
-- 原文里的落盘指令（自有目录、init_project.py、archive_draft.py）在取用时由 `fanqie_forge_get` 前置的对照表改道到引擎工具。这样原文可以随上游升级整体替换。
+- 原文里的落盘指令（自有目录、init_project.py、archive_draft.py）在取用时由 `fanqie_method_get`（`原版:id` 读原件）前置的对照表改道到引擎工具。这样原文可以随上游升级整体替换。
 - forge 的五个检查脚本通过 `fanqie_bridge.py` 包成统一 JSON 契约；脚本本身不改，同输入同输出。
 
 ## 2. 字段映射
@@ -89,7 +89,7 @@ Auto 默认约 10% 分层抽样；Full 需要确认成本。目录扫描、正�
 
 | 材料 | 职责 | 当前软件入口 |
 |---|---|---|
-| 默认/原版/用户方法方案 | 怎样规划、写作、编辑 | forge_get 按任务读取；用户方案可以覆盖 |
+| 默认/原版/用户方法方案 | 怎样规划、写作、编辑 | fanqie_method_get 按任务读取；用户方案可以覆盖 |
 | 拆书卡 | 有证据的参考机制 | 检索、读卡、显式 card_ids 传递 |
 | 本书根基、规划、章纲 | 当前创作约束与安排 | 对应作品工具落盘 |
 | 当前正文、审读和版本 | 已写内容与作者决定 | 候选、采纳、审读、定稿及修订流程 |

@@ -34,7 +34,7 @@
 | fanqie_candidate_unify_stage | 【旁路·多草稿】将统一整理正文暂存为新候选（source=unify，unifyOf=父 ids；不写正式章）。须 multiDraft 开启。下一步：candidate_accept（内置扫描）。 | work、working_dir、content、candidate_ids、note、draft_label |
 | fanqie_candidate_accept | 【默认链】采纳候选到章节草稿。默认需要 chapter_brief 依据；采纳内置扫描，已有过期扫描凭据须重扫。编辑路径 A 可传 accept_after_edit + confirm_accept_after_edit；采纳、内容审读与定稿分开。旁路：skip_brief / strict_* / require_payoff / force。 | work、working_dir、candidate、mode、expected_revision、force、lint_pass_token、skip_brief、strict_lint、require_payoff、strict_human、strict_novel、accept_after_edit、confirm_accept_after_edit |
 | fanqie_assemble | 【旁路·定稿交付】按章序汇编 markdown 成稿到 manuscripts/<书名>.md。完书口径：多数章 final 后跑（only_final=true 只收 reviewed/final）。章有改动重跑即覆盖。 | work、working_dir、only_final、output |
-| fanqie_chapter_brief | 【闭环·写作】开写简报。默认 lean：只吃 craft（写法+状态）+ 幕 + 上一章正文（n≥2 全文）+ 毒点 + style_contract；保留关键经历和转向节点，不灌 mind/卡全文。card_ids 可来自 combo。下一步：创作 → candidate_stage → candidate_accept（内置扫描）。 | chapter、work、working_dir、brief_mode、include_body、extra_assets、card_ids、skip_cards |
+| fanqie_chapter_brief | 【闭环·写作】开写简报。默认 lean：只吃 craft（写法+状态）+ 幕 + 上一章正文（n≥2 全文）+ 毒点 + contract:style；保留关键经历和转向节点，不灌 mind/卡全文。card_ids 可来自 combo。下一步：创作 → candidate_stage → candidate_accept（内置扫描）。 | chapter、work、working_dir、brief_mode、include_body、extra_assets、card_ids、skip_cards |
 
 ## 参考分析与正式参考库
 
@@ -83,5 +83,5 @@
 | fanqie_system_brief | 硬规则钉死（默认路径 + 旁路指针）。开写前或上下文压缩后调用。调度全图：fanqie_product_map。 | working_dir |
 | fanqie_product_map | 【调度主入口】默认路径 vs 旁路 + 闭环三阶段 + 分喂 + 质量面。开局/迷路先看。不写库、不调模型。 |  |
 | fanqie_panel_snapshot | 导出当前作品的轻量快照（紧凑 JSON）：章节进度、处境摘要、待采纳候选、审校留痕最近条、下一步提示。不写库、不调模型。 | work、working_dir |
-| fanqie_method_list | 列出可按需加载的创作方法资产 id 与一句话适用场景（不含全文）。写 plan/draft/review/revise 前用 method_get 或 chapter_brief 拉取正文。 |  |
-| fanqie_method_get | 按 id 拉取创作方法资产全文（Contract 4.0），注入当前上下文。ids 可为逗号分隔或字符串数组；未知 id 会列出但不中断已命中项。 | ids、id |
+| fanqie_method_list | 列出当前方法方案与引擎内置资产的全部方法 id（标注来源，不含全文）。取正文用 fanqie_method_get；开写某章用 fanqie_chapter_brief（默认 lean）。 |  |
+| fanqie_method_get | 按 id 取方法全文注入当前上下文：当前方法方案里的 id 优先（如 edit、write-chapter），否则查引擎资产（如 contract:style、novel_sense）。ids 可为逗号分隔或字符串数组；未知 id 会列出但不中断已命中项。 | ids、id |

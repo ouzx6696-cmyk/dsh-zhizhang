@@ -23,7 +23,7 @@ export interface FanqieConfig extends PluginConfig {
   multiDraft?: { enabled?: boolean };
   /** handoff.v2：任务交接改用方法包决策表（按状态收集方法与附件），默认关 */
   handoff?: { v2?: boolean };
-  /** 作者自备方法 / 语料目录（fanqie_forge_get id=user:…）；见 docs/guides/ASSETS.md */
+  /** 作者自备方法 / 语料目录；见 docs/guides/ASSETS.md */
   assets?: AssetsConfig;
   /** 固定使用的方法方案（默认 / 原版 / 用户方案名或 id）；不填则用写作台或工具选的当前方案 */
   profile?: string;

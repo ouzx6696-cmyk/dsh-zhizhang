@@ -4,10 +4,10 @@
 
 | 类 | 在哪 | 谁改 | 怎么读 |
 |---|---|---|---|
-| 上游原件 | `packages/toutiao/skill`（toutiao-viral-writer）、`packages/fanqie/skill/forge`（inspiration-forge-suite） | 只通过「导入新版」更新，不手改 | `toutiao_method_get`、`fanqie_forge_get` |
+| 上游原件 | `packages/toutiao/skill`（toutiao-viral-writer）、`packages/fanqie/skill/forge`（inspiration-forge-suite） | 只通过「导入新版」更新，不手改 | `toutiao_method_get`、`fanqie_method_get`（`原版:id` 读原件） |
 | 本项目自写 | 两个桥接脚本、长篇规则测试、长篇引擎内置方法资产（`fanqie/src/engine/method-assets.ts`） | 直接改，改完重建清单 | 桥接脚本由工具调用；内置方法用 `fanqie_method_get` |
-| 默认方案 | `packages/toutiao/profiles/default`、`packages/fanqie/profiles/default`（从原件提炼重写的精炼版，模型默认读它） | 直接改，改完重建清单（见 [PROFILES.md](PROFILES.md)） | `toutiao_method_get`、`fanqie_forge_get`（当前方案为默认时） |
-| 作者自备 | 配置 `toutiao.assets.dirs` / `fanqie.assets.dirs` 指定的目录 | 作者自己 | `toutiao_method_get` / `fanqie_forge_get`，id 为 `user:相对路径` |
+| 默认方案 | `packages/toutiao/profiles/default`、`packages/fanqie/profiles/default`（从原件提炼重写的精炼版，模型默认读它） | 直接改，改完重建清单（见 [PROFILES.md](PROFILES.md)） | `toutiao_method_get`、`fanqie_method_get`（当前方案为默认时） |
+| 作者自备 | 配置 `toutiao.assets.dirs` 指定的目录 | 作者自己 | `toutiao_method_get`，id 为 `user:相对路径` |
 
 ## 清单（assets/）
 - `assets/sources.json`：来源登记与更新预设。每个来源写明模式、版本、在仓库里的位置、上游目录名与识别文件、版本号从哪读（`versionFrom`）、代码里哪些地方写着这个版本号（`versionRefs`）、登记表（头条的 `METHOD_FILES`）、本项目放在上游目录里的文件（`local`，导入时保留）、有意改过的上游文件（`patched`，导入时不覆盖、列为需人工合并）。
@@ -47,12 +47,11 @@ npm run assets -- import toutiao-viral-writer ~/下载/toutiao-viral-writer-4.1.
 
 ```json
 {
-  "toutiao": { "assets": { "dirs": ["D:/写作/头条方法"] } },
-  "fanqie": { "assets": { "dirs": ["D:/写作/长篇笔记"] } }
+  "toutiao": { "assets": { "dirs": ["D:/写作/头条方法"] } }
 }
 ```
 
-- 目录里的 `.md`、`.txt`、`.json` 按相对路径成为 id：`我的头条方法/标题/养老题.md` → `user:标题/养老题`。`toutiao_method_get id=list`、`fanqie_forge_get id=list` 会列出来。
+- 目录里的 `.md`、`.txt`、`.json` 按相对路径成为 id：`我的头条方法/标题/养老题.md` → `user:标题/养老题`。`toutiao_method_get id=list` 会列出来。
 - 只读，不覆盖自带方法；与自带方法、质检规则或门禁冲突时以自带为准（工具说明里也这样告诉模型）。
 - 限制：单份不超过 256KB，每个目录最多 300 份、最深 4 层；隐藏文件、`node_modules`、`__pycache__` 跳过；两个目录有同名 id 时用先列的那份并给出提示；目录不存在只提示不报错；id 不能越出目录。
 - 作者自备资产不进清单，也不随插件包发布。

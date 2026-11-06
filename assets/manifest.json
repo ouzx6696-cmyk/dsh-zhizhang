@@ -58,7 +58,7 @@
       "kind": "profile",
       "version": null,
       "files": 18,
-      "bytes": 117857,
+      "bytes": 117874,
       "loadable": 17,
       "byKind": {
         "method": 13,
@@ -85,11 +85,11 @@
       "mode": "fanqie",
       "kind": "builtin",
       "version": null,
-      "files": 12,
-      "bytes": 8446,
-      "loadable": 12,
+      "files": 10,
+      "bytes": 6112,
+      "loadable": 10,
       "byKind": {
-        "builtin": 12
+        "builtin": 10
       }
     }
   },
@@ -517,7 +517,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge-library/SKILL",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "entry",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge-library/SKILL.md",
@@ -543,7 +543,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge-library/工作流",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge-library/工作流.md",
@@ -561,7 +561,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge-library/库位置",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge-library/库位置.md",
@@ -571,7 +571,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge-library/方法论",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge-library/方法论.md",
@@ -581,7 +581,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge-library/资产/交接契约",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge-library/资产/交接契约.md",
@@ -591,7 +591,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge-library/资产/拆解/假设台账模板",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge-library/资产/拆解/假设台账模板.md",
@@ -601,7 +601,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge-library/资产/拆解/字段规范",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge-library/资产/拆解/字段规范.md",
@@ -611,7 +611,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge-library/资产/拆解/对照表模板",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge-library/资产/拆解/对照表模板.md",
@@ -621,7 +621,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge-library/资产/拆解/平台画像模板",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge-library/资产/拆解/平台画像模板.md",
@@ -631,7 +631,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge-library/资产/拆解/并发拆解规程",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge-library/资产/拆解/并发拆解规程.md",
@@ -641,7 +641,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge-library/资产/拆解/库根模板",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge-library/资产/拆解/库根模板.md",
@@ -651,7 +651,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge-library/资产/拆解/库结构",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge-library/资产/拆解/库结构.md",
@@ -661,7 +661,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge-library/资产/拆解/总结报告模板",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge-library/资产/拆解/总结报告模板.md",
@@ -671,7 +671,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge-library/资产/拆解/拆解卡模板",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge-library/资产/拆解/拆解卡模板.md",
@@ -681,7 +681,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge-library/资产/拆解/案例/开篇拆解与技法卡提取示例-快爽档",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "example",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge-library/资产/拆解/案例/开篇拆解与技法卡提取示例-快爽档.md",
@@ -691,7 +691,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge-library/资产/拆解/案例/拆解对照",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "example",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge-library/资产/拆解/案例/拆解对照.md",
@@ -701,7 +701,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge-library/资产/拆解/案例/热烈叙事与群体反应",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "example",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge-library/资产/拆解/案例/热烈叙事与群体反应.md",
@@ -711,7 +711,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge-library/资产/拆解/案例/组织选择与取舍",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "example",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge-library/资产/拆解/案例/组织选择与取舍.md",
@@ -721,7 +721,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge-library/资产/拆解/深拆模板",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge-library/资产/拆解/深拆模板.md",
@@ -731,7 +731,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge-library/资产/拆解/精简拆解模板",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge-library/资产/拆解/精简拆解模板.md",
@@ -741,7 +741,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge-library/资产/拆解/证据示例",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge-library/资产/拆解/证据示例.md",
@@ -751,7 +751,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge-library/资产/拆解/锚点体系",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge-library/资产/拆解/锚点体系.md",
@@ -761,7 +761,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge-library/资产/拆解/锚点判据",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge-library/资产/拆解/锚点判据.md",
@@ -771,7 +771,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge-library/资产/拆解/阅读卡模板",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge-library/资产/拆解/阅读卡模板.md",
@@ -781,7 +781,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge-library/资产/拆解/题材页模板",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge-library/资产/拆解/题材页模板.md",
@@ -799,7 +799,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/SKILL",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "entry",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/SKILL.md",
@@ -817,7 +817,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/工作流",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/工作流.md",
@@ -835,7 +835,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/库位置",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/库位置.md",
@@ -845,7 +845,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/方法论",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/方法论.md",
@@ -855,7 +855,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/资产/novel-writer交接格式",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/资产/novel-writer交接格式.md",
@@ -865,7 +865,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/资产/交接契约",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/资产/交接契约.md",
@@ -875,7 +875,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/资产/命名",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/资产/命名.md",
@@ -885,7 +885,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/资产/幕转章纲",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/资产/幕转章纲.md",
@@ -895,7 +895,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/资产/拆解/幕骨架模板",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/资产/拆解/幕骨架模板.md",
@@ -905,7 +905,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/资产/案例/这座山归我了-规划",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "example",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/资产/案例/这座山归我了-规划.md",
@@ -915,7 +915,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/资产/案例/雾港旧声铺-规划",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "example",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/资产/案例/雾港旧声铺-规划.md",
@@ -925,7 +925,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/资产/案例/黄金三章快启动示例-快爽档",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "example",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/资产/案例/黄金三章快启动示例-快爽档.md",
@@ -935,7 +935,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/资产/模板/act_outline",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "template",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/资产/模板/act_outline.md",
@@ -945,7 +945,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/资产/模板/change_proposal",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "template",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/资产/模板/change_proposal.md",
@@ -955,7 +955,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/资产/模板/chapter_outline",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "template",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/资产/模板/chapter_outline.md",
@@ -965,7 +965,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/资产/模板/character",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "template",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/资产/模板/character.md",
@@ -975,7 +975,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/资产/模板/current_state",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "template",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/资产/模板/current_state.md",
@@ -985,7 +985,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/资产/模板/faction",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "template",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/资产/模板/faction.md",
@@ -995,7 +995,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/资产/模板/item",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "template",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/资产/模板/item.md",
@@ -1005,7 +1005,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/资产/模板/location",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "template",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/资产/模板/location.md",
@@ -1015,7 +1015,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/资产/模板/promise",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "template",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/资产/模板/promise.md",
@@ -1025,7 +1025,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/资产/模板/rule",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "template",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/资产/模板/rule.md",
@@ -1035,7 +1035,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/资产/模板/spine",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "template",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/资产/模板/spine.md",
@@ -1045,7 +1045,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/资产/模板/story_foundation",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "template",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/资产/模板/story_foundation.md",
@@ -1055,7 +1055,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/资产/模板/threads",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "template",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/资产/模板/threads.md",
@@ -1065,7 +1065,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/资产/模板/timeline",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "template",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/资产/模板/timeline.md",
@@ -1075,7 +1075,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/资产/模板/volume_outline",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "template",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/资产/模板/volume_outline.md",
@@ -1085,7 +1085,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/资产/模板/world",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "template",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/资产/模板/world.md",
@@ -1095,7 +1095,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/资产/模板/判据总表",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "template",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/资产/模板/判据总表.md",
@@ -1105,7 +1105,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/资产/番茄平台",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/资产/番茄平台.md",
@@ -1115,7 +1115,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/资产/章纲示例",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/资产/章纲示例.md",
@@ -1125,7 +1125,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/资产/索引层",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/资产/索引层.md",
@@ -1135,7 +1135,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/资产/结构形状",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/资产/结构形状.md",
@@ -1145,7 +1145,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/资产/规模参数",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/资产/规模参数.md",
@@ -1155,7 +1155,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/资产/题材包",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/资产/题材包.md",
@@ -1165,7 +1165,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "inspiration-forge/资产/题材红线",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/inspiration-forge/资产/题材红线.md",
@@ -1183,7 +1183,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/SKILL",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "entry",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/SKILL.md",
@@ -1193,7 +1193,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/assets/examples/fanqie_outline_example",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "example",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/assets/examples/fanqie_outline_example.md",
@@ -1203,7 +1203,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/assets/examples/setting_choices_example",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "example",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/assets/examples/setting_choices_example.md",
@@ -1213,7 +1213,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/assets/examples/三组修订示例",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "example",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/assets/examples/三组修订示例.md",
@@ -1223,7 +1223,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/assets/examples/两张车票",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "example",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/assets/examples/两张车票.md",
@@ -1233,7 +1233,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/assets/examples/借你这一拳",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "example",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/assets/examples/借你这一拳.md",
@@ -1243,7 +1243,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/assets/examples/反AI腔与番茄高张力人味重塑对照集",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "example",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/assets/examples/反AI腔与番茄高张力人味重塑对照集.md",
@@ -1253,7 +1253,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/assets/examples/多人场面与公开方案",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "example",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/assets/examples/多人场面与公开方案.md",
@@ -1263,7 +1263,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/assets/examples/掌柜说它会招财",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "example",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/assets/examples/掌柜说它会招财.md",
@@ -1273,7 +1273,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/assets/examples/答案、后果与喜剧声音",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "example",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/assets/examples/答案、后果与喜剧声音.md",
@@ -1283,7 +1283,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/assets/examples/这座山归我了-C001",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "example",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/assets/examples/这座山归我了-C001.md",
@@ -1293,7 +1293,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/assets/examples/这座山归我了-C002",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "example",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/assets/examples/这座山归我了-C002.md",
@@ -1303,7 +1303,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/assets/examples/这座山归我了-C003",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "example",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/assets/examples/这座山归我了-C003.md",
@@ -1313,7 +1313,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/assets/examples/这座山归我了-正文与审改",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "example",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/assets/examples/这座山归我了-正文与审改.md",
@@ -1323,7 +1323,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/assets/examples/雾港旧声铺-C001",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "example",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/assets/examples/雾港旧声铺-C001.md",
@@ -1333,7 +1333,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/assets/examples/雾港旧声铺-C002",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "example",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/assets/examples/雾港旧声铺-C002.md",
@@ -1343,7 +1343,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/assets/examples/雾港旧声铺-C003",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "example",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/assets/examples/雾港旧声铺-C003.md",
@@ -1353,7 +1353,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/assets/examples/雾港旧声铺-C004",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "example",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/assets/examples/雾港旧声铺-C004.md",
@@ -1363,7 +1363,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/assets/examples/雾港旧声铺-C005",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "example",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/assets/examples/雾港旧声铺-C005.md",
@@ -1373,7 +1373,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/assets/examples/雾港旧声铺-正文与审改",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "example",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/assets/examples/雾港旧声铺-正文与审改.md",
@@ -1383,7 +1383,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/assets/examples/高张力场景与审改",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "example",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/assets/examples/高张力场景与审改.md",
@@ -1393,7 +1393,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/assets/templates/act_outline",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "template",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/assets/templates/act_outline.md",
@@ -1403,7 +1403,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/assets/templates/chapter_outline",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "template",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/assets/templates/chapter_outline.md",
@@ -1413,7 +1413,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/assets/templates/constraints",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "template",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/assets/templates/constraints.md",
@@ -1423,7 +1423,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/assets/templates/current_state",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "template",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/assets/templates/current_state.md",
@@ -1433,7 +1433,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/assets/templates/editor_agent",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "template",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/assets/templates/editor_agent.md",
@@ -1443,7 +1443,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/assets/templates/plan",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "template",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/assets/templates/plan.md",
@@ -1453,7 +1453,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/assets/templates/story_foundation",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "template",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/assets/templates/story_foundation.md",
@@ -1463,7 +1463,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/assets/templates/summary",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "template",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/assets/templates/summary.md",
@@ -1473,7 +1473,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/assets/templates/volume_outline",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "template",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/assets/templates/volume_outline.md",
@@ -1483,7 +1483,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/assets/templates/volume_rehearsal",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "template",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/assets/templates/volume_rehearsal.md",
@@ -1493,7 +1493,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/assets/templates/volume_summary",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "template",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/assets/templates/volume_summary.md",
@@ -1503,7 +1503,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/assets/templates/writing_style",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "template",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/assets/templates/writing_style.md",
@@ -1513,7 +1513,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/assets/templates/writing_style_default",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "template",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/assets/templates/writing_style_default.md",
@@ -1523,7 +1523,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/references/continuity",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/references/continuity.md",
@@ -1533,7 +1533,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/references/dispatch",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/references/dispatch.md",
@@ -1543,7 +1543,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/references/editor_method",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/references/editor_method.md",
@@ -1553,7 +1553,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/references/fanqie_platform",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/references/fanqie_platform.md",
@@ -1563,7 +1563,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/references/handoff_contract",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/references/handoff_contract.md",
@@ -1573,7 +1573,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/references/pipeline_handoff",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/references/pipeline_handoff.md",
@@ -1583,7 +1583,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/references/project_layout",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/references/project_layout.md",
@@ -1593,7 +1593,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/references/prose_craft",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/references/prose_craft.md",
@@ -1603,7 +1603,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/references/revision",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/references/revision.md",
@@ -1613,7 +1613,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/references/rhythm",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/references/rhythm.md",
@@ -1623,7 +1623,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/references/roles",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/references/roles.md",
@@ -1633,7 +1633,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/references/scene_craft",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/references/scene_craft.md",
@@ -1643,7 +1643,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/references/serial_orientation",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/references/serial_orientation.md",
@@ -1653,7 +1653,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/references/story_craft",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/references/story_craft.md",
@@ -1663,7 +1663,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/references/structure_craft",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/references/structure_craft.md",
@@ -1673,7 +1673,7 @@
     {
       "source": "inspiration-forge-suite",
       "id": "novel-writer/references/writing",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/references/writing.md",
@@ -2021,7 +2021,7 @@
     {
       "source": "fanqie-default-profile",
       "id": "continuity",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "local",
       "path": "packages/fanqie/profiles/default/continuity.md",
@@ -2031,7 +2031,7 @@
     {
       "source": "fanqie-default-profile",
       "id": "edit",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "local",
       "path": "packages/fanqie/profiles/default/edit.md",
@@ -2041,7 +2041,7 @@
     {
       "source": "fanqie-default-profile",
       "id": "examples-plan",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "example",
       "origin": "local",
       "path": "packages/fanqie/profiles/default/examples-plan.md",
@@ -2051,7 +2051,7 @@
     {
       "source": "fanqie-default-profile",
       "id": "examples-write",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "example",
       "origin": "local",
       "path": "packages/fanqie/profiles/default/examples-write.md",
@@ -2061,7 +2061,7 @@
     {
       "source": "fanqie-default-profile",
       "id": "library",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "local",
       "path": "packages/fanqie/profiles/default/library.md",
@@ -2071,17 +2071,17 @@
     {
       "source": "fanqie-default-profile",
       "id": "overview",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "local",
       "path": "packages/fanqie/profiles/default/overview.md",
-      "bytes": 5915,
-      "sha256": "7003655aedc96fe5b76b7f562522ae007ff1d5dc6216860b1bff64f6b897637d"
+      "bytes": 5932,
+      "sha256": "2d679b3e0fbcdd5cd693508af53c2b0f1761aedd7021fcfb95d2737a00c14b8a"
     },
     {
       "source": "fanqie-default-profile",
       "id": "plan-foundation",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "local",
       "path": "packages/fanqie/profiles/default/plan-foundation.md",
@@ -2091,7 +2091,7 @@
     {
       "source": "fanqie-default-profile",
       "id": "plan-outline",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "local",
       "path": "packages/fanqie/profiles/default/plan-outline.md",
@@ -2101,7 +2101,7 @@
     {
       "source": "fanqie-default-profile",
       "id": "plan-structure",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "local",
       "path": "packages/fanqie/profiles/default/plan-structure.md",
@@ -2111,7 +2111,7 @@
     {
       "source": "fanqie-default-profile",
       "id": "platform",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "local",
       "path": "packages/fanqie/profiles/default/platform.md",
@@ -2129,7 +2129,7 @@
     {
       "source": "fanqie-default-profile",
       "id": "prose",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "local",
       "path": "packages/fanqie/profiles/default/prose.md",
@@ -2139,7 +2139,7 @@
     {
       "source": "fanqie-default-profile",
       "id": "revise",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "local",
       "path": "packages/fanqie/profiles/default/revise.md",
@@ -2149,7 +2149,7 @@
     {
       "source": "fanqie-default-profile",
       "id": "rhythm",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "local",
       "path": "packages/fanqie/profiles/default/rhythm.md",
@@ -2159,7 +2159,7 @@
     {
       "source": "fanqie-default-profile",
       "id": "scene",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "local",
       "path": "packages/fanqie/profiles/default/scene.md",
@@ -2169,7 +2169,7 @@
     {
       "source": "fanqie-default-profile",
       "id": "templates-plan",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "template",
       "origin": "local",
       "path": "packages/fanqie/profiles/default/templates-plan.md",
@@ -2179,7 +2179,7 @@
     {
       "source": "fanqie-default-profile",
       "id": "templates-write",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "template",
       "origin": "local",
       "path": "packages/fanqie/profiles/default/templates-write.md",
@@ -2189,7 +2189,7 @@
     {
       "source": "fanqie-default-profile",
       "id": "write-chapter",
-      "tool": "fanqie_forge_get",
+      "tool": "fanqie_method_get",
       "kind": "method",
       "origin": "local",
       "path": "packages/fanqie/profiles/default/write-chapter.md",
@@ -2214,7 +2214,7 @@
     },
     {
       "source": "engine-method-assets",
-      "id": "style_contract",
+      "id": "contract:style",
       "title": "本书讲法与现场写作",
       "kind": "builtin",
       "origin": "local",
@@ -2225,7 +2225,7 @@
     },
     {
       "source": "engine-method-assets",
-      "id": "review_evidence_kinds",
+      "id": "contract:review-evidence",
       "title": "内容核验与阅读损失",
       "kind": "builtin",
       "origin": "local",
@@ -2266,28 +2266,6 @@
       "path": "packages/fanqie/src/engine/method-assets.ts",
       "bytes": 884,
       "sha256": "a2fa845091519b3b2bd891b572e1dbfd3a7b9ea9a3625bb447ba51475c19e4cd"
-    },
-    {
-      "source": "engine-method-assets",
-      "id": "edit",
-      "title": "编辑过稿与修订层级",
-      "kind": "builtin",
-      "origin": "local",
-      "tool": "fanqie_method_get",
-      "path": "packages/fanqie/src/engine/method-assets.ts",
-      "bytes": 1329,
-      "sha256": "03a2f81e3c09c20bbedb5474e3097bf9f1a553161bfcff1d676213ab99e8dd28"
-    },
-    {
-      "source": "engine-method-assets",
-      "id": "revise",
-      "title": "受控修订",
-      "kind": "builtin",
-      "origin": "local",
-      "tool": "fanqie_method_get",
-      "path": "packages/fanqie/src/engine/method-assets.ts",
-      "bytes": 1005,
-      "sha256": "1d76939b6ce6ed34c5789e2f4cea50ab575a8f1e0f8c15f13f586b66fd9dd262"
     },
     {
       "source": "engine-method-assets",

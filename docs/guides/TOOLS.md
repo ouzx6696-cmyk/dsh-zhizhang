@@ -42,12 +42,11 @@
 
 挂上两组工具，名字都以 `fanqie_` 开头：
 
-- **引擎**（packages/fanqie/src/engine，50 多个）：作品与项目（`fanqie_project_*`）、根基与章纲（`fanqie_foundation_*`、`fanqie_outline_*`）、写作链（`fanqie_chapter_brief` → `fanqie_candidate_stage` → `fanqie_candidate_accept`）、审读与定稿（`fanqie_chapter_save`）、检查（`fanqie_style_lint` 等）、拆书库（`fanqie_library_*`）、灵感（`fanqie_inspire_*`）、方法资产（`fanqie_method_list/get`，12 项，含编辑过稿 `edit`）、产品地图与调度（`fanqie_product_map`）。逐项说明见 [engine/TOOLS.md](../engine/TOOLS.md)。
+- **引擎**（packages/fanqie/src/engine，50 多个）：作品与项目（`fanqie_project_*`）、根基与章纲（`fanqie_foundation_*`、`fanqie_outline_*`）、写作链（`fanqie_chapter_brief` → `fanqie_candidate_stage` → `fanqie_candidate_accept`）、审读与定稿（`fanqie_chapter_save`）、检查（`fanqie_style_lint` 等）、拆书库（`fanqie_library_*`）、灵感（`fanqie_inspire_*`）、方法（`fanqie_method_list/get`：当前方法方案优先 → 引擎资产 10 项兜底（如 `contract:style`）；`原版:id` 强制读原件）、产品地图与调度（`fanqie_product_map`）。逐项说明见 [engine/TOOLS.md](../engine/TOOLS.md)。
 - **写作层**（packages/fanqie）：
 
 | 工具 | 参数 | 说明 |
 |---|---|---|
-| fanqie_forge_get | id | 按当前方法方案取长篇方法（默认方案 17 份：overview、plan-*、library、write-chapter、scene、prose、rhythm、continuity、platform、edit、revise、templates-*、examples-*）；不给 id 看当前方案目录，`list` 看全部；原版 forge id 自动对到默认方案同类方法；`原版:id` 强制读原件（附工具对照表）；`user:相对路径` 取作者自备资产 |
 | fanqie_profile | 同 toutiao_profile | 长篇的方法方案管理；编辑子代理不挂 |
 | fanqie_outline_check | work, chapters, mode | 章纲 8 字段、占位、章序；readiness / format |
 | fanqie_ledger_check | work, chapters, include_previous | 跨章数字与相对时间对照（默认连带上一章） |

@@ -189,7 +189,7 @@ const logLines = [
   }),
   JSON.stringify({ at: "t", event: "handoff", intentSource: "author", methodIds: ["m3"] }),
   JSON.stringify({ at: "t", event: "handoff", methodIds: "oops" }),
-  JSON.stringify({ at: "t", event: "tool_call", tool: "fanqie_forge_get", role: "writer" }),
+  JSON.stringify({ at: "t", event: "tool_call", tool: "fanqie_method_get", role: "writer" }),
   JSON.stringify({
     at: "t",
     event: "tool_call",

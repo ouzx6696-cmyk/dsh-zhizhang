@@ -186,26 +186,35 @@ test("工具：默认 → 原版回落 → 用户方案一（导入、覆盖、�
     assert.equal((await call(tt, "toutiao_method_get", { id: "s3-headline" })).from, "original");
 
     // 长篇：两个模式各自独立；原版 forge id 在默认方案下对到同类方法
-    r = await call(fq, "fanqie_forge_get", { id: "novel-writer/references/editor_method" });
-    assert.equal(r.from, "default");
-    assert.equal(r.id, "edit");
-    assert.equal(
-      (await call(fq, "fanqie_forge_get", { id: "references/writing" })).id,
-      "write-chapter",
+    r = await call(fq, "fanqie_method_get", { id: "novel-writer/references/editor_method" });
+    assert.ok(
+      r.startsWith("## 方法 · edit（方案「默认」）"),
+      `原版 id 对到默认方案同类方法：${r.slice(0, 80)}`,
     );
-    const orig = await call(fq, "fanqie_forge_get", {
+    assert.ok(
+      (await call(fq, "fanqie_method_get", { id: "references/writing" })).startsWith(
+        "## 方法 · write-chapter（方案「默认」）",
+      ),
+    );
+    const orig = await call(fq, "fanqie_method_get", {
       id: "原版:novel-writer/references/editor_method",
     });
-    assert.equal(orig.from, "original");
-    assert.match(orig.text, /写作 Agent 适配/);
-    const idx = await call(fq, "fanqie_forge_get", {});
-    assert.equal(idx.profile, "默认");
-    assert.ok(idx.key_methods.edit);
+    assert.ok(
+      orig.startsWith("## 方法 · novel-writer/references/editor_method（方案「原版」）"),
+      orig.slice(0, 80),
+    );
+    assert.match(orig, /写作 Agent 适配/);
+    let list = await call(fq, "fanqie_method_list", {});
+    assert.match(list, /^# 长篇方法/);
+    assert.match(list, /^- `edit`/m, "默认方案目录");
     await call(fq, "fanqie_profile", { action: "use", profile: "原版" });
-    assert.ok((await call(fq, "fanqie_forge_get", {})).key_methods["novel-writer/SKILL"]);
-    assert.equal(
-      (await call(fq, "fanqie_forge_get", { id: "novel-writer/references/editor_method" })).from,
-      "original",
+    list = await call(fq, "fanqie_method_list", {});
+    assert.match(list, /方案「原版」\d+ 项/);
+    assert.ok(
+      (
+        await call(fq, "fanqie_method_get", { id: "novel-writer/references/editor_method" })
+      ).startsWith("## 方法 · novel-writer/references/editor_method（方案「原版」）"),
+      "原版方案下按原版 id 直读",
     );
     // 编辑子代理看不到方案管理工具
     const ed = await createToolHarness({ mode: "toutiao", cwd, role: "editor" });

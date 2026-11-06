@@ -1,7 +1,7 @@
 // 资产清单、更新预设与作者自备资产：
 //   1. assets/manifest.json 与磁盘、登记表、版本号一致（scripts/assets.mjs check）；
 //   2. 导入上游新版：比对不落盘，--apply 覆盖上游文件、保留本项目文件、改版本号、重建清单、写报告，并指出未登记的新方法；
-//   3. 配置 toutiao.assets / fanqie.assets 指定的目录，经 toutiao_method_get / fanqie_forge_get 以 user:… 读取。
+//   3. 配置 toutiao.assets 指定的目录，经 toutiao_method_get 以 user:… 读取；fanqie 段只做配置校验。
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -31,7 +31,7 @@ test("资产清单与磁盘、登记表、版本号一致", async () => {
   const m = JSON.parse(await readFile(path.join(ROOT, "assets/manifest.json"), "utf8"));
   assert.equal(m.sources["toutiao-viral-writer"].loadable, 30);
   assert.equal(m.sources["inspiration-forge-suite"].loadable, 111);
-  assert.equal(m.sources["engine-method-assets"].loadable, 12);
+  assert.equal(m.sources["engine-method-assets"].loadable, 10);
   assert.equal(m.sources["toutiao-default-profile"].loadable, 29);
   assert.equal(m.sources["fanqie-default-profile"].loadable, 17);
   // 上游原件之外只有本项目自写的桥接与测试
@@ -114,7 +114,7 @@ test("导入上游新版：比对、应用、版本号、报告、未登记提�
   assert.match(run(["check", "--root", root]).out, /上游原件被改动/);
 });
 
-test("作者自备资产：两种模式都能列出与读取，配置拼错会报错", async () => {
+test("作者自备资产：头条能列出与读取，配置拼错会报错", async () => {
   const { parseToutiaoConfig } = await import(buildUrl("toutiao/src/config.js"));
   const { parseFanqieConfig } = await import(buildUrl("fanqie/src/config.js"));
   assert.match(
@@ -136,11 +136,6 @@ test("作者自备资产：两种模式都能列出与读取，配置拼错会�
     cwd,
     config: { assets: { dirs: ["我的方法", "不存在"] } },
   });
-  const fq = await createToolHarness({
-    mode: "fanqie",
-    cwd,
-    config: { assets: { dirs: [path.join(cwd, "我的方法")] } },
-  });
 
   const list = await tt.call("toutiao_method_get", { id: "list" });
   assert.deepEqual(
@@ -159,15 +154,4 @@ test("作者自备资产：两种模式都能列出与读取，配置拼错会�
   );
   const miss = await tt.call("toutiao_method_get", { id: "user:没有" });
   assert.equal(miss.ok, false);
-
-  const flist = await fq.call("fanqie_forge_get", { id: "list" });
-  assert.equal(flist.user.length, 2);
-  assert.ok(flist.original.includes("novel-writer/SKILL"));
-  assert.match((await fq.call("fanqie_forge_get", { id: "user:笔记" })).text, /人物小传/);
-  // 越界与自带方法不受影响
-  assert.equal((await fq.call("fanqie_forge_get", { id: "user:../x" })).ok, false);
-  assert.match(
-    (await fq.call("fanqie_forge_get", { id: "原版:novel-writer/SKILL" })).text,
-    /novel-writer/,
-  );
 });

@@ -47,8 +47,8 @@ test("长篇工具集包含引擎与写作层，方法原文带对照表", async
   assert.ok(tools.has("fanqie_outline_check") && tools.has("fanqie_review_report"));
   assert.ok(
     tools.has("fanqie_chapter_save") &&
-      tools.has("fanqie_method_get") &&
-      tools.has("fanqie_forge_get"),
+      tools.has("fanqie_method_list") &&
+      tools.has("fanqie_method_get"),
   );
   assert.ok(![...tools.keys()].some((name) => name.startsWith("toutiao_")));
   assert.ok(!tools.has("fanqie_manuscript_lint"));
@@ -57,21 +57,23 @@ test("长篇工具集包含引擎与写作层，方法原文带对照表", async
   const brief = buildFanqieBrief();
   assert.match(brief, /番茄长篇/);
   assert.match(brief, /【写作台】/);
-  const idx = await call("fanqie_forge_get", {});
-  assert.ok(idx.key_methods.edit, "默认方案目录");
-  const m = await call("fanqie_forge_get", { id: "novel-writer/references/editor_method" });
-  assert.equal(m.id, "edit", "原版 id 对到默认方案里的同类方法");
-  assert.match(m.text, /四类/);
-  const o = await call("fanqie_forge_get", { id: "原版:novel-writer/references/editor_method" });
-  assert.match(o.text, /写作 Agent 适配/);
-  assert.match(o.text, /四类内容硬伤/);
-  const list = await call("fanqie_forge_get", { id: "list" });
-  assert.equal(list.methods.length, 17);
-  assert.ok(list.original.length > 60);
-  assert.equal(
-    (await call("fanqie_forge_get", { id: "../../../etc/passwd" })).code,
-    "INVALID_ARGS",
+  const list = await call("fanqie_method_list", {});
+  const profileIds = [...list.split("## 引擎资产")[0].matchAll(/^- `([^`]+)`/gm)].map((m) => m[1]);
+  assert.ok(profileIds.includes("edit"), "默认方案目录");
+  const m = await call("fanqie_method_get", { id: "novel-writer/references/editor_method" });
+  assert.ok(
+    m.startsWith("## 方法 · edit（方案「默认」）"),
+    `原版 id 对到默认方案里的同类方法：${m.slice(0, 80)}`,
   );
+  assert.match(m, /四类/);
+  const o = await call("fanqie_method_get", { id: "原版:novel-writer/references/editor_method" });
+  assert.match(o, /写作 Agent 适配/);
+  assert.match(o, /四类内容硬伤/);
+  const { listMethods } = await import(buildUrl("fanqie/src/forge.js"));
+  assert.ok((await listMethods()).length > 60, "原版 forge 方法 id 全部登记");
+  const miss = await call("fanqie_method_get", { id: "../../../etc/passwd" });
+  assert.equal(miss.code, "bad_args");
+  assert.match(miss.message, /未知方法/);
 });
 
 test("章纲检查：读长篇章纲，8 字段齐全通过；缺字段与占位报错", async () => {
