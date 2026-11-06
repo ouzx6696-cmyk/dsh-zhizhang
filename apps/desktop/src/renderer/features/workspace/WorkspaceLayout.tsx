@@ -2,12 +2,18 @@ import { errorText } from "../../../../../../packages/core/src/errors.js";
 import { COPY as viewCopy } from "../../../../../../packages/ui/src/copy.js";
 import { Markdown } from "../../../Markdown";
 import { Dialog } from "../../../../../../packages/ui/src/primitives";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { profilesApi } from "../../../../../../packages/workbench/src/client/shared/api.js";
-import { ProfilesDialog } from "../../../../../../packages/workbench/src/client/shared/Profiles.jsx";
 import { Menu, PanelRightClose } from "lucide-react";
 import { askConfirm } from "../../state/confirm";
+
+// 方法方案编辑器体积大且仅在作者打开方法页时需要，按需加载。
+const ProfilesDialog = lazy(() =>
+  import("../../../../../../packages/workbench/src/client/shared/Profiles.jsx").then((module) => ({
+    default: module.ProfilesDialog,
+  })),
+);
 
 export type EditState = { dirty: boolean; saving: boolean };
 
@@ -69,16 +75,18 @@ function MethodsEditor({
 }) {
   const api = useMemo(() => profilesApi(mode), [mode]);
   return (
-    <ProfilesDialog
-      mode={mode}
-      api={api}
-      inline
-      renderContent={(text: string) => <Markdown text={text} />}
-      onEditState={onEditState}
-      onClose={() => {}}
-      onChanged={() => {}}
-      confirm={askConfirm}
-    />
+    <Suspense fallback={null}>
+      <ProfilesDialog
+        mode={mode}
+        api={api}
+        inline
+        renderContent={(text: string) => <Markdown text={text} />}
+        onEditState={onEditState}
+        onClose={() => {}}
+        onChanged={() => {}}
+        confirm={askConfirm}
+      />
+    </Suspense>
   );
 }
 

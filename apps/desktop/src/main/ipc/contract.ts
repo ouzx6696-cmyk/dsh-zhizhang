@@ -1,6 +1,6 @@
 import { parseContextSettings, type ContextSettings } from "../../context-settings";
 import type { Focus, Target } from "../../context";
-import type { ModelConnection, ModelSettings } from "../../models";
+import type { ModelConnection, ModelSettings, ModelsInput } from "../../models";
 import type { TaskState, UpdateStatus } from "../../renderer-contracts";
 import type { Settings } from "../../settings";
 import type { inspectRecovery } from "../../recovery";
@@ -74,7 +74,7 @@ export interface IpcMap {
   view: { args: [Target, number?, number?]; result: SessionView };
   running: { args: []; result: RunningTask[] };
   profiles: { args: []; result: boolean };
-  model: { args: [unknown]; result: PublicSettings };
+  model: { args: [ModelsInput]; result: PublicSettings };
   "model-catalog": {
     args: [keyof ModelSettings, Partial<ModelConnection>, string?];
     result:
@@ -130,7 +130,7 @@ import {
   parseRecovery,
   parseExternal,
 } from "./validate";
-import { parseConnectionInput } from "../../models";
+import { parseConnectionInput, parseModelsInput } from "../../models";
 const role = (value: unknown) => parseChoice(value, ["writer", "editor", "planner"] as const);
 export const IPC_PARSERS: { [K in IpcChannel]: (args: unknown[]) => IpcArgs<K> } = {
   "context-settings": ([value]) => [parseContextSettings(value)],
@@ -166,7 +166,7 @@ export const IPC_PARSERS: { [K in IpcChannel]: (args: unknown[]) => IpcArgs<K> }
   ],
   running: () => [],
   profiles: () => [],
-  model: ([value]) => [value],
+  model: ([value]) => [parseModelsInput(value)],
   "model-catalog": ([value, next, action]) => [
     role(value),
     parseConnectionInput(next),

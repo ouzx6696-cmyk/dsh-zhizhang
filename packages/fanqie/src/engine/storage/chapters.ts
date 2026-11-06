@@ -6,7 +6,8 @@ import path from "node:path";
 import { NovelError } from "../errors.js";
 import { CHAPTER_STATUSES, EMPTY_OUTLINE } from "../types.js";
 import type { Outline, Chapter, ChapterStatus, Ledger, WorkMeta } from "../types.js";
-import { assertResourceId, countWords, isMissingFileError, nowIso } from "./primitives.js";
+import { assertResourceId, countWords, nowIso } from "./primitives.js";
+import { readText } from "../../../../core/src/fsx.js";
 import { assertNoPendingAccept, snapshotFile } from "./accept-journal.js";
 import { createChapterJournal, finishChapterJournal } from "./chapter-journal.js";
 import { withResourceLock } from "./process-lock.js";
@@ -22,7 +23,7 @@ export function chaptersDir(dir: string) {
 /** prepare 阶段的章节记录：revision 先算后回填，故可缺省。 */
 type ChapterDraft = Omit<Chapter, "revision"> & { revision?: string };
 /** 章节保存入参（updateChapter / setOutline / 候选落稿 / 灵感套用共用的落盘契约）。 */
-export interface ChapterSaveInput {
+interface ChapterSaveInput {
   id?: string;
   title: string;
   body: string;
@@ -137,12 +138,18 @@ export async function listChapters(dir: string) {
   const meta = await readWorkMeta(dir);
   return [...meta.chapters].sort((a, b) => a.position - b.position);
 }
-export async function readChapter(dir: string, chapterId: string): Promise<Chapter> {
+/** 章节文件不存在时返回 undefined；front matter 损坏等其他错误原样抛出，不能当成「没有这章」。 */
+export async function findChapter(dir: string, chapterId: string): Promise<Chapter | undefined> {
   await assertNoPendingAccept(dir);
-  const file = chapterFile(dir, chapterId);
-  const raw = await readFile(file, "utf8");
+  const raw = await readText(chapterFile(dir, chapterId));
+  if (raw === undefined) return undefined;
   const chapter = parseChapterMarkdown(raw, chapterId);
   return { ...chapter, revision: chapterRevision(chapter) };
+}
+export async function readChapter(dir: string, chapterId: string): Promise<Chapter> {
+  const chapter = await findChapter(dir, chapterId);
+  if (!chapter) throw new NovelError("chapter_not_found", `章节不存在：${chapterId}`);
+  return chapter;
 }
 /**
  * Panel-only lens read with an mtime+size cache: the workbench re-reads the
@@ -286,6 +293,24 @@ export async function currentContextBasis(dir: string, chapterId: string): Promi
   }
   return contextBasis(meta, chapter, previous);
 }
+/** 直接或间接以 id 为前稿依赖的章节（不含 id 本身），按发现顺序。 */
+function transitiveDependents(chapters: WorkMeta["chapters"], id: string) {
+  const affected = new Set<string>();
+  const queue = [id];
+  for (let cursor = 0; cursor < queue.length; cursor++) {
+    for (const chapter of chapters) {
+      if (
+        chapter.id !== id &&
+        !affected.has(chapter.id) &&
+        chapter.dependencies?.some((d) => d.chapterId === queue[cursor])
+      ) {
+        affected.add(chapter.id);
+        queue.push(chapter.id);
+      }
+    }
+  }
+  return [...affected];
+}
 /** Caller must hold the work lock. */
 export async function prepareChapterSaveUnlocked(dir: string, input: ChapterSaveInput) {
   const metaBefore = await snapshotFile(metaPath(dir));
@@ -295,17 +320,9 @@ export async function prepareChapterSaveUnlocked(dir: string, input: ChapterSave
   const id = input.id?.trim() || `c${String(meta.chapters.length + 1).padStart(3, "0")}`;
   const chapterBefore = await snapshotFile(chapterFile(dir, id));
   const existingIdx = meta.chapters.findIndex((c) => c.id === id);
-  let previous = null;
-  if (existingIdx >= 0) {
-    try {
-      previous = await readChapter(dir, id);
-    } catch (err) {
-      // 登记过但读不出来：只有「文件缺失」可以当新建恢复，
-      // front matter 损坏必须报出来，不能让 outline/status 被静默重置。
-      if (!isMissingFileError(err)) throw err;
-      previous = null;
-    }
-  }
+  // 登记过但文件缺失可以当新建恢复；front matter 损坏由 findChapter 原样抛出，
+  // 不能让 outline/status 被静默重置。
+  const previous = existingIdx >= 0 ? ((await findChapter(dir, id)) ?? null) : null;
   const position =
     typeof input.position === "number"
       ? input.position
@@ -426,20 +443,6 @@ export async function prepareChapterSaveUnlocked(dir: string, input: ChapterSave
     history = preserved;
     const next = meta.chapters.find((c) => c.position > position);
     const impacts = Array.isArray(meta.revisionImpacts) ? meta.revisionImpacts : [];
-    const affected = new Set<string>();
-    const queue = [id];
-    for (let cursor = 0; cursor < queue.length; cursor++) {
-      for (const chapter of meta.chapters) {
-        if (
-          chapter.id !== id &&
-          !affected.has(chapter.id) &&
-          chapter.dependencies?.some((d) => d.chapterId === queue[cursor])
-        ) {
-          affected.add(chapter.id);
-          queue.push(chapter.id);
-        }
-      }
-    }
     meta.revisionImpacts = [
       ...impacts.filter((v) => v.chapterId !== id),
       {
@@ -448,7 +451,7 @@ export async function prepareChapterSaveUnlocked(dir: string, input: ChapterSave
         revision,
         history: preserved,
         nextChapterId: next?.id,
-        dependents: [...affected],
+        dependents: transitiveDependents(meta.chapters, id),
         at: meta.updatedAt,
         reason: "正文已修改；请核对已有状态记录、相关后稿与简报依据",
       },
@@ -520,14 +523,9 @@ export async function setOutline(
   options: { pace?: string } = {},
 ) {
   return withResourceLock(dir, async () => {
-    let previous = null;
-    try {
-      previous = await readChapter(dir, chapterId);
-    } catch (err) {
-      // 章节文件损坏（front matter 非法等）不能当成「不存在」继续写：
-      // 后续 saveChapter 会用空正文覆盖原文件，直接丢稿。
-      if (!isMissingFileError(err)) throw err;
-    }
+    // 章节文件损坏（front matter 非法等）不能当成「不存在」继续写：
+    // 后续 saveChapter 会用空正文覆盖原文件，直接丢稿。findChapter 只把缺失当 undefined。
+    const previous = await findChapter(dir, chapterId);
     return saveChapterUnlocked(dir, {
       id: chapterId,
       title: title ?? previous?.title ?? chapterId,
@@ -559,12 +557,7 @@ export async function updateChapter(
   },
 ) {
   return withResourceLock(dir, async () => {
-    let previous: Chapter | undefined;
-    try {
-      previous = await readChapter(dir, input.id);
-    } catch (err) {
-      if (!isMissingFileError(err)) throw err;
-    }
+    const previous = await findChapter(dir, input.id);
     if (!previous && input.body === undefined)
       throw new NovelError("bad_args", "新建章节必须提供 content");
     if (input.status === "final")

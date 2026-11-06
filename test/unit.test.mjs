@@ -290,3 +290,130 @@ test("守卫：JSX 文案从共享文案表读取", async (t) => {
   );
   assert.equal(run(false).status, 0);
 });
+
+test("作品锁：空或损坏的锁文件报 CONFLICT，不抛裸 SyntaxError", async () => {
+  const { claimWorkspace, workspaceAccess } = await import(buildUrl("core/src/workspace-lock.js"));
+  const dir = await tempDir("writer-lock-");
+  for (const raw of ["", '{"id":"x"}', "[1]"]) {
+    await writeFile(path.join(dir, ".writer-workspace-lock.json"), raw);
+    await assert.rejects(claimWorkspace(dir), (error) => {
+      assert.equal(error.code, "CONFLICT");
+      assert.match(error.message, /作品锁文件/);
+      return true;
+    });
+    await assert.rejects(workspaceAccess(dir), { code: "CONFLICT" });
+  }
+});
+
+test("作品锁：多个进程同时抢锁，只有一个可写，其余读到完整占用者", async () => {
+  const dir = await tempDir("writer-lock-race-");
+  const lockUrl = buildUrl("core/src/workspace-lock.js");
+  const script = `const { claimWorkspace } = await import(${JSON.stringify(lockUrl)});
+const access = await claimWorkspace(${JSON.stringify(dir)});
+console.log(JSON.stringify({ readOnly: access.readOnly, pid: access.owner?.pid ?? null }));
+await new Promise((resolve) => setTimeout(resolve, 1500));`;
+  const { spawn } = await import("node:child_process");
+  const runs = Array.from(
+    { length: 4 },
+    () =>
+      new Promise((resolve, reject) => {
+        const child = spawn(process.execPath, ["--input-type=module", "-e", script]);
+        let out = "";
+        let err = "";
+        child.stdout.on("data", (d) => (out += d));
+        child.stderr.on("data", (d) => (err += d));
+        child.on("error", reject);
+        child.on("close", (code) =>
+          code === 0 ? resolve(JSON.parse(out)) : reject(new Error(`exit ${code}: ${err}`)),
+        );
+      }),
+  );
+  const results = await Promise.all(runs);
+  assert.equal(results.filter((r) => !r.readOnly).length, 1, JSON.stringify(results));
+  for (const r of results) assert.equal(typeof r.pid, "number", JSON.stringify(results));
+});
+
+test(
+  "运行器：脚本忽略 SIGTERM 时超时仍能收尾",
+  { skip: process.platform === "win32" },
+  async () => {
+    const py = await locatePython();
+    const dir = await tempDir();
+    const f = path.join(dir, "stubborn.py");
+    await atomicWrite(
+      f,
+      "import signal, time\nsignal.signal(signal.SIGTERM, signal.SIG_IGN)\ntime.sleep(30)\n",
+    );
+    const started = Date.now();
+    await assert.rejects(runScript(py, f, [], { timeoutMs: 500 }), /超时/);
+    assert.ok(Date.now() - started < 10_000, `超时后 ${Date.now() - started}ms 才返回`);
+  },
+);
+
+test("方法方案：同一方案并发改名与保存不丢改名，删除后不会被保存写回", async (t) => {
+  const profiles = await import(buildUrl("core/src/profiles.js"));
+  const { toutiaoLibrary } = await import(buildUrl("toutiao/src/methods.js"));
+  profiles.setProfilesRoot(await tempDir("writer-profiles-"));
+  t.after(() => profiles.setProfilesRoot(undefined));
+  const first = await profiles.createProfile(toutiaoLibrary, { name: "并发一" });
+  await Promise.all([
+    profiles.renameProfile("toutiao", first.id, "并发改名"),
+    profiles.saveMethod(toutiaoLibrary, first.id, "s4-common", "# 覆盖\n"),
+  ]);
+  assert.equal((await profiles.findProfile("toutiao", "并发改名")).id, first.id);
+
+  const second = await profiles.createProfile(toutiaoLibrary, { name: "并发二" });
+  const [removed, saved] = await Promise.allSettled([
+    profiles.deleteProfile("toutiao", second.id),
+    profiles.saveMethod(toutiaoLibrary, second.id, "s4-common", "# 覆盖\n"),
+  ]);
+  assert.equal(removed.status, "fulfilled");
+  assert.equal(saved.status, "rejected");
+  await assert.rejects(profiles.findProfile("toutiao", second.id), { code: "NOT_FOUND" });
+});
+
+test("方法方案：新建中途失败留下的目录不被新方案复用", async (t) => {
+  const profiles = await import(buildUrl("core/src/profiles.js"));
+  const { toutiaoLibrary } = await import(buildUrl("toutiao/src/methods.js"));
+  const root = await tempDir("writer-profiles-");
+  profiles.setProfilesRoot(root);
+  t.after(() => profiles.setProfilesRoot(undefined));
+  const orphan = path.join(root, "toutiao", "user-1", "methods");
+  await mkdir(orphan, { recursive: true });
+  await writeFile(path.join(orphan, "残留.md"), "上次失败留下的");
+  const created = await profiles.createProfile(toutiaoLibrary, {});
+  assert.equal(created.id, "user-2");
+  const detail = await profiles.profileDetail(toutiaoLibrary, created.id);
+  assert.ok(!detail.methods.some((m) => m.id === "残留"));
+});
+
+test("头条反馈：并发的首批记录全部保留", async () => {
+  const { createToolHarness } = await import("./helpers.mjs");
+  const h = await createToolHarness({ mode: "toutiao", cwd: await tempDir() });
+  const results = await Promise.all(
+    ["一", "二", "三"].map((n) =>
+      h.call("toutiao_feedback_append", { original: `原${n}`, revised: `改${n}`, motive: n }),
+    ),
+  );
+  for (const r of results) assert.equal(r.ok, true, JSON.stringify(r));
+  const read = await h.call("toutiao_feedback_read");
+  assert.equal(read.entries, 3, read.text);
+});
+
+test("守卫：按语法计 any 与非空断言，字符串里的英文不误报；function 形式的吞错也要注明", async (t) => {
+  const { write, run } = await guardFixture(t);
+  await write(
+    "packages/core/src/copy.ts",
+    'export const hint = "Hello! Pick any file"; export const ok = (x?: string) => x !== undefined;',
+  );
+  assert.equal(run().status, 0, run().stderr);
+  await write("packages/core/src/copy.ts", "export const n = (x?: string) => x!.length;");
+  assert.match(run().stderr, /非空断言 ! 数量 1 超过基线 0/);
+  await write(
+    "packages/core/src/copy.ts",
+    "export const quiet = (p: Promise<void>) => p.catch(function () {});",
+  );
+  const swallowed = run();
+  assert.equal(swallowed.status, 1);
+  assert.match(swallowed.stderr, /吞错须注明/);
+});

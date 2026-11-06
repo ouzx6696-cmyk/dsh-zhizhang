@@ -1,0 +1,12 @@
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none;
+    transition: none;
+    scroll-behavior: auto;
+  }
+}
+small {
+  font-size: var(--ui-size-12);
+}

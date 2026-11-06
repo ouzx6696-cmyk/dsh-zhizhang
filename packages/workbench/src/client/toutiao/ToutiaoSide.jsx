@@ -16,6 +16,11 @@ const { useState } = React;
 const statusLabel = (status) => statusInfo("toutiao", status).label;
 const statusTone = (status) => statusInfo("toutiao", status).tone;
 
+/** 稿件署名：编辑、作者各有文案，其余（含旧稿缺字段）都算写作 Agent。 */
+export function draftRoleLabel(role) {
+  return t("ttRole_" + (role === "editor" || role === "author" ? role : "writer"));
+}
+
 function QaText({ qa, rev }) {
   if (!qa) return <span className="wb-muted">{t("ttQaNone")}</span>;
   const text = qa.pass ? t("ttQaPass", { score: qa.score }) : t("ttQaFail", { score: qa.score });
@@ -128,14 +133,7 @@ export function ToutiaoSide({ tt, hideAgent = false }) {
                     <li key={d.rev}>
                       {t("ttRev", { n: d.rev }) +
                         " · " +
-                        t(
-                          "ttRole_" +
-                            (d.role === "editor"
-                              ? "editor"
-                              : d.role === "author"
-                                ? "author"
-                                : "writer"),
-                        ) +
+                        draftRoleLabel(d.role) +
                         " · " +
                         formatCount(d.chars) +
                         viewCopy.toutiaoAppText3 +
@@ -154,7 +152,7 @@ export function ToutiaoSide({ tt, hideAgent = false }) {
                   variant={a.adoptable ? "primary" : "outline"}
                   size="sm"
                   busy={busy === "adopt"}
-                  done={!!doneAt.adopt}
+                  done={doneAt.adopt}
                   disabled={!a.adoptable || !tt.adoptReady || !!busy}
                   title={a.adoptable ? undefined : t("ttAdoptHint")}
                   icon={<Icon name="stamp" size={14} />}

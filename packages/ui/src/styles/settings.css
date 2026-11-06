@@ -1,0 +1,55 @@
+.lamp-preview-paper {
+  background: var(--ui-paper);
+  color: var(--ui-text);
+  box-shadow: var(--ui-paper-shadow);
+  border-radius: var(--ui-radius-lg);
+  padding: 28px;
+  font-family: var(--ui-font-body);
+  line-height: 2;
+}
+.lamp-preview-paper h3 {
+  font-family: var(--ui-font-body);
+  color: var(--ui-title);
+}
+.lamp-theme-options {
+  display: flex;
+  gap: 12px;
+  margin: 12px 0 24px;
+}
+.lamp-theme-options button[aria-pressed="true"] {
+  border-color: var(--ui-accent);
+  background: var(--ui-accent-soft);
+}
+.lamp-settings-preview {
+  margin: 24px 0;
+}
+.lamp-component-preview {
+  max-width: 1100px;
+  margin: 32px auto;
+  padding: 24px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+.lamp-component-preview > h1,
+.lamp-component-preview > p {
+  grid-column: 1/-1;
+}
+.lamp-preview-section {
+  padding: 24px;
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  border-radius: var(--ui-radius-lg);
+  display: grid;
+  gap: 20px;
+}
+.lamp-preview-section > header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+@media (max-width: 900px) {
+  .lamp-component-preview {
+    grid-template-columns: 1fr;
+  }
+}

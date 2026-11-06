@@ -134,3 +134,62 @@ button.icon-button {
   min-height: 56px;
   background: var(--ui-panel);
 }
+.command-button {
+  font-size: var(--ui-size-12);
+  padding: 4px 6px;
+  background: transparent;
+  border: 0;
+}
+@media (max-width: 959px) {
+  .command-button span {
+    display: none;
+  }
+}
+.sidebar-open {
+  display: none;
+}
+.readonly-banner,
+.background-tasks {
+  padding: 7px 16px;
+  background: var(--ui-accent-soft);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--ui-size-12);
+  flex-wrap: wrap;
+}
+.readonly-banner {
+  color: var(--ui-warning);
+}
+.background-tasks button {
+  padding: 2px 6px;
+  font-size: var(--ui-size-12);
+}
+.studio-error {
+  position: relative;
+  inset: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: none;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 10px 20px;
+  border: 0;
+  border-bottom: 1px solid var(--ui-danger);
+  border-radius: 8px;
+  background: var(--ui-panel);
+  box-shadow: none;
+  font-size: var(--ui-size-12);
+  z-index: 21;
+}
+.studio-error > svg {
+  color: var(--ui-danger);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+@media (max-width: 959px) {
+  .sidebar-open {
+    display: inline-flex;
+  }
+}

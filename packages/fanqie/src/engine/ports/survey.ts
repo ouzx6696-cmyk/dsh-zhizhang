@@ -22,7 +22,7 @@ export interface ChapterIndexRow {
 }
 
 /** 卷标记：解析产物或调用方传入的 volumeMarkers（报告侧还会带 from/to）。 */
-export interface VolumeMarker {
+interface VolumeMarker {
   no?: number;
   name?: string;
   title?: string;

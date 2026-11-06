@@ -7,3 +7,10 @@ export class Notification {
     return false;
   }
 }
+// IPC registrations land in a map so tests call the production handlers directly.
+export const ipcMain = {
+  handlers: new Map(),
+  handle(channel, listener) {
+    this.handlers.set(channel, listener);
+  },
+};

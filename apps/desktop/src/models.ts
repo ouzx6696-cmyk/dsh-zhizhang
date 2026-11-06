@@ -162,9 +162,24 @@ export function connection(value: unknown, previous: ModelConnection): ModelConn
     throw new Error("不支持的思考档位");
   return result;
 }
-export function normalizeModels(next: unknown, previous = defaultModels()): ModelSettings {
+export type ModelsInput = {
+  writer?: ConnectionInput;
+  editor?: ConnectionInput;
+  planner?: ConnectionInput | null;
+};
+/** 模型设置的边界解析：各角色缺省沿用旧值，planner 为 null 表示关闭。 */
+export function parseModelsInput(next: unknown): ModelsInput {
   if (!next || typeof next !== "object" || Array.isArray(next)) throw new Error("模型设置须为对象");
   const source = next as Record<string, unknown>;
+  const role = (value: unknown) => (value ? parseConnectionInput(value) : undefined);
+  return {
+    writer: role(source.writer),
+    editor: role(source.editor),
+    planner: source.planner ? parseConnectionInput(source.planner) : null,
+  };
+}
+export function normalizeModels(next: unknown, previous = defaultModels()): ModelSettings {
+  const source = parseModelsInput(next);
   const writer = connection(source.writer || previous.writer, previous.writer);
   const editor = connection(source.editor || previous.editor, previous.editor);
   if (!editor.apiKey && editor.baseUrl === writer.baseUrl) editor.apiKey = writer.apiKey;

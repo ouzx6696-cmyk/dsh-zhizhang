@@ -4,10 +4,9 @@ import type { LibraryIndex, CardIndexRow, CardFilter, TechniqueCard } from "./ty
  * 拆书库存储层 — 索引 / 路径 / 导入解码 / 过滤 / 排序。
  * 不包含卡 schema（见 schema.js）与机械审计（见 audit.js）。
  */
-import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { atomicWrite, assertResourceId } from "../../storage/primitives.js";
-import { listDir, exists as fileExists, isMissingFileError } from "../../../../../core/src/fsx.js";
+import { listDir, readJson, readText } from "../../../../../core/src/fsx.js";
 import { withResourceLock } from "../../storage/process-lock.js";
 import { assertNoPendingCard } from "../../storage/card-journal.js";
 import { coerceAxis, coerceHumanFeel } from "./schema.js";
@@ -29,59 +28,69 @@ export async function emptyIndex(): Promise<LibraryIndex> {
 }
 export async function readIndex(paths: StoragePaths): Promise<LibraryIndex> {
   await assertNoPendingCard(paths.library);
-  const { index } = libraryDirs(paths);
-  try {
-    const raw = JSON.parse(await readFile(index, "utf8"));
-    if (!raw || typeof raw !== "object" || !Array.isArray(raw.sources) || !Array.isArray(raw.cards))
-      throw new Error(`拆书库索引格式损坏：${index}`);
-    for (const row of [...raw.sources, ...raw.cards]) {
-      const value = asObject(row, "拆书库索引条目");
-      asString(value, "id", { required: true });
-      asString(value, "title", { required: true });
-      for (const key of [
-        "sourceId",
-        "author",
-        "createdAt",
-        "status",
-        "updatedAt",
-        "axis",
-        "layer",
-        "dimension",
-      ])
-        if (value[key] !== undefined && typeof value[key] !== "string")
-          throw new NovelError("library_index_invalid", `索引 ${key} 必须是字符串`);
-      if (
-        value.tags !== undefined &&
-        (!Array.isArray(value.tags) || !value.tags.every((tag: unknown) => typeof tag === "string"))
-      )
-        throw new NovelError("library_index_invalid", "索引 tags 必须是字符串数组");
-    }
-    return {
-      ...raw,
-      schemaVersion: raw.schemaVersion ?? 1,
-      sources: raw.sources,
-      cards: raw.cards,
-    };
-  } catch (err) {
-    if (isMissingFileError(err)) {
-      const dirs = libraryDirs(paths);
-      const entries = await Promise.all(
-        [dirs.sources, dirs.cards, dirs.candidates, path.join(dirs.root, "analyses")].map(listDir),
+  const dirs = libraryDirs(paths);
+  const text = await readText(dirs.index);
+  if (text === undefined) {
+    const entries = await Promise.all(
+      [dirs.sources, dirs.cards, dirs.candidates, path.join(dirs.root, "analyses")].map(listDir),
+    );
+    if (entries.some((files) => files.length > 0))
+      throw new NovelError(
+        "library_index_missing",
+        "拆书库索引缺失但仍有资产，请保留原文件并核对。",
       );
-      if (entries.some((files) => files.length > 0))
-        throw new NovelError(
-          "library_index_missing",
-          "拆书库索引缺失但仍有资产，请保留原文件并核对。",
-        );
-      return emptyIndex();
-    }
-    throw err;
+    return emptyIndex();
   }
+  let raw;
+  try {
+    raw = JSON.parse(text);
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error;
+    throw new NovelError("library_index_invalid", "拆书库索引 JSON 损坏，请保留原文件并核对。");
+  }
+  if (!raw || typeof raw !== "object" || !Array.isArray(raw.sources) || !Array.isArray(raw.cards))
+    throw new NovelError("library_index_invalid", "拆书库索引格式损坏，请保留原文件并核对。");
+  for (const row of [...raw.sources, ...raw.cards]) assertIndexRow(row);
+  return {
+    ...raw,
+    schemaVersion: raw.schemaVersion ?? 1,
+    sources: raw.sources,
+    cards: raw.cards,
+  };
+}
+const INDEX_STRING_KEYS = [
+  "sourceId",
+  "author",
+  "createdAt",
+  "status",
+  "updatedAt",
+  "axis",
+  "layer",
+  "dimension",
+];
+function assertIndexRow(row: unknown) {
+  const value = asObject(row, "拆书库索引条目");
+  asString(value, "id", { required: true });
+  asString(value, "title", { required: true });
+  for (const key of INDEX_STRING_KEYS)
+    if (value[key] !== undefined && typeof value[key] !== "string")
+      throw new NovelError("library_index_invalid", `索引 ${key} 必须是字符串`);
+  if (
+    value.tags !== undefined &&
+    (!Array.isArray(value.tags) || !value.tags.every((tag: unknown) => typeof tag === "string"))
+  )
+    throw new NovelError("library_index_invalid", "索引 tags 必须是字符串数组");
 }
 async function writeIndex(paths: StoragePaths, idx: LibraryIndex) {
   await assertNoPendingCard(paths.library);
   const { index } = libraryDirs(paths);
   await atomicWrite(index, JSON.stringify(idx, null, 2) + "\n");
+}
+async function readCardFile(paths: StoragePaths, cardId: string) {
+  const id = assertResourceId(cardId, "卡 id");
+  const card = await readJson<unknown>(path.join(libraryDirs(paths).cards, `${id}.json`));
+  if (card === undefined) throw new NovelError("card_not_found", `找不到技法卡 ${id}`);
+  return asObject(card, "技法卡元数据");
 }
 async function resolveSourceIdFilter(paths: StoragePaths, opts: CardFilter) {
   const ids = new Set();
@@ -123,19 +132,14 @@ export async function filterCardRows(paths: StoragePaths, rows: CardIndexRow[], 
   }
   if (opts.axis === "craft" || opts.axis === "mind") {
     const want = opts.axis;
-    const kept = [];
-    for (const row of out) {
-      let axis = row.axis;
-      if (axis !== "craft" && axis !== "mind") {
-        const id = assertResourceId(row.id, "卡 id");
-        const card = JSON.parse(
-          await readFile(path.join(libraryDirs(paths).cards, `${id}.json`), "utf8"),
-        );
-        axis = coerceAxis(card);
-      }
-      if (axis === want) kept.push({ ...row, axis });
-    }
-    out = kept;
+    const rowsWithAxis = await Promise.all(
+      out.map(async (row) =>
+        row.axis === "craft" || row.axis === "mind"
+          ? { ...row, axis: row.axis }
+          : { ...row, axis: coerceAxis(await readCardFile(paths, row.id)) },
+      ),
+    );
+    out = rowsWithAxis.filter((row) => row.axis === want);
   }
   return out;
 }
@@ -263,12 +267,16 @@ export async function reconcileIndex(paths: StoragePaths) {
     if (reconciledLibs.has(key)) return 0;
     const d = libraryDirs(paths);
     const idx = await readIndex(paths);
+    const cards = await Promise.all(
+      idx.cards.map((row) =>
+        readJson<unknown>(path.join(d.cards, `${assertResourceId(row.id, "卡 id")}.json`)),
+      ),
+    );
     let changed = 0;
-    for (const row of idx.cards) {
-      const id = assertResourceId(row.id, "卡 id");
-      const p = path.join(d.cards, `${id}.json`);
-      if (!(await fileExists(p))) continue;
-      const card = asObject(JSON.parse(await readFile(p, "utf8")), "技法卡元数据");
+    idx.cards.forEach((row, i) => {
+      const raw = cards[i];
+      if (raw === undefined) return;
+      const card = asObject(raw, "技法卡元数据");
       const next = {
         title: asString(card, "title", { trim: false }) ?? row.title,
         sourceId: asString(card, "sourceId", { trim: false }) ?? row.sourceId,
@@ -283,7 +291,7 @@ export async function reconcileIndex(paths: StoragePaths) {
           changed += 1;
         }
       }
-    }
+    });
     if (changed) await writeIndex(paths, idx);
     reconciledLibs.add(key);
     return changed;

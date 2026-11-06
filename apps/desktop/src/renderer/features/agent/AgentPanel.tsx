@@ -110,12 +110,14 @@ export function AgentPanel({ app }: { app: DesktopController }) {
     context.hasCandidate,
     context.review?.verdict,
   ]);
-  const handleJump = useCallback(
-    (target: Target | null, nextFocus?: Focus) => {
-      app.jump(target, nextFocus).catch(fail);
-    },
-    [app, fail],
-  );
+  // 控制器每次渲染都是新对象；经 ref 取最新方法，让结果卡的跳转回调保持稳定。
+  const latest = useRef(app);
+  useEffect(() => {
+    latest.current = app;
+  });
+  const handleJump = useCallback((target: Target | null, nextFocus?: Focus) => {
+    latest.current.jump(target, nextFocus).catch(latest.current.fail);
+  }, []);
   return (
     <div className="agent-panel">
       {state.system && (
@@ -154,12 +156,12 @@ export function AgentPanel({ app }: { app: DesktopController }) {
         <select
           aria-label={viewCopy.agentPanelText37}
           value={archive ?? "current"}
-          onChange={async (event) => {
+          onChange={(event) => {
             if (!selected) return;
             const value = event.target.value === "current" ? undefined : Number(event.target.value);
             app.archived.current = value;
             app.setChat({ archive: value });
-            await app.loadView(selected, 80, value);
+            void app.loadView(selected, 80, value).catch(fail);
           }}
         >
           <option value="current">{viewCopy.agentPanelText38}</option>

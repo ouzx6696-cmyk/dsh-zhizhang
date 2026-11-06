@@ -1,0 +1,63 @@
+.context-panel {
+  flex: 0 0 auto;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--ui-line);
+  max-height: min(35vh, max(64px, calc(100% - 420px)));
+  overflow: auto;
+  font-size: var(--ui-size-12);
+  scrollbar-gutter: stable;
+}
+.context-panel summary {
+  cursor: pointer;
+  padding: 3px 0;
+  color: var(--ui-text);
+}
+.context-panel > p {
+  color: var(--ui-text-3);
+  line-height: 1.6;
+}
+.context-panel label {
+  display: grid;
+  gap: 5px;
+  margin: 12px 0;
+}
+.context-panel label:has(input[type="checkbox"]) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.context-panel input[type="checkbox"] {
+  width: auto;
+  min-height: 0;
+}
+.context-panel input[type="number"],
+.context-panel textarea {
+  width: 100%;
+}
+.context-panel textarea {
+  resize: vertical;
+  min-height: 64px;
+}
+.context-panel dl {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 12px;
+}
+.context-panel dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.context-panel > button {
+  margin: 4px 8px 4px 0;
+}
+.context-panel pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 200px;
+  overflow: auto;
+}
+.context-panel ul {
+  padding-left: 18px;
+  overflow-wrap: anywhere;
+}

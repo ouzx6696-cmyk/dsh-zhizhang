@@ -1,5 +1,5 @@
 export type StatusMode = "fanqie" | "toutiao";
-export type StatusTone = "neutral" | "info" | "warning" | "success" | "danger";
+type StatusTone = "neutral" | "info" | "warning" | "success" | "danger";
 
 const FANQIE: Record<string, { label: string; tone: StatusTone; dot: string }> = {
   drafting: { label: "草稿", tone: "neutral", dot: "warning" },

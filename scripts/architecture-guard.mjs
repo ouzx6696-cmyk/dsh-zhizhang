@@ -272,16 +272,12 @@ const rules = [
   { name: "dependencies", check: checkDependencies },
   {
     name: "any-baseline",
-    check(file, source) {
-      // 去注释后再数，覆盖 Record<string, any> 等 99 口径看不见的写法；.any() 是 API 名不算。
-      const code = source
-        .replace(/\/\*[\s\S]*?\*\//g, " ")
-        .split(/\r?\n/)
-        .map((line) => line.replace(/(^|[^:])\/\/.*$/, "$1"))
-        .join("\n");
-      anyCount += [...code.matchAll(/(?<!\.)\bany\b/g)].length;
-      // 属性访问/元素访问的非空断言；!:(确定赋值声明)、!=、!== 不算。
-      nonNullCount += [...code.matchAll(/(?<=[A-Za-z0-9_$)\]])!(?![=:])/g)].length;
+    check(file) {
+      // Count syntax, not text: English "any" or "Hello!" inside strings and comments are not types.
+      visit(file.ast, (node) => {
+        if (node.kind === ts.SyntaxKind.AnyKeyword) anyCount++;
+        else if (ts.isNonNullExpression(node)) nonNullCount++;
+      });
     },
   },
   {
@@ -295,7 +291,7 @@ const rules = [
             ts.isPropertyAccessExpression(node.expression) &&
             node.expression.name.text === "catch" &&
             node.arguments.length > 0 &&
-            ts.isArrowFunction(node.arguments[0]) &&
+            (ts.isArrowFunction(node.arguments[0]) || ts.isFunctionExpression(node.arguments[0])) &&
             swallowed(node.arguments[0].body);
         if (!caught) return;
         const { line } = file.ast.getLineAndCharacterOfPosition(node.getStart(file.ast));

@@ -991,6 +991,25 @@ test("后台工作区释放失败告知作者，保留锁以供核对", async ()
   }
 });
 
+test("窗口已销毁时任务收尾与作者确认不触碰窗口，不产生收尾失败提示", async () => {
+  const { Runtime } = await import("../../apps/desktop/out-test/runtime-effects.mjs");
+  const state = new Runtime();
+  const destroyed = () => {
+    throw new Error("Object has been destroyed");
+  };
+  state.diagnostics = { write: async () => {} };
+  state.window = {
+    isDestroyed: () => true,
+    isFocused: destroyed,
+    show: destroyed,
+    webContents: { send: destroyed },
+  };
+  await state.sessionEvent({ event: { type: "agent_settled", reason: "done" } });
+  assert.equal(state.notice, "");
+  assert.equal(await state.confirm("确认定稿？"), false);
+  assert.throws(() => state.windowOrThrow(), /界面窗口尚未就绪或已关闭/);
+});
+
 test("SDK 错误后正确结束，下一次成功任务有独立结束事件", async () => {
   const home = await mkdtemp(path.join(tmpdir(), "writer-sdk-settle-"));
   process.env.WRITER_STATE_ROOT = home;
@@ -1132,6 +1151,60 @@ test("IPC 边界拒绝非法角色、动作、恢复条件与字号", async () =
   assert.throws(() => p.view([{ mode: "toutiao", root: "/tmp" }, "80"]), /历史条数/);
   assert.throws(() => p.search([{}]), /文本/);
   assert.deepEqual(p["save-preferences"](["偏好"]), ["偏好"]);
+  assert.throws(() => p.model(["writer"]), /模型设置须为对象/);
+  assert.throws(() => p.model([{ writer: { model: 1 } }]), /model 须为文本/);
+  assert.deepEqual(p.model([{ planner: null }]), [
+    { writer: undefined, editor: undefined, planner: null },
+  ]);
+});
+
+test("任务运行或准备中拒绝保存模型，不中止任务也不改写配置", async () => {
+  const { Runtime, registerModelsIpc, ipcMain } =
+    await import("../../apps/desktop/out-test/runtime-effects.mjs");
+  const home = await mkdtemp(path.join(tmpdir(), "writer-model-guard-"));
+  const state = new Runtime(),
+    events = [];
+  state.home = home;
+  state.settings = new Settings(home, {
+    available: () => false,
+    encrypt: (text) => text,
+    decrypt: (text) => text,
+  });
+  state.model = state.settings.models;
+  state.diagnostics = { write: async () => {} };
+  state.window = {
+    isDestroyed: () => false,
+    webContents: { send: (_, event) => events.push(event) },
+  };
+  const target = { mode: "toutiao", root: home };
+  state.sessions = new Sessions({
+    home,
+    python: "python3",
+    settings: () => state.model,
+    emit: () => {},
+    confirm: async () => false,
+    options: {},
+    created: async () => {},
+    extras: {},
+  });
+  registerModelsIpc(state);
+  const save = ipcMain.handlers.get("writer:model");
+  const next = { ...state.settings.public().models };
+  next.writer = { ...next.writer, model: "changed-model" };
+  try {
+    state.sessions.preparations.set(Symbol("task"), { target, focus: {}, generation: 0 });
+    await assert.rejects(save({}, next), /请等待任务结束后修改模型设置/);
+    assert.equal(state.sessions.preparations.size, 1);
+    await assert.rejects(readFile(path.join(home, "model.json"), "utf8"), { code: "ENOENT" });
+    assert.equal(state.model.writer.model, defaultModels().writer.model);
+    state.sessions.preparations.clear();
+    await save({}, next);
+    assert.equal(state.model.writer.model, "changed-model");
+    assert.ok(events.some((event) => event.refresh));
+  } finally {
+    await state.sessions.dispose();
+    await rm(home, { recursive: true, force: true });
+  }
 });
 
 test("搜索 Key 可清除，非法外观读盘提示，旧模型迁移保留密文", async () => {
@@ -1451,5 +1524,41 @@ test("手动压缩互斥，可取消且不删除原始历史", async () => {
     await host.dispose();
     await model.close();
     await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("Agent 直接保存尚无文件的新章正文，不因缺少已读版本报错；已有正文仍须版本依据", async () => {
+  const base = await mkdtemp(path.join(tmpdir(), "writer-new-chapter-"));
+  const { ensureStorage, createWork, readChapter } =
+    await import("../../apps/desktop/out-test/work-store.mjs");
+  const appHome = path.join(base, "app");
+  await mkdir(appHome);
+  process.env.WRITER_STATE_ROOT = appHome;
+  const paths = await ensureStorage(null, { storageRoot: path.join(base, "data") });
+  const work = await createWork(paths, { title: "新章" });
+  const model = await fakeModel();
+  const host = new Sessions({
+    home: appHome,
+    python: "python3",
+    settings: () => models(model.url),
+    emit: () => {},
+    confirm: async () => true,
+    options: {},
+    created: async () => {},
+    extras: {},
+  });
+  try {
+    const session = await host.open({ mode: "fanqie", root: paths.base, work: work.meta.key });
+    const tool = session.agent.state.tools.find((t) => t.name === "fanqie_chapter_save");
+    await tool.execute("fresh", { chapter: "c001", content: "站台的灯一盏盏熄灭。" });
+    assert.equal((await readChapter(work.dir, "c001")).body.trim(), "站台的灯一盏盏熄灭。");
+    await assert.rejects(
+      tool.execute("overwrite", { chapter: "c001", content: "改写" }),
+      /expected_revision/,
+    );
+  } finally {
+    await host.dispose();
+    await model.close();
+    await rm(base, { recursive: true, force: true });
   }
 });

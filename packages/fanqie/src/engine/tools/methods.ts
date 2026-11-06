@@ -1,8 +1,7 @@
 /** Shared MethodRegistry tools + chapter_brief (writing entry that injects craft packs). */
-import { isFsError } from "../../../../core/src/fsx.js";
 import { contextBasis } from "../domain/lifecycle.js";
 import { buildPanelHints } from "../panel-query.js";
-import { readChapter } from "../storage/chapters.js";
+import { findChapter } from "../storage/chapters.js";
 import { readWorkMeta } from "../storage/work-meta.js";
 import { recordBriefBreadcrumb } from "../storage/work-records.js";
 import { resolvePrevChapter } from "../services/chapter-context.js";
@@ -107,13 +106,8 @@ export function methodsTools() {
         const lean = modeRaw !== "full";
         const { paths, dir, key } = await openWork(exec, args);
         const meta = await readWorkMeta(dir);
-        let chapter: Awaited<ReturnType<typeof readChapter>> | undefined;
-        try {
-          chapter = await readChapter(dir, chapterId);
-        } catch (err) {
-          if (!isFsError(err, "ENOENT")) throw err;
-          fail(`章节不存在：${chapterId}`, "not_found");
-        }
+        const chapter = await findChapter(dir, chapterId);
+        if (!chapter) fail(`章节不存在：${chapterId}`, "not_found");
         const extraRaw = asString(args, "extra_assets") ?? "";
         const extraIds = extraRaw
           .split(/[,，\s]+/)

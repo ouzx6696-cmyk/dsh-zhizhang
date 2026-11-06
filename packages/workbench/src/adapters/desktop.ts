@@ -116,7 +116,6 @@ function profiles(bridge: DesktopBridge, mode: string): ProfilesData {
 
 export function createDesktopAdapter(bridge: DesktopBridge): WorkbenchData {
   return {
-    host: "desktop",
     fanqie: fanqie(bridge),
     toutiao: toutiao(bridge),
     profiles: (mode) => profiles(bridge, mode),

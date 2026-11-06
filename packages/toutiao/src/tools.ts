@@ -697,9 +697,13 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
         const store = await st(exec);
         await store.writable();
         const line = `- ${today()}：${reqStr(args, "original")} → ${reqStr(args, "revised")} → ${reqStr(args, "motive")}\n`;
-        const prev = await readText(store.feedbackPath);
-        if (prev === undefined) await atomicWrite(store.feedbackPath, `# 作者改稿反馈\n\n${line}`);
-        else await appendFile(store.feedbackPath, line, "utf8");
+        // 首条要写表头：查存在与写入须串行，否则并发的两条首记录会互相覆盖。
+        await serialize(store.feedbackPath, async () => {
+          const prev = await readText(store.feedbackPath);
+          if (prev === undefined)
+            await atomicWrite(store.feedbackPath, `# 作者改稿反馈\n\n${line}`);
+          else await appendFile(store.feedbackPath, line, "utf8");
+        });
         return { path: store.feedbackPath };
       },
     }),

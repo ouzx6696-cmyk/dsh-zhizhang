@@ -8,6 +8,8 @@ import { Manuscript } from "../shared/Manuscript.jsx";
 import { SourceEditor } from "../shared/SourceEditor.jsx";
 import { statusInfo } from "../../../../ui/src/status.js";
 
+import { draftRoleLabel } from "./ToutiaoSide.jsx";
+
 export { ToutiaoSide } from "./ToutiaoSide.jsx";
 
 const { useState } = React;
@@ -145,14 +147,7 @@ export function Body({ detail, onSave, readOnly = false, onEditState }) {
               <span>
                 {t("ttRev", { n: a.draft.rev })} · {formatCount(a.draft.chars)}
                 {viewCopy.toutiaoAppText1}
-                {t(
-                  "ttRole_" +
-                    (a.draft.role === "editor"
-                      ? "editor"
-                      : a.draft.role === "author"
-                        ? "author"
-                        : "writer"),
-                )}
+                {draftRoleLabel(a.draft.role)}
               </span>
             ) : null}
           </p>

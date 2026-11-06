@@ -14,7 +14,11 @@ import {
 } from "../../build/fanqie/src/engine/ports/index.js";
 import { ensureStorage } from "../../build/fanqie/src/engine/storage/paths.js";
 import { createWork, resolveWorkDir } from "../../build/fanqie/src/engine/work-store.js";
-import { setOutline, readChapter } from "../../build/fanqie/src/engine/storage/chapters.js";
+import {
+  setOutline,
+  readChapter,
+  updateChapter,
+} from "../../build/fanqie/src/engine/storage/chapters.js";
 import { stageCandidate, readCandidate } from "../../build/fanqie/src/engine/storage/candidates.js";
 import { buildPanelSnapshot } from "../../build/fanqie/src/engine/panel-query.js";
 import { readWorkMeta } from "../../build/fanqie/src/engine/storage/work-meta.js";
@@ -591,5 +595,155 @@ test("T5 灵感旧绑定只在项目初始化时迁移一次，坏来源报错�
     } finally {
       await damaged.close();
     }
+  }
+});
+
+async function acceptedCard(f) {
+  const { sourceId } = await LibraryPort.importSource(f.paths, { title: "参考书", text: BOOK });
+  const candidate = await LibraryPort.stageCard(f.paths, cardInput(sourceId));
+  const { cardId } = await LibraryPort.acceptCard(f.paths, candidate.candId);
+  return { sourceId, cardId };
+}
+
+test("拆书审计：书源正文被删时逐卡记为来源缺失，不让整次审计报错", async () => {
+  const f = await setup();
+  try {
+    const { sourceId, cardId } = await acceptedCard(f);
+    await rm(path.join(f.paths.library, "sources", `${sourceId}.txt`));
+    const out = await f.run("fanqie_library_audit");
+    assert.doesNotMatch(out, /^错误/, out);
+    assert.match(out, new RegExp(`硬问题：差数引出疑问（${cardId}）`));
+    assert.match(out, /来源缺失/);
+  } finally {
+    await f.close();
+  }
+});
+
+test("拆书库索引 JSON 损坏时报 library_index_invalid，而不是裸语法错误", async () => {
+  const f = await setup();
+  try {
+    await acceptedCard(f);
+    await writeFile(path.join(f.paths.library, "index.json"), "{broken");
+    const out = await f.run("fanqie_library_search", { query: "差数" });
+    assert.match(out, /错误\[library_index_invalid\]/);
+    assert.equal(await readFile(path.join(f.paths.library, "index.json"), "utf8"), "{broken");
+  } finally {
+    await f.close();
+  }
+});
+
+test("暂存后书源元数据缺失：采纳报 source_not_found 且候选保持未采纳", async () => {
+  const f = await setup();
+  try {
+    const { sourceId } = await LibraryPort.importSource(f.paths, { title: "参考书", text: BOOK });
+    const { candId } = await LibraryPort.stageCard(f.paths, cardInput(sourceId));
+    await rm(path.join(f.paths.library, "sources", `${sourceId}.json`));
+    const out = await f.run("fanqie_library_card_accept", { candidate: candId });
+    assert.match(out, /错误\[source_not_found\]/);
+    assert.equal((await LibraryPort.getCandidate(f.paths, candId)).status, "drafted");
+  } finally {
+    await f.close();
+  }
+});
+
+test("拆书简报：批次模式给逐章原文与事实模板，整书模式给原文摘录", async () => {
+  const f = await setup();
+  try {
+    const { sourceId } = await LibraryPort.importSource(f.paths, { title: "参考书", text: BOOK });
+    const batch = await f.run("fanqie_library_dissect_brief", {
+      source: sourceId,
+      mode: "opening",
+    });
+    assert.match(batch, /### 第1章 差三罐\n<<<SOURCE\n[^]*少了三罐咖啡[^]*SOURCE>>>/);
+    assert.match(batch, /### 第2章 四秒/);
+    assert.match(batch, /"readingLevel": "正文已读"/);
+    assert.match(batch, /下一步 4\/9：按批调用 fanqie_library_facts_stage/);
+    const full = await f.run("fanqie_library_dissect_brief", {
+      source: sourceId,
+      mode: "full",
+      from: 2,
+      count: 1,
+    });
+    assert.match(full, /无 plan 的 mode=full 只取 from 起数章/);
+    assert.match(full, /### 第2章 四秒/);
+    assert.doesNotMatch(full, /### 第1章/);
+    const whole = await f.run("fanqie_library_dissect_brief", { source: sourceId });
+    assert.match(whole, /## 原文摘录\n<<<SOURCE\n第1章 差三罐/);
+    assert.match(whole, /card_stage → card_accept/);
+  } finally {
+    await f.close();
+  }
+});
+
+test("拆书检索：标题浅命中与卡内深命中都能找到，无关词不命中", async () => {
+  const f = await setup();
+  try {
+    const { cardId } = await acceptedCard(f);
+    assert.match(await f.run("fanqie_library_search", { query: "差数" }), new RegExp(cardId));
+    // 「换成其他差数」只在机制 rebuild 里，需深读卡全文。
+    assert.match(
+      await f.run("fanqie_library_search", { query: "换成其他差数" }),
+      new RegExp(cardId),
+    );
+    assert.doesNotMatch(
+      await f.run("fanqie_library_search", { query: "飞船" }),
+      new RegExp(cardId),
+    );
+  } finally {
+    await f.close();
+  }
+});
+
+test("章节不存在时读章与审计报 chapter_not_found，不泄露裸文件错误；缺文件的已登记章仍可补建", async () => {
+  const f = await setup();
+  try {
+    const { dir, meta } = await createWork(f.paths, { title: "作品" });
+    for (const tool of ["fanqie_chapter_read", "fanqie_style_lint"]) {
+      const out = await f.run(tool, { work: meta.key, chapter: "c404" });
+      assert.match(out, /错误\[chapter_not_found\]：章节不存在：c404/, `${tool}: ${out}`);
+      assert.doesNotMatch(out, /ENOENT|\.md/, `${tool}: ${out}`);
+    }
+    await setOutline(dir, "c001", { synopsis: "旧梗概" }, "第一章");
+    await rm(path.join(dir, "chapters", "c001.md"));
+    await setOutline(dir, "c001", { synopsis: "补建" });
+    const rebuilt = await readChapter(dir, "c001");
+    assert.equal(rebuilt.outline.synopsis, "补建");
+    await writeFile(path.join(dir, "chapters", "c001.md"), "---\n{broken\n---\n正文");
+    await assert.rejects(
+      setOutline(dir, "c001", { synopsis: "不能盖掉坏稿" }),
+      (e) => e.code === "bad_chapter",
+    );
+  } finally {
+    await f.close();
+  }
+});
+
+test("改动前章时修订影响列出直接与间接依赖它的后章", async () => {
+  const f = await setup();
+  try {
+    const { dir } = await createWork(f.paths, { title: "依赖链" });
+    await updateChapter(dir, { id: "c001", title: "一", body: "门开了。" });
+    for (const id of ["c002", "c003"]) {
+      await updateChapter(dir, { id, title: id, body: `${id} 的正文。` });
+      await updateChapter(dir, {
+        id,
+        status: "reviewed",
+        expectedRevision: (await readChapter(dir, id)).revision,
+      });
+    }
+    assert.deepEqual(
+      (await readChapter(dir, "c003")).dependencies.map((d) => d.chapterId),
+      ["c002"],
+    );
+    await updateChapter(dir, {
+      id: "c001",
+      body: "门没开。",
+      expectedRevision: (await readChapter(dir, "c001")).revision,
+    });
+    const impact = (await readWorkMeta(dir)).revisionImpacts.at(-1);
+    assert.equal(impact.chapterId, "c001");
+    assert.deepEqual(impact.dependents, ["c002", "c003"]);
+  } finally {
+    await f.close();
   }
 });

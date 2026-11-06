@@ -1,8 +1,7 @@
 import { fingerprint } from "../../domain/lifecycle.js";
 
 import { readCandidate } from "../../storage/candidates.js";
-import { readChapter } from "../../storage/chapters.js";
-import { isMissingFileError } from "../../storage/primitives.js";
+import { findChapter } from "../../storage/chapters.js";
 import { readWorkMeta } from "../../storage/work-meta.js";
 import { storePayoffAudit } from "../../storage/work-records.js";
 
@@ -31,14 +30,9 @@ export const payoffAudit = defineTool({
     const chapterId = asString(args, "chapter", { required: true });
     const { dir } = await openWork(exec, args);
     const meta = await readWorkMeta(dir);
-    let chapter: Awaited<ReturnType<typeof readChapter>>;
-    try {
-      chapter = await readChapter(dir, chapterId);
-    } catch (err) {
-      // 只有文件缺失才是「章节不存在」；front matter 损坏必须原样上报，否则作者会去新建一章盖掉坏稿。
-      if (!isMissingFileError(err)) throw err;
-      fail(`章节不存在：${chapterId}`, "not_found");
-    }
+    // 只有文件缺失才是「章节不存在」；front matter 损坏由 findChapter 原样上报，否则作者会去新建一章盖掉坏稿。
+    const chapter = await findChapter(dir, chapterId);
+    if (!chapter) fail(`章节不存在：${chapterId}`, "not_found");
     const candidateId = asString(args, "candidate");
     let body = asString(args, "text", { trim: false });
     let source = "chapter";

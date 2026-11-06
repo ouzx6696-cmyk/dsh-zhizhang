@@ -55,7 +55,7 @@ export const jpost = (api, route, body) =>
     body: JSON.stringify(body),
   });
 
-export function loadComponents(react) {
+export function loadComponents(react, globals = {}) {
   const module = { exports: {} };
   new Script(
     readFileSync(new URL("../../build/test-components.cjs", import.meta.url), "utf8"),
@@ -71,6 +71,7 @@ export function loadComponents(react) {
     AbortController,
     setTimeout,
     clearTimeout,
+    ...globals,
   });
   return module.exports;
 }

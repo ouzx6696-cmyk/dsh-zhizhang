@@ -139,14 +139,18 @@ function checkText(text: unknown): string {
   return text.replace(/\r\n/g, "\n");
 }
 
+async function userDirs(mode: ProfileMode): Promise<string[]> {
+  return (await listDir(modeDir(mode)))
+    .filter((e) => e.isDirectory() && USER_ID.test(e.name))
+    .map((e) => e.name);
+}
+
 async function userMetas(mode: ProfileMode): Promise<ProfileMeta[]> {
-  const entries = (await listDir(modeDir(mode))).filter(
-    (e) => e.isDirectory() && USER_ID.test(e.name),
-  );
+  const entries = await userDirs(mode);
   const loaded = await Promise.all(
-    entries.map(async (e) => {
-      const m = await readJson<ProfileMeta>(path.join(modeDir(mode), e.name, "profile.json"));
-      if (m?.id !== e.name) return undefined;
+    entries.map(async (name) => {
+      const m = await readJson<ProfileMeta>(path.join(modeDir(mode), name, "profile.json"));
+      if (m?.id !== name) return undefined;
       const meta: ProfileMeta = {
         ...m,
         mode,
@@ -408,12 +412,19 @@ export interface CreateProfileInput {
   files?: { id: string; text: string }[];
 }
 
+/**
+ * 同一模式下所有用户方案的写操作整体互斥：并发新建会分到同一编号；
+ * 改名与保存各自读改写 profile.json 会互相覆盖；删除与保存交错会把已删方案写回来。
+ */
+function mutateProfiles<T>(mode: ProfileMode, fn: () => Promise<T>): Promise<T> {
+  return serialize(path.join(profilesRoot(), mode), fn);
+}
+
 export async function createProfile(
   lib: MethodLibrary,
   input: CreateProfileInput = {},
 ): Promise<ProfileMeta> {
-  // user-N 编号与目录创建必须整体互斥，否则并发新建会分到同一编号互相覆盖。
-  return serialize(path.join(profilesRoot(), lib.mode), () => createProfileUnlocked(lib, input));
+  return mutateProfiles(lib.mode, () => createProfileUnlocked(lib, input));
 }
 
 async function createProfileUnlocked(
@@ -426,7 +437,8 @@ async function createProfileUnlocked(
       "CONFLICT",
       `每种模式最多 ${PROFILE_LIMITS.profilesPerMode} 个用户方案，先删掉不用的`,
     );
-  const n = users.reduce((mx, u) => Math.max(mx, userSeq(u.id)), 0) + 1;
+  // 编号按目录取最大值：上次新建中途失败留下的无 profile.json 目录也占号，新方案不会继承它的残留文件。
+  const n = (await userDirs(lib.mode)).reduce((mx, id) => Math.max(mx, userSeq(id)), 0) + 1;
   const id = `user-${n}`;
   const name = input.name?.trim() ? checkName(input.name) : `用户方案${chineseNumber(n)}`;
   if ([...users.map((u) => u.name), ...Object.values(BUILTIN_NAMES)].includes(name))
@@ -497,6 +509,15 @@ export async function saveMethod(
   id: string,
   text: unknown,
 ): Promise<{ profile: ProfileMeta; id: string; bytes: number }> {
+  return mutateProfiles(lib.mode, () => saveMethodUnlocked(lib, key, id, text));
+}
+
+async function saveMethodUnlocked(
+  lib: MethodLibrary,
+  key: string,
+  id: string,
+  text: unknown,
+): Promise<{ profile: ProfileMeta; id: string; bytes: number }> {
   const meta = await editable(lib.mode, key);
   const mid = lib.canonical(checkMethodId(id));
   const body = checkText(text);
@@ -515,12 +536,14 @@ export async function resetMethod(
   key: string,
   id: string,
 ): Promise<{ profile: ProfileMeta; id: string; removed: boolean }> {
-  const meta = await editable(lib.mode, key);
-  const mid = lib.canonical(checkMethodId(id));
-  const file = resolveInside(path.join(modeDir(lib.mode), meta.id, "methods"), `${mid}.md`);
-  const had = await exists(file);
-  if (had) await rm(file, { force: true });
-  return { profile: await touch(lib.mode, meta), id: mid, removed: had };
+  return mutateProfiles(lib.mode, async () => {
+    const meta = await editable(lib.mode, key);
+    const mid = lib.canonical(checkMethodId(id));
+    const file = resolveInside(path.join(modeDir(lib.mode), meta.id, "methods"), `${mid}.md`);
+    const had = await exists(file);
+    if (had) await rm(file, { force: true });
+    return { profile: await touch(lib.mode, meta), id: mid, removed: had };
+  });
 }
 
 export async function renameProfile(
@@ -529,18 +552,27 @@ export async function renameProfile(
   name: string,
   note?: string,
 ): Promise<ProfileMeta> {
-  const meta = await editable(mode, key);
-  const n = checkName(name);
-  const others = (await userMetas(mode)).filter((u) => u.id !== meta.id).map((u) => u.name);
-  if ([...others, ...Object.values(BUILTIN_NAMES)].includes(n))
-    throw new WriterError("CONFLICT", `已有同名方案：${n}`);
-  return touch(mode, meta, {
-    name: n,
-    ...(note !== undefined ? { note: note.trim().slice(0, 200) || undefined } : {}),
+  return mutateProfiles(mode, async () => {
+    const meta = await editable(mode, key);
+    const n = checkName(name);
+    const others = (await userMetas(mode)).filter((u) => u.id !== meta.id).map((u) => u.name);
+    if ([...others, ...Object.values(BUILTIN_NAMES)].includes(n))
+      throw new WriterError("CONFLICT", `已有同名方案：${n}`);
+    return touch(mode, meta, {
+      name: n,
+      ...(note !== undefined ? { note: note.trim().slice(0, 200) || undefined } : {}),
+    });
   });
 }
 
 export async function deleteProfile(
+  mode: ProfileMode,
+  key: string,
+): Promise<{ id: string; was_active: boolean }> {
+  return mutateProfiles(mode, () => deleteProfileUnlocked(mode, key));
+}
+
+async function deleteProfileUnlocked(
   mode: ProfileMode,
   key: string,
 ): Promise<{ id: string; was_active: boolean }> {

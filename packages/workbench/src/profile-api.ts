@@ -28,7 +28,7 @@ import {
   type MethodLibrary,
 } from "../../core/src/profiles.js";
 
-export interface ProfileRouteContext {
+interface ProfileRouteContext {
   url: URL;
   path: string;
   method: string;

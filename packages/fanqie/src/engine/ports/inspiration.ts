@@ -10,7 +10,6 @@ import {
   readJson,
   shortId as newId,
   exists as fileExists,
-  isMissingFileError,
 } from "../../../../core/src/fsx.js";
 import { errorText } from "../../../../core/src/errors.js";
 import { readReference } from "../services/reference.js";
@@ -26,7 +25,7 @@ import path from "node:path";
 import { NovelError } from "../errors.js";
 import { snapshotFile } from "../storage/journal.js";
 import { normalizeFoundation, validateStoryPace } from "../storage/work-meta.js";
-import { prepareChapterSaveUnlocked, readChapter } from "../storage/chapters.js";
+import { findChapter, prepareChapterSaveUnlocked } from "../storage/chapters.js";
 import {
   assertNoPendingInspiration,
   createInspirationJournal,
@@ -79,7 +78,7 @@ export type StoredCandidate = {
   payload?: Record<string, unknown>;
 };
 /** 灵感会话的落盘契约（startSession 写入，面板与工具只读）。 */
-export interface InspirationSession {
+interface InspirationSession {
   schemaVersion: number;
   id: string;
   goal: string;
@@ -219,9 +218,12 @@ export const InspirationPort = {
       await assertNoPendingInspiration(paths.inspiration);
       const dir = inspDirs(paths).candidates;
       const names = (await readdir(dir)).filter((name) => name.endsWith(".json"));
+      const candidates = await Promise.all(
+        names.map((name) => readJson<Record<string, unknown>>(path.join(dir, name))),
+      );
       const rows: Array<{ id: string; kind: string; title: string; at: string }> = [];
-      for (const name of names) {
-        const cand = await readJson<Record<string, unknown>>(path.join(dir, name));
+      for (const [i, name] of names.entries()) {
+        const cand = candidates[i];
         if (
           !cand ||
           Array.isArray(cand) ||
@@ -735,12 +737,7 @@ export const InspirationPort = {
           );
           const chapterPath = path.join(dir, "chapters", `${chapterId}.md`);
           const chapterBefore = await snapshotFile(chapterPath);
-          let previous: Awaited<ReturnType<typeof readChapter>> | null = null;
-          try {
-            previous = await readChapter(dir, chapterId);
-          } catch (err: unknown) {
-            if (!isMissingFileError(err)) throw err;
-          }
+          const previous = (await findChapter(dir, chapterId)) ?? null;
           const patch: Record<string, unknown> = {};
           for (const key of [
             "pov",

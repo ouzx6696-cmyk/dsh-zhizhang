@@ -97,12 +97,17 @@ function Toast({ notice, onDismiss }) {
   const left = useRef(life);
   const started = useRef(0);
   const timer = useRef(null);
+  const exit = useRef(null);
   const close = useCallback(() => {
+    clearTimeout(timer.current);
+    timer.current = null;
     setLeaving(true);
-    setTimeout(() => onDismiss(notice.id), 180);
+    clearTimeout(exit.current);
+    exit.current = setTimeout(() => onDismiss(notice.id), 180);
   }, [notice.id, onDismiss]);
+  // 悬停与焦点会各自触发暂停/继续；计时已在走时不再另起一个，否则旧计时丢了句柄、暂停不住。
   const run = useCallback(() => {
-    if (!life) return;
+    if (!life || timer.current) return;
     started.current = Date.now();
     timer.current = setTimeout(close, left.current);
   }, [life, close]);
@@ -114,8 +119,12 @@ function Toast({ notice, onDismiss }) {
   }, [life]);
   useEffect(() => {
     run();
-    return () => clearTimeout(timer.current);
+    return () => {
+      clearTimeout(timer.current);
+      timer.current = null;
+    };
   }, [run]);
+  useEffect(() => () => clearTimeout(exit.current), []);
   return (
     <div
       className={cx("wb-toast", leaving && "wb-toast-leave")}

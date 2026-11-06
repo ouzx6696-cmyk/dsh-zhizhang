@@ -20,7 +20,7 @@ import {
   isMissingFileError,
   nowIso,
 } from "./primitives.js";
-import { readChapter, prepareChapterSaveUnlocked } from "./chapters.js";
+import { findChapter, readChapter, prepareChapterSaveUnlocked } from "./chapters.js";
 import {
   assertNoPendingAccept,
   createAcceptJournal,
@@ -41,7 +41,7 @@ type CandidateMeta = Omit<Candidate, "body">;
  * 列表投影：正常行带读取版本与字数；损坏文件的降级条目只保证 id / 章节 / 时间，
  * 其余字段不可用，由 unavailable 标记交给界面显示。
  */
-export type CandidateListRow = Omit<Candidate, "body"> & {
+type CandidateListRow = Omit<Candidate, "body"> & {
   readVersion?: string;
   pending: boolean;
   unavailable?: boolean;
@@ -88,7 +88,7 @@ function candidateToDiskMeta(cand: Candidate): CandidateMeta {
   return disk;
 }
 /** 暂存候选的入参：正文与目标章必填，其余元数据按 Candidate 落盘契约可选。 */
-export interface StageCandidateInput {
+interface StageCandidateInput {
   body: string;
   chapterId: string;
   expectedRevision?: string;
@@ -352,8 +352,8 @@ export async function acceptCandidate(
     let body = cand.body;
     let title = chapterId;
     let existingFinal = false;
-    try {
-      const existing = await readChapter(dir, chapterId);
+    const existing = await findChapter(dir, chapterId);
+    if (existing) {
       title = existing.title;
       if (checked && checked.outline !== fingerprint(existing.outline))
         throw new NovelError("context_changed", "章纲在采纳检查期间变化，请重核诊断与依据。");
@@ -366,8 +366,6 @@ export async function acceptCandidate(
           );
       }
       if (acceptMode === "append") body = `${existing.body.trimEnd()}\n\n${cand.body}`;
-    } catch (err) {
-      if (!isMissingFileError(err)) throw err;
     }
     const prepared = await prepareChapterSaveUnlocked(dir, {
       id: chapterId,

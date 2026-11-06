@@ -1,7 +1,7 @@
 import { sha256 } from "../../../../packages/core/src/fsx";
 import { asRecord } from "../main/ipc/validate";
 import { resolveFanqieWork } from "../main/storage";
-import { readChapter } from "../../../../packages/fanqie/src/engine/work-store";
+import { findChapter } from "../../../../packages/fanqie/src/engine/work-store";
 import { rootIdentity } from "../../../../packages/core/src/identity";
 import path from "node:path";
 import { Type } from "typebox";
@@ -120,10 +120,11 @@ export function createBusinessTools(options: {
         !input.expected_revision
       ) {
         const dir = await resolveFanqieWork({ fanqie: config }, target);
-        const chapter = await readChapter(dir, String(input.chapter));
-        if (chapter.body.trim())
+        // A chapter with no file yet is a fresh save; only existing prose needs a read basis.
+        const chapter = await findChapter(dir, String(input.chapter));
+        if (chapter?.body.trim())
           throw new Error("保存已有正文须提供已读取的 expected_revision；新正文可走候选稿流程");
-        input.expected_revision = chapter.revision;
+        if (chapter) input.expected_revision = chapter.revision;
       }
       if (def.name === "toutiao_draft_stage") {
         const basis = articleBasis.get(String(input.id));

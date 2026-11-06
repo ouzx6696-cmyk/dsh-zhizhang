@@ -33,6 +33,11 @@ export default defineConfig({
     ],
     root: ".",
     define: { __WB_VERSION__: JSON.stringify(VERSION) },
-    build: { rollupOptions: { input: path.resolve("index.html") } },
+    build: {
+      // electron-vite 默认不压缩渲染层；渲染包随安装包分发且每次启动都要解析，压缩后体积减半。
+      minify: "esbuild",
+      cssMinify: "esbuild",
+      rollupOptions: { input: path.resolve("index.html") },
+    },
   },
 });

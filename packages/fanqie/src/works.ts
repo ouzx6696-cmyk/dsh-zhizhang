@@ -2,10 +2,9 @@
  * 写作层读作品：直接用引擎的存储层与作品选择逻辑（work 参数 → 本会话上次打开的作品 → 只有一部时用它）。
  * 这里只读；落盘一律走引擎工具。
  */
-import { isMissingFileError } from "../../core/src/fsx.js";
 import { WriterError, type ToolExecution } from "../../core/src/tool.js";
 import { bodyFingerprint } from "./review.js";
-import { readChapter as engineReadChapter } from "./engine/storage/chapters.js";
+import { findChapter } from "./engine/storage/chapters.js";
 import { readWorkMeta } from "./engine/storage/work-meta.js";
 import { openWork as engineOpenWork } from "./engine/tools/context.js";
 import { NovelError } from "./engine/errors.js";
@@ -92,10 +91,9 @@ export async function readChapter(work: WorkInfo, id: string): Promise<ChapterRe
     );
   let rec: Partial<import("./engine/types.js").Chapter>;
   try {
-    rec = await engineReadChapter(work.dir, row.id);
+    rec = (await findChapter(work.dir, row.id)) ?? {};
   } catch (err) {
-    if (isMissingFileError(err)) rec = {};
-    else rethrow(err);
+    rethrow(err);
   }
   const body = typeof rec.body === "string" ? rec.body : "";
   return {

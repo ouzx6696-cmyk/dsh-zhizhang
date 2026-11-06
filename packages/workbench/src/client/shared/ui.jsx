@@ -201,21 +201,19 @@ export function Spinner({ size = 14, label }) {
 }
 
 /**
- * 带进行中与完成反馈的按钮：busy 时显示转圈并禁用；done 变真后短暂显示对勾。
- * 外层包一层 span 承载动画，宿主 Button 不需要认识这些属性。
+ * 带进行中与完成反馈的按钮：busy 时显示转圈并禁用；done（最近一次完成的时间戳）每变成一个新值，
+ * 短暂显示一次对勾。外层包一层 span 承载动画，宿主 Button 不需要认识这些属性。
  */
-export function ActionButton({ busy = false, done = false, icon, children, disabled, ...rest }) {
+export function ActionButton({ busy = false, done = 0, icon, children, disabled, ...rest }) {
   const [flash, setFlash] = React.useState(false);
   const prev = useRef(done);
   useEffect(() => {
-    if (done && !prev.current) {
-      setFlash(true);
-      const timer = setTimeout(() => setFlash(false), 1600);
-      prev.current = done;
-      return () => clearTimeout(timer);
-    }
+    const changed = done !== prev.current;
     prev.current = done;
-    return undefined;
+    if (!done || !changed) return undefined;
+    setFlash(true);
+    const timer = setTimeout(() => setFlash(false), 1600);
+    return () => clearTimeout(timer);
   }, [done]);
   const shownIcon = busy ? <Spinner /> : flash ? <Icon name="check" size={14} /> : icon;
   return (

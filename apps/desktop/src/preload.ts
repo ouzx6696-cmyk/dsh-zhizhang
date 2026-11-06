@@ -1,5 +1,5 @@
 import type { Target, Focus } from "./context";
-import type { ModelConnection, ModelSettings } from "./models";
+import type { ModelConnection, ModelSettings, ModelsInput } from "./models";
 import type { Appearance } from "./settings";
 import type { DesktopEvent } from "./renderer-contracts";
 import type { IpcArgs, IpcChannel, IpcResult, RequestOptions } from "./main/ipc/contract";
@@ -48,7 +48,7 @@ export const desktopAPI = {
   profiles: () => invoke("profiles"),
   state: () => invoke("state"),
   choose: (mode: Target["mode"]) => invoke("choose", mode),
-  model: (value: unknown) => invoke("model", value),
+  model: (value: ModelsInput) => invoke("model", value),
   request: (operation: string, options: RequestOptions) => invoke("request", operation, options),
   send: (text: string, target?: Target, focus?: Focus) => invoke("send", text, target, focus),
   stop: (target?: Target) => invoke("stop", target),

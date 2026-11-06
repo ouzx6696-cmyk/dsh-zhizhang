@@ -12,7 +12,6 @@ import {
   LoaderCircle,
 } from "lucide-react";
 import { Brand } from "../../../../../../packages/ui/src/primitives";
-import { COPY } from "../../../../../../packages/ui/src/copy";
 import { scopeId, focusLabel } from "../../../context";
 import type { DesktopController } from "../../app/useDesktopController";
 
@@ -59,7 +58,7 @@ export function TopBar({ app }: { app: DesktopController }) {
         ]
       : [
           ["writing", viewCopy.tabWriting],
-          ["overview", COPY.overview],
+          ["overview", viewCopy.overview],
           ["library", viewCopy.topBarText1],
         ];
   if (!system) return null;

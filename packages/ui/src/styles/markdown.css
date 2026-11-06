@@ -1,0 +1,25 @@
+.ui-markdown table {
+  border-collapse: collapse;
+  width: 100%;
+  font-family: var(--ui-font-ui);
+  font-size: var(--ui-size-13);
+}
+.ui-markdown th,
+.ui-markdown td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--ui-line);
+  text-align: left;
+  vertical-align: top;
+}
+.ui-markdown code {
+  font-family: var(--ui-font-mono);
+  font-size: var(--ui-size-13);
+  overflow-wrap: anywhere;
+}
+.ui-markdown pre {
+  overflow: auto;
+  white-space: pre-wrap;
+  padding: 12px;
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-fill);
+}

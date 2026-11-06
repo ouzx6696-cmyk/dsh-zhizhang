@@ -7,7 +7,6 @@ import type {
   ComboInput,
   TechniqueCard,
 } from "./library/types.js";
-import { dissectBatchHeader, dissectBriefHeader } from "../method-templates.js";
 import { readJson, sha256, isMissingFileError, isFsError } from "../../../../core/src/fsx.js";
 import { errorText } from "../../../../core/src/errors.js";
 /**
@@ -32,19 +31,13 @@ import { snapshotFile } from "../storage/journal.js";
 import { withResourceLock } from "../storage/process-lock.js";
 import { atomicWrite, assertResourceId } from "../work-store.js";
 import { readJsonCached } from "../file-cache.js";
-import { MethodRegistry } from "./methods.js";
 import { parseChapterNumber } from "../domain/chapter-heading.js";
 import { REPORT_SECTION_COUNT } from "../domain/report-sections.js";
 
 import type { StoragePaths } from "../types.js";
-import {
-  chapterIndex,
-  chapterText,
-  chapterTitle,
-  nearestChapter,
-  totalChapters,
-} from "./analysis/chapters.js";
-import { ensureAnalysis, writeAnalysisMeta, readAnalysisBundle } from "./analysis/meta.js";
+import { chapterIndex } from "./analysis/chapters.js";
+import { readAnalysisBundle } from "./analysis/meta.js";
+import { dissectBatchText, dissectBriefText } from "./library/dissect.js";
 import { deriveAxis, validateModule } from "../domain/card-schema.js";
 import { verifyModuleEvidence } from "./analysis/evidence.js";
 import { verifyBodyQuotes } from "../domain/evidence.js";
@@ -92,6 +85,26 @@ interface SourceCacheEntry {
   index?: ReturnType<typeof chapterIndex>;
 }
 const sourceCache = new Map<string, SourceCacheEntry>();
+/**
+ * excerptPath 来自磁盘元数据，仍须是 sources/ 下的单段文件名：
+ * 不能让一个被改坏的 meta 把读取路径带出沙箱。
+ */
+function sourceTextName(meta: SourceMeta, id: string) {
+  return typeof meta.excerptPath === "string" &&
+    /^[A-Za-z0-9][A-Za-z0-9._-]*\.txt$/.test(meta.excerptPath)
+    ? meta.excerptPath
+    : `${id}.txt`;
+}
+/** 证据核对读取书源文件；缺失与面板读取同一错误码，调用方据此区分「来源缺失」。 */
+async function readSourceBytes(file: string, id: string) {
+  try {
+    return await readFile(file);
+  } catch (error) {
+    if (isMissingFileError(error))
+      throw new NovelError("source_not_found", `书源文件缺失：${id}；请检查并保留已有文件。`);
+    throw error;
+  }
+}
 async function getSourceCached(paths: StoragePaths, sourceId: string) {
   const id = assertSourceId(sourceId);
   const d = libraryDirs(paths);
@@ -99,15 +112,15 @@ async function getSourceCached(paths: StoragePaths, sourceId: string) {
   if (!(await fileExists(metaPath))) {
     throw new NovelError("source_not_found", `找不到来源 ${id}`);
   }
-  const meta = parseSourceMeta(await readJsonCached<unknown>(metaPath), id);
-  // excerptPath 来自磁盘元数据，仍须是 sources/ 下的单段文件名：
-  // 不能让一个被改坏的 meta 把读取路径带出沙箱。
-  const excerptName =
-    typeof meta.excerptPath === "string" &&
-    /^[A-Za-z0-9][A-Za-z0-9._-]*\.txt$/.test(meta.excerptPath)
-      ? meta.excerptPath
-      : `${id}.txt`;
-  const textPath = path.join(d.sources, excerptName);
+  let rawMeta: unknown;
+  try {
+    rawMeta = await readJsonCached<unknown>(metaPath);
+  } catch (error) {
+    if (!isMissingFileError(error)) throw error;
+    throw new NovelError("source_not_found", `书源元数据缺失：${id}；请检查并保留已有文件。`);
+  }
+  const meta = parseSourceMeta(rawMeta, id);
+  const textPath = path.join(d.sources, sourceTextName(meta, id));
   let st;
   try {
     st = await stat(textPath);
@@ -128,7 +141,14 @@ async function getSourceCached(paths: StoragePaths, sourceId: string) {
     hit.meta = meta;
     return { meta, text: hit.text, entry: hit };
   }
-  const text = await readFile(textPath, "utf8");
+  let text: string;
+  try {
+    text = await readFile(textPath, "utf8");
+  } catch (error) {
+    if (isMissingFileError(error))
+      throw new NovelError("source_not_found", `书源正文缺失：${id}；请检查并保留已有文件。`);
+    throw error;
+  }
   const after = await stat(textPath);
   if (
     st.mtimeMs !== after.mtimeMs ||
@@ -160,14 +180,17 @@ async function getSourceCached(paths: StoragePaths, sourceId: string) {
 async function readSourceForEvidence(paths: StoragePaths, sourceId: string) {
   const id = assertSourceId(sourceId);
   const d = libraryDirs(paths);
-  const metaBytes = await readFile(path.join(d.sources, `${id}.json`));
-  const meta = parseSourceMeta(JSON.parse(metaBytes.toString("utf8")), id);
-  const excerptName =
-    typeof meta.excerptPath === "string" &&
-    /^[A-Za-z0-9][A-Za-z0-9._-]*\.txt$/.test(meta.excerptPath)
-      ? meta.excerptPath
-      : `${id}.txt`;
-  const bytes = await readFile(path.join(d.sources, excerptName));
+  const metaBytes = await readSourceBytes(path.join(d.sources, `${id}.json`), id);
+  let rawMeta: unknown;
+  try {
+    rawMeta = JSON.parse(metaBytes.toString("utf8"));
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error;
+    throw new NovelError("bad_source", `书源元数据 JSON 损坏：${id}；请保留原文件并检查。`);
+  }
+  const meta = parseSourceMeta(rawMeta, id);
+  const excerptName = sourceTextName(meta, id);
+  const bytes = await readSourceBytes(path.join(d.sources, excerptName), id);
   let text: string;
   try {
     text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
@@ -370,134 +393,10 @@ export const LibraryPort = {
   ) {
     return withResourceLock(paths.library, async () => {
       await assertNoPendingCard(paths.library);
-      const { meta, text, index: idx } = await LibraryPort.getSourceIndexed(paths, sourceId);
-      const mode = opts.mode ?? "";
-      if (mode) {
-        const total = totalChapters(idx);
-        await ensureAnalysis(paths, sourceId, text);
-        const prevScope = (await readAnalysisBundle(paths, sourceId)).meta?.scope ?? {
-          mode: "none",
-          chapters: 0,
-        };
-        let picked: number[] = [];
-        if (mode === "opening") {
-          picked = [1, 2, 3].filter((n: number) => idx.some((c) => c.n === n));
-        } else if (mode === "sample") {
-          picked = [
-            ...new Set(
-              [0.1, 0.3, 0.6, 0.85]
-                .map((r) => Number(nearestChapter(idx, r)))
-                .filter((n: number) => Number.isFinite(n) && n > 0),
-            ),
-          ];
-        } else {
-          const from = Math.max(1, Math.floor(Number(opts.from ?? 1) || 1));
-          const count = Math.max(1, Math.min(5, Math.floor(Number(opts.count ?? 3) || 3)));
-          for (let n = from; n < from + count; n++) picked.push(n);
-        }
-        // 无 plan 的 mode=full 只是「从 from 起 3-5 章」，绝不是全量阅读——
-        // 若在这里写 scope.mode="full"，报告会去掉「抽样观察」标记、覆盖率可到 1.0，
-        // 属可信度造假。全量 scope 只能由 library_plan(mode=full, 经作者同意) 产生。
-        const scopeMode =
-          mode === "opening" ? "opening" : mode === "sample" ? "sample" : "chapters";
-        const planned =
-          mode === "sample"
-            ? picked.length
-            : picked.length
-              ? Math.max(...picked.map((x) => Number(x)))
-              : 0;
-        await writeAnalysisMeta(paths, sourceId, {
-          scope: { mode: scopeMode, chapters: Math.max(planned, Number(prevScope.chapters ?? 0)) },
-        });
-        const budget = Math.max(4000, Math.min(Number(opts.maxChars ?? 15000), 30000));
-        const batch = [];
-        let used = 0;
-        for (const n of picked) {
-          const body = chapterText(text, idx, n);
-          if (!body) continue;
-          const room = budget - used;
-          if (room <= 800) break;
-          const chunk =
-            body.length <= room
-              ? body
-              : body.slice(0, room) +
-                `
-…（本章截断，完整见 sources/${meta.excerptPath}）`;
-          batch.push({ n, title: chapterTitle(idx, n), text: chunk });
-          used += chunk.length;
-        }
-        const bundle = await readAnalysisBundle(paths, sourceId);
-        const facts = bundle.chapters;
-        const lines = dissectBatchHeader(meta, total, facts.length, batch);
-        if (mode === "full") {
-          lines.push(
-            "- 注意：无 plan 的 mode=full 只取 from 起数章，不是全量；全量须 library_plan(mode=full)（作者同意后）。本批按 chapters 记 scope。",
-          );
-        }
-        lines.push(
-          "",
-          "【纪律】只记白描：谁做了什么、结果怎样；原文没写的动机/身份/后果写进 unknowns，禁止补。",
-          "心理/评价词只提示回看：区分人物明确说过的话与分析者推断，不能单凭词表拒绝事实。",
-          "",
-          "## 每章提交格式（fanqie_library_facts_stage；阅读程度须如实申报，未声明可省略）",
-          "```json",
-          JSON.stringify(
-            {
-              source: meta.id,
-              facts: {
-                n: 1,
-                title: "…",
-                events: [{ loc: "P1-P3", desc: "谁做了什么，结果怎样", quote: "原文片段" }],
-                functions: ["入局"],
-                hook: { type: "悬念", text: "章末钩子", strength: "强" },
-                value: { situation: "…", relation: "…", cognition: "…", emotion: "…" },
-                unknowns: ["原文没写的动机"],
-                readingLevel: "正文已读",
-              },
-            },
-            null,
-            2,
-          ),
-          "```",
-          "",
-          "## 本批原文",
-        );
-        for (const b of batch) {
-          lines.push(`
-### 第${b.n}章 ${b.title}`);
-          lines.push("<<<SOURCE");
-          lines.push(b.text);
-          lines.push("SOURCE>>>");
-        }
-        return lines.join("\n");
-      }
-      const maxChars = Math.max(800, Math.min(opts.maxChars ?? 12000, 80000));
-      const excerpt =
-        text.length <= maxChars
-          ? text
-          : text.slice(0, maxChars) +
-            `\n\n…（已截断，原文共 ${text.length} 字；完整在 sources/${meta.excerptPath}）`;
-      const analyze = MethodRegistry.get("analyze");
-      const recommend =
-        opts.includeRecommend !== false ? MethodRegistry.get("recommend") : undefined;
-      const lines = dissectBriefHeader(meta);
-      if (analyze) {
-        lines.push(MethodRegistry.formatForAgent(analyze));
-        lines.push("");
-      }
-      if (recommend) {
-        lines.push(MethodRegistry.formatForAgent(recommend));
-        lines.push("");
-      }
-      lines.push("## 原文摘录");
-      lines.push("<<<SOURCE");
-      lines.push(excerpt);
-      lines.push("SOURCE>>>");
-      lines.push("");
-      lines.push(
-        "完成后：为每张卡填 axis +（craft: humanFeel+bookCraft | mind: mind）+ mechanisms + body，再 card_stage → card_accept。",
-      );
-      return lines.join("\n");
+      const source = await LibraryPort.getSourceIndexed(paths, sourceId);
+      return opts.mode
+        ? dissectBatchText(paths, source, opts.mode, opts)
+        : dissectBriefText(source.meta, source.text, opts);
     });
   },
   async stageCard(paths: StoragePaths, input: StageCardInput) {
@@ -592,10 +491,6 @@ export const LibraryPort = {
       const r = normalizeMind(input.mind);
       mind = r.mind;
       wMind.push(...r.warnings);
-    }
-    // kind=book must not be treated as mind — already enforced in normalizeAxis
-    if (kind === "book" && axis === "craft") {
-      // ok: book is scene-granularity tag
     }
     if (input.kind?.toLowerCase() === "book" && axis === "mind" && !mind) {
       wAxis.push("kind=book 不能冒充 mind：请填 mind 块或改 axis=craft");
@@ -906,19 +801,17 @@ export const LibraryPort = {
       pool = pool.filter((row) => (row.tags ?? []).some((t) => String(t).toLowerCase() === tag));
     }
     if (!tokens.length) return pool;
-    const hits = [];
-    for (const row of pool) {
-      const shallow =
-        `${row.title} ${(row.tags ?? []).join(" ")} ${row.sourceId} ${row.axis ?? ""}`.toLowerCase();
-      if (tokens.every((t) => shallow.includes(t))) {
-        hits.push(row);
-        continue;
-      }
-      const card = await LibraryPort.getCard(paths, row.id);
-      if (tokens.every((t) => cardDeepHay(card).includes(t)))
-        hits.push({ ...row, axis: coerceAxis(card) });
-    }
-    return hits;
+    const matches = await Promise.all(
+      pool.map(async (row) => {
+        const shallow =
+          `${row.title} ${(row.tags ?? []).join(" ")} ${row.sourceId} ${row.axis ?? ""}`.toLowerCase();
+        if (tokens.every((t) => shallow.includes(t))) return row;
+        const card = await LibraryPort.getCard(paths, row.id);
+        const deep = cardDeepHay(card);
+        return tokens.every((t) => deep.includes(t)) ? { ...row, axis: coerceAxis(card) } : null;
+      }),
+    );
+    return matches.filter((row) => row !== null);
   },
   /**
    * 推荐组合包：优先 1 mind + 最多 N craft；有用的 craft 可独立返回。
@@ -938,16 +831,15 @@ export const LibraryPort = {
       sourceIds: input.sourceIds,
       sourceTitle: input.sourceTitle,
     });
-    const minds = [];
-    const crafts = [];
-    for (const row of pool) {
-      let axis = row.axis;
-      if (axis !== "craft" && axis !== "mind")
-        axis = coerceAxis(await LibraryPort.getCard(paths, row.id));
-      const normalized = { ...row, axis };
-      if (axis === "mind") minds.push(normalized);
-      else crafts.push(normalized);
-    }
+    const typed = await Promise.all(
+      pool.map(async (row) =>
+        row.axis === "craft" || row.axis === "mind"
+          ? { ...row, axis: row.axis }
+          : { ...row, axis: (await LibraryPort.getCard(paths, row.id)).axis },
+      ),
+    );
+    const minds = typed.filter((row) => row.axis === "mind");
+    const crafts = typed.filter((row) => row.axis !== "mind");
     if (minds.length === 0) {
       const selected = [...crafts]
         .sort((a, b) => comboScore(b, query, "").score - comboScore(a, query, "").score)
@@ -965,30 +857,29 @@ export const LibraryPort = {
       };
     }
     // score minds
-    const mindScored = [];
-    for (const row of minds) {
-      // 深打分与深检索同源（cardDeepHay）：v2 模块的 readerWant/transfer/
-      // dramaticUnit/replaceables/evidence 等也参与主题命中——
-      // 此前手拼 mind.*/body 会让 v2 卡在主题排序里几乎不可见。
-      const deep = cardDeepHay(await LibraryPort.getCard(paths, row.id));
-      const cs = comboScore(row, query, deep);
-      let score = cs.score;
-      if (preferMind.size && row.sourceId !== undefined && preferMind.has(row.sourceId))
-        score += 50;
-      mindScored.push({ row, score, matched: cs.matched });
-    }
+    // 深打分与深检索同源（cardDeepHay）：v2 模块的 readerWant/transfer/
+    // dramaticUnit/replaceables/evidence 等也参与主题命中——
+    // 此前手拼 mind.*/body 会让 v2 卡在主题排序里几乎不可见。
+    const scored = await Promise.all(
+      typed.map(async (row) => {
+        const cs = comboScore(row, query, cardDeepHay(await LibraryPort.getCard(paths, row.id)));
+        return { row, score: cs.score, matched: cs.matched };
+      }),
+    );
+    const mindScored = scored
+      .filter((s) => s.row.axis === "mind")
+      .map((s) =>
+        preferMind.size && s.row.sourceId !== undefined && preferMind.has(s.row.sourceId)
+          ? { ...s, score: s.score + 50 }
+          : s,
+      );
     mindScored.sort((a, b) => b.score - a.score);
     const mindRow = mindScored[0].row;
     // score crafts; prefer source diversity after mind's source
-    const craftScored = [];
-    for (const row of crafts) {
-      const deep = cardDeepHay(await LibraryPort.getCard(paths, row.id));
-      const cs = comboScore(row, query, deep);
-      let score = cs.score;
-      // light bonus for different source than mind (cross-book mix)
-      if (row.sourceId !== mindRow.sourceId) score += 5;
-      craftScored.push({ row, score, matched: cs.matched });
-    }
+    // light bonus for different source than mind (cross-book mix)
+    const craftScored = scored
+      .filter((s) => s.row.axis !== "mind")
+      .map((s) => (s.row.sourceId !== mindRow.sourceId ? { ...s, score: s.score + 5 } : s));
     craftScored.sort((a, b) => b.score - a.score);
     if (
       query &&
@@ -1063,7 +954,8 @@ export const LibraryPort = {
           const src = await LibraryPort.getSourceIndexed(paths, card.sourceId);
           entry = { text: src.text, norm: normForMatch(src.text), index: src.index };
         } catch (error) {
-          if (!isMissingFileError(error)) throw error;
+          // getSourceIndexed 把缺失的元数据或正文统一报成 source_not_found。
+          if (!(error instanceof NovelError && error.code === "source_not_found")) throw error;
           // source 缺失：引文一律记为未命中
           entry = { text: "", norm: normForMatch(""), index: [] };
         }

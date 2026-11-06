@@ -1,7 +1,6 @@
 import { writeLedgerEntry, readLedger } from "../../storage/ledger.js";
 
-import { readChapter } from "../../storage/chapters.js";
-import { isMissingFileError } from "../../storage/primitives.js";
+import { findChapter } from "../../storage/chapters.js";
 
 import { REVIEW_EVIDENCE_KINDS } from "../../types.js";
 import { asString, fail, openWork } from "../context.js";
@@ -65,13 +64,9 @@ export const reviewLedger = defineTool({
     const kind = asString(args, "kind") ?? "note";
     const summary = asString(args, "summary", { required: true });
     // 留痕指向真实章节：对不存在的章记「定稿」会让 ledger 与小说状态脱钩。
-    try {
-      await readChapter(dir, chapterId);
-    } catch (err) {
-      // 只有文件缺失才算「章节不存在」；front matter 损坏原样抛出，避免作者以为该章从未建立。
-      if (!isMissingFileError(err)) throw err;
+    // 只有文件缺失才算「章节不存在」；front matter 损坏由 findChapter 原样抛出，避免作者以为该章从未建立。
+    if (!(await findChapter(dir, chapterId)))
       fail(`章节 ${chapterId} 不存在，审校留痕必须指向真实章节`, "not_found");
-    }
     const dims: Record<string, boolean> = {};
     if (typeof args.dim_locks_ledger === "boolean") dims.locks_ledger = args.dim_locks_ledger;
     if (typeof args.dim_pov_situation === "boolean") dims.pov_situation = args.dim_pov_situation;

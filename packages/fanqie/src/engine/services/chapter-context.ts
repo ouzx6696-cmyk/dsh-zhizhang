@@ -1,7 +1,7 @@
 /** 前章解析 — brief / accept / audit / panel 共用，避免四份实现漂移。 */
 import { EMPTY_OUTLINE } from "../types.js";
-import { listChapters, readChapter } from "../work-store.js";
-import { isMissingFileError } from "../../../../core/src/fsx.js";
+import { listChapters } from "../work-store.js";
+import { findChapter } from "../storage/chapters.js";
 
 /**
  * 取当前章的前一章（按章序）。
@@ -17,18 +17,9 @@ export async function resolvePrevChapter(dir: string, chapterId: string) {
   const idx = chapters.findIndex((c) => c.id === chapterId);
   if (idx <= 0) return null;
   const prevMeta = chapters[idx - 1];
-  try {
-    const prev = await readChapter(dir, prevMeta.id);
-    // missing 用字面量类型：调用方 !prev.missing 时 revision 收窄为必有
-    return {
-      meta: prevMeta,
-      body: prev.body || "",
-      outline: prev.outline,
-      revision: prev.revision,
-      missing: false as const,
-    };
-  } catch (err) {
-    if (!isMissingFileError(err)) throw err;
+  const prev = await findChapter(dir, prevMeta.id);
+  // missing 用字面量类型：调用方 !prev.missing 时 revision 收窄为必有
+  if (!prev)
     return {
       meta: prevMeta,
       body: "",
@@ -36,7 +27,13 @@ export async function resolvePrevChapter(dir: string, chapterId: string) {
       revision: undefined,
       missing: true as const,
     };
-  }
+  return {
+    meta: prevMeta,
+    body: prev.body || "",
+    outline: prev.outline,
+    revision: prev.revision,
+    missing: false as const,
+  };
 }
 
 export async function resolvePrevBody(dir: string, chapterId: string) {

@@ -344,6 +344,10 @@ export function Pipeline({ state, view, actions }) {
     { value: "writing", label: t("tabWriting") },
     { value: "ledger", label: t("tabLedger") },
   ];
+  // 作者在“放弃未保存修改？”里选了取消时，选章被拒，也不能再切到章节视图。
+  const openChapter = (id) => {
+    if (dispatch({ type: "selectChapter", id })) dispatch({ type: "view", view: "chapters" });
+  };
   let body;
   if (state.tab === "library") body = <Library library={snap.library} />;
   else if (state.tab === "inspiration") body = <Inspiration insp={snap.inspiration} />;
@@ -353,23 +357,11 @@ export function Pipeline({ state, view, actions }) {
         snap={snap}
         pending={view.pending}
         onAccept={(cand) => dispatch({ type: "openDialog", dialog: { kind: "accept", cand } })}
-        onOpenChapter={(id) => {
-          dispatch({ type: "selectChapter", id });
-          dispatch({ type: "view", view: "chapters" });
-        }}
+        onOpenChapter={openChapter}
       />
     );
   else if (state.tab === "ledger") body = <Ledger snap={snap} />;
-  else
-    body = (
-      <Dashboard
-        snap={{ ...snap, totals: snap.totals || {} }}
-        onOpen={(id) => {
-          dispatch({ type: "selectChapter", id });
-          dispatch({ type: "view", view: "chapters" });
-        }}
-      />
-    );
+  else body = <Dashboard snap={{ ...snap, totals: snap.totals || {} }} onOpen={openChapter} />;
   return (
     <div className="wb-pipeline">
       <SegmentedControl

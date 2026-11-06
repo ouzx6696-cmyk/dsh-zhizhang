@@ -97,21 +97,25 @@ function resultCard(
   );
 }
 
-function renderMessage(
-  message: ChatMessage,
-  index: number,
-  numbers: Map<number, number>,
-  onJump: JumpHandler,
-) {
+/** 单条消息只随自身内容、候选编号或跳转处理变化重渲染；流式更新不再重排整段历史。 */
+const MessageView = React.memo(function MessageView({
+  message,
+  candidateNumber,
+  onJump,
+}: {
+  message: ChatMessage;
+  candidateNumber: number | undefined;
+  onJump: JumpHandler;
+}) {
   const original = messageBody(message);
   if (!original) return null;
   if (message.role === "custom" && message.display === false) return null;
   if (message.role === "toolResult") {
     const result = writerResult(message);
-    if (result) return <div key={index}>{resultCard(result, numbers.get(index), onJump)}</div>;
+    if (result) return <div>{resultCard(result, candidateNumber, onJump)}</div>;
     if (message.isError)
       return (
-        <div className="result-card failed" key={index} role="alert">
+        <div className="result-card failed" role="alert">
           <strong>
             {toolLabel(message.toolName || "")}
             {viewCopy.agentPanelText29}
@@ -119,17 +123,13 @@ function renderMessage(
           <Markdown text={original} />
         </div>
       );
-    return (
-      <div className="tool-action" key={index}>
-        {toolLabel(message.toolName || "")}
-      </div>
-    );
+    return <div className="tool-action">{toolLabel(message.toolName || "")}</div>;
   }
   const parsed =
     message.role === "user" ? promptContext(original) : { text: original, context: null };
   if (message.role === "user" && parsed.text.startsWith(viewCopy.agentPanelText30)) {
     return (
-      <article className="chat-message user action-capsule" key={index}>
+      <article className="chat-message user action-capsule">
         <small>{viewCopy.agentPanelText31}</small>
         <details>
           <summary>
@@ -144,7 +144,7 @@ function renderMessage(
     );
   }
   return (
-    <article className={"chat-message " + message.role} key={index}>
+    <article className={"chat-message " + message.role}>
       <small>
         {message.role === "user"
           ? viewCopy.agentPanelText34
@@ -157,7 +157,7 @@ function renderMessage(
       <Markdown text={parsed.text} />
     </article>
   );
-}
+});
 
 export function AgentMessageList({
   messages,
@@ -167,5 +167,17 @@ export function AgentMessageList({
   onJump: JumpHandler;
 }) {
   const numbers = useMemo(() => candidateNumbers(messages), [messages]);
-  return <>{messages.map((message, index) => renderMessage(message, index, numbers, onJump))}</>;
+  // 历史按条数截断时下标会整体平移；用会话条目 ID 作 key，展开状态才跟着原消息走。
+  return (
+    <>
+      {messages.map((message, index) => (
+        <MessageView
+          key={message.writerMessageId ? "m:" + message.writerMessageId : "i:" + index}
+          message={message}
+          candidateNumber={numbers.get(index)}
+          onJump={onJump}
+        />
+      ))}
+    </>
+  );
 }

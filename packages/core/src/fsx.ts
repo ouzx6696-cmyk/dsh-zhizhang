@@ -3,7 +3,7 @@ import { mkdir, readdir, readFile, rename, open, lstat, rm, stat } from "node:fs
 import { randomBytes, createHash } from "node:crypto";
 import path from "node:path";
 import { WriterError } from "./tool.js";
-import { isMissingFileError } from "./errors.js";
+import { isFsError, isMissingFileError } from "./errors.js";
 
 export { isFsError, isMissingFileError } from "./errors.js";
 
@@ -55,7 +55,7 @@ export async function atomicWrite(file: string, data: string): Promise<void> {
     } finally {
       await handle.close();
     }
-    await rename(tmp, file);
+    await publish(tmp, file);
   } catch (error) {
     try {
       await rm(tmp, { force: true });
@@ -63,6 +63,22 @@ export async function atomicWrite(file: string, data: string): Promise<void> {
       throw new AggregateError([error, cleanupError], "原子写入失败，临时文件清理也失败");
     }
     throw error;
+  }
+}
+
+/** Windows briefly denies the rename while a reader, indexer or antivirus still holds the target open. */
+const RENAME_BUSY = ["EPERM", "EACCES", "EBUSY"];
+async function publish(tmp: string, file: string): Promise<void> {
+  const deadline = Date.now() + 2000;
+  for (;;) {
+    try {
+      await rename(tmp, file);
+      return;
+    } catch (error) {
+      const busy = RENAME_BUSY.some((code) => isFsError(error, code));
+      if (process.platform !== "win32" || !busy || Date.now() >= deadline) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
   }
 }
 

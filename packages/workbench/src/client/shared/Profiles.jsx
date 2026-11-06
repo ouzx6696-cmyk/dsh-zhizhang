@@ -12,9 +12,11 @@ import { t } from "../../../../ui/src/copy.js";
 import { Button, cx, Icon, Tag } from "./ui.jsx";
 import { Dialog } from "../../../../ui/src/primitives.jsx";
 import { Callout, Notices } from "./common.jsx";
-import { NewProfileForm, ProfileMethodEditor, ProfileMethodsColumn } from "./ProfileParts.jsx";
+import { NewProfileForm } from "./ProfileNewForm.jsx";
+import { ProfileMethodsColumn } from "./ProfileMethodsColumn.jsx";
+import { ProfileMethodEditor } from "./ProfileMethodEditor.jsx";
 
-const { useCallback, useEffect, useState } = React;
+const { useCallback, useEffect, useRef, useState } = React;
 const MODE_NAME = { fanqie: viewCopy.modeFanqie, toutiao: viewCopy.ttTitle };
 
 function InlineProfiles({ children }) {
@@ -69,18 +71,26 @@ export function ProfilesDialog({
     loadList();
   }, [loadList]);
 
+  // 只有最后一次发出的请求可以落地：快速切换方案或方法时，较早的回执晚到也不得覆盖当前内容。
+  const detailRequest = useRef(0);
+  const methodRequest = useRef(0);
   const loadDetail = useCallback(
     async (id) => {
       if (!id) return;
+      const request = ++detailRequest.current;
       try {
-        setDetail(await api.detail(id));
+        const next = await api.detail(id);
+        if (request === detailRequest.current) setDetail(next);
       } catch (e) {
-        push("danger", errorText(e));
+        if (request === detailRequest.current) push("danger", errorText(e));
       }
     },
     [api, push],
   );
   useEffect(() => {
+    methodRequest.current += 1;
+    setBusy((current) => (current.startsWith("method:") ? "" : current));
+    setDetail(null);
     setMethod(null);
     setDraft("");
     setConfirmDelete(false);
@@ -109,17 +119,20 @@ export function ProfilesDialog({
   const openMethod = useCallback(
     async (id) => {
       if (!canLeaveEdit({ dirty, saving: busy === "save" }, window.confirm)) return;
+      const request = ++methodRequest.current;
       setBusy("method:" + id);
       try {
         const r = await api.method(sel, id);
+        if (request !== methodRequest.current) return;
         setMethod({ ...r.method, base_text: r.base_text });
         setDraft(r.method.text);
         setShowBase(false);
         setModeView("read");
       } catch (e) {
-        push("danger", errorText(e));
+        if (request === methodRequest.current) push("danger", errorText(e));
+      } finally {
+        if (request === methodRequest.current) setBusy("");
       }
-      setBusy("");
     },
     [api, sel, dirty, push, busy],
   );
@@ -248,7 +261,11 @@ export function ProfilesDialog({
                   type="button"
                   className={cx("wb-pf-item", p.id === sel && "wb-pf-item-on")}
                   aria-current={p.id === sel || undefined}
-                  onClick={() => setSel(p.id)}
+                  onClick={() => {
+                    if (p.id === sel) return;
+                    if (!canLeaveEdit({ dirty, saving: busy === "save" }, window.confirm)) return;
+                    setSel(p.id);
+                  }}
                 >
                   <span className="wb-pf-item-head">
                     <span className="wb-pf-item-name">{p.name}</span>
@@ -317,7 +334,7 @@ export function ProfilesDialog({
 
             <ProfileMethodEditor
               method={method}
-              rows={rows}
+              title={method ? detail?.methods.find((m) => m.id === method.id)?.title : undefined}
               draft={draft}
               setDraft={setDraft}
               dirty={dirty}

@@ -24,7 +24,7 @@ import {
 } from "./storage/work-meta.js";
 
 /** 工具/工作台共用的建作输入；key 缺省时用 title 生成目录名。 */
-export interface CreateWorkInput {
+interface CreateWorkInput {
   key?: string;
   title: string;
   genre?: string;
@@ -182,6 +182,12 @@ export * from "./storage/candidates.js";
 export * from "./storage/work-records.js";
 export { readLedger, writeLedgerEntry } from "./storage/ledger.js";
 export { atomicWrite, assertResourceId, countWords } from "./storage/primitives.js";
-export { listChapters, readChapter, setOutline, updateChapter } from "./storage/chapters.js";
+export {
+  findChapter,
+  listChapters,
+  readChapter,
+  setOutline,
+  updateChapter,
+} from "./storage/chapters.js";
 export { readWorkMeta, writeWorkMeta } from "./storage/work-meta.js";
 export { BRIEF_RECENT_MS, SAVE_BYPASS_WORD_THRESHOLD } from "./domain/constants.js";

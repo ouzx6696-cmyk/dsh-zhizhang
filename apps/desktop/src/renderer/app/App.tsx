@@ -1,7 +1,6 @@
 import type { WorkspaceContext } from "../../renderer-contracts";
 import { COPY as viewCopy } from "../../../../../packages/ui/src/copy.js";
-import { DesignPreview } from "../features/settings/DesignPreview";
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
 import "@fontsource/noto-sans-sc/400.css";
 import "@fontsource/noto-sans-sc/600.css";
@@ -17,10 +16,21 @@ import { useDesktopController } from "./useDesktopController";
 import { TopBar } from "../features/topbar/TopBar";
 import { AgentPanel } from "../features/agent/AgentPanel";
 import { Workspace } from "../features/workspace/Workspace";
-import { Settings } from "../features/settings/SettingsDialog";
-import { Onboarding } from "../features/onboarding/Onboarding";
 import { CommandPalette } from "../features/palette/CommandPalette";
 import { ConfirmDialog } from "../features/confirm/ConfirmDialog";
+
+// 设置、首次引导与设计预览不在启动首屏，按需加载以缩小入口包。
+const Settings = lazy(() =>
+  import("../features/settings/SettingsDialog").then((module) => ({ default: module.Settings })),
+);
+const Onboarding = lazy(() =>
+  import("../features/onboarding/Onboarding").then((module) => ({ default: module.Onboarding })),
+);
+const DesignPreview = lazy(() =>
+  import("../features/settings/DesignPreview").then((module) => ({
+    default: module.DesignPreview,
+  })),
+);
 
 function App() {
   const app = useDesktopController();
@@ -70,21 +80,23 @@ function App() {
           </button>
         </div>
       )}
-      {state.settingsOpen && (
-        <Settings
-          state={system}
-          onClose={() => set({ settingsOpen: false })}
-          onSaved={async () => {
-            await app.syncState();
-            if (app.selected) await app.loadView(app.selected);
-            app.refreshWorkspace();
-          }}
-          canRestart={app.canRestart}
-          onWorkspace={app.chooseWorkspace}
-          onImport={app.importRoot}
-        />
-      )}
-      {state.onboarding === true && <Onboarding app={app} />}
+      <Suspense fallback={null}>
+        {state.settingsOpen && (
+          <Settings
+            state={system}
+            onClose={() => set({ settingsOpen: false })}
+            onSaved={async () => {
+              await app.syncState();
+              if (app.selected) await app.loadView(app.selected);
+              app.refreshWorkspace();
+            }}
+            canRestart={app.canRestart}
+            onWorkspace={app.chooseWorkspace}
+            onImport={app.importRoot}
+          />
+        )}
+        {state.onboarding === true && <Onboarding app={app} />}
+      </Suspense>
       {state.palette && <CommandPalette app={app} />}
       <ConfirmDialog />
     </div>
@@ -95,4 +107,12 @@ const preview =
   import.meta.env.DEV && new URLSearchParams(window.location.search).has("ui-preview");
 const root = document.getElementById("root");
 if (!root) throw new Error("找不到界面挂载点 #root，无法启动界面");
-createRoot(root).render(preview ? <DesignPreview /> : <App />);
+createRoot(root).render(
+  preview ? (
+    <Suspense fallback={null}>
+      <DesignPreview />
+    </Suspense>
+  ) : (
+    <App />
+  ),
+);

@@ -5,9 +5,9 @@
  */
 import { PREF, oneOf, readPref } from "../shared/prefs.js";
 
-export const VIEWS = ["chapters", "overview"];
-export const TABS = ["overview", "library", "inspiration", "writing", "ledger"];
-export const READER_VIEWS = ["official", "candidate", "split"];
+const VIEWS = ["chapters", "overview"];
+const TABS = ["overview", "library", "inspiration", "writing", "ledger"];
+const READER_VIEWS = ["official", "candidate", "split"];
 export const FONT_STEPS = [-2, -1, 0, 1, 2, 3];
 
 const idleBody = {
@@ -59,6 +59,11 @@ export function initialState() {
     // 写作 Agent 投递
     deliver: { caps: null, busy: "", message: null, error: null },
   };
+}
+
+/** 换项目或作品时放下上一处的投递进度；投递能力（caps）由能力查询自行刷新。 */
+function idleDeliver(deliver) {
+  return { ...deliver, busy: "", message: null, error: null };
 }
 
 export function reducer(state, action) {
@@ -133,6 +138,7 @@ export function reducer(state, action) {
         base: "",
         dialog: null,
         unify: { busy: false, message: null, error: null },
+        deliver: idleDeliver(state.deliver),
         selection: state.selection + 1,
         work: "",
         works: [],
@@ -161,6 +167,7 @@ export function reducer(state, action) {
             candidate: idleBody,
             dialog: null,
             unify: { busy: false, message: null, error: null },
+            deliver: idleDeliver(state.deliver),
             empty: false,
             needWork: false,
             phase: "boot",

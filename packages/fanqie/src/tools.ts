@@ -147,17 +147,13 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
       async run(args, exec) {
         const w = await work(exec, args.work);
         const rows = pickChapters(w, args.chapters);
-        const chapters = [];
-        for (const r of rows) {
-          const ch = await readChapter(w, r.id);
-          chapters.push({
-            id: ch.id,
-            title: ch.title,
-            position: ch.position,
-            status: ch.status,
-            outline: ch.outline,
-          });
-        }
+        const chapters = (await Promise.all(rows.map((r) => readChapter(w, r.id)))).map((ch) => ({
+          id: ch.id,
+          title: ch.title,
+          position: ch.position,
+          status: ch.status,
+          outline: ch.outline,
+        }));
         const input = JSON.stringify({
           mode: args.mode === "format" ? "format" : "readiness",
           chapters,
@@ -203,8 +199,7 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
           if (prev && !rows.includes(prev)) rows = [prev, ...rows];
         }
         const files: { name: string; text: string }[] = [];
-        for (const r of rows) {
-          const ch = await readChapter(w, r.id);
+        for (const ch of await Promise.all(rows.map((r) => readChapter(w, r.id)))) {
           const tag = `第${String(ch.position).padStart(3, "0")}章`;
           const ot = outlineText(ch);
           if (ot.split("\n").length > 1) files.push({ name: `${tag}-章纲.md`, text: ot });

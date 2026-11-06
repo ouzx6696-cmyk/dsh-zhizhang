@@ -31,6 +31,8 @@ interface Proc {
   timedOut: boolean;
 }
 
+const KILL_GRACE_MS = 2000;
+
 function exec(cmd: string, args: string[], opts: RunOptions = {}): Promise<Proc> {
   return new Promise((resolve, reject) => {
     if (opts.signal?.aborted) {
@@ -51,24 +53,44 @@ function exec(cmd: string, args: string[], opts: RunOptions = {}): Promise<Proc>
     const out: Buffer[] = [];
     const errb: Buffer[] = [];
     let timedOut = false;
+    let forceKill: NodeJS.Timeout | undefined;
+    // A script that traps or ignores SIGTERM must not hang the tool call forever.
+    const stop = () => {
+      // Windows 上 `py -3` 会再起一个 python.exe；只杀启动器时它仍持有 stdout 管道，
+      // close 事件永不触发，工具调用照样挂死。taskkill /T 才能杀掉整棵进程树。
+      if (process.platform === "win32") {
+        const killer = spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], {
+          windowsHide: true,
+        });
+        killer.on("error", () => child.kill());
+        killer.on("close", (code) => {
+          if (code !== 0) child.kill();
+        });
+      } else {
+        child.kill();
+      }
+      forceKill ??= setTimeout(() => child.kill("SIGKILL"), KILL_GRACE_MS);
+    };
     const timer = opts.timeoutMs
       ? setTimeout(() => {
           timedOut = true;
-          child.kill();
+          stop();
         }, opts.timeoutMs)
       : undefined;
-    const onAbort = () => child.kill();
-    opts.signal?.addEventListener("abort", onAbort, { once: true });
+    opts.signal?.addEventListener("abort", stop, { once: true });
+    const settle = () => {
+      clearTimeout(timer);
+      clearTimeout(forceKill);
+      opts.signal?.removeEventListener("abort", stop);
+    };
     child.stdout.on("data", (d: Buffer) => out.push(d));
     child.stderr.on("data", (d: Buffer) => errb.push(d));
     child.on("error", (e) => {
-      if (timer) clearTimeout(timer);
-      opts.signal?.removeEventListener("abort", onAbort);
+      settle();
       reject(e);
     });
     child.on("close", (code) => {
-      if (timer) clearTimeout(timer);
-      opts.signal?.removeEventListener("abort", onAbort);
+      settle();
       resolve({
         code,
         stdout: Buffer.concat(out).toString("utf8"),

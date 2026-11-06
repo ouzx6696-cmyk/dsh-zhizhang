@@ -1,0 +1,71 @@
+.ui-dialog {
+  margin: auto;
+  padding: 24px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 48px);
+  overflow: auto;
+  border: 1px solid var(--ui-line-strong);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-panel);
+  color: var(--ui-text);
+  box-shadow: var(--ui-shadow-2);
+  font: var(--ui-size-14)/1.6 var(--ui-font-ui);
+}
+.ui-dialog::backdrop {
+  background: var(--ui-mask);
+  backdrop-filter: var(--ui-blur);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .ui-dialog::backdrop {
+    backdrop-filter: none;
+  }
+}
+.ui-dialog:not([open]) {
+  display: none;
+}
+.ui-dialog.onboarding {
+  width: 560px;
+}
+.ui-dialog[open].onboarding {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 32px;
+}
+.ui-dialog.onboarding > .primary {
+  position: sticky;
+  bottom: 0;
+  align-self: stretch;
+}
+.ui-dialog.onboarding .model-fields {
+  max-height: 55dvh;
+  overflow: auto;
+}
+.ui-dialog.onboarding .model-fields > legend {
+  display: none;
+}
+.ui-dialog.methods-page {
+  width: 1280px;
+  height: min(85dvh, 900px);
+  padding: 20px;
+}
+.ui-dialog.command-dialog {
+  width: 620px;
+  padding: 16px;
+}
+/* 宿主 ui-dialog 内嵌 workbench 的 .wb-modal 时的口径。 */
+.ui-dialog.wb-modal {
+  padding: 0;
+  max-height: calc(100dvh - 32px);
+}
+.ui-dialog .command-list {
+  display: grid;
+  gap: 6px;
+}
+.ui-dialog .command-list > button {
+  justify-content: space-between;
+  text-align: left;
+}
+.ui-dialog .command-list small {
+  display: block;
+}

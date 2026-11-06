@@ -1,10 +1,12 @@
-import { isMissingFileError } from "./fsx.js";
 /** A host owns an open workspace; other processes may read but cannot write. */
-import { open, readFile, unlink, realpath } from "node:fs/promises";
+import { link, open, readFile, unlink, realpath } from "node:fs/promises";
 import { readFileSync, unlinkSync } from "node:fs";
 import { hostname } from "node:os";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
+import { isFsError, isMissingFileError } from "./fsx.js";
+import { errorText } from "./errors.js";
+import { isRecord } from "./parse.js";
 import { WriterError } from "./tool.js";
 const FILE = ".writer-workspace-lock.json";
 export type WorkspaceOwner = {
@@ -19,71 +21,142 @@ const held = new Map<string, WorkspaceOwner>();
 export function setWorkspaceHost(value: string) {
   host = value;
 }
-async function ownerAt(root: string): Promise<WorkspaceOwner | null> {
+
+/** The lock file is written by other processes, so it is parsed like any other untrusted file. */
+function parseOwner(raw: string, file: string): WorkspaceOwner {
+  let value: unknown;
   try {
-    return JSON.parse(await readFile(path.join(root, FILE), "utf8"));
+    value = JSON.parse(raw);
+  } catch (error) {
+    throw new WriterError("CONFLICT", `作品锁文件损坏：${file}（${errorText(error)}）`);
+  }
+  if (
+    !isRecord(value) ||
+    typeof value.id !== "string" ||
+    typeof value.pid !== "number" ||
+    typeof value.machine !== "string" ||
+    typeof value.host !== "string" ||
+    typeof value.at !== "string"
+  )
+    throw new WriterError("CONFLICT", `作品锁文件内容不完整：${file}`);
+  return { id: value.id, pid: value.pid, machine: value.machine, host: value.host, at: value.at };
+}
+
+async function ownerAt(root: string): Promise<WorkspaceOwner | null> {
+  const file = path.join(root, FILE);
+  try {
+    return parseOwner(await readFile(file, "utf8"), file);
   } catch (error) {
     if (isMissingFileError(error)) return null;
     throw error;
   }
 }
+const isSelf = (owner: WorkspaceOwner) => owner.pid === process.pid && owner.machine === hostname();
 function live(owner: WorkspaceOwner) {
   if (owner.machine !== hostname()) return true;
   try {
     process.kill(owner.pid, 0);
     return true;
   } catch (error) {
-    return !(error instanceof Error && "code" in error && error.code === "ESRCH");
+    return !isFsError(error, "ESRCH");
   }
 }
 export async function workspaceAccess(root: string) {
   let current = path.resolve(root);
   for (;;) {
     const owner = await ownerAt(current);
-    if (owner && (owner.pid !== process.pid || owner.machine !== hostname()) && live(owner))
-      return { readOnly: true, owner };
+    if (owner && !isSelf(owner) && live(owner)) return { readOnly: true, owner };
     const parent = path.dirname(current);
     if (parent === current) break;
     current = parent;
   }
   return { readOnly: false, owner: null };
 }
-export async function claimWorkspace(root: string) {
-  const key = await realpath(root);
-  const access = await workspaceAccess(key);
-  if (access.readOnly && access.owner && live(access.owner)) return access;
-  const previous = await ownerAt(key);
-  if (previous && previous.pid === process.pid && previous.machine === hostname())
-    return { readOnly: false, owner: previous };
-  if (previous && !live(previous)) {
-    const current = await ownerAt(key);
-    // 两个进程可能同时清理同一把陈旧锁；后写者容忍 ENOENT 后照常走 open('wx')。
-    if (current?.id === previous.id)
-      await unlink(path.join(key, FILE)).catch((error) => {
-        if (!isMissingFileError(error)) throw error;
-      });
-  }
-  const owner: WorkspaceOwner = {
-    id: randomUUID(),
-    pid: process.pid,
-    machine: hostname(),
-    host,
-    at: new Date().toISOString(),
-  };
+
+/**
+ * Publish the lock with its content already in place: a reader must never see an empty lock
+ * file, and a crash must never leave one behind that blocks the workspace forever.
+ * link() fails with EEXIST exactly like open('wx'), so creation stays atomic across processes.
+ */
+async function publishOwner(key: string, owner: WorkspaceOwner): Promise<boolean> {
+  const tmp = path.join(key, `${FILE}.${owner.id}.tmp`);
+  const handle = await open(tmp, "wx", 0o600);
   try {
-    const handle = await open(path.join(key, FILE), "wx", 0o600);
     try {
       await handle.writeFile(JSON.stringify(owner));
+      await handle.sync();
     } finally {
       await handle.close();
     }
-    held.set(key, owner);
-    return { readOnly: false, owner };
+    await link(tmp, path.join(key, FILE));
+    return true;
   } catch (error) {
-    if (error instanceof Error && "code" in error && error.code === "EEXIST")
-      return { readOnly: true, owner: await ownerAt(key) };
+    if (isFsError(error, "EEXIST")) return false;
+    if (NO_HARD_LINKS.some((code) => isFsError(error, code))) return createOwnerFile(key, owner);
+    throw error;
+  } finally {
+    await unlink(tmp);
+  }
+}
+/** FAT/exFAT volumes and some network shares refuse hard links. */
+const NO_HARD_LINKS = ["EPERM", "ENOTSUP", "ENOSYS", "EXDEV"];
+async function createOwnerFile(key: string, owner: WorkspaceOwner): Promise<boolean> {
+  let handle;
+  try {
+    handle = await open(path.join(key, FILE), "wx", 0o600);
+  } catch (error) {
+    if (isFsError(error, "EEXIST")) return false;
     throw error;
   }
+  try {
+    await handle.writeFile(JSON.stringify(owner));
+    // 没有硬链接可用的卷上这就是唯一一份锁；不落盘会让崩溃后的空文件把作品永久锁死。
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+  return true;
+}
+
+async function removeStaleOwner(key: string, stale: WorkspaceOwner) {
+  // 另一个进程可能在 workspaceAccess 与本次读取之间发布活锁：存活即放弃，绝不删活锁。
+  if (live(stale)) return;
+  // 两个进程可能同时清理同一把陈旧锁；后到者容忍 ENOENT 后照常去抢。
+  if ((await ownerAt(key))?.id !== stale.id) return;
+  try {
+    await unlink(path.join(key, FILE));
+  } catch (error) {
+    if (!isMissingFileError(error)) throw error;
+  }
+}
+
+export async function claimWorkspace(root: string) {
+  const key = await realpath(root);
+  // A competing claim can vanish between EEXIST and our read; re-run the decision a few times.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const access = await workspaceAccess(key);
+    if (access.readOnly) return access;
+    const previous = await ownerAt(key);
+    if (previous && isSelf(previous)) {
+      held.set(key, previous);
+      return { readOnly: false, owner: previous };
+    }
+    if (previous) await removeStaleOwner(key, previous);
+    const owner: WorkspaceOwner = {
+      id: randomUUID(),
+      pid: process.pid,
+      machine: hostname(),
+      host,
+      at: new Date().toISOString(),
+    };
+    if (await publishOwner(key, owner)) {
+      held.set(key, owner);
+      return { readOnly: false, owner };
+    }
+    const winner = await ownerAt(key);
+    if (winner && live(winner)) return { readOnly: true, owner: winner };
+  }
+  throw new WriterError("CONFLICT", `作品锁反复被其他进程抢占：${key}`);
 }
 export async function assertWorkspaceWritable(root: string) {
   const access = await workspaceAccess(root);

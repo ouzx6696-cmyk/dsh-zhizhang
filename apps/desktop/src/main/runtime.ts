@@ -39,17 +39,21 @@ export class Runtime {
   notice = "";
   private confirmations = Promise.resolve();
 
+  /** 窗口关闭后对象仍在但已销毁，任何方法调用都会抛错；退出期间的收尾事件须跳过它。 */
+  private liveWindow(): BrowserWindow | undefined {
+    return this.window && !this.window.isDestroyed() ? this.window : undefined;
+  }
+
   emit(value: DesktopEvent) {
     if (value.error) value = { ...value, error: explainError(value.error) };
-    if (this.window && !this.window.isDestroyed())
-      this.window.webContents.send("writer:event", value);
+    this.liveWindow()?.webContents.send("writer:event", value);
   }
 
   /** 弹对话框必须挂在窗口上；窗口尚未创建或已销毁（正在退出）时如实报错。 */
   windowOrThrow(): BrowserWindow {
-    if (!this.window || this.window.isDestroyed())
-      throw new WriterError("NOT_FOUND", "界面窗口尚未就绪或已关闭，无法弹出对话框");
-    return this.window;
+    const window = this.liveWindow();
+    if (!window) throw new WriterError("NOT_FOUND", "界面窗口尚未就绪或已关闭，无法弹出对话框");
+    return window;
   }
 
   async sessionEvent(value: DesktopEvent) {
@@ -76,14 +80,17 @@ export class Runtime {
   }
 
   private notifyTask(value: DesktopEvent) {
-    if (value.editor || this.window?.isFocused() || !Notification.isSupported()) return;
+    const window = this.liveWindow();
+    if (value.editor || !window || window.isFocused() || !Notification.isSupported()) return;
     const notification = new Notification({
       title: "写作 Agent",
       body: taskEndCopy(value.event?.reason, value.event?.error),
     });
     notification.on("click", () => {
-      this.window?.show();
-      this.window?.focus();
+      const current = this.liveWindow();
+      if (!current) return;
+      current.show();
+      current.focus();
       this.emit({ navigate: value.target, focus: value.focus });
     });
     notification.show();
@@ -91,9 +98,9 @@ export class Runtime {
 
   confirm(text: string, signal?: AbortSignal): Promise<boolean> {
     const result = this.confirmations.then(async () => {
-      if (signal?.aborted) return false;
-      if (!this.window) return false;
-      const answer = await dialog.showMessageBox(this.window, {
+      const window = this.liveWindow();
+      if (signal?.aborted || !window) return false;
+      const answer = await dialog.showMessageBox(window, {
         type: "question",
         title: "作者确认",
         message: text,

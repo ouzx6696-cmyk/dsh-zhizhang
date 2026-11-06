@@ -8,6 +8,9 @@ import { explainError } from "../../diagnostics";
 
 export function registerModelsIpc(state: Runtime) {
   handle("model", async (next) => {
+    // 保存模型会重建全部会话；运行中的任务会被中止，须先等任务结束。
+    if (state.sessions.running().length || state.sessions.hasPending())
+      throw new Error("请等待任务结束后修改模型设置");
     const notice = await state.settings.saveModels(next);
     await state.sessions.dispose();
     state.notice = notice;

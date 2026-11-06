@@ -49,3 +49,11 @@
   color: var(--wb-bad);
   background: var(--wb-bad-soft);
 }
+.lamp-qa-score {
+  font: 600 var(--ui-size-40)/1.5 var(--ui-font-body);
+  color: var(--ui-accent);
+}
+.lamp-qa-score small {
+  font-family: var(--ui-font-ui);
+  font-weight: 400;
+}

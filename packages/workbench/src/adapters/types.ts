@@ -27,7 +27,7 @@ export type DesktopBridge = {
   ) => Promise<{ status: number; data: Json }>;
 };
 
-export type SaveChapterInput = {
+type SaveChapterInput = {
   base?: string;
   work: string;
   chapter: string;
@@ -38,7 +38,7 @@ export type SaveChapterInput = {
   editOf?: string;
   draftLabel?: string;
 };
-export type SaveDraftInput = {
+type SaveDraftInput = {
   root: string;
   id: string;
   text: string;
@@ -98,7 +98,6 @@ export interface ProfilesData {
 }
 
 export interface WorkbenchData {
-  host: "desktop";
   fanqie: FanqieData;
   toutiao: ToutiaoData;
   profiles(mode: "fanqie" | "toutiao" | string): ProfilesData;
