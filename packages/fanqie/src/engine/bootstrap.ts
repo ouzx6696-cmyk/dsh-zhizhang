@@ -24,6 +24,7 @@ const EDITOR_ENGINE = new Set([
   "fanqie_human_feel_audit",
   "fanqie_novel_sense_audit",
   "fanqie_review_ledger",
+  "fanqie_continuity_get",
   "fanqie_method_get",
   "fanqie_method_list",
 ]);
@@ -34,7 +35,10 @@ export function engineTools(
   role: "writer" | "editor" | "planner" = "writer",
 ) {
   const boundConfig = { ...pluginConfig };
-  const policy = { multiDraft: { enabled: boundConfig.multiDraft?.enabled === true } };
+  const policy = {
+    multiDraft: { enabled: boundConfig.multiDraft?.enabled === true },
+    continuity: { enabled: boundConfig.continuity?.enabled === true },
+  };
   const narrowed = role === "writer" && boundConfig.toolset?.narrowed === true;
   return allTools()
     .filter((tool) =>
@@ -53,6 +57,10 @@ export function engineTools(
         for (const rule of [
           ...(tool.name === "fanqie_chapter_save" && args.status === "final"
             ? ["fanqie.finalize_requires_author"]
+            : []),
+          // 开关关闭时门禁规则不生效，也不要求确认——工具自身报 continuity_disabled。
+          ...(tool.name === "fanqie_continuity_commit" && boundConfig.continuity?.enabled === true
+            ? ["fanqie.continuity_commit_requires_author"]
             : []),
           ...(args.force === true ? ["fanqie.force_requires_author"] : []),
         ])

@@ -16,6 +16,8 @@ import type { ContextBasis, ChapterDependency, ChapterReview } from "../domain/l
 import { readLedger, appendLedger } from "./ledger.js";
 import { chapterRevision, preserveChapter } from "./revision.js";
 import { metaPath, readWorkMeta, validateStoryPace } from "./work-meta.js";
+import { readCommits } from "./continuity.js";
+import { parseBeatReference } from "../domain/continuity.js";
 import { asString, asObject } from "../parse.js";
 export function chaptersDir(dir: string) {
   return path.join(dir, "chapters");
@@ -443,6 +445,21 @@ export async function prepareChapterSaveUnlocked(dir: string, input: ChapterSave
     history = preserved;
     const next = meta.chapters.find((c) => c.position > position);
     const impacts = Array.isArray(meta.revisionImpacts) ? meta.revisionImpacts : [];
+    let dependents = transitiveDependents(meta.chapters, id);
+    let reason = "正文已修改；请核对已有状态记录、相关后稿与简报依据";
+    // T10 连续性联动（数据驱动）：该章有 committed 核验记录时，受影响线/知识条目并入 dependents。
+    // 开关关闭时 commits.json 从未被写出（工具拒绝写入），这里读到空数据，行为与从前一致。
+    const entry = (await readCommits(dir)).commits.find((v) => v.chapter === id);
+    if (entry) {
+      const lineIds = [...new Set(entry.beats.map((ref) => parseBeatReference(ref).lineId))];
+      const continuityIds = [...new Set([...lineIds, ...entry.knowledge])];
+      dependents = [...new Set([...dependents, ...continuityIds])];
+      const parts = [
+        ...(lineIds.length ? [`线 ${lineIds.join("、")}`] : []),
+        ...(entry.knowledge.length ? [`知识 ${entry.knowledge.join("、")}`] : []),
+      ];
+      reason += `；连续性已核验项受影响（${parts.join("；")}）：原 confirmed 证据须重核，必要时重新 continuity_commit`;
+    }
     meta.revisionImpacts = [
       ...impacts.filter((v) => v.chapterId !== id),
       {
@@ -451,9 +468,9 @@ export async function prepareChapterSaveUnlocked(dir: string, input: ChapterSave
         revision,
         history: preserved,
         nextChapterId: next?.id,
-        dependents: transitiveDependents(meta.chapters, id),
+        dependents,
         at: meta.updatedAt,
-        reason: "正文已修改；请核对已有状态记录、相关后稿与简报依据",
+        reason,
       },
     ];
   }

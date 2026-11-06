@@ -7,7 +7,8 @@ stdout 只输出一个 JSON 对象，含 tool / rules_version / ok。原脚本�
 
 子命令：
   outline <input.json>                 章纲字段检查（长篇章纲 ↔ forge 章纲接口一一对应）
-  ledger  <file> [<file> ...]          跨文档数字与时间对照（ledger_check.scan）
+  ledger  <file> [<file> ...]          跨文档数字与时间对照（ledger_check.scan）+ 连续性候选（continuity_scan.scan）
+  continuity <file> [<file> ...]       连续性候选抽取（物件/伤势/知情线索句；只抽取不判定）
   lint    <long_para> <file> [...]     正文体检（manuscript_linter.lint_file）
   scan    <file> <top> <keywords>      长篇测绘（novel_scanner.scan_novel）
   quote   <source> <analysis> <min>    引文核对（quote_check.check）
@@ -31,6 +32,44 @@ import ledger_check  # noqa: E402
 import manuscript_linter  # noqa: E402
 import novel_scanner  # noqa: E402
 import quote_check  # noqa: E402
+
+# —— T10 连续性候选抽取（只抽取、不判定）：物件处置、伤势、知情越界线索句 ——
+OBJECT_CUES = [
+    '掏出', '递给', '塞给', '塞进', '扔掉', '丢进', '丢下', '藏进', '藏起', '藏在',
+    '捡起', '收起', '收进', '放在', '掉在', '留在', '带走', '忘在', '攥着', '握着',
+    '别在', '挎着', '背着', '摸出', '翻出',
+]
+INJURY_CUES = [
+    '伤口', '伤势', '淤青', '骨折', '裂开', '绷带', '疤痕', '咳血', '呕血', '止血',
+    '包扎', '旧伤', '内伤', '肿起', '瘸',
+]
+KNOWLEDGE_CUES = [
+    '不知道', '不知情', '一无所知', '隐瞒', '秘密', '识破', '看穿', '摊牌', '说漏',
+    '走漏', '早就知道', '才知道', '这才知道', '装作不知', '蒙在鼓里', '知情',
+]
+_CUE_KINDS = [
+    ('物件', OBJECT_CUES),
+    ('伤势', INJURY_CUES),
+    ('知情', KNOWLEDGE_CUES),
+]
+_CONTEXT_MAX = 80
+
+
+def continuity_candidates(text, file=''):
+    """按行抽取候选：{file, line, kind, value, context}；每行每类至多一条。"""
+    rows = []
+    for no, line in enumerate(text.splitlines(), 1):
+        if not line.strip():
+            continue
+        for kind, cues in _CUE_KINDS:
+            cue = next((c for c in cues if c in line), None)
+            if cue is None:
+                continue
+            context = line.strip()
+            if len(context) > _CONTEXT_MAX:
+                context = context[:_CONTEXT_MAX] + '…'
+            rows.append({'file': file, 'line': no, 'kind': kind, 'value': cue, 'context': context})
+    return rows
 
 # 长篇章纲字段 → forge 章纲接口（check_outline.BLOCKS / FIELDS）
 FIELD_MAP = [
@@ -70,6 +109,17 @@ def cmd_outline(path):
          'note': '只查接口、空值与显式占位；不判断动机、因果、可写性或文学质量。'})
 
 
+def _read_candidates(paths, tool):
+    missing = [str(p) for p in paths if not p.is_file()]
+    if missing:
+        fail(tool, 'NOT_FOUND', '文件不存在：' + '、'.join(missing))
+    rows = []
+    for p in paths:
+        for row in continuity_candidates(p.read_text(encoding='utf-8', errors='replace'), file=p.name):
+            rows.append(row)
+    return rows
+
+
 def cmd_ledger(files):
     paths = [Path(f) for f in files]
     missing = [str(p) for p in paths if not p.is_file()]
@@ -81,7 +131,15 @@ def cmd_ledger(files):
             row['file'] = p.name  # 只留来源名，不暴露临时目录
             rows.append(row)
     out({'tool': 'ledger', 'ok': True, 'files': [p.name for p in paths], 'items': rows,
-         'note': '只抽取、不判对错；数字不同也可能是剧情变化，由编辑对照上下文判断。'})
+         'candidates': _read_candidates(paths, 'ledger'),
+         'note': '只抽取、不判对错；数字不同也可能是剧情变化，candidates 是物件/伤势/知情线索句，由编辑对照上下文判断。'})
+
+
+def cmd_continuity(files):
+    paths = [Path(f) for f in files]
+    out({'tool': 'continuity', 'ok': True, 'files': [p.name for p in paths],
+         'candidates': _read_candidates(paths, 'continuity'),
+         'note': '只抽取、不判定：物件处置/伤势/知情线索句，供连续性登记与巡检参考。'})
 
 
 def cmd_lint(long_para, files):
@@ -130,6 +188,8 @@ def main(argv):
             cmd_outline(rest[0])
         elif cmd == 'ledger' and rest:
             cmd_ledger(rest)
+        elif cmd == 'continuity' and rest:
+            cmd_continuity(rest)
         elif cmd == 'lint' and len(rest) >= 2:
             cmd_lint(rest[0], rest[1:])
         elif cmd == 'style' and len(rest) == 1:

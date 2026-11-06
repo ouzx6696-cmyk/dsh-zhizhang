@@ -32,6 +32,112 @@ export interface Foundation {
   style: string;
 }
 
+/**
+ * T10 结构化连续性（continuity.enabled，默认关）：伏笔线、知识边界、章末交接与定稿核验。
+ * 落盘在作品目录 continuity/ 下（foreshadow.json / knowledge.json / commits.json / handoff/<章id>.json）；
+ * Foundation 的 happened/threads/readerKnowledge 为 legacy 保留，可用 fanqie_continuity_migrate 生成候选迁移。
+ */
+export const FORESHADOW_BEAT_KINDS = [
+  "埋设",
+  "强化",
+  "误导",
+  "部分揭示",
+  "揭示",
+  "兑现",
+  "余波",
+] as const;
+export type ForeshadowBeatKind = (typeof FORESHADOW_BEAT_KINDS)[number];
+export const FORESHADOW_STATUSES = ["planned", "written", "committed", "missed"] as const;
+export type ForeshadowStatus = (typeof FORESHADOW_STATUSES)[number];
+export const KNOWLEDGE_LEVELS = ["公开", "知情", "误认", "不知"] as const;
+export type KnowledgeLevel = (typeof KNOWLEDGE_LEVELS)[number];
+
+/** 线上的一笔：chapter 是章号（position）。evidence 是预期出现在正文里的短引句，commit 据此机械核验。 */
+export interface ForeshadowBeat {
+  chapter: number;
+  kind: ForeshadowBeatKind;
+  note: string;
+  evidence?: string[];
+}
+
+export interface ForeshadowLine {
+  id: string;
+  title: string;
+  /** 一句话伏笔 */
+  seed: string;
+  plannedPlant: number;
+  plannedPayoff: number;
+  /** 只由 commit 推进：核验到笔 → written；核到兑现/揭示或 plannedPayoff 处核验通过 → committed；payoff 章缺证 → missed */
+  status: ForeshadowStatus;
+  beats: ForeshadowBeat[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface KnowledgeHolder {
+  /** 人物/势力名 */
+  who: string;
+  level: KnowledgeLevel;
+  /** 该状态自第几章（position）起 */
+  since: number;
+  source?: string;
+  /** 正文引句或章号；since 处的知情状态由 commit 据引句核验 */
+  evidence?: string;
+}
+
+export interface KnowledgeItem {
+  id: string;
+  /** 一句话事实 */
+  fact: string;
+  holders: KnowledgeHolder[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HandoffRecord {
+  /** 章节 id */
+  chapter: string;
+  summary: string;
+  mustCarry: string[];
+  nextConstraints: string[];
+  openLoops: string[];
+  at: string;
+  /** 文件级 revision，并发写冲突时如实报错 */
+  revision: number;
+}
+
+export interface ContinuityCommitRecord {
+  /** 章节 id */
+  chapter: string;
+  /** 核验绑定的正文 revision */
+  revision: string;
+  at: string;
+  /** confirmed beat 引用，格式 `${lineId}:${chapter}` */
+  beats: string[];
+  /** confirmed knowledge id */
+  knowledge: string[];
+  notes?: string;
+}
+
+export interface ForeshadowFile {
+  schemaVersion: 1;
+  revision: number;
+  updatedAt: string;
+  lines: ForeshadowLine[];
+}
+export interface KnowledgeFile {
+  schemaVersion: 1;
+  revision: number;
+  updatedAt: string;
+  items: KnowledgeItem[];
+}
+export interface CommitsFile {
+  schemaVersion: 1;
+  revision: number;
+  updatedAt: string;
+  commits: ContinuityCommitRecord[];
+}
+
 export interface Outline {
   pov: string;
   targetWords: number;
@@ -182,6 +288,8 @@ export interface PluginConfig {
   disabledGates?: string[];
   /** 内部：由 multiDraft.enabled 或 WRITER_NOVEL_MULTI_DRAFT 推出 */
   multiDraft?: { enabled?: boolean };
+  /** 内部：结构化连续性开关（T10），parseFanqieConfig 解析后随配置传入 */
+  continuity?: { enabled?: boolean };
   /** 内部：parseFanqieConfig 解析的写手工具面收窄开关 */
   toolset?: { narrowed?: boolean };
   /** 固定方法方案（默认 / 原版 / 用户方案名或 id）；parseFanqieConfig 解析后随配置传入 */

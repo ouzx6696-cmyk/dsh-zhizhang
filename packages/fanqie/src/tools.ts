@@ -133,7 +133,7 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
     defineWriterTool<{ work?: string; chapters?: string; include_previous?: boolean }>({
       name: "fanqie_ledger_check",
       description:
-        '跨章数字与时间对照：从所选章的章纲与正文里抽出带单位的数字（钱、数量、天数、时刻）和相对时间词（次日、第三天…），按来源列表。只抽取不判对错，用来"改完核旧账"。默认连带上一章。',
+        '跨章数字与时间对照 + 连续性线索：从所选章的章纲与正文里抽出带单位的数字（钱、数量、天数、时刻）、相对时间词（次日、第三天…），并抽取物件处置、伤势、知情表述的候选句（candidates）。只抽取不判对错，用来"改完核旧账"和巡检连续性。默认连带上一章。',
       properties: {
         work: WORK,
         chapters: S('章 id / 序号或区间，如 "5" 或 "3-5"（必填）'),
@@ -160,7 +160,13 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
         const r = await withTempFiles(files, (paths) =>
           bridge(config.python, ["ledger", ...paths], { signal: exec.signal }),
         );
-        return { work: w.key, files: r.files, items: r.items, note: r.note };
+        return {
+          work: w.key,
+          files: r.files,
+          items: r.items,
+          candidates: r.candidates,
+          note: r.note,
+        };
       },
     }),
 

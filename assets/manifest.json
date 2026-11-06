@@ -73,7 +73,7 @@
       "kind": "local",
       "version": null,
       "files": 2,
-      "bytes": 12376,
+      "bytes": 14995,
       "loadable": 0,
       "byKind": {
         "rule": 1,
@@ -2201,8 +2201,8 @@
       "kind": "rule",
       "origin": "local",
       "path": "packages/fanqie/skill/scripts/fanqie_bridge.py",
-      "bytes": 5892,
-      "sha256": "9f06420782e18e1a4f3a4f905d1ad46dacab7543154e7b82009d50a811e4ab57"
+      "bytes": 8511,
+      "sha256": "75f70041c7c5b298c12e497a573c850a6c6fe2deb5e2bfef9d6c1a721cf3b8a0"
     },
     {
       "source": "writer-fanqie-rules",

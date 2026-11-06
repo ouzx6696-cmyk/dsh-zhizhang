@@ -20,6 +20,8 @@ export interface FanqieConfig extends PluginConfig {
   disabledGates?: string[];
   /** 同章多草稿统一整理，默认关 */
   multiDraft?: { enabled?: boolean };
+  /** 结构化连续性：伏笔线/知识边界/章末交接的登记与核验工具、简报投影与修订影响联动，默认关 */
+  continuity?: { enabled?: boolean };
   /** handoff.v2：任务交接改用方法包决策表（按状态收集方法与附件），默认关 */
   handoff?: { v2?: boolean };
   /** 会话策略：perChapter 章级会话（写手跨章自动开新对话，前章材料由交接简报从文件带入），
@@ -34,7 +36,7 @@ export interface FanqieConfig extends PluginConfig {
 }
 
 /**
- * toolset.narrowed=true 时写手默认集排除的工具：诊断旁路 6 个 + 拆书写入/stage 类 9 个。
+ * toolset.narrowed=true 时写手默认集排除的工具：诊断旁路 7 个 + 拆书写入/stage 类 9 个。
  * 引擎（engineTools）与写作层（createFanqieTools）共用这份名单；fanqie_product_map
  * 与 library_list / library_search / library_card_get / library_combo_suggest 保留作导航。
  */
@@ -46,6 +48,7 @@ export const WRITER_EXCLUDED_TOOLS: ReadonlySet<string> = new Set([
   "fanqie_style_lint",
   "fanqie_review_ledger",
   "fanqie_library_audit",
+  "fanqie_opening_audit",
   // 拆书写入/stage（进拆书库的链路属规划用途）
   "fanqie_library_import",
   "fanqie_library_plan",
@@ -74,6 +77,7 @@ const KNOWN = new Set<string>([
   "requireEditorPass",
   "disabledGates",
   "multiDraft",
+  "continuity",
   "handoff",
   "session",
   "brief",
@@ -130,6 +134,20 @@ export function parseFanqieConfig(
         path: [...at, "multiDraft"],
       });
     else out.multiDraft = { enabled: m.enabled === true };
+  }
+  if (v.continuity !== undefined) {
+    const c = v.continuity as Record<string, unknown> | null;
+    if (
+      !c ||
+      typeof c !== "object" ||
+      Array.isArray(c) ||
+      (c.enabled !== undefined && typeof c.enabled !== "boolean")
+    )
+      issues.push({
+        message: `${[...at, "continuity"].join(".")} 应为 { enabled: 布尔值 }`,
+        path: [...at, "continuity"],
+      });
+    else out.continuity = { enabled: c.enabled === true };
   }
   if (v.handoff !== undefined) {
     const h = v.handoff as Record<string, unknown> | null;

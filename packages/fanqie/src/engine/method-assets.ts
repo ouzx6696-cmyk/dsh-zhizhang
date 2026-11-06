@@ -119,6 +119,73 @@ function resolvePreviousBody(prev: { body?: string }) {
     clipped: true,
   };
 }
+/** 连续性简报软上限；超限按「本章 beats > 上章 handoff > knowledge」裁剪。 */
+const CONTINUITY_BRIEF_SOFT_MAX = 3000;
+
+/**
+ * T10 连续性投影段：本章计划 beats、上章 handoff、出场人物相关知识条目。
+ * 裁剪序保本章 beats 完整，再 handoff，再 knowledge；发生裁剪时在段首注明。
+ */
+function formatContinuityBrief(
+  input: NonNullable<ReaderContractInput["continuity"]>,
+): string | null {
+  const beatLines = input.plannedBeats.map(
+    ({ lineId, title, beat }) =>
+      `- 线 ${lineId}《${title}》第${beat.chapter}章·${beat.kind}：${beat.note}`,
+  );
+  const handoff = input.handoff;
+  const handoffLines = handoff
+    ? [
+        `- 上章 ${handoff.chapter} 交接：${handoff.summary || "（无摘要）"}`,
+        ...handoff.mustCarry.map((m) => `  · 必须带走：${m}`),
+        ...handoff.nextConstraints.map((m) => `  · 下章约束：${m}`),
+        ...handoff.openLoops.map((m) => `  · 未闭环：${m}`),
+      ]
+    : [];
+  const knowledgeLines = input.knowledge.map(
+    (item) =>
+      `- ${item.fact}（${item.holders.map((h) => `${h.who}:${h.level}`).join("、") || "无持有者记录"}）`,
+  );
+  const size = (lines: string[]) => lines.join("\n").length + (lines.length ? 1 : 0);
+  // 预算按组消耗：beats 全保，handoff 次之，knowledge 按条裁进剩余预算。
+  let budget = CONTINUITY_BRIEF_SOFT_MAX;
+  let trimmed = false;
+  const groups: Array<{ heading: string; lines: string[] }> = [];
+  const takeGroup = (heading: string, lines: string[]) => {
+    if (!lines.length) return;
+    const s = size(lines);
+    if (s <= budget) {
+      budget -= s;
+      groups.push({ heading, lines });
+    } else {
+      trimmed = true;
+      if (heading === "### 相关知识边界 knowledge") {
+        const kept: string[] = [];
+        let used = 0;
+        for (const line of lines) {
+          if (used + line.length + 1 > budget) break;
+          kept.push(line);
+          used += line.length + 1;
+        }
+        if (kept.length) groups.push({ heading, lines: kept });
+      }
+      budget = 0;
+    }
+  };
+  takeGroup("### 本章计划 beats", beatLines);
+  takeGroup("### 上章交接 handoff", handoffLines);
+  takeGroup("### 相关知识边界 knowledge", knowledgeLines);
+  if (!groups.length) return null;
+  return [
+    "## 连续性（continuity · 结构化）",
+    ...(trimmed
+      ? [
+          `（超过 ${CONTINUITY_BRIEF_SOFT_MAX} 字软上限，已按「本章beats > 上章handoff > knowledge」裁剪；完整数据用 fanqie_continuity_get 查询）`,
+        ]
+      : []),
+    ...groups.flatMap((g) => [g.heading, ...g.lines]),
+  ].join("\n");
+}
 interface ReaderContractInput {
   premise: string;
   planned: string;
@@ -135,6 +202,26 @@ interface ReaderContractInput {
     summary?: string;
     body?: string;
   } | null;
+  /** T10 结构化连续性投影（continuity.enabled 时由 fanqie_chapter_brief 组装；缺省不渲染） */
+  continuity?: {
+    handoff?: {
+      chapter: string;
+      summary: string;
+      mustCarry: string[];
+      nextConstraints: string[];
+      openLoops: string[];
+    } | null;
+    plannedBeats: Array<{
+      lineId: string;
+      title: string;
+      beat: { chapter: number; kind: string; note: string };
+    }>;
+    knowledge: Array<{
+      id: string;
+      fact: string;
+      holders: Array<{ who: string; level: string }>;
+    }>;
+  };
 }
 /**
  * Top-of-brief「本书读者合同」— book identity for the drafting agent.
@@ -217,6 +304,10 @@ export function formatReaderContract(input: ReaderContractInput) {
   if (warns.length > 0) {
     lines.push("### 书感软提示");
     for (const w of warns) lines.push(`- ⚠️ ${w}`);
+  }
+  const continuitySection = input.continuity ? formatContinuityBrief(input.continuity) : null;
+  if (continuitySection) {
+    lines.push("", continuitySection);
   }
   return lines.join("\n");
 }

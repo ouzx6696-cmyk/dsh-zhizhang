@@ -71,6 +71,29 @@ export function fanqieGateRules(config: FanqieConfig, role: Role): GateRule[] {
         };
       },
     },
+    {
+      id: "fanqie.continuity_commit_requires_author",
+      tool: "fanqie_continuity_commit",
+      locked: true,
+      description: "连续性核验落盘（commits/handoff/线状态）须作者确认",
+      async check(args, exec) {
+        // 开关关闭时工具自身会报 continuity_disabled；这里不弹确认。
+        if (config.continuity?.enabled !== true) return undefined;
+        const w = await openWork(
+          exec,
+          typeof args.work === "string" ? args.work : undefined,
+          typeof args.working_dir === "string" ? args.working_dir : undefined,
+        );
+        const ch = await readStoredChapter(w.dir, String(args.chapter ?? ""));
+        args.work = w.key;
+        // 绑定作者确认时看到的正文版本；正文变化后旧确认不作数。
+        args.revision ??= ch.revision;
+        return {
+          kind: "ask",
+          reason: `连续性核验将写入「${ch.title}」（${ch.id}，revision ${ch.revision.slice(0, 8)}…）的 commits 与 handoff 并推进伏笔线状态，需要作者确认。`,
+        };
+      },
+    },
   ];
   if (role === "writer" && config.toolset?.narrowed === true) rules.push(...narrowedFlagRules());
   return rules;

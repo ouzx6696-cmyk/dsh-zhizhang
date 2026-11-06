@@ -17,6 +17,7 @@ const DEFAULTS = {
   defaultStrictNovel: false,
   defaultEditMode: "polish-depolish",
   multiDraft: { enabled: false },
+  continuity: { enabled: false },
 };
 type PortConfig = typeof DEFAULTS;
 export function getPortConfig(): PortConfig {

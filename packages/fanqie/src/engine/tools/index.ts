@@ -2,6 +2,7 @@
 import { referenceTools } from "./reference.js";
 import { auditTools } from "./audit.js";
 import { candidatesTools } from "./candidates.js";
+import { continuityTools } from "./continuity.js";
 import { exportTools } from "./export.js";
 import { inspirationTools } from "./inspiration.js";
 import { libraryTools } from "./library.js";
@@ -15,6 +16,7 @@ export function allTools() {
     ...referenceTools(),
     ...auditTools(),
     ...candidatesTools(),
+    ...continuityTools(),
     ...exportTools(),
     ...systemTools(),
     ...methodsTools(),

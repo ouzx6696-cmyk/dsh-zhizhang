@@ -52,5 +52,6 @@ export { InspirationPort } from "./inspiration.js";
 export { FoundationPort, endingBodyOverlap, resolveHappenedText } from "./foundation.js";
 export { ProductMap } from "./product.js";
 export { MultiDraftPort, isMultiDraftEnabled } from "./multi-draft.js";
+export { isContinuityEnabled, requireContinuityEnabled } from "./continuity.js";
 export { Scheduler } from "./scheduler.js";
 export { QualityPolicy, QUALITY_BOOK_DEBT_CUE_RE, QUALITY_WOBBLE_RE } from "./quality-policy.js";

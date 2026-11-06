@@ -16,6 +16,8 @@ import { recordBriefBreadcrumb } from "../storage/work-records.js";
 import { resolvePrevChapter } from "../services/chapter-context.js";
 import { formatPlanningBrief } from "../domain/planning.js";
 import { InspirationPort, METHOD_ASSET_IDS, MethodRegistry, Scheduler } from "../ports/index.js";
+import { getPortConfig } from "../ports/config.js";
+import { collectContinuityBrief } from "../storage/continuity.js";
 import { asString, asStringArray, boolArg, config, fail, openWork } from "./context.js";
 import { renderOutline, renderOutlineLean } from "./render.js";
 import { B, E, S, WORK_OPT, WORKING_DIR } from "./schema.js";
@@ -226,6 +228,16 @@ export function methodsTools() {
             contractWarnings.push("前章正文为空 — 仅有 ending 索引；续写接着该落点换压力往下推。");
           }
         }
+        // T10：continuity.enabled 时投影本章计划 beats、上章 handoff 与出场人物相关知识（formatReaderContract 内裁剪）。
+        let continuityProjection: Awaited<ReturnType<typeof collectContinuityBrief>> | undefined;
+        if (getPortConfig().continuity.enabled) {
+          continuityProjection = await collectContinuityBrief(dir, {
+            position: chapter.position,
+            previousChapterId:
+              prev && prev.meta.id !== chapter.id && !prev.missing ? prev.meta.id : undefined,
+            presenceText: [chapter.body, o.pov, o.knowledge].filter(Boolean).join("\n"),
+          });
+        }
         const readerContract = MethodRegistry.formatReaderContract({
           premise: meta.premise || "",
           planned: f.planned || "",
@@ -236,6 +248,7 @@ export function methodsTools() {
           continuation,
           warnings: contractWarnings,
           lean,
+          ...(continuityProjection ? { continuity: continuityProjection } : {}),
         });
         // Assembly order: lean puts craft+state cards early (after contract continuity).
         const lines = [
