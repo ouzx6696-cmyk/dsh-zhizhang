@@ -8,7 +8,7 @@ import { execFile } from "node:child_process";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { ArticleStore } from "../../apps/desktop/out-test/article-store.mjs";
+import { ArticleStore, parseFeedbackEntries } from "../../apps/desktop/out-test/article-store.mjs";
 import { fakeModel } from "./fake-model.mjs";
 import { Sessions } from "../../apps/desktop/out-test/session.mjs";
 import { Settings } from "../../apps/desktop/out-test/settings.mjs";
@@ -3370,6 +3370,314 @@ test("handoff.v2 头条 S4 交接附最近作者反馈：故事线病型只给�
   } finally {
     await host.dispose();
     await model.close();
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+// —— T17 改稿学习（writer_revision_learn / writer_revision_decide）：learn.enabled 开关注册、
+// 改稿对收集、归纳候选落盘 learn-pending.json、作者确认后写 foundation.style / feedback.md ——
+
+const LEARN_EDITOR_JSON =
+  '[{"condition":"对话推进到关键决定时","change":"把总结性叙述改成动作与原话","why":"作者嫌总结腔",' +
+  '"example":{"before":"林川很犹豫。","after":"林川把票捏又放下。"},"source":"c001","count":3}]';
+const LEARN_CANDIDATE_ID = createHash("sha256")
+  .update("对话推进到关键决定时\n把总结性叙述改成动作与原话")
+  .digest("hex");
+
+async function makeLearnWork(data) {
+  const { ensureStorage, createWork, setOutline, updateChapter, findChapter } =
+    await import("../../apps/desktop/out-test/work-store.mjs");
+  const paths = await ensureStorage(null, { storageRoot: data });
+  const { dir, meta } = await createWork(paths, { title: "长夜车站" });
+  await setOutline(dir, "c001", DRAW_OUTLINE, "第一章 站台");
+  await updateChapter(dir, {
+    id: "c001",
+    body: "林川把票递到窗口。他站了很久，还是很犹豫。\n\n售票员看了他一眼，没说话。",
+  });
+  const before = await findChapter(dir, "c001");
+  // 与写作台阅读面板保存正文同一条生产路径：updateChapter + 面板专用 ledgerEntry。
+  await updateChapter(dir, {
+    id: "c001",
+    body: "林川把票捏在手里又放下，转身走向检票口。\n\n“我不去了。”他说。",
+    expectedRevision: before.revision,
+    ledgerEntry: "作者在阅读面板保存正文",
+  });
+  return { dir, key: meta.key };
+}
+
+function learnSessions(home, model, options, events, settle) {
+  return new Sessions({
+    home,
+    python: "python3",
+    settings: () => models(model.url),
+    emit: (event) => {
+      events.push(event);
+      if (event.event?.type === "agent_settled" && !event.editor) settle();
+    },
+    confirm: async () => false,
+    options,
+    created: async () => {},
+    extras: {},
+  });
+}
+
+test("改稿学习：番茄收集阅读面板改稿对、归纳候选落盘、作者采纳进 foundation.style", async () => {
+  const base = await mkdtemp(path.join(tmpdir(), "writer-learn-fanqie-")),
+    home = path.join(base, "app"),
+    data = path.join(base, "data");
+  await mkdir(home);
+  await mkdir(data);
+  process.env.WRITER_STATE_ROOT = home;
+  const model = await fakeModel({
+    "mock-writer": [
+      { name: "writer_revision_learn", input: {} },
+      { text: "候选已列出，请作者决定。" },
+      { name: "writer_revision_decide", input: { id: LEARN_CANDIDATE_ID, action: "accept" } },
+      { text: "已按作者决定采纳。" },
+    ],
+    "mock-editor": [{ text: LEARN_EDITOR_JSON }],
+  });
+  const done = settled(),
+    events = [];
+  let onSettled = done.finish;
+  const { dir, key } = await makeLearnWork(data);
+  const sessions = learnSessions(
+    home,
+    model,
+    { fanqie: { learn: { enabled: true } } },
+    events,
+    () => onSettled(),
+  );
+  const pendingFile = path.join(dir, "learn-pending.json");
+  try {
+    const writerCalls = () => model.calls.filter((call) => call.model === "mock-writer");
+    await sessions.send({ mode: "fanqie", root: data, work: key }, "学习我的改稿。", {
+      chapter: "c001",
+      intent: "write",
+    });
+    await done.promise;
+    assert.ok(
+      writerCalls()[0].tools.some((tool) => tool.function.name === "writer_revision_learn"),
+      "learn.enabled 时写手工具须含 writer_revision_learn",
+    );
+    assert.ok(
+      writerCalls()[0].tools.some((tool) => tool.function.name === "writer_revision_decide"),
+    );
+    const end = events.find(
+      (event) =>
+        event.event?.type === "tool_execution_end" &&
+        event.event.toolName === "writer_revision_learn",
+    );
+    assert.ok(end, "writer_revision_learn 须交回结果");
+    assert.equal(end.event.result.details.learn.pairs, 1);
+    assert.equal(end.event.result.details.learn.items[0].id, LEARN_CANDIDATE_ID);
+    assert.match(end.event.result.content[0].text, /改稿学习候选 · 1 条/);
+    assert.match(end.event.result.content[0].text, /作者明确确认前不要调用 writer_revision_decide/);
+    const editorText = JSON.stringify(
+      model.calls.find((call) => call.model === "mock-editor").messages,
+    );
+    assert.ok(editorText.includes("作者在阅读面板改稿"), "改稿对须带来源与方式");
+    assert.ok(editorText.includes("林川把票递到窗口"), "归纳输入须含前版正文");
+    assert.ok(editorText.includes("把票捏在手里又放下"), "归纳输入须含后版正文");
+    const pending = JSON.parse(await readFile(pendingFile, "utf8"));
+    assert.equal(pending.mode, "fanqie");
+    assert.equal(pending.items.length, 1);
+    assert.equal(pending.items[0].count, 3);
+    const second = settled();
+    onSettled = second.finish;
+    await sessions.send({ mode: "fanqie", root: data, work: key }, "采纳那一条。", {
+      chapter: "c001",
+      intent: "write",
+    });
+    await second.promise;
+    const { readWorkMeta } = await import("../../apps/desktop/out-test/work-store.mjs");
+    const meta = await readWorkMeta(dir);
+    assert.match(meta.foundation.style, /【改稿学习/);
+    assert.match(meta.foundation.style, /改法：把总结性叙述改成动作与原话/);
+    assert.match(meta.foundation.style, /来源：c001/);
+    const decide = events.find(
+      (event) =>
+        event.event?.type === "tool_execution_end" &&
+        event.event.toolName === "writer_revision_decide",
+    );
+    assert.match(decide.event.result.content[0].text, /已按作者决定采纳 1 条/);
+    assert.equal(
+      await readFile(pendingFile, "utf8").then(
+        () => true,
+        () => false,
+      ),
+      false,
+      "最后一条采纳后 pending 文件须删除",
+    );
+  } finally {
+    await sessions.dispose();
+    await model.close();
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("改稿学习：头条收集 author 版改稿对与 feedback 条目，采纳经 feedback_append 落结构化行", async () => {
+  const base = await mkdtemp(path.join(tmpdir(), "writer-learn-tt-")),
+    home = path.join(base, "app"),
+    data = path.join(base, "data");
+  await mkdir(home);
+  await mkdir(data);
+  process.env.WRITER_STATE_ROOT = home;
+  const store = new ArticleStore(data);
+  const article = await store.create("ttlearn", { date: "2026-11-06", line: "故事线" });
+  await store.stageDraft(
+    article.id,
+    "他很失落。他把票塞回口袋。他想，就这样吧。",
+    "writer",
+    "初稿",
+  );
+  await store.stageDraft(
+    article.id,
+    "他把票塞回口袋，没再回头。检票员喊了三遍，都没有人应。",
+    "author",
+    "作者改稿",
+  );
+  await writeFile(
+    path.join(data, "feedback.md"),
+    "# 作者改稿反馈\n\n- 2026-11-01：总结腔收尾 → 动作收尾 → 嫌总结腔 ｜ 病型=1·套话连接词 ｜ 改法=动作落地\n",
+    "utf8",
+  );
+  const model = await fakeModel({
+    "mock-writer": [
+      { name: "writer_revision_learn", input: {} },
+      { text: "候选已列出，请作者决定。" },
+      { name: "writer_revision_decide", input: { id: LEARN_CANDIDATE_ID, action: "accept" } },
+      { text: "已按作者决定采纳。" },
+    ],
+    "mock-editor": [{ text: LEARN_EDITOR_JSON }],
+  });
+  const done = settled(),
+    events = [];
+  let onSettled = done.finish;
+  const sessions = learnSessions(
+    home,
+    model,
+    { toutiao: { learn: { enabled: true } } },
+    events,
+    () => onSettled(),
+  );
+  const pendingFile = path.join(data, "learn-pending.json");
+  try {
+    await sessions.send({ mode: "toutiao", root: data, article: article.id }, "学习我的改稿。", {
+      article: article.id,
+      intent: "write",
+    });
+    await done.promise;
+    const end = events.find(
+      (event) =>
+        event.event?.type === "tool_execution_end" &&
+        event.event.toolName === "writer_revision_learn",
+    );
+    assert.ok(end, "writer_revision_learn 须交回结果");
+    assert.equal(end.event.result.details.learn.pairs, 1, "author 版与前版构成一对");
+    assert.equal(end.event.result.details.learn.feedback, 1);
+    const editorText = JSON.stringify(
+      model.calls.find((call) => call.model === "mock-editor").messages,
+    );
+    assert.ok(editorText.includes("作者改稿（author 版）"));
+    assert.ok(editorText.includes("他把票塞回口袋，没再回头"));
+    assert.ok(editorText.includes("病型=1·套话连接词"), "feedback 结构化条目须进归纳输入");
+    const pending = JSON.parse(await readFile(pendingFile, "utf8"));
+    assert.equal(pending.mode, "toutiao");
+    const second = settled();
+    onSettled = second.finish;
+    await sessions.send({ mode: "toutiao", root: data, article: article.id }, "都要。", {
+      article: article.id,
+      intent: "write",
+    });
+    await second.promise;
+    const feedback = parseFeedbackEntries(await readFile(path.join(data, "feedback.md"), "utf8"));
+    const learned = feedback.find((entry) => entry.original === "林川很犹豫。");
+    assert.ok(learned, "采纳的候选须写进 feedback.md");
+    assert.equal(learned.revised, "林川把票捏又放下。");
+    assert.equal(learned.病型, "对话推进到关键决定时");
+    assert.equal(learned.改法, "把总结性叙述改成动作与原话");
+    assert.equal(
+      await readFile(pendingFile, "utf8").then(
+        () => true,
+        () => false,
+      ),
+      false,
+      "采纳后 pending 文件须删除",
+    );
+  } finally {
+    await sessions.dispose();
+    await model.close();
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("改稿学习：模型输出非法 JSON 时如实报归纳失败且不落盘；开关关闭两工具不注册", async () => {
+  const base = await mkdtemp(path.join(tmpdir(), "writer-learn-badjson-")),
+    home = path.join(base, "app"),
+    data = path.join(base, "data");
+  await mkdir(home);
+  await mkdir(data);
+  process.env.WRITER_STATE_ROOT = home;
+  const model = await fakeModel({
+    "mock-writer": [{ text: "收到。" }],
+    "mock-editor": [{ text: "抱歉，我不会输出 JSON。" }],
+  });
+  const done = settled(),
+    events = [];
+  let onSettled = done.finish;
+  const { dir, key } = await makeLearnWork(data);
+  const sessions = learnSessions(
+    home,
+    model,
+    { fanqie: { learn: { enabled: true } } },
+    events,
+    () => onSettled(),
+  );
+  const pendingFile = path.join(dir, "learn-pending.json");
+  try {
+    await sessions.send({ mode: "fanqie", root: data, work: key }, "先打个招呼。", {
+      chapter: "c001",
+      intent: "write",
+    });
+    await done.promise;
+    const session = await sessions.open({ mode: "fanqie", root: data, work: key });
+    const learn = session.agent.state.tools.find((tool) => tool.name === "writer_revision_learn");
+    await assert.rejects(
+      learn.execute("x", {}, new AbortController().signal),
+      /归纳失败/,
+      "非法模型输出须如实报归纳失败",
+    );
+    assert.equal(
+      await readFile(pendingFile, "utf8").then(
+        () => true,
+        () => false,
+      ),
+      false,
+      "归纳失败不得落盘",
+    );
+  } finally {
+    await sessions.dispose();
+    await model.close();
+  }
+
+  const offModel = await fakeModel({ "mock-writer": [{ text: "收到。" }] });
+  const offDone = settled();
+  onSettled = offDone.finish;
+  const offSessions = learnSessions(home, offModel, {}, events, () => onSettled());
+  try {
+    await offSessions.send({ mode: "fanqie", root: data, work: key }, "先读材料。", {
+      chapter: "c001",
+      intent: "write",
+    });
+    await offDone.promise;
+    const call = offModel.calls.find((item) => item.model === "mock-writer");
+    assert.ok(call.tools.some((tool) => tool.function.name === "fanqie_candidate_stage"));
+    assert.ok(!call.tools.some((tool) => tool.function.name === "writer_revision_learn"));
+    assert.ok(!call.tools.some((tool) => tool.function.name === "writer_revision_decide"));
+  } finally {
+    await offSessions.dispose();
+    await offModel.close();
     await rm(base, { recursive: true, force: true });
   }
 });

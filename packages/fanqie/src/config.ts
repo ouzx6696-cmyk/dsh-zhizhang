@@ -34,6 +34,8 @@ export interface FanqieConfig extends PluginConfig {
   toolset?: { narrowed?: boolean };
   /** 常驻规则重排：创作定向在前、工程约束整段压后，默认关 */
   brief?: { creationFirst?: boolean };
+  /** 改稿学习：writer_revision_learn 从作者改稿记录归纳偏好候选（writer_revision_decide 经作者确认落盘），默认关 */
+  learn?: { enabled?: boolean };
   /** 固定使用的方法方案（默认 / 原版 / 用户方案名或 id）；不填则用写作台或工具选的当前方案 */
   profile?: string;
 }
@@ -85,6 +87,7 @@ const KNOWN = new Set<string>([
   "handoff",
   "session",
   "brief",
+  "learn",
   "toolset",
 ]);
 
@@ -220,6 +223,20 @@ export function parseFanqieConfig(
         path: [...at, "brief"],
       });
     else out.brief = { creationFirst: b.creationFirst === true };
+  }
+  if (v.learn !== undefined) {
+    const l = v.learn as Record<string, unknown> | null;
+    if (
+      !l ||
+      typeof l !== "object" ||
+      Array.isArray(l) ||
+      (l.enabled !== undefined && typeof l.enabled !== "boolean")
+    )
+      issues.push({
+        message: `${[...at, "learn"].join(".")} 应为 { enabled: 布尔值 }`,
+        path: [...at, "learn"],
+      });
+    else out.learn = { enabled: l.enabled === true };
   }
   if (v.toolset !== undefined) {
     const t = v.toolset as Record<string, unknown> | null;

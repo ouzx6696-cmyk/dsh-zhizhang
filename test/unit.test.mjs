@@ -897,3 +897,109 @@ test("抽卡并发池：单路失败不影响他路，失败原因随该路结�
   assert.equal(outcomes[2].status, "ok");
   assert.equal(outcomes[2].value, "稿-2");
 });
+
+// —— T17 改稿学习（writer_revision_learn）：learn-task.ts 同样在 apps/desktop，
+// 用 esbuild 按生产入口打包后加载，测 pending 合并与采纳内容的纯函数。
+
+let learnTask;
+async function loadLearnTask() {
+  if (learnTask) return learnTask;
+  const outfile = path.join(ROOT, "apps/desktop/out-test/unit-learn-task.mjs");
+  await mkdir(path.dirname(outfile), { recursive: true });
+  const { build } = await import("esbuild");
+  await build({
+    entryPoints: [path.join(ROOT, "apps/desktop/src/session/learn-task.ts")],
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    packages: "external",
+    outfile,
+    logLevel: "silent",
+  });
+  learnTask = await import(pathToFileURL(outfile).href);
+  return learnTask;
+}
+
+function learnItem(seed, over = {}) {
+  return {
+    id: `id-${seed}`,
+    condition: `条件-${seed}`,
+    change: `改法-${seed}`,
+    why: "inferred",
+    example: { before: `前-${seed}`, after: `后-${seed}` },
+    source: `c00${seed}`,
+    at: "2026-11-07T00:00:00.000Z",
+    count: 3,
+    ...over,
+  };
+}
+
+test("改稿学习 pending 合并：同 id 印证 count+1 并刷新证据，不同 id 追加", async () => {
+  const { mergePending } = await loadLearnTask();
+  const first = mergePending(undefined, "toutiao", [learnItem(1)]);
+  assert.deepEqual(first, { mode: "toutiao", items: [learnItem(1)] });
+  const again = mergePending(first, "toutiao", [learnItem(1, { why: "作者嫌总结腔", count: 7 })]);
+  assert.equal(again.items.length, 1);
+  assert.equal(again.items[0].count, 4, "同 id 是再次印证：count 只加 1");
+  assert.equal(again.items[0].why, "作者嫌总结腔", "证据刷新为最新一次");
+  const added = mergePending(again, "toutiao", [learnItem(2)]);
+  assert.deepEqual(
+    added.items.map((row) => row.id),
+    ["id-1", "id-2"],
+  );
+  assert.equal(added.items[0].count, 4, "未再次出现的候选次数不变");
+});
+
+test("改稿学习采纳内容：text 编辑后替换默认内容，番茄/头条各按各的格式", async () => {
+  const { styleEntryOf, feedbackEntryOf } = await loadLearnTask();
+  const row = learnItem(1, { why: "嫌总结腔" });
+  assert.match(styleEntryOf(row, undefined), /【改稿学习 \d{4}-\d{2}-\d{2}】/);
+  assert.match(styleEntryOf(row, undefined), /改法：改法-1/);
+  assert.match(styleEntryOf(row, undefined), /来源：c001/);
+  assert.ok(!styleEntryOf(row, "改成具体动作").includes("改法-1"));
+  assert.match(styleEntryOf(row, "  "), /改法：改法-1/, "空 text 回退到候选默认内容");
+  const entry = feedbackEntryOf(row, undefined);
+  assert.equal(entry.original, "前-1");
+  assert.equal(entry.revised, "后-1");
+  assert.equal(entry.病型, "条件-1");
+  assert.equal(entry.改法, "改法-1");
+  assert.equal(feedbackEntryOf(row, "作者改的这句").revised, "作者改的这句");
+  assert.equal(
+    feedbackEntryOf(learnItem(1, { why: "inferred" }), undefined).motive,
+    "改稿学习归纳（作者未给理由）",
+  );
+  assert.equal(feedbackEntryOf(row, undefined).motive, "嫌总结腔");
+});
+
+test("改稿学习归纳输出校验：合法数组入候选，count<3 或非法 JSON 如实报归纳失败", async () => {
+  const { parseLearnOutput, pendingId } = await loadLearnTask();
+  const ok = parseLearnOutput(
+    '前缀 [ {"condition":"c","change":"g","why":"inferred",' +
+      '"example":{"before":"a","after":"b"},"source":"c001","count":3} ] 后缀',
+  );
+  assert.equal(ok.length, 1);
+  assert.equal(ok[0].id, pendingId("c", "g"));
+  assert.throws(() => parseLearnOutput("这不是 JSON"), /归纳失败/);
+  assert.throws(
+    () =>
+      parseLearnOutput(
+        '[{"condition":"c","change":"g","why":"w","example":{"before":"a","after":"b"},"source":"s","count":2}]',
+      ),
+    /count≥3/,
+  );
+  assert.throws(
+    () => parseLearnOutput('[{"condition":"c","change":"g","why":"w","count":5}]'),
+    /不符合 schema/,
+  );
+});
+
+test("改稿学习开关：两包 config 解析 learn.enabled，非布尔或未知字段报错", async () => {
+  const { parseFanqieConfig } = await import(buildUrl("fanqie/src/config.js"));
+  const { parseToutiaoConfig } = await import(buildUrl("toutiao/src/config.js"));
+  assert.deepEqual(parseFanqieConfig({ learn: { enabled: true } }).value.learn, { enabled: true });
+  assert.deepEqual(parseToutiaoConfig({ learn: { enabled: true } }).value.learn, { enabled: true });
+  assert.ok(parseFanqieConfig({ learn: { enabled: "on" } }).issues.length >= 1);
+  assert.ok(parseToutiaoConfig({ learn: 3 }).issues.length >= 1);
+  assert.equal(parseFanqieConfig({}).value.learn, undefined, "缺省即关");
+  assert.equal(parseToutiaoConfig({}).value.learn, undefined, "缺省即关");
+});

@@ -20,6 +20,8 @@ export interface ToutiaoConfig {
   brief?: { creationFirst?: boolean };
   /** qa.judge：编辑子会话红笔后按九项标尺做读者评审并落盘 meta.qa.readerReview，默认关 */
   qa?: { judge?: boolean };
+  /** 改稿学习：writer_revision_learn 从 author 版改稿对与 feedback 条目归纳偏好候选（writer_revision_decide 经作者确认落盘），默认关 */
+  learn?: { enabled?: boolean };
   /** draw.enabled：头条标题抽卡（writer_draw 仅 title-brief 场景，五母体各一版）；max 为单批上限，默认 5 */
   draw?: { enabled?: boolean; max?: number };
   /** 作者自备方法 / 语料目录（toutiao_method_get id=user:…）；见 docs/guides/ASSETS.md */
@@ -39,6 +41,7 @@ const KNOWN = new Set<string>([
   "brief",
   "qa",
   "draw",
+  "learn",
   "assets",
 ]);
 
@@ -153,6 +156,20 @@ export function parseToutiaoConfig(
         enabled: d.enabled === true,
         ...(typeof d.max === "number" ? { max: d.max } : {}),
       };
+  }
+  if (v.learn !== undefined) {
+    const l = v.learn as Record<string, unknown> | null;
+    if (
+      !l ||
+      typeof l !== "object" ||
+      Array.isArray(l) ||
+      (l.enabled !== undefined && typeof l.enabled !== "boolean")
+    )
+      issues.push({
+        message: `${[...at, "learn"].join(".")} 应为 { enabled: 布尔值 }`,
+        path: [...at, "learn"],
+      });
+    else out.learn = { enabled: l.enabled === true };
   }
   if (v.assets !== undefined) {
     const a = parseAssetsConfig(v.assets, [...at, "assets"]);

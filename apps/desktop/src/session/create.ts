@@ -25,6 +25,7 @@ import { systemPrompt } from "./prompt";
 import { createBusinessTools, createRememberTool } from "./tools";
 import { createDelegateTools } from "./editor-task";
 import { createDrawTools } from "./draw-task";
+import { createLearnTools } from "./learn-task";
 import { createSourceTools } from "./sources";
 import { createTask, trackSession } from "./task-tracker";
 import type { Sessions } from "./manager";
@@ -131,6 +132,17 @@ async function startSession(
           drawMax: host.options.fanqie?.draw?.max ?? 3,
           toutiaoDrawMax: host.options.toutiao?.draw?.max,
           createDraft: (constraint) => createDraftSession(host, target, constraint),
+        }),
+      );
+    if (host.options[target.mode]?.learn?.enabled === true)
+      customTools.push(
+        ...createLearnTools({
+          host,
+          target,
+          getEntry,
+          getSession,
+          config,
+          gates,
         }),
       );
     const { preferences, savePreferences } = host.extras;
