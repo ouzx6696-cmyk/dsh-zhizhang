@@ -23,6 +23,8 @@ export type SessionEntry = {
   methods: Map<string, { id: string; profile: string; hash: string }>;
   handoff?: HandoffSummary;
   profile?: string;
+  /** 章级会话判定用：该会话最近一次接受任务的章节（fanqie 且 focus.chapter 存在时更新）。 */
+  lastChapter?: string;
   task: Task;
 };
 
@@ -31,6 +33,8 @@ export type SessionOptions = { toutiao?: ToutiaoConfig; fanqie?: FanqieConfig };
 export type SessionExtras = {
   context?: () => import("../context-settings").ContextSettings;
   preferences?: () => Promise<string>;
+  /** 追加作者约束的写入口（writer_remember 用；与 save-preferences IPC 共用 Settings.savePreferences）。 */
+  savePreferences?: (text: string) => Promise<void>;
   searchProvider?: () => import("../network").SearchProvider;
   searchMode?: () => import("../network").SearchMode;
   searchKey?: () => string;

@@ -1,4 +1,4 @@
-import { sha256 } from "../../../../packages/core/src/fsx";
+import { localDay, sha256 } from "../../../../packages/core/src/fsx";
 import { asRecord } from "../main/ipc/validate";
 import { resolveFanqieWork } from "../main/storage";
 import { findChapter } from "../../../../packages/fanqie/src/engine/work-store";
@@ -352,4 +352,34 @@ export function createBusinessTools(options: {
       };
     },
   }));
+}
+
+/** writer_remember：作者长期约束追加进作者偏好（存储形态照旧，一行带日期），
+ * 下一条任务的 writer-context preferences 自动带上。作者偏好文件不存在时由空文件起头。 */
+export function createRememberTool(options: {
+  read: () => Promise<string>;
+  save: (text: string) => Promise<void>;
+}): ToolDefinition {
+  const { read, save } = options;
+  return {
+    name: "writer_remember",
+    label: "记住作者约束",
+    description:
+      "作者明确说“记住/以后都要/别再”这类跨任务的长期约束时，把约束原文追加进作者偏好，后续任务会自动带上。不要拿它记本章情节、临时安排或一次性要求。",
+    parameters: Type.Object({ text: Type.String({ description: "作者约束原文" }) }),
+    execute: async (_id, raw) => {
+      const text = (raw as { text: string }).text.trim();
+      if (!text) throw new Error("约束内容不能为空");
+      if (Array.from(text).length > 500) throw new Error("作者约束请控制在 500 字以内");
+      const previous = (await read()).replace(/\n+$/, "");
+      const line = `- ${localDay()} ${text}`;
+      await save(previous ? `${previous}\n${line}\n` : `${line}\n`);
+      return {
+        content: [
+          { type: "text", text: `已记住作者约束并写入作者偏好，后续任务会自动带上：${text}` },
+        ],
+        details: {},
+      };
+    },
+  };
 }

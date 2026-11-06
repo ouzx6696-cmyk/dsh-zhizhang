@@ -22,6 +22,9 @@ export interface FanqieConfig extends PluginConfig {
   multiDraft?: { enabled?: boolean };
   /** handoff.v2：任务交接改用方法包决策表（按状态收集方法与附件），默认关 */
   handoff?: { v2?: boolean };
+  /** 会话策略：perChapter 章级会话（写手跨章自动开新对话，前章材料由交接简报从文件带入），
+   * proactiveCompact 主动压缩（写手任务结算空闲后上下文达窗口 75% 即整理），默认全关 */
+  session?: { perChapter?: boolean; proactiveCompact?: boolean };
   /** 收窄写手默认工具集：去掉诊断旁路与拆书写入类工具并拒绝采纳旁路参数，默认关 */
   toolset?: { narrowed?: boolean };
   /** 固定使用的方法方案（默认 / 原版 / 用户方案名或 id）；不填则用写作台或工具选的当前方案 */
@@ -70,6 +73,7 @@ const KNOWN = new Set<string>([
   "disabledGates",
   "multiDraft",
   "handoff",
+  "session",
   "toolset",
 ]);
 
@@ -137,6 +141,25 @@ export function parseFanqieConfig(
         path: [...at, "handoff"],
       });
     else out.handoff = { v2: h.v2 === true };
+  }
+  if (v.session !== undefined) {
+    const s = v.session as Record<string, unknown> | null;
+    if (
+      !s ||
+      typeof s !== "object" ||
+      Array.isArray(s) ||
+      (s.perChapter !== undefined && typeof s.perChapter !== "boolean") ||
+      (s.proactiveCompact !== undefined && typeof s.proactiveCompact !== "boolean")
+    )
+      issues.push({
+        message: `${[...at, "session"].join(".")} 应为 { perChapter: 布尔值, proactiveCompact: 布尔值 }`,
+        path: [...at, "session"],
+      });
+    else
+      out.session = {
+        perChapter: s.perChapter === true,
+        proactiveCompact: s.proactiveCompact === true,
+      };
   }
   if (v.toolset !== undefined) {
     const t = v.toolset as Record<string, unknown> | null;

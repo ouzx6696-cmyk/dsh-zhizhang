@@ -75,6 +75,7 @@ export async function start() {
     extras: {
       context: () => state.settings.context,
       preferences: () => state.settings.preferences(),
+      savePreferences: (text) => state.settings.savePreferences(text),
       searchProvider: () => state.settings.searchProvider,
       searchMode: () => state.settings.searchMode,
       searchKey: () => state.settings.searchKey,

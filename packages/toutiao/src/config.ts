@@ -14,6 +14,8 @@ export interface ToutiaoConfig {
   requireEditorPass?: boolean;
   /** handoff.v2：任务交接改用方法包决策表（按文章状态注入 S 步方法），默认关 */
   handoff?: { v2?: boolean };
+  /** 会话策略：proactiveCompact 主动压缩（写手任务结算空闲后上下文达窗口 75% 即整理），默认关 */
+  session?: { proactiveCompact?: boolean };
   /** 作者自备方法 / 语料目录（toutiao_method_get id=user:…）；见 docs/guides/ASSETS.md */
   assets?: AssetsConfig;
   /** 固定使用的方法方案（默认 / 原版 / 用户方案名或 id）；不填则用写作台或工具选的当前方案 */
@@ -27,6 +29,7 @@ const KNOWN = new Set<string>([
   "requireEditorPass",
   "disabledGates",
   "handoff",
+  "session",
   "assets",
 ]);
 
@@ -80,6 +83,20 @@ export function parseToutiaoConfig(
         path: [...at, "handoff"],
       });
     else out.handoff = { v2: h.v2 === true };
+  }
+  if (v.session !== undefined) {
+    const s = v.session as Record<string, unknown> | null;
+    if (
+      !s ||
+      typeof s !== "object" ||
+      Array.isArray(s) ||
+      (s.proactiveCompact !== undefined && typeof s.proactiveCompact !== "boolean")
+    )
+      issues.push({
+        message: `${[...at, "session"].join(".")} 应为 { proactiveCompact: 布尔值 }`,
+        path: [...at, "session"],
+      });
+    else out.session = { proactiveCompact: s.proactiveCompact === true };
   }
   if (v.assets !== undefined) {
     const a = parseAssetsConfig(v.assets, [...at, "assets"]);

@@ -2396,3 +2396,196 @@ test("handoff.v2 预算裁剪：超限方法包按 prose→rhythm 整份裁剪�
     await rm(base, { recursive: true, force: true });
   }
 });
+
+test("章级会话：perChapter 开启跨章自动新对话，同章续写与关闭开关都留在原会话", async () => {
+  const base = await mkdtemp(path.join(tmpdir(), "writer-per-chapter-"));
+  const { ensureStorage, createWork } = await import("../../apps/desktop/out-test/work-store.mjs");
+  const appHome = path.join(base, "app");
+  await mkdir(appHome);
+  process.env.WRITER_STATE_ROOT = appHome;
+  const paths = await ensureStorage(null, { storageRoot: path.join(base, "data") });
+  const work = await createWork(paths, { title: "长夜车站" });
+  const model = await fakeModel({
+    "mock-writer": [
+      { text: "c001 已按简报续写。" },
+      { text: "c002 已按简报续写。" },
+      { text: "c002 已按回报修改。" },
+      { text: "c003 已按简报续写。" },
+    ],
+  });
+  const logs = [];
+  const { host, settle } = handoffHost(
+    appHome,
+    { fanqie: { session: { perChapter: true } } },
+    model,
+    logs,
+  );
+  const plain = handoffHost(appHome, {}, model, logs);
+  const target = { mode: "fanqie", root: paths.base, work: work.meta.key };
+  try {
+    let step = settle();
+    await host.send(target, "交接本章，按当前正文继续写作。", { chapter: "c001", intent: "write" });
+    await step.promise;
+    const first = await host.open(target);
+    assert.equal((await host.conversations(target)).length, 0);
+
+    // 跨章投递：自动开新对话，旧会话进历史
+    step = settle();
+    await host.send(target, "交接本章，按当前正文继续写作。", { chapter: "c002", intent: "write" });
+    await step.promise;
+    assert.equal((await host.conversations(target)).length, 1);
+    assert.notEqual((await host.open(target)).sessionId, first.sessionId);
+
+    // 同章续写：仍在当前会话
+    step = settle();
+    await host.send(target, "按审读意见修改本章。", { chapter: "c002", intent: "revise" });
+    await step.promise;
+    assert.equal((await host.conversations(target)).length, 1);
+    const sameChapter = await host.open(target);
+
+    // 关闭开关（新 host 读同一 target）：跨章也不再轮换
+    step = plain.settle();
+    await plain.host.send(target, "交接本章，按当前正文继续写作。", {
+      chapter: "c003",
+      intent: "write",
+    });
+    await step.promise;
+    assert.equal((await plain.host.conversations(target)).length, 1);
+    assert.equal((await plain.host.open(target)).sessionId, sameChapter.sessionId);
+  } finally {
+    await host.dispose();
+    await plain.host.dispose();
+    await model.close();
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("主动压缩：写手结算空闲后达窗口 75% 自动整理并带写作保留指令，关闭时不触发", async () => {
+  for (const enabled of [true, false]) {
+    const home = await mkdtemp(path.join(tmpdir(), "writer-proactive-"));
+    const target = { mode: "toutiao", root: path.join(home, "articles") };
+    const model = await fakeModel({
+      "mock-writer": [
+        { text: "长任务完成。", usage: { prompt_tokens: 60000, completion_tokens: 10 } },
+        { text: "摘要：保留作者约束。" },
+      ],
+    });
+    const value = models(model.url);
+    for (const role of Object.values(value)) if (role) role.contextWindow = 80000; // PI 自动压缩阈值按 80% 算为 63616，主动阈值 60000 先触发
+    const logs = [];
+    const done = settled(),
+      packed = enabled ? settled() : undefined;
+    const host = new Sessions({
+      home,
+      python: "python3",
+      settings: () => value,
+      emit: (event) => {
+        if (event.event?.type === "agent_settled") done.finish();
+        if (event.event?.type === "compaction_end") packed?.finish();
+      },
+      confirm: async () => false,
+      options: { toutiao: { session: { proactiveCompact: enabled } } },
+      created: async () => {},
+      extras: {
+        log: (name, fields) => logs.push({ name, ...fields }),
+        // PI 默认保留近 20k token 不压缩，小会话需把保留预算清零
+        context: () => ({ enabled: true, triggerPercent: 80, budget: 0, keepRecentTokens: 0 }),
+      },
+    });
+    try {
+      await host.send(target, "作者约束：主角不能飞。");
+      await done.promise;
+      const usage = (await host.open(target)).getContextUsage();
+      assert.ok(usage && usage.tokens >= 60000, "前置：结算后用量须达到主动压缩阈值");
+      if (enabled) {
+        await packed.promise;
+        const compacted = logs.filter((row) => row.name === "context_compacted");
+        assert.equal(compacted.length, 1);
+        assert.equal(compacted[0].trigger, "manual", "主动压缩走手动路径，trigger 记 manual");
+        assert.equal(compacted[0].success, true);
+        assert.ok(compacted[0].tokensBefore >= 60000);
+        assert.ok(
+          model.calls.some((call) =>
+            JSON.stringify(call.messages).includes("保留作者限制、已确定事实"),
+          ),
+          "压缩摘要请求须携带写作保留指令前缀",
+        );
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        assert.equal(logs.filter((row) => row.name === "context_compacted").length, 0);
+      }
+    } finally {
+      await host.dispose();
+      await model.close();
+      await rm(home, { recursive: true, force: true });
+    }
+  }
+});
+
+test("writer_remember：作者约束落盘并随下一条任务注入", async () => {
+  const home = await mkdtemp(path.join(tmpdir(), "writer-remember-"));
+  process.env.WRITER_STATE_ROOT = home;
+  const settings = new Settings(home, {
+    available: () => false,
+    encrypt: (text) => text,
+    decrypt: (text) => text,
+  });
+  await settings.load();
+  settings.workspace = home;
+  const target = { mode: "toutiao", root: path.join(home, "articles") };
+  const model = await fakeModel({
+    "mock-writer": [
+      { name: "writer_remember", input: { text: "主角不能飞。" } },
+      { text: "已记住。" },
+      { text: "带偏好继续任务。" },
+    ],
+  });
+  let onSettled = () => {};
+  const host = new Sessions({
+    home,
+    python: "python3",
+    settings: () => models(model.url),
+    emit: (event) => {
+      if (event.event?.type === "agent_settled") onSettled();
+    },
+    confirm: async () => false,
+    options: {},
+    created: async () => {},
+    extras: {
+      preferences: () => settings.preferences(),
+      savePreferences: (text) => settings.savePreferences(text),
+    },
+  });
+  try {
+    const first = settled();
+    onSettled = first.finish;
+    await host.send(target, "请记住：主角不能飞。");
+    await first.promise;
+    assert.match(await settings.preferences(), /- \d{4}-\d{2}-\d{2} 主角不能飞。/);
+    const session = await host.open(target);
+    const tool = session.agent.state.tools.find((item) => item.name === "writer_remember");
+    assert.ok(tool, "写手会话须注册 writer_remember");
+    await assert.rejects(tool.execute("empty", { text: "  " }), /不能为空/);
+    await assert.rejects(tool.execute("long", { text: "长".repeat(501) }), /500 字/);
+    const second = settled();
+    onSettled = second.finish;
+    await host.send(target, "带偏好继续任务。");
+    await second.promise;
+    assert.match(writerPrompt(model, 2), /主角不能飞。/, "下一条任务的 writer-context 须带偏好");
+  } finally {
+    await host.dispose();
+    await model.close();
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("主动压缩判定：75% 恰好触发，窗口无效或用量未知不触发", async () => {
+  const { shouldProactivelyCompact } =
+    await import("../../apps/desktop/out-test/context-settings.mjs");
+  assert.equal(shouldProactivelyCompact({ tokens: 300, contextWindow: 400 }), true);
+  assert.equal(shouldProactivelyCompact({ tokens: 299, contextWindow: 400 }), false);
+  assert.equal(shouldProactivelyCompact({ tokens: 6000, contextWindow: 0 }), false);
+  assert.equal(shouldProactivelyCompact({ tokens: 6000, contextWindow: undefined }), false);
+  assert.equal(shouldProactivelyCompact({ tokens: null, contextWindow: 80000 }), false);
+  assert.equal(shouldProactivelyCompact(undefined), false);
+});

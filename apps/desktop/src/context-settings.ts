@@ -48,3 +48,16 @@ export function compactionSettings(value: ContextSettings, window: number, outpu
     keepRecentTokens: Math.min(value.keepRecentTokens, Math.floor(threshold / 2)),
   };
 }
+
+/** 主动压缩判定（session.proactiveCompact）：任务结算空闲后上下文已达窗口 75%；
+ * PI 自己的阈值按设置的 triggerPercent（默认 80%）计算，75% 保证我们先整理。窗口无效或用量未知时不触发。 */
+export function shouldProactivelyCompact(
+  usage: { tokens: number | null; contextWindow: number } | undefined,
+) {
+  return (
+    !!usage &&
+    usage.contextWindow > 0 &&
+    usage.tokens !== null &&
+    usage.tokens >= usage.contextWindow * 0.75
+  );
+}

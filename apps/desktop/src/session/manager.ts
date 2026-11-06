@@ -1,9 +1,11 @@
 import { migrateSessionHistory } from "./migration";
 import { DEFAULT_HISTORY_LIMIT } from "../history-options";
+import { shouldProactivelyCompact } from "../context-settings";
 import path from "node:path";
 import { rootIdentity } from "../../../../packages/core/src/identity";
 import { mkdir, rm } from "node:fs/promises";
 import { atomicWrite, exists, sha256 } from "../../../../packages/core/src/fsx";
+import { errorText } from "../../../../packages/core/src/errors";
 import type { Focus, Target } from "../context";
 import type { DesktopEvent, WriterMessage } from "../renderer-contracts";
 import type { ModelSettings } from "../models";
@@ -130,7 +132,41 @@ export class Sessions {
   }
 
   async send(target: Target, text: string, focus: Focus = {}) {
-    return sendPrompt(this, target, text, focus);
+    await this.rotateForNewChapter(target, focus);
+    const result = await sendPrompt(this, target, text, focus);
+    this.recordChapter(target, focus);
+    return result;
+  }
+
+  /** 章级会话（fanqie.session.perChapter，默认关）：写手任务跨到新章时前章正文/章纲/根基/连续性
+   * 都由交接简报从文件带入，旧对话上下文不再需要，先开新对话再发送。只在会话空闲时轮换；
+   * 忙碌（排队/压缩/准备中/更新设置）时保持原行为，让消息照常排队。 */
+  private async rotateForNewChapter(target: Target, focus: Focus) {
+    if (
+      this.reconfiguring ||
+      target.mode !== "fanqie" ||
+      this.options.fanqie?.session?.perChapter !== true ||
+      !focus.chapter
+    )
+      return;
+    const key = this.key(target),
+      entry = this.sessions.get(key);
+    if (!entry || entry.lastChapter === focus.chapter) return;
+    if (
+      !entry.session.isIdle ||
+      entry.session.pendingMessageCount ||
+      this.compactions.has(key) ||
+      this.preparing(target)
+    )
+      return;
+    await this.newConversation(target);
+  }
+
+  /** 记录该会话最近一次接受任务的章节，供章级会话判定跨章；任务被取消未接受时不记。 */
+  private recordChapter(target: Target, focus: Focus) {
+    if (target.mode !== "fanqie" || !focus.chapter) return;
+    const entry = this.sessions.get(this.key(target));
+    if (entry) entry.lastChapter = focus.chapter;
   }
 
   async notify(target: Target, value: AuthorAction) {
@@ -224,6 +260,30 @@ export class Sessions {
     } finally {
       this.compactions.delete(key);
       this.emit({ running: this.running() });
+    }
+  }
+
+  /** 主动压缩（session.proactiveCompact，默认关）：写手任务结算空闲后上下文达窗口 75% 即整理，
+   * 赶在 PI 按 triggerPercent（默认 80%）的自动压缩之前；与手动压缩同一条 compact 路径，
+   * 埋点 trigger 记 manual。 */
+  async proactiveCompact(target: Target) {
+    if (this.options[target.mode]?.session?.proactiveCompact !== true) return;
+    const key = this.key(target),
+      entry = this.sessions.get(key);
+    if (!entry || !entry.session.isIdle || entry.session.pendingMessageCount) return;
+    if (this.compactions.has(key) || this.preparing(target)) return;
+    if (!shouldProactivelyCompact(entry.session.getContextUsage())) return;
+    const generation = this.generations.get(key) || 0;
+    try {
+      await this.compact(target, "");
+    } catch (error) {
+      // compact 读档期间作者停止任务或排入新消息会取消本次压缩，下一次结算会重新评估，不算失败
+      const superseded =
+        (this.generations.get(key) || 0) !== generation ||
+        this.sessions.get(key) !== entry ||
+        !entry.session.isIdle ||
+        entry.session.pendingMessageCount > 0;
+      if (!superseded) this.emit({ target, error: "自动压缩上下文失败：" + errorText(error) });
     }
   }
 

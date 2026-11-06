@@ -22,7 +22,7 @@ import { listProjects, projectIdOf } from "../../../../packages/fanqie/src/engin
 import { createGateEngine } from "../../../../packages/core/src/gates";
 import type { ToolDefinition as WriterToolDefinition } from "../../../../packages/core/src/tool";
 import { systemPrompt } from "./prompt";
-import { createBusinessTools } from "./tools";
+import { createBusinessTools, createRememberTool } from "./tools";
 import { createDelegateTools } from "./editor-task";
 import { createSourceTools } from "./sources";
 import { createTask, trackSession } from "./task-tracker";
@@ -97,8 +97,12 @@ export async function createSession(
       onSaved,
     }),
   ];
-  if (primary)
+  if (primary) {
     customTools.push(...createDelegateTools({ host, target, manager, getEntry, getSession }));
+    const { preferences, savePreferences } = host.extras;
+    if (preferences && savePreferences)
+      customTools.push(createRememberTool({ read: preferences, save: savePreferences }));
+  }
   customTools.push(...createSourceTools({ host, target, readUrls, taskId: () => task.id }));
   const models = host.settings();
   const settings = role === "planner" ? (models.planner ?? models.writer) : models[role];
@@ -151,6 +155,10 @@ export async function createSession(
     role,
     onUserMessage: () => readUrls.clear(),
   });
+  if (primary)
+    session.subscribe((event) => {
+      if (event.type === "agent_settled") void host.proactiveCompact(target);
+    });
   if (primary) {
     host.sessions.set(key, entry);
     await atomicWrite(path.join(dir, "current"), sessionFilePath(manager));
