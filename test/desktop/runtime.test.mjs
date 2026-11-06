@@ -1894,3 +1894,256 @@ test("长篇任务自动注入当前用户方法，并记录与实际内容一�
     await rm(home, { recursive: true, force: true });
   }
 });
+
+const OUTLINE_C001 = {
+  chapter: "c001",
+  title: "站台",
+  pov: "林川",
+  targetWords: 2000,
+  locks: "车站停电",
+  knowledge: "他不知道来电者身份",
+  synopsis: "林川等车",
+  conflict: "末班车不停站",
+  beats: "广播来电",
+  ending: "门打开",
+};
+
+function handoffHost(base, options, model, logs) {
+  let onSettled = () => {};
+  const host = new Sessions({
+    home: base,
+    python: "python3",
+    settings: () => models(model.url),
+    emit: (event) => {
+      if (event.event?.type === "agent_settled") onSettled();
+    },
+    confirm: async () => false,
+    options,
+    created: async () => {},
+    extras: { log: (name, fields) => logs.push({ name, ...fields }) },
+  });
+  return {
+    host,
+    settle() {
+      let finish;
+      const promise = new Promise((resolve) => {
+        onSettled = resolve;
+        finish = resolve;
+      });
+      return { promise, finish };
+    },
+  };
+}
+
+function writerMessages(model, index) {
+  const call = model.calls.filter((call) => call.model === "mock-writer")[index];
+  assert.ok(call, `第 ${index + 1} 次写手调用不存在`);
+  return call.messages
+    .map((message) =>
+      typeof message.content === "string"
+        ? message.content
+        : (message.content || []).map((part) => part.text || "").join("\n"),
+    )
+    .join("\n");
+}
+
+test("handoff.v2 关闭：显式配置 false 时交接与方法注入与旧路径一致", async () => {
+  const base = await mkdtemp(path.join(tmpdir(), "writer-handoff-v1-"));
+  const { ensureStorage, createWork } = await import("../../apps/desktop/out-test/work-store.mjs");
+  const appHome = path.join(base, "app");
+  await mkdir(appHome);
+  process.env.WRITER_STATE_ROOT = appHome;
+  const paths = await ensureStorage(null, { storageRoot: path.join(base, "data") });
+  const work = await createWork(paths, { title: "长夜车站" });
+  const model = await fakeModel({
+    "mock-writer": [
+      { name: "fanqie_outline_set", input: OUTLINE_C001 },
+      { text: "开篇规划已保存。" },
+      { text: "已收到任务。" },
+    ],
+  });
+  const logs = [];
+  const { host, settle } = handoffHost(
+    appHome,
+    { fanqie: { handoff: { v2: false } } },
+    model,
+    logs,
+  );
+  const target = { mode: "fanqie", root: paths.base, work: work.meta.key };
+  try {
+    let step = settle();
+    await host.send(target, "规划本书开篇。", { chapter: "c001", intent: "plan" });
+    await step.promise;
+    step = settle();
+    await host.send(target, "帮我看看这章写得怎么样", { chapter: "c001" });
+    await step.promise;
+    const handoffs = logs.filter((row) => row.name === "handoff");
+    assert.equal(handoffs.length, 2);
+    assert.deepEqual(
+      handoffs.map((row) => [row.intentSource, row.intent, row.methodIds, row.briefAttached]),
+      [
+        ["focus", "plan", ["plan-foundation"], false],
+        ["regex", "write", ["write-chapter"], true],
+      ],
+    );
+    assert.match(writerMessages(model, 2), /写章流程：从章纲到交付/);
+  } finally {
+    await host.dispose();
+    await model.close();
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("handoff.v2 开启：番茄按状态路由（K-02），revise 附审读回报，无章纲先补章纲", async () => {
+  const base = await mkdtemp(path.join(tmpdir(), "writer-handoff-v2-"));
+  const { ensureStorage, createWork } = await import("../../apps/desktop/out-test/work-store.mjs");
+  const { saveReview, bodyFingerprint } = await import("../../apps/desktop/out-test/review.mjs");
+  const appHome = path.join(base, "app");
+  await mkdir(appHome);
+  process.env.WRITER_STATE_ROOT = appHome;
+  const paths = await ensureStorage(null, { storageRoot: path.join(base, "data") });
+  const work = await createWork(paths, { title: "长夜车站" });
+  const model = await fakeModel({
+    "mock-writer": [
+      { name: "fanqie_outline_set", input: OUTLINE_C001 },
+      { text: "开篇规划已保存。" },
+      { text: "本章状态已核对。" },
+      { text: "已按回报修改。" },
+      { name: "fanqie_outline_set", input: { chapter: "c002", title: "空章" } },
+      { text: "新章已登记。" },
+      { text: "按章纲推进。" },
+    ],
+  });
+  const logs = [];
+  const { host, settle } = handoffHost(appHome, { fanqie: { handoff: { v2: true } } }, model, logs);
+  const target = { mode: "fanqie", root: paths.base, work: work.meta.key };
+  try {
+    let step = settle();
+    await host.send(target, "规划本书开篇。", { chapter: "c001", intent: "plan" });
+    await step.promise;
+
+    // K-02：问句含"写"不能判成写章，也不注入方法或简报
+    step = settle();
+    await host.send(target, "帮我看看这章写得怎么样", { chapter: "c001" });
+    await step.promise;
+
+    // K-02：按审读意见修改是 revise，附审读回报全文与 L1–L3 修改范围
+    const workDir = path.join(paths.works, work.meta.key);
+    await saveReview(workDir, {
+      work: work.meta.key,
+      work_title: "长夜车站",
+      chapter: "c001",
+      chapter_title: "站台",
+      body_sha256: bodyFingerprint(""),
+      verdict: "未通过",
+      hard_issues: [],
+      levels: [{ level: "L1", location: "第 2 段", symptom: "视角漂移", fix: "回到林川" }],
+      optional: [],
+      reread_full: true,
+      changed_scope: "未改",
+      strengths: "",
+      by: "editor",
+      at: new Date().toISOString(),
+    });
+    step = settle();
+    await host.send(target, "按审读意见修改这章", { chapter: "c001" });
+    await step.promise;
+
+    // 先经一次任务登记无章纲的 c002（快照要在下一次任务前能看到它）
+    step = settle();
+    await host.send(target, "再登记一章 c002，标题「空章」。");
+    await step.promise;
+
+    // 状态压过按钮的 write 意图：无章纲的章先补章纲
+    step = settle();
+    await host.send(target, "【写作台】续写《长夜车站》第 2 章（c002）。", {
+      chapter: "c002",
+      intent: "write",
+    });
+    await step.promise;
+
+    const handoffs = logs.filter((row) => row.name === "handoff");
+    assert.equal(handoffs.length, 5);
+    assert.deepEqual(
+      handoffs.map((row) => [row.intentSource, row.intent, row.methodIds, row.briefAttached]),
+      [
+        ["focus", "plan", ["plan-foundation"], false],
+        ["state", "inspect", [], false],
+        ["state", "revise", ["revise"], false],
+        ["state", "inspect", [], false],
+        ["focus", "plan", ["plan-outline"], false],
+      ],
+    );
+    assert.ok(handoffs[2].methodBytes > 0);
+    const inspectText = writerMessages(model, 2);
+    assert.ok(!inspectText.includes("写章流程：从章纲到交付"));
+    const reviseText = writerMessages(model, 3);
+    assert.match(reviseText, /受控修订/);
+    assert.match(reviseText, /审读回报 · 《长夜车站》站台/);
+    assert.match(reviseText, /L1 第 2 段：视角漂移/);
+    const outlineText = writerMessages(model, 6);
+    assert.match(outlineText, /章纲：8 个字段怎么写好/);
+    assert.ok(!outlineText.includes("写章流程：从章纲到交付"));
+  } finally {
+    await host.dispose();
+    await model.close();
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("handoff.v2 开启：头条按文章状态注入对应 S 步方法（K-03）", async () => {
+  const base = await mkdtemp(path.join(tmpdir(), "writer-handoff-tt-"));
+  process.env.WRITER_STATE_ROOT = base;
+  const root = path.join(base, "articles");
+  const store = new ArticleStore(root);
+  const article = await store.create("topic", { date: "2026-11-06", line: "资讯线" });
+  const model = await fakeModel();
+  const logs = [];
+  const { host, settle } = handoffHost(base, { toutiao: { handoff: { v2: true } } }, model, logs);
+  const target = { mode: "toutiao", root, article: article.id };
+  try {
+    let step = settle();
+    await host.send(target, "推进这篇", { article: article.id });
+    await step.promise;
+    await store.writeCard(article.id, { 内容线: "资讯线" });
+    step = settle();
+    await host.send(target, "标题拟好了吗", { article: article.id });
+    await step.promise;
+    await store.update(article.id, (m) => {
+      m.headlines.main = "测试主标题";
+    });
+    step = settle();
+    await host.send(target, "开始写正文", { article: article.id });
+    await step.promise;
+    await store.stageDraft(article.id, "初稿正文，先跑通流程。", "writer", "初稿");
+    await store.update(article.id, (m) => {
+      m.status = "待验收";
+    });
+    step = settle();
+    await host.send(target, "送验收", { article: article.id });
+    await step.promise;
+    step = settle();
+    await host.send({ mode: "toutiao", root }, "再写一篇新的");
+    await step.promise;
+
+    const handoffs = logs.filter((row) => row.name === "handoff");
+    assert.equal(handoffs.length, 5);
+    assert.deepEqual(
+      handoffs.map((row) => [row.intentSource, row.intent, row.methodIds]),
+      [
+        ["state", "plan", ["s2-selection"]],
+        ["state", "write", ["s3-headline"]],
+        ["state", "write", ["s4-common", "s4-news", "corpus-common"]],
+        ["state", "review", ["s5-editing", "s6-qa"]],
+        ["state", "plan", ["s1-hot", "s1-evergreen"]],
+      ],
+    );
+    assert.match(writerMessages(model, 2), /S4 资讯线写法/);
+    assert.match(writerMessages(model, 2), /语料：通用底座/);
+    assert.match(writerMessages(model, 3), /S5 红笔/);
+  } finally {
+    await host.dispose();
+    await model.close();
+    await rm(base, { recursive: true, force: true });
+  }
+});

@@ -82,7 +82,14 @@ async function deliver(state: Runtime, context: Operation): Promise<RequestResul
       : { chapter: "chapterId" in prompt ? prompt.chapterId : undefined, source: "chapter" };
   await state.sessions.send(target, prompt.text, {
     ...focus,
-    intent: action === "review" ? "review" : "write",
+    intent:
+      action === "review"
+        ? "review"
+        : action === "revise"
+          ? "revise"
+          : action === "new"
+            ? "plan"
+            : "write",
   });
   return { status: 200, data: { ok: true, text: prompt.text } };
 }

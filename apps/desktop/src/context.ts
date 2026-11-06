@@ -13,7 +13,7 @@ export type Focus = {
   workTitle?: string;
   source?: "chapter" | "candidate" | "article" | "split";
   dirty?: boolean;
-  intent?: "write" | "review" | "plan" | "inspect";
+  intent?: "write" | "review" | "plan" | "inspect" | "revise";
 };
 
 export const scopeId = (target?: Target | null) =>

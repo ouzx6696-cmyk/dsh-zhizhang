@@ -57,7 +57,7 @@ export function parseFocus(value: unknown): Focus {
   if (source.intent !== undefined) {
     if (
       typeof source.intent !== "string" ||
-      !["write", "review", "plan", "inspect"].includes(source.intent)
+      !["write", "review", "plan", "inspect", "revise"].includes(source.intent)
     )
       throw new Error("参数无效：任务意图");
     focus.intent = source.intent as Focus["intent"];

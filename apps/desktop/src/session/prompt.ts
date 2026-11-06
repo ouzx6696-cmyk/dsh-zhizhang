@@ -2,18 +2,39 @@ import { resolveFanqiePaths, resolveFanqieWork } from "../main/storage";
 import { parseText } from "../main/ipc/validate";
 import type { Focus, Target } from "../context";
 import { focusLabel, promptText } from "../context";
-import type { ChapterMeta } from "../../../../packages/fanqie/src/engine/types";
+import type {
+  Chapter,
+  ChapterMeta,
+  Outline,
+  WorkMeta,
+} from "../../../../packages/fanqie/src/engine/types";
 import { readChapter, readWorkMeta } from "../../../../packages/fanqie/src/engine/work-store";
 import { activeProfile } from "../../../../packages/core/src/profiles";
-import { ArticleStore } from "../../../../packages/toutiao/src/store";
-import { chapterReviewInfo } from "../../../../packages/fanqie/src/review";
+import { exists } from "../../../../packages/core/src/fsx";
+import { ArticleStore, type ArticleMeta } from "../../../../packages/toutiao/src/store";
+import { toutiaoLibrary } from "../../../../packages/toutiao/src/methods";
+import { fanqieLibrary } from "../../../../packages/fanqie/src/forge";
+import { formatPlanningBrief } from "../../../../packages/fanqie/src/engine/domain/planning";
+import {
+  bodyFingerprint,
+  chapterReviewInfo,
+  latestReview,
+  renderReview,
+  type ReviewReport,
+} from "../../../../packages/fanqie/src/review";
 import { assertWorkspaceWritable } from "../../../../packages/core/src/workspace-lock";
 import { engineTools } from "../../../../packages/fanqie/src/engine/bootstrap";
 import { validPassingQa } from "../../../../packages/toutiao/src/tools";
 import { SYSTEM_BRIEF } from "../../../../packages/fanqie/src/engine/tools/brief";
 import { buildToutiaoBrief, TOUTIAO_EDITOR_BRIEF } from "../../../../packages/toutiao/src/brief";
 import { buildFanqieBrief, FANQIE_EDITOR_BRIEF } from "../../../../packages/fanqie/src/brief";
-import { taskMethods } from "./task-methods";
+import {
+  buildMethodPack,
+  type FanqieSnapshot,
+  type MethodAttachmentKind,
+  type ToutiaoSnapshot,
+} from "../../../../packages/core/src/method-pack";
+import { taskMethods, corpusMethods, packMethods, type TaskMethod } from "./task-methods";
 import type { Sessions } from "./manager";
 
 const CLIENT_NOTICE =
@@ -57,6 +78,12 @@ async function paths(host: Sessions, target: Target) {
 }
 
 export async function taskPrompt(host: Sessions, target: Target, text: string, focus: Focus) {
+  if (host.options[target.mode]?.handoff?.v2 === true)
+    return taskPromptV2(host, target, text, focus);
+  return taskPromptV1(host, target, text, focus);
+}
+
+async function taskPromptV1(host: Sessions, target: Target, text: string, focus: Focus) {
   const profile = await activeProfile(target.mode, host.options[target.mode]?.profile);
   const intentSource = focus.intent ? "focus" : "regex";
   const intent =
@@ -153,6 +180,283 @@ export async function taskPrompt(host: Sessions, target: Target, text: string, f
     profile: { id: profile.id, name: profile.name },
     saved,
     methods,
+    preferences: await host.extras.preferences?.(),
+  });
+}
+
+// —— handoff.v2：方法包决策表接线（writer.json 的 handoff.v2 开关，默认关） ——
+
+const DELEGATION_NOTE = "本任务是委派说明：用 writer_review 工具派编辑子会话审读，不改正文。";
+
+/** 以方法全文落地的附件：节奏三档与病型表按 id 随方法注入，不另附文段。 */
+const ATTACHMENT_METHODS: Partial<Record<MethodAttachmentKind, string>> = {
+  "rhythm-excerpt": "rhythm",
+  "prose-table": "prose",
+};
+
+// outline_check readiness 的会话侧同判据（判据源：packages/fanqie/skill/forge/inspiration-forge/scripts/check_outline.py）：
+// 8 字段非空、目标篇幅为正、无显式占位（窄标记，普通中文括注不算占位）。
+const OUTLINE_FIELDS = [
+  "synopsis",
+  "conflict",
+  "beats",
+  "ending",
+  "pov",
+  "locks",
+  "knowledge",
+] as const;
+const OUTLINE_PLACEHOLDER =
+  /\b(?:TODO|TBD)\b|待填写|待填充|待正文发挥|【\s*】|【[^】]*(?:待填|待补|填写|在此|工作标题|叙述位置|计划篇幅|作者锁定|人物可知|主要经历|读者经历|结果或体验|人物[^】]{0,20}边界)[^】]*】|(?:^|\n)\s*待补\s*(?=\n|$)/;
+
+/** 章纲是否已写（8 字段任一非空）。 */
+function outlineFilled(outline: Outline) {
+  return OUTLINE_FIELDS.some((field) => outline[field].trim().length > 0);
+}
+
+/** 章纲是否过机械检查（fanqie_outline_check readiness 同判据）。 */
+function outlinePassed(outline: Outline) {
+  return (
+    outline.targetWords > 0 &&
+    OUTLINE_FIELDS.every((field) => outline[field].trim().length > 0) &&
+    !OUTLINE_FIELDS.some((field) => OUTLINE_PLACEHOLDER.test(outline[field]))
+  );
+}
+
+interface FanqieStorage {
+  dir: string;
+  meta: WorkMeta;
+  chapter?: Chapter;
+}
+
+/** v2 快照收集：读一次作品与指向章，决策表判据与附件落地共用；没打开作品时只有 hasWork=false。 */
+async function fanqieContext(
+  host: Sessions,
+  target: Target,
+  focus: Focus,
+): Promise<{ snapshot: FanqieSnapshot; storage?: FanqieStorage }> {
+  const snapshot: FanqieSnapshot = { hasWork: false, chapter: null };
+  if (!target.work) return { snapshot };
+  const dir = await resolveFanqieWork(host.options, target);
+  const meta = await readWorkMeta(dir);
+  snapshot.hasWork = true;
+  const row = meta.chapters.find((candidate) => candidate.id === focus.chapter);
+  const chapter = row ? await readChapter(dir, row.id) : undefined;
+  if (chapter) {
+    const info = await chapterReviewInfo(
+      dir,
+      chapter.id,
+      chapter.body,
+      !!host.options.fanqie?.requireEditorPass,
+    );
+    snapshot.chapter = {
+      id: chapter.id,
+      hasOutline: outlineFilled(chapter.outline),
+      outlinePassed: outlinePassed(chapter.outline),
+      status: chapter.status,
+      latestReviewPassed: info.editorReview
+        ? !info.editorReview.stale && info.editorReview.verdict === "通过"
+        : null,
+    };
+  }
+  return { snapshot, storage: { dir, meta, chapter } };
+}
+
+/** v2 头条快照：文章状态、体裁线归并（微头条体裁→micro）与 S2–S4 产出判断。 */
+async function toutiaoContext(
+  target: Target,
+  focus: Focus,
+): Promise<{ store: ArticleStore; article?: ArticleMeta; snapshot: ToutiaoSnapshot }> {
+  const store = new ArticleStore(target.root);
+  if (!focus.article) return { store, snapshot: { article: null } };
+  const article = await store.get(focus.article);
+  return {
+    store,
+    article,
+    snapshot: {
+      article: {
+        stage: article.status,
+        contentLine:
+          article.genre === "微头条" ? "micro" : article.line === "故事线" ? "story" : "news",
+        hasCard: await exists(store.cardPath(article.id)),
+        hasHeadline: article.headlines.main.trim().length > 0,
+        hasDraft: article.drafts.length > 0,
+      },
+    },
+  };
+}
+
+/** 上一章结尾节选：优先接续索引的末尾摘录，没有就读上一章正文结尾。 */
+async function previousEnding(dir: string, meta: WorkMeta, chapterId: string) {
+  const rows = [...meta.chapters].sort((a, b) => a.position - b.position);
+  const index = rows.findIndex((row) => row.id === chapterId);
+  const previous = index > 0 ? rows[index - 1] : undefined;
+  if (!previous) return undefined;
+  const excerpt = [...(meta.continuity?.finalized ?? []), ...(meta.continuity?.working ?? [])]
+    .filter((entry) => entry.chapterId === previous.id)
+    .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))[0]
+    ?.excerpt.trim();
+  const tail = excerpt || (await readChapter(dir, previous.id)).body.trim().slice(-300);
+  return tail ? `${previous.title}（${previous.id}）结尾节选：${tail}` : undefined;
+}
+
+/** 幕纲节选：复用写作台的规划简报渲染（全书与本章关联卷/幕，内部已截断）。 */
+function actOutline(meta: WorkMeta, chapterId: string) {
+  return formatPlanningBrief(meta, chapterId) || undefined;
+}
+
+/** 修改范围：回报里的 L1–L3 位置清单；回报没有定位就不附。 */
+function revisionScope(report: ReviewReport) {
+  return report.levels.length
+    ? report.levels
+        .map((level) => `${level.level} ${level.location}：${level.symptom} → ${level.fix}`)
+        .join("\n")
+    : undefined;
+}
+
+/** v2 附件落地：按 kind 收集回报全文、修改范围、上一章结尾与幕纲节选；拿不到材料的 kind 不输出。 */
+async function fanqieAttachments(
+  dir: string,
+  meta: WorkMeta,
+  chapter: Chapter,
+  kinds: MethodAttachmentKind[],
+) {
+  const report =
+    kinds.includes("review-report") || kinds.includes("revision-scope")
+      ? await latestReview(dir, chapter.id)
+      : undefined;
+  const scope = report ? revisionScope(report) : undefined;
+  return {
+    ...(report && kinds.includes("review-report")
+      ? { reviewReport: renderReview(report, report.body_sha256 !== bodyFingerprint(chapter.body)) }
+      : {}),
+    ...(report && kinds.includes("revision-scope") && scope ? { revisionScope: scope } : {}),
+    ...(kinds.includes("previous-ending")
+      ? { previousEnding: await previousEnding(dir, meta, chapter.id) }
+      : {}),
+    ...(kinds.includes("act-outline") ? { actOutline: actOutline(meta, chapter.id) } : {}),
+  };
+}
+
+async function taskPromptV2(host: Sessions, target: Target, text: string, focus: Focus) {
+  const profile = await activeProfile(target.mode, host.options[target.mode]?.profile);
+  const fanqie = target.mode === "fanqie" ? await fanqieContext(host, target, focus) : undefined;
+  const toutiao = target.mode === "toutiao" ? await toutiaoContext(target, focus) : undefined;
+  const pack = buildMethodPack({
+    mode: target.mode,
+    text,
+    focus,
+    ...(fanqie ? { fanqie: fanqie.snapshot } : {}),
+    ...(toutiao ? { toutiao: toutiao.snapshot } : {}),
+  });
+  const kinds = pack.attachments.map((attachment) => attachment.kind);
+  const ids = [
+    ...new Set([
+      ...pack.methods.map((method) => method.id),
+      ...kinds.flatMap((kind) => (ATTACHMENT_METHODS[kind] ? [ATTACHMENT_METHODS[kind]] : [])),
+    ]),
+  ];
+  const pinned = host.options[target.mode]?.profile;
+  const methods = await packMethods(
+    target.mode === "fanqie" ? fanqieLibrary : toutiaoLibrary,
+    profile.id,
+    ids,
+    pinned,
+  );
+  const corpus =
+    toutiao?.snapshot.article && kinds.includes("corpus-excerpt")
+      ? await corpusMethods(
+          toutiaoLibrary,
+          profile.id,
+          toutiao.snapshot.article.contentLine,
+          pinned,
+        )
+      : [];
+  const injected: TaskMethod[] = [
+    ...methods,
+    ...corpus.filter((row) => !methods.some((method) => method.id === row.id)),
+  ];
+  let brief: string | undefined;
+  let saved: Record<string, unknown> | undefined;
+  if (fanqie?.storage) {
+    const { dir, meta, chapter } = fanqie.storage;
+    if (chapter && kinds.includes("lean-brief")) {
+      await assertWorkspaceWritable(dir);
+      const definition = engineTools({
+        ...host.options.fanqie,
+        storageRoot: target.root,
+        worksRoot: (await paths(host, target)).works,
+      }).find((tool) => tool.name === "fanqie_chapter_brief");
+      if (!definition) throw new Error("引擎工具列表里没有 fanqie_chapter_brief，无法生成交接简报");
+      // handoff_only 分支固定返回 JSON 字符串；execute 类型是 unknown，在边界解析
+      brief = parseText(
+        await definition.execute(
+          {
+            work: target.work,
+            chapter: chapter.id,
+            brief_mode: "lean",
+            handoff_only: true,
+          },
+          {
+            name: definition.name,
+            arguments: {},
+            sessionId: "handoff-" + host.key(target),
+            cwd: target.root,
+          },
+        ),
+      );
+    }
+    const review =
+      pack.intent === "review" ||
+      pack.intent === "revise" ||
+      focus.intent === "review" ||
+      focus.intent === "revise"
+        ? await reviewResult(host, target, focus)
+        : undefined;
+    saved = {
+      brief,
+      review,
+      ...(chapter ? await fanqieAttachments(dir, meta, chapter, kinds) : {}),
+      title: meta.title,
+      chapters: meta.chapters.length,
+      chapter: chapter
+        ? {
+            id: chapter.id,
+            title: chapter.title,
+            status: chapter.status,
+            updatedAt: chapter.updatedAt,
+            revision: chapter.revision,
+            dependencies: chapter.dependencies || [],
+            review: chapter.review
+              ? { revision: chapter.review.revision, result: chapter.review.result }
+              : undefined,
+          }
+        : undefined,
+    };
+  } else if (toutiao?.article) {
+    const article = toutiao.article;
+    saved = {
+      article: article.id,
+      status: article.status,
+      revision: article.current_rev,
+      qa: article.qa.at(-1),
+      qaValid: await validPassingQa(toutiao.store, article),
+    };
+  }
+  host.extras.log?.("handoff", {
+    mode: target.mode,
+    intentSource: focus.intent ? "focus" : "state",
+    intent: pack.intent,
+    methodIds: injected.map((method) => method.id),
+    methodBytes: injected.reduce((sum, method) => sum + Buffer.byteLength(method.text), 0),
+    briefAttached: brief !== undefined,
+    briefBytes: brief === undefined ? 0 : Buffer.byteLength(brief),
+  });
+  return promptText(kinds.includes("delegation-note") ? `${text}\n\n${DELEGATION_NOTE}` : text, {
+    target,
+    focus,
+    profile: { id: profile.id, name: profile.name },
+    saved,
+    methods: injected,
     preferences: await host.extras.preferences?.(),
   });
 }

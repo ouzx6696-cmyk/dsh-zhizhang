@@ -21,6 +21,8 @@ export interface FanqieConfig extends PluginConfig {
   disabledGates?: string[];
   /** 同章多草稿统一整理，默认关 */
   multiDraft?: { enabled?: boolean };
+  /** handoff.v2：任务交接改用方法包决策表（按状态收集方法与附件），默认关 */
+  handoff?: { v2?: boolean };
   /** 作者自备方法 / 语料目录（fanqie_forge_get id=user:…）；见 docs/guides/ASSETS.md */
   assets?: AssetsConfig;
   /** 固定使用的方法方案（默认 / 原版 / 用户方案名或 id）；不填则用写作台或工具选的当前方案 */
@@ -43,6 +45,7 @@ const KNOWN = new Set<string>([
   "requireEditorPass",
   "disabledGates",
   "multiDraft",
+  "handoff",
   "assets",
 ]);
 
@@ -96,6 +99,20 @@ export function parseFanqieConfig(
         path: [...at, "multiDraft"],
       });
     else out.multiDraft = { enabled: m.enabled === true };
+  }
+  if (v.handoff !== undefined) {
+    const h = v.handoff as Record<string, unknown> | null;
+    if (
+      !h ||
+      typeof h !== "object" ||
+      Array.isArray(h) ||
+      (h.v2 !== undefined && typeof h.v2 !== "boolean")
+    )
+      issues.push({
+        message: `${[...at, "handoff"].join(".")} 应为 { v2: 布尔值 }`,
+        path: [...at, "handoff"],
+      });
+    else out.handoff = { v2: h.v2 === true };
   }
   if (v.assets !== undefined) {
     const a = parseAssetsConfig(v.assets, [...at, "assets"]);
