@@ -321,6 +321,79 @@ test("引擎工具工厂名称唯一，版本与桌面共享核心一致", async
   assert.equal(VERSION, pkg.version);
 });
 
+test("方法通道：forge_get 退役，method_get 方案优先、引擎兜底", async () => {
+  const { engineTools } = await import("../../build/fanqie/src/engine/bootstrap.js");
+  const { createFanqieTools } = await import("../../build/fanqie/src/tools.js");
+  const { PLANNER_TOOLS } = await import("../../build/core/src/tool-roles.js");
+  const engineNames = engineTools().map((t) => t.name);
+  assert.ok(!engineNames.includes("fanqie_forge_get"));
+  assert.ok(engineNames.includes("fanqie_method_get"));
+  assert.ok(engineNames.includes("fanqie_method_list"));
+  assert.ok(!PLANNER_TOOLS.has("fanqie_forge_get"));
+  const writer = createFanqieTools({ config: {}, role: "writer" }).map((t) => t.name);
+  assert.ok(!writer.includes("fanqie_forge_get"));
+  const editor = createFanqieTools({ config: {}, role: "editor" }).map((t) => t.name);
+  assert.ok(!editor.includes("fanqie_forge_get"));
+
+  const f = await setup();
+  try {
+    // 方案方法优先：edit/revise 已退役出引擎资产，经当前方案（默认）返回人写长文档
+    const edit = await f.run("fanqie_method_get", { id: "edit" });
+    assert.match(edit, /## 方法 · edit（方案「默认」）/);
+    assert.match(edit, /# 编辑审读：四类硬伤与 L1–L3/);
+    assert.ok(!edit.includes("编辑过稿与修订层级"));
+    const revise = await f.run("fanqie_method_get", { id: "revise" });
+    assert.match(revise, /## 方法 · revise（方案「默认」）/);
+    assert.match(revise, /# 受控修订/);
+    // 引擎资产兜底：新合同 id 可取，旧 id 报未知方法
+    const style = await f.run("fanqie_method_get", { id: "contract:style" });
+    assert.match(style, /## 方法资产 · contract:style · 本书讲法与现场写作/);
+    assert.match(
+      await f.run("fanqie_method_get", { id: "style_contract" }),
+      /未知方法：style_contract/,
+    );
+    // method_list 列两来源并集并标注来源
+    const list = await f.run("fanqie_method_list");
+    assert.match(list, /## 方案（profile）· 默认/);
+    assert.match(list, /## 引擎资产（engine）/);
+    assert.match(list, /- `edit` · 编辑审读：四类硬伤与 L1–L3/);
+    assert.match(list, /- `contract:style` · 本书讲法与现场写作/);
+  } finally {
+    await f.close();
+  }
+});
+
+test("chapter_brief：lean 只附 contract:style，full 四方法包不再注入 edit/revise", async () => {
+  const f = await setup();
+  try {
+    const { dir, meta } = await createWork(f.paths, { title: "作品" });
+    await setOutline(dir, "c001", { ending: "门开了" }, "第一章");
+    const brief = methodsTools().find((t) => t.name === "fanqie_chapter_brief");
+    const lean = await brief.execute(
+      { chapter: "c001", work: meta.key, working_dir: f.root, skip_cards: true },
+      { cwd: f.root },
+    );
+    assert.match(lean, /# 方法（lean · 仅 contract:style；其它用 fanqie_method_get）/);
+    assert.match(lean, /## 方法资产 · contract:style · 本书讲法与现场写作/);
+    const full = await brief.execute(
+      {
+        chapter: "c001",
+        work: meta.key,
+        working_dir: f.root,
+        skip_cards: true,
+        brief_mode: "full",
+      },
+      { cwd: f.root },
+    );
+    for (const asset of ["novel_sense", "contract:style", "draft", "tomato_four_q"])
+      assert.match(full, new RegExp(`## 方法资产 · ${asset} · `), asset);
+    assert.ok(!full.includes("## 方法资产 · edit"));
+    assert.ok(!full.includes("## 方法资产 · revise"));
+  } finally {
+    await f.close();
+  }
+});
+
 test("多草稿默认关闭，开启后统一稿仍只是候选", async () => {
   const f = await setup();
   try {

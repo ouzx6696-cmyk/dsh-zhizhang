@@ -10,17 +10,17 @@ import {
   REVIEW_GUIDANCE,
   PLANNING_GUIDANCE,
   REFERENCE_GUIDANCE,
-  EDITING_GUIDANCE,
 } from "./domain/creative-guidance.js";
+/** 引擎资产 id 用 `contract:` 前缀区分合同类，与方法方案里的人写方法 id（不含冒号）区分开。 */
 const ASSETS = [
   {
-    id: "style_contract",
+    id: "contract:style",
     title: "本书讲法与现场写作",
     whenToUse: "写作时按本书需要加载",
     body: WRITING_GUIDANCE,
   },
   {
-    id: "review_evidence_kinds",
+    id: "contract:review-evidence",
     title: "内容核验与阅读损失",
     whenToUse: "审读与记录依据",
     body: REVIEW_GUIDANCE,
@@ -28,20 +28,6 @@ const ASSETS = [
   { id: "plan", title: "规划与交接", whenToUse: "从目标发展到可开写章纲", body: PLANNING_GUIDANCE },
   { id: "draft", title: "正文落稿", whenToUse: "按现行依据写候选", body: WRITING_GUIDANCE },
   { id: "review", title: "编辑审读", whenToUse: "先列问题再改并回读", body: REVIEW_GUIDANCE },
-  {
-    id: "edit",
-    title: "编辑过稿与修订层级",
-    whenToUse: "candidate_edit_brief 之后按授权改稿（L1–L3）",
-    body: EDITING_GUIDANCE,
-  },
-  {
-    id: "revise",
-    title: "受控修订",
-    whenToUse: "已授权范围内改稿",
-    body:
-      REVIEW_GUIDANCE +
-      "\n修订先核原稿基线，保留历史，复核当前候选；只有一个现行正文，不自动回滚他人改动。",
-  },
   { id: "analyze", title: "有范围的参考分析", whenToUse: "拆解指定原文", body: REFERENCE_GUIDANCE },
   { id: "develop", title: "原创发展", whenToUse: "发展作者材料", body: PLANNING_GUIDANCE },
   {
@@ -88,12 +74,12 @@ export function getMethodAssets(ids: readonly string[]) {
   return { found, missing };
 }
 /** Default packs pulled by fanqie_chapter_brief for drafting. */
-/** Lean default: style only. novel_sense/draft/tomato via method_get or brief_mode=full. */
-export const CHAPTER_BRIEF_ASSET_IDS = ["style_contract"];
+/** Lean default: contract:style only. novel_sense/draft/tomato via method_get or brief_mode=full. */
+export const CHAPTER_BRIEF_ASSET_IDS = ["contract:style"];
 /** Full brief pack (explicit brief_mode=full). */
 export const CHAPTER_BRIEF_FULL_ASSET_IDS = [
   "novel_sense",
-  "style_contract",
+  "contract:style",
   "draft",
   "tomato_four_q",
 ];

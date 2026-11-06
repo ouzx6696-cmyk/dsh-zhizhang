@@ -1,4 +1,12 @@
 /** Shared MethodRegistry tools + chapter_brief (writing entry that injects craft packs). */
+import { WriterError } from "../../../../core/src/tool.js";
+import {
+  activeProfile,
+  profileDetail,
+  readMethod,
+  type ResolvedMethod,
+} from "../../../../core/src/profiles.js";
+import { fanqieLibrary } from "../../forge.js";
 import { coerceAxis } from "../ports/library/schema.js";
 import { contextBasis } from "../domain/lifecycle.js";
 import { buildPanelHints } from "../panel-query.js";
@@ -8,27 +16,56 @@ import { recordBriefBreadcrumb } from "../storage/work-records.js";
 import { resolvePrevChapter } from "../services/chapter-context.js";
 import { formatPlanningBrief } from "../domain/planning.js";
 import { InspirationPort, METHOD_ASSET_IDS, MethodRegistry, Scheduler } from "../ports/index.js";
-import { asString, asStringArray, boolArg, fail, openWork } from "./context.js";
+import { asString, asStringArray, boolArg, config, fail, openWork } from "./context.js";
 import { renderOutline, renderOutlineLean } from "./render.js";
 import { B, E, S, WORK_OPT, WORKING_DIR } from "./schema.js";
 import { defineTool } from "./types.js";
 /** Soft budget hint for lean brief (chars); not a hard truncate of model context. */
 const LEAN_BRIEF_BUDGET = 2500;
+/** 当前生效的方法方案：配置钉死 → 写作台切换记录 → 默认。 */
+function currentProfile() {
+  return activeProfile(fanqieLibrary.mode, config.profile);
+}
+/**
+ * 方案里读一份方法；方案没有这个 id（NOT_FOUND）或 id 不在方案 id 空间
+ * （如引擎合同 id 带冒号，方案 id 校验拒绝冒号）都返回 undefined，交给引擎资产兜底；其它错误原样抛。
+ */
+async function readFromProfile(profileId: string, id: string): Promise<ResolvedMethod | undefined> {
+  try {
+    return await readMethod(fanqieLibrary, profileId, id);
+  } catch (error) {
+    if (
+      error instanceof WriterError &&
+      (error.code === "NOT_FOUND" || error.code === "INVALID_ARGS")
+    )
+      return undefined;
+    throw error;
+  }
+}
+function formatProfileMethod(m: ResolvedMethod) {
+  return [`## 方法 · ${m.id}（方案「${m.profile_name}」）`, "", m.text].join("\n");
+}
 export function methodsTools() {
   return [
     defineTool({
       name: "fanqie_method_list",
       description:
-        "列出可按需加载的创作方法资产 id 与一句话适用场景（不含全文）。写 plan/draft/review/revise 前用 method_get 或 chapter_brief 拉取正文。",
+        "列出当前方法方案与引擎内置资产的全部方法 id（标注来源，不含全文）。取正文用 fanqie_method_get；开写某章用 fanqie_chapter_brief（默认 lean）。",
       properties: {},
       required: [],
       async execute() {
+        const profile = await currentProfile();
+        const detail = await profileDetail(fanqieLibrary, profile.id, config.profile);
         const rows = MethodRegistry.list();
         const lines = [
-          `# 长篇方法资产（按需注入）`,
-          `共 ${rows.length} 项。完整正文用 fanqie_method_get；开写某章用 fanqie_chapter_brief（默认 lean）。`,
+          `# 长篇方法（按需注入）`,
+          `方案「${profile.name}」${detail.methods.length} 项 · 引擎资产 ${rows.length} 项。完整正文用 fanqie_method_get；开写某章用 fanqie_chapter_brief（默认 lean）。`,
           "",
+          `## 方案（profile）· ${profile.name}`,
         ];
+        for (const m of detail.methods)
+          lines.push(`- \`${m.id}\`${m.title ? ` · ${m.title}` : ""}`);
+        lines.push("", "## 引擎资产（engine）");
         for (const r of rows) {
           lines.push(`- \`${r.id}\` · ${r.title} — ${r.whenToUse}`);
         }
@@ -38,13 +75,13 @@ export function methodsTools() {
     defineTool({
       name: "fanqie_method_get",
       description:
-        "按 id 拉取创作方法资产全文，注入当前上下文。ids 可为逗号分隔或字符串数组；未知 id 会列出但不中断已命中项。",
+        "按 id 取方法全文注入当前上下文：当前方法方案里的 id 优先（如 edit、write-chapter），否则查引擎资产（如 contract:style、novel_sense）。ids 可为逗号分隔或字符串数组；未知 id 会列出但不中断已命中项。",
       properties: {
         ids: {
           type: "string",
-          description: `资产 id，逗号分隔（也可传字符串数组）。可选：${METHOD_ASSET_IDS.join("、")}`,
+          description: `方法 id，逗号分隔（也可传字符串数组）。方案方法 id 用 fanqie_method_list 查看；引擎资产 id：${METHOD_ASSET_IDS.join("、")}`,
         },
-        id: S("单个资产 id（与 ids 二选一或并用）"),
+        id: S("单个方法 id（与 ids 二选一或并用）"),
       },
       required: [],
       async execute(args) {
@@ -61,27 +98,35 @@ export function methodsTools() {
         }
         const idArg = asString(args, "id");
         if (idArg) raw.push(idArg);
-        const cleaned = raw.map((s: string) => s.trim()).filter(Boolean);
-        if (cleaned.length === 0) {
-          fail(
-            `请传 ids 或 id。可用：${METHOD_ASSET_IDS.join("、")}。先 fanqie_method_list 查看说明。`,
-          );
+        const cleaned = [...new Set(raw.map((s: string) => s.trim()).filter(Boolean))];
+        if (cleaned.length === 0) fail("请传 ids 或 id。先 fanqie_method_list 查看全部方法。");
+        const profile = await currentProfile();
+        const parts = [];
+        const unknown = [];
+        for (const mid of cleaned) {
+          const fromProfile = await readFromProfile(profile.id, mid);
+          if (fromProfile) {
+            parts.push(formatProfileMethod(fromProfile));
+            continue;
+          }
+          const asset = MethodRegistry.get(mid);
+          if (asset) {
+            parts.push(MethodRegistry.formatForAgent(asset));
+            continue;
+          }
+          unknown.push(mid);
         }
-        const { found, missing } = MethodRegistry.getMany(cleaned);
-        if (found.length === 0) {
-          fail(`未知方法资产：${missing.join("、")}。可用：${METHOD_ASSET_IDS.join("、")}`);
-        }
-        const parts = found.map((a) => MethodRegistry.formatForAgent(a));
-        if (missing.length > 0) {
-          parts.push(`\n（未找到：${missing.join("、")}；已返回其余 ${found.length} 项）`);
-        }
+        if (parts.length === 0)
+          fail(`未知方法：${unknown.join("、")}。先 fanqie_method_list 查看全部方法。`);
+        if (unknown.length > 0)
+          parts.push(`（未找到：${unknown.join("、")}；已返回其余 ${parts.length} 项）`);
         return parts.join("\n\n---\n\n");
       },
     }),
     defineTool({
       name: "fanqie_chapter_brief",
       description:
-        "【闭环·写作】开写简报。默认 lean：只吃 craft（写法+状态）+ 幕 + 上一章正文（n≥2 全文）+ 毒点 + style_contract；保留关键经历和转向节点，不灌 mind/卡全文。card_ids 可来自 combo。下一步：创作 → candidate_stage → candidate_accept（内置扫描）。",
+        "【闭环·写作】开写简报。默认 lean：只吃 craft（写法+状态）+ 幕 + 上一章正文（n≥2 全文）+ 毒点 + contract:style；保留关键经历和转向节点，不灌 mind/卡全文。card_ids 可来自 combo。下一步：创作 → candidate_stage → candidate_accept（内置扫描）。",
       properties: {
         chapter: S("章节 id，如 c001（必填）"),
         work: WORK_OPT,
@@ -89,7 +134,7 @@ export function methodsTools() {
         brief_mode: E(["lean", "full"], "lean（默认）| full（卡全文+四方法包+节拍）"),
         handoff_only: B("只返回任务交接摘要，不附前章全文或方法全文"),
         include_body: B("是否附本章已存正文（默认 false）"),
-        extra_assets: S("额外方法资产 id，逗号分隔（lean 默认仅 style_contract）"),
+        extra_assets: S("额外方法资产 id，逗号分隔（lean 默认仅 contract:style）"),
         card_ids: {
           type: "array",
           description:
@@ -237,7 +282,7 @@ export function methodsTools() {
             lines.push("## 锁定（根基）", `- ${f.locks.trim()}`, "");
           }
           // 5) Slim method pack
-          lines.push("# 方法（lean · 仅 style_contract；其它用 method_get）");
+          lines.push("# 方法（lean · 仅 contract:style；其它用 fanqie_method_get）");
           for (const a of found) {
             lines.push("", MethodRegistry.formatForAgent(a));
           }

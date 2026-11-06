@@ -1,6 +1,6 @@
 import { isMissingFileError } from "../../core/src/fsx.js";
 import { PLANNER_TOOLS } from "../../core/src/tool-roles.js";
-/** 写作层工具：forge 方法、章纲检查、旧账对照、拆书测绘、引文核对、编辑审读回报。只读作品，不写正文。 */
+/** 写作层工具：章纲检查、旧账对照、拆书测绘、引文核对、编辑审读回报与方法方案管理。方法取用统一走引擎的 fanqie_method_get。 */
 import path from "node:path";
 import { stat } from "node:fs/promises";
 import {
@@ -11,8 +11,7 @@ import {
   type JsonSchemaNode,
 } from "../../core/src/tool.js";
 import { nowIso, resolveInside } from "../../core/src/fsx.js";
-import { bridge, fanqieLibrary, KEY_METHODS, listMethods, withTempFiles } from "./forge.js";
-import { activeProfile, profileDetail, readMethod } from "../../core/src/profiles.js";
+import { bridge, fanqieLibrary, withTempFiles } from "./forge.js";
 import { createProfileTool } from "../../core/src/profile-tool.js";
 import {
   HARD_CATEGORIES,
@@ -25,7 +24,6 @@ import {
 } from "./review.js";
 import { openWork, pickChapters, readChapter, type ChapterRecord } from "./works.js";
 import type { FanqieConfig } from "./config.js";
-import { getUserAsset, listUserAssets, USER_PREFIX } from "../../core/src/user-assets.js";
 
 export type Role = "writer" | "editor" | "planner";
 
@@ -43,7 +41,6 @@ const CHAPTER = S("章 id、标题或序号");
 
 /** 编辑角色可见的长篇工具 */
 const EDITOR_TOOLS = new Set([
-  "fanqie_forge_get",
   "fanqie_outline_check",
   "fanqie_ledger_check",
   "fanqie_review_report",
@@ -89,52 +86,6 @@ function outlineText(ch: ChapterRecord): string {
 export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
   const { config } = deps;
   const tools: ToolDefinition[] = [
-    defineWriterTool<{ id?: string }>({
-      name: "fanqie_forge_get",
-      description:
-        '取长篇方法（规划、拆书、写章、句面、节奏、连续性、编辑、修订、模板与示范），按当前方法方案读取（默认 / 原版 / 用户方案，见 fanqie_profile）。不给 id 返回当前方案目录；"list" 返回全部 id（含作者自备的 user:… 资产）。原版的 forge id（如 novel-writer/references/editor_method）会自动对应到默认方案里的同类方法；原版:id 强制读原件（原件前附工具对照表，落盘一律走长篇工具）。作者自备资产只作参考，与门禁冲突时以门禁为准。',
-      properties: {
-        id: S(
-          '方法 id，如 write-chapter、edit；作者自备用 user:相对路径；省略看当前方案目录，"list" 看全部',
-        ),
-      },
-      async run(args, exec) {
-        const id = args.id?.trim();
-        const cwd = exec.cwd;
-        const act = await activeProfile("fanqie", config.profile);
-        if (!id) {
-          if (act.id === "original" || (act.kind === "user" && act.base === "original"))
-            return { profile: act.name, key_methods: KEY_METHODS };
-          const d = await profileDetail(fanqieLibrary, act.id, config.profile);
-          return {
-            profile: act.name,
-            key_methods: Object.fromEntries(
-              d.methods.map((m) => [m.id, m.title ?? (m.added ? "作者新增" : "")]),
-            ),
-          };
-        }
-        if (id === "list") {
-          const d = await profileDetail(fanqieLibrary, act.id, config.profile);
-          const user = await listUserAssets(config.assets, cwd);
-          return {
-            profile: act.name,
-            profile_id: act.id,
-            methods: d.methods.map((m) => m.id),
-            original: act.id === "original" ? undefined : await listMethods(),
-            user: user.assets.map((a) => ({
-              id: a.id,
-              file: `${a.dir}/${a.file}`,
-              bytes: a.bytes,
-            })),
-            warnings: user.warnings,
-          };
-        }
-        if (id.startsWith(USER_PREFIX))
-          return { ...(await getUserAsset(config.assets, cwd, id)), source: "user" };
-        return { ...(await readMethod(fanqieLibrary, undefined, id, config.profile)) };
-      },
-    }),
-
     defineWriterTool<{ work?: string; chapters?: string; mode?: string }>({
       name: "fanqie_outline_check",
       description:
@@ -426,7 +377,7 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
 
     createProfileTool("fanqie_profile", fanqieLibrary, {
       pinned: config.profile,
-      methodTool: "fanqie_forge_get",
+      methodTool: "fanqie_method_get",
     }),
   ];
   return deps.role === "planner"

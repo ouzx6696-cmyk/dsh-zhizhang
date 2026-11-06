@@ -27,7 +27,7 @@ const QUALITY_AXES = [
   {
     id: "style",
     title: "AI腔",
-    craft: "style_contract（按需；brief 已默认加载）",
+    craft: "contract:style（按需；brief 已默认加载）",
     sensor: "StyleLinterPort（禁词/套话传感；≠质量过关）",
   },
 ];
@@ -65,7 +65,7 @@ export const QualityPolicy = {
     return CARD_JUDGMENT_LINE;
   },
   surfaceLine() {
-    return "质量面（一体）：人味←技法卡写法+状态+HumanFeel（反僵硬）；书感←读者合同+novel_sense+NovelSense；毒点←本政策+人味软雷达码；兑付←ending/payoff；AI腔←style_contract/lint。雷达 0 ≠ 质量过关。";
+    return "质量面（一体）：人味←技法卡写法+状态+HumanFeel（反僵硬）；书感←读者合同+novel_sense+NovelSense；毒点←本政策+人味软雷达码；兑付←ending/payoff；AI腔←contract:style/lint。雷达 0 ≠ 质量过关。";
   },
   poisonPolicyLine() {
     return QUALITY_POISON_POLICY;

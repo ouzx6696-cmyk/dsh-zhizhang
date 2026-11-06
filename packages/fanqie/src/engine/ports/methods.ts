@@ -12,7 +12,6 @@ import {
   METHOD_ASSET_IDS,
 } from "../method-assets.js";
 export const MethodRegistry = {
-  ids: METHOD_ASSET_IDS,
   briefDefaultIds: CHAPTER_BRIEF_ASSET_IDS,
   briefFullIds: CHAPTER_BRIEF_FULL_ASSET_IDS,
   list() {

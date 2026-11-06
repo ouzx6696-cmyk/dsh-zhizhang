@@ -69,7 +69,7 @@ export const ProductMap = {
       registry: "port.methods",
       count: MethodRegistry.list().length,
       briefDefaultIds: [...MethodRegistry.briefDefaultIds],
-      note: "共享方法包（≠拆书卡）。lean brief 默认仅 style_contract；full 为旁路 brief.full。",
+      note: "共享方法包（≠拆书卡）。lean brief 默认仅 contract:style；full 为旁路 brief.full。",
     };
   },
   formatForAgent() {

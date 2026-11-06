@@ -13,7 +13,6 @@ export const PLANNER_TOOLS = new Set([
   "fanqie_product_map",
   "fanqie_method_list",
   "fanqie_method_get",
-  "fanqie_forge_get",
   "fanqie_outline_check",
   "fanqie_ledger_check",
   "fanqie_library_scan",
