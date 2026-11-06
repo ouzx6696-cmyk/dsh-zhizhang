@@ -364,11 +364,10 @@ for (const scope of ["default", "original"]) {
 const config = JSON.parse(await readFile(path.resolve(configFile), "utf8"));
 if (!Array.isArray(config.newsUrls) || config.newsUrls.length < 2)
   throw new Error("请提供至少两个真实新闻链接");
-// --only 冒烟/重跑单个任务：只跑 default 方案下匹配 caseId 的用例，避免为连通性检查烧整套任务
+// --only 冒烟/连通性检查：只跑 default 方案下单个任务；任务分发按 caseId 门控，集合校验仍按完整模式算
 const only = flag("--only");
 const profiles = only ? ["default"] : ["default", "original"];
-if (only) plan = plan.filter((item) => item.caseId === only);
-if (only && plan.length === 0) throw new Error(`--only 没有匹配到任务：${only}`);
+if (only && !plan.caseIds.includes(only)) throw new Error(`--only 没有匹配到任务：${only}`);
 for (const model of Object.values(config.models))
   if (model) {
     model.apiKey = process.env[model.apiKeyEnv];
@@ -484,7 +483,8 @@ for (const profile of profiles) {
     }
   }
   try {
-    for (const [index, [genre, idea]] of headCases.entries())
+    for (const [index, [genre, idea]] of headCases.entries()) {
+      if (only && only !== "head-" + (index + 1)) continue;
       await run(
         "head-" + (index + 1),
         `头条 ${index + 1} ${genre}`,
@@ -492,20 +492,26 @@ for (const profile of profiles) {
         `新建并完成一篇${genre}：${idea}。本次新闻来源：${config.newsUrls.join("、")}。资讯事实须读取原网页，按当前方法方案推进至质检和交稿单；保留全部真实质检记录，不标记已交稿。`,
         { intent: "write" },
       );
+    }
     const planScope = { mode: "fanqie", root: novels };
     for (const book of plan.books) {
+      if (only && !(only === book.prefix + "-plan" || only.startsWith(book.prefix + "-c")))
+        continue;
       const previousWork = target.work;
-      await run(
-        book.prefix + "-plan",
-        `长篇开书${book.pace ? "（" + book.pace + "档）" : ""}`,
-        planScope,
-        `创建一本长篇，题材：${config.novelIdea}。${book.pace ? pacePromptLine(book.pace) : ""}使用规划角色完成根基与前 ${book.chapters} 章章纲，章号 ${book.chapterIds[0]} 到 ${book.chapterIds[book.chapterIds.length - 1]}；本轮只规划。`,
-        { intent: "plan" },
-      );
+      if (!only || only === book.prefix + "-plan")
+        await run(
+          book.prefix + "-plan",
+          `长篇开书${book.pace ? "（" + book.pace + "档）" : ""}`,
+          planScope,
+          `创建一本长篇，题材：${config.novelIdea}。${book.pace ? pacePromptLine(book.pace) : ""}使用规划角色完成根基与前 ${book.chapters} 章章纲，章号 ${book.chapterIds[0]} 到 ${book.chapterIds[book.chapterIds.length - 1]}；本轮只规划。`,
+          { intent: "plan" },
+        );
       // 每本书必须落到新作品；否则下一本的章节会写进上一本书，必须当场失败而不是混书。
-      if (target.work === previousWork) throw new Error("开书任务没有创建新作品：" + book.prefix);
+      if (!only && target.work === previousWork)
+        throw new Error("开书任务没有创建新作品：" + book.prefix);
       for (const [position, chapter] of book.chapterIds.entries()) {
-        if (position === 5) await sessions.newConversation(target);
+        if (only && only !== book.prefix + "-" + chapter) continue;
+        if (position === 5 && !only) await sessions.newConversation(target);
         await run(
           book.prefix + "-" + chapter,
           `长篇第 ${position + 1} 章${book.pace ? "（" + book.pace + "档）" : ""}`,
