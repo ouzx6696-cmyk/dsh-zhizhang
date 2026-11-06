@@ -3,6 +3,20 @@ import { mkdir, readFile, writeFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
+import {
+  aggregateLogs,
+  blindAssign,
+  bookOfCase,
+  casePlan,
+  describeMode,
+  finalizeSummary,
+  normalizeMode,
+  pacePromptLine,
+  profileMetric,
+  resolveMode,
+} from "./acceptance-lib.mjs";
+import { buildJudgePrompt, judgeSummary, parseJudgeOutput } from "../packages/core/eval/score.mjs";
+
 const repo = fileURLToPath(new URL("../", import.meta.url));
 const flag = (name) => {
   const i = process.argv.indexOf(name);
@@ -18,6 +32,14 @@ const headCases = [
   ["微头条", "围绕第一条给定新闻写微头条"],
   ["微头条", "围绕第二条给定新闻写微头条"],
 ];
+let mode = resolveMode({
+  matrix: process.argv.includes("--matrix"),
+  long: process.argv.includes("--long"),
+  finalizeTrack: process.argv.includes("--finalize-track"),
+  judge: process.argv.includes("--judge"),
+});
+let plan = casePlan(mode);
+const TASK_TIMEOUT_MS = (mode.long ? 30 : 15) * 60 * 1000;
 const template = {
   models: {
     writer: {
@@ -51,6 +73,14 @@ await mkdir(output, { recursive: true });
 const json = async (file) => JSON.parse(await readFile(path.join(output, file), "utf8"));
 const save = async (file, value) =>
   writeFile(path.join(output, file), JSON.stringify(value, null, 2));
+const readOptional = async (file) => {
+  try {
+    return JSON.parse(await readFile(file, "utf8"));
+  } catch (error) {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  }
+};
 const list = async (folder) => {
   try {
     return await readdir(folder, { withFileTypes: true });
@@ -64,10 +94,9 @@ const scores = () =>
     ["default", "original"].map((profile) => [
       profile,
       {
-        cases: [
-          ...headCases.map((_, i) => "head-" + (i + 1)),
-          ...Array.from({ length: 10 }, (_, i) => "novel-c" + String(i + 1).padStart(3, "0")),
-        ].map((id) => ({ id, readability: null, voice: null })),
+        cases: plan.caseIds
+          .filter((id) => !id.endsWith("-plan"))
+          .map((id) => ({ id, readability: null, voice: null })),
         continuityErrors: null,
         resumedWithoutExtraSetup: null,
         actualCost: null,
@@ -75,12 +104,6 @@ const scores = () =>
       },
     ]),
   );
-const chapterIds = Array.from({ length: 10 }, (_, i) => "c" + String(i + 1).padStart(3, "0"));
-const caseIds = [
-  ...headCases.map((_, i) => "head-" + (i + 1)),
-  "novel-plan",
-  ...chapterIds.map((id) => "novel-" + id),
-];
 let readers;
 async function artifact(profile, row) {
   readers ||= await Promise.all([
@@ -96,8 +119,8 @@ async function artifact(profile, row) {
     const draft = articles.currentDraft(meta);
     if (!draft || draft.rev !== row.revision) throw new Error("文章当前版本与任务记录不一致");
     const digest = (text) => createHash("sha256").update(text).digest("hex");
-    if (digest(await articles.readDraft(meta.id, draft.rev)) !== draft.sha256)
-      throw new Error("文章正文指纹不一致");
+    const draftText = await articles.readDraft(meta.id, draft.rev);
+    if (digest(draftText) !== draft.sha256) throw new Error("文章正文指纹不一致");
     const line = index === 3 || index === 4 ? "故事线" : "资讯线";
     const genre = index >= 5 ? "微头条" : "长图文";
     if (meta.line !== line || meta.genre !== genre) throw new Error("文章类别与指定任务不一致");
@@ -119,15 +142,17 @@ async function artifact(profile, row) {
           : null;
       }),
     );
-    return { article: meta, attempts };
+    return { article: meta, attempts, text: draftText };
   }
+  const book = bookOfCase(plan.books, row.caseId);
+  if (!book) throw new Error("任务编号不属于任何长篇任务组：" + row.caseId);
   if (!row.work) throw new Error("任务没有对应作品");
   const dir = await store.resolveWorkDir(
     { works: path.join(output, profile, "novels", "works") },
     row.work,
   );
-  if (row.caseId === "novel-plan") {
-    for (const id of chapterIds) {
+  if (row.caseId === book.prefix + "-plan") {
+    for (const id of book.chapterIds) {
       const chapter = await store.readChapter(dir, id);
       if (
         ![
@@ -149,7 +174,7 @@ async function artifact(profile, row) {
     }
     return { work: path.basename(dir) };
   }
-  const id = row.caseId.slice(6);
+  const id = row.caseId.slice(book.prefix.length + 1);
   if (row.chapter !== id) throw new Error("章节与任务编号不一致");
   const chapter = await store.readChapter(dir, id);
   if (!chapter.body.trim()) throw new Error("章节没有正文");
@@ -162,20 +187,45 @@ async function artifact(profile, row) {
     report.body_sha256 !== review.bodyFingerprint(chapter.body)
   )
     throw new Error("缺少独立编辑对当前正文的完整审读回报");
-  return { review: report };
+  return { review: report, title: chapter.title, text: chapter.body };
+}
+async function instrumentationFor(profile) {
+  const folder = path.join(output, profile, ".agent", "logs");
+  const names = (await list(folder))
+    .filter((row) => row.isFile() && row.name.endsWith(".jsonl"))
+    .map((row) => row.name)
+    .sort();
+  if (!names.length) return null;
+  const files = await Promise.all(
+    names.map(async (name) => ({
+      name,
+      lines: (await readFile(path.join(folder, name), "utf8")).split(/\r?\n/),
+    })),
+  );
+  return aggregateLogs(files);
+}
+async function judgeFor(profile) {
+  const judge = await readOptional(path.join(output, profile, "judge.json"));
+  return judge ? judgeSummary(judge.results) : null;
 }
 async function summarize() {
   const records = await json("run-records.json"),
     subjective = await json("subjective-scores.json"),
     metrics = [];
+  const texts = {};
   for (const profile of ["default", "original"]) {
     const rows = records.filter((row) => row.profile === profile),
       articles = [],
       reviews = [],
       issues = [];
-    const plan = rows.find((row) => row.caseId === "novel-plan");
-    const seenArticles = new Set();
-    for (const id of caseIds) {
+    let firstQaPass = 0,
+      twoQaPass = 0,
+      editorPass = 0,
+      hardIssues = 0;
+    const textsByCase = new Map(),
+      seenArticles = new Set();
+    const pass = (q) => q?.pass && q.score >= 84 && q.fail_count === 0 && q.hard_gates.length === 0;
+    for (const id of plan.caseIds) {
       const matches = rows.filter((row) => row.caseId === id);
       if (matches.length !== 1 || matches[0].state !== "completed") {
         issues.push(id + "：任务缺失、重复或未完成");
@@ -183,87 +233,89 @@ async function summarize() {
       }
       const row = matches[0];
       try {
-        if (id.startsWith("novel-c") && row.work !== plan?.work)
+        const book = bookOfCase(plan.books, row.caseId);
+        const planRow = book ? rows.find((other) => other.caseId === book.prefix + "-plan") : null;
+        if (book && row.caseId !== book.prefix + "-plan" && row.work !== planRow?.work)
           throw new Error("章节不属于本轮规划的同一本书");
         const result = await artifact(profile, row);
         if (result.article) {
           if (seenArticles.has(row.article)) throw new Error("同一文章被用于多个任务");
           seenArticles.add(row.article);
           articles.push(result);
+          if (pass(result.attempts[0])) firstQaPass++;
+          if (result.attempts.some(pass)) twoQaPass++;
         }
-        if (result.review) reviews.push(result.review);
+        if (result.review) {
+          reviews.push(result.review);
+          if (result.review.verdict === "通过" && result.review.reread_full) editorPass++;
+          hardIssues += result.review.hard_issues.length;
+        }
+        if (result.text)
+          textsByCase.set(id, {
+            kind: id.startsWith("head-") ? "article" : "chapter",
+            ...(result.title ? { title: result.title } : {}),
+            text: result.text,
+          });
       } catch (error) {
         issues.push(id + "：" + error.message);
       }
     }
-    if (rows.length !== caseIds.length || rows.some((row) => !caseIds.includes(row.caseId)))
-      issues.push("任务集合不等于约定的 18 项");
-    const pass = (q) => q?.pass && q.score >= 84 && q.fail_count === 0 && q.hard_gates.length === 0;
-    const author = subjective[profile],
-      graded = caseIds
-        .filter((id) => id !== "novel-plan")
-        .flatMap((id) => {
-          const matches = author.cases.filter((row) => row.id === id);
-          return matches.length === 1 &&
-            [matches[0].readability, matches[0].voice].every(
-              (score) => Number.isFinite(score) && score >= 1 && score <= 5,
-            )
-            ? matches
-            : [];
-        });
-    const item = {
-      profile,
-      issues,
-      articles: articles.length,
-      firstQaPassRate: articles.filter((article) => pass(article.attempts[0])).length / 7,
-      twoQaPassRate: articles.filter((article) => article.attempts.some(pass)).length / 7,
-      chapterReviews: reviews.length,
-      editorPassRate:
-        reviews.filter((review) => review.verdict === "通过" && review.reread_full).length / 10,
-      averageHardIssues: reviews.length
-        ? reviews.reduce((sum, review) => sum + review.hard_issues.length, 0) / reviews.length
-        : null,
-      tokens: records
-        .filter((row) => row.profile === profile)
-        .reduce((sum, row) => sum + (row.tokens || 0), 0),
-      cost: author.actualCost ?? null,
-      currency: author.currency,
-      authorScored: graded.length,
-      authorAverage:
-        graded.length === 17
-          ? graded.reduce((sum, row) => sum + (row.readability + row.voice) / 2, 0) / 17
-          : null,
-      continuityErrors: author.continuityErrors,
-      resumedWithoutExtraSetup: author.resumedWithoutExtraSetup,
-    };
-    item.automaticThresholdsMet =
-      !item.issues.length &&
-      item.articles === 7 &&
-      item.chapterReviews === 10 &&
-      item.firstQaPassRate >= 0.6 &&
-      item.twoQaPassRate >= 0.9 &&
-      item.editorPassRate >= 0.7 &&
-      item.averageHardIssues <= 1;
-    metrics.push(item);
+    if (
+      rows.length !== plan.caseIds.length ||
+      rows.some((row) => !plan.caseIds.includes(row.caseId))
+    )
+      issues.push("任务集合与所选模式约定不符（应为 " + plan.caseIds.length + " 项）");
+    texts[profile] = textsByCase;
+    const instrumentation = await instrumentationFor(profile),
+      judge = await judgeFor(profile);
+    metrics.push(
+      profileMetric({
+        profile,
+        plan,
+        author: subjective[profile],
+        issues,
+        articles: articles.length,
+        firstQaPass,
+        twoQaPass,
+        reviews: reviews.length,
+        editorPass,
+        hardIssues,
+        rows,
+        instrumentation,
+        judge,
+      }),
+    );
   }
   await save("metrics.json", metrics);
-  const complete =
-      records.length === 36 &&
-      records.every((row) => row.state === "completed") &&
-      metrics.every((row) => !row.issues.length),
-    human = metrics.every(
-      (row) =>
-        row.authorAverage !== null &&
-        Number.isInteger(row.continuityErrors) &&
-        row.continuityErrors <= 2 &&
-        row.resumedWithoutExtraSetup === true &&
-        row.cost !== null,
+  const { complete, human, passed } = finalizeSummary(metrics, records, plan);
+  const pairable = plan.caseIds.filter(
+    (id) => !id.endsWith("-plan") && texts.default.has(id) && texts.original.has(id),
+  );
+  if (pairable.length) {
+    const assignments = blindAssign(pairable, mode.round ?? "default");
+    await save(
+      "BLIND-PAIRS.json",
+      assignments.map(({ caseId, pairId, a, b }) => ({
+        pairId,
+        caseId,
+        A: texts[a].get(caseId),
+        B: texts[b].get(caseId),
+      })),
     );
-  const passed =
-    complete &&
-    human &&
-    metrics.every((row) => row.automaticThresholdsMet) &&
-    metrics[0].authorAverage >= metrics[1].authorAverage;
+    await save("BLIND-KEY.json", {
+      seed: mode.round ?? "default",
+      pairs: assignments.map(({ caseId, pairId, a, b }) => ({ pairId, caseId, A: a, B: b })),
+    });
+  }
+  const notes = [];
+  if (mode.finalizeTrack)
+    notes.push("本轨启用模拟作者确认（confirm 全部放行），run-records 各条已标 finalizeTrack。");
+  if (metrics.some((row) => row.instrumentation))
+    notes.push("方法交接、工具调用与上下文压缩的仪器统计见 metrics.json 的 instrumentation 节。");
+  if (metrics.some((row) => row.judge))
+    notes.push("读者评审分项见 metrics.json 的 judge 节与各方案 judge.json。");
+  if (pairable.length)
+    notes.push("成对盲评见 BLIND-PAIRS.json（A/B 匿名）；请评完再对照 BLIND-KEY.json 开 key。");
   await writeFile(
     path.join(output, "COMPARISON.md"),
     "# 默认与原版：真实执行记录\n\n|方案|文章数|首次质检过线|两次内过线|审读回报|编辑通过|平均硬伤|tokens|作者均分|\n|---|---:|---:|---:|---:|---:|---:|---:|---:|\n" +
@@ -273,20 +325,32 @@ async function summarize() {
             `|${row.profile}|${row.articles}|${(row.firstQaPassRate * 100).toFixed(1)}%|${(row.twoQaPassRate * 100).toFixed(1)}%|${row.chapterReviews}|${(row.editorPassRate * 100).toFixed(1)}%|${row.averageHardIssues ?? "无数据"}|${row.tokens}|${row.authorAverage ?? "待评分"}|`,
         )
         .join("\n") +
-      `\n\n记录完整：${complete ? "是" : "否"}；作者核验及实际费用完整：${human ? "是" : "否"}。${passed ? "达到计划建议线，仍由作者作最终判断。" : "尚不能判为通过，详见 metrics.json 中的缺项或未达线指标。"}\n\n单篇／单章用量见 run-records.json；费用由作者按服务商账单填写，不以 0 冒充未知费用。第 6 章前自动新对话，是否无需补充设定、连续性错误数由作者抽查。方法内容不因脚本结果自动改写。\n`,
+      `\n\n记录完整：${complete ? "是" : "否"}；作者核验及实际费用完整：${human ? "是" : "否"}。${passed ? "达到计划建议线，仍由作者作最终判断。" : "尚不能判为通过，详见 metrics.json 中的缺项或未达线指标。"}\n\n单篇／单章用量见 run-records.json；费用由作者按服务商账单填写，不以 0 冒充未知费用。第 6 章前自动新对话，是否无需补充设定、连续性错误数由作者抽查。方法内容不因脚本结果自动改写。\n` +
+      (notes.length ? "\n" + notes.join("\n") + "\n" : ""),
   );
   console.log("真实记录汇总完成：" + output);
 }
 if (process.argv.includes("--summarize")) {
+  // 汇总不重跑模型，模式以 --run 写下的 mode.json 为准；旧输出目录没有该文件，沿用本次参数。
+  const saved = await readOptional(path.join(output, "mode.json"));
+  if (saved) {
+    mode = normalizeMode(saved);
+    plan = casePlan(mode);
+  }
   await summarize();
   process.exit(0);
 }
 if (!process.argv.includes("--run")) {
   await save("acceptance-config.example.json", template);
   await save("subjective-scores.json", scores());
+  await save("mode.json", { ...mode, round: null });
   await writeFile(
     path.join(output, "STATUS.md"),
-    "# 真实模型验收\n\n状态：未执行。\n\n填入至少两个真实新闻链接，配置模型 Key 环境变量，然后显式执行：\n\n```sh\nnode scripts/acceptance.mjs --run --config 配置文件 --output 输出目录\n```\n\n默认与原版各完成 7 篇头条、一本 10 章长篇；第 6 章前开新对话。作者填写 subjective-scores.json 中的每篇评分、连续性错误数、接续判断和账单费用后，使用 --summarize --output 输出目录重新汇总，不重跑模型。未填或未完成的项目不视为通过。请使用新的输出目录，避免覆盖先前验收。\n",
+    "# 真实模型验收\n\n状态：未执行。\n\n默认与原版各完成 7 篇头条、一本 " +
+      plan.books[0].chapters +
+      " 章长篇（第 6 章前开新对话）。" +
+      describeMode(mode) +
+      "\n\n填入至少两个真实新闻链接，配置模型 Key 环境变量，然后显式执行：\n\n```sh\nnode scripts/acceptance.mjs --run --config 配置文件 --output 输出目录\n```\n\n可选模式：--matrix 另加快爽／稳推／慢燃三本 10 章对照长篇；--finalize-track 模拟作者确认定稿与交稿；--long 主书 30 章定稿轨（含定稿轨行为，单任务超时 30 分钟）；--judge 任务完成后由评审模型按读者标尺为每篇头条稿与每章正文打分。\n\n作者填写 subjective-scores.json 中的每篇评分、连续性错误数、接续判断和账单费用后，使用 --summarize --output 输出目录重新汇总（模式从输出目录的 mode.json 读取），不重跑模型。未填或未完成的项目不视为通过。请使用新的输出目录，避免覆盖先前验收。\n",
   );
   console.log("已生成未执行的验收任务与评分模板：" + output);
   process.exit(0);
@@ -307,9 +371,11 @@ for (const model of Object.values(config.models))
   }
 const { Sessions } = await import("../apps/desktop/out-test/session.mjs");
 const { normalizeModels } = await import("../apps/desktop/out-test/models.mjs");
+const { Diagnostics } = await import("../apps/desktop/out-test/diagnostics.mjs");
 const models = normalizeModels(config.models),
   all = [];
 await save("subjective-scores.json", scores());
+await save("mode.json", { ...mode, round: new Date().toISOString().slice(0, 10) });
 process.env.WRITER_TOUTIAO_SKILL_DIR = path.join(repo, "packages/toutiao/skill");
 process.env.WRITER_FANQIE_SKILL_DIR = path.join(repo, "packages/fanqie/skill");
 process.env.WRITER_TOUTIAO_DEFAULT_DIR = path.join(repo, "packages/toutiao/profiles/default");
@@ -321,21 +387,29 @@ for (const profile of ["default", "original"]) {
     toutiao = path.join(base, "toutiao");
   await Promise.all([home, novels, toutiao].map((folder) => mkdir(folder, { recursive: true })));
   process.env.WRITER_STATE_ROOT = home;
+  const diagnostics = new Diagnostics(home);
+  await diagnostics.init();
   let finish,
     target = { mode: "fanqie", root: novels };
-  const sessions = new Sessions(
+  const sessions = new Sessions({
     home,
-    process.env.WRITER_PYTHON || "python3",
-    () => models,
-    (event) => {
+    python: process.env.WRITER_PYTHON || "python3",
+    settings: () => models,
+    emit: (event) => {
       if (event.event?.type === "agent_settled" && !event.editor) finish?.();
     },
-    async () => false,
-    { fanqie: { profile }, toutiao: { profile } },
-    async (_previous, next) => {
-      target = next;
+    confirm: async () => mode.finalizeTrack,
+    options: { fanqie: { profile }, toutiao: { profile } },
+    // 头条任务也会回调 created；target 只跟踪长篇，避免头条作品顶掉后续长篇任务的落点。
+    created: async (_previous, next) => {
+      if (next.mode === "fanqie") target = next;
     },
-  );
+    extras: {
+      log: (event, fields) => {
+        void diagnostics.write(event, fields);
+      },
+    },
+  });
   async function run(caseId, name, scope, text, focus = {}) {
     const before =
       scope.mode === "toutiao"
@@ -346,8 +420,8 @@ for (const profile of ["default", "original"]) {
       done = new Promise((resolve, reject) => {
         finish = resolve;
         timer = setTimeout(
-          () => reject(new Error("任务超过 15 分钟，请核对保留的作品")),
-          15 * 60 * 1000,
+          () => reject(new Error(`任务超过 ${TASK_TIMEOUT_MS / 60000} 分钟，请核对保留的作品`)),
+          TASK_TIMEOUT_MS,
         );
       });
     try {
@@ -362,6 +436,7 @@ for (const profile of ["default", "original"]) {
         caseId,
         name,
         state: "completed",
+        ...(mode.finalizeTrack ? { finalizeTrack: true } : {}),
         scope: actual,
         work: actual.work,
         chapter: focus.chapter,
@@ -399,7 +474,7 @@ for (const profile of ["default", "original"]) {
       await save("run-records.json", all);
       await writeFile(
         path.join(output, "STATUS.md"),
-        `# 真实模型验收\n\n已记录 ${all.length} 项任务，其中失败 ${all.filter((item) => item.state === "failed").length} 项。未完成部分不得视为通过。作者评分、连续性抽查、真实费用待填写。\n`,
+        `# 真实模型验收\n\n已记录 ${all.length} 项任务，其中失败 ${all.filter((item) => item.state === "failed").length} 项。${describeMode(mode)}未完成部分不得视为通过。作者评分、连续性抽查、真实费用待填写。\n`,
       );
     }
   }
@@ -412,27 +487,107 @@ for (const profile of ["default", "original"]) {
         `新建并完成一篇${genre}：${idea}。本次新闻来源：${config.newsUrls.join("、")}。资讯事实须读取原网页，按当前方法方案推进至质检和交稿单；保留全部真实质检记录，不标记已交稿。`,
         { intent: "write" },
       );
-    await run(
-      "novel-plan",
-      "长篇开书",
-      target,
-      `创建一本长篇，题材：${config.novelIdea}。使用规划角色完成根基与前十章章纲，章号 c001 到 c010；本轮只规划。`,
-      { intent: "plan" },
-    );
-    for (let index = 1; index <= 10; index++) {
-      if (index === 6) await sessions.newConversation(target);
-      const chapter = "c" + String(index).padStart(3, "0");
+    const planScope = { mode: "fanqie", root: novels };
+    for (const book of plan.books) {
+      const previousWork = target.work;
       await run(
-        "novel-" + chapter,
-        `长篇第 ${index} 章`,
-        target,
-        `完成第 ${index} 章（${chapter}）：读实际前文与章纲，出候选、采纳为草稿并派独立编辑，运行 fanqie_ledger_check，以实际审读回报收尾，不替作者定稿。`,
-        { chapter, intent: "write" },
+        book.prefix + "-plan",
+        `长篇开书${book.pace ? "（" + book.pace + "档）" : ""}`,
+        planScope,
+        `创建一本长篇，题材：${config.novelIdea}。${book.pace ? pacePromptLine(book.pace) : ""}使用规划角色完成根基与前 ${book.chapters} 章章纲，章号 ${book.chapterIds[0]} 到 ${book.chapterIds[book.chapterIds.length - 1]}；本轮只规划。`,
+        { intent: "plan" },
       );
+      // 每本书必须落到新作品；否则下一本的章节会写进上一本书，必须当场失败而不是混书。
+      if (target.work === previousWork) throw new Error("开书任务没有创建新作品：" + book.prefix);
+      for (const [position, chapter] of book.chapterIds.entries()) {
+        if (position === 5) await sessions.newConversation(target);
+        await run(
+          book.prefix + "-" + chapter,
+          `长篇第 ${position + 1} 章${book.pace ? "（" + book.pace + "档）" : ""}`,
+          target,
+          `完成第 ${position + 1} 章（${chapter}）：读实际前文与章纲，出候选、采纳为草稿并派独立编辑，运行 fanqie_ledger_check，以实际审读回报收尾，${mode.finalizeTrack ? "审读通过后将本章定稿（final）。" : "不替作者定稿。"}`,
+          { chapter, intent: "write" },
+        );
+      }
     }
   } finally {
     await sessions.dispose();
   }
 }
+async function runJudge() {
+  if (!models.editor.apiKey)
+    throw new Error("读者评审需要 editor 模型凭据：请在 --config 中配置 models.editor");
+  const { runtimeModel } = await import("../apps/desktop/out-test/pi.mjs");
+  const rubrics = {
+    chapter: await readFile(path.join(repo, "packages/core/eval/judge-fanqie-chapter.md"), "utf8"),
+    article: await readFile(path.join(repo, "packages/core/eval/judge-toutiao-article.md"), "utf8"),
+  };
+  const settings = models.editor,
+    { runtime, model } = await runtimeModel(
+      settings,
+      path.join(output, ".judge-auth.json"),
+      "judge",
+    );
+  for (const profile of ["default", "original"]) {
+    const results = [],
+      failures = [];
+    for (const row of all.filter(
+      (item) => item.profile === profile && item.state === "completed",
+    )) {
+      if (row.caseId.endsWith("-plan")) continue;
+      const kind = row.caseId.startsWith("head-") ? "article" : "chapter";
+      const judged = await artifact(profile, row);
+      const answer = await runtime.completeSimple(
+        model,
+        {
+          messages: [
+            {
+              role: "user",
+              content: buildJudgePrompt(
+                kind === "chapter" ? rubrics.chapter : rubrics.article,
+                kind,
+                judged.title,
+                judged.text,
+              ),
+              timestamp: Date.now(),
+            },
+          ],
+        },
+        { maxTokens: settings.maxTokens },
+      );
+      if (answer.stopReason === "error") {
+        failures.push({ caseId: row.caseId, reason: answer.errorMessage || "评审模型返回错误" });
+        continue;
+      }
+      const text = answer.content
+        .filter((block) => block.type === "text")
+        .map((block) => block.text)
+        .join("");
+      try {
+        results.push({ caseId: row.caseId, kind, ...parseJudgeOutput(text, kind) });
+      } catch (error) {
+        // 评审输出解析失败是明确认识的降级：记录该 case 的失败原因并继续其余，不影响任务验收本身。
+        failures.push({ caseId: row.caseId, reason: String(error.message) });
+      }
+    }
+    await writeFile(
+      path.join(output, profile, "judge.json"),
+      JSON.stringify(
+        {
+          judgedAt: new Date().toISOString(),
+          model: { provider: settings.provider, model: settings.model },
+          results,
+          failures,
+        },
+        null,
+        2,
+      ),
+    );
+    console.log(
+      `读者评审完成（${profile}）：成功 ${results.length} 项，失败 ${failures.length} 项`,
+    );
+  }
+}
+if (mode.judge) await runJudge();
 await summarize();
 console.log("真实任务结束，待作者审阅、评分和费用核对。");
