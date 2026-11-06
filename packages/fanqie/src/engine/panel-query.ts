@@ -457,6 +457,18 @@ export async function buildPanelSnapshot(
           .map((v) => ({ chapterId: v.chapterId, revision: v.revision, at: v.at })),
       }
     : null;
+  // 改稿学习候选数（learn-task.ts 写 learn-pending.json）；缺文件或空时不出现在快照
+  let learnPendingCount = 0;
+  try {
+    const pending: unknown = JSON.parse(await readTextCached(path.join(dir, "learn-pending.json")));
+    if (pending && typeof pending === "object" && !Array.isArray(pending)) {
+      const items = (pending as { items?: unknown }).items;
+      learnPendingCount = Array.isArray(items) ? items.length : 0;
+    }
+  } catch (error) {
+    if ((error as { code?: string }).code !== "ENOENT") throw error;
+  }
+
   const ledgerRecent = ledger.entries.slice(-12).map((e) => ({
     id: e.id,
     at: e.at,
@@ -492,6 +504,7 @@ export async function buildPanelSnapshot(
     nextHints,
     panelHints,
     product,
+    ...(learnPendingCount > 0 ? { learnPending: learnPendingCount } : {}),
     ...(continuityPatrolResult ? { continuityView: continuityPatrolResult.view } : {}),
     ...(library ? { library } : {}),
     ...(inspiration ? { inspiration } : {}),

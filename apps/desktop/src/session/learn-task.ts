@@ -10,6 +10,7 @@ import { promptWithSignal } from "./pi-adapter";
 import type { Target } from "../context";
 import { accumulateChildUsage } from "./editor-task";
 import { resolveFanqieWork } from "../main/storage";
+import { AUTHOR_PANEL_SAVE_SUMMARY } from "../../../../packages/fanqie/src/workbench/api";
 import {
   atomicWrite,
   localDay,
@@ -213,7 +214,7 @@ export function parsePending(value: unknown, file: string): LearnPending {
 
 /** 番茄作者改稿的识别标记（fanqie 写作台阅读面板保存正文的 ledgerEntry 原文，
  * 见 packages/fanqie/src/workbench/api.ts 的 saveChapter 路由）。 */
-const AUTHOR_PANEL_SAVE = "作者在阅读面板保存正文";
+const AUTHOR_PANEL_SAVE = AUTHOR_PANEL_SAVE_SUMMARY;
 /** ledger 条目与 revisionImpacts 留底按时间对齐的容差（同一保存事务内的两次 nowIso）。 */
 const IMPACT_MATCH_MS = 2000;
 

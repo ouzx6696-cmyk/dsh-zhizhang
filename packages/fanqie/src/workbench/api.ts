@@ -40,6 +40,9 @@ import { runPanelAccept } from "./accept.js";
 import { panelPaths, resolveHttpPaths } from "./paths.js";
 import { prepareUnifyBrief } from "./unify.js";
 
+/** 作者在写作台阅读面板保存正文时写入 ledger 的固定摘要；改稿学习据此识别作者改动（learn-task.ts 引用） */
+export const AUTHOR_PANEL_SAVE_SUMMARY = "作者在阅读面板保存正文";
+
 type RouteHandler = (ctx: RouteContext) => Promise<unknown>;
 type ProjectRequest = { ctx: RouteContext; input: Record<string, unknown>; paths: StoragePaths };
 type WorkRequest = ProjectRequest & { workKey: string; dir: string };
@@ -289,7 +292,7 @@ function routesFor(config: PluginConfig): Record<string, RouteHandler> {
           body,
           expectedRevision,
           force: boolArg(input, "force"),
-          ledgerEntry: "作者在阅读面板保存正文",
+          ledgerEntry: AUTHOR_PANEL_SAVE_SUMMARY,
         });
         return ctx.json(200, {
           ok: true,
