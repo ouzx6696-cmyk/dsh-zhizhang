@@ -362,16 +362,24 @@ if (!process.argv.includes("--run")) {
 }
 const configFile = flag("--config");
 if (!configFile) throw new Error("真实验收须显式提供 --config");
-for (const scope of ["default", "original"]) {
-  if ((await list(path.join(output, scope))).length)
-    throw new Error(`输出目录已有验收作品（${scope}），请使用新的 --output，避免混入旧记录`);
-}
+// --resume 断点续跑：输出目录是上一轮（可能因端点故障中断）的同一轮，已完成任务不重跑，
+// 失败任务重试；无 --resume 时保持"必须空目录"防混入旧记录
+const resume = process.argv.includes("--resume");
+if (!resume)
+  for (const scope of ["default", "original"]) {
+    if ((await list(path.join(output, scope))).length)
+      throw new Error(`输出目录已有验收作品（${scope}），请使用新的 --output，避免混入旧记录`);
+  }
 const config = JSON.parse(await readFile(path.resolve(configFile), "utf8"));
 if (!Array.isArray(config.newsUrls) || config.newsUrls.length < 2)
   throw new Error("请提供至少两个真实新闻链接");
 // 中转端点可能有冷启动失败与零星空响应，单任务预算按端点实况放宽（默认仍 15/30 分钟）
 if (config.taskTimeoutMinutes !== undefined) {
-  if (typeof config.taskTimeoutMinutes !== "number" || !Number.isFinite(config.taskTimeoutMinutes) || config.taskTimeoutMinutes <= 0)
+  if (
+    typeof config.taskTimeoutMinutes !== "number" ||
+    !Number.isFinite(config.taskTimeoutMinutes) ||
+    config.taskTimeoutMinutes <= 0
+  )
     throw new Error("taskTimeoutMinutes 须为正数（分钟）");
   TASK_TIMEOUT_MS = config.taskTimeoutMinutes * 60 * 1000;
 }
@@ -387,8 +395,18 @@ for (const model of Object.values(config.models))
 const { Sessions } = await import("../apps/desktop/out-test/session.mjs");
 const { normalizeModels } = await import("../apps/desktop/out-test/models.mjs");
 const { Diagnostics } = await import("../apps/desktop/out-test/diagnostics.mjs");
+// 续跑一致性：模式参数必须与上一轮一致，已完成任务跳过，失败任务重试并替换旧失败记录
+const prior = resume ? ((await readOptional(path.join(output, "run-records.json"))) ?? []) : [];
+if (resume) {
+  const savedMode = await readOptional(path.join(output, "mode.json"));
+  if (savedMode && JSON.stringify(normalizeMode(savedMode)) !== JSON.stringify(normalizeMode(mode)))
+    throw new Error("--resume 的输出目录 mode.json 与本次参数不一致，请用新 --output");
+}
+const completedKeys = new Set(
+  prior.filter((row) => row.state === "completed").map((row) => `${row.profile}:${row.caseId}`),
+);
 const models = normalizeModels(config.models),
-  all = [];
+  all = prior;
 await save("subjective-scores.json", scores());
 await save("mode.json", { ...mode, round: new Date().toISOString().slice(0, 10) });
 process.env.WRITER_TOUTIAO_SKILL_DIR = path.join(repo, "packages/toutiao/skill");
@@ -429,6 +447,13 @@ for (const profile of profiles) {
   const breaker = () => {
     if (consecutiveFailures >= 3)
       throw new Error("连续 3 个任务失败，停止本轮验收：请检查模型端点与配置后用新 --output 重跑");
+  };
+  const replaceStale = (caseId, entry) => {
+    const stale = all.findIndex(
+      (row) => row.profile === profile && row.caseId === caseId && row.state === "failed",
+    );
+    if (stale >= 0) all.splice(stale, 1);
+    all.push(entry);
   };
   async function run(caseId, name, scope, text, focus = {}) {
     const before =
@@ -476,11 +501,11 @@ for (const profile of profiles) {
         ).current_rev;
       }
       await artifact(profile, record);
-      all.push(record);
+      replaceStale(caseId, record);
       consecutiveFailures = 0;
     } catch (error) {
       await sessions.stop(scope);
-      all.push({
+      replaceStale(caseId, {
         profile,
         caseId,
         name,
@@ -503,6 +528,7 @@ for (const profile of profiles) {
   try {
     for (const [index, [genre, idea]] of headCases.entries()) {
       if (only && only !== "head-" + (index + 1)) continue;
+      if (completedKeys.has(profile + ":head-" + (index + 1))) continue;
       await run(
         "head-" + (index + 1),
         `头条 ${index + 1} ${genre}`,
@@ -517,7 +543,11 @@ for (const profile of profiles) {
       if (only && !(only === book.prefix + "-plan" || only.startsWith(book.prefix + "-c")))
         continue;
       const previousWork = target.work;
-      if (!only || only === book.prefix + "-plan") {
+      let planRan = false;
+      if (
+        (!only || only === book.prefix + "-plan") &&
+        !completedKeys.has(profile + ":" + book.prefix + "-plan")
+      ) {
         await run(
           book.prefix + "-plan",
           `长篇开书${book.pace ? "（" + book.pace + "档）" : ""}`,
@@ -526,12 +556,23 @@ for (const profile of profiles) {
           { intent: "plan" },
         );
         breaker();
+        planRan = true;
+      } else if (completedKeys.has(profile + ":" + book.prefix + "-plan")) {
+        // 续跑跳过开书：从上一轮记录恢复本书落点，避免章节写进别的作品
+        const planRecord = prior.find(
+          (row) =>
+            row.profile === profile &&
+            row.caseId === book.prefix + "-plan" &&
+            row.state === "completed",
+        );
+        if (planRecord?.work) target = { mode: "fanqie", root: novels, work: planRecord.work };
       }
       // 每本书必须落到新作品；否则下一本的章节会写进上一本书，必须当场失败而不是混书。
-      if (!only && target.work === previousWork)
+      if (planRan && !only && target.work === previousWork)
         throw new Error("开书任务没有创建新作品：" + book.prefix);
       for (const [position, chapter] of book.chapterIds.entries()) {
         if (only && only !== book.prefix + "-" + chapter) continue;
+        if (completedKeys.has(profile + ":" + book.prefix + "-" + chapter)) continue;
         if (position === 5 && !only) await sessions.newConversation(target);
         await run(
           book.prefix + "-" + chapter,
