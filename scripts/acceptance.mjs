@@ -399,7 +399,9 @@ const { Diagnostics } = await import("../apps/desktop/out-test/diagnostics.mjs")
 const prior = resume ? ((await readOptional(path.join(output, "run-records.json"))) ?? []) : [];
 if (resume) {
   const savedMode = await readOptional(path.join(output, "mode.json"));
-  if (savedMode && JSON.stringify(normalizeMode(savedMode)) !== JSON.stringify(normalizeMode(mode)))
+  // 只比四个模式布尔：round 是写入时的日期，不参与一致性判定
+  const modeKeys = ["matrix", "long", "finalizeTrack", "judge"];
+  if (savedMode && modeKeys.some((key) => normalizeMode(savedMode)[key] !== mode[key]))
     throw new Error("--resume 的输出目录 mode.json 与本次参数不一致，请用新 --output");
 }
 const completedKeys = new Set(
