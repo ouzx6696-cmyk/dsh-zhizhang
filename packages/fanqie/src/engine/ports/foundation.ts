@@ -6,7 +6,8 @@
  * 基元（末拍/宽松重叠）来自 domain/ending-consistency：happened 选材是
  * 「宽松选择」而非质量判定——payoff 审计与读者合同的严格评分同在那个模块。
  */
-import { readWorkMeta, appendHappenedLine } from "../work-store.js";
+import { readWorkMeta, appendHappenedLine, setFoundation } from "../work-store.js";
+import { withResourceLock } from "../storage/process-lock.js";
 import { bodyTailOf, endingBodyOverlap } from "../domain/ending-consistency.js";
 import { formatChapterOutcomeLine, resolveHappenedText } from "../domain/foundation-outcome.js";
 const extractBodyOutcome = bodyTailOf;
@@ -39,6 +40,17 @@ export const FoundationPort = {
       return { meta, appended: false, line: "", reason: "empty_text" };
     }
     return appendHappenedLine(dir, chapterId, line, input.replace === true);
+  },
+  /**
+   * 文风卡采纳追加 foundation.style（带日期与来源卡号的条目由调用方拼好）。
+   * 追加语义：作者或 foundation_set 写入的既有文风约束原样保留；同一把作品锁内读改写。
+   */
+  async appendStyleCard(dir: string, entry: string) {
+    return withResourceLock(dir, async () => {
+      const meta = await readWorkMeta(dir);
+      const previous = meta.foundation.style.trimEnd();
+      return setFoundation(dir, { style: previous ? `${previous}\n\n${entry}` : entry });
+    });
   },
   /**
    * Candidate adoption updates working continuity; happened remains author material.

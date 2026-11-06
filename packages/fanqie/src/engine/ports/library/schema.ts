@@ -572,7 +572,18 @@ export function formatModuleBlockV2(card: TechniqueCard) {
     ...(Array.isArray(card.bannedDiction) && card.bannedDiction.length
       ? [`- 禁用词句：${card.bannedDiction.join("、")}`]
       : []),
+    ...formatStyleSectionsLines(card),
   ].join("\n");
+}
+/** 文风卡三段式 + 迁移试写的注入行；非文风卡或字段为空时不产出行。 */
+function formatStyleSectionsLines(card: TechniqueCard): string[] {
+  const lines: string[] = [];
+  if (card.styleMust?.length) lines.push(`- 必须贯彻：${card.styleMust.join("；")}`);
+  if (card.styleForbidden?.length) lines.push(`- 绝对禁止：${card.styleForbidden.join("；")}`);
+  if (card.styleSceneAdjust?.length)
+    lines.push(`- 按场景调节：${card.styleSceneAdjust.join("；")}`);
+  if (card.transferSample?.trim()) lines.push(`- 迁移试写：${card.transferSample.trim()}`);
+  return lines;
 }
 export function formatTechniqueCardBlock(card: TechniqueCard) {
   const axis = coerceAxis(card);
@@ -700,5 +711,32 @@ export function formatTechniqueCardBlockLean(card: TechniqueCard) {
   if (adjacent) lines.push(`- 相邻换戏：${adjacent}`);
   if (Array.isArray(card.mustNotCopy) && card.mustNotCopy.length)
     lines.push(`- 不可照搬：${card.mustNotCopy.join("、")}`);
+  lines.push(...formatStyleSectionsLines(card));
   return lines.join("\n");
+}
+/**
+ * 文风卡（dimension=prose）采纳后追加进 foundation.style 的条目；非文风卡返回空串。
+ * prose 卡经 validateModule 保证三段+试写齐全；缺段时如实报错而不是静默跳过落盘。
+ */
+export function styleCardFoundationEntry(card: TechniqueCard): string {
+  if (card.dimension !== "prose") return "";
+  const sections = [
+    ["必须贯彻", card.styleMust ?? []],
+    ["绝对禁止", card.styleForbidden ?? []],
+    ["按场景调节", card.styleSceneAdjust ?? []],
+  ] as const;
+  const missing = sections.filter(([, items]) => items.length === 0).map(([label]) => label);
+  const sample = card.transferSample?.trim() ?? "";
+  if (missing.length || !sample)
+    throw new NovelError(
+      "bad_module",
+      `文风卡 ${card.id} 缺${missing.length ? missing.join("、") : "迁移试写"}，不能写入文风根基`,
+    );
+  const date = new Date().toISOString().slice(0, 10);
+  return [
+    `【文风卡 ${card.id} · ${date}】${card.title}`,
+    ...sections.map(([label, items]) => [`${label}：`, ...items.map((item) => `- ${item}`)]).flat(),
+    "迁移试写（原创演示，禁止复述原书句子）：",
+    sample,
+  ].join("\n");
 }

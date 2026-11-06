@@ -77,6 +77,10 @@ export function parseStageCardArgs(args: Record<string, unknown>): StageCardInpu
     mustNotCopy: asStringArray(args, "mustNotCopy"),
     steps: asStringArray(args, "steps"),
     bannedDiction: asStringArray(args, "bannedDiction"),
+    styleMust: asStringArray(args, "styleMust"),
+    styleForbidden: asStringArray(args, "styleForbidden"),
+    styleSceneAdjust: asStringArray(args, "styleSceneAdjust"),
+    transferSample: asString(args, "transferSample"),
     evidence,
   };
 }

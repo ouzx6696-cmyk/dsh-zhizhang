@@ -8,7 +8,7 @@ import { openLibrary } from "./context.js";
 export const libraryCardStage = defineTool({
   name: "fanqie_library_card_stage",
   description:
-    "【闭环·库 6/9 出卡】暂存卡。v2 模块须 layer+dimension+readerWant/emotionArc/dramaticUnit/replaceables/mustNotCopy/transfer/failWhen+evidence；可选 steps（三步公式）/bannedDiction（反AI腔词表）。旧卡仍走 axis+mechanisms+body。下一步：读软警告 → card_accept。",
+    "【闭环·库 6/9 出卡】暂存卡。v2 模块须 layer+dimension+readerWant/emotionArc/dramaticUnit/replaceables/mustNotCopy/transfer/failWhen+evidence；可选 steps（三步公式）/bannedDiction（反AI腔词表）。文风卡（dimension=prose）另须文风逆向三段 styleMust/styleForbidden/styleSceneAdjust（各≥1 条）+ transferSample（200–300 字迁移试写，原创演示该书文风用到全新内容，禁止复述原书句子）。旧卡仍走 axis+mechanisms+body。下一步：读软警告 → card_accept。",
   properties: {
     title: S("技法卡标题"),
     source: S("来源 sourceId"),
@@ -24,6 +24,27 @@ export const libraryCardStage = defineTool({
       items: S("禁用词句"),
       description: "可选：反AI腔词表（如 恐怖如斯/空气仿佛凝固）",
     },
+    styleMust: {
+      type: "array",
+      items: S("一条必须贯彻的文风约束"),
+      description:
+        "文风卡（dimension=prose）必填：必须贯彻——从拆书证据提炼、迁移后仍要执行的硬约束（至少 1 条）",
+    },
+    styleForbidden: {
+      type: "array",
+      items: S("一条绝对禁止的写法"),
+      description:
+        "文风卡（dimension=prose）必填：绝对禁止——该书文风里照搬必然出错或构成抄袭的做法（至少 1 条）",
+    },
+    styleSceneAdjust: {
+      type: "array",
+      items: S("一条按场景调节的规则"),
+      description:
+        "文风卡（dimension=prose）必填：按场景调节——同一文风在不同场景（对话/打斗/抒情）下的松紧变化（至少 1 条）",
+    },
+    transferSample: S(
+      "文风卡（dimension=prose）必填：迁移试写——200–300 字原创片段，演示把该书文风用到全新内容上；禁止复述原书句子",
+    ),
     mechanisms: {
       type: "array",
       description: "机制数组：[{name,experience,rebuild,discard,failWhen}]",

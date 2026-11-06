@@ -30,6 +30,7 @@ import { buildPanelSnapshot } from "../../build/fanqie/src/engine/panel-query.js
 import { readWorkMeta } from "../../build/fanqie/src/engine/storage/work-meta.js";
 import { methodsTools } from "../../build/fanqie/src/engine/tools/methods.js";
 import { inspirationTools } from "../../build/fanqie/src/engine/tools/inspiration.js";
+import { latestReview } from "../../build/fanqie/src/review.js";
 import { VERSION } from "../../build/core/src/version.js";
 import { patrolRhythm } from "../../build/fanqie/src/engine/rhythm-patrol.js";
 import { withPortConfig } from "../../build/fanqie/src/engine/ports/config.js";
@@ -734,6 +735,219 @@ test("暂存后书源元数据缺失：采纳报 source_not_found 且候选保�
     const out = await f.run("fanqie_library_card_accept", { candidate: candId });
     assert.match(out, /错误\[source_not_found\]/);
     assert.equal((await LibraryPort.getCandidate(f.paths, candId)).status, "drafted");
+  } finally {
+    await f.close();
+  }
+});
+
+// —— T14 文风卡三段式 + 迁移试写 ——
+/** 23 字 × 10 = 230 字：落在迁移试写 200–300 字区间内的原创演示片段。 */
+const TRIAL_SAMPLE = "他把伞尖抵住门槛，先听雨声，再决定要不要开口。".repeat(10);
+function styleCardInput(sourceId) {
+  return {
+    ...cardInput(sourceId),
+    source: sourceId,
+    title: "雨夜收束式开场",
+    dimension: "prose",
+    body: "短句起势，物件承接，抒情延后。",
+    readerWant: "雨夜悬念怎么起",
+    emotionArc: "压着到松一口气",
+    dramaticUnit: "借物写雨夜",
+    replaceables: ["雨夜", "物件"],
+    mustNotCopy: ["原书桥段"],
+    transfer: "把物件承接用于任何场景开场",
+    styleMust: ["先给可核对的具体物，再给情绪"],
+    styleForbidden: ["连用三句以上排比抒情"],
+    styleSceneAdjust: ["对话场景短句可放宽到口语"],
+    transferSample: TRIAL_SAMPLE,
+  };
+}
+
+test("T14 文风卡：三段式缺段或迁移试写字数越界报错不静默，齐全则暂存入库", async () => {
+  const f = await setup();
+  try {
+    const { sourceId } = await LibraryPort.importSource(f.paths, { title: "参考书", text: BOOK });
+    const missing = await f.run("fanqie_library_card_stage", {
+      ...styleCardInput(sourceId),
+      styleMust: [],
+      styleSceneAdjust: undefined,
+    });
+    assert.match(missing, /错误\[bad_module\]/);
+    assert.match(missing, /文风卡 styleMust 不能为空（必须贯彻，至少 1 条）/);
+    assert.match(missing, /文风卡 styleSceneAdjust 不能为空（按场景调节，至少 1 条）/);
+    const short = await f.run("fanqie_library_card_stage", {
+      ...styleCardInput(sourceId),
+      transferSample: TRIAL_SAMPLE.slice(0, 69),
+    });
+    assert.match(short, /错误\[bad_module\]/);
+    assert.match(short, /文风卡 transferSample 须 200–300 字（现 69 字）/);
+    const long = await f.run("fanqie_library_card_stage", {
+      ...styleCardInput(sourceId),
+      transferSample: TRIAL_SAMPLE + "他又把伞收了回去。".repeat(10),
+    });
+    assert.match(long, /错误\[bad_module\]/);
+    assert.match(long, /文风卡 transferSample 须 200–300 字（现 320 字）/);
+    const staged = await f.run("fanqie_library_card_stage", styleCardInput(sourceId));
+    const candId = id(staged, /(lcand-[a-z0-9]+)/);
+    const cand = await LibraryPort.getCandidate(f.paths, candId);
+    assert.deepEqual(cand.styleMust, ["先给可核对的具体物，再给情绪"]);
+    assert.equal(cand.transferSample.length, 230);
+    // 普通卡（hook 维度）不要求三段式，原路径不受影响
+    assert.match(
+      await f.run("fanqie_library_card_stage", { ...cardInput(sourceId), source: sourceId }),
+      /卡候选已暂存/,
+    );
+  } finally {
+    await f.close();
+  }
+});
+
+test("T14 文风卡采纳：三段+试写带日期与卡号追加进 foundation.style，既有文风保留；普通卡不动根基", async () => {
+  const f = await setup();
+  try {
+    const { sourceId } = await LibraryPort.importSource(f.paths, { title: "参考书", text: BOOK });
+    const candId = id(
+      await f.run("fanqie_library_card_stage", styleCardInput(sourceId)),
+      /(lcand-[a-z0-9]+)/,
+    );
+    const { dir, meta } = await createWork(f.paths, { title: "文风作品" });
+    await setFoundation(dir, { style: "既有约束：短句收束。" });
+    const out = await f.run("fanqie_library_card_accept", { candidate: candId, work: meta.key });
+    assert.match(out, /已采纳技法卡「雨夜收束式开场」/);
+    assert.match(out, /文风三段\+迁移试写已追加进作品「文风作品」foundation\.style/);
+    const after = await readWorkMeta(dir);
+    assert.match(
+      after.foundation.style,
+      /^既有约束：短句收束。\n\n【文风卡 card-[a-z0-9]+ · \d{4}-\d{2}-\d{2}】雨夜收束式开场\n必须贯彻：\n- 先给可核对的具体物，再给情绪\n绝对禁止：\n- 连用三句以上排比抒情\n按场景调节：\n- 对话场景短句可放宽到口语\n迁移试写（原创演示，禁止复述原书句子）：\n/,
+    );
+    assert.ok(after.foundation.style.includes(TRIAL_SAMPLE));
+    // 普通卡（hook 维度）采纳：不解析作品、不写根基
+    const craftId = id(
+      await f.run("fanqie_library_card_stage", { ...cardInput(sourceId), source: sourceId }),
+      /(lcand-[a-z0-9]+)/,
+    );
+    assert.match(
+      await f.run("fanqie_library_card_accept", { candidate: craftId }),
+      /已采纳技法卡「差数引出疑问」/,
+    );
+    assert.equal((await readWorkMeta(dir)).foundation.style, after.foundation.style);
+  } finally {
+    await f.close();
+  }
+});
+
+test("T14 文风卡采纳缺目标作品：报 no_work，不静默跳过根基写入", async () => {
+  const f = await setup();
+  try {
+    const { sourceId } = await LibraryPort.importSource(f.paths, { title: "参考书", text: BOOK });
+    const candId = id(
+      await f.run("fanqie_library_card_stage", styleCardInput(sourceId)),
+      /(lcand-[a-z0-9]+)/,
+    );
+    const out = await f.run("fanqie_library_card_accept", { candidate: candId });
+    assert.match(out, /错误\[no_work\]：还没有作品/);
+    assert.equal((await LibraryPort.getCandidate(f.paths, candId)).status, "drafted");
+  } finally {
+    await f.close();
+  }
+});
+
+test("T14 lean 简报：foundation.style 全文带入，超 1500 字软上限截断并注明；full 不截断", async () => {
+  const f = await setup();
+  try {
+    const { dir, meta } = await createWork(f.paths, { title: "截断作品" });
+    await setOutline(dir, "c001", { ending: "门开了" }, "第一章");
+    await setFoundation(dir, { style: "短".repeat(1600) });
+    const lean = await f.run("fanqie_chapter_brief", { work: meta.key, chapter: "c001" });
+    assert.match(lean, /## 本书有效讲法/);
+    assert.ok(lean.includes("短".repeat(1500)));
+    assert.ok(!lean.includes("短".repeat(1501)));
+    assert.match(lean, /（超过 1500 字软上限，已截断；完整文风约束用 fanqie_foundation_get 查看）/);
+    const full = await f.run("fanqie_chapter_brief", {
+      work: meta.key,
+      chapter: "c001",
+      brief_mode: "full",
+    });
+    assert.ok(full.includes("短".repeat(1600)));
+    assert.doesNotMatch(full, /超过 1500 字软上限/);
+    await setFoundation(dir, { style: "短句收束，少用成语。" });
+    const small = await f.run("fanqie_chapter_brief", { work: meta.key, chapter: "c001" });
+    assert.match(small, /短句收束，少用成语。/);
+    assert.doesNotMatch(small, /软上限/);
+  } finally {
+    await f.close();
+  }
+});
+
+// —— T15 编辑审读读者标尺附表 ——
+const RULER_ITEMS = [
+  "期待清楚",
+  "局面改变",
+  "本章变化",
+  "兑现在场",
+  "对手",
+  "章末",
+  "接续",
+  "人味",
+  "追读意愿",
+];
+const RULER9 = RULER_ITEMS.map((item, index) => ({
+  item,
+  score: (index % 5) + 1,
+  evidence: `${item}的一句证据。`,
+}));
+function rulerReviewBase(meta) {
+  return {
+    work: meta.key,
+    chapter: "c001",
+    verdict: "通过",
+    hard_issues: [],
+    levels: [],
+    reread_full: true,
+    changed_scope: "未改",
+  };
+}
+
+test("T15 review_report：readers_ruler 可选附表——九项齐全才收，缺省不附，附上则落盘并在回执渲染", async () => {
+  const f = await setup();
+  try {
+    const { dir, meta } = await createWork(f.paths, { title: "标尺作品" });
+    await setOutline(dir, "c001", { ending: "门开了" }, "第一章");
+    await updateChapter(dir, { id: "c001", title: "站台", body: "林川把票递到窗口，售票员没接。" });
+    const base = rulerReviewBase(meta);
+    const incomplete = await f.run("fanqie_review_report", {
+      ...base,
+      readers_ruler: [RULER9[0]],
+    });
+    assert.match(incomplete, /readers_ruler 须正好 9 项（九项齐全，不重复）/);
+    const unknown = await f.run("fanqie_review_report", {
+      ...base,
+      readers_ruler: RULER9.map((r, i) => (i === 0 ? { ...r, item: "文笔华丽" } : r)),
+    });
+    assert.match(unknown, /读者标尺项只能是/);
+    const badScore = await f.run("fanqie_review_report", {
+      ...base,
+      readers_ruler: RULER9.map((r, i) => (i === 1 ? { ...r, score: 6 } : r)),
+    });
+    assert.match(badScore, /读者标尺 局面改变 的分数须为 1–5 整数/);
+    const noEvidence = await f.run("fanqie_review_report", {
+      ...base,
+      readers_ruler: RULER9.map((r, i) => (i === 2 ? { ...r, evidence: "  " } : r)),
+    });
+    assert.match(noEvidence, /读者标尺 本章变化 须附一句证据/);
+    const attached = await f.run("fanqie_review_report", { ...base, readers_ruler: RULER9 });
+    assert.match(
+      attached.markdown,
+      /读者标尺附表（仅作版本排序参考；不改变四类硬伤与 L1–L3 判定）/,
+    );
+    assert.match(attached.markdown, /期待清楚：1\/5 — 期待清楚的一句证据。/);
+    assert.deepEqual(attached.readers_ruler, RULER9);
+    const saved = await latestReview(dir, "c001");
+    assert.deepEqual(saved.readers_ruler, RULER9);
+    const plain = await f.run("fanqie_review_report", base);
+    assert.doesNotMatch(plain.markdown, /读者标尺附表/);
+    const plainSaved = await latestReview(dir, "c001");
+    assert.equal("readers_ruler" in plainSaved, false);
   } finally {
     await f.close();
   }

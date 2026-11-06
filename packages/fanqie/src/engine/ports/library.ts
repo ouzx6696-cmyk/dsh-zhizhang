@@ -49,8 +49,8 @@ import {
   normalizeHandoff,
   normalizeKind,
   normalizeAxis,
-  coerceAxis,
   normalizeMind,
+  coerceAxis,
   warnCharacterStateWall,
   readingArtifactWarnings,
   admitCardContent,
@@ -428,6 +428,10 @@ export const LibraryPort = {
       evidence: input.evidence ?? [],
       steps: input.steps ?? [],
       bannedDiction: input.bannedDiction ?? [],
+      styleMust: input.styleMust ?? [],
+      styleForbidden: input.styleForbidden ?? [],
+      styleSceneAdjust: input.styleSceneAdjust ?? [],
+      transferSample: input.transferSample ?? "",
     };
     const hasV2 = Boolean(
       v2.layer ||
@@ -441,10 +445,18 @@ export const LibraryPort = {
       v2.mustNotCopy.length ||
       v2.evidence.length,
     );
-    if (!hasV2 && (v2.steps.length > 0 || v2.bannedDiction.length > 0)) {
+    if (
+      !hasV2 &&
+      (v2.steps.length > 0 ||
+        v2.bannedDiction.length > 0 ||
+        v2.styleMust.length > 0 ||
+        v2.styleForbidden.length > 0 ||
+        v2.styleSceneAdjust.length > 0 ||
+        v2.transferSample.length > 0)
+    ) {
       throw new NovelError(
         "bad_args",
-        "steps / bannedDiction 仅用于 v2 模块卡：请同时传 layer + dimension，或改用 mechanisms 写操作",
+        "steps / bannedDiction / 文风三段（styleMust 等）仅用于 v2 模块卡：请同时传 layer + dimension，或改用 mechanisms 写操作",
       );
     }
     const v2Warnings = [];
@@ -596,6 +608,10 @@ export const LibraryPort = {
         warnings.push("部分证据章的阅读程度未声明；引文匹配不证明已读或深读。");
       if (v2.steps.length) card.steps = v2.steps;
       if (v2.bannedDiction.length) card.bannedDiction = v2.bannedDiction;
+      if (v2.styleMust.length) card.styleMust = v2.styleMust;
+      if (v2.styleForbidden.length) card.styleForbidden = v2.styleForbidden;
+      if (v2.styleSceneAdjust.length) card.styleSceneAdjust = v2.styleSceneAdjust;
+      if (v2.transferSample) card.transferSample = v2.transferSample;
     }
     const d = libraryDirs(paths);
     const candidatePath = path.join(d.candidates, `${candId}.json`);
@@ -1017,7 +1033,7 @@ export const LibraryPort = {
     if (!(await fileExists(candPath))) {
       throw new NovelError("candidate_not_found", `找不到技法卡候选 ${id}`);
     }
-    const raw = await readJsonCached(candPath);
+    const raw = await readJsonCached<TechniqueCard>(candPath);
     return { ...raw, axis: coerceAxis(raw) };
   },
 };

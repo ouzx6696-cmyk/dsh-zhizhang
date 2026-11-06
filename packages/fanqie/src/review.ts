@@ -23,6 +23,32 @@ export const HARD_CATEGORIES = ["关键剧情与落点", "本书硬约束", "人
 export const LEVELS = ["L1", "L2", "L3"] as const;
 export const VERDICTS = ["通过", "未通过", "结构性冲突"] as const;
 
+/** 读者标尺九项，与 packages/core/eval/judge-fanqie-chapter.md 同一标尺（完整版在 md） */
+export const READERS_RULER_ITEMS = [
+  "期待清楚",
+  "局面改变",
+  "本章变化",
+  "兑现在场",
+  "对手",
+  "章末",
+  "接续",
+  "人味",
+  "追读意愿",
+] as const;
+export function renderReadersRuler(ruler: ReadersRulerEntry[]): string {
+  return [
+    "",
+    "### 读者标尺附表（仅作版本排序参考；不改变四类硬伤与 L1–L3 判定）",
+    ...ruler.map((entry) => `- ${entry.item}：${entry.score}/5 — ${entry.evidence}`),
+  ].join("\n");
+}
+
+export type ReadersRulerEntry = {
+  item: (typeof READERS_RULER_ITEMS)[number];
+  score: number;
+  evidence: string;
+};
+
 export interface ReviewReport {
   work: string;
   work_title: string;
@@ -45,6 +71,8 @@ export interface ReviewReport {
   strengths: string;
   by: "editor" | "writer";
   at: string;
+  /** 可选读者标尺附表（fanqie_review_report.readers_ruler），仅作版本排序参考 */
+  readers_ruler?: ReadersRulerEntry[];
 }
 
 function slug(s: string): string {
@@ -105,6 +133,12 @@ export function renderReview(r: ReviewReport, stale = false): string {
   if (!r.levels.length) lines.push("无。");
   for (const l of r.levels) lines.push(`- ${l.level} ${l.location}：${l.symptom} → ${l.fix}`);
   if (r.optional.length) lines.push("", "### 可选建议", ...r.optional.map((o) => `- ${o}`));
+  if (r.readers_ruler?.length)
+    lines.push(
+      "",
+      "### 读者标尺附表（仅作版本排序参考；不改变四类硬伤与 L1–L3 判定）",
+      ...r.readers_ruler.map((ruler) => `- ${ruler.item}：${ruler.score}/5 — ${ruler.evidence}`),
+    );
   return lines.join("\n");
 }
 

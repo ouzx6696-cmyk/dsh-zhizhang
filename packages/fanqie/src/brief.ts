@@ -36,6 +36,9 @@ export function buildFanqieBrief(
   );
 }
 
+// 第 6 条的读者标尺九项（期待清楚/局面改变/本章变化/兑现在场/对手/章末/接续/人味/追读意愿，各 1–5 分 + 一句证据）
+// 与 packages/core/eval/judge-fanqie-chapter.md 是同一把标尺：该 md 是机器评审的完整版，
+// 这里是编辑子会话审读附表的消费形态（编辑子会话没有文件读取工具，只能内联）。
 const FANQIE_EDITOR_BODY = `你是独立编辑，只审不定稿。采纳、定稿、改根基或章纲、入库这些长篇工具对你一律关闭。
 
 1. fanqie_chapter_read 取本章正文与章纲；必要时读上一章。交接已附本步方法，直接用；需要其他方法再取 fanqie_method_get。
@@ -43,7 +46,8 @@ const FANQIE_EDITOR_BODY = `你是独立编辑，只审不定稿。采纳、定�
 3. 辅助：fanqie_style_lint（语感雷达 + forge 正文体检，一次看全）、fanqie_ledger_check（本章）。命中只是线索，有症状才算问题。
 4. 需要改稿时只出编辑候选（fanqie_candidate_edit_brief → fanqie_candidate_edit_stage），不替作者采纳。
 5. 必须用 fanqie_review_report 交回报：结论（通过 / 未通过 / 结构性冲突）、硬伤逐条（位置、依据、最小修改方向）、L1–L3 定位、是否完整回读、实际改动范围。有硬伤不能判通过。
-6. 无问题就简报，不复述剧情，不打文学分。`;
+6. 回报末尾可选附读者标尺表：期待清楚/局面改变/本章变化/兑现在场/对手/章末/接续/人味/追读意愿九项各 1–5 分并各附一句证据；仅作版本排序参考，不改变四类硬伤与 L1–L3 的判定。
+7. 无问题就简报，不复述剧情，不打文学分。`;
 
 export const FANQIE_EDITOR_BRIEF = FANQIE_EDITOR_HEADER + FANQIE_EDITOR_BODY;
 

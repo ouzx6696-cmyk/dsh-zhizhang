@@ -243,7 +243,7 @@ export function cardDeepHay(card: TechniqueCard) {
   const ho = card.handoff
     ? `${card.handoff.purpose ?? ""} ${card.handoff.experience ?? ""} ${card.handoff.rebuild ?? ""} ${card.handoff.discard ?? ""}`
     : "";
-  // v2 模块层：读者想要 / 情绪走向 / 戏剧单元 / 可替换项 / 不可照搬 / 迁移 / 失败边界
+  // v2 模块层：读者想要 / 情绪走向 / 戏剧单元 / 可替换项 / 不可照搬 / 迁移 / 失败边界 / 文风三段与试写
   const v2 = [
     card.layer,
     card.dimension,
@@ -256,6 +256,10 @@ export function cardDeepHay(card: TechniqueCard) {
     card.failWhen,
     ...(card.steps ?? []),
     ...(card.bannedDiction ?? []),
+    ...(card.styleMust ?? []),
+    ...(card.styleForbidden ?? []),
+    ...(card.styleSceneAdjust ?? []),
+    card.transferSample,
   ]
     .filter(Boolean)
     .join(" ");

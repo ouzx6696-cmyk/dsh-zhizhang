@@ -76,6 +76,12 @@ interface ModuleFields {
   evidence?: CardEvidence[];
   steps?: string[];
   bannedDiction?: string[];
+  /** 文风逆向三段式（dimension=prose 的文风卡必填）：从拆书证据提炼的可迁移文风约束 */
+  styleMust?: string[];
+  styleForbidden?: string[];
+  styleSceneAdjust?: string[];
+  /** 迁移试写：把本卡文风用到全新内容上的 200–300 字原创片段（禁止复述原书句子） */
+  transferSample?: string;
 }
 export interface StageCardInput extends ModuleFields {
   title: string;

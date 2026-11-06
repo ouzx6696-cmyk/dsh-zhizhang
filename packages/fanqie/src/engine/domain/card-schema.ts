@@ -22,6 +22,16 @@ export const HOOK_TYPES = [
 ];
 export const HOOK_STRENGTHS = ["弱", "中", "强"];
 
+/** 文风卡（dimension=prose）三段式的字段名与中文段名；card_stage 参数描述引用同一组字段名。 */
+const STYLE_CARD_SECTIONS = [
+  { key: "styleMust", label: "必须贯彻" },
+  { key: "styleForbidden", label: "绝对禁止" },
+  { key: "styleSceneAdjust", label: "按场景调节" },
+] as const;
+/** 迁移试写字数边界：太短演示不出文风，太长说明在复述原书。 */
+const TRANSFER_SAMPLE_MIN = 200;
+const TRANSFER_SAMPLE_MAX = 300;
+
 /** v2 模块必填/可选字段的单一描述（校验、文档、工具 schema 都从这里读）。 */
 const CARD_V2_FIELDS = [
   { key: "readerWant", label: "读者想看什么", type: "string", required: true },
@@ -94,6 +104,22 @@ export function validateModule(card: AnyRecord) {
 
   if (!Array.isArray(c.mechanisms) || c.mechanisms.length === 0)
     warnings.push("mechanisms 为空：brief 注入时会少「机制名 + 失败边界」");
+  // 文风卡（prose 维度）：三段式 + 迁移试写是硬产出，缺段或字数越界不收，不静默降级成普通卡。
+  if (dimension === "prose") {
+    for (const { key, label } of STYLE_CARD_SECTIONS) {
+      if (!arrayOfText(c[key])) errors.push(`文风卡 ${key} 不能为空（${label}，至少 1 条）`);
+    }
+    const sample = text(c.transferSample);
+    if (!sample) {
+      errors.push(
+        `文风卡 transferSample 不能为空（迁移试写：${TRANSFER_SAMPLE_MIN}–${TRANSFER_SAMPLE_MAX} 字原创片段，演示把该书文风用到全新内容上，禁止复述原书句子）`,
+      );
+    } else if (sample.length < TRANSFER_SAMPLE_MIN || sample.length > TRANSFER_SAMPLE_MAX) {
+      errors.push(
+        `文风卡 transferSample 须 ${TRANSFER_SAMPLE_MIN}–${TRANSFER_SAMPLE_MAX} 字（现 ${sample.length} 字）`,
+      );
+    }
+  }
   if (/第[0-9０-９]+章/.test(text(c.emotionArc)))
     warnings.push(
       "emotionArc 带章号：情绪走向写成了剧情梗概，应改成可迁移的情绪曲线（建立-延迟-触发-兑现-余波）",

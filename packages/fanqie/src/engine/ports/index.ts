@@ -44,6 +44,7 @@ export {
   formatTechniqueCardBlock,
   formatTechniqueCardBlockLean,
   formatModuleBlockV2,
+  styleCardFoundationEntry,
   hasShatterCraftCue,
   craftCueFromHumanFeel,
   ANTI_STIFFNESS_BRIEF_LINE,

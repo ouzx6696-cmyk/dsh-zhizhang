@@ -27,6 +27,13 @@ import { WRITER_EXCLUDED_TOOLS, type FanqieConfig } from "./config.js";
 
 export type Role = "writer" | "editor" | "planner";
 
+/**
+ * 读者标尺九项 — 与 packages/core/eval/judge-fanqie-chapter.md 同一把标尺：
+ * 该 md 是机器评审完整版；这里供编辑审读回报附表（fanqie_review_report.readers_ruler）。
+ */
+import { READERS_RULER_ITEMS, renderReadersRuler } from "./review.js";
+export { READERS_RULER_ITEMS, type ReadersRulerEntry } from "./review.js";
+
 const S = (description: string): JsonSchemaNode => ({ type: "string", description });
 const I = (description: string): JsonSchemaNode => ({ type: "integer", description });
 const B = (description: string): JsonSchemaNode => ({ type: "boolean", description });
@@ -81,6 +88,34 @@ function outlineText(ch: ChapterRecord): string {
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+/** 读者标尺附表（可选）：九项齐全、各 1–5 整数、证据非空；缺省不附，不影响既有回报结构。 */
+function parseReadersRuler(raw: { item: string; score: number; evidence: string }[] | undefined) {
+  if (raw === undefined) return [];
+  if (raw.length !== READERS_RULER_ITEMS.length)
+    throw new WriterError(
+      "INVALID_ARGS",
+      `readers_ruler 须正好 ${READERS_RULER_ITEMS.length} 项（九项齐全，不重复）`,
+    );
+  const items: readonly string[] = READERS_RULER_ITEMS;
+  const entries = raw.map((row) => {
+    const item = READERS_RULER_ITEMS.find((name) => name === row.item);
+    if (!item)
+      throw new WriterError(
+        "INVALID_ARGS",
+        `读者标尺项只能是：${items.join("、")}，收到 ${row.item}`,
+      );
+    if (!Number.isInteger(row.score) || row.score < 1 || row.score > 5)
+      throw new WriterError("INVALID_ARGS", `读者标尺 ${item} 的分数须为 1–5 整数`);
+    if (!row.evidence?.trim())
+      throw new WriterError("INVALID_ARGS", `读者标尺 ${item} 须附一句证据`);
+    return { item, score: row.score, evidence: row.evidence.trim() };
+  });
+  const missing = READERS_RULER_ITEMS.filter((name) => !entries.some((e) => e.item === name));
+  if (missing.length)
+    throw new WriterError("INVALID_ARGS", `读者标尺附表缺项：${missing.join("、")}`);
+  return entries;
 }
 
 export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
@@ -252,10 +287,11 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
       reread_full: boolean;
       changed_scope?: string;
       strengths?: string;
+      readers_ruler?: { item: string; score: number; evidence: string }[];
     }>({
       name: "fanqie_review_report",
       description:
-        '提交编辑审读回报（固定格式，绑定当前正文版本）：结论 通过/未通过/结构性冲突；四类硬伤（关键剧情与落点、本书硬约束、人物认知、正文接续）逐条写位置、依据、最小修改方向；L1 结构与单元 / L2 场面与交锋 / L3 句面与声音 定位；可选建议单列。有硬伤不能判"通过"。正文一改，回报自动过期。',
+        '提交编辑审读回报（固定格式，绑定当前正文版本）：结论 通过/未通过/结构性冲突；四类硬伤（关键剧情与落点、本书硬约束、人物认知、正文接续）逐条写位置、依据、最小修改方向；L1 结构与单元 / L2 场面与交锋 / L3 句面与声音 定位；可选建议单列；回报末尾可选附读者标尺表（readers_ruler，九项各 1–5 分并各附一句证据，仅作版本排序参考，不改变硬伤与 L1–L3 判定）。有硬伤不能判"通过"。正文一改，回报自动过期。',
       properties: {
         work: WORK,
         chapter: CHAPTER,
@@ -297,6 +333,20 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
         reread_full: B("是否完整回读了当前正文"),
         changed_scope: S('实际改动范围；只审不改写"未改"'),
         strengths: S("主要长处与保留理由（一两句）"),
+        readers_ruler: {
+          type: "array",
+          description:
+            "可选：读者标尺附表（仅作版本排序参考）。九项各 1–5 分（1 很差，5 很好）并各附一句依据正文原意的证据：期待清楚（主角此刻想要什么、被什么挡着）、局面改变（处境或目标真实移动）、本章变化（开头到结尾看得见的变化）、兑现在场（回报或代价读者能感到）、对手（阻力方按自身利益主动出招）、章末（钩子让人想点开下一章）、接续（伏笔与已知信息连贯）、人味（话和选择像有处境的人）、追读意愿（读者个人会不会继续读）。九项必须齐全，与 packages/core/eval/judge-fanqie-chapter.md 同一标尺。",
+          items: {
+            type: "object",
+            properties: {
+              item: { type: "string", enum: [...READERS_RULER_ITEMS], description: "标尺项" },
+              score: { type: "integer", description: "1 很差 – 5 很好" },
+              evidence: S("一句依据正文原意的证据（不复述情节梗概）"),
+            },
+            required: ["item", "score", "evidence"],
+          },
+        },
       },
       required: ["chapter", "verdict", "hard_issues", "levels", "reread_full"],
       async run(args, exec) {
@@ -333,6 +383,7 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
         if (verdict === "通过" && args.reread_full !== true)
           throw new WriterError("INVALID_ARGS", '没有完整回读当前正文，不能判"通过"');
         const optional = (args.optional ?? []).filter(Boolean).slice(0, 3);
+        const ruler = parseReadersRuler(args.readers_ruler);
         const report: ReviewReport = {
           work: w.key,
           work_title: w.title,
@@ -349,12 +400,15 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
           by: deps.role === "editor" ? "editor" : "writer",
           at: nowIso(),
         };
-        const file = await saveReview(w.dir, report);
+        // 附表可选：不附时回报对象保持 ReviewReport 原结构；附时多带 readers_ruler 键一起落盘。
+        const savedReport = ruler.length ? { ...report, readers_ruler: ruler } : report;
+        const file = await saveReview(w.dir, savedReport);
         return {
           saved: path.basename(file),
           verdict,
           body_sha256: ch.bodySha256,
-          markdown: renderReview(report),
+          markdown: renderReview(report) + (ruler.length ? renderReadersRuler(ruler) : ""),
+          ...(ruler.length ? { readers_ruler: ruler } : {}),
         };
       },
     }),

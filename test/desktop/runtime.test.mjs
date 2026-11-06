@@ -223,6 +223,9 @@ test("真实 Pi：建书归属、候选定位、独立编辑、角色模型、�
       ),
     );
     assert.ok(!editor.tools.some((tool) => tool.function.name === "fanqie_chapter_save"));
+    // 编辑常驻（默认版）带读者标尺段（T15）
+    assert.ok(JSON.stringify(editor.messages).includes("回报末尾可选附读者标尺表"));
+    assert.ok(JSON.stringify(editor.messages).includes("追读意愿"));
     const chapter = await readFile(path.join(data, "works/station/chapters/c001.md"), "utf8");
     assert.ok(!chapter.includes("status: final"));
     assert.match(chapter, /站台/);
@@ -288,6 +291,102 @@ test("真实 Pi：建书归属、候选定位、独立编辑、角色模型、�
     });
     await failure.promise;
     assert.ok(events.some((event) => /认证失败/.test(event.error || "")));
+  } finally {
+    await sessions.dispose();
+    await model.close();
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("T15 编辑常驻（creationFirst 版）同样带读者标尺段", async () => {
+  const base = await mkdtemp(path.join(tmpdir(), "writer-editor-ruler-")),
+    home = path.join(base, "app"),
+    data = path.join(base, "data");
+  await mkdir(home);
+  await mkdir(data);
+  process.env.WRITER_STATE_ROOT = home;
+  const model = await fakeModel({
+    "mock-writer": [
+      {
+        name: "writer_plan",
+        input: { task: "创建题名为长夜车站、目录 station 的作品，不写正文。" },
+      },
+      {
+        name: "fanqie_outline_set",
+        input: {
+          chapter: "c001",
+          title: "站台",
+          pov: "林川",
+          targetWords: 2000,
+          locks: "车站停电",
+          knowledge: "他不知道来电者身份",
+          synopsis: "林川等车",
+          conflict: "末班车不停站",
+          beats: "广播来电",
+          ending: "门打开",
+        },
+      },
+      {
+        name: "fanqie_chapter_save",
+        input: {
+          chapter: "c001",
+          content: "林川把票递到窗口。售票员没接，先看了眼墙上的钟。",
+          status: "drafted",
+        },
+      },
+      {
+        name: "writer_review",
+        input: { work: "station", chapter: "c001", task: "只审读本章并记录回报。" },
+      },
+      { text: "编辑已回报。" },
+    ],
+    "mock-planner": [
+      { name: "fanqie_project_create", input: { title: "长夜车站", key: "station" } },
+      { text: "作品已创建。" },
+    ],
+    "mock-editor": [
+      { name: "fanqie_chapter_read", input: { work: "station", chapter: "c001" } },
+      {
+        name: "fanqie_review_report",
+        input: {
+          work: "station",
+          chapter: "c001",
+          verdict: "通过",
+          hard_issues: [],
+          levels: [],
+          reread_full: true,
+          changed_scope: "未改",
+        },
+      },
+      { text: "本章回报已记录。" },
+    ],
+  });
+  const done = settled();
+  let onSettled = done.finish;
+  const sessions = new Sessions({
+    home: home,
+    python: "python3",
+    settings: () => models(model.url),
+    emit: (event) => {
+      if (event.event?.type === "agent_settled" && !event.editor) onSettled();
+    },
+    confirm: async () => false,
+    options: { fanqie: { brief: { creationFirst: true } } },
+    created: async () => {},
+    extras: {},
+  });
+  try {
+    await sessions.send(
+      { mode: "fanqie", root: data },
+      "MAIN-PRIVATE：按要求创建测试作品与草稿，然后派编辑。",
+      { intent: "plan" },
+    );
+    await done.promise;
+    const editor = model.calls.find((call) => call.model === "mock-editor");
+    assert.ok(editor, "编辑子会话未运行");
+    // creationFirst 版与默认版共用 FANQIE_EDITOR_BODY；两版都要带读者标尺段（T15）
+    assert.ok(JSON.stringify(editor.messages).includes("回报末尾可选附读者标尺表"));
+    assert.ok(JSON.stringify(editor.messages).includes("兑现在场"));
   } finally {
     await sessions.dispose();
     await model.close();
@@ -2864,6 +2963,413 @@ test("写作台抽卡投递：指令带 writer_draw 场景并要求转报作者�
       /抽卡须指明章节/,
     );
   } finally {
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+// —— T16 头条标题抽卡：writer_draw 仅 title-brief（五母体各一版），评估按 s3 四问排序，不代作者采纳 ——
+
+const TOUTIAO_DRAW_TITLES = [
+  "交了二十多年社保，我到退休才发现少算了一笔钱",
+  "家里有六十岁以上老人的，月底前这件事别忘了办",
+  "房租能全额提公积金了，他看完细则却把手机合上了",
+  "早说啊，我白跑三趟！去办这事前先看清这一条",
+  "明年元旦以后，回收旧手机得先清数据",
+];
+
+test("头条标题抽卡：五母体各一版、按四问分数排序、指回 toutiao_headline_set；opening 场景拒绝", async () => {
+  const base = await mkdtemp(path.join(tmpdir(), "writer-tt-draw-")),
+    home = path.join(base, "app"),
+    data = path.join(base, "data");
+  await mkdir(home);
+  await mkdir(data);
+  process.env.WRITER_STATE_ROOT = home;
+  const store = new ArticleStore(data);
+  const article = await store.create("headline-draw", { line: "资讯线", genre: "短图文" });
+  await store.stageDraft(
+    article.id,
+    "老周把手机扣在柜台上。\n\n他数了三遍零钱。",
+    "writer",
+    "初稿",
+  );
+  const model = await fakeModel({
+    "mock-writer": [
+      { name: "writer_draw", input: { scenario: "title-brief" } },
+      ...TOUTIAO_DRAW_TITLES.map((title) => ({ text: title })),
+      { text: "排序已交回，请作者挑选。" },
+    ],
+    "mock-editor": [
+      {
+        text: JSON.stringify([
+          { label: "抽卡-3", score: 5, reason: "反常动作具体，缺口清楚" },
+          { label: "抽卡-2", score: 4, reason: "人群点名明确" },
+          { label: "抽卡-5", score: 4, reason: "节点与代价都在" },
+          { label: "抽卡-1", score: 3, reason: "数字反差但认不出是谁" },
+          { label: "抽卡-4", score: 2, reason: "原话缺现场" },
+        ]),
+      },
+    ],
+  });
+  const done = settled(),
+    events = [];
+  let onSettled = done.finish;
+  const sessions = new Sessions({
+    home,
+    python: "python3",
+    settings: () => models(model.url),
+    emit: (event) => {
+      events.push(event);
+      if (event.event?.type === "agent_settled" && !event.editor) onSettled();
+    },
+    confirm: async () => false,
+    options: { toutiao: { draw: { enabled: true } } },
+    created: async () => {},
+    extras: {},
+  });
+  try {
+    await sessions.send(
+      { mode: "toutiao", root: data, article: article.id },
+      "给这篇抽五个标题。",
+      { article: article.id, intent: "write" },
+    );
+    await done.promise;
+    const writerCalls = () => model.calls.filter((call) => call.model === "mock-writer");
+    assert.ok(
+      writerCalls()[0].tools.some((tool) => tool.function.name === "writer_draw"),
+      "toutiao draw.enabled 时写手工具须含 writer_draw（create.ts 注册条件须改为 host.options[target.mode]?.draw?.enabled === true，并给 createDrawTools 传 toutiaoDrawMax）",
+    );
+    const end = events.find(
+      (event) =>
+        event.event?.type === "tool_execution_end" && event.event.toolName === "writer_draw",
+    );
+    assert.ok(end, "writer_draw 须交回结果");
+    assert.deepEqual(end.event.result.details.draws, [
+      { label: "抽卡-3", score: 5, reasons: "反常动作具体，缺口清楚" },
+      { label: "抽卡-2", score: 4, reasons: "人群点名明确" },
+      { label: "抽卡-5", score: 4, reasons: "节点与代价都在" },
+      { label: "抽卡-1", score: 3, reasons: "数字反差但认不出是谁" },
+      { label: "抽卡-4", score: 2, reasons: "原话缺现场" },
+    ]);
+    const text = end.event.result.content[0].text;
+    assert.match(text, /抽卡评估 · 标题五母体/);
+    assert.match(text, /toutiao_headline_set/);
+    assert.match(text, /不要代作者选/);
+    // 五路起草各自指定一个母体
+    const laneCalls = writerCalls().filter((call) =>
+      JSON.stringify(call.messages).includes("只用母体「"),
+    );
+    assert.equal(laneCalls.length, 5, JSON.stringify(laneCalls.length));
+    const matrices = laneCalls.map(
+      (call) => /只用母体「([^」]+)」/.exec(JSON.stringify(call.messages))[1],
+    );
+    assert.deepEqual([...matrices].sort(), [
+      "原话现场式",
+      "悬念缺口式",
+      "数字反差式",
+      "时间坐标式",
+      "身份点名式",
+    ]);
+    const evaluator = model.calls.find((call) => call.model === "mock-editor");
+    assert.ok(JSON.stringify(evaluator.messages).includes("画得出来吗"));
+    assert.ok(JSON.stringify(evaluator.messages).includes("接得住吗"));
+    assert.ok(JSON.stringify(evaluator.messages).includes("【正文前两段】"));
+    // 头条抽卡只允许 title-brief
+    const session = await sessions.open({ mode: "toutiao", root: data, article: article.id });
+    const drawTool = session.agent.state.tools.find((tool) => tool.name === "writer_draw");
+    await assert.rejects(
+      drawTool.execute("x", { scenario: "opening" }, new AbortController().signal),
+      /title-brief/,
+    );
+  } finally {
+    await sessions.dispose();
+    await model.close();
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("头条标题抽卡：n 超上限被钳制；开关关闭不注册", async () => {
+  const base = await mkdtemp(path.join(tmpdir(), "writer-tt-draw-clamp-")),
+    home = path.join(base, "app"),
+    data = path.join(base, "data");
+  await mkdir(home);
+  await mkdir(data);
+  process.env.WRITER_STATE_ROOT = home;
+  const store = new ArticleStore(data);
+  const article = await store.create("headline-clamp", { line: "故事线", genre: "短图文" });
+  const model = await fakeModel({
+    "mock-writer": [
+      { name: "writer_draw", input: { scenario: "title-brief", n: 9 } },
+      { text: "精卫填了一辈子海，原典没写海填平了没有" },
+      { text: "后羿射完太阳以后，第一个疏远他的是谁" },
+      { text: "两版已交回。" },
+    ],
+    "mock-editor": [
+      {
+        text: '[{"label":"抽卡-2","score":4,"reason":"缺口具体"},{"label":"抽卡-1","score":3,"reason":"可用"}]',
+      },
+    ],
+  });
+  const done = settled(),
+    events = [];
+  let onSettled = done.finish;
+  const sessions = new Sessions({
+    home,
+    python: "python3",
+    settings: () => models(model.url),
+    emit: (event) => {
+      events.push(event);
+      if (event.event?.type === "agent_settled" && !event.editor) onSettled();
+    },
+    confirm: async () => false,
+    options: { toutiao: { draw: { enabled: true, max: 2 } } },
+    created: async () => {},
+    extras: {},
+  });
+  try {
+    await sessions.send({ mode: "toutiao", root: data, article: article.id }, "抽标题。", {
+      article: article.id,
+      intent: "write",
+    });
+    await done.promise;
+    const laneCalls = model.calls.filter(
+      (call) =>
+        call.model === "mock-writer" && JSON.stringify(call.messages).includes("只用母体「"),
+    );
+    assert.equal(laneCalls.length, 2, "n=9 被钳到 draw.max=2");
+    const end = events.find(
+      (event) =>
+        event.event?.type === "tool_execution_end" && event.event.toolName === "writer_draw",
+    );
+    assert.equal(end.event.result.details.draws.length, 2);
+  } finally {
+    await sessions.dispose();
+    await model.close();
+  }
+
+  const offModel = await fakeModel({ "mock-writer": [{ text: "收到。" }] });
+  const offDone = settled();
+  let offSettled = offDone.finish;
+  const offSessions = new Sessions({
+    home,
+    python: "python3",
+    settings: () => models(offModel.url),
+    emit: (event) => {
+      if (event.event?.type === "agent_settled" && !event.editor) offSettled();
+    },
+    confirm: async () => false,
+    options: {},
+    created: async () => {},
+    extras: {},
+  });
+  try {
+    await offSessions.send(
+      { mode: "toutiao", root: data, article: article.id },
+      "先读一下这篇文章。",
+      { article: article.id, intent: "inspect" },
+    );
+    await offDone.promise;
+    const call = offModel.calls.find((item) => item.model === "mock-writer");
+    assert.ok(call.tools.some((tool) => tool.function.name === "toutiao_draft_get"));
+    assert.ok(!call.tools.some((tool) => tool.function.name === "writer_draw"));
+  } finally {
+    await offSessions.dispose();
+    await offModel.close();
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("handoff.v2 头条 S4 反馈软上限 1000 字：装最新的，截掉最旧的", async () => {
+  const base = await mkdtemp(path.join(tmpdir(), "writer-tt-fb-cap-"));
+  process.env.WRITER_STATE_ROOT = base;
+  const root = path.join(base, "articles");
+  const store = new ArticleStore(root);
+  const article = await store.create("fb-cap", { date: "2026-11-06", line: "资讯线" });
+  await store.writeCard(article.id, { 内容线: "资讯线" });
+  await store.update(article.id, (m) => {
+    m.headlines.main = "软上限主标题";
+  });
+  await store.stageDraft(article.id, "初稿正文。", "writer", "初稿");
+  const lines = ["# 作者改稿反馈", ""];
+  for (let i = 0; i < 40; i += 1)
+    lines.push(
+      `- 2026-10-${String(20 + (i % 10)).padStart(2, "0")}：第${i}条很长的一句话原句 → 改后也长的一句话 → 动机说明也要占字数 ｜ 病型=1·套话连接词`,
+    );
+  await writeFile(path.join(root, "feedback.md"), lines.join("\n"), "utf8");
+  const model = await fakeModel({ "mock-writer": [{ text: "收到。" }] });
+  const { host, settle } = handoffHost(base, { toutiao: { handoff: { v2: true } } }, model, []);
+  const target = { mode: "toutiao", root, article: article.id };
+  try {
+    const step = settle();
+    await host.send(target, "开始写正文", { article: article.id });
+    await step.promise;
+    const context = writerContext(writerPrompt(model, 0));
+    const block = context.saved.feedback;
+    assert.ok(block.length <= 1100, `反馈块 ${block.length} 字超出软上限`);
+    assert.match(block, /第39条/, "最新一条必须在");
+    assert.ok(!block.includes("第0条"), "最旧的被截掉");
+  } finally {
+    await host.dispose();
+    await model.close();
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("qa.judge 开启：writer_review 任务附九项标尺，读者评审落到 meta.qa 最近一条；关闭时保持现行为", async () => {
+  const base = await mkdtemp(path.join(tmpdir(), "writer-tt-judge-")),
+    home = path.join(base, "app"),
+    data = path.join(base, "data");
+  await mkdir(home);
+  await mkdir(data);
+  process.env.WRITER_STATE_ROOT = home;
+  const store = new ArticleStore(data);
+  const article = await store.create("judge-me", { line: "资讯线", genre: "短图文" });
+  await store.stageDraft(
+    article.id,
+    "# 测试标题\n\n老周把手机扣在柜台上，数了三遍零钱。\n\n他没说话，先把围裙解了下来。\n\n评论区聊聊。",
+    "writer",
+    "初稿",
+  );
+  const REVIEW_JSON = JSON.stringify({
+    scores: {
+      标题: 3,
+      开篇三段: 4,
+      人物: 4,
+      引语: 2,
+      延伸: 3,
+      节奏: 4,
+      结尾: 3,
+      不像模板: 4,
+      读完意愿: 3,
+    },
+    evidences: Object.fromEntries(
+      ["标题", "开篇三段", "人物", "引语", "延伸", "节奏", "结尾", "不像模板", "读完意愿"].map(
+        (k) => [k, `${k}的一句证据`],
+      ),
+    ),
+  });
+  const runCase = async (options, judgeOn) => {
+    const model = await fakeModel({
+      "mock-writer": [
+        { name: "writer_review", input: { task: "红笔并质检这篇", article: article.id } },
+        { text: "已收到编辑回报。" },
+      ],
+      "mock-editor": [
+        { name: "toutiao_qa_check", input: { id: article.id } },
+        {
+          text: judgeOn ? `红笔完成，读者评审：\n${REVIEW_JSON}` : "红笔完成，改了三处。",
+        },
+      ],
+    });
+    const done = settled(),
+      events = [];
+    let onSettled = done.finish;
+    const sessions = new Sessions({
+      home,
+      python: "python3",
+      settings: () => models(model.url),
+      emit: (event) => {
+        events.push(event);
+        if (event.event?.type === "agent_settled" && !event.editor) onSettled();
+      },
+      confirm: async () => true,
+      options,
+      created: async () => {},
+      extras: {},
+    });
+    try {
+      await sessions.send(
+        { mode: "toutiao", root: data, article: article.id },
+        "派编辑审读这篇。",
+        { article: article.id, intent: "review" },
+      );
+      await done.promise;
+      const end = events.find(
+        (event) =>
+          event.event?.type === "tool_execution_end" && event.event.toolName === "writer_review",
+      );
+      assert.ok(end, "writer_review 须交回报");
+      return end.event.result.details.writerResult.summary;
+    } finally {
+      await sessions.dispose();
+      await model.close();
+    }
+  };
+  try {
+    const onSummary = await runCase({ toutiao: { qa: { judge: true } } }, true);
+    assert.match(onSummary, /读者评审已记入 meta.qa 最近一条/);
+    assert.match(onSummary, /读完意愿 3 分/);
+    const meta = await store.get(article.id);
+    assert.equal(meta.qa.length, 1);
+    assert.equal(meta.qa[0].readerReview.scores["不像模板"], 4);
+    assert.equal(meta.qa[0].readerReview.rev, 1);
+    const offSummary = await runCase({}, false);
+    assert.doesNotMatch(offSummary, /读者评审/);
+    const offMeta = await store.get(article.id);
+    assert.equal(offMeta.qa.length, 2);
+    assert.equal(offMeta.qa[1].readerReview, undefined);
+  } finally {
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("handoff.v2 头条 S4 交接附最近作者反馈：故事线病型只给故事线，软上限 1000 字", async () => {
+  const base = await mkdtemp(path.join(tmpdir(), "writer-tt-fb-"));
+  process.env.WRITER_STATE_ROOT = base;
+  const root = path.join(base, "articles");
+  const store = new ArticleStore(root);
+  const article = await store.create("fb-me", { date: "2026-11-06", line: "资讯线" });
+  await store.writeCard(article.id, { 内容线: "资讯线" });
+  await store.update(article.id, (m) => {
+    m.headlines.main = "测试主标题";
+  });
+  await store.stageDraft(article.id, "初稿正文。", "writer", "初稿");
+  const feedback = [
+    "# 作者改稿反馈",
+    "",
+    "- 2026-10-31：故事病一句 → 改后一句 → 更像说书 ｜ 病型=G2·寓意说教 ｜ 位置=结尾",
+    "- 2026-11-01：铺垫一句 → 改后一句 → 更直给 ｜ 病型=8·万能背景开头",
+    "- 2026-11-02：空话一句 → 改后一句 → 更具体 ｜ 病型=3·大词空转 ｜ 改法=落到具体的人",
+    "- 2026-11-03：流水账一段 → 改后一段 → 有起伏 ｜ 位置=第 2 段",
+  ].join("\n");
+  await writeFile(path.join(root, "feedback.md"), feedback, "utf8");
+  const model = await fakeModel({ "mock-writer": [{ text: "收到。" }] });
+  const logs = [];
+  const { host, settle } = handoffHost(base, { toutiao: { handoff: { v2: true } } }, model, logs);
+  const target = { mode: "toutiao", root, article: article.id };
+  try {
+    const step = settle();
+    await host.send(target, "开始写正文", { article: article.id });
+    await step.promise;
+    const context = writerContext(writerPrompt(model, 0));
+    assert.match(context.saved.feedback, /作者改稿反馈（最近）：/);
+    assert.match(context.saved.feedback, /病型=3·大词空转/);
+    assert.match(context.saved.feedback, /位置=第 2 段/);
+    assert.ok(!context.saved.feedback.includes("G2·寓意说教"), "故事线病型不给资讯线");
+    // 故事线文章：故事病型随附
+    const story = await store.create("fb-story", { date: "2026-11-06", line: "故事线" });
+    await store.writeCard(story.id, { 内容线: "故事线" });
+    await store.update(story.id, (m) => {
+      m.headlines.main = "故事主标题";
+    });
+    await store.stageDraft(story.id, "故事初稿。", "writer", "初稿");
+    const model2 = await fakeModel({ "mock-writer": [{ text: "收到。" }] });
+    const host2 = handoffHost(base, { toutiao: { handoff: { v2: true } } }, model2, []);
+    try {
+      const step2 = host2.settle();
+      await host2.host.send({ mode: "toutiao", root, article: story.id }, "开始写正文", {
+        article: story.id,
+      });
+      await step2.promise;
+      const storyContext = writerContext(writerPrompt(model2, 0));
+      assert.match(storyContext.saved.feedback, /病型=G2·寓意说教/);
+      assert.match(storyContext.saved.feedback, /病型=3·大词空转/);
+    } finally {
+      await host2.host.dispose();
+      await model2.close();
+    }
+  } finally {
+    await host.dispose();
+    await model.close();
     await rm(base, { recursive: true, force: true });
   }
 });

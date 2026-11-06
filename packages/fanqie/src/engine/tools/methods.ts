@@ -24,6 +24,15 @@ import { B, E, S, WORK_OPT, WORKING_DIR } from "./schema.js";
 import { defineTool } from "./types.js";
 /** Soft budget hint for lean brief (chars); not a hard truncate of model context. */
 const LEAN_BRIEF_BUDGET = 2500;
+/** lean 简报文风段软上限：超限截断并注明，完整文风约束仍可用 foundation_get 查看。 */
+const LEAN_STYLE_SOFT_MAX = 1500;
+function leanStyleSection(style: string) {
+  if (style.length <= LEAN_STYLE_SOFT_MAX) return [style];
+  return [
+    style.slice(0, LEAN_STYLE_SOFT_MAX).trimEnd(),
+    `（超过 ${LEAN_STYLE_SOFT_MAX} 字软上限，已截断；完整文风约束用 fanqie_foundation_get 查看）`,
+  ];
+}
 /** 当前生效的方法方案：配置钉死 → 写作台切换记录 → 默认。 */
 function currentProfile() {
   return activeProfile(fanqieLibrary.mode, config.profile);
@@ -277,7 +286,12 @@ export function methodsTools() {
               "",
             );
         }
-        if (f.style?.trim()) lines.push("## 本书有效讲法", f.style.trim(), "");
+        if (f.style?.trim())
+          lines.push(
+            "## 本书有效讲法",
+            ...(lean ? leanStyleSection(f.style.trim()) : [f.style.trim()]),
+            "",
+          );
         if (f.characters?.trim()) lines.push("## 作者人物依据", f.characters.trim(), "");
         if (f.readerKnowledge?.trim())
           lines.push("## 作者记录的读者揭示（不等于人物获知）", f.readerKnowledge.trim(), "");
