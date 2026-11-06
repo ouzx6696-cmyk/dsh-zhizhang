@@ -1,5 +1,5 @@
 /** A host owns an open workspace; other processes may read but cannot write. */
-import { link, open, readFile, unlink, realpath, mkdir, rmdir } from "node:fs/promises";
+import { link, open, readFile, unlink, realpath, mkdir, rmdir, stat } from "node:fs/promises";
 import { readFileSync, unlinkSync } from "node:fs";
 import { hostname } from "node:os";
 import { randomUUID } from "node:crypto";
@@ -9,6 +9,13 @@ import { errorText } from "./errors.js";
 import { isRecord } from "./parse.js";
 import { WriterError } from "./tool.js";
 const FILE = ".writer-workspace-lock.json";
+/**
+ * 登记互斥目录与其中 pid 登记文件：认领者持有目录并在其中发布 owner.json 后才操作作品锁。
+ * 崩溃会遗留登记，但凭登记里的 pid 可判定持有者是否存活，已死即安全清理；
+ * 没有登记文件的空目录是登记机制引入前的遗留，同样可清理。
+ */
+const GUARD = ".writer-workspace-claim";
+const GUARD_REGISTRATION = "owner.json";
 export type WorkspaceOwner = {
   id: string;
   pid: number;
@@ -130,30 +137,180 @@ async function removeStaleOwner(key: string, stale: WorkspaceOwner) {
   }
 }
 
+type GuardState =
+  | { kind: "absent" }
+  | { kind: "held"; owner: WorkspaceOwner }
+  | { kind: "idle"; owner: WorkspaceOwner | null };
+
+async function readGuardState(guard: string): Promise<GuardState> {
+  try {
+    await stat(guard);
+  } catch (error) {
+    if (!isMissingFileError(error)) throw error;
+    return { kind: "absent" };
+  }
+  const file = path.join(guard, GUARD_REGISTRATION);
+  let raw: string;
+  try {
+    raw = await readFile(file, "utf8");
+  } catch (error) {
+    if (!isMissingFileError(error)) throw error;
+    return { kind: "idle", owner: null };
+  }
+  const owner = parseOwner(raw, file);
+  return live(owner) ? { kind: "held", owner } : { kind: "idle", owner };
+}
+
+/** 移除无主登记。ENOTEMPTY 说明并发登记者刚写入登记（或目录含外来文件），按当前内容重新判定。 */
+async function sweepIdleGuard(guard: string, owner: WorkspaceOwner | null): Promise<GuardState> {
+  if (owner) {
+    try {
+      await unlink(path.join(guard, GUARD_REGISTRATION));
+    } catch (error) {
+      if (!isMissingFileError(error)) throw error;
+    }
+  }
+  try {
+    await rmdir(guard);
+    return { kind: "absent" };
+  } catch (error) {
+    if (isMissingFileError(error)) return { kind: "absent" };
+    if (!isFsError(error, "ENOTEMPTY")) throw error;
+  }
+  const state = await readGuardState(guard);
+  if (state.kind === "idle" && !state.owner)
+    throw new WriterError(
+      "CONFLICT",
+      `作品占用登记目录含有未知文件，不自动清理：${guard}。请人工核对后删除该目录。`,
+    );
+  return state;
+}
+
+async function writeGuardRegistration(key: string) {
+  const owner: WorkspaceOwner = {
+    id: randomUUID(),
+    pid: process.pid,
+    machine: hostname(),
+    host,
+    at: new Date().toISOString(),
+  };
+  // 与作品锁同款发布方式：临时文件写在作品根而非登记目录里，清理者不会把在途临时文件误当外来文件。
+  const tmp = path.join(key, `${GUARD}.${owner.id}.tmp`);
+  const handle = await open(tmp, "wx", 0o600);
+  try {
+    await handle.writeFile(JSON.stringify(owner));
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+  try {
+    await link(tmp, path.join(key, GUARD, GUARD_REGISTRATION));
+  } catch (error) {
+    if (!NO_HARD_LINKS.some((code) => isFsError(error, code))) throw error;
+    // 无硬链接卷退回 wx 直写；崩溃留下半截登记的处理与作品锁在同类卷上的取舍一致。
+    const direct = await open(path.join(key, GUARD, GUARD_REGISTRATION), "wx", 0o600);
+    try {
+      await direct.writeFile(JSON.stringify(owner));
+      await direct.sync();
+    } finally {
+      await direct.close();
+    }
+  } finally {
+    await unlink(tmp);
+  }
+}
+
+async function releaseGuard(guard: string) {
+  try {
+    await unlink(path.join(guard, GUARD_REGISTRATION));
+  } catch (error) {
+    if (!isMissingFileError(error)) throw error;
+  }
+  try {
+    await rmdir(guard);
+  } catch (error) {
+    // ENOENT：并发清理者已移走。ENOTEMPTY：目录已转给刚写入登记的并发登记者，由其收尾。
+    if (!isMissingFileError(error) && !isFsError(error, "ENOTEMPTY")) throw error;
+  }
+}
+
 /** Serialize reclamation and publication together: unlink cannot compare ownership atomically. */
 export async function claimWorkspace(root: string) {
   const key = await realpath(root);
   return serialize(`workspace-claim:${key}`, async () => {
-    const guard = path.join(key, ".writer-workspace-claim");
+    const guard = path.join(key, GUARD);
     const deadline = Date.now() + 2000;
     for (;;) {
       try {
         await mkdir(guard);
-        break;
       } catch (error) {
         if (!isFsError(error, "EEXIST")) throw error;
-        if (Date.now() >= deadline)
-          throw new WriterError(
-            "CONFLICT",
-            `作品占用登记正在进行或留有登记锁：${guard}。请确认没有登记进程后再核对，不会自动清理。`,
-          );
+        const state = await readGuardState(guard);
+        if (state.kind === "held") {
+          if (Date.now() >= deadline)
+            throw new WriterError(
+              "CONFLICT",
+              `作品占用登记由 ${state.owner.host}（进程 ${state.owner.pid}）持有：${guard}。请先关闭占用该作品的其他应用。`,
+            );
+          await new Promise((resolve) => setTimeout(resolve, 25));
+          continue;
+        }
+        const after = await sweepIdleGuard(guard, state.kind === "idle" ? state.owner : null);
+        if (after.kind === "absent") continue;
+        // 登记在清理间隙被并发写入：按持有处理，回到等待节奏。
         await new Promise((resolve) => setTimeout(resolve, 25));
+        continue;
+      }
+      // 已持有登记目录；目录被并发清理（ENOENT）或被并发登记者抢先登记（EEXIST）时重新抢。
+      try {
+        await writeGuardRegistration(key);
+        break;
+      } catch (error) {
+        if (!isMissingFileError(error) && !isFsError(error, "EEXIST")) throw error;
       }
     }
     try {
       return await claimWorkspaceUnlocked(key);
     } finally {
-      await rmdir(guard);
+      await releaseGuard(guard);
+    }
+  });
+}
+
+export type WorkspaceClaimCleanup =
+  | { kind: "cleaned"; owner: { pid: number; host: string; at: string } | null }
+  | { kind: "occupied"; owner: { pid: number; host: string } }
+  | { kind: "absent" };
+
+/**
+ * 启动自愈入口：作品占用登记的持有进程已死（或旧版遗留的空登记目录）时安全移除；
+ * 登记者仍存活则原样保留，由后续 claimWorkspace 照常报占用。
+ */
+export async function cleanStaleWorkspaceClaim(root: string): Promise<WorkspaceClaimCleanup> {
+  let key: string;
+  try {
+    key = await realpath(root);
+  } catch (error) {
+    if (!isMissingFileError(error)) throw error;
+    return { kind: "absent" }; // 作品根不存在则没有登记可清理
+  }
+  const guard = path.join(key, GUARD);
+  return serialize(`workspace-claim:${key}`, async () => {
+    for (;;) {
+      const state = await readGuardState(guard);
+      if (state.kind === "absent") return { kind: "absent" };
+      if (state.kind === "held")
+        return { kind: "occupied", owner: { pid: state.owner.pid, host: state.owner.host } };
+      const after = await sweepIdleGuard(guard, state.owner);
+      if (after.kind === "absent")
+        return {
+          kind: "cleaned",
+          owner: state.owner
+            ? { pid: state.owner.pid, host: state.owner.host, at: state.owner.at }
+            : null,
+        };
+      if (after.kind === "idle") continue; // 登记内容在清理间隙发生变化，重新判定
+      return { kind: "occupied", owner: { pid: after.owner.pid, host: after.owner.host } };
     }
   });
 }

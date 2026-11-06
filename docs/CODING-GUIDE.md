@@ -131,3 +131,5 @@ const routes: Record<string, RouteHandler> = {
 - 业务测试：`createToutiaoTools()` / `createFanqieTools()` + `createGateEngine()` + `executeTool()`，与桌面生产路径一致。
 - 每个 bug 修复配一个修复前会失败的测试。
 - 不用正则读源码断言工具名或版本号；从运行结果取。
+
+例外：`test/engine/workbench-ui.test.mjs` 用自建最小 hook 运行时（state／ref／memo／effect 按调用顺序落槽，setState 后 flush 重渲染）在 Node 里驱动写作台组件的真实异步状态流，不引入新测试依赖。它不迁 Playwright：组件级状态流回归要能在无显示环境的 `npm test` 里跑，端到端旅程已由 `test:desktop:ui` 覆盖。改写作台组件状态逻辑时在此补用例。

@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { app, safeStorage } from "electron";
 import { Runtime } from "./runtime";
 import { createMainWindow } from "./window";
-import { selectTarget } from "./targets";
+import { lockRoot, selectTarget } from "./targets";
 import { parseTarget } from "./ipc/validate";
 import { registerIpc } from "./ipc/register";
 import { initUpdates } from "./ipc/updates";
@@ -16,7 +16,11 @@ import { parseToutiaoConfig } from "../../../../packages/toutiao/src/config";
 import { parseFanqieConfig } from "../../../../packages/fanqie/src/config";
 import { setStateRoot } from "../../../../packages/core/src/paths";
 import { setProfilesRoot } from "../../../../packages/core/src/profiles";
-import { setWorkspaceHost, releaseWorkspaces } from "../../../../packages/core/src/workspace-lock";
+import {
+  cleanStaleWorkspaceClaim,
+  releaseWorkspaces,
+  setWorkspaceHost,
+} from "../../../../packages/core/src/workspace-lock";
 import { VERSION } from "../../../../packages/core/src/version";
 
 export async function start() {
@@ -88,7 +92,17 @@ export async function start() {
   let notice = state.settings.notices.join("\n");
   if (saved) {
     try {
-      await selectTarget(state, parseTarget(JSON.parse(saved)));
+      const target = parseTarget(JSON.parse(saved));
+      // 启动自愈：上次进程崩溃遗留的作品占用登记在恢复最近项目前清理掉。
+      const reclaimed = await cleanStaleWorkspaceClaim(await lockRoot(state, target));
+      if (reclaimed.kind === "cleaned")
+        await state.diagnostics.write(
+          "workspace_claim_cleaned",
+          reclaimed.owner
+            ? { pid: reclaimed.owner.pid, host: reclaimed.owner.host, at: reclaimed.owner.at }
+            : { legacy: true },
+        );
+      await selectTarget(state, target);
     } catch (error) {
       notice = "最近项目恢复未完成，请重新选择目录：" + String(error);
     }

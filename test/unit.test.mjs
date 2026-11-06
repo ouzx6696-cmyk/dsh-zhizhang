@@ -3,10 +3,11 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { readFile, mkdir, writeFile, rm } from "node:fs/promises";
+import { hostname } from "node:os";
 import { spawnSync } from "node:child_process";
 import { FIX, ROOT, tempDir, buildUrl } from "./helpers.mjs";
 
-const { resolveInside, serialize, atomicWrite, readJson } = await import(
+const { resolveInside, serialize, atomicWrite, readJson, exists } = await import(
   buildUrl("core/src/fsx.js")
 );
 const { parseContract, locatePython, runScript } = await import(buildUrl("core/src/runner.js"));
@@ -143,6 +144,39 @@ test("serialize 串行化同 key 的读改写", async () => {
   );
   assert.equal((await readJson(f)).n, 30);
 });
+
+test(
+  "atomicWrite：Windows 目标被占用时重试，释放后成功，持续占用如实报错",
+  { skip: process.platform !== "win32", timeout: 15000 },
+  async (t) => {
+    const { open } = await import("node:fs/promises");
+    const dir = await tempDir();
+    const file = path.join(dir, "稿.md");
+    await writeFile(file, "旧稿");
+    // Windows 上不带共享删除权限的打开句柄会拒绝 rename 覆盖，模拟杀软、索引器或编辑器的占用。
+    const blocker = await open(file, "r");
+    let closed = false;
+    const release = async () => {
+      if (closed) return;
+      closed = true;
+      await blocker.close();
+    };
+    t.after(() => release());
+    try {
+      const started = Date.now();
+      await assert.rejects(atomicWrite(file, "持续占用期间的重写"), (error) => {
+        assert.equal(error.code, "EPERM");
+        return true;
+      });
+      assert.ok(Date.now() - started >= 2000, "占用期间应重试满 2 秒再报错");
+      await release();
+      await atomicWrite(file, "句柄释放后的重写");
+      assert.equal(await readFile(file, "utf8"), "句柄释放后的重写");
+    } finally {
+      await release();
+    }
+  },
+);
 
 test("脚本契约：非 JSON、缺字段、非零退出码都判失败", () => {
   assert.throws(() => parseContract("综合 90 分", "", 0), /不是合法 JSON/);
@@ -553,6 +587,93 @@ test(
       );
       await rm(root, { recursive: true, force: true });
     }
+  },
+);
+
+const CLAIM_GUARD = ".writer-workspace-claim";
+const claimRegistration = (root) => path.join(root, CLAIM_GUARD, "owner.json");
+const guardOwner = (pid) =>
+  JSON.stringify({
+    id: "t18",
+    pid,
+    machine: hostname(),
+    host: "测试",
+    at: new Date().toISOString(),
+  });
+
+test("作品占用登记：启动自愈清理无主与旧版遗留登记，存活与损坏登记不清理", async (t) => {
+  const { cleanStaleWorkspaceClaim } = await import(buildUrl("core/src/workspace-lock.js"));
+  // pid 不存在 → 清理成功并返回旧 pid
+  const dead = await tempDir("writer-claim-dead-");
+  t.after(() => rm(dead, { recursive: true, force: true }));
+  await mkdir(path.join(dead, CLAIM_GUARD), { recursive: true });
+  await writeFile(claimRegistration(dead), guardOwner(2147483647));
+  const cleaned = await cleanStaleWorkspaceClaim(dead);
+  assert.equal(cleaned.kind, "cleaned");
+  assert.equal(cleaned.owner.pid, 2147483647);
+  assert.equal(await exists(path.join(dead, CLAIM_GUARD)), false);
+
+  // pid 是当前进程 → 拒绝清理并报占用者，登记原样保留
+  const alive = await tempDir("writer-claim-alive-");
+  t.after(() => rm(alive, { recursive: true, force: true }));
+  await mkdir(path.join(alive, CLAIM_GUARD), { recursive: true });
+  await writeFile(claimRegistration(alive), guardOwner(process.pid));
+  const busy = await cleanStaleWorkspaceClaim(alive);
+  assert.equal(busy.kind, "occupied");
+  assert.equal(busy.owner.pid, process.pid);
+  assert.equal(await exists(claimRegistration(alive)), true);
+
+  // 损坏登记 → 报错不吞，不清理
+  await writeFile(claimRegistration(alive), "{broken");
+  await assert.rejects(cleanStaleWorkspaceClaim(alive), { code: "CONFLICT", message: /损坏/ });
+  assert.equal(await exists(claimRegistration(alive)), true);
+
+  // 旧版遗留的空登记目录（无登记文件）→ 清理，无 pid 可报
+  const legacy = await tempDir("writer-claim-legacy-");
+  t.after(() => rm(legacy, { recursive: true, force: true }));
+  await mkdir(path.join(legacy, CLAIM_GUARD), { recursive: true });
+  const legacyCleaned = await cleanStaleWorkspaceClaim(legacy);
+  assert.equal(legacyCleaned.kind, "cleaned");
+  assert.equal(legacyCleaned.owner, null);
+
+  // 没有登记 → absent
+  const plain = await tempDir("writer-claim-plain-");
+  t.after(() => rm(plain, { recursive: true, force: true }));
+  assert.equal((await cleanStaleWorkspaceClaim(plain)).kind, "absent");
+});
+
+test("作品占用登记：认领时自动清理崩溃遗留的无主登记，完成后登记目录释放", async (t) => {
+  const { claimWorkspace, releaseWorkspace } = await import(buildUrl("core/src/workspace-lock.js"));
+  const dir = await tempDir("writer-claim-heal-");
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await mkdir(path.join(dir, CLAIM_GUARD), { recursive: true });
+  await writeFile(claimRegistration(dir), guardOwner(2147483647));
+  const started = Date.now();
+  const access = await claimWorkspace(dir);
+  assert.equal(access.readOnly, false);
+  assert.ok(Date.now() - started < 2000, "无主登记应立即清理，而不是等满超时");
+  assert.equal(await exists(path.join(dir, CLAIM_GUARD)), false, "认领完成后登记目录应释放");
+  await releaseWorkspace(dir);
+  assert.equal(await exists(path.join(dir, ".writer-workspace-lock.json")), false);
+});
+
+test(
+  "作品占用登记：活进程持有时认领等待后如实报占用，不动他人登记",
+  { timeout: 10000 },
+  async (t) => {
+    const { claimWorkspace } = await import(buildUrl("core/src/workspace-lock.js"));
+    const dir = await tempDir("writer-claim-conflict-");
+    t.after(() => rm(dir, { recursive: true, force: true }));
+    await mkdir(path.join(dir, CLAIM_GUARD), { recursive: true });
+    await writeFile(claimRegistration(dir), guardOwner(process.pid));
+    const started = Date.now();
+    await assert.rejects(claimWorkspace(dir), (error) => {
+      assert.equal(error.code, "CONFLICT");
+      assert.ok(error.message.includes(`进程 ${process.pid}`));
+      return true;
+    });
+    assert.ok(Date.now() - started >= 2000, "活进程持有应等满超时而不是清理");
+    assert.equal(await exists(claimRegistration(dir)), true);
   },
 );
 

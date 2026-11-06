@@ -35,3 +35,37 @@ metrics.json 和 COMPARISON.md 按任务记录读取实际产物：核对 7 篇�
 `npm run verify` 覆盖架构边界、Python 和业务回归；`npm run test:desktop` 覆盖真实 PI 与本地模拟接口；`npm run test:desktop:ui` 是一条含九个步骤的桌面旅程，复用同一客户端并在失败处停止。改动后运行相关入口，不为同一行为复制多组脚本。模拟测试不调用付费服务。
 
 界面验收包含 650／700px 高度下展开上下文时输入区可见、窗口原生尺寸变化、压缩后继续发送和搜索 Key 清除。Windows 原生最大化／全屏分支仅在 Windows 执行，Linux 结果不替代该验收。
+
+## W7 手工验收步骤：Windows 安装与跨版本更新
+
+以下步骤尚未执行过；产物路径以 `apps/desktop/electron-builder.yml` 与 `.github/workflows/ci.yml` 实际配置为准。
+
+### 产物与来源
+
+- 本地打包：`npm run desktop:pack`（NSIS 安装包）、`npm run desktop:portable`（免安装 ZIP），两者都先执行 `desktop:build`。产物在 `apps/desktop/release/`：`WriterAgent-<version>-win-x64.exe`、`WriterAgent-<version>-win-x64.zip`、`*.blockmap`、`latest.yml`。
+- CI（ci.yml windows-latest 打包步骤）另产出 `RELEASE-CONDITIONS.json`（版本、commit、签名状态、realModelAcceptance）与 `SHA256SUMS`，汇总为 artifact `writer-windows-packages`；发布由 release.yml 走 ci.yml verify 后 publish 到 GitHub Releases。
+- 未配置签名证书时安装包不签名，SmartScreen 提示属预期；`RELEASE-CONDITIONS.json` 的 `signing` 字段记录实际状态。
+
+### 安装验收（NSIS）
+
+1. 核对 `SHA256SUMS` 与安装包一致；`latest.yml` 的 `version` 与文件名版本一致（CI 已校验，手工复核一次）。
+2. 运行 exe：assisted 安装器，默认装到 `%LOCALAPPDATA%\Programs\写作 Agent`，可更改目录。
+3. 首次启动完成引导：模型连接、选择写作根、新建作品；写入一篇验证随包 Python（`resources/python`）与技能资源（`resources/writer`）可用。
+4. 免安装 ZIP 解压到独立目录运行 `WriterAgent.exe`，重复上一步冒烟（CI 已校验 zip 内含 WriterAgent.exe、resources/app.asar、resources/python/python.exe、resources/writer/scripts/writer-backup.mjs）。
+
+### 跨版本更新验收
+
+1. 先安装上一正式版并完成：模型配置与 API Key、业务配置、偏好、方法方案、选择一个含作品的写作根。
+2. 升级到新版：直接覆盖安装，或应用内检查更新 → 下载 → 安装并重启（electron-updater，GitHub 源，读 `latest.yml`）。
+3. 更新后核对 userData（`%APPDATA%\写作 Agent`）保留：
+   - `model.json`：模型与 Key 仍可用（safeStorage 加密须同一 Windows 用户），「测试连接」通过；
+   - `desktop.json`、`search.json`、`writer.json`：界面偏好、搜索配置、业务配置仍在；
+   - `profiles/`（或 `profiles-directory` 指向的自定义目录）：方法方案仍在；
+   - `target.json`：最近项目自动恢复，写作根内作品与台账原样可读写；偏好文件（写作根 `.writer/preferences.md`）仍加载。
+4. 版本核对：设置内版本号与 `RELEASE-CONDITIONS.json` 一致。
+
+### 卸载与残留检查
+
+1. 卸载配置为 `deleteAppDataOnUninstall: false`：userData 保留（模型 Key、方法方案），重装后配置仍在属预期；彻底清除须手动删除 userData 目录。
+2. 核对安装目录、开始菜单与桌面快捷方式、注册表卸载项已移除；写作根内作品文件不受安装与卸载影响。
+3. 崩溃残留自愈：在写作根手工创建空目录 `.writer-workspace-claim`（或带死 pid 登记 `owner.json` 的目录）后启动新版，登记应被自动清理并在诊断日志（userData `logs/`）写一条 `workspace_claim_cleaned`；持有进程仍存活时启动应照常报占用而不是清理。遗留的 `.writer-workspace-lock.json` 在持有进程结束后可正常重取。
