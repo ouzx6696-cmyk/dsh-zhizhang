@@ -121,14 +121,15 @@ async function startSession(
   ];
   if (primary) {
     customTools.push(...createDelegateTools({ host, target, manager, getEntry, getSession }));
-    if (target.mode === "fanqie" && host.options.fanqie?.draw?.enabled === true)
+    if (host.options[target.mode]?.draw?.enabled === true)
       customTools.push(
         ...createDrawTools({
           host,
           target,
           getEntry,
           getSession,
-          drawMax: host.options.fanqie.draw.max ?? 3,
+          drawMax: host.options.fanqie?.draw?.max ?? 3,
+          toutiaoDrawMax: host.options.toutiao?.draw?.max,
           createDraft: (constraint) => createDraftSession(host, target, constraint),
         }),
       );

@@ -8,15 +8,17 @@
 
   --ledger 指定台账路径，默认 outputs/toutiao/log.csv（不存在会自动建）。
   qa_check.py --card 会读这份台账：资讯线查开头式/结尾式/人名撞车、同赛道同日、账本型占比；
-  故事线查 30 天内同一故事或同一母题、连续两篇同一改编方式。
-  4.0.0 新增 内容线、母题、故事、改编方式 四列。3.x 的旧台账照常读，下次写入时补齐表头，旧行的新列留空
-  （内容线按主驱动推断：故事型算故事线，其余算资讯线）。
+  故事线查 30 天内同一故事或同一母题、连续两篇同一改编方式；另与台账近 10 篇可比稿件做同质化机械比较。
+  4.0.0 新增 内容线、母体、母题、故事、改编方式 列与平台回流列（链接/数据日期/展现/阅读/完读率/
+  平均时长/评论/转发/涨粉）。3.x 的旧台账照常读，下次写入时补齐表头，旧行的新列留空
+  （内容线按主驱动推断：故事型算故事线，其余算资讯线）。平台回流由 writer_bridge metrics-import
+  写入：一篇文章一行，整批取数据日期最新的一天做快照，不按日拆行，存量数据不迁移。
 """
 import argparse, csv, datetime, json, os, sys, tempfile, time
 from contextlib import contextmanager
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from rules import LEDGER_FIELDS, GENRE_MODE, LINES, line_of  # noqa: E402
+from rules import LEDGER_FIELDS, LEDGER_METRIC_FIELDS, GENRE_MODE, LINES, line_of  # noqa: E402
 
 STATUSES = ["初稿待改", "待验收", "已验收", "验收退回", "已交稿"]
 
@@ -70,7 +72,8 @@ def locked(path):
 def write(path, rows):
     folder = os.path.dirname(os.path.abspath(path))
     os.makedirs(folder, exist_ok=True)
-    fields = list(LEDGER_FIELDS)
+    # 表头永远补齐到现行全部列：旧台账缺的列（内容线、母体、平台回流列）写入时一并补上，旧行留空
+    fields = list(LEDGER_FIELDS) + list(LEDGER_METRIC_FIELDS)
     if any(r.get("文章ID") for r in rows):
         fields.append("文章ID")
     fd, temporary = tempfile.mkstemp(prefix=".ledger-", suffix=".tmp", dir=folder)
@@ -106,11 +109,74 @@ def row_from_card(c, date, status):
     return {"日期": date, "内容线": ln, "体裁": c.get("体裁", ""), "垂类": c.get("垂类", ""),
             "主驱动": c.get("主驱动") or LINES[ln]["default_driver"] or "",
             "母题": c.get("母题", "") if ln == "故事线" else "",
+            "母体": c.get("母体", ""),
             "故事": c.get("故事", "") if ln == "故事线" else "",
             "改编方式": c.get("改编方式", "") if ln == "故事线" else "",
             "开头式": c.get("开头式", ""), "结尾式": c.get("结尾式", ""),
             "锚点人名": (c.get("锚点人物") or {}).get("名字", ""), "主标题": c.get("主标题", ""),
             "状态": status}
+
+
+METRIC_SNAPSHOT_FIELDS = LEDGER_METRIC_FIELDS[2:]   # 展现/阅读/完读率/平均时长/评论/转发/涨粉
+
+
+def merge_metrics(rows, article_id, url, entries):
+    """把平台回流数据并进该文章的台账行：整批取数据日期最新的一天做快照，整行替换数值列。
+    台账已有更新的快照时不覆盖（返回 kept）；一篇文章一行，不按日拆行。返回 (row, kept)。"""
+    hits = [r for r in rows if r.get("文章ID") == article_id]
+    if not hits and url:
+        hits = [r for r in rows if r.get("链接") == url]
+    if not hits:
+        raise LookupError(f"台账里没有文章 {article_id}（先 toutiao_ledger_add 记账）")
+    row = hits[-1]
+    latest = max(entries, key=lambda e: str(e.get("日期") or ""))
+    stored = (row.get("数据日期") or "").strip()
+    if stored and stored > str(latest.get("日期") or ""):
+        return row, True
+    if url:
+        row["链接"] = url
+    row["数据日期"] = str(latest.get("日期") or "")
+    for field in METRIC_SNAPSHOT_FIELDS:
+        value = str(latest.get(field) or "").strip()
+        row[field] = value
+    return row, False
+
+
+def performance_groups(rows):
+    """同垂类同母体的历史表现：只统计回流过的行。样本 <10 篇只展示不计推荐。"""
+    groups = {}
+    for r in rows:
+        if not ((r.get("展现") or "").strip() or (r.get("阅读") or "").strip()):
+            continue
+        key = ((r.get("垂类") or "").strip(), (r.get("母体") or "").strip())
+        groups.setdefault(key, []).append(r)
+    out = []
+    for (vertical, matrix), items in groups.items():
+        n = len(items)
+        entry = {"垂类": vertical, "母体": matrix, "samples": n,
+                 "articles": [{"日期": r.get("日期", ""), "主标题": r.get("主标题", ""),
+                               "数据日期": r.get("数据日期", ""), "展现": r.get("展现", ""),
+                               "阅读": r.get("阅读", ""), "完读率": r.get("完读率", ""),
+                               "涨粉": r.get("涨粉", "")} for r in items[-10:]]}
+        if n >= 10:
+            shown = [_int_or_none(r.get("展现")) for r in items]
+            reads = [_int_or_none(r.get("阅读")) for r in items]
+            imp = [v for v in shown if v is not None]
+            rd = [v for v in reads if v is not None]
+            entry["基准"] = (f"同垂类同母体已回流 {n} 篇：平均展现 "
+                            f"{round(sum(imp) / len(imp)) if imp else '—'} · 平均阅读 "
+                            f"{round(sum(rd) / len(rd)) if rd else '—'}，新篇以此为基准")
+        else:
+            entry["备注"] = f"样本 {n} 篇（<10），只展示不计推荐"
+        out.append(entry)
+    return out
+
+
+def _int_or_none(v):
+    try:
+        return int(str(v).strip())
+    except (TypeError, ValueError):
+        return None
 
 
 def main_unlocked():

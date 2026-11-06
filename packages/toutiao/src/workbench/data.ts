@@ -166,6 +166,8 @@ export async function articleDetail(rootIn: string, id: string) {
       failCount: q.fail_count,
       rulesVersion: q.rules_version,
       at: q.at,
+      dims: q.dims ?? null,
+      readerReview: q.readerReview ?? null,
     })),
     qaValid: qaValid.ok,
     qaProblem: qaValid.ok ? undefined : qaValid.reason,

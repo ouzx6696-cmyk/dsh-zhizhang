@@ -43,6 +43,35 @@ export interface DraftRecord {
   created_at: string;
   note: string;
 }
+/** 六维分项（qa_check 六个 item 的分数）。旧记录没有 dims 字段，读取时按缺省处理。 */
+export interface QaDims {
+  ai: number;
+  read: number;
+  title: number;
+  detail: number;
+  structure: number;
+  compliance: number;
+}
+/** 读者评审九项标尺（packages/core/eval/judge-toutiao-article.md）。 */
+export const READER_RUBRIC = [
+  "标题",
+  "开篇三段",
+  "人物",
+  "引语",
+  "延伸",
+  "节奏",
+  "结尾",
+  "不像模板",
+  "读完意愿",
+] as const;
+export type ReaderRubricItem = (typeof READER_RUBRIC)[number];
+export interface ReaderReview {
+  /** 被评审的稿件版本 */
+  rev: number;
+  at: string;
+  scores: Record<ReaderRubricItem, number>;
+  evidences: Record<ReaderRubricItem, string>;
+}
 export interface QaRecord {
   rev: number;
   sha256: string;
@@ -53,6 +82,9 @@ export interface QaRecord {
   rules_version: string;
   card_sha256: string | null;
   at: string;
+  dims?: QaDims;
+  /** qa.judge 开启时由编辑子会话写入；与该记录同一稿件版本 */
+  readerReview?: ReaderReview;
 }
 export interface HistoryRecord {
   from: Status | null;
@@ -320,4 +352,120 @@ export class ArticleStore {
     const hits = m.qa.filter((q) => q.rev === cur.rev && q.sha256 === cur.sha256);
     return hits[hits.length - 1];
   }
+
+  /** 读者评审落到 meta.qa 最近一条（与该次质检同一稿件版本）。没有质检记录时返回 false。 */
+  async attachReaderReview(id: string, review: ReaderReview): Promise<boolean> {
+    const m = await this.update(id, (meta) => {
+      const last = meta.qa[meta.qa.length - 1];
+      if (last) last.readerReview = review;
+    });
+    return Boolean(m.qa[m.qa.length - 1]?.readerReview);
+  }
+}
+
+/** 从编辑回报文本里解析读者评审：取最后一个能通过校验的 JSON 对象；没有就返回 null。 */
+export function parseReaderReview(raw: string, rev: number, at: string): ReaderReview | null {
+  for (const span of balancedJsonObjects(raw).reverse()) {
+    let value: unknown;
+    try {
+      value = JSON.parse(span);
+    } catch {
+      continue; // allow-catch: 候选片段不是 JSON 就换上一个候选，评估文本本身失败由调用方兜底
+    }
+    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+    const scores = (value as Record<string, unknown>)["scores"];
+    const evidences = (value as Record<string, unknown>)["evidences"];
+    if (
+      !isRubricMap(scores, (x) => typeof x === "number" && Number.isInteger(x) && x >= 1 && x <= 5)
+    )
+      continue;
+    if (!isRubricMap(evidences, (x) => typeof x === "string" && x.trim().length > 0)) continue;
+    return {
+      rev,
+      at,
+      scores: scores as ReaderReview["scores"],
+      evidences: evidences as ReaderReview["evidences"],
+    };
+  }
+  return null;
+}
+
+/** 文本里所有配平的 {...} 片段，按出现顺序。 */
+function balancedJsonObjects(text: string): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] !== "{") continue;
+    let depth = 0;
+    for (let j = i; j < text.length; j++) {
+      if (text[j] === "{") depth++;
+      else if (text[j] === "}") {
+        depth--;
+        if (depth === 0) {
+          out.push(text.slice(i, j + 1));
+          break;
+        }
+      }
+    }
+  }
+  return out;
+}
+
+function isRubricMap(
+  value: unknown,
+  ok: (item: unknown) => boolean,
+): value is Record<ReaderRubricItem, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const map = value as Record<string, unknown>;
+  return READER_RUBRIC.every((key) => typeof map[key] !== "undefined" && ok(map[key]));
+}
+
+/** 作者改稿反馈的两种行式：
+ *  旧：`- 日期：原文 → 改后 → 动机`
+ *  新：尾部再附 `｜ 病型=… ｜ 位置=… ｜ 改法=…`（键=值，可只附其中几键）。 */
+export interface FeedbackEntry {
+  date: string;
+  original: string;
+  revised: string;
+  motive: string;
+  病型?: string;
+  位置?: string;
+  改法?: string;
+}
+
+const FEEDBACK_TAGS = ["病型", "位置", "改法"] as const;
+
+export function parseFeedbackEntries(text: string): FeedbackEntry[] {
+  const out: FeedbackEntry[] = [];
+  for (const line of text.split("\n")) {
+    if (!line.startsWith("- ")) continue;
+    const [head, ...tags] = line.slice(2).split("｜");
+    const parts = head.split(" → ");
+    if (parts.length < 3) continue;
+    const dateMatch = /^(\d{4}-\d{2}-\d{2})：/.exec(parts[0].trim());
+    const entry: FeedbackEntry = {
+      date: dateMatch ? dateMatch[1] : "",
+      original: parts[0].replace(/^\d{4}-\d{2}-\d{2}：/, "").trim(),
+      revised: parts.slice(1, -1).join(" → ").trim(),
+      motive: parts[parts.length - 1].trim(),
+    };
+    for (const tag of tags) {
+      const eq = tag.indexOf("=");
+      if (eq <= 0) continue;
+      const key = tag.slice(0, eq).trim();
+      const value = tag.slice(eq + 1).trim();
+      if ((FEEDBACK_TAGS as readonly string[]).includes(key) && value)
+        entry[key as (typeof FEEDBACK_TAGS)[number]] = value;
+    }
+    out.push(entry);
+  }
+  return out;
+}
+
+/** 渲染一条反馈为行式（append 与 S4 附件共用同一格式）。 */
+export function formatFeedbackLine(entry: FeedbackEntry): string {
+  const tags = FEEDBACK_TAGS.filter((key) => entry[key])
+    .map((key) => `${key}=${entry[key]}`)
+    .join(" ｜ ");
+  const head = `- ${entry.date}：${entry.original} → ${entry.revised} → ${entry.motive}`;
+  return tags ? `${head} ｜ ${tags}` : head;
 }

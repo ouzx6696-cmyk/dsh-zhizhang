@@ -18,6 +18,10 @@ export interface ToutiaoConfig {
   session?: { proactiveCompact?: boolean };
   /** 常驻规则重排：创作定向在前、工程约束整段压后，默认关 */
   brief?: { creationFirst?: boolean };
+  /** qa.judge：编辑子会话红笔后按九项标尺做读者评审并落盘 meta.qa.readerReview，默认关 */
+  qa?: { judge?: boolean };
+  /** draw.enabled：头条标题抽卡（writer_draw 仅 title-brief 场景，五母体各一版）；max 为单批上限，默认 5 */
+  draw?: { enabled?: boolean; max?: number };
   /** 作者自备方法 / 语料目录（toutiao_method_get id=user:…）；见 docs/guides/ASSETS.md */
   assets?: AssetsConfig;
   /** 固定使用的方法方案（默认 / 原版 / 用户方案名或 id）；不填则用写作台或工具选的当前方案 */
@@ -33,6 +37,8 @@ const KNOWN = new Set<string>([
   "handoff",
   "session",
   "brief",
+  "qa",
+  "draw",
   "assets",
 ]);
 
@@ -114,6 +120,39 @@ export function parseToutiaoConfig(
         path: [...at, "brief"],
       });
     else out.brief = { creationFirst: b.creationFirst === true };
+  }
+  if (v.qa !== undefined) {
+    const q = v.qa as Record<string, unknown> | null;
+    if (
+      !q ||
+      typeof q !== "object" ||
+      Array.isArray(q) ||
+      (q.judge !== undefined && typeof q.judge !== "boolean")
+    )
+      issues.push({
+        message: `${[...at, "qa"].join(".")} 应为 { judge: 布尔值 }`,
+        path: [...at, "qa"],
+      });
+    else out.qa = { judge: q.judge === true };
+  }
+  if (v.draw !== undefined) {
+    const d = v.draw as Record<string, unknown> | null;
+    if (
+      !d ||
+      typeof d !== "object" ||
+      Array.isArray(d) ||
+      (d.enabled !== undefined && typeof d.enabled !== "boolean") ||
+      (d.max !== undefined && (typeof d.max !== "number" || !Number.isInteger(d.max) || d.max < 1))
+    )
+      issues.push({
+        message: `${[...at, "draw"].join(".")} 应为 { enabled: 布尔值, max: 正整数 }`,
+        path: [...at, "draw"],
+      });
+    else
+      out.draw = {
+        enabled: d.enabled === true,
+        ...(typeof d.max === "number" ? { max: d.max } : {}),
+      };
   }
   if (v.assets !== undefined) {
     const a = parseAssetsConfig(v.assets, [...at, "assets"]);

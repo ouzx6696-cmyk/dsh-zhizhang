@@ -21,10 +21,14 @@ import {
   canTransition,
   MAX_RETURN_ROUNDS,
   nowIso,
+  parseFeedbackEntries,
+  formatFeedbackLine,
   STATUSES,
   STOP_LINE,
   today,
   type ArticleMeta,
+  type FeedbackEntry,
+  type QaDims,
   type Status,
 } from "./store.js";
 
@@ -64,6 +68,161 @@ function optStr(args: Record<string, unknown>, key: string): string | undefined 
   if (v === undefined || v === null) return undefined;
   if (typeof v !== "string") throw new WriterError("INVALID_ARGS", `参数 ${key} 必须是字符串`);
   return v.trim();
+}
+
+const QA_DIM_KEYS = ["ai", "read", "title", "detail", "structure", "compliance"] as const;
+
+/** 六维分项从质检报告 items 提取；脚本没给出全部六项时不存（旧记录本就没有 dims）。 */
+function dimsOf(report: { items?: unknown[] } | undefined): QaDims | undefined {
+  const scores = new Map<string, number>();
+  for (const item of report?.items ?? []) {
+    if (!item || typeof item !== "object") continue;
+    const row = item as { key?: unknown; score?: unknown };
+    if (typeof row.key === "string" && typeof row.score === "number")
+      scores.set(row.key, row.score);
+  }
+  const dims: QaDims = { ai: 0, read: 0, title: 0, detail: 0, structure: 0, compliance: 0 };
+  for (const key of QA_DIM_KEYS) {
+    const value = scores.get(key);
+    if (value === undefined) return undefined;
+    dims[key] = value;
+  }
+  return dims;
+}
+
+/* ---- toutiao_metrics_import 的两种入参（对象数组 / CSV 文本）都归一到台账列名 ---- */
+
+/** 台账指标列（与 rules.py LEDGER_METRIC_FIELDS 对应；链接/数据日期由桥侧维护）。 */
+const METRIC_KEY_MAP = {
+  impressions: "展现",
+  reads: "阅读",
+  readRate: "完读率",
+  avgReadSeconds: "平均时长",
+  comments: "评论",
+  shares: "转发",
+  follows: "涨粉",
+} as const;
+const METRIC_CSV_HEADERS: Record<string, string> = {
+  日期: "date",
+  date: "date",
+  展现: "impressions",
+  impressions: "impressions",
+  阅读: "reads",
+  reads: "reads",
+  完读率: "readRate",
+  readrate: "readRate",
+  平均时长: "avgReadSeconds",
+  avgreadseconds: "avgReadSeconds",
+  评论: "comments",
+  comments: "comments",
+  转发: "shares",
+  shares: "shares",
+  涨粉: "follows",
+  follows: "follows",
+};
+const METRIC_MAX_ROWS = 60;
+
+function normalizeMetricRows(rows: Record<string, unknown>[]): Record<string, string>[] {
+  if (rows.length === 0) throw new WriterError("INVALID_ARGS", "metrics 须为非空数组");
+  if (rows.length > METRIC_MAX_ROWS)
+    throw new WriterError(
+      "INVALID_ARGS",
+      `metrics 一次最多 ${METRIC_MAX_ROWS} 行，历史数据请分批导入`,
+    );
+  return rows.map((row) => {
+    const date = row["date"];
+    if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date.trim()))
+      throw new WriterError("INVALID_ARGS", "metrics 每行都要有 date（YYYY-MM-DD）");
+    const out: Record<string, string> = { 日期: date.trim() };
+    let anyValue = false;
+    for (const [key, label] of Object.entries(METRIC_KEY_MAP)) {
+      const value = row[key];
+      if (value === undefined || value === null || value === "") continue;
+      if (typeof value !== "number" && typeof value !== "string")
+        throw new WriterError("INVALID_ARGS", `metrics.${key} 须为数字或原文文本`);
+      const text = typeof value === "number" ? String(value) : value.trim();
+      if (!text) continue;
+      out[label] = text;
+      anyValue = true;
+    }
+    if (!anyValue) throw new WriterError("INVALID_ARGS", `${out["日期"]} 这一行没有任何指标值`);
+    return out;
+  });
+}
+
+function metricObjects(raw: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(raw)) throw new WriterError("INVALID_ARGS", "metrics 须为数组");
+  return raw.map((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item))
+      throw new WriterError("INVALID_ARGS", "metrics 每行须为对象");
+    return item as Record<string, unknown>;
+  });
+}
+
+/** 粘贴 CSV 的最小解析：双引号可包住逗号/换行，两个引号转义一个引号。 */
+function parseCsvRows(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let inQuotes = false;
+  let started = false;
+  const endField = () => {
+    row.push(field);
+    field = "";
+  };
+  const endRow = () => {
+    endField();
+    if (started) rows.push(row);
+    row = [];
+    started = false;
+  };
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else inQuotes = false;
+      } else field += ch;
+      started = true;
+    } else if (ch === '"') inQuotes = true;
+    else if (ch === ",") {
+      endField();
+      started = true;
+    } else if (ch === "\n") endRow();
+    else if (ch !== "\r") {
+      field += ch;
+      started = true;
+    }
+  }
+  if (inQuotes) throw new WriterError("INVALID_ARGS", "CSV 引号没有闭合");
+  endRow();
+  return rows.filter((cells) => cells.some((cell) => cell.trim()));
+}
+
+function csvMetricRows(text: string): Record<string, string>[] {
+  const rows = parseCsvRows(text);
+  if (rows.length < 2) throw new WriterError("INVALID_ARGS", "CSV 至少要有表头和一行数据");
+  const headers = rows[0].map((cell) => {
+    const mapped = METRIC_CSV_HEADERS[cell.trim().toLowerCase()];
+    if (!mapped)
+      throw new WriterError(
+        "INVALID_ARGS",
+        `CSV 表头不认识“${cell.trim()}”：应为 日期,展现,阅读,完读率,平均时长,评论,转发,涨粉`,
+      );
+    return mapped;
+  });
+  return normalizeMetricRows(
+    rows.slice(1).map((cells) => {
+      const obj: Record<string, unknown> = {};
+      headers.forEach((key, i) => {
+        const cell = cells[i];
+        if (cell !== undefined && cell.trim()) obj[key] = cell.trim();
+      });
+      return obj;
+    }),
+  );
 }
 
 export interface ToolDeps {
@@ -476,6 +635,11 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
         const r = await bridge(config, a, { timeoutMs: 120_000, signal: exec.signal });
         const hardGates = scriptStrArray(r.hard_gates, "hard_gates");
         const fails = scriptArray(r.fails, "fails");
+        const report =
+          r.report && typeof r.report === "object"
+            ? (r.report as { items?: unknown[] })
+            : undefined;
+        const dims = dimsOf(report);
         const rec = {
           rev: cur.rev,
           sha256: cur.sha256,
@@ -486,16 +650,13 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
           rules_version: r.rules_version,
           card_sha256: cardText === undefined ? null : sha256(cardText),
           at: nowIso(),
+          ...(dims ? { dims } : {}),
         };
         await store.update(id, (mm) => {
           mm.qa.push(rec);
         });
         const warn =
           cardText === undefined ? ["没有立项卡，未做立项卡与台账核对；交稿前必须补卡并重跑"] : [];
-        const report =
-          r.report && typeof r.report === "object"
-            ? (r.report as { items?: unknown[] })
-            : undefined;
         return {
           pass: rec.pass,
           score: rec.score,
@@ -508,6 +669,7 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
           chars: r.chars,
           rules_version: r.rules_version,
           rev: cur.rev,
+          dims: rec.dims ?? null,
           items: report?.items ?? [],
         };
       },
@@ -669,7 +831,8 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
 
     defineWriterTool<{ last?: number }>({
       name: "toutiao_ledger_show",
-      description: "S1/S2 读发稿台账最近若干行，防撞题撞脸。",
+      description:
+        "S1/S2 读发稿台账最近若干行（防撞题撞脸），并附“同垂类同母体历史表现”：有平台回流数据的文章按垂类+母体分组展示，样本 <10 篇只展示不计推荐。",
       properties: { last: I("最近几行，默认 10") },
       async run(args, exec) {
         const store = await st(exec);
@@ -684,19 +847,97 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
           ],
           { signal: exec.signal },
         );
-        return { rows: r.rows, total: r.total };
+        return {
+          rows: r.rows,
+          total: r.total,
+          performance: scriptArray(r.performance, "performance"),
+        };
       },
     }),
 
-    defineWriterTool<{ original: string; revised: string; motive: string }>({
+    defineWriterTool<{ articleId: string; url?: string; metrics?: unknown[]; csv?: string }>({
+      name: "toutiao_metrics_import",
+      description:
+        "把平台数据回流进发稿台账（展现/阅读/完读率/平均时长/评论/转发/涨粉）。一篇文章一行，整批取数据日期最新的一天做快照；文章要先 toutiao_ledger_add 记过账。metrics 给对象数组，或 csv 给粘贴的表格文本（表头 日期,展现,阅读,完读率,平均时长,评论,转发,涨粉），二选一。",
+      properties: {
+        articleId: ID,
+        url: S("发布页链接，可选；首次导入后记进台账，之后可凭 url 定位"),
+        metrics: {
+          type: "array",
+          description:
+            "每天一行：{date, impressions?, reads?, readRate?, avgReadSeconds?, comments?, shares?, follows?}，数值可给数字或原文文本",
+        },
+        csv: S(
+          "粘贴的 CSV 文本（表头 日期,展现,阅读,完读率,平均时长,评论,转发,涨粉），与 metrics 二选一",
+        ),
+      },
+      required: ["articleId"],
+      async run(args, exec) {
+        const store = await st(exec);
+        await store.writable();
+        const articleId = reqStr(args, "articleId");
+        const url = optStr(args, "url") ?? "";
+        const rows =
+          args.metrics !== undefined
+            ? normalizeMetricRows(metricObjects(args.metrics))
+            : csvMetricRows(reqStr(args, "csv"));
+        const r = await bridge(
+          config,
+          [
+            "metrics-import",
+            "--article-id",
+            articleId,
+            ...(url ? ["--url", url] : []),
+            "--metrics-json",
+            JSON.stringify(rows),
+            "--ledger",
+            store.ledgerPath,
+          ],
+          { signal: exec.signal },
+        );
+        return {
+          row: r.row,
+          kept: r.kept === true,
+          snapshot_date: r.snapshot_date,
+          ledger: store.ledgerPath,
+        };
+      },
+    }),
+
+    defineWriterTool<{
+      original: string;
+      revised: string;
+      motive: string;
+      病型?: string;
+      位置?: string;
+      改法?: string;
+    }>({
       name: "toutiao_feedback_append",
-      description: '作者改稿后记录"原文 → 改后 → 动机"，以后每次开工先读。',
-      properties: { original: S("原文"), revised: S("作者改后"), motive: S("作者的动机") },
+      description:
+        '作者改稿后记录"原文 → 改后 → 动机"，以后每次开工先读。知道病灶时可附结构化字段：病型（s5-editing 的 1~16 或 G1~G4）、位置（第几段/哪一节）、改法（一句话处方）——同类病型满三次会提醒固化进方法。',
+      properties: {
+        original: S("原文"),
+        revised: S("作者改后"),
+        motive: S("作者的动机"),
+        病型: S("病型编号与名称，如 3·大词空转 或 G2·寓意说教"),
+        位置: S("病灶位置，如 第 4 段 / 延伸节"),
+        改法: S("一句话改法"),
+      },
       required: ["original", "revised", "motive"],
       async run(args, exec) {
         const store = await st(exec);
         await store.writable();
-        const line = `- ${today()}：${reqStr(args, "original")} → ${reqStr(args, "revised")} → ${reqStr(args, "motive")}\n`;
+        const entry: FeedbackEntry = {
+          date: today(),
+          original: reqStr(args, "original"),
+          revised: reqStr(args, "revised"),
+          motive: reqStr(args, "motive"),
+        };
+        for (const key of ["病型", "位置", "改法"] as const) {
+          const value = optStr(args, key);
+          if (value) entry[key] = value;
+        }
+        const line = `${formatFeedbackLine(entry)}\n`;
         // 首条要写表头：查存在与写入须串行，否则并发的两条首记录会互相覆盖。
         await serialize(store.feedbackPath, async () => {
           const prev = await readText(store.feedbackPath);
@@ -710,12 +951,25 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
 
     defineWriterTool({
       name: "toutiao_feedback_read",
-      description: "开工先读作者改稿反馈。同类动机满三次，提醒作者固化进方法。",
+      description:
+        "开工先读作者改稿反馈。text 是原始行式；items 是解析后的结构化条目（新旧两种行式都支持）；同一病型满三次时在 hints 里提醒固化进方法。",
       properties: {},
       async run(_a, exec) {
         const store = await st(exec);
         const text = (await readText(store.feedbackPath)) ?? "";
-        return { text, entries: text.split("\n").filter((l) => l.startsWith("- ")).length };
+        const items = parseFeedbackEntries(text);
+        const counts = new Map<string, number>();
+        for (const item of items) {
+          if (!item.病型) continue;
+          counts.set(item.病型, (counts.get(item.病型) ?? 0) + 1);
+        }
+        const hints = [...counts.entries()]
+          .filter(([, n]) => n >= 3)
+          .map(
+            ([disease, n]) =>
+              `病型“${disease}”已反馈 ${n} 次：建议把改法固化进方法方案（toutiao_profile）`,
+          );
+        return { text, entries: items.length, items, hints };
       },
     }),
 

@@ -8,7 +8,7 @@
       "kind": "upstream",
       "version": "4.0.0",
       "files": 44,
-      "bytes": 340257,
+      "bytes": 363356,
       "loadable": 30,
       "byKind": {
         "meta": 1,
@@ -395,32 +395,32 @@
       "kind": "rule",
       "origin": "patched",
       "path": "packages/toutiao/skill/scripts/ledger.py",
-      "bytes": 6776,
-      "sha256": "b11277e1cb0cc3835a2ebed87f1ace7b3f1d2f4867e73391d267e45b82f7884d"
+      "bytes": 10264,
+      "sha256": "88be0d4e32fa97616fd50d2fedd9a92a9f7eedf890cb85d4c683d720880f5585"
     },
     {
       "source": "toutiao-viral-writer",
       "kind": "rule",
       "origin": "patched",
       "path": "packages/toutiao/skill/scripts/qa_check.py",
-      "bytes": 47939,
-      "sha256": "b02562ccb494eb94efd92d4088b0da5bb2ee82c17b4c3851ae4ea3beaa033774"
+      "bytes": 56160,
+      "sha256": "67c8a9d25e1dccc05dd599095905efc0be28ea97f1456d34bd59925a0c2df15a"
     },
     {
       "source": "toutiao-viral-writer",
       "kind": "rule",
       "origin": "upstream",
       "path": "packages/toutiao/skill/scripts/rules.py",
-      "bytes": 13950,
-      "sha256": "95e801b51b46e6f12b048b6a65c4e6dce1c5a02b0a862b05cb7b7b79a6d85a80"
+      "bytes": 15336,
+      "sha256": "bc09f40381a1c03c82801f154ac0a01482f8f9c3110868a069888d145eaa656d"
     },
     {
       "source": "toutiao-viral-writer",
       "kind": "rule",
       "origin": "local",
       "path": "packages/toutiao/skill/scripts/writer_bridge.py",
-      "bytes": 8546,
-      "sha256": "6ed86d1096ee8b4b8fec32092dedbeb0ec1912e381c7f9ba29609a1c73da463a"
+      "bytes": 10657,
+      "sha256": "330428d1e4977eecc6e33cfbb0bebf745039149de563c028340c4d661725d4d1"
     },
     {
       "source": "toutiao-viral-writer",
@@ -503,8 +503,8 @@
       "kind": "test",
       "origin": "patched",
       "path": "packages/toutiao/skill/tests/test_gates.py",
-      "bytes": 48075,
-      "sha256": "9e91f7caf5079e651aedf93d70586888f0b64f0b153f04768fef152e4bb407ec"
+      "bytes": 55968,
+      "sha256": "e4e03fe2704a46e8f3b4e74aa21faef49cc58f77eabc45b82ee99cc3f748ba21"
     },
     {
       "source": "inspiration-forge-suite",

@@ -34,6 +34,56 @@ function QaText({ qa, rev }) {
   );
 }
 
+/** 六维分项与九项读者评审（qa.judge 开启才有）：有则显示，与质检分数并列。 */
+const QA_DIMS = [
+  ["ai", "ttDimAi"],
+  ["read", "ttDimRead"],
+  ["title", "ttDimTitle"],
+  ["detail", "ttDimDetail"],
+  ["structure", "ttDimStructure"],
+  ["compliance", "ttDimCompliance"],
+];
+const READER_RUBRIC = [
+  ["标题", "ttRubricTitle"],
+  ["开篇三段", "ttRubricOpening"],
+  ["人物", "ttRubricCharacter"],
+  ["引语", "ttRubricQuote"],
+  ["延伸", "ttRubricExtension"],
+  ["节奏", "ttRubricRhythm"],
+  ["结尾", "ttRubricEnding"],
+  ["不像模板", "ttRubricNotTemplate"],
+  ["读完意愿", "ttRubricFinish"],
+];
+
+function QaDimsLine({ dims }) {
+  if (!dims) return null;
+  return (
+    <p className="wb-muted">
+      {QA_DIMS.map(([key, copyKey]) => `${t(copyKey)} ${dims[key]}`).join(" · ")}
+    </p>
+  );
+}
+
+function ReaderReviewBlock({ review }) {
+  if (!review) return null;
+  return (
+    <details className="wb-disclosure">
+      <summary>{t("ttReaderReview")}</summary>
+      <ol className="wb-plain-list">
+        {READER_RUBRIC.map(([key, copyKey]) => (
+          <li key={key}>
+            {t("ttReaderItem", {
+              label: t(copyKey),
+              score: review.scores[key],
+              evidence: review.evidences[key],
+            })}
+          </li>
+        ))}
+      </ol>
+    </details>
+  );
+}
+
 export function ToutiaoSide({ tt, hideAgent = false }) {
   const { detail, busy, deliverOff, actions } = tt;
   const doneAt = tt.doneAt || {};
@@ -101,6 +151,8 @@ export function ToutiaoSide({ tt, hideAgent = false }) {
                 {t("ttHardGates", { list: a.qa[a.qa.length - 1].hardGates.join("、") })}
               </p>
             ) : null}
+            <QaDimsLine dims={a.qa[a.qa.length - 1]?.dims} />
+            <ReaderReviewBlock review={a.qa[a.qa.length - 1]?.readerReview} />
             <p className="wb-muted">{a.qaValid ? t("ttQaValid") : a.qaProblem}</p>
             {a.qa.length > 1 ? (
               <details className="wb-disclosure">

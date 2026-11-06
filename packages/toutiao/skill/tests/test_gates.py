@@ -577,7 +577,8 @@ check("旧台账缺母题、故事列时不误报撞题", not any("撞题" in m 
 pa = subprocess.run([sys.executable, LG, "add", "--card", SC, "--ledger", v3], capture_output=True, text=True)
 import csv as _csv
 _rows = list(_csv.DictReader(open(v3, encoding="utf-8-sig")))
-check("ledger add 把旧台账升级成新表头、旧行保留", pa.returncode == 0 and list(_rows[0].keys()) == _qa.LEDGER_FIELDS
+check("ledger add 把旧台账升级成新表头、旧行保留", pa.returncode == 0
+      and list(_rows[0].keys()) == _qa.LEDGER_FIELDS + _qa.LEDGER_METRIC_FIELDS
       and len(_rows) == 3 and _rows[0]["主标题"] == "三点一时代的故事稿", pa.stdout + pa.stderr)
 check("升级时旧行补上推断的内容线", [r["内容线"] for r in _rows] == ["故事线", "资讯线", "故事线"], [r["内容线"] for r in _rows])
 check("新行记下母题、故事、改编方式", _rows[-1]["母题"] == "徒劳与坚持" and _rows[-1]["故事"] == "精卫填海"
@@ -632,6 +633,123 @@ check("s4-common 写明三种接法两条线各三种", all(w in docs["s4-common
 check("s1 两个入口都在：热点雷达和节点日历", "热点雷达" in docs["s1-hot.md"] and "节点" in docs["s1-evergreen.md"])
 _cl = _read("CHANGELOG.md")
 check("CHANGELOG 记了 4.0.0（改了什么、为什么、删了什么）", "## 4.0.0" in _cl and "为什么" in _cl and "删" in _cl)
+
+print("== 21. T16：防刷分同质化与平台回流 ==")
+_spec_lg = _ilu.spec_from_file_location("ledger_mod", os.path.join(ROOT, "scripts", "ledger.py"))
+_lg = _ilu.module_from_spec(_spec_lg)
+_spec_lg.loader.exec_module(_lg)
+
+homo_root = os.path.join(tmpd, "homo")
+os.makedirs(homo_root, exist_ok=True)
+
+
+def _csv_ledger(root, rows, fields, name="log.csv"):
+    p = os.path.join(root, name)
+    with open(p, "w", encoding="utf-8-sig", newline="") as f:
+        w = _csv.DictWriter(f, fieldnames=fields, extrasaction="ignore", restval="")
+        w.writeheader()
+        w.writerows(rows)
+    return p
+
+
+homo_rows = []
+for _i in range(3):
+    _aid = f"2026-11-0{_i + 1}-homo{_i}"
+    homo_rows.append(dict(日期=f"2026-11-0{_i + 1}", 垂类="民生社保", 主标题=f"历史稿{_i}",
+                          状态="已交稿", 文章ID=_aid))
+    _dd = os.path.join(homo_root, _aid, "drafts")
+    os.makedirs(_dd)
+    open(os.path.join(_dd, "rev-001.md"), "w", encoding="utf-8").write(GOOD)
+homo_ledger = _csv_ledger(homo_root, homo_rows, ["日期", "垂类", "主标题", "状态", "文章ID"])
+rh, codeh, _ = run(GOOD, title=TT, extra=["--ledger", homo_ledger, "--article-id", "2026-11-07-self"])
+homo = rh["homogeneity"]
+hw = [m for lv, m in homo["checks"] if lv == "warn"]
+check("同质化：3 篇同文本历史稿触发段长/小标题/引语/结尾四处 warn",
+      homo["samples"] == 3
+      and sum(1 for m in hw if m.startswith("同质化：段长分布")) == 1
+      and any("小标题数量与位置" in m for m in hw)
+      and any("引语位置" in m for m in hw)
+      and any("结尾都是提问式" in m for m in hw), homo["checks"])
+check("同质化历史稿标题取台账主标题", any("历史稿0" in m for m in hw), hw[:1])
+check("同质化 warn 不否决", codeh == 0 and rh["passed"] is True, (codeh, rh["passed"]))
+rh2, _, _ = run(GOOD, title=TT, extra=["--ledger", homo_ledger, "--article-id", homo_rows[0]["文章ID"]])
+check("同质化按文章 id 排除本篇：样本减一", rh2["homogeneity"]["samples"] == 2,
+      rh2["homogeneity"]["samples"])
+few_ledger = _csv_ledger(homo_root, homo_rows[:1], ["日期", "垂类", "主标题", "状态", "文章ID"])
+rf, _, _ = run(GOOD, title=TT, extra=["--ledger", few_ledger])
+fc = rf["homogeneity"]["checks"]
+check("可比稿件少于 3 篇只注明样本量不判", len(fc) == 1 and fc[0][0] == "note" and "样本" in fc[0][1], fc)
+
+bold_md = GOOD.replace("他跟隔壁卖麻辣烫的老板娘聊过这事。",
+                       "**先看后台。** 一句。\n\n**再问同行。** 两句。\n\n**最后算账。** 三句。")
+rmd, _, _ = run(bold_md, title=TT)
+check("标记密集区：连续 ≥3 段加粗提示", any("连续加粗" in h for h in rmd["hints"]), rmd["hints"])
+quote_md = GOOD.replace("评论区聊聊。", "“这账没法算。”\n\n“真的没法算。”\n\n“算不清才没法睡。”\n\n评论区聊聊。")
+rq, _, _ = run(quote_md, title=TT)
+check("标记密集区：连续 ≥3 段引语提示", any("每段都带引语" in h for h in rq["hints"]), rq["hints"])
+dense_md = "# 密集标题\n\n## 一\n\n短。\n\n## 二\n\n短二。\n\n## 三\n\n短三。\n\n## 四\n\n收尾。\n"
+rd, _, _ = run(dense_md, title="密集标题的一篇稿子")
+check("标记密集区：相邻小标题之间 ≤2 段且 ≥3 处提示", any("小标题过密" in h for h in rd["hints"]), rd["hints"])
+
+# —— 平台数据回流（writer_bridge metrics-import + ledger 新列） ——
+WB = os.path.join(ROOT, "scripts", "writer_bridge.py")
+flow_root = os.path.join(tmpd, "flow")
+os.makedirs(flow_root, exist_ok=True)
+_pay = "2026-11-05-pay"
+flow_ledger = _csv_ledger(flow_root,
+                          [dict(日期="2026-11-05", 内容线="资讯线", 体裁="短图文", 垂类="民生社保",
+                                主标题="回流一篇", 状态="已交稿", 文章ID=_pay)],
+                          _lg.LEDGER_FIELDS + ["文章ID"])   # 旧格式：立项列 + 文章ID，没有回流列
+_mj = json.dumps([{"日期": "2026-11-06", "展现": "12000", "阅读": "4300", "完读率": "36%",
+                   "平均时长": "52秒", "评论": "45", "转发": "12", "涨粉": "8"}], ensure_ascii=False)
+pmb = subprocess.run([sys.executable, WB, "metrics-import", "--article-id", _pay,
+                      "--url", "https://www.toutiao.com/article/x", "--metrics-json", _mj,
+                      "--ledger", flow_ledger], capture_output=True, text=True)
+check("metrics-import 写入最新一天快照", pmb.returncode == 0 and json.loads(pmb.stdout)["ok"] is True,
+      pmb.stdout + pmb.stderr)
+_after = list(_csv.DictReader(open(flow_ledger, encoding="utf-8-sig")))
+check("metrics-import 补齐回流列表头、旧行留空",
+      list(_after[0].keys()) == _lg.LEDGER_FIELDS + _lg.LEDGER_METRIC_FIELDS + ["文章ID"]
+      and _after[0]["展现"] == "12000" and _after[0]["涨粉"] == "8"
+      and _after[0]["链接"] == "https://www.toutiao.com/article/x"
+      and _after[0]["数据日期"] == "2026-11-06", list(_after[0].keys()))
+_old = json.dumps([{"日期": "2026-11-04", "展现": "1"}], ensure_ascii=False)
+pmb2 = subprocess.run([sys.executable, WB, "metrics-import", "--article-id", _pay,
+                       "--metrics-json", _old, "--ledger", flow_ledger], capture_output=True, text=True)
+check("更旧的数据日期不覆盖已有快照", json.loads(pmb2.stdout)["kept"] is True
+      and list(_csv.DictReader(open(flow_ledger, encoding="utf-8-sig")))[0]["展现"] == "12000",
+      pmb2.stdout)
+_pmb3 = subprocess.run([sys.executable, WB, "metrics-import", "--article-id", "2026-99-99-none",
+                        "--metrics-json", _mj, "--ledger", flow_ledger], capture_output=True, text=True)
+check("台账里没有这篇文章时报 NOT_FOUND", json.loads(_pmb3.stdout)["code"] == "NOT_FOUND", _pmb3.stdout)
+_bad = json.dumps([{"日期": "2026-11-06"}], ensure_ascii=False)
+_pmb4 = subprocess.run([sys.executable, WB, "metrics-import", "--article-id", _pay,
+                        "--metrics-json", _bad, "--ledger", flow_ledger], capture_output=True, text=True)
+check("没有任何指标值的一行报 INVALID_INPUT", json.loads(_pmb4.stdout)["code"] == "INVALID_INPUT", _pmb4.stdout)
+
+perf_rows = [dict(日期=f"2026-10-{_i + 1:02d}", 内容线="资讯线", 体裁="短图文", 垂类="民生社保",
+                  母体="数字反差式", 主标题=f"回流{_i}", 状态="已交稿", 文章ID=f"2026-10-{_i + 1:02d}-p",
+                  数据日期="2026-11-01", 展现=str(1000 + _i), 阅读=str(500 + _i), 完读率="30%")
+             for _i in range(10)]
+perf_ledger = _csv_ledger(flow_root, perf_rows, _lg.LEDGER_FIELDS + _lg.LEDGER_METRIC_FIELDS + ["文章ID"],
+                          name="perf.csv")
+pg = _lg.performance_groups(_lg.read(perf_ledger))
+check("同垂类同母体 ≥10 篇给基准（平均展现/阅读）",
+      len(pg) == 1 and pg[0]["samples"] == 10 and pg[0]["垂类"] == "民生社保"
+      and "平均展现" in pg[0].get("基准", "") and "1004" in pg[0].get("基准", "")
+      and "504" in pg[0].get("基准", ""), pg)
+pg2 = _lg.performance_groups(_lg.read(flow_ledger))
+check("回流样本 <10 篇只展示不计推荐",
+      pg2[0]["samples"] == 1 and "不计推荐" in pg2[0].get("备注", ""), pg2)
+
+_typecard = os.path.join(tmpd, "badtype.json")
+json.dump({**json.load(open(SC, encoding="utf-8")), "母体": 123}, open(_typecard, "w", encoding="utf-8"),
+          ensure_ascii=False)
+_tpath = os.path.join(tmpd, "badtype_story.md")
+open(_tpath, "w", encoding="utf-8").write(STORY)
+_pr = subprocess.run([sys.executable, QA, _tpath, "--card", _typecard], capture_output=True, encoding="utf-8")
+check("立项卡母体须为文本（解析期报错，退出码 2）", _pr.returncode == 2 and "母体" in _pr.stdout,
+      (_pr.returncode, _pr.stdout[:80]))
 
 class GateChecks(unittest.TestCase):
     """Each collected behavior assertion is an independently reported case."""

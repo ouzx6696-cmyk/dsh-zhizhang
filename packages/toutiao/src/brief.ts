@@ -52,7 +52,8 @@ ${editorInstruction}
 
 ## 对齐与汇报
 动笔前最多问两件事。S1~S4 每步一行摘要；S5 给三联表；S6 贴工具结果的 verdict 与 fails；S7 交完整成稿与标题矩阵。
-开工先 toutiao_feedback_read，作者改稿后用 toutiao_feedback_append 记"原文 → 改后 → 动机"。
+开工先 toutiao_feedback_read，作者改稿后用 toutiao_feedback_append 记"原文 → 改后 → 动机"（知道病灶就附病型/位置/改法）。
+作者发来平台数据（展现/阅读/完读率等）时用 toutiao_metrics_import 记进台账；S1/S2 靠它看同垂类同母体的历史表现。
 `;
   if (!options.creationFirst) return header + brief;
   return header + TOUTIAO_CREATION_FIRST + "\n\n" + brief;

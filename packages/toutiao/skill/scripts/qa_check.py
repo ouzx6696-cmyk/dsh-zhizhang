@@ -68,6 +68,7 @@ class LoadedManuscript:
     images: int
     hpos: list[tuple[str, int]]
     bold: int
+    bold_by_para: list[int]
 
 
 def load(path):
@@ -76,8 +77,10 @@ def load(path):
     lines = open(path, encoding="utf-8").read().splitlines()
     title, headings, paras, images = "", [], [], 0
     hpos = []          # [(小标题, 它后面第一段在 paras 里的下标)]，长图文按它切主稿和延伸
+    bold_by_para = []  # 每个正文段的加粗对数，查标记密集区用
     bold = sum(len(re.findall(r"\*\*|__|~~", ln)) // 2 for ln in lines)   # 粘到头条编辑器会原样露出来
     for ln in lines:
+        spans = len(re.findall(r"\*\*|__|~~", ln)) // 2
         # 加粗/删除线只是排版：不去掉会把“**先备份。**”这类加粗领句误判成段首重复和排比
         s = re.sub(r"\*\*|__|~~", "", ln).strip()
         if not s:
@@ -99,7 +102,8 @@ def load(path):
         s = re.sub(r"^([-*+]|\d+[.、])\s+", "", s)
         if s:
             paras.append(s)
-    return LoadedManuscript(title, headings, paras, images, hpos, bold)
+            bold_by_para.append(spans)
+    return LoadedManuscript(title, headings, paras, images, hpos, bold, bold_by_para)
 
 
 def title_score(t, micro=False, names=()):
@@ -518,7 +522,7 @@ def validate_card_types(card):
     if not isinstance(card, dict):
         raise QAInputError("立项卡须为对象")
     string_fields = ("内容线", "体裁", "主驱动", "主问题", "主标题", "垂类", "人群",
-                     "故事", "母题", "改编方式", "主数字", "主数字出处")
+                     "故事", "母题", "母体", "改编方式", "主数字", "主数字出处")
     for key in string_fields:
         if key in card and not isinstance(card[key], str):
             raise QAInputError(f"立项卡 {key} 须为文本")
@@ -544,6 +548,146 @@ def read_ledger(path):
         return []
     with open(path, encoding="utf-8-sig", newline="") as f:
         return [row for row in csv.DictReader(f)]
+
+
+def _is_draft(name):
+    return re.fullmatch(r"rev-(\d{3})\.md", name) is not None
+
+
+def load_history(ledger_path, window=HOMOGENEITY_WINDOW, exclude_id="", exclude_title=""):
+    """台账最近 window 行里每篇的当前稿：只挑有 文章ID 且正文目录还在的，供同质化机械比较。
+    台账只记立项字段不存正文，所以从台账同目录的 <文章ID>/drafts/ 读最高版本。"""
+    if not ledger_path or not os.path.isfile(ledger_path):
+        return []
+    root = os.path.dirname(os.path.abspath(ledger_path))
+    out = []
+    for row in read_ledger(ledger_path)[-window:]:
+        aid = (row.get("文章ID") or "").strip()
+        if not aid or aid == exclude_id:
+            continue
+        if exclude_title and (row.get("主标题") or "").strip() == exclude_title:
+            continue
+        drafts = os.path.join(root, aid, "drafts")
+        if not os.path.isdir(drafts):
+            continue
+        revs = sorted(n for n in os.listdir(drafts) if _is_draft(n))
+        if not revs:
+            continue
+        try:
+            doc = load(os.path.join(drafts, revs[-1]))
+        except OSError:
+            continue        # allow-catch: 历史稿文件被移动或删除时跳过这一篇，不算质检失败
+        entry = vars(doc)
+        entry.update({"id": aid, "date": (row.get("日期") or "").strip(),
+                      "title": (row.get("主标题") or "").strip() or entry["title"]})
+        out.append(entry)
+    return out
+
+
+def _para_hist(paras):
+    lens = [len(re.sub(r"\s", "", p)) for p in paras if p.strip()]
+    if not lens:
+        return None
+    hist = [0] * (len(PARA_BINS) + 1)
+    for n in lens:
+        hist[next((i for i, edge in enumerate(PARA_BINS) if n < edge), len(PARA_BINS))] += 1
+    return [c / len(lens) for c in hist]
+
+
+def _tv_distance(a, b):
+    """两份段长四档分布的总变差距离（0~1）。"""
+    return sum(abs(x - y) for x, y in zip(a, b)) / 2
+
+
+def _pos_pattern(indices, total):
+    """位置四分位桶：0=前 1/4，3=末 1/4。"""
+    if total <= 0 or not indices:
+        return None
+    return tuple(min(3, int(i / total * 4)) for i in indices)
+
+
+def _heading_pattern(doc):
+    count = len(doc["headings"])
+    positions = _pos_pattern([idx for _, idx in doc.get("hpos") or []], len(doc["paras"]))
+    return (count, positions)
+
+
+def _quote_pattern(doc):
+    indices = [i for i, p in enumerate(doc["paras"]) if "“" in p or "”" in p]
+    return _pos_pattern(indices, len(doc["paras"])) if len(indices) >= 2 else None
+
+
+def _ends_question(paras):
+    tail = [p for p in paras if p.strip()]
+    return bool(tail) and bool(re.search(r"[？?]\s*$|你怎么看|评论区|留言", tail[-1]))
+
+
+def check_homogeneity(current, history):
+    """本稿 vs 台账近 10 篇：段长分布、小标题数量与位置、引语位置、结尾提问句式。
+    全部 warn/note 级，不影响过线；机械分与读者评审并列，这里只做机械比较。"""
+    checks = []
+    comparable = [h for h in history if h["paras"]]
+    if len(comparable) < HOMOGENEITY_MIN_DRAFTS:
+        checks.append(("note", f"台账近 {HOMOGENEITY_WINDOW} 篇里可比稿件只有 {len(comparable)} 篇"
+                        f"（样本不足 {HOMOGENEITY_MIN_DRAFTS} 篇），不做同质化判断"))
+        return checks
+    cur_hist = _para_hist(current["paras"])
+    scored = []
+    if cur_hist:
+        for h in comparable:
+            h_hist = _para_hist(h["paras"])
+            if h_hist:
+                scored.append((_tv_distance(cur_hist, h_hist), h))
+    if scored:
+        dist, near = min(scored, key=lambda x: x[0])
+        if dist <= PARA_DIST_WARN:
+            checks.append(("warn", f"同质化：段长分布与 {near['date']}《{near['title']}》几乎一致"
+                           f"（分布距离 {dist:.2f}），换一种分段与节奏打法"))
+    cur_heading = _heading_pattern(current)
+    if cur_heading[0]:
+        for h in comparable:
+            if _heading_pattern(h) == cur_heading:
+                checks.append(("warn", f"同质化：小标题数量与位置模式和 {h['date']}《{h['title']}》相同"
+                               f"（{cur_heading[0]} 节，位置四分位 {list(cur_heading[1])}）"))
+                break
+    cur_quote = _quote_pattern(current)
+    if cur_quote:
+        for h in comparable:
+            if _quote_pattern(h) == cur_quote:
+                checks.append(("warn", f"同质化：引语位置模式和 {h['date']}《{h['title']}》相同，"
+                               "把引语挪出四分位同格或改一处转述"))
+                break
+    if _ends_question(current["paras"]):
+        asked = sum(1 for h in comparable if _ends_question(h["paras"]))
+        if asked >= max(2, round(len(comparable) * END_QUESTION_RATIO)):
+            checks.append(("warn", f"同质化：可比历史稿 {asked}/{len(comparable)} 篇结尾都是提问式，"
+                           "本篇也是；换一种收口（s4-common 结尾式）"))
+    return checks
+
+
+def marker_density_hints(paras, bold_by_para, hpos):
+    """本稿内的标记密集区：加粗、引语、小标题在连续段落的聚集。只提示，不扣分。"""
+    hints = []
+
+    def runs(flags, min_run):
+        out, start = [], None
+        for i, flag in enumerate([*flags, False]):
+            if flag and start is None:
+                start = i
+            elif not flag and start is not None:
+                if i - start >= min_run:
+                    out.append((start, i - 1))
+                start = None
+        return out
+
+    for a, b in runs([n >= 1 for n in bold_by_para], MARKER_BOLD_RUN):
+        hints.append(f"标记密集区：第 {a + 1}–{b + 1} 段连续加粗，粘到头条编辑器一片黑，只留最关键的一处")
+    for a, b in runs(["“" in p or "”" in p for p in paras], MARKER_QUOTE_RUN):
+        hints.append(f"标记密集区：第 {a + 1}–{b + 1} 段每段都带引语，读起来像问答体，隔开一段或改一处转述")
+    short = sum(1 for i in range(1, len(hpos)) if 0 < hpos[i][1] - hpos[i - 1][1] <= SHORT_SECTION_LIMIT)
+    if short >= 3:
+        hints.append(f"标记密集区：有 {short} 处相邻小标题之间只有 1~2 段，小标题过密，合并或加内容")
+    return hints
 
 
 def _days_ago(row, today):
@@ -791,8 +935,16 @@ def rules_markdown():
           "- 示例人名（只提示）：" + "、".join(SAMPLE_NAMES), "",
           "## 台账",
           "- 字段：" + ",".join(LEDGER_FIELDS),
+          "- 平台回流列：" + ",".join(LEDGER_METRIC_FIELDS) + "（toutiao_metrics_import 写最新一天快照；"
+          "旧台账缺列照常读，写入时补齐表头）",
           "- 3.x 旧台账（" + ",".join(LEDGER_FIELDS_V3) + "）照常读；缺“内容线”时主驱动是故事型算故事线，其余算资讯线；"
-          "ledger.py 下次写入时补齐新表头"]
+          "ledger.py 下次写入时补齐新表头", "",
+          "## 防刷分同质化（warn，不否决）",
+          f"- 与台账近 {HOMOGENEITY_WINDOW} 篇可比稿件比：段长四档分布（按 {PARA_BINS} 字分段，"
+          f"总变差距离 ≤{PARA_DIST_WARN} 提示）、小标题数量与位置四分位、引语位置四分位、结尾提问句式占比",
+          f"- 可比稿件少于 {HOMOGENEITY_MIN_DRAFTS} 篇只注明样本量，不判",
+          "- 标记密集区（提示）：连续 ≥" + str(MARKER_BOLD_RUN) + " 段带加粗、连续 ≥" + str(MARKER_QUOTE_RUN)
+          + " 段带引语、相邻小标题之间 ≤" + str(SHORT_SECTION_LIMIT) + " 段且 ≥3 处"]
     return "\n".join(L)
 
 
@@ -818,6 +970,11 @@ def print_report(r):
         print(f"   风险：{f}")
     for h in r["hints"]:
         print(f"   提示：{h}")
+    homo = r.get("homogeneity")
+    if homo:
+        for lv, msg in homo["checks"]:
+            print(f"   同质化{'▲' if lv == 'warn' else '·'}：{msg}")
+        print(f"   （同质化样本 {homo['samples']} 篇，warn 不否决，机械分与读者评审并列）")
     for lv, msg in r.get("card_checks", []):
         print(f"   立项卡{'✖' if lv == 'fail' else '▲'}：{msg}")
     if r["hard_gates"]:
@@ -827,7 +984,7 @@ def print_report(r):
 
 
 def evaluate_file(file, *, card_file=None, mode=None, driver=None, line=None,
-                  title_override="", extension_start="", ledger=None):
+                  title_override="", extension_start="", ledger=None, article_id=""):
     """One public QA path for CLI and the in-process desktop bridge."""
     card = load_card(card_file) if card_file else None
     if card:
@@ -853,6 +1010,11 @@ def evaluate_file(file, *, card_file=None, mode=None, driver=None, line=None,
     names = [((card or {}).get("锚点人物") or {}).get("名字", "")]
     r = analyze(t, headings, paras, images, mode, driver, ext_start, document.hpos,
                 line=line, names=names, bold=document.bold)
+    r["hints"] = r["hints"] + marker_density_hints(paras, document.bold_by_para, document.hpos)
+    history = load_history(ledger, exclude_id=article_id, exclude_title=t)
+    if history:
+        r["homogeneity"] = {"samples": len(history), "checks": check_homogeneity(
+            {"paras": paras, "headings": headings, "hpos": document.hpos}, history)}
     if card:
         cc = check_card(card, paras, t, read_ledger(ledger), headings=headings, hpos=document.hpos)
         r["card_checks"] = cc
@@ -877,6 +1039,8 @@ def main():
     ap.add_argument("--card", metavar="立项卡.json", help="立项卡：自动带出内容线、体裁、主驱动、标题，并核对人物、主数字、台账")
     ap.add_argument("--ledger", metavar="log.csv", default="outputs/toutiao/log.csv",
                     help="发稿台账，默认 outputs/toutiao/log.csv（不存在就跳过）")
+    ap.add_argument("--article-id", default="",
+                    help="本篇的文章 id：同质化比较时把台账里这篇自己排除")
     ap.add_argument("--rules", action="store_true", help="打印现行规则（Markdown）后退出")
     ap.add_argument("--version", action="version", version=VERSION)
     a = ap.parse_args()
@@ -887,7 +1051,8 @@ def main():
         ap.error("需要稿件路径")
     try:
         r = evaluate_file(a.file, card_file=a.card, mode=a.mode, driver=a.driver, line=a.line,
-                          title_override=a.title, extension_start=a.ext, ledger=a.ledger)
+                          title_override=a.title, extension_start=a.ext, ledger=a.ledger,
+                          article_id=a.article_id)
     except QAInputError as exc:
         print(str(exc))
         sys.exit(2)

@@ -8,13 +8,14 @@
 
 规则本身仍只在 rules.py / qa_check.py / ledger.py / fetch_hot.py 里，本文件不复制任何规则。
 
-    python3 writer_bridge.py qa --file 稿.md [--card 立项卡.json] [--ledger log.csv] [--mode long]
+    python3 writer_bridge.py qa --file 稿.md [--card 立项卡.json] [--ledger log.csv] [--mode long] [--article-id ID]
     python3 writer_bridge.py rules
     python3 writer_bridge.py limits
     python3 writer_bridge.py hot [--top 30] [--vertical 综合] [--relevant]
     python3 writer_bridge.py ledger-add --card 立项卡.json --ledger log.csv [--status 已验收] [--date 2026-10-28]
     python3 writer_bridge.py ledger-status --title 主标题 --to 已交稿 --ledger log.csv
     python3 writer_bridge.py ledger-show --ledger log.csv [--last 10]
+    python3 writer_bridge.py metrics-import --article-id ID [--url URL] --metrics-json '...' --ledger log.csv
 """
 import argparse, io, json, os, subprocess, sys, tempfile, contextlib
 
@@ -47,7 +48,7 @@ def run_script(args, timeout):
 def cmd_qa(a):
     try:
         r = Q.evaluate_file(a.file, card_file=a.card, mode=a.mode, title_override=a.title,
-                            ledger=a.ledger or os.devnull)
+                            ledger=a.ledger or os.devnull, article_id=a.article_id)
     except Q.QAInputError as exc:
         emit("qa", False, code="INVALID_INPUT", message=str(exc)[:800])
         return 0
@@ -55,10 +56,13 @@ def cmd_qa(a):
              for i in r.get("items", []) if i.get("status") == "fail"]
     card_fail = [{"code": "CARD", "message": m} for lv, m in r.get("card_checks", []) if lv == "fail"]
     card_warn = [m for lv, m in r.get("card_checks", []) if lv != "fail"]
+    homo = r.get("homogeneity") or {}
+    homo_warns = [msg for lv, msg in homo.get("checks", []) if lv != "note"]
     emit("qa", True,
          score=r["overall"], **{"pass": bool(r["passed"])},
          fails=fails + card_fail,
-         warnings=list(r.get("risk_flags", [])) + list(r.get("hints", [])) + card_warn,
+         warnings=list(r.get("risk_flags", [])) + list(r.get("hints", [])) + card_warn
+                  + homo_warns + [msg for lv, msg in homo.get("checks", []) if lv == "note"],
          hard_gates=list(r.get("hard_gates", [])),
          verdict=r.get("verdict", ""), title=r.get("title", ""), title_len=r.get("title_len", 0),
          chars=r.get("chars", 0), report=r)
@@ -162,7 +166,37 @@ def cmd_ledger_status(a):
 def cmd_ledger_show(a):
     rows = L.read(a.ledger)
     out = [dict(r, 内容线=r.get("内容线") or R.line_of(r)) for r in rows[-a.last:]]
-    emit("ledger-show", True, rows=out, total=len(rows))
+    emit("ledger-show", True, rows=out, total=len(rows), performance=L.performance_groups(rows))
+    return 0
+
+
+def cmd_metrics_import(a):
+    try:
+        entries = json.loads(a.metrics_json)
+    except json.JSONDecodeError as e:
+        emit("metrics-import", False, code="INVALID_INPUT", message="metrics JSON 无法解析：%s" % e)
+        return 0
+    if not isinstance(entries, list) or not entries:
+        emit("metrics-import", False, code="INVALID_INPUT", message="metrics 须为非空数组")
+        return 0
+    if any(not isinstance(e, dict) for e in entries):
+        emit("metrics-import", False, code="INVALID_INPUT", message="metrics 数组里含非对象项")
+        return 0
+    for e in entries:
+        if not str(e.get("日期") or "").strip():
+            emit("metrics-import", False, code="INVALID_INPUT", message="metrics 每行都要有 日期")
+            return 0
+        if not any(str(e.get(f) or "").strip() for f in L.METRIC_SNAPSHOT_FIELDS):
+            emit("metrics-import", False, code="INVALID_INPUT", message="有一行没有任何指标值")
+            return 0
+    try:
+        rows = L.read(a.ledger)
+        row, kept = L.merge_metrics(rows, a.article_id, a.url, entries)
+        L.write(a.ledger, rows)
+    except LookupError as e:
+        emit("metrics-import", False, code="NOT_FOUND", message=str(e))
+        return 0
+    emit("metrics-import", True, row=row, kept=kept, snapshot_date=row.get("数据日期", ""))
     return 0
 
 
@@ -171,6 +205,7 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     q = sub.add_parser("qa"); q.add_argument("--file", required=True); q.add_argument("--card")
     q.add_argument("--ledger"); q.add_argument("--mode"); q.add_argument("--title")
+    q.add_argument("--article-id", default="")
     sub.add_parser("rules"); sub.add_parser("limits")
     h = sub.add_parser("hot"); h.add_argument("--top", type=int, default=30)
     h.add_argument("--vertical", default="综合"); h.add_argument("--relevant", action="store_true")
@@ -182,11 +217,15 @@ def main():
     ls.add_argument("--article-id", default="")
     ls.add_argument("--to", required=True, choices=L.STATUSES); ls.add_argument("--ledger", required=True)
     lw = sub.add_parser("ledger-show"); lw.add_argument("--ledger", required=True); lw.add_argument("--last", type=int, default=10)
+    mi = sub.add_parser("metrics-import"); mi.add_argument("--article-id", required=True)
+    mi.add_argument("--url", default=""); mi.add_argument("--metrics-json", required=True)
+    mi.add_argument("--ledger", required=True)
     a = ap.parse_args()
     fn = {"qa": cmd_qa, "rules": cmd_rules, "limits": cmd_limits, "hot": cmd_hot,
-          "ledger-add": cmd_ledger_add, "ledger-status": cmd_ledger_status, "ledger-show": cmd_ledger_show}[a.cmd]
+          "ledger-add": cmd_ledger_add, "ledger-status": cmd_ledger_status, "ledger-show": cmd_ledger_show,
+          "metrics-import": cmd_metrics_import}[a.cmd]
     try:
-        if a.cmd in ("ledger-add", "ledger-status", "ledger-show"):
+        if a.cmd in ("ledger-add", "ledger-status", "ledger-show", "metrics-import"):
             with L.locked(a.ledger):
                 return fn(a)
         return fn(a)

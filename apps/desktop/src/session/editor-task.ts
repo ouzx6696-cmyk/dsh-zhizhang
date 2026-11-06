@@ -6,6 +6,12 @@ import { promptWithSignal } from "./pi-adapter";
 import { reviewResult, taskPrompt } from "./prompt";
 import type { Sessions } from "./manager";
 import type { SessionEntry } from "./types";
+import {
+  ArticleStore,
+  nowIso,
+  parseReaderReview,
+  READER_RUBRIC,
+} from "../../../../packages/toutiao/src/store";
 
 /** 子会话用量回加：SDK 统计累加进父任务的用量与成本（writer_review/plan 与抽卡共用）。 */
 export function accumulateChildUsage(entry: SessionEntry, child: AgentSession) {
@@ -16,6 +22,28 @@ export function accumulateChildUsage(entry: SessionEntry, child: AgentSession) {
   entry.task.usage.output += stats.tokens.output;
   entry.task.usage.cacheRead += stats.tokens.cacheRead;
   entry.task.usage.cacheWrite += stats.tokens.cacheWrite;
+}
+
+/** qa.judge 开启时追加给头条编辑子会话的读者评审任务。
+ * 九项标尺与输出格式的原文在 packages/core/eval/judge-toutiao-article.md（运行时不读它，这里按原文转述）。 */
+const TOUTIAO_READER_REVIEW_TASK = `【读者评审】红笔与质检完成后，换成一个在信息流里刷到这篇文章的普通读者，只依据这篇稿件本身，按九项标尺逐项 1–5 分（1 很差，5 很好）并各给一句依据稿件原意的证据，不复述内容代替判断：${READER_RUBRIC.join("、")}。读完意愿 ≤2 时明确建议作者“回 S4 调骨架”（是否回由作者决定，不要自动回，也不要自行改状态）。最后单独输出一个 JSON 对象（不要代码围栏、不要解释、不要多余键）：
+{"scores":{"标题":3,"开篇三段":4,"人物":3,"引语":2,"延伸":4,"节奏":4,"结尾":3,"不像模板":3,"读完意愿":4},"evidences":{"标题":"一句证据","开篇三段":"一句证据","人物":"一句证据","引语":"一句证据","延伸":"一句证据","节奏":"一句证据","结尾":"一句证据","不像模板":"一句证据","读完意愿":"一句证据"}}`;
+
+/** 编辑回报里的读者评审 JSON 落到 meta.qa 最近一条；没解析到或没质检记录时如实返回说明。 */
+async function attachReaderReviewNote(
+  target: Target,
+  articleId: string,
+  child: AgentSession,
+): Promise<string> {
+  const store = new ArticleStore(target.root);
+  const meta = await store.get(articleId);
+  const review = parseReaderReview(child.getLastAssistantText() || "", meta.current_rev, nowIso());
+  if (!review)
+    return "读者评审未落盘：编辑回报里没有可解析的九项 JSON（qa.judge 已开启），可让编辑补一次或忽略。";
+  const attached = await store.attachReaderReview(articleId, review);
+  return attached
+    ? `读者评审已记入 meta.qa 最近一条（rev ${review.rev}）：读完意愿 ${review.scores["读完意愿"]} 分。`
+    : "读者评审未落盘：这篇文章还没有质检记录，先跑 toutiao_qa_check 再评审。";
 }
 
 export function createDelegateTools(options: {
@@ -90,10 +118,20 @@ export function createDelegateTools(options: {
           (tool, receipt) => saved.push({ tool, receipt }),
         );
         host.children.set(session, child);
+        const judgeOn =
+          delegate === "editor" &&
+          target.mode === "toutiao" &&
+          host.options.toutiao?.qa?.judge === true;
         try {
           await promptWithSignal(
             child,
-            () => taskPrompt(host, childTarget, request.task, focus),
+            () =>
+              taskPrompt(
+                host,
+                childTarget,
+                judgeOn ? `${request.task}\n\n${TOUTIAO_READER_REVIEW_TASK}` : request.task,
+                focus,
+              ),
             signal,
           );
           const last = child.messages.findLast((message) => message.role === "assistant");
@@ -119,6 +157,8 @@ export function createDelegateTools(options: {
                   saved,
                   kind: "planning",
                 };
+          if (judgeOn && childTarget.article)
+            result.summary += `\n${await attachReaderReviewNote(target, childTarget.article, child)}`;
           return {
             content: [
               {

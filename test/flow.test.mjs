@@ -404,3 +404,156 @@ test("台账并发：20 篇不同文章并发记账并穿插状态同步，无�
     JSON.stringify(ledger.rows),
   );
 });
+
+// —— T16：平台数据回流、反馈结构化、六维分项与读者评审 ——
+
+test("metrics_import：未记账拒绝、旧 CSV 补齐表头、对象数组取最新快照、更旧不覆盖", async () => {
+  const { call, cwd } = await setup();
+  const id = (await call("toutiao_article_create", { slug: "metrics" })).article.id;
+  await call("toutiao_card_set", { id, card: CARD });
+  const noRow = await call("toutiao_metrics_import", {
+    articleId: id,
+    metrics: [{ date: "2026-11-01", impressions: 100 }],
+  });
+  assert.equal(noRow.code, "NOT_FOUND", JSON.stringify(noRow));
+  const missing = await call("toutiao_metrics_import", {
+    articleId: id,
+    metrics: [{ date: "2026-11-01" }],
+  });
+  assert.equal(missing.code, "INVALID_ARGS", JSON.stringify(missing));
+  await call("toutiao_ledger_add", { id });
+  // 手工降级成旧格式（立项列 + 文章ID，没有回流列）
+  const ledgerPath = path.join(cwd, "outputs", "toutiao", "log.csv");
+  await writeFile(
+    ledgerPath,
+    "\uFEFF日期,内容线,体裁,垂类,主驱动,母题,母体,故事,改编方式,开头式,结尾式,锚点人名,主标题,状态,文章ID\n" +
+      `2026-11-07,资讯线,短图文,民生社保,账本型,,, , , , ,老周,${CARD["主标题"]},已验收,${id}\n`,
+    "utf8",
+  );
+  const viaCsv = await call("toutiao_metrics_import", {
+    articleId: id,
+    url: "https://www.toutiao.com/article/metrics",
+    csv: '日期,展现,阅读,完读率,平均时长,评论,转发,涨粉\n2026-11-01,"1,000",500,30%,52秒,4,1,0\n',
+  });
+  assert.equal(viaCsv.ok, true, JSON.stringify(viaCsv));
+  assert.equal(viaCsv.row["展现"], "1,000");
+  assert.equal(viaCsv.snapshot_date, "2026-11-01");
+  const legacy = await readFile(ledgerPath, "utf8");
+  assert.match(legacy, /链接,数据日期,展现,阅读,完读率,平均时长,评论,转发,涨粉/);
+  assert.match(legacy, /https:\/\/www\.toutiao\.com\/article\/metrics/);
+  const twoDays = await call("toutiao_metrics_import", {
+    articleId: id,
+    metrics: [
+      { date: "2026-11-02", impressions: 800, reads: 300, readRate: "28%", follows: 2 },
+      { date: "2026-11-03", impressions: 1200, reads: 600, readRate: "34%", comments: 9 },
+    ],
+  });
+  assert.equal(twoDays.ok, true, JSON.stringify(twoDays));
+  assert.equal(twoDays.row["展现"], "1200");
+  assert.equal(twoDays.row["数据日期"], "2026-11-03");
+  assert.equal(twoDays.row["完读率"], "34%");
+  const older = await call("toutiao_metrics_import", {
+    articleId: id,
+    metrics: [{ date: "2026-11-02", impressions: 1 }],
+  });
+  assert.equal(older.ok, true);
+  assert.equal(older.kept, true);
+  assert.equal(older.row["展现"], "1200");
+  const shown = await call("toutiao_ledger_show", {});
+  const group = shown.performance.find((g) => g["垂类"] === "民生社保");
+  assert.ok(group, JSON.stringify(shown.performance));
+  assert.equal(group.samples, 1);
+  assert.match(group["备注"], /样本 1 篇（<10），只展示不计推荐/);
+  assert.equal(group.articles[0]["主标题"], CARD["主标题"]);
+  assert.equal(group.articles[0]["数据日期"], "2026-11-03");
+});
+
+test("反馈：旧行式与新结构化行式混存都能解析；同病型满三次提示固化", async () => {
+  const { call } = await setup();
+  await call("toutiao_feedback_append", {
+    original: "旧原文",
+    revised: "旧改后",
+    motive: "更口语",
+  });
+  await call("toutiao_feedback_append", {
+    original: "新原文",
+    revised: "新改后",
+    motive: "更具体",
+    病型: "3·大词空转",
+    位置: "第 4 段",
+    改法: "落到具体的人",
+  });
+  let read = await call("toutiao_feedback_read", {});
+  assert.equal(read.entries, 2);
+  assert.equal(read.items[0].original, "旧原文");
+  assert.equal(read.items[0].病型, undefined);
+  assert.equal(read.items[1].病型, "3·大词空转");
+  assert.equal(read.items[1].位置, "第 4 段");
+  assert.ok(read.text.includes("｜ 病型=3·大词空转 ｜ 位置=第 4 段 ｜ 改法=落到具体的人"));
+  assert.deepEqual(read.hints, []);
+  for (const n of [2, 3]) {
+    await call("toutiao_feedback_append", {
+      original: `原文${n}`,
+      revised: `改后${n}`,
+      motive: "同病型又犯",
+      病型: "3·大词空转",
+    });
+  }
+  read = await call("toutiao_feedback_read", {});
+  assert.equal(read.entries, 4);
+  assert.ok(
+    read.hints.some((h) => /病型“3·大词空转”已反馈 3 次/.test(h)),
+    read.hints,
+  );
+});
+
+test("质检记录六维分项；读者评审解析后落到 meta.qa 最近一条", async () => {
+  const { call, cwd } = await setup();
+  const id = (await call("toutiao_article_create", { slug: "dims" })).article.id;
+  await call("toutiao_card_set", { id, card: CARD });
+  await call("toutiao_draft_stage", { id, text: STORY });
+  await call("toutiao_status", { id, to: "待验收" });
+  const qa = await call("toutiao_qa_check", { id });
+  assert.ok(qa.dims, JSON.stringify(qa));
+  for (const key of ["ai", "read", "title", "detail", "structure", "compliance"])
+    assert.equal(typeof qa.dims[key], "number", key);
+  const got = await call("toutiao_article_get", { id });
+  assert.deepEqual(got.qa.at(-1).dims, qa.dims);
+  assert.equal(got.qa.at(-1).readerReview, undefined);
+
+  const { ArticleStore, parseReaderReview } = await import(buildUrl("toutiao/src/store.js"));
+  const store = new ArticleStore(path.join(cwd, "outputs/toutiao"));
+  const meta = await store.get(id);
+  const review = parseReaderReview(
+    "红笔完成，读者评审如下：\n" +
+      JSON.stringify({
+        scores: {
+          标题: 4,
+          开篇三段: 3,
+          人物: 4,
+          引语: 3,
+          延伸: 4,
+          节奏: 4,
+          结尾: 3,
+          不像模板: 4,
+          读完意愿: 2,
+        },
+        evidences: Object.fromEntries(
+          ["标题", "开篇三段", "人物", "引语", "延伸", "节奏", "结尾", "不像模板", "读完意愿"].map(
+            (k) => [k, `${k}的一句证据`],
+          ),
+        ),
+      }),
+    meta.current_rev,
+    "2026-11-07T00:00:00",
+  );
+  assert.ok(review, "散文后附 JSON 应能解析");
+  assert.equal(review.scores["读完意愿"], 2);
+  assert.equal(await store.attachReaderReview(id, review), true);
+  const after = await call("toutiao_article_get", { id });
+  assert.equal(after.qa.at(-1).readerReview.scores["标题"], 4);
+  assert.equal(after.qa.at(-1).readerReview.evidences["节奏"], "节奏的一句证据");
+  assert.equal(after.qa.at(-1).readerReview.rev, meta.current_rev);
+  const detail = await articleDetail((await call("toutiao_article_list", {})).root, id);
+  assert.equal(detail.qa.at(-1).readerReview.scores["读完意愿"], 2);
+});

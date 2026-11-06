@@ -10,8 +10,13 @@ import type {
 } from "../../../../packages/fanqie/src/engine/types";
 import { readChapter, readWorkMeta } from "../../../../packages/fanqie/src/engine/work-store";
 import { activeProfile } from "../../../../packages/core/src/profiles";
-import { exists } from "../../../../packages/core/src/fsx";
-import { ArticleStore, type ArticleMeta } from "../../../../packages/toutiao/src/store";
+import { exists, readText } from "../../../../packages/core/src/fsx";
+import {
+  ArticleStore,
+  formatFeedbackLine,
+  parseFeedbackEntries,
+  type ArticleMeta,
+} from "../../../../packages/toutiao/src/store";
 import { toutiaoLibrary } from "../../../../packages/toutiao/src/methods";
 import { fanqieLibrary } from "../../../../packages/fanqie/src/forge";
 import { formatPlanningBrief } from "../../../../packages/fanqie/src/engine/domain/planning";
@@ -282,6 +287,37 @@ async function fanqieContext(
   return { snapshot, storage: { dir, meta, chapter } };
 }
 
+/** S4 交接附最近作者反馈：病型与本次内容线匹配（G1~G4 是故事线病型，只给故事线）或最近 3 条，
+ * 从最新往回装，软上限 1000 字（最新一条超限也保留）。 */
+const STORY_ONLY_DISEASE = /^G[1-4]/;
+const FEEDBACK_CAP = 1000;
+
+async function toutiaoFeedback(
+  store: ArticleStore,
+  contentLine: "news" | "story" | "micro",
+): Promise<string | undefined> {
+  const text = await readText(store.feedbackPath);
+  if (!text) return undefined;
+  const entries = parseFeedbackEntries(text);
+  const relevant = entries.filter(
+    (entry, index) =>
+      entries.length - index <= 3 ||
+      !entry.病型 ||
+      contentLine === "story" ||
+      !STORY_ONLY_DISEASE.test(entry.病型),
+  );
+  const lines: string[] = [];
+  let budget = FEEDBACK_CAP;
+  for (let i = relevant.length - 1; i >= 0; i--) {
+    const line = formatFeedbackLine(relevant[i]);
+    if (lines.length > 0 && line.length > budget) break;
+    lines.push(line);
+    budget -= line.length + 1;
+  }
+  if (lines.length === 0) return undefined;
+  return `作者改稿反馈（最近）：\n${lines.reverse().join("\n")}`;
+}
+
 /** v2 头条快照：文章状态、体裁线归并（微头条体裁→micro）与 S2–S4 产出判断。 */
 async function toutiaoContext(
   target: Target,
@@ -461,6 +497,11 @@ async function taskPromptV2(host: Sessions, target: Target, text: string, focus:
       revision: article.current_rev,
       qa: article.qa.at(-1),
       qaValid: await validPassingQa(toutiao.store, article),
+      ...(kinds.includes("corpus-excerpt") && toutiao.snapshot.article
+        ? {
+            feedback: await toutiaoFeedback(toutiao.store, toutiao.snapshot.article.contentLine),
+          }
+        : {}),
     };
   }
   // v2 注入：先按该会话已注入凭据去重，再做预算裁剪；方法全文不再进 writer-context JSON，
