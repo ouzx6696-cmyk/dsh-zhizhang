@@ -6,6 +6,7 @@ import { readWorkMeta } from "../../storage/work-meta.js";
 import { storePayoffAudit } from "../../storage/work-records.js";
 
 import { loadEndingLexicon } from "../../quality-lexicon.js";
+import { loadPayoffCaseLexicon } from "../../storage/payoff-lexicon.js";
 import { PayoffAuditorPort } from "../../ports/index.js";
 
 import { asString, boolArg, fail, openWork } from "../context.js";
@@ -61,6 +62,9 @@ export const payoffAudit = defineTool({
       // per-work 词表：<作品目录>/quality-lexicon.json 的 endingKeywords
       // 覆盖默认题材词（换题材的书可自带锚点词，审计不再静默）。
       lexicon: await loadEndingLexicon(dir),
+      // 题材敏感检查（说话/呼吸漂移、单位错配、livedScene 器物）只在作品配了
+      // <作品目录>/payoff-lexicon.json 时运行；缺省只保留通用 ending 兑付评分。
+      caseLexicon: await loadPayoffCaseLexicon(dir),
     });
     const persist = boolArg(args, "persist") ?? true;
     if (persist) {

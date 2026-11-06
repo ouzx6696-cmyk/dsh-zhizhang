@@ -14,7 +14,11 @@ import {
   MultiDraftPort,
 } from "../../build/fanqie/src/engine/ports/index.js";
 import { ensureStorage } from "../../build/fanqie/src/engine/storage/paths.js";
-import { createWork, resolveWorkDir } from "../../build/fanqie/src/engine/work-store.js";
+import {
+  createWork,
+  resolveWorkDir,
+  setFoundation,
+} from "../../build/fanqie/src/engine/work-store.js";
 import {
   setOutline,
   readChapter,
@@ -26,6 +30,7 @@ import { readWorkMeta } from "../../build/fanqie/src/engine/storage/work-meta.js
 import { methodsTools } from "../../build/fanqie/src/engine/tools/methods.js";
 import { inspirationTools } from "../../build/fanqie/src/engine/tools/inspiration.js";
 import { VERSION } from "../../build/core/src/version.js";
+import { patrolRhythm } from "../../build/fanqie/src/engine/rhythm-patrol.js";
 const BOOK = [
   "第1章 差三罐",
   "凌晨两点，屏幕上的数字比昨天少了三罐咖啡。他把时间戳抄在纸条上。",
@@ -865,9 +870,19 @@ test("T7 收窄开关默认关：写手工具面与现状逐项一致", async ()
   try {
     const names = [...plain.tools.keys()].sort();
     assert.deepEqual([...off.tools.keys()].sort(), names);
-    assert.equal(names.length, 59);
+    // 59 基数 + T10 的 5 个连续性工具（foreshadow_set / knowledge_set / continuity_commit /
+    // continuity_get / continuity_migrate）+ 本工作树已有的 fanqie_opening_audit
+    assert.equal(names.length, 65);
     for (const excluded of NARROWED_EXCLUDED) assert.ok(names.includes(excluded), excluded);
     assert.ok(names.includes("fanqie_product_map"));
+    for (const continuity of [
+      "fanqie_foreshadow_set",
+      "fanqie_knowledge_set",
+      "fanqie_continuity_commit",
+      "fanqie_continuity_get",
+      "fanqie_continuity_migrate",
+    ])
+      assert.ok(names.includes(continuity), continuity);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -882,7 +897,8 @@ test("T7 收窄开关开启：写手默认集去掉诊断旁路与拆书写入�
   });
   try {
     const names = [...harness.tools.keys()].sort();
-    assert.equal(names.length, 44);
+    // 44 基数 + T10 连续性 5 工具；fanqie_opening_audit 属诊断旁路已进收窄排除名单
+    assert.equal(names.length, 49);
     for (const excluded of NARROWED_EXCLUDED)
       assert.ok(!names.includes(excluded), `不应出现 ${excluded}`);
     for (const kept of [
@@ -990,4 +1006,804 @@ test("T7 toolset 配置解析：narrowed 缺省关，非布尔报 issue", async 
     assert.match(parsed.issues[0].message, /fanqie\.toolset 应为 \{ narrowed: 布尔值 \}/);
     assert.deepEqual(parsed.issues[0].path, ["fanqie", "toolset"]);
   }
+});
+
+// —— T10 结构化连续性（开关 continuity.enabled，默认关）——
+
+const CONTINUITY_ON = { continuity: { enabled: true } };
+
+async function continuityWork(f, title) {
+  const { dir, meta } = await createWork(f.paths, { title });
+  return { dir, key: meta.key };
+}
+
+test("T10 开关默认关：连续性工具报 continuity_disabled，不建 continuity/ 目录，配置同构解析", async () => {
+  const f = await setup();
+  try {
+    const { dir, key } = await continuityWork(f, "关闭矩阵");
+    for (const [name, args] of [
+      [
+        "fanqie_foreshadow_set",
+        { work: key, line: "L1", title: "t", seed: "s", planned_plant: 1, planned_payoff: 2 },
+      ],
+      [
+        "fanqie_knowledge_set",
+        { work: key, id: "k1", fact: "f", holders: [{ who: "甲", level: "知情", since: 1 }] },
+      ],
+      ["fanqie_continuity_commit", { work: key, chapter: "c001" }],
+      ["fanqie_continuity_get", { work: key }],
+      ["fanqie_continuity_migrate", { work: key }],
+    ]) {
+      assert.match(await f.run(name, args), /错误\[continuity_disabled\]：连续性未开启/, name);
+    }
+    await assert.rejects(stat(path.join(dir, "continuity")), (e) => e.code === "ENOENT");
+    assert.equal(parseFanqieConfig({}).value?.continuity, undefined);
+    assert.equal(
+      parseFanqieConfig({ continuity: { enabled: true } }).value?.continuity?.enabled,
+      true,
+    );
+    assert.equal(parseFanqieConfig({ continuity: {} }).value?.continuity?.enabled, false);
+    for (const bad of [{ enabled: "yes" }, { enabled: 1 }, "x", 3]) {
+      const parsed = parseFanqieConfig({ continuity: bad });
+      assert.equal(parsed.value, undefined);
+      assert.match(parsed.issues[0].message, /fanqie\.continuity 应为 \{ enabled: 布尔值 \}/);
+      assert.deepEqual(parsed.issues[0].path, ["fanqie", "continuity"]);
+    }
+  } finally {
+    await f.close();
+  }
+});
+
+test("T10 commit：confirmed 推进线状态并写 handoff，missing/conflict 如实列出，unplanned 只列候选", async () => {
+  const f = await setup(CONTINUITY_ON);
+  try {
+    const { dir, key } = await continuityWork(f, "核验作品");
+    await setOutline(dir, "c001", { pov: "林晚第三人称", knowledge: "林晚不知哥哥到站" }, "第一章");
+    await updateChapter(dir, {
+      id: "c001",
+      title: "第一章",
+      body: "哥哥的到站短信亮着。林晚把铜钥匙塞进兜里，偏偏说出了「地窖里有暗门」。红木匣还在桌上。",
+    });
+    await f.run("fanqie_foreshadow_set", {
+      work: key,
+      line: "L1",
+      title: "钥匙线",
+      seed: "铜钥匙能开门",
+      planned_plant: 1,
+      planned_payoff: 3,
+      beats: [{ chapter: 1, kind: "埋设", note: "钥匙入兜", evidence: ["铜钥匙"] }],
+    });
+    await f.run("fanqie_foreshadow_set", {
+      work: key,
+      line: "L2",
+      title: "缺证线",
+      seed: "s",
+      planned_plant: 1,
+      planned_payoff: 4,
+      beats: [{ chapter: 1, kind: "埋设", note: "缺证的一笔", evidence: ["从来没有这句"] }],
+    });
+    await f.run("fanqie_foreshadow_set", {
+      work: key,
+      line: "L3",
+      title: "冲突线",
+      seed: "s",
+      planned_plant: 1,
+      planned_payoff: 1,
+      beats: [
+        { chapter: 1, kind: "埋设", note: "部分命中", evidence: ["红木匣", "绝对不在的句子"] },
+      ],
+    });
+    await f.run("fanqie_knowledge_set", {
+      work: key,
+      id: "k1",
+      fact: "哥哥已到站",
+      holders: [
+        { who: "哥哥", level: "知情", since: 1, evidence: "到站短信" },
+        { who: "林晚", level: "不知", since: 1 },
+      ],
+    });
+    await f.run("fanqie_knowledge_set", {
+      work: key,
+      id: "k2",
+      fact: "地窖里有暗门",
+      holders: [{ who: "林晚", level: "不知", since: 1 }],
+    });
+
+    const result = JSON.parse(
+      await f.run("fanqie_continuity_commit", { work: key, chapter: "c001" }),
+    );
+    const statusByLine = Object.fromEntries(result.beats.map((b) => [b.line, b.status]));
+    assert.equal(statusByLine.L1, "confirmed");
+    assert.equal(statusByLine.L2, "missing");
+    assert.equal(statusByLine.L3, "conflict");
+    assert.match(result.beats.find((b) => b.line === "L1").quote, /铜钥匙/);
+    assert.match(result.beats.find((b) => b.line === "L3").detail, /部分命中/);
+    assert.equal(result.knowledge.find((k) => k.id === "k1")?.status, "confirmed");
+    assert.ok(result.unplanned.some((u) => u.knowledgeId === "k2" && u.who === "林晚"));
+    assert.deepEqual(result.linesAdvanced, [
+      { id: "L1", from: "planned", to: "written" },
+      { id: "L3", from: "planned", to: "missed" },
+    ]);
+
+    const handoff = JSON.parse(
+      await readFile(path.join(dir, "continuity", "handoff", "c001.json"), "utf8"),
+    );
+    assert.ok(handoff.mustCarry.some((m) => m.includes("钥匙入兜")));
+    assert.ok(handoff.mustCarry.some((m) => m.includes("哥哥已到站")));
+    assert.ok(handoff.openLoops.some((m) => m.includes("L2")));
+    assert.ok(handoff.openLoops.some((m) => m.includes("L3")));
+    const commits = JSON.parse(
+      await readFile(path.join(dir, "continuity", "commits.json"), "utf8"),
+    );
+    assert.equal(commits.commits.length, 1);
+    assert.deepEqual(commits.commits[0].beats, ["L1:1"]);
+    assert.deepEqual(commits.commits[0].knowledge, ["k1"]);
+    const foreshadow = JSON.parse(
+      await readFile(path.join(dir, "continuity", "foreshadow.json"), "utf8"),
+    );
+    assert.equal(foreshadow.lines.find((l) => l.id === "L1").status, "written");
+    assert.equal(foreshadow.lines.find((l) => l.id === "L2").status, "planned");
+    assert.equal(foreshadow.lines.find((l) => l.id === "L3").status, "missed");
+
+    // revision 绑定：显式给错 revision 如实报冲突
+    assert.match(
+      await f.run("fanqie_continuity_commit", { work: key, chapter: "c001", revision: "deadbeef" }),
+      /revision_conflict/,
+    );
+    // 幂等：同 revision 重复 commit 不重复写
+    assert.match(
+      await f.run("fanqie_continuity_commit", { work: key, chapter: "c001" }),
+      /本章已在 revision \w{12,} 核验过/,
+    );
+    assert.equal(commits.commits.length, 1);
+  } finally {
+    await f.close();
+  }
+});
+
+test("T10 committed 线锁写：payoff 核验通过 → committed；再改动该线报错", async () => {
+  const f = await setup(CONTINUITY_ON);
+  try {
+    const { dir, key } = await continuityWork(f, "锁写作品");
+    await updateChapter(dir, { id: "c001", title: "一", body: "他捡到一把铜钥匙。" });
+    await updateChapter(dir, { id: "c002", title: "二", body: "钥匙插进锁孔，门开了。" });
+    await f.run("fanqie_foreshadow_set", {
+      work: key,
+      line: "LK",
+      title: "开锁线",
+      seed: "s",
+      planned_plant: 1,
+      planned_payoff: 2,
+      beats: [
+        { chapter: 1, kind: "埋设", note: "得钥匙", evidence: ["铜钥匙"] },
+        { chapter: 2, kind: "兑现", note: "开锁", evidence: ["钥匙插进锁孔"] },
+      ],
+    });
+    await f.run("fanqie_continuity_commit", { work: key, chapter: "c001" });
+    let foreshadow = JSON.parse(
+      await readFile(path.join(dir, "continuity", "foreshadow.json"), "utf8"),
+    );
+    assert.equal(foreshadow.lines.find((l) => l.id === "LK").status, "written");
+    const result = JSON.parse(
+      await f.run("fanqie_continuity_commit", { work: key, chapter: "c002" }),
+    );
+    assert.deepEqual(result.linesAdvanced, [{ id: "LK", from: "written", to: "committed" }]);
+    foreshadow = JSON.parse(
+      await readFile(path.join(dir, "continuity", "foreshadow.json"), "utf8"),
+    );
+    assert.equal(foreshadow.lines.find((l) => l.id === "LK").status, "committed");
+    assert.match(
+      await f.run("fanqie_foreshadow_set", { work: key, line: "LK", title: "改名" }),
+      /foreshadow_committed/,
+    );
+  } finally {
+    await f.close();
+  }
+});
+
+test("T10 commit 门禁：未作者确认被拦且不落盘；确认后钉定当前 revision", async () => {
+  const f = await setup(CONTINUITY_ON);
+  try {
+    const { dir, key } = await continuityWork(f, "门禁作品");
+    await updateChapter(dir, { id: "c001", title: "一", body: "铜钥匙在桌角。" });
+    await f.run("fanqie_foreshadow_set", {
+      work: key,
+      line: "L1",
+      title: "钥匙",
+      seed: "s",
+      planned_plant: 1,
+      planned_payoff: 2,
+      beats: [{ chapter: 1, kind: "埋设", note: "n", evidence: ["铜钥匙"] }],
+    });
+    const denied = await createToolHarness({
+      mode: "fanqie",
+      cwd: f.root,
+      config: { ...CONTINUITY_ON, storageRoot: f.root },
+      confirm: async () => false,
+    });
+    await assert.rejects(
+      denied.execute("fanqie_continuity_commit", { work: key, chapter: "c001" }),
+      (e) => /作者取消了操作/.test(e.message),
+    );
+    assert.ok(denied.approvals.some((a) => a.name === "fanqie_continuity_commit"));
+    await assert.rejects(
+      stat(path.join(dir, "continuity", "commits.json")),
+      (e) => e.code === "ENOENT",
+    );
+    // 默认确认链：ask → 放行 → revision 钉定为当前正文版本
+    await f.run("fanqie_continuity_commit", { work: key, chapter: "c001" });
+    const commits = JSON.parse(
+      await readFile(path.join(dir, "continuity", "commits.json"), "utf8"),
+    );
+    assert.equal(commits.commits[0].revision, (await readChapter(dir, "c001")).revision);
+  } finally {
+    await f.close();
+  }
+});
+
+test("T10 召回：50 章模拟作品注入 10 处知情越界 + 5 条被遗忘伏笔，巡检召回 ≥12/15", async () => {
+  const f = await setup(CONTINUITY_ON);
+  try {
+    const { dir, key } = await continuityWork(f, "召回作品");
+    const KNOWER = "沈青梧";
+    const UNKNOWER = "陆行舟";
+    const facts = Array.from({ length: 10 }, (_, i) => `玄铁令${i + 1}号藏在井底的暗格`);
+    // 50 章正文：中性填充 + 越界章（不知者与事实同句）+ 对照章（知情者与事实同句，不应召回）
+    const violationChapters = [];
+    const controlChapters = [];
+    for (let i = 0; i < 10; i++) violationChapters.push(6 + i * 3);
+    for (const c of violationChapters) controlChapters.push(c + 1);
+    for (let c = 1; c <= 50; c++) {
+      let body = `第${c}章：两人在长街上换了一次位置，风把灯吹得晃了晃，茶凉了一半。`;
+      const vIndex = violationChapters.indexOf(c);
+      if (vIndex >= 0 && vIndex < 9) body += `${UNKNOWER}忽然想起「${facts[vIndex]}」，径直照做。`;
+      const cIndex = controlChapters.indexOf(c);
+      if (cIndex >= 0) body += `${KNOWER}记着「${facts[cIndex]}」，没有说破。`;
+      // 第 10 处越界用转述（无事实原文）→ 机械巡检召回不了，留在断言里体现非 100%
+      if (c === 36) body = `第36章：${UNKNOWER}照着心里的念头，把井底那个暗格翻了出来。`;
+      await updateChapter(dir, { id: `c${String(c).padStart(3, "0")}`, title: `第${c}章`, body });
+    }
+    for (let i = 0; i < 10; i++) {
+      await f.run("fanqie_knowledge_set", {
+        work: key,
+        id: `k${i + 1}`,
+        fact: facts[i],
+        holders: [
+          { who: KNOWER, level: "知情", since: 2, source: "规划" },
+          { who: UNKNOWER, level: "不知", since: 2 },
+        ],
+      });
+    }
+    for (let j = 0; j < 5; j++) {
+      await f.run("fanqie_foreshadow_set", {
+        work: key,
+        line: `F${j + 1}`,
+        title: `被遗忘线${j + 1}`,
+        seed: `伏笔${j + 1}`,
+        planned_plant: 2 + j,
+        planned_payoff: 11 + j,
+        beats: [{ chapter: 2 + j, kind: "埋设", note: `埋设${j + 1}`, evidence: [`标记${j + 1}`] }],
+      });
+    }
+    // 不应被召回的两条对照线：一条 payoff 未过，一条已 committed（经正文证据核验推进）
+    await f.run("fanqie_foreshadow_set", {
+      work: key,
+      line: "H1",
+      title: "未来线",
+      seed: "s",
+      planned_plant: 40,
+      planned_payoff: 55,
+      beats: [{ chapter: 40, kind: "埋设", note: "n", evidence: ["标记H"] }],
+    });
+    await f.run("fanqie_foreshadow_set", {
+      work: key,
+      line: "HC",
+      title: "已兑现线",
+      seed: "s",
+      planned_plant: 3,
+      planned_payoff: 3,
+      beats: [{ chapter: 3, kind: "兑现", note: "n", evidence: ["井绳磨出了毛边"] }],
+    });
+    await updateChapter(dir, {
+      id: "c003",
+      title: "第3章",
+      body: "第3章：井绳磨出了毛边，两人在长街上换了一次位置。",
+    });
+    await f.run("fanqie_continuity_commit", { work: key, chapter: "c003" });
+
+    const report = JSON.parse(await f.run("fanqie_continuity_get", { work: key, inspect: true }));
+    const breaches = report.inspect.knowledgeBreach;
+    const breachChapters = [...new Set(breaches.map((b) => b.chapter))];
+    // 9/10 处越界被召回（第 10 处转述无法逐字命中）；对照章零误报
+    assert.equal(breachChapters.length, 9);
+    for (const c of controlChapters) assert.ok(!breachChapters.includes(c), `对照章误报：${c}`);
+    assert.ok(breaches.every((b) => b.who === UNKNOWER));
+    const forgotten = report.inspect.forgottenForeshadow;
+    assert.deepEqual(forgotten.map((l) => l.id).sort(), ["F1", "F2", "F3", "F4", "F5"]);
+    const recalled = breachChapters.length + forgotten.length;
+    assert.ok(recalled >= 12, `召回 ${recalled}/15 应 ≥80%`);
+    // 不开巡检不附 inspect
+    const plain = JSON.parse(await f.run("fanqie_continuity_get", { work: key }));
+    assert.equal(plain.inspect, undefined);
+    // 线过滤
+    const one = JSON.parse(await f.run("fanqie_continuity_get", { work: key, line: "F1" }));
+    assert.deepEqual(
+      one.foreshadow.lines.map((l) => l.id),
+      ["F1"],
+    );
+  } finally {
+    await f.close();
+  }
+});
+
+test("T10 简报投影：连续性段含 beats/handoff/knowledge；超限按 beats > handoff > knowledge 裁剪并注明", async () => {
+  const { formatReaderContract } = await import("../../build/fanqie/src/engine/method-assets.js");
+  const base = { premise: "p", planned: "", threads: "" };
+  const continuity = {
+    handoff: {
+      chapter: "c001",
+      summary: "钥匙到手",
+      mustCarry: ["钥匙必须随身"],
+      nextConstraints: ["不得提前开锁"],
+      openLoops: ["L2 未闭环"],
+    },
+    plannedBeats: [
+      { lineId: "L1", title: "钥匙线", beat: { chapter: 2, kind: "强化", note: "钥匙再压一拍" } },
+    ],
+    knowledge: [{ id: "k1", fact: "哥哥已到站", holders: [{ who: "林晚", level: "不知" }] }],
+  };
+  const withC = formatReaderContract({ ...base, continuity });
+  assert.match(withC, /## 连续性（continuity · 结构化）/);
+  assert.match(withC, /### 本章计划 beats/);
+  assert.match(withC, /- 线 L1《钥匙线》第2章·强化：钥匙再压一拍/);
+  assert.match(withC, /### 上章交接 handoff/);
+  assert.match(withC, /必须带走：钥匙必须随身/);
+  assert.match(withC, /### 相关知识边界 knowledge/);
+  assert.match(withC, /哥哥已到站（林晚:不知）/);
+  assert.doesNotMatch(formatReaderContract(base), /连续性（continuity/);
+
+  const bigKnowledge = Array.from({ length: 200 }, (_, i) => ({
+    id: `k${i}`,
+    fact: `事实${i}：${"很长的背景描述".repeat(8)}`,
+    holders: [{ who: "甲", level: "知情" }],
+  }));
+  const trimmed = formatReaderContract({
+    ...base,
+    continuity: { ...continuity, knowledge: bigKnowledge },
+  });
+  assert.match(trimmed, /已按「本章beats > 上章handoff > knowledge」裁剪/);
+  assert.match(trimmed, /钥匙再压一拍/);
+  assert.match(trimmed, /必须带走：钥匙必须随身/);
+  assert.match(trimmed, /事实0：/);
+  assert.doesNotMatch(trimmed, /事实199：/);
+});
+
+test("T10 章简报：开关开时注入连续性投影（beats/handoff/知识），关时不注入", async () => {
+  const f = await setup(CONTINUITY_ON);
+  try {
+    const { dir, key } = await continuityWork(f, "简报作品");
+    await setOutline(dir, "c001", { pov: "林晚第三人称", knowledge: "林晚不知哥哥到站" }, "第一章");
+    await updateChapter(dir, { id: "c001", title: "第一章", body: "哥哥的到站短信亮着。" });
+    await setOutline(dir, "c002", { pov: "林晚第三人称", knowledge: "林晚不知哥哥到站" }, "第二章");
+    await f.run("fanqie_foreshadow_set", {
+      work: key,
+      line: "L1",
+      title: "钥匙线",
+      seed: "s",
+      planned_plant: 2,
+      planned_payoff: 3,
+      beats: [{ chapter: 2, kind: "埋设", note: "钥匙压一拍", evidence: ["铜钥匙"] }],
+    });
+    await f.run("fanqie_knowledge_set", {
+      work: key,
+      id: "k1",
+      fact: "哥哥已到站",
+      holders: [
+        { who: "哥哥", level: "知情", since: 1, evidence: "到站短信" },
+        { who: "林晚", level: "不知", since: 1 },
+      ],
+    });
+    await f.run("fanqie_continuity_commit", { work: key, chapter: "c001" });
+    const briefOn = await f.run("fanqie_chapter_brief", { work: key, chapter: "c002" });
+    assert.match(briefOn, /连续性（continuity · 结构化）/);
+    assert.match(briefOn, /- 线 L1《钥匙线》第2章·埋设：钥匙压一拍/);
+    assert.match(briefOn, /上章 c001 交接：核验 beats/);
+    assert.match(briefOn, /哥哥已到站（哥哥:知情、林晚:不知）/);
+  } finally {
+    await f.close();
+  }
+  const off = await setup({});
+  try {
+    const { dir, key } = await continuityWork(off, "简报关作品");
+    await setOutline(dir, "c001", { pov: "林晚第三人称" }, "第一章");
+    await updateChapter(dir, { id: "c001", title: "第一章", body: "哥哥的到站短信亮着。" });
+    await setOutline(dir, "c002", { pov: "林晚第三人称" }, "第二章");
+    const briefOff = await off.run("fanqie_chapter_brief", { work: key, chapter: "c002" });
+    assert.doesNotMatch(briefOff, /连续性（continuity/);
+  } finally {
+    await off.close();
+  }
+});
+
+test("T10 修订影响联动：改有 committed 条目的章 → dependents 并入线/知识 id；开关关行为不变", async () => {
+  const f = await setup(CONTINUITY_ON);
+  try {
+    const { dir, key } = await continuityWork(f, "联动作品");
+    await updateChapter(dir, { id: "c001", title: "一", body: "铜钥匙在桌角。" });
+    await f.run("fanqie_foreshadow_set", {
+      work: key,
+      line: "L1",
+      title: "钥匙",
+      seed: "s",
+      planned_plant: 1,
+      planned_payoff: 2,
+      beats: [{ chapter: 1, kind: "埋设", note: "n", evidence: ["铜钥匙"] }],
+    });
+    await f.run("fanqie_knowledge_set", {
+      work: key,
+      id: "k1",
+      fact: "钥匙在桌角",
+      holders: [{ who: "林晚", level: "知情", since: 1, evidence: "铜钥匙在桌角" }],
+    });
+    await f.run("fanqie_continuity_commit", { work: key, chapter: "c001" });
+    await f.run("fanqie_chapter_save", {
+      work: key,
+      chapter: "c001",
+      content: "桌角空了，铜钥匙不见了。",
+    });
+    const meta = await readWorkMeta(dir);
+    const impact = meta.revisionImpacts?.find((v) => v.chapterId === "c001");
+    assert.ok(impact, "应有修订影响记录");
+    assert.ok(impact.dependents.includes("L1"));
+    assert.ok(impact.dependents.includes("k1"));
+    assert.match(impact.reason, /线 L1/);
+    assert.match(impact.reason, /知识 k1/);
+    assert.match(impact.reason, /continuity_commit/);
+  } finally {
+    await f.close();
+  }
+  const off = await setup({});
+  try {
+    const { dir } = await continuityWork(off, "联动关作品");
+    await updateChapter(dir, { id: "c001", title: "一", body: "铜钥匙在桌角。" });
+    await off.run("fanqie_chapter_save", { chapter: "c001", content: "桌角空了。" });
+    const meta = await readWorkMeta(dir);
+    const impact = meta.revisionImpacts?.find((v) => v.chapterId === "c001");
+    assert.ok(impact);
+    assert.doesNotMatch(impact.reason, /连续性/);
+  } finally {
+    await off.close();
+  }
+});
+
+test("T10 ledger_check：新增物件/伤势/知情候选抽取，原数字对照不回归", async () => {
+  const f = await setup({});
+  try {
+    const { dir, key } = await continuityWork(f, "旧账作品");
+    await updateChapter(dir, {
+      id: "c001",
+      title: "一",
+      body: "他掏出一把铜钥匙递给小满。她左臂的伤口又裂开了。周衍装作不知道钥匙的事。他欠了三百块。",
+    });
+    const out = await f.run("fanqie_ledger_check", { work: key, chapters: "1" });
+    const kinds = out.candidates.map((c) => c.kind);
+    assert.ok(kinds.includes("物件"), JSON.stringify(out.candidates));
+    assert.ok(kinds.includes("伤势"));
+    assert.ok(kinds.includes("知情"));
+    assert.ok(out.candidates.every((c) => typeof c.context === "string" && c.context));
+    assert.ok(out.items.some((i) => i.kind === "数量" && i.value.includes("三百块")));
+  } finally {
+    await f.close();
+  }
+});
+
+test("T10 migrate：legacy 字段与最近章正文出候选清单，不写盘", async () => {
+  const f = await setup(CONTINUITY_ON);
+  try {
+    const { dir, key } = await continuityWork(f, "迁移作品");
+    await setFoundation(dir, {
+      threads: "井底暗格的玄铁令\n谁在监视邮局",
+      happened: "[c001] 林晚拿到钥匙",
+      readerKnowledge: "读者已知哥哥到站",
+    });
+    await updateChapter(dir, {
+      id: "c001",
+      title: "一",
+      body: "他掏出一把铜钥匙递给小满。她左臂的伤口又裂开了。",
+    });
+    const out = JSON.parse(await f.run("fanqie_continuity_migrate", { work: key, recent: 1 }));
+    assert.ok(out.candidates.lines.some((l) => l.seed.includes("玄铁令")));
+    assert.ok(out.candidates.knowledge.some((k) => k.fact.includes("读者已知哥哥到站")));
+    assert.ok(out.candidates.knowledge.some((k) => k.fact.includes("林晚拿到钥匙")));
+    assert.ok(out.bodyCandidates.some((c) => c.kind === "物件" && c.chapter === "1"));
+    assert.ok(out.bodyCandidates.some((c) => c.kind === "伤势"));
+    assert.match(out.note, /不写盘/);
+    await assert.rejects(stat(path.join(dir, "continuity")), (e) => e.code === "ENOENT");
+    // recent=0 只看根基字段，不碰 python
+    const roots = JSON.parse(await f.run("fanqie_continuity_migrate", { work: key, recent: 0 }));
+    assert.ok(roots.candidates.lines.length >= 2);
+    assert.equal(roots.bodyCandidates.length, 0);
+  } finally {
+    await f.close();
+  }
+});
+
+test("T10 角色可见性：规划角色可用登记/查询/迁移但不可 commit；编辑可读不可写", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "writer-continuity-roles-"));
+  try {
+    const planner = await createToolHarness({
+      mode: "fanqie",
+      cwd: root,
+      role: "planner",
+      config: CONTINUITY_ON,
+    });
+    const plannerNames = [...planner.tools.keys()];
+    for (const name of [
+      "fanqie_foreshadow_set",
+      "fanqie_knowledge_set",
+      "fanqie_continuity_get",
+      "fanqie_continuity_migrate",
+    ])
+      assert.ok(plannerNames.includes(name), name);
+    assert.ok(!plannerNames.includes("fanqie_continuity_commit"));
+    const editor = await createToolHarness({
+      mode: "fanqie",
+      cwd: root,
+      role: "editor",
+      config: CONTINUITY_ON,
+    });
+    const editorNames = [...editor.tools.keys()];
+    assert.ok(editorNames.includes("fanqie_continuity_get"));
+    assert.ok(!editorNames.includes("fanqie_foreshadow_set"));
+    assert.ok(!editorNames.includes("fanqie_continuity_commit"));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// T12 开篇三章专检 + payoff 题材词表 + 长线节奏巡检
+
+async function seedChapters(f, meta, rows) {
+  const dir = await resolveWorkDir(f.paths, meta.key);
+  for (const [i, row] of rows.entries()) {
+    const id = `c${String(i + 1).padStart(3, "0")}`;
+    await setOutline(dir, id, row.outline ?? {}, `第${i + 1}章`);
+    if (row.body) await updateChapter(dir, { id, title: `第${i + 1}章`, body: row.body });
+  }
+  return dir;
+}
+
+test("开篇三章专检：处境/亲自/在场兑现/钩子命中，空转与含糊开篇分别判无与 unclear", async () => {
+  const f = await setup();
+  try {
+    // 好开篇：前三百字见处境；卖点由主角亲自改变局面；第二章兑现被当场使用；第三章章末新威胁。
+    const good = await createWork(f.paths, { title: "好开篇" });
+    await seedChapters(f, good.meta, [
+      {
+        outline: {
+          pov: "沈砚（票号柜员）",
+          conflict: "假账本混不过盘库，刘朝奉步步紧逼",
+          beats: "沈砚识破假账本，盘库停住",
+          livedScene: "沈砚用先窄后宽的旧伤辨炉底",
+          synopsis: "盘库交锋",
+          ending: "他把炉底翻给柜员看，盘库停住",
+        },
+        body: "沈砚到柜时，刘朝奉已经把假账本压在他面前，催他按手印。沈砚不碰印泥，托起铜炉刮底足，指腹摸到先窄后宽、带樟木油的旧伤。他把炉底翻给两名柜员看，指出这种油印只有在总库三号架压足半年才出得来。沈砚识破假账本，盘库当场停住。刘朝奉眼神一缩，拦人去搬樟木架核对，改口今日先挂账。",
+      },
+      {
+        outline: { synopsis: "印钥到手", beats: "拿到查账差事", ending: "印钥开封" },
+        body: "沈砚拿到查账的差事，当场用上总库的印钥，三号架开了封。核对的人点头放行，他把印钥收进袖袋。",
+      },
+      {
+        outline: { synopsis: "夜半巡库" },
+        body: "他清点完印钥，刚锁回暗格，门外忽然响起砸门声。来人自称总库巡库，点名要开三号架。",
+      },
+    ]);
+    const goodReport = JSON.parse(await f.run("fanqie_opening_audit", { work: good.meta.key }));
+    assert.equal(goodReport.chapters.length, 3);
+    assert.equal(goodReport.chapters[0].situation.verdict, "有");
+    assert.match(goodReport.chapters[0].situation.quote, /催/);
+    assert.equal(goodReport.chapters[0].sellingPoint.verdict, "亲自");
+    assert.equal(goodReport.payoffOnce.verdict, "有");
+    assert.match(goodReport.payoffOnce.note, /第 2 章/);
+    assert.equal(goodReport.hook.chapterId, "c003");
+    assert.equal(goodReport.hook.verdict, "有");
+    assert.match(goodReport.hook.infoGain, /新威胁/);
+
+    // 空转开篇：开头背设定不见人；卖点词未落正文；兑现是播报式结算；章末零信息停顿。
+    const idle = await createWork(f.paths, { title: "空转开篇" });
+    await seedChapters(f, idle.meta, [
+      {
+        outline: {
+          pov: "林晚（记账学徒）",
+          conflict: "林晚要追回被顶替的名字",
+          synopsis: "顶替的名字",
+        },
+        body: "票引之制，出自总库。凡柜面收票，皆须对照印鉴，印鉴出自三号架。三号架的锁，一年一换。换锁的日子，定在冬至。冬至之前，柜上不出远门，柜面照旧盘数。",
+      },
+      {
+        outline: { conflict: "名次被顶替", beats: "公示贴出名次" },
+        body: "他领到公示的名次，众人震惊，都说柜面出了能人。榜单贴了三天，没人来问缘由。",
+      },
+      {
+        outline: { synopsis: "夜班收尾" },
+        body: "他看了看窗外，夜色刚好漫过柜台。柜上的灯还亮着，账页停在本页。",
+      },
+    ]);
+    const idleReport = JSON.parse(await f.run("fanqie_opening_audit", { work: idle.meta.key }));
+    assert.equal(idleReport.chapters[0].situation.verdict, "无");
+    assert.equal(idleReport.chapters[0].sellingPoint.verdict, "缺席");
+    assert.equal(idleReport.payoffOnce.verdict, "无");
+    assert.match(idleReport.payoffOnce.note, /播报式/);
+    assert.equal(idleReport.hook.verdict, "无");
+
+    // 含糊开篇：主角在场但压力源未显；卖点在场无改变拍；兑现拍判不了在场；章末类型不明。
+    const vague = await createWork(f.paths, { title: "含糊开篇" });
+    await seedChapters(f, vague.meta, [
+      {
+        outline: { pov: "阿禾（柜上帮工）", conflict: "印鉴真假之分", synopsis: "印鉴疑云" },
+        body: "阿禾在柜面坐了一早，把印鉴擦了又擦。柜上的规矩他早背熟，只是今日无事可做。散工时他领到工牌，揣进怀里。",
+      },
+      { outline: { synopsis: "后山采买" }, body: "后山的路他走过一遍，此番带上了新地图。" },
+      { outline: { synopsis: "后账未清" }, body: "他把名册放回架上，灯还亮着。" },
+    ]);
+    const vagueReport = JSON.parse(await f.run("fanqie_opening_audit", { work: vague.meta.key }));
+    assert.equal(vagueReport.chapters[0].situation.verdict, "unclear");
+    assert.equal(vagueReport.chapters[0].sellingPoint.verdict, "参与");
+    assert.equal(vagueReport.payoffOnce.verdict, "unclear");
+    assert.equal(vagueReport.hook.verdict, "unclear");
+    assert.equal(vagueReport.rules.length, 4);
+
+    // 指定章节子集时只核所选章，钩子挂最后一章。
+    const picked = JSON.parse(
+      await f.run("fanqie_opening_audit", { work: vague.meta.key, chapters: "c001, c003" }),
+    );
+    assert.deepEqual(
+      picked.chapters.map((c) => c.chapterId),
+      ["c001", "c003"],
+    );
+    assert.equal(picked.hook.chapterId, "c003");
+  } finally {
+    await f.close();
+  }
+});
+
+test("payoff 题材词表：注入后触发三条题材检查，缺省只留 ending 兑付评分", async () => {
+  const f = await setup();
+  try {
+    const { dir, meta } = await createWork(f.paths, { title: "兑付作品" });
+    await setOutline(
+      dir,
+      "c001",
+      {
+        synopsis: "他确认轨上的人声。",
+        beats: "等人声出现",
+        conflict: "人声是关键",
+        livedScene: "回放与侧窗",
+        ending: "他记下时间戳。",
+      },
+      "第一章",
+    );
+    await updateChapter(dir, {
+      id: "c001",
+      title: "第一章",
+      body: "他听见自己的呼吸，混响有三十毫米。",
+    });
+    // 缺省：旧硬编码正则不再产这三条 warning，只保留通用 ending 兑付评分。
+    const base = await f.run("fanqie_payoff_audit", { work: meta.key, chapter: "c001" });
+    assert.doesNotMatch(base, /speech_breath_drift|domain_unit_mismatch|lived_hooks_missing/);
+    assert.match(base, /payoff-lexicon\.json 词表/);
+    // 注入作品词表后三条按词表触发。
+    await writeFile(
+      path.join(dir, "payoff-lexicon.json"),
+      JSON.stringify({
+        speech: ["人声"],
+        breath: ["呼吸"],
+        units: [["混响", "毫米"]],
+        hooks: ["回放", "侧窗"],
+      }),
+    );
+    const injected = await f.run("fanqie_payoff_audit", { work: meta.key, chapter: "c001" });
+    for (const code of ["speech_breath_drift", "domain_unit_mismatch", "lived_hooks_missing"])
+      assert.match(injected, new RegExp(code), code);
+    assert.match(injected, /说话类承诺：是 · 呼吸兑付：是/);
+    // 词表文件损坏要报错，不静默当没配。
+    await writeFile(path.join(dir, "payoff-lexicon.json"), JSON.stringify({ units: [["混响"]] }));
+    assert.match(
+      await f.run("fanqie_payoff_audit", { work: meta.key, chapter: "c001" }),
+      /错误\[bad_args\].*units/,
+    );
+  } finally {
+    await f.close();
+  }
+});
+
+test("长线节奏巡检：三类候选命中与不命中", () => {
+  const chapter = (id, over = {}) => ({
+    chapterId: id,
+    conflict: "",
+    progression: "",
+    pressureCount: 0,
+    ...over,
+  });
+  // 同一冲突模式 ≥3 章命中（bigram 近同，非逐字相同；第 4 章换模式断开）。
+  const conflictHit = patrolRhythm({
+    pace: "快爽",
+    chapters: [
+      chapter("c1", { conflict: "他尝试用假账本混过盘库，被刘朝奉当场识破", progression: "甲" }),
+      chapter("c2", { conflict: "他企图用假账本混过盘库，被刘朝奉当场识破", progression: "乙" }),
+      chapter("c3", { conflict: "他打算用假账本混过盘库，被刘朝奉当场识破", progression: "丙" }),
+      chapter("c4", { conflict: "对手换了章程，改从总库下手", progression: "丁" }),
+    ],
+  });
+  const run = conflictHit.candidates.find((c) => c.kind === "same_conflict_run");
+  assert.deepEqual(run?.chapters, ["c1", "c2", "c3"]);
+  // 只有两章近同不命中。
+  const twoRun = patrolRhythm({
+    chapters: [
+      chapter("c1", { conflict: "他尝试用假账本混过盘库，被刘朝奉当场识破", progression: "甲" }),
+      chapter("c2", { conflict: "他企图用假账本混过盘库，被刘朝奉当场识破", progression: "乙" }),
+    ],
+  });
+  assert.deepEqual(twoRun.candidates, []);
+  // 无可感变化 ≥2 章命中：第 2 章与前章雷同、第 3 章章纲未写推进与落点。
+  const noChange = patrolRhythm({
+    chapters: [
+      chapter("c1", { progression: "他拿到令牌，用令牌打开山门，山门在身后合拢" }),
+      chapter("c2", { progression: "他拿到令牌，用令牌打开山门，山门在身后合拢" }),
+      chapter("c3", {}),
+      chapter("c4", { progression: "他改走水路，账目翻出新的缺口" }),
+    ],
+  });
+  const change = noChange.candidates.find((c) => c.kind === "no_perceptible_change");
+  assert.deepEqual(change?.chapters, ["c2", "c3"]);
+  assert.match(change?.evidence ?? "", /雷同/);
+  assert.match(change?.evidence ?? "", /未写推进与落点/);
+  // 变化各不相同不命中。
+  const distinct = patrolRhythm({
+    chapters: [
+      chapter("c1", { progression: "他拿到令牌，用令牌打开山门，山门在身后合拢" }),
+      chapter("c2", { progression: "她把账目翻出新的缺口，总库派人上门核对" }),
+      chapter("c3", { progression: "他在柜面认出旧伤的手艺，换到查账的差事" }),
+    ],
+  });
+  assert.ok(!distinct.candidates.some((c) => c.kind === "no_perceptible_change"));
+  // 受压超档位上限：快爽连压 4 章命中；2 章在档内；慢燃无数值上限不判；未定档不判。
+  const pressureHit = patrolRhythm({
+    pace: "快爽",
+    chapters: [
+      chapter("c1", { conflict: "甲", progression: "甲", pressureCount: 1 }),
+      chapter("c2", { conflict: "乙", progression: "乙", pressureCount: 1 }),
+      chapter("c3", { conflict: "丙", progression: "丙", pressureCount: 1 }),
+      chapter("c4", { conflict: "丁", progression: "丁", pressureCount: 1 }),
+    ],
+  });
+  const cap = pressureHit.candidates.find((c) => c.kind === "pressure_over_cap");
+  assert.deepEqual(cap?.chapters, ["c1", "c2", "c3", "c4"]);
+  assert.match(cap?.evidence ?? "", /快爽档受压连跑 4 章，超档位上限 2 章/);
+  const within = patrolRhythm({
+    pace: "快爽",
+    chapters: [
+      chapter("c1", { conflict: "甲", progression: "甲", pressureCount: 1 }),
+      chapter("c2", { conflict: "乙", progression: "乙", pressureCount: 1 }),
+      chapter("c3", { conflict: "丙", progression: "丙", pressureCount: 0 }),
+      chapter("c4", { conflict: "丁", progression: "丁", pressureCount: 0 }),
+    ],
+  });
+  assert.ok(!within.candidates.some((c) => c.kind === "pressure_over_cap"));
+  const slowBurn = patrolRhythm({
+    pace: "慢燃",
+    chapters: ["c1", "c2", "c3", "c4", "c5"].map((id) => chapter(id, { pressureCount: 1 })),
+  });
+  assert.ok(!slowBurn.candidates.some((c) => c.kind === "pressure_over_cap"));
+  const noPace = patrolRhythm({
+    chapters: ["c1", "c2", "c3"].map((id) => chapter(id, { pressureCount: 1 })),
+  });
+  assert.ok(!noPace.candidates.some((c) => c.kind === "pressure_over_cap"));
+  // 章数不足不产出候选。
+  assert.deepEqual(
+    patrolRhythm({ pace: "快爽", chapters: [chapter("c1", { pressureCount: 1 })] }).candidates,
+    [],
+  );
 });

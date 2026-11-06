@@ -59,7 +59,12 @@ export const PayoffAuditorPort = {
   audit(
     outline: Partial<import("../types.js").Outline>,
     body: string,
-    opts: { premise?: string; lexicon?: string[]; title?: string },
+    opts: {
+      premise?: string;
+      lexicon?: string[];
+      title?: string;
+      caseLexicon?: import("../storage/payoff-lexicon.js").PayoffCaseLexicon;
+    },
   ) {
     return auditPayoff(outline, body, opts);
   },

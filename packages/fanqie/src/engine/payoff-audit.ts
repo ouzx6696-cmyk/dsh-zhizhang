@@ -1,11 +1,5 @@
-const SPEECH_PROMISE =
-  /人声|说话|说出口|不属于[^。；\n]{0,12}话|冒出[^。；\n]{0,12}话|一句[^。；\n]{0,8}话|还没说/;
-const BREATH_REVEAL =
-  /自己的呼吸|呼吸声|是他自己的呼吸|棚里响起[^。]{0,12}呼吸|耳机里[^。]{0,12}呼吸|轨上[^。]{0,20}呼吸/;
-const SPEECH_IN_BODY = /人声|说话|说出口|那[一两三四]个字|清清楚楚/;
-/** Domain unit smell: reverb described with 毫米 (should be 毫秒). */
-const REVERB_MM = /混响[^。！？\n]{0,24}毫米|毫米[^。！？\n]{0,24}混响/;
 import { DEFAULT_ENDING_LEXICON, scoreEnding } from "./domain/ending-consistency.js";
+import type { PayoffCaseLexicon } from "./storage/payoff-lexicon.js";
 /**
  * ending 兑付评分阈值（统一口径，见 domain/ending-consistency.ts）：
  *   无 token 且 ending 非空 → ending_unchecked（warning；require_payoff 不再被空审计满足）
@@ -15,6 +9,31 @@ import { DEFAULT_ENDING_LEXICON, scoreEnding } from "./domain/ending-consistency
  */
 const SCORE_UNDER = 0.5;
 const SCORE_OK = 0.75;
+
+export interface PayoffFinding {
+  code: string;
+  severity: "info" | "warning" | "error";
+  message: string;
+  promise?: string;
+  evidence?: string;
+}
+
+export interface PayoffAuditResult {
+  ok: boolean;
+  warningCount: number;
+  findings: PayoffFinding[];
+  checked: {
+    endingTokens: string[];
+    endingHits: string[];
+    endingMisses: string[];
+    endingScore: number | null;
+    /** 说话类承诺是否出现在章纲；null = 作品未配词表，本检查跳过。 */
+    speechPromise: boolean | null;
+    /** 正文是否兑成呼吸类；null = 作品未配词表，本检查跳过。 */
+    breathReveal: boolean | null;
+  };
+}
+
 function quoteAround(body: string, needle: string | RegExp) {
   if (typeof needle === "string") {
     const i = body.indexOf(needle);
@@ -41,17 +60,85 @@ function outlinePromiseText(outline: Partial<import("./types.js").Outline>, prem
     .filter(Boolean)
     .join("\n");
 }
+function countOccurrences(text: string, words: string[]) {
+  return words.reduce((n, w) => n + text.split(w).length - 1, 0);
+}
+function sentencesOf(text: string) {
+  return text
+    .split(/[。！？\n]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+function clip(text: string, max: number) {
+  return text.length <= max ? text : `${text.slice(0, max)}…`;
+}
+/**
+ * 题材敏感检查（说话/呼吸漂移、单位错配、livedScene 器物）按作品词表运行；
+ * 词表缺失时完全跳过，默认路径只保留通用 ending 兑付评分。
+ * 词表只负责把本题材的「承诺词/兑付词」交给审计，判定仍是结构条件组合
+ * （出现位置、次数对比、同句共现），不再绑定单一题材的具体写法。
+ */
+function caseFindings(
+  caseLexicon: PayoffCaseLexicon,
+  livedScene: string,
+  promiseBlob: string,
+  text: string,
+) {
+  const findings: PayoffFinding[] = [];
+  const speech = caseLexicon.speech ?? [];
+  const breath = caseLexicon.breath ?? [];
+  let speechPromise: boolean | null = null;
+  let breathReveal: boolean | null = null;
+  if (speech.length && breath.length) {
+    speechPromise = speech.some((w) => promiseBlob.includes(w));
+    breathReveal = breath.some((w) => text.includes(w));
+    const speechInBody = speech.some((w) => text.includes(w));
+    const breathCount = countOccurrences(text, breath);
+    const speechCount = countOccurrences(text, speech);
+    if (speechPromise && breathReveal && (!speechInBody || breathCount > speechCount)) {
+      findings.push({
+        code: "speech_breath_drift",
+        severity: "warning",
+        message: "章纲/节拍承诺「说话类」钩子，正文却把轨上内容兑成「呼吸类」主导——疑似卖点换轨",
+        promise: `「${speech.find((w) => promiseBlob.includes(w))}」（章纲承诺）`,
+        evidence: quoteAround(text, breath.find((w) => text.includes(w)) ?? ""),
+      });
+    }
+  }
+  for (const [term, unit] of caseLexicon.units ?? []) {
+    const hit = sentencesOf(text).find((s) => s.includes(term) && s.includes(unit));
+    if (!hit) continue;
+    findings.push({
+      code: "domain_unit_mismatch",
+      severity: "warning",
+      message: `专业细节可疑：「${term}」与「${unit}」同句出现，请核对单位与量级`,
+      evidence: clip(hit, 60),
+    });
+  }
+  const hooks = (caseLexicon.hooks ?? []).filter((k) => livedScene.includes(k));
+  const livedMiss = hooks.filter((k) => !text.includes(k));
+  if (hooks.length >= 2 && livedMiss.length === hooks.length) {
+    findings.push({
+      code: "lived_hooks_missing",
+      severity: "warning",
+      message: `livedScene 强调的器物/动作均未出现：${livedMiss.join("、")}`,
+      promise: livedScene.slice(0, 100),
+    });
+  }
+  return { findings, speechPromise, breathReveal };
+}
 /**
  * Audit body against outline promises.
  * ok=true when no warning/error findings (info-only still ok).
  * opts.lexicon 可传 per-work 质量词表（quality-lexicon.json 的 endingKeywords）覆盖默认题材词。
+ * opts.caseLexicon 可传 per-work 题材词表（payoff-lexicon.json）；缺省时跳过题材敏感检查。
  */
 export function auditPayoff(
   outline: Partial<import("./types.js").Outline>,
   body: string,
-  opts: { premise?: string; lexicon?: string[] } = {},
+  opts: { premise?: string; lexicon?: string[]; caseLexicon?: PayoffCaseLexicon } = {},
 ) {
-  const findings = [];
+  const findings: PayoffFinding[] = [];
   const text = body;
   const promiseBlob = outlinePromiseText(outline, opts.premise);
   const endingText = (outline.ending ?? "").trim();
@@ -105,43 +192,12 @@ export function auditPayoff(
       promise: endingText.slice(0, 80),
     });
   }
-  const speechPromise = SPEECH_PROMISE.test(promiseBlob);
-  const breathReveal = BREATH_REVEAL.test(text);
-  const speechInBody = SPEECH_IN_BODY.test(text);
-  const breathCount = (text.match(/呼吸/g) ?? []).length;
-  const speechCount = (text.match(/说话|人声|说出口/g) ?? []).length;
-  if (speechPromise && breathReveal && (!speechInBody || breathCount > speechCount)) {
-    findings.push({
-      code: "speech_breath_drift",
-      severity: "warning",
-      message: "章纲/节拍承诺「人声/说话」类钩子，正文却把轨上内容兑成「呼吸」主导——疑似卖点换轨",
-      promise: (promiseBlob.match(SPEECH_PROMISE) ?? ["（说话类承诺）"])[0],
-      evidence: quoteAround(text, BREATH_REVEAL),
-    });
-  }
-  const reverbMm = text.match(REVERB_MM);
-  if (reverbMm) {
-    findings.push({
-      code: "domain_unit_reverb_mm",
-      severity: "warning",
-      message: "专业细节可疑：混响与「毫米」同现（混响时间通常为毫秒量级）",
-      evidence: quoteAround(text, REVERB_MM),
-    });
-  }
-  // livedScene hook nouns: if livedScene emphasizes 回放/侧窗 etc., soft-check presence
-  const livedScene = outline.livedScene ?? "";
-  const livedHooks = ["回放", "侧窗", "时间戳", "属性", "推子", "底噪"].filter((k) =>
-    livedScene.includes(k),
-  );
-  const livedMiss = livedHooks.filter((k) => !text.includes(k));
-  if (livedHooks.length >= 2 && livedMiss.length === livedHooks.length) {
-    findings.push({
-      code: "lived_hooks_missing",
-      severity: "warning",
-      message: `livedScene 强调的器物/动作均未出现：${livedMiss.join("、")}`,
-      promise: livedScene.slice(0, 100),
-    });
-  }
+  const {
+    findings: caseResults,
+    speechPromise,
+    breathReveal,
+  } = caseFindings(opts.caseLexicon ?? {}, outline.livedScene ?? "", promiseBlob, text);
+  findings.push(...caseResults);
   const warningCount = findings.filter(
     (f) => f.severity === "warning" || f.severity === "error",
   ).length;
@@ -159,13 +215,17 @@ export function auditPayoff(
     },
   };
 }
-export function formatPayoffAudit(label: string, result: ReturnType<typeof auditPayoff>) {
+export function formatPayoffAudit(label: string, result: PayoffAuditResult) {
+  const caseLine =
+    result.checked.speechPromise === null
+      ? "- 题材敏感检查：作品未配 payoff-lexicon.json 词表，跳过（可配 speech/breath/units/hooks 解锁）"
+      : `- 说话类承诺：${result.checked.speechPromise ? "是" : "否"} · 呼吸兑付：${result.checked.breathReveal ? "是" : "否"}`;
   const head = [
     `兑付审计 · ${label}`,
     `- 结论：${result.ok ? "ok（无警告）" : `warnings=${result.warningCount}`}`,
     `- ending 命中：${result.checked.endingHits.join("、") || "（无）"}`,
     `- ending 未命中：${result.checked.endingMisses.join("、") || "（无）"}`,
-    `- 说话类承诺：${result.checked.speechPromise ? "是" : "否"} · 呼吸兑付：${result.checked.breathReveal ? "是" : "否"}`,
+    caseLine,
   ];
   if (result.findings.length === 0) {
     return [...head, "", "无发现。"].join("\n");
