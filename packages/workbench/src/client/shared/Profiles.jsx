@@ -224,6 +224,7 @@ export function ProfilesDialog({
       }
     });
   const addMethod = (id) => {
+    if (!canLeaveEdit({ dirty, saving: busy === "save" }, window.confirm)) return;
     const clean = id.trim();
     if (!clean) return;
     setAdding(null);

@@ -132,13 +132,20 @@ export async function filterCardRows(paths: StoragePaths, rows: CardIndexRow[], 
   }
   if (opts.axis === "craft" || opts.axis === "mind") {
     const want = opts.axis;
-    const rowsWithAxis = await Promise.all(
-      out.map(async (row) =>
-        row.axis === "craft" || row.axis === "mind"
-          ? { ...row, axis: row.axis }
-          : { ...row, axis: coerceAxis(await readCardFile(paths, row.id)) },
-      ),
-    );
+    const rowsWithAxis: CardIndexRow[] = [];
+    for (let offset = 0; offset < out.length; offset += 16) {
+      rowsWithAxis.push(
+        ...(await Promise.all(
+          out
+            .slice(offset, offset + 16)
+            .map(async (row) =>
+              row.axis === "craft" || row.axis === "mind"
+                ? { ...row, axis: row.axis }
+                : { ...row, axis: coerceAxis(await readCardFile(paths, row.id)) },
+            ),
+        )),
+      );
+    }
     out = rowsWithAxis.filter((row) => row.axis === want);
   }
   return out;
@@ -267,11 +274,18 @@ export async function reconcileIndex(paths: StoragePaths) {
     if (reconciledLibs.has(key)) return 0;
     const d = libraryDirs(paths);
     const idx = await readIndex(paths);
-    const cards = await Promise.all(
-      idx.cards.map((row) =>
-        readJson<unknown>(path.join(d.cards, `${assertResourceId(row.id, "卡 id")}.json`)),
-      ),
-    );
+    const cards: unknown[] = [];
+    for (let offset = 0; offset < idx.cards.length; offset += 16) {
+      cards.push(
+        ...(await Promise.all(
+          idx.cards
+            .slice(offset, offset + 16)
+            .map((row) =>
+              readJson<unknown>(path.join(d.cards, `${assertResourceId(row.id, "卡 id")}.json`)),
+            ),
+        )),
+      );
+    }
     let changed = 0;
     idx.cards.forEach((row, i) => {
       const raw = cards[i];

@@ -28,6 +28,7 @@ export class Sessions {
     SessionManager,
     { leaf: string | null; limit: number; messages: WriterMessage[]; total: number }
   >();
+  reconfiguring = false;
   compactions = new Set<string>();
   preparations = new Map<symbol, { target: Target; focus: Focus; generation: number }>();
   generations = new Map<string, number>();
@@ -114,6 +115,7 @@ export class Sessions {
     onCreated?: (work: string) => Promise<void>,
     onSaved?: (tool: string, output: string) => void,
   ): Promise<AgentSession> {
+    if (this.reconfiguring) throw new Error("正在更新设置，请稍后打开会话");
     if (editor || planner)
       return createSession(this, target, editor ? "editor" : "planner", onCreated, onSaved);
     const key = this.key(target);
@@ -204,6 +206,7 @@ export class Sessions {
   }
 
   async compact(target: Target, instructions: string) {
+    if (this.reconfiguring) throw new Error("正在更新设置，请稍后压缩上下文");
     const key = this.key(target),
       generation = this.generations.get(key) || 0;
     if (this.isRunning(target)) throw new Error("请先等待当前任务结束或停止任务，再压缩上下文");

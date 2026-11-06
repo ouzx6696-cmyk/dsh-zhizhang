@@ -5,6 +5,14 @@ export const API_LABELS: Record<string, string> = {
   "google-generative-ai": "Google 生成接口",
 };
 export const COPY = {
+  libraryStorageTitle: "本地拆书库",
+  libraryStorageNote:
+    "导入会保存原文副本。移动原始 TXT 不影响库内资料；备份或迁移时请包含完整拆书库。",
+  libraryStorageOpen: "打开库文件夹",
+  libraryStorageImport: "导入小说原文",
+  libraryStorageImported: "已导入原文，尚未拆解。可在 Agent 中要求按指定范围分析这份书源：",
+  libraryStorageScope: "当前项目的拆书库路径",
+
   contextLastCompaction: "最近压缩摘要（原始历史保留）",
   contextBeforeCompaction: "压缩前 token：",
   contextSummaryUsage: "摘要请求输入 / 输出：",
@@ -577,7 +585,7 @@ export const COPY = {
   settingsDialogText4: "设置分区",
   settingsDialogText5: "外观",
   settingsDialogText6: "快捷键",
-  settingsDialogText7: "备份与诊断",
+  settingsDialogText7: "资源与备份",
   settingsDialogText8: "关于",
   settingsDialogText9: "保存连接会停止当前任务。编辑与写手保持独立对话，可使用相同连接。",
   settingsDialogText10: "系统安全存储不可用，Key 只保留到本次应用关闭。",

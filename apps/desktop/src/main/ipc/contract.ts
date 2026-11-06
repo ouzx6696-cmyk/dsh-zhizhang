@@ -47,6 +47,11 @@ export interface WorkspaceChoice extends PublicSettings {
 }
 
 export interface IpcMap {
+  "library-storage": {
+    args: ["status" | "open" | "import"];
+    result: { root: string; sourceRoot: string; imported?: { id: string; title: string } };
+  };
+
   "context-settings": { args: [ContextSettings]; result: PublicSettings };
   "context-usage": {
     args: [Target];
@@ -133,6 +138,7 @@ import {
 import { parseConnectionInput, parseModelsInput } from "../../models";
 const role = (value: unknown) => parseChoice(value, ["writer", "editor", "planner"] as const);
 export const IPC_PARSERS: { [K in IpcChannel]: (args: unknown[]) => IpcArgs<K> } = {
+  "library-storage": ([action]) => [parseChoice(action, ["status", "open", "import"] as const)],
   "context-settings": ([value]) => [parseContextSettings(value)],
   "context-usage": ([target]) => [parseTarget(target)],
   compact: ([target, instructions]) => [parseTarget(target), parseText(instructions)],

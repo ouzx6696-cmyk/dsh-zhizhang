@@ -118,6 +118,22 @@ export class Runtime {
     return result;
   }
 
+  async reconfigure<T>(operation: () => Promise<T>): Promise<T> {
+    if (
+      this.sessions.reconfiguring ||
+      this.sessions.running().length ||
+      this.sessions.hasPending() ||
+      this.sessions.compactions.size
+    )
+      throw new Error("请等待任务结束后修改模型设置、搜索或上下文设置");
+    this.sessions.reconfiguring = true;
+    try {
+      return await operation();
+    } finally {
+      this.sessions.reconfiguring = false;
+    }
+  }
+
   pythonPath() {
     return app.isPackaged
       ? path.join(

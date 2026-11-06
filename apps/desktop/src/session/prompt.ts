@@ -12,6 +12,7 @@ import { validPassingQa } from "../../../../packages/toutiao/src/tools";
 import { SYSTEM_BRIEF } from "../../../../packages/fanqie/src/engine/tools/brief";
 import { buildToutiaoBrief, TOUTIAO_EDITOR_BRIEF } from "../../../../packages/toutiao/src/brief";
 import { buildFanqieBrief, FANQIE_EDITOR_BRIEF } from "../../../../packages/fanqie/src/brief";
+import { taskMethods } from "./task-methods";
 import type { Sessions } from "./manager";
 
 const CLIENT_NOTICE =
@@ -23,7 +24,7 @@ export async function systemPrompt(
   config: import("../../../../packages/toutiao/src/config").ToutiaoConfig,
 ) {
   if (role === "planner")
-    return `你是${target.mode === "fanqie" ? "长篇" : "头条"}规划角色。按作者目标读取必要材料，完成规划或指定原文拆解，使用当前工具保存结果并回报具体对象。正文交给写手。方法按任务读取。`;
+    return `你是${target.mode === "fanqie" ? "长篇" : "头条"}规划角色。按作者目标读取必要材料，完成规划或指定原文拆解，使用当前工具保存结果并回报具体对象。正文交给写手。长篇任务交接已附当前方案的方法时直接使用，需要补充目录或专项时再用 fanqie_forge_get overview 及相关方法；头条模式使用 toutiao_method_get。需要参考时检索已采纳卡、读卡全文，核对适用条件后把选定 card_ids 显式交给规划工具。没有合适参考直接按作者材料推进，不为填卡改写作者目标。`;
   const editor = role === "editor";
   const base =
     target.mode === "toutiao"
@@ -56,6 +57,19 @@ async function paths(host: Sessions, target: Target) {
 
 export async function taskPrompt(host: Sessions, target: Target, text: string, focus: Focus) {
   const profile = await activeProfile(target.mode, host.options[target.mode]?.profile);
+  const intent =
+    focus.intent ||
+    (/审读|编辑|质检/.test(text)
+      ? "review"
+      : /章纲|规划|拆书|大纲/.test(text)
+        ? "plan"
+        : /续写|写|改|润色/.test(text)
+          ? "write"
+          : "inspect");
+  const methods =
+    target.mode === "fanqie"
+      ? await taskMethods(profile.id, text, intent, host.options.fanqie?.profile)
+      : [];
   let saved: unknown;
   if (target.mode === "fanqie" && target.work) {
     const storage = await paths(host, target);
@@ -65,15 +79,6 @@ export async function taskPrompt(host: Sessions, target: Target, text: string, f
     const row = chapters.find((c) => c.id === focus.chapter);
     const chapter = row ? await readChapter(dir, row.id) : undefined;
     let brief: unknown;
-    const intent =
-      focus.intent ||
-      (/审读|编辑|质检/.test(text)
-        ? "review"
-        : /章纲|规划|拆书|大纲/.test(text)
-          ? "plan"
-          : /续写|写|改|润色/.test(text)
-            ? "write"
-            : "inspect");
     if (chapter && intent === "write") {
       await assertWorkspaceWritable(dir);
       const definition = engineTools({
@@ -133,6 +138,7 @@ export async function taskPrompt(host: Sessions, target: Target, text: string, f
     focus,
     profile: { id: profile.id, name: profile.name },
     saved,
+    methods,
     preferences: await host.extras.preferences?.(),
   });
 }

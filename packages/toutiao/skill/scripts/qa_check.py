@@ -506,9 +506,37 @@ class QAInputError(ValueError):
 
 def load_card(path):
     try:
-        return json.load(open(path, encoding="utf-8"))
+        card = json.load(open(path, encoding="utf-8"))
+        validate_card_types(card)
+        return card
     except (OSError, ValueError) as e:
         raise QAInputError(f"读不到立项卡：{e}") from e
+
+
+def validate_card_types(card):
+    """Reject malformed input before scoring; input errors must not masquerade as a failed draft."""
+    if not isinstance(card, dict):
+        raise QAInputError("立项卡须为对象")
+    string_fields = ("内容线", "体裁", "主驱动", "主问题", "主标题", "垂类", "人群",
+                     "故事", "母题", "改编方式", "主数字", "主数字出处")
+    for key in string_fields:
+        if key in card and not isinstance(card[key], str):
+            raise QAInputError(f"立项卡 {key} 须为文本")
+    for key in ("延伸", "锚点人物"):
+        if key in card and not isinstance(card[key], dict):
+            raise QAInputError(f"立项卡 {key} 须为对象")
+    for key, fields in (("延伸", ("起始小标题", "接的问题", "接法")),
+                        ("锚点人物", ("名字",))):
+        for field in fields:
+            value = card.get(key, {})
+            if field in value and not isinstance(value[field], str):
+                raise QAInputError(f"立项卡 {key}.{field} 须为文本")
+    if "蓝图" in card:
+        if not isinstance(card["蓝图"], list) or any(
+            not isinstance(row, dict) or
+            ("小标题" in row and not isinstance(row["小标题"], str)) for row in card["蓝图"]
+        ):
+            raise QAInputError("立项卡 蓝图须为对象数组，小标题须为文本")
 
 
 def read_ledger(path):

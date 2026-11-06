@@ -91,7 +91,13 @@ function cardInput(sourceId) {
 test("拆书证据经明确采纳进入规划，正文经扫描采纳后供续章使用", async () => {
   const f = await setup();
   try {
-    const { sourceId } = await LibraryPort.importSource(f.paths, { title: "参考书", text: BOOK });
+    const originalFile = path.join(f.root, "original.txt");
+    await writeFile(originalFile, BOOK);
+    const { sourceId } = await LibraryPort.importSource(f.paths, {
+      title: "参考书",
+      file: originalFile,
+    });
+    await rm(originalFile);
     const fact = await f.run("fanqie_library_facts_stage", {
       source: sourceId,
       facts: {
@@ -132,6 +138,12 @@ test("拆书证据经明确采纳进入规划，正文经扫描采纳后供续�
     await InspirationPort.acceptEmit(f.paths, outline.candId, { workKey: "新作", apply: true });
     const dir = await resolveWorkDir(f.paths, "新作");
     assert.equal((await readWorkMeta(dir)).pace, "慢燃");
+    const handoff = JSON.parse(
+      await f.run("fanqie_chapter_brief", { work: "新作", chapter: "c001", handoff_only: true }),
+    );
+    assert.ok(handoff.references.assets.includes("card:" + cardId));
+    assert.match(handoff.references.content, /其他可核对的差异/);
+    assert.equal(handoff.requiresBodyRead, true);
     await f.run("fanqie_chapter_brief", { work: "新作", chapter: "c001" });
     const body = "夜班第七天，她查完账，把门推开。";
     const staged = await f.run("fanqie_candidate_stage", {

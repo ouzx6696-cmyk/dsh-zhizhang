@@ -1,5 +1,6 @@
 import { COPY as viewCopy } from "../../../../../../packages/ui/src/copy.js";
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { errorText } from "../../../../../../packages/core/src/errors.js";
 import type { SystemState } from "../../state/store";
 import { desktop } from "../../state/desktop";
 
@@ -24,7 +25,65 @@ export function initialSearchDraft(state: SystemState): SearchDraft {
   };
 }
 
+function LibraryStorage({ scope, busy, action }: { scope: string; busy: boolean; action: Action }) {
+  const [location, setLocation] = useState<Awaited<
+    ReturnType<typeof desktop.libraryStorage>
+  > | null>(null);
+  const [message, setMessage] = useState("");
+  useEffect(() => {
+    let current = true;
+    setLocation(null);
+    setMessage("");
+    void desktop
+      .libraryStorage()
+      .then((result) => {
+        if (current) setLocation(result);
+      })
+      .catch((error) => {
+        if (current) setMessage(errorText(error));
+      });
+    return () => {
+      current = false;
+    };
+  }, [scope]);
+  const run = (operation: "open" | "import") =>
+    action(async () => {
+      const result = await desktop.libraryStorage(operation);
+      setLocation(result);
+      if (result.imported)
+        setMessage(
+          viewCopy.libraryStorageImported +
+            result.imported.title +
+            "（" +
+            result.imported.id +
+            "）",
+        );
+    });
+  return (
+    <section>
+      <h3>{viewCopy.libraryStorageTitle}</h3>
+      <p className="form-note">{viewCopy.libraryStorageNote}</p>
+      {location && (
+        <p>
+          <label>
+            {viewCopy.libraryStorageScope}
+            <input readOnly value={location.root} />
+          </label>
+        </p>
+      )}
+      <button disabled={busy || !location} onClick={() => void run("open")}>
+        {viewCopy.libraryStorageOpen}
+      </button>
+      <button disabled={busy || !location} onClick={() => void run("import")}>
+        {viewCopy.libraryStorageImport}
+      </button>
+      {message && <p role="status">{message}</p>}
+    </section>
+  );
+}
+
 export function ResourcesTab({
+  scope,
   search,
   setSearch,
   configured,
@@ -32,6 +91,7 @@ export function ResourcesTab({
   action,
   onMessage,
 }: {
+  scope: string;
   search: SearchDraft;
   setSearch: (patch: Partial<SearchDraft>) => void;
   configured: boolean;
@@ -54,6 +114,7 @@ export function ResourcesTab({
     });
   return (
     <>
+      <LibraryStorage scope={scope} busy={busy} action={action} />
       <button disabled={busy} onClick={() => action(() => desktop.backup())}>
         {viewCopy.settingsDialogText42}
       </button>

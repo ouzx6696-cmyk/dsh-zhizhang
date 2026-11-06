@@ -417,3 +417,139 @@ test("守卫：按语法计 any 与非空断言，字符串里的英文不误报
   assert.equal(swallowed.status, 1);
   assert.match(swallowed.stderr, /吞错须注明/);
 });
+
+test("CI 信号终止必须失败；错误立项卡返回参数错误而非 traceback", async () => {
+  const { spawnSync } = await import("node:child_process");
+  const { mkdtemp, writeFile, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const dir = await mkdtemp(path.join(tmpdir(), "writer-boundaries-"));
+  try {
+    const child = path.join(dir, "signal.mjs");
+    await writeFile(child, 'process.kill(process.pid, "SIGTERM");');
+    const runner = spawnSync(process.execPath, ["scripts/ci-run.mjs", process.execPath, child], {
+      encoding: "utf8",
+    });
+    assert.equal(runner.status, 1);
+    assert.match(runner.stderr, /terminated|error/i);
+    const fixture = "packages/toutiao/skill/tests/fixtures/";
+    const card = JSON.parse(await readFile(fixture + "story_long_card.json", "utf8"));
+    for (const patch of [{ 主问题: 123 }, { 延伸: [] }, { 蓝图: [null] }]) {
+      const file = path.join(dir, "card.json");
+      await writeFile(file, JSON.stringify({ ...card, ...patch }));
+      const qa = spawnSync(
+        process.env.WRITER_PYTHON || "python3",
+        [
+          "packages/toutiao/skill/scripts/qa_check.py",
+          fixture + "story_long_good.md",
+          "--card",
+          file,
+          "--json",
+        ],
+        { encoding: "utf8" },
+      );
+      assert.equal(qa.status, 2);
+      assert.match(qa.stdout, /立项卡/);
+      assert.equal(qa.stderr, "");
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test(
+  "陈旧锁检查暂停时，第二进程必须等待登记互斥，不能删除新 owner",
+  { timeout: 10000 },
+  async () => {
+    const { spawn } = await import("node:child_process");
+    const { hostname } = await import("node:os");
+    const root = await tempDir("writer-claim-race-");
+    const children = [];
+    const source = `
+    import fs from 'node:fs/promises';
+    import {syncBuiltinESMExports} from 'node:module';
+    import path from 'node:path';
+    const [role,root,module]=process.argv.slice(1);
+    if(role==='a') {
+      const original=fs.unlink; let first=true;
+      fs.unlink=async(file,...args)=>{
+        if(first && file===path.join(root,'.writer-workspace-lock.json')) {
+          first=false; process.send({type:'paused'});
+          await new Promise(resolve=>process.once('message',resolve));
+        }
+        return original(file,...args);
+      };
+      syncBuiltinESMExports();
+    }
+    const {claimWorkspace}=await import(module);
+    if(role==='b') process.send({type:'started'});
+    const result=await claimWorkspace(root);
+    process.send({type:'claimed',...result});
+    process.on('message',()=>process.exit(0));
+  `;
+    const start = (role) => {
+      const child = spawn(
+        process.execPath,
+        [
+          "--input-type=module",
+          "-e",
+          source,
+          role,
+          root,
+          String(buildUrl("core/src/workspace-lock.js")),
+        ],
+        { stdio: ["ignore", "ignore", "inherit", "ipc"] },
+      );
+      children.push(child);
+      return child;
+    };
+    const wait = (child, type) =>
+      new Promise((resolve) => {
+        const listener = (message) => {
+          if (message.type === type) {
+            child.off("message", listener);
+            resolve(message);
+          }
+        };
+        child.on("message", listener);
+      });
+    try {
+      await writeFile(
+        path.join(root, ".writer-workspace-lock.json"),
+        JSON.stringify({
+          id: "stale",
+          pid: 2147483647,
+          machine: hostname(),
+          host: "test",
+          at: new Date().toISOString(),
+        }),
+      );
+      const a = start("a");
+      await wait(a, "paused");
+      const b = start("b");
+      const bClaim = wait(b, "claimed");
+      await wait(b, "started");
+      const early = await Promise.race([
+        bClaim.then(() => true),
+        new Promise((resolve) => setTimeout(() => resolve(false), 100)),
+      ]);
+      assert.equal(early, false);
+      const aClaim = wait(a, "claimed");
+      a.send("resume");
+      const [one, two] = await Promise.all([aClaim, bClaim]);
+      assert.equal(one.readOnly, false);
+      assert.equal(two.readOnly, true);
+      assert.equal(one.owner.id, two.owner.id);
+    } finally {
+      await Promise.all(
+        children.map(
+          (child) =>
+            new Promise((resolve) => {
+              child.once("exit", resolve);
+              child.kill();
+            }),
+        ),
+      );
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);

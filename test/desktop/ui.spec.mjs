@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { test, expect, _electron as electron } from "@playwright/test";
-import { mkdtemp, rm, mkdir } from "node:fs/promises";
+import { mkdtemp, rm, mkdir, writeFile, readdir, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
@@ -287,6 +287,12 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
     await expect(method).toBeEditable();
     const savedMethod = await method.inputValue();
     await method.fill(savedMethod + "\n未保存的界面校验草稿");
+    await page.getByRole("button", { name: "新增一份", exact: true }).click();
+    await page.locator(".wb-pf-add input").fill("guard-unsaved");
+    page.once("dialog", (dialog) => dialog.dismiss());
+    await page.locator(".wb-pf-add button").click();
+    await expect(method).toHaveValue(savedMethod + "\n未保存的界面校验草稿");
+
     await page.getByRole("button", { name: "关闭方法方案", exact: true }).click();
     await page.getByRole("tab", { name: "Agent", exact: true }).click();
     page.once("dialog", (dialog) => dialog.dismiss());
@@ -675,10 +681,32 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
     const resources = async () => {
       await page.getByRole("button", { name: "设置", exact: true }).click();
       const dialog = page.getByRole("dialog", { name: "设置", exact: true });
-      await dialog.getByRole("button", { name: "备份与诊断", exact: true }).click();
+      await dialog.getByRole("button", { name: "资源与备份", exact: true }).click();
       return dialog;
     };
     let dialog = await resources();
+    const libraryPath = path.join(root, ".writer", "library");
+    await expect(dialog.getByLabel("当前项目的拆书库路径")).toHaveValue(libraryPath);
+    const bookFile = path.join(root, "原文示例.txt");
+    await writeFile(bookFile, "第1章 原文\n雨停了，她收起伞。", "utf8");
+    await app.evaluate(({ dialog }, file) => {
+      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] });
+    }, bookFile);
+    await dialog.getByRole("button", { name: "导入小说原文", exact: true }).click();
+    await expect(dialog).toContainText("已导入原文，尚未拆解");
+    await rm(bookFile);
+    const stored = (await readdir(path.join(libraryPath, "sources"))).filter((name) =>
+      name.endsWith(".txt"),
+    );
+    expect(stored.length).toBeGreaterThan(0);
+    expect(
+      (
+        await Promise.all(
+          stored.map((name) => readFile(path.join(libraryPath, "sources", name), "utf8")),
+        )
+      ).some((text) => text.includes("雨停了，她收起伞")),
+    ).toBe(true);
+
     await dialog.getByRole("combobox", { name: "搜索服务", exact: true }).selectOption("exa");
     await dialog.getByRole("combobox", { name: "搜索模式", exact: true }).selectOption("lite");
     await dialog.getByLabel("exa API Key", { exact: true }).fill("fixture-exa-secret");

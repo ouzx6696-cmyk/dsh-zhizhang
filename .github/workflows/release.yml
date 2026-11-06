@@ -30,6 +30,8 @@ jobs:
           TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           version="${TAG#v}"
+          prerelease=false
+          if [[ "$version" == *-* ]]; then prerelease=true; fi
           test "$(node -p 'require("./package.json").version')" = "$version"
           (cd release-artifacts && sha256sum --check SHA256SUMS)
           if ! gh release view "$TAG" --json isDraft --jq .isDraft > "$RUNNER_TEMP/release-draft"; then
@@ -42,7 +44,7 @@ jobs:
           if(start<0) throw new Error('发行版本缺少变更记录');
           writeFileSync(path.join(process.env.RUNNER_TEMP,'release-notes.md'),changelog.slice(start,end<0?undefined:end));
           JS
-            gh release create "$TAG" --draft --target "$GITHUB_SHA" --title "$TAG" --notes-file "$RUNNER_TEMP/release-notes.md"
+            gh release create "$TAG" --draft --prerelease="$prerelease" --target "$GITHUB_SHA" --title "$TAG" --notes-file "$RUNNER_TEMP/release-notes.md"
           fi
           test "$(gh release view "$TAG" --json isDraft --jq .isDraft)" = true
           if ! git ls-remote --exit-code origin "refs/tags/$TAG" >/dev/null; then
@@ -55,4 +57,8 @@ jobs:
             exit 1
           fi
           gh release upload "$TAG" release-artifacts/* --clobber
-          gh release edit "$TAG" --draft=false --latest
+          if [ "$prerelease" = true ]; then
+            gh release edit "$TAG" --draft=false --prerelease --latest=false
+          else
+            gh release edit "$TAG" --draft=false --prerelease=false --latest
+          fi

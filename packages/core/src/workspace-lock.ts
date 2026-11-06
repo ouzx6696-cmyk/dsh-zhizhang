@@ -1,10 +1,10 @@
 /** A host owns an open workspace; other processes may read but cannot write. */
-import { link, open, readFile, unlink, realpath } from "node:fs/promises";
+import { link, open, readFile, unlink, realpath, mkdir, rmdir } from "node:fs/promises";
 import { readFileSync, unlinkSync } from "node:fs";
 import { hostname } from "node:os";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import { isFsError, isMissingFileError } from "./fsx.js";
+import { isFsError, isMissingFileError, serialize } from "./fsx.js";
 import { errorText } from "./errors.js";
 import { isRecord } from "./parse.js";
 import { WriterError } from "./tool.js";
@@ -130,7 +130,34 @@ async function removeStaleOwner(key: string, stale: WorkspaceOwner) {
   }
 }
 
+/** Serialize reclamation and publication together: unlink cannot compare ownership atomically. */
 export async function claimWorkspace(root: string) {
+  const key = await realpath(root);
+  return serialize(`workspace-claim:${key}`, async () => {
+    const guard = path.join(key, ".writer-workspace-claim");
+    const deadline = Date.now() + 2000;
+    for (;;) {
+      try {
+        await mkdir(guard);
+        break;
+      } catch (error) {
+        if (!isFsError(error, "EEXIST")) throw error;
+        if (Date.now() >= deadline)
+          throw new WriterError(
+            "CONFLICT",
+            `作品占用登记正在进行或留有登记锁：${guard}。请确认没有登记进程后再核对，不会自动清理。`,
+          );
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+    }
+    try {
+      return await claimWorkspaceUnlocked(key);
+    } finally {
+      await rmdir(guard);
+    }
+  });
+}
+async function claimWorkspaceUnlocked(root: string) {
   const key = await realpath(root);
   // A competing claim can vanish between EEXIST and our read; re-run the decision a few times.
   for (let attempt = 0; attempt < 3; attempt++) {

@@ -7,19 +7,19 @@ import { modelCatalog, discoverModels, testConnection } from "../../session/pi-a
 import { explainError } from "../../diagnostics";
 
 export function registerModelsIpc(state: Runtime) {
-  handle("model", async (next) => {
-    // 保存模型会重建全部会话；运行中的任务会被中止，须先等任务结束。
-    if (state.sessions.running().length || state.sessions.hasPending())
-      throw new Error("请等待任务结束后修改模型设置");
-    const notice = await state.settings.saveModels(next);
-    await state.sessions.dispose();
-    state.notice = notice;
-    state.model = state.settings.models;
-    state.emit({ running: [] });
-    state.emit({ refresh: true });
-    await state.diagnostics.write("models_saved");
-    return state.settings.public();
-  });
+  handle("model", async (next) =>
+    state.reconfigure(async () => {
+      // 保存模型会重建全部会话；运行中的任务会被中止，须先等任务结束。
+      const notice = await state.settings.saveModels(next);
+      await state.sessions.dispose();
+      state.notice = notice;
+      state.model = state.settings.models;
+      state.emit({ running: [] });
+      state.emit({ refresh: true });
+      await state.diagnostics.write("models_saved");
+      return state.settings.public();
+    }),
+  );
   handle("test-model", async (role, next) => {
     const previous = state.model[role] || state.model.writer;
     try {
@@ -67,12 +67,12 @@ export function registerModelsIpc(state: Runtime) {
     });
     return { results: result.results.length, cost: result.cost };
   });
-  handle("search", async (key, provider, mode) => {
-    if (state.sessions.running().length || state.sessions.hasPending())
-      throw new Error("请等待任务结束后修改搜索设置");
-    await state.settings.saveSearch(key, provider, mode);
-    await state.sessions.dispose();
-    state.emit({ running: [] });
-    return state.settings.public();
-  });
+  handle("search", async (key, provider, mode) =>
+    state.reconfigure(async () => {
+      await state.settings.saveSearch(key, provider, mode);
+      await state.sessions.dispose();
+      state.emit({ running: [] });
+      return state.settings.public();
+    }),
+  );
 }

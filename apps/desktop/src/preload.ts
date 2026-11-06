@@ -9,6 +9,8 @@ const invoke = <K extends IpcChannel>(name: K, ...args: IpcArgs<K>) =>
   ipcRenderer.invoke("writer:" + name, ...args) as Promise<IpcResult<K>>;
 
 export const desktopAPI = {
+  libraryStorage: (action: "status" | "open" | "import" = "status") =>
+    invoke("library-storage", action),
   contextSettings: (value: import("./context-settings").ContextSettings) =>
     invoke("context-settings", value),
   contextUsage: (target: Target) => invoke("context-usage", target),

@@ -9,10 +9,11 @@ export function buildFanqieBrief(
 
 ## 每章的默认路线
 1. 动笔前：fanqie_outline_check（chapters=本章）章纲 8 字段齐全、无占位，再 fanqie_chapter_brief。
-2. 写：按默认链出候选、采纳为草稿（采纳不等于定稿）。方法看 fanqie_forge_get（write-chapter、rhythm、prose；先看 overview）。
-3. 审：${editorInstruction}
-4. 核旧账：改过正文后 fanqie_ledger_check（本章，默认连带上一章）。
-5. 定稿：fanqie_chapter_save status=final 会弹作者确认；force 覆盖定稿同样要作者确认。作者没点头不得定稿。作者也可以自己在写作台定稿，你只需告诉他审读结论。
+2. 写：需要参考技法时先 library_search，再 library_card_get 核对全文与失败边界；选中的 card_ids 显式传 chapter_brief；未显式传卡时会复用 inspire_accept(apply=true) 绑定的作品参考，不把检索命中当作已采用，不要求每章检索。
+3. 写：按默认链出候选、采纳为草稿（采纳不等于定稿）。方法看 fanqie_forge_get（write-chapter、rhythm、prose；先看 overview）。
+4. 审：${editorInstruction}
+5. 核旧账：改过正文后 fanqie_ledger_check（本章，默认连带上一章）。
+6. 定稿：fanqie_chapter_save status=final 会弹作者确认；force 覆盖定稿同样要作者确认。作者没点头不得定稿。作者也可以自己在写作台定稿，你只需告诉他审读结论。
 
 ## 规矩
 - forge 原文里的 init_project / archive_draft / 自有目录指令一律不照做，按 fanqie_forge_get 开头的对照表换成长篇工具。

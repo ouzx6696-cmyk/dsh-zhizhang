@@ -105,6 +105,21 @@ export function trackSession(options: {
       entry.focus = parsed.context?.focus || {};
       if (entry.profile !== parsed.context?.profile?.id) entry.methods.clear();
       entry.profile = parsed.context?.profile?.id;
+      if (Array.isArray(parsed.context?.methods)) {
+        for (const method of parsed.context.methods) {
+          if (
+            typeof method.id !== "string" ||
+            typeof method.profile !== "string" ||
+            typeof method.hash !== "string"
+          )
+            throw new Error("任务方法凭据无效");
+          entry.methods.set(method.id, {
+            id: method.id,
+            profile: method.profile,
+            hash: method.hash,
+          });
+        }
+      }
       task.id = randomUUID();
       task.name = parsed.text.slice(0, 100);
       task.startedAt = Date.now();

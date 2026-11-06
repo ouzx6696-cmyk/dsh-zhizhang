@@ -1,4 +1,5 @@
 /** Shared MethodRegistry tools + chapter_brief (writing entry that injects craft packs). */
+import { coerceAxis } from "../ports/library/schema.js";
 import { contextBasis } from "../domain/lifecycle.js";
 import { buildPanelHints } from "../panel-query.js";
 import { findChapter } from "../storage/chapters.js";
@@ -132,7 +133,9 @@ export function methodsTools() {
             note: resolved.note,
             lean,
           });
-          cardIdsForCrumb = resolved.cardIds.map((id: string) => `card:${id}`);
+          cardIdsForCrumb = resolved.cards
+            .filter((card) => !lean || coerceAxis(card) === "craft")
+            .map((card) => `card:${card.id}`);
         } else {
           cardSection = [
             lean ? "## 技法卡（lean · 写法+状态）" : "## 拆书库技法卡（写法+状态 · 书感）",
@@ -326,7 +329,10 @@ export function methodsTools() {
               }
             : undefined,
         );
-        const usedIds = [...found.map((a) => a.id), ...cardIdsForCrumb];
+        const usedIds = [
+          ...(args.handoff_only === true ? [] : found.map((a) => a.id)),
+          ...cardIdsForCrumb,
+        ];
         await recordBriefBreadcrumb(dir, { chapterId, assetIds: usedIds, basis });
         lines.push(
           "",
@@ -350,6 +356,12 @@ export function methodsTools() {
             previous: previousForContract
               ? { title: previousForContract.title, ending: previousForContract.ending }
               : null,
+            references: {
+              assets: usedIds,
+              content: cardSection,
+              scope: lean ? "craft" : "all",
+              note: "参考是条件性技法，不是本书事实；完整正文与前章仍须实际读取。",
+            },
             briefRecorded: true,
             requiresBodyRead: true,
           });

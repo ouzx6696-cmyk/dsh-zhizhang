@@ -12,7 +12,7 @@
 ## 清单（assets/）
 - `assets/sources.json`：来源登记与更新预设。每个来源写明模式、版本、在仓库里的位置、上游目录名与识别文件、版本号从哪读（`versionFrom`）、代码里哪些地方写着这个版本号（`versionRefs`）、登记表（头条的 `METHOD_FILES`）、本项目放在上游目录里的文件（`local`，导入时保留）、有意改过的上游文件（`patched`，导入时不覆盖、列为需人工合并）。
 - `assets/manifest.json`：生成的清单，每个文件一行：来源、类别（入口 / 方法 / 语料 / 模板 / 案例 / 规则 / 测试 / 内置 / 其他）、出处（upstream / local / patched）、可加载 id 与工具、字节数、SHA-256。随插件包一起发布（包内 `assets/`），用来核对装的是哪一版。
-- 现状（0.7.1）：toutiao-viral-writer 4.0.0 共 44 份、可加载 30；inspiration-forge-suite 1.3.0 共 124 份、可加载 111；长篇桥接与测试 2 份；引擎内置方法 12 项。上游原件 167 份与原件逐字节一致，本项目文件 15 份（含引擎内置 12 项）。
+- 数量、可加载 ID、来源与哈希以当前 `assets/manifest.json` 和 `npm run assets -- check` 输出为准；不要把历史版本的数量当作当前盘点。默认方法、上游原件、patched 补丁和用户资产分别维护。
 
 命令（先 `npm run build`，引擎内置方法从构建产物读）：
 
@@ -43,17 +43,13 @@ npm run assets -- import toutiao-viral-writer ~/下载/toutiao-viral-writer-4.1.
 3. `npm test`（方法加载测试会逐份真实加载），再写 CHANGELOG。
 
 ## 作者自备资产
-在配置里指定目录（绝对路径，或相对会话工作目录）：
+在桌面用户数据目录的 `writer.json` 业务配置中指定目录（绝对路径，或相对任务工作目录）。下面是该文件的配置片段：
 
-```yaml
-- id: writer
-  config:
-    toutiao:
-      assets:
-        dirs: ['我的头条方法', 'D:/写作/语料']
-    fanqie:
-      assets:
-        dirs: ['D:/写作/长篇笔记']
+```json
+{
+  "toutiao": { "assets": { "dirs": ["D:/写作/头条方法"] } },
+  "fanqie": { "assets": { "dirs": ["D:/写作/长篇笔记"] } }
+}
 ```
 
 - 目录里的 `.md`、`.txt`、`.json` 按相对路径成为 id：`我的头条方法/标题/养老题.md` → `user:标题/养老题`。`toutiao_method_get id=list`、`fanqie_forge_get id=list` 会列出来。
@@ -66,3 +62,8 @@ npm run assets -- import toutiao-viral-writer ~/下载/toutiao-viral-writer-4.1.
 - **新上游来源**：在 `sources.json` 加一项（`kind: "upstream"`，填 `dest`、`upstreamRoot`、`marker`、`versionFrom`、`versionRefs`、`tool`；需要登记表就加 `registry`），资产命令与检查无需改代码。只有新的登记表形态（不是头条 `METHOD_FILES` 也不是 forge 按路径取）需要在 `scripts/assets.mjs` 的 `idFor` 与 `check` 各加一个分支。
 - **新写作模式**：照现有两个模式，在 `sources.json` 加它的来源，配置段加 `assets`（调用 `parseAssetsConfig`），方法工具接 `listUserAssets` / `getUserAsset`。
 - **清单格式**：`schemaVersion: 1`。字段只增不改；要改含义时升版本号，`check` 按版本分别处理。
+
+
+## 与拆书库的区别
+
+自带方法与默认方案回答“怎样创作”；用户方法方案用于覆盖这些方法。拆书卡回答“某份已读原文在什么条件下用了什么机制”，存放于项目拆书库，不进入此发行清单。入库、检索、选用和落实到本书规划是不同动作，见 [长篇指南](FANQIE.md#拆书库存在哪里拆多深如何使用)。本轮对上游 qa_check.py 的输入边界修复已登记为 patched；后续导入上游时需要人工合并，不能丢弃补丁。

@@ -108,11 +108,19 @@ export function Settings({
       await onSaved();
       onClose();
     });
+  const close = () => {
+    if (!busy) onClose();
+  };
   return (
-    <Dialog title={viewCopy.settingsDialogText2} className="studio-settings" onClose={onClose}>
+    <Dialog title={viewCopy.settingsDialogText2} className="studio-settings" onClose={close}>
       <header>
         <h2>{viewCopy.settingsDialogText2}</h2>
-        <button className="icon-button" aria-label={viewCopy.settingsDialogText3} onClick={onClose}>
+        <button
+          className="icon-button"
+          aria-label={viewCopy.settingsDialogText3}
+          disabled={busy}
+          onClick={close}
+        >
           <X size={18} />
         </button>
       </header>
@@ -170,6 +178,7 @@ export function Settings({
           )}
           {tab === "resources" && (
             <ResourcesTab
+              scope={JSON.stringify([state.workspace, state.target?.mode, state.target?.root])}
               search={search}
               setSearch={setSearch}
               configured={state.searchConfigured}
@@ -186,7 +195,9 @@ export function Settings({
         </p>
       )}
       <footer>
-        <button onClick={onClose}>{viewCopy.cancel}</button>
+        <button disabled={busy} onClick={close}>
+          {viewCopy.cancel}
+        </button>
         <button className="primary" disabled={busy} onClick={save}>
           {viewCopy.settingsDialogText51}
         </button>

@@ -8,7 +8,7 @@
       "kind": "upstream",
       "version": "4.0.0",
       "files": 44,
-      "bytes": 338792,
+      "bytes": 340257,
       "loadable": 30,
       "byKind": {
         "meta": 1,
@@ -58,7 +58,7 @@
       "kind": "profile",
       "version": null,
       "files": 18,
-      "bytes": 114184,
+      "bytes": 117857,
       "loadable": 17,
       "byKind": {
         "method": 13,
@@ -401,10 +401,10 @@
     {
       "source": "toutiao-viral-writer",
       "kind": "rule",
-      "origin": "upstream",
+      "origin": "patched",
       "path": "packages/toutiao/skill/scripts/qa_check.py",
-      "bytes": 46474,
-      "sha256": "97ce58f4f026557e90231841911cff780b64f34aa5b736fbc25655ff00811857"
+      "bytes": 47939,
+      "sha256": "b02562ccb494eb94efd92d4088b0da5bb2ee82c17b4c3851ae4ea3beaa033774"
     },
     {
       "source": "toutiao-viral-writer",
@@ -2065,8 +2065,8 @@
       "kind": "method",
       "origin": "local",
       "path": "packages/fanqie/profiles/default/library.md",
-      "bytes": 8328,
-      "sha256": "2710c88f8df9f6a033e59bf70f8eaf47486ef1091370220fc49070fcea040c90"
+      "bytes": 10911,
+      "sha256": "b98177a2f2431b66449895be1a6458b88a05ca52d14b93411d914a4da4956452"
     },
     {
       "source": "fanqie-default-profile",
@@ -2075,8 +2075,8 @@
       "kind": "method",
       "origin": "local",
       "path": "packages/fanqie/profiles/default/overview.md",
-      "bytes": 4825,
-      "sha256": "bfc0cfc2c635f8212bd1c5ec9b927192f2abfebe97f01ea7489693f2f23ebbd9"
+      "bytes": 5915,
+      "sha256": "7003655aedc96fe5b76b7f562522ae007ff1d5dc6216860b1bff64f6b897637d"
     },
     {
       "source": "fanqie-default-profile",

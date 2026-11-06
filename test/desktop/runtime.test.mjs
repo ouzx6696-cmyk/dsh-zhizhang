@@ -1562,3 +1562,95 @@ test("Agent 直接保存尚无文件的新章正文，不因缺少已读版本�
     await rm(base, { recursive: true, force: true });
   }
 });
+
+test("配置更新期间拒绝新任务与压缩，失败后恢复接收", async () => {
+  const { Runtime } = await import("../../apps/desktop/out-test/runtime-effects.mjs");
+  const home = await mkdtemp(path.join(tmpdir(), "writer-config-transaction-"));
+  const state = new Runtime();
+  state.sessions = new Sessions({
+    home,
+    python: "python3",
+    settings: defaultModels,
+    emit: () => {},
+    confirm: async () => false,
+    options: {},
+    created: async () => {},
+    extras: {},
+  });
+  const target = { mode: "toutiao", root: home };
+  let release;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  const update = state.reconfigure(async () => {
+    await gate;
+    throw new Error("保存失败");
+  });
+  const failure = assert.rejects(update, /保存失败/);
+  try {
+    await assert.rejects(state.sessions.send(target, "不应发送"), /正在更新/);
+    await assert.rejects(state.sessions.compact(target, ""), /正在更新/);
+    await assert.rejects(state.sessions.open(target), /正在更新/);
+    await assert.rejects(
+      state.reconfigure(async () => {}),
+      /请等待/,
+    );
+    assert.equal(state.sessions.preparations.size, 0);
+    release();
+    await failure;
+    assert.equal(state.sessions.reconfiguring, false);
+    assert.equal(await state.reconfigure(async () => "恢复"), "恢复");
+  } finally {
+    release();
+    await failure;
+    await state.sessions.dispose();
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("长篇任务自动注入当前用户方法，并记录与实际内容一致的哈希", async () => {
+  const { createProfile } = await import("../../build/core/src/profiles.js");
+  const { fanqieLibrary } = await import("../../build/fanqie/src/forge.js");
+  const { sessionUsage } = await import("../../apps/desktop/out-test/usage.mjs");
+  const home = await mkdtemp(path.join(tmpdir(), "writer-method-fusion-"));
+  const previous = process.env.WRITER_PROFILES_DIR;
+  process.env.WRITER_PROFILES_DIR = path.join(home, "profiles");
+  process.env.WRITER_STATE_ROOT = home;
+  const text = "# 本书写作要求\nFUSION_RULE_不要替人物补全未知事实";
+  const profile = await createProfile(fanqieLibrary, {
+    name: "融合测试",
+    base: "default",
+    files: [{ id: "write-chapter", text }],
+  });
+  const model = await fakeModel({ "mock-writer": [{ text: "收到" }] });
+  const done = settled();
+  const host = new Sessions({
+    home,
+    python: "python3",
+    settings: () => models(model.url),
+    emit: (event) => {
+      if (event.event?.type === "agent_settled") done.finish();
+    },
+    confirm: async () => false,
+    options: { fanqie: { profile: profile.id } },
+    created: async () => {},
+    extras: {},
+  });
+  const target = { mode: "fanqie", root: home };
+  try {
+    await host.send(target, "写一段场景", { intent: "write" });
+    await done.promise;
+    const messages = model.calls[0].messages;
+    assert.match(JSON.stringify(messages), /FUSION_RULE_不要替人物补全未知事实/);
+    const usage = await sessionUsage(host, target);
+    const receipt = usage.methods.find((method) => method.id === "write-chapter");
+    assert.equal(receipt.profile, profile.id);
+    assert.equal(receipt.hash, createHash("sha256").update(text).digest("hex"));
+  } finally {
+    await host.dispose();
+    await model.close();
+    if (previous === undefined) delete process.env.WRITER_PROFILES_DIR;
+    else process.env.WRITER_PROFILES_DIR = previous;
+    await rm(home, { recursive: true, force: true });
+  }
+});

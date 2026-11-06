@@ -17,8 +17,9 @@ child.on("error", (error) => {
   console.error(error.message);
   process.exitCode = 1;
 });
-child.on("exit", (code) => {
-  if (code) {
+child.on("close", (code, signal) => {
+  if (signal) console.error(`Command terminated by ${signal}`);
+  if (code !== 0) {
     const escaped = tail
       .slice(-6000)
       .replace(/%/g, "%25")
@@ -26,5 +27,5 @@ child.on("exit", (code) => {
       .replace(/\n/g, "%0A");
     console.error("::error::" + escaped);
   }
-  process.exitCode = code || 0;
+  process.exitCode = code === 0 && !signal ? 0 : 1;
 });

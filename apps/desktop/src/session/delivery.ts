@@ -14,6 +14,7 @@ export async function sendPrompt(
   text: string,
   focusInput: Focus = {},
 ) {
+  if (host.reconfiguring) throw new Error("正在更新模型或上下文设置，请稍后发送任务");
   const target = {
     ...targetInput,
     ...(targetInput.mode === "toutiao" && focusInput.article
