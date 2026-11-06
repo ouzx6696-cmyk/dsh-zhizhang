@@ -364,6 +364,11 @@ for (const scope of ["default", "original"]) {
 const config = JSON.parse(await readFile(path.resolve(configFile), "utf8"));
 if (!Array.isArray(config.newsUrls) || config.newsUrls.length < 2)
   throw new Error("请提供至少两个真实新闻链接");
+// --only 冒烟/重跑单个任务：只跑 default 方案下匹配 caseId 的用例，避免为连通性检查烧整套任务
+const only = flag("--only");
+const profiles = only ? ["default"] : ["default", "original"];
+if (only) plan = plan.filter((item) => item.caseId === only);
+if (only && plan.length === 0) throw new Error(`--only 没有匹配到任务：${only}`);
 for (const model of Object.values(config.models))
   if (model) {
     model.apiKey = process.env[model.apiKeyEnv];
@@ -380,7 +385,7 @@ process.env.WRITER_TOUTIAO_SKILL_DIR = path.join(repo, "packages/toutiao/skill")
 process.env.WRITER_FANQIE_SKILL_DIR = path.join(repo, "packages/fanqie/skill");
 process.env.WRITER_TOUTIAO_DEFAULT_DIR = path.join(repo, "packages/toutiao/profiles/default");
 process.env.WRITER_FANQIE_DEFAULT_DIR = path.join(repo, "packages/fanqie/profiles/default");
-for (const profile of ["default", "original"]) {
+for (const profile of profiles) {
   const base = path.join(output, profile),
     home = path.join(base, ".agent"),
     novels = path.join(base, "novels"),
