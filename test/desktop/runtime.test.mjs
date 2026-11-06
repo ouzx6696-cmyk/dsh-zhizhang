@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import { execFile } from "node:child_process";
 import path from "node:path";
 import { spawn } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { ArticleStore } from "../../apps/desktop/out-test/article-store.mjs";
 import { fakeModel } from "./fake-model.mjs";
 import { Sessions } from "../../apps/desktop/out-test/session.mjs";
@@ -2588,4 +2588,282 @@ test("主动压缩判定：75% 恰好触发，窗口无效或用量未知不触�
   assert.equal(shouldProactivelyCompact({ tokens: 6000, contextWindow: undefined }), false);
   assert.equal(shouldProactivelyCompact({ tokens: null, contextWindow: 80000 }), false);
   assert.equal(shouldProactivelyCompact(undefined), false);
+});
+
+// —— T13 抽卡（writer_draw）：draw.enabled 开关注册、并发起草候选、编辑评估排序、用量回加 ——
+
+const DRAW_OUTLINE = {
+  pov: "“我”第一人称",
+  targetWords: 2500,
+  locks: "两张车票，明天八点四十",
+  knowledge: "迟川不知道剧团的事",
+  synopsis: "我把车票推给迟川",
+  conflict: "他发现我已答应剧团",
+  beats: "推票—追问—摊牌",
+  ending: "他问什么时候",
+};
+
+async function makeDrawWork(data) {
+  const { ensureStorage, createWork, setOutline } =
+    await import("../../apps/desktop/out-test/work-store.mjs");
+  // 桌面侧 target.root 即存储根：works 直接在 <root>/works（与 createSession 的 storageRoot 语义一致）。
+  const paths = await ensureStorage(null, { storageRoot: data });
+  const { dir, meta } = await createWork(paths, { title: "长夜车站" });
+  await setOutline(dir, "c001", DRAW_OUTLINE, "第一章 站台");
+  return { dir, key: meta.key };
+}
+
+test("抽卡：writer_draw 并发起草候选、编辑评估排序与用量回加；n 超上限被钳制", async () => {
+  const base = await mkdtemp(path.join(tmpdir(), "writer-draw-")),
+    home = path.join(base, "app"),
+    data = path.join(base, "data");
+  await mkdir(home);
+  await mkdir(data);
+  process.env.WRITER_STATE_ROOT = home;
+  const model = await fakeModel({
+    "mock-writer": [
+      { name: "writer_draw", input: { scenario: "opening", chapter: "c001", n: 1 } },
+      {
+        name: "fanqie_candidate_stage",
+        input: {
+          chapter: "c001",
+          content: "开头一版：林川把票递到窗口，售票员先看了眼墙上的钟。",
+          draft_label: "抽卡-1",
+          note: "抽卡起草（本章开头）",
+        },
+      },
+      { text: "开头这一版已暂存。" },
+      { text: "排序已交回，请作者挑选。" },
+      { name: "writer_draw", input: { scenario: "chapter-end", chapter: "c001", n: 5 } },
+      {
+        name: "fanqie_candidate_stage",
+        input: {
+          chapter: "c001",
+          content: "章末一版：门开了，站台空无一人。",
+          draft_label: "抽卡-1",
+          note: "抽卡起草（本章章末）",
+        },
+      },
+      { text: "章末这一版已暂存。" },
+      { text: "第二批排序已交回。" },
+    ],
+    "mock-editor": [
+      { text: '[{"label":"抽卡-1","score":19,"reason":"钩子具体，局面推进明确"}]' },
+      { text: '[{"label":"抽卡-1","score":21,"reason":"残局具体"}]' },
+    ],
+  });
+  const done = settled(),
+    events = [];
+  let onSettled = done.finish;
+  const { dir, key } = await makeDrawWork(data);
+  const sessions = new Sessions({
+    home,
+    python: "python3",
+    settings: () => models(model.url),
+    emit: (event) => {
+      events.push(event);
+      if (event.event?.type === "agent_settled" && !event.editor) onSettled();
+    },
+    confirm: async () => false,
+    options: { fanqie: { draw: { enabled: true, max: 1 } } },
+    created: async () => {},
+    extras: {},
+  });
+  try {
+    const writerCalls = () => model.calls.filter((call) => call.model === "mock-writer");
+    const drawEnds = () =>
+      events.filter(
+        (event) =>
+          event.event?.type === "tool_execution_end" && event.event.toolName === "writer_draw",
+      );
+    await sessions.send({ mode: "fanqie", root: data, work: key }, "抽卡本章开头。", {
+      chapter: "c001",
+      intent: "write",
+    });
+    await done.promise;
+    assert.ok(
+      writerCalls()[0].tools.some((tool) => tool.function.name === "writer_draw"),
+      "draw.enabled 时写手工具须含 writer_draw",
+    );
+    assert.equal(drawEnds().length, 1);
+    const result = drawEnds()[0].event.result;
+    assert.deepEqual(result.details.draws, [
+      { label: "抽卡-1", score: 19, reasons: "钩子具体，局面推进明确" },
+    ]);
+    assert.match(result.content[0].text, /抽卡评估 · 本章开头/);
+    assert.match(result.content[0].text, /1\. 抽卡-1 · 19 分：钩子具体，局面推进明确/);
+    assert.match(result.content[0].text, /fanqie_chapter_drafts/);
+    const { listCandidates } = await import("../../apps/desktop/out-test/work-store.mjs");
+    const staged = (await listCandidates(dir)).filter((row) => row.note === "抽卡起草（本章开头）");
+    assert.equal(staged.length, 1);
+    assert.equal(staged[0].draftLabel, "抽卡-1");
+    const laneCall = writerCalls().find((call) =>
+      JSON.stringify(call.messages).includes("抽卡起草 抽卡-1"),
+    );
+    assert.ok(laneCall, "起草子会话须拿到带序号的任务");
+    assert.ok(laneCall.tools.some((tool) => tool.function.name === "fanqie_candidate_stage"));
+    assert.ok(
+      !laneCall.tools.some((tool) => tool.function.name === "writer_draw"),
+      "起草子会话不递归注册抽卡",
+    );
+    assert.ok(
+      JSON.stringify(laneCall.messages).includes("抽卡起草会话"),
+      "起草子会话系统提示带只起草约束",
+    );
+    const evaluator = model.calls.find((call) => call.model === "mock-editor");
+    assert.ok(JSON.stringify(evaluator.messages).includes("开头一版"));
+    assert.ok(JSON.stringify(evaluator.messages).includes("局面改变"));
+    assert.ok(drawEnds()[0].task.usage.input >= 120, "起草子会话与评估会话的用量须回加父任务");
+    const second = settled();
+    onSettled = second.finish;
+    await sessions.send({ mode: "fanqie", root: data, work: key }, "抽卡本章章末。", {
+      chapter: "c001",
+      intent: "write",
+    });
+    await second.promise;
+    assert.equal(drawEnds().length, 2);
+    assert.equal(drawEnds()[1].event.result.details.draws.length, 1);
+    assert.equal(drawEnds()[1].event.result.details.failed, undefined);
+    assert.match(drawEnds()[1].event.result.content[0].text, /抽卡评估 · 本章章末/);
+  } finally {
+    await sessions.dispose();
+    await model.close();
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("抽卡：单路起草失败其余成功时交回部分结果", async () => {
+  const base = await mkdtemp(path.join(tmpdir(), "writer-draw-partial-")),
+    home = path.join(base, "app"),
+    data = path.join(base, "data");
+  await mkdir(home);
+  await mkdir(data);
+  process.env.WRITER_STATE_ROOT = home;
+  const model = await fakeModel({
+    "mock-writer": [
+      { name: "writer_draw", input: { scenario: "opening", chapter: "c001", n: 2 } },
+      {
+        name: "fanqie_candidate_stage",
+        input: {
+          chapter: "c001",
+          content: "开头一版：林川把票递到窗口。",
+          draft_label: "抽卡-1",
+          note: "抽卡起草（本章开头）",
+        },
+      },
+    ],
+    "mock-editor": [{ text: '[{"label":"抽卡-1","score":12,"reason":"可用但偏平"}]' }],
+  });
+  const done = settled(),
+    events = [];
+  let onSettled = done.finish;
+  const { key } = await makeDrawWork(data);
+  const sessions = new Sessions({
+    home,
+    python: "python3",
+    settings: () => models(model.url),
+    emit: (event) => {
+      events.push(event);
+      if (event.event?.type === "agent_settled" && !event.editor) onSettled();
+    },
+    confirm: async () => false,
+    options: { fanqie: { draw: { enabled: true, max: 2 } } },
+    created: async () => {},
+    extras: {},
+  });
+  try {
+    await sessions.send({ mode: "fanqie", root: data, work: key }, "抽卡本章开头。", {
+      chapter: "c001",
+      intent: "write",
+    });
+    await done.promise;
+    const end = events.find(
+      (event) =>
+        event.event?.type === "tool_execution_end" && event.event.toolName === "writer_draw",
+    );
+    assert.ok(end, "writer_draw 须正常交回而不是整单失败");
+    assert.equal(end.event.result.details.draws.length, 1);
+    assert.equal(end.event.result.details.failed.length, 1);
+    assert.match(end.event.result.details.failed[0], /起草会话没有暂存候选/);
+    assert.match(end.event.result.content[0].text, /失败的路/);
+    assert.match(end.event.result.content[0].text, /1\. 抽卡-1 · 12 分：可用但偏平/);
+  } finally {
+    await sessions.dispose();
+    await model.close();
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("抽卡开关关闭时 writer_draw 不注册", async () => {
+  const base = await mkdtemp(path.join(tmpdir(), "writer-draw-off-")),
+    home = path.join(base, "app"),
+    data = path.join(base, "data");
+  await mkdir(home);
+  await mkdir(data);
+  process.env.WRITER_STATE_ROOT = home;
+  const model = await fakeModel({ "mock-writer": [{ text: "收到，先读材料。" }] });
+  const done = settled();
+  let onSettled = done.finish;
+  const { key } = await makeDrawWork(data);
+  const sessions = new Sessions({
+    home,
+    python: "python3",
+    settings: () => models(model.url),
+    emit: (event) => {
+      if (event.event?.type === "agent_settled" && !event.editor) onSettled();
+    },
+    confirm: async () => false,
+    options: {},
+    created: async () => {},
+    extras: {},
+  });
+  try {
+    await sessions.send({ mode: "fanqie", root: data, work: key }, "先读本章材料。", {
+      chapter: "c001",
+      intent: "write",
+    });
+    await done.promise;
+    const call = model.calls.find((item) => item.model === "mock-writer");
+    assert.ok(call.tools.some((tool) => tool.function.name === "fanqie_candidate_stage"));
+    assert.ok(!call.tools.some((tool) => tool.function.name === "writer_draw"));
+  } finally {
+    await sessions.dispose();
+    await model.close();
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("写作台抽卡投递：指令带 writer_draw 场景并要求转报作者，抽卡须指明章节", async () => {
+  const base = await mkdtemp(path.join(tmpdir(), "writer-draw-delivery-")),
+    data = path.join(base, "data");
+  await mkdir(data);
+  const { dir } = await makeDrawWork(data);
+  const outfile = path.join(base, "delivery.mjs");
+  const { build } = await import("esbuild");
+  await build({
+    entryPoints: [path.join(root, "packages/fanqie/src/workbench/delivery.ts")],
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    packages: "external",
+    outfile,
+    logLevel: "silent",
+  });
+  try {
+    const { buildDeliveryPrompt, DELIVERY_ACTIONS } = await import(pathToFileURL(outfile).href);
+    assert.ok(DELIVERY_ACTIONS.includes("draw-opening"));
+    assert.ok(DELIVERY_ACTIONS.includes("draw-chapter-end"));
+    const opening = await buildDeliveryPrompt(dir, { action: "draw-opening", chapter: "c001" });
+    assert.equal(opening.chapterId, "c001");
+    assert.match(opening.text, /writer_draw（scenario="opening"）/);
+    assert.match(opening.text, /不要自动采纳/);
+    const ending = await buildDeliveryPrompt(dir, { action: "draw-chapter-end", chapter: "c001" });
+    assert.match(ending.text, /writer_draw（scenario="chapter-end"）/);
+    await assert.rejects(
+      buildDeliveryPrompt(dir, { action: "draw-chapter-end" }),
+      /抽卡须指明章节/,
+    );
+  } finally {
+    await rm(base, { recursive: true, force: true });
+  }
 });

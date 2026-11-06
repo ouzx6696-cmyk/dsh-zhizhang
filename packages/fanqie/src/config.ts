@@ -20,6 +20,9 @@ export interface FanqieConfig extends PluginConfig {
   disabledGates?: string[];
   /** 同章多草稿统一整理，默认关 */
   multiDraft?: { enabled?: boolean };
+  /** 抽卡：writer_draw 一次性起草 n 版开头/章末/书名简介并由编辑子会话评估排序，默认关；
+   * max 单批版数上限 4，缺省 3 */
+  draw?: { enabled?: boolean; max?: number };
   /** 结构化连续性：伏笔线/知识边界/章末交接的登记与核验工具、简报投影与修订影响联动，默认关 */
   continuity?: { enabled?: boolean };
   /** handoff.v2：任务交接改用方法包决策表（按状态收集方法与附件），默认关 */
@@ -77,6 +80,7 @@ const KNOWN = new Set<string>([
   "requireEditorPass",
   "disabledGates",
   "multiDraft",
+  "draw",
   "continuity",
   "handoff",
   "session",
@@ -134,6 +138,27 @@ export function parseFanqieConfig(
         path: [...at, "multiDraft"],
       });
     else out.multiDraft = { enabled: m.enabled === true };
+  }
+  if (v.draw !== undefined) {
+    const d = v.draw as Record<string, unknown> | null;
+    const max = d?.max;
+    if (
+      !d ||
+      typeof d !== "object" ||
+      Array.isArray(d) ||
+      (d.enabled !== undefined && typeof d.enabled !== "boolean") ||
+      (max !== undefined &&
+        (typeof max !== "number" || !Number.isInteger(max) || max < 1 || max > 4))
+    )
+      issues.push({
+        message: `${[...at, "draw"].join(".")} 应为 { enabled: 布尔值, max: 1-4 的整数 }`,
+        path: [...at, "draw"],
+      });
+    else
+      out.draw = {
+        enabled: d.enabled === true,
+        ...(typeof max === "number" ? { max } : {}),
+      };
   }
   if (v.continuity !== undefined) {
     const c = v.continuity as Record<string, unknown> | null;

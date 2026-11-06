@@ -1,13 +1,19 @@
 /**
  * 写作台（番茄长篇模式）→ 对话投递的指令文本。
  *
- * 面板只能发三种固定动作，正文仍由 Agent 在会话里创作；投递的是一条普通用户消息，
+ * 面板只能发固定的动作，正文仍由 Agent 在会话里创作；投递的是一条普通用户消息，
  * 作者在对话里能看到原文、能打断。作者附言限 300 字，原样附在末尾。
  */
 import { readWorkMeta } from "../engine/work-store.js";
 import { NovelError } from "../engine/errors.js";
 
-export const DELIVERY_ACTIONS = ["continue", "review", "revise"] as const;
+export const DELIVERY_ACTIONS = [
+  "continue",
+  "review",
+  "revise",
+  "draw-opening",
+  "draw-chapter-end",
+] as const;
 type DeliveryAction = (typeof DELIVERY_ACTIONS)[number];
 
 interface Row {
@@ -55,6 +61,16 @@ export async function buildDeliveryPrompt(
     lines.push(
       `按长篇日更流程：读${prev ? `上一章${label(prev)}与` : ""}本章章纲，写成候选并自检，再派编辑子代理审读，把审读结论告诉我。不要定稿。`,
     );
+  } else if (action === "draw-opening" || action === "draw-chapter-end") {
+    const target = named;
+    if (!target) throw new NovelError("chapter_required", "抽卡须指明章节");
+    chapterId = target.id;
+    lines.push(
+      action === "draw-opening"
+        ? `【写作台】抽卡《${meta.title}》${label(target)}的开头：调用 writer_draw（scenario="opening"）并发起草几版本章开头，评估排序回来后把分数、理由与排序转报作者。`
+        : `【写作台】抽卡《${meta.title}》${label(target)}的章末：调用 writer_draw（scenario="chapter-end"）并发起草几版本章章末，评估排序回来后把分数、理由与排序转报作者。`,
+    );
+    lines.push("只抽卡与汇报，不要自动采纳；作者选定后再走候选采纳。");
   } else {
     const target = named;
     if (!target)

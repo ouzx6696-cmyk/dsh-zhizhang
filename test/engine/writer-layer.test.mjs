@@ -298,7 +298,7 @@ test("写作台“写作 Agent”区块：按能力与回报渲染按钮", async
   );
   assert.deepEqual(
     buttons(failed).map((b) => texts(b)[0]),
-    ["续写下一章", "派编辑审读本章", "按回报修改"],
+    ["续写下一章", "派编辑审读本章", "按回报修改", "抽卡本章开头", "抽卡本章章末"],
   );
   assert.ok(buttons(failed).every((b) => !b.props.disabled));
   const passed = WriterAgent({
@@ -310,7 +310,7 @@ test("写作台“写作 Agent”区块：按能力与回报渲染按钮", async
   });
   assert.deepEqual(
     buttons(passed).map((b) => texts(b)[0]),
-    ["续写下一章", "派编辑审读本章"],
+    ["续写下一章", "派编辑审读本章", "抽卡本章开头", "抽卡本章章末"],
   );
 });
 

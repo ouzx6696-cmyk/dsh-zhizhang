@@ -67,6 +67,12 @@ async function deliver(state: Runtime, context: Operation): Promise<RequestResul
   state.emit({ selection: state.target });
   const action = textField(body, "action");
   if (!action) throw new Error("参数无效：action");
+  if (
+    target.mode === "fanqie" &&
+    (action === "draw-opening" || action === "draw-chapter-end") &&
+    state.writerConfig.fanqie?.draw?.enabled !== true
+  )
+    throw new Error("抽卡未开启：先在配置里把 fanqie.draw.enabled 设为 true");
   const note = textField(body, "note");
   const prompt =
     target.mode === "toutiao"

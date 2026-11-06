@@ -24,6 +24,7 @@ import type { ToolDefinition as WriterToolDefinition } from "../../../../package
 import { systemPrompt } from "./prompt";
 import { createBusinessTools, createRememberTool } from "./tools";
 import { createDelegateTools } from "./editor-task";
+import { createDrawTools } from "./draw-task";
 import { createSourceTools } from "./sources";
 import { createTask, trackSession } from "./task-tracker";
 import type { Sessions } from "./manager";
@@ -44,7 +45,28 @@ export async function createSession(
   onCreated?: (work: string) => Promise<void>,
   onSaved?: (tool: string, output: string) => void,
 ): Promise<AgentSession> {
-  const primary = role === "writer";
+  return startSession(host, targetInput, role, { primary: role === "writer" }, onCreated, onSaved);
+}
+
+/** 抽卡起草子会话：写手角色与工具面，但内存档、不注册主会话、不向作者界面转发事件，
+ * 系统提示附“只起草不采纳”约束（writer_draw 的并发起草路，经 createDraft 注入 draw-task）。 */
+function createDraftSession(
+  host: Sessions,
+  targetInput: Target,
+  constraint: string,
+): Promise<AgentSession> {
+  return startSession(host, targetInput, "writer", { primary: false, constraint });
+}
+
+async function startSession(
+  host: Sessions,
+  targetInput: Target,
+  role: "writer" | "editor" | "planner",
+  options: { primary: boolean; constraint?: string },
+  onCreated?: (work: string) => Promise<void>,
+  onSaved?: (tool: string, output: string) => void,
+): Promise<AgentSession> {
+  const primary = options.primary;
   const target = { ...targetInput };
   const key = host.key(target);
   const dir = await host.directory(target);
@@ -99,6 +121,17 @@ export async function createSession(
   ];
   if (primary) {
     customTools.push(...createDelegateTools({ host, target, manager, getEntry, getSession }));
+    if (target.mode === "fanqie" && host.options.fanqie?.draw?.enabled === true)
+      customTools.push(
+        ...createDrawTools({
+          host,
+          target,
+          getEntry,
+          getSession,
+          drawMax: host.options.fanqie.draw.max ?? 3,
+          createDraft: (constraint) => createDraftSession(host, target, constraint),
+        }),
+      );
     const { preferences, savePreferences } = host.extras;
     if (preferences && savePreferences)
       customTools.push(createRememberTool({ read: preferences, save: savePreferences }));
@@ -115,7 +148,9 @@ export async function createSession(
     retry: { enabled: true },
     cacheWarming: "streaming",
   });
-  const prompt = await systemPrompt(target, role, config);
+  const prompt =
+    (await systemPrompt(target, role, config)) +
+    (options.constraint ? "\n" + options.constraint : "");
   const loader = new DefaultResourceLoader({
     settingsManager,
     noContextFiles: true,
@@ -149,12 +184,14 @@ export async function createSession(
   }));
   session.agent.toolExecution = "sequential";
   entry = { session, target, focus: {}, phase: "", task, methods: new Map() };
-  trackSession({
-    host,
-    entry,
-    role,
-    onUserMessage: () => readUrls.clear(),
-  });
+  // 起草子会话（writer 非主会话）不订阅事件：writer_draw 汇总结果，多路草稿流不刷进作者对话。
+  if (primary || role !== "writer")
+    trackSession({
+      host,
+      entry,
+      role,
+      onUserMessage: () => readUrls.clear(),
+    });
   if (primary)
     session.subscribe((event) => {
       if (event.type === "agent_settled") void host.proactiveCompact(target);

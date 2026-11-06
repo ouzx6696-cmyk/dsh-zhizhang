@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { readFile, mkdir, writeFile, rm } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { FIX, ROOT, tempDir, buildUrl } from "./helpers.mjs";
@@ -719,4 +720,59 @@ test("方法包：头条按文章状态映射七步", () => {
   const delivered = at({ stage: "已交稿" });
   assert.deepEqual(delivered.steps, ["S7"]);
   assert.deepEqual(delivered.methods, []);
+});
+
+// —— T13 抽卡并发池（writer_draw）：draw-task.ts 在 apps/desktop（不走 build/ tsc），
+// 用仓库自带 esbuild 按生产入口原样打包一次再加载，测的就是真实实现。
+
+let drawTask;
+async function loadDrawTask() {
+  if (drawTask) return drawTask;
+  // 打包产物落进仓库的 gitignored 构建目录，裸依赖才能沿 node_modules 解析。
+  const outfile = path.join(ROOT, "apps/desktop/out-test/unit-draw-task.mjs");
+  await mkdir(path.dirname(outfile), { recursive: true });
+  const { build } = await import("esbuild");
+  await build({
+    entryPoints: [path.join(ROOT, "apps/desktop/src/session/draw-task.ts")],
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    packages: "external",
+    outfile,
+    logLevel: "silent",
+  });
+  drawTask = await import(pathToFileURL(outfile).href);
+  return drawTask;
+}
+
+test("抽卡并发池：5 路任务最多 2 路同时执行，结果按输入顺序返回", async () => {
+  const { runTaskPool } = await loadDrawTask();
+  let running = 0,
+    peak = 0;
+  const outcomes = await runTaskPool(5, 2, async (index) => {
+    running++;
+    peak = Math.max(peak, running);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    running--;
+    return index * 10;
+  });
+  assert.equal(peak, 2);
+  assert.deepEqual(
+    outcomes.map((o) => (o.status === "ok" ? o.value : null)),
+    [0, 10, 20, 30, 40],
+  );
+});
+
+test("抽卡并发池：单路失败不影响他路，失败原因随该路结果返回", async () => {
+  const { runTaskPool } = await loadDrawTask();
+  const outcomes = await runTaskPool(3, 2, async (index) => {
+    if (index === 1) throw new Error("第 2 路起草失败");
+    return `稿-${index}`;
+  });
+  assert.equal(outcomes[0].status, "ok");
+  assert.equal(outcomes[0].value, "稿-0");
+  assert.equal(outcomes[1].status, "failed");
+  assert.match(String(outcomes[1].error), /第 2 路起草失败/);
+  assert.equal(outcomes[2].status, "ok");
+  assert.equal(outcomes[2].value, "稿-2");
 });

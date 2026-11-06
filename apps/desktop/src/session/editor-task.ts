@@ -7,6 +7,17 @@ import { reviewResult, taskPrompt } from "./prompt";
 import type { Sessions } from "./manager";
 import type { SessionEntry } from "./types";
 
+/** 子会话用量回加：SDK 统计累加进父任务的用量与成本（writer_review/plan 与抽卡共用）。 */
+export function accumulateChildUsage(entry: SessionEntry, child: AgentSession) {
+  const stats = child.getSessionStats();
+  entry.task.tokens += stats.tokens.total;
+  entry.task.cost += stats.cost;
+  entry.task.usage.input += stats.tokens.input;
+  entry.task.usage.output += stats.tokens.output;
+  entry.task.usage.cacheRead += stats.tokens.cacheRead;
+  entry.task.usage.cacheWrite += stats.tokens.cacheWrite;
+}
+
 export function createDelegateTools(options: {
   host: Sessions;
   target: Target;
@@ -124,13 +135,7 @@ export function createDelegateTools(options: {
             details: { writerResult: result },
           };
         } finally {
-          const stats = child.getSessionStats();
-          entry.task.tokens += stats.tokens.total;
-          entry.task.cost += stats.cost;
-          entry.task.usage.input += stats.tokens.input;
-          entry.task.usage.output += stats.tokens.output;
-          entry.task.usage.cacheRead += stats.tokens.cacheRead;
-          entry.task.usage.cacheWrite += stats.tokens.cacheWrite;
+          accumulateChildUsage(entry, child);
           host.children.delete(session);
           child.dispose();
           entry.phase =
