@@ -182,6 +182,8 @@ export interface PluginConfig {
   disabledGates?: string[];
   /** 内部：由 multiDraft.enabled 或 WRITER_NOVEL_MULTI_DRAFT 推出 */
   multiDraft?: { enabled?: boolean };
+  /** 内部：parseFanqieConfig 解析的写手工具面收窄开关 */
+  toolset?: { narrowed?: boolean };
   /** 固定方法方案（默认 / 原版 / 用户方案名或 id）；parseFanqieConfig 解析后随配置传入 */
   profile?: string;
   [key: string]: unknown;

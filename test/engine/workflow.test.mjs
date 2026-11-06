@@ -1,6 +1,7 @@
 import { createToolHarness } from "../helpers.mjs";
 import { formatToolError } from "../../build/fanqie/src/engine/errors.js";
 import { allTools } from "../../build/fanqie/src/engine/tools/index.js";
+import { parseFanqieConfig } from "../../build/fanqie/src/config.js";
 /** The writing product's main path and author-controlled decisions. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -31,13 +32,13 @@ const BOOK = [
   "第2章 四秒",
   "他调出监控回放，侧窗的人影只用了四秒。",
 ].join("\n");
-async function setup() {
+async function setup(extraConfig = {}) {
   const root = await mkdtemp(path.join(tmpdir(), "writer-novel-workflow-"));
   const paths = await ensureStorage(null, { storageRoot: root });
   const harness = await createToolHarness({
     mode: "fanqie",
     cwd: root,
-    config: { storageRoot: root },
+    config: { ...extraConfig, storageRoot: root },
   });
   const run = async (name, args = {}) => {
     try {
@@ -830,5 +831,163 @@ test("改动前章时修订影响列出直接与间接依赖它的后章", async
     assert.deepEqual(impact.dependents, ["c002", "c003"]);
   } finally {
     await f.close();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// T7 写手工具面收窄（toolset.narrowed，默认关）
+const NARROWED_EXCLUDED = [
+  "fanqie_payoff_audit",
+  "fanqie_human_feel_audit",
+  "fanqie_novel_sense_audit",
+  "fanqie_style_lint",
+  "fanqie_review_ledger",
+  "fanqie_library_audit",
+  "fanqie_library_import",
+  "fanqie_library_plan",
+  "fanqie_library_dissect_brief",
+  "fanqie_library_facts_stage",
+  "fanqie_library_structure_stage",
+  "fanqie_library_card_stage",
+  "fanqie_library_card_accept",
+  "fanqie_library_card_discard",
+  "fanqie_library_report",
+];
+
+test("T7 收窄开关默认关：写手工具面与现状逐项一致", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "writer-narrow-off-"));
+  const plain = await createToolHarness({ mode: "fanqie", cwd: root, config: {} });
+  const off = await createToolHarness({
+    mode: "fanqie",
+    cwd: root,
+    config: { toolset: { narrowed: false } },
+  });
+  try {
+    const names = [...plain.tools.keys()].sort();
+    assert.deepEqual([...off.tools.keys()].sort(), names);
+    assert.equal(names.length, 59);
+    for (const excluded of NARROWED_EXCLUDED) assert.ok(names.includes(excluded), excluded);
+    assert.ok(names.includes("fanqie_product_map"));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("T7 收窄开关开启：写手默认集去掉诊断旁路与拆书写入工具，导航保留", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "writer-narrow-on-"));
+  const harness = await createToolHarness({
+    mode: "fanqie",
+    cwd: root,
+    config: { toolset: { narrowed: true } },
+  });
+  try {
+    const names = [...harness.tools.keys()].sort();
+    assert.equal(names.length, 44);
+    for (const excluded of NARROWED_EXCLUDED)
+      assert.ok(!names.includes(excluded), `不应出现 ${excluded}`);
+    for (const kept of [
+      "fanqie_product_map",
+      "fanqie_library_list",
+      "fanqie_library_search",
+      "fanqie_library_card_get",
+      "fanqie_library_combo_suggest",
+      "fanqie_chapter_brief",
+      "fanqie_candidate_stage",
+      "fanqie_candidate_accept",
+    ])
+      assert.ok(names.includes(kept), kept);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("T7 收窄写手：采纳旁路开关被门禁拒绝，无参调用不受影响，编辑与规划角色不收窄", async () => {
+  const f = await setup({ toolset: { narrowed: true } });
+  try {
+    const { dir, meta } = await createWork(f.paths, { title: "收窄作品" });
+    await setOutline(dir, "c001", { ending: "门开了" }, "第一章");
+    await f.run("fanqie_chapter_brief", { work: meta.key, chapter: "c001" });
+    const candId = id(
+      await f.run("fanqie_candidate_stage", {
+        work: meta.key,
+        chapter: "c001",
+        content: "第一版正文。",
+      }),
+      /(cand-[a-z0-9]+)/,
+    );
+    const denied = await f.run("fanqie_candidate_accept", {
+      work: meta.key,
+      candidate: candId,
+      strict_lint: true,
+    });
+    assert.match(denied, /【门禁 fanqie\.writer_narrowed_accept_flags】/);
+    assert.match(denied, /写手默认工具集不开放 strict_lint 参数/);
+    assert.match(denied, /该旁路属规划\/诊断用途，请在任务说明里说明需求或由作者在规划角色执行/);
+    assert.equal((await readChapter(dir, "c001")).body, "");
+
+    assert.match(
+      await f.run("fanqie_candidate_accept", { work: meta.key, candidate: candId }),
+      /已采纳/,
+    );
+
+    const candId2 = id(
+      await f.run("fanqie_candidate_stage", {
+        work: meta.key,
+        chapter: "c001",
+        content: "第二版正文。",
+      }),
+      /(cand-[a-z0-9]+)/,
+    );
+    assert.match(
+      await f.run("fanqie_candidate_edit_decide", {
+        work: meta.key,
+        candidate: candId2,
+        choice: "A",
+        confirm_accept_after_edit: true,
+        require_payoff: true,
+      }),
+      /【门禁 fanqie\.writer_narrowed_edit_flags】.*require_payoff/,
+    );
+    assert.match(
+      await f.run("fanqie_candidate_edit_decide", {
+        work: meta.key,
+        candidate: candId2,
+        choice: "C",
+      }),
+      /edit_accept_not_an_edit/,
+    );
+
+    const editor = await createToolHarness({
+      mode: "fanqie",
+      cwd: f.root,
+      role: "editor",
+      config: { toolset: { narrowed: true } },
+    });
+    const editorNames = [...editor.tools.keys()];
+    assert.ok(editorNames.includes("fanqie_style_lint"));
+    assert.ok(editorNames.includes("fanqie_payoff_audit"));
+    const planner = await createToolHarness({
+      mode: "fanqie",
+      cwd: f.root,
+      role: "planner",
+      config: { toolset: { narrowed: true } },
+    });
+    assert.ok([...planner.tools.keys()].includes("fanqie_library_import"));
+    for (const other of [editor, planner])
+      assert.ok(!other.gates.rules.some((rule) => rule.id.startsWith("fanqie.writer_narrowed")));
+  } finally {
+    await f.close();
+  }
+});
+
+test("T7 toolset 配置解析：narrowed 缺省关，非布尔报 issue", async () => {
+  assert.equal(parseFanqieConfig({}).value?.toolset, undefined);
+  assert.equal(parseFanqieConfig({ toolset: { narrowed: true } }).value?.toolset?.narrowed, true);
+  assert.equal(parseFanqieConfig({ toolset: { narrowed: false } }).value?.toolset?.narrowed, false);
+  for (const bad of [{ narrowed: "yes" }, { narrowed: 1 }, "x", 3]) {
+    const parsed = parseFanqieConfig({ toolset: bad });
+    assert.equal(parsed.value, undefined);
+    assert.match(parsed.issues[0].message, /fanqie\.toolset 应为 \{ narrowed: 布尔值 \}/);
+    assert.deepEqual(parsed.issues[0].path, ["fanqie", "toolset"]);
   }
 });

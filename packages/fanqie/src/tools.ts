@@ -23,7 +23,7 @@ import {
   type ReviewReport,
 } from "./review.js";
 import { openWork, pickChapters, readChapter, type ChapterRecord } from "./works.js";
-import type { FanqieConfig } from "./config.js";
+import { WRITER_EXCLUDED_TOOLS, type FanqieConfig } from "./config.js";
 
 export type Role = "writer" | "editor" | "planner";
 
@@ -384,5 +384,7 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
     ? tools.filter((t) => PLANNER_TOOLS.has(t.name))
     : deps.role === "editor"
       ? tools.filter((t) => EDITOR_TOOLS.has(t.name))
-      : tools;
+      : config.toolset?.narrowed === true
+        ? tools.filter((t) => !WRITER_EXCLUDED_TOOLS.has(t.name))
+        : tools;
 }

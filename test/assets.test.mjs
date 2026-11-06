@@ -1,7 +1,7 @@
 // 资产清单、更新预设与作者自备资产：
 //   1. assets/manifest.json 与磁盘、登记表、版本号一致（scripts/assets.mjs check）；
 //   2. 导入上游新版：比对不落盘，--apply 覆盖上游文件、保留本项目文件、改版本号、重建清单、写报告，并指出未登记的新方法；
-//   3. 配置 toutiao.assets 指定的目录，经 toutiao_method_get 以 user:… 读取；fanqie 段只做配置校验。
+//   3. 配置 toutiao.assets 指定的目录，经 toutiao_method_get 以 user:… 读取；fanqie 段不再支持 assets。
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -123,7 +123,7 @@ test("作者自备资产：头条能列出与读取，配置拼错会报错", as
   );
   assert.match(
     parseFanqieConfig({ assets: { dirs: "x" } }).issues[0].message,
-    /fanqie\.assets\.dirs 应为非空字符串数组/,
+    /fanqie\.assets 不是有效配置项/,
   );
 
   const cwd = await tempDir();

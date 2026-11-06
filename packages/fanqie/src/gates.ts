@@ -1,15 +1,48 @@
 /** Author confirmation rules pin the current chapter revision before approval. */
 import { WriterError } from "../../core/src/tool.js";
 import { readChapter as readStoredChapter } from "./engine/storage/chapters.js";
-import type { GateRule } from "../../core/src/gates.js";
+import type { GateOutcome, GateRule } from "../../core/src/gates.js";
 import type { FanqieConfig } from "./config.js";
 import { bodyFingerprint, editorPassProblem } from "./review.js";
 import { openWork } from "./works.js";
 import type { Role } from "./tools.js";
 
+/** 采纳链旁路开关（scheduler 的 accept.flags 旁路）：都是默认 false 的布尔参数，显式传 true 才算设置。 */
+const NARROWED_ACCEPT_FLAGS = [
+  "skip_brief",
+  "strict_lint",
+  "require_payoff",
+  "strict_human",
+  "strict_novel",
+  "force",
+] as const;
+
+/** 收窄写手不得用采纳旁路开关：只拦显式 true，无参或显式 false（等于默认值）的调用零影响。 */
+function narrowedFlagRules(): GateRule[] {
+  const check = (args: Record<string, unknown>): GateOutcome => {
+    const enabled = NARROWED_ACCEPT_FLAGS.filter((flag) => args[flag] === true);
+    if (!enabled.length) return undefined;
+    return {
+      kind: "deny",
+      reason: `写手默认工具集不开放 ${enabled.join("、")} 参数；该旁路属规划/诊断用途，请在任务说明里说明需求或由作者在规划角色执行。`,
+    };
+  };
+  const rule = (id: string, tool: string): GateRule => ({
+    id,
+    tool,
+    locked: true,
+    description: "收窄写手默认集不开放采纳旁路参数",
+    check,
+  });
+  return [
+    rule("fanqie.writer_narrowed_accept_flags", "fanqie_candidate_accept"),
+    rule("fanqie.writer_narrowed_edit_flags", "fanqie_candidate_edit_decide"),
+  ];
+}
+
 export function fanqieGateRules(config: FanqieConfig, role: Role): GateRule[] {
   if (role === "editor") return [];
-  return [
+  const rules: GateRule[] = [
     {
       id: "fanqie.finalize_requires_author",
       tool: "fanqie_chapter_save",
@@ -39,6 +72,8 @@ export function fanqieGateRules(config: FanqieConfig, role: Role): GateRule[] {
       },
     },
   ];
+  if (role === "writer" && config.toolset?.narrowed === true) rules.push(...narrowedFlagRules());
+  return rules;
 }
 
 async function pinChapter(

@@ -1,6 +1,5 @@
 /** 番茄长篇模式的配置（writer-agent 配置的 fanqie 段）：数据位置、Python、定稿条件、门禁开关、多草稿。 */
 import type { PluginConfig } from "./engine/types.js";
-import { parseAssetsConfig, type AssetsConfig } from "../../core/src/user-assets.js";
 
 export interface FanqieConfig extends PluginConfig {
   /** 数据目录（相对会话 cwd），默认 .writer */
@@ -23,11 +22,36 @@ export interface FanqieConfig extends PluginConfig {
   multiDraft?: { enabled?: boolean };
   /** handoff.v2：任务交接改用方法包决策表（按状态收集方法与附件），默认关 */
   handoff?: { v2?: boolean };
-  /** 作者自备方法 / 语料目录；见 docs/guides/ASSETS.md */
-  assets?: AssetsConfig;
+  /** 收窄写手默认工具集：去掉诊断旁路与拆书写入类工具并拒绝采纳旁路参数，默认关 */
+  toolset?: { narrowed?: boolean };
   /** 固定使用的方法方案（默认 / 原版 / 用户方案名或 id）；不填则用写作台或工具选的当前方案 */
   profile?: string;
 }
+
+/**
+ * toolset.narrowed=true 时写手默认集排除的工具：诊断旁路 6 个 + 拆书写入/stage 类 9 个。
+ * 引擎（engineTools）与写作层（createFanqieTools）共用这份名单；fanqie_product_map
+ * 与 library_list / library_search / library_card_get / library_combo_suggest 保留作导航。
+ */
+export const WRITER_EXCLUDED_TOOLS: ReadonlySet<string> = new Set([
+  // 诊断旁路（engine/ports/scheduler.ts 的 diagnose.audit / library_audit 旁路）
+  "fanqie_payoff_audit",
+  "fanqie_human_feel_audit",
+  "fanqie_novel_sense_audit",
+  "fanqie_style_lint",
+  "fanqie_review_ledger",
+  "fanqie_library_audit",
+  // 拆书写入/stage（进拆书库的链路属规划用途）
+  "fanqie_library_import",
+  "fanqie_library_plan",
+  "fanqie_library_dissect_brief",
+  "fanqie_library_facts_stage",
+  "fanqie_library_structure_stage",
+  "fanqie_library_card_stage",
+  "fanqie_library_card_accept",
+  "fanqie_library_card_discard",
+  "fanqie_library_report",
+]);
 
 type Issue = { message: string; path: (string | number)[] };
 
@@ -46,7 +70,7 @@ const KNOWN = new Set<string>([
   "disabledGates",
   "multiDraft",
   "handoff",
-  "assets",
+  "toolset",
 ]);
 
 /** 校验并填默认值；未知字段报错，免得拼错的配置悄悄不生效 */
@@ -114,10 +138,19 @@ export function parseFanqieConfig(
       });
     else out.handoff = { v2: h.v2 === true };
   }
-  if (v.assets !== undefined) {
-    const a = parseAssetsConfig(v.assets, [...at, "assets"]);
-    issues.push(...a.issues);
-    if (a.value) out.assets = a.value;
+  if (v.toolset !== undefined) {
+    const t = v.toolset as Record<string, unknown> | null;
+    if (
+      !t ||
+      typeof t !== "object" ||
+      Array.isArray(t) ||
+      (t.narrowed !== undefined && typeof t.narrowed !== "boolean")
+    )
+      issues.push({
+        message: `${[...at, "toolset"].join(".")} 应为 { narrowed: 布尔值 }`,
+        path: [...at, "toolset"],
+      });
+    else out.toolset = { narrowed: t.narrowed === true };
   }
   out.rootDir ??= ".writer";
   return issues.length ? { issues } : { value: out, issues };

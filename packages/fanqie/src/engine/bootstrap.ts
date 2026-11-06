@@ -7,6 +7,7 @@ import { WriterError } from "../../../core/src/tool.js";
 import { withPluginConfig } from "./tools/context.js";
 import { withPortConfig } from "./ports/config.js";
 import { allTools } from "./tools/index.js";
+import { WRITER_EXCLUDED_TOOLS } from "../config.js";
 const EDITOR_ENGINE = new Set([
   "fanqie_project_list",
   "fanqie_project_open",
@@ -34,11 +35,14 @@ export function engineTools(
 ) {
   const boundConfig = { ...pluginConfig };
   const policy = { multiDraft: { enabled: boundConfig.multiDraft?.enabled === true } };
+  const narrowed = role === "writer" && boundConfig.toolset?.narrowed === true;
   return allTools()
     .filter((tool) =>
       role === "planner"
         ? PLANNER_TOOLS.has(tool.name)
-        : role !== "editor" || EDITOR_ENGINE.has(tool.name),
+        : role === "editor"
+          ? EDITOR_ENGINE.has(tool.name)
+          : !narrowed || !WRITER_EXCLUDED_TOOLS.has(tool.name),
     )
     .map((tool) => ({
       ...tool,
