@@ -273,19 +273,3 @@ export function Hints({ hints, initial = 4, chapters = [] }) {
     </div>
   );
 }
-
-export function Code({ children }) {
-  return <code className="wb-code">{children}</code>;
-}
-
-/** Copy with a single `{code}` placeholder rendered as inline code. */
-export function WithCode({ text, code }) {
-  const parts = text.split("{code}");
-  return (
-    <>
-      {parts[0]}
-      {parts.length > 1 ? <Code>{code}</Code> : null}
-      {parts.slice(1).join("")}
-    </>
-  );
-}

@@ -1,5 +1,11 @@
 import React from "react";
-import { COPY as viewCopy, formatClock, formatCount, t, t as viewText } from "../../../../ui/src/copy.js";
+import {
+  COPY as viewCopy,
+  formatClock,
+  formatCount,
+  t,
+  t as viewText,
+} from "../../../../ui/src/copy.js";
 import { ActionButton, Button, Icon, Tag } from "../shared/ui.jsx";
 import { ActionCard, Section } from "../shared/common.jsx";
 import { Dialog, Steps as AuthorSteps } from "../../../../ui/src/primitives.jsx";

@@ -172,8 +172,11 @@ export function createBusinessTools(options: {
             const url = typeof source["链接"] === "string" ? source["链接"] : "";
             if (url === "作者素材" || url === "用户素材") continue;
             let normalized: string;
-            try { normalized = new URL(url).href; }
-            catch { throw new Error("出处须填写作者素材或有效 HTTP(S) 网址：" + url); }
+            try {
+              normalized = new URL(url).href;
+            } catch {
+              throw new Error("出处须填写作者素材或有效 HTTP(S) 网址：" + url);
+            }
             if (!readUrls.has(url) && !readUrls.has(normalized))
               throw new Error(
                 "资讯出处须是本次已通过 writer_read_url 读取的网址；请先读取：" + url,
@@ -188,10 +191,18 @@ export function createBusinessTools(options: {
       });
       if (def.name === "fanqie_forge_get" || def.name === "toutiao_method_get") {
         const method = asRecord(value, "方法回执");
-        if (typeof method.id === "string" && typeof method.text === "string" && typeof method.profile === "string") {
+        if (
+          typeof method.id === "string" &&
+          typeof method.text === "string" &&
+          typeof method.profile === "string"
+        ) {
           const receipt = { id: method.id, profile: method.profile, hash: sha256(method.text) };
           entry.methods.set(method.id, receipt);
-          host.extras.log?.("method_loaded", { ...receipt, taskId: entry.task.id, conversationId: manager.getSessionId() });
+          host.extras.log?.("method_loaded", {
+            ...receipt,
+            taskId: entry.task.id,
+            conversationId: manager.getSessionId(),
+          });
         }
       }
       if (def.name === "toutiao_article_create") {

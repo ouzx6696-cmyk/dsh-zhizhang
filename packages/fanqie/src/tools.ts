@@ -64,7 +64,10 @@ async function localFile(exec: ToolExecution, p: string): Promise<string> {
   if (!p.trim()) throw new WriterError("INVALID_ARGS", "缺少文件路径");
   const cwd = exec.cwd;
   const abs = resolveInside(cwd, p);
-  const st = await stat(abs).catch(error => { if (isMissingFileError(error)) return undefined; throw error; });
+  const st = await stat(abs).catch((error) => {
+    if (isMissingFileError(error)) return undefined;
+    throw error;
+  });
   if (!st?.isFile()) throw new WriterError("NOT_FOUND", `文件不存在：${p}`);
   return abs;
 }
@@ -258,7 +261,9 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
       async run(args, exec) {
         const src = await localFile(exec, args.source);
         const mc = String(
-          typeof args.min_chars === "number" && Number.isInteger(args.min_chars) && args.min_chars > 0
+          typeof args.min_chars === "number" &&
+            Number.isInteger(args.min_chars) &&
+            args.min_chars > 0
             ? args.min_chars
             : 6,
         );
@@ -267,9 +272,7 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
         if (!args.analysis_text && !args.analysis)
           throw new WriterError("INVALID_ARGS", "analysis 与 analysis_text 二选一必填");
         const r = args.analysis_text
-          ? await withTempFiles([{ name: "拆解稿.md", text: args.analysis_text }], ([p]) =>
-              go(p),
-            )
+          ? await withTempFiles([{ name: "拆解稿.md", text: args.analysis_text }], ([p]) => go(p))
           : await go(await localFile(exec, args.analysis ?? ""));
         return {
           pass: r.pass,
@@ -285,7 +288,13 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
       work?: string;
       chapter: string;
       verdict: string;
-      hard_issues: { category: string; location: string; basis: string; impact?: string; fix: string }[];
+      hard_issues: {
+        category: string;
+        location: string;
+        basis: string;
+        impact?: string;
+        fix: string;
+      }[];
       levels: { level: string; location: string; symptom: string; fix: string }[];
       optional?: string[];
       reread_full: boolean;

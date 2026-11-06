@@ -39,10 +39,7 @@ export async function createToolHarness({ mode, role = "writer", cwd, config = {
     requireApproval: true,
     disabled: config.disabledGates,
   });
-  definitions = [
-    ...engineTools(config, gates, "throw", role),
-    ...createFanqieTools({ config, role }),
-  ];
+  definitions = [...engineTools(config, gates, role), ...createFanqieTools({ config, role })];
   return harness(gates);
 
   function harness(gates) {

@@ -25,7 +25,10 @@ export const candidateUnifyBrief = defineTool({
       MultiDraftPort.requireEnabled();
     } catch (err) {
       if (!(err instanceof Error)) throw err;
-      fail(err.message, ("code" in err && typeof err.code === "string" && err.code) || MultiDraftPort.disabledCode);
+      fail(
+        err.message,
+        ("code" in err && typeof err.code === "string" && err.code) || MultiDraftPort.disabledCode,
+      );
     }
     const { dir, key } = await openWork(exec, args);
     let ids = asStringArray(args, "candidate_ids") ?? [];

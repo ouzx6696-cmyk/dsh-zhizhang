@@ -3,5 +3,7 @@ export const app = { isPackaged: false };
 export const dialog = {};
 export class BrowserWindow {}
 export class Notification {
-  static isSupported() { return false; }
+  static isSupported() {
+    return false;
+  }
 }

@@ -1,3 +1,4 @@
+import { isMissingFileError } from "../../../../../core/src/fsx.js";
 import { normalizeUserPath } from "../../ports/library/store.js";
 import path from "node:path";
 
@@ -25,8 +26,8 @@ export async function resolveBookFile(
   raw: string | undefined,
 ) {
   if (!raw) return raw;
-  raw=normalizeUserPath(raw);
-  if(path.isAbsolute(raw))return raw;
+  raw = normalizeUserPath(raw);
+  if (path.isAbsolute(raw)) return raw;
   const cwd = exec.cwd;
   const candidates = [path.resolve(cwd, raw)];
   if (paths.sourceRoot) candidates.push(path.resolve(paths.sourceRoot, raw));
@@ -34,7 +35,7 @@ export async function resolveBookFile(
     try {
       if ((await stat(cand)).isFile()) return cand;
     } catch (error) {
-      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
+      if (!isMissingFileError(error)) throw error;
     }
   }
   return raw;

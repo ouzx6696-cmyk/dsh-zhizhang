@@ -83,7 +83,10 @@ function resultCard(
           } as Record<string, string>
         )[result.kind] || viewCopy.agentPanelText27;
   return (
-    <div className={"result-card " + (result.failed ? "failed" : "")} data-kind={result.kind || "review"}>
+    <div
+      className={"result-card " + (result.failed ? "failed" : "")}
+      data-kind={result.kind || "review"}
+    >
       <strong>{title}</strong>
       <p>{result.summary}</p>
       <button onClick={() => onJump(result.target, result.focus)}>
@@ -149,9 +152,7 @@ function renderMessage(
             ? viewCopy.agentPanelText35
             : "Agent"}
         {parsed.context?.focus?.title ? " · " + parsed.context.focus.title : ""}
-        {parsed.context?.focus?.revision
-          ? " · " + humanVersion(parsed.context.focus.revision)
-          : ""}
+        {parsed.context?.focus?.revision ? " · " + humanVersion(parsed.context.focus.revision) : ""}
       </small>
       <Markdown text={parsed.text} />
     </article>

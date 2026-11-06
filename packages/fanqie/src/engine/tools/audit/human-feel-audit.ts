@@ -1,5 +1,6 @@
 import { readCandidate } from "../../storage/candidates.js";
 import { readChapter } from "../../storage/chapters.js";
+import { NovelError } from "../../errors.js";
 
 import { HumanFeelAuditorPort, InspirationPort } from "../../ports/index.js";
 
@@ -40,11 +41,12 @@ export const humanFeelAudit = defineTool({
       label = `${ch.title}（${ch.id}）`;
       craftCue = await InspirationPort.resolveCraftCue(paths, { workKey: key, limit: 5 });
     } else {
-      // pure text: try open work for craftCue when work context present
+      // 纯文本扫描不依赖作品：只在没有作品可挂 craftCue 时降级，其余故障照常抛出。
       try {
         const { paths, key } = await openWork(exec, args);
         craftCue = await InspirationPort.resolveCraftCue(paths, { workKey: key, limit: 5 });
-      } catch {
+      } catch (err) {
+        if (!(err instanceof NovelError && err.code === "no_work")) throw err;
         craftCue = "";
       }
     }

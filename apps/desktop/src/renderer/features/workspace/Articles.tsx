@@ -1,4 +1,8 @@
-import { COPY as viewCopy, formatDateTime, t as viewText } from "../../../../../../packages/ui/src/copy.js";
+import {
+  COPY as viewCopy,
+  formatDateTime,
+  t as viewText,
+} from "../../../../../../packages/ui/src/copy.js";
 import { ARTICLE_STEPS, articleProgress } from "../../../../../../packages/ui/src/status";
 import { Steps } from "../../../../../../packages/ui/src/primitives";
 import React, { useEffect, useState } from "react";
@@ -110,7 +114,7 @@ function articleOf(value: unknown): ArticleDetail | null {
 }
 
 export function Articles(props: WorkspaceProps) {
-  const {onContext} = props;
+  const { onContext } = props;
   const tt = useToutiao({ onTarget: props.onTarget, onSourceEditState: props.onSourceEditState }),
     a = articleOf(tt.detail.article);
   useEffect(() => {

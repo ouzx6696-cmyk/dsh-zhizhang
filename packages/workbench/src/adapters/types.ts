@@ -75,7 +75,12 @@ export interface ToutiaoData {
   articles(signal?: AbortSignal): Promise<Json>;
   article(root: string, id: string, signal?: AbortSignal): Promise<Json>;
   /** article 为 articleDetail 台账行/详情：adopt 只读 root/id/rev/draft.sha256。 */
-  adopt(article: { root: string; id: string; rev: number; draft: { sha256: string } }): Promise<Json>;
+  adopt(article: {
+    root: string;
+    id: string;
+    rev: number;
+    draft: { sha256: string };
+  }): Promise<Json>;
   saveDraft(payload: SaveDraftInput): Promise<Json>;
   deliver(payload: Record<string, unknown>): Promise<Json>;
 }

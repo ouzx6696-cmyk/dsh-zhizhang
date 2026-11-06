@@ -25,8 +25,5 @@ export async function copyRuntimeAssets(out) {
   for (const name of ["manifest.json", "sources.json"])
     await cp(path.join(root, "assets", name), path.join(out, "assets", name));
   await mkdir(path.join(out, "scripts"), { recursive: true });
-  await cp(
-    path.join(root, "scripts/backup.mjs"),
-    path.join(out, "scripts/writer-backup.mjs"),
-  );
+  await cp(path.join(root, "scripts/backup.mjs"), path.join(out, "scripts/writer-backup.mjs"));
 }

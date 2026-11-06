@@ -86,9 +86,7 @@ export const libraryAudit = defineTool({
         r.unverifiable.length || r.chapterOk === false || (r.bodyUnverifiable?.length ?? 0) > 0,
     );
     const soft = rows.filter((r) => r.warnings.length && !hardBad.includes(r));
-    const evOk = rows.filter(
-      (r) => r.evidenceQuotes > 0 && r.unverifiable.length === 0,
-    ).length;
+    const evOk = rows.filter((r) => r.evidenceQuotes > 0 && r.unverifiable.length === 0).length;
     const bodyCards = rows.filter((r) => (r.bodyQuotes ?? 0) > 0);
     const bodyOk = bodyCards.filter((r) => (r.bodyUnverifiable?.length ?? 0) === 0).length;
     const bodyTotal = bodyCards.reduce((n: number, r) => n + (r.bodyQuotes ?? 0), 0);

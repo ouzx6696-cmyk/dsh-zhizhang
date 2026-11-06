@@ -59,15 +59,10 @@ export function renderStatus(
     `- 已发生：${clip(meta.foundation.happened, 80)}`,
     `- 未结伏笔：${clip(meta.foundation.threads, 80)}`,
     "",
-    ...(paths
-      ? [
-          "",
-          "## 存储根（排查用）",
-          `- 存储：${paths.base}`,
-          `- 作品：${paths.works}`,
-          `- 拆书库：${paths.library}`,
-        ]
-      : []),
+    "## 存储根（排查用）",
+    `- 存储：${paths.base}`,
+    `- 作品：${paths.works}`,
+    `- 拆书库：${paths.library}`,
     "",
     "## 章节",
   ];

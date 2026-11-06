@@ -36,9 +36,7 @@ export const styleLint = defineTool({
         `lintHitCount：${pass.hitCount}（命中数；token 只证明已扫过，扫过≠过关）`,
         `（已写入候选；accept 可不传 token，或显式传此值）`,
         `下一步：${Scheduler.nextHint("style_lint")}`,
-      ]
-        .filter((line) => line !== undefined)
-        .join("\n");
+      ].join("\n");
     }
     let text = asString(args, "text", { trim: false });
     let label = "传入文本";
@@ -61,13 +59,11 @@ export const styleLint = defineTool({
         formatLint(label, scan),
         "",
         "说明：章节扫描是诊断，不绑定候选；候选采纳会扫描当前字节。",
-      ]
-        .filter((line) => line !== undefined)
-        .join("\n");
+      ].join("\n");
     }
     const scan = await StyleLinterPort.scan(text);
-    return [formatLint(label, scan), "", "说明：纯 text 扫描是诊断；候选采纳会扫描当前字节。"]
-      .filter((line) => line !== undefined)
-      .join("\n");
+    return [formatLint(label, scan), "", "说明：纯 text 扫描是诊断；候选采纳会扫描当前字节。"].join(
+      "\n",
+    );
   },
 });

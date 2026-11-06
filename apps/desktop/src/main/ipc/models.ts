@@ -45,13 +45,28 @@ export function registerModelsIpc(state: Runtime) {
     return state.settings.preferences();
   });
   handle("test-search", async (key, provider, mode) => {
-    const secret = key === undefined && provider === state.settings.searchProvider ? state.settings.searchKey : key ?? "";
-    const result = await searchSources("Exa official documentation", secret, undefined, provider, mode);
-    await state.diagnostics.write("search_test", { provider, mode, cost: result.cost, results: result.results.length });
+    const secret =
+      key === undefined && provider === state.settings.searchProvider
+        ? state.settings.searchKey
+        : (key ?? "");
+    const result = await searchSources(
+      "Exa official documentation",
+      secret,
+      undefined,
+      provider,
+      mode,
+    );
+    await state.diagnostics.write("search_test", {
+      provider,
+      mode,
+      cost: result.cost,
+      results: result.results.length,
+    });
     return { results: result.results.length, cost: result.cost };
   });
   handle("search", async (key, provider, mode) => {
-    if (state.sessions.running().length || state.sessions.hasPending()) throw new Error("请等待任务结束后修改搜索设置");
+    if (state.sessions.running().length || state.sessions.hasPending())
+      throw new Error("请等待任务结束后修改搜索设置");
     await state.settings.saveSearch(key, provider, mode);
     await state.sessions.dispose();
     state.emit({ running: [] });

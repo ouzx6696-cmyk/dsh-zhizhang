@@ -1,5 +1,6 @@
 import { resolveWorkDir } from "../../work-store.js";
 import { ensureStorage } from "../../storage/paths.js";
+import { NovelError } from "../../errors.js";
 
 import { readWorkMeta } from "../../storage/work-meta.js";
 import { inspectPendingAccept, resumePendingAccept } from "../../storage/accept-journal.js";
@@ -89,7 +90,7 @@ export const status = defineTool({
       opened = await openWork(exec, args);
     } catch (err) {
       // 起步有两条路（先拆书 / 先建作品）——status 是仪表盘，不该在空库时裸报错。
-      if (err instanceof Error && err.message.includes("还没有作品")) {
+      if (err instanceof NovelError && err.code === "no_work") {
         return [
           "## 尚无作品（起步两条路）",
           "- 有参考书（推荐）：fanqie_library_import → library_plan → 拆书 9 步 → combo_suggest → inspire_accept(apply=true) 长出根基/章纲",

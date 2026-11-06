@@ -1,7 +1,7 @@
 import { DEFAULT_CONTEXT, compactionSettings } from "../context-settings";
 import path from "node:path";
-import { mkdir, readFile } from "node:fs/promises";
-import { atomicWrite, exists } from "../../../../packages/core/src/fsx";
+import { mkdir } from "node:fs/promises";
+import { atomicWrite, exists, readText } from "../../../../packages/core/src/fsx";
 import type { Target } from "../context";
 import {
   createAgentSession,
@@ -51,10 +51,7 @@ export async function createSession(
   await mkdir(dir, { recursive: true });
   let manager = SessionManager.inMemory(target.root);
   if (primary) {
-    const marker = await readFile(path.join(dir, "current"), "utf8").catch((error) => {
-      if (error.code === "ENOENT") return "";
-      throw error;
-    });
+    const marker = (await readText(path.join(dir, "current"))) ?? "";
     manager =
       marker && (await exists(marker))
         ? SessionManager.open(marker)
@@ -78,10 +75,7 @@ export async function createSession(
   const definitions: WriterToolDefinition[] =
     target.mode === "toutiao"
       ? await createToutiaoTools({ config, role: role, gates: () => gates })
-      : [
-          ...engineTools(config, gates, "throw", role),
-          ...createFanqieTools({ config, role: role }),
-        ];
+      : [...engineTools(config, gates, role), ...createFanqieTools({ config, role: role })];
   const readUrls = new Set<string>();
   const task = createTask();
   let entry: SessionEntry;
@@ -107,9 +101,13 @@ export async function createSession(
     customTools.push(...createDelegateTools({ host, target, manager, getEntry, getSession }));
   customTools.push(...createSourceTools({ host, target, readUrls, taskId: () => task.id }));
   const models = host.settings();
-  const settings = role === "planner" ? models.planner ?? models.writer : models[role];
+  const settings = role === "planner" ? (models.planner ?? models.writer) : models[role];
   const settingsManager = SettingsManager.inMemory({
-    compaction: compactionSettings(host.extras.context?.() ?? DEFAULT_CONTEXT, settings.contextWindow, settings.maxTokens),
+    compaction: compactionSettings(
+      host.extras.context?.() ?? DEFAULT_CONTEXT,
+      settings.contextWindow,
+      settings.maxTokens,
+    ),
     retry: { enabled: true },
     cacheWarming: "streaming",
   });

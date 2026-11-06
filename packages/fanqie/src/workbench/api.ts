@@ -404,8 +404,8 @@ function routesFor(config: PluginConfig): Record<string, RouteHandler> {
       if (!workKey && works.length === 0) {
         const library =
           scope === "all"
-            // allow-catch: return the library error as an unavailable summary to keep empty-workspace navigation usable.
-            ? await buildLibraryView(paths).catch((error) => ({
+            ? // allow-catch: return the library error as an unavailable summary to keep empty-workspace navigation usable.
+              await buildLibraryView(paths).catch((error) => ({
                 unavailable: true,
                 recoveryPending:
                   error instanceof NovelError && error.code === "library_recovery_required",

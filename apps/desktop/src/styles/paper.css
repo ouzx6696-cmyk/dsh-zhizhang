@@ -145,10 +145,6 @@
   background: color-mix(in srgb, var(--ui-accent-soft) 35%, transparent);
 }
 
-.studio-paper-column .wb-root {
-  background: transparent;
-}
-
 .studio-empty {
   padding: 60px 30px;
   text-align: center;

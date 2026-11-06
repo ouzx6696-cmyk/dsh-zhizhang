@@ -11,3 +11,13 @@ apps/desktop/out-test/
 apps/desktop/release/
 package-lock.json
 OPTIMIZATION-PLAN.md
+
+# 方法资产：原文受保护，不参与格式化
+assets/
+packages/*/profiles/
+packages/*/skill/
+apps/desktop/resources/
+
+# 文档按原文排版，不做自动折行
+docs/
+*.md

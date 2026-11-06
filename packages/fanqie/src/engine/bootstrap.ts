@@ -30,7 +30,6 @@ const EDITOR_ENGINE = new Set([
 export function engineTools(
   pluginConfig: PluginConfig = {},
   gates?: GateEngine,
-  errors: "text" | "throw" = "throw",
   role: "writer" | "editor" | "planner" = "writer",
 ) {
   const boundConfig = { ...pluginConfig };
@@ -59,9 +58,7 @@ export function engineTools(
               "本次敏感操作缺少有效作者确认，请重新读取当前稿后确认",
             );
         return withPluginConfig(boundConfig, () =>
-          withPortConfig(policy, () =>
-            errors === "throw" ? tool.run(args, exec) : tool.execute(args, exec),
-          ),
+          withPortConfig(policy, () => tool.run(args, exec)),
         );
       },
     }));

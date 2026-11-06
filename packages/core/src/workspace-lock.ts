@@ -40,11 +40,7 @@ export async function workspaceAccess(root: string) {
   let current = path.resolve(root);
   for (;;) {
     const owner = await ownerAt(current);
-    if (
-      owner &&
-      (owner.pid !== process.pid || owner.machine !== hostname()) &&
-      live(owner)
-    )
+    if (owner && (owner.pid !== process.pid || owner.machine !== hostname()) && live(owner))
       return { readOnly: true, owner };
     const parent = path.dirname(current);
     if (parent === current) break;
@@ -57,11 +53,7 @@ export async function claimWorkspace(root: string) {
   const access = await workspaceAccess(key);
   if (access.readOnly && access.owner && live(access.owner)) return access;
   const previous = await ownerAt(key);
-  if (
-    previous &&
-    previous.pid === process.pid &&
-    previous.machine === hostname()
-  )
+  if (previous && previous.pid === process.pid && previous.machine === hostname())
     return { readOnly: false, owner: previous };
   if (previous && !live(previous)) {
     const current = await ownerAt(key);
@@ -106,8 +98,7 @@ export async function releaseWorkspace(root: string) {
   const key = held.has(resolved) ? resolved : await realpath(root),
     owner = held.get(key);
   if (owner) {
-    if ((await ownerAt(key))?.id === owner.id)
-      await unlink(path.join(key, FILE));
+    if ((await ownerAt(key))?.id === owner.id) await unlink(path.join(key, FILE));
     held.delete(key);
   }
 }
@@ -117,9 +108,7 @@ export async function releaseWorkspaces() {
 process.once("exit", () => {
   for (const [root, owner] of held) {
     try {
-      if (
-        JSON.parse(readFileSync(path.join(root, FILE), "utf8")).id === owner.id
-      )
+      if (JSON.parse(readFileSync(path.join(root, FILE), "utf8")).id === owner.id)
         unlinkSync(path.join(root, FILE));
     } catch (error) {
       if (!isMissingFileError(error)) console.error("退出时释放作品锁失败：", error);

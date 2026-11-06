@@ -10,20 +10,20 @@ import { methodsTools } from "./methods.js";
 import { systemTools } from "./system.js";
 import { worksTools } from "./works.js";
 export function allTools() {
-    return [
-        ...worksTools(),
-        ...referenceTools(),
-        ...auditTools(),
-        ...candidatesTools(),
-        ...exportTools(),
-        ...systemTools(),
-        ...methodsTools(),
-        ...libraryTools(),
-        ...analysisTools(),
-        ...inspirationTools(),
-    ];
+  return [
+    ...worksTools(),
+    ...referenceTools(),
+    ...auditTools(),
+    ...candidatesTools(),
+    ...exportTools(),
+    ...systemTools(),
+    ...methodsTools(),
+    ...libraryTools(),
+    ...analysisTools(),
+    ...inspirationTools(),
+  ];
 }
 export { defineTool } from "./types.js";
 export { SYSTEM_BRIEF } from "./brief.js";
-export {config} from "./context.js";
+export { config } from "./context.js";
 export { formatLint } from "./render.js";

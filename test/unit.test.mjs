@@ -95,6 +95,31 @@ test("架构守卫：一次扫描覆盖依赖、类型、样式、吞错与目�
   assert.equal(result.status, 0, result.stderr);
 });
 
+test("守卫：浏览器可用模块不能经 fsx 拖入 node:fs", async (t) => {
+  const { write, run } = await guardFixture(t);
+  await write(
+    "packages/workbench/src/routes.ts",
+    'import { isMissingFileError } from "../../core/src/fsx.js";\nexport const ok = isMissingFileError;',
+  );
+  const failed = run();
+  assert.equal(failed.status, 1);
+  assert.match(failed.stderr, /不能引用 fsx/);
+  await write(
+    "packages/workbench/src/routes.ts",
+    'import { isMissingFileError } from "../../core/src/errors.js";\nexport const ok = isMissingFileError;',
+  );
+  assert.equal(run().status, 0);
+});
+
+test("守卫：格式化把 allow-catch 挪进 catch 块后仍算已注明原因", async (t) => {
+  const { write, run } = await guardFixture(t);
+  await write(
+    "packages/core/src/catches.js",
+    "async function f() {\n  try {\n    return await g();\n  } catch (error) {\n    // allow-catch: 单项失败不阻断整批，原因随结果返回。\n    return { error };\n  }\n}",
+  );
+  assert.equal(run().status, 0);
+});
+
 test("resolveInside 拒绝越界", () => {
   assert.equal(resolveInside("/a/b", "c"), path.resolve("/a/b/c"));
   assert.throws(() => resolveInside("/a/b", "../c"), /越界/);
@@ -243,7 +268,11 @@ test("R3 文章目录日期取本地日期（跨时区）", () => {
       { encoding: "utf8", env: { ...process.env, TZ: tz } },
     );
   assert.equal(run("UTC").stdout.trim(), "1970-01-01");
-  assert.equal(run("Asia/Tokyo").stdout.trim(), "1970-01-02", "东九区应为次日；UTC 截取会得 1970-01-01");
+  assert.equal(
+    run("Asia/Tokyo").stdout.trim(),
+    "1970-01-02",
+    "东九区应为次日；UTC 截取会得 1970-01-01",
+  );
 });
 
 test("守卫：JSX 文案从共享文案表读取", async (t) => {

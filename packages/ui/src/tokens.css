@@ -1,5 +1,5 @@
 /* Shared design tokens for the desktop palette. */
-:where(:root, .ui-scope, .wb-scope, .wb-root) {
+:where(:root, .wb-scope) {
   --ui-font-ui: "Noto Sans SC", "Microsoft YaHei", sans-serif;
   --ui-font-body: var(--ui-body-family, "Noto Serif SC", "Songti SC", Georgia, serif);
   --ui-font-mono: "JetBrains Mono", "Noto Sans Mono CJK SC", "Noto Sans SC", monospace;

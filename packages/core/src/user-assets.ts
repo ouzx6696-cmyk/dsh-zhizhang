@@ -4,118 +4,177 @@
  * 经 toutiao_method_get / fanqie_forge_get 读取。只读，不覆盖插件自带的方法；
  * 自带方法的更新走 scripts/assets.mjs（见 docs/guides/ASSETS.md）。
  */
-import { lstat, stat } from 'node:fs/promises'
-import type { Stats } from 'node:fs'
-import path from 'node:path'
-import { WriterError } from './tool.js'
-import { isMissingFileError, listDir, readText, resolveInside } from './fsx.js'
+import { lstat, stat } from "node:fs/promises";
+import type { Stats } from "node:fs";
+import path from "node:path";
+import { WriterError } from "./tool.js";
+import { isMissingFileError, listDir, readText, resolveInside } from "./fsx.js";
 
 /** 资产配置段。dirs 之外的键现在一律报错；以后加键在这里登记（见 docs/guides/ASSETS.md「预留」）。 */
 export interface AssetsConfig {
   /** 作者自备方法 / 语料目录：绝对路径，或相对会话工作目录 */
-  dirs?: string[]
+  dirs?: string[];
 }
 
-export type AssetIssue = { message: string; path: (string | number)[] }
+export type AssetIssue = { message: string; path: (string | number)[] };
 
-export const USER_PREFIX = 'user:'
-const USER_EXTS = ['.md', '.txt', '.json'] as const
+export const USER_PREFIX = "user:";
+const USER_EXTS = [".md", ".txt", ".json"] as const;
 /** 单份上限、每个目录最多收录多少份、最深几层：防止误指到大目录 */
-const USER_LIMITS = { fileBytes: 256 * 1024, filesPerDir: 300, depth: 4 } as const
-const KNOWN = new Set(['dirs'])
+const USER_LIMITS = { fileBytes: 256 * 1024, filesPerDir: 300, depth: 4 } as const;
+const KNOWN = new Set(["dirs"]);
 
-export function parseAssetsConfig(input: unknown, at: string[]): { value?: AssetsConfig; issues: AssetIssue[] } {
-  if (input === undefined || input === null) return { value: {}, issues: [] }
-  if (typeof input !== 'object' || Array.isArray(input)) return { issues: [{ message: `${at.join('.')} 应为对象，如 { dirs: ["我的方法"] }`, path: at }] }
-  const v = input as Record<string, unknown>
-  const issues: AssetIssue[] = []
-  for (const k of Object.keys(v)) if (!KNOWN.has(k)) issues.push({ message: `${[...at, k].join('.')} 不是有效配置项（现在只认 dirs）`, path: [...at, k] })
-  const out: AssetsConfig = {}
+export function parseAssetsConfig(
+  input: unknown,
+  at: string[],
+): { value?: AssetsConfig; issues: AssetIssue[] } {
+  if (input === undefined || input === null) return { value: {}, issues: [] };
+  if (typeof input !== "object" || Array.isArray(input))
+    return {
+      issues: [{ message: `${at.join(".")} 应为对象，如 { dirs: ["我的方法"] }`, path: at }],
+    };
+  const v = input as Record<string, unknown>;
+  const issues: AssetIssue[] = [];
+  for (const k of Object.keys(v))
+    if (!KNOWN.has(k))
+      issues.push({
+        message: `${[...at, k].join(".")} 不是有效配置项（现在只认 dirs）`,
+        path: [...at, k],
+      });
+  const out: AssetsConfig = {};
   if (v.dirs !== undefined) {
-    if (!(Array.isArray(v.dirs) && v.dirs.every(x => typeof x === 'string' && x.trim()))) issues.push({ message: `${[...at, 'dirs'].join('.')} 应为非空字符串数组`, path: [...at, 'dirs'] })
-    else out.dirs = (v.dirs as string[]).map(x => x.trim())
+    if (!(Array.isArray(v.dirs) && v.dirs.every((x) => typeof x === "string" && x.trim())))
+      issues.push({
+        message: `${[...at, "dirs"].join(".")} 应为非空字符串数组`,
+        path: [...at, "dirs"],
+      });
+    else out.dirs = (v.dirs as string[]).map((x) => x.trim());
   }
-  return issues.length ? { issues } : { value: out, issues }
+  return issues.length ? { issues } : { value: out, issues };
 }
 
-export interface UserAsset { id: string; dir: string; file: string; bytes: number }
-export interface UserAssetList { assets: UserAsset[]; warnings: string[] }
+export interface UserAsset {
+  id: string;
+  dir: string;
+  file: string;
+  bytes: number;
+}
+export interface UserAssetList {
+  assets: UserAsset[];
+  warnings: string[];
+}
 
-const isUserExt = (name: string) => USER_EXTS.some(e => name.toLowerCase().endsWith(e))
-const stripExt = (rel: string) => rel.replace(/\.(md|txt|json)$/i, '')
+const isUserExt = (name: string) => USER_EXTS.some((e) => name.toLowerCase().endsWith(e));
+const stripExt = (rel: string) => rel.replace(/\.(md|txt|json)$/i, "");
 
 /** stat 资产目录：不存在返回 undefined；路径中混有普通文件时抛 ENOTDIR——Windows 把这种情况报成 ENOENT，若不区分会伪装成「目录不存在」。 */
 async function statAssetDir(dir: string): Promise<Stats | undefined> {
   try {
-    return await stat(dir)
+    return await stat(dir);
   } catch (error) {
-    if (!isMissingFileError(error)) throw error
+    if (!isMissingFileError(error)) throw error;
   }
-  let probe = path.dirname(dir)
+  let probe = path.dirname(dir);
   while (probe !== path.dirname(probe)) {
-    let info: Stats
+    let info: Stats;
     try {
-      info = await lstat(probe)
+      info = await lstat(probe);
     } catch (error) {
-      if (!isMissingFileError(error)) throw error
-      probe = path.dirname(probe)
-      continue
+      if (!isMissingFileError(error)) throw error;
+      probe = path.dirname(probe);
+      continue;
     }
     if (!info.isDirectory()) {
-      const masquerade: NodeJS.ErrnoException = new Error(`资产路径中混有普通文件：${probe}`)
-      masquerade.code = 'ENOTDIR'
-      throw masquerade
+      const masquerade: NodeJS.ErrnoException = new Error(`资产路径中混有普通文件：${probe}`);
+      masquerade.code = "ENOTDIR";
+      throw masquerade;
     }
-    return undefined
+    return undefined;
   }
-  return undefined
+  return undefined;
 }
 
 /** 列出作者自备资产；同 id 先到先得，其余记警告。目录不存在只警告，不报错。 */
-export async function listUserAssets(cfg: AssetsConfig | undefined, cwd: string): Promise<UserAssetList> {
-  const assets: UserAsset[] = []
-  const warnings: string[] = []
-  const seen = new Set<string>()
+export async function listUserAssets(
+  cfg: AssetsConfig | undefined,
+  cwd: string,
+): Promise<UserAssetList> {
+  const assets: UserAsset[] = [];
+  const warnings: string[] = [];
+  const seen = new Set<string>();
   for (const raw of cfg?.dirs ?? []) {
-    const dir = path.resolve(cwd, raw)
-    const st = await statAssetDir(dir)
-    if (!st?.isDirectory()) { warnings.push(`资产目录不存在：${raw}`); continue }
-    let count = 0
-    const walk = async (d: string, depth: number) => {
-      const entries = await listDir(d)
-      entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
-      for (const e of entries) {
-        if (e.name.startsWith('.') || e.name === 'node_modules' || e.name === '__pycache__') continue
-        const p = path.join(d, e.name)
-        if (e.isDirectory()) { if (depth < USER_LIMITS.depth) await walk(p, depth + 1); continue }
-        if (!e.isFile() || !isUserExt(e.name)) continue
-        if (count >= USER_LIMITS.filesPerDir) { warnings.push(`${raw} 超过 ${USER_LIMITS.filesPerDir} 份，其余未收录`); return }
-        const rel = path.relative(dir, p).split(path.sep).join('/')
-        const id = USER_PREFIX + stripExt(rel)
-        const size = (await stat(p)).size
-        if (size > USER_LIMITS.fileBytes) { warnings.push(`${raw}/${rel} 超过 ${USER_LIMITS.fileBytes / 1024}KB，未收录`); continue }
-        if (seen.has(id)) { warnings.push(`${id} 重名，用的是先列出的目录里那份`); continue }
-        seen.add(id); count++
-        assets.push({ id, dir: raw, file: rel, bytes: size })
-      }
+    const dir = path.resolve(cwd, raw);
+    const st = await statAssetDir(dir);
+    if (!st?.isDirectory()) {
+      warnings.push(`资产目录不存在：${raw}`);
+      continue;
     }
-    await walk(dir, 1)
+    let count = 0;
+    const walk = async (d: string, depth: number) => {
+      const entries = await listDir(d);
+      entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+      for (const e of entries) {
+        if (e.name.startsWith(".") || e.name === "node_modules" || e.name === "__pycache__")
+          continue;
+        const p = path.join(d, e.name);
+        if (e.isDirectory()) {
+          if (depth < USER_LIMITS.depth) await walk(p, depth + 1);
+          continue;
+        }
+        if (!e.isFile() || !isUserExt(e.name)) continue;
+        if (count >= USER_LIMITS.filesPerDir) {
+          warnings.push(`${raw} 超过 ${USER_LIMITS.filesPerDir} 份，其余未收录`);
+          return;
+        }
+        const rel = path.relative(dir, p).split(path.sep).join("/");
+        const id = USER_PREFIX + stripExt(rel);
+        const size = (await stat(p)).size;
+        if (size > USER_LIMITS.fileBytes) {
+          warnings.push(`${raw}/${rel} 超过 ${USER_LIMITS.fileBytes / 1024}KB，未收录`);
+          continue;
+        }
+        if (seen.has(id)) {
+          warnings.push(`${id} 重名，用的是先列出的目录里那份`);
+          continue;
+        }
+        seen.add(id);
+        count++;
+        assets.push({ id, dir: raw, file: rel, bytes: size });
+      }
+    };
+    await walk(dir, 1);
   }
-  return { assets, warnings }
+  return { assets, warnings };
 }
 
 /** 读一份作者自备资产；id 须以 user: 开头 */
-export async function getUserAsset(cfg: AssetsConfig | undefined, cwd: string, id: string): Promise<{ id: string; file: string; text: string }> {
-  if (!id.startsWith(USER_PREFIX)) throw new WriterError('INVALID_ARGS', `作者自备资产的 id 以 ${USER_PREFIX} 开头`)
-  if (!cfg?.dirs?.length) throw new WriterError('NOT_FOUND', `没有配置作者自备资产目录（配置里的 assets.dirs）`)
-  const want = id.slice(USER_PREFIX.length).replace(/\\/g, '/').replace(/^\.?\//, '').replace(/\.(md|txt|json)$/i, '')
-  const { assets } = await listUserAssets(cfg, cwd)
-  const hit = assets.find(a => a.id === USER_PREFIX + want)
+export async function getUserAsset(
+  cfg: AssetsConfig | undefined,
+  cwd: string,
+  id: string,
+): Promise<{ id: string; file: string; text: string }> {
+  if (!id.startsWith(USER_PREFIX))
+    throw new WriterError("INVALID_ARGS", `作者自备资产的 id 以 ${USER_PREFIX} 开头`);
+  if (!cfg?.dirs?.length)
+    throw new WriterError("NOT_FOUND", `没有配置作者自备资产目录（配置里的 assets.dirs）`);
+  const want = id
+    .slice(USER_PREFIX.length)
+    .replace(/\\/g, "/")
+    .replace(/^\.?\//, "")
+    .replace(/\.(md|txt|json)$/i, "");
+  const { assets } = await listUserAssets(cfg, cwd);
+  const hit = assets.find((a) => a.id === USER_PREFIX + want);
   if (!hit) {
-    const near = assets.filter(a => a.id.includes(want.split('/').pop() ?? want)).slice(0, 8).map(a => a.id)
-    throw new WriterError('NOT_FOUND', `没有这份自备资产：${id}。${near.length ? `相近的：${near.join('、')}` : `共 ${assets.length} 份，用 id=list 查看`}`)
+    const near = assets
+      .filter((a) => a.id.includes(want.split("/").pop() ?? want))
+      .slice(0, 8)
+      .map((a) => a.id);
+    throw new WriterError(
+      "NOT_FOUND",
+      `没有这份自备资产：${id}。${near.length ? `相近的：${near.join("、")}` : `共 ${assets.length} 份，用 id=list 查看`}`,
+    );
   }
-  const text = await readText(resolveInside(path.resolve(cwd, hit.dir), hit.file))
-  if (text === undefined) throw new WriterError('NOT_FOUND', `读不到：${hit.dir}/${hit.file}`)
-  return { id: hit.id, file: `${hit.dir}/${hit.file}`, text }
+  const text = await readText(resolveInside(path.resolve(cwd, hit.dir), hit.file));
+  if (text === undefined) throw new WriterError("NOT_FOUND", `读不到：${hit.dir}/${hit.file}`);
+  return { id: hit.id, file: `${hit.dir}/${hit.file}`, text };
 }

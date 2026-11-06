@@ -292,7 +292,6 @@ test("写作台接口：方案列表、详情、全文、新建、保存、切�
   await fs.rm(broken, { recursive: true, force: true });
 });
 
-
 test("原版方案支持常驻提示中的写作方法入口，保留用户覆盖", async () => {
   const { readMethod } = await import("../build/core/src/profiles.js");
   const { fanqieLibrary } = await import("../build/fanqie/src/forge.js");

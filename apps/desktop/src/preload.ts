@@ -9,7 +9,8 @@ const invoke = <K extends IpcChannel>(name: K, ...args: IpcArgs<K>) =>
   ipcRenderer.invoke("writer:" + name, ...args) as Promise<IpcResult<K>>;
 
 export const desktopAPI = {
-  contextSettings: (value: import("./context-settings").ContextSettings) => invoke("context-settings", value),
+  contextSettings: (value: import("./context-settings").ContextSettings) =>
+    invoke("context-settings", value),
   contextUsage: (target: Target) => invoke("context-usage", target),
   compact: (target: Target, instructions = "") => invoke("compact", target, instructions),
   workspace: () => invoke("workspace"),
@@ -18,8 +19,16 @@ export const desktopAPI = {
   appearance: (next: Partial<Appearance>) => invoke("appearance", next),
   preferences: (text?: string) =>
     text === undefined ? invoke("preferences") : invoke("save-preferences", text),
-  testSearch: (key: string | undefined, provider: import("./network").SearchProvider, mode: import("./network").SearchMode) => invoke("test-search", key, provider, mode),
-  search: (key?: string, provider?: import("./network").SearchProvider, mode?: import("./network").SearchMode) => invoke("search", key, provider, mode),
+  testSearch: (
+    key: string | undefined,
+    provider: import("./network").SearchProvider,
+    mode: import("./network").SearchMode,
+  ) => invoke("test-search", key, provider, mode),
+  search: (
+    key?: string,
+    provider?: import("./network").SearchProvider,
+    mode?: import("./network").SearchMode,
+  ) => invoke("search", key, provider, mode),
   modelCatalog: (role: keyof ModelSettings, next: ModelConnection, action?: string) =>
     invoke("model-catalog", role, next, action),
   testModel: (role: keyof ModelSettings, next: ModelConnection) => invoke("test-model", role, next),

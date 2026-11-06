@@ -105,8 +105,16 @@ small {
     scroll-behavior: auto;
   }
 }
-html[data-writer-desktop], html[data-writer-desktop] body, html[data-writer-desktop] #root { width: 100%; height: 100%; margin: 0; }
-html[data-writer-desktop] body { overflow: hidden; }
+html[data-writer-desktop],
+html[data-writer-desktop] body,
+html[data-writer-desktop] #root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+html[data-writer-desktop] body {
+  overflow: hidden;
+}
 .writer-desktop {
   --wb-bg: var(--ui-bg);
   --wb-fg: var(--ui-text);
@@ -131,7 +139,10 @@ html[data-writer-desktop] body { overflow: hidden; }
 .writer-desktop button.wb-button-ghost {
   background: transparent;
 }
-.writer-desktop.wb-scope { width: 100%; min-width: 0; }
+.writer-desktop.wb-scope {
+  width: 100%;
+  min-width: 0;
+}
 .command-button {
   font-size: var(--ui-size-12);
   padding: 4px 6px;

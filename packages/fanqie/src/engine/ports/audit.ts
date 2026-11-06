@@ -56,7 +56,11 @@ export const StyleLinterPort = {
   },
 };
 export const PayoffAuditorPort = {
-  audit(outline: Partial<import("../types.js").Outline>, body: string, opts: { premise?: string; lexicon?: string[]; title?: string }) {
+  audit(
+    outline: Partial<import("../types.js").Outline>,
+    body: string,
+    opts: { premise?: string; lexicon?: string[]; title?: string },
+  ) {
     return auditPayoff(outline, body, opts);
   },
   format(label: string, result: ReturnType<typeof auditPayoff>) {

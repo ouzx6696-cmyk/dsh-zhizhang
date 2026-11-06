@@ -36,11 +36,6 @@ export const outlineSet = defineTool({
         if (v !== undefined) patch[key] = v;
       }
     }
-    // legacy alias voiceTone → stateLens
-    if (!patch.stateLens) {
-      const legacy = asString(args, "voiceTone");
-      if (legacy?.trim()) patch.stateLens = legacy;
-    }
     const saved = await setOutline(dir, chapterId, patch, asString(args, "title"));
     return [`已写入章纲「${saved.title}」`, renderOutline(saved.outline)].join("\n");
   },

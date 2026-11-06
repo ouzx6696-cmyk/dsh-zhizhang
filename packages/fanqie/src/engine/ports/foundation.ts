@@ -12,44 +12,46 @@ import { formatChapterOutcomeLine, resolveHappenedText } from "../domain/foundat
 const extractBodyOutcome = bodyTailOf;
 export { endingBodyOverlap, resolveHappenedText };
 export const FoundationPort = {
-    id: "port.foundation",
-    extractBodyOutcome,
-    endingBodyOverlap,
-    resolveHappenedText,
-    /**
-     * Build a one-line happened entry. Returns empty if text is blank.
-     */
-    formatChapterOutcomeLine,
-    /**
-     * Append a short happened line for a chapter. Idempotent per chapterId marker.
-     * Skips when text empty (caller should still remind).
-     */
-    async appendHappened(dir: string, input: {chapterId:string;title?:string;text:string;replace?:boolean}) {
-        const chapterId = input.chapterId.trim();
-        if (!chapterId) {
-            const meta = await readWorkMeta(dir);
-            return { meta, appended: false, line: "", reason: "empty_chapter_id" };
-        }
-        const line = FoundationPort.formatChapterOutcomeLine(chapterId, input.title ?? "", input.text);
-        if (!line) {
-            const meta = await readWorkMeta(dir);
-            return { meta, appended: false, line: "", reason: "empty_text" };
-        }
-        return appendHappenedLine(dir, chapterId, line, input.replace === true);
-    },
-    /**
-     * Candidate adoption updates working continuity; happened remains author material.
-     */
-    acceptReceiptLines(opts: {threads:string;endingVsBodyWarn?:string}) {
-        const lines = [];
-        const threads = opts.threads.trim();
-        if (opts.endingVsBodyWarn)
-            lines.push(`- ending_vs_body：${opts.endingVsBodyWarn}`);
-        lines.push("- 已采纳工作稿；定稿接续索引随定稿更新，作者 happened 保留不变。");
-        if (threads) {
-            const short = threads.length > 160 ? `${threads.slice(0, 160).trimEnd()}…` : threads;
-            lines.push(`- threads_open：未结伏笔仍在 — ${short}`);
-        }
-        return lines;
-    },
+  id: "port.foundation",
+  extractBodyOutcome,
+  endingBodyOverlap,
+  resolveHappenedText,
+  /**
+   * Build a one-line happened entry. Returns empty if text is blank.
+   */
+  formatChapterOutcomeLine,
+  /**
+   * Append a short happened line for a chapter. Idempotent per chapterId marker.
+   * Skips when text empty (caller should still remind).
+   */
+  async appendHappened(
+    dir: string,
+    input: { chapterId: string; title?: string; text: string; replace?: boolean },
+  ) {
+    const chapterId = input.chapterId.trim();
+    if (!chapterId) {
+      const meta = await readWorkMeta(dir);
+      return { meta, appended: false, line: "", reason: "empty_chapter_id" };
+    }
+    const line = FoundationPort.formatChapterOutcomeLine(chapterId, input.title ?? "", input.text);
+    if (!line) {
+      const meta = await readWorkMeta(dir);
+      return { meta, appended: false, line: "", reason: "empty_text" };
+    }
+    return appendHappenedLine(dir, chapterId, line, input.replace === true);
+  },
+  /**
+   * Candidate adoption updates working continuity; happened remains author material.
+   */
+  acceptReceiptLines(opts: { threads: string; endingVsBodyWarn?: string }) {
+    const lines = [];
+    const threads = opts.threads.trim();
+    if (opts.endingVsBodyWarn) lines.push(`- ending_vs_body：${opts.endingVsBodyWarn}`);
+    lines.push("- 已采纳工作稿；定稿接续索引随定稿更新，作者 happened 保留不变。");
+    if (threads) {
+      const short = threads.length > 160 ? `${threads.slice(0, 160).trimEnd()}…` : threads;
+      lines.push(`- threads_open：未结伏笔仍在 — ${short}`);
+    }
+    return lines;
+  },
 };

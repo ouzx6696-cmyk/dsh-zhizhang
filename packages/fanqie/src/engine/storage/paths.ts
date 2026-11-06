@@ -6,6 +6,8 @@ import type { OpenWorkContext, PluginConfig, StoragePaths } from "../types.js";
 import { NovelError } from "../errors.js";
 
 import { assertSafeAncestors, WINDOWS_RESERVED_NAME } from "./primitives.js";
+import { rememberProject, rememberToolBase } from "./projects.js";
+import { resolveInside } from "../../../../core/src/fsx.js";
 
 export function slugify(title: string) {
   const cleaned = Array.from(
@@ -94,5 +96,3 @@ export function ledgerPath(dir: string) {
 export function candidatesDir(dir: string) {
   return path.join(dir, "candidates");
 }
-import { rememberProject, rememberToolBase } from "./projects.js";
-import { resolveInside } from "../../../../core/src/fsx.js";

@@ -1,26 +1,32 @@
 import { markCandidateLinted } from "../work-store.js";
 import { allow, deny, warn } from "./types.js";
 export const LintGate = {
-    async issueToken(dir: string, candidateId: string, hitCount: number, expectedBody?: string) {
-        return markCandidateLinted(dir, candidateId, hitCount, expectedBody);
-    },
-    hitCountOf(cand: import("../types.js").Candidate) {
-        return typeof cand.lintHitCount === "number" ? cand.lintHitCount : 0;
-    },
-    evaluateAccept(opts: {hitCount:number;strictLint:boolean}) {
-        const { hitCount, strictLint } = opts;
-        if (strictLint && hitCount > 0) {
-            return deny("lint_hits_strict", `strict_lint=true：语感雷达命中 ${hitCount} 处，拒绝采纳。扫过≠过关；请改稿后重新 stage→lint，或关闭 strict_lint（默认允许并警告 lint_hits_present）。`);
-        }
-        if (hitCount > 0) {
-            return allow([
-                warn("lint_hits_present", `雷达命中 ${hitCount} 处。扫过≠过关；建议对照命中改稿。默认仍允许采纳；strict_lint=true 时可硬拒。`),
-            ]);
-        }
-        return allow();
-    },
-    /** Always include on accept receipt. */
-    echoLines(hitCount: number) {
-        return hitCount ? [`语感诊断：${hitCount} 处，请对照上下文核对。`] : [];
-    },
+  async issueToken(dir: string, candidateId: string, hitCount: number, expectedBody?: string) {
+    return markCandidateLinted(dir, candidateId, hitCount, expectedBody);
+  },
+  hitCountOf(cand: import("../types.js").Candidate) {
+    return typeof cand.lintHitCount === "number" ? cand.lintHitCount : 0;
+  },
+  evaluateAccept(opts: { hitCount: number; strictLint: boolean }) {
+    const { hitCount, strictLint } = opts;
+    if (strictLint && hitCount > 0) {
+      return deny(
+        "lint_hits_strict",
+        `strict_lint=true：语感雷达命中 ${hitCount} 处，拒绝采纳。扫过≠过关；请改稿后重新 stage→lint，或关闭 strict_lint（默认允许并警告 lint_hits_present）。`,
+      );
+    }
+    if (hitCount > 0) {
+      return allow([
+        warn(
+          "lint_hits_present",
+          `雷达命中 ${hitCount} 处。扫过≠过关；建议对照命中改稿。默认仍允许采纳；strict_lint=true 时可硬拒。`,
+        ),
+      ]);
+    }
+    return allow();
+  },
+  /** Always include on accept receipt. */
+  echoLines(hitCount: number) {
+    return hitCount ? [`语感诊断：${hitCount} 处，请对照上下文核对。`] : [];
+  },
 };

@@ -136,7 +136,8 @@ export const libraryList = defineTool({
     const paths = await openLibrary(exec, args, false);
     const sourceIds = asStringArray(args, "source_ids");
     const axisRaw = asString(args, "axis");
-    const axis:import("../../ports/library/types.js").CardAxis|undefined = axisRaw === "craft" ? "craft" : axisRaw === "mind" ? "mind" : undefined;
+    const axis: import("../../ports/library/types.js").CardAxis | undefined =
+      axisRaw === "craft" ? "craft" : axisRaw === "mind" ? "mind" : undefined;
     const filter = {
       status: "accepted",
       sourceId: asString(args, "source"),

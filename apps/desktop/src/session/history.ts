@@ -1,8 +1,13 @@
 import type { WriterMessage } from "../renderer-contracts";
 import { DEFAULT_HISTORY_LIMIT } from "../history-options";
 import path from "node:path";
-import { access, mkdir, readFile, rm, stat } from "node:fs/promises";
-import { atomicWrite, assertSafeAncestors, readText } from "../../../../packages/core/src/fsx";
+import { access, mkdir, rm, stat } from "node:fs/promises";
+import {
+  atomicWrite,
+  assertSafeAncestors,
+  isMissingFileError,
+  readText,
+} from "../../../../packages/core/src/fsx";
 import type { Target } from "../context";
 import { SessionManager } from "./pi-adapter";
 import { parseHistory } from "./migration";
@@ -31,10 +36,7 @@ export async function newConversation(host: Sessions, target: Target) {
     throw new Error("请先停止当前任务，再开始新对话");
   const dir = await host.directory(target);
   await mkdir(dir, { recursive: true });
-  const current = await readFile(path.join(dir, "current"), "utf8").catch((error) => {
-    if (error.code === "ENOENT") return "";
-    throw error;
-  });
+  const current = (await readText(path.join(dir, "current"))) ?? "";
   if (current) {
     const previous = await conversations(host, target);
     await atomicWrite(
@@ -95,18 +97,13 @@ export async function view(
     const marker =
       archive !== undefined
         ? (await conversations(host, target)).find((item) => item.id === archive)?.file || ""
-        : await readFile(path.join(await host.directory(target), "current"), "utf8").catch(
-            (error) => {
-              if (error.code === "ENOENT") return "";
-              throw error;
-            },
-          );
+        : ((await readText(path.join(await host.directory(target), "current"))) ?? "");
     if (
       marker &&
       (await access(marker).then(
         () => true,
         async (error) => {
-          if (error.code === "ENOENT") {
+          if (isMissingFileError(error)) {
             // Windows also reports ENOENT when an ancestor is a file.
             await assertSafeAncestors(marker);
             return false;

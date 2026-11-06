@@ -3,65 +3,19 @@ import { useNotices } from "../../../../ui/src/use-notices.js";
 import { COPY as viewCopy } from "../../../../ui/src/copy.js";
 import { Manuscript } from "./Manuscript.jsx";
 /**
- * 方法方案：页头按钮 + 弹窗。左列方案（默认 / 原版 / 用户方案N），中列方法清单，右列全文。
+ * 方法方案弹窗：左列方案（默认 / 原版 / 用户方案N），中列方法清单，右列全文。
  * 内置方案只读；用户方案可逐份保存、恢复底稿、新增、改名、删除；新建时可导入 .md 文件或整个文件夹。
  */
 import { canLeaveEdit } from "./useSourceGuard.js";
 import React from "react";
-import { profilesApi } from "./api.js";
 import { t } from "../../../../ui/src/copy.js";
 import { Button, cx, Icon, Tag } from "./ui.jsx";
 import { Dialog } from "../../../../ui/src/primitives.jsx";
 import { Callout, Notices } from "./common.jsx";
 import { NewProfileForm, ProfileMethodEditor, ProfileMethodsColumn } from "./ProfileParts.jsx";
 
-const { useCallback, useEffect, useMemo, useState } = React;
+const { useCallback, useEffect, useState } = React;
 const MODE_NAME = { fanqie: viewCopy.modeFanqie, toutiao: viewCopy.ttTitle };
-
-/** 页头按钮：显示当前方案名，点开弹窗 */
-export function ProfilesButton({ mode }) {
-  const api = useMemo(() => profilesApi(mode), [mode]);
-  const [open, setOpen] = useState(false);
-  const [active, setActive] = useState(null);
-  const [error, setError] = useState("");
-  const refreshActive = useCallback(() => {
-    api
-      .list()
-      .then((r) => {
-        setActive(r.profiles.find((p) => p.active) || null);
-        setError("");
-      })
-      .catch((error) => setError(errorText(error)));
-  }, [api]);
-  useEffect(refreshActive, [refreshActive]);
-  return (
-    <>
-      {error ? <p role="alert">{error}</p> : null}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="wb-profile-button"
-        title={active ? t("pfButtonHint", { name: active.name }) : t("pfButton")}
-        onClick={() => setOpen(true)}
-        icon={<Icon name="layers" size={14} />}
-      >
-        <span className="wb-profile-button-label">{t("pfButton")}</span>
-        {active ? <span className="wb-profile-button-name">{active.name}</span> : null}
-      </Button>
-      {open ? (
-        <ProfilesDialog
-          mode={mode}
-          api={api}
-          onChanged={refreshActive}
-          onClose={() => {
-            setOpen(false);
-            refreshActive();
-          }}
-        />
-      ) : null}
-    </>
-  );
-}
 
 function InlineProfiles({ children }) {
   return <section className="wb-pf">{children}</section>;

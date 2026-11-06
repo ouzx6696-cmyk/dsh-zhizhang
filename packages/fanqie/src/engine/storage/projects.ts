@@ -65,10 +65,7 @@ export async function rememberToolBase(base: string, works: string) {
   if (base === lastToolBase && works === lastWorksRoot) return;
   // 同进程多实例（测试、双开面板）会同时初始化存储；串行化避免 Windows 上 rename 撞 EPERM。
   await serialize(toolBaseMarker(), () =>
-    atomicWrite(
-      toolBaseMarker(),
-      JSON.stringify({ base, works, at: nowIso() }, null, 2) + "\n",
-    ),
+    atomicWrite(toolBaseMarker(), JSON.stringify({ base, works, at: nowIso() }, null, 2) + "\n"),
   );
   lastToolBase = base;
   lastWorksRoot = works;
@@ -163,9 +160,7 @@ async function upsertProjectFile(base: string, works: string) {
   const next: ProjectEntry[] = existing
     ? list.map((p: ProjectEntry) => (p === existing ? { ...p, ...entry } : p))
     : [...list, entry];
-  next.sort((a, b) =>
-    (b.lastUsedAt ?? "").localeCompare(a.lastUsedAt ?? ""),
-  );
+  next.sort((a, b) => (b.lastUsedAt ?? "").localeCompare(a.lastUsedAt ?? ""));
   await atomicWrite(projectsFile(), JSON.stringify({ version: 1, projects: next }, null, 2) + "\n");
 }
 /** Register only after a successful read-modify-write under the shared index lock. */
@@ -316,9 +311,7 @@ export async function listProjects(opts: { ttl?: number; refresh?: boolean } = {
       };
     }),
   );
-  rows.sort((a, b) =>
-    (b.lastUsedAt ?? "").localeCompare(a.lastUsedAt ?? ""),
-  );
+  rows.sort((a, b) => (b.lastUsedAt ?? "").localeCompare(a.lastUsedAt ?? ""));
   projectsSummaryCache = rows;
   projectsSummaryAt = Date.now();
   return rows;
@@ -342,13 +335,6 @@ export async function listWorks(paths: StoragePaths) {
         try {
           // Pending acceptance means counts may be between two valid versions.
           const row = parseWorkMeta(await readJsonCached(file), file);
-          if (
-            !row ||
-            typeof row !== "object" ||
-            Array.isArray(row) ||
-            (row.chapters !== undefined && !Array.isArray(row.chapters))
-          )
-            throw new NovelError("bad_work_meta", `作品元数据格式损坏：${file}`);
           let recoveryPending = false;
           let recoveryHint = "";
           try {
@@ -358,7 +344,7 @@ export async function listWorks(paths: StoragePaths) {
             recoveryPending = true;
             recoveryHint = err.message;
           }
-          return { ...row, chapters: row.chapters ?? [], recoveryPending, recoveryHint };
+          return { ...row, recoveryPending, recoveryHint };
         } catch (err) {
           if (isMissingFileError(err)) return undefined;
           throw err;

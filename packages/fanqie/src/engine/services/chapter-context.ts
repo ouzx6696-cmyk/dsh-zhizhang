@@ -12,23 +12,34 @@ import { isMissingFileError } from "../../../../core/src/fsx.js";
  * 返回 { meta, body, outline } 或 null。
  */
 export async function resolvePrevChapter(dir: string, chapterId: string) {
-    const chapters = await listChapters(dir);
-    if (!chapters.length) return null;
-    const idx = chapters.findIndex((c) => c.id === chapterId);
-    if (idx <= 0) return null;
-    const prevMeta = chapters[idx - 1];
-    try {
-        const prev = await readChapter(dir, prevMeta.id);
-        // missing 用字面量类型：调用方 !prev.missing 时 revision 收窄为必有
-        return { meta: prevMeta, body: prev.body || "", outline: prev.outline, revision: prev.revision, missing: false as const };
-    }
-    catch (err) {
-        if (!isMissingFileError(err)) throw err;
-        return { meta: prevMeta, body: "", outline: EMPTY_OUTLINE(), revision: undefined, missing: true as const };
-    }
+  const chapters = await listChapters(dir);
+  if (!chapters.length) return null;
+  const idx = chapters.findIndex((c) => c.id === chapterId);
+  if (idx <= 0) return null;
+  const prevMeta = chapters[idx - 1];
+  try {
+    const prev = await readChapter(dir, prevMeta.id);
+    // missing 用字面量类型：调用方 !prev.missing 时 revision 收窄为必有
+    return {
+      meta: prevMeta,
+      body: prev.body || "",
+      outline: prev.outline,
+      revision: prev.revision,
+      missing: false as const,
+    };
+  } catch (err) {
+    if (!isMissingFileError(err)) throw err;
+    return {
+      meta: prevMeta,
+      body: "",
+      outline: EMPTY_OUTLINE(),
+      revision: undefined,
+      missing: true as const,
+    };
+  }
 }
 
 export async function resolvePrevBody(dir: string, chapterId: string) {
-    const prev = await resolvePrevChapter(dir, chapterId);
-    return prev?.body || null;
+  const prev = await resolvePrevChapter(dir, chapterId);
+  return prev?.body || null;
 }

@@ -12,10 +12,7 @@ export function StatusBadge({
 }) {
   const info = statusInfo(mode, status);
   return (
-    <span
-      className={["ui-badge", className].filter(Boolean).join(" ")}
-      data-tone={info.tone}
-    >
+    <span className={["ui-badge", className].filter(Boolean).join(" ")} data-tone={info.tone}>
       {info.label}
     </span>
   );

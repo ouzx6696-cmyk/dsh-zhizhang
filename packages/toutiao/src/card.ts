@@ -2,6 +2,7 @@
  * 立项卡结构预检（S2）。只查"填没填、填对没有"，深层规则（撞题、人物、主数字核对）
  * 仍由 qa_check.py --card 判定，不在这里复制。
  */
+import { str } from "../../core/src/parse.js";
 import { GENRES, LINES } from "./store.js";
 
 export interface CardIssue {
@@ -19,8 +20,6 @@ function walk(v: unknown, p: string, out: [string, string][]) {
   else if (v && typeof v === "object")
     for (const [k, x] of Object.entries(v)) walk(x, p ? `${p}.${k}` : k, out);
 }
-
-const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 
 export function checkCard(card: Record<string, unknown>, titleMax: number): CardIssue[] {
   const out: CardIssue[] = [];

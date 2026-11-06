@@ -1,4 +1,6 @@
-.agent-slot[hidden] { display: none; }
+.agent-slot[hidden] {
+  display: none;
+}
 .agent-panel {
   display: flex;
   flex-direction: column;
@@ -52,8 +54,12 @@
   background: var(--ui-line);
   flex: 1;
 }
-.task-track span.done { background: var(--ui-success); }
-.task-track span.current { background: var(--ui-accent); }
+.task-track span.done {
+  background: var(--ui-success);
+}
+.task-track span.current {
+  background: var(--ui-accent);
+}
 .conversation-tools {
   display: flex;
   align-items: center;
@@ -61,7 +67,8 @@
   margin: 5px 14px;
   font-size: var(--ui-size-12);
 }
-.conversation-tools button, .conversation-tools select {
+.conversation-tools button,
+.conversation-tools select {
   font-size: var(--ui-size-12);
   padding: 2px 4px;
   background: transparent;
@@ -100,7 +107,9 @@
   padding: 9px 12px;
   border-radius: 7px;
 }
-.chat-message.user .studio-markdown p:last-child { margin: 0; }
+.chat-message.user .studio-markdown p:last-child {
+  margin: 0;
+}
 .chat-message.custom {
   font-size: var(--ui-size-12);
   color: var(--ui-text-3);
@@ -163,9 +172,15 @@
   border: 1px solid var(--ui-line-strong);
   box-shadow: var(--ui-shadow-1);
 }
-.result-card[data-kind="review"] { border-left-color: var(--ui-warning); }
-.result-card.failed { border-left-color: var(--ui-danger); }
-.result-card strong { font-size: var(--ui-size-12); }
+.result-card[data-kind="review"] {
+  border-left-color: var(--ui-warning);
+}
+.result-card.failed {
+  border-left-color: var(--ui-danger);
+}
+.result-card strong {
+  font-size: var(--ui-size-12);
+}
 .result-card p {
   font-size: var(--ui-size-12);
   margin: 5px 0;
@@ -268,7 +283,10 @@
   width: auto;
   min-height: 0;
 }
-.context-panel input[type="number"], .context-panel textarea { width: 100%; }
+.context-panel input[type="number"],
+.context-panel textarea {
+  width: 100%;
+}
 .context-panel textarea {
   resize: vertical;
   min-height: 64px;
@@ -283,7 +301,9 @@
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
-.context-panel > button { margin: 4px 8px 4px 0; }
+.context-panel > button {
+  margin: 4px 8px 4px 0;
+}
 .context-panel pre {
   white-space: pre-wrap;
   overflow-wrap: anywhere;

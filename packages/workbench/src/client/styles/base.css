@@ -1,16 +1,14 @@
-:where(.wb-root, .wb-scope)
-  :where(h1, h2, h3, p, ol, ul, dl, dd, figure) {
+:where(.wb-scope) :where(h1, h2, h3, p, ol, ul, dl, dd, figure) {
   margin: 0;
 }
-:where(.wb-root, .wb-scope) :where(ul, ol) {
+:where(.wb-scope) :where(ul, ol) {
   padding: 0;
   list-style: none;
 }
-:where(.wb-root, .wb-scope) :focus-visible {
+:where(.wb-scope) :focus-visible {
   outline: 2px solid var(--wb-accent);
   outline-offset: 2px;
 }
-.wb-root,
 .wb-scope {
   --wb-fg: canvastext;
   --wb-fg-2: color-mix(in srgb, canvastext 72%, transparent);
@@ -39,52 +37,11 @@
   --wb-manuscript-font: var(--ui-font-body);
   color: var(--wb-fg);
   font: var(--ui-size-14)/var(--ui-size-22) var(--ui-font-ui);
-}
-.wb-scope {
   display: contents;
 }
-.wb-root {
-  container: wb-panel / inline-size;
-  box-sizing: border-box;
-  height: 100%;
-  overflow: auto;
-  padding: 20px 24px 32px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  color: var(--wb-fg);
-  font: var(--ui-size-14)/var(--ui-size-22) var(--ui-font-ui);
-  -webkit-font-smoothing: antialiased;
-}
-.wb-root *,
-.wb-root *::before,
-.wb-root *::after,
 .wb-scope * {
   box-sizing: border-box;
 }
-.wb-root.wb-settings {
-  height: auto;
-  overflow: visible;
-  gap: 12px;
-  padding: 16px 20px;
-  border-radius: var(--wb-r-xl);
-  border: 0.5px solid var(--wb-line);
-  background: transparent;
-}
-@container wb-panel (max-width: 700px) {
-  .wb-root {
-    padding: 16px;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .wb-root *,
-  .wb-root *::before,
-  .wb-root *::after {
-    animation: none;
-    transition: none;
-  }
-}
-.wb-root,
 .wb-scope {
   --wb-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --wb-shadow-1: 0 1px 2px color-mix(in srgb, canvastext 6%, transparent);
@@ -93,7 +50,6 @@
     0 1px 3px color-mix(in srgb, canvastext 8%, transparent);
 }
 @media (prefers-reduced-motion: reduce) {
-  .wb-root *,
   .wb-scope * {
     animation-duration: 1ms;
     animation-iteration-count: 1;
@@ -114,10 +70,6 @@
 .wb-muted {
   color: var(--wb-fg-3);
   font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
-}
-.wb-lead {
-  color: var(--wb-fg-2);
-  font: var(--ui-size-16)/var(--ui-size-24) var(--ui-font-ui);
 }
 .wb-prewrap {
   white-space: pre-wrap;

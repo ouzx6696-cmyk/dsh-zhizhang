@@ -141,7 +141,9 @@ async function notifyWrite(
       operation,
       article: textField(body, "id"),
       chapter:
-        textField(body, "chapter") || textField(body, "chapterId") || responseText(data, "chapterId"),
+        textField(body, "chapter") ||
+        textField(body, "chapterId") ||
+        responseText(data, "chapterId"),
       candidate: textField(body, "candidate") || responseText(data, "candidateId"),
       revision: responseId(data, "revision") || responseId(data, "rev"),
       status: responseText(data, "status"),

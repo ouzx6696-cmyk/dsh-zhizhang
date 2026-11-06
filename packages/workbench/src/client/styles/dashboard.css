@@ -6,13 +6,6 @@
   align-items: center;
 }
 
-.wb-updated {
-  margin-left: auto;
-  color: var(--wb-fg-3);
-  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
-  font-variant-numeric: tabular-nums;
-}
-
 .wb-count {
   min-width: 20px;
   height: 20px;
@@ -37,13 +30,6 @@
   flex-direction: column;
   gap: 12px;
   max-width: 72rem;
-}
-
-@container wb-panel (max-width: 700px) {
-  .wb-updated {
-    margin-left: 0;
-    width: 100%;
-  }
 }
 
 .wb-stats .wb-tag {

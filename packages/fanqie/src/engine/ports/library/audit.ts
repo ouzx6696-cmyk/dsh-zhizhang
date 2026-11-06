@@ -8,150 +8,161 @@ import { parseChapterNumber } from "../../domain/chapter-heading.js";
 const EVIDENCE_QUOTE_RE = /[“"]([^”"\n]{4,240})[”"]/g;
 
 export function normForMatch(s: string) {
-    return s.replace(/[^\u4e00-\u9fa5A-Za-z0-9]/g, "");
+  return s.replace(/[^\u4e00-\u9fa5A-Za-z0-9]/g, "");
 }
 
 function extractEvidence(body: string) {
-    const lines = body.split("\n");
-    const start = lines.findIndex((line: string) => /^##\s*证据/.test(line));
-    if (start < 0)
-        return { heading: null, quotes: [] };
-    const quotes = [];
-    for (let i = start + 1; i < lines.length; i += 1) {
-        if (/^##\s/.test(lines[i]))
-            break;
-        EVIDENCE_QUOTE_RE.lastIndex = 0;
-        let mm;
-        while ((mm = EVIDENCE_QUOTE_RE.exec(lines[i])))
-            quotes.push(mm[1]);
-    }
-    return { heading: lines[start].trim(), quotes };
+  const lines = body.split("\n");
+  const start = lines.findIndex((line: string) => /^##\s*证据/.test(line));
+  if (start < 0) return { heading: null, quotes: [] };
+  const quotes = [];
+  for (let i = start + 1; i < lines.length; i += 1) {
+    if (/^##\s/.test(lines[i])) break;
+    EVIDENCE_QUOTE_RE.lastIndex = 0;
+    let mm;
+    while ((mm = EVIDENCE_QUOTE_RE.exec(lines[i]))) quotes.push(mm[1]);
+  }
+  return { heading: lines[start].trim(), quotes };
 }
 
 function quoteFragments(q: string) {
-    return q.split(/……|——|\.{3,}/).map((x) => x.trim()).filter((x) => x.length >= 4);
+  return q
+    .split(/……|——|\.{3,}/)
+    .map((x) => x.trim())
+    .filter((x) => x.length >= 4);
 }
 
 /** 章号归一：第2章 / 第二章 → "ch2"；序章 → "ch0"。 */
 function chapterKey(label: string) {
-    const n = parseChapterNumber(label);
-    return Number.isFinite(n) ? `ch${n}` : null;
+  const n = parseChapterNumber(label);
+  return Number.isFinite(n) ? `ch${n}` : null;
 }
 
 function chapterLabelAt(index: { n: number; title: string; start: number }[], pos: number) {
-    let hit = null;
-    for (const c of index) {
-        if (c.start <= pos)
-            hit = c;
-        else
-            break;
-    }
-    if (!hit)
-        return null;
-    return hit.n === 0 ? "序章" : `第${hit.n}章`;
+  let hit = null;
+  for (const c of index) {
+    if (c.start <= pos) hit = c;
+    else break;
+  }
+  if (!hit) return null;
+  return hit.n === 0 ? "序章" : `第${hit.n}章`;
 }
 
-function locateQuoteChapters(q: string, text: string, index: { n: number; title: string; start: number }[]) {
-    const cands = [q, ...q.split(/[^\u4e00-\u9fa5A-Za-z0-9]+/)]
-        .filter((x) => x.length >= 8)
-        .sort((a, b) => b.length - a.length);
-    const found = new Set<string>();
-    for (const frag of cands) {
-        let from = 0;
-        while (true) {
-            const at = text.indexOf(frag, from);
-            if (at < 0)
-                break;
-            const label = chapterLabelAt(index, at);
-            if (label)
-                found.add(label);
-            from = at + 1;
-        }
-        if (found.size)
-            break;
+function locateQuoteChapters(
+  q: string,
+  text: string,
+  index: { n: number; title: string; start: number }[],
+) {
+  const cands = [q, ...q.split(/[^\u4e00-\u9fa5A-Za-z0-9]+/)]
+    .filter((x) => x.length >= 8)
+    .sort((a, b) => b.length - a.length);
+  const found = new Set<string>();
+  for (const frag of cands) {
+    let from = 0;
+    while (true) {
+      const at = text.indexOf(frag, from);
+      if (at < 0) break;
+      const label = chapterLabelAt(index, at);
+      if (label) found.add(label);
+      from = at + 1;
     }
-    return found;
+    if (found.size) break;
+  }
+  return found;
 }
 
 /** 单卡内容审计：引文能否回溯、章号是否对得上、字段是否占位、mind 是否写成剧情分段。 */
-export function auditCardContent(card: Pick<import("./types.js").TechniqueCard,"body"|"axis"|"readingRange"|"mind"|"humanFeel">, sourceText: string, normSourceCache?: string) {
-    const warnings = [];
-    const body = card.body;
-    const { heading, quotes } = extractEvidence(body);
-    const normSource = normSourceCache ?? normForMatch(sourceText);
-    const index = chapterIndex(sourceText);
-    if (!heading)
-        warnings.push("缺「## 证据」段：引文无法核对");
-    const unverifiable = [];
-    const skipped = [];
-    const located = [];
-    for (const q of quotes) {
-        const frags = quoteFragments(q).map(normForMatch).filter((f) => f.length >= 4);
-        if (!normSource) {
-            unverifiable.push(q);
-            continue;
-        }
-        if (!frags.length) {
-            skipped.push(q);
-            continue;
-        }
-        if (!frags.every((f) => normSource.includes(f)))
-            unverifiable.push(q);
-        const chs = locateQuoteChapters(q, sourceText, index);
-        if (chs.size === 1) {
-            const label = [...chs][0];
-            located.push({ key: chapterKey(String(label)) ?? String(label), label: String(label) });
-        }
+export function auditCardContent(
+  card: Pick<
+    import("./types.js").TechniqueCard,
+    "body" | "axis" | "readingRange" | "mind" | "humanFeel"
+  >,
+  sourceText: string,
+  normSourceCache?: string,
+) {
+  const warnings = [];
+  const body = card.body;
+  const { heading, quotes } = extractEvidence(body);
+  const normSource = normSourceCache ?? normForMatch(sourceText);
+  const index = chapterIndex(sourceText);
+  if (!heading) warnings.push("缺「## 证据」段：引文无法核对");
+  const unverifiable = [];
+  const skipped = [];
+  const located = [];
+  for (const q of quotes) {
+    const frags = quoteFragments(q)
+      .map(normForMatch)
+      .filter((f) => f.length >= 4);
+    if (!normSource) {
+      unverifiable.push(q);
+      continue;
     }
-    let chapterOk = null;
-    const headChs = heading ? [...heading.matchAll(/第\s*[0-9０-９一二三四五六七八九十百千零两]+\s*[章回节]/g)].map((m) => m[0]) : [];
-    const headKeys = new Set(headChs.map((c) => chapterKey(c)).filter(Boolean));
-    if (headChs.length && located.length) {
-        const counts = new Map();
-        for (const item of located)
-            counts.set(item.key, (counts.get(item.key) ?? 0) + 1);
-        const top = [...counts.entries()].sort((x, y) => y[1] - x[1])[0];
-        const label = located.find((l) => l.key === top[0])?.label ?? top[0];
-        if (top[1] >= 2) {
-            chapterOk = headKeys.size ? located.some((l) => headKeys.has(l.key)) : (heading ?? "").includes(label);
-            if (!chapterOk)
-                warnings.push("证据标题章号「" + headChs.join("、") + "」与引文实际位置「" + label + "」不一致");
-        }
+    if (!frags.length) {
+      skipped.push(q);
+      continue;
     }
+    if (!frags.every((f) => normSource.includes(f))) unverifiable.push(q);
+    const chs = locateQuoteChapters(q, sourceText, index);
+    if (chs.size === 1) {
+      const label = [...chs][0];
+      located.push({ key: chapterKey(String(label)) ?? String(label), label: String(label) });
+    }
+  }
+  let chapterOk = null;
+  const headChs = heading
+    ? [...heading.matchAll(/第\s*[0-9０-９一二三四五六七八九十百千零两]+\s*[章回节]/g)].map(
+        (m) => m[0],
+      )
+    : [];
+  const headKeys = new Set(headChs.map((c) => chapterKey(c)).filter(Boolean));
+  if (headChs.length && located.length) {
+    const counts = new Map();
+    for (const item of located) counts.set(item.key, (counts.get(item.key) ?? 0) + 1);
+    const top = [...counts.entries()].sort((x, y) => y[1] - x[1])[0];
+    const label = located.find((l) => l.key === top[0])?.label ?? top[0];
+    if (top[1] >= 2) {
+      chapterOk = headKeys.size
+        ? located.some((l) => headKeys.has(l.key))
+        : (heading ?? "").includes(label);
+      if (!chapterOk)
+        warnings.push(
+          "证据标题章号「" + headChs.join("、") + "」与引文实际位置「" + label + "」不一致",
+        );
+    }
+  }
 
-    const rr = (card.readingRange ?? "").trim();
-    if (!rr || /^见拆书简报$/.test(rr))
-        warnings.push("readingRange 仍是占位（见拆书简报）：应写真实抽样范围");
-    if (card.axis === "mind") {
-        const m = card.mind;
-        const staging = (m?.infoStaging ?? "");
-        if (/前段|中段|后段/.test(staging) || /第\s*[0-9０-９一二三四五六七八九十]+\s*章\s*[：:]/.test(staging))
-            warnings.push("infoStaging 像剧情分段（第1章/前段/中段/后段）：应写信息按什么顺序交付");
-        const pm = (m?.pressureMachine ?? "");
-        if (pm && !/vs|VS|→|逼|对/.test(pm))
-            warnings.push("pressureMachine 没写出「谁逼谁做什么选择」");
-        if (!m?.sellIntoCost || m.sellIntoCost.length < 20)
-            warnings.push("sellIntoCost 过短：卖点与代价可能没写清");
-        if (body.includes("## 世界与能力怎么设计"))
-            warnings.push("mind 卡仍用旧段「世界与能力怎么设计」：容易写成设定复述");
-        if (!/设计决策/.test(body) && !/检验方法/.test(body))
-            warnings.push("疑似设定复述（缺「设计决策」与「检验方法」）：脚本只报形状，须人读确认");
-    }
-    else if (card.axis === "craft") {
-        if (!card.humanFeel)
-            warnings.push("craft 卡缺 humanFeel");
-        else if (!card.humanFeel.stateOnPage.trim())
-            warnings.push("humanFeel.stateOnPage 为空");
-        if (!/##\s*写法|写法：/.test(body))
-            warnings.push("craft 卡缺「写法」段：拿不到这一场怎么写");
-    }
-    return {
-        evidenceQuotes: quotes.length,
-        evidenceVerified: quotes.length - unverifiable.length - skipped.length,
-        skippedShort: skipped,
-        unverifiable,
-        located: [...new Set(located.map((l) => l.label))],
-        chapterOk,
-        warnings,
-    };
+  const rr = (card.readingRange ?? "").trim();
+  if (!rr || /^见拆书简报$/.test(rr))
+    warnings.push("readingRange 仍是占位（见拆书简报）：应写真实抽样范围");
+  if (card.axis === "mind") {
+    const m = card.mind;
+    const staging = m?.infoStaging ?? "";
+    if (
+      /前段|中段|后段/.test(staging) ||
+      /第\s*[0-9０-９一二三四五六七八九十]+\s*章\s*[：:]/.test(staging)
+    )
+      warnings.push("infoStaging 像剧情分段（第1章/前段/中段/后段）：应写信息按什么顺序交付");
+    const pm = m?.pressureMachine ?? "";
+    if (pm && !/vs|VS|→|逼|对/.test(pm))
+      warnings.push("pressureMachine 没写出「谁逼谁做什么选择」");
+    if (!m?.sellIntoCost || m.sellIntoCost.length < 20)
+      warnings.push("sellIntoCost 过短：卖点与代价可能没写清");
+    if (body.includes("## 世界与能力怎么设计"))
+      warnings.push("mind 卡仍用旧段「世界与能力怎么设计」：容易写成设定复述");
+    if (!/设计决策/.test(body) && !/检验方法/.test(body))
+      warnings.push("疑似设定复述（缺「设计决策」与「检验方法」）：脚本只报形状，须人读确认");
+  } else if (card.axis === "craft") {
+    if (!card.humanFeel) warnings.push("craft 卡缺 humanFeel");
+    else if (!card.humanFeel.stateOnPage.trim()) warnings.push("humanFeel.stateOnPage 为空");
+    if (!/##\s*写法|写法：/.test(body)) warnings.push("craft 卡缺「写法」段：拿不到这一场怎么写");
+  }
+  return {
+    evidenceQuotes: quotes.length,
+    evidenceVerified: quotes.length - unverifiable.length - skipped.length,
+    skippedShort: skipped,
+    unverifiable,
+    located: [...new Set(located.map((l) => l.label))],
+    chapterOk,
+    warnings,
+  };
 }

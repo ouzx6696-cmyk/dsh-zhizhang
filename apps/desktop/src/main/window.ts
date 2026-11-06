@@ -23,8 +23,7 @@ export function createMainWindow(state: Runtime) {
   window.webContents.on("will-navigate", (event, url) => {
     const allowed = rendererOrigin
       ? new URL(url).origin === new URL(rendererOrigin).origin
-      : url.startsWith("file:") &&
-        url.split("#")[0] === window.webContents.getURL().split("#")[0];
+      : url.startsWith("file:") && url.split("#")[0] === window.webContents.getURL().split("#")[0];
     if (!allowed) {
       event.preventDefault();
       if (/^https?:/.test(url)) void shell.openExternal(url);

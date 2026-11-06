@@ -1,4 +1,5 @@
 import { sha256 } from "../../../../core/src/fsx.js";
+import { isRecord } from "../../../../core/src/parse.js";
 /** Locked source capture and candidate staging. Pure analysis lives in domain/. */
 
 import { realpath } from "node:fs/promises";
@@ -31,13 +32,15 @@ const fail: (code: string, message: string) => never = (code, message) => {
   throw new NovelError(code, message);
 };
 function object(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value))
-    fail("bad_source", "须提供有效对象");
-  return value as Record<string, unknown>;
+  if (!isRecord(value)) fail("bad_source", "须提供有效对象");
+  return value;
 }
 function sourceSelector(value: unknown) {
   const source = object(value);
-  if (typeof source.chapter !== "string" || (source.kind !== "chapter" && source.kind !== "candidate"))
+  if (
+    typeof source.chapter !== "string" ||
+    (source.kind !== "chapter" && source.kind !== "candidate")
+  )
     fail("bad_source", "须指定章节和源类型");
   // 判别联合：kind=candidate 时 candidate 必有，调用方不必断言
   if (source.kind === "candidate") {

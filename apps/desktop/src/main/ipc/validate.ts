@@ -1,12 +1,12 @@
+import { isRecord } from "../../../../../packages/core/src/parse";
 import { FONT_SIZE } from "../../appearance";
 import type { Focus, Target } from "../../context";
 import type { Appearance } from "../../appearance";
 import type { RequestOptions } from "./contract";
 
 export function asRecord(value: unknown, label: string): Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value))
-    throw new Error(`参数无效：${label}应为对象`);
-  return value as Record<string, unknown>;
+  if (!isRecord(value)) throw new Error(`参数无效：${label}应为对象`);
+  return value;
 }
 
 export function parseMode(value: unknown): Target["mode"] {

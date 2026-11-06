@@ -25,7 +25,7 @@ import { ConfirmDialog } from "../features/confirm/ConfirmDialog";
 function App() {
   const app = useDesktopController();
   const { system, state, set } = app;
-  const onContext = React.useCallback((context: WorkspaceContext) => set({context}), [set]);
+  const onContext = React.useCallback((context: WorkspaceContext) => set({ context }), [set]);
   if (!system)
     return (
       <div className="startup">

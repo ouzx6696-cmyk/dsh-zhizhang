@@ -28,7 +28,10 @@ export const candidateUnifyStage = defineTool({
       MultiDraftPort.requireEnabled();
     } catch (err) {
       if (!(err instanceof Error)) throw err;
-      fail(err.message, ("code" in err && typeof err.code === "string" && err.code) || MultiDraftPort.disabledCode);
+      fail(
+        err.message,
+        ("code" in err && typeof err.code === "string" && err.code) || MultiDraftPort.disabledCode,
+      );
     }
     const content = asString(args, "content", { required: true, trim: false });
     if (!content.trim()) fail("content 不能为空");

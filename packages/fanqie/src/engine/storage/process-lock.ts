@@ -16,10 +16,10 @@ const WAIT_MS = 10000;
 
 /** owner.json 的落盘形状；由本模块独占写出。 */
 interface LockOwner {
-    id: string;
-    pid: number;
-    host: string;
-    createdAt: string;
+  id: string;
+  pid: number;
+  host: string;
+  createdAt: string;
 }
 
 /**
@@ -28,48 +28,75 @@ interface LockOwner {
  * Only cooperating writers participate; external edits remain unprotected.
  */
 export async function withResourceLock<T>(root: string, fn: () => Promise<T>): Promise<T> {
-    await assertWorkspaceWritable(root);
-    await assertSafeAncestors(path.join(root, ".lock-check"));
-    const key = await realpath(root);
-    const previous = held.getStore();
-    if (previous?.has(key)) return fn();
-    return withLock(`resource:${key}`, async () => {
-        const dir = path.join(key, LOCK_DIR);
-        const ownerFile = path.join(dir, "owner.json");
-        const owner = { id: randomUUID(), pid: process.pid, host: hostname(), createdAt: new Date().toISOString() };
-        const deadline = Date.now() + WAIT_MS;
-        for (;;) {
-            try { await mkdir(dir); break; }
-            catch (err) {
-                if (!isFsError(err, "EEXIST")) throw err;
-                if (Date.now() >= deadline)
-                    throw new NovelError("resource_locked", `资源正被其他进程使用，或遗留写入锁：${dir}。请先确认没有进程正在写入，再人工核对锁和未完成操作；不会仅凭超时自动清锁。`);
-                await new Promise((resolve) => setTimeout(resolve, 50));
-            }
-        }
-        try {
-            const handle = await open(ownerFile, "wx", 0o600);
-            try { await handle.writeFile(JSON.stringify(owner) + "\n"); await handle.sync(); }
-            finally { await handle.close(); }
-        }
-        catch (err) {
-            // A partly created lock is kept for inspection rather than removed blindly.
-            throw new NovelError("resource_lock_invalid", `无法建立锁所有权记录：${dir}；请确认没有写入进程后人工核对。${err instanceof Error ? err.message : String(err)}`);
-        }
-        try {
-            const next = new Set(previous ?? []);
-            next.add(key);
-            return await held.run(next, fn);
-        }
-        finally {
-            let current: LockOwner;
-            try { current = JSON.parse(await readFile(ownerFile, "utf8")); }
-            catch (error) { throw new NovelError("resource_lock_invalid", `锁记录不可读，已保留 ${dir}，请人工核对。（${errorText(error)}）`); }
-            if (current.id !== owner.id)
-                throw new NovelError("resource_lock_invalid", `锁所有权变化，已保留 ${dir}，请人工核对。`);
-            await unlink(ownerFile);
-            try { await rmdir(dir); }
-            catch (error) { throw new NovelError("resource_lock_invalid", `锁目录未能移除：${dir}，请人工核对。（${errorText(error)}）`); }
-        }
-    });
+  await assertWorkspaceWritable(root);
+  await assertSafeAncestors(path.join(root, ".lock-check"));
+  const key = await realpath(root);
+  const previous = held.getStore();
+  if (previous?.has(key)) return fn();
+  return withLock(`resource:${key}`, async () => {
+    const dir = path.join(key, LOCK_DIR);
+    const ownerFile = path.join(dir, "owner.json");
+    const owner = {
+      id: randomUUID(),
+      pid: process.pid,
+      host: hostname(),
+      createdAt: new Date().toISOString(),
+    };
+    const deadline = Date.now() + WAIT_MS;
+    for (;;) {
+      try {
+        await mkdir(dir);
+        break;
+      } catch (err) {
+        if (!isFsError(err, "EEXIST")) throw err;
+        if (Date.now() >= deadline)
+          throw new NovelError(
+            "resource_locked",
+            `资源正被其他进程使用，或遗留写入锁：${dir}。请先确认没有进程正在写入，再人工核对锁和未完成操作；不会仅凭超时自动清锁。`,
+          );
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    }
+    try {
+      const handle = await open(ownerFile, "wx", 0o600);
+      try {
+        await handle.writeFile(JSON.stringify(owner) + "\n");
+        await handle.sync();
+      } finally {
+        await handle.close();
+      }
+    } catch (err) {
+      // A partly created lock is kept for inspection rather than removed blindly.
+      throw new NovelError(
+        "resource_lock_invalid",
+        `无法建立锁所有权记录：${dir}；请确认没有写入进程后人工核对。${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    try {
+      const next = new Set(previous ?? []);
+      next.add(key);
+      return await held.run(next, fn);
+    } finally {
+      let current: LockOwner;
+      try {
+        current = JSON.parse(await readFile(ownerFile, "utf8"));
+      } catch (error) {
+        throw new NovelError(
+          "resource_lock_invalid",
+          `锁记录不可读，已保留 ${dir}，请人工核对。（${errorText(error)}）`,
+        );
+      }
+      if (current.id !== owner.id)
+        throw new NovelError("resource_lock_invalid", `锁所有权变化，已保留 ${dir}，请人工核对。`);
+      await unlink(ownerFile);
+      try {
+        await rmdir(dir);
+      } catch (error) {
+        throw new NovelError(
+          "resource_lock_invalid",
+          `锁目录未能移除：${dir}，请人工核对。（${errorText(error)}）`,
+        );
+      }
+    }
+  });
 }

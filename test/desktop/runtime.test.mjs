@@ -270,9 +270,7 @@ test("真实 Pi：建书归属、候选定位、独立编辑、角色模型、�
       intent: "write",
     });
     await handoff.promise;
-    const handoffCall = model.calls
-      .filter((call) => call.model === "mock-writer")
-      .at(-1);
+    const handoffCall = model.calls.filter((call) => call.model === "mock-writer").at(-1);
     assert.ok(handoffCall);
     const handoffText = handoffCall.messages
       .map((message) =>
@@ -602,9 +600,7 @@ test("首轮审读交接允许无旧回报，恢复须先备份并拒绝锁和�
       { chapter: "c001", intent: "review" },
     );
     await handoff.promise;
-    const handoffCall = model.calls
-      .filter((call) => call.model === "mock-writer")
-      .at(-1);
+    const handoffCall = model.calls.filter((call) => call.model === "mock-writer").at(-1);
     assert.ok(handoffCall);
     const handoffText = handoffCall.messages
       .map((message) =>
@@ -930,9 +926,15 @@ test("会话历史不可访问不能显示成空历史", async () => {
     await mkdir(directory, { recursive: true });
     const file = path.join(home, "not-a-directory");
     await writeFile(file, "x");
-    for (const marker of [path.join(file, "session.jsonl"), path.join(file, "nested", "session.jsonl")]) {
+    for (const marker of [
+      path.join(file, "session.jsonl"),
+      path.join(file, "nested", "session.jsonl"),
+    ]) {
       await writeFile(path.join(directory, "current"), marker);
-      await assert.rejects(host.view(target), (error) => error.code === "ENOTDIR" || error.code === "unsafe_path");
+      await assert.rejects(
+        host.view(target),
+        (error) => error.code === "ENOTDIR" || error.code === "unsafe_path",
+      );
     }
     await writeFile(path.join(directory, "current"), path.join(home, "missing", "session.jsonl"));
     assert.deepEqual((await host.view(target)).messages, []);
@@ -1091,7 +1093,11 @@ test("PI 上下文：连续请求和重启保持历史前缀，缓存用量使�
     assert.equal(usage[1].cacheWrite, 100);
     const { sessionUsage } = await import("../../apps/desktop/out-test/usage.mjs");
     const snapshot = await sessionUsage(host, target);
-    assert.equal((await sessionUsage(host, target)).stats, snapshot.stats, "同一会话版本复用统计，不重扫历史");
+    assert.equal(
+      (await sessionUsage(host, target)).stats,
+      snapshot.stats,
+      "同一会话版本复用统计，不重扫历史",
+    );
     const session = await host.open(target),
       id = session.sessionId;
     assert.equal(session.settingsManager.getCompactionSettings().enabled, true);
@@ -1219,7 +1225,6 @@ test("旧目录对话只迁移一次，后续读取不访问旧目录", async ()
   }
 });
 
-
 test("作者素材可保存，未读取网页仍拒绝且不覆盖旧卡", async () => {
   const home = await mkdtemp(path.join(tmpdir(), "writer-source-"));
   const target = { mode: "toutiao", root: path.join(home, "articles") };
@@ -1227,20 +1232,44 @@ test("作者素材可保存，未读取网页仍拒绝且不覆盖旧卡", async
   const article = await store.create("source", { date: "2026-11-05" });
   target.article = article.id;
   const card = { 内容线: "资讯线", 出处: [{ 事实: "26户", 链接: "作者素材" }] };
-  const model = await fakeModel({ "mock-writer": [
-    { name: "toutiao_card_set", input: { id: article.id, card } },
-    { name: "toutiao_card_patch", input: { id: article.id, patch: { 出处: [{ 事实: "26户", 链接: "https://example.com/unread" }] } } },
-    { text: "已核对" },
-  ] });
+  const model = await fakeModel({
+    "mock-writer": [
+      { name: "toutiao_card_set", input: { id: article.id, card } },
+      {
+        name: "toutiao_card_patch",
+        input: {
+          id: article.id,
+          patch: { 出处: [{ 事实: "26户", 链接: "https://example.com/unread" }] },
+        },
+      },
+      { text: "已核对" },
+    ],
+  });
   const done = settled();
-  const host = new Sessions({ home, python: "python3", settings: () => models(model.url), emit: e => { if(e.event?.type === "agent_settled") done.finish(); }, confirm: async () => false, options: {}, created: async () => {}, extras: {} });
+  const host = new Sessions({
+    home,
+    python: "python3",
+    settings: () => models(model.url),
+    emit: (e) => {
+      if (e.event?.type === "agent_settled") done.finish();
+    },
+    confirm: async () => false,
+    options: {},
+    created: async () => {},
+    extras: {},
+  });
   try {
-    await host.send(target, "只使用作者素材"); await done.promise;
+    await host.send(target, "只使用作者素材");
+    await done.promise;
     assert.deepEqual((await store.readCard(article.id)).出处, card.出处);
-    const results = model.calls.at(-1).messages.filter(m => m.role === "tool");
-    assert.ok(results.some(m => m.content.includes("writer_read_url")));
-    assert.ok(results.every(m => !m.content.includes("Invalid URL")));
-  } finally { await host.dispose(); await model.close(); await rm(home, { recursive:true, force:true }); }
+    const results = model.calls.at(-1).messages.filter((m) => m.role === "tool");
+    assert.ok(results.some((m) => m.content.includes("writer_read_url")));
+    assert.ok(results.every((m) => !m.content.includes("Invalid URL")));
+  } finally {
+    await host.dispose();
+    await model.close();
+    await rm(home, { recursive: true, force: true });
+  }
 });
 
 test("Exa 轻量契约与 HTTP 错误不静默升级", async () => {
@@ -1248,8 +1277,11 @@ test("Exa 轻量契约与 HTTP 错误不静默升级", async () => {
   const original = globalThis.fetch;
   const calls = [];
   globalThis.fetch = async (url, init) => {
-    calls.push({url, init});
-    return new Response(JSON.stringify({results:[{title:"资料",url:"https://example.com/source"}]}), {status:200});
+    calls.push({ url, init });
+    return new Response(
+      JSON.stringify({ results: [{ title: "资料", url: "https://example.com/source" }] }),
+      { status: 200 },
+    );
   };
   try {
     const results = await searchSources("中文资料", "fixture-key");
@@ -1257,77 +1289,167 @@ test("Exa 轻量契约与 HTTP 错误不静默升级", async () => {
     assert.equal(results.cost, undefined);
     assert.equal(calls[0].url, "https://api.exa.ai/search");
     assert.equal(calls[0].init.headers["x-api-key"], "fixture-key");
-    assert.deepEqual(JSON.parse(calls[0].init.body), {query:"中文资料",type:"lite",numResults:3});
+    assert.deepEqual(JSON.parse(calls[0].init.body), {
+      query: "中文资料",
+      type: "lite",
+      numResults: 3,
+    });
     assert.ok(!calls[0].init.body.includes("fixture-key"));
-    globalThis.fetch = async () => new Response("unsupported", {status:400});
+    globalThis.fetch = async () => new Response("unsupported", { status: 400 });
     await assert.rejects(searchSources("资料", "fixture-key"), /HTTP 400/);
-  } finally { globalThis.fetch = original; }
+  } finally {
+    globalThis.fetch = original;
+  }
 });
 
 test("压缩预算按窗口和输出预留计算，设置持久化", async () => {
-  const { parseContextSettings, compactionSettings } = await import("../../apps/desktop/out-test/context-settings.mjs");
-  const value = parseContextSettings({enabled:false,triggerPercent:80,budget:0,keepRecentTokens:20000});
-  assert.deepEqual(compactionSettings(value,128000,8192), {enabled:false,reserveTokens:25600,keepRecentTokens:20000});
-  assert.equal(compactionSettings({...value,budget:64000},1024000,65536).reserveTokens,960000);
-  assert.throws(() => parseContextSettings({...value,triggerPercent:99}), /压缩/);
-  assert.throws(() => compactionSettings(value,8192,8192), /输出预算/);
-  const home=await mkdtemp(path.join(tmpdir(),"writer-context-"));
-  const secrets={available:()=>false,encrypt:()=>{throw Error("unavailable");},decrypt:()=>{throw Error("unavailable");}};
-  try { const store=new Settings(home,secrets); await store.saveContext(value); const reopened=new Settings(home,secrets); await reopened.load(); assert.deepEqual(reopened.public().context,value); }
-  finally { await rm(home,{recursive:true,force:true}); }
+  const { parseContextSettings, compactionSettings } =
+    await import("../../apps/desktop/out-test/context-settings.mjs");
+  const value = parseContextSettings({
+    enabled: false,
+    triggerPercent: 80,
+    budget: 0,
+    keepRecentTokens: 20000,
+  });
+  assert.deepEqual(compactionSettings(value, 128000, 8192), {
+    enabled: false,
+    reserveTokens: 25600,
+    keepRecentTokens: 20000,
+  });
+  assert.equal(
+    compactionSettings({ ...value, budget: 64000 }, 1024000, 65536).reserveTokens,
+    960000,
+  );
+  assert.throws(() => parseContextSettings({ ...value, triggerPercent: 99 }), /压缩/);
+  assert.throws(() => compactionSettings(value, 8192, 8192), /输出预算/);
+  const home = await mkdtemp(path.join(tmpdir(), "writer-context-"));
+  const secrets = {
+    available: () => false,
+    encrypt: () => {
+      throw Error("unavailable");
+    },
+    decrypt: () => {
+      throw Error("unavailable");
+    },
+  };
+  try {
+    const store = new Settings(home, secrets);
+    await store.saveContext(value);
+    const reopened = new Settings(home, secrets);
+    await reopened.load();
+    assert.deepEqual(reopened.public().context, value);
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
 });
 
 test("手动压缩保留原始历史和会话，自动阈值会产生压缩条目", async () => {
   for (const automatic of [false, true]) {
-    const home=await mkdtemp(path.join(tmpdir(),"writer-compact-"));
-    const model=await fakeModel({"mock-writer":[{text:"四项事实已记录",usage:{prompt_tokens:110000,completion_tokens:10,total_tokens:110010}},{text:"摘要：保留四项事实"}]});
-    const done=settled();
-    const target={mode:"toutiao",root:path.join(home,"articles")};
-    const events=[];
-    const host=new Sessions({home,python:"python3",settings:()=>models(model.url),emit:e=>{events.push(e);if(e.event?.type==="agent_settled")done.finish();},confirm:async()=>false,options:{},created:async()=>{},extras:{context:()=>({enabled:automatic,triggerPercent:80,budget:0,keepRecentTokens:0})}});
+    const home = await mkdtemp(path.join(tmpdir(), "writer-compact-"));
+    const model = await fakeModel({
+      "mock-writer": [
+        {
+          text: "四项事实已记录",
+          usage: { prompt_tokens: 110000, completion_tokens: 10, total_tokens: 110010 },
+        },
+        { text: "摘要：保留四项事实" },
+      ],
+    });
+    const done = settled();
+    const target = { mode: "toutiao", root: path.join(home, "articles") };
+    const events = [];
+    const host = new Sessions({
+      home,
+      python: "python3",
+      settings: () => models(model.url),
+      emit: (e) => {
+        events.push(e);
+        if (e.event?.type === "agent_settled") done.finish();
+      },
+      confirm: async () => false,
+      options: {},
+      created: async () => {},
+      extras: {
+        context: () => ({ enabled: automatic, triggerPercent: 80, budget: 0, keepRecentTokens: 0 }),
+      },
+    });
     try {
-      await host.send(target,"林砚是修表师，阿禾对花生过敏，桥退潮出现，钥匙只开档案柜。");
+      await host.send(target, "林砚是修表师，阿禾对花生过敏，桥退潮出现，钥匙只开档案柜。");
       await done.promise;
-      const session=await host.open(target);
+      const session = await host.open(target);
       await session.waitForIdle();
-      const id=session.sessionId;
-      if(!automatic) await host.compact(target, "保留四项事实");
-      assert.equal(session.sessionId,id);
-      const entries=session.sessionManager.getEntries();
-      assert.equal(entries.filter(e=>e.type==='compaction').length,1);
-      assert.ok(entries.some(e=>e.type==='message' && e.message.role==='user'));
-      assert.ok(entries.some(e=>e.type==='message' && e.message.role==='assistant'));
-      assert.ok(events.some(e=>e.event?.type==='compaction_start'));
-      assert.ok(events.some(e=>e.event?.type==='compaction_end'));
-      assert.equal(session.isIdle,true);
-      assert.equal(session.getContextUsage().tokens,null);
-    } finally {await host.dispose();await model.close();await rm(home,{recursive:true,force:true});}
+      const id = session.sessionId;
+      if (!automatic) await host.compact(target, "保留四项事实");
+      assert.equal(session.sessionId, id);
+      const entries = session.sessionManager.getEntries();
+      assert.equal(entries.filter((e) => e.type === "compaction").length, 1);
+      assert.ok(entries.some((e) => e.type === "message" && e.message.role === "user"));
+      assert.ok(entries.some((e) => e.type === "message" && e.message.role === "assistant"));
+      assert.ok(events.some((e) => e.event?.type === "compaction_start"));
+      assert.ok(events.some((e) => e.event?.type === "compaction_end"));
+      assert.equal(session.isIdle, true);
+      assert.equal(session.getContextUsage().tokens, null);
+    } finally {
+      await host.dispose();
+      await model.close();
+      await rm(home, { recursive: true, force: true });
+    }
   }
 });
 
 test("手动压缩互斥，可取消且不删除原始历史", async () => {
-  const home=await mkdtemp(path.join(tmpdir(),"writer-compact-cancel-"));
-  const model=await fakeModel({"mock-writer":[{text:"已记录素材"},{wait:true}]});
-  const target={mode:"toutiao",root:path.join(home,"articles")};
-  const done=settled(); let start;
-  const started=new Promise(resolve=>{start=resolve;});
-  const host=new Sessions({home,python:"python3",settings:()=>models(model.url),emit:e=>{if(e.event?.type==='agent_settled')done.finish();if(e.event?.type==='compaction_start')start();},confirm:async()=>false,options:{},created:async()=>{},extras:{context:()=>({enabled:false,triggerPercent:80,budget:0,keepRecentTokens:0})}});
+  const home = await mkdtemp(path.join(tmpdir(), "writer-compact-cancel-"));
+  const model = await fakeModel({ "mock-writer": [{ text: "已记录素材" }, { wait: true }] });
+  const target = { mode: "toutiao", root: path.join(home, "articles") };
+  const done = settled();
+  let start;
+  const started = new Promise((resolve) => {
+    start = resolve;
+  });
+  const host = new Sessions({
+    home,
+    python: "python3",
+    settings: () => models(model.url),
+    emit: (e) => {
+      if (e.event?.type === "agent_settled") done.finish();
+      if (e.event?.type === "compaction_start") start();
+    },
+    confirm: async () => false,
+    options: {},
+    created: async () => {},
+    extras: {
+      context: () => ({ enabled: false, triggerPercent: 80, budget: 0, keepRecentTokens: 0 }),
+    },
+  });
   try {
-    await host.send(target,"保留作者素材");await done.promise;
-    const pending=host.compact(target,"");
-    const cancelled=assert.rejects(pending,/cancel|abort/i);
+    await host.send(target, "保留作者素材");
+    await done.promise;
+    const pending = host.compact(target, "");
+    const cancelled = assert.rejects(pending, /cancel|abort/i);
     await started;
-    await assert.rejects(host.compact(target,""),/当前任务|停止任务/);
-    await assert.rejects(host.send(target,"不应发出"),/正在压缩/);
-    await host.stop(target);await cancelled;
-    const session=await host.open(target);
-    assert.equal(session.isIdle,true);
-    assert.equal(host.compactions.size,0);
-    assert.equal(session.sessionManager.getEntries().filter(e=>e.type==='compaction').length,0);
-    assert.ok(session.sessionManager.getEntries().some(e=>e.type==='message' && e.message.role==='user'));
-    model.push("mock-writer",{status:401,error:"invalid api key"});
-    await assert.rejects(host.compact(target,""));
-    assert.equal(session.isIdle,true);
-    assert.equal(host.compactions.size,0);
-  } finally {await host.dispose();await model.close();await rm(home,{recursive:true,force:true});}
+    await assert.rejects(host.compact(target, ""), /当前任务|停止任务/);
+    await assert.rejects(host.send(target, "不应发出"), /正在压缩/);
+    await host.stop(target);
+    await cancelled;
+    const session = await host.open(target);
+    assert.equal(session.isIdle, true);
+    assert.equal(host.compactions.size, 0);
+    assert.equal(
+      session.sessionManager.getEntries().filter((e) => e.type === "compaction").length,
+      0,
+    );
+    assert.ok(
+      session.sessionManager
+        .getEntries()
+        .some((e) => e.type === "message" && e.message.role === "user"),
+    );
+    model.push("mock-writer", { status: 401, error: "invalid api key" });
+    await assert.rejects(host.compact(target, ""));
+    assert.equal(session.isIdle, true);
+    assert.equal(host.compactions.size, 0);
+  } finally {
+    await host.dispose();
+    await model.close();
+    await rm(home, { recursive: true, force: true });
+  }
 });

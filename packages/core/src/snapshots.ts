@@ -18,9 +18,7 @@ export async function snapshotFiles(root: string, files: string[]) {
   const output = path.join(
     root,
     ".writer-snapshots",
-    new Date().toISOString().replace(/[:.]/g, "-") +
-      "-" +
-      randomUUID().slice(0, 8),
+    new Date().toISOString().replace(/[:.]/g, "-") + "-" + randomUUID().slice(0, 8),
   );
   await mkdir(output, { recursive: true });
   for (const [index, file] of existing.entries())

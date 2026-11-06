@@ -46,13 +46,15 @@ function reqStr(args: Record<string, unknown>, key: string): string {
 /** 脚本输出是信任边界：字段缺省视为空，类型不符即判脚本失败，不让坏数据混进回执。 */
 function scriptArray(value: unknown, label: string): unknown[] {
   if (value === undefined) return [];
-  if (!Array.isArray(value)) throw new WriterError("SCRIPT_FAILED", `质检脚本输出异常：${label} 应为数组`);
+  if (!Array.isArray(value))
+    throw new WriterError("SCRIPT_FAILED", `质检脚本输出异常：${label} 应为数组`);
   return value;
 }
 function scriptStrArray(value: unknown, label: string): string[] {
   const out: string[] = [];
   for (const item of scriptArray(value, label)) {
-    if (typeof item !== "string") throw new WriterError("SCRIPT_FAILED", `质检脚本输出异常：${label} 含非字符串项`);
+    if (typeof item !== "string")
+      throw new WriterError("SCRIPT_FAILED", `质检脚本输出异常：${label} 含非字符串项`);
     out.push(item);
   }
   return out;
@@ -372,7 +374,9 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
         // 角色由挂载决定，不信任参数：主写手不能把自己的稿子记成编辑版
         const role =
           deps.role === "editor" ? "editor" : args.role === "author" ? "author" : "writer";
-        const m = await (await st(exec)).stageDraft(
+        const m = await (
+          await st(exec)
+        ).stageDraft(
           reqStr(args, "id"),
           text.replace(/\r\n/g, "\n"),
           role,
@@ -488,7 +492,10 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
         });
         const warn =
           cardText === undefined ? ["没有立项卡，未做立项卡与台账核对；交稿前必须补卡并重跑"] : [];
-        const report = r.report && typeof r.report === "object" ? (r.report as { items?: unknown[] }) : undefined;
+        const report =
+          r.report && typeof r.report === "object"
+            ? (r.report as { items?: unknown[] })
+            : undefined;
         return {
           pass: rec.pass,
           score: rec.score,

@@ -44,7 +44,8 @@ function fanqie(bridge: DesktopBridge): FanqieData {
       call(bridge, ROUTES.projects, { query: { refresh: refresh ? 1 : "" }, signal }),
     snapshot: (base, work, signal, scope = "all") =>
       call(bridge, ROUTES.snapshot, { query: { base, work, scope }, signal }),
-    chapter: (base, work, id, signal) => call(bridge, ROUTES.chapter, { query: { base, work, id }, signal }),
+    chapter: (base, work, id, signal) =>
+      call(bridge, ROUTES.chapter, { query: { base, work, id }, signal }),
     saveChapter: (payload) => call(bridge, ROUTES.saveChapter, { method: "POST", body: payload }),
     candidate: (base, work, id, signal) =>
       call(bridge, ROUTES.candidate, { query: { base, work, id }, signal }),
@@ -54,13 +55,20 @@ function fanqie(bridge: DesktopBridge): FanqieData {
       call(bridge, ROUTES.stageRevision, { method: "POST", body: payload }),
     accept: (payload) => call(bridge, ROUTES.accept, { method: "POST", body: payload }),
     chapterAction: (action, payload) =>
-      call(bridge, action === "acknowledge" ? ROUTES.acknowledge : action === "review" ? ROUTES.reviewChapter : ROUTES.finalizeChapter, {
-        method: "POST",
-        body: payload,
-      }),
+      call(
+        bridge,
+        action === "acknowledge"
+          ? ROUTES.acknowledge
+          : action === "review"
+            ? ROUTES.reviewChapter
+            : ROUTES.finalizeChapter,
+        {
+          method: "POST",
+          body: payload,
+        },
+      ),
     unifyPrepare: (payload) => call(bridge, ROUTES.unifyPrepare, { method: "POST", body: payload }),
-    capabilities: (base, signal) =>
-      call(bridge, ROUTES.capabilities, { query: { base }, signal }),
+    capabilities: (base, signal) => call(bridge, ROUTES.capabilities, { query: { base }, signal }),
     deliver: (payload) => call(bridge, ROUTES.deliver, { method: "POST", body: payload }),
   };
 }
@@ -68,8 +76,7 @@ function fanqie(bridge: DesktopBridge): FanqieData {
 function toutiao(bridge: DesktopBridge): ToutiaoData {
   return {
     articles: (signal) => call(bridge, ROUTES.articles, { signal }),
-    article: (root, id, signal) =>
-      call(bridge, ROUTES.article, { query: { root, id }, signal }),
+    article: (root, id, signal) => call(bridge, ROUTES.article, { query: { root, id }, signal }),
     adopt: (article) =>
       call(bridge, ROUTES.adoptArticle, {
         method: "POST",
@@ -98,7 +105,8 @@ function profiles(bridge: DesktopBridge, mode: string): ProfilesData {
     create: (payload) => call(bridge, base + "/create", { method: "POST", body: payload }),
     save: (profile, id, text) =>
       call(bridge, base + "/save", { method: "POST", body: { profile, id, text } }),
-    reset: (profile, id) => call(bridge, base + "/reset", { method: "POST", body: { profile, id } }),
+    reset: (profile, id) =>
+      call(bridge, base + "/reset", { method: "POST", body: { profile, id } }),
     rename: (profile, name, note) =>
       call(bridge, base + "/rename", { method: "POST", body: { profile, name, note } }),
     remove: (profile) =>

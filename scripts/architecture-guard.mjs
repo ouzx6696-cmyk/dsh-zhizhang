@@ -23,6 +23,7 @@ const LAYERS = { ui: 0, core: 0, workbench: 1, toutiao: 2, fanqie: 2, desktop: 3
 const BROWSER_SAFE = [
   "packages/core/src/errors.ts",
   "packages/fanqie/src/engine/domain/manuscript.ts",
+  "packages/workbench/src/routes.ts",
 ];
 const problems = [],
   warnings = [],
@@ -154,6 +155,11 @@ function checkDependencies(file) {
       report(file, `存储层不能依赖业务/查询代码 ${rel}`);
     if (BROWSER_SAFE.includes(file.rel) && /\/(storage|ports)\//.test(rel))
       report(file, `文本分析须保持浏览器可用，不能引用 ${rel}`);
+    if (
+      BROWSER_SAFE.includes(file.rel) &&
+      rel.replace(/\.js$/, ".ts") === "packages/core/src/fsx.ts"
+    )
+      report(file, "浏览器可用模块不能引用 fsx（它会拖入 node:fs）");
     if (!typeOnly) {
       const resolved = ts.resolveModuleName(
         spec,
@@ -293,8 +299,14 @@ const rules = [
             swallowed(node.arguments[0].body);
         if (!caught) return;
         const { line } = file.ast.getLineAndCharacterOfPosition(node.getStart(file.ast));
-        if ([lines[line], lines[line - 1]].some((text) => /\/\/\s*allow-catch:\s*\S/.test(text)))
-          return;
+        // Prettier 会把 catch 前的注释挪进块内首行，所以注释位置要一直看到第一条语句。
+        const body = ts.isCatchClause(node) ? node.block : node.arguments[0].body;
+        const first = ts.isBlock(body) ? body.statements[0] : undefined;
+        const firstLine = first
+          ? file.ast.getLineAndCharacterOfPosition(first.getStart(file.ast)).line
+          : line + 1;
+        const candidates = [lines[line], lines[line - 1], ...lines.slice(line + 1, firstLine)];
+        if (candidates.some((text) => /\/\/\s*allow-catch:\s*\S/.test(text))) return;
         swallowedCount++;
         report(file, `${line + 1}: 吞错须注明 // allow-catch: 原因`);
       });
@@ -416,7 +428,8 @@ const repositoryRules = [
       );
       if (!Number.isInteger(baseline.any) || baseline.any < 0)
         problems.push('基线文件缺少整数字段 "any"');
-      else if (anyCount > baseline.any) problems.push(`any 数量 ${anyCount} 超过基线 ${baseline.any}`);
+      else if (anyCount > baseline.any)
+        problems.push(`any 数量 ${anyCount} 超过基线 ${baseline.any}`);
       if (!Number.isInteger(baseline.nonNull) || baseline.nonNull < 0)
         problems.push('基线文件缺少整数字段 "nonNull"');
       else if (nonNullCount > baseline.nonNull)

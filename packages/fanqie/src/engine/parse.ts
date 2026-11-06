@@ -1,8 +1,8 @@
+import { isRecord } from "../../../core/src/parse.js";
 import { NovelError } from "./errors.js";
 export function asObject(value: unknown, label = "参数"): Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value))
-    throw new NovelError("bad_args", `${label}必须是对象`);
-  return value as Record<string, unknown>;
+  if (!isRecord(value)) throw new NovelError("bad_args", `${label}必须是对象`);
+  return value;
 }
 type StringOptions = { required?: boolean; trim?: boolean };
 export function asString(
@@ -37,12 +37,20 @@ export function boolArg(args: Record<string, unknown>, key: string): boolean | u
   if (typeof value !== "boolean") throw new NovelError("bad_args", `参数 ${key} 必须是布尔值`);
   return value;
 }
-export function asStringArray(args:Record<string,unknown>,key:string,opts:{required:true;trim?:boolean}):string[];
-export function asStringArray(args:Record<string,unknown>,key:string,opts?:{required?:boolean;trim?:boolean}):string[]|undefined;
 export function asStringArray(
   args: Record<string, unknown>,
   key: string,
-  opts: { required?: boolean; trim?:boolean } = {},
+  opts: { required: true; trim?: boolean },
+): string[];
+export function asStringArray(
+  args: Record<string, unknown>,
+  key: string,
+  opts?: { required?: boolean; trim?: boolean },
+): string[] | undefined;
+export function asStringArray(
+  args: Record<string, unknown>,
+  key: string,
+  opts: { required?: boolean; trim?: boolean } = {},
 ): string[] | undefined {
   const value = args[key];
   if (value === undefined) {
@@ -51,7 +59,7 @@ export function asStringArray(
   }
   if (!Array.isArray(value) || !value.every((item: unknown) => typeof item === "string"))
     throw new NovelError("bad_args", `参数 ${key} 必须是字符串数组`);
-  return opts.trim === false?value:value.map((item) => item.trim()).filter(Boolean);
+  return opts.trim === false ? value : value.map((item) => item.trim()).filter(Boolean);
 }
 
 export function asEnum<T extends readonly string[]>(

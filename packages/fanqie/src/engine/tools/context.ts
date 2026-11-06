@@ -36,7 +36,11 @@ export function fail(message: string, code: string = "bad_args"): never {
  * 与 asString 保持同一口径：类型不对就硬拒，绝不静默降级成空数组——
  * 静默降级会让调用方拿到"没卡/没结果"的正常回执，排查成本极高。
  */
-export function asArray(args: Record<string, unknown>, key: string, opts: { required?: boolean; kind?: string } = {}) {
+export function asArray(
+  args: Record<string, unknown>,
+  key: string,
+  opts: { required?: boolean; kind?: string } = {},
+) {
   const value = args[key];
   if (value === undefined || value === null) {
     if (opts.required) fail(`参数 ${key} 必填`);
@@ -54,7 +58,8 @@ export async function openWork(exec: OpenWorkContext, args: Record<string, unkno
   }
   if (!key) {
     const all = await listWorks(paths);
-    if (all.length === 0) fail("还没有作品，先用 fanqie_project_create 创建");
+    // 领域码而非文案：status 这类仪表盘要据此给出起步指引，不能让调用方去匹配中文。
+    if (all.length === 0) fail("还没有作品，先用 fanqie_project_create 创建", "no_work");
     if (all.length > 1) {
       fail(
         `本会话未指定作品，且目录中有 ${all.length} 部：${all.map((w) => `${w.key}（${w.title}）`).join("、")}。请传 work 或先 fanqie_project_open`,

@@ -152,9 +152,7 @@ export function createFanqieActions({ ref, viewRef, alive, refresh, dispatch }) 
         body,
         expectedRevision,
         force: force === true,
-        ...(candidateId
-          ? { mode: "candidate", editOf: candidateId, draftLabel: "作者修订" }
-          : {}),
+        ...(candidateId ? { mode: "candidate", editOf: candidateId, draftLabel: "作者修订" } : {}),
       });
       await refresh({ soft: false });
       if (candidateId && data.candidateId) {

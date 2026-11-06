@@ -140,10 +140,10 @@ export const libraryCardStage = defineTool({
   },
   required: ["title", "source", "body", "mechanisms"],
   async execute(args, exec) {
-    const input=parseStageCardArgs(args);
-    const {title,sourceId,axis}=input;
-    const paths=await openLibrary(exec,args,true);
-    const {candId,warnings}=await LibraryPort.stageCard(paths,input);
+    const input = parseStageCardArgs(args);
+    const { title, sourceId, axis } = input;
+    const paths = await openLibrary(exec, args, true);
+    const { candId, warnings } = await LibraryPort.stageCard(paths, input);
     const lines = [
       `卡候选已暂存：${candId}`,
       `- 标题：${title}`,

@@ -13,12 +13,16 @@ import path from "node:path";
 import { readJsonCached } from "./file-cache.js";
 
 export async function loadEndingLexicon(dir: string): Promise<string[] | undefined> {
-    let raw:unknown;
-    try { raw=await readJsonCached<unknown>(path.join(dir,"quality-lexicon.json")); }
-    catch(error) { if (isMissingFileError(error)) return undefined; throw error; }
-    const obj=asObject(raw,"quality-lexicon");
-    const list=asStringArray(obj,"endingKeywords",{required:true});
-    return list.length ? list:undefined;
+  let raw: unknown;
+  try {
+    raw = await readJsonCached<unknown>(path.join(dir, "quality-lexicon.json"));
+  } catch (error) {
+    if (isMissingFileError(error)) return undefined;
+    throw error;
+  }
+  const obj = asObject(raw, "quality-lexicon");
+  const list = asStringArray(obj, "endingKeywords", { required: true });
+  return list.length ? list : undefined;
 }
 
 import { isMissingFileError } from "./storage/primitives.js";

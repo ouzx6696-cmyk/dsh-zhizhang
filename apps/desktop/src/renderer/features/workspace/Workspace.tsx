@@ -34,7 +34,7 @@ interface VolumeGroup {
 
 function Novel(props: WorkspaceProps) {
   const annotationId = React.useId();
-  const {onContext} = props;
+  const { onContext } = props;
   const { state, view, actions } = useFanqie({
       onTarget: props.onTarget,
       onSourceEditState: props.onSourceEditState,
@@ -48,7 +48,7 @@ function Novel(props: WorkspaceProps) {
     if (props.view !== "writing")
       dispatch({ type: "tab", tab: props.view === "library" ? "library" : "overview" });
   }, [props.view, dispatch]);
-  const {current,activeCand} = view;
+  const { current, activeCand } = view;
   useEffect(() => {
     const chapter = current;
     onContext({
@@ -167,7 +167,9 @@ function Novel(props: WorkspaceProps) {
       return true;
     }),
   }));
-  const ungrouped = view.chapters.filter((chapter: SnapshotChapterRow) => !assigned.has(chapter.id));
+  const ungrouped = view.chapters.filter(
+    (chapter: SnapshotChapterRow) => !assigned.has(chapter.id),
+  );
   if (ungrouped.length)
     groups.push({
       id: "ungrouped",

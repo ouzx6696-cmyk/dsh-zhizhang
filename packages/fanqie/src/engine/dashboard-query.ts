@@ -1,14 +1,8 @@
 /** Read-only writing activity derived from existing chapter versions. */
 import path from "node:path";
 import { readdir } from "node:fs/promises";
+import { isMissingFileError, localDay } from "../../../core/src/fsx.js";
 import { readTextCached } from "./file-cache.js";
-
-const localDay = (date: Date) =>
-  [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, "0"),
-    String(date.getDate()).padStart(2, "0"),
-  ].join("-");
 
 export async function writingActivity(dir: string, chapters: { id: string }[], now = new Date()) {
   const dates = Array.from({ length: 7 }, (_, index) => {
@@ -23,8 +17,8 @@ export async function writingActivity(dir: string, chapters: { id: string }[], n
       batch.map(async (chapter) => {
         const folder = path.join(dir, "revisions", chapter.id);
         const names = await readdir(folder).catch((error) => {
-          if (error.code === "ENOENT") return [];
-          throw error;
+          if (!isMissingFileError(error)) throw error;
+          return [];
         });
         return Promise.all(
           [

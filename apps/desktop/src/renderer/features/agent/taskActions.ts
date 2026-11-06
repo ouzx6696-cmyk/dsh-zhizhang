@@ -55,7 +55,8 @@ export async function deliverAction(deps: TaskActionDependencies, action: string
   const target = deps.selected,
     snapshot = { ...deps.focus };
   if (!target) throw new Error("请先选择作品");
-  if (target.mode === "toutiao" && action !== "new" && !snapshot.article && !target.article) throw new Error("请先选择一篇文章，再执行此操作");
+  if (target.mode === "toutiao" && action !== "new" && !snapshot.article && !target.article)
+    throw new Error("请先选择一篇文章，再执行此操作");
   const body =
     target.mode === "fanqie"
       ? {

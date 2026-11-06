@@ -2,7 +2,7 @@ import { useNotices } from "../../../../ui/src/use-notices.js";
 import { newRequestId } from "../../../../ui/src/request.js";
 import { useSourceGuard } from "../shared/useSourceGuard.js";
 /**
- * 今日头条模式的数据：文章列表（6 秒轮询，页面不可见时暂停）+ 选中文章详情 + 采用 / 投递动作。
+ * 今日头条模式的数据：文章列表（挂载时加载，之后按需刷新）+ 选中文章详情 + 采用 / 投递动作。
  * 只有切到今日头条模式时才挂载，番茄长篇模式不发这些请求。
  */
 import React from "react";

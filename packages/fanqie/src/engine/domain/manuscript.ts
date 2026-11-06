@@ -1,81 +1,103 @@
 /** Source coordinates always refer to the original UTF-16 string, including CRLF. */
 interface TextRun {
-    text: string;
-    start: number;
-    end: number;
-    style?: string;
+  text: string;
+  start: number;
+  end: number;
+  style?: string;
 }
 interface Block {
-    kind: string;
-    start: number;
-    end: number;
-    runs: TextRun[];
+  kind: string;
+  start: number;
+  end: number;
+  runs: TextRun[];
 }
 
 function inlineRuns(text: string, offset: number): TextRun[] {
-    const runs: TextRun[] = [];
-    const pattern = /(`[^`\r\n]+`|\*\*[^*\r\n]+\*\*|\*[^*\r\n]+\*)/g;
-    let position = 0, match;
-    while ((match = pattern.exec(text))) {
-        if (match.index > position) {
-            runs.push({ text: text.slice(position, match.index), start: offset + position, end: offset + match.index });
-        }
-        const delimiter = match[0].startsWith('**') ? 2 : 1;
-        runs.push({
-            text: match[0].slice(delimiter, -delimiter),
-            start: offset + match.index + delimiter,
-            end: offset + match.index + match[0].length - delimiter,
-            style: match[0][0] === '`' ? 'code' : delimiter === 2 ? 'strong' : 'em',
-        });
-        position = match.index + match[0].length;
+  const runs: TextRun[] = [];
+  const pattern = /(`[^`\r\n]+`|\*\*[^*\r\n]+\*\*|\*[^*\r\n]+\*)/g;
+  let position = 0,
+    match;
+  while ((match = pattern.exec(text))) {
+    if (match.index > position) {
+      runs.push({
+        text: text.slice(position, match.index),
+        start: offset + position,
+        end: offset + match.index,
+      });
     }
-    if (position < text.length) runs.push({ text: text.slice(position), start: offset + position, end: offset + text.length });
-    return runs;
+    const delimiter = match[0].startsWith("**") ? 2 : 1;
+    runs.push({
+      text: match[0].slice(delimiter, -delimiter),
+      start: offset + match.index + delimiter,
+      end: offset + match.index + match[0].length - delimiter,
+      style: match[0][0] === "`" ? "code" : delimiter === 2 ? "strong" : "em",
+    });
+    position = match.index + match[0].length;
+  }
+  if (position < text.length)
+    runs.push({ text: text.slice(position), start: offset + position, end: offset + text.length });
+  return runs;
 }
 
 export function parseManuscript(text: string): Block[] {
-    const blocks: Block[] = [];
-    let paragraph: Block | undefined, code: Block | undefined;
-    // exec 循环代替 matchAll：RegExpExecArray 的 index 是必有字段，matchAll 结果的 index 类型可缺省
-    const linePattern = /[^\r\n]*(?:\r\n|\r|\n|$)/g;
-    let match: RegExpExecArray | null;
-    while ((match = linePattern.exec(text))) {
-        if (!match[0]) { linePattern.lastIndex += 1; continue; } // $ 的零宽匹配：exec 不自动推进 lastIndex，须手动步进否则死循环
-        const line = match[0].replace(/[\r\n]+$/, '');
-        const start = match.index, end = start + line.length;
-        if (code) {
-            code.end = end;
-            if (line.startsWith('```')) { code = undefined; continue; }
-            if (code.runs.length) code.runs.push({ text: '\n', start: start - 1, end: start });
-            code.runs.push({ text: line, start, end });
-            continue;
-        }
-        if (line.startsWith('```')) {
-            paragraph = undefined;
-            code = { kind: 'pre', start, end, runs: [] };
-            blocks.push(code);
-            continue;
-        }
-        if (!line.trim()) { paragraph = undefined; continue; }
-        if (/^\s*(-{3,}|\*{3,})\s*$/.test(line)) {
-            paragraph = undefined;
-            blocks.push({ kind: 'hr', start, end, runs: [] });
-            continue;
-        }
-        const heading = /^(#{1,3})\s+/.exec(line), quote = /^>\s?/.exec(line);
-        const prefix = heading ?? quote;
-        if (prefix) {
-            paragraph = undefined;
-            const skip = prefix[0].length;
-            blocks.push({ kind: heading ? 'h' + heading[1].length : 'blockquote', start, end, runs: inlineRuns(line.slice(skip), start + skip) });
-            continue;
-        }
-        if (!paragraph) {
-            paragraph = { kind: 'p', start, end, runs: [] };
-            blocks.push(paragraph);
-        } else paragraph.runs.push({ text: '\n', start: start - 1, end: start });
-        paragraph.end = end;
-        for (const run of inlineRuns(line, start)) paragraph.runs.push(run);
+  const blocks: Block[] = [];
+  let paragraph: Block | undefined, code: Block | undefined;
+  // exec 循环代替 matchAll：RegExpExecArray 的 index 是必有字段，matchAll 结果的 index 类型可缺省
+  const linePattern = /[^\r\n]*(?:\r\n|\r|\n|$)/g;
+  let match: RegExpExecArray | null;
+  while ((match = linePattern.exec(text))) {
+    if (!match[0]) {
+      linePattern.lastIndex += 1;
+      continue;
+    } // $ 的零宽匹配：exec 不自动推进 lastIndex，须手动步进否则死循环
+    const line = match[0].replace(/[\r\n]+$/, "");
+    const start = match.index,
+      end = start + line.length;
+    if (code) {
+      code.end = end;
+      if (line.startsWith("```")) {
+        code = undefined;
+        continue;
+      }
+      if (code.runs.length) code.runs.push({ text: "\n", start: start - 1, end: start });
+      code.runs.push({ text: line, start, end });
+      continue;
     }
-    return blocks;
+    if (line.startsWith("```")) {
+      paragraph = undefined;
+      code = { kind: "pre", start, end, runs: [] };
+      blocks.push(code);
+      continue;
+    }
+    if (!line.trim()) {
+      paragraph = undefined;
+      continue;
+    }
+    if (/^\s*(-{3,}|\*{3,})\s*$/.test(line)) {
+      paragraph = undefined;
+      blocks.push({ kind: "hr", start, end, runs: [] });
+      continue;
+    }
+    const heading = /^(#{1,3})\s+/.exec(line),
+      quote = /^>\s?/.exec(line);
+    const prefix = heading ?? quote;
+    if (prefix) {
+      paragraph = undefined;
+      const skip = prefix[0].length;
+      blocks.push({
+        kind: heading ? "h" + heading[1].length : "blockquote",
+        start,
+        end,
+        runs: inlineRuns(line.slice(skip), start + skip),
+      });
+      continue;
+    }
+    if (!paragraph) {
+      paragraph = { kind: "p", start, end, runs: [] };
+      blocks.push(paragraph);
+    } else paragraph.runs.push({ text: "\n", start: start - 1, end: start });
+    paragraph.end = end;
+    for (const run of inlineRuns(line, start)) paragraph.runs.push(run);
+  }
+  return blocks;
 }

@@ -1,4 +1,4 @@
-import { shortId, exists, isFsError } from "../../../core/src/fsx.js";
+import { shortId, exists, isFsError, resolveInside } from "../../../core/src/fsx.js";
 import { errorText } from "../../../core/src/errors.js";
 
 import { mkdir, realpath } from "node:fs/promises";
@@ -13,6 +13,8 @@ import { atomicWrite, assertSafeAncestors, nowIso } from "./storage/primitives.j
 import { chaptersDir, readChapter } from "./storage/chapters.js";
 
 import { withResourceLock } from "./storage/process-lock.js";
+import { slugify, workDir, ledgerPath, candidatesDir } from "./storage/paths.js";
+import { listWorks } from "./storage/projects.js";
 import {
   metaPath,
   normalizeFoundation,
@@ -89,7 +91,11 @@ export async function resolveWorkDir(paths: StoragePaths, keyOrTitle: string) {
   return workDir(paths, hit.key);
 }
 
-export async function setFoundation(dir: string, patch: Record<string, unknown>, options: { pace?: string } = {}) {
+export async function setFoundation(
+  dir: string,
+  patch: Record<string, unknown>,
+  options: { pace?: string } = {},
+) {
   const pace = validateStoryPace(options.pace);
   return withResourceLock(dir, async () => {
     const meta = await readWorkMeta(dir);
@@ -131,7 +137,11 @@ export async function appendHappenedLine(
   });
 }
 
-export async function assembleManuscript(dir: string, paths: StoragePaths, opts: { onlyFinal?: boolean; outputRel?: string } = {}) {
+export async function assembleManuscript(
+  dir: string,
+  paths: StoragePaths,
+  opts: { onlyFinal?: boolean; outputRel?: string } = {},
+) {
   return withResourceLock(dir, async () => {
     const meta = await readWorkMeta(dir);
     const chapters = [...meta.chapters].sort((a, b) => a.position - b.position);
@@ -166,20 +176,12 @@ export async function assembleManuscript(dir: string, paths: StoragePaths, opts:
     return { file: out, words, chapters: included };
   });
 }
-import { slugify, workDir, ledgerPath, candidatesDir } from "./storage/paths.js";
-import { listWorks } from "./storage/projects.js";
-import { resolveInside } from "../../../core/src/fsx.js";
 export * from "./storage/paths.js";
 export * from "./storage/projects.js";
 export * from "./storage/candidates.js";
 export * from "./storage/work-records.js";
 export { readLedger, writeLedgerEntry } from "./storage/ledger.js";
 export { atomicWrite, assertResourceId, countWords } from "./storage/primitives.js";
-export {
-  listChapters,
-  readChapter,
-  setOutline,
-  updateChapter,
-} from "./storage/chapters.js";
+export { listChapters, readChapter, setOutline, updateChapter } from "./storage/chapters.js";
 export { readWorkMeta, writeWorkMeta } from "./storage/work-meta.js";
 export { BRIEF_RECENT_MS, SAVE_BYPASS_WORD_THRESHOLD } from "./domain/constants.js";

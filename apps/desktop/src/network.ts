@@ -58,10 +58,16 @@ export async function readSource(
             "Accept-Encoding": "identity",
             "User-Agent": `WriterAgent/${VERSION}`,
           },
-          lookup: ((_host: string, options: LookupOptions, callback: (err: NodeJS.ErrnoException | null, address: string | LookupAddress[], family?: number) => void) =>
-            options?.all
-              ? callback(null, [chosen])
-              : callback(null, chosen.address, chosen.family)),
+          lookup: (
+            _host: string,
+            options: LookupOptions,
+            callback: (
+              err: NodeJS.ErrnoException | null,
+              address: string | LookupAddress[],
+              family?: number,
+            ) => void,
+          ) =>
+            options?.all ? callback(null, [chosen]) : callback(null, chosen.address, chosen.family),
         },
         (response) => {
           const status = response.statusCode || 0;

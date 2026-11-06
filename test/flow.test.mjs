@@ -232,7 +232,10 @@ test("写作台（今日头条模式）：列表与详情可见，按钮指令�
   await mkdir(path.join(root, brokenId), { recursive: true });
   await writeFile(path.join(root, brokenId, "meta.json"), "{broken");
   const withBroken = await listArticles();
-  assert.ok(withBroken.issues.some((i) => i.id === brokenId), "损坏文章应出现在 issues");
+  assert.ok(
+    withBroken.issues.some((i) => i.id === brokenId),
+    "损坏文章应出现在 issues",
+  );
   await rm(path.join(root, brokenId), { recursive: true, force: true });
   const d1 = await articleDetail(root, id);
   assert.equal(d1.adoptable, true);

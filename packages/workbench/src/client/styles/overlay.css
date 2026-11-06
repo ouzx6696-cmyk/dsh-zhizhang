@@ -47,11 +47,6 @@
 .wb-modal-footer {
   padding: 12px 24px 24px;
 }
-.wb-notices {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
 .wb-dialog-body {
   display: flex;
   flex-direction: column;

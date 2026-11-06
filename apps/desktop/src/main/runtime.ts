@@ -55,20 +55,22 @@ export class Runtime {
   async sessionEvent(value: DesktopEvent) {
     this.emit(value);
     try {
-      if (value.event?.type === 'agent_settled') {
+      if (value.event?.type === "agent_settled") {
         await Promise.all([
-          this.diagnostics.write('task_ended', {
-            mode: value.target?.mode, work: value.target?.work,
-            reason: value.event.reason, message: value.event.error,
+          this.diagnostics.write("task_ended", {
+            mode: value.target?.mode,
+            work: value.target?.work,
+            reason: value.event.reason,
+            message: value.event.error,
           }),
           this.notifyTask(value),
           value.target ? releaseInactiveTarget(this, value.target) : Promise.resolve(),
         ]);
-      } else if (value.event?.type === 'tool_execution_end') {
-        await this.diagnostics.write('tool_ended', { tool: value.event.toolName });
+      } else if (value.event?.type === "tool_execution_end") {
+        await this.diagnostics.write("tool_ended", { tool: value.event.toolName });
       }
     } catch (error) {
-      this.notice = '任务结束后的处理失败：' + String(error);
+      this.notice = "任务结束后的处理失败：" + String(error);
       this.emit({ error: this.notice });
     }
   }
@@ -76,11 +78,12 @@ export class Runtime {
   private notifyTask(value: DesktopEvent) {
     if (value.editor || this.window?.isFocused() || !Notification.isSupported()) return;
     const notification = new Notification({
-      title: '写作 Agent',
+      title: "写作 Agent",
       body: taskEndCopy(value.event?.reason, value.event?.error),
     });
-    notification.on('click', () => {
-      this.window?.show(); this.window?.focus();
+    notification.on("click", () => {
+      this.window?.show();
+      this.window?.focus();
       this.emit({ navigate: value.target, focus: value.focus });
     });
     notification.show();

@@ -41,20 +41,6 @@
 .wb-pf-compare .wb-manuscript {
   padding: 0;
 }
-.wb-profile-button {
-  gap: 6px;
-}
-.wb-profile-button-name {
-  max-width: 8em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  padding: 0 6px;
-  border-radius: var(--wb-r-xs);
-  background: var(--wb-accent-soft);
-  color: var(--wb-fg);
-  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
-}
 .wb-pf-grid {
   flex: 1 1 auto;
   min-height: 0;

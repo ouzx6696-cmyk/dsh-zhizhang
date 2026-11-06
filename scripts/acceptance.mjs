@@ -48,8 +48,7 @@ const template = {
   novelIdea: "一个守夜人在即将停用的车站，接到了明天才会发生的求救电话。",
 };
 await mkdir(output, { recursive: true });
-const json = async (file) =>
-  JSON.parse(await readFile(path.join(output, file), "utf8"));
+const json = async (file) => JSON.parse(await readFile(path.join(output, file), "utf8"));
 const save = async (file, value) =>
   writeFile(path.join(output, file), JSON.stringify(value, null, 2));
 const list = async (folder) => {
@@ -67,10 +66,7 @@ const scores = () =>
       {
         cases: [
           ...headCases.map((_, i) => "head-" + (i + 1)),
-          ...Array.from(
-            { length: 10 },
-            (_, i) => "novel-c" + String(i + 1).padStart(3, "0"),
-          ),
+          ...Array.from({ length: 10 }, (_, i) => "novel-c" + String(i + 1).padStart(3, "0")),
         ].map((id) => ({ id, readability: null, voice: null })),
         continuityErrors: null,
         resumedWithoutExtraSetup: null,
@@ -79,10 +75,7 @@ const scores = () =>
       },
     ]),
   );
-const chapterIds = Array.from(
-  { length: 10 },
-  (_, i) => "c" + String(i + 1).padStart(3, "0"),
-);
+const chapterIds = Array.from({ length: 10 }, (_, i) => "c" + String(i + 1).padStart(3, "0"));
 const caseIds = [
   ...headCases.map((_, i) => "head-" + (i + 1)),
   "novel-plan",
@@ -101,19 +94,14 @@ async function artifact(profile, row) {
     const articles = new ArticleStore(path.join(output, profile, "toutiao"));
     const meta = await articles.get(row.article);
     const draft = articles.currentDraft(meta);
-    if (!draft || draft.rev !== row.revision)
-      throw new Error("文章当前版本与任务记录不一致");
+    if (!draft || draft.rev !== row.revision) throw new Error("文章当前版本与任务记录不一致");
     const digest = (text) => createHash("sha256").update(text).digest("hex");
     if (digest(await articles.readDraft(meta.id, draft.rev)) !== draft.sha256)
       throw new Error("文章正文指纹不一致");
     const line = index === 3 || index === 4 ? "故事线" : "资讯线";
     const genre = index >= 5 ? "微头条" : "长图文";
-    if (meta.line !== line || meta.genre !== genre)
-      throw new Error("文章类别与指定任务不一致");
-    if (
-      !meta.delivered ||
-      !(await readFile(articles.deliveryPath(meta.id), "utf8")).trim()
-    )
+    if (meta.line !== line || meta.genre !== genre) throw new Error("文章类别与指定任务不一致");
+    if (!meta.delivered || !(await readFile(articles.deliveryPath(meta.id), "utf8")).trim())
       throw new Error("缺少本轮交稿单");
     const qa = articles.latestQaFor(meta),
       cardSha = await articles.cardSha(meta.id);
@@ -199,8 +187,7 @@ async function summarize() {
           throw new Error("章节不属于本轮规划的同一本书");
         const result = await artifact(profile, row);
         if (result.article) {
-          if (seenArticles.has(row.article))
-            throw new Error("同一文章被用于多个任务");
+          if (seenArticles.has(row.article)) throw new Error("同一文章被用于多个任务");
           seenArticles.add(row.article);
           articles.push(result);
         }
@@ -209,16 +196,9 @@ async function summarize() {
         issues.push(id + "：" + error.message);
       }
     }
-    if (
-      rows.length !== caseIds.length ||
-      rows.some((row) => !caseIds.includes(row.caseId))
-    )
+    if (rows.length !== caseIds.length || rows.some((row) => !caseIds.includes(row.caseId)))
       issues.push("任务集合不等于约定的 18 项");
-    const pass = (q) =>
-      q?.pass &&
-      q.score >= 84 &&
-      q.fail_count === 0 &&
-      q.hard_gates.length === 0;
+    const pass = (q) => q?.pass && q.score >= 84 && q.fail_count === 0 && q.hard_gates.length === 0;
     const author = subjective[profile],
       graded = caseIds
         .filter((id) => id !== "novel-plan")
@@ -235,18 +215,13 @@ async function summarize() {
       profile,
       issues,
       articles: articles.length,
-      firstQaPassRate:
-        articles.filter((article) => pass(article.attempts[0])).length / 7,
-      twoQaPassRate:
-        articles.filter((article) => article.attempts.some(pass)).length / 7,
+      firstQaPassRate: articles.filter((article) => pass(article.attempts[0])).length / 7,
+      twoQaPassRate: articles.filter((article) => article.attempts.some(pass)).length / 7,
       chapterReviews: reviews.length,
       editorPassRate:
-        reviews.filter(
-          (review) => review.verdict === "通过" && review.reread_full,
-        ).length / 10,
+        reviews.filter((review) => review.verdict === "通过" && review.reread_full).length / 10,
       averageHardIssues: reviews.length
-        ? reviews.reduce((sum, review) => sum + review.hard_issues.length, 0) /
-          reviews.length
+        ? reviews.reduce((sum, review) => sum + review.hard_issues.length, 0) / reviews.length
         : null,
       tokens: records
         .filter((row) => row.profile === profile)
@@ -256,10 +231,7 @@ async function summarize() {
       authorScored: graded.length,
       authorAverage:
         graded.length === 17
-          ? graded.reduce(
-              (sum, row) => sum + (row.readability + row.voice) / 2,
-              0,
-            ) / 17
+          ? graded.reduce((sum, row) => sum + (row.readability + row.voice) / 2, 0) / 17
           : null,
       continuityErrors: author.continuityErrors,
       resumedWithoutExtraSetup: author.resumedWithoutExtraSetup,
@@ -331,35 +303,23 @@ if (!Array.isArray(config.newsUrls) || config.newsUrls.length < 2)
 for (const model of Object.values(config.models))
   if (model) {
     model.apiKey = process.env[model.apiKeyEnv];
-    if (!model.apiKey)
-      throw new Error("缺少模型凭据环境变量：" + model.apiKeyEnv);
+    if (!model.apiKey) throw new Error("缺少模型凭据环境变量：" + model.apiKeyEnv);
   }
 const { Sessions } = await import("../apps/desktop/out-test/session.mjs");
 const { normalizeModels } = await import("../apps/desktop/out-test/models.mjs");
 const models = normalizeModels(config.models),
   all = [];
 await save("subjective-scores.json", scores());
-process.env.WRITER_TOUTIAO_SKILL_DIR = path.join(
-  repo,
-  "packages/toutiao/skill",
-);
+process.env.WRITER_TOUTIAO_SKILL_DIR = path.join(repo, "packages/toutiao/skill");
 process.env.WRITER_FANQIE_SKILL_DIR = path.join(repo, "packages/fanqie/skill");
-process.env.WRITER_TOUTIAO_DEFAULT_DIR = path.join(
-  repo,
-  "packages/toutiao/profiles/default",
-);
-process.env.WRITER_FANQIE_DEFAULT_DIR = path.join(
-  repo,
-  "packages/fanqie/profiles/default",
-);
+process.env.WRITER_TOUTIAO_DEFAULT_DIR = path.join(repo, "packages/toutiao/profiles/default");
+process.env.WRITER_FANQIE_DEFAULT_DIR = path.join(repo, "packages/fanqie/profiles/default");
 for (const profile of ["default", "original"]) {
   const base = path.join(output, profile),
     home = path.join(base, ".agent"),
     novels = path.join(base, "novels"),
     toutiao = path.join(base, "toutiao");
-  await Promise.all(
-    [home, novels, toutiao].map((folder) => mkdir(folder, { recursive: true })),
-  );
+  await Promise.all([home, novels, toutiao].map((folder) => mkdir(folder, { recursive: true })));
   process.env.WRITER_STATE_ROOT = home;
   let finish,
     target = { mode: "fanqie", root: novels };
@@ -379,11 +339,7 @@ for (const profile of ["default", "original"]) {
   async function run(caseId, name, scope, text, focus = {}) {
     const before =
       scope.mode === "toutiao"
-        ? new Set(
-            (await list(toutiao))
-              .filter((row) => row.isDirectory())
-              .map((row) => row.name),
-          )
+        ? new Set((await list(toutiao)).filter((row) => row.isDirectory()).map((row) => row.name))
         : null;
     let timer;
     const start = Date.now(),
@@ -397,12 +353,9 @@ for (const profile of ["default", "original"]) {
     try {
       await sessions.send(scope, text, focus);
       await done;
-      const actual =
-          scope.mode === "toutiao" ? scope : scope.work ? scope : target,
+      const actual = scope.mode === "toutiao" ? scope : scope.work ? scope : target,
         view = await sessions.view(actual, 1000),
-        last = view.messages
-          .filter((message) => message.role === "assistant")
-          .at(-1);
+        last = view.messages.filter((message) => message.role === "assistant").at(-1);
       if (last?.stopReason === "error") throw new Error(last.errorMessage);
       const record = {
         profile,
@@ -419,18 +372,12 @@ for (const profile of ["default", "original"]) {
       if (before) {
         const created = (await list(toutiao)).filter(
           (row) =>
-            row.isDirectory() &&
-            /^\d{4}-\d{2}-\d{2}-/.test(row.name) &&
-            !before.has(row.name),
+            row.isDirectory() && /^\d{4}-\d{2}-\d{2}-/.test(row.name) && !before.has(row.name),
         );
-        if (created.length !== 1)
-          throw new Error("每个头条任务须对应一篇新建文章");
+        if (created.length !== 1) throw new Error("每个头条任务须对应一篇新建文章");
         record.article = created[0].name;
         record.revision = JSON.parse(
-          await readFile(
-            path.join(toutiao, record.article, "meta.json"),
-            "utf8",
-          ),
+          await readFile(path.join(toutiao, record.article, "meta.json"), "utf8"),
         ).current_rev;
       }
       await artifact(profile, record);

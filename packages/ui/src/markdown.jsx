@@ -32,7 +32,12 @@ function MarkdownView({ text, onLink }) {
   );
   return (
     <div className="ui-markdown">
-      <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} skipHtml components={components}>
+      <ReactMarkdown
+        remarkPlugins={REMARK_PLUGINS}
+        rehypePlugins={REHYPE_PLUGINS}
+        skipHtml
+        components={components}
+      >
         {text}
       </ReactMarkdown>
     </div>

@@ -8,16 +8,12 @@
     "skipLibCheck": true,
     "declaration": false,
     "sourceMap": false,
-    "types": [
-      "node"
-    ],
+    "types": ["node"],
     "rootDir": "packages",
     "outDir": "build",
     "noUnusedLocals": true,
     "noUnusedParameters": false,
     "resolveJsonModule": true
   },
-  "include": [
-    "packages/*/src/**/*.ts"
-  ]
+  "include": ["packages/*/src/**/*.ts"]
 }

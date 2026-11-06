@@ -2,6 +2,7 @@ import path from "node:path";
 import { dialog } from "electron";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { localDay } from "../../../../../packages/core/src/fsx";
 import type { Runtime } from "../runtime";
 import { handle } from "./handle";
 import { lockRoot } from "../targets";
@@ -14,7 +15,8 @@ async function backupDirectory(state: Runtime, source: string) {
   });
   if (result.canceled) return null;
   const now = new Date();
-  const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}_${String(now.getHours()).padStart(2, "0")}-${String(now.getMinutes()).padStart(2, "0")}-${String(now.getSeconds()).padStart(2, "0")}`;
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const stamp = `${localDay(now)}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
   const output = path.join(result.filePaths[0], `写作备份-${stamp}`);
   await promisify(execFile)(
     process.execPath,

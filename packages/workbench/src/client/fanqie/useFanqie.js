@@ -110,64 +110,66 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
   useEffect(() => writePref(PREF.tab, state.tab), [state.tab]);
   useEffect(() => writePref(PREF.readerView, state.readerView), [state.readerView]);
   useEffect(() => writePref(PREF.fontStep, String(state.fontStep)), [state.fontStep]);
-  useEffect(() => writePref(PREF.polling, state.polling ? "on" : "off"), [state.polling]);
   useEffect(() => writePref(PREF.project, state.projectId), [state.projectId]);
   useEffect(() => writePref(PREF.work, state.work), [state.work]);
   useEffect(() => writePref(PREF.chapter, state.chapterId), [state.chapterId]);
   useEffect(() => writePref(PREF.candidate, state.candidateId), [state.candidateId]);
 
   /** Read the snapshot for the current project/work. `soft` keeps the UI as is. */
-  const refresh = useCallback(async ({ soft = false, projects = false } = {}) => {
-    if (inflight.current) {
-      if (soft) return;
-      inflight.current.abort();
-    }
-    const ctrl = new AbortController();
-    const selected = ref.current;
-    const selection = selected.selection;
-    let projectId = selected.projectId;
-    inflight.current = ctrl;
-    if (!soft) dispatch({ type: "loading" });
-    try {
-      if (projects || !ref.current.projects.length) {
-        try {
-          const data = await fanqie.projects(!soft && projects, ctrl.signal);
-          if (Array.isArray(data.projects)) {
-            projectId =
-              projectId && data.projects.some((p) => p.id === projectId)
-                ? projectId
-                : data.current || "";
-            if (alive.current && !ctrl.signal.aborted)
-              dispatch({
-                type: "projects",
-                selection,
-                projects: data.projects,
-                current: projectId,
-              });
-          }
-        } catch (err) {
-          if (err.code === "aborted") throw err;
-          /* project index is optional: the snapshot still resolves the default root */
-        }
+  const refresh = useCallback(
+    async ({ soft = false, projects = false } = {}) => {
+      if (inflight.current) {
+        if (soft) return;
+        inflight.current.abort();
       }
-      if (!alive.current || ctrl.signal.aborted || ref.current.selection !== selection) return;
-      const data = await fanqie.snapshot(
-        projectId,
-        selected.work,
-        ctrl.signal,
-        selected.view === "chapters" ? "work" : "all",
-      );
-      if (!alive.current || ctrl.signal.aborted) return;
-      failures.current = 0;
-      dispatch({ type: "snapshot", selection, data, signature: snapshotSignature(data) });
-    } catch (err) {
-      if (!alive.current || (err && err.code === "aborted")) return;
-      failures.current += 1;
-      dispatch({ type: "snapshotError", selection, error: messageOf(err) });
-    } finally {
-      if (inflight.current === ctrl) inflight.current = null;
-    }
-  }, [dispatch]);
+      const ctrl = new AbortController();
+      const selected = ref.current;
+      const selection = selected.selection;
+      let projectId = selected.projectId;
+      inflight.current = ctrl;
+      if (!soft) dispatch({ type: "loading" });
+      try {
+        if (projects || !ref.current.projects.length) {
+          try {
+            const data = await fanqie.projects(!soft && projects, ctrl.signal);
+            if (Array.isArray(data.projects)) {
+              projectId =
+                projectId && data.projects.some((p) => p.id === projectId)
+                  ? projectId
+                  : data.current || "";
+              if (alive.current && !ctrl.signal.aborted)
+                dispatch({
+                  type: "projects",
+                  selection,
+                  projects: data.projects,
+                  current: projectId,
+                });
+            }
+          } catch (err) {
+            if (err.code === "aborted") throw err;
+            /* project index is optional: the snapshot still resolves the default root */
+          }
+        }
+        if (!alive.current || ctrl.signal.aborted || ref.current.selection !== selection) return;
+        const data = await fanqie.snapshot(
+          projectId,
+          selected.work,
+          ctrl.signal,
+          selected.view === "chapters" ? "work" : "all",
+        );
+        if (!alive.current || ctrl.signal.aborted) return;
+        failures.current = 0;
+        dispatch({ type: "snapshot", selection, data, signature: snapshotSignature(data) });
+      } catch (err) {
+        if (!alive.current || (err && err.code === "aborted")) return;
+        failures.current += 1;
+        dispatch({ type: "snapshotError", selection, error: messageOf(err) });
+      } finally {
+        if (inflight.current === ctrl) inflight.current = null;
+      }
+    },
+    [dispatch],
+  );
 
   useEffect(() => {
     // 未形成有效快照不代表作者选择了项目根；后台写入期间尤其不能清掉作品。
@@ -222,7 +224,7 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
     refresh({ projects: true });
   }, [refresh, state.selection, state.view]);
 
-  // 写作 Agent 投递能力：换项目、换作品、手动刷新时重查（便宜的 GET，不进轮询）
+  // 写作 Agent 投递能力：换项目、换作品、手动刷新时重查（便宜的 GET）。
   useEffect(() => {
     const ctrl = new AbortController();
     fanqie

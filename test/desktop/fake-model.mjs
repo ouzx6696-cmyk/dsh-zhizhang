@@ -8,13 +8,9 @@ export async function fakeModel(scripts = {}) {
     request.on("end", () => {
       const body = JSON.parse(text || "{}");
       calls.push(body);
-      const connection = body.messages?.some(
-        (message) => message.content === "请只回答 OK",
-      );
+      const connection = body.messages?.some((message) => message.content === "请只回答 OK");
       const queue = queues[body.model] || [];
-      const next = connection
-        ? { text: "OK" }
-        : queue.shift() || { text: "完成。" };
+      const next = connection ? { text: "OK" } : queue.shift() || { text: "完成。" };
       if (next.wait) {
         request.on("close", () => response.destroy());
         return;
@@ -81,9 +77,7 @@ export async function fakeModel(scripts = {}) {
         );
       send({
         role: "assistant",
-        ...(tool
-          ? { tool_calls: [{ index: 0, ...tool }] }
-          : { content: next.text || "完成。" }),
+        ...(tool ? { tool_calls: [{ index: 0, ...tool }] } : { content: next.text || "完成。" }),
       });
       send({}, tool ? "tool_calls" : "stop", {
         prompt_tokens: next.usage?.prompt_tokens ?? 30,

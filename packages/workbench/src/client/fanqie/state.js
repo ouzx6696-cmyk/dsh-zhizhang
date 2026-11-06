@@ -47,7 +47,6 @@ export function initialState() {
     candidateId: readPref(PREF.candidate, ""),
     readerView: oneOf(readPref(PREF.readerView, "official"), READER_VIEWS, "official"),
     fontStep: FONT_STEPS.indexOf(fontStep) >= 0 ? fontStep : 0,
-    polling: readPref(PREF.polling, "on") !== "off",
     // bodies loaded on demand
     chapter: idleBody,
     candidate: idleBody,
@@ -170,8 +169,6 @@ export function reducer(state, action) {
       return { ...state, view: action.view };
     case "tab":
       return { ...state, tab: action.tab };
-    case "polling":
-      return { ...state, polling: action.on };
     case "fontStep":
       return { ...state, fontStep: action.step };
     case "selectChapter":

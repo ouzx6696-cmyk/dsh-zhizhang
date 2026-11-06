@@ -23,8 +23,11 @@ export function useDiagnostics({ state, stateRef, alive, setEdit, refresh, notif
   }
   const [status, setStatus] = useState({ key, busy: false, error: "" });
   useEffect(() => () => operation.current.controller?.abort(), [key]);
-  const current = useCallback((generation) =>
-    alive.current && operation.current.key === key && operation.current.generation === generation, [alive, key]);
+  const current = useCallback(
+    (generation) =>
+      alive.current && operation.current.key === key && operation.current.generation === generation,
+    [alive, key],
+  );
 
   async function scan() {
     const snapshot = stateRef.current,

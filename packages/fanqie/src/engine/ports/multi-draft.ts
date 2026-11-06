@@ -7,13 +7,17 @@ export function isMultiDraftEnabled() {
   return getPortConfig().multiDraft.enabled;
 }
 function clipPreview(body: string, max: number = 280) {
-  const t = body
-    .replace(/\s+/g, " ")
-    .trim();
+  const t = body.replace(/\s+/g, " ").trim();
   if (t.length <= max) return t;
   return t.slice(0, max) + "…";
 }
-interface ParentView {id:string;draftLabel?:string;wordCount:number;note?:string;preview:string}
+interface ParentView {
+  id: string;
+  draftLabel?: string;
+  wordCount: number;
+  note?: string;
+  preview: string;
+}
 export const MultiDraftPort = {
   id: "port.multi_draft",
   version: VERSION,
@@ -44,11 +48,15 @@ export const MultiDraftPort = {
    * Positive merge brief — keep plot/pressure, pick best voice edges, one continuous chapter.
    * No 不要xx stacks.
    */
-  formatUnifyBrief(input: {parents:ParentView[];chapterId:string;workKey?:string;targetWords?:number}) {
+  formatUnifyBrief(input: {
+    parents: ParentView[];
+    chapterId: string;
+    workKey?: string;
+    targetWords?: number;
+  }) {
     const n = input.parents.length;
     const words = input.parents.map((p) => p.wordCount);
-    const avg =
-      words.length > 0 ? Math.round(words.reduce((a, b) => a + b, 0) / words.length) : 0;
+    const avg = words.length > 0 ? Math.round(words.reduce((a, b) => a + b, 0) / words.length) : 0;
     const lo = words.length ? Math.min(...words) : 0;
     const hi = words.length ? Math.max(...words) : 0;
     const target = input.targetWords ?? (hi > 0 ? Math.round((lo + hi) / 2) : avg);
@@ -81,7 +89,12 @@ export const MultiDraftPort = {
     );
     return lines.join("\n");
   },
-  afterUnifyStageLines(opts: { unifyCandId: string; chapterId: string; parentIds: string[]; wordCount: number }) {
+  afterUnifyStageLines(opts: {
+    unifyCandId: string;
+    chapterId: string;
+    parentIds: string[];
+    wordCount: number;
+  }) {
     return [
       `统一整理候选已暂存：${opts.unifyCandId}`,
       `- 章：${opts.chapterId}`,

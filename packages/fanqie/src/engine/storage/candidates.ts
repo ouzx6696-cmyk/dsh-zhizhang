@@ -31,6 +31,8 @@ import { createWorkRecordJournal, finishChapterJournal } from "./chapter-journal
 import { readLedger, appendLedger } from "./ledger.js";
 import { withResourceLock } from "./process-lock.js";
 import { metaPath, readWorkMeta } from "./work-meta.js";
+import { getRecentBrief } from "./work-records.js";
+import { ledgerPath, candidatesDir } from "./paths.js";
 
 /** Persist candidate JSON without dropping optional multi-draft / edit fields. */
 type CandidateMeta = Omit<Candidate, "body">;
@@ -87,18 +89,18 @@ function candidateToDiskMeta(cand: Candidate): CandidateMeta {
 }
 /** 暂存候选的入参：正文与目标章必填，其余元数据按 Candidate 落盘契约可选。 */
 export interface StageCandidateInput {
-    body: string;
-    chapterId: string;
-    expectedRevision?: string;
-    capturedBasis?: import("../domain/lifecycle.js").ContextBasis;
-    revisionSource?: import("../types.js").Candidate["revisionSource"];
-    source?: string;
-    note?: string;
-    editOf?: string;
-    editMode?: string;
-    draftLabel?: string;
-    variantGroup?: string;
-    unifyOf?: string[];
+  body: string;
+  chapterId: string;
+  expectedRevision?: string;
+  capturedBasis?: import("../domain/lifecycle.js").ContextBasis;
+  revisionSource?: import("../types.js").Candidate["revisionSource"];
+  source?: string;
+  note?: string;
+  editOf?: string;
+  editMode?: string;
+  draftLabel?: string;
+  variantGroup?: string;
+  unifyOf?: string[];
 }
 export async function stageCandidate(dir: string, input: StageCandidateInput) {
   return withResourceLock(dir, async () => {
@@ -440,8 +442,11 @@ export async function listCandidates(dir: string): Promise<CandidateListRow[]> {
       batch.map(async (name): Promise<CandidateListRow> => {
         try {
           const metaFile = path.join(candidatesDir(dir), name);
-          // mtime 缓存：面板每轮轮询都全量列候选，未变的候选不必重读。
-          const [raw, metaStat] = await Promise.all([readJsonCached<CandidateMeta>(metaFile), stat(metaFile)]);
+          // mtime 缓存：面板每次刷新都全量列候选，未变的候选不必重读。
+          const [raw, metaStat] = await Promise.all([
+            readJsonCached<CandidateMeta>(metaFile),
+            stat(metaFile),
+          ]);
           const bodyFile = candidateBodyFile(raw, name.slice(0, -5));
           const bodyPath = path.join(candidatesDir(dir), bodyFile);
           const bodyStat = await stat(bodyPath);
@@ -487,6 +492,3 @@ export async function listCandidates(dir: string): Promise<CandidateListRow[]> {
   rows.sort((a, b) => (a.stagedAt < b.stagedAt ? 1 : -1));
   return rows;
 }
-
-import { getRecentBrief } from "./work-records.js";
-import { ledgerPath, candidatesDir } from "./paths.js";

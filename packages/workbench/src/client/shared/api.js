@@ -7,4 +7,3 @@ export const host = dataAdapter.host;
 export const fanqie = dataAdapter.fanqie;
 export const toutiao = dataAdapter.toutiao;
 export const profilesApi = (mode) => dataAdapter.profiles(mode);
-
