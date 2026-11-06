@@ -14,6 +14,7 @@ const { checkCard } = await import(buildUrl("toutiao/src/card.js"));
 const { loadLimits } = await import(buildUrl("toutiao/src/rule-limits.js"));
 const { titleMax } = await loadLimits();
 const { ArticleStore, canTransition } = await import(buildUrl("toutiao/src/store.js"));
+const { buildMethodPack } = await import(buildUrl("core/src/method-pack.js"));
 
 async function guardFixture(t) {
   const root = await tempDir("writer-guard-");
@@ -553,3 +554,169 @@ test(
     }
   },
 );
+
+const fanqieChapter = (over = {}) => ({
+  id: "c1",
+  hasOutline: true,
+  outlinePassed: true,
+  status: "drafted",
+  latestReviewPassed: null,
+  ...over,
+});
+
+test("方法包：番茄按意图与状态路由（K-02）", () => {
+  // a. 续写按钮 + 章无章纲：状态压过 write 意图，先补章纲而不是写章
+  const continueNoOutline = buildMethodPack({
+    mode: "fanqie",
+    text: "【写作台】续写《书》第 3 章「题」（c3）。按长篇日更流程：读上一章与本章章纲，写成候选并自检，再派编辑子代理审读，把审读结论告诉我。不要定稿。",
+    focus: { intent: "write" },
+    fanqie: { hasWork: true, chapter: fanqieChapter({ hasOutline: false, outlinePassed: false }) },
+  });
+  assert.equal(continueNoOutline.intent, "plan");
+  assert.deepEqual(continueNoOutline.methods, [{ id: "plan-outline" }]);
+  assert.deepEqual(continueNoOutline.attachments, [
+    { kind: "previous-ending" },
+    { kind: "act-outline" },
+  ]);
+
+  // b. 派编辑审读按钮：不附 edit 方法，附编辑委派说明
+  const review = buildMethodPack({
+    mode: "fanqie",
+    text: "【写作台】派编辑子代理审读《书》第 3 章「题」（c3）：完整回读当前正文，按编辑方法出审读回报（fanqie_review_report）。编辑不改正文、不定稿。",
+    focus: { intent: "review" },
+    fanqie: { hasWork: true, chapter: fanqieChapter({ latestReviewPassed: true }) },
+  });
+  assert.equal(review.intent, "review");
+  assert.deepEqual(review.methods, []);
+  assert.ok(!review.methods.some((m) => m.id === "edit"));
+  assert.ok(review.attachments.some((a) => a.kind === "delegation-note"));
+
+  // c. 改本章按钮 → revise + 审读回报与修改范围
+  const revise = buildMethodPack({
+    mode: "fanqie",
+    text: "【写作台】按最新编辑审读回报修改《书》第 3 章「题」（c3）：只改回报里的硬伤与 L1–L3 位置，出候选并自检，再派编辑复审。不要定稿。",
+    focus: { intent: "revise" },
+    fanqie: { hasWork: true, chapter: fanqieChapter({ latestReviewPassed: false }) },
+  });
+  assert.equal(revise.intent, "revise");
+  assert.deepEqual(revise.methods, [{ id: "revise" }]);
+  assert.ok(revise.attachments.some((a) => a.kind === "review-report"));
+  assert.ok(revise.attachments.some((a) => a.kind === "revision-scope"));
+
+  // d. K-02：问句含"写"不能判成写章
+  const ask = buildMethodPack({
+    mode: "fanqie",
+    text: "帮我看看这章写得怎么样",
+    focus: {},
+    fanqie: { hasWork: true, chapter: fanqieChapter() },
+  });
+  assert.equal(ask.intent, "inspect");
+  assert.deepEqual(ask.methods, []);
+
+  // e. K-02：按审读意见修改是 revise，不是 edit/review
+  const byReview = buildMethodPack({
+    mode: "fanqie",
+    text: "按审读意见修改这章",
+    focus: {},
+    fanqie: { hasWork: true, chapter: fanqieChapter({ latestReviewPassed: false }) },
+  });
+  assert.equal(byReview.intent, "revise");
+  assert.deepEqual(byReview.methods, [{ id: "revise" }]);
+
+  // f. 有章纲明确写章：write-chapter + 节奏节选与病型表
+  const write = buildMethodPack({
+    mode: "fanqie",
+    text: "续写第 3 章",
+    focus: {},
+    fanqie: { hasWork: true, chapter: fanqieChapter() },
+  });
+  assert.equal(write.intent, "write");
+  assert.deepEqual(write.methods, [{ id: "write-chapter" }]);
+  assert.deepEqual(write.attachments.map((a) => a.kind).sort(), [
+    "lean-brief",
+    "prose-table",
+    "rhythm-excerpt",
+  ]);
+
+  // focus=write 与状态冲突（章无章纲）→ 仍落补章纲
+  const conflict = buildMethodPack({
+    mode: "fanqie",
+    text: "续写第 3 章",
+    focus: { intent: "write" },
+    fanqie: { hasWork: true, chapter: fanqieChapter({ hasOutline: false, outlinePassed: false }) },
+  });
+  assert.equal(conflict.intent, "plan");
+  assert.deepEqual(conflict.methods, [{ id: "plan-outline" }]);
+});
+
+test("方法包：番茄文本分支（拆书/补章纲/卷幕/开书/询问兜底）", () => {
+  const base = { mode: "fanqie", focus: {}, fanqie: { hasWork: true, chapter: null } };
+
+  // 拆书按钮的真实文本是"拆解"，同样命中 library；Focus 联合没有 library，用 plan 承载。
+  const split = buildMethodPack({
+    ...base,
+    focus: { intent: "plan" },
+    text: "【写作台】拆解以下指定原文或链接。只完成分析，不自动入库或改写本书。",
+  });
+  assert.equal(split.intent, "plan");
+  assert.deepEqual(split.methods, [{ id: "library" }]);
+  assert.deepEqual(split.attachments, []);
+
+  const outline = buildMethodPack({ ...base, text: "先补章纲再写" });
+  assert.deepEqual(outline.methods, [{ id: "plan-outline" }]);
+
+  const structure = buildMethodPack({ ...base, text: "规划第二卷的结构" });
+  assert.deepEqual(structure.methods, [{ id: "plan-structure" }]);
+
+  const foundation = buildMethodPack({
+    ...base,
+    fanqie: { hasWork: false, chapter: null },
+    text: "开一本新书",
+  });
+  assert.deepEqual(foundation.methods, [{ id: "plan-foundation" }]);
+
+  const fallback = buildMethodPack({ ...base, text: "这本书的目标读者是谁" });
+  assert.equal(fallback.intent, "inspect");
+  assert.deepEqual(fallback.methods, []);
+});
+
+test("方法包：头条按文章状态映射七步", () => {
+  const toutiao = (article) =>
+    buildMethodPack({ mode: "toutiao", text: "", focus: {}, toutiao: { article } });
+  const at = (over) =>
+    toutiao({
+      stage: "初稿待改",
+      contentLine: "news",
+      hasCard: true,
+      hasHeadline: true,
+      hasDraft: true,
+      ...over,
+    });
+  const ids = (p) => p.methods.map((m) => m.id);
+
+  // 无文章 → S1 找题（hot/evergreen 都给，按题型取用）
+  assert.deepEqual(toutiao(null).steps, ["S1"]);
+  assert.deepEqual(ids(toutiao(null)), ["s1-hot", "s1-evergreen"]);
+
+  // 按流程推进：快照里第一个没完成的环节就是当前步骤
+  assert.deepEqual(ids(at({ hasCard: false })), ["s2-selection"]);
+  assert.deepEqual(at({ hasCard: false }).steps, ["S2"]);
+  assert.deepEqual(ids(at({ hasHeadline: false })), ["s3-headline"]);
+  assert.deepEqual(ids(at({})), ["s4-common", "s4-news"]);
+  assert.deepEqual(ids(at({ contentLine: "story" })), ["s4-common", "s4-story"]);
+  assert.deepEqual(ids(at({ contentLine: "micro" })), ["s4-common", "s4-micro"]);
+  assert.deepEqual(at({}).attachments, [{ kind: "corpus-excerpt" }]);
+
+  // 五种状态：初稿待改/验收退回 → S4；待验收 → S5+S6；已验收 → S7；已交稿 → 无方法
+  assert.deepEqual(at({ stage: "初稿待改" }).steps, ["S4"]);
+  assert.deepEqual(at({ stage: "验收退回" }).steps, ["S4"]);
+  const editing = at({ stage: "待验收" });
+  assert.deepEqual(editing.steps, ["S5", "S6"]);
+  assert.deepEqual(ids(editing), ["s5-editing", "s6-qa"]);
+  const accepted = at({ stage: "已验收" });
+  assert.deepEqual(accepted.steps, ["S7"]);
+  assert.deepEqual(ids(accepted), ["s7-delivery", "template-delivery"]);
+  const delivered = at({ stage: "已交稿" });
+  assert.deepEqual(delivered.steps, ["S7"]);
+  assert.deepEqual(delivered.methods, []);
+});
