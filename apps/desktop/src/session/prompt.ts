@@ -1,4 +1,5 @@
 import { resolveFanqiePaths, resolveFanqieWork } from "../main/storage";
+import { parseText } from "../main/ipc/validate";
 import type { Focus, Target } from "../context";
 import { focusLabel, promptText } from "../context";
 import type { ChapterMeta } from "../../../../packages/fanqie/src/engine/types";
@@ -57,6 +58,7 @@ async function paths(host: Sessions, target: Target) {
 
 export async function taskPrompt(host: Sessions, target: Target, text: string, focus: Focus) {
   const profile = await activeProfile(target.mode, host.options[target.mode]?.profile);
+  const intentSource = focus.intent ? "focus" : "regex";
   const intent =
     focus.intent ||
     (/审读|编辑|质检/.test(text)
@@ -71,6 +73,7 @@ export async function taskPrompt(host: Sessions, target: Target, text: string, f
       ? await taskMethods(profile.id, text, intent, host.options.fanqie?.profile)
       : [];
   let saved: unknown;
+  let brief: string | undefined;
   if (target.mode === "fanqie" && target.work) {
     const storage = await paths(host, target);
     const dir = await resolveFanqieWork(host.options, target);
@@ -78,7 +81,6 @@ export async function taskPrompt(host: Sessions, target: Target, text: string, f
     const chapters: ChapterMeta[] = meta.chapters;
     const row = chapters.find((c) => c.id === focus.chapter);
     const chapter = row ? await readChapter(dir, row.id) : undefined;
-    let brief: unknown;
     if (chapter && intent === "write") {
       await assertWorkspaceWritable(dir);
       const definition = engineTools({
@@ -87,19 +89,22 @@ export async function taskPrompt(host: Sessions, target: Target, text: string, f
         worksRoot: storage.works,
       }).find((tool) => tool.name === "fanqie_chapter_brief");
       if (!definition) throw new Error("引擎工具列表里没有 fanqie_chapter_brief，无法生成交接简报");
-      brief = await definition.execute(
-        {
-          work: target.work,
-          chapter: chapter.id,
-          brief_mode: "lean",
-          handoff_only: true,
-        },
-        {
-          name: definition.name,
-          arguments: {},
-          sessionId: "handoff-" + host.key(target),
-          cwd: target.root,
-        },
+      // handoff_only 分支固定返回 JSON 字符串；execute 类型是 unknown，在边界解析
+      brief = parseText(
+        await definition.execute(
+          {
+            work: target.work,
+            chapter: chapter.id,
+            brief_mode: "lean",
+            handoff_only: true,
+          },
+          {
+            name: definition.name,
+            arguments: {},
+            sessionId: "handoff-" + host.key(target),
+            cwd: target.root,
+          },
+        ),
       );
     }
     const review =
@@ -133,6 +138,15 @@ export async function taskPrompt(host: Sessions, target: Target, text: string, f
       qaValid: await validPassingQa(new ArticleStore(target.root), article),
     };
   }
+  host.extras.log?.("handoff", {
+    mode: target.mode,
+    intentSource,
+    intent,
+    methodIds: methods.map((method) => method.id),
+    methodBytes: methods.reduce((sum, method) => sum + Buffer.byteLength(method.text), 0),
+    briefAttached: brief !== undefined,
+    briefBytes: brief === undefined ? 0 : Buffer.byteLength(brief),
+  });
   return promptText(text, {
     target,
     focus,

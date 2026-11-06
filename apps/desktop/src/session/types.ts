@@ -1,5 +1,6 @@
 import type { AgentSession, SessionManager } from "./pi-adapter";
 import type { Focus, Target } from "../context";
+import type { DiagnosticFields } from "../../../../packages/core/src/diagnostics";
 import type { FanqieConfig } from "../../../../packages/fanqie/src/config";
 import type { ToutiaoConfig } from "../../../../packages/toutiao/src/config";
 
@@ -25,7 +26,7 @@ export type SessionExtras = {
   searchProvider?: () => import("../network").SearchProvider;
   searchMode?: () => import("../network").SearchMode;
   searchKey?: () => string;
-  log?: (event: string, fields: Record<string, string | number | boolean | undefined>) => void;
+  log?: (event: string, fields: DiagnosticFields) => void;
 };
 
 export type HistoryCache = Map<string, { stamp: string; manager: SessionManager }>;

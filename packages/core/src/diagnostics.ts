@@ -1,5 +1,6 @@
 import { appendFile, mkdir, readdir, readFile, unlink } from "node:fs/promises";
 import path from "node:path";
+export type DiagnosticFields = Record<string, string | number | boolean | undefined | string[]>;
 export class Diagnostics {
   constructor(private home: string) {}
   async init() {
@@ -9,7 +10,7 @@ export class Diagnostics {
       .sort();
     for (const file of files.slice(0, -7)) await unlink(path.join(this.home, "logs", file));
   }
-  async write(event: string, fields: Record<string, string | number | boolean | undefined> = {}) {
+  async write(event: string, fields: DiagnosticFields = {}) {
     await mkdir(path.join(this.home, "logs"), { recursive: true });
     await appendFile(
       path.join(this.home, "logs", new Date().toISOString().slice(0, 10) + ".jsonl"),

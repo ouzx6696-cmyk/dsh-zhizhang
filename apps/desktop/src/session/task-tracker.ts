@@ -2,8 +2,20 @@ import { randomUUID } from "node:crypto";
 import type { DesktopEvent, TaskEndReason } from "../renderer-contracts";
 import { promptContext, toolLabel, toolStep } from "../context";
 import { explainError } from "../diagnostics";
+import { asRecord } from "../main/ipc/validate";
 import type { Sessions } from "./manager";
 import type { SessionEntry, Task } from "./types";
+
+/** PI 事件把工具结果标为 any，这里只在边界取错误文本，其余形状不信任。 */
+function toolErrorText(result: unknown) {
+  const parts = asRecord(result, "工具执行回执").content;
+  if (!Array.isArray(parts)) throw new Error("工具执行回执缺少内容列表");
+  for (const part of parts) {
+    const block = asRecord(part, "工具内容块");
+    if (block.type === "text" && typeof block.text === "string") return block.text;
+  }
+  return undefined;
+}
 
 export function createTask(): Task {
   return {
@@ -76,6 +88,8 @@ export function trackSession(options: {
   let requestId = "",
     startedAt = 0;
   let firstEventMs: number | undefined, firstTextMs: number | undefined;
+  let lastUserText: string | undefined,
+    preCompaction: { tokens: number; contextWindow: number } | undefined;
   session.subscribe((event) => {
     if (event.type === "turn_start") {
       requestId = randomUUID();
@@ -102,6 +116,7 @@ export function trackSession(options: {
               .map((c) => c.text)
               .join("\n");
       const parsed = promptContext(text);
+      lastUserText = parsed.text;
       entry.focus = parsed.context?.focus || {};
       if (entry.profile !== parsed.context?.profile?.id) entry.methods.clear();
       entry.profile = parsed.context?.profile?.id;
@@ -160,11 +175,24 @@ export function trackSession(options: {
         cost: usage.cost.total,
       });
     }
+    if (event.type === "compaction_start") {
+      entry.phase = "正在整理对话上下文…";
+      // 压缩后 tokens 归零不可信，触发比例必须在 compaction_start 时读取
+      const usage = session.getContextUsage();
+      if (usage && usage.tokens !== null)
+        preCompaction = { tokens: usage.tokens, contextWindow: usage.contextWindow };
+    }
     if (event.type === "compaction_end") {
       if (event.result) entry.methods.clear();
       host.extras.log?.("context_compacted", {
         conversationId: manager.getSessionId(),
         taskId: task.id,
+        // PI 只经 Sessions.compact 发 manual；threshold/overflow 都是内部自动触发
+        trigger: event.reason === "manual" ? "manual" : "auto",
+        thresholdRatio: preCompaction
+          ? preCompaction.tokens / preCompaction.contextWindow
+          : undefined,
+        lastUserPreview: lastUserText?.slice(0, 200),
         reason: event.reason,
         aborted: event.aborted,
         success: !!event.result,
@@ -176,9 +204,23 @@ export function trackSession(options: {
         error: event.errorMessage,
       });
     }
-    if (event.type === "tool_execution_end" && !event.isError) {
-      const step = toolStep(event.toolName, target.mode);
-      if (!task.completed.includes(step)) task.completed.push(step);
+    if (event.type === "tool_execution_end") {
+      const text = toolErrorText(event.result);
+      const error = event.isError ? text : undefined;
+      // 门禁拒绝有两种可见形态：门禁引擎 deny 抛错（【门禁 前缀），引擎工具把
+      // WriterError("GATE_DENIED") 以 错误[GATE_DENIED] 文本随成功回执带回
+      const denied =
+        text !== undefined && (text.startsWith("【门禁") || text.startsWith("错误[GATE_DENIED]"));
+      host.extras.log?.("tool_call", {
+        role,
+        tool: event.toolName,
+        error,
+        ...(denied ? { denied: true } : {}),
+      });
+      if (!event.isError) {
+        const step = toolStep(event.toolName, target.mode);
+        if (!task.completed.includes(step)) task.completed.push(step);
+      }
     }
     if (event.type === "tool_execution_start") task.current = toolStep(event.toolName, target.mode);
     if (event.type === "agent_settled") {

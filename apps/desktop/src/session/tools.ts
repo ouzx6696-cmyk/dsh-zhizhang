@@ -198,9 +198,11 @@ export function createBusinessTools(options: {
           typeof method.profile === "string"
         ) {
           const receipt = { id: method.id, profile: method.profile, hash: sha256(method.text) };
-          entry.methods.set(method.id, receipt);
+          const duplicate = entry.methods.get(receipt.id)?.hash === receipt.hash;
+          entry.methods.set(receipt.id, receipt);
           host.extras.log?.("method_loaded", {
             ...receipt,
+            duplicate,
             taskId: entry.task.id,
             conversationId: manager.getSessionId(),
           });

@@ -1266,6 +1266,246 @@ test("诊断精确脱敏并保留容量和无 Key 配置", async () => {
   }
 });
 
+test("交接埋点：write 任务记录 handoff 事件并携带方法字节与 lean 简报字节", async () => {
+  const base = await mkdtemp(path.join(tmpdir(), "writer-handoff-"));
+  const { ensureStorage, createWork } = await import("../../apps/desktop/out-test/work-store.mjs");
+  const appHome = path.join(base, "app");
+  await mkdir(appHome);
+  process.env.WRITER_STATE_ROOT = appHome;
+  const paths = await ensureStorage(null, { storageRoot: path.join(base, "data") });
+  const work = await createWork(paths, { title: "长夜车站" });
+  const model = await fakeModel({
+    "mock-writer": [
+      {
+        name: "fanqie_outline_set",
+        input: {
+          chapter: "c001",
+          title: "站台",
+          pov: "林川",
+          targetWords: 2000,
+          locks: "车站停电",
+          knowledge: "他不知道来电者身份",
+          synopsis: "林川等车",
+          conflict: "末班车不停站",
+          beats: "广播来电",
+          ending: "门打开",
+        },
+      },
+      { text: "开篇规划已保存。" },
+      { text: "已按简报续写。" },
+    ],
+  });
+  const logs = [];
+  const first = settled();
+  let onSettled = first.finish;
+  const host = new Sessions({
+    home: appHome,
+    python: "python3",
+    settings: () => models(model.url),
+    emit: (event) => {
+      if (event.event?.type === "agent_settled") onSettled();
+    },
+    confirm: async () => false,
+    options: {},
+    created: async () => {},
+    extras: { log: (name, fields) => logs.push({ name, ...fields }) },
+  });
+  const target = { mode: "fanqie", root: paths.base, work: work.meta.key };
+  try {
+    await host.send(target, "规划本书开篇。", { chapter: "c001", intent: "plan" });
+    await first.promise;
+    const second = settled();
+    onSettled = second.finish;
+    await host.send(target, "交接本章，按当前正文继续写作。", {
+      chapter: "c001",
+      intent: "write",
+    });
+    await second.promise;
+    const handoffs = logs.filter((row) => row.name === "handoff");
+    assert.equal(handoffs.length, 2);
+    const plan = handoffs[0];
+    assert.equal(plan.mode, "fanqie");
+    assert.equal(plan.intentSource, "focus");
+    assert.equal(plan.intent, "plan");
+    assert.deepEqual(plan.methodIds, ["plan-foundation"]);
+    assert.ok(plan.methodBytes > 0);
+    assert.equal(plan.briefAttached, false);
+    assert.equal(plan.briefBytes, 0);
+    const write = handoffs[1];
+    assert.equal(write.mode, "fanqie");
+    assert.equal(write.intentSource, "focus");
+    assert.equal(write.intent, "write");
+    assert.deepEqual(write.methodIds, ["write-chapter"]);
+    assert.ok(write.methodBytes > 0);
+    assert.equal(write.briefAttached, true);
+    assert.ok(write.briefBytes > 0);
+  } finally {
+    await host.dispose();
+    await model.close();
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("工具调用埋点：tool_call 随执行落盘，失败记录错误原文", async () => {
+  const home = await mkdtemp(path.join(tmpdir(), "writer-tool-call-"));
+  const target = { mode: "toutiao", root: path.join(home, "articles") };
+  const store = new ArticleStore(target.root);
+  const article = await store.create("toolcall", { date: "2026-11-05" });
+  target.article = article.id;
+  const card = { 内容线: "资讯线", 出处: [{ 事实: "26户", 链接: "作者素材" }] };
+  const model = await fakeModel({
+    "mock-writer": [
+      { name: "toutiao_card_set", input: { id: article.id, card: { 内容线: "资讯线" } } },
+      { name: "toutiao_card_set", input: { id: article.id, card } },
+      { text: "立项卡已保存。" },
+    ],
+  });
+  const logs = [];
+  const done = settled();
+  const host = new Sessions({
+    home,
+    python: "python3",
+    settings: () => models(model.url),
+    emit: (event) => {
+      if (event.event?.type === "agent_settled") done.finish();
+    },
+    confirm: async () => false,
+    options: {},
+    created: async () => {},
+    extras: { log: (name, fields) => logs.push({ name, ...fields }) },
+  });
+  try {
+    await host.send(target, "只使用作者素材建立资讯线立项卡");
+    await done.promise;
+    const calls = logs.filter((row) => row.name === "tool_call");
+    assert.equal(calls.filter((row) => row.tool === "toutiao_card_set").length, 2);
+    const failed = calls.find((row) => row.tool === "toutiao_card_set" && row.error);
+    assert.ok(failed);
+    assert.equal(failed.role, "writer");
+    assert.match(failed.error, /出处/);
+    assert.equal("denied" in failed, false);
+    const saved = calls.find((row) => row.tool === "toutiao_card_set" && !row.error);
+    assert.ok(saved);
+    assert.equal(saved.role, "writer");
+    assert.ok(calls.every((row) => row.tool && row.role));
+    const handoff = logs.find((row) => row.name === "handoff");
+    assert.equal(handoff.mode, "toutiao");
+    assert.equal(handoff.intentSource, "regex");
+    assert.equal(handoff.intent, "inspect");
+    assert.deepEqual(handoff.methodIds, []);
+    assert.equal(handoff.methodBytes, 0);
+    assert.equal(handoff.briefAttached, false);
+    assert.equal(handoff.briefBytes, 0);
+  } finally {
+    await host.dispose();
+    await model.close();
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("方法加载埋点：同一方法重复读取时 method_loaded 带 duplicate 标记", async () => {
+  const home = await mkdtemp(path.join(tmpdir(), "writer-method-dup-"));
+  const target = { mode: "toutiao", root: path.join(home, "articles") };
+  const model = await fakeModel({
+    "mock-writer": [
+      { name: "toutiao_method_get", input: { id: "overview" } },
+      { name: "toutiao_method_get", input: { id: "overview" } },
+      { text: "方法已读取。" },
+    ],
+  });
+  const logs = [];
+  const done = settled();
+  const host = new Sessions({
+    home,
+    python: "python3",
+    settings: () => models(model.url),
+    emit: (event) => {
+      if (event.event?.type === "agent_settled") done.finish();
+    },
+    confirm: async () => false,
+    options: {},
+    created: async () => {},
+    extras: { log: (name, fields) => logs.push({ name, ...fields }) },
+  });
+  try {
+    await host.send(target, "读取当前方法说明");
+    await done.promise;
+    const loads = logs.filter((row) => row.name === "method_loaded");
+    assert.equal(loads.length, 2);
+    assert.equal(loads[0].id, "overview");
+    assert.equal(loads[0].duplicate, false);
+    assert.equal(loads[1].duplicate, true);
+    assert.equal(loads[0].hash, loads[1].hash);
+    assert.equal(loads[1].profile, loads[0].profile);
+    assert.ok(loads[0].taskId);
+    assert.ok(loads[0].conversationId);
+  } finally {
+    await host.dispose();
+    await model.close();
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("压缩埋点：context_compacted 记录 trigger、触发比例与作者任务预览", async () => {
+  for (const automatic of [false, true]) {
+    const home = await mkdtemp(path.join(tmpdir(), "writer-compact-log-"));
+    const target = { mode: "toutiao", root: path.join(home, "articles") };
+    const model = await fakeModel({
+      "mock-writer": [
+        {
+          text: "四项事实已记录",
+          usage: automatic
+            ? { prompt_tokens: 110000, completion_tokens: 10, total_tokens: 110010 }
+            : undefined,
+        },
+        { text: "摘要：保留作者约束" },
+      ],
+    });
+    const logs = [];
+    const done = settled();
+    const host = new Sessions({
+      home,
+      python: "python3",
+      settings: () => models(model.url),
+      emit: (event) => {
+        if (event.event?.type === "agent_settled") done.finish();
+      },
+      confirm: async () => false,
+      options: {},
+      created: async () => {},
+      extras: {
+        log: (name, fields) => logs.push({ name, ...fields }),
+        context: () => ({
+          enabled: automatic,
+          triggerPercent: 80,
+          budget: 0,
+          keepRecentTokens: 0,
+        }),
+      },
+    });
+    try {
+      await host.send(target, "作者约束：主角不能飞。");
+      await done.promise;
+      const session = await host.open(target);
+      await session.waitForIdle();
+      if (!automatic) await host.compact(target, "保留四项事实");
+      const compacted = logs.filter((row) => row.name === "context_compacted");
+      assert.equal(compacted.length, 1);
+      assert.equal(compacted[0].trigger, automatic ? "auto" : "manual");
+      assert.ok(compacted[0].thresholdRatio > 0);
+      assert.ok(compacted[0].thresholdRatio <= 1);
+      assert.equal(compacted[0].lastUserPreview, "作者约束：主角不能飞。");
+      assert.equal(compacted[0].success, true);
+      assert.ok(compacted[0].tokensBefore > 0);
+      assert.equal(compacted[0].aborted, false);
+    } finally {
+      await host.dispose();
+      await model.close();
+      await rm(home, { recursive: true, force: true });
+    }
+  }
+});
+
 test("旧目录对话只迁移一次，后续读取不访问旧目录", async () => {
   const home = await mkdtemp(path.join(tmpdir(), "writer-history-migration-"));
   const events = [];
