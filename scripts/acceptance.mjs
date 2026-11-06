@@ -124,8 +124,13 @@ async function artifact(profile, row) {
     const line = index === 3 || index === 4 ? "故事线" : "资讯线";
     const genre = index >= 5 ? "微头条" : "长图文";
     if (meta.line !== line || meta.genre !== genre) throw new Error("文章类别与指定任务不一致");
-    if (!meta.delivered || !(await readFile(articles.deliveryPath(meta.id), "utf8")).trim())
-      throw new Error("缺少本轮交稿单");
+    // 交稿单文件由 S7 toutiao_delivery_save 写入（不需作者确认）；delivered 标志是作者采用，
+    // 标准轨 confirm 恒 false 不会置位，不能作为验收判据
+    const delivery = await readFile(articles.deliveryPath(meta.id), "utf8").catch((error) => {
+      if (error.code === "ENOENT") return "";
+      throw error;
+    });
+    if (!delivery.trim()) throw new Error("缺少本轮交稿单");
     const qa = articles.latestQaFor(meta),
       cardSha = await articles.cardSha(meta.id);
     if (!qa || !qa.pass || qa.card_sha256 !== cardSha)
@@ -420,6 +425,11 @@ for (const profile of profiles) {
       },
     },
   });
+  let consecutiveFailures = 0;
+  const breaker = () => {
+    if (consecutiveFailures >= 3)
+      throw new Error("连续 3 个任务失败，停止本轮验收：请检查模型端点与配置后用新 --output 重跑");
+  };
   async function run(caseId, name, scope, text, focus = {}) {
     const before =
       scope.mode === "toutiao"
@@ -467,6 +477,7 @@ for (const profile of profiles) {
       }
       await artifact(profile, record);
       all.push(record);
+      consecutiveFailures = 0;
     } catch (error) {
       await sessions.stop(scope);
       all.push({
@@ -477,7 +488,8 @@ for (const profile of profiles) {
         reason: String(error.message),
         durationMs: Date.now() - start,
       });
-      throw error;
+      consecutiveFailures += 1;
+      // 单任务失败记录后继续（基线要的是成功率与失败形态）；连续失败说明端点或配置坏了，熔断止损
     } finally {
       clearTimeout(timer);
       finish = undefined;
@@ -498,13 +510,14 @@ for (const profile of profiles) {
         `新建并完成一篇${genre}：${idea}。本次新闻来源：${config.newsUrls.join("、")}。资讯事实须读取原网页，按当前方法方案推进至质检和交稿单；保留全部真实质检记录，不标记已交稿。`,
         { intent: "write" },
       );
+      breaker();
     }
     const planScope = { mode: "fanqie", root: novels };
     for (const book of plan.books) {
       if (only && !(only === book.prefix + "-plan" || only.startsWith(book.prefix + "-c")))
         continue;
       const previousWork = target.work;
-      if (!only || only === book.prefix + "-plan")
+      if (!only || only === book.prefix + "-plan") {
         await run(
           book.prefix + "-plan",
           `长篇开书${book.pace ? "（" + book.pace + "档）" : ""}`,
@@ -512,6 +525,8 @@ for (const profile of profiles) {
           `创建一本长篇，题材：${config.novelIdea}。${book.pace ? pacePromptLine(book.pace) : ""}使用规划角色完成根基与前 ${book.chapters} 章章纲，章号 ${book.chapterIds[0]} 到 ${book.chapterIds[book.chapterIds.length - 1]}；本轮只规划。`,
           { intent: "plan" },
         );
+        breaker();
+      }
       // 每本书必须落到新作品；否则下一本的章节会写进上一本书，必须当场失败而不是混书。
       if (!only && target.work === previousWork)
         throw new Error("开书任务没有创建新作品：" + book.prefix);
@@ -525,6 +540,7 @@ for (const profile of profiles) {
           `完成第 ${position + 1} 章（${chapter}）：读实际前文与章纲，出候选、采纳为草稿并派独立编辑，运行 fanqie_ledger_check，以实际审读回报收尾，${mode.finalizeTrack ? "审读通过后将本章定稿（final）。" : "不替作者定稿。"}`,
           { chapter, intent: "write" },
         );
+        breaker();
       }
     }
   } finally {
