@@ -31,15 +31,30 @@ export const focusLabel = (target: Target, focus: Focus = {}) =>
     .filter(Boolean)
     .join(" · ");
 
+/** writer-method 块：v2 交接里紧随 writer-context 的纯文本方法全文（不经 JSON 转义）。 */
+export type PromptMethodBlock = { id: string; hash: string; text: string };
+
+// 块定位与属性解析分两条正则：属性按 name="value" 全量收进表，id/hash 任意顺序都能读到。
+const METHOD_BLOCK = /^<writer-method\s+([^>]*)>([\s\S]*?)<\/writer-method>\n*/;
+const METHOD_ATTR = /([a-zA-Z]+)="([^"]*)"/g;
+
 // Context travels with each queued prompt; browsing never changes a running task.
-export function promptText(text: string, context: unknown) {
-  return `<writer-context>\n${JSON.stringify(context)}\n</writer-context>\n\n${text}`;
+export function promptText(text: string, context: unknown, methodBlocks?: string[]) {
+  const blocks = methodBlocks?.length ? `${methodBlocks.join("\n")}\n\n` : "";
+  return `<writer-context>\n${JSON.stringify(context)}\n</writer-context>\n\n${blocks}${text}`;
 }
 export function promptContext(text: string) {
   const match = text.match(/^<writer-context>\n([^\n]+)\n<\/writer-context>\n\n/);
-  return match
-    ? { context: JSON.parse(match[1]), text: text.slice(match[0].length) }
-    : { context: null, text };
+  if (!match) return { context: null, text, methods: [] as PromptMethodBlock[] };
+  let rest = text.slice(match[0].length);
+  const methods: PromptMethodBlock[] = [];
+  for (let block = rest.match(METHOD_BLOCK); block; block = rest.match(METHOD_BLOCK)) {
+    const attrs: Record<string, string> = {};
+    for (const [, name, value] of block[1].matchAll(METHOD_ATTR)) attrs[name] = value;
+    methods.push({ id: attrs.id, hash: attrs.hash, text: block[2] });
+    rest = rest.slice(block[0].length);
+  }
+  return { context: JSON.parse(match[1]), text: rest, methods };
 }
 export function toolLabel(name: string) {
   if (name === "writer_review") return "编辑审读";

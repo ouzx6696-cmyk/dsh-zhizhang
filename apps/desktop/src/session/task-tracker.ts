@@ -1,10 +1,16 @@
 import { randomUUID } from "node:crypto";
 import type { DesktopEvent, TaskEndReason } from "../renderer-contracts";
-import { promptContext, toolLabel, toolStep } from "../context";
+import { promptContext, toolLabel, toolStep, type Target } from "../context";
 import { explainError } from "../diagnostics";
+import { sha256 } from "../../../../packages/core/src/fsx";
 import { asRecord } from "../main/ipc/validate";
 import type { Sessions } from "./manager";
 import type { SessionEntry, Task } from "./types";
+
+/** v2 注入去重的最小读取口：该目标当前会话已注入方法的凭据；会话尚未建立时为 undefined。 */
+export function injectedMethods(host: Sessions, target: Target) {
+  return host.sessions.get(host.key(target))?.methods;
+}
 
 /** PI 事件把工具结果标为 any，这里只在边界取错误文本，其余形状不信任。 */
 function toolErrorText(result: unknown) {
@@ -120,7 +126,11 @@ export function trackSession(options: {
       entry.focus = parsed.context?.focus || {};
       if (entry.profile !== parsed.context?.profile?.id) entry.methods.clear();
       entry.profile = parsed.context?.profile?.id;
+      // v2 注入以 writer-method 块携带全文：凭据给 id/profile/hash，块哈希锚定实际进入上下文的内容。
+      // 带裁剪说明且没有块的方法没进上下文，不记凭据，下个任务重试全文注入。
+      const blocks = new Map(parsed.methods.map((block) => [block.id, block]));
       if (Array.isArray(parsed.context?.methods)) {
+        const credentials: { id: string; profile: string; hash: string; note?: string }[] = [];
         for (const method of parsed.context.methods) {
           if (
             typeof method.id !== "string" ||
@@ -128,12 +138,37 @@ export function trackSession(options: {
             typeof method.hash !== "string"
           )
             throw new Error("任务方法凭据无效");
-          entry.methods.set(method.id, {
+          credentials.push({
             id: method.id,
             profile: method.profile,
             hash: method.hash,
+            note: typeof method.note === "string" ? method.note : undefined,
           });
         }
+        for (const method of credentials) {
+          if (method.note !== undefined) continue;
+          const block = blocks.get(method.id);
+          entry.methods.set(method.id, {
+            id: method.id,
+            profile: method.profile,
+            hash: block ? sha256(block.text) : method.hash,
+          });
+        }
+        const intent = parsed.context?.intent;
+        if (typeof intent === "string")
+          entry.handoff = {
+            intentSource: parsed.context?.focus?.intent ? "focus" : "state",
+            intent,
+            methods: credentials.map((method) => {
+              const block = blocks.get(method.id);
+              return {
+                id: method.id,
+                bytes: block ? Buffer.byteLength(block.text) : 0,
+                injected: block !== undefined,
+                trimmed: method.note !== undefined,
+              };
+            }),
+          };
       }
       task.id = randomUUID();
       task.name = parsed.text.slice(0, 100);

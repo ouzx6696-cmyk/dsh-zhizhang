@@ -8,12 +8,20 @@ export type Task = import("../renderer-contracts").TaskState & {
   usage: import("../renderer-contracts").TokenUsage;
 };
 
+/** 最近一次 v2 交接的方法包摘要（tracker 从实际进入上下文的任务 prompt 解析），供方法包面板展示。 */
+export type HandoffSummary = {
+  intentSource: "focus" | "state";
+  intent: string;
+  methods: { id: string; bytes: number; injected: boolean; trimmed: boolean }[];
+};
+
 export type SessionEntry = {
   session: AgentSession;
   target: Target;
   focus: Focus;
   phase: string;
   methods: Map<string, { id: string; profile: string; hash: string }>;
+  handoff?: HandoffSummary;
   profile?: string;
   task: Task;
 };

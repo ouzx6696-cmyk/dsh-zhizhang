@@ -1,4 +1,8 @@
-import { COPY as viewCopy, formatCount } from "../../../../../../packages/ui/src/copy.js";
+import {
+  COPY as viewCopy,
+  formatBytes,
+  formatCount,
+} from "../../../../../../packages/ui/src/copy.js";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { scopeId, type Target } from "../../../context";
 import { type ContextSettings } from "../../../context-settings";
@@ -121,6 +125,31 @@ export function ContextPanel({
             </li>
           ))}
         </ul>
+      )}
+      {usage?.handoff && usage.handoff.methods.length > 0 && (
+        <details>
+          <summary>{viewCopy.contextMethodPack}</summary>
+          <p>
+            {viewCopy.contextMethodIntent}
+            {usage.handoff.intent}
+            {" · "}
+            {usage.handoff.intentSource === "focus"
+              ? viewCopy.contextMethodFocus
+              : viewCopy.contextMethodState}
+          </p>
+          <ul>
+            {usage.handoff.methods.map((method) => (
+              <li key={method.id}>
+                {method.id} ·{" "}
+                {method.trimmed
+                  ? viewCopy.contextMethodTrimmed
+                  : method.injected
+                    ? `${viewCopy.contextMethodInjected} ${formatBytes(method.bytes)}`
+                    : viewCopy.contextMethodDeduped}
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
       {usage?.compaction && (
         <details>

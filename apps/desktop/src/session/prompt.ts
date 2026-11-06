@@ -35,6 +35,8 @@ import {
   type ToutiaoSnapshot,
 } from "../../../../packages/core/src/method-pack";
 import { taskMethods, corpusMethods, packMethods, type TaskMethod } from "./task-methods";
+import { planMethodInjection } from "./method-injection";
+import { injectedMethods } from "./task-tracker";
 import type { Sessions } from "./manager";
 
 const CLIENT_NOTICE =
@@ -442,23 +444,32 @@ async function taskPromptV2(host: Sessions, target: Target, text: string, focus:
       qaValid: await validPassingQa(toutiao.store, article),
     };
   }
+  // v2 注入：先按该会话已注入凭据去重，再做预算裁剪；方法全文不再进 writer-context JSON，
+  // 改为紧随其后的 writer-method 纯文本块（凭据区保留 id/profile/hash）。
+  const injection = planMethodInjection(injected, injectedMethods(host, target), target.mode);
   host.extras.log?.("handoff", {
     mode: target.mode,
     intentSource: focus.intent ? "focus" : "state",
     intent: pack.intent,
-    methodIds: injected.map((method) => method.id),
-    methodBytes: injected.reduce((sum, method) => sum + Buffer.byteLength(method.text), 0),
+    methodIds: injection.injectedIds,
+    methodBytes: injection.injectedBytes,
+    ...(injection.trimmedIds.length ? { trimmedIds: injection.trimmedIds } : {}),
     briefAttached: brief !== undefined,
     briefBytes: brief === undefined ? 0 : Buffer.byteLength(brief),
   });
-  return promptText(kinds.includes("delegation-note") ? `${text}\n\n${DELEGATION_NOTE}` : text, {
-    target,
-    focus,
-    profile: { id: profile.id, name: profile.name },
-    saved,
-    methods: injected,
-    preferences: await host.extras.preferences?.(),
-  });
+  return promptText(
+    kinds.includes("delegation-note") ? `${text}\n\n${DELEGATION_NOTE}` : text,
+    {
+      target,
+      focus,
+      profile: { id: profile.id, name: profile.name },
+      saved,
+      intent: pack.intent,
+      methods: injection.credentials,
+      preferences: await host.extras.preferences?.(),
+    },
+    injection.blocks,
+  );
 }
 
 export async function reviewResult(

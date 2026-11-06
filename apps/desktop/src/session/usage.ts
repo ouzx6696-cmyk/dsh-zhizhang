@@ -54,6 +54,7 @@ export async function sessionUsage(host: Sessions, target: Target) {
       compaction: null,
       recent: null,
       methods: [],
+      handoff: null,
     };
   const session = entry.session,
     leaf = session.sessionManager.getLeafId();
@@ -66,5 +67,6 @@ export async function sessionUsage(host: Sessions, target: Target) {
     ...cached.value,
     compacting: session.isCompacting,
     methods: [...entry.methods.values()],
+    handoff: entry.handoff ?? null,
   };
 }

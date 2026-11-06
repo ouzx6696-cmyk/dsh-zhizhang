@@ -1908,7 +1908,7 @@ const OUTLINE_C001 = {
   ending: "门打开",
 };
 
-function handoffHost(base, options, model, logs) {
+function handoffHost(base, options, model, logs, extras = {}) {
   let onSettled = () => {};
   const host = new Sessions({
     home: base,
@@ -1920,7 +1920,7 @@ function handoffHost(base, options, model, logs) {
     confirm: async () => false,
     options,
     created: async () => {},
-    extras: { log: (name, fields) => logs.push({ name, ...fields }) },
+    extras: { log: (name, fields) => logs.push({ name, ...fields }), ...extras },
   });
   return {
     host,
@@ -2141,6 +2141,255 @@ test("handoff.v2 开启：头条按文章状态注入对应 S 步方法（K-03�
     assert.match(writerMessages(model, 2), /S4 资讯线写法/);
     assert.match(writerMessages(model, 2), /语料：通用底座/);
     assert.match(writerMessages(model, 3), /S5 红笔/);
+  } finally {
+    await host.dispose();
+    await model.close();
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+function lastUserText(call) {
+  const message = call.messages.findLast((message) => message.role === "user");
+  assert.ok(message, "写手调用缺少任务消息");
+  return typeof message.content === "string"
+    ? message.content
+    : (message.content || []).map((part) => part.text || "").join("\n");
+}
+
+function writerPrompt(model, index) {
+  const call = model.calls.filter((call) => call.model === "mock-writer")[index];
+  assert.ok(call, `第 ${index + 1} 次写手调用不存在`);
+  return lastUserText(call);
+}
+
+function writerContext(prompt) {
+  const match = /^<writer-context>\n([^\n]+)\n<\/writer-context>\n\n/.exec(prompt);
+  assert.ok(match, "任务缺少 writer-context");
+  return JSON.parse(match[1]);
+}
+
+test("handoff.v2 注入形态：方法全文走 writer-method 块，writer-context 只留凭据", async () => {
+  const base = await mkdtemp(path.join(tmpdir(), "writer-handoff-block-"));
+  const { ensureStorage, createWork } = await import("../../apps/desktop/out-test/work-store.mjs");
+  const appHome = path.join(base, "app");
+  await mkdir(appHome);
+  process.env.WRITER_STATE_ROOT = appHome;
+  const paths = await ensureStorage(null, { storageRoot: path.join(base, "data") });
+  const work = await createWork(paths, { title: "长夜车站" });
+  const model = await fakeModel({ "mock-writer": [{ text: "开篇规划已保存。" }] });
+  const logs = [];
+  const { host, settle } = handoffHost(appHome, { fanqie: { handoff: { v2: true } } }, model, logs);
+  const target = { mode: "fanqie", root: paths.base, work: work.meta.key };
+  try {
+    const step = settle();
+    await host.send(target, "规划本书开篇。", { chapter: "c001", intent: "plan" });
+    await step.promise;
+    const prompt = writerPrompt(model, 0);
+    const context = writerContext(prompt);
+    assert.ok(Array.isArray(context.methods) && context.methods.length === 1);
+    const [credential] = context.methods;
+    assert.equal(credential.id, "plan-foundation");
+    assert.equal(credential.profile, "default");
+    assert.match(credential.hash, /^[0-9a-f]{64}$/);
+    assert.equal("text" in credential, false);
+    assert.equal(context.intent, "plan");
+    const block =
+      /<writer-method id="plan-foundation" hash="([0-9a-f]{64})">([\s\S]*?)<\/writer-method>\n\n/.exec(
+        prompt,
+      );
+    assert.ok(block, "任务缺少 writer-method 块");
+    assert.equal(block[1], credential.hash);
+    assert.equal(
+      createHash("sha256").update(block[2]).digest("hex"),
+      block[1],
+      "块哈希须等于块正文",
+    );
+    const probe = "开书立项：卖点、主角、规则、节奏档位与读者承诺";
+    assert.ok(block[2].includes(probe), "块须携带方法全文");
+    assert.ok(!prompt.match(/^<writer-context>\n([^\n]+)\n<\/writer-context>/)[1].includes(probe));
+    assert.ok(prompt.endsWith("规划本书开篇。"));
+    const handoff = logs.find((row) => row.name === "handoff");
+    assert.deepEqual(handoff.methodIds, ["plan-foundation"]);
+    assert.equal(handoff.methodBytes, Buffer.byteLength(block[2]));
+    assert.equal("trimmedIds" in handoff, false);
+  } finally {
+    await host.dispose();
+    await model.close();
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("handoff.v2 去重：同会话第二条任务同方法只发凭据不发块", async () => {
+  const base = await mkdtemp(path.join(tmpdir(), "writer-handoff-dedup-"));
+  const { ensureStorage, createWork } = await import("../../apps/desktop/out-test/work-store.mjs");
+  const appHome = path.join(base, "app");
+  await mkdir(appHome);
+  process.env.WRITER_STATE_ROOT = appHome;
+  const paths = await ensureStorage(null, { storageRoot: path.join(base, "data") });
+  const work = await createWork(paths, { title: "长夜车站" });
+  const model = await fakeModel({
+    "mock-writer": [{ text: "开篇规划已保存。" }, { text: "继续规划已收到。" }],
+  });
+  const logs = [];
+  const { host, settle } = handoffHost(appHome, { fanqie: { handoff: { v2: true } } }, model, logs);
+  const target = { mode: "fanqie", root: paths.base, work: work.meta.key };
+  try {
+    let step = settle();
+    await host.send(target, "规划本书开篇。", { chapter: "c001", intent: "plan" });
+    await step.promise;
+    step = settle();
+    await host.send(target, "继续开书规划。", { chapter: "c001", intent: "plan" });
+    await step.promise;
+    const first = /<writer-method id="plan-foundation" hash="([0-9a-f]{64})">/.exec(
+      writerPrompt(model, 0),
+    );
+    assert.ok(first, "首条任务应附全文块");
+    const prompt = writerPrompt(model, 1);
+    assert.ok(!prompt.includes("<writer-method"), "去重后不应再发 writer-method 块");
+    const context = writerContext(prompt);
+    assert.equal(context.methods[0].id, "plan-foundation");
+    assert.equal(context.methods[0].injected, true);
+    assert.equal(context.methods[0].hash, first[1]);
+    const handoffs = logs.filter((row) => row.name === "handoff");
+    assert.equal(handoffs.length, 2);
+    assert.deepEqual(handoffs[1].methodIds, []);
+    assert.equal(handoffs[1].methodBytes, 0);
+    assert.equal("trimmedIds" in handoffs[1], false);
+  } finally {
+    await host.dispose();
+    await model.close();
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("handoff.v2 去重恢复：手动压缩后同方法恢复全文块", async () => {
+  const base = await mkdtemp(path.join(tmpdir(), "writer-handoff-restore-"));
+  const { ensureStorage, createWork } = await import("../../apps/desktop/out-test/work-store.mjs");
+  const appHome = path.join(base, "app");
+  await mkdir(appHome);
+  process.env.WRITER_STATE_ROOT = appHome;
+  const paths = await ensureStorage(null, { storageRoot: path.join(base, "data") });
+  const work = await createWork(paths, { title: "长夜车站" });
+  const model = await fakeModel({
+    "mock-writer": [
+      { text: "开篇规划已保存。" },
+      { text: "继续规划已收到。" },
+      { text: "摘要：保留方法凭据" },
+      { text: "压缩后继续规划。" },
+    ],
+  });
+  const logs = [];
+  const { host, settle } = handoffHost(
+    appHome,
+    { fanqie: { handoff: { v2: true } } },
+    model,
+    logs,
+    // PI 默认保留近 20k token 不压缩，小会话需把保留预算清零才能手动压缩
+    { context: () => ({ enabled: false, triggerPercent: 80, budget: 0, keepRecentTokens: 0 }) },
+  );
+  const target = { mode: "fanqie", root: paths.base, work: work.meta.key };
+  try {
+    let step = settle();
+    await host.send(target, "规划本书开篇。", { chapter: "c001", intent: "plan" });
+    await step.promise;
+    step = settle();
+    await host.send(target, "继续开书规划。", { chapter: "c001", intent: "plan" });
+    await step.promise;
+    assert.ok(!writerPrompt(model, 1).includes("<writer-method"), "压缩前同方法应被去重");
+    const session = await host.open(target);
+    await session.waitForIdle();
+    await host.compact(target, "保留方法凭据");
+    assert.ok(
+      logs.some((row) => row.name === "context_compacted" && row.success === true),
+      "手动压缩应成功",
+    );
+    step = settle();
+    await host.send(target, "再开书规划一次。", { chapter: "c001", intent: "plan" });
+    await step.promise;
+    // 压缩的摘要请求也走写手模型且夹在两次任务之间，按任务内容定位压缩后的任务调用
+    const prompt = model.calls
+      .filter((call) => call.model === "mock-writer")
+      .map(lastUserText)
+      .filter((text) => text.startsWith("<writer-context>") && text.endsWith("再开书规划一次。"))
+      .at(-1);
+    assert.ok(prompt, "压缩后缺少第三次任务调用");
+    assert.match(prompt, /<writer-method id="plan-foundation" hash="[0-9a-f]{64}">/);
+    const handoffs = logs.filter((row) => row.name === "handoff");
+    assert.equal(handoffs.length, 3);
+    assert.deepEqual(handoffs[2].methodIds, ["plan-foundation"]);
+    assert.ok(handoffs[2].methodBytes > 0);
+  } finally {
+    await host.dispose();
+    await model.close();
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("handoff.v2 预算裁剪：超限方法包按 prose→rhythm 整份裁剪并记录 trimmedIds", async () => {
+  const { createProfile } = await import("../../build/core/src/profiles.js");
+  const { fanqieLibrary } = await import("../../build/fanqie/src/forge.js");
+  const base = await mkdtemp(path.join(tmpdir(), "writer-handoff-budget-"));
+  const { ensureStorage, createWork } = await import("../../apps/desktop/out-test/work-store.mjs");
+  const appHome = path.join(base, "app");
+  await mkdir(appHome);
+  process.env.WRITER_STATE_ROOT = appHome;
+  const profile = await createProfile(fanqieLibrary, {
+    name: "超限方案",
+    base: "default",
+    files: [
+      { id: "write-chapter", text: "a".repeat(30000) },
+      { id: "prose", text: "b".repeat(20000) },
+      { id: "rhythm", text: "c".repeat(20000) },
+    ],
+  });
+  const paths = await ensureStorage(null, { storageRoot: path.join(base, "data") });
+  const work = await createWork(paths, { title: "长夜车站" });
+  const model = await fakeModel({
+    "mock-writer": [
+      { name: "fanqie_outline_set", input: OUTLINE_C001 },
+      { text: "开篇规划已保存。" },
+      { text: "已按方法包续写。" },
+    ],
+  });
+  const logs = [];
+  const { host, settle } = handoffHost(
+    appHome,
+    { fanqie: { handoff: { v2: true }, profile: profile.id } },
+    model,
+    logs,
+  );
+  const target = { mode: "fanqie", root: paths.base, work: work.meta.key };
+  try {
+    let step = settle();
+    await host.send(target, "规划本书开篇。", { chapter: "c001", intent: "plan" });
+    await step.promise;
+    step = settle();
+    await host.send(target, "交接本章，按当前正文继续写作。", {
+      chapter: "c001",
+      intent: "write",
+    });
+    await step.promise;
+    const handoffs = logs.filter((row) => row.name === "handoff");
+    assert.equal(handoffs.length, 2);
+    assert.equal("trimmedIds" in handoffs[0], false);
+    assert.deepEqual(handoffs[1].trimmedIds, ["prose", "rhythm"]);
+    assert.deepEqual(handoffs[1].methodIds, ["write-chapter"]);
+    assert.equal(handoffs[1].methodBytes, 30000);
+    const prompt = writerPrompt(model, 2);
+    assert.match(prompt, /<writer-method id="write-chapter" hash="[0-9a-f]{64}">/);
+    assert.ok(!prompt.includes('<writer-method id="prose"'), "prose 被裁不应有块");
+    assert.ok(!prompt.includes('<writer-method id="rhythm"'), "rhythm 被裁不应有块");
+    assert.match(prompt, /预算裁剪：prose 未随交接附上，需要时 fanqie_method_get 读取/);
+    assert.match(prompt, /预算裁剪：rhythm 未随交接附上，需要时 fanqie_method_get 读取/);
+    const context = writerContext(prompt);
+    assert.deepEqual(
+      context.methods.map((method) => [method.id, "note" in method, "injected" in method]),
+      [
+        ["write-chapter", false, false],
+        ["rhythm", true, false],
+        ["prose", true, false],
+      ],
+    );
   } finally {
     await host.dispose();
     await model.close();
