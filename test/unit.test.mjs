@@ -223,18 +223,27 @@ test("稿件只增不改，哈希记录", async () => {
 });
 
 test("R3 文章目录日期取本地日期（跨时区）", () => {
+  // 注入固定时刻再调产品入口 today()：同一 UTC 时刻在东九区必须是次日，
+  // 若 today() 退化成 UTC 截取则两地都会得 1970-01-01。
   const run = (tz) =>
     spawnSync(
       process.execPath,
       [
         "--input-type=module",
         "-e",
-        `import { localDate } from ${JSON.stringify(buildUrl("toutiao/src/store.js"))}; console.log(localDate(new Date("1970-01-01T20:00:00Z")));`,
+        `const RealDate = Date;
+         const fixed = new RealDate("1970-01-01T20:00:00Z").getTime();
+         globalThis.Date = class extends RealDate {
+           constructor(...args) { super(...(args.length ? args : [fixed])); }
+           static now() { return fixed; }
+         };
+         const { today } = await import(${JSON.stringify(buildUrl("toutiao/src/store.js"))});
+         console.log(today());`,
       ],
       { encoding: "utf8", env: { ...process.env, TZ: tz } },
     );
   assert.equal(run("UTC").stdout.trim(), "1970-01-01");
-  assert.equal(run("Asia/Tokyo").stdout.trim(), "1970-01-02");
+  assert.equal(run("Asia/Tokyo").stdout.trim(), "1970-01-02", "东九区应为次日；UTC 截取会得 1970-01-01");
 });
 
 test("守卫：JSX 文案从共享文案表读取", async (t) => {

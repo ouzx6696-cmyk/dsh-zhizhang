@@ -47,7 +47,7 @@ async function knownRoot(root: string): Promise<string> {
 
 export async function listArticles() {
   const roots = await listKnownRoots()
-    const rows: ArticleRow[] = []
+  const rows: ArticleRow[] = []
   const issues: { root: string; id?: string; error: string }[] = []
   const perRoot = await Promise.all(roots.map(async (root) => {
     const rootIssues: { root: string; id?: string; error: string }[] = []
@@ -56,6 +56,7 @@ export async function listArticles() {
     catch (error) { rootIssues.push({ root, error: error instanceof Error ? error.message : String(error) }) }
     return { root, metas, rootIssues }
   }))
+  for (const { rootIssues } of perRoot) issues.push(...rootIssues)
   const pairs = perRoot.flatMap(({ root, metas }) => metas.map(m => ({ root, m })))
   pairs.sort((a, b) => (STATUSES.indexOf(a.m.status) - STATUSES.indexOf(b.m.status)) || String(b.m.updated_at).localeCompare(String(a.m.updated_at)))
   for (const { root, m } of pairs) {

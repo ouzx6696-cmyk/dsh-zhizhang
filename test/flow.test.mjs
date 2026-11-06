@@ -1,14 +1,14 @@
 // 头条 S2→S7 全流程（生产工具执行路径 + 真实 Python 规则脚本）
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { FIX, createToolHarness, tempDir, buildUrl } from "./helpers.mjs";
 
 const { adopt, listArticles, articleDetail, buildToutiaoDelivery } = await import(
   buildUrl("toutiao/src/workbench/data.js")
 );
-const { STOP_LINE } = await import(buildUrl("toutiao/src/store.js"));
+const { STOP_LINE, today } = await import(buildUrl("toutiao/src/store.js"));
 
 const STORY = await readFile(path.join(FIX, "story_long_good.md"), "utf8");
 const CARD = JSON.parse(await readFile(path.join(FIX, "story_long_card.json"), "utf8"));
@@ -227,6 +227,13 @@ test("写作台（今日头条模式）：列表与详情可见，按钮指令�
   const row = list.articles.find((a) => a.id === id);
   assert.equal(row.title, CARD["主标题"]);
   assert.equal(row.qa.pass, true);
+  // 损坏的文章目录必须作为 issue 上报，不能被静默丢弃
+  const brokenId = `${today()}-broken`;
+  await mkdir(path.join(root, brokenId), { recursive: true });
+  await writeFile(path.join(root, brokenId, "meta.json"), "{broken");
+  const withBroken = await listArticles();
+  assert.ok(withBroken.issues.some((i) => i.id === brokenId), "损坏文章应出现在 issues");
+  await rm(path.join(root, brokenId), { recursive: true, force: true });
   const d1 = await articleDetail(root, id);
   assert.equal(d1.adoptable, true);
   assert.match(d1.delivery, /交稿单/);

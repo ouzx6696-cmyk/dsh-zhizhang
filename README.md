@@ -1,6 +1,6 @@
 # 写作 Agent
 
-**当前源码为 0.9.9.1 开发版，尚未发布。** 最近正式版为下方下载区的 0.9.8。
+**当前源码为 0.9.9-rc.1 候选版，尚未发布。** 最近正式版为下方下载区的 0.9.8。
 
 基于内置 PI SDK 的独立 Electron 写作客户端，面向中文长篇小说与今日头条创作。作品保存在本地；模型协助规划、写作和独立审读，作者决定采纳、定稿及交稿。
 
@@ -13,11 +13,11 @@
 
 写作根包含 `novels/`、`toutiao/` 和 `.writer/`。设置可打开既有目录、备份与检查未完成写入。停止任务保留已落盘内容。模型请求会把相关创作内容发送至配置的服务商。
 
-## 0.9.9.1 性能与前后端梳理优化
+## 0.9.9-rc.1 性能与前后端梳理优化
 
 - **后端 I/O 与缓存加速**：`atomicWrite` 复用父目录安全校验结果，省去已存在目录的冗余 `mkdir` 与二次祖先链 `lstat`；`readJsonlCached` 缓存解析后的 JSONL 行并在命中时浅拷贝返回；长篇面板快照、拆书库、灵感候选、章节修订统计、项目与作品扫描、头条多根文章列举、方法方案加载以及桌面 `projects` IPC 全面改为批量受控并发（`Promise.all`），路由匹配改用 `Set` 常数查找。
 - **前端渲染与交互打磨**：`Markdown` 组件提升插件常量并接入 `React.memo`；`AgentPanel` 拆出独立 `AgentMessages` 并缓存候选编号与快捷动作，输入草稿不再触发历史消息列表重渲染；`SourceEditor` 字数统计消除逐字符数组分配；桌面顶栏项目切换菜单补齐点击外部与 `Escape` 关闭及无障碍菜单属性。
-- **架构整洁与零守卫告警**：拆分全部超长组件/Hook（`AgentPanel`、`useDesktopController`、`useFanqie`、`ToutiaoApp`、`Profiles`）与超长样式表（`shell.css`、`base.css` 等），清理 `tokens.css`、`ledger.css`、`reader.css`、`profiles.css` 重复覆盖规则；`any` 基线由 128 降至 99，架构守卫 0 失败、0 提示。
+- **架构整洁与零守卫失败**：拆分全部超长组件/Hook（`AgentPanel`、`useDesktopController`、`useFanqie`、`ToutiaoApp`、`Profiles`）与超长样式表（`shell.css`、`base.css` 等），清理 `tokens.css`、`ledger.css`、`reader.css`、`profiles.css` 重复覆盖规则；`any` 从 100 降至 1、非空断言清零，架构守卫 0 失败（余 2 条超行提示）。
 
 ## 0.9.9 开发版功能
 

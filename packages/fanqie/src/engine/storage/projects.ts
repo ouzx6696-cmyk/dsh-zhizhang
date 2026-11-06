@@ -63,9 +63,12 @@ function toolBaseMarker() {
 }
 export async function rememberToolBase(base: string, works: string) {
   if (base === lastToolBase && works === lastWorksRoot) return;
-  await atomicWrite(
-    toolBaseMarker(),
-    JSON.stringify({ base, works, at: nowIso() }, null, 2) + "\n",
+  // 同进程多实例（测试、双开面板）会同时初始化存储；串行化避免 Windows 上 rename 撞 EPERM。
+  await serialize(toolBaseMarker(), () =>
+    atomicWrite(
+      toolBaseMarker(),
+      JSON.stringify({ base, works, at: nowIso() }, null, 2) + "\n",
+    ),
   );
   lastToolBase = base;
   lastWorksRoot = works;

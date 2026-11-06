@@ -6,6 +6,10 @@ import { fileURLToPath } from "node:url";
 // --root audits another checkout using the same required rules.
 const args = process.argv.slice(2);
 const rootArg = args.indexOf("--root");
+if (rootArg >= 0 && (args[rootArg + 1] === undefined || args[rootArg + 1].startsWith("--"))) {
+  console.error("--root 缺少目录参数");
+  process.exit(1);
+}
 const ROOT =
   rootArg < 0
     ? path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
@@ -410,9 +414,12 @@ const repositoryRules = [
       const baseline = JSON.parse(
         await readFile(path.join(ROOT, "scripts/any-baseline.json"), "utf8"),
       );
-      if (!Number.isInteger(baseline.any) || baseline.any < 0 || anyCount > baseline.any)
-        problems.push(`any 数量 ${anyCount} 超过基线 ${baseline.any}`);
-      if (!Number.isInteger(baseline.nonNull) || baseline.nonNull < 0 || nonNullCount > baseline.nonNull)
+      if (!Number.isInteger(baseline.any) || baseline.any < 0)
+        problems.push('基线文件缺少整数字段 "any"');
+      else if (anyCount > baseline.any) problems.push(`any 数量 ${anyCount} 超过基线 ${baseline.any}`);
+      if (!Number.isInteger(baseline.nonNull) || baseline.nonNull < 0)
+        problems.push('基线文件缺少整数字段 "nonNull"');
+      else if (nonNullCount > baseline.nonNull)
         problems.push(`非空断言 ! 数量 ${nonNullCount} 超过基线 ${baseline.nonNull}`);
       console.log(
         `架构守卫计数：any=${anyCount}（基线 ${baseline.any}），非空断言=${nonNullCount}（基线 ${baseline.nonNull}），吞错=${swallowedCount}`,
