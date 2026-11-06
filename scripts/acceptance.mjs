@@ -39,7 +39,7 @@ let mode = resolveMode({
   judge: process.argv.includes("--judge"),
 });
 let plan = casePlan(mode);
-const TASK_TIMEOUT_MS = (mode.long ? 30 : 15) * 60 * 1000;
+let TASK_TIMEOUT_MS = (mode.long ? 30 : 15) * 60 * 1000;
 const template = {
   models: {
     writer: {
@@ -364,6 +364,12 @@ for (const scope of ["default", "original"]) {
 const config = JSON.parse(await readFile(path.resolve(configFile), "utf8"));
 if (!Array.isArray(config.newsUrls) || config.newsUrls.length < 2)
   throw new Error("请提供至少两个真实新闻链接");
+// 中转端点可能有冷启动失败与零星空响应，单任务预算按端点实况放宽（默认仍 15/30 分钟）
+if (config.taskTimeoutMinutes !== undefined) {
+  if (typeof config.taskTimeoutMinutes !== "number" || !Number.isFinite(config.taskTimeoutMinutes) || config.taskTimeoutMinutes <= 0)
+    throw new Error("taskTimeoutMinutes 须为正数（分钟）");
+  TASK_TIMEOUT_MS = config.taskTimeoutMinutes * 60 * 1000;
+}
 // --only 冒烟/连通性检查：只跑 default 方案下单个任务；任务分发按 caseId 门控，集合校验仍按完整模式算
 const only = flag("--only");
 const profiles = only ? ["default"] : ["default", "original"];
