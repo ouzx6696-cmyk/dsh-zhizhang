@@ -2,6 +2,78 @@ import { COPY as viewCopy, t as viewText } from "../../../../ui/src/copy.js";
 import React from "react";
 import { Stat, Card, Button } from "../../../../ui/src/primitives.jsx";
 import { chapterName, formatDateTime } from "../../../../ui/src/copy.js";
+import { Tag } from "../shared/ui.jsx";
+
+const FORESHADOW_STATUS_LABEL = {
+  planned: viewCopy.foreshadowStatusPlanned,
+  written: viewCopy.foreshadowStatusWritten,
+  committed: viewCopy.foreshadowStatusCommitted,
+  missed: viewCopy.foreshadowStatusMissed,
+};
+
+/** 伏笔看板：未兑现线按计划回收章排序；missed 标红，计划章已过的标警。 */
+function ForeshadowBoard({ view, chapters }) {
+  const lastWritten = Math.max(
+    0,
+    ...chapters.filter((chapter) => chapter.wordCount > 0).map((chapter) => chapter.position),
+  );
+  const open = view.lines
+    .filter((line) => line.status !== "committed")
+    .sort((a, b) => a.plannedPayoff - b.plannedPayoff);
+  return (
+    <Card title={viewCopy.dashboardText32}>
+      {open.length ? (
+        open.map((line) => {
+          const overdue = line.plannedPayoff < lastWritten;
+          return (
+            <div key={line.id} className="wb-row">
+              <span className="wb-row-title">{line.title}</span>
+              <span className="wb-row-meta">
+                {viewText("dashboardText39", {
+                  value0: line.plannedPlant,
+                  value1: line.plannedPayoff,
+                })}
+              </span>
+              <Tag tone={line.status === "missed" ? "danger" : overdue ? "warning" : "neutral"}>
+                {FORESHADOW_STATUS_LABEL[line.status]}
+                {overdue && line.status !== "missed" ? " · " + viewCopy.dashboardText36 : ""}
+              </Tag>
+            </div>
+          );
+        })
+      ) : (
+        <p className="wb-muted">{viewCopy.dashboardText34}</p>
+      )}
+      {view.lines.length > open.length ? (
+        <p className="wb-muted">
+          {viewText("dashboardText35", { value0: view.lines.length - open.length })}
+        </p>
+      ) : null}
+      {view.handoff ? (
+        <p className="wb-muted">{viewText("dashboardText38", { value0: view.handoff.summary })}</p>
+      ) : null}
+    </Card>
+  );
+}
+
+/** 知情时间线：fact × holder，按 since 章排序。 */
+function KnowledgeTimeline({ view }) {
+  const rows = view.knowledge
+    .flatMap((item) => item.holders.map((holder) => ({ item, holder })))
+    .sort((a, b) => a.holder.since - b.holder.since);
+  return (
+    <Card title={viewCopy.dashboardText33}>
+      {rows.map(({ item, holder }) => (
+        <div key={item.id + holder.who + holder.since} className="wb-row">
+          <span className="wb-row-title">{item.fact}</span>
+          <span className="wb-row-meta">
+            {holder.who} · {holder.level} · {viewText("dashboardText40", { value0: holder.since })}
+          </span>
+        </div>
+      ))}
+    </Card>
+  );
+}
 
 export function Dashboard({ snap, onOpen }) {
   const chapters = snap.chapters || [],
@@ -9,6 +81,7 @@ export function Dashboard({ snap, onOpen }) {
   const activity = snap.activity,
     days = activity?.days || [];
   const events = [...(snap.ledgerRecent || [])].reverse().slice(0, 5);
+  const continuity = snap.continuityView;
   return (
     <div className="wb-dashboard">
       <header>
@@ -64,6 +137,10 @@ export function Dashboard({ snap, onOpen }) {
           onOpen={onOpen}
         />
       </div>
+      {continuity && continuity.lines.length ? (
+        <ForeshadowBoard view={continuity} chapters={chapters} />
+      ) : null}
+      {continuity && continuity.knowledge.length ? <KnowledgeTimeline view={continuity} /> : null}
       {snap.foundation?.threads && (
         <Card title={viewCopy.dashboardText26}>
           <p className="wb-prewrap">{snap.foundation.threads}</p>

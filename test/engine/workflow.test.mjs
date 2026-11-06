@@ -1,4 +1,5 @@
 import { createToolHarness } from "../helpers.mjs";
+import { servePanel } from "./helpers.mjs";
 import { formatToolError } from "../../build/fanqie/src/engine/errors.js";
 import { allTools } from "../../build/fanqie/src/engine/tools/index.js";
 import { parseFanqieConfig } from "../../build/fanqie/src/config.js";
@@ -31,6 +32,7 @@ import { methodsTools } from "../../build/fanqie/src/engine/tools/methods.js";
 import { inspirationTools } from "../../build/fanqie/src/engine/tools/inspiration.js";
 import { VERSION } from "../../build/core/src/version.js";
 import { patrolRhythm } from "../../build/fanqie/src/engine/rhythm-patrol.js";
+import { withPortConfig } from "../../build/fanqie/src/engine/ports/config.js";
 const BOOK = [
   "第1章 差三罐",
   "凌晨两点，屏幕上的数字比昨天少了三罐咖啡。他把时间戳抄在纸条上。",
@@ -1558,6 +1560,286 @@ test("T10 角色可见性：规划角色可用登记/查询/迁移但不可 comm
     assert.ok(!editorNames.includes("fanqie_continuity_commit"));
   } finally {
     await rm(root, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// T11 连续性面板接线：continuityView 快照段 + 巡检提示
+
+test("T11 面板快照：开关开时输出 continuityView，巡检候选进 nextHints（证据句）与 panelHints（人话）且每类封顶 3 条", async () => {
+  const f = await setup(CONTINUITY_ON);
+  try {
+    const { dir, key } = await continuityWork(f, "看板作品");
+    // 四章：前三章同一冲突（同模式连跑命中），第 2 章正文含越界同段，第 4 章换冲突断开。
+    await setOutline(
+      dir,
+      "c001",
+      {
+        conflict: "他尝试用假账本混过盘库，被刘朝奉当场识破",
+        beats: "盘库查账",
+        ending: "记下差数",
+      },
+      "第一章",
+      { pace: "快爽" },
+    );
+    await updateChapter(dir, { id: "c001", title: "第一章", body: "第一夜的灯芯结了花。" });
+    await setOutline(
+      dir,
+      "c002",
+      {
+        conflict: "他企图用假账本混过盘库，被刘朝奉当场识破",
+        beats: "复点存银",
+        ending: "发现短少",
+      },
+      "第二章",
+    );
+    await updateChapter(dir, {
+      id: "c002",
+      title: "第二章",
+      body: "第二章：林晚忽然想起「哥哥已到站」，把门闩插上了。",
+    });
+    await setOutline(
+      dir,
+      "c003",
+      {
+        conflict: "他打算用假账本混过盘库，被刘朝奉当场识破",
+        beats: "对总账",
+        ending: "亏空现形",
+      },
+      "第三章",
+    );
+    await updateChapter(dir, { id: "c003", title: "第三章", body: "第三章：账房只剩他一人。" });
+    await setOutline(
+      dir,
+      "c004",
+      { conflict: "对手换了章程，改从总库下手", beats: "改道总库", ending: "拿到名册" },
+      "第四章",
+    );
+    await updateChapter(dir, {
+      id: "c004",
+      title: "第四章",
+      body: "第四章：总库的名册摊开在桌上。",
+    });
+    // 线：FF 未来（不逾期）、FG 逾期 planned、FM 核验失败 → missed；FA..FD 四条逾期 planned 用来验证封顶。
+    await f.run("fanqie_foreshadow_set", {
+      work: key,
+      line: "FF",
+      title: "未来线",
+      seed: "远期伏笔",
+      planned_plant: 4,
+      planned_payoff: 9,
+    });
+    await f.run("fanqie_foreshadow_set", {
+      work: key,
+      line: "FG",
+      title: "逾期线",
+      seed: "逾期伏笔",
+      planned_plant: 1,
+      planned_payoff: 2,
+    });
+    await f.run("fanqie_foreshadow_set", {
+      work: key,
+      line: "FM",
+      title: "错过线",
+      seed: "错过伏笔",
+      planned_plant: 1,
+      planned_payoff: 1,
+      beats: [{ chapter: 1, kind: "兑现", note: "开锁", evidence: ["从来没有这句"] }],
+    });
+    for (const [line, payoff] of [
+      ["FA", 2],
+      ["FB", 3],
+      ["FC", 4],
+      ["FD", 4],
+    ]) {
+      await f.run("fanqie_foreshadow_set", {
+        work: key,
+        line,
+        title: `积压线${line}`,
+        seed: "s",
+        planned_plant: 1,
+        planned_payoff: payoff,
+      });
+    }
+    await f.run("fanqie_knowledge_set", {
+      work: key,
+      id: "k1",
+      fact: "哥哥已到站",
+      holders: [
+        { who: "哥哥", level: "知情", since: 1, evidence: "到站短信" },
+        { who: "林晚", level: "不知", since: 1 },
+      ],
+    });
+    await f.run("fanqie_continuity_commit", { work: key, chapter: "c001" });
+
+    const snapshot = await withPortConfig({ continuity: { enabled: true } }, () =>
+      buildPanelSnapshot(dir, f.paths, { scope: "work" }),
+    );
+    const view = snapshot.continuityView;
+    assert.ok(view, "开关开应有 continuityView");
+    assert.deepEqual(
+      view.lines.map((l) => [l.id, l.status, l.plannedPlant, l.plannedPayoff, l.beats]),
+      [
+        ["FF", "planned", 4, 9, []],
+        ["FG", "planned", 1, 2, []],
+        ["FM", "missed", 1, 1, [1]],
+        ["FA", "planned", 1, 2, []],
+        ["FB", "planned", 1, 3, []],
+        ["FC", "planned", 1, 4, []],
+        ["FD", "planned", 1, 4, []],
+      ],
+    );
+    assert.equal(view.lines.find((l) => l.id === "FG").title, "逾期线");
+    assert.equal(view.lines.find((l) => l.id === "FG").seed, "逾期伏笔");
+    assert.deepEqual(view.knowledge, [
+      {
+        id: "k1",
+        fact: "哥哥已到站",
+        holders: [
+          { who: "哥哥", level: "知情", since: 1 },
+          { who: "林晚", level: "不知", since: 1 },
+        ],
+      },
+    ]);
+    assert.equal(view.handoff.chapter, "c001");
+    assert.equal(typeof view.handoff.summary, "string");
+    assert.ok(Array.isArray(view.handoff.mustCarry));
+    assert.ok(view.handoff.openLoops.length > 0);
+    // 越界只在 c002（不知者与事实同段）；对照章与越界章之外零误报。
+    assert.equal(view.breachCount, 1);
+
+    // nextHints：证据句版，每类封顶 3 条
+    assert.equal(snapshot.nextHints.filter((h) => h.includes("被遗忘伏笔")).length, 3);
+    assert.ok(
+      snapshot.nextHints.some((h) => h.startsWith("被遗忘伏笔：FG《逾期线》计划第 2 章回收")),
+    );
+    const breachHint = snapshot.nextHints.find((h) => h.includes("知情越界候选"));
+    assert.match(breachHint, /知情越界候选：第 2 章「林晚」/);
+    assert.match(breachHint, /「哥哥已到站」同段出现/);
+    assert.match(breachHint, /林晚忽然想起/);
+    const patrolHint = snapshot.nextHints.find((h) => h.includes("节奏巡检候选"));
+    assert.match(patrolHint, /节奏巡检候选：c001、c002、c003；冲突字段连续近同/);
+    // pressureCount 口径未接入（统一 0）：快爽档连写四章也不报受压超限。
+    assert.ok(snapshot.nextHints.every((h) => !h.includes("受压连跑")));
+    assert.ok(!snapshot.panelHints.some((h) => h.includes("超过档位上限")));
+
+    // panelHints：人话版
+    assert.equal(snapshot.panelHints.filter((h) => h.includes("还没核验到兑现")).length, 3);
+    assert.ok(snapshot.panelHints.includes("伏笔《逾期线》计划第 2 章回收，还没核验到兑现"));
+    assert.ok(snapshot.panelHints.includes("第 2 章「林晚」可能提前知道了「哥哥已到站」，请核对"));
+    assert.ok(
+      snapshot.panelHints.includes("连续多章（c001、c002、c003）用同一种冲突模式，建议回规划重排"),
+    );
+  } finally {
+    await f.close();
+  }
+});
+
+test("T11 面板快照：开关关时不输出 continuityView、不带巡检提示，其余字段与现在逐字段一致", async () => {
+  const f = await setup(CONTINUITY_ON);
+  try {
+    const { dir, key } = await continuityWork(f, "黄金对照作品");
+    await updateChapter(dir, { id: "c001", title: "一", body: "铜钥匙在桌角。" });
+    await f.run("fanqie_foreshadow_set", {
+      work: key,
+      line: "L1",
+      title: "钥匙",
+      seed: "s",
+      planned_plant: 1,
+      planned_payoff: 1,
+      beats: [{ chapter: 1, kind: "埋设", note: "n", evidence: ["从来没有这句"] }],
+    });
+    await f.run("fanqie_continuity_commit", { work: key, chapter: "c001" });
+    const off = await buildPanelSnapshot(dir, f.paths, { scope: "work" });
+    const on = await withPortConfig({ continuity: { enabled: true } }, () =>
+      buildPanelSnapshot(dir, f.paths, { scope: "work" }),
+    );
+    // golden：开关关的快照键集合与既有字段逐字段不变。
+    assert.deepEqual(Object.keys(off).sort(), [
+      "activity",
+      "briefCrumbsRecent",
+      "candidates",
+      "chapters",
+      "continuity",
+      "dir",
+      "foundation",
+      "generatedAt",
+      "genre",
+      "lastPayoffByChapter",
+      "ledgerRecent",
+      "multiDraftEnabled",
+      "nextHints",
+      "panelHints",
+      "product",
+      "revisionImpacts",
+      "schemaVersion",
+      "storageBase",
+      "title",
+      "totals",
+      "volumes",
+      "workKey",
+    ]);
+    const patrolFree = (hints) =>
+      hints.every((h) => !/被遗忘伏笔|知情越界候选|节奏巡检候选/.test(h));
+    assert.ok(patrolFree(off.nextHints));
+    assert.ok(patrolFree(off.panelHints));
+    // 开关开只新增 continuityView 与巡检提示，不改既有字段。
+    for (const field of Object.keys(off)) {
+      if (field === "generatedAt" || field === "nextHints" || field === "panelHints") continue;
+      assert.deepEqual(on[field], off[field], field);
+    }
+    const view = on.continuityView;
+    assert.equal(view.lines.length, 1);
+    assert.equal(view.lines[0].id, "L1");
+    assert.equal(view.lines[0].status, "missed");
+    assert.equal(view.breachCount, 0);
+    assert.equal(view.handoff.chapter, "c001");
+  } finally {
+    await f.close();
+  }
+});
+
+test("T11 写作台直连：api 组装点透传 continuity.enabled，快照路由带 continuityView", async () => {
+  const f = await setup(CONTINUITY_ON);
+  try {
+    const { dir, key } = await continuityWork(f, "透传作品");
+    await updateChapter(dir, { id: "c001", title: "一", body: "铜钥匙在桌角。" });
+    await f.run("fanqie_foreshadow_set", {
+      work: key,
+      line: "L1",
+      title: "钥匙",
+      seed: "s",
+      planned_plant: 1,
+      planned_payoff: 1,
+      beats: [{ chapter: 1, kind: "埋设", note: "n", evidence: ["从来没有这句"] }],
+    });
+    await f.run("fanqie_continuity_commit", { work: key, chapter: "c001" });
+    const server = await servePanel({ storageRoot: f.root, continuity: { enabled: true } });
+    try {
+      const data = await (
+        await fetch(server.api + "/snapshot?work=" + encodeURIComponent(key) + "&scope=work")
+      ).json();
+      assert.equal(data.ok, true);
+      assert.deepEqual(
+        data.snapshot.continuityView.lines.map((l) => [l.id, l.status, l.plannedPayoff]),
+        [["L1", "missed", 1]],
+      );
+      assert.equal(data.snapshot.continuityView.breachCount, 0);
+    } finally {
+      await server.close();
+    }
+    // 开关关：同一数据，快照路由不带 continuityView。
+    const plain = await servePanel({ storageRoot: f.root });
+    try {
+      const data = await (
+        await fetch(plain.api + "/snapshot?work=" + encodeURIComponent(key) + "&scope=work")
+      ).json();
+      assert.equal("continuityView" in data.snapshot, false);
+    } finally {
+      await plain.close();
+    }
+  } finally {
+    await f.close();
   }
 });
 

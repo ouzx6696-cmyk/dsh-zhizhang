@@ -471,8 +471,12 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
         return true;
       }
       try {
-        await withPortConfig({ multiDraft: { enabled: config.multiDraft?.enabled === true } }, () =>
-          withPluginConfig(config, () => route(ctx)),
+        await withPortConfig(
+          {
+            multiDraft: { enabled: config.multiDraft?.enabled === true },
+            continuity: { enabled: config.continuity?.enabled === true },
+          },
+          () => withPluginConfig(config, () => route(ctx)),
         );
       } catch (error) {
         sendError(ctx, error);

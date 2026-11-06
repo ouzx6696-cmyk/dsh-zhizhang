@@ -110,6 +110,28 @@ export function WriterAgent({ state, actions, chapterId, writer, bodyReady }) {
             onClick={() => send("revise", chapterId)}
           />
         ) : null}
+        {chapterId ? (
+          <ActionCard
+            icon="layers"
+            title={t("deliverDrawOpening")}
+            hint={t("deliverDrawOpeningHint")}
+            busy={deliver.busy === "draw-opening"}
+            disabled={busy || !!off}
+            offReason={off}
+            onClick={() => send("draw-opening", chapterId)}
+          />
+        ) : null}
+        {chapterId ? (
+          <ActionCard
+            icon="layers"
+            title={t("deliverDrawEnd")}
+            hint={t("deliverDrawEndHint")}
+            busy={deliver.busy === "draw-chapter-end"}
+            disabled={busy || !!off}
+            offReason={off}
+            onClick={() => send("draw-chapter-end", chapterId)}
+          />
+        ) : null}
       </div>
       {off && caps ? (
         <p className="wb-muted wb-off-reason">
@@ -343,6 +365,16 @@ export function Inspector({ state, view, actions, hideAgent = false, compact = f
       <details className="wb-disclosure">
         <summary>{t("foundation")}</summary>
         <Foundation foundation={snap && snap.foundation} limit={200} />
+        {snap?.continuityView ? (
+          <p className="wb-muted">
+            {t("dashboardText37", {
+              value0: snap.continuityView.lines.length,
+              value1: snap.continuityView.lines.filter((line) => line.status !== "committed")
+                .length,
+              value2: snap.continuityView.breachCount,
+            })}
+          </p>
+        ) : null}
       </details>
 
       <Section title={t("nextSteps")}>

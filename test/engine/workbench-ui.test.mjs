@@ -371,3 +371,126 @@ test("采用按钮：第二次采用完成同样闪现对勾反馈", async () =>
   await view.flush();
   assert.equal(iconName(view), "check");
 });
+
+// —— T11 连续性面板：仪表盘伏笔看板 / 知情时间线 ——
+
+function dashboardSnap(continuityView) {
+  return {
+    title: "看板之书",
+    chapters: [
+      { id: "c001", title: "一", status: "final", wordCount: 100, position: 1 },
+      { id: "c002", title: "二", status: "final", wordCount: 100, position: 2 },
+      { id: "c003", title: "三", status: "drafted", wordCount: 100, position: 3 },
+    ],
+    foundation: { threads: "legacy 线头" },
+    ledgerRecent: [],
+    candidates: [],
+    revisionImpacts: [],
+    totals: { chapters: 3, words: 300, final: 2, drafted: 1, planned: 0 },
+    ...(continuityView ? { continuityView } : {}),
+  };
+}
+
+const CONTINUITY_VIEW = {
+  lines: [
+    {
+      id: "LZ",
+      title: "远期线",
+      seed: "s",
+      plannedPlant: 1,
+      plannedPayoff: 9,
+      status: "planned",
+      beats: [1],
+    },
+    {
+      id: "LM",
+      title: "错过线",
+      seed: "s",
+      plannedPlant: 1,
+      plannedPayoff: 2,
+      status: "missed",
+      beats: [1],
+    },
+    {
+      id: "LC",
+      title: "兑现线",
+      seed: "s",
+      plannedPlant: 1,
+      plannedPayoff: 3,
+      status: "committed",
+      beats: [1, 3],
+    },
+    {
+      id: "LO",
+      title: "逾期线",
+      seed: "s",
+      plannedPlant: 1,
+      plannedPayoff: 2,
+      status: "planned",
+      beats: [1],
+    },
+  ],
+  knowledge: [
+    { id: "k2", fact: "事实乙", holders: [{ who: "乙", level: "知情", since: 2 }] },
+    { id: "k1", fact: "事实甲", holders: [{ who: "甲", level: "不知", since: 1 }] },
+  ],
+  handoff: {
+    chapter: "c003",
+    summary: "钥匙到手",
+    mustCarry: ["钥匙必须随身"],
+    openLoops: ["LZ 未闭环"],
+  },
+  breachCount: 1,
+};
+
+function mountDashboard(snap) {
+  const runtime = createRuntime();
+  const { Pipeline } = loadComponents(runtime.react);
+  return runtime.mount(Pipeline, {
+    state: {},
+    view: { snap, pending: [] },
+    actions: { dispatch: () => true },
+  });
+}
+
+test("番茄仪表盘：伏笔看板按回收章排序、missed 标红、legacy 备忘置于看板之后", async () => {
+  const view = await mountDashboard(dashboardSnap(CONTINUITY_VIEW)).flush();
+  const cardTitles = findAll(view.tree, (n) => n.type === "h3").map(text);
+  assert.deepEqual(
+    cardTitles.filter((title) =>
+      ["伏笔看板", "知情时间线", "伏笔备忘", "最近动态"].includes(title),
+    ),
+    ["伏笔看板", "知情时间线", "伏笔备忘", "最近动态"],
+  );
+  const rows = byClass(view.tree, "wb-row");
+  const rowTitle = (row) => text(row.children[0]);
+  // 未兑现线按 plannedPayoff 排序：错过线(2)、逾期线(2)、远期线(9)；已兑现的兑现线不进看板。
+  assert.deepEqual(rows.slice(0, 3).map(rowTitle), ["错过线", "逾期线", "远期线"]);
+  const tagOf = (row) =>
+    row.children.find((child) => String(child.props?.className || "").includes("wb-tag"));
+  // missed 单独标红；已写完的最新章是第 3 章，计划第 2 章回收的逾期线标警。
+  assert.equal(tagOf(rows[0]).props["data-tone"], "danger");
+  assert.equal(text(tagOf(rows[0])), "已逾期");
+  assert.equal(tagOf(rows[1]).props["data-tone"], "warning");
+  assert.equal(text(tagOf(rows[1])), "计划 · 逾期");
+  assert.equal(tagOf(rows[2]).props["data-tone"], "neutral");
+  assert.equal(text(tagOf(rows[2])), "计划");
+  // 知情时间线按 since 章排序；每行 who · level · since。
+  const timelineRows = rows.slice(3, 5);
+  assert.deepEqual(timelineRows.map(rowTitle), ["事实甲", "事实乙"]);
+  assert.match(text(timelineRows[0]), /甲 · 不知 · 第 1 章/);
+  assert.match(text(timelineRows[1]), /乙 · 知情 · 第 2 章/);
+  const all = text(view.tree);
+  assert.ok(all.includes("已兑现 1 条"));
+  assert.ok(all.includes("上章交接：钥匙到手"));
+  assert.ok(all.includes("legacy 线头"));
+});
+
+test("番茄仪表盘：连续性没有快照段（开关关）时不渲染看板卡，legacy 备忘保留", async () => {
+  const view = await mountDashboard(dashboardSnap(null)).flush();
+  const cardTitles = findAll(view.tree, (n) => n.type === "h3").map(text);
+  assert.ok(!cardTitles.includes("伏笔看板"));
+  assert.ok(!cardTitles.includes("知情时间线"));
+  assert.ok(cardTitles.includes("伏笔备忘"));
+  assert.equal(byClass(view.tree, "wb-row").length, 0);
+});
