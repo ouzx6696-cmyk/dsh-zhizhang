@@ -31,12 +31,22 @@ function deliveryMd(title, draft) {
 
 test("头条工具集、常驻规则与门禁按生产入口创建", async () => {
   const harness = await setup();
-  const { buildToutiaoBrief } = await import(buildUrl("toutiao/src/brief.js"));
+  const { buildToutiaoBrief, buildToutiaoEditorBrief } = await import(
+    buildUrl("toutiao/src/brief.js")
+  );
   const TOUTIAO_BRIEF = await buildToutiaoBrief();
   assert.ok(![...harness.tools.keys()].some((n) => n.startsWith("fanqie_")));
   assert.ok(harness.tools.size >= 18);
   assert.match(TOUTIAO_BRIEF, /AI 到此止步/);
   assert.ok(harness.gates.rules.length > 0);
+  const toutiaoOn = await buildToutiaoBrief(undefined, {}, { creationFirst: true });
+  assert.ok(
+    toutiaoOn.indexOf("你的目标是让读者点开并读完") < toutiaoOn.indexOf("AI 到此止步"),
+    "头条创作定向在硬规则前",
+  );
+  assert.ok(
+    buildToutiaoEditorBrief({ creationFirst: true }).includes("你的目标是替读者把关这一稿"),
+  );
   await assert.rejects(harness.call("fanqie_chapter_list"), /unknown tool/);
 });
 

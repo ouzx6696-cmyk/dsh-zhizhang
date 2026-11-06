@@ -301,6 +301,28 @@ test("两种模式配置从真实边界校验，未知旧配置不会静默生�
   for (const input of [{ autoMount: true }, { novel: {} }, { requireEditorPass: "yes" }])
     assert.ok(parseFanqieConfig(input).issues.length > 0);
   assert.ok(parseToutiaoConfig(1).issues.length > 0);
+  assert.equal(parseFanqieConfig({ brief: { creationFirst: true } }).issues.length, 0);
+  assert.equal(parseToutiaoConfig({ brief: { creationFirst: true } }).issues.length, 0);
+  assert.ok(parseFanqieConfig({ brief: { creationFirst: "yes" } }).issues.length > 0);
+  assert.ok(parseToutiaoConfig({ brief: { creationFirst: 1 } }).issues.length > 0);
+});
+
+test("常驻规则重排：creationFirst 开时创作定向在前、工程约束整段压后且条目不丢", async () => {
+  const { buildFanqieBrief, buildFanqieEditorBrief } = await import(
+    buildUrl("fanqie/src/brief.js")
+  );
+  const { systemBrief } = await import(buildUrl("fanqie/src/engine/tools/brief.js"));
+  const on = buildFanqieBrief("使用 writer_review 派独立编辑。", { creationFirst: true });
+  assert.ok(on.includes("你的目标是在番茄小说平台"), "创作定向存在");
+  assert.ok(on.indexOf("你的目标是在番茄小说平台") < on.indexOf("## 规矩"), "定向在路线与规矩前");
+  assert.ok(on.indexOf("工程归代码") > on.indexOf("## 规矩"), "工程约束压后");
+  assert.match(on, /## 工程约束/);
+  for (let item = 1; item <= 11; item += 1)
+    assert.ok(on.includes(String(item) + "."), `工程条目 ${item} 不丢`);
+  const editorOn = buildFanqieEditorBrief({ creationFirst: true });
+  assert.ok(editorOn.includes("你的目标是用读者的眼光"), "编辑创作定向存在");
+  assert.ok(editorOn.indexOf("工程归代码") > editorOn.indexOf("只审不定稿"));
+  assert.equal(systemBrief().includes("工程归代码"), true, "无参 systemBrief 保持工程段完整");
 });
 
 test("写作台路由：审读信息、定稿条件、状态转换与投递指令", async () => {

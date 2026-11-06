@@ -4,14 +4,19 @@ import type { ToutiaoConfig } from "./config.js";
  * 常驻总则（Skill 三级装载的第一级）。由原 SKILL.md 改写：脚本命令全部换成工具名，
  * 各步方法改为 toutiao_method_get 按需取（第二级），语料按需取（第三级）。
  */
+
+// creationFirst（默认关）把创作定向提到最前；开关两版并存到 A/B 出结果，接线后由 config 驱动。
+const TOUTIAO_CREATION_FIRST = `你的目标是让读者点开并读完：标题给出点开的理由，开头接住它，每段都有继续读的所得，读完觉得"说的就是我"。每一步的关键要求在对应方法原文里，按七步表先取再用。`;
+const TOUTIAO_EDITOR_CREATION_FIRST = `你的目标是替读者把关这一稿：点开的理由成立、每段读得下去、读完觉得"说的就是我"；红笔打在真正影响阅读与信任的地方。`;
+
 export async function buildToutiaoBrief(
   editorInstruction = `有 subagent 工具时，S5 红笔与 S6 质检交给编辑子代理：提示词写"【头条编辑任务】先调用 writer_enable，参数 mode=toutiao、role=editor；文章 id=…；按 s5-editing 红笔、记三联表、存编辑版、跑质检，回报分数与三联表"。编辑看不到状态与交稿工具；你收到回报后再决定送验收。`,
   config: ToutiaoConfig = {},
+  options: { creationFirst?: boolean } = {},
 ) {
   const limits = await loadLimits(config);
-  return `# 今日头条写作（writer-agent · 规则 ${limits.rulesVersion}）
-
-把新闻、政策、日常事或神话故事写成能过审、像人写、让读者觉得"说的就是我"的头条图文或微头条。
+  const header = `# 今日头条写作（writer-agent · 规则 ${limits.rulesVersion}）\n\n`;
+  const brief = `把新闻、政策、日常事或神话故事写成能过审、像人写、让读者觉得"说的就是我"的头条图文或微头条。
 四条铁律：生成靠处境，校验靠工具，事实靠出处，终审靠人。
 
 ## 两条线
@@ -49,12 +54,12 @@ ${editorInstruction}
 动笔前最多问两件事。S1~S4 每步一行摘要；S5 给三联表；S6 贴工具结果的 verdict 与 fails；S7 交完整成稿与标题矩阵。
 开工先 toutiao_feedback_read，作者改稿后用 toutiao_feedback_append 记"原文 → 改后 → 动机"。
 `;
+  if (!options.creationFirst) return header + brief;
+  return header + TOUTIAO_CREATION_FIRST + "\n\n" + brief;
 }
 
-/** 编辑子代理的常驻段落 */
-export const TOUTIAO_EDITOR_BRIEF = `# 头条编辑（红笔 + 质检）
-
-你是独立编辑，不是写手。只做 S5 红笔与 S6 质检，不改状态、不出交稿单、不记台账（这些工具你看不到）。
+const TOUTIAO_EDITOR_HEADER = "# 头条编辑（红笔 + 质检）\n\n";
+const TOUTIAO_EDITOR_BODY = `你是独立编辑，不是写手。只做 S5 红笔与 S6 质检，不改状态、不出交稿单、不记台账（这些工具你看不到）。
 
 1. toutiao_article_get(id, include_draft=true) 读立项卡与当前稿；toutiao_method_get s5-editing、s6-qa 取方法。
 2. 按 s5-editing：骨架 → 信号 → 16 病型 + 故事线 4 病型 → 人味与节奏 → 防误杀。每处修改记进 toutiao_edit_record（原句 / 改后 / 病型）。
@@ -63,3 +68,11 @@ export const TOUTIAO_EDITOR_BRIEF = `# 头条编辑（红笔 + 质检）
 5. 回报：最终分数、verdict、fails、三联表要点、你没把握的事实点。不要声称已验收。
 
 硬事实不许新增；不确定就标出来让写手核实。只用规范中文标点。`;
+
+/** 编辑子代理的常驻段落 */
+export const TOUTIAO_EDITOR_BRIEF = TOUTIAO_EDITOR_HEADER + TOUTIAO_EDITOR_BODY;
+
+export function buildToutiaoEditorBrief(options: { creationFirst?: boolean } = {}): string {
+  if (!options.creationFirst) return TOUTIAO_EDITOR_BRIEF;
+  return TOUTIAO_EDITOR_HEADER + TOUTIAO_EDITOR_CREATION_FIRST + "\n\n" + TOUTIAO_EDITOR_BODY;
+}

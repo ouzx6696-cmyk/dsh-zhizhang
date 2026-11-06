@@ -13,3 +13,9 @@ export const SYSTEM_BRIEF = `【番茄长篇：工程归代码，创作归 AI】
 10. 中断不重复执行：作品用 status(recovery=inspect|resume)，库用 library_list，灵感应用用 inspire_status；遗留锁先核写入者。部分写入须报告实际状态，不能假称未发生。
 11. 迷路用 product_map、status；交接已附本步方法，直接用；需要其他方法再取 fanqie_method_get。平台规则以当期来源为准，未核信息不能硬编码为本书义务。
 `;
+
+/** creationFirst 常驻布局把这段挪到创作段之后，需要一段衔接标题交代它为何排在后面。 */
+export function systemBrief(options: { creationFirst?: boolean } = {}): string {
+  if (!options.creationFirst) return SYSTEM_BRIEF;
+  return `## 工程约束（创作要求见上；以下由工具与门禁强制，逐条遵守）\n\n${SYSTEM_BRIEF}`;
+}

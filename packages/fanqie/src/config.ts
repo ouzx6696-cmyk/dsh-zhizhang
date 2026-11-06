@@ -27,6 +27,8 @@ export interface FanqieConfig extends PluginConfig {
   session?: { perChapter?: boolean; proactiveCompact?: boolean };
   /** 收窄写手默认工具集：去掉诊断旁路与拆书写入类工具并拒绝采纳旁路参数，默认关 */
   toolset?: { narrowed?: boolean };
+  /** 常驻规则重排：创作定向在前、工程约束整段压后，默认关 */
+  brief?: { creationFirst?: boolean };
   /** 固定使用的方法方案（默认 / 原版 / 用户方案名或 id）；不填则用写作台或工具选的当前方案 */
   profile?: string;
 }
@@ -74,6 +76,7 @@ const KNOWN = new Set<string>([
   "multiDraft",
   "handoff",
   "session",
+  "brief",
   "toolset",
 ]);
 
@@ -160,6 +163,20 @@ export function parseFanqieConfig(
         perChapter: s.perChapter === true,
         proactiveCompact: s.proactiveCompact === true,
       };
+  }
+  if (v.brief !== undefined) {
+    const b = v.brief as Record<string, unknown> | null;
+    if (
+      !b ||
+      typeof b !== "object" ||
+      Array.isArray(b) ||
+      (b.creationFirst !== undefined && typeof b.creationFirst !== "boolean")
+    )
+      issues.push({
+        message: `${[...at, "brief"].join(".")} 应为 { creationFirst: 布尔值 }`,
+        path: [...at, "brief"],
+      });
+    else out.brief = { creationFirst: b.creationFirst === true };
   }
   if (v.toolset !== undefined) {
     const t = v.toolset as Record<string, unknown> | null;

@@ -26,8 +26,16 @@ import { assertWorkspaceWritable } from "../../../../packages/core/src/workspace
 import { engineTools } from "../../../../packages/fanqie/src/engine/bootstrap";
 import { validPassingQa } from "../../../../packages/toutiao/src/tools";
 import { SYSTEM_BRIEF } from "../../../../packages/fanqie/src/engine/tools/brief";
-import { buildToutiaoBrief, TOUTIAO_EDITOR_BRIEF } from "../../../../packages/toutiao/src/brief";
-import { buildFanqieBrief, FANQIE_EDITOR_BRIEF } from "../../../../packages/fanqie/src/brief";
+import {
+  buildToutiaoBrief,
+  buildToutiaoEditorBrief,
+  TOUTIAO_EDITOR_BRIEF,
+} from "../../../../packages/toutiao/src/brief";
+import {
+  buildFanqieBrief,
+  buildFanqieEditorBrief,
+  FANQIE_EDITOR_BRIEF,
+} from "../../../../packages/fanqie/src/brief";
 import {
   buildMethodPack,
   type FanqieSnapshot,
@@ -50,22 +58,33 @@ export async function systemPrompt(
   if (role === "planner")
     return `你是${target.mode === "fanqie" ? "长篇" : "头条"}规划角色。按作者目标读取必要材料，完成规划或指定原文拆解，使用当前工具保存结果并回报具体对象。正文交给写手。长篇任务交接已附当前方案的方法时直接使用，需要补充目录或专项时再用 fanqie_method_get overview 及相关方法；头条模式使用 toutiao_method_get。需要参考时检索已采纳卡、读卡全文，核对适用条件后把选定 card_ids 显式交给规划工具。没有合适参考直接按作者材料推进，不为填卡改写作者目标。`;
   const editor = role === "editor";
+  const creationFirst = config.brief?.creationFirst === true;
   const base =
     target.mode === "toutiao"
       ? editor
-        ? TOUTIAO_EDITOR_BRIEF
+        ? creationFirst
+          ? buildToutiaoEditorBrief({ creationFirst: true })
+          : TOUTIAO_EDITOR_BRIEF
         : await buildToutiaoBrief(
             "S5 红笔与 S6 质检使用 writer_review 派独立编辑，传入 article 和完整任务；编辑交回回报后再推进验收。",
             config,
+            { creationFirst },
           )
-      : [
-          SYSTEM_BRIEF,
-          editor
-            ? FANQIE_EDITOR_BRIEF
-            : buildFanqieBrief(
-                "使用 writer_review 派独立编辑，传入 work、chapter 和任务；按 fanqie_method_get edit 审读，用 fanqie_review_report 交回报。",
-              ),
-        ].join("\n");
+      : creationFirst
+        ? editor
+          ? buildFanqieEditorBrief({ creationFirst: true })
+          : buildFanqieBrief(
+              "使用 writer_review 派独立编辑，传入 work、chapter 和任务；按 fanqie_method_get edit 审读，用 fanqie_review_report 交回报。",
+              { creationFirst: true },
+            )
+        : [
+            SYSTEM_BRIEF,
+            editor
+              ? FANQIE_EDITOR_BRIEF
+              : buildFanqieBrief(
+                  "使用 writer_review 派独立编辑，传入 work、chapter 和任务；按 fanqie_method_get edit 审读，用 fanqie_review_report 交回报。",
+                ),
+          ].join("\n");
   return (
     base +
     "\n" +
