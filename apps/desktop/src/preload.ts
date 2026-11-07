@@ -9,6 +9,21 @@ const invoke = <K extends IpcChannel>(name: K, ...args: IpcArgs<K>) =>
   ipcRenderer.invoke("writer:" + name, ...args) as Promise<IpcResult<K>>;
 
 export const desktopAPI = {
+  workflowHistory: (target: Target) => invoke("workflow-history", target),
+  learning: (
+    target: Target,
+    action: IpcArgs<"learning">[1] = "status",
+    id?: string,
+    text?: string,
+  ) => invoke("learning", target, action, id, text),
+  engine: (value?: import("../../../packages/core/src/workflow-config").EngineSettings) =>
+    invoke("engine", value),
+  writerOptions: (value?: import("./session/types").SessionOptions) =>
+    invoke("writer-options", value),
+  workflow: (target: Target, action: IpcArgs<"workflow">[1], value?: IpcArgs<"workflow">[2]) =>
+    invoke("workflow", target, action, value),
+  continuity: (target: Target, action: IpcArgs<"continuity">[1] = "status", id?: string) =>
+    invoke("continuity", target, action, id),
   libraryStorage: (action: "status" | "open" | "import" = "status") =>
     invoke("library-storage", action),
   contextSettings: (value: import("./context-settings").ContextSettings) =>

@@ -1,3 +1,4 @@
+import { registerWorkflowIpc } from "./workflow";
 import { registerLibraryIpc } from "./library";
 import type { Runtime } from "../runtime";
 import { registerWorkspaceIpc } from "./workspace";
@@ -13,6 +14,7 @@ export function registerIpc(state: Runtime) {
   registerLibraryIpc(state);
   registerModelsIpc(state);
   registerSessionIpc(state);
+  registerWorkflowIpc(state);
   registerExportIpc(state);
   registerBackupIpc(state);
   registerUpdatesIpc(state);

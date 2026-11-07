@@ -32,6 +32,10 @@ test.afterEach(async ({}, info) => {
 test.beforeAll(async () => {
   home = await mkdtemp(path.join(tmpdir(), "writer-ui-app-"));
   root = await mkdtemp(path.join(tmpdir(), "writer-ui-root-"));
+  await writeFile(
+    path.join(home, "engine.json"),
+    JSON.stringify({ guided: false, grade: "standard", inputBudget: 24000, runBudget: 200000 }),
+  );
   model = await fakeModel({
     "mock-writer": [
       { name: "fanqie_project_create", input: { title: "夜航", key: "night" } },
@@ -317,6 +321,9 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
     await expect(
       settings.locator("fieldset").first().getByLabel("模型", { exact: true }),
     ).toHaveValue("mock-writer");
+    await settings.getByRole("button", { name: "写作引擎", exact: true }).click();
+    await expect(settings.getByText("由流水线调度写作任务", { exact: true })).toBeVisible();
+    await settings.getByLabel("阶段输入预算（估算 token）", { exact: true }).fill("28000");
     await settings.getByRole("button", { name: "写作文件夹", exact: true }).click();
     await settings.getByRole("button", { name: "检查占用和未完成写入", exact: true }).click();
     await expect(settings.getByText(/没有待恢复的写入/)).toBeVisible();
@@ -324,6 +331,13 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
       settings.getByRole("button", { name: "备份后恢复原操作", exact: true }),
     ).toBeHidden();
     await settings.getByRole("button", { name: "取消", exact: true }).click();
+    expect((await page.evaluate(() => window.writerDesktop.engine())).inputBudget).toBe(24000);
+    await page.getByRole("button", { name: "写作流水线", exact: true }).click();
+    const pipeline = page.getByRole("dialog", { name: "写作流水线", exact: true });
+    await expect(pipeline.getByText("任务历史与用量", { exact: true })).toBeVisible();
+    await pipeline.getByRole("button", { name: "个人规则", exact: true }).click();
+    await expect(pipeline.getByText("已生效规则", { exact: true })).toBeVisible();
+    await pipeline.getByRole("button", { name: "关闭", exact: true }).click();
     await page.evaluate(async (url) => {
       const api = window.writerDesktop,
         state = await api.state();

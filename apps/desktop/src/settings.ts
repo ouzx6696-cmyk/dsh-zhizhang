@@ -1,3 +1,8 @@
+import {
+  DEFAULT_ENGINE,
+  parseEngine,
+  type EngineSettings,
+} from "../../../packages/core/src/workflow-config";
 import type { SearchProvider, SearchMode } from "./network";
 import { DEFAULT_CONTEXT, parseContextSettings, type ContextSettings } from "./context-settings";
 import path from "node:path";
@@ -20,6 +25,7 @@ export class Settings {
   searchProvider: SearchProvider = "exa";
   searchMode: SearchMode = "lite";
   context: ContextSettings = { ...DEFAULT_CONTEXT };
+  engine: EngineSettings = { ...DEFAULT_ENGINE };
   notices: string[] = [];
   constructor(
     readonly home: string,
@@ -38,7 +44,18 @@ export class Settings {
       return {};
     }
   }
+  async saveEngine(value: EngineSettings) {
+    await atomicWrite(path.join(this.home, "engine.json"), JSON.stringify(value, null, 2));
+    this.engine = value;
+  }
   async load() {
+    try {
+      const engine = await readText(path.join(this.home, "engine.json"));
+      if (engine !== undefined) this.engine = parseEngine(JSON.parse(engine));
+    } catch (error) {
+      // allow-catch: 保留损坏的配置并在启动提示，允许作者打开设置修复。
+      this.notices.push("流水线配置无法读取，已使用默认设置：" + String(error));
+    }
     const ui = await this.readObject("desktop.json");
     try {
       if (ui.workspace !== undefined && typeof ui.workspace !== "string")
@@ -112,6 +129,7 @@ export class Settings {
       searchMode: this.searchMode,
       searchConfigured: !!this.searchKey,
       context: this.context,
+      engine: this.engine,
       secureStorage: this.secrets.available(),
     };
   }

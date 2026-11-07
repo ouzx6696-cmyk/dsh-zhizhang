@@ -60,6 +60,7 @@ export interface WriterMessage {
   timestamp?: number;
 }
 export interface DesktopEvent {
+  workflow?: import("../../../packages/core/src/workflow-config").WorkflowRecord;
   conversationId?: string;
   target?: Target;
   navigate?: Target;

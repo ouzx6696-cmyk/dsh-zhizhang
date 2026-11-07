@@ -1,3 +1,4 @@
+import { workflowTools } from "../workflow/tools";
 import { DEFAULT_CONTEXT, compactionSettings } from "../context-settings";
 import path from "node:path";
 import { mkdir } from "node:fs/promises";
@@ -68,6 +69,7 @@ async function startSession(
   onSaved?: (tool: string, output: string) => void,
 ): Promise<AgentSession> {
   const primary = options.primary;
+  const guided = primary && host.extras.engine?.().guided === true;
   const target = { ...targetInput };
   const key = host.key(target);
   const dir = await host.directory(target);
@@ -115,6 +117,20 @@ async function startSession(
       config,
       definitions: definitions.filter((tool) => {
         if (
+          guided &&
+          ![
+            "fanqie_project_create",
+            "toutiao_article_create",
+            "fanqie_chapter_read",
+            "fanqie_chapter_list",
+            "fanqie_foundation_get",
+            "toutiao_article_get",
+            "toutiao_draft_get",
+            "toutiao_ledger_show",
+          ].includes(tool.name)
+        )
+          return false;
+        if (
           host.options.fanqie?.continuity?.enabled !== true &&
           [
             "fanqie_foreshadow_set",
@@ -136,7 +152,7 @@ async function startSession(
       onSaved,
     }),
   ];
-  if (primary) {
+  if (primary && !guided) {
     customTools.push(...createDelegateTools({ host, target, manager, getEntry, getSession }));
     if (host.options[target.mode]?.draw?.enabled === true)
       customTools.push(
@@ -150,6 +166,8 @@ async function startSession(
           createDraft: (constraint) => createDraftSession(host, target, constraint),
         }),
       );
+  }
+  if (primary) {
     if (host.options[target.mode]?.learn?.enabled === true)
       customTools.push(
         ...createLearnTools({
@@ -157,15 +175,16 @@ async function startSession(
           target,
           getEntry,
           getSession,
-          config,
-          gates,
         }),
       );
     const { preferences, savePreferences } = host.extras;
     if (preferences && savePreferences)
       customTools.push(createRememberTool({ read: preferences, save: savePreferences }));
   }
-  customTools.push(...createSourceTools({ host, target, readUrls, taskId: () => task.id }));
+  if (guided) customTools.push(...workflowTools(host, target, getSession));
+  if (!guided)
+    customTools.push(...createSourceTools({ host, target, readUrls, taskId: () => task.id }));
+  if (guided && customTools.length > 12) throw new Error("调度员工具面超过12项，拒绝启动");
   const models = host.settings();
   const settings = role === "planner" ? (models.planner ?? models.writer) : models[role];
   const settingsManager = SettingsManager.inMemory({
@@ -178,7 +197,9 @@ async function startSession(
     cacheWarming: "streaming",
   });
   const prompt =
-    (await systemPrompt(target, role, config)) +
+    (guided
+      ? "你是作者的对话入口和流水线调度员。尚无作品时先按作者提供的题名创建作品或文章，再启动流水线。理解作者要求；执行任务时使用 writer_pipeline_start，代码负责方法、上下文、起稿、择优与审读。先确认当前作品和任务范围，缺少关键事实时问作者。不要承诺工具尚未完成的保存；不替作者采纳或定稿；不循环轮询进度。普通交流直接回答，不为聊天启动模型流水线。"
+      : await systemPrompt(target, role, config)) +
     (options.constraint ? "\n" + options.constraint : "");
   const loader = new DefaultResourceLoader({
     settingsManager,

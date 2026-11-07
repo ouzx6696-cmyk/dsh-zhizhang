@@ -9,6 +9,8 @@
 - `npm run test:all`：发行前运行上述两组检查。Linux GUI 需先启动显示服务并设置 `CI=1 DISPLAY=:99`。
 - `npm run assets -- check`：核对资产清单与磁盘一致。
 
+本轮新增 `test/desktop/workflow.test.mjs` 两条完整场景，直接经过生产 `Sessions.workflows` 与 PI 本地假模型，文章质检调用真实 Python 规则；原有 GUI 旅程补充设置取消和流水线入口。
+
 每个场景核对完整行为和失败恢复，不逐句拆测试；子进程失败或被信号终止即失败，跳过不计通过。假模型覆盖工具调用、错误与取消、作者确认、候选与审读、保存和恢复，GUI 通过真实作品菜单完成编辑与保存。
 
 ## 云端与发行

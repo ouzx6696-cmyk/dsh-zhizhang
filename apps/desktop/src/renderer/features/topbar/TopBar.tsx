@@ -15,7 +15,7 @@ import { Brand } from "../../../../../../packages/ui/src/primitives";
 import { scopeId, focusLabel } from "../../../context";
 import type { DesktopController } from "../../app/useDesktopController";
 
-export function TopBar({ app }: { app: DesktopController }) {
+export function TopBar({ app, onWorkflow }: { app: DesktopController; onWorkflow: () => void }) {
   const { state, system, selected, focus, fail, set } = app;
   const [exportOpen, setExportOpen] = useState(false);
   const exportMenu = useRef<HTMLDivElement | null>(null);
@@ -85,6 +85,9 @@ export function TopBar({ app }: { app: DesktopController }) {
               : focus.workTitle || focus.title || selected?.work || viewCopy.topBarText2}
           </span>
           <ChevronDown size={13} />
+        </button>
+        <button disabled={!selected?.work && !selected?.article} onClick={onWorkflow}>
+          {viewCopy.workflowTitle}
         </button>
         <nav className="view-switch">
           {views.map(([id, label]) => (

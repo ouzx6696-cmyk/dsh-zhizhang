@@ -74,6 +74,7 @@ export async function start() {
       }
     },
     extras: {
+      engine: () => state.settings.engine,
       context: () => state.settings.context,
       preferences: () => state.settings.preferences(),
       savePreferences: (text) => state.settings.savePreferences(text),

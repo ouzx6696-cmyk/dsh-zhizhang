@@ -1,3 +1,13 @@
+import {
+  parseEngine,
+  parseWorkflowRequest,
+  type EngineSettings,
+  type WorkflowRequest,
+  type WorkflowRecord,
+} from "../../../../../packages/core/src/workflow-config";
+import { parseWriterOptions } from "../../engine-options";
+import type { SessionOptions } from "../../session/types";
+import type { ContinuityState } from "../../workflow/continuity";
 import { parseContextSettings, type ContextSettings } from "../../context-settings";
 import type { Focus, Target } from "../../context";
 import type { ModelConnection, ModelSettings, ModelsInput } from "../../models";
@@ -47,6 +57,21 @@ export interface WorkspaceChoice extends PublicSettings {
 }
 
 export interface IpcMap {
+  "workflow-history": { args: [Target]; result: WorkflowRecord[] };
+  learning: {
+    args: [Target, "status" | "accept" | "reject", string?, string?];
+    result: Awaited<ReturnType<typeof import("../../session/learning-store").learningStatus>>;
+  };
+  engine: { args: [EngineSettings?]; result: EngineSettings };
+  "writer-options": { args: [SessionOptions?]; result: SessionOptions };
+  workflow: {
+    args: [Target, "status" | "start" | "resume" | "pause" | "apply", WorkflowRequest?];
+    result: WorkflowRecord | null;
+  };
+  continuity: {
+    args: [Target, "status" | "migrate" | "accept" | "reject", string?];
+    result: ContinuityState;
+  };
   "library-storage": {
     args: ["status" | "open" | "import"];
     result: { root: string; sourceRoot: string; imported?: { id: string; title: string } };
@@ -137,6 +162,25 @@ import {
 import { parseConnectionInput, parseModelsInput } from "../../models";
 const role = (value: unknown) => parseChoice(value, ["writer", "editor", "planner"] as const);
 export const IPC_PARSERS: { [K in IpcChannel]: (args: unknown[]) => IpcArgs<K> } = {
+  "workflow-history": ([target]) => [parseTarget(target)],
+  learning: ([target, action, id, text]) => [
+    parseTarget(target),
+    parseChoice(action, ["status", "accept", "reject"] as const),
+    id === undefined ? undefined : parseText(id),
+    text === undefined ? undefined : parseText(text),
+  ],
+  engine: ([value]) => [value === undefined ? undefined : parseEngine(value)],
+  "writer-options": ([value]) => [value === undefined ? undefined : parseWriterOptions(value)],
+  workflow: ([target, action, value]) => [
+    parseTarget(target),
+    parseChoice(action, ["status", "start", "resume", "pause", "apply"] as const),
+    value === undefined ? undefined : parseWorkflowRequest(value),
+  ],
+  continuity: ([target, action, id]) => [
+    parseTarget(target),
+    parseChoice(action, ["status", "migrate", "accept", "reject"] as const),
+    id === undefined ? undefined : parseText(id),
+  ],
   "library-storage": ([action]) => [parseChoice(action, ["status", "open", "import"] as const)],
   "context-settings": ([value]) => [parseContextSettings(value)],
   "context-usage": ([target]) => [parseTarget(target)],

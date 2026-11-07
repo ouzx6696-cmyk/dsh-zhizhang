@@ -1,0 +1,64 @@
+.studio-workflow {
+  width: min(1100px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+}
+.studio-workflow > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.studio-workflow fieldset {
+  display: grid;
+  gap: 12px;
+}
+.studio-workflow label {
+  display: grid;
+  gap: 6px;
+}
+.studio-workflow textarea {
+  min-height: 100px;
+}
+.wf-tabs,
+.wf-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block: 12px;
+}
+.wf-stages {
+  display: grid;
+  gap: 8px;
+}
+.wf-stages li {
+  display: grid;
+  gap: 4px;
+  border-bottom: 1px solid var(--ui-line);
+  padding-block: 8px;
+}
+.wf-output {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 400px;
+  overflow: auto;
+}
+.wf-compare {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.wf-compare pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 500px;
+  overflow: auto;
+}
+.wf-fact {
+  padding: 12px;
+  border-bottom: 1px solid var(--ui-line);
+}
+@media (max-width: 700px) {
+  .wf-compare {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

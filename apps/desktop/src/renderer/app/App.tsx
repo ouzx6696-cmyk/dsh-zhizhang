@@ -32,7 +32,14 @@ const DesignPreview = lazy(() =>
   })),
 );
 
+const WorkflowPanel = lazy(() =>
+  import("../features/workflow/WorkflowPanel").then((module) => ({
+    default: module.WorkflowPanel,
+  })),
+);
+
 function App() {
+  const [workflowOpen, setWorkflowOpen] = React.useState(false);
   const app = useDesktopController();
   const { system, state, set } = app;
   const onContext = React.useCallback((context: WorkspaceContext) => set({ context }), [set]);
@@ -45,7 +52,7 @@ function App() {
     );
   return (
     <div className="writer-desktop wb-scope">
-      <TopBar app={app} />
+      <TopBar app={app} onWorkflow={() => setWorkflowOpen(true)} />
       {system.target ? (
         <Workspace
           key={scopeId({ ...system.target, article: undefined }) + state.workspaceKey}
@@ -81,6 +88,16 @@ function App() {
         </div>
       )}
       <Suspense fallback={null}>
+        {workflowOpen && system.target && (
+          <WorkflowPanel
+            key={scopeId(system.target)}
+            target={system.target}
+            focus={app.focus}
+            engine={system.engine}
+            onClose={() => setWorkflowOpen(false)}
+            onNavigate={app.jump}
+          />
+        )}
         {state.settingsOpen && (
           <Settings
             state={system}

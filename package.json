@@ -21,7 +21,7 @@
     "desktop:build": "npm run typecheck && npm run build -w @writer/desktop",
     "desktop:pack": "npm run desktop:build && npm run pack -w @writer/desktop",
     "desktop:portable": "npm run desktop:build && npm run pack:portable -w @writer/desktop",
-    "test:desktop": "npm run build && node scripts/build-desktop-test.mjs && node --test test/desktop/runtime.test.mjs",
+    "test:desktop": "npm run build && node scripts/build-desktop-test.mjs && node --test test/desktop/*.test.mjs",
     "test:desktop:ui": "playwright test --config apps/desktop/playwright.config.mjs",
     "verify": "node scripts/test.mjs core",
     "verify:desktop": "node scripts/test.mjs desktop",

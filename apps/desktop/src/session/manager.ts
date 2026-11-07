@@ -1,3 +1,4 @@
+import { WorkflowService } from "../workflow/service";
 import { migrateSessionHistory } from "./migration";
 import { DEFAULT_HISTORY_LIMIT } from "../history-options";
 import { shouldProactivelyCompact } from "../context-settings";
@@ -30,6 +31,7 @@ export class Sessions {
     SessionManager,
     { leaf: string | null; limit: number; messages: WriterMessage[]; total: number }
   >();
+  readonly workflows = new WorkflowService(this);
   reconfiguring = false;
   compactions = new Set<string>();
   preparations = new Map<symbol, { target: Target; focus: Focus; generation: number }>();
@@ -81,6 +83,7 @@ export class Sessions {
   isRunning(target: Target) {
     const key = this.key(target);
     return (
+      this.workflows.busy(target) ||
       this.compactions.has(key) ||
       this.preparing(target) ||
       this.opening.has(key) ||
@@ -92,7 +95,7 @@ export class Sessions {
   }
 
   hasPending() {
-    return this.preparations.size > 0 || this.opening.size > 0;
+    return this.preparations.size > 0 || this.opening.size > 0 || this.workflows.rows().length > 0;
   }
 
   key(target: Target) {
@@ -132,6 +135,7 @@ export class Sessions {
   }
 
   async send(target: Target, text: string, focus: Focus = {}) {
+    if (this.workflows.busy(target)) throw new Error("流水线正在处理此作品，请先暂停后再调整要求");
     await this.rotateForNewChapter(target, focus);
     const result = await sendPrompt(this, target, text, focus);
     this.recordChapter(target, focus);
@@ -170,7 +174,22 @@ export class Sessions {
   }
 
   async notify(target: Target, value: AuthorAction) {
-    return notifyAuthor(this, target, value);
+    await notifyAuthor(this, target, value);
+    if (value.operation === "/chapter/finalize" && value.chapter && this.extras.engine?.().guided) {
+      try {
+        await this.workflows.start(target, {
+          kind: "ledger",
+          chapter: value.chapter,
+          instruction: "记录作者已定稿章节的实际变化，冲突交作者确认。",
+          grade: "economy",
+          source: "",
+          line: "news",
+        });
+      } catch (error) {
+        // allow-catch: 定稿已经成功，记账失败独立提示，不把已完成定稿显示为失败。
+        this.emit({ target, error: "定稿已保存，自动记账未启动：" + String(error) });
+      }
+    }
   }
 
   async conversations(target: Target) {
@@ -203,24 +222,27 @@ export class Sessions {
     await this.created(previous, next);
   }
 
-  running() {
-    return [...this.sessions.values()]
-      .filter(
-        (entry) =>
-          !entry.session.isIdle ||
-          this.preparing(entry.target) ||
-          this.compactions.has(this.key(entry.target)),
-      )
-      .map((entry) => ({
-        target: entry.target,
-        focus: entry.focus,
-        phase:
-          (entry.phase || "任务处理中…") +
-          (entry.session.pendingMessageCount
-            ? `（另有 ${entry.session.pendingMessageCount} 条排队，停止会一并取消）`
-            : ""),
-        task: entry.task,
-      }));
+  running(): NonNullable<DesktopEvent["running"]> {
+    return [
+      ...[...this.sessions.values()]
+        .filter(
+          (entry) =>
+            !entry.session.isIdle ||
+            this.preparing(entry.target) ||
+            this.compactions.has(this.key(entry.target)),
+        )
+        .map((entry) => ({
+          target: entry.target,
+          focus: entry.focus,
+          phase:
+            (entry.phase || "任务处理中…") +
+            (entry.session.pendingMessageCount
+              ? `（另有 ${entry.session.pendingMessageCount} 条排队，停止会一并取消）`
+              : ""),
+          task: entry.task,
+        })),
+      ...this.workflows.rows(),
+    ];
   }
 
   preparing(target: Target) {
@@ -304,10 +326,15 @@ export class Sessions {
     if (this.opening.has(key)) await this.opening.get(key);
     const session = entry?.session;
     session?.clearQueue();
-    if (session) await Promise.all([this.children.get(session)?.abort(), session.abort()]);
+    await Promise.all([
+      this.workflows.stop(!target.work && !target.article && entry ? entry.target : target),
+      session ? this.children.get(session)?.abort() : undefined,
+      session?.abort(),
+    ]);
   }
 
   async dispose() {
+    await this.workflows.dispose();
     for (const p of this.preparations.values()) {
       const key = this.key(p.target);
       this.generations.set(key, (this.generations.get(key) || 0) + 1);

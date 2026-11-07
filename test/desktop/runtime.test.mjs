@@ -3476,7 +3476,7 @@ function learnSessions(home, model, options, events, settle) {
       events.push(event);
       if (event.event?.type === "agent_settled" && !event.editor) settle();
     },
-    confirm: async () => false,
+    confirm: async () => true,
     options,
     created: async () => {},
     extras: {},

@@ -1,3 +1,5 @@
+import type { SessionOptions } from "../../../session/types";
+import { EngineTab } from "./EngineTab";
 import { COPY as viewCopy } from "../../../../../../packages/ui/src/copy.js";
 import { errorText } from "../../../../../../packages/core/src/errors.js";
 import { useConnectionTest } from "./useConnectionTest";
@@ -24,6 +26,7 @@ type SettingsProps = {
 
 const TABS = [
   ["models", viewCopy.modelFieldsText5],
+  ["engine", viewCopy.workflowEngine],
   ["workspace", viewCopy.workspace],
   ["appearance", viewCopy.settingsDialogText5],
   ["shortcuts", viewCopy.settingsDialogText6],
@@ -64,10 +67,30 @@ export function Settings({
   const [tab, setTab] = useState<(typeof TABS)[number][0]>("models"),
     [models, setModels] = useState(state.models),
     [appearance, setAppearance] = useState(state.appearance),
+    [engine, setEngine] = useState(state.engine),
     [search, setSearchDraft] = useState<SearchDraft>(() => initialSearchDraft(state)),
     [health, setHealth] = useState<Awaited<ReturnType<typeof desktop.storageHealth>> | null>(null),
     [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false);
+  const [options, setOptions] = useState<SessionOptions | null>(null);
+  const [initialOptions, setInitialOptions] = useState<SessionOptions | null>(null);
+  useEffect(() => {
+    let current = true;
+    desktop
+      .writerOptions()
+      .then((value) => {
+        if (current) {
+          setOptions(value);
+          setInitialOptions(value);
+        }
+      })
+      .catch((error) => {
+        if (current) setMessage(errorText(error));
+      });
+    return () => {
+      current = false;
+    };
+  }, []);
   const [preferences, setPreferences] = usePreferences(state.workspace, setMessage);
   const { results, run: testConnection } = useConnectionTest();
   const [editorLinked, setEditorLinked] = useState(
@@ -98,6 +121,9 @@ export function Settings({
     action(async () => {
       if (JSON.stringify(models) !== JSON.stringify(state.models)) await desktop.model(models);
       await desktop.appearance(appearance);
+      if (options && JSON.stringify(options) !== JSON.stringify(initialOptions))
+        await desktop.writerOptions(options);
+      if (JSON.stringify(engine) !== JSON.stringify(state.engine)) await desktop.engine(engine);
       if (state.workspace && preferences !== null) await desktop.preferences(preferences);
       if (search.changed)
         await desktop.search(
@@ -149,6 +175,14 @@ export function Settings({
               setEditorLinked={setEditorLinked}
               results={results}
               onTest={testRole}
+            />
+          )}
+          {tab === "engine" && (
+            <EngineTab
+              value={engine}
+              onChange={setEngine}
+              options={options}
+              onOptionsChange={setOptions}
             />
           )}
           {tab === "workspace" && (

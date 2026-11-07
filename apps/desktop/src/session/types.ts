@@ -31,6 +31,7 @@ export type SessionEntry = {
 export type SessionOptions = { toutiao?: ToutiaoConfig; fanqie?: FanqieConfig };
 
 export type SessionExtras = {
+  engine?: () => import("../../../../packages/core/src/workflow-config").EngineSettings;
   context?: () => import("../context-settings").ContextSettings;
   preferences?: () => Promise<string>;
   /** 追加作者约束的写入口（writer_remember 用；与 save-preferences IPC 共用 Settings.savePreferences）。 */

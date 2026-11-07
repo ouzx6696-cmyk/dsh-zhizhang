@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-export async function fakeModel(scripts = {}) {
+export async function fakeModel(scripts = {}, respond) {
   const calls = [],
     queues = structuredClone(scripts);
   const server = createServer((request, response) => {
@@ -10,7 +10,9 @@ export async function fakeModel(scripts = {}) {
       calls.push(body);
       const connection = body.messages?.some((message) => message.content === "请只回答 OK");
       const queue = queues[body.model] || [];
-      const next = connection ? { text: "OK" } : queue.shift() || { text: "完成。" };
+      const next = connection
+        ? { text: "OK" }
+        : queue.shift() || respond?.(body) || { text: "完成。" };
       if (next.wait) {
         request.on("close", () => response.destroy());
         return;
@@ -45,7 +47,7 @@ export async function fakeModel(scripts = {}) {
             choices: [
               {
                 index: 0,
-                message: { role: "assistant", content: "OK" },
+                message: { role: "assistant", content: next.text || "OK" },
                 finish_reason: "stop",
               },
             ],

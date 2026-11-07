@@ -186,3 +186,9 @@
   flex-direction: column;
   gap: 8px;
 }
+
+/* 宿主 ui-dialog 内嵌 workbench 弹窗的统一口径。 */
+.wb-modal.ui-dialog {
+  padding: 0;
+  max-height: calc(100dvh - 32px);
+}
