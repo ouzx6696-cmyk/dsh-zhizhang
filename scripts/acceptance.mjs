@@ -496,11 +496,30 @@ for (const profile of profiles) {
           (row) =>
             row.isDirectory() && /^\d{4}-\d{2}-\d{2}-/.test(row.name) && !before.has(row.name),
         );
-        if (created.length !== 1) throw new Error("每个头条任务须对应一篇新建文章");
-        record.article = created[0].name;
-        record.revision = JSON.parse(
-          await readFile(path.join(toutiao, record.article, "meta.json"), "utf8"),
-        ).current_rev;
+        if (!created.length) throw new Error("每个头条任务须对应一篇新建文章");
+        // 模型可能因校验摩擦弃稿重建：落点选内容最多的一篇（qa×10+草稿数加权），
+        // 多篇行为如实记进 multiCreated，不静默也不误杀整段工作量
+        const withData = await Promise.all(
+          created.map(async (name) => {
+            try {
+              const meta = JSON.parse(
+                await readFile(path.join(toutiao, name, "meta.json"), "utf8"),
+              );
+              return {
+                name,
+                rev: meta.current_rev,
+                weight: (meta.qa?.length ?? 0) * 10 + (meta.drafts?.length ?? 0),
+              };
+            } catch (error) {
+              if (error.code === "ENOENT") return { name, rev: null, weight: -1 };
+              throw error;
+            }
+          }),
+        );
+        withData.sort((a, b) => b.weight - a.weight);
+        if (created.length > 1) record.multiCreated = created.length;
+        record.article = withData[0].name;
+        record.revision = withData[0].rev;
       }
       await artifact(profile, record);
       replaceStale(caseId, record);
