@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.9.9-rc.3 — RC3 候选（未发布）
+
+RC3 针对三项诊断（方法质量好但送达链路有缺陷、长线状态靠模型记忆、度量尺子量错东西）按 W0–W7 完成开发：全部行为改动置于默认关的开关之后（handoff.v2、toolset.narrowed、continuity.enabled、draw.enabled、session.perChapter/proactiveCompact、brief.creationFirst、learn.enabled 等），方法原文、质检阈值与写作业务规则未动。真实模型全量验收按作者指示跳过（2026-11-07）：基线与 A/B 未执行，不据此宣布任何方法优劣；验收脚本已具备单变量两臂能力（--ab 小样本轨 + --v2 交接开关），是否执行由作者另行决定。本轮共 28 个提交，108 个文件 +12838/−783。
+
+- 链路埋点（T0）：handoff（intent 来源、方法 id 与字节、简报及字节、裁剪 id）、tool_call（角色、错误码、门禁拒绝）、method_loaded 重复读取对照、context_compacted 触发类型与阈值及触发前末条用户消息预览，落 `<home>/logs/*.jsonl`，验收脚本聚合为方法送达/重复/误用/压缩统计。
+- 交接 v2（T3/T4，handoff.v2）：方法包决策表按番茄意图与作品状态、头条 S1–S7 状态映射收集方法与附件（K-02 七场景单测全过）；任务上下文改为短 JSON 加 `<writer-method>` 纯文本方法块；同会话已注入未压缩的方法只发凭据行，压缩清空后自动重注入；方法包预算裁剪记入埋点；revise 意图专属化、修订任务附审读回报（K-07）。
+- 单一方法通道（T5）：`fanqie_forge_get` 退役并入 `fanqie_method_get`，与 `toutiao_method_get` 对称；`style_contract`/`review_evidence_kinds` 更名 `contract:*`；lean 简报与常驻规则句式统一为「交接已附本步方法」。
+- 会话与压缩（T6）：`session.perChapter` 跨新章自动换会话，前章内容由交接从文件带入；上下文达 75% 由宿主主动调 `Sessions.compact`（PI 1.4.0 无自动压缩指令 API）；新增 `writer_remember` 把作者约束写进作品 preferences 并随交接带入。
+- 工具面收窄（T7，toolset.narrowed）：写手默认集排除拆书库写入 9 个与 audit 旁路 6 个；`candidate_accept`/`candidate_edit_decide` 的 strict 开关参数对写手角色 deny-with-hint。
+- 常驻规则重排（T8，brief.creationFirst）：简报首段为创作目标与本步关键，工程约束后置。
+- 结构化连续性（T10/T11，continuity.enabled）：作品内 continuity JSON（伏笔线与 beats、人物知情、章交接 mustCarry/openLoops、commits），新增 `fanqie_foreshadow_set`/`fanqie_continuity_commit`/`fanqie_continuity_get`/`fanqie_continuity_migrate`，`fanqie_ledger_check` 扩展知情越界候选；写作台伏笔看板、知情时间线与批次提交；50 章模拟作品注入 15 处缺陷召回 14 处（93%，门槛 ≥80%）。
+- 开篇专检与节奏巡检（T12）：`fanqie_opening_audit` 检前 300 字处境、首章卖点亲自改变局面、三章内一次兑现、第 3 章末钩子信息量；payoff 诊断硬编码词表移入作品级可选词表，默认只留通用 ending 兑付评分；批次末列连续同冲突模式、连续两章无可感变化等候选提示回规划。
+- 抽卡（T13，draw.enabled）：`writer_draw` 对开篇章/章末/书名简介以 n 路内存子会话互不可见起草，评估子会话按局面改变等打分推荐，写作台按钮与 Reader 并排对照。
+- 文风逆向与审读标尺（T14/T15）：拆书库文风层输出「必须贯彻/绝对禁止/按场景调节」三段式加迁移试写，作者采纳写进 foundation.style 随 lean 简报带入；edit 回报可选读者标尺附表，仅排序参考，不改硬伤判定。
+- 头条 W4（T16）：台账近 10 篇同质化比对（段长分布/小标题/引语/结尾句式）提示不否决；读者评审接 S5/S6（读完意愿 ≤2 建议回 S4，作者决定）；S3 标题五母体各一版加四问排序；`toutiao_metrics_import` CSV 数据回流台账新列；`toutiao_feedback_append` 结构化病型编号/位置/改法，S4 交接只附相关最近反馈。
+- 改稿学习（T17，learn.enabled）：`writer_revision_learn` 从番茄/头条修改前后对比归纳偏好候选（同类 ≥3 次才升候选、无作者理由标推断），作者确认面板后写入风格约定或结构化反馈。
+- 工程遗留（T18）：作品占用登记带 owner（pid/机），崩溃遗留自愈清理并入桌面启动恢复；`atomicWrite` Windows 占用重试补 win32 条件实测用例进 CI；SDK/minimatch 评估结论本轮不升（PI 1.5.0 已发布，另开任务单）；ACCEPTANCE 增 W7 手工清单（安装/跨版本更新/userData 保留/卸载残留）。
+- 验收脚本与 harness（T1/T2-prep）：--matrix/--finalize-track/--long/--judge/--ab/--v2/--resume/--only/taskTimeoutMinutes；断点续跑（已完成跳过、失败替换）、单任务失败继续加连续 3 失败熔断、头条「每任务一篇文章」对弃稿重建容错并记 multiCreated；修复任务超时停止落空已迁移会话键导致的僵尸代理（stop 按 mode+root 兜底命中，配回归测试）。
+
 ## 0.9.9-rc.2 — RC2 候选（未发布）
 
 方法与拆书库融合：桌面长篇任务按意图加载当前方法方案（含用户覆盖），携带正文与哈希凭据；章节精简交接保留实际参考卡内容，lean 排除的卡不再误记为已注入。设置新增“资源与备份”本地库路径、打开目录及 TXT/Markdown 导入，原文保存为库内副本，不自动触发拆解或付费调用。补充原文件删除后分析、绑定卡交接、用户方法注入和 GUI 导入回归。
