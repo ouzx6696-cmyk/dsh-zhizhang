@@ -289,9 +289,20 @@ export class Sessions {
 
   async stop(target: Target) {
     const key = this.key(target);
+    // attachCreated 会把会话键从根迁到文章/作品键：精确键落空时按 mode+root 兜底，停止才不会落空
+    const entry =
+      this.sessions.get(key) ??
+      [...this.sessions.values()].find(
+        (item) =>
+          item.target.mode === target.mode &&
+          rootIdentity(item.target.root) === rootIdentity(target.root),
+      );
+    const actualKey = entry ? this.key(entry.target) : key;
     this.generations.set(key, (this.generations.get(key) || 0) + 1);
+    if (actualKey !== key)
+      this.generations.set(actualKey, (this.generations.get(actualKey) || 0) + 1);
     if (this.opening.has(key)) await this.opening.get(key);
-    const session = this.sessions.get(key)?.session;
+    const session = entry?.session;
     session?.clearQueue();
     if (session) await Promise.all([this.children.get(session)?.abort(), session.abort()]);
   }

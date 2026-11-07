@@ -618,6 +618,49 @@ test("停止任务同时取消父会话与子角色会话", async () => {
   }
 });
 
+test("停止任务：文章创建后会话键已迁移，按根目标停止仍然命中", async () => {
+  const home = await mkdtemp(path.join(tmpdir(), "writer-cancel-rekey-"));
+  const sessions = new Sessions({
+    home: home,
+    python: "python3",
+    settings: defaultModels,
+    emit: () => {},
+    confirm: async () => false,
+    options: {},
+    created: async () => {},
+    extras: {},
+  });
+  const aborted = [];
+  const parent = {
+    clearQueue() {},
+    abort: async () => {
+      aborted.push("parent");
+    },
+    isIdle: true,
+    sessionManager: { getSessionFile: () => path.join(home, "pointer.jsonl") },
+  };
+  const target = { mode: "toutiao", root: home };
+  const entry = {
+    session: parent,
+    target,
+    focus: {},
+    phase: "",
+    methods: new Map(),
+    task: {},
+  };
+  const rootKey = sessions.key(target);
+  sessions.sessions.set(rootKey, entry);
+  await sessions.attachCreated(entry, "2026-11-07-example");
+  // attachCreated 会原地改写 entry.target：调用方持有的是旧根目标时（send 复制 target），停止必须仍命中
+  assert.equal(sessions.sessions.has(rootKey), false, "条目应已迁到文章键");
+  try {
+    await sessions.stop({ mode: "toutiao", root: home });
+    assert.deepEqual(aborted, ["parent"], "根目标停止必须命中迁移后的会话");
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
 test("模型等待中停止：2 秒内收尾且取消后不再请求模型", async () => {
   const base = await mkdtemp(path.join(tmpdir(), "writer-cancel-model-"));
   const home = path.join(base, "app");
