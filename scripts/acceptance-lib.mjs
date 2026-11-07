@@ -6,12 +6,15 @@ export const PACE_BOOKS = [
   { pace: "慢燃", tag: "man" },
 ];
 
-export function resolveMode({ matrix, long, finalizeTrack, judge }) {
+export function resolveMode({ matrix, long, finalizeTrack, judge, ab, v2 }) {
   return {
     matrix: !!matrix,
     long: !!long,
     finalizeTrack: !!finalizeTrack || !!long,
     judge: !!judge,
+    ab: !!ab,
+    /** A/B 臂标签：true=交接 v2 开（RC3），false=关（RC2 基线）；不改任务集，只改交接注入 */
+    v2: !!v2,
   };
 }
 
@@ -33,6 +36,8 @@ export function normalizeMode(value) {
       long: bool("long"),
       finalizeTrack: bool("finalizeTrack"),
       judge: bool("judge"),
+      ab: bool("ab"),
+      v2: bool("v2"),
     }),
     round: value.round ?? null,
   };
@@ -41,16 +46,22 @@ export function normalizeMode(value) {
 const chapterIds = (count) =>
   Array.from({ length: count }, (_, index) => "c" + String(index + 1).padStart(3, "0"));
 
+/** ab 小样本模式的头条子集：三种体裁各一篇（资讯/故事/微头条），caseId 保持全量编号便于日后扩表对照 */
+export const AB_HEAD_IDS = ["head-1", "head-4", "head-6"];
+
 export function casePlan(mode) {
   const books = [
-    { prefix: "novel", chapters: mode.long ? 30 : 10 },
-    ...(mode.matrix
+    { prefix: "novel", chapters: mode.ab ? 3 : mode.long ? 30 : 10 },
+    ...(mode.matrix && !mode.ab
       ? PACE_BOOKS.map(({ pace, tag }) => ({ prefix: "novel-matrix-" + tag, chapters: 10, pace }))
       : []),
   ];
   for (const book of books) book.chapterIds = chapterIds(book.chapters);
+  const headIds = mode.ab
+    ? AB_HEAD_IDS
+    : Array.from({ length: 7 }, (_, index) => "head-" + (index + 1));
   const caseIds = [
-    ...Array.from({ length: 7 }, (_, index) => "head-" + (index + 1)),
+    ...headIds,
     ...books.flatMap((book) => [
       book.prefix + "-plan",
       ...book.chapterIds.map((id) => book.prefix + "-" + id),
@@ -59,10 +70,11 @@ export function casePlan(mode) {
   return {
     books,
     caseIds,
-    headCount: 7,
+    headCount: headIds.length,
     chapterCount: books.reduce((sum, book) => sum + book.chapters, 0),
     scoredCount: caseIds.length - books.length,
-    totalRecords: caseIds.length * 2,
+    // ab 模式单方案单臂运行，没有 original 对照 profile
+    totalRecords: caseIds.length * (mode.ab ? 1 : 2),
   };
 }
 
@@ -85,6 +97,12 @@ export function pacePromptLine(pace) {
 
 export function describeMode(mode) {
   const parts = [];
+  if (mode.ab)
+    parts.push(
+      "A/B 小样本（" +
+        (mode.v2 ? "交接 v2 开，RC3 臂" : "交接 v2 关，RC2 基线臂") +
+        "）：三种体裁头条各一篇 + 3 章长篇（第 2 章前开新对话），定稿轨",
+    );
   if (mode.matrix) parts.push("另含快爽、稳推、慢燃三本 10 章对照长篇（各在第 6 章前开新对话）");
   if (mode.long) parts.push("主书为 30 章定稿轨，单任务超时放宽为 30 分钟");
   else if (mode.finalizeTrack) parts.push("定稿轨：confirm 全部放行，模拟作者确认定稿与交稿");
@@ -169,7 +187,8 @@ export function finalizeSummary(metrics, records, plan) {
     complete &&
     human &&
     metrics.every((row) => row.automaticThresholdsMet) &&
-    metrics[0].authorAverage >= metrics[1].authorAverage;
+    // 单方案轨（ab 臂）没有第二方案可比较，跨方案对比由 A/B 报告承担
+    (metrics.length < 2 || metrics[0].authorAverage >= metrics[1].authorAverage);
   return { complete, human, passed };
 }
 

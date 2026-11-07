@@ -37,8 +37,11 @@ let mode = resolveMode({
   long: process.argv.includes("--long"),
   finalizeTrack: process.argv.includes("--finalize-track"),
   judge: process.argv.includes("--judge"),
+  ab: process.argv.includes("--ab"),
+  v2: process.argv.includes("--v2"),
 });
 let plan = casePlan(mode);
+if (mode.v2 && !mode.ab) throw new Error("--v2 只在 --ab 下有意义：它是 A/B 的 RC3 臂开关");
 let TASK_TIMEOUT_MS = (mode.long ? 30 : 15) * 60 * 1000;
 const template = {
   models: {
@@ -218,7 +221,7 @@ async function summarize() {
     subjective = await json("subjective-scores.json"),
     metrics = [];
   const texts = {};
-  for (const profile of ["default", "original"]) {
+  for (const profile of mode.ab ? ["default"] : ["default", "original"]) {
     const rows = records.filter((row) => row.profile === profile),
       articles = [],
       reviews = [],
@@ -293,9 +296,12 @@ async function summarize() {
   }
   await save("metrics.json", metrics);
   const { complete, human, passed } = finalizeSummary(metrics, records, plan);
-  const pairable = plan.caseIds.filter(
-    (id) => !id.endsWith("-plan") && texts.default.has(id) && texts.original.has(id),
-  );
+  // 盲评配对需要 default/original 两份文本；ab 臂每题只有一份，配对交给两臂对比报告
+  const pairable = mode.ab
+    ? []
+    : plan.caseIds.filter(
+        (id) => !id.endsWith("-plan") && texts.default.has(id) && texts.original.has(id),
+      );
   if (pairable.length) {
     const assignments = blindAssign(pairable, mode.round ?? "default");
     await save(
@@ -385,7 +391,8 @@ if (config.taskTimeoutMinutes !== undefined) {
 }
 // --only 冒烟/连通性检查：只跑 default 方案下单个任务；任务分发按 caseId 门控，集合校验仍按完整模式算
 const only = flag("--only");
-const profiles = only ? ["default"] : ["default", "original"];
+// ab 模式只跑 default 方案；两臂差异全部由 --v2 注入的 handoff.v2 承担
+const profiles = only || mode.ab ? ["default"] : ["default", "original"];
 if (only && !plan.caseIds.includes(only)) throw new Error(`--only 没有匹配到任务：${only}`);
 for (const model of Object.values(config.models))
   if (model) {
@@ -400,7 +407,7 @@ const prior = resume ? ((await readOptional(path.join(output, "run-records.json"
 if (resume) {
   const savedMode = await readOptional(path.join(output, "mode.json"));
   // 只比四个模式布尔：round 是写入时的日期，不参与一致性判定
-  const modeKeys = ["matrix", "long", "finalizeTrack", "judge"];
+  const modeKeys = ["matrix", "long", "finalizeTrack", "judge", "ab", "v2"];
   if (savedMode && modeKeys.some((key) => normalizeMode(savedMode)[key] !== mode[key]))
     throw new Error("--resume 的输出目录 mode.json 与本次参数不一致，请用新 --output");
 }
@@ -434,7 +441,10 @@ for (const profile of profiles) {
       if (event.event?.type === "agent_settled" && !event.editor) finish?.();
     },
     confirm: async () => mode.finalizeTrack,
-    options: { fanqie: { profile }, toutiao: { profile } },
+    options: {
+      fanqie: { profile, ...(mode.v2 ? { handoff: { v2: true } } : {}) },
+      toutiao: { profile, ...(mode.v2 ? { handoff: { v2: true } } : {}) },
+    },
     // 头条任务也会回调 created；target 只跟踪长篇，避免头条作品顶掉后续长篇任务的落点。
     created: async (_previous, next) => {
       if (next.mode === "fanqie") target = next;
@@ -548,6 +558,7 @@ for (const profile of profiles) {
   }
   try {
     for (const [index, [genre, idea]] of headCases.entries()) {
+      if (!plan.caseIds.includes("head-" + (index + 1))) continue;
       if (only && only !== "head-" + (index + 1)) continue;
       if (completedKeys.has(profile + ":head-" + (index + 1))) continue;
       await run(
@@ -594,7 +605,9 @@ for (const profile of profiles) {
       for (const [position, chapter] of book.chapterIds.entries()) {
         if (only && only !== book.prefix + "-" + chapter) continue;
         if (completedKeys.has(profile + ":" + book.prefix + "-" + chapter)) continue;
-        if (position === 5 && !only) await sessions.newConversation(target);
+        // 中途换会话的位置随书长缩放：10 章在第 6 章前，3 章在第 2 章前
+        const sessionBreak = Math.min(5, book.chapters - 2);
+        if (position === sessionBreak && !only) await sessions.newConversation(target);
         await run(
           book.prefix + "-" + chapter,
           `长篇第 ${position + 1} 章${book.pace ? "（" + book.pace + "档）" : ""}`,
@@ -623,7 +636,7 @@ async function runJudge() {
       path.join(output, ".judge-auth.json"),
       "judge",
     );
-  for (const profile of ["default", "original"]) {
+  for (const profile of mode.ab ? ["default"] : ["default", "original"]) {
     const results = [],
       failures = [];
     for (const row of all.filter(

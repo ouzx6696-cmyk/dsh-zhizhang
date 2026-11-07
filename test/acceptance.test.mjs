@@ -67,6 +67,26 @@ test("模式与任务组：默认 36 条记录，matrix 加三本档位书，lon
   assert.match(pacePromptLine("慢燃"), /慢燃/);
   assert.match(pacePromptLine("稳推"), /pace/);
 
+  // ab 小样本：三种体裁头条各一篇 + 3 章长篇，单方案单臂所以 totalRecords 不乘 2
+  const ab = casePlan(resolveMode({ ab: true }));
+  assert.equal(ab.books.length, 1);
+  assert.equal(ab.books[0].chapters, 3);
+  assert.deepEqual(ab.caseIds, [
+    "head-1",
+    "head-4",
+    "head-6",
+    "novel-plan",
+    "novel-c001",
+    "novel-c002",
+    "novel-c003",
+  ]);
+  assert.equal(ab.totalRecords, 7);
+  assert.equal(ab.scoredCount, 6);
+  assert.equal(casePlan(resolveMode({ ab: true, matrix: true })).books.length, 1);
+  assert.equal(resolveMode({ ab: true, v2: true }).v2, true);
+  assert.match(describeMode(resolveMode({ ab: true })), /RC2 基线臂/);
+  assert.match(describeMode(resolveMode({ ab: true, v2: true })), /RC3 臂/);
+
   assert.throws(() => normalizeMode("bad"), /mode\.json/);
   assert.throws(() => normalizeMode({ matrix: "yes" }), /布尔值/);
   assert.deepEqual(normalizeMode({ matrix: true, round: "2026-11-06" }), {
@@ -74,6 +94,8 @@ test("模式与任务组：默认 36 条记录，matrix 加三本档位书，lon
     long: false,
     finalizeTrack: false,
     judge: false,
+    ab: false,
+    v2: false,
     round: "2026-11-06",
   });
 });
