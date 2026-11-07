@@ -60,7 +60,7 @@ metrics.json 和 COMPARISON.md 按任务记录读取实际产物：核对 7 篇�
 3. 更新后核对 userData（`%APPDATA%\写作 Agent`）保留：
    - `model.json`：模型与 Key 仍可用（safeStorage 加密须同一 Windows 用户），「测试连接」通过；
    - `desktop.json`、`search.json`、`writer.json`：界面偏好、搜索配置、业务配置仍在；
-   - `profiles/`（或 `profiles-directory` 指向的自定义目录）：方法方案仍在；
+   - `profiles/`：方法方案仍在；
    - `target.json`：最近项目自动恢复，写作根内作品与台账原样可读写；偏好文件（写作根 `.writer/preferences.md`）仍加载。
 4. 版本核对：设置内版本号与 `RELEASE-CONDITIONS.json` 一致。
 

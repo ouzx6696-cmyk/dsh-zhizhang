@@ -4,7 +4,7 @@
 
 | 方案 | 是什么 | 能否修改 |
 |---|---|---|
-| 默认 | 插件自带的精炼版：从原版提炼重写，去重、去空话，判据对齐质检规则、门禁与真实工具。**新装插件就用它** | 只读（随插件版本更新） |
+| 默认 | 客户端自带的精炼版：从原版提炼重写，去重、去空话，判据对齐质检规则、门禁与真实工具。**新装客户端就用它** | 只读（随客户端版本更新） |
 | 原版 | 上游原件（toutiao-viral-writer 4.0.0、inspiration-forge-suite 1.3.0），一字未改 | 只读（经 `npm run assets -- import` 更新） |
 | 用户方案一、二…… | 作者提交的版本：以默认或原版为底，逐份覆盖或新增 | 可改 |
 
@@ -54,10 +54,10 @@
 **对话里**（作者明确要求时）：`toutiao_profile` / `fanqie_profile`，action = `list` / `show` / `use` / `create`（`from_dir` 导入会话目录下的文件夹）/ `save`（`text` 或 `file`）/ `reset` / `rename`。删除只在写作台做。编辑子代理看不到这两个工具。
 
 **配置**：
-在 userData 的 `writer.json` 中设置 `profilesDir`；模式下的 `profile` 可固定方案，例如 `{"profilesDir":"D:/写作/方法方案","toutiao":{"profile":"用户方案一"}}`。
+在 userData 的 `writer.json` 里用模式下的 `profile` 固定方案，例如 `{"toutiao":{"profile":"用户方案一"}}`。方案目录没有配置项，由桌面启动时指定。
 
 ## 存放
-`<方案目录>/active.json` 记各模式当前方案；`<方案目录>/<mode>/user-N/profile.json` + `methods/<id>.md` 是用户方案。方案目录按 配置 `profilesDir` → 环境变量 `WRITER_PROFILES_DIR` → 应用状态目录的 `writer/profiles` 取第一个。
+`<方案目录>/active.json` 记各模式当前方案；`<方案目录>/<mode>/user-N/profile.json` + `methods/<id>.md` 是用户方案。桌面的方案目录固定在 userData 的 `profiles/`；未由桌面设定时，`WRITER_PROFILES_DIR` 可指定目录，否则用应用状态目录的 `writer/profiles`。
 
 限制：每种模式最多 20 个用户方案、每个方案最多 300 份、单份最大 256KB、方案名最多 24 字；方法 id 不许越级或含 `< > : " | ? *`。
 

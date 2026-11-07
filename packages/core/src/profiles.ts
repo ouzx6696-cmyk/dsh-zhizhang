@@ -5,7 +5,6 @@
  *   user-N   用户方案N 作者提交的版本：以某个内置方案为底，逐份覆盖或新增
  * 读取顺序：用户方案的覆盖 → 它的底（默认或原版）；默认里没有的 id 回落到原版。
  * 当前方案存在 <方案目录>/active.json；配置 <mode>.profile 可以钉死。
- * 方案目录：配置 profilesDir → WRITER_PROFILES_DIR → 应用状态目录/writer/profiles。
  */
 import { rm } from "node:fs/promises";
 import { stateRoot } from "./paths.js";

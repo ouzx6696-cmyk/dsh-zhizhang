@@ -22,7 +22,7 @@ export async function executeTool(
     if (decision?.kind === "ask") {
       if (
         !(await options.confirm(
-          `${input.work || input.id || execution.cwd || ""}\n${decision.reason || "确认操作？"}`,
+          `${input.work || input.id || execution.cwd}\n${decision.reason || "确认操作？"}`,
           execution.signal,
         ))
       )

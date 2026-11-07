@@ -213,7 +213,6 @@ const TOUTIAO_FIND_TOPIC = pack("plan", ["s1-hot", "s1-evergreen"], [], ["S1"]);
 // 已交稿后流程走完，没有要装载的方法；作者再发消息按查阅处理。
 const TOUTIAO_DELIVERED = pack("inspect", [], [], ["S7"]);
 
-/** 决策表入口：输入快照，输出方法包；本单不接线，由会话层接线任务调用。 */
 export function buildMethodPack(input: MethodPackInput): MethodPack {
   if (input.mode === "toutiao") {
     const article = input.toutiao?.article ?? null;

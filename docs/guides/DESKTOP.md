@@ -48,7 +48,7 @@ Node.js 22.19+（建议 24）、npm、Python 3；Windows 可用 `WRITER_PYTHON` 
 npm ci
 npm run desktop:dev
 npm run desktop:build
-npm run test:desktop       # 真实 Pi + 本地假模型，业务与宿主边界
+npm run test:desktop       # 真实 Pi + 本地假模型，业务与桌面外壳边界
 npm run test:desktop:ui    # Playwright 驱动真实 Electron，需桌面环境
 ```
 

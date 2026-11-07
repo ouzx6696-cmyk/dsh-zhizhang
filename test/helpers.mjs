@@ -26,7 +26,6 @@ export async function createToolHarness({ mode, role = "writer", cwd, config = {
     rules = toutiaoGateRules(config);
     const gates = createGateEngine(rules, {
       requireApproval: true,
-      disabled: config.disabledGates,
     });
     definitions = await createToutiaoTools({ config, role, gates: () => gates });
     return harness(gates);
@@ -37,7 +36,6 @@ export async function createToolHarness({ mode, role = "writer", cwd, config = {
   const { fanqieGateRules } = await import(buildUrl("fanqie/src/gates.js"));
   const gates = createGateEngine(fanqieGateRules(config, role), {
     requireApproval: true,
-    disabled: config.disabledGates,
   });
   definitions = [...engineTools(config, gates, role), ...createFanqieTools({ config, role })];
   return harness(gates);

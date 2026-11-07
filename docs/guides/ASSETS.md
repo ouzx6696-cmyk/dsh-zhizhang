@@ -54,10 +54,10 @@ npm run assets -- import toutiao-viral-writer ~/下载/toutiao-viral-writer-4.1.
 - 目录里的 `.md`、`.txt`、`.json` 按相对路径成为 id：`我的头条方法/标题/养老题.md` → `user:标题/养老题`。`toutiao_method_get id=list` 会列出来。
 - 只读，不覆盖自带方法；与自带方法、质检规则或门禁冲突时以自带为准（工具说明里也这样告诉模型）。
 - 限制：单份不超过 256KB，每个目录最多 300 份、最深 4 层；隐藏文件、`node_modules`、`__pycache__` 跳过；两个目录有同名 id 时用先列的那份并给出提示；目录不存在只提示不报错；id 不能越出目录。
-- 作者自备资产不进清单，也不随插件包发布。
+- 作者自备资产不进清单，也不随安装包发布。
 
 ## 扩展预留
-- **新配置项**：`assets` 段现在只认 `dirs`，其余键报错（防止拼错悄悄不生效）。以后要加（例如按 id 停用自带方法、指定常用目录）在 `packages/core/src/user-assets.ts` 的 `AssetsConfig` 和 `KNOWN` 登记，两种模式自动生效，再补 INSTALL.md 的表。
+- **新配置项**：`assets` 段现在只认 `dirs`，其余键报错（防止拼错悄悄不生效）。以后要加（例如按 id 停用自带方法、指定常用目录）在 `packages/core/src/user-assets.ts` 的 `AssetsConfig` 和 `KNOWN` 登记，两种模式自动生效，再补本节的配置说明。
 - **新上游来源**：在 `sources.json` 加一项（`kind: "upstream"`，填 `dest`、`upstreamRoot`、`marker`、`versionFrom`、`versionRefs`、`tool`；需要登记表就加 `registry`），资产命令与检查无需改代码。只有新的登记表形态（不是头条 `METHOD_FILES` 也不是 forge 按路径取）需要在 `scripts/assets.mjs` 的 `idFor` 与 `check` 各加一个分支。
 - **新写作模式**：照现有两个模式，在 `sources.json` 加它的来源，配置段加 `assets`（调用 `parseAssetsConfig`），方法工具接 `listUserAssets` / `getUserAsset`。
 - **清单格式**：`schemaVersion: 1`。字段只增不改；要改含义时升版本号，`check` 按版本分别处理。
