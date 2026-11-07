@@ -208,6 +208,17 @@ test("真实 Pi：建书归属、候选定位、独立编辑、角色模型、�
     const writer = model.calls.find((call) => call.model === "mock-writer"),
       editor = model.calls.find((call) => call.model === "mock-editor");
     assert.ok(writer && editor);
+    for (const call of [writer, editor]) {
+      const names = call.tools.map((tool) => tool.function.name);
+      for (const name of [
+        "fanqie_foreshadow_set",
+        "fanqie_knowledge_set",
+        "fanqie_continuity_commit",
+        "fanqie_candidate_unify_brief",
+        "fanqie_candidate_unify_stage",
+      ])
+        assert.ok(!names.includes(name), `关闭的功能不暴露给模型：${name}`);
+    }
     assert.ok(model.calls.some((call) => call.model === "mock-planner"));
     const planner = model.calls.find((call) => call.model === "mock-planner");
     assert.ok(!planner.tools.some((tool) => tool.function.name === "fanqie_chapter_save"));
@@ -873,7 +884,7 @@ test("PI 作用范围、目录别名及显式内核配置", async () => {
     settings: () => models(model.url),
     emit: () => {},
     confirm: async () => true,
-    options: {},
+    options: { fanqie: { continuity: { enabled: true }, multiDraft: { enabled: true } } },
     created: async () => {},
     extras: {},
   });
@@ -883,6 +894,14 @@ test("PI 作用范围、目录别名及显式内核配置", async () => {
     assert.equal(session.systemPrompt.includes("AMBIENT_096_MUST_NOT_ENTER"), false);
     assert.equal(session.settingsManager.getCompactionEnabled(), true);
     assert.equal(session.getActiveToolNames().includes("bash"), false);
+    for (const name of [
+      "fanqie_foreshadow_set",
+      "fanqie_knowledge_set",
+      "fanqie_continuity_commit",
+      "fanqie_candidate_unify_brief",
+      "fanqie_candidate_unify_stage",
+    ])
+      assert.ok(session.getActiveToolNames().includes(name), `开启功能后注册工具：${name}`);
     const tool = session.agent.state.tools.find((t) => t.name === "fanqie_chapter_save");
     await assert.rejects(
       tool.execute("cross-work", { work: "b", chapter: "c001", content: "越界" }),
@@ -3723,4 +3742,90 @@ test("改稿学习：模型输出非法 JSON 时如实报归纳失败且不落�
     await offModel.close();
     await rm(base, { recursive: true, force: true });
   }
+});
+
+test("PI 请求遵循系统代理，NO_PROXY 的本地接口保持直连", async (t) => {
+  const { createServer, request: forward } = await import("node:http");
+  const { connect } = await import("node:net");
+  const model = await fakeModel();
+  const target = new URL(model.url);
+  const sockets = new Set();
+  let tunnels = 0;
+  const proxy = createServer((request, response) => {
+    tunnels++;
+    const requested = new URL(request.url, model.url);
+    const upstream = forward(
+      new URL(requested.pathname + requested.search, model.url),
+      {
+        method: request.method,
+        headers: request.headers,
+      },
+      (result) => {
+        response.writeHead(result.statusCode, result.headers);
+        result.pipe(response);
+      },
+    );
+    upstream.on("error", (error) => {
+      response.writeHead(502);
+      response.end(error.message);
+    });
+    request.pipe(upstream);
+  });
+  proxy.on("connection", (socket) => {
+    sockets.add(socket);
+    socket.on("close", () => sockets.delete(socket));
+  });
+  proxy.on("connect", (_request, socket, head) => {
+    tunnels++;
+    const upstream = connect(Number(target.port), "127.0.0.1", () => {
+      socket.write("HTTP/1.1 200 Connection Established\r\n\r\n");
+      if (head.length) upstream.write(head);
+      socket.pipe(upstream);
+      upstream.pipe(socket);
+    });
+    for (const stream of [socket, upstream]) {
+      sockets.add(stream);
+      stream.on("close", () => sockets.delete(stream));
+      stream.on("error", () => {
+        socket.destroy();
+        upstream.destroy();
+      });
+    }
+  });
+  await new Promise((resolve) => proxy.listen(0, "127.0.0.1", resolve));
+  const home = await mkdtemp(path.join(tmpdir(), "writer-proxy-"));
+  t.after(async () => {
+    for (const socket of sockets) socket.destroy();
+    await new Promise((resolve) => proxy.close(resolve));
+    await model.close();
+    await rm(home, { recursive: true, force: true });
+  });
+  const endpoint = `http://127.0.0.1:${proxy.address().port}`;
+  const config = models(model.url).writer;
+  const adapter = pathToFileURL(path.join(root, "apps/desktop/out-test/pi.mjs")).href;
+  const code = `const {testConnection}=await import(${JSON.stringify(adapter)});const config=JSON.parse(process.argv[1]);await testConnection(config,process.argv[2]);`;
+  const run = promisify(execFile);
+  const env = {
+    ...process.env,
+    HTTP_PROXY: endpoint,
+    HTTPS_PROXY: endpoint,
+    http_proxy: endpoint,
+    https_proxy: endpoint,
+    NO_PROXY: "127.0.0.1",
+    no_proxy: "127.0.0.1",
+  };
+  await run(
+    process.execPath,
+    ["--input-type=module", "-e", code, JSON.stringify(config), path.join(home, "direct.json")],
+    { env, timeout: 20000 },
+  );
+  assert.equal(tunnels, 0);
+  const proxied = { ...config, baseUrl: "http://writer-proxy.invalid/v1" };
+  await run(
+    process.execPath,
+    ["--input-type=module", "-e", code, JSON.stringify(proxied), path.join(home, "proxied.json")],
+    { env, timeout: 20000 },
+  );
+  assert.ok(tunnels > 0);
+  assert.equal(model.calls.length, 2);
 });

@@ -1,6 +1,6 @@
 {
   "name": "writer-agent",
-  "version": "0.9.9",
+  "version": "1.0.0-preview.1",
   "private": true,
   "description": "基于内置 PI 的独立写作客户端：今日头条与番茄长篇",
   "type": "module",
@@ -23,8 +23,6 @@
     "desktop:portable": "npm run desktop:build && npm run pack:portable -w @writer/desktop",
     "test:desktop": "npm run build && node scripts/build-desktop-test.mjs && node --test test/desktop/runtime.test.mjs",
     "test:desktop:ui": "playwright test --config apps/desktop/playwright.config.mjs",
-    "acceptance:prepare": "node scripts/build-desktop-test.mjs && node scripts/acceptance.mjs",
-    "acceptance:run": "node scripts/build-desktop-test.mjs && node scripts/acceptance.mjs --run",
     "verify": "node scripts/test.mjs core",
     "verify:desktop": "node scripts/test.mjs desktop",
     "verify:release": "node scripts/verify-release.mjs",

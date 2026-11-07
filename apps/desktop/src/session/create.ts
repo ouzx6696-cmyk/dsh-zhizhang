@@ -113,7 +113,23 @@ async function startSession(
       manager,
       gates,
       config,
-      definitions,
+      definitions: definitions.filter((tool) => {
+        if (
+          host.options.fanqie?.continuity?.enabled !== true &&
+          [
+            "fanqie_foreshadow_set",
+            "fanqie_knowledge_set",
+            "fanqie_continuity_commit",
+            "fanqie_continuity_get",
+            "fanqie_continuity_migrate",
+          ].includes(tool.name)
+        )
+          return false;
+        return (
+          host.options.fanqie?.multiDraft?.enabled === true ||
+          !["fanqie_candidate_unify_brief", "fanqie_candidate_unify_stage"].includes(tool.name)
+        );
+      }),
       readUrls,
       getEntry,
       onCreated,

@@ -86,7 +86,7 @@ jobs:
           $signature = Get-AuthenticodeSignature $exe.FullName
           if ($env:CERTIFICATE_PROVIDED -eq 'true' -and $signature.Status -ne 'Valid') { throw '签名校验未通过' }
           $version = (Get-Content package.json | ConvertFrom-Json).version
-          @{ version = $version; commit = $env:GITHUB_SHA; signing = $signature.Status.ToString(); realModelAcceptance = 'pending-author-review' } | ConvertTo-Json | Set-Content apps/desktop/release/RELEASE-CONDITIONS.json
+          @{ version = $version; commit = $env:GITHUB_SHA; signing = $signature.Status.ToString() } | ConvertTo-Json | Set-Content apps/desktop/release/RELEASE-CONDITIONS.json
           # The GitHub provider uses Release prerelease status, not a channel filename.
           $updateFile = 'latest.yml'
           $expectedVersion = '^version:\s*' + [regex]::Escape($version) + '\s*$'

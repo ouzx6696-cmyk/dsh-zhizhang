@@ -1,2 +1,2 @@
 /** 客户端版本，与根 package.json 一致（测试会核对）。 */
-export const VERSION = "0.9.9";
+export const VERSION = "1.0.0-preview.1";

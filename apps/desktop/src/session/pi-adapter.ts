@@ -16,6 +16,20 @@ import {
 } from "@earendil-works/pi-ai";
 export { getSupportedThinkingLevels, clampThinkingLevel };
 const catalogStore = new InMemoryModelsStore();
+let proxyConfigured = false;
+async function configureSystemProxy() {
+  if (proxyConfigured) return;
+  if (
+    process.env.HTTPS_PROXY ||
+    process.env.https_proxy ||
+    process.env.HTTP_PROXY ||
+    process.env.http_proxy
+  ) {
+    const { EnvHttpProxyAgent, setGlobalDispatcher } = await import("undici");
+    setGlobalDispatcher(new EnvHttpProxyAgent());
+  }
+  proxyConfigured = true;
+}
 import type { ModelConnection } from "../models";
 import { asRecord } from "../main/ipc/validate.js";
 /** Keep cancellation attached through context preparation and SDK prompt startup. */
@@ -48,6 +62,7 @@ export async function promptWithSignal(
 const PROVIDER_IDS: Record<string, string> = { kimi: "moonshotai-cn" };
 const providerId = (id: string) => PROVIDER_IDS[id] ?? id;
 export async function runtimeModel(settings: ModelConnection, authPath: string, role: string) {
+  await configureSystemProxy();
   const runtime = await ModelRuntime.create({
     authPath,
     modelsPath: null,

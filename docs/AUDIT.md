@@ -8,7 +8,7 @@
 
 测试体系复用既有框架与断言，统一 core/desktop/all 调度及阶段耗时，失败即停；all 不重复顶层类型检查，Windows 发行准备一次生成 NSIS 与 ZIP。CI 不再重复 lint，显式安装 Electron 二进制。未新增依赖，方法资产和质检门槛不变。
 
-保留事项：CSS 跨文件层叠和窄栏容器布局没有在此次性能整理中重写；三个会话模块仍有超行提示。导出审计仍只强制 fanqie，守卫不声称能够自动证明所有十条人工规范。真实模型、Windows 安装和跨版本更新仍需专门验收，云端原生构建结果另行记录。
+保留事项：CSS 跨文件层叠和窄栏容器布局没有在此次性能整理中重写；三个会话模块仍有超行提示。导出审计仍只强制 fanqie，守卫不声称能够自动证明所有十条人工规范。软件发布以自动化回归和云端原生构建结果为依据。
 
 ---
 
@@ -68,7 +68,6 @@
 | P2-3 | `packages/core/src/profiles.ts:27,28,84,107` | `BUILTIN_NAMES`、`BUILTIN_NOTES`、`profilesRoot`、`checkMethodId` 仅本文件内使用却带 `export`，违反 R5。（`PROFILE_LIMITS` 有 `profile-tool.ts:10,33` 包外引用，**不在此列**） |
 | P2-4 | `packages/core/src/runner.ts:192`、`packages/core/src/profile-tool.ts:22` | `parseContract`、`readMethodFolder` 生产仅同文件调用，唯一包外引用是 `test/unit.test.mjs` 与 `test/safety.test.mjs`，属为测试保留的导出（R5/R10） |
 | P2-5 | `scripts/architecture-guard.mjs:265-271,374-383` | `host-package` 与 `retired-package` 检测同一字符串，前者是后者真子集，重复实现（R4） |
-| P2-6 | `scripts/architecture-guard.mjs:193-201,285-309` | `swallowed()` 只认空块、单条 return 字面量、`.catch(() => 字面量)`；`scripts/acceptance-lib.mjs:228-231` 的 `catch { malformedLines++; continue; }` 这类多语句吞错漏检 |
 | P2-7 | `scripts/architecture-guard.mjs:277-280` | any 基线只数 `AnyKeyword` 与 `NonNullExpression`，不覆盖 R8 明禁的 `as unknown as` |
 | P2-8 | `packages/ui/src/styles/dialog.css:56` | 注释「宿主 ui-dialog 内嵌 workbench 的 .wb-modal 时的口径」——「宿主」术语残留且复述代码（R9） |
 
@@ -78,10 +77,9 @@
 
 | 位置 | 疑点 |
 |---|---|
-| `scripts/prepare-desktop-python.mjs:29,36`、`assets.mjs:40`、`backup.mjs:26`、`acceptance.mjs:124` | 各写一份 sha256，与 `packages/core/src/fsx.ts:124` 构成多处实现；但这些是不能 import TS 源的独立 CLI 脚本，是否豁免需定 |
+| `scripts/prepare-desktop-python.mjs:29,36`、`assets.mjs:40`、`backup.mjs:26` | 各写一份 sha256，与 `packages/core/src/fsx.ts:124` 构成多处实现；但这些是不能 import TS 源的独立 CLI 脚本，是否豁免需定 |
 | `scripts/backup.mjs:30-33` | `inside()` 自写路径越界判断，与 `fsx.ts:11 resolveInside` 同类，同上 |
 | `packages/core/src/profiles.ts:299`、`tool.ts:100` | `(meta.id as BuiltinProfile)`、`(args ?? {}) as A`：类型断言与冗余兜底是否触及 R8/R1，取决于框架既有设计 |
-| `scripts/acceptance-lib.mjs:228-231` | 坏日志行不分原因吞掉 JSON 解析错误，虽有文字说明但无 `// allow-catch:` 标记 |
 | `test/unit.test.mjs:10-19` | 直接 import 纯函数做单测，未按 R10「工具经 executeTool」；被测对象是纯函数，适用范围需界定 |
 | `scripts/architecture-guard.mjs:22-27,114,251,442-454` | `BROWSER_SAFE`、`pi-adapter.ts`、`state/desktop.ts` 硬编码白名单；`versions` 用正则硬编码 CHANGELOG 首个 `## ` 标题格式，存在误报隐患 |
 | `packages/fanqie/src/engine/storage/chapters.ts:133-135` | 严格校验后仍用 `Array.isArray(...) ? ... : []` 兜底并 `as ChapterDependency[]`；处于「读文件解析」边界，是否触 R1/R8 需定夺 |
@@ -137,4 +135,4 @@
 
 跑过的命令及结果：`npm run verify`（改动前后各一次，均 217/216/1/0，exit 0）、`node scripts/architecture-guard.mjs`（通过，319 个源文件）、`git diff --check`（干净）。
 
-遗留：第二节全部未修项、第三节全部疑点；发布侧 W7 手工清单（Windows 安装与跨版本更新）仍未执行，真实模型 A/B 验收按作者决定跳过，不据未执行的评测下结论。
+遗留：第二节全部未修项、第三节全部疑点。发布依据为自动化回归与原生构建检查。

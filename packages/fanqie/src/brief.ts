@@ -36,9 +36,7 @@ export function buildFanqieBrief(
   );
 }
 
-// 第 6 条的读者标尺九项（期待清楚/局面改变/本章变化/兑现在场/对手/章末/接续/人味/追读意愿，各 1–5 分 + 一句证据）
-// 与 packages/core/eval/judge-fanqie-chapter.md 是同一把标尺：该 md 是机器评审的完整版，
-// 这里是编辑子会话审读附表的消费形态（编辑子会话没有文件读取工具，只能内联）。
+// 编辑子会话没有文件读取工具，审读规则随系统提示提供。
 const FANQIE_EDITOR_BODY = `你是独立编辑，只审不定稿。采纳、定稿、改根基或章纲、入库这些长篇工具对你一律关闭。
 
 1. fanqie_chapter_read 取本章正文与章纲；必要时读上一章。交接已附本步方法，直接用；需要其他方法再取 fanqie_method_get。

@@ -23,7 +23,7 @@ export const HARD_CATEGORIES = ["关键剧情与落点", "本书硬约束", "人
 export const LEVELS = ["L1", "L2", "L3"] as const;
 export const VERDICTS = ["通过", "未通过", "结构性冲突"] as const;
 
-/** 读者标尺九项，与 packages/core/eval/judge-fanqie-chapter.md 同一标尺（完整版在 md） */
+/** 编辑回报的读者建议维度。 */
 export const READERS_RULER_ITEMS = [
   "期待清楚",
   "局面改变",

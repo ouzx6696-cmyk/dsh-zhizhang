@@ -27,10 +27,7 @@ import { WRITER_EXCLUDED_TOOLS, type FanqieConfig } from "./config.js";
 
 export type Role = "writer" | "editor" | "planner";
 
-/**
- * 读者标尺九项 — 与 packages/core/eval/judge-fanqie-chapter.md 同一把标尺：
- * 该 md 是机器评审完整版；这里供编辑审读回报附表（fanqie_review_report.readers_ruler）。
- */
+/** 编辑审读回报的可选读者建议。 */
 import { READERS_RULER_ITEMS, renderReadersRuler } from "./review.js";
 
 const S = (description: string): JsonSchemaNode => ({ type: "string", description });
@@ -335,7 +332,7 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
         readers_ruler: {
           type: "array",
           description:
-            "可选：读者标尺附表（仅作版本排序参考）。九项各 1–5 分（1 很差，5 很好）并各附一句依据正文原意的证据：期待清楚（主角此刻想要什么、被什么挡着）、局面改变（处境或目标真实移动）、本章变化（开头到结尾看得见的变化）、兑现在场（回报或代价读者能感到）、对手（阻力方按自身利益主动出招）、章末（钩子让人想点开下一章）、接续（伏笔与已知信息连贯）、人味（话和选择像有处境的人）、追读意愿（读者个人会不会继续读）。九项必须齐全，与 packages/core/eval/judge-fanqie-chapter.md 同一标尺。",
+            "可选：读者标尺附表（仅作版本排序参考）。九项各 1–5 分（1 很差，5 很好）并各附一句依据正文原意的证据：期待清楚（主角此刻想要什么、被什么挡着）、局面改变（处境或目标真实移动）、本章变化（开头到结尾看得见的变化）、兑现在场（回报或代价读者能感到）、对手（阻力方按自身利益主动出招）、章末（钩子让人想点开下一章）、接续（伏笔与已知信息连贯）、人味（话和选择像有处境的人）、追读意愿（读者个人会不会继续读）。九项必须齐全。",
           items: {
             type: "object",
             properties: {

@@ -52,7 +52,7 @@ export interface QaDims {
   structure: number;
   compliance: number;
 }
-/** 读者评审九项标尺（packages/core/eval/judge-toutiao-article.md）。 */
+/** 文章工作流内的读者建议维度。 */
 export const READER_RUBRIC = [
   "标题",
   "开篇三段",
