@@ -34,4 +34,4 @@
 | 审读记录 | 指定主体对版本和依据作过结论声明 | 作者授权、市场效果或无遗漏 |
 | 覆盖和完整度 | 已处理材料及字段范围 | 分析正确率 |
 
-插件不自动投稿或修改 AI 标识，不把教学例稿当作市场证据。操作上的审读、采纳和定稿见[作品生命周期](COGNITION.md)，具体编辑约定见[作品编辑与修订](skills/web-novel-master-optimizer.md)（运行时用 `fanqie_method_get ids=edit` 取同一内容）。
+插件不自动投稿或修改 AI 标识，不把教学例稿当作市场证据。操作上的审读、采纳和定稿见[作品生命周期](COGNITION.md)，具体编辑约定见[作品编辑与修订](skills/web-novel-master-optimizer.md)（运行时用 `fanqie_method_get ids=edit` 取当前方案的 edit 方法）。

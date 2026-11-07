@@ -32,7 +32,6 @@ export type Role = "writer" | "editor" | "planner";
  * 该 md 是机器评审完整版；这里供编辑审读回报附表（fanqie_review_report.readers_ruler）。
  */
 import { READERS_RULER_ITEMS, renderReadersRuler } from "./review.js";
-export { READERS_RULER_ITEMS, type ReadersRulerEntry } from "./review.js";
 
 const S = (description: string): JsonSchemaNode => ({ type: "string", description });
 const I = (description: string): JsonSchemaNode => ({ type: "integer", description });

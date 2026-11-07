@@ -10,7 +10,7 @@ import type { PayoffCaseLexicon } from "./storage/payoff-lexicon.js";
 const SCORE_UNDER = 0.5;
 const SCORE_OK = 0.75;
 
-export interface PayoffFinding {
+interface PayoffFinding {
   code: string;
   severity: "info" | "warning" | "error";
   message: string;
@@ -18,7 +18,7 @@ export interface PayoffFinding {
   evidence?: string;
 }
 
-export interface PayoffAuditResult {
+interface PayoffAuditResult {
   ok: boolean;
   warningCount: number;
   findings: PayoffFinding[];

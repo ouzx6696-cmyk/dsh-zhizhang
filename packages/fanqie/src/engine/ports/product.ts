@@ -117,7 +117,7 @@ export const ProductMap = {
       "- 编辑按真实问题与授权；A/B/C 为兼容交互，不重复索取固定确认词。采纳工作稿后，内容审读与定稿分别核对；方法见 fanqie_method_get ids=edit",
     );
     lines.push(
-      "- 可选·多草稿（默认关）：同章多候选 → unify_brief → unify_stage；开 WRITER_NOVEL_MULTI_DRAFT=1 或 config.multiDraft.enabled；默认链不加负重",
+      "- 可选·多草稿（默认关）：同章多候选 → unify_brief → unify_stage；开 config.multiDraft.enabled；默认链不加负重",
     );
     lines.push(
       "- Web 面板：侧栏写作台默认三栏阅读工作台；管线可切；真采纳同 Accept；产文仍归 Agent",

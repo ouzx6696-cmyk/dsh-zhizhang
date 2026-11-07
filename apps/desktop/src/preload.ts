@@ -47,7 +47,6 @@ export const desktopAPI = {
   view: (target: Target, limit?: number, archive?: number) =>
     invoke("view", target, limit, archive),
   running: () => invoke("running"),
-  profiles: () => invoke("profiles"),
   state: () => invoke("state"),
   choose: (mode: Target["mode"]) => invoke("choose", mode),
   model: (value: ModelsInput) => invoke("model", value),

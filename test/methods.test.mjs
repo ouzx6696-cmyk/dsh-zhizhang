@@ -70,8 +70,8 @@ async function loadEverything(label) {
   assert.ok(profileIds.length >= 17, `${label}: 默认方案目录 ${list.slice(0, 200)}`);
   assert.ok(engineIds.length >= 10, `${label}: 引擎方法资产目录 ${list.slice(0, 200)}`);
   // 原版：每一份都能强制读出原件（附工具对照表）
-  const { listMethods } = await import(buildUrl("fanqie/src/forge.js"));
-  const forgeIds = await listMethods();
+  const { fanqieLibrary } = await import(buildUrl("fanqie/src/forge.js"));
+  const forgeIds = await fanqieLibrary.originalIds();
   for (const id of forgeIds) {
     const r = await call(fq, "fanqie_method_get", { ids: "原版:" + id });
     assert.ok(
@@ -136,9 +136,9 @@ test("原件对照：头条方法与语料、forge 三件套都完整在包里�
   );
   for (const f of registered)
     assert.ok(existsSync(path.join(TOUTIAO_SKILL, f)), `登记了不存在的文件 ${f}`);
-  const { listMethods } = await import(buildUrl("fanqie/src/forge.js"));
+  const { fanqieLibrary: forgeLib } = await import(buildUrl("fanqie/src/forge.js"));
   const forgeDocs = (await files(FORGE, ".md")).map((f) => f.replace(/\.md$/, ""));
-  assert.deepEqual(await listMethods(), forgeDocs);
+  assert.deepEqual(await forgeLib.originalIds(), forgeDocs);
   for (const pkg of ["inspiration-forge", "inspiration-forge-library", "novel-writer"])
     assert.ok(forgeDocs.includes(`${pkg}/SKILL`), `${pkg} 缺 SKILL`);
   // 原文之间的 Markdown 链接，以及原文里只写相对路径的引用，都能经 方法库读取入口取到

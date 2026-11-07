@@ -6,16 +6,13 @@ import { Button, Icon, SegmentedControl, StateDot, Tag, cx } from "../shared/ui.
 import { Callout, Empty, Skeleton } from "../shared/common.jsx";
 import { Manuscript } from "../shared/Manuscript.jsx";
 import { SourceEditor } from "../shared/SourceEditor.jsx";
-import { statusInfo } from "../../../../ui/src/status.js";
+import { statusInfo, statusLabel, statusTone } from "../../../../ui/src/status.js";
 
 import { draftRoleLabel } from "./ToutiaoSide.jsx";
 
 export { ToutiaoSide } from "./ToutiaoSide.jsx";
 
 const { useState } = React;
-
-const statusLabel = (status) => statusInfo("toutiao", status).label;
-const statusTone = (status) => statusInfo("toutiao", status).tone;
 
 function matches(a, q) {
   if (!q) return true;

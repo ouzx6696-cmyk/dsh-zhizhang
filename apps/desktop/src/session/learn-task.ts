@@ -54,7 +54,7 @@ const LEARN_DEFAULT_LIMIT = 10;
 const MODE_LABELS: Record<LearnMode, string> = { fanqie: "番茄长篇", toutiao: "今日头条" };
 
 /** 一对改稿记录：前后两版正文与出处（learn 的原始输入，子会话按对归组）。 */
-export interface LearnPair {
+interface LearnPair {
   source: string;
   how: string;
   before: string;
@@ -62,7 +62,7 @@ export interface LearnPair {
 }
 
 /** 归纳出的偏好候选：id = condition+change 哈希，example 留前后各一句。 */
-export interface LearnItem {
+interface LearnItem {
   id: string;
   condition: string;
   change: string;
@@ -74,7 +74,7 @@ export interface LearnItem {
 }
 
 /** learn-pending.json 的落盘结构（作品根下，待作者确认的候选）。 */
-export interface LearnPending {
+interface LearnPending {
   mode: LearnMode;
   items: LearnItem[];
 }
@@ -172,7 +172,7 @@ export function parseLearnOutput(raw: string): LearnItem[] {
 }
 
 /** learn-pending.json 的边界解析：文件损坏或缺字段时如实报错，不静默清空。 */
-export function parsePending(value: unknown, file: string): LearnPending {
+function parsePending(value: unknown, file: string): LearnPending {
   const record = isRecord(value) ? value : null;
   const rows = record && Array.isArray(record["items"]) ? record["items"] : null;
   if (!record || (record["mode"] !== "fanqie" && record["mode"] !== "toutiao") || !rows)

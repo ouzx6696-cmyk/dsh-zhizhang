@@ -32,8 +32,6 @@ interface WorkInfo {
   chapters: ChapterRow[];
 }
 
-export { bodyFingerprint };
-
 function rethrow(err: unknown): never {
   if (err instanceof NovelError) {
     const code = /not_found|不存在|没有/.test(`${err.code} ${err.message}`)

@@ -225,7 +225,7 @@ function csvMetricRows(text: string): Record<string, string>[] {
   );
 }
 
-export interface ToolDeps {
+interface ToolDeps {
   config: ToutiaoConfig;
   /** 门禁引擎（工具内复核作者确认用） */
   gates: () => GateEngine | undefined;
@@ -233,7 +233,7 @@ export interface ToolDeps {
   role?: Role;
 }
 
-export type Role = "writer" | "editor" | "planner";
+type Role = "writer" | "editor" | "planner";
 
 /** 编辑角色可见的工具：只能读稿、改稿（记为 editor 版）、记红笔、跑质检；不能改状态、出交稿单、记台账 */
 const EDITOR_TOOLS = new Set([

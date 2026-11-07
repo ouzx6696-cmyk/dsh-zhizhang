@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 
-export type ConfirmRequest = {
+type ConfirmRequest = {
   message: string;
   confirmLabel?: string;
   cancelLabel?: string;

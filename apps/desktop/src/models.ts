@@ -94,7 +94,7 @@ export function defaultModels(): ModelSettings {
     planner: null,
   };
 }
-export type ConnectionInput = Partial<ModelConnection>;
+type ConnectionInput = Partial<ModelConnection>;
 export function parseConnectionInput(value: unknown): ConnectionInput {
   if (!value || typeof value !== "object" || Array.isArray(value))
     throw new Error("模型连接须为对象");
@@ -188,8 +188,8 @@ export function normalizeModels(next: unknown, previous = defaultModels()): Mode
     planner.apiKey = writer.apiKey;
   return { writer, editor, planner };
 }
-export type PublicConnection = ModelConnection & { configured: boolean };
-export type PublicModels = {
+type PublicConnection = ModelConnection & { configured: boolean };
+type PublicModels = {
   writer: PublicConnection;
   editor: PublicConnection;
   planner: PublicConnection | null;

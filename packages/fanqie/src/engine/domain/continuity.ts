@@ -4,13 +4,13 @@
  */
 import type { ForeshadowLine, KnowledgeItem } from "../types.js";
 
-export interface ChapterBodySlice {
+interface ChapterBodySlice {
   position: number;
   body: string;
 }
 
 /** 知情越界候选：记录为「不知」的人物在窗口章的正文里与事实同段出现。 */
-export interface KnowledgeBreachCandidate {
+interface KnowledgeBreachCandidate {
   knowledgeId: string;
   fact: string;
   who: string;

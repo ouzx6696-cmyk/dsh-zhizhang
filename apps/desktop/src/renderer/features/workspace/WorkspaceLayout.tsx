@@ -15,7 +15,7 @@ const ProfilesDialog = lazy(() =>
   })),
 );
 
-export type EditState = { dirty: boolean; saving: boolean };
+type EditState = { dirty: boolean; saving: boolean };
 
 /** 方法面板只读当前方案名；回执缺该字段时保持默认标题。 */
 function hasActiveName(value: unknown): value is { activeName: string } {

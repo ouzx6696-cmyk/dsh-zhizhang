@@ -18,7 +18,7 @@ import type {
 } from "../types.js";
 import { atomicWrite, assertResourceId, nowIso } from "./primitives.js";
 
-export function continuityDir(dir: string) {
+function continuityDir(dir: string) {
   return path.join(dir, "continuity");
 }
 function handoffDir(dir: string) {
@@ -204,13 +204,10 @@ export async function listHandoffs(dir: string): Promise<HandoffRecord[]> {
 }
 
 /** 简报投影（formatReaderContract 的 continuity 输入）；作品还没有任何连续性数据时返回 null。 */
-export interface ContinuityBriefProjection {
+interface ContinuityBriefProjection {
   handoff: HandoffRecord | null;
   plannedBeats: Array<{ lineId: string; title: string; beat: ForeshadowLine["beats"][number] }>;
   knowledge: KnowledgeItem[];
-}
-export async function hasContinuityData(dir: string): Promise<boolean> {
-  return (await readForeshadow(dir)).revision > 0 || (await readKnowledge(dir)).revision > 0;
 }
 /**
  * 收集本章简报投影：上章 handoff、计划落在本章的 beats、出场人物相关的知识条目。

@@ -43,7 +43,7 @@ export function renderReadersRuler(ruler: ReadersRulerEntry[]): string {
   ].join("\n");
 }
 
-export type ReadersRulerEntry = {
+type ReadersRulerEntry = {
   item: (typeof READERS_RULER_ITEMS)[number];
   score: number;
   evidence: string;

@@ -1,7 +1,7 @@
 # 番茄长篇模式
 
 ## 1. 结构
-- 代码都在 `packages/fanqie`：引擎（`engine/`：作品存储、`fanqie_*` 创作工具链、硬规则）、写作层（forge 方法、章纲/旧账检查、编辑审读、门禁）、写作台接口（`workbench/`）。`writer_enable mode=fanqie` 一次挂上引擎与写作层。
+- 代码都在 `packages/fanqie`：引擎（`engine/`：作品存储、`fanqie_*` 创作工具链、硬规则）、写作层（forge 方法、章纲/旧账检查、编辑审读、门禁）、写作台接口（`workbench/`）。桌面按模式与角色在 `create.ts` 一并注册引擎与写作层工具，不经 writer_enable。
 - 作品数据（根基、章纲、正文、候选、拆书库）只有一份，默认在 `<会话目录>/.writer/`。写作层直接用引擎的存储层与作品选择（`works.ts`）；落盘一律走引擎工具。编辑审读回报是写作层自己的文件，存在作品目录 `writer-reviews/<章 id>/`。
 - forge 三件套（inspiration-forge 规划、inspiration-forge-library 拆书、novel-writer 写作与编辑）原文放在 `packages/fanqie/skill/forge/`，**一字未改**。
 - 原文里的落盘指令（自有目录、init_project.py、archive_draft.py）在取用时由 `fanqie_method_get`（`原版:id` 读原件）前置的对照表改道到引擎工具。这样原文可以随上游升级整体替换。
@@ -27,7 +27,7 @@ forge 的"节奏档位"在引擎里对应作品级 `pace`（`fanqie_foundation_s
 ## 3. 正文体检合并（ADR）
 - **决定**：合并为一个入口 `fanqie_style_lint`。引擎语感雷达照旧给命中、签发 lintPassToken；其后附「forge 正文体检」（manuscript_linter：超长段、七类套话，台词命中只计数）。与雷达已命中片段重叠的套话不重复列出。
 - **理由**：两边各报一遍会重复提示；放进同一个工具后一次看全。规则本身都不改，命中仍只是"值得回看的位置"。
-- **实现**：`engine/tools/audit.ts` 调 `forge.ts forgeLint`；追加文本不影响雷达命中数与 lintPassToken；Python 不可用时只附一行"追加体检暂不可用"。
+- **实现**：`engine/tools/audit.ts` 的 style_lint 经 `engine/ports/audit.ts`（StyleLinterPort）把「forge 正文体检」段追加到雷达输出；追加文本不影响雷达命中数与 lintPassToken；Python 不可用时只附一行"追加体检暂不可用"。
 
 ## 4. 编辑子代理
 - 主写手通过桌面独立编辑任务发起审读；编辑使用独立 PI 会话和受限工具集。
@@ -36,7 +36,7 @@ forge 的"节奏档位"在引擎里对应作品级 `pace`（`fanqie_foundation_s
 
 ## 5. 定稿门禁
 - `fanqie_chapter_save status=final` → 作者确认；任何 `force=true` → 作者确认。都锁定不可关。
-- `fanqie.requireEditorPass: true` 时，定稿前还须有"通过"且与当前（或本次提交的）正文版本匹配的审读回报。两道：对话里由门禁 `fanqie.finalize_requires_review` 先拦（免得作者确认完才被拒）；引擎内部 `finalizeGuard` 兜底，写作台点「定稿」也经过它。
+- `fanqie.requireEditorPass: true` 时，定稿前还须有"通过"且与当前（或本次提交的）正文版本匹配的审读回报。条件实现在 `review.ts finalizeProblem`，工具定稿（`chapter-save.ts`）与写作台定稿共用同一处，不是门禁 id。
 - 审读通过不自动获得定稿权：门禁顺序是先查审读、再请作者确认。
 
 ## 6. 引擎与写作层的衔接
@@ -45,10 +45,10 @@ forge 的"节奏档位"在引擎里对应作品级 `pace`（`fanqie_foundation_s
 |---|---|
 | `fanqie_chapter_save status=final`（engine/tools/works.ts）与写作台 `POST /chapter/finalize` | `review.ts finalizeProblem`：requireEditorPass 时要当前正文的"通过"回报 |
 | 写作台读单章 `GET /chapter` | `review.ts chapterReviewInfo`：最新回报摘要、是否过期、定稿条件 |
-| `fanqie_style_lint` 三种扫描（engine/tools/audit.ts） | `forge.ts forgeLint`：forge manuscript_linter，去掉与语感雷达重复的命中后追加 |
-| 引擎解析数据根（engine/work-store.ts ensureStorage） | `core/sessions rememberSession`：记最近的主会话（子代理不记） |
+| `fanqie_style_lint` 三种扫描（engine/tools/audit.ts） | `engine/ports/audit.ts` StyleLinterPort：forge manuscript_linter，去掉与语感雷达重复的命中后追加 |
+| 引擎解析数据根（engine/work-store.ts ensureStorage） | 会话目录 `current` 指针（`create.ts` 读写）：主会话最近一次会话文件（子代理不写） |
 
-启用：`writer_enable mode=fanqie` → `mountFanqie`（先 `mountEngine`，再挂写作层工具、补充规则与门禁）。
+启用：桌面按模式装配（`create.ts`）：`engineTools` 与 `createFanqieTools` 一并注册，补充规则与门禁同处装配。
 
 ## 7. 写作台投递
 - 番茄长篇三种动作：`continue`（续写下一章：按章序第一章还没正文的；都写过就是新的一章）、`review`（派编辑审读本章）、`revise`（按最新回报修改）。

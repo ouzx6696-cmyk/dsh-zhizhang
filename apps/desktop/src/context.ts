@@ -32,7 +32,7 @@ export const focusLabel = (target: Target, focus: Focus = {}) =>
     .join(" · ");
 
 /** writer-method 块：v2 交接里紧随 writer-context 的纯文本方法全文（不经 JSON 转义）。 */
-export type PromptMethodBlock = { id: string; hash: string; text: string };
+type PromptMethodBlock = { id: string; hash: string; text: string };
 
 // 块定位与属性解析分两条正则：属性按 name="value" 全量收进表，id/hash 任意顺序都能读到。
 const METHOD_BLOCK = /^<writer-method\s+([^>]*)>([\s\S]*?)<\/writer-method>\n*/;

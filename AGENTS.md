@@ -44,7 +44,7 @@ npm run typecheck
 npm run lint
 npm run desktop:build
 npm run test:desktop      # PI 运行时
-CI=1 DISPLAY=:99 npm run test:desktop:ui   # 6 个 GUI 场景（需要虚拟显示）
+CI=1 DISPLAY=:99 npm run test:desktop:ui   # 1 条 9 步完整旅程（需要虚拟显示）
 ```
 
 ## 目录速查

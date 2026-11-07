@@ -35,7 +35,7 @@ export const GENRES = ["长图文", "短图文", "微头条"] as const;
 export const MAX_RETURN_ROUNDS = 2;
 export const STOP_LINE = "——AI 到此止步。是否采用、何时发布由你决定。";
 
-export interface DraftRecord {
+interface DraftRecord {
   rev: number;
   role: string;
   sha256: string;
@@ -64,15 +64,15 @@ export const READER_RUBRIC = [
   "不像模板",
   "读完意愿",
 ] as const;
-export type ReaderRubricItem = (typeof READER_RUBRIC)[number];
-export interface ReaderReview {
+type ReaderRubricItem = (typeof READER_RUBRIC)[number];
+interface ReaderReview {
   /** 被评审的稿件版本 */
   rev: number;
   at: string;
   scores: Record<ReaderRubricItem, number>;
   evidences: Record<ReaderRubricItem, string>;
 }
-export interface QaRecord {
+interface QaRecord {
   rev: number;
   sha256: string;
   pass: boolean;
@@ -86,7 +86,7 @@ export interface QaRecord {
   /** qa.judge 开启时由编辑子会话写入；与该记录同一稿件版本 */
   readerReview?: ReaderReview;
 }
-export interface HistoryRecord {
+interface HistoryRecord {
   from: Status | null;
   to: Status;
   by: string;

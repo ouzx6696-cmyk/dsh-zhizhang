@@ -36,10 +36,7 @@ export async function start() {
   state.home = app.getPath("userData");
   await mkdir(state.home, { recursive: true });
   setStateRoot(state.home);
-  setProfilesRoot(
-    (await readText(path.join(state.home, "profiles-directory"))) ??
-      path.join(state.home, "profiles"),
-  );
+  setProfilesRoot(path.join(state.home, "profiles"));
   setWorkspaceHost("独立客户端");
   state.settings = new Settings(state.home, {
     available: () =>

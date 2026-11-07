@@ -1,6 +1,6 @@
 # 作品编辑与修订
 
-这是长篇引擎的编辑方法说明。运行时由 `fanqie_method_get ids=edit` 加载同一内容（`packages/fanqie/src/engine/domain/creative-guidance.ts` 的 EDITING_GUIDANCE），数据规则见[数据与恢复](../DATA.md)。
+这是长篇引擎的编辑方法说明。运行时 `fanqie_method_get ids=edit` 取当前方案的 edit 方法（默认方案为 `packages/fanqie/profiles/default/edit.md`），数据规则见[数据与恢复](../DATA.md)。
 
 ## 开始修改前
 

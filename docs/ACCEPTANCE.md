@@ -42,7 +42,7 @@ metrics.json 和 COMPARISON.md 按任务记录读取实际产物：核对 7 篇�
 
 ### 产物与来源
 
-- 本地打包：`npm run desktop:pack`（NSIS 安装包）、`npm run desktop:portable`（免安装 ZIP），两者都先执行 `desktop:build`。产物在 `apps/desktop/release/`：`WriterAgent-<version>-win-x64.exe`、`WriterAgent-<version>-win-x64.zip`、`*.blockmap`、`latest.yml`。
+- 本地打包：`npm run desktop:pack`（NSIS 安装包）、`npm run desktop:portable`（免安装 ZIP），两者都先执行 `desktop:build`；发行前一键核对可用 `npm run verify:release`（串 verify、verify:desktop 与打包，仅 Windows）。产物在 `apps/desktop/release/`：`WriterAgent-<version>-win-x64.exe`、`WriterAgent-<version>-win-x64.zip`、`*.blockmap`、`latest.yml`。
 - CI（ci.yml windows-latest 打包步骤）另产出 `RELEASE-CONDITIONS.json`（版本、commit、签名状态、realModelAcceptance）与 `SHA256SUMS`，汇总为 artifact `writer-windows-packages`；发布由 release.yml 走 ci.yml verify 后 publish 到 GitHub Releases。
 - 未配置签名证书时安装包不签名，SmartScreen 提示属预期；`RELEASE-CONDITIONS.json` 的 `signing` 字段记录实际状态。
 

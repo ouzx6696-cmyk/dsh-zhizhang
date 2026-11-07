@@ -1,6 +1,6 @@
 # 工具清单
 
-返回值统一为 JSON 对象：成功 `{ok:true, ...}`，业务失败 `{ok:false, code, message}`，code ∈ INVALID_ARGS / NOT_FOUND / CONFLICT / GATE_DENIED / SCRIPT_FAILED / TIMEOUT / OUT_OF_ROOT / NO_AGENT。
+返回值统一为 JSON 对象：成功 `{ok:true, ...}`，业务失败 `{ok:false, code, message}`，code ∈ INVALID_ARGS / NOT_FOUND / CONFLICT / GATE_DENIED / SCRIPT_FAILED / TIMEOUT / OUT_OF_ROOT / NO_AGENT / unsafe_path。
 
 桌面按当前作品模式与角色注册工具，写手、编辑和规划的工具权限由客户端限定。
 
@@ -28,12 +28,11 @@
 ## 门禁
 | id | 工具 | 行为 | 可关闭 |
 |---|---|---|---|
-| toutiao.accept_requires_qa | toutiao_status → 已验收 | 无有效过线质检则拒绝 | 否 |
 | toutiao.deliver_requires_author | toutiao_status → 已交稿 | 向作者请求确认 | 否 |
 | toutiao.max_return_rounds | toutiao_status → 验收退回 | 第 3 轮起请求确认 | 是 |
-| toutiao.delivery_requires_accepted | toutiao_delivery_save | 非已验收则拒绝 | 否 |
-| toutiao.editor_pass | toutiao_status → 待验收 | `requireEditorPass: true` 时，写手版不能直接送验收 | 是（默认未开） |
 | 模式隔离（全局） | toutiao_* / fanqie_* | 会话模式已定时拒绝另一模式的工具 | 否 |
+
+"过线才能已验收""待验收需编辑通过（requireEditorPass）""只有已验收能出交稿单"由 `toutiao_status` / `toutiao_delivery_save` 工具内检查，不是门禁 id。
 
 ## 编辑子代理
 编辑角色可用：toutiao_method_get、toutiao_rules、toutiao_article_list、toutiao_article_get、toutiao_draft_get、toutiao_draft_stage、toutiao_edit_record、toutiao_qa_check、toutiao_feedback_read。
@@ -64,8 +63,9 @@
 |---|---|---|---|---|
 | fanqie.finalize_requires_author | 写手 | fanqie_chapter_save status=final | 请作者确认 | 否 |
 | fanqie.force_requires_author | 写手 | 任一 fanqie_* 带 force=true | 请作者确认 | 否 |
-| fanqie.finalize_requires_review | 写手 | 同上定稿 | `requireEditorPass` 时无"通过"且版本匹配的回报则拒绝（写作台定稿由引擎内部同一条件约束） | 是（默认未开） |
-| fanqie.editor_readonly | 编辑 | 采纳、定稿、改根基/章纲、入库、开书等写入类工具 | 拒绝 | 否 |
+| fanqie.continuity_commit_requires_author | 写手 | fanqie_continuity_commit | 请作者确认 | 否 |
 | 模式隔离（全局） | — | toutiao_* ↔ fanqie_* | 拒绝 | 否 |
+
+`requireEditorPass` 的"通过且版本匹配的审读回报"条件在 `review.ts finalizeProblem`（工具定稿与写作台定稿共用）；编辑角色不能采纳/定稿/改根基/入库的只读边界由桌面编辑子会话的工具白名单实现。两者都不是门禁 id。
 
 写作台通过桌面 IPC 调用业务路由，不启动 HTTP 服务；路由契约见 `packages/workbench/src/routes.ts`。

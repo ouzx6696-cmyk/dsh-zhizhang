@@ -9,7 +9,7 @@ export type Task = import("../renderer-contracts").TaskState & {
 };
 
 /** 最近一次 v2 交接的方法包摘要（tracker 从实际进入上下文的任务 prompt 解析），供方法包面板展示。 */
-export type HandoffSummary = {
+type HandoffSummary = {
   intentSource: "focus" | "state";
   intent: string;
   methods: { id: string; bytes: number; injected: boolean; trimmed: boolean }[];

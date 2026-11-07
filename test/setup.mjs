@@ -10,7 +10,6 @@ for (const key of [
   "WRITER_NOVEL_WORKS",
   "WRITER_NOVEL_LIBRARY",
   "WRITER_NOVEL_SOURCE_ROOT",
-  "WRITER_NOVEL_MULTI_DRAFT",
   "WRITER_TOUTIAO_ROOT",
 ])
   delete process.env[key];

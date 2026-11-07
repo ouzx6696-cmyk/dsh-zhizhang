@@ -1,13 +1,11 @@
 import path from "node:path";
 import { dialog, shell } from "electron";
 import { mkdir } from "node:fs/promises";
-import { atomicWrite } from "../../../../../packages/core/src/fsx";
 import type { Runtime } from "../runtime";
 import { selectTarget } from "../targets";
 import { handle } from "./handle";
 import { listProjects } from "../../../../../packages/fanqie/src/engine/work-store";
 import { listArticles } from "../../../../../packages/toutiao/src/workbench/data";
-import { setProfilesRoot } from "../../../../../packages/core/src/profiles";
 import { VERSION } from "../../../../../packages/core/src/version";
 import type { ProjectItem, RendererState } from "./contract";
 
@@ -77,18 +75,6 @@ export function registerWorkspaceIpc(state: Runtime) {
       mode,
       root: path.join(state.settings.workspace, mode === "fanqie" ? ".writer" : "toutiao"),
     });
-  });
-  handle("profiles", async () => {
-    const result = await dialog.showOpenDialog(state.windowOrThrow(), {
-      title: "选择用户方法方案根目录",
-      properties: ["openDirectory", "createDirectory"],
-    });
-    if (!result.canceled) {
-      setProfilesRoot(result.filePaths[0]);
-      await atomicWrite(path.join(state.home, "profiles-directory"), result.filePaths[0]);
-      state.emit({ refresh: true });
-    }
-    return !result.canceled;
   });
   handle("external", (value) => {
     return shell.openExternal(value);

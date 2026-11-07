@@ -5,7 +5,7 @@
 import { str } from "../../core/src/parse.js";
 import { GENRES, LINES } from "./store.js";
 
-export interface CardIssue {
+interface CardIssue {
   level: "fail" | "warn";
   field: string;
   message: string;

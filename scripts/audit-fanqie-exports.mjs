@@ -3,11 +3,13 @@ import ts from "typescript";
 import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-const root = path.resolve(fileURLToPath(new URL("..", import.meta.url))),
+// Windows 上 TS 的 fileName 与 readdir 结果都用正斜杠比较，root 也要归一成 /，
+// 否则 startsWith/includes 永不命中，守卫在 win32 恒通过（假绿）
+const root = path.resolve(fileURLToPath(new URL("..", import.meta.url))).replace(/\\/g, "/"),
   roots = [];
 async function walk(dir) {
   for (const e of await readdir(dir, { withFileTypes: true })) {
-    const f = path.join(dir, e.name);
+    const f = dir + "/" + e.name;
     if (e.isDirectory()) await walk(f);
     else if (/\.(ts|tsx|jsx|js)$/.test(f)) roots.push(f);
   }

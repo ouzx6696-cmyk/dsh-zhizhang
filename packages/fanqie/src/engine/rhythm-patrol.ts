@@ -13,10 +13,10 @@
  *                  「本章变化/所得」的现有载体；章纲无独立变化字段）
  *   pressureCount= 本章受压计数（0 = 未受压；受压章连续计，上限按档位）
  */
-export type StoryPace = "快爽" | "稳推" | "慢燃";
+type StoryPace = "快爽" | "稳推" | "慢燃";
 
 /** 各档受压章数上限；null = 方法无数值刻度，不硬判（由可感变化检查兜底）。 */
-export const PRESSURE_CAP_BY_PACE: Record<StoryPace, number | null> = {
+const PRESSURE_CAP_BY_PACE: Record<StoryPace, number | null> = {
   快爽: 2,
   稳推: null,
   慢燃: null,
@@ -32,7 +32,7 @@ const DUPLICATE_PROGRESSION_SIMILARITY = 0.8;
 /** 相似度比较的最短字数：过短的串只按整串相同判，不做 bigram。 */
 const COMPARE_MIN_CHARS = 8;
 
-export interface RhythmPatrolChapter {
+interface RhythmPatrolChapter {
   chapterId: string;
   /** outline.conflict（核心冲突字段）。 */
   conflict: string;

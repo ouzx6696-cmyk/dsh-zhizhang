@@ -10,7 +10,6 @@ apps/desktop/out/
 apps/desktop/out-test/
 apps/desktop/release/
 package-lock.json
-OPTIMIZATION-PLAN.md
 
 # 方法资产：原文受保护，不参与格式化
 assets/

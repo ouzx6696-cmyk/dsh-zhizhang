@@ -7,9 +7,9 @@ import type { DesktopApi } from "./desktop";
 type Api = DesktopApi;
 export type SystemState = Awaited<ReturnType<Api["state"]>>;
 export type SystemModels = SystemState["models"];
-export type ProjectItem = Awaited<ReturnType<Api["projects"]>>[number];
+type ProjectItem = Awaited<ReturnType<Api["projects"]>>[number];
 export type ConversationItem = Awaited<ReturnType<Api["conversations"]>>[number];
-export type RunningItem = Awaited<ReturnType<Api["running"]>>[number];
+type RunningItem = Awaited<ReturnType<Api["running"]>>[number];
 export type ChatMessage = import("../../renderer-contracts").WriterMessage;
 export type ConnectionResult =
   | { busy: true; error?: undefined; latency?: undefined; model?: undefined }

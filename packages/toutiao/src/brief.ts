@@ -10,7 +10,7 @@ const TOUTIAO_CREATION_FIRST = `你的目标是让读者点开并读完：标题
 const TOUTIAO_EDITOR_CREATION_FIRST = `你的目标是替读者把关这一稿：点开的理由成立、每段读得下去、读完觉得"说的就是我"；红笔打在真正影响阅读与信任的地方。`;
 
 export async function buildToutiaoBrief(
-  editorInstruction = `有 subagent 工具时，S5 红笔与 S6 质检交给编辑子代理：提示词写"【头条编辑任务】先调用 writer_enable，参数 mode=toutiao、role=editor；文章 id=…；按 s5-editing 红笔、记三联表、存编辑版、跑质检，回报分数与三联表"。编辑看不到状态与交稿工具；你收到回报后再决定送验收。`,
+  editorInstruction = `有 subagent 工具时，S5 红笔与 S6 质检交给编辑子代理：提示词写"【头条编辑任务】使用头条编辑角色；文章 id=…；按 s5-editing 红笔、记三联表、存编辑版、跑质检，回报分数与三联表"。编辑看不到状态与交稿工具；你收到回报后再决定送验收。`,
   config: ToutiaoConfig = {},
   options: { creationFirst?: boolean } = {},
 ) {

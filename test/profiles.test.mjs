@@ -64,8 +64,8 @@ test("默认方案：文件齐全、目录一致、别名完整、工具名真�
   );
   // 长篇：每个原版 forge id 都有归宿
   const fq = JSON.parse(await readFile(path.join(FQ, "profile.json"), "utf8"));
-  const { listMethods } = await import(buildUrl("fanqie/src/forge.js"));
-  const forge = await listMethods();
+  const { fanqieLibrary } = await import(buildUrl("fanqie/src/forge.js"));
+  const forge = await fanqieLibrary.originalIds();
   assert.deepEqual(
     forge.filter((id) => !fq.aliases[id]),
     [],

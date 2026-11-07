@@ -22,7 +22,7 @@ import {
 import { syncLedgerStatus, validPassingQa } from "../tools.js";
 
 export const TOUTIAO_ACTIONS = ["new", "continue", "review", "revise"] as const;
-export type ToutiaoAction = (typeof TOUTIAO_ACTIONS)[number];
+type ToutiaoAction = (typeof TOUTIAO_ACTIONS)[number];
 const BODY_CAP = 200_000;
 
 /** 台账行（listArticles 产出，作者面板直接消费）。 */

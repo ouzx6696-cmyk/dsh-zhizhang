@@ -1,13 +1,13 @@
 // 工具与路由测试直接调用桌面使用的公共业务入口。
-import { mkdtemp, cp } from "node:fs/promises";
+import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-export const BUILD = path.join(ROOT, "build");
+const BUILD = path.join(ROOT, "build");
 export const buildUrl = (rel) => pathToFileURL(path.join(BUILD, rel)).href;
-export const SKILL = path.join(ROOT, "packages", "toutiao", "skill");
+const SKILL = path.join(ROOT, "packages", "toutiao", "skill");
 export const FIX = path.join(SKILL, "tests", "fixtures");
 
 export async function tempDir(prefix = "writer-") {
@@ -121,8 +121,4 @@ export async function createRouteHarness(config = {}) {
     for (const handler of handlers) if (await handler.handle(ctx)) break;
     return response;
   };
-}
-
-export async function copyFixtures(dir) {
-  await cp(FIX, dir, { recursive: true });
 }

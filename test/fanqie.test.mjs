@@ -69,8 +69,8 @@ test("长篇工具集包含引擎与写作层，方法原文带对照表", async
   const o = await call("fanqie_method_get", { id: "原版:novel-writer/references/editor_method" });
   assert.match(o, /写作 Agent 适配/);
   assert.match(o, /四类内容硬伤/);
-  const { listMethods } = await import(buildUrl("fanqie/src/forge.js"));
-  assert.ok((await listMethods()).length > 60, "原版 forge 方法 id 全部登记");
+  const { fanqieLibrary } = await import(buildUrl("fanqie/src/forge.js"));
+  assert.ok((await fanqieLibrary.originalIds()).length > 60, "原版 forge 方法 id 全部登记");
   const miss = await call("fanqie_method_get", { id: "../../../etc/passwd" });
   assert.equal(miss.code, "bad_args");
   assert.match(miss.message, /未知方法/);

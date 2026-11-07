@@ -47,8 +47,7 @@ export const FORESHADOW_BEAT_KINDS = [
   "余波",
 ] as const;
 export type ForeshadowBeatKind = (typeof FORESHADOW_BEAT_KINDS)[number];
-export const FORESHADOW_STATUSES = ["planned", "written", "committed", "missed"] as const;
-export type ForeshadowStatus = (typeof FORESHADOW_STATUSES)[number];
+export type ForeshadowStatus = "planned" | "written" | "committed" | "missed";
 export const KNOWLEDGE_LEVELS = ["公开", "知情", "误认", "不知"] as const;
 export type KnowledgeLevel = (typeof KNOWLEDGE_LEVELS)[number];
 
@@ -285,8 +284,7 @@ export interface PluginConfig {
   sourceRoot?: string;
   python?: string;
   requireEditorPass?: boolean;
-  disabledGates?: string[];
-  /** 内部：由 multiDraft.enabled 或 WRITER_NOVEL_MULTI_DRAFT 推出 */
+  /** 内部：由 multiDraft.enabled 推出 */
   multiDraft?: { enabled?: boolean };
   /** 内部：结构化连续性开关（T10），parseFanqieConfig 解析后随配置传入 */
   continuity?: { enabled?: boolean };

@@ -62,7 +62,7 @@ const ADAPTER_NOTE = `> 【写作 Agent 适配】本文出自 inspiration-forge-
 const IGNORED = new Set(["LICENSE"]);
 
 /** 所有可取的方法 id：forge 下 .md 文件相对路径去掉扩展名 */
-export async function listMethods(): Promise<string[]> {
+async function listMethods(): Promise<string[]> {
   const root = path.join(fanqieSkillDir(), "forge");
   const out: string[] = [];
   async function walk(dir: string) {
@@ -79,7 +79,7 @@ export async function listMethods(): Promise<string[]> {
 }
 
 /** 常用入口：给模型一个短目录，不必列全部 */
-export const KEY_METHODS: Record<string, string> = {
+const KEY_METHODS: Record<string, string> = {
   "inspiration-forge/SKILL": "开书规划总入口（题材、结构、幕纲、章纲）",
   "inspiration-forge/工作流": "规划工作流",
   "inspiration-forge/资产/幕转章纲": "幕纲拆成章纲",

@@ -16,8 +16,6 @@ export interface FanqieConfig extends PluginConfig {
   python?: string;
   /** true：定稿前当前正文必须有一份"通过"且版本匹配的编辑审读回报（对话与写作台都受约束） */
   requireEditorPass?: boolean;
-  /** 关闭的非锁定门禁 id */
-  disabledGates?: string[];
   /** 同章多草稿统一整理，默认关 */
   multiDraft?: { enabled?: boolean };
   /** 抽卡：writer_draw 一次性起草 n 版开头/章末/书名简介并由编辑子会话评估排序，默认关；
@@ -80,7 +78,6 @@ const STRINGS = [
 const KNOWN = new Set<string>([
   ...STRINGS,
   "requireEditorPass",
-  "disabledGates",
   "multiDraft",
   "draw",
   "continuity",
@@ -119,14 +116,6 @@ export function parseFanqieConfig(
         path: [...at, "requireEditorPass"],
       });
     else out.requireEditorPass = v.requireEditorPass;
-  }
-  if (v.disabledGates !== undefined) {
-    if (!(Array.isArray(v.disabledGates) && v.disabledGates.every((x) => typeof x === "string")))
-      issues.push({
-        message: `${[...at, "disabledGates"].join(".")} 应为字符串数组`,
-        path: [...at, "disabledGates"],
-      });
-    else out.disabledGates = v.disabledGates as string[];
   }
   if (v.multiDraft !== undefined) {
     const m = v.multiDraft as Record<string, unknown> | null;

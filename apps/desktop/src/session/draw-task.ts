@@ -26,7 +26,7 @@ interface DrawDraft {
 type DrawResult = { label: string; score?: number; reasons?: string };
 
 /** 并发池单路结果：失败作为值返回而不是中断整批，调用方决定降级或整单报错。 */
-export type PoolOutcome<T> = { status: "ok"; value: T } | { status: "failed"; error: unknown };
+type PoolOutcome<T> = { status: "ok"; value: T } | { status: "failed"; error: unknown };
 
 /**
  * 并发池：最多 limit 路同时在跑，完成一路就补位下一路；结果按输入顺序排列。

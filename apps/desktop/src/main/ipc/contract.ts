@@ -78,7 +78,6 @@ export interface IpcMap {
   select: { args: [Target]; result: Target };
   view: { args: [Target, number?, number?]; result: SessionView };
   running: { args: []; result: RunningTask[] };
-  profiles: { args: []; result: boolean };
   model: { args: [ModelsInput]; result: PublicSettings };
   "model-catalog": {
     args: [keyof ModelSettings, Partial<ModelConnection>, string?];
@@ -171,7 +170,6 @@ export const IPC_PARSERS: { [K in IpcChannel]: (args: unknown[]) => IpcArgs<K> }
     parseArchive(archive),
   ],
   running: () => [],
-  profiles: () => [],
   model: ([value]) => [parseModelsInput(value)],
   "model-catalog": ([value, next, action]) => [
     role(value),

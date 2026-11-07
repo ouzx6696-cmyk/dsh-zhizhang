@@ -9,12 +9,14 @@ import {
 import { ActionButton, Button, Icon, Tag } from "../shared/ui.jsx";
 import { ActionCard, Section } from "../shared/common.jsx";
 import { Dialog, Steps as AuthorSteps } from "../../../../ui/src/primitives.jsx";
-import { ARTICLE_STEPS, articleProgress, statusInfo } from "../../../../ui/src/status.js";
+import {
+  ARTICLE_STEPS,
+  articleProgress,
+  statusLabel,
+  statusTone,
+} from "../../../../ui/src/status.js";
 
 const { useState } = React;
-
-const statusLabel = (status) => statusInfo("toutiao", status).label;
-const statusTone = (status) => statusInfo("toutiao", status).tone;
 
 /** 稿件署名：编辑、作者各有文案，其余（含旧稿缺字段）都算写作 Agent。 */
 export function draftRoleLabel(role) {

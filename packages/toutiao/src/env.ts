@@ -11,7 +11,7 @@ import { bridgeScript } from "./methods.js";
 export type { ToutiaoConfig } from "./config.js";
 import type { ToutiaoConfig } from "./config.js";
 
-export function rootFor(config: ToutiaoConfig, exec: ToolExecution): string {
+function rootFor(config: ToutiaoConfig, exec: ToolExecution): string {
   const sr = (config.storageRoot ?? process.env.WRITER_TOUTIAO_ROOT ?? "").trim();
   if (sr) return path.resolve(sr);
   return path.resolve(exec.cwd, config.rootDir?.trim() || "outputs/toutiao");

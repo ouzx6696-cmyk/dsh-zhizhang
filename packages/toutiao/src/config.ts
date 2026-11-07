@@ -8,8 +8,6 @@ export interface ToutiaoConfig {
   storageRoot?: string;
   /** Python 命令，如 C:\\Python312\\python.exe 或 "py -3" */
   python?: string;
-  /** 关闭的非锁定门禁 id */
-  disabledGates?: string[];
   /** true：送“待验收”前当前版本必须出自编辑子代理或作者（写手与编辑分离），默认 false */
   requireEditorPass?: boolean;
   /** handoff.v2：任务交接改用方法包决策表（按文章状态注入 S 步方法），默认关 */
@@ -30,12 +28,11 @@ export interface ToutiaoConfig {
   profile?: string;
 }
 
-export type Issue = { message: string; path: (string | number)[] };
+type Issue = { message: string; path: (string | number)[] };
 const STRINGS = ["rootDir", "storageRoot", "python", "profile"] as const;
 const KNOWN = new Set<string>([
   ...STRINGS,
   "requireEditorPass",
-  "disabledGates",
   "handoff",
   "session",
   "brief",
@@ -73,14 +70,6 @@ export function parseToutiaoConfig(
         path: [...at, "requireEditorPass"],
       });
     else out.requireEditorPass = v.requireEditorPass;
-  }
-  if (v.disabledGates !== undefined) {
-    if (!(Array.isArray(v.disabledGates) && v.disabledGates.every((x) => typeof x === "string")))
-      issues.push({
-        message: `${[...at, "disabledGates"].join(".")} 应为字符串数组`,
-        path: [...at, "disabledGates"],
-      });
-    else out.disabledGates = v.disabledGates as string[];
   }
   if (v.handoff !== undefined) {
     const h = v.handoff as Record<string, unknown> | null;
