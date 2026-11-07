@@ -21,6 +21,7 @@ const run = (args) => {
       }),
     };
   } catch (e) {
+    // allow-catch: 返回子进程失败回执供测试断言，保留退出码和错误输出。
     return { code: e.status, out: String(e.stdout) + String(e.stderr) };
   }
 };

@@ -23,8 +23,8 @@ import {
 
 export type ProfileMode = "toutiao" | "fanqie";
 export type BuiltinProfile = "default" | "original";
-export const BUILTIN_NAMES: Record<BuiltinProfile, string> = { default: "默认", original: "原版" };
-export const BUILTIN_NOTES: Record<BuiltinProfile, string> = {
+const BUILTIN_NAMES: Record<BuiltinProfile, string> = { default: "默认", original: "原版" };
+const BUILTIN_NOTES: Record<BuiltinProfile, string> = {
   default: "内置精炼版：去重、去空话、对齐质检规则与工具（推荐）",
   original: "上游原件，未改动；作参考与兜底",
 };
@@ -80,7 +80,7 @@ let configuredRoot: string | undefined;
 export function setProfilesRoot(dir: string | undefined) {
   configuredRoot = dir?.trim() || undefined;
 }
-export function profilesRoot(): string {
+function profilesRoot(): string {
   if (configuredRoot) return path.resolve(configuredRoot);
   if (process.env.WRITER_PROFILES_DIR?.trim())
     return path.resolve(process.env.WRITER_PROFILES_DIR.trim());
@@ -103,7 +103,7 @@ function chineseNumber(n: number): string {
 }
 
 /** 方法 id：中文、字母、数字、- _ . /，不能越级 */
-export function checkMethodId(id: string): string {
+function checkMethodId(id: string): string {
   const clean = id
     .trim()
     .replace(/\\/g, "/")

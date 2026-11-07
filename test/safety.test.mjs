@@ -345,3 +345,45 @@ test("T10 头条目录索引损坏阻止工具写入，修复后同进程可重�
   `,
   );
 });
+
+test("随包 Python 准备失败保留现有运行目录，命中校验标记时可重复执行", async (t) => {
+  const root = await tempDir();
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const scripts = path.join(root, "scripts");
+  const runtime = path.join(root, "apps/desktop/resources/python");
+  await mkdir(scripts, { recursive: true });
+  await mkdir(runtime, { recursive: true });
+  const script = path.join(scripts, "prepare-desktop-python.mjs");
+  await writeFile(
+    script,
+    await readFile(new URL("../scripts/prepare-desktop-python.mjs", import.meta.url)),
+  );
+  const marker = path.join(runtime, "writer-runtime.json");
+  const sentinel = path.join(runtime, "author-data.txt");
+  await writeFile(sentinel, "keep");
+  await mkdir(marker);
+  const run = () =>
+    new Promise((resolve, reject) => {
+      const child = spawn(process.execPath, [script], { stdio: ["ignore", "pipe", "pipe"] });
+      let output = "";
+      child.stdout.on("data", (chunk) => (output += chunk));
+      child.stderr.on("data", (chunk) => (output += chunk));
+      child.once("error", reject);
+      child.once("close", (code) => resolve({ code, output }));
+    });
+  const failed = await run();
+  assert.notEqual(failed.code, 0);
+  assert.match(failed.output, /EISDIR|EPERM/);
+  assert.equal(await readFile(sentinel, "utf8"), "keep");
+  await rm(marker, { recursive: true });
+  await mkdir(path.join(runtime, "DLLs"));
+  await writeFile(
+    marker,
+    JSON.stringify({ sha256: "ebe90cc1dce2dd2d7afa1f0aa9b6c269c7c0174aeabdc6a801381602b7283424" }),
+  );
+  for (let i = 0; i < 2; i++) {
+    const result = await run();
+    assert.equal(result.code, 0, result.output);
+  }
+  assert.equal(await readFile(sentinel, "utf8"), "keep");
+});

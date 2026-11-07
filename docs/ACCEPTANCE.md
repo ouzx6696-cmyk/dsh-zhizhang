@@ -69,3 +69,9 @@ metrics.json 和 COMPARISON.md 按任务记录读取实际产物：核对 7 篇�
 1. 卸载配置为 `deleteAppDataOnUninstall: false`：userData 保留（模型 Key、方法方案），重装后配置仍在属预期；彻底清除须手动删除 userData 目录。
 2. 核对安装目录、开始菜单与桌面快捷方式、注册表卸载项已移除；写作根内作品文件不受安装与卸载影响。
 3. 崩溃残留自愈：在写作根手工创建空目录 `.writer-workspace-claim`（或带死 pid 登记 `owner.json` 的目录）后启动新版，登记应被自动清理并在诊断日志（userData `logs/`）写一条 `workspace_claim_cleaned`；持有进程仍存活时启动应照常报占用而不是清理。遗留的 `.writer-workspace-lock.json` 在持有进程结束后可正常重取。
+
+## 开发回归入口
+
+沿用现有运行器，不引入新框架。`npm test` / `npm run verify` 执行 core（类型、lint、架构、格式、导出、Python、Node）；`npm run verify:desktop` 执行桌面构建、PI 本地假模型与一条完整 GUI 旅程；`npm run test:all` 执行两层完整验收，供发行前使用。Linux 需先启动虚拟显示并设置 `CI=1 DISPLAY=:99`。每阶段输出耗时，子进程失败或被信号终止即失败。
+
+新增回归按一个可失败的用户行为或故障场景组织，在同一场景核对正常、边界和恢复路径；不按一句文案或一行实现拆测试。保留旧回归覆盖，不以删除断言缩减测试数量。Windows 专属测试在 Windows CI 运行，Linux 跳过不计通过。真实模型和安装更新手工验收与模拟服务回归分开记录。

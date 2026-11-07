@@ -236,13 +236,13 @@ async function check() {
     for (const f of [...(src.local ?? []), ...(src.patched ?? [])])
       if (!existsSync(path.join(dest, f))) problems.push(`${src.id} 登记的 ${f} 不存在`);
     if (src.versionFrom) {
-      const txt = await readFile(path.join(dest, src.versionFrom.file), "utf8").catch(() => "");
+      const txt = await readFile(path.join(dest, src.versionFrom.file), "utf8");
       const v = txt.match(new RegExp(src.versionFrom.pattern))?.[1];
       if (v !== src.version)
         problems.push(`${src.id}：sources.json 写 ${src.version}，原件里是 ${v ?? "（读不到）"}`);
     }
     for (const ref of src.versionRefs ?? []) {
-      const txt = await readFile(path.join(ROOT, ref.file), "utf8").catch(() => "");
+      const txt = await readFile(path.join(ROOT, ref.file), "utf8");
       const vs = [...txt.matchAll(new RegExp(ref.pattern, "g"))].map((m) => m[1]);
       if (!vs.length) problems.push(`${ref.file} 里找不到版本号（${ref.pattern}）`);
       for (const v of vs)
@@ -304,8 +304,8 @@ async function extractZip(zip) {
         stdio: "ignore",
       });
       return out;
-    } catch {
-      /* 换下一个 */
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
     }
   }
   throw new Error(
@@ -320,7 +320,7 @@ async function locate(base, src, depth = 0) {
   )
     return base;
   if (depth > 3) return undefined;
-  for (const e of await readdir(base, { withFileTypes: true }).catch(() => [])) {
+  for (const e of await readdir(base, { withFileTypes: true })) {
     if (!e.isDirectory() || SKIP.has(e.name)) continue;
     const hit = await locate(path.join(base, e.name), src, depth + 1);
     if (hit) return hit;
@@ -341,8 +341,7 @@ async function importSource(id, from) {
   if (src.kind !== "upstream") throw new Error(`${id} 是本项目自写资产，不从上游导入`);
   if (!from) throw new Error("缺少新版目录或 zip");
   let base = path.resolve(from);
-  const st = await stat(base).catch(() => undefined);
-  if (!st) throw new Error(`找不到：${from}`);
+  const st = await stat(base);
   let tmp;
   if (st.isFile()) {
     tmp = await extractZip(base);
@@ -351,7 +350,7 @@ async function importSource(id, from) {
   try {
     const up = await locate(base, src);
     if (!up) throw new Error(`在 ${from} 里找不到 ${src.upstreamRoot}（应含 ${src.marker}）`);
-    const vtxt = await readFile(path.join(up, src.versionFrom.file), "utf8").catch(() => "");
+    const vtxt = await readFile(path.join(up, src.versionFrom.file), "utf8");
     const newVersion = vtxt.match(new RegExp(src.versionFrom.pattern))?.[1] ?? "unknown";
     const dest = path.join(ROOT, src.dest);
     const keep = new Set([...(src.local ?? [])]);

@@ -39,7 +39,8 @@ const resolve = (s) => {
   while (s && s.flags & ts.SymbolFlags.Alias) s = checker.getAliasedSymbol(s);
   return s;
 };
-for (const sf of p.getSourceFiles().filter((f) => roots.includes(f.fileName))) {
+const rootFiles = new Set(roots);
+for (const sf of p.getSourceFiles().filter((f) => rootFiles.has(f.fileName))) {
   function visit(n) {
     if (ts.isImportDeclaration(n) || ts.isExportDeclaration(n)) return;
     if (

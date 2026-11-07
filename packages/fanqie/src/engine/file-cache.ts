@@ -43,8 +43,11 @@ async function readEntryCached(file: string): Promise<CacheEntry> {
     hit.ctimeMs === st.ctimeMs &&
     hit.ino === st.ino &&
     hit.size === st.size
-  )
+  ) {
+    textCache.delete(file);
+    textCache.set(file, hit);
     return hit;
+  }
   const text = await readFile(file, "utf8");
   const after = await stat(file);
   const entry: CacheEntry = {

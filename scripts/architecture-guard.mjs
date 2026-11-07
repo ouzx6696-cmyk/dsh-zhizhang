@@ -358,6 +358,15 @@ for (const pkg of Object.keys(LAYERS)) {
     for (const rule of rules) rule.check(info, source);
   }
 }
+// CLI 与测试也必须保留错误，避免发布链路在源码守卫之外假绿。
+for (const dir of ["scripts", "test"]) {
+  for await (const file of walk(path.join(ROOT, dir), /\.mjs$/)) {
+    const source = await readFile(file, "utf8");
+    const info = sourceInfo(file, source, dir);
+    for (const rule of rules.filter((rule) => rule.name === "swallowed-error"))
+      rule.check(info, source);
+  }
+}
 for (const dir of [
   "apps/desktop/src/styles",
   "packages/ui/src",

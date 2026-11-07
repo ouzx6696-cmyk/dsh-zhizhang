@@ -72,12 +72,12 @@ export async function workspaceAccess(root: string) {
   let current = path.resolve(root);
   for (;;) {
     const owner = await ownerAt(current);
-    if (owner && !isSelf(owner) && live(owner)) return { readOnly: true, owner };
+    if (owner && !isSelf(owner) && live(owner)) return { readOnly: true as const, owner };
     const parent = path.dirname(current);
     if (parent === current) break;
     current = parent;
   }
-  return { readOnly: false, owner: null };
+  return { readOnly: false as const, owner: null };
 }
 
 /**
@@ -347,7 +347,7 @@ export async function assertWorkspaceWritable(root: string) {
   if (access.readOnly)
     throw new WriterError(
       "CONFLICT",
-      `作品由 ${access.owner?.host || "其他应用"} 占用（进程 ${access.owner?.pid}），当前只读。请先在另一应用关闭作品。`,
+      `作品由 ${access.owner.host} 占用（进程 ${access.owner.pid}），当前只读。请先在另一应用关闭作品。`,
     );
 }
 export async function releaseWorkspace(root: string) {

@@ -17,17 +17,24 @@ async function trimRuntime() {
     for (const item of await readdir(folder))
       if (item.endsWith(".pdb")) await rm(path.join(folder, item));
 }
-const existing = await readFile(path.join(dir, "python", "writer-runtime.json"), "utf8").catch(
-  () => "",
+async function readOptional(file) {
+  try {
+    return await readFile(file);
+  } catch (error) {
+    if (error.code === "ENOENT") return undefined;
+    throw error;
+  }
+}
+const existing = (await readOptional(path.join(dir, "python", "writer-runtime.json")))?.toString(
+  "utf8",
 );
 if (existing && JSON.parse(existing).sha256 === hash) {
   await trimRuntime();
   console.log("随包 Python 已准备");
   process.exit(0);
 }
-const archiveHash = await readFile(archive)
-  .then((value) => createHash("sha256").update(value).digest("hex"))
-  .catch(() => "");
+const archiveBytes = await readOptional(archive);
+const archiveHash = archiveBytes && createHash("sha256").update(archiveBytes).digest("hex");
 if (archiveHash !== hash) {
   await rm(archive, { force: true });
   execFileSync("curl", ["--fail", "--location", "--output", archive, url], {

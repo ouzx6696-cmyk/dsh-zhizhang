@@ -28,7 +28,7 @@ async function guardFixture(t) {
   };
   for (const pkg of ["ui", "core", "workbench", "toutiao", "fanqie"])
     await mkdir(path.join(root, "packages", pkg, "src"), { recursive: true });
-  for (const dir of ["apps/desktop/src/styles", "packages/workbench/src/client/styles"])
+  for (const dir of ["apps/desktop/src/styles", "packages/workbench/src/client/styles", "test"])
     await mkdir(path.join(root, dir), { recursive: true });
   for (const file of ["package.json", "apps/desktop/package.json", "packages/unused/package.json"])
     await write(file, '{"version":"0.9.7"}');
@@ -74,6 +74,8 @@ test("架构守卫：一次扫描覆盖依赖、类型、样式、吞错与目�
     "packages/core/src/catches.js",
     invalid.map((source, i) => `async function check${i}() { ${source} }`).join("\n"),
   );
+  await write("scripts/broken.mjs", "promise.catch(() => undefined)");
+  await write("test/broken.mjs", "try {} catch {}");
   await write("docs/history/old.md", "old");
   const failed = run();
   assert.equal(failed.status, 1);
@@ -84,9 +86,11 @@ test("架构守卫：一次扫描覆盖依赖、类型、样式、吞错与目�
     /文档历史目录不得存在/,
   ])
     assert.match(failed.stderr, message);
-  assert.match(failed.stdout, /吞错=8/);
+  assert.match(failed.stdout, /吞错=10/);
   await write("packages/workbench/src/client/example.jsx", "export const value = 1;");
   await write("packages/core/src/example.ts", "const value: number = 1;");
+  await write("scripts/broken.mjs", "");
+  await write("test/broken.mjs", "");
   await write("packages/ui/src/overlay.css", "");
   await write("packages/ui/src/long.css", "\n".repeat(301));
   await rm(path.join(root, "docs/history"), { recursive: true });

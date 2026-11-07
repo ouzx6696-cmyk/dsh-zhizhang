@@ -54,6 +54,8 @@ export function knowledgeBreachCandidates(
         const until = sorted[i + 1]?.since ?? Number.POSITIVE_INFINITY;
         for (const chapter of ordered) {
           if (chapter.position < holder.since || chapter.position >= until) continue;
+          // 大部分章节不含该事实，先排除再分行，避免每条知识重复分配全文行数组。
+          if (!chapter.body.includes(who) || !chapter.body.includes(item.fact)) continue;
           const hit = chapter.body
             .split("\n")
             .find((line) => line.includes(who) && line.includes(item.fact));

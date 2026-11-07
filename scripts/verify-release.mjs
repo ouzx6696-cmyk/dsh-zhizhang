@@ -10,6 +10,17 @@ const npm = (args, cwd = root) =>
   });
 if (process.platform !== "win32")
   throw new Error("发行验证请在 Windows 执行，不能以 Linux 构建代替原生交付。");
-npm(["run", "verify"]);
-npm(["run", "verify:desktop"]);
-for (const command of ["pack", "pack:portable"]) npm(["run", command, "-w", "@writer/desktop"]);
+npm(["run", "test:all"]);
+execFileSync(process.execPath, ["scripts/prepare-desktop-python.mjs"], {
+  cwd: root,
+  stdio: "inherit",
+});
+execFileSync(
+  "npx",
+  ["--no-install", "electron-builder", "--win", "nsis", "zip", "--x64", "--publish", "never"],
+  {
+    cwd: fileURLToPath(new URL("../apps/desktop/", import.meta.url)),
+    stdio: "inherit",
+    shell: true,
+  },
+);

@@ -365,3 +365,34 @@ test("统一文风规则保留 Python 独有规则，并按同一位置去重而
   assert.equal(quote.totalHits, 0);
   assert.equal(quote.statistics.dialogueHits, 2);
 });
+
+test("知情巡检保留同段、时间窗和候选顺序语义", async () => {
+  const { knowledgeBreachCandidates } =
+    await import("../../build/fanqie/src/engine/domain/continuity.js");
+  const items = [
+    {
+      id: "secret",
+      fact: "旧钥匙",
+      holders: [
+        { who: "林晚", level: "不知", since: 2 },
+        { who: "林晚", level: "知情", since: 5 },
+      ],
+    },
+  ];
+  const chapters = [
+    { position: 5, body: "林晚收好旧钥匙。" },
+    { position: 4, body: "林晚收好旧钥匙。\n林晚又提起旧钥匙。" },
+    { position: 3, body: "林晚进门。\n桌上有旧钥匙。" },
+    { position: 2, body: "中性正文。\n".repeat(1000) + "林晚发现旧钥匙。" },
+    { position: 1, body: "林晚收好旧钥匙。" },
+  ];
+  const hits = knowledgeBreachCandidates(items, chapters);
+  assert.deepEqual(
+    hits.map(({ chapter, quote }) => ({ chapter, quote })),
+    [
+      { chapter: 2, quote: "林晚发现旧钥匙。" },
+      { chapter: 4, quote: "林晚收好旧钥匙。" },
+    ],
+  );
+  assert.deepEqual(knowledgeBreachCandidates([], chapters), []);
+});

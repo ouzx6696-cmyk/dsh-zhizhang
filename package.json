@@ -1,6 +1,6 @@
 {
   "name": "writer-agent",
-  "version": "0.9.9-rc.3",
+  "version": "0.9.9",
   "private": true,
   "description": "基于内置 PI 的独立写作客户端：今日头条与番茄长篇",
   "type": "module",
@@ -25,10 +25,11 @@
     "test:desktop:ui": "playwright test --config apps/desktop/playwright.config.mjs",
     "acceptance:prepare": "node scripts/build-desktop-test.mjs && node scripts/acceptance.mjs",
     "acceptance:run": "node scripts/build-desktop-test.mjs && node scripts/acceptance.mjs --run",
-    "verify": "npm run typecheck && npm run guard && npm run format:check && npm run audit:exports && npm run test:py && npm run test:node",
-    "verify:desktop": "npm run desktop:build && npm run test:desktop && npm run test:desktop:ui",
+    "verify": "node scripts/test.mjs core",
+    "verify:desktop": "node scripts/test.mjs desktop",
     "verify:release": "node scripts/verify-release.mjs",
-    "audit:exports": "node scripts/audit-fanqie-exports.mjs"
+    "audit:exports": "node scripts/audit-fanqie-exports.mjs",
+    "test:all": "node scripts/test.mjs all"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
