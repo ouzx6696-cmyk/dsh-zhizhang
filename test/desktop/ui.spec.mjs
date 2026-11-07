@@ -19,11 +19,13 @@ test.afterEach(async ({}, info) => {
       body: JSON.stringify(model?.calls),
       contentType: "application/json",
     });
-    if (page)
+    if (page) {
+      console.error("Reader state:", await page.locator(".studio-paper-column").innerText());
       await info.attach("desktop", {
         body: await page.screenshot(),
         contentType: "image/png",
       });
+    }
   }
   expect(rendererErrors.splice(0)).toEqual([]);
 });
@@ -435,22 +437,25 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
         beats: "来电",
         ending: "有人敲门",
       },
-      "雨夜",
+      "手工编辑检查章",
     );
     await store.updateChapter(work.dir, {
       id: "c001",
-      title: "雨夜",
+      title: "手工编辑检查章",
       body: "林川握着车票站在雨里。站台上的钟停在十一点。",
       status: "drafted",
     });
-    await page.evaluate(
-      async (target) => {
-        await window.writerDesktop.select(target);
-      },
-      { mode: "fanqie", root: base, work: work.meta.key },
-    );
     await page.reload();
-    await page.getByRole("button", { name: /雨夜/ }).first().click();
+    await page.locator(".project-switch").click();
+    await page
+      .getByRole("menu")
+      .getByRole("button", { name: /编辑检查/ })
+      .click();
+    await page
+      .getByRole("button", { name: /手工编辑检查章/ })
+      .first()
+      .click();
+    await expect(page.locator(".wb-reader-title")).toHaveText("手工编辑检查章");
     await page.getByRole("button", { name: "编辑正文", exact: true }).click();
     const editor = page.getByRole("textbox", { name: "编辑正文" });
     await expect(editor).toBeEditable();
