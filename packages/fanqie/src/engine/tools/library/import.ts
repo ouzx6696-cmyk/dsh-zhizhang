@@ -1,20 +1,21 @@
 import { LibraryPort } from "../../ports/index.js";
 
 import { AUTO_SAMPLE_RATIO } from "../../domain/workflow.js";
-import { asString } from "../context.js";
+import { normalizeUserPath } from "../../ports/library/store.js";
+import { asString, localFile } from "../context.js";
 import { S, WORKING_DIR } from "../schema.js";
 import { defineTool } from "../types.js";
 
-import { openLibrary, resolveBookFile } from "./context.js";
+import { openLibrary } from "./context.js";
 export const libraryImport = defineTool({
   name: "fanqie_library_import",
   description:
-    "【闭环·库 1/9 交书】导入小说原文到拆书库。传 text 或 file（file 可写本地书源目录里的文件名）。不拆书、不写卡。下一步 2/9：library_plan（Auto 10% / Full 须同意）。",
+    "【闭环·库 1/9 交书】导入小说原文到拆书库。传 text 或 file（file 只能是会话工作目录或本地书源目录内的文件，可写书源里的文件名）。不拆书、不写卡。下一步 2/9：library_plan（Auto 10% / Full 须同意）。",
   properties: {
     title: S("书名（必填）"),
     author: S("可选作者"),
     text: S("原文全文（与 file 二选一）"),
-    file: S("原文文件路径（相对 cwd / 本地书源 / 绝对路径；与 text 二选一）"),
+    file: S("原文文件路径（相对会话工作目录或本地书源目录，不能越出这两个目录；与 text 二选一）"),
     reading_range: S("可选：实际阅读范围说明"),
     working_dir: WORKING_DIR,
   },
@@ -22,7 +23,10 @@ export const libraryImport = defineTool({
   async execute(args, exec) {
     const title = asString(args, "title", { required: true });
     const paths = await openLibrary(exec, args, true);
-    const fileResolved = await resolveBookFile(paths, exec, asString(args, "file"));
+    const file = asString(args, "file");
+    // 作者在“设置 › 导入”里选的文件走 IPC 直接进 LibraryPort；这里只收模型给的路径，限定在会话目录与本地书源目录内。
+    const roots = paths.sourceRoot ? [exec.cwd, paths.sourceRoot] : [exec.cwd];
+    const fileResolved = file && (await localFile(roots, normalizeUserPath(file)));
     const result = await LibraryPort.importSource(paths, {
       title,
       author: asString(args, "author"),

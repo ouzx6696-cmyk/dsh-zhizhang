@@ -5,7 +5,10 @@ export { asObject, asString, asStringArray, boolArg } from "../parse.js";
 /**
  * Shared tool context: plugin config, session last-work, openWork helpers.
  */
+import { realpath, stat } from "node:fs/promises";
 import { claimWorkspace } from "../../../../core/src/workspace-lock.js";
+import { isMissingFileError, resolveInside } from "../../../../core/src/fsx.js";
+import { WriterError } from "../../../../core/src/tool.js";
 import { NovelError } from "../errors.js";
 import type { OpenWorkContext } from "../types.js";
 import { ensureStorage } from "../storage/paths.js";
@@ -72,4 +75,39 @@ export async function openWork(exec: OpenWorkContext, args: Record<string, unkno
   await claimWorkspace(dir);
   rememberWork(exec, meta.key);
   return { paths, dir, key: meta.key };
+}
+
+/**
+ * 模型传来的本地文件路径只能落在 roots 之一内：先按字面挡住 `..` 与根外绝对路径，
+ * 再按 realpath 挡住经符号链接逃出根目录的文件。按 roots 顺序取第一个存在的文件。
+ */
+export async function localFile(roots: readonly string[], p: string): Promise<string> {
+  if (!p.trim()) throw new WriterError("INVALID_ARGS", "缺少文件路径");
+  let insideAnyRoot = false;
+  for (const root of roots) {
+    const candidate = lexicallyInside(root, p);
+    if (candidate === undefined) continue;
+    insideAnyRoot = true;
+    let real: string;
+    try {
+      real = await realpath(candidate);
+    } catch (error) {
+      if (isMissingFileError(error)) continue;
+      throw error;
+    }
+    resolveInside(await realpath(root), real);
+    if (!(await stat(real)).isFile()) throw new WriterError("NOT_FOUND", `不是文件：${p}`);
+    return real;
+  }
+  if (!insideAnyRoot) throw new WriterError("OUT_OF_ROOT", `路径越界：${p}`);
+  throw new WriterError("NOT_FOUND", `文件不存在：${p}`);
+}
+
+function lexicallyInside(root: string, p: string): string | undefined {
+  try {
+    return resolveInside(root, p);
+  } catch (error) {
+    if (error instanceof WriterError && error.code === "OUT_OF_ROOT") return undefined;
+    throw error;
+  }
 }

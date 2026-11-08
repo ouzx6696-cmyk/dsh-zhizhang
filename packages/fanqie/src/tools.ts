@@ -1,8 +1,6 @@
-import { isMissingFileError } from "../../core/src/fsx.js";
 import { PLANNER_TOOLS } from "../../core/src/tool-roles.js";
 /** 写作层工具：章纲检查、旧账对照、拆书测绘、引文核对、编辑审读回报与方法方案管理。方法取用统一走引擎的 fanqie_method_get。 */
 import path from "node:path";
-import { stat } from "node:fs/promises";
 import {
   defineWriterTool,
   WriterError,
@@ -10,7 +8,8 @@ import {
   type ToolExecution,
   type JsonSchemaNode,
 } from "../../core/src/tool.js";
-import { nowIso, resolveInside } from "../../core/src/fsx.js";
+import { nowIso } from "../../core/src/fsx.js";
+import { localFile } from "./engine/tools/context.js";
 import { bridge, fanqieLibrary, withTempFiles } from "./forge.js";
 import { createProfileTool } from "../../core/src/profile-tool.js";
 import {
@@ -58,19 +57,6 @@ interface FanqieToolDeps {
 }
 
 const work = (exec: ToolExecution, key?: string) => openWork(exec, key || undefined);
-
-/** 本地文件路径只允许在会话工作目录内 */
-async function localFile(exec: ToolExecution, p: string): Promise<string> {
-  if (!p.trim()) throw new WriterError("INVALID_ARGS", "缺少文件路径");
-  const cwd = exec.cwd;
-  const abs = resolveInside(cwd, p);
-  const st = await stat(abs).catch((error) => {
-    if (isMissingFileError(error)) return undefined;
-    throw error;
-  });
-  if (!st?.isFile()) throw new WriterError("NOT_FOUND", `文件不存在：${p}`);
-  return abs;
-}
 
 function outlineText(ch: ChapterRecord): string {
   const o = ch.outline;
@@ -212,7 +198,7 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
       },
       required: ["file"],
       async run(args, exec) {
-        const f = await localFile(exec, args.file);
+        const f = await localFile([exec.cwd], args.file);
         const top =
           typeof args.top === "number" && Number.isInteger(args.top) && args.top > 0
             ? Math.min(args.top, 100)
@@ -242,7 +228,7 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
       },
       required: ["source"],
       async run(args, exec) {
-        const src = await localFile(exec, args.source);
+        const src = await localFile([exec.cwd], args.source);
         const mc = String(
           typeof args.min_chars === "number" &&
             Number.isInteger(args.min_chars) &&
@@ -256,7 +242,7 @@ export function createFanqieTools(deps: FanqieToolDeps): ToolDefinition[] {
           throw new WriterError("INVALID_ARGS", "analysis 与 analysis_text 二选一必填");
         const r = args.analysis_text
           ? await withTempFiles([{ name: "拆解稿.md", text: args.analysis_text }], ([p]) => go(p))
-          : await go(await localFile(exec, args.analysis ?? ""));
+          : await go(await localFile([exec.cwd], args.analysis ?? ""));
         return {
           pass: r.pass,
           checked: r.checked,

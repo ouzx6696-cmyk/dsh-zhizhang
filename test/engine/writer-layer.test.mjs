@@ -9,7 +9,7 @@ import {
 import { buildDeliveryPrompt } from "../../build/fanqie/src/workbench/delivery.js";
 import { fanqieApi } from "../../build/fanqie/src/workbench/api.js";
 import { bodyFingerprint, saveReview } from "../../build/fanqie/src/review.js";
-import { createToolHarness } from "../helpers.mjs";
+import { createToolHarness, tempDir } from "../helpers.mjs";
 import { jpost, servePanel, withWork, loadComponents } from "./helpers.mjs";
 
 const get = (api, route) => fetch(`${api}${route}`);
@@ -206,6 +206,65 @@ test("forge 正文体检：章节与纯文本扫描后都追加在语感雷达�
     assert.match(plain, /### forge 正文体检/);
   } finally {
     await work.cleanup();
+  }
+});
+
+test("拆书导入：模型给的 file 只能落在会话目录或本地书源目录内，作者选文件的导入不受限", async () => {
+  const { mkdir, readFile, rm, symlink, writeFile } = await import("node:fs/promises");
+  const path = await import("node:path");
+  const { LibraryPort } = await import("../../build/fanqie/src/engine/ports/index.js");
+  const { storagePaths } = await import("../../build/fanqie/src/engine/storage/paths.js");
+  const root = await tempDir("fq05-");
+  try {
+    const cwd = path.join(root, "session");
+    const books = path.join(root, "books");
+    const outside = path.join(root, "outside");
+    for (const dir of [cwd, books, outside]) await mkdir(dir);
+    const secret = path.join(outside, "secret.txt");
+    await writeFile(secret, "第一章 机密\n不该进拆书库的内容。\n");
+    await writeFile(path.join(books, "书源.txt"), "第一章 书源\n书源里的原文。\n");
+    await writeFile(path.join(cwd, "会话.txt"), "第一章 会话\n会话目录里的原文。\n");
+    await symlink(outside, path.join(books, "linked"), "junction");
+    const config = { storageRoot: path.join(cwd, ".writer"), sourceRoot: books };
+    const harness = await createToolHarness({ mode: "fanqie", cwd, config });
+    const paths = storagePaths(null, config);
+    const sourceCount = async () => (await LibraryPort.listSources(paths)).length;
+    const before = await sourceCount();
+
+    for (const [file, code] of [
+      [secret, "OUT_OF_ROOT"],
+      ["../outside/secret.txt", "OUT_OF_ROOT"],
+      ["linked/secret.txt", "OUT_OF_ROOT"],
+      ["不存在.txt", "NOT_FOUND"],
+    ]) {
+      const result = await harness.call("fanqie_library_import", { title: "越界", file });
+      assert.equal(result.code, code, `${file} → ${JSON.stringify(result)}`);
+    }
+    assert.equal(await sourceCount(), before, "被拒的导入不得新增书源");
+
+    assert.match(
+      await harness.call("fanqie_library_import", { title: "书源", file: "书源.txt" }),
+      /已导入「书源」/,
+    );
+    assert.match(
+      await harness.call("fanqie_library_import", { title: "会话", file: "会话.txt" }),
+      /已导入「会话」/,
+    );
+    const sources = await LibraryPort.listSources(paths);
+    assert.equal(sources.length, before + 2);
+    for (const source of sources) {
+      const body = await readFile(path.join(paths.library, "sources", `${source.id}.txt`), "utf8");
+      assert.doesNotMatch(body, /机密/);
+    }
+
+    // “设置 › 导入”由作者在系统对话框里选文件，IPC 直接交给 LibraryPort，任意位置都照常导入。
+    const picked = await LibraryPort.importSource(paths, { title: "作者选的", file: secret });
+    assert.match(
+      await readFile(path.join(paths.library, "sources", `${picked.sourceId}.txt`), "utf8"),
+      /机密/,
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
   }
 });
 
