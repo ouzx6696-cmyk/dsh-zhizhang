@@ -24,3 +24,7 @@ execFileSync(
     shell: true,
   },
 );
+execFileSync(process.execPath, ["scripts/check-desktop-package.mjs"], {
+  cwd: root,
+  stdio: "inherit",
+});

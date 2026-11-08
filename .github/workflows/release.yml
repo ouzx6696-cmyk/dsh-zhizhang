@@ -8,18 +8,24 @@ on:
         description: 已创建的发行草稿标签，例如 v0.9.8
         required: true
         type: string
-permissions:
-  contents: write
+# No workflow-level grant: verify runs npm install scripts and must never hold a write token.
+permissions: {}
 jobs:
   verify:
+    permissions:
+      contents: read
     uses: ./.github/workflows/ci.yml
     secrets: inherit
   publish:
     needs: verify
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with: { persist-credentials: false }
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: writer-windows-packages
           path: release-artifacts
@@ -47,11 +53,16 @@ jobs:
             gh release create "$TAG" --draft --prerelease="$prerelease" --target "$GITHUB_SHA" --title "$TAG" --notes-file "$RUNNER_TEMP/release-notes.md"
           fi
           test "$(gh release view "$TAG" --json isDraft --jq .isDraft)" = true
-          if ! git ls-remote --exit-code origin "refs/tags/$TAG" >/dev/null; then
+          # Checkout keeps no credentials, so the tag is read through the API; only a 404 means "create it".
+          if ! gh api "repos/$GH_REPO/git/ref/tags/$TAG" > /dev/null 2> "$RUNNER_TEMP/tag-lookup.err"; then
+            if ! grep -q 'HTTP 404' "$RUNNER_TEMP/tag-lookup.err"; then cat "$RUNNER_TEMP/tag-lookup.err" >&2; exit 1; fi
             gh api --method POST "repos/$GH_REPO/git/refs" -f ref="refs/tags/$TAG" -f sha="$GITHUB_SHA" >/dev/null
           fi
-          git fetch --depth=1 --no-tags origin "refs/tags/$TAG"
-          tag_sha="$(git rev-parse 'FETCH_HEAD^{commit}')"
+          tag_ref="$(gh api "repos/$GH_REPO/git/ref/tags/$TAG" --jq '.object.type + " " + .object.sha')"
+          tag_sha="${tag_ref#* }"
+          if [ "${tag_ref%% *}" = tag ]; then
+            tag_sha="$(gh api "repos/$GH_REPO/git/tags/$tag_sha" --jq .object.sha)"
+          fi
           if [ "$tag_sha" != "$GITHUB_SHA" ]; then
             echo "::error::Release 标签指向 $tag_sha，本次构建为 $GITHUB_SHA；请先核对标签。"
             exit 1
