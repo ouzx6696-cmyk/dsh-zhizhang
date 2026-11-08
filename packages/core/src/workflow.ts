@@ -3,6 +3,7 @@ import path from "node:path";
 import { atomicWrite, nowIso, readJson } from "./fsx.js";
 import {
   emptyUsage,
+  WorkflowBudgetError,
   parseWorkflowRequest,
   type WorkflowRecord,
   type WorkflowRequest,
@@ -202,7 +203,8 @@ export class WorkflowJournal {
         row.durationMs += Date.now() - started;
         row.error = error instanceof Error ? error.message : String(error);
         await this.save();
-        if (signal.aborted || attempt === retries) throw error;
+        if (signal.aborted || attempt === retries || error instanceof WorkflowBudgetError)
+          throw error;
       }
     }
     throw new Error("阶段未完成");

@@ -22,6 +22,7 @@ entries.push(
   ["article-store", "packages/toutiao/src/store.ts"],
   ["workflow-schema", "apps/desktop/src/workflow/schema.ts"],
   ["workflow-editor", "apps/desktop/src/workflow/editor.ts"],
+  ["stage-model", "apps/desktop/src/workflow/stage-model.ts"],
   ["workflow-config", "packages/core/src/workflow-config.ts"],
 );
 const options = {
