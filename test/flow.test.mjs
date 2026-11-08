@@ -96,7 +96,7 @@ test("全流程：故事线长图文 立项→标题→成稿→质检→验收�
   assert.equal(qa.ok, true, JSON.stringify(qa));
   assert.equal(qa.pass, true, JSON.stringify(qa.fails));
   assert.ok(qa.score >= 84);
-  assert.equal(qa.rules_version, "4.0.0");
+  assert.equal(qa.rules_version, "4.1.0");
 
   const acc = await call("toutiao_status", { id, to: "已验收" });
   assert.equal(acc.ok, true, JSON.stringify(acc));
@@ -168,6 +168,8 @@ test("打回超过两轮需作者同意", async () => {
   await call("toutiao_status", { id, to: "待验收" });
   const qa = await call("toutiao_qa_check", { id, mode: "short" });
   assert.equal(qa.pass, false, "AI 腔稿应打回");
+  assert.ok(qa.todo.length > 0 && qa.todo.length <= 4, "生产工具返回最多四项修改顺序");
+  assert.match(qa.todo[0], /^\[ai 0\/85\]/, "无硬闸的 AI 腔稿优先修改最低分维度");
   for (let i = 0; i < 2; i++) {
     assert.equal((await call("toutiao_status", { id, to: "验收退回" })).ok, true);
     await call("toutiao_status", { id, to: "待验收" });

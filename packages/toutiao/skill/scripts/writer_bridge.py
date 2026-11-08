@@ -65,7 +65,7 @@ def cmd_qa(a):
                   + homo_warns + [msg for lv, msg in homo.get("checks", []) if lv == "note"],
          hard_gates=list(r.get("hard_gates", [])),
          verdict=r.get("verdict", ""), title=r.get("title", ""), title_len=r.get("title_len", 0),
-         chars=r.get("chars", 0), report=r)
+         chars=r.get("chars", 0), todo=r["todo"], report=r)
     return 0
 
 
@@ -124,25 +124,13 @@ def cmd_ledger_add(a):
         return 0
     rows = L.read(a.ledger)
     row = L.row_from_card(c, a.date, a.status)
-    identity = a.article_id
-    hits = [r for r in rows if identity and r.get("文章ID") == identity]
-    legacy = [r for r in rows if not r.get("文章ID") and r.get("主标题") == row["主标题"]]
-    if len(hits) > 1 or (not hits and len(legacy) > 1):
-        emit("ledger-add", False, code="INVALID_INPUT", message="旧台账存在歧义，请核对重复记录")
+    try:
+        row, existing = L.upsert(rows, row, a.article_id)
+    except ValueError as exc:
+        emit("ledger-add", False, code="INVALID_INPUT", message=str(exc))
         return 0
-    if identity:
-        row["文章ID"] = identity
-    if hits or legacy:
-        existing = (hits or legacy)[0]
-        existing["主标题"] = row["主标题"]
-        if identity:
-            existing["文章ID"] = identity
-        L.write(a.ledger, rows)
-        emit("ledger-add", True, row=existing, existing=True)
-        return 0
-    rows.append(row)
     L.write(a.ledger, rows)
-    emit("ledger-add", True, row=row)
+    emit("ledger-add", True, row=row, existing=existing)
     return 0
 
 

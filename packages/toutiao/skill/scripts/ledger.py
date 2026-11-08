@@ -14,7 +14,7 @@
   （内容线按主驱动推断：故事型算故事线，其余算资讯线）。平台回流由 writer_bridge metrics-import
   写入：一篇文章一行，整批取数据日期最新的一天做快照，不按日拆行，存量数据不迁移。
 """
-import argparse, csv, datetime, json, os, sys, tempfile, time
+import argparse, csv, datetime, json, os, re, sys, tempfile, time
 from contextlib import contextmanager
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -117,6 +117,29 @@ def row_from_card(c, date, status):
             "状态": status}
 
 
+def upsert(rows, row, article_id=""):
+    title = row["主标题"].strip()
+    if not title or re.search(r"\[[^\[\]\n]+\]", title):
+        raise ValueError("立项卡主标题为空或还是模板槽位，定稿后再记账")
+    row["主标题"] = title
+    hits = [r for r in rows if article_id and r.get("文章ID") == article_id]
+    legacy = [r for r in rows if not r.get("文章ID") and r.get("主标题", "").strip() == title]
+    matches = hits or legacy if article_id else [r for r in rows if r.get("主标题", "").strip() == title]
+    if len(matches) > 1:
+        raise ValueError("旧台账存在歧义，请核对重复记录")
+    if matches:
+        existing = matches[0]
+        # 复检只刷新立项字段；采纳状态、首次日期和平台回流属于独立流程。
+        existing.update({k: v for k, v in row.items() if k not in ("日期", "状态")})
+        if article_id:
+            existing["文章ID"] = article_id
+        return existing, True
+    if article_id:
+        row["文章ID"] = article_id
+    rows.append(row)
+    return row, False
+
+
 METRIC_SNAPSHOT_FIELDS = LEDGER_METRIC_FIELDS[2:]   # 展现/阅读/完读率/平均时长/评论/转发/涨粉
 
 
@@ -201,9 +224,13 @@ def main_unlocked():
         if c.get("内容线") and c.get("内容线") not in LINES:
             sys.exit(f"立项卡内容线应为 {'/'.join(LINES)}")
         row = row_from_card(c, a.date, a.status)
-        rows.append(row)
+        try:
+            row, existing = upsert(rows, row)
+        except ValueError as exc:
+            sys.exit(str(exc))
         write(a.ledger, rows)
-        print(f"已记一行：{row['日期']} {row['内容线']} {row['体裁']} {row['主标题']}（{row['状态']}）")
+        action = "已更新一行" if existing else "已记一行"
+        print(f"{action}：{row['日期']} {row['内容线']} {row['体裁']} {row['主标题']}（{row['状态']}）")
     elif a.cmd == "status":
         if not (a.title and a.to):
             ap.error("status 需要 --title 和 --to")

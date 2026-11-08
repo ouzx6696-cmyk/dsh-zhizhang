@@ -121,7 +121,7 @@ check("AI 身份泄漏 → 禁止通过", rl and rl["passed"] is False,
       f"ai={item(rl,'ai')['score']} cp={item(rl,'compliance')['score']}")
 
 print("== 5. 标题缺失 ==")
-_, code_nt, err_nt = run("正文没有标题也没有 --title 参数。")
+_, code_nt, err_nt = run("正文没有标题也没有 --title 参数。", extra=["--no-guess"])
 check("无标题退出码 2", code_nt == 2, f"exit={code_nt} {err_nt.strip()[:40]}")
 
 print("== 5b. 标题 34 字硬上限 ==")
@@ -247,7 +247,7 @@ check("认不出的条目标“未分类”而非“社会观察”", _fh.vertic
 
 print("== 10. 2.0.0 回归 ==")
 _qa = _ilu.module_from_spec(_ilu.spec_from_file_location("qa20", QA)); _ilu.spec_from_file_location("qa20", QA).loader.exec_module(_qa)
-check("脚本带版本号", _qa.VERSION == "4.0.0" and _rs0.get("version") == _qa.VERSION)
+check("脚本带版本号", _qa.VERSION == "4.1.0" and _rs0.get("version") == _qa.VERSION)
 
 mark = GOOD.replace("## 二、", "【配图：老周在后厨过秤】\n\n## 二、", 1)
 rmk, _, _ = run(mark, title=TT)
@@ -279,7 +279,7 @@ check("微头条无标题也能跑（--mode micro）", cmi in (0, 1) and rmi is 
 check("微头条标杆通过", rmi and rmi["passed"], f"overall={rmi and rmi['overall']}")
 check("微头条按首句打钩子分", rmi and rmi["title"].startswith("楼下修鞋的老钟"), rmi and rmi["title"])
 check("微头条不要求小标题", rmi and item(rmi, "structure")["status"] == "pass")
-_, cnt, _ = run(MICRO)
+_, cnt, _ = run(MICRO, extra=["--mode", "short"])
 check("非 micro 模式缺标题仍退出码 2", cnt == 2, f"exit={cnt}")
 rbm, cbm, _ = run(BAD.split("\n", 1)[1], extra=["--mode", "micro"])
 check("AI 腔稿在微头条模式下照样打回", cbm == 1 and not rbm["passed"])
@@ -407,7 +407,8 @@ check("台账：开头式与同一条线上一篇相同被提示", any("开头�
 check("台账：人名最近用过被提示", any("撞脸" in m for m in msgs))
 check("台账：同赛道同日被提示", any("同赛道同日" in m for m in msgs))
 for _ in range(2):
-    subprocess.run([sys.executable, LG, "add", "--card", cp_prev, "--ledger", ledger_p], capture_output=True)
+    other_card = _card(**{**base, "主标题": f"另一篇标题{_}"})
+    subprocess.run([sys.executable, LG, "add", "--card", other_card, "--ledger", ledger_p], capture_output=True)
 rk8, _, _ = run(GOOD, extra=["--card", cp, "--ledger", ledger_p])
 check("台账：近 7 天账本型过半被提示", any("账本型" in m and "超过一半" in m for _, m in rk8["card_checks"]))
 p2 = subprocess.run([sys.executable, LG, "status", "--title", "上一篇的标题", "--to", "已交稿", "--ledger", ledger_p],
@@ -509,8 +510,8 @@ check("--line 故事线不给 --driver 时按故事型查", rs2["budget"] and rs
 check("资讯线长图文夹具仍通过（立项卡补了内容线）",
       run(LONG, extra=["--card", _card(**{**lbase, "内容线": "资讯线"}), "--ledger", nolog])[0]["passed"])
 check("锚点人物名在标题里算“具体的人”",
-      _qa.title_score("精卫填了一辈子海，原典里偏偏没写海填平了没有", names=["精卫"])
-      > _qa.title_score("精卫填了一辈子海，原典里偏偏没写海填平了没有"))
+      _qa.title_score("阿笙填了一辈子海，原典里偏偏没写海填平了没有", names=["阿笙"])
+      > _qa.title_score("阿笙填了一辈子海，原典里偏偏没写海填平了没有"))
 
 fact = STORY.replace("这只鸟叫精卫。", "考古证实精卫真实存在。这只鸟叫精卫。")
 rf1, _, _ = run(fact, extra=["--card", SC, "--ledger", nolog])
@@ -750,6 +751,77 @@ open(_tpath, "w", encoding="utf-8").write(STORY)
 _pr = subprocess.run([sys.executable, QA, _tpath, "--card", _typecard], capture_output=True, encoding="utf-8")
 check("立项卡母体须为文本（解析期报错，退出码 2）", _pr.returncode == 2 and "母体" in _pr.stdout,
       (_pr.returncode, _pr.stdout[:80]))
+
+print("== 22. 自动预检、修改顺序、标点与幂等记账 ==")
+auto_story, _, _ = run(STORY)
+check("无卡故事稿推断为故事线长图文", auto_story["inferred"] == {"mode": "long", "line": "故事线"}, auto_story["inferred"])
+check("故事人物标题可识别", item(auto_story, "title")["score"] >= _qa.PASS_LINE["title"])
+auto_micro, _, _ = run(MICRO)
+check("无标题微头条自动推断", auto_micro["mode"] == "micro" and auto_micro["passed"])
+explicit, _, _ = run(STORY, extra=["--driver", "信息型"])
+check("显式资讯驱动优先于故事推断", explicit["line"] == "资讯线")
+strict, _, _ = run(STORY, extra=["--no-guess"])
+check("关闭推断保留原评分路径", strict["mode"] == "auto" and strict["inferred"] == {})
+check("有立项卡不自动推断", run(STORY, extra=["--card", SC])[0]["inferred"] == {})
+for location, md in [("正文", GOOD + "\n[延伸节第一个小标题]"),
+                     ("标题", GOOD.replace(GOOD.splitlines()[0], "# [主标题槽位]")),
+                     ("小标题", GOOD + "\n## [小标题槽位]\n")]:
+    rr, _, _ = run(md)
+    check(f"{location}槽位触发硬闸", "模板槽位残留" in rr["hard_gates"] and not rr["passed"])
+linked, _, _ = run(GOOD + "\n[来源说明](https://example.com)")
+check("Markdown 链接不是模板槽位", "模板槽位残留" not in linked["hard_gates"])
+slots_card, _, _ = run(GOOD, extra=["--card", _card(**{**base, "主问题": "[请填主问题]"})])
+check("立项卡嵌套槽位点名", any("主问题" in m and "槽位" in m for _, m in slots_card["card_checks"]))
+check("修改顺序硬闸优先且最多四项", 0 < len(rr["todo"]) <= 4 and rr["todo"][0].startswith("[硬闸]"), rr["todo"])
+card_bad, _, _ = run(GOOD, extra=["--card", _card(**{**base, "主数字": "999999"})])
+check("立项卡否决在修改顺序首位", "立项卡不符" in card_bad["todo"][0], card_bad["todo"])
+check("规则页说明自动推断", "自动推断" in _qa.rules_markdown())
+
+fixer = os.path.join(ROOT, "scripts", "fix_punct.py")
+fix_path = os.path.join(tmpd, "punct.md")
+raw_punct = '# 中文标题\n\n他说:「你好,朋友!」价格3~5元。单个…\n\n`中文,a` [出处](https://example.com/a?q=中文,x)\n\n~~~python\n中文,a\n```\n中文,b\n~~~\n'
+open(fix_path, "w", encoding="utf-8").write(raw_punct)
+fr = subprocess.run([sys.executable, fixer, fix_path, "--check"], capture_output=True)
+check("标点 check 返回失败且不写文件", fr.returncode == 1 and not os.path.exists(fix_path.replace('.md', '.fixed.md')))
+fr = subprocess.run([sys.executable, fixer, fix_path], capture_output=True)
+fixed_path = fix_path.replace('.md', '.fixed.md')
+fixed = open(fixed_path, encoding="utf-8").read()
+check("机械修正中文标点", '他说：“你好，朋友！”价格3到5元。单个……' in fixed, fixed)
+check("链接与行内代码保持", '`中文,a` [出处](https://example.com/a?q=中文,x)' in fixed)
+check("不同种围栏不提前结束代码块", '中文,a\n```\n中文,b' in fixed)
+check("原稿保持", open(fix_path, encoding="utf-8").read() == raw_punct)
+fr = subprocess.run([sys.executable, fixer, fixed_path, "--check"], capture_output=True)
+check("标点修复幂等", fr.returncode == 0, fr.stdout)
+for fi in ("good.md", "long_good.md", "story_long_good.md", "micro_good.md"):
+    fr = subprocess.run([sys.executable, fixer, os.path.join(HERE, "fixtures", fi), "--check"], capture_output=True)
+    check(f"规范稿 {fi} 零改动", fr.returncode == 0, fr.stdout)
+subprocess.run([sys.executable, fixer, fix_path, "--inplace"], check=True, capture_output=True)
+check("inplace 保存原始备份", open(fix_path + '.bak', encoding='utf-8').read() == raw_punct)
+open(fix_path, "w", encoding="utf-8").write(raw_punct)
+fr = subprocess.run([sys.executable, fixer, fix_path, "--inplace"], capture_output=True)
+check("已有备份拒绝覆盖且不改原稿", fr.returncode == 2 and open(fix_path, encoding='utf-8').read() == raw_punct
+      and open(fix_path + '.bak', encoding='utf-8').read() == raw_punct)
+
+idempotent_ledger = os.path.join(tmpd, "idempotent.csv")
+for _ in range(2):
+    added = subprocess.run([sys.executable, LG, "add", "--card", cp, "--ledger", idempotent_ledger], capture_output=True)
+check("CLI 同标题重复记账只留一行", added.returncode == 0 and len(_lg.read(idempotent_ledger)) == 1)
+rows = _lg.read(idempotent_ledger)
+rows[0].update({"状态": "已交稿", "数据日期": "2026-11-08", "阅读": "123", "文章ID": "stable"})
+_lg.write(idempotent_ledger, rows)
+bridge_file = os.path.join(ROOT, "scripts", "writer_bridge.py")
+bridged = subprocess.run([sys.executable, bridge_file, "ledger-add", "--card", cp, "--ledger", idempotent_ledger,
+                          "--article-id", "stable"], capture_output=True, text=True)
+row = _lg.read(idempotent_ledger)[0]
+check("桌面重复记账保留状态与回流", json.loads(bridged.stdout)["ok"] and row["阅读"] == "123"
+      and row["状态"] == "已交稿" and len(_lg.read(idempotent_ledger)) == 1, bridged.stdout)
+readded = subprocess.run([sys.executable, LG, "add", "--card", cp, "--ledger", idempotent_ledger], capture_output=True)
+check("桌面记账后 CLI 复检也不重复", readded.returncode == 0 and len(_lg.read(idempotent_ledger)) == 1)
+placeholder_card = _card(**{**base, "主标题": "[主标题]"})
+for command in ([LG, "add"], [bridge_file, "ledger-add"]):
+    rejected = subprocess.run([sys.executable, *command, "--card", placeholder_card, "--ledger", idempotent_ledger], capture_output=True, text=True)
+    check(f"{command[1]} 拒绝占位标题", "槽位" in (rejected.stdout + rejected.stderr) and len(_lg.read(idempotent_ledger)) == 1)
+
 
 class GateChecks(unittest.TestCase):
     """Each collected behavior assertion is an independently reported case."""

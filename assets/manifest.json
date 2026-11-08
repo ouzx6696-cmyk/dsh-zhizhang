@@ -6,16 +6,16 @@
       "title": "今日头条写作方法、语料、模板与质检规则",
       "mode": "toutiao",
       "kind": "upstream",
-      "version": "4.0.0",
-      "files": 44,
-      "bytes": 363356,
+      "version": "4.1.0",
+      "files": 45,
+      "bytes": 389228,
       "loadable": 30,
       "byKind": {
         "meta": 1,
         "entry": 1,
         "corpus": 16,
         "method": 11,
-        "rule": 5,
+        "rule": 6,
         "template": 2,
         "test": 8
       }
@@ -99,8 +99,8 @@
       "kind": "meta",
       "origin": "upstream",
       "path": "packages/toutiao/skill/CHANGELOG.md",
-      "bytes": 19484,
-      "sha256": "852aa8c270bd42cc46f3e30400b3db5e3d4f14f5fab455349dae1193b155c764"
+      "bytes": 23256,
+      "sha256": "10d41f4e2f1b072c75ae3dbb12103096964d0c33417db9033519e3e33f464c7c"
     },
     {
       "source": "toutiao-viral-writer",
@@ -109,8 +109,8 @@
       "kind": "entry",
       "origin": "upstream",
       "path": "packages/toutiao/skill/SKILL.md",
-      "bytes": 8546,
-      "sha256": "6c98d22382c51eb7477c4cac920159509be421ac6e7741a2e5a0c2039d446113"
+      "bytes": 8945,
+      "sha256": "85a9a0b4b40bae65d8bf1d424f5456d66ba75735031219e498bef9994bb09ca1"
     },
     {
       "source": "toutiao-viral-writer",
@@ -319,8 +319,8 @@
       "kind": "method",
       "origin": "upstream",
       "path": "packages/toutiao/skill/references/s4-common.md",
-      "bytes": 10856,
-      "sha256": "2706dacff4821e717107d2906b7f193a34e8de19e3f42e55829031aef6165e6a"
+      "bytes": 11247,
+      "sha256": "72e519d7c6600f8c78c027bdd2e88f46e1717fec05aecd489ddaf3217ce0a877"
     },
     {
       "source": "toutiao-viral-writer",
@@ -369,8 +369,8 @@
       "kind": "method",
       "origin": "upstream",
       "path": "packages/toutiao/skill/references/s6-qa.md",
-      "bytes": 7235,
-      "sha256": "3f68c28ebf0adc5f8153dfc34ba71ae5b2e7c398bd75a3a328472935b4aa40a4"
+      "bytes": 8467,
+      "sha256": "33f55346b9ce094ba23e1214cb8a1300f8e18cf9782d16ebd8296953c647ea81"
     },
     {
       "source": "toutiao-viral-writer",
@@ -388,39 +388,47 @@
       "origin": "upstream",
       "path": "packages/toutiao/skill/scripts/fetch_hot.py",
       "bytes": 15405,
-      "sha256": "2377ff60561e7a8f3abb0d2d986ad6ecbfdd21434244f5f9401e7d8b93832b7b"
+      "sha256": "7435dab7da5ccbb578150b2aa09c1cfdf57f2ec5899dc823df44c336ac70f4fb"
+    },
+    {
+      "source": "toutiao-viral-writer",
+      "kind": "rule",
+      "origin": "patched",
+      "path": "packages/toutiao/skill/scripts/fix_punct.py",
+      "bytes": 6515,
+      "sha256": "2b770a9e10feee9e2492499afdfe04ffb255eebbc7977526d2eccaabcb417ba4"
     },
     {
       "source": "toutiao-viral-writer",
       "kind": "rule",
       "origin": "patched",
       "path": "packages/toutiao/skill/scripts/ledger.py",
-      "bytes": 10264,
-      "sha256": "88be0d4e32fa97616fd50d2fedd9a92a9f7eedf890cb85d4c683d720880f5585"
+      "bytes": 11512,
+      "sha256": "a7f09ef5d782828e40aef601b00bd6a808b0aef21db6898bae030038c4f4f872"
     },
     {
       "source": "toutiao-viral-writer",
       "kind": "rule",
       "origin": "patched",
       "path": "packages/toutiao/skill/scripts/qa_check.py",
-      "bytes": 56160,
-      "sha256": "67c8a9d25e1dccc05dd599095905efc0be28ea97f1456d34bd59925a0c2df15a"
+      "bytes": 61505,
+      "sha256": "3d41dae46adfea283ae552cd0af1a5be7c03c8c1b9c67a7f82a0130633d0ad8d"
     },
     {
       "source": "toutiao-viral-writer",
       "kind": "rule",
-      "origin": "upstream",
+      "origin": "patched",
       "path": "packages/toutiao/skill/scripts/rules.py",
-      "bytes": 15336,
-      "sha256": "bc09f40381a1c03c82801f154ac0a01482f8f9c3110868a069888d145eaa656d"
+      "bytes": 17012,
+      "sha256": "7a37d2c7476edb05b74704f11b324d92a96a6c5555bb542abbda70710d456165"
     },
     {
       "source": "toutiao-viral-writer",
       "kind": "rule",
       "origin": "local",
       "path": "packages/toutiao/skill/scripts/writer_bridge.py",
-      "bytes": 10657,
-      "sha256": "330428d1e4977eecc6e33cfbb0bebf745039149de563c028340c4d661725d4d1"
+      "bytes": 10132,
+      "sha256": "d252a92baf86c21c10a7bdaa70bad4ecc0ee20b13b22546e39f4674a57bc2932"
     },
     {
       "source": "toutiao-viral-writer",
@@ -503,8 +511,8 @@
       "kind": "test",
       "origin": "patched",
       "path": "packages/toutiao/skill/tests/test_gates.py",
-      "bytes": 55968,
-      "sha256": "e4e03fe2704a46e8f3b4e74aa21faef49cc58f77eabc45b82ee99cc3f748ba21"
+      "bytes": 61787,
+      "sha256": "fbe69031e077c0e2802eb4f72705a1969c7f6467a20755320669224e094eec8a"
     },
     {
       "source": "inspiration-forge-suite",
