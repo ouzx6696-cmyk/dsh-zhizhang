@@ -531,7 +531,47 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
 
     expect(rendererErrors.splice(0)).toEqual([]);
   });
+  await test.step("编辑器 Esc：长按不丢稿，第二次 Esc 走应用内确认，编辑器外的 Esc 不退出编辑", async () => {
+    await page.getByRole("button", { name: "编辑正文", exact: true }).click();
+    const editor = page.getByRole("textbox", { name: "编辑正文" });
+    await editor.fill("长按 Esc 也不能丢的修改");
+    const confirm = page.getByRole("dialog", { name: "确认操作" });
+    // Holding Esc sends auto-repeated keydowns; only the first press may act.
+    await editor.focus();
+    await page.keyboard.down("Escape");
+    await page.keyboard.down("Escape");
+    await page.keyboard.down("Escape");
+    await page.keyboard.up("Escape");
+    await expect(editor).toHaveValue("长按 Esc 也不能丢的修改");
+    await expect(page.getByRole("button", { name: "再次点击放弃", exact: true })).toBeVisible();
+    await expect(confirm).toBeHidden();
+    // The second press asks inside the app; refusing keeps the text.
+    await page.keyboard.press("Escape");
+    await expect(confirm).toBeVisible();
+    await confirm.getByRole("button", { name: "取消", exact: true }).click();
+    await expect(confirm).toBeHidden();
+    await expect(editor).toHaveValue("长按 Esc 也不能丢的修改");
+    // Esc pressed outside the editor belongs to the shell and never leaves the editor.
+    await page.getByRole("textbox", { name: "写作要求" }).focus();
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("Escape");
+    await expect(confirm).toBeHidden();
+    await expect(editor).toHaveValue("长按 Esc 也不能丢的修改");
+    // Confirming the discard leaves without saving.
+    await editor.focus();
+    await page.keyboard.press("Escape");
+    await expect(confirm).toBeVisible();
+    await confirm.getByRole("button", { name: "继续", exact: true }).click();
+    await expect(editor).toBeHidden();
+    await expect(page.locator(".studio-paper-column .wb-manuscript")).not.toContainText("长按 Esc");
+
+    expect(rendererErrors.splice(0)).toEqual([]);
+  });
   await test.step("停止任务走应用内确认并在 2 秒内收尾", async () => {
+    // An open editor with unsaved text must not take Esc away from stopping the task.
+    await page.getByRole("button", { name: "编辑正文", exact: true }).click();
+    const editor = page.getByRole("textbox", { name: "编辑正文" });
+    await editor.fill("停止任务时编辑器里未保存的修改");
     const requestsBefore = model.calls.length;
     model.push("mock-writer", { wait: true });
     const input = page.getByRole("textbox", { name: "写作要求" });
@@ -558,6 +598,10 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
     await confirm.getByRole("button", { name: "继续", exact: true }).click();
     await expect(stop).toBeDisabled({ timeout: 2000 });
     expect(Date.now() - started).toBeLessThan(2000);
+    await expect(editor).toHaveValue("停止任务时编辑器里未保存的修改");
+    await page.getByRole("button", { name: "取消", exact: true }).click();
+    await page.getByRole("button", { name: "再次点击放弃", exact: true }).click();
+    await expect(editor).toBeHidden();
 
     expect(rendererErrors.splice(0)).toEqual([]);
   });
@@ -753,5 +797,49 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
     ).toBe(false);
 
     expect(rendererErrors.splice(0)).toEqual([]);
+  });
+  await test.step("有未保存修改时退出：留下则应用完整可用，离开才释放占用并退出", async () => {
+    await page.locator(".project-switch").click();
+    await page
+      .getByRole("menu")
+      .getByRole("menuitem", { name: /编辑检查/ })
+      .click();
+    await page
+      .getByRole("button", { name: /手工编辑检查章/ })
+      .first()
+      .click();
+    await page.getByRole("button", { name: "编辑正文", exact: true }).click();
+    await page.getByRole("textbox", { name: "编辑正文" }).fill("退出前尚未保存的修改");
+    const state = await page.evaluate(() => window.writerDesktop.state());
+    const lock = path.join(root, "novels", state.target.work, ".writer-workspace-lock.json");
+    await expect.poll(() => readFile(lock, "utf8").then(() => true)).toBe(true);
+    const answer = (response) =>
+      app.evaluate(({ dialog }, value) => {
+        globalThis.unloadAsked = 0;
+        dialog.showMessageBoxSync = () => {
+          globalThis.unloadAsked++;
+          return value;
+        };
+      }, response);
+    await answer(0);
+    await app.evaluate(({ app }) => app.quit());
+    await expect.poll(() => app.evaluate(() => globalThis.unloadAsked)).toBe(1);
+    await page.waitForTimeout(500);
+    await expect(page.getByRole("textbox", { name: "编辑正文" })).toHaveValue(
+      "退出前尚未保存的修改",
+    );
+    await readFile(lock, "utf8");
+    const before = model.calls.length;
+    const input = page.getByRole("textbox", { name: "写作要求" });
+    await input.fill("取消退出后继续写");
+    await input.press("Enter");
+    await expect.poll(() => model.calls.length, { timeout: 10000 }).toBeGreaterThan(before);
+    await expect(page.getByRole("button", { name: "停止任务", exact: true })).toBeDisabled();
+    await answer(1);
+    const closed = new Promise((resolve) => app.once("close", resolve));
+    await app.evaluate(({ app }) => app.quit());
+    await closed;
+    app = undefined;
+    await expect(readFile(lock, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
   });
 });

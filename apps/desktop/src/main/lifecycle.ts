@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { app, safeStorage } from "electron";
 import { Runtime } from "./runtime";
 import { createMainWindow } from "./window";
+import { registerQuitCleanup } from "./exit";
 import { lockRoot, selectTarget } from "./targets";
 import { parseTarget } from "./ipc/validate";
 import { registerIpc } from "./ipc/register";
@@ -18,7 +19,6 @@ import { setStateRoot } from "../../../../packages/core/src/paths";
 import { setProfilesRoot } from "../../../../packages/core/src/profiles";
 import {
   cleanStaleWorkspaceClaim,
-  releaseWorkspaces,
   setWorkspaceHost,
 } from "../../../../packages/core/src/workspace-lock";
 import { VERSION } from "../../../../packages/core/src/version";
@@ -114,16 +114,6 @@ export async function start() {
 }
 
 function registerLifecycle(state: Runtime) {
-  let quitting = false;
-  app.on("before-quit", (event) => {
-    if (quitting) return;
-    event.preventDefault();
-    void (state.sessions ? state.sessions.dispose() : Promise.resolve()).finally(() => {
-      void releaseWorkspaces().finally(() => {
-        quitting = true;
-        app.quit();
-      });
-    });
-  });
+  registerQuitCleanup(state);
   app.on("window-all-closed", () => app.quit());
 }

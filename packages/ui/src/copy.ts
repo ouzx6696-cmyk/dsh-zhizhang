@@ -888,6 +888,15 @@ export function taskEndCopy(reason: string | undefined, error?: string): string 
   return "写作任务已结束，等待你查看稿件与回报。";
 }
 
+/** 主进程关窗确认：渲染层有未保存修改时由主进程统一询问作者。 */
+export const UNLOAD_COPY = {
+  title: "未保存的修改",
+  message: "有未保存的修改，仍要关闭？",
+  detail: "离开会放弃编辑器里尚未保存的修改。",
+  stay: "留下",
+  leave: "离开",
+} as const;
+
 /** Human byte size (KB/MB) for truncation notices. */
 export function formatBytes(n: unknown) {
   const value = Number(n) || 0;

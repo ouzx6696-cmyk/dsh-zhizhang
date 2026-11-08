@@ -2,6 +2,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { BrowserWindow, nativeTheme, shell } from "electron";
 import type { Runtime } from "./runtime";
+import { guardUnload } from "./exit";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -27,6 +28,7 @@ export function createMainWindow(state: Runtime) {
     },
   });
   state.window = window;
+  guardUnload(window);
   window.once("ready-to-show", () => window.show());
   // ready-to-show 依赖首帧；渲染进程启动出错时它不会触发，兜底显示窗口，让错误可见。
   setTimeout(() => {

@@ -7,6 +7,7 @@ import { FindBar, isShortcut, typingElsewhere, useFind } from "./FindBar.jsx";
 import { findMatches, matchFrom } from "./find.js";
 import { applyScrollRatio, readScrollRatio } from "./reading-position.js";
 import { useDraftStash } from "./useDraftStash.js";
+import { canLeaveEdit } from "./useSourceGuard.js";
 
 const { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } = React;
 
@@ -101,6 +102,7 @@ export function SourceEditor({
   const field = useRef(null);
   const backdrop = useRef(null);
   const dirty = text !== initial;
+  const confirming = useRef(false);
   const latest = useRef(null);
   latest.current = { saving, dirty, discard, offer: stash.offer, findOpen: !!find.mode };
   const leaveRef = useRef(null);
@@ -140,11 +142,11 @@ export function SourceEditor({
   };
   saveRef.current = save;
 
+  // Save and find stay on window so they work from anywhere in the reader.
   useEffect(() => {
     const keyboard = (event) => {
       // 原生 showModal() 不加 aria-modal；与全局快捷键用同一判定，对话框打开时把按键留给对话框。
       if (document.querySelector("dialog[open]")) return;
-      const state = latest.current;
       if (isShortcut(event, "s")) {
         event.preventDefault();
         event.stopImmediatePropagation();
@@ -152,28 +154,43 @@ export function SourceEditor({
         return;
       }
       const findMode = isShortcut(event, "f") ? "find" : isShortcut(event, "h") ? "replace" : "";
-      if (findMode) {
-        if (typingElsewhere(event, root.current)) return;
-        event.preventDefault();
-        openFind(findMode, selectionSeed(field.current));
-        return;
-      }
-      if (event.key !== "Escape") return;
+      if (!findMode || typingElsewhere(event, root.current)) return;
       event.preventDefault();
-      event.stopImmediatePropagation();
-      // Esc first closes the find bar and goes back to the text; it never starts discarding.
-      if (state.findOpen) {
-        closeFind();
-        field.current.focus();
-        return;
-      }
-      if (state.saving) return;
-      if (!state.dirty || state.discard) leaveRef.current();
-      else setDiscard(true);
+      openFind(findMode, selectionSeed(field.current));
     };
     window.addEventListener("keydown", keyboard, true);
     return () => window.removeEventListener("keydown", keyboard, true);
-  }, [openFind, closeFind]);
+  }, [openFind]);
+
+  // Esc belongs to the editor only when it is pressed inside it; anywhere else it reaches the
+  // shell (stop task, close drawer) untouched.
+  const escape = (event) => {
+    if (event.key !== "Escape") return;
+    // A held key or an IME cancelling its composition must never step towards discarding; the
+    // press is still claimed so the shell does not act on it either.
+    event.preventDefault();
+    if (event.repeat || event.nativeEvent.isComposing || event.keyCode === 229) return;
+    const state = latest.current;
+    // Esc first closes the find bar and goes back to the text; it never starts discarding.
+    if (state.findOpen) {
+      closeFind();
+      field.current.focus();
+      return;
+    }
+    if (state.saving || confirming.current) return;
+    if (!state.dirty) leaveRef.current();
+    else if (!state.discard) setDiscard(true);
+    else void confirmDiscard();
+  };
+  // A second Esc on unsaved text asks inside the app; only the author's yes drops text and draft.
+  const confirmDiscard = async () => {
+    confirming.current = true;
+    try {
+      if (await canLeaveEdit(latest.current, confirmAction)) leaveRef.current();
+    } finally {
+      confirming.current = false;
+    }
+  };
 
   const deferred = useDeferredValue(text);
   const count = useMemo(() => countNonWhitespaceChars(deferred), [deferred]);
@@ -242,7 +259,7 @@ export function SourceEditor({
   const status = statusOf({ dirty, saving, stash, text });
   const offer = stash.offer;
   return (
-    <div className="wb-source-editor" ref={root}>
+    <div className="wb-source-editor" ref={root} onKeyDown={escape}>
       <div className="wb-source-editor-head">
         <strong>{title || t("editorTitle")}</strong>
         <span

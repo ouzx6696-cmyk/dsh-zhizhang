@@ -1,6 +1,15 @@
+import { EventEmitter } from "node:events";
 // The OS boundary is inert in Node; session/storage behavior remains real.
-export const app = { isPackaged: false };
-// Dialog answers are set per test; a missing answer fails loudly instead of guessing.
+// Lifecycle listeners land on a real emitter so tests fire Electron's quit events in order;
+// quit() only records the call.
+export const app = Object.assign(new EventEmitter(), {
+  isPackaged: false,
+  quits: 0,
+  quit() {
+    this.quits++;
+  },
+});
+// Dialog answers are set per test (e.g. dialog.showMessageBoxSync = () => 1); a missing answer fails loudly instead of guessing.
 export const dialog = {};
 export const shell = {};
 export class BrowserWindow {}
