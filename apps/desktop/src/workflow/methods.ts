@@ -36,8 +36,8 @@ export async function stageCard(run: WorkflowRun, mode: "fanqie" | "toutiao", id
         const rule = record(value);
         return { id: text(rule.id, "规则号", 120), text: text(rule.text, "执行规则", 1500) };
       });
+    // The code knows the source fingerprint; the model only has to keep the rule numbering.
     if (
-      r.sourceHash !== sourceHash ||
       rules.length !== ids.length ||
       new Set(rules.map((rule) => rule.id)).size !== ids.length ||
       ids.some((id) => !rules.some((rule) => rule.id === id))
@@ -56,9 +56,10 @@ export async function stageCard(run: WorkflowRun, mode: "fanqie" | "toutiao", id
           "准备阶段方法",
           "planner",
           "保留每一节的因果、禁止事项与边界，去掉工具调用和文件操作指令。",
-          { sourceHash, sections },
-          '将各节压为可执行规则；每节对应一项、编号不变，所有规则文字合计不超过1500字。返回 {"sourceHash":"原指纹","rules":[{"id":"原编号","text":"执行规则"}]}。',
+          { sections },
+          '将各节压为可执行规则；每节对应一项、编号不变，所有规则文字合计不超过1500字。返回 {"rules":[{"id":"原编号","text":"执行规则"}]}。',
           parse,
+          { material: [], retries: 2 },
         )
       : parse(cached);
   if (cached === undefined) await atomicWrite(file, JSON.stringify(card, null, 2));

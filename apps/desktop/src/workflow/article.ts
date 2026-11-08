@@ -22,6 +22,8 @@ import {
   type Draft,
 } from "./schema";
 import { stageCard } from "./methods";
+import { runTaskPool } from "../session/task-pool";
+import { factChain } from "./article-facts";
 import { selectDraft, editDraft } from "./editor";
 import type { WorkflowRun } from "./run";
 import type { Target } from "../context";
@@ -134,17 +136,23 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
         parseCard,
       );
   const headlineCard = await stageCard(run, "toutiao", "s3-headline");
+  // Recent titles are excluded up front so a finished run is never rejected for a duplicate title.
+  const recentTitles = (await real.list())
+    .slice(0, 30)
+    .filter((meta) => meta.id !== initial.id)
+    .map((meta) => meta.headlines.main)
+    .filter(Boolean);
   const matrix = await run.model(
     "headlines",
     "准备标题矩阵",
     "writer",
     headlineCard,
-    { card, source },
-    `返回 {"titles":["标题"]}，至少5个不同切入的标题，每个不超过${limits.titleMax}字；不承诺正文或来源中不存在的事实。`,
+    { card, source, avoid: recentTitles },
+    `返回 {"titles":["标题"]}，至少5个不同切入的标题，每个不超过${limits.titleMax}字；不承诺正文或来源中不存在的事实；不得与 avoid 中的近期标题相同。`,
     (value) => {
-      const titles = list(jsonOutput(value).titles, "标题", 20).map((item) =>
-        text(item, "标题", limits.titleMax),
-      );
+      const titles = list(jsonOutput(value).titles, "标题", 20)
+        .map((item) => text(item, "标题", limits.titleMax))
+        .filter((title) => !recentTitles.includes(title));
       if (titles.length < 5 || new Set(titles).size !== titles.length)
         throw new Error("标题矩阵需要至少5个不同标题");
       return { titles };
@@ -171,33 +179,38 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
       };
     },
   );
-  const count = request.grade === "economy" ? 1 : request.grade === "premium" ? 3 : 2,
-    drafts: Draft[] = [];
-  for (let index = 0; index < count; index++)
-    drafts.push(
-      await run.model(
-        `draft-${index}`,
-        `文章起稿 ${index + 1}/${count}`,
-        "writer",
-        writing,
-        {
-          card,
-          source,
-          blueprint,
-          titles: matrix.titles,
-          entry: ["从人物处境切入", "从具体事实影响切入", "从读者的问题切入"][index],
-        },
-        '返回 {"title":"主标题","body":"完整正文（含主标题、必要来源标注与AI参与声明；故事演绎明确标注）"}。只采用来源支持的事实，不伪造采访和人物。',
-        (value) => {
-          const result = draft(value);
-          if ([...result.title].length > limits.titleMax) throw new Error("主标题超过硬上限");
-          result.body = normalizeDraft(result.body);
-          return result;
-        },
-      ),
-    );
+  const count = request.grade === "economy" ? 1 : request.grade === "premium" ? 3 : 2;
+  const outcomes = await runTaskPool(count, count, (index) =>
+    run.model(
+      `draft-${index}`,
+      `文章起稿 ${index + 1}/${count}`,
+      "writer",
+      writing,
+      {
+        card,
+        source,
+        blueprint,
+        titles: matrix.titles,
+        entry: ["从人物处境切入", "从具体事实影响切入", "从读者的问题切入"][index],
+      },
+      '返回 {"title":"主标题","body":"完整正文（含主标题、必要来源标注与AI参与声明；故事演绎明确标注）"}。只采用来源支持的事实，不伪造采访和人物。',
+      (value) => {
+        const result = draft(value);
+        if ([...result.title].length > limits.titleMax) throw new Error("主标题超过硬上限");
+        if (recentTitles.includes(result.title)) throw new Error("主标题与近期文章重复");
+        result.body = normalizeDraft(result.body);
+        return result;
+      },
+    ),
+  );
+  const drafts: Draft[] = outcomes.map((outcome) => {
+    if (outcome.status === "failed") throw outcome.error;
+    return outcome.value;
+  });
   const edit = await stageCard(run, "toutiao", "s5-editing");
-  const selection = await selectDraft(run, drafts, edit);
+  const selection = await selectDraft(run, drafts, edit, "toutiao", [
+    { name: "立项卡", text: JSON.stringify(card), required: true },
+  ]);
   await run.journal.step(
     "selection",
     "保留选稿报告",
@@ -207,6 +220,24 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
     0,
   );
   let checked = await editDraft(run, drafts[selection.winner], edit, writing);
+  // Fact chain runs before the QA gate so a fact repair is itself checked by the gate.
+  let facts = await factChain(run, "facts", edit, checked.draft, source);
+  const unsupported = facts.claims.filter((claim) => claim.kind === "unsupported");
+  if (unsupported.length) {
+    const repaired = await run.model(
+      "facts-revise",
+      "删改无来源事实",
+      "writer",
+      writing,
+      { draft: checked.draft, unsupported, source },
+      '删除或改写 unsupported 中的每一条：改为来源支持的表述、明确的观点或删去；其他段落不动。返回 {"title":"标题","body":"完整正文"}。',
+      draft,
+    );
+    repaired.body = normalizeDraft(repaired.body);
+    checked = { ...checked, draft: repaired };
+    facts = await factChain(run, "facts-1", edit, checked.draft, source);
+  }
+  const unverified = facts.claims.filter((claim) => claim.kind === "unsupported");
   const working = new ArticleStore(
     path.join(run.host.home, "workflow-working", run.journal.record.id),
   );
@@ -254,42 +285,18 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
     refined.body = normalizeDraft(refined.body);
     checked = { ...checked, draft: refined };
   }
-  const facts = await run.model(
-    "facts",
-    "核对事实与原文",
-    "editor",
-    edit,
-    { draft: checked.draft, source },
-    '逐条列出正文中的外部事实或原典引文及其来源证据。返回 {"claims":[{"claim":"正文原文","quote":"来源原文","kind":"fact或quotation或fiction"}]}。没有来源的事实不能省略；fiction只用于已明确标注的故事演绎。',
-    (value) => {
-      const claims = list(jsonOutput(value).claims, "事实链", 100).map((raw) => {
-        const r = record(raw),
-          claim = text(r.claim, "正文声明"),
-          quote = text(r.quote, "来源证据");
-        if (!checked.draft.body.includes(claim) || !source.text.includes(quote))
-          throw new Error("事实链的正文或来源证据不匹配");
-        if (
-          !["fact", "quotation", "fiction"].includes(String(r.kind)) ||
-          (r.kind === "fiction" && request.line !== "story")
-        )
-          throw new Error("事实分类无效");
-        return { claim, quote, kind: String(r.kind) };
-      });
-      if (!claims.length) throw new Error("未提供可核对的事实链");
-      return { claims };
-    },
-  );
   const finalHash = sha256(checked.draft.body);
   const finalReview = await run.model(
     "final-review",
     "核对最终精修稿",
     "editor",
     edit,
-    { draft: checked.draft, bodyHash: finalHash },
-    '返回 {"bodyHash":"给定指纹","hard":[{"location":"位置","quote":"正文原文","impact":"读者影响","fix":"局部改法"}],"suggestions":["建议"]}。只报告真正影响阅读或事实信任的硬伤。',
+    { draft: checked.draft },
+    '返回 {"hard":[{"location":"位置","quote":"正文原文","impact":"读者影响","fix":"局部改法"}],"suggestions":["建议"]}。只报告真正影响阅读或事实信任的硬伤。',
     (value) => review(value, checked.draft.body, finalHash),
   );
-  if (finalReview.hard.length) throw new Error("最终稿仍有硬伤，工作稿保留，未交付");
+  // Remaining issues travel with the working draft to the author; nothing is submitted for them.
+  const open = finalReview.hard.length > 0 || checked.unresolved || unverified.length > 0;
   const finalCard = {
     ...card,
     主标题: checked.draft.title,
@@ -316,7 +323,12 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
         previousCardHash: oldCard === undefined ? null : sha256(JSON.stringify(oldCard)),
         headlines: matrix.titles.slice(0, 3),
         workingQa: workingMeta.id,
-        note: "已保存工作稿；未替作者交稿。拟采用立项卡与标题见报告",
+        finalReview,
+        unverified,
+        unresolved: open,
+        note: open
+          ? "已保存工作稿，但仍有硬伤或无来源事实待作者处理，见报告；未替作者交稿"
+          : "已保存工作稿；未替作者交稿。拟采用立项卡与标题见报告",
       },
       usage: emptyUsage(),
     }),

@@ -77,7 +77,6 @@ function respondStage(call, control) {
   if (!input) return { text: "已理解，结果以流水线报告为准。" };
   if (input.sections)
     return answer({
-      sourceHash: input.sourceHash,
       rules: input.sections.map((row) => ({
         id: row.id,
         text: "保留本节设定、因果和禁项，按当前任务执行。",
@@ -121,8 +120,7 @@ function respondStage(call, control) {
       abandonA: "未发现",
       abandonB: "未发现",
     });
-  if (input.bodyHash && input.draft)
-    return answer({ bodyHash: input.bodyHash, hard: [], suggestions: [] });
+  if (text.includes('返回 {"hard"')) return answer({ hard: [], suggestions: [] });
   throw new Error("未覆盖的本地阶段输入：" + JSON.stringify(input).slice(0, 100));
 }
 async function fixture(respond, options = {}) {
@@ -292,7 +290,7 @@ test("头条完整旅程：本地故事来源→工作稿真实质检→中断�
     if (text.includes('返回 {"opening"'))
       return answer({ opening: "精卫飞来", structure: "逐项解读原典", extension: "比较西西弗斯" });
     if (input?.blueprint) return answer({ title, body });
-    if (input?.bodyHash) return answer({ bodyHash: input.bodyHash, hard: [], suggestions: [] });
+    if (text.includes('返回 {"hard"')) return answer({ hard: [], suggestions: [] });
     if (text.includes('返回 {"claims"'))
       return answer({ claims: [{ claim: "精卫", quote: "精卫", kind: "quotation" }] });
     throw new Error("未覆盖文章阶段：" + text.slice(-160));
@@ -343,4 +341,102 @@ test("头条完整旅程：本地故事来源→工作稿真实质检→中断�
   } finally {
     await f.close();
   }
+});
+
+test("阶段输出解析：容忍正文里的裸换行、前后说明文字与代码围栏", async () => {
+  const { jsonOutput } = await import("../../apps/desktop/out-test/workflow-schema.mjs");
+  assert.deepEqual(jsonOutput('{"title":"归站","body":"第一段\n\n第二段"}'), {
+    title: "归站",
+    body: "第一段\n\n第二段",
+  });
+  assert.deepEqual(jsonOutput('好的，结果如下：\n```json\n{"a":"含 } 括号","b":1}\n```\n以上。'), {
+    a: "含 } 括号",
+    b: 1,
+  });
+  assert.throws(() => jsonOutput("没有任何 JSON"));
+});
+
+test("引文定位：容忍空白与引号样式差异，返回正文原文；不存在时为空", async () => {
+  const { locate } = await import("../../apps/desktop/out-test/workflow-schema.mjs");
+  const text = "他说：“走吧。”\n\n风把木门吹得直响。";
+  assert.equal(locate(text, "风把木门吹得直响"), "风把木门吹得直响");
+  assert.equal(locate(text, '他说："走吧。"'), "他说：“走吧。”");
+  assert.equal(locate(text, "风把 木门\n吹得"), "风把木门吹得");
+  assert.equal(locate(text, "门外有人"), undefined);
+});
+
+test("审读不要求模型回显指纹；硬伤原文按定位结果绑定当前正文", async () => {
+  const { review } = await import("../../apps/desktop/out-test/workflow-schema.mjs");
+  const text = "他说：“走吧。”\n\n风把木门吹得直响。";
+  const result = review(
+    JSON.stringify({
+      hard: [{ location: "第一段", quote: '他说："走吧。"', impact: "看不懂", fix: "补动机" }],
+      suggestions: [],
+    }),
+    text,
+    hash(text),
+  );
+  assert.equal(result.bodyHash, hash(text));
+  assert.equal(result.hard[0].quote, "他说：“走吧。”");
+  assert.throws(() => review('{"hard":[],"suggestions":[]}', text, hash("别的正文")));
+});
+
+test("写作引擎预算：旧默认 200000 升级为能跑完标准档的新默认，其余值保留", async () => {
+  const { parseEngine, DEFAULT_ENGINE } =
+    await import("../../apps/desktop/out-test/workflow-config.mjs");
+  const base = { guided: true, grade: "standard", inputBudget: 24000 };
+  assert.equal(parseEngine({ ...base, runBudget: 200000 }).runBudget, DEFAULT_ENGINE.runBudget);
+  assert.equal(parseEngine({ ...base, runBudget: 300000 }).runBudget, 300000);
+  assert.equal(parseEngine({ ...base, runBudget: 5000000 }).runBudget, 5000000);
+  assert.throws(() => parseEngine({ ...base, runBudget: 30000000 }));
+});
+
+test("两轮定向修订后仍有硬伤：交付最佳稿并标注待作者判断，不丢弃整次任务", async () => {
+  const { editDraft, selectDraft } =
+    await import("../../apps/desktop/out-test/workflow-editor.mjs");
+  const text = "林川把车票递到窗口。\n\n售票员摇头。\n\n他在门缝里摸到另一张票。";
+  const ids = [];
+  const run = {
+    journal: { record: { request: { grade: "standard" } } },
+    host: {
+      settings: () => ({
+        writer: { provider: "a", model: "w" },
+        editor: { provider: "b", model: "e" },
+      }),
+    },
+    async model(id, _title, _role, _card, input, shape, parse) {
+      ids.push(id);
+      if (shape.includes('{"hard"'))
+        return parse(
+          JSON.stringify({
+            hard: [{ location: "末段", quote: "另一张票", impact: "来历不明", fix: "交代来历" }],
+            suggestions: [],
+          }),
+        );
+      if (input.persona)
+        return parse(
+          JSON.stringify({ winner: "B", reason: "B 更紧", abandonA: "首段", abandonB: "未发现" }),
+        );
+      return parse(
+        JSON.stringify({ title: "归站", body: input.draft.body, resolved: ["已交代来历"] }),
+      );
+    },
+  };
+  const result = await editDraft(run, { title: "归站", body: text }, "", "");
+  assert.equal(result.unresolved, true);
+  assert.equal(result.rounds, 2);
+  assert.equal(result.review.hard.length, 1);
+  assert.deepEqual(ids, ["review-0", "revise-0", "review-1", "revise-1", "review-2"]);
+  const selection = await selectDraft(
+    run,
+    [
+      { title: "甲", body: "甲稿" },
+      { title: "乙", body: "乙稿" },
+    ],
+    "",
+    "toutiao",
+  );
+  assert.equal(selection.comparisons.length, 1);
+  assert.equal(selection.comparisons[0].reasons.length, 6);
+  assert.ok(selection.comparisons[0].reasons[0].startsWith("四五十岁的资讯读者"));
 });

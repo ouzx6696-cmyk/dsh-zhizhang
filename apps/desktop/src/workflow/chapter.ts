@@ -17,9 +17,12 @@ import { emptyUsage } from "../../../../packages/core/src/workflow";
 import { draft, outline, scenes, record, normalizeDraft, type Draft } from "./schema";
 import { selectDraft, editDraft } from "./editor";
 import { stageCard } from "./methods";
+import { runTaskPool } from "../session/task-pool";
 import type { WorkflowRun } from "./run";
 import type { Target } from "../context";
 
+/** Parallel candidate drafts; bounded so provider rate limits are not tripped. */
+const DRAFT_CONCURRENCY = 3;
 export async function chapterPipeline(run: WorkflowRun, target: Target) {
   const request = run.journal.record.request,
     dir = await resolveFanqieWork(run.host.options, target);
@@ -94,7 +97,6 @@ export async function chapterPipeline(run: WorkflowRun, target: Target) {
         : request.grade === "premium"
           ? 3
           : 2;
-  const drafts: Draft[] = [];
   const entries = [
     "从动作进入主场面",
     "从冲突对白进入",
@@ -105,30 +107,39 @@ export async function chapterPipeline(run: WorkflowRun, target: Target) {
     "从具有后果的物件进入",
     "从一项误判进入",
   ];
-  for (let index = 0; index < count; index++)
-    drafts.push(
-      await run.model(
-        `draft-${index}`,
-        `起稿 ${index + 1}/${count}`,
-        "writer",
-        writeCard,
-        { plan, scenePlan, entry: entries[index] },
-        (run.context.chapterPosition <= 3
-          ? `这是黄金前三章的第${run.context.chapterPosition}章。第一章前300字进入人物处境和异常、章末留具体钩子；第三章交还一次明确兑现。`
-          : "") + '一次写完整章，不写工具调用或审读标签，返回 {"title":"章名","body":"完整正文"}。',
-        (value) => {
-          const result = draft(value);
-          result.body = normalizeDraft(result.body);
-          const length = countWords(result.body);
-          if (length < plan.targetWords * 0.6 || length > plan.targetWords * 1.5)
-            throw new Error("正文篇幅与章纲目标不匹配，未交付候选");
-          if (/\[(?:待补|占位|TODO)|【(?:待补|占位)/i.test(result.body))
-            throw new Error("正文仍有占位符");
-          return result;
-        },
-      ),
-    );
-  const selection = await selectDraft(run, drafts, editCard);
+  // Candidates are independent fresh requests with distinct entries; run them side by side.
+  const outcomes = await runTaskPool(count, DRAFT_CONCURRENCY, (index) =>
+    run.model(
+      `draft-${index}`,
+      `起稿 ${index + 1}/${count}`,
+      "writer",
+      writeCard,
+      { plan, scenePlan, entry: entries[index] },
+      (run.context.chapterPosition <= 3
+        ? `这是黄金前三章的第${run.context.chapterPosition}章。第一章前300字进入人物处境和异常、章末留具体钩子；第三章交还一次明确兑现。`
+        : "") + '一次写完整章，不写工具调用或审读标签，返回 {"title":"章名","body":"完整正文"}。',
+      (value) => {
+        const result = draft(value);
+        result.body = normalizeDraft(result.body);
+        const length = countWords(result.body);
+        if (length < plan.targetWords * 0.6 || length > plan.targetWords * 1.5)
+          throw new Error("正文篇幅与章纲目标不匹配，未交付候选");
+        if (/\[(?:待补|占位|TODO)|【(?:待补|占位)/i.test(result.body))
+          throw new Error("正文仍有占位符");
+        return result;
+      },
+    ),
+  );
+  const drafts: Draft[] = outcomes.map((outcome) => {
+    if (outcome.status === "failed") throw outcome.error;
+    return outcome.value;
+  });
+  // Readers judge the prose against the chapter's own promise, not the whole book file.
+  const readerMaterial = [
+    ...run.context.material.filter((block) => block.name === "前章结尾"),
+    { name: "本章章纲", text: JSON.stringify(plan), required: true },
+  ];
+  const selection = await selectDraft(run, drafts, editCard, "fanqie", readerMaterial);
   await run.journal.step(
     "selection",
     "保留选稿报告",
@@ -203,7 +214,12 @@ export async function chapterPipeline(run: WorkflowRun, target: Target) {
             source: "workflow",
             note: marker,
             variantGroup: run.journal.record.id,
-            draftLabel: index === selection.winner ? "已审读推荐稿" : "对照候选（待审）",
+            draftLabel:
+              index !== selection.winner
+                ? "对照候选（待审）"
+                : checked.unresolved
+                  ? "推荐稿（仍有待作者判断的硬伤）"
+                  : "已审读推荐稿",
           });
           receipts.push({
             id: candidate.id,
@@ -219,7 +235,10 @@ export async function chapterPipeline(run: WorkflowRun, target: Target) {
             readability: readability(checked.draft.body),
             review: checked.review,
             rounds: checked.rounds,
-            note: "候选已保存，作者选择采纳；未替作者定稿",
+            unresolved: checked.unresolved,
+            note: checked.unresolved
+              ? "候选已保存；两轮定向修订后仍有硬伤，见审读报告，由作者判断是否采纳或修改"
+              : "候选已保存，作者选择采纳；未替作者定稿",
           },
           usage: emptyUsage(),
         };

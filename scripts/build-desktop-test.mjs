@@ -20,6 +20,9 @@ entries.push(
   ["work-store", "packages/fanqie/src/engine/work-store.ts"],
   ["review", "packages/fanqie/src/review.ts"],
   ["article-store", "packages/toutiao/src/store.ts"],
+  ["workflow-schema", "apps/desktop/src/workflow/schema.ts"],
+  ["workflow-editor", "apps/desktop/src/workflow/editor.ts"],
+  ["workflow-config", "packages/core/src/workflow-config.ts"],
 );
 const options = {
   bundle: true,

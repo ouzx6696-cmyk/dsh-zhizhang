@@ -3820,6 +3820,13 @@ test("PI 请求遵循系统代理，NO_PROXY 的本地接口保持直连", async
     { env, timeout: 20000 },
   );
   assert.equal(tunnels, 0);
+  // Loopback stays direct even when the author's NO_PROXY does not mention it.
+  await run(
+    process.execPath,
+    ["--input-type=module", "-e", code, JSON.stringify(config), path.join(home, "loopback.json")],
+    { env: { ...env, NO_PROXY: "", no_proxy: "" }, timeout: 20000 },
+  );
+  assert.equal(tunnels, 0);
   const proxied = { ...config, baseUrl: "http://writer-proxy.invalid/v1" };
   await run(
     process.execPath,
@@ -3827,5 +3834,5 @@ test("PI 请求遵循系统代理，NO_PROXY 的本地接口保持直连", async
     { env, timeout: 20000 },
   );
   assert.ok(tunnels > 0);
-  assert.equal(model.calls.length, 2);
+  assert.equal(model.calls.length, 3);
 });

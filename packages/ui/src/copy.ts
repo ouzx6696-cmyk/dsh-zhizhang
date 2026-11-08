@@ -92,6 +92,7 @@ export const COPY = {
   workflowPaused: "已暂停",
   workflowFailed: "未完成",
   workflowReady: "待作者选择",
+  workflowOpenIssues: "交付稿仍有未解决的硬伤或无来源事实，详见“交付”阶段报告；请判断后再采纳。",
   workflowComplete: "已完成",
 
   libraryStorageTitle: "本地拆书库",

@@ -4,7 +4,7 @@ import { withResourceLock } from "../../../../packages/fanqie/src/engine/storage
 import { readChapter } from "../../../../packages/fanqie/src/engine/storage/chapters";
 import { emptyUsage } from "../../../../packages/core/src/workflow";
 import { resolveFanqieWork } from "../main/storage";
-import { jsonOutput, record, list, text } from "./schema";
+import { jsonOutput, record, list, text, locate } from "./schema";
 import type { WorkflowRun } from "./run";
 import type { Target } from "../context";
 
@@ -78,6 +78,9 @@ export async function readContinuity(dir: string): Promise<ContinuityState> {
     ? { schema: 1, facts: [], pending: [], chapters: [] }
     : parseContinuity(value);
 }
+/** The ten-chapter audit reads a window of the ledger so it stays inside one stage budget. */
+const AUDIT_FACTS = 150;
+const AUDIT_CHAPTERS = 30;
 export async function ledgerPipeline(run: WorkflowRun, target: Target) {
   const dir = await resolveFanqieWork(run.host.options, target),
     chapter = await readChapter(dir, run.journal.record.request.chapter);
@@ -89,14 +92,19 @@ export async function ledgerPipeline(run: WorkflowRun, target: Target) {
     "抽取定稿变化",
     "planner",
     "只记录正文明确发生的变化，不把推断当事实；每条必须给正文原文证据。",
-    { body: chapter.body, bodyHash: hash, previous: before.facts },
+    {
+      body: chapter.body,
+      // Only prior states of subjects this chapter actually names; the ledger itself grows per chapter.
+      previous: before.facts.filter((fact) => chapter.body.includes(fact.subject)),
+    },
     '返回 {"facts":[{"kind":"character/object/knowledge/thread/timeline","subject":"主体","value":"当前状态","quote":"正文原文"}],"summary":"本章实际后果","hook":"悬念/反转/危机/期待/收束","emotion":3}，emotion为0至5。',
     (value) => {
       const r = jsonOutput(value),
         facts = list(r.facts, "定稿变化", 30).map((value) => {
-          const fact = parseFact({ ...record(value), chapter: chapter.id, bodyHash: hash });
-          if (!chapter.body.includes(fact.quote)) throw new Error("记账证据不在定稿正文中");
-          return fact;
+          const raw = record(value),
+            quote = typeof raw.quote === "string" ? locate(chapter.body, raw.quote) : undefined;
+          if (quote === undefined) throw new Error("记账证据不在定稿正文中");
+          return parseFact({ ...raw, quote, chapter: chapter.id, bodyHash: hash });
         });
       if (typeof r.emotion !== "number" || r.emotion < 0 || r.emotion > 5)
         throw new Error("情绪强度应为0至5");
@@ -107,6 +115,7 @@ export async function ledgerPipeline(run: WorkflowRun, target: Target) {
         emotion: r.emotion,
       };
     },
+    { material: [] },
   );
   if (run.context.chapterPosition % 10 === 0)
     await run.model(
@@ -114,7 +123,14 @@ export async function ledgerPipeline(run: WorkflowRun, target: Target) {
       "长线状态体检",
       "editor",
       "只依据已落盘的结构化状态与摘要检查矛盾、未回收事项和重复钩子，不编造正文事实。",
-      { state: before, changes },
+      {
+        state: {
+          facts: before.facts.slice(-AUDIT_FACTS),
+          pending: before.pending,
+          chapters: before.chapters.slice(-AUDIT_CHAPTERS),
+        },
+        changes,
+      },
       '返回 {"risks":["定位到主体或章节的风险"],"forgotten":["到期未回收事项"],"rhythm":["连续重复或缺少推进的章节"]}。',
       (value) => {
         const r = jsonOutput(value);
@@ -124,7 +140,11 @@ export async function ledgerPipeline(run: WorkflowRun, target: Target) {
           rhythm: list(r.rhythm, "节奏").map((v) => text(v, "节奏")),
         };
       },
-      "本阶段仅使用已给定的状态与摘要，不读取章节全文",
+      {
+        material: [
+          { name: "范围", text: "本阶段仅使用已给定的状态与摘要，不读取章节全文", required: true },
+        ],
+      },
     );
   const result = await run.journal.step(
     "delivery",

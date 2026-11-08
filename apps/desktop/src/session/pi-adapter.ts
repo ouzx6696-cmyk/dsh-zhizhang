@@ -17,6 +17,7 @@ import {
 export { getSupportedThinkingLevels, clampThinkingLevel };
 const catalogStore = new InMemoryModelsStore();
 let proxyConfigured = false;
+const LOOPBACK = ["localhost", "127.0.0.1", "::1"];
 async function configureSystemProxy() {
   if (proxyConfigured) return;
   if (
@@ -26,7 +27,11 @@ async function configureSystemProxy() {
     process.env.http_proxy
   ) {
     const { EnvHttpProxyAgent, setGlobalDispatcher } = await import("undici");
-    setGlobalDispatcher(new EnvHttpProxyAgent());
+    // Local model servers (Ollama, LM Studio, relays) are never sent through a system proxy,
+    // even when the author's NO_PROXY does not list loopback.
+    const declared = process.env.NO_PROXY ?? process.env.no_proxy ?? "";
+    const noProxy = [declared, ...LOOPBACK].filter((value) => value.trim()).join(",");
+    setGlobalDispatcher(new EnvHttpProxyAgent({ noProxy }));
   }
   proxyConfigured = true;
 }

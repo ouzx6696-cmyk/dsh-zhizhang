@@ -20,6 +20,16 @@ const states = {
   failed: copy.workflowFailed,
   "awaiting-author": copy.workflowReady,
 };
+/** True when the delivered work still carries hard issues or unsourced facts for the author. */
+function deliveryOpen(record: WorkflowRecord) {
+  const output = record.steps.find((step) => step.id === "delivery")?.output;
+  return (
+    typeof output === "object" &&
+    output !== null &&
+    "unresolved" in output &&
+    output.unresolved === true
+  );
+}
 function json(value: unknown) {
   return JSON.stringify(value, null, 2);
 }
@@ -328,6 +338,7 @@ export function WorkflowPanel({
             <>
               <p role="status">{states[value.state]}</p>
               {value.error && <p role="alert">{value.error}</p>}
+              {deliveryOpen(value) && <p role="alert">{copy.workflowOpenIssues}</p>}
               <StageReport record={value} />
             </>
           ) : (

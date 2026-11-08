@@ -1,7 +1,10 @@
 import React from "react";
 import { COPY as copy } from "../../../../../../packages/ui/src/copy.js";
 import { Toggle } from "../../../../../../packages/ui/src/primitives";
-import type { EngineSettings } from "../../../../../../packages/core/src/workflow-config.js";
+import {
+  BUDGET_LIMITS,
+  type EngineSettings,
+} from "../../../../../../packages/core/src/workflow-config.js";
 import type { SessionOptions } from "../../../session/types";
 
 const FLAGS = [
@@ -73,8 +76,8 @@ export function EngineTab({
         {copy.workflowBudget}
         <input
           type="number"
-          min={2000}
-          max={1000000}
+          min={BUDGET_LIMITS.min}
+          max={BUDGET_LIMITS.input}
           value={value.inputBudget}
           onChange={(e) => onChange({ ...value, inputBudget: Number(e.target.value) })}
         />
@@ -83,8 +86,8 @@ export function EngineTab({
         {copy.workflowRunBudget}
         <input
           type="number"
-          min={2000}
-          max={1000000}
+          min={BUDGET_LIMITS.min}
+          max={BUDGET_LIMITS.run}
           value={value.runBudget}
           onChange={(e) => onChange({ ...value, runBudget: Number(e.target.value) })}
         />
