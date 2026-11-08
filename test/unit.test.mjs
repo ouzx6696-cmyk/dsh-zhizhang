@@ -345,6 +345,43 @@ test("作品锁：空或损坏的锁文件报 CONFLICT，不抛裸 SyntaxError",
   }
 });
 
+test("CORE-08 异机名锁与进程号复用的锁可由作者接管，确认期间换锁则拒绝", async () => {
+  const { workspaceAccess, takeOverWorkspace, releaseWorkspace } = await import(
+    buildUrl("core/src/workspace-lock.js")
+  );
+  const lockFile = (dir) => path.join(dir, ".writer-workspace-lock.json");
+  const foreign = {
+    id: "other-owner",
+    pid: 4242,
+    machine: "other-host",
+    host: "DSH",
+    at: "2026-11-01T08:00:00.000Z",
+  };
+  // 同机但进程号已被无关进程复用：父进程一定存活，kill(pid,0) 成功。
+  const reused = { ...foreign, id: "reused-owner", pid: process.ppid, machine: hostname() };
+  for (const owner of [foreign, reused]) {
+    const dir = await tempDir("writer-takeover-");
+    await writeFile(lockFile(dir), JSON.stringify(owner));
+    const before = await workspaceAccess(dir);
+    assert.equal(before.readOnly, true);
+    assert.deepEqual(before.owner, owner);
+    // 只读不会因等待而自行解除。
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.equal((await workspaceAccess(dir)).readOnly, true);
+    const access = await takeOverWorkspace(dir, owner.id);
+    assert.equal(access.readOnly, false);
+    assert.equal(access.owner.pid, process.pid);
+    assert.equal((await workspaceAccess(dir)).readOnly, false);
+    assert.equal(JSON.parse(await readFile(lockFile(dir), "utf8")).id, access.owner.id);
+    await assert.rejects(takeOverWorkspace(dir, owner.id), (error) => {
+      assert.equal(error.code, "CONFLICT");
+      return true;
+    });
+    await releaseWorkspace(dir);
+    await assert.rejects(readFile(lockFile(dir)), { code: "ENOENT" });
+  }
+});
+
 test("作品锁：多个进程同时抢锁，只有一个可写，其余读到完整占用者", async () => {
   const dir = await tempDir("writer-lock-race-");
   const lockUrl = buildUrl("core/src/workspace-lock.js");

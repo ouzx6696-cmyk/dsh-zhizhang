@@ -23,6 +23,8 @@ export type WorkspaceOwner = {
   host: string;
   at: string;
 };
+export type WorkspaceAccess =
+  { readOnly: true; owner: WorkspaceOwner } | { readOnly: false; owner: WorkspaceOwner | null };
 let host = "Writer Desktop";
 const held = new Map<string, WorkspaceOwner>();
 export function setWorkspaceHost(value: string) {
@@ -68,7 +70,16 @@ function live(owner: WorkspaceOwner) {
     return !isFsError(error, "ESRCH");
   }
 }
-export async function workspaceAccess(root: string) {
+function ownRecord(): WorkspaceOwner {
+  return {
+    id: randomUUID(),
+    pid: process.pid,
+    machine: hostname(),
+    host,
+    at: new Date().toISOString(),
+  };
+}
+export async function workspaceAccess(root: string): Promise<WorkspaceAccess> {
   let current = path.resolve(root);
   for (;;) {
     const owner = await ownerAt(current);
@@ -187,13 +198,7 @@ async function sweepIdleGuard(guard: string, owner: WorkspaceOwner | null): Prom
 }
 
 async function writeGuardRegistration(key: string) {
-  const owner: WorkspaceOwner = {
-    id: randomUUID(),
-    pid: process.pid,
-    machine: hostname(),
-    host,
-    at: new Date().toISOString(),
-  };
+  const owner = ownRecord();
   // 与作品锁同款发布方式：临时文件写在作品根而非登记目录里，清理者不会把在途临时文件误当外来文件。
   const tmp = path.join(key, `${GUARD}.${owner.id}.tmp`);
   const handle = await open(tmp, "wx", 0o600);
@@ -235,8 +240,7 @@ async function releaseGuard(guard: string) {
 }
 
 /** Serialize reclamation and publication together: unlink cannot compare ownership atomically. */
-export async function claimWorkspace(root: string) {
-  const key = await realpath(root);
+function withClaimGuard<T>(key: string, fn: () => Promise<T>): Promise<T> {
   return serialize(`workspace-claim:${key}`, async () => {
     const guard = path.join(key, GUARD);
     const deadline = Date.now() + 2000;
@@ -270,10 +274,33 @@ export async function claimWorkspace(root: string) {
       }
     }
     try {
-      return await claimWorkspaceUnlocked(key);
+      return await fn();
     } finally {
       await releaseGuard(guard);
     }
+  });
+}
+
+export async function claimWorkspace(root: string) {
+  const key = await realpath(root);
+  return withClaimGuard(key, () => claimWorkspaceUnlocked(key));
+}
+
+/**
+ * 作者确认后接管：另一台设备的锁（主机名变化、同步盘带来的锁）或进程号被复用的锁无法自动判定，
+ * 只能由作者确认原处已关闭。只替换作者看到的那把锁，确认期间换了人就拒绝。
+ */
+export async function takeOverWorkspace(root: string, ownerId: string): Promise<WorkspaceAccess> {
+  const key = await realpath(root);
+  return withClaimGuard(key, async () => {
+    if ((await ownerAt(key))?.id !== ownerId)
+      throw new WriterError("CONFLICT", "作品锁已变化，请重新查看占用情况后再决定是否接管。");
+    await unlink(path.join(key, FILE));
+    const owner = ownRecord();
+    if (!(await publishOwner(key, owner)))
+      throw new WriterError("CONFLICT", `接管期间作品锁被其他进程抢占：${key}`);
+    held.set(key, owner);
+    return { readOnly: false, owner };
   });
 }
 
@@ -314,7 +341,7 @@ export async function cleanStaleWorkspaceClaim(root: string): Promise<WorkspaceC
     }
   });
 }
-async function claimWorkspaceUnlocked(root: string) {
+async function claimWorkspaceUnlocked(root: string): Promise<WorkspaceAccess> {
   const key = await realpath(root);
   // A competing claim can vanish between EEXIST and our read; re-run the decision a few times.
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -326,13 +353,7 @@ async function claimWorkspaceUnlocked(root: string) {
       return { readOnly: false, owner: previous };
     }
     if (previous) await removeStaleOwner(key, previous);
-    const owner: WorkspaceOwner = {
-      id: randomUUID(),
-      pid: process.pid,
-      machine: hostname(),
-      host,
-      at: new Date().toISOString(),
-    };
+    const owner = ownRecord();
     if (await publishOwner(key, owner)) {
       held.set(key, owner);
       return { readOnly: false, owner };

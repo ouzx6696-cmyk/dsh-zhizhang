@@ -1,5 +1,8 @@
 import { errorText } from "../../../packages/core/src/errors.js";
-/** Desktop recovery reuses the existing journals; it never clears a write lock. */
+/**
+ * Desktop recovery reuses the existing journals. A write lock is cleared only when its owner
+ * is provably gone, after the author confirmed, and always before the backup is taken.
+ */
 import path from "node:path";
 import { readdir } from "node:fs/promises";
 import { workspaceAccess } from "../../../packages/core/src/workspace-lock";
@@ -11,10 +14,12 @@ import {
   inspectPendingAccept,
   resumePendingAccept,
 } from "../../../packages/fanqie/src/engine/storage/accept-journal";
+import { snapshotFile } from "../../../packages/fanqie/src/engine/storage/journal";
 import {
+  clearWriteLock,
   ensureRecoveryOwnerInactive,
-  snapshotFile,
-} from "../../../packages/fanqie/src/engine/storage/journal";
+  inspectWriteLock,
+} from "../../../packages/fanqie/src/engine/storage/process-lock";
 
 const CHAPTER = ".writer-chapter-pending.json";
 const ACCEPT = ".writer-accept-pending.json";
@@ -22,11 +27,21 @@ export async function inspectRecovery(dir: string) {
   const entries = await readdir(dir);
   const lease = await workspaceAccess(dir);
   const pending = entries.filter((name) => /^\.writer-.*pending.*\.json$/.test(name));
-  let reason = lease.readOnly
-    ? `作品由 ${lease.owner?.host || "其他应用"} 占用，请先关闭另一处写入。`
-    : "";
-  if (entries.includes(".writer-write-lock"))
-    reason ||= "作品有写入锁，请先停止写入并核对锁状态；此处不会自动清锁。";
+  let reason = lease.readOnly ? `作品由 ${lease.owner.host} 占用，请先关闭另一处写入。` : "";
+  const lock = await inspectWriteLock(dir);
+  if (lock.state === "active" || lock.state === "unknown")
+    reason ||= `作品有写入锁（${lock.reason}），请先停止写入并核对锁状态；此处不会清锁。`;
+  const staleLock = lock.state === "stale";
+  if (!pending.length && staleLock && !reason)
+    return {
+      canRecover: true,
+      staleLock,
+      reason: `发现遗留写入锁：${lock.reason}，没有待恢复的写入。确认后将清理写锁并备份。`,
+      id: lock.owner.id,
+      fingerprint: lock.fingerprint,
+      files: [] as { file: string; state: string }[],
+      kind: "lock" as const,
+    };
   if (!pending.length)
     return {
       canRecover: false,
@@ -57,18 +72,26 @@ export async function inspectRecovery(dir: string) {
   if (record.conflict) reason ||= "作品文件与恢复记录冲突，请保留文件并人工核对。";
   return {
     canRecover: !reason,
-    reason: reason || "发现未完成写入。可在备份并核验后完成原操作。",
+    staleLock,
+    reason:
+      reason ||
+      (staleLock
+        ? `发现未完成写入和遗留写入锁：${lock.reason}。确认后将清理写锁、备份并核验，再完成原操作。`
+        : "发现未完成写入。可在备份并核验后完成原操作。"),
     id: record.id,
     fingerprint,
     files: record.writes,
-    kind: pending[0] === CHAPTER ? "chapter" : "accept",
+    kind: pending[0] === CHAPTER ? ("chapter" as const) : ("accept" as const),
   };
 }
 
 export async function recoverWork(
   dir: string,
   expected: { id: string; fingerprint: string },
-  backup: () => Promise<string | null>,
+  steps: {
+    backup: () => Promise<string | null>;
+    lockCleared: (owner: { pid: number; host: string; createdAt: string }) => Promise<void>;
+  },
 ) {
   const check = async () => {
     const state = await inspectRecovery(dir);
@@ -76,9 +99,12 @@ export async function recoverWork(
       throw new Error(state.reason || "恢复记录已变化，请重新检查");
     return state;
   };
-  await check();
-  const backupFile = await backup();
+  const first = await check();
+  // The backup script refuses a tree with a write lock, so the stale lock goes first.
+  if (first.staleLock) await steps.lockCleared(await clearWriteLock(dir));
+  const backupFile = await steps.backup();
   if (!backupFile) throw new Error("已取消备份，未执行恢复");
+  if (first.kind === "lock") return { backup: backupFile, state: await inspectRecovery(dir) };
   try {
     const state = await check();
     if (state.kind === "chapter") await resumePendingChapterSave(dir, expected);

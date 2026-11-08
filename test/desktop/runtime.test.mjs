@@ -789,42 +789,254 @@ test("首轮审读交接允许无旧回报，恢复须先备份并拒绝锁和�
     await writeFile(path.join(work.dir, ".writer-chapter-pending.json"), JSON.stringify(journal));
     const expected = await inspectRecovery(work.dir);
     assert.equal(expected.canRecover, true);
+    const noLock = async () => assert.fail("没有遗留写入锁时不应清锁");
     await assert.rejects(
-      recoverWork(work.dir, expected, async () => {
-        throw new Error("备份失败");
+      recoverWork(work.dir, expected, {
+        backup: async () => {
+          throw new Error("备份失败");
+        },
+        lockCleared: noLock,
       }),
       /备份失败/,
     );
     assert.equal(await readFile(metaFile, "utf8"), oldMeta);
+    // 没有所有者记录的锁无法判断原进程状态：只提示核对，不提供清理。
     await mkdir(path.join(work.dir, ".writer-write-lock"));
-    assert.equal((await inspectRecovery(work.dir)).canRecover, false);
+    const unknownLock = await inspectRecovery(work.dir);
+    assert.equal(unknownLock.canRecover, false);
+    assert.match(unknownLock.reason, /写入锁/);
     await rm(path.join(work.dir, ".writer-write-lock"), { recursive: true });
     await writeFile(metaFile, "作者改稿");
     assert.equal((await inspectRecovery(work.dir)).canRecover, false);
     await writeFile(metaFile, oldMeta);
     const run = promisify(execFile),
       backup = path.join(base, "backup");
-    await recoverWork(work.dir, expected, async () => {
-      await run(process.execPath, [
-        path.join(root, "scripts/backup.mjs"),
-        "--source",
-        work.dir,
-        "--output",
-        backup,
-      ]);
-      await run(process.execPath, [path.join(root, "scripts/backup.mjs"), "--verify", backup]);
-      return backup;
+    await recoverWork(work.dir, expected, {
+      lockCleared: noLock,
+      backup: async () => {
+        await run(process.execPath, [
+          path.join(root, "scripts/backup.mjs"),
+          "--source",
+          work.dir,
+          "--output",
+          backup,
+        ]);
+        await run(process.execPath, [path.join(root, "scripts/backup.mjs"), "--verify", backup]);
+        return backup;
+      },
     });
     assert.equal(JSON.parse(await readFile(metaFile, "utf8")).title, "恢复后");
     assert.equal((await inspectRecovery(work.dir)).canRecover, false);
     await assert.rejects(
-      recoverWork(work.dir, expected, async () => backup),
+      recoverWork(work.dir, expected, { backup: async () => backup, lockCleared: noLock }),
       /没有待恢复/,
     );
   } finally {
     await sessions.dispose();
     await model.close();
     await rm(base, { recursive: true, force: true });
+  }
+});
+
+/** 子进程在写锁内执行 during，然后被 SIGKILL：模拟持锁写入时应用崩溃，锁和 journal 原样遗留。 */
+async function crashInsideWriteLock(dir, during) {
+  const lockURL = pathToFileURL(
+    path.join(root, "build/fanqie/src/engine/storage/process-lock.js"),
+  ).href;
+  const journalURL = pathToFileURL(
+    path.join(root, "build/fanqie/src/engine/storage/chapter-journal.js"),
+  ).href;
+  const child = spawn(
+    process.execPath,
+    [
+      "--input-type=module",
+      "-e",
+      `import {withResourceLock} from ${JSON.stringify(lockURL)};
+import {createChapterJournal} from ${JSON.stringify(journalURL)};
+const dir = ${JSON.stringify(dir)}, input = ${JSON.stringify(during ?? null)};
+await withResourceLock(dir, async () => {
+  if (input) await createChapterJournal(dir, input);
+  console.log("READY");
+  await new Promise(() => {});
+});`,
+    ],
+    { stdio: ["ignore", "pipe", "pipe"] },
+  );
+  let stderr = "";
+  child.stderr.on("data", (chunk) => (stderr += chunk));
+  await new Promise((resolve, reject) => {
+    child.stdout.once("data", resolve);
+    child.once("exit", (code) => reject(new Error(`子进程提前退出 ${code}：${stderr}`)));
+  });
+  child.removeAllListeners("exit");
+  const exited = new Promise((resolve) => child.once("exit", resolve));
+  child.kill("SIGKILL");
+  await exited;
+}
+
+test("FQ-03 崩溃遗留写锁：作者确认后经恢复入口先清锁、再备份并完成原操作", async () => {
+  const base = await realpath(await mkdtemp(path.join(tmpdir(), "writer-stale-lock-")));
+  const { ensureStorage, createWork, setOutline } =
+    await import("../../apps/desktop/out-test/work-store.mjs");
+  const { inspectRecovery } = await import("../../apps/desktop/out-test/recovery.mjs");
+  const { Runtime, registerBackupIpc, dialog, ipcMain } =
+    await import("../../apps/desktop/out-test/runtime-effects.mjs");
+  const appHome = path.join(base, "app"),
+    resources = path.join(base, "resources"),
+    backups = path.join(base, "backups");
+  await mkdir(appHome);
+  await mkdir(path.join(resources, "scripts"), { recursive: true });
+  await mkdir(backups);
+  await writeFile(
+    path.join(resources, "scripts/writer-backup.mjs"),
+    await readFile(path.join(root, "scripts/backup.mjs")),
+  );
+  process.env.WRITER_STATE_ROOT = appHome;
+  const paths = await ensureStorage(null, { storageRoot: path.join(base, "data") });
+  const work = await createWork(paths, { title: "崩溃前" });
+  await setOutline(work.dir, "c001", { synopsis: "站台" }, "第一章");
+  const state = new Runtime(),
+    diagnostics = [],
+    prompts = [];
+  state.home = appHome;
+  state.resources = resources;
+  state.target = { mode: "fanqie", root: paths.base, work: work.meta.key };
+  state.diagnostics = { write: async (event, fields) => diagnostics.push({ event, ...fields }) };
+  state.window = { isDestroyed: () => false, webContents: { send: () => {} } };
+  state.sessions = new Sessions({
+    home: appHome,
+    python: "python3",
+    settings: defaultModels,
+    emit: () => {},
+    confirm: async () => false,
+    options: {},
+    created: async () => {},
+    extras: {},
+  });
+  let answer = 0;
+  dialog.showMessageBox = async (_window, options) => {
+    prompts.push(options.message);
+    return { response: answer };
+  };
+  // 备份目录名精确到秒；两次恢复可能落在同一秒，每次给一个新的保存位置。
+  let backupCount = 0;
+  dialog.showOpenDialog = async () => {
+    const parent = path.join(backups, String(++backupCount));
+    await mkdir(parent);
+    return { canceled: false, filePaths: [parent] };
+  };
+  registerBackupIpc(state);
+  const recover = ipcMain.handlers.get("writer:recover");
+  const lockDir = path.join(work.dir, ".writer-write-lock");
+  const hash = (text) => createHash("sha256").update(text).digest("hex");
+  try {
+    const metaFile = path.join(work.dir, "meta.json"),
+      chapterFile = path.join(work.dir, "chapters/c001.md");
+    const oldMeta = await readFile(metaFile, "utf8"),
+      oldChapter = await readFile(chapterFile, "utf8");
+    const nextChapter = oldChapter + "\n站台上的雨停了。\n",
+      nextMeta = JSON.stringify({ ...JSON.parse(oldMeta), title: "崩溃后" });
+    await crashInsideWriteLock(work.dir, {
+      chapterId: "c001",
+      writes: [
+        { file: "chapters/c001.md", before: hash(oldChapter), content: nextChapter },
+        { file: "meta.json", before: hash(oldMeta), content: nextMeta },
+      ],
+    });
+    const check = await inspectRecovery(work.dir);
+    assert.equal(check.canRecover, true, check.reason);
+    assert.equal(check.staleLock, true);
+    assert.match(check.reason, /遗留写入锁/);
+    // 作者取消：锁和记录原样保留。
+    assert.equal(await recover({}, { id: check.id, fingerprint: check.fingerprint }), null);
+    assert.match(prompts.at(-1), /先清理写锁，再备份/);
+    assert.ok((await readFile(path.join(lockDir, "owner.json"), "utf8")).length > 0);
+    answer = 1;
+    const result = await recover({}, { id: check.id, fingerprint: check.fingerprint });
+    await assert.rejects(readFile(path.join(lockDir, "owner.json")), { code: "ENOENT" });
+    assert.ok(result.file.startsWith(backups));
+    assert.ok(diagnostics.some((entry) => entry.event === "write_lock_cleared"));
+    assert.ok(diagnostics.some((entry) => entry.event === "backup_completed"));
+    assert.equal(
+      diagnostics.findIndex((entry) => entry.event === "write_lock_cleared") <
+        diagnostics.findIndex((entry) => entry.event === "backup_completed"),
+      true,
+    );
+    assert.equal(await readFile(chapterFile, "utf8"), nextChapter);
+    assert.equal(await readFile(metaFile, "utf8"), nextMeta);
+    assert.equal((await inspectRecovery(work.dir)).canRecover, false);
+
+    // 崩溃发生在写下恢复记录之前：只有遗留写锁，同样经确认清理并备份。
+    await crashInsideWriteLock(work.dir);
+    const lockOnly = await inspectRecovery(work.dir);
+    assert.equal(lockOnly.canRecover, true, lockOnly.reason);
+    assert.equal(lockOnly.kind, "lock");
+    await recover({}, { id: lockOnly.id, fingerprint: lockOnly.fingerprint });
+    assert.match(prompts.at(-1), /清理《.+》的遗留写入锁/);
+    await assert.rejects(readFile(path.join(lockDir, "owner.json")), { code: "ENOENT" });
+    assert.equal(diagnostics.filter((entry) => entry.event === "write_lock_cleared").length, 2);
+    assert.equal((await inspectRecovery(work.dir)).reason, "没有待恢复的写入。");
+  } finally {
+    delete dialog.showMessageBox;
+    delete dialog.showOpenDialog;
+    await state.sessions.dispose();
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("CORE-08 只读作品可经接管入口取得写权限，锁已换人时拒绝", async () => {
+  // 接管登记在主进程那份模块实例里，认领与释放必须用同一实例。
+  const { Runtime, registerWorkspaceIpc, ipcMain, claimWorkspace, releaseWorkspace } =
+    await import("../../apps/desktop/out-test/runtime-effects.mjs");
+  const home = await realpath(await mkdtemp(path.join(tmpdir(), "writer-takeover-")));
+  const folder = path.join(home, "articles");
+  await mkdir(folder);
+  const foreign = {
+    id: "other-owner",
+    pid: 4242,
+    machine: "other-host",
+    host: "DSH",
+    at: "2026-11-01T08:00:00.000Z",
+  };
+  await writeFile(path.join(folder, ".writer-workspace-lock.json"), JSON.stringify(foreign));
+  const state = new Runtime(),
+    events = [],
+    diagnostics = [];
+  state.home = home;
+  state.settings = new Settings(home, {
+    available: () => false,
+    encrypt: (text) => text,
+    decrypt: (text) => text,
+  });
+  state.diagnostics = { write: async (event, fields) => diagnostics.push({ event, ...fields }) };
+  state.window = {
+    isDestroyed: () => false,
+    webContents: { send: (_, event) => events.push(event) },
+  };
+  state.target = { mode: "toutiao", root: folder };
+  state.access = await claimWorkspace(folder);
+  registerWorkspaceIpc(state);
+  const read = ipcMain.handlers.get("writer:state");
+  const takeOver = ipcMain.handlers.get("writer:take-over-workspace");
+  try {
+    const before = await read({});
+    assert.equal(before.access.readOnly, true);
+    assert.deepEqual(before.access.owner, foreign);
+    await assert.rejects(assertWorkspaceWritable(folder), /只读/);
+    await assert.rejects(takeOver({}, "stale-id"), (error) => error.code === "CONFLICT");
+    assert.equal((await read({})).access.readOnly, true);
+    await assert.rejects(async () => takeOver({}, 42), /参数无效/);
+    const access = await takeOver({}, foreign.id);
+    assert.equal(access.readOnly, false);
+    assert.equal(access.owner.pid, process.pid);
+    assert.equal((await read({})).access.readOnly, false);
+    await assertWorkspaceWritable(folder);
+    assert.ok(events.some((event) => event.refresh));
+    const logged = diagnostics.find((entry) => entry.event === "workspace_taken_over");
+    assert.equal(logged.previousMachine, "other-host");
+  } finally {
+    await releaseWorkspace(folder);
+    await rm(home, { recursive: true, force: true });
   }
 });
 

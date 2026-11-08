@@ -221,3 +221,109 @@ for (const c of cases)
       await rm(root, { recursive: true, force: true });
     }
   });
+
+test("FQ-03 写锁检查：当前进程持有判为活锁且不可清理，记录损坏或缺失判为状态不明", async () => {
+  const { inspectWriteLock, clearWriteLock } =
+    await import("../../build/fanqie/src/engine/storage/process-lock.js");
+  const root = await mkdtemp(path.join(tmpdir(), "writer-write-lock-"));
+  const dir = path.join(root, ".writer-write-lock");
+  try {
+    assert.equal((await inspectWriteLock(root)).state, "absent");
+    await mkdir(dir);
+    assert.equal((await inspectWriteLock(root)).state, "unknown");
+    await writeFile(path.join(dir, "owner.json"), "{坏");
+    assert.equal((await inspectWriteLock(root)).state, "unknown");
+    await assert.rejects(clearWriteLock(root), { code: "resource_lock_not_stale" });
+    const self = { id: "self", pid: process.pid, host: hostname(), createdAt: "2026-11-01" };
+    await writeFile(path.join(dir, "owner.json"), JSON.stringify(self));
+    assert.equal((await inspectWriteLock(root)).state, "active");
+    await assert.rejects(clearWriteLock(root), { code: "resource_lock_not_stale" });
+    await writeFile(
+      path.join(dir, "owner.json"),
+      JSON.stringify({ ...self, host: "other-host", pid: 999999 }),
+    );
+    assert.equal((await inspectWriteLock(root)).state, "unknown");
+    await assert.rejects(clearWriteLock(root), { code: "resource_lock_not_stale" });
+    assert.equal(JSON.parse(await readFile(path.join(dir, "owner.json"), "utf8")).pid, 999999);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("FQ-11 锁释放失败不盖掉写入的原错误；写入成功时如实抛释放错误", async () => {
+  const { withResourceLock } =
+    await import("../../build/fanqie/src/engine/storage/process-lock.js");
+  const root = await mkdtemp(path.join(tmpdir(), "writer-lock-release-"));
+  const ownerFile = path.join(root, ".writer-write-lock", "owner.json");
+  try {
+    const original = new Error("写入本身失败");
+    await assert.rejects(
+      withResourceLock(root, async () => {
+        await rm(ownerFile);
+        throw original;
+      }),
+      (error) => {
+        assert.ok(error instanceof AggregateError);
+        assert.equal(error.errors[0], original);
+        assert.equal(error.errors[1].code, "resource_lock_invalid");
+        assert.match(error.message, /写入本身失败/);
+        return true;
+      },
+    );
+    await rm(path.join(root, ".writer-write-lock"), { recursive: true });
+    await assert.rejects(
+      withResourceLock(root, async () => {
+        await rm(ownerFile);
+        return "ok";
+      }),
+      { code: "resource_lock_invalid" },
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("FQ-11 恢复记录解码失败保留 cause：程序错误与已知错误都可追溯", async () => {
+  const { journal } = await import("../../build/fanqie/src/engine/storage/journal.js");
+  const { NovelError } = await import("../../build/fanqie/src/engine/errors.js");
+  const root = await mkdtemp(path.join(tmpdir(), "writer-journal-cause-"));
+  const record = {
+    version: 1,
+    id: "0b5c0d4e-1f2a-4b3c-8d9e-0a1b2c3d4e5f",
+    owner: { pid: process.pid, host: hostname() },
+    createdAt: new Date().toISOString(),
+    writes: [],
+  };
+  await writeFile(path.join(root, ".writer-cause-pending.json"), JSON.stringify(record));
+  const spec = (decode) => ({
+    file: ".writer-cause-pending.json",
+    label: "测试操作",
+    root: () => root,
+    decode,
+  });
+  try {
+    const bug = journal(
+      spec(() => {
+        throw new TypeError("程序错误");
+      }),
+    );
+    await assert.rejects(bug.inspect({}), (error) => {
+      assert.equal(error.code, "recovery_invalid");
+      assert.ok(error.cause instanceof TypeError);
+      return true;
+    });
+    const known = new NovelError("recovery_unsupported", "已知问题");
+    const rejected = journal(
+      spec(() => {
+        throw known;
+      }),
+    );
+    await assert.rejects(rejected.inspect({}), (error) => {
+      assert.equal(error.code, "recovery_invalid");
+      assert.equal(error.cause, known);
+      return true;
+    });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

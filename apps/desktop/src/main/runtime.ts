@@ -1,4 +1,5 @@
 import path from "node:path";
+import type { WorkspaceAccess } from "../../../../packages/core/src/workspace-lock";
 import { app, BrowserWindow, dialog, Notification } from "electron";
 import type { Target } from "../context";
 import type { Diagnostics } from "../diagnostics";
@@ -28,10 +29,7 @@ export class Runtime {
   home = "";
   resources = "";
   target?: Target;
-  access: { readOnly: boolean; owner: { host?: string } | null } = {
-    readOnly: false,
-    owner: null,
-  };
+  access: WorkspaceAccess = { readOnly: false, owner: null };
   maintenance = false;
   updateState: UpdateStatus = { state: "idle" };
   deliveries = new Map<string, Promise<{ status: number; data: unknown }>>();

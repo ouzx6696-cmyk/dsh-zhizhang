@@ -55,6 +55,7 @@ export const desktopAPI = {
   backup: () => invoke("backup"),
   storageHealth: () => invoke("storage-health"),
   recover: (expected: { id: string; fingerprint: string }) => invoke("recover", expected),
+  takeOverWorkspace: (ownerId: string) => invoke("take-over-workspace", ownerId),
   diagnostics: () => invoke("diagnostics"),
   updates: (action?: string) => invoke("updates", action),
   openExternal: (url: string) => invoke("external", url),

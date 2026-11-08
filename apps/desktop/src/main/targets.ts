@@ -11,7 +11,11 @@ import {
   projectIdOf,
   rememberProject,
 } from "../../../../packages/fanqie/src/engine/work-store";
-import { claimWorkspace, releaseWorkspace } from "../../../../packages/core/src/workspace-lock";
+import {
+  claimWorkspace,
+  releaseWorkspace,
+  takeOverWorkspace,
+} from "../../../../packages/core/src/workspace-lock";
 import type { Runtime } from "./runtime";
 
 export async function lockRoot(state: Runtime, value: Target) {
@@ -78,6 +82,27 @@ export async function selectTarget(state: Runtime, next: Target) {
       state.sessions.release(previous);
     }
     return normalized;
+  });
+}
+
+/** The author confirmed in the renderer that the other device or window has closed the work. */
+export async function takeOverTarget(state: Runtime, ownerId: string) {
+  return serialize(`target:${state.home}`, async () => {
+    if (state.maintenance) throw new Error("正在恢复作品，请等待完成后再接管");
+    if (!state.target) throw new Error("请先选择作品");
+    const current = state.target;
+    const previous = state.access.owner;
+    const access = await takeOverWorkspace(await lockRoot(state, current), ownerId);
+    state.access = access;
+    await state.diagnostics.write("workspace_taken_over", {
+      mode: current.mode,
+      work: current.work,
+      previousHost: previous?.host,
+      previousMachine: previous?.machine,
+      previousPid: previous?.pid,
+    });
+    state.emit({ target: current, refresh: true });
+    return access;
   });
 }
 

@@ -280,8 +280,11 @@ export function TopBar({
         <div className="readonly-banner" role="status">
           <AlertCircle size={15} />
           {viewCopy.topBarText15}
-          {system.access.owner?.host || viewCopy.topBarText16}
+          {system.access.owner.host || viewCopy.topBarText16}
           {viewCopy.topBarText17}
+          <button onClick={() => actions.takeOverWorkspace().catch(fail)}>
+            {viewCopy.topBarText18}
+          </button>
         </div>
       )}
       {backgroundRunning.length > 0 && (

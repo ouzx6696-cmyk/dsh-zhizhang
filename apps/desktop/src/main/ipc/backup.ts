@@ -41,6 +41,15 @@ async function backupDirectory(state: Runtime, source: string) {
   return { file: output };
 }
 
+function recoverPrompt(work: string, check: Awaited<ReturnType<typeof inspectRecovery>>) {
+  const confirmClosed = "请确认没有其他窗口或进程正在写入这部作品。";
+  if (check.kind === "lock")
+    return `清理《${work}》的遗留写入锁？${confirmClosed}确认后将先清理写锁，再备份并校验。`;
+  if (check.staleLock)
+    return `恢复《${work}》的未完成写入？发现遗留写入锁，${confirmClosed}确认后将先清理写锁，再备份并校验，最后完成原操作。`;
+  return `恢复《${work}》的未完成写入？将先备份并校验，再完成原操作。`;
+}
+
 export function registerBackupIpc(state: Runtime) {
   handle("backup", async () => {
     if (!state.settings.workspace) throw new Error("请先选择写作根");
@@ -62,7 +71,7 @@ export function registerBackupIpc(state: Runtime) {
     if (state.sessions.hasPending() || state.sessions.running().length)
       throw new Error("请先停止所有任务，再检查恢复");
     const expected = value;
-    const current = { ...state.target };
+    const current = { ...state.target, work: state.target.work };
     state.maintenance = true;
     try {
       const dir = await lockRoot(state, current);
@@ -73,17 +82,19 @@ export function registerBackupIpc(state: Runtime) {
         check.fingerprint !== expected.fingerprint
       )
         throw new Error("恢复条件已变化，请重新检查：" + check.reason);
-      if (
-        !(await state.confirm(
-          `恢复《${current.work}》的未完成写入？将先备份并校验，再完成原操作。`,
-        ))
-      )
-        return null;
+      if (!(await state.confirm(recoverPrompt(current.work, check)))) return null;
       const result = await recoverWork(
         dir,
         { id: check.id, fingerprint: check.fingerprint },
-        async () => {
-          return (await backupDirectory(state, dir))?.file || null;
+        {
+          backup: async () => (await backupDirectory(state, dir))?.file || null,
+          lockCleared: (owner) =>
+            state.diagnostics.write("write_lock_cleared", {
+              work: current.work,
+              pid: owner.pid,
+              host: owner.host,
+              createdAt: owner.createdAt,
+            }),
         },
       );
       state.emit({ target: current, refresh: true });

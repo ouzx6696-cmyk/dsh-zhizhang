@@ -14,6 +14,7 @@ import type { ModelConnection, ModelSettings, ModelsInput } from "../../models";
 import type { TaskState, UpdateStatus } from "../../renderer-contracts";
 import type { Settings } from "../../settings";
 import type { inspectRecovery } from "../../recovery";
+import type { WorkspaceAccess } from "../../../../../packages/core/src/workspace-lock";
 
 export type PublicSettings = ReturnType<Settings["public"]>;
 export type StorageHealth = Awaited<ReturnType<typeof inspectRecovery>> & {
@@ -48,7 +49,7 @@ export type RequestResult = { status: number; data: unknown };
 export type RendererState = PublicSettings & {
   target?: Target;
   notice: string;
-  access: { readOnly: boolean; owner: { host?: string } | null };
+  access: WorkspaceAccess;
   version: string;
   updates: UpdateStatus;
 };
@@ -97,6 +98,7 @@ export interface IpcMap {
     args: [{ id: string; fingerprint: string }];
     result: { file: string | null; state: unknown } | null;
   };
+  "take-over-workspace": { args: [string]; result: WorkspaceAccess };
   diagnostics: { args: []; result: { file: string } | null };
   updates: { args: [string?]; result: UpdateStatus };
   external: { args: [string]; result: void };
@@ -200,6 +202,7 @@ export const IPC_PARSERS: { [K in IpcChannel]: (args: unknown[]) => IpcArgs<K> }
   backup: () => [],
   "storage-health": () => [],
   recover: ([expected]) => [parseRecovery(expected)],
+  "take-over-workspace": ([ownerId]) => [parseText(ownerId)],
   diagnostics: () => [],
   updates: ([action]) => [
     action === undefined

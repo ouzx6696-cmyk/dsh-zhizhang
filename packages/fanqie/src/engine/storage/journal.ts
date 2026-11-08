@@ -6,7 +6,7 @@ import { atomicWrite, isMissingFileError, nowIso, sha256 } from "../../../../cor
 import { isRecord } from "../../../../core/src/parse.js";
 import { NovelError } from "../errors.js";
 import { createExclusive } from "./primitives.js";
-import { withResourceLock } from "./process-lock.js";
+import { ensureRecoveryOwnerInactive, withResourceLock } from "./process-lock.js";
 
 export type InputWrite = {
   file: string;
@@ -82,24 +82,6 @@ export async function snapshotFile(file: string): Promise<string | null> {
     throw error;
   }
 }
-export function ensureRecoveryOwnerInactive(owner: Owner) {
-  if (owner.host !== hostname())
-    throw new NovelError(
-      "recovery_owner_unknown",
-      "恢复记录来自另一台主机，无法确认原进程已停止；请先由管理员核对，暂不自动恢复。",
-    );
-  if (owner.pid === process.pid) return; // The caller holds the operation's resource locks.
-  try {
-    process.kill(owner.pid, 0);
-  } catch (error) {
-    if (error instanceof Error && "code" in error && error.code === "ESRCH") return;
-    throw new NovelError("recovery_owner_unknown", "无法确认原进程是否停止，暂不自动恢复。");
-  }
-  throw new NovelError(
-    "recovery_owner_active",
-    "原进程仍存在（或进程号已复用），暂不自动恢复；请先核对原进程状态。",
-  );
-}
 async function applyRecordedWrites(writes: Write[], code: string) {
   const current = await Promise.all(writes.map((w) => snapshotFile(w.file)));
   if (writes.some((w, i) => current[i] !== w.before && current[i] !== w.after))
@@ -146,7 +128,8 @@ export function journal<M extends object, C>(spec: Spec<M, C>) {
   const journalPath = (context: C) => path.join(spec.root(context), spec.file);
   const absolute = (context: C, target: Target) =>
     path.join(target.root ?? spec.root(context), target.file);
-  const problem = (suffix: string, message: string) => new NovelError(code(suffix), message);
+  const problem = (suffix: string, message: string, options?: ErrorOptions) =>
+    new NovelError(code(suffix), message, options);
   async function has(context: C) {
     try {
       await lstat(journalPath(context));
@@ -208,8 +191,11 @@ export function journal<M extends object, C>(spec: Spec<M, C>) {
         writes,
         fingerprint: sha256(raw),
       };
-    } catch {
-      throw problem("invalid", `${spec.label}恢复记录格式或校验不正确，请保留原文件并人工核对。`);
+    } catch (error) {
+      // 记录里的非法 id 等已知错误也属于记录格式问题，统一归为 invalid，原错误挂在 cause 上。
+      throw problem("invalid", `${spec.label}恢复记录格式或校验不正确，请保留原文件并人工核对。`, {
+        cause: error,
+      });
     }
   }
   async function read(context: C) {
@@ -331,7 +317,7 @@ export function journal<M extends object, C>(spec: Spec<M, C>) {
       if (j.id !== id) throw problem("conflict", "恢复记录已变化，未继续写入。");
       await apply(context, j);
     } catch (error) {
-      if (error instanceof NovelError) throw error;
+      // 记录里的非法 id 等已知错误也属于记录格式问题，统一归为 invalid，原错误挂在 cause 上。
       throw problem(
         "required",
         `${spec.label}未完成（${error instanceof Error ? error.message : String(error)}），请先检查恢复记录。`,

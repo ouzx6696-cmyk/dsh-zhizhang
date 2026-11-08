@@ -2,7 +2,7 @@ import path from "node:path";
 import { dialog, shell } from "electron";
 import { mkdir } from "node:fs/promises";
 import type { Runtime } from "../runtime";
-import { selectTarget } from "../targets";
+import { selectTarget, takeOverTarget } from "../targets";
 import { handle } from "./handle";
 import { listProjects } from "../../../../../packages/fanqie/src/engine/work-store";
 import { listArticles } from "../../../../../packages/toutiao/src/workbench/data";
@@ -18,6 +18,7 @@ export function registerWorkspaceIpc(state: Runtime) {
     version: VERSION,
     updates: state.updateState,
   }));
+  handle("take-over-workspace", (ownerId) => takeOverTarget(state, ownerId));
   handle("choose", async (value) => {
     const mode = value;
     const result = await dialog.showOpenDialog(state.windowOrThrow(), {

@@ -765,6 +765,10 @@ export const COPY = {
   topBarText15: "当前作品由 ",
   topBarText16: "另一应用",
   topBarText17: " 占用，只读。关闭另一应用中的作品后， 重新打开即可写入。",
+  topBarText18: "接管",
+  topBarText19:
+    "接管这部作品？作品锁由 {value0}（{value1}，进程 {value2}）于 {value3} 打开。请确认另一台设备或另一个窗口已关闭这部作品，否则两处写入会互相覆盖。",
+  topBarText20: "已接管，作品恢复可写",
   articlesText1: "去写作",
   articlesText2: "搜索文章",
   articlesText3: "搜索标题",

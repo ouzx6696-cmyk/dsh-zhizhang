@@ -1,5 +1,9 @@
 import { errorText } from "../../../../../packages/core/src/errors.js";
-import { COPY as viewCopy } from "../../../../../packages/ui/src/copy.js";
+import {
+  COPY as viewCopy,
+  formatDateTime,
+  t as viewText,
+} from "../../../../../packages/ui/src/copy.js";
 import { dismissNotices, notify } from "../../../../../packages/ui/src/notify";
 import { DEFAULT_HISTORY_LIMIT } from "../../history-options";
 import { createDraftProtection } from "./draftProtection";
@@ -17,6 +21,7 @@ import { runCommand } from "../../commands";
 import { deliverAction, startNewWork } from "../features/agent/taskActions";
 import { desktop } from "../state/desktop";
 import { useDesktopShortcuts } from "./useDesktopShortcuts";
+import { askConfirm } from "../state/confirm";
 
 const api = desktop;
 const set = desktopStore.set;
@@ -269,6 +274,23 @@ function createDesktopController() {
     });
   }
 
+  /** 只读来自无法自动判定的残留锁时，由作者确认原处已关闭后接管。 */
+  async function takeOverWorkspace() {
+    const access = desktopStore.get().system?.access;
+    if (!access?.readOnly) return;
+    const { owner } = access;
+    const message = viewText("topBarText19", {
+      value0: owner.host,
+      value1: owner.machine,
+      value2: owner.pid,
+      value3: formatDateTime(owner.at),
+    });
+    if (!(await askConfirm(message))) return;
+    await api.takeOverWorkspace(owner.id);
+    await syncState();
+    notify({ tone: "success", text: viewCopy.topBarText20 });
+  }
+
   async function exportFile(format: string) {
     if (!selected.current) return;
     const result = await api.export(selected.current, focused.current, format);
@@ -302,6 +324,7 @@ function createDesktopController() {
     exportFile,
     chooseWorkspace,
     importRoot,
+    takeOverWorkspace,
     canLeave,
     canRestart,
     trackMethodEdit,

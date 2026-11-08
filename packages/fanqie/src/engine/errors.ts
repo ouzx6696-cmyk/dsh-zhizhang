@@ -3,8 +3,8 @@ import { errorText } from "../../../core/src/errors.js";
 /** User/agent-facing errors: Chinese message only, never stack traces. */
 export class NovelError extends Error {
   code;
-  constructor(code: string, message: string) {
-    super(message);
+  constructor(code: string, message: string, options?: ErrorOptions) {
+    super(message, options);
     this.name = "NovelError";
     this.code = code;
   }

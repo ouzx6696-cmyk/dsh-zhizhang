@@ -1,6 +1,8 @@
 // The OS boundary is inert in Node; session/storage behavior remains real.
 export const app = { isPackaged: false };
+// Dialog answers are set per test; a missing answer fails loudly instead of guessing.
 export const dialog = {};
+export const shell = {};
 export class BrowserWindow {}
 export class Notification {
   static isSupported() {
