@@ -7,7 +7,7 @@
       "title": "今日头条写作方法、语料、模板与质检规则",
       "mode": "toutiao",
       "kind": "upstream",
-      "version": "4.1.0",
+      "version": "4.0.0",
       "dest": "packages/toutiao/skill",
       "upstreamRoot": "toutiao-viral-writer",
       "marker": "SKILL.md",
@@ -35,9 +35,7 @@
       "patched": [
         "scripts/ledger.py",
         "scripts/qa_check.py",
-        "tests/test_gates.py",
-        "scripts/rules.py",
-        "scripts/fix_punct.py"
+        "tests/test_gates.py"
       ],
       "exclude": []
     },

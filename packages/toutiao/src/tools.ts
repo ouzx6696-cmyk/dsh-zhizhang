@@ -661,7 +661,6 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
           pass: rec.pass,
           score: rec.score,
           verdict: r.verdict,
-          todo: scriptStrArray(r.todo, "todo"),
           hard_gates: hardGates,
           fails,
           warnings: [...warn, ...scriptStrArray(r.warnings, "warnings")],

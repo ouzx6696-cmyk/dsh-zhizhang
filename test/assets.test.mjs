@@ -66,7 +66,7 @@ test("导入上游新版：比对、应用、版本号、报告、未登记提�
   }
   assert.equal(run(["check", "--root", root]).code, 0);
 
-  // 造一个"4.2.0"上游：改一份方法、加一份、删一份；上游没有本项目的桥接脚本
+  // 造一个"4.1.0"上游：改一份方法、加一份、删一份；上游没有本项目的桥接脚本
   const up = path.join(await tempDir("writer-assets-up-"), "toutiao-viral-writer");
   await cp(path.join(ROOT, "packages/toutiao/skill"), up, {
     recursive: true,
@@ -76,7 +76,7 @@ test("导入上游新版：比对、应用、版本号、报告、未登记提�
   const skill = await readFile(path.join(up, "SKILL.md"), "utf8");
   await writeFile(
     path.join(up, "SKILL.md"),
-    skill.replace("全链路写作（4.1.0）", "全链路写作（4.2.0）"),
+    skill.replace("全链路写作（4.0.0）", "全链路写作（4.1.0）"),
   );
   await writeFile(
     path.join(up, "references/s1-hot.md"),
@@ -87,7 +87,7 @@ test("导入上游新版：比对、应用、版本号、报告、未登记提�
 
   const dry = run(["import", "toutiao-viral-writer", path.dirname(up), "--root", root]);
   assert.equal(dry.code, 0, dry.out);
-  assert.match(dry.out, /4\.1\.0 → 4\.2\.0/);
+  assert.match(dry.out, /4\.0\.0 → 4\.1\.0/);
   assert.match(dry.out, /新增 1、修改 2、删除 1/);
   assert.ok(
     existsSync(path.join(root, "packages/toutiao/skill/corpus/12-文旅消费.md")),
@@ -97,14 +97,14 @@ test("导入上游新版：比对、应用、版本号、报告、未登记提�
   const applied = run(["import", "toutiao-viral-writer", up, "--apply", "--root", root]);
   assert.equal(applied.code, 0, applied.out);
   const sources = JSON.parse(await readFile(path.join(root, "assets/sources.json"), "utf8"));
-  assert.equal(sources.sources.find((s) => s.id === "toutiao-viral-writer").version, "4.2.0");
+  assert.equal(sources.sources.find((s) => s.id === "toutiao-viral-writer").version, "4.1.0");
   assert.ok(
     existsSync(path.join(root, "packages/toutiao/skill/scripts/writer_bridge.py")),
     "本项目文件保留",
   );
   assert.ok(!existsSync(path.join(root, "packages/toutiao/skill/corpus/12-文旅消费.md")));
   const report = await readFile(
-    path.join(root, "assets/updates/toutiao-viral-writer-4.2.0.md"),
+    path.join(root, "assets/updates/toutiao-viral-writer-4.1.0.md"),
     "utf8",
   );
   assert.match(report, /未登记（模型取不到）：packages\/toutiao\/skill\/references\/s8-review\.md/);

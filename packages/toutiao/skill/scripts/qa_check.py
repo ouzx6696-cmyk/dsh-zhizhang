@@ -117,7 +117,7 @@ def title_score(t, micro=False, names=()):
     else:
         hl += 20 if 18 <= len(t) <= 28 else (10 if len(t) >= 14 else 0)
     if re.search(NUM_T, t): hl += 6
-    person = PERSON_T + "|" + "|".join(map(re.escape, STORY_FIGURES)) + ("|" + name_re if name_re else "")
+    person = PERSON_T + ("|" + name_re if name_re else "")
     if re.search(person, t): hl += 8
     if re.search(HOOK_T, t): hl += 6
     if re.search(NUM_T + "|" + person + "|" + HOOK_T + HEAD8_EXTRA, t[:8]):
@@ -194,7 +194,7 @@ class QualitySignals:
 
 def score_ai(signals: QualitySignals):
     # ---- 1 AI味
-    traces = sorted(((w, n) for w in AI_WORDS if (n := count(signals.scan, w)) > 0), key=lambda x: -x[1])
+    traces = sorted(((w, count(signals.scan, w)) for w in AI_WORDS if count(signals.scan, w) > 0), key=lambda x: -x[1])
     hits = sum(c for _, c in traces)
     parallel = sum(1 for i in range(len(signals.sents) - 2)
                    if signals.sents[i][:2] == signals.sents[i + 1][:2] == signals.sents[i + 2][:2] and signals.sents[i][:2])
@@ -366,64 +366,6 @@ def score_compliance(signals: QualitySignals, budget, end_has_num, has_interact,
 
     return cp, ext_gate, ext_info, risk
 
-GATE_FIX = {
-    "非规范标点": "先跑 python3 scripts/fix_punct.py 稿件.md 机械修正，剩下的（装饰符号、波浪号）按报告手改",
-    "标题数字正文没接住": "正文前 5 段接住标题里的数字，或把数字从标题拿掉",
-    "未替换占位符": "全文搜 { }，换成真实内容",
-    "模板槽位残留": "全文搜 [ ]，把模板槽位换成真实内容",
-    "立项卡不符": "按立项卡检查中的否决项逐条核对正文与字段",
-    f"标题超{TITLE_MAX}字": "回 s3-headline.md，砍修饰语，保留人、事、钩子",
-    "AI身份泄漏": "删掉正文里的 AI 自称；发布页照常勾“AI生成”",
-    "延伸节重复主稿": "延伸节删复述，换成延伸自己的新事实、新动作（s4-common.md 延伸四条）",
-}
-DIM_FIX = {
-    "ai": "删套话和句式信号，再把整齐的段落拆出长短（s5-editing.md 第三、四节）",
-    "read": "拆长句、换掉相邻段相同的开头（s5-editing.md 第六节 节奏四刀）",
-    "title": "回 s3-headline.md：前 8 字放人、数或反常，五母体各重写一版再挑",
-    "detail": "补一个具体动作或一句原话；不要靠堆数字拿分",
-    "structure": "补小标题、配图位、互动句；最后一段落在人或动作上，别报数",
-    "compliance": "按风险清单逐条改，第一条最要紧",
-}
-
-
-def fix_plan(hard_gates, items, risk, bill_pen, driver_pen, traces):
-    """打回时给按优先级排好的修改清单（最多 4 条）：硬闸 → 按权重差距排的 fail/warn 维度。"""
-    plan = [f"[硬闸] {g}：{GATE_FIX[g]}" for g in hard_gates if g in GATE_FIX]
-    bad = [i for i in items if i["status"] != "pass"]
-    bad.sort(key=lambda i: -(PASS_LINE[i["key"]] - i["score"] + 10) * WEIGHTS[i["key"]])
-    for i in bad:
-        k, tip = i["key"], DIM_FIX[i["key"]]
-        if k == "ai" and traces:
-            tip = f"先删“{'、'.join(w for w, _ in traces[:3])}”，再把整齐的段落拆出长短（s5-editing.md 第三、四节）"
-        if k == "detail" and (bill_pen or driver_pen):
-            tip = "账单味或超预算：删数字、并掉算账段，先查主驱动定得对不对（s5-editing.md 病型 16）"
-        if k == "compliance" and risk:
-            tip = f"先处理：{risk[0]}"
-        plan.append(f"[{k} {i['score']}/{PASS_LINE[k]}] {tip}")
-    return plan[:4]
-
-
-def guess_line(title, paras):
-    """没给 --line、立项卡时，按故事信号推断内容线。返回 (内容线, 命中数)。"""
-    t = title + "\n" + "\n".join(paras)
-    n = len(re.findall(STORY_SIGNAL_RE, t))
-    n += sum(t.count(m) for m in MOTIFS if len(m) >= 2)
-    n += sum(min(3, t.count(f)) for f in STORY_FIGURES)
-    return ("故事线" if n >= STORY_SIGNAL_MIN else DEFAULT_LINE), n
-
-
-def guess_mode(title, headings, paras):
-    """没给 --mode、立项卡时，按篇幅推断体裁。"""
-    chars = len(re.sub(r"\s", "", "".join(paras)))
-    if chars >= AUTO_LONG_MIN:
-        return "long"
-    if not title and chars <= BANDS["micro"][1] + 200:
-        return "micro"
-    if not headings and chars <= BANDS["micro"][1]:
-        return "micro"
-    return "short"
-
-
 def analyze(title, headings, paras, images, mode=None, driver=None, ext_start=None, hpos=None,
             line=None, names=(), bold=0):
     mode = MODE_ALIAS.get(mode, mode)
@@ -439,7 +381,6 @@ def analyze(title, headings, paras, images, mode=None, driver=None, ext_start=No
 
     # ---- 硬伤与通用信号
     unfilled = re.findall(r"\{[^{}\n]{1,10}\}", scan)[:5]
-    slots = re.findall(SLOT_RE, scan)[:5]
     pronoun_mix = sum(1 for p in paras
                       if "他" in PRONOUN_STRIP.sub("", p) and "她" in PRONOUN_STRIP.sub("", p))
     long_sents = [s for s in sents if cn_len(s) >= 6]      # “没。”“他没接话。”重复是节奏，不算重复句
@@ -481,9 +422,6 @@ def analyze(title, headings, paras, images, mode=None, driver=None, ext_start=No
     bill_pen, bill_per1k, budget, dense_paras, driver_pen, dt, per1k, quotes = score_detail(signals)
     end_has_num, has_interact, st = score_structure(signals, quotes)
     cp, ext_gate, ext_info, risk = score_compliance(signals, budget, end_has_num, has_interact, title_too_long)
-    if slots:
-        cp = clamp(cp - 30)
-        risk.append(f"存在没填的模板槽位 {'、'.join(slots)}，换成真实内容再交")
     hints = []
     used = [n for n in SAMPLE_NAMES if n in scan]
     if used:
@@ -542,7 +480,6 @@ def analyze(title, headings, paras, images, mode=None, driver=None, ext_start=No
     if punct: hard_gates.append("非规范标点")
     if missing_nums: hard_gates.append("标题数字正文没接住")
     if unfilled: hard_gates.append("未替换占位符")
-    if slots: hard_gates.append("模板槽位残留")
     if title_too_long: hard_gates.append(f"标题超{TITLE_MAX}字")
     if leak: hard_gates.append("AI身份泄漏")
     if ext_gate: hard_gates.append("延伸节重复主稿")
@@ -564,7 +501,6 @@ def analyze(title, headings, paras, images, mode=None, driver=None, ext_start=No
                        "para_cv": round(pcv, 2), "hook_chars": hook_len},
             "items": items, "ai_traces": traces[:8], "t1": t1_found, "t2": t2_found,
             "risk_flags": risk, "hints": hints, "verdict": verdict,
-            "todo": fix_plan(hard_gates, items, risk, bill_pen, driver_pen, traces),
             "title": t, "title_len": len(t)}
 
 
@@ -618,14 +554,14 @@ def _is_draft(name):
     return re.fullmatch(r"rev-(\d{3})\.md", name) is not None
 
 
-def load_history(ledger_path, rows, window=HOMOGENEITY_WINDOW, exclude_id="", exclude_title=""):
+def load_history(ledger_path, window=HOMOGENEITY_WINDOW, exclude_id="", exclude_title=""):
     """台账最近 window 行里每篇的当前稿：只挑有 文章ID 且正文目录还在的，供同质化机械比较。
     台账只记立项字段不存正文，所以从台账同目录的 <文章ID>/drafts/ 读最高版本。"""
     if not ledger_path or not os.path.isfile(ledger_path):
         return []
     root = os.path.dirname(os.path.abspath(ledger_path))
     out = []
-    for row in rows[-window:]:
+    for row in read_ledger(ledger_path)[-window:]:
         aid = (row.get("文章ID") or "").strip()
         if not aid or aid == exclude_id:
             continue
@@ -780,19 +716,7 @@ class CardSignals:
     title: str
     today: datetime.date | None
 
-def card_slots(value, prefix=""):
-    if isinstance(value, str):
-        return [prefix] if re.search(SLOT_RE, value) else []
-    if isinstance(value, dict):
-        return [p for k, v in value.items() for p in card_slots(v, f"{prefix}.{k}" if prefix else k)]
-    if isinstance(value, list):
-        return [p for i, v in enumerate(value) for p in card_slots(v, f"{prefix}[{i}]")]
-    return []
-
-
 def check_card_basics(signals: CardSignals):
-    for field in card_slots(signals.card):
-        signals.out.append(("warn", f"立项卡“{field}”还是模板槽位，请回填"))
     if signals.card.get("内容线") and signals.card.get("内容线") not in LINES:
         signals.out.append(("fail", f"立项卡内容线“{signals.card.get('内容线')}”应为 {'/'.join(LINES)}"))
     drv = signals.card.get("主驱动") or LINES[signals.line]["default_driver"] or ""
@@ -979,9 +903,6 @@ def rules_markdown():
           f"- 长图文：延伸节和主稿的 {EXT_SHINGLE} 字片段重合 ≥ {EXT_OVERLAP_FAIL:.0%}（≥ {EXT_OVERLAP_WARN:.0%} 扣 6 分）",
           "- 给了立项卡时：内容线或主驱动非法、锚点人物没出现、主数字没出现、合成人物写成作者亲历、"
           "长图文缺延伸字段或延伸小标题对不上", "",
-          "## 自动推断",
-          f"- 无立项卡且未指定体裁时，≥ {AUTO_LONG_MIN} 字按长图文；无标题或无小标题且在微头条档内按微头条；其余短图文",
-          f"- 无内容线与主驱动时，故事信号 ≥ {STORY_SIGNAL_MIN} 处按故事线；--no-guess 关闭。推断只算预检，正式质检带 --card", "",
           "## 内容线"]
     for k, v in LINES.items():
         L.append(f"- {k}：{v['desc']}。主驱动 {'/'.join(v['drivers'])}；开头式 {'、'.join(OPENINGS[k])}；"
@@ -1060,14 +981,10 @@ def print_report(r):
         print(f"   一票否决：{'、'.join(r['hard_gates'])}")
     print(f"—— 综合 {r['overall']} → {'通过，转人工验收' if r['passed'] else '打回'}")
     print(r["verdict"])
-    if r.get("inferred"):
-        print("推断（仅预检，正式质检请带 --card）：" + "、".join(r["inferred"].values()))
-    for step in r["todo"]:
-        print(f"   修改顺序：{step}")
 
 
 def evaluate_file(file, *, card_file=None, mode=None, driver=None, line=None,
-                  title_override="", extension_start="", ledger=None, article_id="", no_guess=False):
+                  title_override="", extension_start="", ledger=None, article_id=""):
     """One public QA path for CLI and the in-process desktop bridge."""
     card = load_card(card_file) if card_file else None
     if card:
@@ -1087,36 +1004,23 @@ def evaluate_file(file, *, card_file=None, mode=None, driver=None, line=None,
     t = (title_override or title or (card or {}).get("主标题", "")).strip().strip("《》“”\"“”")
     if not paras:
         raise QAInputError("稿件没有正文段落")
-    inferred = {}
-    if not card and not no_guess:
-        if not mode:
-            mode = guess_mode(t, headings, paras)
-            inferred["mode"] = mode
-        if not line:
-            line = DEFAULT_LINE if driver else guess_line(t, paras)[0]
-            inferred["line"] = line
-            if line == "故事线" and not driver:
-                driver = LINES[line]["default_driver"]
     if not t and mode != "micro":
         raise QAInputError("缺少标题（--title、文内 # 一级标题或立项卡主标题）；微头条请加 --mode micro")
     ext_start = extension_start or ((card or {}).get("延伸") or {}).get("起始小标题", "")
     names = [((card or {}).get("锚点人物") or {}).get("名字", "")]
     r = analyze(t, headings, paras, images, mode, driver, ext_start, document.hpos,
                 line=line, names=names, bold=document.bold)
-    r["inferred"] = inferred
     r["hints"] = r["hints"] + marker_density_hints(paras, document.bold_by_para, document.hpos)
-    ledger_rows = read_ledger(ledger)
-    history = load_history(ledger, ledger_rows, exclude_id=article_id, exclude_title=t)
+    history = load_history(ledger, exclude_id=article_id, exclude_title=t)
     if history:
         r["homogeneity"] = {"samples": len(history), "checks": check_homogeneity(
             {"paras": paras, "headings": headings, "hpos": document.hpos}, history)}
     if card:
-        cc = check_card(card, paras, t, ledger_rows, headings=headings, hpos=document.hpos)
+        cc = check_card(card, paras, t, read_ledger(ledger), headings=headings, hpos=document.hpos)
         r["card_checks"] = cc
         fails = [m for lv, m in cc if lv == "fail"]
         if fails:
             r["hard_gates"].append("立项卡不符")
-            r["todo"] = (["[硬闸] 立项卡不符：" + "；".join(fails)] + r["todo"])[:4]
             r["passed"] = False
             r["verdict"] = f"综合{r['overall']}分，打回。立项卡不符：{'；'.join(fails)}。"
     return r
@@ -1137,7 +1041,6 @@ def main():
                     help="发稿台账，默认 outputs/toutiao/log.csv（不存在就跳过）")
     ap.add_argument("--article-id", default="",
                     help="本篇的文章 id：同质化比较时把台账里这篇自己排除")
-    ap.add_argument("--no-guess", action="store_true", help="关闭无立项卡时的体裁与内容线推断")
     ap.add_argument("--rules", action="store_true", help="打印现行规则（Markdown）后退出")
     ap.add_argument("--version", action="version", version=VERSION)
     a = ap.parse_args()
@@ -1149,7 +1052,7 @@ def main():
     try:
         r = evaluate_file(a.file, card_file=a.card, mode=a.mode, driver=a.driver, line=a.line,
                           title_override=a.title, extension_start=a.ext, ledger=a.ledger,
-                          article_id=a.article_id, no_guess=a.no_guess)
+                          article_id=a.article_id)
     except QAInputError as exc:
         print(str(exc))
         sys.exit(2)
