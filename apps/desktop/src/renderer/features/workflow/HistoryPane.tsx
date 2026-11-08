@@ -19,12 +19,13 @@ function totals(rows: WorkflowRecord[]) {
 }
 export function HistoryPane({
   target,
-  updated,
+  revision,
   onError,
   onSelect,
 }: {
   target: Target;
-  updated?: string;
+  /** 记录 id + 状态：阶段逐次保存不变，只在开始、暂停、失败、等待作者时重新读取历史。 */
+  revision: string;
   onError: (text: string) => void;
   onSelect: (record: WorkflowRecord) => void;
 }) {
@@ -42,7 +43,7 @@ export function HistoryPane({
     return () => {
       alive = false;
     };
-  }, [target, updated, onError]);
+  }, [target, revision, onError]);
   return (
     <section>
       <h3>{copy.workflowHistory}</h3>

@@ -97,6 +97,14 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
     run.signal,
     0,
   );
+  // The source rides in the run-constant material (cached prefix) instead of each stage's input;
+  // stage inputs point at it, and every code-side check below still uses the real source.
+  const material = [
+    ...run.context.material,
+    { name: "来源原文", text: `${source.attribution}\n${source.text}`, required: true },
+  ];
+  const sourceRef = { attribution: source.attribution, text: "见材料「来源原文」" };
+  const shared = { sourceRef, material };
   const cardMethod = await stageCard(run, "toutiao", "s2-selection");
   const oldCard = await real.readCard(initial.id);
   const parseCard = (value: unknown) => {
@@ -131,9 +139,10 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
         "生成立项卡",
         "planner",
         cardMethod,
-        { source, line: request.line },
+        { source: sourceRef, line: request.line },
         "返回合法立项卡 JSON，包含 内容线（资讯线/故事线）、体裁（长图文/短图文/微头条）、垂类、主驱动、人群、情绪、主问题、延伸（起始小标题/接的问题）、出处（事实/链接）、主标题、备选标题；故事线还包含故事、母题、改编方式、所用版本。来源按给定原文，不伪造核实记录。",
         parseCard,
+        { material },
       );
   const headlineCard = await stageCard(run, "toutiao", "s3-headline");
   // Recent titles are excluded up front so a finished run is never rejected for a duplicate title.
@@ -147,7 +156,7 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
     "准备标题矩阵",
     "writer",
     headlineCard,
-    { card, source, avoid: recentTitles },
+    { card, source: sourceRef, avoid: recentTitles },
     `返回 {"titles":["标题"]}，至少5个不同切入的标题，每个不超过${limits.titleMax}字；不承诺正文或来源中不存在的事实；不得与 avoid 中的近期标题相同。`,
     (value) => {
       const titles = list(jsonOutput(value).titles, "标题", 20)
@@ -157,6 +166,7 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
         throw new Error("标题矩阵需要至少5个不同标题");
       return { titles };
     },
+    { material },
   );
   const writing = await stageCard(
     run,
@@ -168,7 +178,7 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
     "准备文章结构",
     "planner",
     writing,
-    { card, source, titles: matrix.titles },
+    { card, source: sourceRef, titles: matrix.titles },
     '返回 {"opening":"开篇三段的具体内容和信息推进","structure":"主稿结构与每段所得","extension":"延伸四条或微头条收束方式"}。',
     (value) => {
       const r = jsonOutput(value);
@@ -178,6 +188,7 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
         extension: text(r.extension, "延伸"),
       };
     },
+    { material },
   );
   const count = request.grade === "economy" ? 1 : request.grade === "premium" ? 3 : 2;
   const outcomes = await runTaskPool(count, count, (index) =>
@@ -188,7 +199,7 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
       writing,
       {
         card,
-        source,
+        source: sourceRef,
         blueprint,
         titles: matrix.titles,
         entry: ["从人物处境切入", "从具体事实影响切入", "从读者的问题切入"][index],
@@ -201,6 +212,7 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
         result.body = normalizeDraft(result.body);
         return result;
       },
+      { material },
     ),
   );
   const drafts: Draft[] = outcomes.map((outcome) => {
@@ -208,7 +220,7 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
     return outcome.value;
   });
   const edit = await stageCard(run, "toutiao", "s5-editing");
-  const selection = await selectDraft(run, drafts, edit, "toutiao", [
+  const selection = await selectDraft(run, drafts, "toutiao", [
     { name: "立项卡", text: JSON.stringify(card), required: true },
   ]);
   await run.journal.step(
@@ -221,7 +233,7 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
   );
   let checked = await editDraft(run, drafts[selection.winner], edit, writing);
   // Fact chain runs before the QA gate so a fact repair is itself checked by the gate.
-  let facts = await factChain(run, "facts", edit, checked.draft, source);
+  let facts = await factChain(run, "facts", edit, checked.draft, source, shared);
   const unsupported = facts.claims.filter((claim) => claim.kind === "unsupported");
   if (unsupported.length) {
     const repaired = await run.model(
@@ -229,13 +241,14 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
       "删改无来源事实",
       "writer",
       writing,
-      { draft: checked.draft, unsupported, source },
+      { draft: checked.draft, unsupported, source: sourceRef },
       '删除或改写 unsupported 中的每一条：改为来源支持的表述、明确的观点或删去；其他段落不动。返回 {"title":"标题","body":"完整正文"}。',
       draft,
+      { material },
     );
     repaired.body = normalizeDraft(repaired.body);
     checked = { ...checked, draft: repaired };
-    facts = await factChain(run, "facts-1", edit, checked.draft, source);
+    facts = await factChain(run, "facts-1", edit, checked.draft, source, shared);
   }
   const unverified = facts.claims.filter((claim) => claim.kind === "unsupported");
   const working = new ArticleStore(
@@ -278,23 +291,29 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
       "按质检精修",
       "writer",
       writing,
-      { draft: checked.draft, qa, source },
+      { draft: checked.draft, qa, source: sourceRef },
       '只处理给定质检失败与对应段落，禁止堆数字和口语词刷分；返回 {"title":"标题","body":"完整正文"}。',
       draft,
+      { material },
     );
     refined.body = normalizeDraft(refined.body);
     checked = { ...checked, draft: refined };
   }
   const finalHash = sha256(checked.draft.body);
-  const finalReview = await run.model(
-    "final-review",
-    "核对最终精修稿",
-    "editor",
-    edit,
-    { draft: checked.draft },
-    '返回 {"hard":[{"location":"位置","quote":"正文原文","impact":"读者影响","fix":"局部改法"}],"suggestions":["建议"]}。只报告真正影响阅读或事实信任的硬伤。',
-    (value) => review(value, checked.draft.body, finalHash),
-  );
+  // When neither fact repair nor QA refinement touched the body since the last review in
+  // editDraft, that review already covers this exact text; reuse it instead of paying again.
+  const finalReview =
+    checked.review.bodyHash === finalHash
+      ? checked.review
+      : await run.model(
+          "final-review",
+          "核对最终精修稿",
+          "editor",
+          edit,
+          { draft: checked.draft },
+          '返回 {"hard":[{"location":"位置","quote":"正文原文","impact":"读者影响","fix":"局部改法"}],"suggestions":["建议"]}。只报告真正影响阅读或事实信任的硬伤。',
+          (value) => review(value, checked.draft.body, finalHash),
+        );
   // Remaining issues travel with the working draft to the author; nothing is submitted for them.
   const open = finalReview.hard.length > 0 || checked.unresolved || unverified.length > 0;
   const finalCard = {

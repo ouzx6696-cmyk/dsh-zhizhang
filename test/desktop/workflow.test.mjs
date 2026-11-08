@@ -227,6 +227,16 @@ test("编排完整旅程：调度工具→规划采用→章节多稿、校验�
     state = await f.done(target);
     assert.equal(state.state, "awaiting-author", state.error);
     assert.equal(state.steps.find((row) => row.id === "draft-0").attempts, 2);
+    const draftCalls = f.model.calls.filter(
+      (call) => stageInput(packet(call))?.entry === "从动作进入主场面",
+    );
+    assert.equal(draftCalls.length, 2);
+    assert.ok(!packet(draftCalls[0]).includes("## 上次返回未通过校验"));
+    assert.match(packet(draftCalls[1]), /## 上次返回未通过校验\n.+请按返回格式完整重答/);
+    const system = draftCalls[0].messages.find((row) => row.role !== "user");
+    assert.ok(system, "阶段前缀作为系统提示发送");
+    assert.match(JSON.stringify(system.content), /阶段职责/);
+    assert.ok(!packet(draftCalls[0]).includes("## 阶段职责"), "前缀不重复进入用户消息");
     assert.equal(state.steps.filter((row) => row.id.startsWith("pair-")).length, 6);
     assert.equal((await readChapter(work.dir, "c004")).body, "", "候选不代替作者正文");
     const candidates = await listCandidates(work.dir);
@@ -248,7 +258,15 @@ test("编排完整旅程：调度工具→规划采用→章节多稿、校验�
     await f.host.workflows.start(target, request("chapter", "c005"));
     await until(() => control.held);
     await f.host.stop({ mode: "fanqie", root: f.data });
-    assert.equal((await f.host.workflows.status(target)).state, "paused");
+    const paused = await f.host.workflows.status(target);
+    assert.equal(paused.state, "paused");
+    await f.host.notify(target, { operation: "/chapter/finalize", chapter: "c004" });
+    assert.equal(
+      (await f.host.workflows.status(target)).id,
+      paused.id,
+      "定稿不抢暂停任务的恢复入口",
+    );
+    assert.ok(f.events.some((event) => /自动记账暂缓/.test(event.error ?? "")));
     await f.host.workflows.start(target, request("chapter", "c005"), true);
     state = await f.done(target);
     assert.equal(state.state, "awaiting-author", state.error);
@@ -331,6 +349,22 @@ test("头条完整旅程：本地故事来源→工作稿真实质检→中断�
     state = await f.done(target);
     assert.equal(state.state, "awaiting-author", state.error);
     assert.equal(f.model.calls.length, calls);
+    assert.ok(
+      !state.steps.some((row) => row.id === "final-review"),
+      "终稿自审读后未变，复用审读结论",
+    );
+    const articleCalls = f.model.calls.filter((call) => stageInput(packet(call))?.source);
+    assert.ok(articleCalls.length > 0);
+    assert.ok(
+      articleCalls.every(
+        (call) =>
+          stageInput(packet(call)).source.text === "见材料「来源原文」" &&
+          JSON.stringify(call.messages.filter((row) => row.role !== "user")).includes(
+            "精卫常衔西山之木石",
+          ),
+      ),
+      "来源原文进入材料前缀，阶段输入只留引用",
+    );
     assert.equal((await store.get(meta.id)).drafts.length, 1);
     assert.ok(state.steps.find((row) => row.id === "delivery").output.card);
     await f.host.workflows.apply(target);
@@ -433,10 +467,11 @@ test("两轮定向修订后仍有硬伤：交付最佳稿并标注待作者判�
       { title: "甲", body: "甲稿" },
       { title: "乙", body: "乙稿" },
     ],
-    "",
     "toutiao",
   );
   assert.equal(selection.comparisons.length, 1);
   assert.equal(selection.comparisons[0].reasons.length, 6);
   assert.ok(selection.comparisons[0].reasons[0].startsWith("四五十岁的资讯读者"));
+  const votes = ids.filter((id) => id.startsWith("pair-"));
+  assert.deepEqual(votes.slice(0, 2), ["pair-1-0-0", "pair-1-0-1"], "先跑两个位置预热前缀");
 });

@@ -108,6 +108,32 @@ function fanqieMaterial(input: {
     },
   ];
 }
+/**
+ * The book state a fanqie run depends on. Built once for the basis and again for every freshness
+ * check, so the two can never drift apart; the basis string itself is unchanged for old journals.
+ */
+function fanqieDocument(
+  meta: Meta,
+  chapter: { revision?: unknown } | undefined,
+  previous: { revision?: unknown } | undefined,
+  foreshadow: unknown,
+  knowledge: unknown,
+) {
+  return {
+    book: {
+      title: meta.title,
+      genre: meta.genre,
+      premise: meta.premise,
+      chapters: meta.chapters.map((row) => ({ id: row.id, position: row.position })),
+    },
+    foundation: meta.foundation,
+    planning: meta.planning,
+    chapter: chapter?.revision,
+    previous: previous?.revision,
+    foreshadow,
+    knowledge,
+  };
+}
 export async function workflowContext(
   host: Sessions,
   target: Target,
@@ -192,23 +218,12 @@ export async function workflowContext(
       item.holders.some((holder) => presence.includes(holder.who)),
     ),
   };
-  const snapshot = () =>
-    JSON.stringify({
-      book: {
-        title: meta.title,
-        genre: meta.genre,
-        premise: meta.premise,
-        chapters: meta.chapters.map((row) => ({ id: row.id, position: row.position })),
-      },
-      foundation: meta.foundation,
-      planning: meta.planning,
-      chapter: chapter?.revision,
-      previous: prev?.revision,
-      foreshadow,
-      knowledge,
-    });
   const structured = await readContinuity(dir);
-  const basis = JSON.stringify({ document: JSON.parse(snapshot()), structured, identity });
+  const basis = JSON.stringify({
+    document: fanqieDocument(meta, chapter, prev, foreshadow, knowledge),
+    structured,
+    identity,
+  });
   return {
     stable: JSON.stringify({
       title: meta.title,
@@ -241,24 +256,15 @@ export async function workflowContext(
             ? await findChapter(dir, request.chapter)
             : undefined;
       const prior = previous ? await readChapter(dir, previous.id) : undefined;
-      const [f, k] = await Promise.all([readForeshadow(dir), readKnowledge(dir)]);
+      const [f, k, c] = await Promise.all([
+        readForeshadow(dir),
+        readKnowledge(dir),
+        readContinuity(dir),
+      ]);
       if (
         JSON.stringify({
-          document: {
-            book: {
-              title: now.title,
-              genre: now.genre,
-              premise: now.premise,
-              chapters: now.chapters.map((row) => ({ id: row.id, position: row.position })),
-            },
-            foundation: now.foundation,
-            planning: now.planning,
-            chapter: current?.revision,
-            previous: prior?.revision,
-            foreshadow: f,
-            knowledge: k,
-          },
-          structured: await readContinuity(dir),
+          document: fanqieDocument(now, current, prior, f, k),
+          structured: c,
           identity,
         }) !== basis
       )

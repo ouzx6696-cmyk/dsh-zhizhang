@@ -12,6 +12,21 @@ import {
 } from "./workflow-config.js";
 export * from "./workflow-config.js";
 
+/** Adds one call's usage to a stage total; an unknown cost anywhere keeps the total unknown. */
+export function addUsage(total: WorkflowUsage, next: WorkflowUsage): WorkflowUsage {
+  const hadUsage = total.input + total.output + total.cacheRead + total.cacheWrite > 0;
+  return {
+    input: total.input + next.input,
+    output: total.output + next.output,
+    cacheRead: total.cacheRead + next.cacheRead,
+    cacheWrite: total.cacheWrite + next.cacheWrite,
+    cost:
+      next.cost === null || (hadUsage && total.cost === null)
+        ? null
+        : (total.cost ?? 0) + next.cost,
+  };
+}
+
 function parseRecord(value: unknown): WorkflowRecord {
   if (
     !isRecord(value) ||
@@ -139,16 +154,42 @@ export class WorkflowJournal {
     const raw = await readJson<unknown>(file);
     return raw === undefined ? undefined : parseRecord(raw);
   }
+  private queue: Promise<void> = Promise.resolve();
+  private dirty = false;
+  /**
+   * Saves are serialized and coalesced: a save that arrives while another write is in flight is
+   * folded into the next write, and every write serializes the record at write time, so an older
+   * snapshot can never land after a newer one when parallel stages save together.
+   */
   async save() {
     this.record.updated = nowIso();
-    await atomicWrite(this.file, JSON.stringify(this.record, null, 2));
+    this.dirty = true;
+    // allow-catch: an earlier write's failure was already reported to the caller that awaited it.
+    const write = this.queue
+      .catch(() => undefined)
+      .then(async () => {
+        if (!this.dirty) return; // already written by a write queued ahead of this one
+        this.dirty = false;
+        const text = JSON.stringify(this.record, null, 2);
+        try {
+          await atomicWrite(this.file, text);
+        } catch (error) {
+          this.dirty = true; // let the next queued save retry the latest state
+          throw error;
+        }
+      });
+    this.queue = write;
+    await write;
     this.publish(structuredClone(this.record));
   }
   async step<T>(
     id: string,
     title: string,
     parse: (value: unknown) => T,
-    execute: () => Promise<{ value: unknown; usage: WorkflowUsage }>,
+    execute: (attempt: {
+      index: number;
+      lastError?: string;
+    }) => Promise<{ value: unknown; usage: WorkflowUsage }>,
     signal: AbortSignal,
     retries = 1,
   ): Promise<T> {
@@ -170,6 +211,7 @@ export class WorkflowJournal {
     }
     this.record.state = "running";
     delete this.record.error;
+    let lastError: string | undefined;
     for (let attempt = 0; attempt <= retries; attempt++) {
       const started = Date.now();
       row.status = "running";
@@ -178,19 +220,8 @@ export class WorkflowJournal {
       delete row.error;
       await this.save();
       try {
-        const result = await execute();
-        const hadUsage =
-          row.usage.input + row.usage.output + row.usage.cacheRead + row.usage.cacheWrite > 0;
-        row.usage = {
-          input: row.usage.input + result.usage.input,
-          output: row.usage.output + result.usage.output,
-          cacheRead: row.usage.cacheRead + result.usage.cacheRead,
-          cacheWrite: row.usage.cacheWrite + result.usage.cacheWrite,
-          cost:
-            result.usage.cost === null || (hadUsage && row.usage.cost === null)
-              ? null
-              : (row.usage.cost ?? 0) + result.usage.cost,
-        };
+        const result = await execute({ index: attempt, lastError });
+        row.usage = addUsage(row.usage, result.usage);
         signal.throwIfAborted();
         const parsed = parse(result.value);
         row.output = parsed;
@@ -199,12 +230,22 @@ export class WorkflowJournal {
         await this.save();
         return parsed;
       } catch (error) {
+        // A failed call can still have been billed (a truncated answer is the costly case).
+        const lost = (error as { usage?: WorkflowUsage } | null)?.usage;
+        if (lost) row.usage = addUsage(row.usage, lost);
         row.status = "failed";
         row.durationMs += Date.now() - started;
         row.error = error instanceof Error ? error.message : String(error);
+        lastError = row.error;
         await this.save();
-        if (signal.aborted || attempt === retries || error instanceof WorkflowBudgetError)
-          throw error;
+        // Only content failures earn a second attempt. Provider retries already happened inside
+        // the stage (transient), and a truncation or a provider refusal would repeat as is.
+        const typed = error as { retryable?: unknown; kind?: unknown } | null;
+        const fatal =
+          error instanceof WorkflowBudgetError ||
+          typed?.retryable === false ||
+          typed?.kind === "transient";
+        if (signal.aborted || attempt === retries || fatal) throw error;
       }
     }
     throw new Error("阶段未完成");

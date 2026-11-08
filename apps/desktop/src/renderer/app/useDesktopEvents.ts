@@ -3,7 +3,7 @@ import { taskEndCopy } from "../../../../../packages/ui/src/copy";
 import { scopeId, type Focus, type Target } from "../../context";
 import { chatStore } from "../state/chatStore";
 import { desktopStore, type ChatMessage, type SystemState } from "../state/store";
-import { desktop } from "../state/desktop";
+import { desktop, onDesktopEvent } from "../state/desktop";
 
 const api = desktop;
 const set = desktopStore.set;
@@ -46,8 +46,8 @@ export function useDesktopEvents({
     void (async () => {
       const value = await syncState();
       if (value.target) await selectSnapshot(value.target, false);
-      set({ running: await api.running() });
-      await loadProjects();
+      const [running] = await Promise.all([api.running(), loadProjects()]);
+      set({ running });
     })().catch(fail);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 启动序列只在挂载时执行一次，方法经 handlers.current 实时解引用。
   }, []);
@@ -78,7 +78,7 @@ export function useDesktopEvents({
       frame = 0;
       delta = "";
     };
-    const unsubscribe = api.subscribe((value) => {
+    const unsubscribe = onDesktopEvent((value) => {
       const { jump, selectSnapshot, loadProjects, refreshWorkspace, fail } = handlers.current;
       if (value.running) {
         set({ running: value.running });

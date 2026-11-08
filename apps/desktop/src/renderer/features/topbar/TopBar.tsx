@@ -36,6 +36,8 @@ export function TopBar({ app, onWorkflow }: { app: DesktopController; onWorkflow
     };
     const escape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
+      // 这次 Esc 已用于关菜单；标记后全局快捷键不再关抽屉或询问停止任务。
+      event.preventDefault();
       if (exportOpen) setExportOpen(false);
       if (state.picker) set({ picker: false });
     };
@@ -132,7 +134,7 @@ export function TopBar({ app, onWorkflow }: { app: DesktopController; onWorkflow
             </div>
           )}
         </div>
-        <button className="command-button" onClick={() => set({ palette: true, query: "" })}>
+        <button className="command-button" onClick={() => set({ palette: true })}>
           <Command size={14} />
           <span>
             {viewCopy.topBarText7}

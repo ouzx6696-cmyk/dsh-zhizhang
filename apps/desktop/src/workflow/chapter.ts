@@ -139,7 +139,7 @@ export async function chapterPipeline(run: WorkflowRun, target: Target) {
     ...run.context.material.filter((block) => block.name === "前章结尾"),
     { name: "本章章纲", text: JSON.stringify(plan), required: true },
   ];
-  const selection = await selectDraft(run, drafts, editCard, "fanqie", readerMaterial);
+  const selection = await selectDraft(run, drafts, "fanqie", readerMaterial);
   await run.journal.step(
     "selection",
     "保留选稿报告",

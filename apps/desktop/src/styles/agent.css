@@ -36,6 +36,9 @@
   margin-bottom: 20px;
   font-size: var(--ui-size-12);
   overflow-wrap: anywhere;
+  /* 长历史只布局、绘制视口附近的消息；auto 记住渲染过的真实高度，滚动不跳。 */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 120px;
 }
 .chat-message > small {
   font-size: var(--ui-size-12);

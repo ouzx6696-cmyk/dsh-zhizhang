@@ -5,6 +5,7 @@ import { shouldProactivelyCompact } from "../context-settings";
 import path from "node:path";
 import { rootIdentity } from "../../../../packages/core/src/identity";
 import { mkdir, rm } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { atomicWrite, exists, sha256 } from "../../../../packages/core/src/fsx";
 import { errorText } from "../../../../packages/core/src/errors";
 import type { Focus, Target } from "../context";
@@ -98,15 +99,27 @@ export class Sessions {
     return this.preparations.size > 0 || this.opening.size > 0 || this.workflows.rows().length > 0;
   }
 
+  /** key() runs on every publish; the realpath behind rootIdentity is resolved once per target. */
+  private keys = new Map<string, string>();
   key(target: Target) {
-    return sha256(
-      JSON.stringify({
-        mode: target.mode,
-        root: rootIdentity(target.root),
-        ...(target.article ? { article: target.article } : {}),
-        ...(target.work ? { work: target.work } : {}),
-      }),
-    ).slice(0, 24);
+    const raw = [target.mode, target.root, target.article ?? "", target.work ?? ""].join("\0");
+    let value = this.keys.get(raw);
+    if (value === undefined) {
+      value = sha256(
+        JSON.stringify({
+          mode: target.mode,
+          root: rootIdentity(target.root),
+          ...(target.article ? { article: target.article } : {}),
+          ...(target.work ? { work: target.work } : {}),
+        }),
+      ).slice(0, 24);
+      // A missing root resolves without realpath; remember it only once it exists.
+      if (existsSync(target.root)) {
+        if (this.keys.size >= 256) this.keys.clear();
+        this.keys.set(raw, value);
+      }
+    }
+    return value;
   }
 
   async directory(target: Target) {
@@ -177,6 +190,16 @@ export class Sessions {
     await notifyAuthor(this, target, value);
     if (value.operation === "/chapter/finalize" && value.chapter && this.extras.engine?.().guided) {
       try {
+        // A paused writing run owns this work's resume pointer, and its basis includes the
+        // continuity ledger: auto-ledgering now would make that run unrecoverable. Hold off.
+        const current = await this.workflows.status(target);
+        if (current?.state === "paused" && current.request.kind !== "ledger") {
+          this.emit({
+            target,
+            error: "定稿已保存；有暂停中的写作任务，自动记账暂缓，任务结束后可在连续性看板补记。",
+          });
+          return;
+        }
         await this.workflows.start(target, {
           kind: "ledger",
           chapter: value.chapter,

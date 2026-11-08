@@ -9,7 +9,7 @@ import type {
 } from "../../../../../../packages/core/src/workflow-config.js";
 import { CLASSICS } from "../../../../../../packages/toutiao/src/classics.js";
 import type { Target, Focus } from "../../../context";
-import { desktop } from "../../state/desktop";
+import { desktop, onDesktopEvent } from "../../state/desktop";
 import { PersonalPane } from "./PersonalPane";
 import { HistoryPane } from "./HistoryPane";
 import { ContinuityPane } from "./ContinuityPane";
@@ -153,7 +153,7 @@ export function WorkflowPanel({
       .catch((error) => {
         if (alive) setError(errorText(error));
       });
-    const off = desktop.subscribe((event) => {
+    const off = onDesktopEvent((event) => {
       if (
         event.workflow &&
         event.target?.mode === target.mode &&
@@ -312,7 +312,7 @@ export function WorkflowPanel({
             </button>
             <HistoryPane
               target={target}
-              updated={value?.updated}
+              revision={value ? value.id + ":" + value.state : ""}
               onError={setError}
               onSelect={setArchived}
             />

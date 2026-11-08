@@ -128,8 +128,8 @@ export function useDesktopController() {
     });
     selected.current = chosen;
     await syncState();
-    await loadView(chosen);
-    chatStore.set({ archives: await api.conversations(chosen) });
+    const [, archives] = await Promise.all([loadView(chosen), api.conversations(chosen)]);
+    chatStore.set({ archives });
   }
 
   // Event subscriptions stay mounted; dereference the current controller on each event.

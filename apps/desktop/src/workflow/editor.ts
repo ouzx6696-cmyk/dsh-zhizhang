@@ -22,6 +22,9 @@ const READERS = {
 } as const;
 /** Parallel reader calls per challenger; each vote is an independent fresh request. */
 const VOTE_CONCURRENCY = 4;
+/** Readers get a short reader brief, not the editor's method card. */
+const READER_CARD =
+  "你只代表给定画像的普通读者。只凭正文判断愿不愿意继续读；不评价写作技巧，不用章纲以外的设定苛求正文。弃读点要指到具体段落。";
 /**
  * King-of-the-hill reader comparison. Each challenger meets the current winner once per persona in
  * both positions; votes run in parallel and only a position-stable verdict counts.
@@ -29,7 +32,6 @@ const VOTE_CONCURRENCY = 4;
 export async function selectDraft(
   run: WorkflowRun,
   drafts: Draft[],
-  card: string,
   mode: "fanqie" | "toutiao" = "fanqie",
   material?: ContextBlock[],
 ) {
@@ -43,26 +45,34 @@ export async function selectDraft(
     const jobs = readers.flatMap((persona, index) =>
       [false, true].map((swapped) => ({ persona, index, swapped })),
     );
-    const outcomes = await runTaskPool(jobs.length, VOTE_CONCURRENCY, async (job) => {
+    const vote = async (job: number) => {
       const { persona, index, swapped } = jobs[job];
       const a = swapped ? challenger : incumbent,
         b = swapped ? incumbent : challenger;
-      const vote = await run.model(
+      const result = await run.model(
         `pair-${challenger}-${index}-${Number(swapped)}`,
         "读者比较",
         "editor",
-        card,
-        { persona, A: drafts[a], B: drafts[b] },
+        READER_CARD,
+        // Drafts first and persona last: votes in the same position share the long prefix.
+        { A: drafts[a], B: drafts[b], persona },
         '你是给定画像的普通读者，只依据正文比较继续阅读意愿，不评估软件。指出每稿具体弃读段；位置交换后重新独立判断。返回 {"winner":"A或B或tie","reason":"正文证据","abandonA":"段落及原因或未发现","abandonB":"段落及原因或未发现"}。',
         pairVote,
         material ? { material } : {},
       );
       return {
         persona,
-        winner: vote.winner === "tie" ? -1 : vote.winner === "A" ? a : b,
-        reason: `${persona}：${vote.reason}；A：${vote.abandonA}；B：${vote.abandonB}`,
+        winner: result.winner === "tie" ? -1 : result.winner === "A" ? a : b,
+        reason: `${persona}：${result.reason}；A：${result.abandonA}；B：${result.abandonB}`,
       };
-    });
+    };
+    // Jobs 0 and 1 are the two positions of the first persona: running them first lets both
+    // (A, B) prefixes reach the provider's cache before the remaining votes go out in parallel.
+    const seeded = await runTaskPool(2, 2, vote);
+    const seedFailed = seeded.find((outcome) => outcome.status === "failed");
+    if (seedFailed?.status === "failed") throw seedFailed.error;
+    const rest = await runTaskPool(jobs.length - 2, VOTE_CONCURRENCY, (job) => vote(job + 2));
+    const outcomes = [...seeded, ...rest];
     const failed = outcomes.find((outcome) => outcome.status === "failed");
     if (failed?.status === "failed") throw failed.error;
     let left = 0,

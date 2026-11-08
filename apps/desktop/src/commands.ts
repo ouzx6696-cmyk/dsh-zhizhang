@@ -90,11 +90,19 @@ const HANDLERS: Record<string, (deps: CommandDependencies) => Promise<unknown>> 
     return;
   },
 };
-const COMMAND_DESCRIPTIONS: { id: string; label: string; hint: string; palette?: boolean }[] = [
+const COMMAND_DESCRIPTIONS: {
+  id: string;
+  label: string;
+  hint: string;
+  palette?: boolean;
+  /** 只在这些模式的作品里列入命令面板；未打开作品时全部列出。 */
+  modes?: Target["mode"][];
+}[] = [
   {
     id: "新书",
     label: "创建新书",
     hint: "先创建作品，再做开书规划",
+    modes: ["fanqie"],
   },
   {
     id: "续写",
@@ -151,6 +159,6 @@ export function getCommand(id: string) {
   return command;
 }
 export async function runCommand(deps: CommandDependencies) {
-  deps.set({ palette: false, query: "" });
+  deps.set({ palette: false });
   return getCommand(deps.name).run(deps);
 }

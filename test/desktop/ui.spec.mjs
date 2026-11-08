@@ -312,7 +312,7 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
     await page.keyboard.press("Control+k");
     const commands = page.getByRole("dialog", { name: "命令面板" });
     await expect(commands).toBeVisible();
-    await expect(commands.getByRole("button", { name: /新对话/ })).toBeVisible();
+    await expect(commands.getByRole("option", { name: /新对话/ })).toBeVisible();
     await page.keyboard.press("Escape");
     await page.getByRole("button", { name: "设置", exact: true }).click();
     const settings = page.getByRole("dialog", { name: "设置", exact: true });
@@ -392,7 +392,7 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
     await page.keyboard.press("Control+k");
     await page
       .getByRole("dialog", { name: "命令面板" })
-      .getByRole("button", { name: /新对话/ })
+      .getByRole("option", { name: /新对话/ })
       .click();
     await expect(page.locator(".studio-nav")).toContainText("雨夜");
     expect(await page.evaluate(async () => (await window.writerDesktop.state()).target)).toEqual(

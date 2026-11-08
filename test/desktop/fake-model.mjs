@@ -81,7 +81,7 @@ export async function fakeModel(scripts = {}, respond) {
         role: "assistant",
         ...(tool ? { tool_calls: [{ index: 0, ...tool }] } : { content: next.text || "完成。" }),
       });
-      send({}, tool ? "tool_calls" : "stop", {
+      send({}, next.finish || (tool ? "tool_calls" : "stop"), {
         prompt_tokens: next.usage?.prompt_tokens ?? 30,
         completion_tokens: next.usage?.completion_tokens ?? 8,
         ...(next.usage || {}),

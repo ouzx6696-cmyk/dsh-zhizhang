@@ -54,7 +54,8 @@ export function SourceEditor({ initial, title, note, hint, onSave, onCancel, onS
 
   useEffect(() => {
     const keyboard = (event) => {
-      if (document.querySelector('[aria-modal="true"]')) return;
+      // 原生 showModal() 不加 aria-modal；与全局快捷键用同一判定，对话框打开时把 Esc 留给对话框。
+      if (document.querySelector("dialog[open]")) return;
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
         event.preventDefault();
         event.stopImmediatePropagation();

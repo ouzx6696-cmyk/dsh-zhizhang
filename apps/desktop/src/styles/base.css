@@ -115,13 +115,30 @@ html[data-writer-desktop] #root {
 html[data-writer-desktop] body {
   overflow: hidden;
 }
-.writer-desktop {
+/* 工作台组件只认 --wb-*：桌面主题在这里一次接管，避免语义色回落到系统色。
+   工作台对话框里嵌套的 .wb-scope 会重设系统色默认值，所以一并覆盖。 */
+.writer-desktop,
+.writer-desktop .wb-scope {
   --wb-bg: var(--ui-bg);
   --wb-fg: var(--ui-text);
-  --wb-muted: var(--ui-text-3);
-  --wb-surface: var(--ui-panel);
-  --wb-border: var(--ui-line);
+  --wb-fg-2: var(--ui-text-2);
+  --wb-fg-3: var(--ui-text-3);
+  --wb-line: var(--ui-line);
+  --wb-line-strong: var(--ui-line-strong);
+  --wb-card: var(--ui-fill);
+  --wb-hover: var(--ui-fill-strong);
+  --wb-active: var(--ui-accent-soft);
   --wb-accent: var(--ui-accent);
+  --wb-accent-soft: var(--ui-accent-soft);
+  --wb-ok: var(--ui-success);
+  --wb-ok-soft: color-mix(in srgb, var(--ui-success) 14%, transparent);
+  --wb-warn: var(--ui-warning);
+  --wb-warn-soft: color-mix(in srgb, var(--ui-warning) 18%, transparent);
+  --wb-bad: var(--ui-danger);
+  --wb-bad-soft: color-mix(in srgb, var(--ui-danger) 14%, transparent);
+  --wb-skeleton: var(--ui-fill-strong);
+}
+.writer-desktop {
   height: 100dvh;
   display: flex;
   flex-direction: column;

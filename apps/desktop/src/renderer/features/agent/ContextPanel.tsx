@@ -6,7 +6,7 @@ import {
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { scopeId, type Target } from "../../../context";
 import { type ContextSettings } from "../../../context-settings";
-import { desktop } from "../../state/desktop";
+import { desktop, onDesktopEvent } from "../../state/desktop";
 import { errorText } from "../../../../../../packages/core/src/errors.js";
 
 type Usage = Awaited<ReturnType<typeof desktop.contextUsage>>;
@@ -47,7 +47,7 @@ export function ContextPanel({
       if (active) setMessage(errorText(e));
     });
     let frame = 0;
-    const unsubscribe = desktop.subscribe(({ target: changed, event, editor }) => {
+    const unsubscribe = onDesktopEvent(({ target: changed, event, editor }) => {
       if (editor || !changed || scopeId(changed) !== scopeId(target) || !event) return;
       if (event.type === "compaction_start") {
         setUsage((current) => (current ? { ...current, compacting: true } : current));

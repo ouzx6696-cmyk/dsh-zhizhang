@@ -282,6 +282,21 @@ export function trackSession(options: {
     if (event.type === "tool_execution_start") entry.phase = toolLabel(event.toolName) + "…";
     if (event.type === "compaction_start") entry.phase = "正在整理对话上下文…";
     if (event.type === "auto_retry_start") entry.phase = "模型连接重试中…";
+    // 渲染层只用主会话的文本增量。PI 的 message 与 assistantMessageEvent.partial 都是累积全文快照，
+    // 逐 token 原样转发会让 IPC 复制量随输出长度平方增长；增量也不改 task/phase，不必随附。
+    if (event.type === "message_update") {
+      const update = event.assistantMessageEvent;
+      if (primary && update.type === "text_delta")
+        host.emit({
+          conversationId: manager.getSessionId(),
+          target,
+          event: {
+            type: "message_update",
+            assistantMessageEvent: { type: "text_delta", delta: update.delta },
+          },
+        });
+      return;
+    }
     const forward = () => {
       let forwarded: DesktopEvent["event"] = event;
       if (event.type === "message_end") {

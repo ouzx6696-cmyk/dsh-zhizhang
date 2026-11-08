@@ -2,7 +2,7 @@ import { ContextPanel } from "./ContextPanel";
 import { COPY as viewCopy } from "../../../../../../packages/ui/src/copy.js";
 import { TaskProgress } from "./TaskProgress";
 import { AgentMessageList, ChatStream } from "./AgentMessages";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Send, Plus, History } from "lucide-react";
 import { humanVersion } from "../../format";
 import { getCommand } from "../../../commands";
@@ -40,6 +40,14 @@ export function AgentPanel({ app }: { app: DesktopController }) {
     const list = listRef.current;
     if (list) list.scrollTop = list.scrollHeight;
   }, [selected]);
+  // 「查看更早记录」在顶部插入消息：记下距底部的距离，提交后还原，视口停在原来读到的位置。
+  const olderAnchor = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (!list || olderAnchor.current === null) return;
+    list.scrollTop = list.scrollHeight - olderAnchor.current;
+    olderAnchor.current = null;
+  }, [messages]);
   useEffect(() => {
     const list = listRef.current;
     if (list && stickToBottom.current) list.scrollTop = list.scrollHeight;
@@ -190,8 +198,14 @@ export function AgentPanel({ app }: { app: DesktopController }) {
           <button
             onClick={() => {
               if (!selected) return;
+              const list = listRef.current;
+              if (list) olderAnchor.current = list.scrollHeight - list.scrollTop;
+              stickToBottom.current = false;
               app.limit.current += 80;
-              void app.loadView(selected, app.limit.current, archive).catch(fail);
+              void app.loadView(selected, app.limit.current, archive).catch((error) => {
+                olderAnchor.current = null;
+                fail(error);
+              });
             }}
           >
             {viewCopy.agentPanelText41}
@@ -220,9 +234,7 @@ export function AgentPanel({ app }: { app: DesktopController }) {
               {label}
             </button>
           ))}
-          <button onClick={() => set({ palette: true, query: "" })}>
-            {viewCopy.agentPanelText44}
-          </button>
+          <button onClick={() => set({ palette: true })}>{viewCopy.agentPanelText44}</button>
         </div>
         <form onSubmit={submit}>
           <div className="input-target">
@@ -240,7 +252,7 @@ export function AgentPanel({ app }: { app: DesktopController }) {
             onKeyDown={(event) => {
               if (event.key === "/" && !draft) {
                 event.preventDefault();
-                set({ palette: true, query: "" });
+                set({ palette: true });
               }
               if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                 event.preventDefault();

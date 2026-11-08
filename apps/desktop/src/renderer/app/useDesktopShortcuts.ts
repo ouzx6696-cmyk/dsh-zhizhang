@@ -25,7 +25,7 @@ export function useDesktopShortcuts(options: {
       const { selected, context, set, stop } = latest.current;
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
-        set((current) => ({ palette: !current.palette, query: "" }));
+        set((current) => ({ palette: !current.palette }));
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
         event.preventDefault();

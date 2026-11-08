@@ -17,6 +17,25 @@ function messageBody(message: ChatMessage) {
         .join("\n");
 }
 
+/**
+ * 按空行切分流式文本（代码围栏内不切）。已闭合的段落交给 memo 的 Markdown 跳过重解析，
+ * 只有尾段逐帧解析；message_end 后正式消息整体替换，跨段的细微差异只是暂时的。
+ */
+function streamBlocks(text: string) {
+  const blocks: string[] = [];
+  let start = 0,
+    fenced = false;
+  for (const match of text.matchAll(/^```|\n{2,}/gm)) {
+    if (match[0] === "```") fenced = !fenced;
+    else if (!fenced) {
+      blocks.push(text.slice(start, match.index));
+      start = match.index + match[0].length;
+    }
+  }
+  blocks.push(text.slice(start));
+  return blocks;
+}
+
 export function ChatStream({
   hasMessages,
   listRef,
@@ -35,7 +54,10 @@ export function ChatStream({
     return (
       <article className="chat-message assistant">
         <small>Agent</small>
-        <Markdown text={stream} />
+        {streamBlocks(stream).map((block, index) => (
+          // 段落只在末尾追加，下标即稳定身份。
+          <Markdown key={index} text={block} />
+        ))}
       </article>
     );
   if (hasMessages) return null;

@@ -1,6 +1,6 @@
 import { humanVersion } from "../../format";
 import { COPY as viewCopy } from "../../../../../../packages/ui/src/copy.js";
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import { useFanqie } from "../../../../../../packages/workbench/src/client/fanqie/useFanqie.js";
 import { ChapterList } from "../../../../../../packages/workbench/src/client/fanqie/ChapterList.jsx";
 import { Reader } from "../../../../../../packages/workbench/src/client/fanqie/Reader.jsx";
@@ -30,6 +30,25 @@ interface VolumeGroup {
   title?: string;
   chapters?: string[];
   rows: SnapshotChapterRow[];
+}
+
+/** 按卷分组章节；同一章只归第一个列出它的卷，未归卷的章节收进末尾分组。 */
+function volumeGroups(volumes: SnapshotVolume[], chapters: SnapshotChapterRow[]) {
+  const assigned = new Set<string>();
+  const groups: VolumeGroup[] = volumes.map((volume) => {
+    const members = new Set(volume.chapters);
+    const rows = chapters.filter((chapter) => members.has(chapter.id) && !assigned.has(chapter.id));
+    for (const row of rows) assigned.add(row.id);
+    return { ...volume, rows };
+  });
+  const ungrouped = chapters.filter((chapter) => !assigned.has(chapter.id));
+  if (ungrouped.length)
+    groups.push({
+      id: "ungrouped",
+      title: groups.length ? viewCopy.workspaceText5 : "",
+      rows: ungrouped,
+    });
+  return groups;
 }
 
 function Novel(props: WorkspaceProps) {
@@ -158,24 +177,10 @@ function Novel(props: WorkspaceProps) {
       )}
     </div>
   );
-  const assigned = new Set<string>();
-  const groups: VolumeGroup[] = (view.snap?.volumes || []).map((volume: SnapshotVolume) => ({
-    ...volume,
-    rows: view.chapters.filter((chapter: SnapshotChapterRow) => {
-      if (!volume.chapters.includes(chapter.id) || assigned.has(chapter.id)) return false;
-      assigned.add(chapter.id);
-      return true;
-    }),
-  }));
-  const ungrouped = view.chapters.filter(
-    (chapter: SnapshotChapterRow) => !assigned.has(chapter.id),
-  );
-  if (ungrouped.length)
-    groups.push({
-      id: "ungrouped",
-      title: groups.length ? viewCopy.workspaceText5 : "",
-      rows: ungrouped,
-    });
+  const volumes: SnapshotVolume[] | undefined = view.snap?.volumes;
+  const chapters: SnapshotChapterRow[] = view.chapters;
+  // 卷 × 章的分组只在快照变化时重算，避免每次渲染都全量扫描。
+  const groups = useMemo(() => volumeGroups(volumes || [], chapters), [volumes, chapters]);
   const navigation = (
     <>
       <h2>{viewCopy.writingChapters}</h2>

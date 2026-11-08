@@ -126,6 +126,10 @@
   padding: 10px 12px;
 }
 
+.command-list [aria-selected="true"] {
+  background: var(--ui-accent-soft);
+}
+
 .command-list small {
   display: block;
   font-size: var(--ui-size-12);

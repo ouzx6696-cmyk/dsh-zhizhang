@@ -1,13 +1,18 @@
 import { jsonOutput, list, locate, record, text, type Draft } from "./schema";
+import type { ContextBlock } from "../../../../packages/core/src/workflow";
 import type { WorkflowRun } from "./run";
 
-/** One fact-chain pass: every external claim with its source evidence, or marked unsupported. */
+/**
+ * One fact-chain pass: every external claim with its source evidence, or marked unsupported. The
+ * model reads the source from the cached material block; evidence is still located in the real text.
+ */
 export function factChain(
   run: WorkflowRun,
   id: string,
   card: string,
   body: Draft,
   source: { text: string },
+  shared: { sourceRef: unknown; material: ContextBlock[] },
 ) {
   const line = run.journal.record.request.line;
   return run.model(
@@ -15,7 +20,7 @@ export function factChain(
     "核对事实与原文",
     "editor",
     card,
-    { draft: body, source },
+    { draft: body, source: shared.sourceRef },
     '逐条列出正文中的外部事实或原典引文及其来源证据。返回 {"claims":[{"claim":"正文原文","quote":"来源原文；无来源时为空","kind":"fact或quotation或fiction或unsupported"}]}。没有来源的事实标 unsupported，不能省略；fiction只用于已明确标注的故事演绎。',
     (value) => {
       const claims = list(jsonOutput(value).claims, "事实链", 100).map((raw) => {
@@ -34,5 +39,6 @@ export function factChain(
       if (!claims.length) throw new Error("未提供可核对的事实链");
       return { claims };
     },
+    { material: shared.material },
   );
 }

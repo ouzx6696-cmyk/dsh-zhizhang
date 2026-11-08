@@ -32,7 +32,6 @@ export type DesktopState = {
   projects: ProjectItem[];
   picker: boolean;
   palette: boolean;
-  query: string;
   workspaceKey: number;
   wizardStep: number;
   wizardModels: SystemModels | null;
@@ -52,7 +51,6 @@ const initialState: DesktopState = {
   projects: [],
   picker: false,
   palette: false,
-  query: "",
   workspaceKey: 0,
   wizardStep: 0,
   wizardModels: null,

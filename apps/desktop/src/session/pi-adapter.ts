@@ -13,8 +13,10 @@ import {
   getSupportedThinkingLevels,
   clampThinkingLevel,
   InMemoryModelsStore,
+  isRetryableAssistantError,
 } from "@earendil-works/pi-ai";
-export { getSupportedThinkingLevels, clampThinkingLevel };
+import { createHash } from "node:crypto";
+export { getSupportedThinkingLevels, clampThinkingLevel, isRetryableAssistantError };
 const catalogStore = new InMemoryModelsStore();
 let proxyConfigured = false;
 const LOOPBACK = ["localhost", "127.0.0.1", "::1"];
@@ -99,6 +101,27 @@ export async function runtimeModel(settings: ModelConnection, authPath: string, 
   const model = runtime.getModel("writer-" + role, settings.model);
   if (!model) throw new Error("模型配置未生效");
   return { runtime, model };
+}
+/** Pipeline stages reuse one runtime per connection instead of rebuilding the provider catalog. */
+const stageRuntimes = new Map<string, ReturnType<typeof runtimeModel>>();
+const STAGE_RUNTIME_LIMIT = 8;
+export function stageRuntimeModel(settings: ModelConnection, authPath: string, role: string) {
+  // Hashed so the cache key holds no plain API key; any settings change is a different key.
+  const key = createHash("sha256")
+    .update(JSON.stringify([authPath, role, settings]))
+    .digest("hex");
+  let hit = stageRuntimes.get(key);
+  if (!hit) {
+    if (stageRuntimes.size >= STAGE_RUNTIME_LIMIT)
+      stageRuntimes.delete(stageRuntimes.keys().next().value as string);
+    hit = runtimeModel(settings, authPath, role);
+    stageRuntimes.set(key, hit);
+    const pending = hit;
+    pending.catch(() => {
+      if (stageRuntimes.get(key) === pending) stageRuntimes.delete(key);
+    });
+  }
+  return hit;
 }
 export async function promptAccepted(
   session: AgentSession,

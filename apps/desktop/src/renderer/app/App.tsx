@@ -120,8 +120,12 @@ function App() {
   );
 }
 
-const preview =
-  import.meta.env.DEV && new URLSearchParams(window.location.search).has("ui-preview");
+const search = new URLSearchParams(window.location.search);
+const preview = import.meta.env.DEV && search.has("ui-preview");
+// 主进程按已保存主题在地址里带上 theme：syncState 返回前的首帧就用对的配色。
+const initialTheme = search.get("theme");
+if (initialTheme === "dark" || initialTheme === "light")
+  document.documentElement.dataset.theme = initialTheme;
 const root = document.getElementById("root");
 if (!root) throw new Error("找不到界面挂载点 #root，无法启动界面");
 createRoot(root).render(

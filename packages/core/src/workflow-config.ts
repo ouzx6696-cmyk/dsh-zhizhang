@@ -154,12 +154,24 @@ export function contextPacket(stable: ContextBlock[], variable: ContextBlock[], 
   if (estimateInput(serialize(required)) > limit)
     throw new WorkflowBudgetError("阶段上下文超预算；请缩小任务或调整预算，未截断关键材料");
   const accepted = new Set(required);
+  // Prefix-stable selection: once one optional block does not fit, every later optional block
+  // yields too, so stages of one run differ only at the tail of their shared prefix. Callers
+  // order optional material from most to least important.
+  let full = false;
   for (const block of blocks)
     if (!block.required && block.text.trim()) {
       const next = blocks.filter((value) => accepted.has(value) || value === block);
-      if (estimateInput(serialize(next)) <= limit) accepted.add(block);
-      else omitted.push(block.name);
+      if (!full && estimateInput(serialize(next)) <= limit) accepted.add(block);
+      else {
+        full = true;
+        omitted.push(block.name);
+      }
     }
-  const text = serialize(blocks.filter((block) => accepted.has(block)));
-  return { text, omitted, tokens: estimateInput(text) };
+  const keep = (items: ContextBlock[]) => items.filter((block) => accepted.has(block));
+  // The stable part becomes the request's system prompt (a cache breakpoint on Claude-style
+  // APIs); the variable part is the user message. Joined, they equal the whole packet.
+  const prefix = serialize(keep(stable)),
+    suffix = serialize(keep(variable));
+  const text = [prefix, suffix].filter(Boolean).join("\n\n");
+  return { text, prefix, suffix, omitted, tokens: estimateInput(text) };
 }
