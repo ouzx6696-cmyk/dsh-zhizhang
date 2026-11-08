@@ -854,6 +854,28 @@ export function formatCount(n: unknown) {
   return Number.isFinite(value) ? value.toLocaleString("zh-CN") : "0";
 }
 
+type TokenUsage = { input?: number; output?: number; cacheRead?: number; cacheWrite?: number };
+
+/** One wording for token usage everywhere: "输入 1,234 · 输出 567 tokens" (cache counted as input). */
+export function formatTokens(usage: TokenUsage | undefined) {
+  if (!usage) return "—";
+  const input = (usage.input ?? 0) + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0);
+  return `输入 ${formatCount(input)} · 输出 ${formatCount(usage.output ?? 0)} tokens`;
+}
+
+/** One wording for cost everywhere: four decimals, "未知" when the provider gives no price. */
+export function formatCost(cost: number | null | undefined) {
+  return typeof cost === "number" && Number.isFinite(cost) ? `$${cost.toFixed(4)}` : "费用未知";
+}
+
+/** Elapsed time as s or m:ss. */
+export function formatElapsed(ms: number) {
+  const seconds = Math.max(0, Math.floor(ms / 1000));
+  return seconds < 60
+    ? `${seconds}s`
+    : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
 /** HH:MM:SS for status lines; empty when the timestamp is unusable. */
 export function formatClock(iso?: string) {
   const date = iso ? new Date(iso) : null;
