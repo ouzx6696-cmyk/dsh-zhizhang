@@ -1,24 +1,36 @@
 /**
- * 最小 hook 运行时：按调用顺序保存 state / ref / memo / effect，setState 之后由 flush 重渲染。
- * 用来在 Node 里驱动写作台组件的真实异步状态流，不引入新的测试依赖。
- * 子组件展开时不占用槽位（只读渲染），被测组件本身的状态完整保留。
+ * 最小 hook 运行时：每个组件实例（按在树里的位置与 key 区分）各自按调用顺序保存
+ * state / ref / memo / effect / 外部订阅，setState 或外部 store 变化之后由 flush 重渲染。
+ * 用来在 Node 里驱动写作台与设计系统组件的真实状态流，不引入新的测试依赖。
+ * effect 先子后父执行；一次渲染中没再出现的实例视为卸载，执行它的清理。
  */
 export function createRuntime() {
-  const slots = [];
-  let cursor = 0;
-  let pending = [];
+  const instances = new Map();
+  let current = null;
   let dirty = false;
-  let stateless = false;
+  let seen = new Set();
+  let order = [];
   const same = (a, b) =>
     Array.isArray(a) &&
     Array.isArray(b) &&
     a.length === b.length &&
     a.every((v, i) => Object.is(v, b[i]));
   const slot = (init) => {
-    if (stateless) return { value: init() };
-    const index = cursor++;
-    if (!(index in slots)) slots[index] = { value: init() };
-    return slots[index];
+    const index = current.cursor++;
+    if (!(index in current.slots)) current.slots[index] = { value: init() };
+    return current.slots[index];
+  };
+  const useEffect = (effect, deps) => {
+    const cell = slot(() => ({ deps: undefined, cleanup: undefined, effect: true }));
+    if (deps !== undefined && same(cell.value.deps, deps)) return;
+    current.pending.push(() => {
+      if (typeof cell.value.cleanup === "function") cell.value.cleanup();
+      cell.value = { deps, cleanup: effect(), effect: true };
+    });
+  };
+  const destroy = (instance) => {
+    for (const cell of instance.slots)
+      if (cell.value?.effect && typeof cell.value.cleanup === "function") cell.value.cleanup();
   };
   const react = {
     createElement: (type, props, ...children) => ({
@@ -46,48 +58,79 @@ export function createRuntime() {
     useRef: (initial) => slot(() => ({ current: initial })).value,
     useMemo(factory, deps) {
       const cell = slot(() => ({ deps: undefined, result: undefined }));
-      if (stateless) return factory();
       if (!same(cell.value.deps, deps)) cell.value = { deps, result: factory() };
       return cell.value.result;
     },
     useCallback: (fn, deps) => react.useMemo(() => fn, deps),
-    useEffect(effect, deps) {
-      if (stateless) return;
-      const cell = slot(() => ({ deps: undefined, cleanup: undefined }));
-      if (same(cell.value.deps, deps)) return;
-      pending.push(() => {
-        if (typeof cell.value.cleanup === "function") cell.value.cleanup();
-        cell.value = { deps, cleanup: effect() };
-      });
+    useEffect,
+    useLayoutEffect: useEffect,
+    useSyncExternalStore(subscribe, getSnapshot) {
+      const cell = slot(() => ({ effect: true, cleanup: undefined }));
+      if (!cell.value.cleanup)
+        cell.value.cleanup = subscribe(() => {
+          dirty = true;
+        });
+      return getSnapshot();
     },
   };
-  const expand = (node) => {
-    if (Array.isArray(node)) return node.map(expand);
+  const renderInstance = (type, props, path) => {
+    let instance = instances.get(path);
+    if (!instance || instance.type !== type) {
+      if (instance) destroy(instance);
+      instance = { type, slots: [], cursor: 0, pending: [] };
+      instances.set(path, instance);
+    }
+    seen.add(path);
+    const parent = current;
+    current = instance;
+    instance.cursor = 0;
+    try {
+      return { instance, out: type(props) };
+    } finally {
+      current = parent;
+    }
+  };
+  const expand = (node, path) => {
+    if (Array.isArray(node))
+      return node.map((child, index) => expand(child, `${path}.${child?.props?.key ?? index}`));
     if (!node || typeof node !== "object") return node;
     if (typeof node.type === "function") {
-      stateless = true;
-      let out;
-      try {
-        out = node.type({ ...node.props, children: node.children });
-      } finally {
-        stateless = false;
-      }
-      return expand(out);
+      const at = `${path}<${node.type.name}>`;
+      const { instance, out } = renderInstance(
+        node.type,
+        { ...node.props, children: node.children },
+        at,
+      );
+      const tree = expand(out, at);
+      order.push(instance);
+      return tree;
     }
-    return { ...node, children: expand(node.children) };
+    return { ...node, children: expand(node.children, path) };
   };
   return {
     react,
     mount(Component, initialProps) {
       let props = initialProps;
       let raw;
+      let tree;
       const render = () => {
-        cursor = 0;
         dirty = false;
-        raw = Component(props);
-        const effects = pending;
-        pending = [];
-        effects.forEach((run) => run());
+        seen = new Set();
+        order = [];
+        const root = renderInstance(Component, props, "root");
+        raw = root.out;
+        tree = expand(raw, "root");
+        order.push(root.instance);
+        for (const [path, instance] of instances)
+          if (!seen.has(path)) {
+            destroy(instance);
+            instances.delete(path);
+          }
+        for (const instance of order) {
+          const effects = instance.pending;
+          instance.pending = [];
+          effects.forEach((run) => run());
+        }
       };
       render();
       const view = {
@@ -95,7 +138,7 @@ export function createRuntime() {
           return raw;
         },
         get tree() {
-          return expand(raw);
+          return tree;
         },
         rerender(next) {
           props = next;
@@ -108,6 +151,10 @@ export function createRuntime() {
             render();
           }
           throw new Error("render did not settle");
+        },
+        unmount() {
+          for (const instance of instances.values()) destroy(instance);
+          instances.clear();
         },
       };
       return view;
@@ -126,6 +173,7 @@ export function findAll(node, predicate, out = []) {
   }
   return out;
 }
+
 export const text = (node) =>
   node == null || typeof node === "boolean"
     ? ""
@@ -134,6 +182,7 @@ export const text = (node) =>
       : Array.isArray(node)
         ? node.map(text).join("")
         : text(node.children);
+
 export const byClass = (tree, name) =>
   findAll(tree, (n) =>
     String(n.props?.className || "")
@@ -141,11 +190,18 @@ export const byClass = (tree, name) =>
       .includes(name),
   );
 
+/** 手动推进的计时器；`now` 同时作为 Date.now，供按剩余时间续计的组件使用。 */
 export function fakeClock() {
   let now = 0;
   let next = 1;
   const timers = new Map();
+  class ClockDate extends Date {
+    static now() {
+      return now;
+    }
+  }
   return {
+    Date: ClockDate,
     setTimeout(fn, ms = 0) {
       const id = next++;
       timers.set(id, { fn, at: now + ms });

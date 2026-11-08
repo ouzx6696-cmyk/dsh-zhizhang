@@ -119,6 +119,8 @@ function loadBundle(file, react, globals) {
     AbortController,
     setTimeout,
     clearTimeout,
+    // keys.ts 在加载时读平台；要测 macOS 标注的用例自己传 navigator。
+    navigator: { platform: "Linux x86_64" },
     ...globals,
   });
   mapStacks(context, bundle);

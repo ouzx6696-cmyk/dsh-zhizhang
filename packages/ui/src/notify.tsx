@@ -73,10 +73,15 @@ function splitDetail({ text, detail }: Notice) {
   return at < 0 ? [text, ""] : [text.slice(0, at), text.slice(at + 1).trim()];
 }
 
-/** 自动收起的计时在悬停或聚焦时暂停，离开后按剩余时间继续。 */
+/**
+ * 自动收起的计时在悬停或聚焦时暂停，离开后按剩余时间继续。悬停与聚焦各记一处：
+ * 鼠标仍停在提示上时失焦，或焦点仍在提示上时移开鼠标，都不能恢复计时。
+ */
 function useLifetime(notice: Notice) {
   const life = LIFETIME[notice.tone];
-  const [paused, setPaused] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const paused = hovered || focused;
   const left = useRef(life);
   useEffect(() => {
     if (!life || paused) return;
@@ -87,22 +92,26 @@ function useLifetime(notice: Notice) {
       left.current -= Date.now() - started;
     };
   }, [life, paused, notice.id]);
-  return { life, pause: () => setPaused(true), resume: () => setPaused(false) };
+  return {
+    life,
+    onMouseEnter: () => setHovered(true),
+    onMouseLeave: () => setHovered(false),
+    onFocus: () => setFocused(true),
+    // 焦点移到提示里的按钮上仍算在提示内。
+    onBlur: (event: React.FocusEvent<HTMLDivElement>) => {
+      const next = event.relatedTarget;
+      if (next instanceof Node && event.currentTarget.contains(next)) return;
+      setFocused(false);
+    },
+  };
 }
 
 function NoticeItem({ notice }: { notice: Notice }) {
   const [head, detail] = splitDetail(notice);
-  const { life, pause, resume } = useLifetime(notice);
+  const { life, ...pauseHandlers } = useLifetime(notice);
   const { action } = notice;
   return (
-    <div
-      className="ui-notice"
-      data-tone={notice.tone}
-      onMouseEnter={pause}
-      onMouseLeave={resume}
-      onFocus={pause}
-      onBlur={resume}
-    >
+    <div className="ui-notice" data-tone={notice.tone} {...pauseHandlers}>
       <span className="ui-notice-mark" aria-hidden="true" />
       <div className="ui-notice-body">
         <p>{head}</p>
