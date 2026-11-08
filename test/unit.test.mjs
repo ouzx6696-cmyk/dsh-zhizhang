@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { readFile, mkdir, writeFile, rm } from "node:fs/promises";
+import { readFile, mkdir, writeFile, rm, realpath } from "node:fs/promises";
 import { hostname } from "node:os";
 import { spawnSync } from "node:child_process";
 import { FIX, ROOT, tempDir, buildUrl } from "./helpers.mjs";
@@ -536,11 +536,18 @@ test("CI 信号终止必须失败；错误立项卡返回参数错误而非 trac
 test(
   "陈旧锁检查暂停时，第二进程必须等待登记互斥，不能删除新 owner",
   { timeout: 10000 },
-  async () => {
+  async (t) => {
     const { spawn } = await import("node:child_process");
     const { hostname } = await import("node:os");
-    const root = await tempDir("writer-claim-race-");
+    // claimWorkspace unlinks under realpath(root); on Windows the temp dir is an 8.3 short path
+    // (RUNNER~1), so the child's pause hook must compare against the resolved path.
+    const root = await realpath(await tempDir("writer-claim-race-"));
     const children = [];
+    // A timed-out test never reaches finally; a paused child holding its IPC channel would keep
+    // the runner alive until the CI job is cancelled.
+    t.after(() => {
+      for (const child of children) if (child.exitCode === null) child.kill();
+    });
     const source = `
     import fs from 'node:fs/promises';
     import {syncBuiltinESMExports} from 'node:module';
