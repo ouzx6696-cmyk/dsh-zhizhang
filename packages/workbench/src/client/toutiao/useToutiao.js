@@ -1,4 +1,4 @@
-import { useNotices } from "../../../../ui/src/use-notices.js";
+import { notify as pushNotice } from "../../../../ui/src/notify";
 import { newRequestId } from "../../../../ui/src/request.js";
 import { useSourceGuard } from "../shared/useSourceGuard.js";
 /**
@@ -35,7 +35,7 @@ export function useToutiao({ onTarget, onSourceEditState } = {}) {
   }));
   const [detail, setDetail] = useState({ status: "idle", article: null, error: "" });
   const [busy, setBusy] = useState("");
-  const { notices, push: notify, dismiss } = useNotices();
+  const notify = useCallback((tone, text) => void pushNotice({ tone, text }), []);
   const [refreshing, setRefreshing] = useState(false);
   const [doneAt, setDoneAt] = useState({});
   const listCtrl = useRef(null);
@@ -139,8 +139,8 @@ export function useToutiao({ onTarget, onSourceEditState } = {}) {
   }, [sel.root, sel.id, selected, loadDetail]);
 
   const select = useCallback(
-    (root, id) => {
-      if (!canLeaveSource()) return false;
+    async (root, id) => {
+      if (!(await canLeaveSource())) return false;
       setSel({ root, id });
       writePref(PREF.ttRoot, root);
       writePref(PREF.ttArticle, id);
@@ -235,10 +235,9 @@ export function useToutiao({ onTarget, onSourceEditState } = {}) {
     detail,
     adoptReady,
     busy,
-    notices,
     refreshing,
     doneAt,
     deliverOff,
-    actions: { select, deliver, adopt, saveDraft, refresh, dismiss },
+    actions: { select, deliver, adopt, saveDraft, refresh },
   };
 }

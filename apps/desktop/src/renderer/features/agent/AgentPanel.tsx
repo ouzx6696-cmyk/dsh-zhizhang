@@ -1,21 +1,37 @@
 import { ContextPanel } from "./ContextPanel";
-import { COPY as viewCopy } from "../../../../../../packages/ui/src/copy.js";
+import { COPY as viewCopy, AGENT_COPY } from "../../../../../../packages/ui/src/copy.js";
 import { TaskProgress } from "./TaskProgress";
 import { AgentMessageList, ChatStream } from "./AgentMessages";
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Send, Plus, History } from "lucide-react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef } from "react";
+import { Send, Plus, History, Square } from "lucide-react";
 import { humanVersion } from "../../format";
-import { getCommand } from "../../../commands";
 import { scopeId, focusLabel, type Focus, type Target } from "../../../context";
 import { useChatSelector } from "../../state/chatStore";
 import { ARTICLE_STEPS } from "../../../../../../packages/ui/src/status";
 import { desktop } from "../../state/desktop";
-import type { DesktopController } from "../../app/useDesktopController";
+import type { DesktopActions } from "../../app/useDesktopController";
+import { useDesktopSelector } from "../../state/store";
+import { quickActions } from "./quickActions";
+import { footerStatus, useDraft, useQueue } from "./composer";
 
-const drafts = new Map<string, string>();
+// 输入框随内容长高，超过后在框内滚动。
+const INPUT_MAX_HEIGHT = 200;
 
-export function AgentPanel({ app }: { app: DesktopController }) {
-  const { state, selected, focus, context, fail, set, input } = app;
+const NOVEL_STEPS = [
+  viewCopy.agentPanelText2,
+  viewCopy.tabInspiration,
+  viewCopy.agentPanelText3,
+  viewCopy.agentPanelText4,
+  viewCopy.agentPanelText5,
+  viewCopy.agentPanelText6,
+];
+
+export const AgentPanel = React.memo(function AgentPanel({ actions }: { actions: DesktopActions }) {
+  const { fail, set, input } = actions;
+  const system = useDesktopSelector((state) => state.system);
+  const selected = useDesktopSelector((state) => state.selected);
+  const focus = useDesktopSelector((state) => state.focus);
+  const context = useDesktopSelector((state) => state.context);
   const messages = useChatSelector((chat) => chat.messages);
   const busy = useChatSelector((chat) => chat.busy);
   const phase = useChatSelector((chat) => chat.phase);
@@ -24,15 +40,14 @@ export function AgentPanel({ app }: { app: DesktopController }) {
   const archive = useChatSelector((chat) => chat.archive);
   const archives = useChatSelector((chat) => chat.archives);
   const draftKey = scopeId(selected);
-  const [draft, updateDraft] = useState(drafts.get(draftKey) || "");
-  const setDraft = (value: string | ((current: string) => string)) => {
-    updateDraft((current) => {
-      const next = typeof value === "function" ? value(current) : value;
-      drafts.set(draftKey, next);
-      return next;
-    });
-  };
-  useEffect(() => updateDraft(drafts.get(draftKey) || ""), [draftKey]);
+  const [draft, setDraft] = useDraft(draftKey);
+  const [queued, enqueue] = useQueue(draftKey, busy, messages);
+  useLayoutEffect(() => {
+    const field = input.current;
+    if (!field) return;
+    field.style.height = "auto";
+    field.style.height = Math.min(field.scrollHeight, INPUT_MAX_HEIGHT) + "px";
+  }, [draft, input]);
   const listRef = useRef<HTMLDivElement | null>(null);
   const stickToBottom = useRef(true);
   useEffect(() => {
@@ -56,86 +71,36 @@ export function AgentPanel({ app }: { app: DesktopController }) {
     event?.preventDefault();
     if (!draft.trim()) return;
     const value = draft;
+    const queuing = busy && !value.startsWith("/");
     stickToBottom.current = true;
-    if (await app.submit(value)) setDraft((current) => (current === value ? "" : current));
+    if (!(await actions.submit(value))) return;
+    if (queuing) enqueue(value);
+    setDraft((current) => (current === value ? "" : current));
   };
-  const steps =
-    selected?.mode === "toutiao"
-      ? ARTICLE_STEPS
-      : [
-          viewCopy.agentPanelText2,
-          viewCopy.tabInspiration,
-          viewCopy.agentPanelText3,
-          viewCopy.agentPanelText4,
-          viewCopy.agentPanelText5,
-          viewCopy.agentPanelText6,
-        ];
-  const quick = useMemo(() => {
-    const quickChoices =
-      context.kind === "article"
-        ? context.article?.status === viewCopy.toutiaoAppText4
-          ? [
-              [viewCopy.agentPanelText7, viewCopy.ttContinue],
-              [viewCopy.agentPanelText8, viewCopy.agentPanelText9],
-            ]
-          : [
-              [viewCopy.agentPanelText7, viewCopy.ttContinue],
-              [viewCopy.agentPanelText10, viewCopy.ttReview],
-              [viewCopy.ttQa, viewCopy.ttQa],
-            ]
-        : context.chapter && !context.outlineReady
-          ? [
-              [viewCopy.agentPanelText11, viewCopy.agentPanelText11],
-              [viewCopy.agentPanelText12, viewCopy.agentPanelText13],
-            ]
-          : context.hasCandidate
-            ? [
-                [viewCopy.agentPanelText14, viewCopy.agentPanelText14],
-                [viewCopy.agentPanelText10, viewCopy.agentPanelText15],
-                [viewCopy.agentPanelText16, viewCopy.deliverRevise],
-              ]
-            : context.review?.verdict && context.review.verdict !== viewCopy.reviewPass
-              ? [
-                  [viewCopy.agentPanelText16, viewCopy.deliverRevise],
-                  [viewCopy.agentPanelText10, viewCopy.agentPanelText17],
-                ]
-              : context.chapter?.status === "final"
-                ? [
-                    [viewCopy.agentPanelText7, viewCopy.deliverContinue],
-                    [viewCopy.agentPanelText18, viewCopy.agentPanelText19],
-                  ]
-                : [
-                    [viewCopy.agentPanelText7, viewCopy.agentPanelText20],
-                    [viewCopy.agentPanelText10, viewCopy.agentPanelText15],
-                    [viewCopy.ttQa, viewCopy.agentPanelText21],
-                  ];
-    return quickChoices.map(([id, label]) => ({ ...getCommand(id), label }));
-  }, [
-    context.kind,
-    context.article?.status,
-    context.chapter,
-    context.outlineReady,
-    context.hasCandidate,
-    context.review?.verdict,
-  ]);
-  // 控制器每次渲染都是新对象；经 ref 取最新方法，让结果卡的跳转回调保持稳定。
-  const latest = useRef(app);
-  useEffect(() => {
-    latest.current = app;
+  const steps = selected?.mode === "toutiao" ? ARTICLE_STEPS : NOVEL_STEPS;
+  const readOnly = Boolean(system?.access?.readOnly);
+  const status = footerStatus({
+    archived: archive !== undefined,
+    readOnly,
+    hasWork: Boolean(selected),
+    model: system?.models.writer ?? { configured: false, model: "" },
+    busy,
+    task,
   });
-  const handleJump = useCallback((target: Target | null, nextFocus?: Focus) => {
-    latest.current.jump(target, nextFocus).catch(latest.current.fail);
-  }, []);
+  const quick = quickActions(context);
+  const handleJump = useCallback(
+    (target: Target | null, nextFocus?: Focus) => void actions.jump(target, nextFocus).catch(fail),
+    [actions, fail],
+  );
   return (
     <div className="agent-panel">
-      {state.system && (
+      {system && (
         <ContextPanel
-          key={`${draftKey}:${app.conversationId ?? "new"}`}
+          key={`${draftKey}:${actions.conversationId ?? "new"}`}
           target={selected ?? undefined}
           busy={busy || archive !== undefined}
           task={task}
-          initialSettings={state.system.context}
-          onSaved={app.syncState}
+          initialSettings={system.context}
         />
       )}
       <TaskProgress
@@ -143,7 +108,8 @@ export function AgentPanel({ app }: { app: DesktopController }) {
         busy={busy}
         phase={phase}
         steps={steps}
-        onStop={() => void app.stop().catch(app.fail)}
+        queued={queued.length}
+        onStop={() => void actions.stop().catch(actions.fail)}
       />
       <div className="conversation-tools">
         <button
@@ -151,7 +117,7 @@ export function AgentPanel({ app }: { app: DesktopController }) {
           onClick={async () => {
             if (!selected) return;
             try {
-              app.setChat({ archives: await desktop.conversations(selected) });
+              actions.setChat({ archives: await desktop.conversations(selected) });
               set({ palette: false });
             } catch (error) {
               fail(error);
@@ -167,9 +133,9 @@ export function AgentPanel({ app }: { app: DesktopController }) {
           onChange={(event) => {
             if (!selected) return;
             const value = event.target.value === "current" ? undefined : Number(event.target.value);
-            app.archived.current = value;
-            app.setChat({ archive: value });
-            void app.loadView(selected, 80, value).catch(fail);
+            actions.archived.current = value;
+            actions.setChat({ archive: value });
+            void actions.loadView(selected, 80, value).catch(fail);
           }}
         >
           <option value="current">{viewCopy.agentPanelText38}</option>
@@ -181,13 +147,18 @@ export function AgentPanel({ app }: { app: DesktopController }) {
         </select>
         <button
           title={viewCopy.agentPanelText39}
-          onClick={() => app.command(viewCopy.agentPanelText40).catch(fail)}
+          onClick={() => actions.command(viewCopy.agentPanelText40).catch(fail)}
         >
           <Plus size={14} />
         </button>
       </div>
+      {/* 记录本身不做 live region：流式逐字更新会被读屏连读；回复结束由 ChatStream 统一宣告一次。 */}
       <div
         className="chat-messages"
+        role="log"
+        aria-label={AGENT_COPY.log}
+        aria-live="off"
+        tabIndex={0}
         ref={listRef}
         onScroll={(event) => {
           const list = event.currentTarget;
@@ -201,8 +172,8 @@ export function AgentPanel({ app }: { app: DesktopController }) {
               const list = listRef.current;
               if (list) olderAnchor.current = list.scrollHeight - list.scrollTop;
               stickToBottom.current = false;
-              app.limit.current += 80;
-              void app.loadView(selected, app.limit.current, archive).catch((error) => {
+              actions.limit.current += 80;
+              void actions.loadView(selected, actions.limit.current, archive).catch((error) => {
                 olderAnchor.current = null;
                 fail(error);
               });
@@ -224,18 +195,30 @@ export function AgentPanel({ app }: { app: DesktopController }) {
             <button
               disabled={
                 archive !== undefined ||
-                state.system?.access?.readOnly ||
+                readOnly ||
                 !selected ||
                 (selected.mode === "toutiao" && !selected.article && !focus.article)
               }
               key={id}
-              onClick={() => app.command(id).catch(fail)}
+              onClick={() => actions.command(id).catch(fail)}
             >
               {label}
             </button>
           ))}
           <button onClick={() => set({ palette: true })}>{viewCopy.agentPanelText44}</button>
         </div>
+        {queued.length > 0 && (
+          <ul className="agent-queue" aria-label={AGENT_COPY.queueTitle}>
+            {queued.map((item) => (
+              <li key={item.id}>
+                <span className="agent-queue-text" title={item.text}>
+                  {item.text}
+                </span>
+                <small>{AGENT_COPY.queued}</small>
+              </li>
+            ))}
+          </ul>
+        )}
         <form onSubmit={submit}>
           <div className="input-target">
             {selected ? focusLabel(selected, focus) : viewCopy.agentPanelText45}
@@ -254,25 +237,33 @@ export function AgentPanel({ app }: { app: DesktopController }) {
                 event.preventDefault();
                 set({ palette: true });
               }
-              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+              // 输入法组字时的 Enter 只确认候选词；部分输入法在 compositionend 后仍以 229 报键。
+              const composing = event.nativeEvent.isComposing || event.keyCode === 229;
+              if (event.key === "Enter" && !event.shiftKey && !composing) {
                 event.preventDefault();
                 void submit();
               }
             }}
           />
           <footer>
-            <span>
-              {task?.tokens ? task.tokens.toLocaleString() + " tokens" : viewCopy.agentPanelText50}
-              {task?.tokens
-                ? " · " + (task.cost > 0 ? "$" + task.cost.toFixed(4) : viewCopy.agentPanelText51)
-                : ""}
-            </span>
+            <span className="agent-input-status">{status}</span>
+            {busy && (
+              <button
+                type="button"
+                className="agent-input-stop"
+                aria-label={AGENT_COPY.stopLabel}
+                onClick={() => void actions.stop().catch(fail)}
+              >
+                <Square size={12} aria-hidden="true" />
+                {AGENT_COPY.stop}
+              </button>
+            )}
             <button
               className="primary"
               disabled={!selected || archive !== undefined}
-              aria-label={viewCopy.agentPanelText52}
+              aria-label={busy ? AGENT_COPY.queueSend : AGENT_COPY.send}
             >
-              <Send size={14} />
+              <Send size={14} aria-hidden="true" />
               {busy ? viewCopy.agentPanelText53 : viewCopy.agentPanelText52}
             </button>
           </footer>
@@ -280,4 +271,4 @@ export function AgentPanel({ app }: { app: DesktopController }) {
       </div>
     </div>
   );
-}
+});

@@ -1,63 +1,160 @@
 .context-panel {
   flex: 0 0 auto;
-  padding: 10px 14px;
+  padding: var(--ui-space-1) var(--ui-space-3);
   border-bottom: 1px solid var(--ui-line);
   max-height: min(35vh, max(64px, calc(100% - 420px)));
   overflow: auto;
   font-size: var(--ui-size-12);
   scrollbar-gutter: stable;
 }
-.context-panel summary {
+.context-panel > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-1) 0;
   cursor: pointer;
-  padding: 3px 0;
+  color: var(--ui-text-2);
+  list-style: none;
+}
+.context-panel > summary::-webkit-details-marker {
+  display: none;
+}
+.context-panel > summary:focus-visible {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: -2px;
+  border-radius: var(--ui-radius-sm);
+}
+.context-panel-ring {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  transform: rotate(-90deg);
+}
+.context-panel-ring circle {
+  fill: none;
+  stroke-width: 2.5;
+  stroke: var(--ui-line-strong);
+}
+.context-panel-ring circle + circle {
+  stroke: var(--ui-success);
+  stroke-linecap: round;
+}
+.context-panel[data-level="near"] .context-panel-ring circle + circle {
+  stroke: var(--ui-warning);
+}
+.context-panel[data-level="high"] .context-panel-ring circle + circle {
+  stroke: var(--ui-danger);
+}
+.context-panel-percent {
+  font-variant-numeric: tabular-nums;
   color: var(--ui-text);
 }
-.context-panel > p {
+.context-panel-flag {
+  margin-left: auto;
+  color: var(--ui-accent);
+}
+.context-panel-body {
+  padding: var(--ui-space-1) 0 var(--ui-space-2);
+}
+.context-panel-body p {
+  margin: 0 0 var(--ui-space-2);
   color: var(--ui-text-3);
   line-height: 1.6;
 }
-.context-panel label {
+.context-panel-body p.context-panel-window {
+  color: var(--ui-text-2);
+  font-variant-numeric: tabular-nums;
+}
+.context-panel-usage {
   display: grid;
-  gap: 5px;
-  margin: 12px 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px var(--ui-space-3);
+  margin: 0 0 var(--ui-space-2);
 }
-.context-panel label:has(input[type="checkbox"]) {
+.context-panel-usage dt {
+  color: var(--ui-text-3);
+}
+.context-panel-usage dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.context-panel-actions {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  gap: var(--ui-space-2);
+  margin-bottom: var(--ui-space-1);
 }
-.context-panel input[type="checkbox"] {
-  width: auto;
+.context-panel-actions button {
+  font-size: var(--ui-size-12);
+  padding: var(--ui-space-1) var(--ui-space-3);
+}
+.context-panel-body p.context-panel-hint {
+  font-size: var(--ui-size-12);
+}
+.context-panel-fold {
+  border-top: 1px solid var(--ui-line);
+}
+.context-panel-fold > button {
+  width: 100%;
+  justify-content: flex-start;
   min-height: 0;
+  padding: var(--ui-space-2) 0;
+  border: 0;
+  background: transparent;
+  font-size: var(--ui-size-12);
+  color: var(--ui-text-2);
 }
-.context-panel input[type="number"],
+.context-panel-fold > button:hover {
+  color: var(--ui-text);
+}
+.context-panel-fold > button svg {
+  transition: transform 0.15s;
+}
+.context-panel-fold > button[aria-expanded="true"] svg {
+  transform: rotate(90deg);
+}
+.context-panel-fold > div {
+  padding: 0 0 var(--ui-space-2) var(--ui-space-4);
+}
+.context-panel-fold h4 {
+  margin: var(--ui-space-2) 0 var(--ui-space-1);
+  font-size: var(--ui-size-12);
+  font-weight: 600;
+  color: var(--ui-text-2);
+}
+.context-panel-focus {
+  display: grid;
+  gap: var(--ui-space-1);
+  margin: var(--ui-space-2) 0;
+}
 .context-panel textarea {
   width: 100%;
-}
-.context-panel textarea {
   resize: vertical;
   min-height: 64px;
 }
-.context-panel dl {
+.context-panel-fold dl {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 6px 12px;
+  gap: var(--ui-space-1) var(--ui-space-3);
 }
-.context-panel dd {
+.context-panel-fold dd {
   margin: 0;
   text-align: right;
   font-variant-numeric: tabular-nums;
-}
-.context-panel > button {
-  margin: 4px 8px 4px 0;
 }
 .context-panel pre {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   max-height: 200px;
   overflow: auto;
+  font: var(--ui-size-12) / 1.6 var(--ui-font-mono);
 }
 .context-panel ul {
-  padding-left: 18px;
+  margin: 0 0 var(--ui-space-2);
+  padding-left: var(--ui-space-4);
   overflow-wrap: anywhere;
+}
+@media (prefers-reduced-motion: reduce) {
+  .context-panel-fold > button svg {
+    transition: none;
+  }
 }

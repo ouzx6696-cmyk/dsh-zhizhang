@@ -22,6 +22,7 @@ if (args.length) {
 const LAYERS = { ui: 0, core: 0, workbench: 1, toutiao: 2, fanqie: 2, desktop: 3 };
 const BROWSER_SAFE = [
   "packages/core/src/errors.ts",
+  "packages/core/src/parse.ts",
   "packages/core/src/workflow-config.ts",
   "packages/toutiao/src/classics.ts",
   "packages/fanqie/src/engine/domain/manuscript.ts",

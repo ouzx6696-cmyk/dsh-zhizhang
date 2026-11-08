@@ -21,10 +21,11 @@ export type DesktopState = {
   onboarding: boolean | null;
   system: SystemState | null;
   target?: Target;
+  /** 当前打开的作品范围（api.select 的回执）；控制器另有同值 ref 供事件回调同步读取。 */
+  selected: Target | null;
   focus: Focus;
   context: WorkspaceContext;
   running: RunningItem[];
-  error: string;
   tab: string;
   view: string;
   drawer: boolean;
@@ -40,10 +41,10 @@ export type DesktopState = {
 const initialState: DesktopState = {
   onboarding: null,
   system: null,
+  selected: null,
   focus: {},
   context: {},
   running: [],
-  error: "",
   tab: "agent",
   view: "writing",
   drawer: false,
@@ -57,5 +58,12 @@ const initialState: DesktopState = {
 };
 
 export const desktopStore = createStore<DesktopState>(initialState);
-export const useDesktop = () =>
-  useSyncExternalStore(desktopStore.subscribe, desktopStore.get, desktopStore.get);
+
+/** 只订阅组件用到的字段：选择结果按 Object.is 比较，未变化的组件不重渲染。 */
+export function useDesktopSelector<T>(selector: (state: DesktopState) => T): T {
+  return useSyncExternalStore(
+    desktopStore.subscribe,
+    () => selector(desktopStore.get()),
+    () => selector(desktopStore.get()),
+  );
+}

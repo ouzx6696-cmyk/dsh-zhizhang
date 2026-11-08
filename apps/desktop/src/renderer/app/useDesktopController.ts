@@ -1,12 +1,16 @@
 import { errorText } from "../../../../../packages/core/src/errors.js";
+import { COPY as viewCopy } from "../../../../../packages/ui/src/copy.js";
+import { dismissNotices, notify } from "../../../../../packages/ui/src/notify";
 import { DEFAULT_HISTORY_LIMIT } from "../../history-options";
-import { useDraftProtection } from "./useDraftProtection";
+import { createDraftProtection } from "./draftProtection";
 import { useDesktopEvents } from "./useDesktopEvents";
-import { useEffect, useRef } from "react";
+import { createRef, useEffect, useState } from "react";
 import { scopeId, type Focus, type Target } from "../../context";
 import type { WorkspaceContext } from "../../renderer-contracts";
-import { desktopStore, useDesktop, type ChatMessage } from "../state/store";
+import { desktopStore, useDesktopSelector, type ChatMessage } from "../state/store";
 import { chatStore } from "../state/chatStore";
+import { sameFields } from "../state/createStore";
+import { navigateWorkspace, workspaceMounted } from "../state/navigation";
 import { PREF, readPref } from "../../../../../packages/workbench/src/client/shared/prefs.js";
 import { remember } from "../state/prefs";
 import { runCommand } from "../../commands";
@@ -17,46 +21,72 @@ import { useDesktopShortcuts } from "./useDesktopShortcuts";
 const api = desktop;
 const set = desktopStore.set;
 
-export function useDesktopController() {
-  const state = useDesktop();
-  const selected = useRef<Target | null>(null);
-  const focused = useRef<Focus>({});
-  const limit = useRef(DEFAULT_HISTORY_LIMIT);
-  const viewRequest = useRef(0);
-  const selectionRequest = useRef(0);
-  const pendingMessages = useRef<ChatMessage[] | null>(null);
-  const input = useRef<HTMLTextAreaElement | null>(null);
-  const conversationId = useRef<string | undefined>(undefined);
-  const archived = useRef<number | undefined>(undefined);
-  const { canLeave, canRestart, discardSource, trackMethodEdit, trackSourceEdit } =
-    useDraftProtection(focused, (message) => set({ error: message }));
-  const contextRef = useRef<WorkspaceContext>(state.context);
-  contextRef.current = state.context;
+/** 上下文的动作是函数表：逐个比较函数引用，相同就不算变化。 */
+function sameContext(a: WorkspaceContext, b: WorkspaceContext) {
+  const { actions: left, ...restA } = a;
+  const { actions: right, ...restB } = b;
+  return (
+    sameFields(restA, restB) && (left === right || (!!left && !!right && sameFields(left, right)))
+  );
+}
 
-  function fail(error: unknown) {
-    set({ error: errorText(error) });
+/**
+ * 控制器只建一次：方法从 ref 与 store 现读最新状态，引用永远不变，
+ * 传给子组件不会打破 memo。界面数据由组件经 useDesktopSelector 各取所需。
+ */
+function createDesktopController() {
+  const selected: { current: Target | null } = { current: null };
+  const focused: { current: Focus } = { current: {} };
+  const limit = { current: DEFAULT_HISTORY_LIMIT };
+  const pendingMessages: { current: ChatMessage[] | null } = { current: null };
+  const conversationId: { current: string | undefined } = { current: undefined };
+  const archived: { current: number | undefined } = { current: undefined };
+  const input = createRef<HTMLTextAreaElement>();
+  let viewRequest = 0,
+    selectionRequest = 0;
+  const draft = createDraftProtection(focused, (text) => notify({ tone: "warning", text }));
+  const { canLeave, canRestart, discardSource, trackMethodEdit, trackSourceEdit } = draft;
+
+  function fail(error: unknown, retry?: () => Promise<unknown>) {
+    notify({
+      tone: "danger",
+      text: errorText(error),
+      action: retry && {
+        label: viewCopy.retry,
+        run: () => retry().catch((next) => fail(next, retry)),
+      },
+    });
   }
 
   function refreshWorkspace() {
-    void Promise.resolve(contextRef.current.actions?.refresh?.()).catch(fail);
+    void Promise.resolve(desktopStore.get().context.actions?.refresh?.()).catch(fail);
   }
 
   function setPosition(next: Focus) {
+    if (sameFields(focused.current, next)) return;
     focused.current = next;
     set({ focus: next });
+  }
+
+  function setContext(context: WorkspaceContext) {
+    if (!sameContext(desktopStore.get().context, context)) set({ context });
   }
 
   async function syncState() {
     const value = await api.state();
     set((current) => ({
-      system: value,
+      // 目标范围没变时沿用原对象：写作区收到的 target 引用稳定，memo 才有效。
+      system:
+        current.system?.target && scopeId(current.system.target) === scopeId(value.target)
+          ? { ...value, target: current.system.target }
+          : value,
       wizardModels: current.wizardModels || value.models,
       onboarding:
         current.onboarding === null
           ? !value.models.writer.configured || !value.workspace
           : current.onboarding,
     }));
-    if (value.notice) set({ error: value.notice });
+    if (value.notice) notify({ tone: "warning", text: value.notice });
     return value;
   }
 
@@ -65,12 +95,12 @@ export function useDesktopController() {
   }
 
   async function loadView(target: Target, maximum = DEFAULT_HISTORY_LIMIT, old?: number) {
-    const request = ++viewRequest.current,
+    const request = ++viewRequest,
       buffer: ChatMessage[] = [];
     pendingMessages.current = buffer;
     try {
       const value = await api.view(target, maximum, old);
-      if (request !== viewRequest.current || scopeId(target) !== scopeId(selected.current)) return;
+      if (request !== viewRequest || scopeId(target) !== scopeId(selected.current)) return;
       conversationId.current = value.conversationId;
       const known = new Set(value.messages.map((message) => message.writerMessageId)),
         extra = buffer.filter(
@@ -95,21 +125,21 @@ export function useDesktopController() {
     reopen = false,
   ) {
     if (!next) return;
-    const request = ++selectionRequest.current;
+    const request = ++selectionRequest;
     const { focus: nextFocus = {}, ...target } = next,
       previous = selected.current;
     if (target.mode === "toutiao" && nextFocus.article) target.article = nextFocus.article;
     if (scopeId(previous) === scopeId(target)) {
       if (reopen) {
         await api.select(target);
-        if (request !== selectionRequest.current) return;
+        if (request !== selectionRequest) return;
         await syncState();
       }
       if (next.focus) setPosition(nextFocus);
       return;
     }
     const chosen = persist ? await api.select(target) : target;
-    if (request !== selectionRequest.current) return;
+    if (request !== selectionRequest) return;
     setPosition(nextFocus);
     const preserve =
       !previous &&
@@ -127,94 +157,68 @@ export function useDesktopController() {
       busy: false,
     });
     selected.current = chosen;
-    await syncState();
+    set({ selected: chosen });
+    // 主进程的 select 会改目标与占用状态，需要重读；启动时传入的正是刚读到的目标，主进程没有新变化。
+    if (persist || scopeId(desktopStore.get().system?.target) !== scopeId(chosen))
+      await syncState();
     const [, archives] = await Promise.all([loadView(chosen), api.conversations(chosen)]);
     chatStore.set({ archives });
   }
 
-  // Event subscriptions stay mounted; dereference the current controller on each event.
-  const handlers = useRef({
-    syncState,
-    selectSnapshot,
-    loadProjects,
-    jump,
-    refreshWorkspace,
-    fail,
-  });
-  handlers.current = { syncState, selectSnapshot, loadProjects, jump, refreshWorkspace, fail };
+  async function changeView(view: string) {
+    if (view === desktopStore.get().view || !(await canLeave())) return;
+    discardSource();
+    set({ view });
+  }
 
-  useDesktopEvents({
-    handlers,
-    appearance: state.system?.appearance,
-    selected,
-    archived,
-    conversationId,
-    pendingMessages,
-    limit,
-  });
-
-  useDesktopShortcuts({
-    selected,
-    context: contextRef,
-    set,
-    stop: api.stop,
-  });
-
-  const targetMode = state.system?.target?.mode;
-  useEffect(() => {
-    if (targetMode === "toutiao" && !["writing", "overview"].includes(state.view))
-      set({ view: "writing" });
-  }, [targetMode, state.view]);
-
-  function changeView(view: string) {
-    if (view === desktopStore.get().view) return;
-    if (canLeave()) {
-      discardSource();
-      set({ view });
-    }
+  /** 换了写作根或作品目录：写作区换范围，必须重挂载。selectSnapshot 已同步过主进程状态。 */
+  async function openRoot(choose: () => Promise<Target | null>) {
+    if (!(await canLeave())) return;
+    const value = await choose();
+    if (!value) return;
+    const reopened = scopeId(selected.current) === scopeId(value);
+    await selectSnapshot(value, false);
+    // 换了范围时 selectSnapshot 已重读主进程状态；重选同一目录只需补读一次设置。
+    if (reopened) await syncState();
+    set((current) => ({ workspaceKey: current.workspaceKey + 1 }));
+    await loadProjects();
   }
 
   async function chooseWorkspace() {
-    if (!canLeave()) return;
-    const value = await api.workspace();
-    if (!value) return;
-    await selectSnapshot(value.target, false);
-    await syncState();
-    set((current) => ({ workspaceKey: current.workspaceKey + 1 }));
-    await loadProjects();
+    await openRoot(async () => (await api.workspace())?.target ?? null);
   }
 
   async function importRoot(mode: "fanqie" | "toutiao") {
-    if (!canLeave()) return;
-    const value = await api.choose(mode);
-    if (!value) return;
-    await selectSnapshot(value, false);
-    await syncState();
-    set((current) => ({ workspaceKey: current.workspaceKey + 1 }));
-    await loadProjects();
+    await openRoot(() => api.choose(mode));
   }
 
+  /** 同一写作区内（换章节、候选稿、文章）就地切换，保留阅读位置与筛选；换作品才重挂载。 */
   async function jump(target: Target | null, nextFocus: Focus = {}) {
-    if (!target || !canLeave()) return;
+    if (!target || !(await canLeave())) return;
+    // 作者已确认放弃未保存修改；先丢掉，就地切换时不再二次询问。
+    discardSource();
+    const inPlace = workspaceMounted(target);
     remember(target, nextFocus);
     await selectSnapshot({ ...target, focus: nextFocus }, true, true);
-    set((current) => ({ workspaceKey: current.workspaceKey + 1, view: "writing", picker: false }));
+    set({ view: "writing", picker: false });
+    if (!inPlace || !navigateWorkspace(target, nextFocus))
+      set((current) => ({ workspaceKey: current.workspaceKey + 1 }));
   }
 
   async function sendText(value: string, snapshot: Focus = focused.current) {
     if (!selected.current) throw new Error("先选择作品或开始新作");
     if (archived.current !== undefined) throw new Error("当前查看的是旧对话，请先返回当前对话");
-    set({ tab: "agent", drawer: true, error: "" });
+    set({ tab: "agent", drawer: true });
+    dismissNotices("danger");
     await api.send(value, selected.current, { ...snapshot });
   }
 
   async function submit(value: string) {
-    const original = value;
     try {
-      if (original.startsWith("/")) {
-        const [name, ...parts] = original.slice(1).split(/\s+/);
+      if (value.startsWith("/")) {
+        const [name, ...parts] = value.slice(1).split(/\s+/);
         await command(name, parts.join(" "));
-      } else await sendText(original);
+      } else await sendText(value);
       return true;
     } catch (error) {
       fail(error);
@@ -222,37 +226,24 @@ export function useDesktopController() {
     }
   }
 
+  const taskDependencies = () => ({
+    selected: selected.current,
+    focus: focused.current,
+    canLeave,
+    selectSnapshot,
+    sendText,
+    set,
+  });
+
   async function newWork(mode: "fanqie" | "toutiao", note = "") {
-    return startNewWork(
-      {
-        selected: selected.current,
-        focus: focused.current,
-        canLeave,
-        selectSnapshot,
-        sendText,
-        set,
-      },
-      mode,
-      note,
-    );
+    return startNewWork(taskDependencies(), mode, note);
   }
 
   async function deliver(action: string, note = "") {
     if (archived.current !== undefined) throw new Error("请先返回当前对话");
-    if (action === "review" && state.context.hasCandidate)
+    if (action === "review" && desktopStore.get().context.hasCandidate)
       throw new Error("编辑审读当前工作稿；请先采纳要审读的候选稿");
-    return deliverAction(
-      {
-        selected: selected.current,
-        focus: focused.current,
-        canLeave,
-        selectSnapshot,
-        sendText,
-        set,
-      },
-      action,
-      note,
-    );
+    return deliverAction(taskDependencies(), action, note);
   }
 
   async function command(name: string, args = "") {
@@ -271,7 +262,6 @@ export function useDesktopController() {
       newWork,
       exportFile,
       loadView,
-      changeView,
       canLeave,
       clearArchive: () => {
         archived.current = undefined;
@@ -282,24 +272,23 @@ export function useDesktopController() {
   async function exportFile(format: string) {
     if (!selected.current) return;
     const result = await api.export(selected.current, focused.current, format);
-    if (result) chatStore.set({ phase: result.copied ? "标题与正文已复制" : "稿件已导出" });
+    if (result)
+      notify({ tone: "success", text: result.copied ? "标题与正文已复制" : "稿件已导出" });
   }
 
-  return {
+  const actions = {
     get conversationId() {
       return conversationId.current;
     },
-    state,
-    system: state.system,
-    selected: selected.current,
-    focus: state.focus,
-    context: state.context,
     input,
     archived,
     limit,
     set,
     setChat: chatStore.set,
     fail,
+    notify,
+    setPosition,
+    setContext,
     syncState,
     loadProjects,
     loadView,
@@ -321,6 +310,20 @@ export function useDesktopController() {
     refreshWorkspace,
     stop: () => api.stop(selected.current || undefined),
   };
+  return { actions, refs: { selected, archived, conversationId, pendingMessages, limit } };
 }
 
-export type DesktopController = ReturnType<typeof useDesktopController>;
+export type DesktopActions = ReturnType<typeof createDesktopController>["actions"];
+
+export function useDesktopController(): DesktopActions {
+  const [{ actions, refs }] = useState(createDesktopController);
+  useDesktopEvents({ actions, ...refs });
+  useDesktopShortcuts({ selected: refs.selected, stop: api.stop });
+  const targetMode = useDesktopSelector((state) => state.system?.target?.mode);
+  const view = useDesktopSelector((state) => state.view);
+  useEffect(() => {
+    if (targetMode === "toutiao" && !["writing", "overview"].includes(view))
+      set({ view: "writing" });
+  }, [targetMode, view]);
+  return actions;
+}

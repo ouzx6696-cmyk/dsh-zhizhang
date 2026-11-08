@@ -1,5 +1,6 @@
-import { useNotices } from "../../../../ui/src/use-notices.js";
-import { canLeaveEdit, useSourceGuard } from "../shared/useSourceGuard.js";
+import { dismissNotice, notify } from "../../../../ui/src/notify";
+import { canLeaveEdit, leaveState, useSourceGuard } from "../shared/useSourceGuard.js";
+import { confirmAction } from "../shared/confirm.js";
 /**
  * Data side of the panel: one reducer and event refreshes and on-demand body
  * loaders. Everything here is local to the mounted panel (registrant-private
@@ -12,13 +13,45 @@ import { diagnosticScope } from "./edit-state.js";
 import { PREF, writePref } from "../shared/prefs.js";
 import { bodyKey, derive, initialState, reducer, snapshotSignature } from "./state.js";
 import { createFanqieActions, messageOf } from "./actions.js";
+import { PROJECT_INDEX_FAILED } from "../../../../ui/src/copy.js";
 
 const { useCallback, useEffect, useMemo, useReducer, useRef } = React;
 
+const NAVIGATION = new Set([
+  "selectProject",
+  "selectWork",
+  "selectChapter",
+  "selectCandidate",
+  "view",
+  "readerView",
+  "diagnosticKind",
+  "reloadBodies",
+]);
+
+/** Which open editors a navigation leaves: the source editor, the paragraph edit, or both. */
+function leavePlan(previous, action) {
+  const next = reducer(previous, action);
+  const changesSource =
+    diagnosticScope(next) !== diagnosticScope(previous) ||
+    next.view !== previous.view ||
+    action.type === "reloadBodies";
+  const leavesSource =
+    action.type !== "reloadBodies" && (changesSource || next.readerView !== previous.readerView);
+  return { changesSource, leavesSource };
+}
+
 export function useFanqie({ onTarget, onSourceEditState } = {}) {
-  const { notices, push: pushNotice, dismiss: dismissNotice, clear: clearNotices } = useNotices();
+  // 提示进全应用队列；记下本写作区发出的，换项目或作品时收起，不留给新范围。
+  const noticeIds = useRef(new Set());
+  const pushNotice = useCallback((tone, text) => {
+    noticeIds.current.add(notify({ tone, text }));
+  }, []);
+  const clearNotices = useCallback(() => {
+    for (const id of noticeIds.current) dismissNotice(id);
+    noticeIds.current.clear();
+  }, []);
   const sourceGuard = useSourceGuard(onSourceEditState);
-  const canLeaveSource = sourceGuard.canLeave;
+  const { editorState: sourceState, close: closeSource, canLeave: canLeaveSource } = sourceGuard;
   const targetSink = useRef(onTarget);
   targetSink.current = onTarget;
   const [state, rawDispatch] = useReducer(reducer, undefined, initialState);
@@ -28,45 +61,51 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
     ref.current = { ...ref.current, edit: value };
     rawDispatch({ type: "edit", value });
   }, []);
+  // One leave question at a time: navigation while the author is still deciding is dropped.
+  const deciding = useRef(false);
+  /** Asks about the open editors for a navigation that leaves them; resolves false to stay. */
+  const confirmLeave = useCallback(
+    async ({ leavesSource, changesSource }) => {
+      if (leavesSource && !(await canLeaveSource())) return false;
+      const edit = changesSource ? ref.current.edit : null;
+      if (!edit) return true;
+      if (!(await canLeaveEdit(edit, confirmAction))) return false;
+      setEdit(null);
+      return true;
+    },
+    [canLeaveSource, setEdit],
+  );
+  /**
+   * Resolves false when the author keeps an unsaved edit. With nothing to ask, the state changes
+   * before this returns, so callers dispatching several actions in a row keep their order.
+   */
   const dispatch = useCallback(
-    (action) => {
+    async (action) => {
       if (action.type === "notice") {
         pushNotice(action.tone, action.text);
         return true;
       }
-      if (action.type === "dismissNotice") {
-        dismissNotice(action.id);
-        return true;
-      }
-
       const previous = ref.current;
-      const navigation = [
-        "selectProject",
-        "selectWork",
-        "selectChapter",
-        "selectCandidate",
-        "view",
-        "readerView",
-        "diagnosticKind",
-        "reloadBodies",
-      ].includes(action.type);
-      if (navigation) {
-        const next = reducer(previous, action);
-        const changesSource =
-          diagnosticScope(next) !== diagnosticScope(previous) ||
-          next.view !== previous.view ||
-          action.type === "reloadBodies";
-        if (
-          action.type !== "reloadBodies" &&
-          (changesSource || next.readerView !== previous.readerView) &&
-          !canLeaveSource()
-        )
-          return false;
-        if (changesSource && previous.edit) {
-          if (!canLeaveEdit(previous.edit, window.confirm)) return false;
-          setEdit(null);
+      if (NAVIGATION.has(action.type)) {
+        if (deciding.current) return false;
+        const plan = leavePlan(previous, action);
+        const edit = plan.changesSource ? previous.edit : null;
+        const states = [plan.leavesSource ? sourceState() : "clean", leaveState(edit)];
+        // A running save blocks the move outright, without opening a question.
+        if (states.includes("saving")) return false;
+        if (states.includes("dirty")) {
+          deciding.current = true;
+          try {
+            if (!(await confirmLeave(plan))) return false;
+          } finally {
+            deciding.current = false;
+          }
+        } else {
+          if (plan.leavesSource) closeSource();
+          if (edit) setEdit(null);
         }
-        ref.current = { ...next, edit: ref.current.edit };
+        // The author may have taken a while to answer; apply the move to the state as it is now.
+        ref.current = { ...reducer(ref.current, action), edit: ref.current.edit };
       }
       if (
         action.type === "selectProject" ||
@@ -76,7 +115,7 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
       rawDispatch(action);
       return true;
     },
-    [setEdit, canLeaveSource, pushNotice, dismissNotice, clearNotices],
+    [confirmLeave, sourceState, closeSource, setEdit, pushNotice, clearNotices],
   );
   // derive reads only snapshot and the selected IDs; body/editor state must not invalidate it.
   const view = useMemo(() => derive(state), [state.snapshot, state.chapterId, state.candidateId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -146,8 +185,12 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
                 });
             }
           } catch (err) {
+            // allow-catch: the project index only fills the switcher and the snapshot still resolves
+            // the default root. Explicit loads say why it is missing; polls stay quiet so a dismissed
+            // warning is not raised again every few seconds.
             if (err.code === "aborted") throw err;
-            /* project index is optional: the snapshot still resolves the default root */
+            if (!soft && alive.current)
+              pushNotice("warning", PROJECT_INDEX_FAILED + messageOf(err));
           }
         }
         if (!alive.current || ctrl.signal.aborted || ref.current.selection !== selection) return;
@@ -168,7 +211,7 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
         if (inflight.current === ctrl) inflight.current = null;
       }
     },
-    [dispatch],
+    [dispatch, pushNotice],
   );
 
   useEffect(() => {
@@ -335,7 +378,7 @@ export function useFanqie({ onTarget, onSourceEditState } = {}) {
     notify: actions.notify,
   });
   return {
-    state: { ...state, notices },
+    state,
     view,
     sourceGuard,
     actions: { ...actions, diagnostics, sourceEditState: sourceGuard.report },

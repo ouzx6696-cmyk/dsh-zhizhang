@@ -1,3 +1,4 @@
+/* 三栏外壳：左侧章节导航、中间稿纸、右侧抽屉（Agent / 本章 / 方法方案）。 */
 .drawer-close {
   display: none;
 }
@@ -37,173 +38,197 @@
   margin: auto;
   grid-column: 1;
 }
+
+/* 左侧导航：小号分组标题、紧凑的章节行，选中态由工作台的高亮条承担。 */
 .studio-nav {
   border-right: 1px solid var(--ui-line);
   overflow-y: auto;
-  padding: 18px 10px;
+  padding: var(--ui-space-4) var(--ui-space-2);
   min-width: 0;
+  background: color-mix(in srgb, var(--ui-panel) 55%, transparent);
 }
 .studio-nav h2 {
+  margin: 0 0 var(--ui-space-2);
+  padding: 0 var(--ui-space-2);
   font-size: var(--ui-size-12);
+  font-weight: 600;
+  letter-spacing: 0.04em;
   color: var(--ui-text-3);
-  padding-left: 10px;
-  font-weight: 400;
+}
+.studio-nav > button:not(.nav-toggle) {
+  width: 100%;
+  margin-top: var(--ui-space-3);
+  border-style: dashed;
+  background: transparent;
+  color: var(--ui-text-2);
+  font-size: var(--ui-size-13);
+}
+.studio-nav > button:not(.nav-toggle):hover:not(:disabled) {
+  border-style: solid;
+  color: var(--ui-text);
 }
 .studio-nav .wb-chapter-nav {
   padding: 0;
 }
+.studio-nav .wb-chapter-list {
+  gap: 1px;
+}
 .studio-nav .wb-chapter-row {
-  border-radius: 6px;
-  margin-bottom: 4px;
+  min-height: 0;
+  padding: var(--ui-space-2) var(--ui-space-2) var(--ui-space-2) var(--ui-space-3);
+  border-radius: var(--ui-radius-xs);
 }
-@media (max-width: 1199px) {
-  .studio-nav {
-    padding: 12px 8px;
-    position: relative;
-    background: var(--ui-panel);
-  }
+.studio-nav .wb-chapter-title {
+  font-size: var(--ui-size-13);
 }
-@media (max-width: 1199px) {
-  .studio-nav > :not(.nav-toggle) {
-    display: none;
-  }
+.nav-volume + .nav-volume {
+  margin-top: var(--ui-space-3);
 }
-@media (max-width: 1199px) {
-  .studio-nav.expanded {
-    position: absolute;
-    left: 0;
-    top: 48px;
-    bottom: 0;
-    width: 232px;
-    z-index: 50;
-    box-shadow: var(--ui-shadow-2);
-  }
-}
-@media (max-width: 1199px) {
-  .studio-nav.expanded > :not(.nav-toggle) {
-    display: block;
-  }
+.nav-volume > h3 {
+  margin: 0;
+  padding: var(--ui-space-2) var(--ui-space-2) var(--ui-space-1);
+  color: var(--ui-text-3);
+  font-size: var(--ui-size-12);
+  font-weight: 500;
 }
 .nav-toggle {
   display: none;
 }
 @media (max-width: 1199px) {
+  .studio-nav {
+    padding: var(--ui-space-3) var(--ui-space-2);
+    position: relative;
+    background: var(--ui-panel);
+  }
+  .studio-nav > :not(.nav-toggle) {
+    display: none;
+  }
+  .studio-nav.expanded {
+    position: absolute;
+    left: 0;
+    top: 56px;
+    bottom: 0;
+    width: 232px;
+    z-index: var(--ui-z-drawer);
+    box-shadow: var(--ui-shadow-2);
+    animation: studio-slide-in var(--ui-duration) var(--ui-ease);
+  }
+  .studio-nav.expanded > :not(.nav-toggle) {
+    display: block;
+  }
   .nav-toggle {
     display: flex;
   }
 }
 
+/* 右侧抽屉 */
 .studio-sidebar {
   min-width: 0;
   min-height: 0;
   border-left: 1px solid var(--ui-line);
   display: flex;
   flex-direction: column;
+  background: color-mix(in srgb, var(--ui-panel) 55%, transparent);
 }
-
 .studio-tabs {
   height: 45px;
   display: flex;
   align-items: stretch;
   border-bottom: 1px solid var(--ui-line);
-  padding: 0 16px;
-  gap: 16px;
+  padding: 0 var(--ui-space-3);
   flex-shrink: 0;
 }
-
-.studio-tabs button {
-  font-size: var(--ui-size-12);
-  background: transparent;
-  border: 0;
-  border-bottom: 2px solid transparent;
+.studio-tabs .studio-tablist > [role="tab"] {
+  padding: 0 var(--ui-space-2);
   border-radius: 0;
-  padding: 0 3px;
-  color: var(--ui-text-3);
 }
-
-.studio-tabs button[aria-selected="true"] {
-  color: var(--ui-text);
-  border-color: var(--ui-accent);
+.studio-tabs .studio-tablist > [role="tab"]:hover:not(:disabled) {
+  background: transparent;
 }
-
 .studio-side-body {
   flex: 1;
   min-height: 0;
   overflow: hidden;
 }
-
-.studio-side-body > .agent-slot {
+.studio-side-body > .agent-slot,
+.studio-side-body > .methods-slot {
   height: 100%;
 }
-
 .decision-panel {
-  padding: 16px;
+  padding: var(--ui-space-4);
   height: 100%;
   overflow-y: auto;
 }
-
 .method-cta {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 10px;
-  padding: 16px;
+  gap: var(--ui-space-3);
+  padding: var(--ui-space-4);
 }
-
 .method-cta p {
   margin: 0;
   font-size: var(--ui-size-12);
   color: var(--ui-text-3);
 }
-
 .methods-page {
   width: min(1360px, 94vw);
   height: 88vh;
   display: flex;
   flex-direction: column;
   border: 1px solid var(--ui-line);
-  border-radius: 14px;
+  border-radius: var(--ui-radius-lg);
   background: var(--ui-paper);
   box-shadow: var(--ui-shadow-2);
   overflow: hidden;
 }
-
 .methods-page > header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 18px;
+  padding: var(--ui-space-3) var(--ui-space-4);
   border-bottom: 1px solid var(--ui-line);
 }
-
 .methods-page > header h2 {
   margin: 0;
   font-size: var(--ui-size-15);
 }
-
 @media (max-width: 959px) {
   .studio-sidebar {
     display: none;
     background: var(--ui-panel);
   }
-}
-
-@media (max-width: 959px) {
   .studio-sidebar.open {
     display: flex;
     position: fixed;
     right: 0;
-    top: 48px;
+    top: 56px;
     bottom: 0;
     width: min(392px, 92vw);
-    z-index: 80;
+    z-index: var(--ui-z-drawer);
     box-shadow: var(--ui-shadow-2);
+    animation: studio-slide-in-right var(--ui-duration) var(--ui-ease);
   }
 }
-
-.nav-volume > h3 {
-  padding: 10px 10px 4px;
-  color: var(--ui-text-3);
-  font-size: var(--ui-size-12);
-  font-weight: 400;
+button.icon-button {
+  padding: var(--ui-space-1) var(--ui-space-2);
+  border-color: transparent;
+  background: transparent;
+  color: var(--ui-text-2);
+}
+button.icon-button:hover {
+  background: var(--ui-fill-strong);
+  color: var(--ui-text);
+}
+@keyframes studio-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+}
+@keyframes studio-slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
 }

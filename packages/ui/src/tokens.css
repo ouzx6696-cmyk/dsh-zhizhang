@@ -1,5 +1,6 @@
 /* Shared design tokens for the desktop palette. */
-:where(:root, .wb-scope) {
+/* 默认值只挂在根上：嵌套的 .wb-scope（工作台对话框）继承桌面主题，不再重设成系统色。 */
+:where(:root) {
   --ui-font-ui: "Noto Sans SC", "Microsoft YaHei", sans-serif;
   --ui-font-body: var(--ui-body-family, "Noto Serif SC", "Songti SC", Georgia, serif);
   --ui-font-mono: "JetBrains Mono", "Noto Sans Mono CJK SC", "Noto Sans SC", monospace;
@@ -11,9 +12,23 @@
   --ui-space-5: 24px;
   --ui-space-6: 32px;
 
+  --ui-radius-xs: 4px;
   --ui-radius-sm: 6px;
   --ui-radius-md: 10px;
   --ui-radius-lg: 14px;
+  --ui-radius-pill: 999px;
+
+  /* 层级只按用途分级：同级内靠文档顺序，不再各自挑数字。 */
+  --ui-z-base: 1;
+  --ui-z-sticky: 10;
+  --ui-z-drawer: 40;
+  --ui-z-popover: 60;
+  --ui-z-modal: 80;
+  --ui-z-toast: 100;
+
+  --ui-ease: cubic-bezier(0.2, 0, 0, 1);
+  --ui-duration-fast: 120ms;
+  --ui-duration: 180ms;
 
   --ui-bg: Canvas;
   --ui-panel: Canvas;
@@ -75,7 +90,6 @@
   --ui-body-family: "Noto Serif SC", serif;
   --ui-control-height: 36px;
   --ui-blur: blur(16px);
-  --ui-transition: 150ms ease;
 }
 :root[data-writer-desktop][data-theme="light"],
 .ui-theme-preview[data-theme="light"] {
@@ -127,41 +141,4 @@
   --ui-size-40: 40px;
   --ui-overlay-1: #000;
   --ui-font-step: 1px;
-}
-
-.writer-desktop {
-  --dsw-font-family: var(--ui-font-ui);
-  --dsw-elevation-soft: var(--ui-shadow-1);
-  --dsw-elevation-medium: var(--ui-shadow-2);
-  --ui-font-ui: inherit;
-  --ui-font-body: inherit;
-  --ui-font-mono: inherit;
-  --ui-space-1: inherit;
-  --ui-space-2: inherit;
-  --ui-space-3: inherit;
-  --ui-space-4: inherit;
-  --ui-space-5: inherit;
-  --ui-space-6: inherit;
-  --ui-radius-sm: inherit;
-  --ui-radius-md: inherit;
-  --ui-radius-lg: inherit;
-  --ui-bg: inherit;
-  --ui-panel: inherit;
-  --ui-paper: inherit;
-  --ui-line: inherit;
-  --ui-line-strong: inherit;
-  --ui-text: inherit;
-  --ui-text-2: inherit;
-  --ui-text-3: inherit;
-  --ui-accent: inherit;
-  --ui-accent-soft: inherit;
-  --ui-on-accent: inherit;
-  --ui-success: inherit;
-  --ui-warning: inherit;
-  --ui-danger: inherit;
-  --ui-hover: inherit;
-  --ui-active: inherit;
-  --ui-mask: inherit;
-  --ui-shadow-1: inherit;
-  --ui-shadow-2: inherit;
 }

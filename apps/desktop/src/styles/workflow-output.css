@@ -1,0 +1,175 @@
+/* 阶段产出：正文预览、字段表、问题列表、事实链等。 */
+.wf-out {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: var(--ui-size-13);
+  line-height: 1.6;
+}
+.wf-out > * {
+  max-width: 100%;
+}
+.wf-out p,
+.wf-out h4,
+.wf-out h5 {
+  margin: 0;
+}
+.wf-out blockquote {
+  margin: 4px 0 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--ui-line-strong);
+  color: var(--ui-text-2);
+  font-family: var(--ui-font-body);
+}
+.wf-out-title {
+  font-size: var(--ui-size-14);
+  font-weight: 600;
+  color: var(--ui-title);
+}
+.wf-out-prose {
+  align-self: stretch;
+}
+.wf-out-prose p {
+  white-space: pre-wrap;
+  font-family: var(--ui-font-body);
+  line-height: 1.8;
+  color: var(--ui-text);
+}
+.wf-out-more {
+  margin-top: 4px;
+  min-height: 0;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ui-accent);
+  font-size: var(--ui-size-12);
+}
+.wf-out-more:hover {
+  background: transparent;
+  text-decoration: underline;
+}
+.wf-out-fields {
+  align-self: stretch;
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+.wf-out-fields div {
+  display: grid;
+  grid-template-columns: 5.5em minmax(0, 1fr);
+  gap: 8px;
+}
+.wf-out-fields dt {
+  color: var(--ui-text-3);
+  font-size: var(--ui-size-12);
+  padding-top: 1px;
+}
+.wf-out-fields dd {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.wf-out-list h5 {
+  font-size: var(--ui-size-12);
+  color: var(--ui-text-3);
+  font-weight: 400;
+}
+.wf-out-list ul,
+.wf-out-issues,
+.wf-out-claims,
+.wf-out-duels,
+.wf-out-cards {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.wf-out-issues li,
+.wf-out-cards li {
+  padding: 8px 10px;
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-fill);
+}
+.wf-out-issues,
+.wf-out-cards,
+.wf-out-claims {
+  align-self: stretch;
+  list-style-position: inside;
+  padding-left: 0;
+}
+.wf-out-claims li {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--ui-line);
+}
+.wf-out-claims li[data-kind="unsupported"] p {
+  color: var(--ui-danger);
+}
+.wf-out-chip {
+  --wf-tone: var(--ui-text-3);
+  display: inline-flex;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: var(--ui-size-12);
+  color: var(--wf-tone);
+  background: color-mix(in srgb, var(--wf-tone) 14%, transparent);
+}
+.wf-out-chip[data-tone="accent"] {
+  --wf-tone: var(--ui-accent);
+}
+.wf-out-chip[data-tone="success"] {
+  --wf-tone: var(--ui-success);
+}
+.wf-out-chip[data-tone="warning"] {
+  --wf-tone: var(--ui-warning);
+}
+.wf-out-chip[data-tone="danger"] {
+  --wf-tone: var(--ui-danger);
+}
+.wf-out-ok {
+  color: var(--ui-success);
+}
+.wf-out-note {
+  color: var(--ui-text-3);
+  font-size: var(--ui-size-12);
+}
+.wf-out-vote {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.wf-out-dev {
+  align-self: stretch;
+  font-size: var(--ui-size-12);
+  color: var(--ui-text-3);
+}
+.wf-out-dev summary {
+  cursor: pointer;
+  width: max-content;
+}
+.wf-out-dev summary:focus-visible {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 2px;
+}
+.wf-out-dev p {
+  margin: 6px 0 0;
+  font-family: var(--ui-font-mono);
+  overflow-wrap: anywhere;
+}
+.wf-out-dev pre {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-fill);
+  font-family: var(--ui-font-mono);
+}

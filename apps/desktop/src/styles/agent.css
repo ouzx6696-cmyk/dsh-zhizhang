@@ -1,3 +1,7 @@
+/* 对话面板：外框与会话工具；消息流和发送区各自成文件。 */
+@import "./agent-chat.css";
+@import "./agent-composer.css";
+
 .agent-slot[hidden] {
   display: none;
 }
@@ -7,17 +11,25 @@
   height: 100%;
   min-height: 0;
 }
+.agent-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 .conversation-tools {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin: 5px 14px;
+  gap: var(--ui-space-1);
+  margin: var(--ui-space-1) var(--ui-space-3);
   font-size: var(--ui-size-12);
 }
 .conversation-tools button,
 .conversation-tools select {
   font-size: var(--ui-size-12);
-  padding: 2px 4px;
+  padding: 2px var(--ui-space-1);
   background: transparent;
   border: 0;
 }
@@ -25,192 +37,4 @@
   width: 130px;
   overflow: hidden;
   margin-left: auto;
-}
-.chat-messages {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 12px 18px;
-}
-.chat-message {
-  margin-bottom: 20px;
-  font-size: var(--ui-size-12);
-  overflow-wrap: anywhere;
-  /* 长历史只布局、绘制视口附近的消息；auto 记住渲染过的真实高度，滚动不跳。 */
-  content-visibility: auto;
-  contain-intrinsic-size: auto 120px;
-}
-.chat-message > small {
-  font-size: var(--ui-size-12);
-  color: var(--ui-text-3);
-  display: block;
-  margin-bottom: 5px;
-}
-.chat-message.user {
-  margin-left: 36px;
-  background: var(--ui-accent-soft);
-  border-radius: 16px 16px 4px 16px;
-  padding: 12px 16px;
-}
-.chat-message.user .studio-markdown {
-  background: var(--ui-accent-soft);
-  padding: 9px 12px;
-  border-radius: 7px;
-}
-.chat-message.user .studio-markdown p:last-child {
-  margin: 0;
-}
-.chat-message.custom {
-  font-size: var(--ui-size-12);
-  color: var(--ui-text-3);
-}
-.action-capsule details {
-  border: 1px solid var(--ui-line);
-  border-radius: 7px;
-  background: var(--ui-panel);
-  padding: 0 10px;
-}
-.action-capsule summary {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 8px 0;
-  cursor: pointer;
-  font-size: var(--ui-size-12);
-  color: var(--ui-text);
-}
-.action-capsule-more {
-  color: var(--ui-text-3);
-  font-size: var(--ui-size-12);
-  white-space: nowrap;
-}
-.action-capsule-body {
-  border-top: 1px solid var(--ui-line);
-  padding: 8px 0;
-}
-.action-capsule-body .studio-markdown {
-  font-size: var(--ui-size-12);
-  color: var(--ui-text-3);
-}
-.tool-action {
-  margin: 6px 0;
-  color: var(--ui-text-3);
-  font-size: var(--ui-size-12);
-}
-.tool-action summary {
-  cursor: pointer;
-  padding: 3px 0;
-  overflow-wrap: anywhere;
-}
-.tool-action pre {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  background: var(--ui-bg);
-  border: 1px solid var(--ui-line);
-  border-radius: 5px;
-  padding: 10px;
-  font: var(--ui-size-12)/1.6 var(--ui-font-mono);
-  max-height: 340px;
-  overflow: auto;
-}
-.result-card {
-  border-left: 3px solid var(--ui-accent);
-  padding: 10px;
-  margin: 12px 0;
-  border-radius: var(--ui-radius-md);
-  background: var(--ui-fill);
-  border: 1px solid var(--ui-line-strong);
-  box-shadow: var(--ui-shadow-1);
-}
-.result-card[data-kind="review"] {
-  border-left-color: var(--ui-warning);
-}
-.result-card.failed {
-  border-left-color: var(--ui-danger);
-}
-.result-card strong {
-  font-size: var(--ui-size-12);
-}
-.result-card p {
-  font-size: var(--ui-size-12);
-  margin: 5px 0;
-  color: var(--ui-text-3);
-}
-.result-card button {
-  font-size: var(--ui-size-12);
-  background: transparent;
-  border: 0;
-  padding: 0;
-  color: var(--ui-accent);
-}
-.chat-empty {
-  display: flex;
-  align-items: center;
-  flex-direction: column;
-  color: var(--ui-text-3);
-  font-size: var(--ui-size-12);
-  max-width: 240px;
-  margin: 70px auto;
-  text-align: center;
-  gap: 14px;
-}
-.agent-input-area {
-  flex-shrink: 0;
-  padding: 8px 14px 14px;
-}
-.quick-actions {
-  display: flex;
-  gap: 5px;
-  flex-wrap: wrap;
-  margin-bottom: 9px;
-}
-.quick-actions button {
-  font-size: var(--ui-size-12);
-  padding: 3px 7px;
-  border-radius: 12px;
-  background: transparent;
-}
-.agent-input-area form {
-  background: var(--ui-paper);
-  border: 1px solid var(--ui-line);
-  border-radius: 8px;
-  padding: 10px;
-}
-.agent-input-area textarea {
-  display: block;
-  resize: vertical;
-  min-height: 68px;
-  max-height: 200px;
-  border: 0;
-  width: 100%;
-  padding: 8px 0;
-  background: transparent;
-  font-size: var(--ui-size-12);
-}
-.agent-input-area footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.agent-input-area footer span {
-  font-size: var(--ui-size-12);
-  color: var(--ui-text-3);
-}
-.agent-input-area footer button {
-  font-size: var(--ui-size-12);
-  padding: 4px 9px;
-}
-.input-target {
-  display: inline-block;
-  color: var(--ui-accent);
-  font-size: var(--ui-size-12);
-  background: var(--ui-accent-soft);
-  padding: 1px 5px;
-  border-radius: 3px;
-}
-.running-target {
-  display: block;
-  font-size: var(--ui-size-12);
-  margin-top: 3px;
 }

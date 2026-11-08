@@ -323,33 +323,6 @@ function fakeClock() {
   };
 }
 
-test("成功提示：焦点与悬停交替进出后，悬停期间提示不会被遗留计时关掉", async () => {
-  const runtime = createRuntime();
-  const clock = fakeClock();
-  const { Notices } = loadComponents(runtime.react, {
-    setTimeout: clock.setTimeout,
-    clearTimeout: clock.clearTimeout,
-  });
-  const dismissed = [];
-  const stack = Notices({
-    notices: [{ id: "n1", tone: "success", text: "已保存" }],
-    onDismiss: (id) => dismissed.push(id),
-  });
-  const toast = findAll(stack, (n) => typeof n.type === "function" && n.props.notice)[0];
-  const view = runtime.mount(toast.type, toast.props);
-  const box = () => view.raw.props;
-  box().onFocus();
-  box().onMouseEnter();
-  box().onBlur();
-  box().onMouseLeave();
-  box().onMouseEnter();
-  clock.advance(10000);
-  assert.deepEqual(dismissed, []);
-  box().onMouseLeave();
-  clock.advance(10000);
-  assert.deepEqual(dismissed, ["n1"]);
-});
-
 test("采用按钮：第二次采用完成同样闪现对勾反馈", async () => {
   const runtime = createRuntime();
   const clock = fakeClock();

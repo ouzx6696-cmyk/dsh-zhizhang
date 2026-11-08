@@ -2,22 +2,23 @@ import {
   COPY as viewCopy,
   formatDateTime,
   t as viewText,
+  t,
 } from "../../../../../../packages/ui/src/copy.js";
 import { ARTICLE_STEPS, articleProgress } from "../../../../../../packages/ui/src/status";
 import { Steps } from "../../../../../../packages/ui/src/primitives";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useToutiao } from "../../../../../../packages/workbench/src/client/toutiao/useToutiao.js";
 import {
   ArticleList,
   Body,
   ToutiaoSide,
 } from "../../../../../../packages/workbench/src/client/toutiao/ToutiaoApp.jsx";
-import { Notices } from "../../../../../../packages/workbench/src/client/shared/common.jsx";
-import { t } from "../../../../../../packages/ui/src/copy.js";
 import { Check } from "lucide-react";
 import { StatusBadge } from "../../../../../../packages/ui/src/status-badge";
 import type { ArticleDetail, ArticleRow, WorkspaceProps } from "../../../renderer-contracts";
 import { askConfirm } from "../../state/confirm";
+import { useWorkspaceNavigator } from "../../state/navigation";
+import type { Focus, Target } from "../../../context";
 import { WorkspaceLayout } from "./WorkspaceLayout";
 
 function Ledger({
@@ -117,6 +118,15 @@ export function Articles(props: WorkspaceProps) {
   const { onContext } = props;
   const tt = useToutiao({ onTarget: props.onTarget, onSourceEditState: props.onSourceEditState }),
     a = articleOf(tt.detail.article);
+  const { select } = tt.actions;
+  // 同一头条目录内换文章（结果卡“查看”）就地选中，不重挂载写作区。
+  const navigate = useCallback(
+    (target: Target, focus: Focus) => {
+      if (focus.article) select(target.root, focus.article);
+    },
+    [select],
+  );
+  useWorkspaceNavigator(props.target, navigate);
   useEffect(() => {
     onContext({
       article: a || undefined,
@@ -224,7 +234,6 @@ export function Articles(props: WorkspaceProps) {
         }
         inspector={<ToutiaoSide tt={tt} hideAgent />}
       />
-      <Notices notices={tt.notices} onDismiss={tt.actions.dismiss} />
     </>
   );
 }

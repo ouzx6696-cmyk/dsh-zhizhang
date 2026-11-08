@@ -1,11 +1,13 @@
-import { COPY as viewCopy } from "../../../../ui/src/copy.js";
+import { COPY as viewCopy, formatCount, t, EDITOR_COPY } from "../../../../ui/src/copy.js";
 /** 写作台 · 今日头条模式：左列文章、中间当前稿 / 交稿单、右侧状态、质检、采用与写作 Agent 按钮。 */
 import React from "react";
-import { formatCount, t } from "../../../../ui/src/copy.js";
 import { Button, Icon, SegmentedControl, StateDot, Tag, cx } from "../shared/ui.jsx";
 import { Callout, Empty, Skeleton } from "../shared/common.jsx";
 import { Manuscript } from "../shared/Manuscript.jsx";
 import { SourceEditor } from "../shared/SourceEditor.jsx";
+import { draftKey } from "../shared/drafts.js";
+import { useReadingPosition } from "../shared/reading-position.js";
+import { useReaderFind } from "../shared/useReaderFind.jsx";
 import { statusInfo, statusLabel, statusTone } from "../../../../ui/src/status.js";
 
 import { draftRoleLabel } from "./ToutiaoSide.jsx";
@@ -113,6 +115,9 @@ export function ArticleList({ articles, sel, onSelect }) {
 export function Body({ detail, onSave, readOnly = false, onEditState }) {
   const [view, setView] = useState("draft");
   const [editing, setEditing] = useState(null);
+  const text = detail.status === "ready" ? detail.article?.draft?.text : undefined;
+  const reading = useReadingPosition(!editing && view === "draft" && text ? text : null);
+  const finder = useReaderFind(reading.body, !editing);
   if (!editing && detail.status === "loading")
     return (
       <div className="wb-pane-loading" role="status">
@@ -134,7 +139,7 @@ export function Body({ detail, onSave, readOnly = false, onEditState }) {
     );
   const shown = view === "delivery" && a.delivery ? "delivery" : "draft";
   return (
-    <div className="wb-reader">
+    <div className="wb-reader" data-mode="toutiao">
       <div className="wb-reader-bar">
         <div className="wb-reader-heading">
           <h2 className="wb-reader-title">{a.title}</h2>
@@ -150,6 +155,17 @@ export function Body({ detail, onSave, readOnly = false, onEditState }) {
           </p>
         </div>
         <div className="wb-reader-tools">
+          {!editing ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label={EDITOR_COPY.find}
+              title={EDITOR_COPY.find + " (Ctrl+F)"}
+              aria-keyshortcuts="Control+F"
+              onClick={() => finder.openFind("find")}
+              icon={<Icon name="search" size={14} />}
+            />
+          ) : null}
           {!editing ? (
             <SegmentedControl
               id="wb-tt-view"
@@ -173,7 +189,14 @@ export function Body({ detail, onSave, readOnly = false, onEditState }) {
           !a.draft.truncated &&
           onSave &&
           !readOnly ? (
-            <Button variant="outline" size="sm" onClick={() => setEditing({ article: a })}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                reading.enter();
+                setEditing({ article: a });
+              }}
+            >
               {t("editorToggle")}
             </Button>
           ) : null}
@@ -184,7 +207,9 @@ export function Body({ detail, onSave, readOnly = false, onEditState }) {
           {a.problem}
         </Callout>
       ) : null}
+      {finder.bar}
       <div
+        ref={reading.body}
         className="wb-reader-body wb-enter"
         key={a.id + ":" + shown + ":" + (a.draft ? a.draft.rev : 0)}
         tabIndex={0}
@@ -194,6 +219,8 @@ export function Body({ detail, onSave, readOnly = false, onEditState }) {
             initial={a.draft.text}
             title={t("editorTitle")}
             note={t("ttEditorNote")}
+            draftKey={draftKey(["toutiao", a.root, a.id, a.draft.rev, a.draft.sha256])}
+            position={reading.position}
             onSave={async (text) => {
               await onSave(text, {
                 root: a.root,
@@ -201,9 +228,13 @@ export function Body({ detail, onSave, readOnly = false, onEditState }) {
                 expectedRev: a.draft.rev,
                 expectedSha256: a.draft.sha256,
               });
+              reading.leave();
               setEditing(null);
             }}
-            onCancel={() => setEditing(null)}
+            onCancel={() => {
+              reading.leave();
+              setEditing(null);
+            }}
             onStateChange={onEditState}
           />
         ) : shown === "delivery" ? (

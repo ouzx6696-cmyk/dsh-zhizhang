@@ -9,18 +9,29 @@
   min-height: 52px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--ui-space-2);
   border-bottom: 1px solid var(--ui-line);
-  padding: 10px 0;
+  padding: var(--ui-space-2) 0;
   position: sticky;
   top: 0;
-  background: var(--ui-bg);
-  z-index: 3;
+  background: color-mix(in srgb, var(--ui-bg) 92%, transparent);
+  backdrop-filter: var(--ui-blur);
+  z-index: var(--ui-z-sticky);
   flex-wrap: wrap;
 }
 
+.paper-chapter-title {
+  max-width: 18em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--ui-size-14);
+  color: var(--ui-title);
+}
+
 .paper-decisions button {
-  padding: 3px 7px;
+  min-height: 28px;
+  padding: 0 var(--ui-space-3);
   font-size: var(--ui-size-12);
 }
 
@@ -28,8 +39,8 @@
   min-height: 52px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 0;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-2) 0;
   border-bottom: 1px solid var(--ui-line);
   color: var(--ui-text-3);
   font-size: var(--ui-size-12);
@@ -42,8 +53,8 @@
 .paper-steps {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin: 0 auto 0 2px;
+  gap: var(--ui-space-1);
+  margin: 0 auto 0 var(--ui-space-1);
   padding: 0;
   list-style: none;
   font-size: var(--ui-size-12);
@@ -51,8 +62,8 @@
 }
 
 .paper-steps li {
-  padding: 1px 5px;
-  border-radius: 4px;
+  padding: 1px var(--ui-space-2);
+  border-radius: var(--ui-radius-xs);
 }
 
 .paper-steps li[data-state="current"] {
@@ -67,7 +78,7 @@
 
 .paper-steps li + li::before {
   content: "›";
-  margin-right: 6px;
+  margin-right: var(--ui-space-1);
   color: var(--ui-line);
 }
 
@@ -78,8 +89,8 @@
 }
 
 .paper-qa {
-  padding: 1px 7px;
-  border-radius: 999px;
+  padding: 1px var(--ui-space-2);
+  border-radius: var(--ui-radius-pill);
   background: color-mix(in srgb, var(--ui-success) 14%, transparent);
   color: var(--ui-success);
   font-size: var(--ui-size-12);
@@ -100,7 +111,7 @@
 
 .studio-paper-column .wb-reader-body {
   overflow: visible;
-  padding: 12px 0 32px;
+  padding: var(--ui-space-3) 0 var(--ui-space-6);
 }
 
 .studio-paper-column .wb-reader-bar {
@@ -108,7 +119,7 @@
   max-width: calc(38 * var(--ui-body-size));
   margin: 0 auto;
   border: 0;
-  padding: 16px 0;
+  padding: var(--ui-space-4) 0;
   background: transparent;
 }
 
@@ -121,8 +132,10 @@
   line-height: 1.5;
 }
 
+/* 字号交给写作台自己的规则（外观字号 + 阅读器 A−/A+），这里只换稿纸字体与行距。 */
 .studio-paper-column .wb-manuscript {
-  font: var(--ui-body-size) / 2 var(--ui-font-body);
+  font-family: var(--ui-font-body);
+  line-height: 2;
   max-width: 38em;
   margin: 0 auto;
   min-height: clamp(420px, calc(100vh - 210px), 860px);
@@ -147,7 +160,7 @@
 }
 
 .studio-empty {
-  padding: 60px 30px;
+  padding: 60px var(--ui-space-6);
   text-align: center;
   color: var(--ui-text-3);
 }
@@ -167,7 +180,7 @@
 }
 
 .studio-markdown p {
-  margin: 0 0 9px;
+  margin: 0 0 var(--ui-space-2);
 }
 
 .studio-markdown ul,
@@ -176,9 +189,9 @@
 }
 
 .studio-markdown blockquote {
-  margin: 6px 0;
+  margin: var(--ui-space-1) 0;
   border-left: 2px solid var(--ui-accent);
-  padding-left: 10px;
+  padding-left: var(--ui-space-2);
   color: var(--ui-text-3);
 }
 
@@ -187,8 +200,8 @@
   overflow-wrap: anywhere;
   background: var(--ui-bg);
   border: 1px solid var(--ui-line);
-  border-radius: 5px;
-  padding: 10px;
+  border-radius: var(--ui-radius-xs);
+  padding: var(--ui-space-2);
   font: var(--ui-size-12)/1.6 var(--ui-font-mono);
   max-height: 340px;
   overflow: auto;
@@ -203,7 +216,7 @@
 .studio-markdown td,
 .studio-markdown th {
   border: 1px solid var(--ui-line);
-  padding: 5px;
+  padding: var(--ui-space-1);
 }
 
 .paper-decisions > .primary {
@@ -212,7 +225,7 @@
 
 .studio-paper-column {
   background: transparent;
-  padding: 0 24px 32px;
+  padding: 0 var(--ui-space-5) var(--ui-space-6);
 }
 
 .studio-paper-column .wb-manuscript {

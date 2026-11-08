@@ -1,0 +1,188 @@
+/* 流水线阶段时间线与多稿对照。 */
+.wf-stages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.wf-stage {
+  position: relative;
+  border-radius: var(--ui-radius-sm);
+}
+.wf-stage[data-phase="running"] {
+  background: color-mix(in srgb, var(--ui-accent) 7%, transparent);
+}
+.wf-stage[data-phase="failed"] {
+  background: color-mix(in srgb, var(--ui-danger) 7%, transparent);
+}
+/* 竖线把相邻阶段的图标串起来。 */
+.wf-stage:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: 17px;
+  top: 30px;
+  bottom: -6px;
+  width: 1px;
+  background: var(--ui-line);
+  pointer-events: none;
+}
+.wf-stage-head {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto 14px;
+  grid-template-areas:
+    "icon title time chevron"
+    ". meta meta .";
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 2px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
+  text-align: left;
+  white-space: normal;
+  min-height: 0;
+  font-size: var(--ui-size-13);
+}
+button.wf-stage-head:hover {
+  background: var(--ui-hover);
+}
+.wf-stage-icon {
+  grid-area: icon;
+  position: relative;
+  z-index: var(--ui-z-base);
+  color: var(--ui-text-3);
+  background: var(--ui-panel);
+  border-radius: 50%;
+}
+/* 图标颜色跟随自身状态，阶段行、投票分项与收起角标都一致。 */
+.wf-stage-icon[data-phase="running"] {
+  color: var(--ui-accent);
+}
+.wf-stage-icon[data-phase="complete"] {
+  color: var(--ui-success);
+}
+.wf-stage-icon[data-phase="failed"] {
+  color: var(--ui-danger);
+}
+.wf-stage-icon[data-phase="paused"] {
+  color: var(--ui-warning);
+}
+.wf-stage-title {
+  grid-area: title;
+  min-width: 0;
+  color: var(--ui-text);
+  overflow-wrap: anywhere;
+}
+.wf-stage[data-phase="waiting"] .wf-stage-title {
+  color: var(--ui-text-3);
+}
+.wf-stage-time {
+  grid-area: time;
+  color: var(--ui-text-3);
+  font-size: var(--ui-size-12);
+  font-variant-numeric: tabular-nums;
+}
+.wf-stage[data-phase="running"] .wf-stage-time {
+  color: var(--ui-accent);
+}
+.wf-stage-chevron {
+  grid-area: chevron;
+  color: var(--ui-text-3);
+  transition: transform 160ms ease;
+}
+.wf-stage-head[aria-expanded="true"] .wf-stage-chevron {
+  transform: rotate(90deg);
+}
+.wf-stage-meta {
+  grid-area: meta;
+  color: var(--ui-text-3);
+  font-size: var(--ui-size-12);
+  font-variant-numeric: tabular-nums;
+}
+.wf-stage-error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 0 10px 8px 36px;
+  font-size: var(--ui-size-12);
+  color: var(--ui-danger);
+}
+.wf-stage-error p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.wf-stage-error button {
+  min-height: 0;
+  padding: 3px 10px;
+  font-size: var(--ui-size-12);
+}
+.wf-stage-body {
+  padding: 4px 10px 12px 36px;
+  animation: wf-stage-open 160ms ease-out;
+}
+@keyframes wf-stage-open {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+.wf-stage-part + .wf-stage-part {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--ui-line);
+}
+.wf-stage-part h5 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+  font-size: var(--ui-size-12);
+  font-weight: 600;
+  color: var(--ui-text-2);
+}
+
+/* 多稿对照：窄面板上下排，加宽后左右排。 */
+.wf-compare {
+  container-type: inline-size;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-md);
+  padding: 8px 12px;
+}
+.wf-compare summary {
+  cursor: pointer;
+  font-size: var(--ui-size-13);
+  color: var(--ui-text-2);
+}
+.wf-compare-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  margin-top: 10px;
+}
+.wf-compare-grid section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.wf-compare-text {
+  max-height: 420px;
+  overflow: auto;
+  padding: 10px 12px;
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-paper);
+  font-family: var(--ui-font-body);
+  line-height: 1.8;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+@container (min-width: 560px) {
+  .wf-compare-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

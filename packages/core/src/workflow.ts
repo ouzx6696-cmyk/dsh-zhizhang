@@ -2,6 +2,7 @@ import { isRecord } from "./parse.js";
 import path from "node:path";
 import { atomicWrite, nowIso, readJson } from "./fsx.js";
 import {
+  addUsage,
   emptyUsage,
   WorkflowBudgetError,
   parseWorkflowRequest,
@@ -11,21 +12,6 @@ import {
   type WorkflowUsage,
 } from "./workflow-config.js";
 export * from "./workflow-config.js";
-
-/** Adds one call's usage to a stage total; an unknown cost anywhere keeps the total unknown. */
-export function addUsage(total: WorkflowUsage, next: WorkflowUsage): WorkflowUsage {
-  const hadUsage = total.input + total.output + total.cacheRead + total.cacheWrite > 0;
-  return {
-    input: total.input + next.input,
-    output: total.output + next.output,
-    cacheRead: total.cacheRead + next.cacheRead,
-    cacheWrite: total.cacheWrite + next.cacheWrite,
-    cost:
-      next.cost === null || (hadUsage && total.cost === null)
-        ? null
-        : (total.cost ?? 0) + next.cost,
-  };
-}
 
 function parseRecord(value: unknown): WorkflowRecord {
   if (

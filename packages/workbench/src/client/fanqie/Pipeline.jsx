@@ -1,11 +1,9 @@
-import { COPY as viewCopy } from "../../../../ui/src/copy.js";
+import { COPY as viewCopy, chapterName, formatCount, t } from "../../../../ui/src/copy.js";
 import { statusLabel as canonicalStatusLabel } from "../../../../ui/src/status.js";
 const statusLabel = (status) => canonicalStatusLabel("fanqie", status);
-import { chapterName } from "../../../../ui/src/copy.js";
 import { Dashboard } from "./Dashboard.jsx";
 /** Whole-book overview: product loop, reference library, planning, writing, ledger. */
 import React from "react";
-import { formatCount, t } from "../../../../ui/src/copy.js";
 import { Button, SegmentedControl, Tag } from "../shared/ui.jsx";
 import { Callout, Empty, Foundation, Section, StatusDot, clip } from "../shared/common.jsx";
 
@@ -345,8 +343,9 @@ export function Pipeline({ state, view, actions }) {
     { value: "ledger", label: t("tabLedger") },
   ];
   // 作者在“放弃未保存修改？”里选了取消时，选章被拒，也不能再切到章节视图。
-  const openChapter = (id) => {
-    if (dispatch({ type: "selectChapter", id })) dispatch({ type: "view", view: "chapters" });
+  const openChapter = async (id) => {
+    if (await dispatch({ type: "selectChapter", id }))
+      void dispatch({ type: "view", view: "chapters" });
   };
   let body;
   if (state.tab === "library") body = <Library library={snap.library} />;

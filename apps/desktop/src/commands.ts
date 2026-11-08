@@ -18,8 +18,7 @@ type CommandDependencies = {
   newWork: (mode: "fanqie" | "toutiao", note?: string) => Promise<void>;
   exportFile: (format: string) => Promise<void>;
   loadView: (target: Target, maximum?: number, old?: number) => Promise<void>;
-  changeView: (view: string) => void;
-  canLeave: () => boolean;
+  canLeave: () => Promise<boolean>;
   clearArchive: () => void;
 };
 const HANDLERS: Record<string, (deps: CommandDependencies) => Promise<unknown>> = {
@@ -78,7 +77,7 @@ const HANDLERS: Record<string, (deps: CommandDependencies) => Promise<unknown>> 
   新对话: async (deps: CommandDependencies) => {
     const { selected } = deps;
     if (!selected) throw new Error("请先打开作品");
-    if (!deps.canLeave()) return;
+    if (!(await deps.canLeave())) return;
     await desktop.newConversation(selected);
     deps.clearArchive();
     deps.setChat({

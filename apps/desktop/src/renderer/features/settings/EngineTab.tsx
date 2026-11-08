@@ -1,11 +1,12 @@
 import React from "react";
-import { COPY as copy } from "../../../../../../packages/ui/src/copy.js";
+import { AGENT_COPY, COPY as copy } from "../../../../../../packages/ui/src/copy.js";
 import { Toggle } from "../../../../../../packages/ui/src/primitives";
 import {
   BUDGET_LIMITS,
   type EngineSettings,
 } from "../../../../../../packages/core/src/workflow-config.js";
 import type { SessionOptions } from "../../../session/types";
+import type { ContextSettings } from "../../../context-settings";
 
 const FLAGS = [
   ["handoff", "v2", copy.workflowHandoff, "both"],
@@ -32,11 +33,15 @@ export function EngineTab({
   onChange,
   options,
   onOptionsChange,
+  context,
+  onContextChange,
 }: {
   value: EngineSettings;
   onChange: (value: EngineSettings) => void;
   options: SessionOptions | null;
   onOptionsChange: (value: SessionOptions) => void;
+  context: ContextSettings;
+  onContextChange: (value: ContextSettings) => void;
 }) {
   const change = (mode: "fanqie" | "toutiao", group: string, key: string, enabled: boolean) => {
     if (!options) return;
@@ -93,6 +98,42 @@ export function EngineTab({
         />
       </label>
       <p className="form-note">{copy.workflowCostNote}</p>
+      <h3>{AGENT_COPY.contextSettings}</h3>
+      <Toggle
+        label={copy.contextPanelText16}
+        checked={context.enabled}
+        onChange={(checked: boolean) => onContextChange({ ...context, enabled: checked })}
+      />
+      <label>
+        {copy.contextPanelText17}
+        <input
+          type="number"
+          min="50"
+          max="95"
+          value={context.triggerPercent}
+          onChange={(e) => onContextChange({ ...context, triggerPercent: Number(e.target.value) })}
+        />
+      </label>
+      <label>
+        {copy.contextPanelText18}
+        <input
+          type="number"
+          min="0"
+          value={context.budget}
+          onChange={(e) => onContextChange({ ...context, budget: Number(e.target.value) })}
+        />
+      </label>
+      <label>
+        {copy.contextPanelText19}
+        <input
+          type="number"
+          min="0"
+          value={context.keepRecentTokens}
+          onChange={(e) =>
+            onContextChange({ ...context, keepRecentTokens: Number(e.target.value) })
+          }
+        />
+      </label>
       <h3>{copy.workflowFeatures}</h3>
       <p className="form-note">{copy.workflowExperimental}</p>
       {(["fanqie", "toutiao"] as const).map((mode) => (
