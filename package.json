@@ -14,7 +14,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p apps/desktop/tsconfig.json --noEmit",
     "build": "tsc -p tsconfig.json",
     "test:py": "node scripts/test-python.mjs",
-    "test:node": "tsc -p tsconfig.json && node scripts/build-test-components.mjs && node --test --import ./test/setup.mjs test/*.test.mjs test/engine/*.test.mjs",
+    "test:node": "tsc -p tsconfig.json && node scripts/build-test-components.mjs && node --test --import ./test/setup.mjs test/*.test.mjs test/engine/*.test.mjs test/renderer/*.test.mjs",
     "test": "npm run verify",
     "assets": "node scripts/assets.mjs",
     "desktop:dev": "npm run dev -w @writer/desktop",
