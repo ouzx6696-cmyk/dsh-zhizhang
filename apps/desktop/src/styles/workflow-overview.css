@@ -1,0 +1,128 @@
+/* 流水线总览：状态、进度与用量、阻塞与交付提醒。 */
+.wf-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.wf-overview-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.wf-overview-kind {
+  color: var(--ui-text-2);
+  font-size: var(--ui-size-13);
+}
+.wf-overview-instruction {
+  margin: 0;
+  color: var(--ui-text);
+  font-size: var(--ui-size-14);
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.wf-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-fill);
+}
+.wf-stats-bar,
+.wf-stats-meter {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--ui-line);
+  overflow: hidden;
+}
+.wf-stats-bar > span,
+.wf-stats-meter > span {
+  display: block;
+  height: 100%;
+  background: var(--ui-accent);
+  transform-origin: left;
+  transition: transform 400ms ease;
+}
+.wf-stats-bar[data-state="awaiting-author"] > span {
+  background: var(--ui-success);
+}
+.wf-stats-bar[data-state="failed"] > span {
+  background: var(--ui-danger);
+}
+.wf-stats-bar[data-state="paused"] > span {
+  background: var(--ui-warning);
+}
+.wf-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 12px;
+  margin: 0;
+}
+.wf-stats-grid dt {
+  color: var(--ui-text-3);
+  font-size: var(--ui-size-12);
+}
+.wf-stats-grid dd {
+  margin: 0;
+  font-size: var(--ui-size-13);
+  font-variant-numeric: tabular-nums;
+}
+.wf-stats-wide {
+  grid-column: 1 / -1;
+}
+.wf-stats-wide .wf-stats-meter {
+  margin-top: 6px;
+}
+.wf-stats-wide[data-level="high"] dd {
+  color: var(--ui-warning);
+}
+.wf-stats-wide[data-level="high"] .wf-stats-meter > span {
+  background: var(--ui-warning);
+}
+
+/* 阻塞与交付提醒：左侧色条区分语气。 */
+.wf-notice {
+  --wf-tone: var(--ui-info);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--wf-tone);
+  border-radius: var(--ui-radius-sm);
+  background: color-mix(in srgb, var(--wf-tone) 10%, transparent);
+  font-size: var(--ui-size-13);
+}
+.wf-notice[data-tone="warning"] {
+  --wf-tone: var(--ui-warning);
+}
+.wf-notice[data-tone="danger"] {
+  --wf-tone: var(--ui-danger);
+}
+.wf-notice strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--wf-tone);
+}
+.wf-notice p {
+  margin: 0;
+  line-height: 1.6;
+}
+.wf-notice button {
+  font-size: var(--ui-size-12);
+  min-height: 0;
+  padding: 4px 10px;
+}
+.wf-notice-raw {
+  margin: 0;
+  color: var(--ui-text-3);
+  font-size: var(--ui-size-12);
+  overflow-wrap: anywhere;
+}

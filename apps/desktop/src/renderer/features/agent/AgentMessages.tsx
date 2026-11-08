@@ -1,14 +1,26 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, Feather } from "lucide-react";
 import { Markdown } from "../../../Markdown";
 import { actionTitle, humanVersion } from "../../format";
 import { promptContext, toolLabel, type Focus, type Target } from "../../../context";
 import { writerResult } from "../../../writer-result";
 import type { ChatMessage } from "../../state/store";
-import { useChatSelector } from "../../state/chatStore";
-import { COPY as viewCopy, t as viewText } from "../../../../../../packages/ui/src/copy.js";
+import { chatStore, useChatSelector } from "../../state/chatStore";
+import {
+  COPY as viewCopy,
+  t as viewText,
+  AGENT_COPY,
+} from "../../../../../../packages/ui/src/copy.js";
 
-function messageBody(message: ChatMessage) {
+// 会话里除作者与作者操作外的条目都由写作助手产生。
+const ROLE_LABEL: Record<string, string> = {
+  user: viewCopy.agentPanelText34,
+  custom: viewCopy.agentPanelText35,
+};
+// 读屏只需要知道回复到了什么，不必听完整段；长回复截断后可在对话记录里细读。
+const ANNOUNCE_LIMIT = 240;
+
+export function messageBody(message: ChatMessage) {
   return typeof message.content === "string"
     ? message.content
     : (message.content || [])
@@ -36,6 +48,24 @@ function streamBlocks(text: string) {
   return blocks;
 }
 
+/** 流式结束时把最终回复交给读屏宣告一次，流式过程本身不进 live region，避免逐字朗读。 */
+function useReplyAnnouncement(stream: string) {
+  const [announcement, setAnnouncement] = useState("");
+  const streamed = useRef(false);
+  useEffect(() => {
+    if (stream) {
+      streamed.current = true;
+      return;
+    }
+    if (!streamed.current) return;
+    streamed.current = false;
+    const last = chatStore.get().messages.findLast((message) => message.role === "assistant");
+    const text = last ? messageBody(last) : "";
+    if (text) setAnnouncement(AGENT_COPY.replied + text.slice(0, ANNOUNCE_LIMIT));
+  }, [stream]);
+  return announcement;
+}
+
 export function ChatStream({
   hasMessages,
   listRef,
@@ -46,26 +76,36 @@ export function ChatStream({
   stickToBottom: React.MutableRefObject<boolean>;
 }) {
   const stream = useChatSelector((chat) => chat.stream);
+  const announcement = useReplyAnnouncement(stream);
   useEffect(() => {
     const list = listRef.current;
     if (list && stickToBottom.current) list.scrollTop = list.scrollHeight;
   }, [stream, listRef, stickToBottom]);
-  if (stream)
-    return (
-      <article className="chat-message assistant">
-        <small>Agent</small>
-        {streamBlocks(stream).map((block, index) => (
-          // 段落只在末尾追加，下标即稳定身份。
-          <Markdown key={index} text={block} />
-        ))}
-      </article>
-    );
-  if (hasMessages) return null;
   return (
-    <div className="chat-empty">
-      <Feather size={24} />
-      <p>{viewCopy.agentPanelText1}</p>
-    </div>
+    <>
+      <div className="agent-sr-only" role="status" aria-live="polite">
+        {announcement}
+      </div>
+      {stream ? (
+        <article className="chat-message assistant streaming" aria-busy="true">
+          <small className="chat-message-role">
+            {AGENT_COPY.roleAssistant}
+            <span className="chat-message-typing" aria-hidden="true" />
+          </small>
+          {streamBlocks(stream).map((block, index) => (
+            // 段落只在末尾追加，下标即稳定身份。
+            <Markdown key={index} text={block} />
+          ))}
+        </article>
+      ) : (
+        !hasMessages && (
+          <div className="chat-empty">
+            <Feather size={24} aria-hidden="true" />
+            <p>{viewCopy.agentPanelText1}</p>
+          </div>
+        )
+      )}
+    </>
   );
 }
 
@@ -106,14 +146,14 @@ function resultCard(
         )[result.kind] || viewCopy.agentPanelText27;
   return (
     <div
-      className={"result-card " + (result.failed ? "failed" : "")}
+      className={"result-card" + (result.failed ? " failed" : "")}
       data-kind={result.kind || "review"}
     >
       <strong>{title}</strong>
       <p>{result.summary}</p>
       <button onClick={() => onJump(result.target, result.focus)}>
         {viewCopy.agentPanelText28}
-        <ArrowRight size={14} />
+        <ArrowRight size={14} aria-hidden="true" />
       </button>
     </div>
   );
@@ -134,15 +174,18 @@ const MessageView = React.memo(function MessageView({
   if (message.role === "custom" && message.display === false) return null;
   if (message.role === "toolResult") {
     const result = writerResult(message);
-    if (result) return <div>{resultCard(result, candidateNumber, onJump)}</div>;
+    if (result)
+      return <div className="chat-result">{resultCard(result, candidateNumber, onJump)}</div>;
     if (message.isError)
       return (
-        <div className="result-card failed" role="alert">
-          <strong>
-            {toolLabel(message.toolName || "")}
-            {viewCopy.agentPanelText29}
-          </strong>
-          <Markdown text={original} />
+        <div className="chat-result">
+          <div className="result-card failed" role="alert">
+            <strong>
+              {toolLabel(message.toolName || "")}
+              {viewCopy.agentPanelText29}
+            </strong>
+            <Markdown text={original} />
+          </div>
         </div>
       );
     return <div className="tool-action">{toolLabel(message.toolName || "")}</div>;
@@ -152,7 +195,7 @@ const MessageView = React.memo(function MessageView({
   if (message.role === "user" && parsed.text.startsWith(viewCopy.agentPanelText30)) {
     return (
       <article className="chat-message user action-capsule">
-        <small>{viewCopy.agentPanelText31}</small>
+        <small className="chat-message-role">{viewCopy.agentPanelText31}</small>
         <details>
           <summary>
             <span>{actionTitle(parsed.text) || viewCopy.agentPanelText32}</span>
@@ -167,12 +210,8 @@ const MessageView = React.memo(function MessageView({
   }
   return (
     <article className={"chat-message " + message.role}>
-      <small>
-        {message.role === "user"
-          ? viewCopy.agentPanelText34
-          : message.role === "custom"
-            ? viewCopy.agentPanelText35
-            : "Agent"}
+      <small className="chat-message-role">
+        {ROLE_LABEL[message.role] ?? AGENT_COPY.roleAssistant}
         {parsed.context?.focus?.title ? " · " + parsed.context.focus.title : ""}
         {parsed.context?.focus?.revision ? " · " + humanVersion(parsed.context.focus.revision) : ""}
       </small>

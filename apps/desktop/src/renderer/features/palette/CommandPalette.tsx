@@ -3,12 +3,14 @@ import { Dialog } from "../../../../../../packages/ui/src/primitives";
 import React, { useState } from "react";
 import { Search, ArrowRight } from "lucide-react";
 import { COMMANDS } from "../../../commands";
-import type { DesktopController } from "../../app/useDesktopController";
+import type { DesktopActions } from "../../app/useDesktopController";
+import { desktopStore, useDesktopSelector } from "../../state/store";
 
 const STEP: Record<string, number> = { ArrowDown: 1, ArrowUp: -1 };
 
-export function CommandPalette({ app }: { app: DesktopController }) {
-  const { fail, set, selected } = app;
+export function CommandPalette({ actions }: { actions: DesktopActions }) {
+  const { fail } = actions;
+  const mode = useDesktopSelector((state) => state.selected?.mode);
   // 查询词只属于面板：面板按需挂载，每次打开自然清空，敲键也不触发全局重渲染。
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -17,11 +19,11 @@ export function CommandPalette({ app }: { app: DesktopController }) {
   const items = COMMANDS.filter(
     (item) =>
       item.palette !== false &&
-      (!selected || !item.modes || item.modes.includes(selected.mode)) &&
+      (!mode || !item.modes || item.modes.includes(mode)) &&
       (!query || item.id.includes(name) || item.label.includes(query)),
   );
   const index = Math.min(active, items.length - 1);
-  const run = (id: string) => void app.command(id, rest.join(" ")).catch(fail);
+  const run = (id: string) => void actions.command(id, rest.join(" ")).catch(fail);
   const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.nativeEvent.isComposing || !items.length) return;
     const step = STEP[event.key];
@@ -40,7 +42,7 @@ export function CommandPalette({ app }: { app: DesktopController }) {
     <Dialog
       title={viewCopy.commandPaletteText1}
       className="command-dialog"
-      onClose={() => set({ palette: false })}
+      onClose={() => desktopStore.set({ palette: false })}
     >
       <label className="command-search">
         <Search size={18} />

@@ -7,39 +7,95 @@ import {
   Settings as SettingsIcon,
   Plus,
   PanelRightOpen,
-  X,
   AlertCircle,
   LoaderCircle,
 } from "lucide-react";
 import { Brand } from "../../../../../../packages/ui/src/primitives";
+import { shortcutLabel } from "../../../../../../packages/ui/src/keys";
 import { scopeId, focusLabel } from "../../../context";
-import type { DesktopController } from "../../app/useDesktopController";
+import { desktopStore, useDesktopSelector } from "../../state/store";
+import type { DesktopActions } from "../../app/useDesktopController";
 
-export function TopBar({ app, onWorkflow }: { app: DesktopController; onWorkflow: () => void }) {
-  const { state, system, selected, focus, fail, set } = app;
-  const [exportOpen, setExportOpen] = useState(false);
-  const exportMenu = useRef<HTMLDivElement | null>(null);
-  const projectSwitch = useRef<HTMLButtonElement | null>(null);
-  const projectMenu = useRef<HTMLDivElement | null>(null);
+const set = desktopStore.set;
+type ProjectItem = ReturnType<typeof desktopStore.get>["projects"][number];
+/** 菜单项的范围：头条每篇文章各是一项，按文章区分。 */
+const itemScope = (item: ProjectItem) => scopeId({ ...item.target, article: item.focus.article });
+const STEP: Record<string, number> = { ArrowDown: 1, ArrowUp: -1 };
+
+/** 菜单内 ↑/↓ 循环、Home/End 到首尾；菜单打开时焦点落到第一项。 */
+function useMenuKeys(open: boolean) {
+  const menu = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
-    if (!exportOpen && !state.picker) return;
+    if (open) menu.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+  }, [open]);
+  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const items = [...event.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]')];
+    if (!items.length) return;
+    const at = items.indexOf(document.activeElement as HTMLElement);
+    const step = STEP[event.key];
+    const next = step
+      ? items[(at + step + items.length) % items.length]
+      : event.key === "Home"
+        ? items[0]
+        : event.key === "End"
+          ? items[items.length - 1]
+          : undefined;
+    if (!next) return;
+    event.preventDefault();
+    next.focus();
+  };
+  return { menu, onKeyDown };
+}
+
+export function TopBar({
+  actions,
+  onWorkflow,
+}: {
+  actions: DesktopActions;
+  onWorkflow: () => void;
+}) {
+  const { fail } = actions;
+  const system = useDesktopSelector((state) => state.system);
+  const selected = useDesktopSelector((state) => state.selected);
+  const focusTitle = useDesktopSelector((state) => state.focus.workTitle || state.focus.title);
+  const view = useDesktopSelector((state) => state.view);
+  const picker = useDesktopSelector((state) => state.picker);
+  const projects = useDesktopSelector((state) => state.projects);
+  const running = useDesktopSelector((state) => state.running);
+  const [exportOpen, setExportOpen] = useState(false);
+  const exportTrigger = useRef<HTMLButtonElement | null>(null);
+  const projectSwitch = useRef<HTMLButtonElement | null>(null);
+  const exportMenu = useMenuKeys(exportOpen);
+  const projectMenu = useMenuKeys(picker);
+  useEffect(() => {
+    if (!exportOpen && !picker) return;
     const close = (event: PointerEvent) => {
       const target = event.target as Node;
-      if (exportOpen && !exportMenu.current?.contains(target)) setExportOpen(false);
       if (
-        state.picker &&
-        !projectMenu.current?.contains(target) &&
+        exportOpen &&
+        !exportMenu.menu.current?.contains(target) &&
+        !exportTrigger.current?.contains(target)
+      )
+        setExportOpen(false);
+      if (
+        picker &&
+        !projectMenu.menu.current?.contains(target) &&
         !projectSwitch.current?.contains(target)
-      ) {
+      )
         set({ picker: false });
-      }
     };
     const escape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       // 这次 Esc 已用于关菜单；标记后全局快捷键不再关抽屉或询问停止任务。
       event.preventDefault();
-      if (exportOpen) setExportOpen(false);
-      if (state.picker) set({ picker: false });
+      if (exportOpen) {
+        setExportOpen(false);
+        exportTrigger.current?.focus();
+      }
+      if (picker) {
+        set({ picker: false });
+        projectSwitch.current?.focus();
+      }
     };
     document.addEventListener("pointerdown", close);
     document.addEventListener("keydown", escape);
@@ -47,10 +103,10 @@ export function TopBar({ app, onWorkflow }: { app: DesktopController; onWorkflow
       document.removeEventListener("pointerdown", close);
       document.removeEventListener("keydown", escape);
     };
-  }, [exportOpen, state.picker, set]);
+  }, [exportOpen, picker, exportMenu.menu, projectMenu.menu]);
   const exportAs = (format: string) => {
     setExportOpen(false);
-    app.exportFile(format).catch(fail);
+    actions.exportFile(format).catch((error) => fail(error, () => actions.exportFile(format)));
   };
   const views: [string, string][] =
     selected?.mode === "toutiao"
@@ -64,9 +120,7 @@ export function TopBar({ app, onWorkflow }: { app: DesktopController; onWorkflow
           ["library", viewCopy.topBarText1],
         ];
   if (!system) return null;
-  const backgroundRunning = state.running.filter(
-    (item) => scopeId(item.target) !== scopeId(selected),
-  );
+  const backgroundRunning = running.filter((item) => scopeId(item.target) !== scopeId(selected));
   return (
     <>
       <header className="studio-topbar">
@@ -77,26 +131,31 @@ export function TopBar({ app, onWorkflow }: { app: DesktopController; onWorkflow
           ref={projectSwitch}
           className="project-switch"
           aria-haspopup="menu"
-          aria-expanded={state.picker}
-          onClick={() => set({ picker: !state.picker })}
+          aria-expanded={picker}
+          onClick={() => set({ picker: !picker })}
         >
           <BookOpen size={15} />
           <span>
             {selected?.mode === "toutiao"
               ? viewCopy.ttTitle
-              : focus.workTitle || focus.title || selected?.work || viewCopy.topBarText2}
+              : focusTitle || selected?.work || viewCopy.topBarText2}
           </span>
-          <ChevronDown size={13} />
+          <ChevronDown size={13} className="studio-caret" data-open={picker} />
         </button>
-        <button disabled={!selected?.work && !selected?.article} onClick={onWorkflow}>
+        <button
+          className="topbar-action"
+          disabled={!selected?.work && !selected?.article}
+          onClick={onWorkflow}
+        >
           {viewCopy.workflowTitle}
         </button>
-        <nav className="view-switch">
+        <nav className="view-switch" aria-label={viewCopy.tabWriting}>
           {views.map(([id, label]) => (
             <button
-              className={state.view === id ? "active" : ""}
+              className={view === id ? "active" : ""}
+              aria-current={view === id ? "page" : undefined}
               key={id}
-              onClick={() => app.changeView(id)}
+              onClick={() => void actions.changeView(id).catch(fail)}
             >
               {label}
             </button>
@@ -110,27 +169,36 @@ export function TopBar({ app, onWorkflow }: { app: DesktopController; onWorkflow
             {system.models.editor.model}
           </small>
         </span>
-        <div className="export-menu" ref={exportMenu}>
+        <div className="export-menu">
           <button
+            ref={exportTrigger}
             className="export-trigger"
             aria-haspopup="menu"
             aria-expanded={exportOpen}
             onClick={() => setExportOpen((open) => !open)}
           >
             {viewCopy.agentPanelText18}
-            <ChevronDown size={13} />
+            <ChevronDown size={13} className="studio-caret" data-open={exportOpen} />
           </button>
           {exportOpen && (
-            <div className="export-options" role="menu" aria-label={viewCopy.agentPanelText18}>
-              <button role="menuitem" onClick={() => exportAs("copy")}>
-                {viewCopy.topBarText4}
-              </button>
-              <button role="menuitem" onClick={() => exportAs("txt")}>
-                {viewCopy.topBarText5}
-              </button>
-              <button role="menuitem" onClick={() => exportAs("docx")}>
-                {viewCopy.topBarText6}
-              </button>
+            <div
+              ref={exportMenu.menu}
+              className="export-options"
+              role="menu"
+              aria-label={viewCopy.agentPanelText18}
+              onKeyDown={exportMenu.onKeyDown}
+            >
+              {(
+                [
+                  ["copy", viewCopy.topBarText4],
+                  ["txt", viewCopy.topBarText5],
+                  ["docx", viewCopy.topBarText6],
+                ] as const
+              ).map(([format, label]) => (
+                <button key={format} role="menuitem" tabIndex={-1} onClick={() => exportAs(format)}>
+                  {label}
+                </button>
+              ))}
             </div>
           )}
         </div>
@@ -138,7 +206,7 @@ export function TopBar({ app, onWorkflow }: { app: DesktopController; onWorkflow
           <Command size={14} />
           <span>
             {viewCopy.topBarText7}
-            <kbd>Ctrl K</kbd>
+            <kbd>{shortcutLabel("Ctrl K")}</kbd>
           </span>
         </button>
         <button
@@ -152,40 +220,64 @@ export function TopBar({ app, onWorkflow }: { app: DesktopController; onWorkflow
         <button
           className="sidebar-open icon-button"
           aria-label={viewCopy.topBarText9}
-          onClick={() => set({ drawer: !state.drawer })}
+          onClick={() => set((current) => ({ drawer: !current.drawer }))}
         >
           <PanelRightOpen size={18} />
         </button>
       </header>
-      {state.picker && (
-        <div className="project-menu" ref={projectMenu} role="menu">
-          <h3>{viewCopy.topBarText10}</h3>
-          {state.projects.map((item, index) => (
-            <button key={index} onClick={() => app.jump(item.target, item.focus).catch(fail)}>
+      {picker && (
+        <div
+          ref={projectMenu.menu}
+          className="project-menu"
+          role="menu"
+          aria-label={viewCopy.topBarText10}
+          onKeyDown={projectMenu.onKeyDown}
+        >
+          <h3 aria-hidden="true">{viewCopy.topBarText10}</h3>
+          {projects.map((item) => (
+            <button
+              key={itemScope(item)}
+              role="menuitem"
+              tabIndex={-1}
+              aria-current={itemScope(item) === scopeId(selected) || undefined}
+              onClick={() => actions.jump(item.target, item.focus).catch(fail)}
+            >
               <BookOpen size={14} />
-              {item.label}
+              <span>{item.label}</span>
               <small>
                 {item.target.mode === "fanqie" ? viewCopy.topBarText11 : viewCopy.topBarText12}
               </small>
             </button>
           ))}
-          <div className="menu-actions">
-            <button onClick={() => app.newWork("fanqie").catch(fail)}>
+          <div className="menu-actions" role="group">
+            <button
+              role="menuitem"
+              tabIndex={-1}
+              onClick={() => actions.newWork("fanqie").catch(fail)}
+            >
               <Plus size={14} />
               {viewCopy.topBarText13}
             </button>
-            <button onClick={() => app.newWork("toutiao").catch(fail)}>
+            <button
+              role="menuitem"
+              tabIndex={-1}
+              onClick={() => actions.newWork("toutiao").catch(fail)}
+            >
               <Plus size={14} />
               {viewCopy.topBarText14}
             </button>
-            <button onClick={() => app.chooseWorkspace().catch(fail)}>
+            <button
+              role="menuitem"
+              tabIndex={-1}
+              onClick={() => actions.chooseWorkspace().catch(fail)}
+            >
               {viewCopy.onboardingText4}
             </button>
           </div>
         </div>
       )}
       {system.access?.readOnly && (
-        <div className="readonly-banner">
+        <div className="readonly-banner" role="status">
           <AlertCircle size={15} />
           {viewCopy.topBarText15}
           {system.access.owner?.host || viewCopy.topBarText16}
@@ -197,25 +289,12 @@ export function TopBar({ app, onWorkflow }: { app: DesktopController; onWorkflow
           {backgroundRunning.map((item) => (
             <button
               key={scopeId(item.target)}
-              onClick={() => app.jump(item.target, item.focus).catch(fail)}
+              onClick={() => actions.jump(item.target, item.focus).catch(fail)}
             >
               <LoaderCircle size={13} className="spin" />
               {focusLabel(item.target, item.focus)} · {item.phase}
             </button>
           ))}
-        </div>
-      )}
-      {state.error && (
-        <div className="studio-error" role="alert">
-          <AlertCircle size={16} />
-          {state.error}
-          <button
-            className="icon-button"
-            aria-label={viewCopy.topBarText18}
-            onClick={() => set({ error: "" })}
-          >
-            <X size={15} />
-          </button>
         </div>
       )}
     </>

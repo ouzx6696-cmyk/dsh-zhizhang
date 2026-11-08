@@ -18,3 +18,12 @@ export function createStore<T>(initial: T) {
     },
   };
 }
+
+/** 两个平铺对象的字段逐个 Object.is 相同（含字段集合相同）。 */
+export function sameFields<T extends object>(a: T, b: T) {
+  const keys = Object.keys(a) as (keyof T)[];
+  return (
+    keys.length === Object.keys(b).length &&
+    keys.every((key) => Object.prototype.hasOwnProperty.call(b, key) && Object.is(a[key], b[key]))
+  );
+}

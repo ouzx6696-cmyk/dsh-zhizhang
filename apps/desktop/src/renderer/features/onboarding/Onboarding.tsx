@@ -4,14 +4,18 @@ import { Dialog, Brand } from "../../../../../../packages/ui/src/primitives";
 import React, { useState } from "react";
 import { ArrowRight, BookOpen, Check, Feather } from "lucide-react";
 import { ModelFields } from "../settings/ModelFields";
-import type { DesktopController } from "../../app/useDesktopController";
+import type { DesktopActions } from "../../app/useDesktopController";
+import { desktopStore, useDesktopSelector } from "../../state/store";
 import { desktop } from "../../state/desktop";
 
-export function Onboarding({ app }: { app: DesktopController }) {
-  const { state, fail, set } = app;
+const set = desktopStore.set;
+
+export function Onboarding({ actions }: { actions: DesktopActions }) {
+  const { fail } = actions;
+  const wizardStep = useDesktopSelector((state) => state.wizardStep);
+  const wizardModels = useDesktopSelector((state) => state.wizardModels);
   const [followWriter, setFollowWriter] = useState(true);
   const { results, run: testConnection } = useConnectionTest();
-  const wizardModels = state.wizardModels;
   const writer = wizardModels?.writer;
   if (!wizardModels || !writer) return null;
   return (
@@ -28,13 +32,17 @@ export function Onboarding({ app }: { app: DesktopController }) {
       <ol className="onboarding-steps">
         {[viewCopy.onboardingText3, viewCopy.onboardingText4, viewCopy.onboardingText1].map(
           (label, index) => (
-            <li key={label} data-active={state.wizardStep === index}>
-              {index < state.wizardStep ? <Check size={13} /> : index + 1} {label}
+            <li
+              key={label}
+              data-state={index < wizardStep ? "done" : index === wizardStep ? "current" : "todo"}
+              aria-current={index === wizardStep ? "step" : undefined}
+            >
+              {index < wizardStep ? <Check size={13} aria-hidden="true" /> : index + 1} {label}
             </li>
           ),
         )}
       </ol>
-      {state.wizardStep === 0 && (
+      {wizardStep === 0 && (
         <>
           <ModelFields
             role="writer"
@@ -70,7 +78,7 @@ export function Onboarding({ app }: { app: DesktopController }) {
                   ...wizardModels,
                   editor: followWriter ? { ...writer } : wizardModels.editor,
                 });
-                await app.syncState();
+                await actions.syncState();
                 set({ wizardStep: 1 });
               } catch (error) {
                 fail(error);
@@ -82,7 +90,7 @@ export function Onboarding({ app }: { app: DesktopController }) {
           </button>
         </>
       )}
-      {state.wizardStep === 1 && (
+      {wizardStep === 1 && (
         <div className="wizard-root">
           <h2>{viewCopy.onboardingText8}</h2>
           <p>{viewCopy.onboardingText9}</p>
@@ -90,9 +98,9 @@ export function Onboarding({ app }: { app: DesktopController }) {
             className="primary"
             onClick={async () => {
               try {
-                await app.chooseWorkspace();
-                const value = await app.syncState();
-                if (value.workspace) set({ wizardStep: 2 });
+                // 选定后控制器已重读主进程状态；取消选择时状态不变，停在这一步。
+                await actions.chooseWorkspace();
+                if (desktopStore.get().system?.workspace) set({ wizardStep: 2 });
               } catch (error) {
                 fail(error);
               }
@@ -103,13 +111,13 @@ export function Onboarding({ app }: { app: DesktopController }) {
           </button>
         </div>
       )}
-      {state.wizardStep === 2 && (
+      {wizardStep === 2 && (
         <div className="start-options">
-          <button onClick={() => app.newWork("fanqie").catch(fail)}>
+          <button onClick={() => actions.newWork("fanqie").catch(fail)}>
             <BookOpen />
             {viewCopy.onboardingText11}
           </button>
-          <button onClick={() => app.newWork("toutiao").catch(fail)}>
+          <button onClick={() => actions.newWork("toutiao").catch(fail)}>
             <Feather />
             {viewCopy.onboardingText12}
           </button>

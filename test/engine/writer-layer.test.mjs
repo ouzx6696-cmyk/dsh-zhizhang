@@ -373,7 +373,6 @@ test("写作台今日头条模式：按状态与质检渲染采用和写作 Agen
     detail: { status: "ready", article: a },
     busy: "",
     deliverOff: off,
-    notices: [],
     doneAt: {},
     actions: {},
   });
@@ -382,7 +381,6 @@ test("写作台今日头条模式：按状态与质检渲染采用和写作 Agen
       detail: { status: "idle", article: null },
       busy: "",
       deliverOff: "",
-      notices: [],
       actions: {},
     },
   });

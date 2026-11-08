@@ -4,7 +4,7 @@
 .model-fields details > label {
   display: grid;
   gap: 6px;
-  margin-top: 12px;
+  margin-top: var(--ui-space-3);
 }
 .studio-settings {
   width: min(1000px, 95vw);
@@ -35,7 +35,7 @@
   justify-content: flex-start;
   border: 0;
   background: transparent;
-  padding: 8px 10px;
+  padding: var(--ui-space-2) 10px;
   font-size: var(--ui-size-13);
 }
 .settings-nav button.active {
@@ -44,8 +44,8 @@
 }
 .role-tabs {
   display: flex;
-  gap: 4px;
-  margin-bottom: 16px;
+  gap: var(--ui-space-1);
+  margin-bottom: var(--ui-space-4);
   border-bottom: 1px solid var(--ui-line);
 }
 .role-tabs button {
@@ -61,13 +61,13 @@
   color: var(--ui-accent);
 }
 .model-advanced {
-  margin-bottom: 12px;
+  margin-bottom: var(--ui-space-3);
   padding-top: 10px;
   border-top: 1px dashed var(--ui-line);
 }
 .model-advanced summary {
   cursor: pointer;
-  margin-bottom: 8px;
+  margin-bottom: var(--ui-space-2);
   color: var(--ui-text-3);
   font-size: var(--ui-size-12);
 }
@@ -75,7 +75,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 22px;
+  padding: var(--ui-space-4) 22px;
   border-bottom: 1px solid var(--ui-line);
 }
 .studio-settings h2 {
@@ -83,7 +83,7 @@
 }
 .settings-content {
   flex: 1;
-  padding: 20px 24px;
+  padding: 20px var(--ui-space-5);
   overflow-y: auto;
 }
 .settings-content label,
@@ -91,19 +91,19 @@
   display: flex;
   flex-direction: column;
   gap: 5px;
-  margin-bottom: 12px;
+  margin-bottom: var(--ui-space-3);
   font-size: var(--ui-size-12);
 }
 .settings-content .checkbox,
 .model-fields .checkbox {
   flex-direction: row;
   align-items: center;
-  gap: 8px;
+  gap: var(--ui-space-2);
 }
 .model-fields {
   margin: 0 0 20px;
   border: 1px solid var(--ui-line);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-sm);
   padding: 14px 18px;
 }
 .model-fields legend {
@@ -114,12 +114,12 @@
 .field-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: var(--ui-space-3);
 }
 .form-note {
   font-size: var(--ui-size-12);
   color: var(--ui-text-3);
-  margin: 8px 0;
+  margin: var(--ui-space-2) 0;
   overflow-wrap: anywhere;
 }
 .form-warning {
@@ -142,7 +142,7 @@
 .studio-settings > footer {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--ui-space-2);
   padding: 14px 22px;
   border-top: 1px solid var(--ui-line);
 }

@@ -2,6 +2,7 @@ import { newRequestId as requestId } from "../../../../ui/src/request.js";
 /** Mounted with the workbench, so leaving the reader cannot detach an in-flight save. */
 import React from "react";
 import { canLeaveEdit } from "../shared/useSourceGuard.js";
+import { confirmAction } from "../shared/confirm.js";
 import { fanqie } from "../shared/api.js";
 import { diagnosticCopy as c } from "../../../../ui/src/copy.js";
 import {
@@ -29,14 +30,21 @@ export function useDiagnostics({ state, stateRef, alive, setEdit, refresh, notif
     [alive, key],
   );
 
+  function scannable(snapshot) {
+    const slot = snapshot[snapshot.diagnosticKind];
+    if ((status.key === key && status.busy) || snapshot.edit?.pendingSave || snapshot.edit?.saving)
+      return false;
+    return slot.status === "ready" && !slot.truncated && !!slot.body?.trim();
+  }
+
   async function scan() {
+    if (!scannable(stateRef.current)) return;
+    if (!(await canLeaveEdit(stateRef.current.edit, confirmAction))) return;
+    // Answering may take a while; scan what is on screen once the author has decided.
     const snapshot = stateRef.current,
       kind = snapshot.diagnosticKind,
       slot = snapshot[kind];
-    if ((status.key === key && status.busy) || snapshot.edit?.pendingSave || snapshot.edit?.saving)
-      return;
-    if (slot.status !== "ready" || slot.truncated || !slot.body?.trim()) return;
-    if (!canLeaveEdit(snapshot.edit, window.confirm)) return;
+    if (operation.current.key !== key || !scannable(snapshot)) return;
     const generation = ++operation.current.generation,
       controller = new AbortController();
     operation.current.controller?.abort();
@@ -117,9 +125,9 @@ export function useDiagnostics({ state, stateRef, alive, setEdit, refresh, notif
     if (!edit || edit.saving || edit.pendingSave) return;
     setEdit(transform(edit));
   }
-  function clear() {
+  async function clear() {
     const edit = stateRef.current.edit;
-    if (!canLeaveEdit(edit, window.confirm)) return;
+    if (!(await canLeaveEdit(edit, confirmAction)) || stateRef.current.edit !== edit) return;
     operation.current.generation++;
     operation.current.controller?.abort();
     setEdit(null);

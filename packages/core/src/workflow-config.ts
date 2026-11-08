@@ -132,6 +132,25 @@ export const emptyUsage = (): WorkflowUsage => ({
   cacheWrite: 0,
   cost: null,
 });
+/** 是否真的调用过模型：本地步骤四项都是 0。 */
+export function hasUsage(usage: WorkflowUsage) {
+  return usage.input + usage.output + usage.cacheRead + usage.cacheWrite > 0;
+}
+
+/** Adds one call's usage to a stage total; an unknown cost anywhere keeps the total unknown. */
+export function addUsage(total: WorkflowUsage, next: WorkflowUsage): WorkflowUsage {
+  return {
+    input: total.input + next.input,
+    output: total.output + next.output,
+    cacheRead: total.cacheRead + next.cacheRead,
+    cacheWrite: total.cacheWrite + next.cacheWrite,
+    cost:
+      next.cost === null || (hasUsage(total) && total.cost === null)
+        ? null
+        : (total.cost ?? 0) + next.cost,
+  };
+}
+
 export function estimateInput(text: string) {
   let units = 0;
   for (const char of text) units += char.charCodeAt(0) < 128 ? 0.25 : 1;

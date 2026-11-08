@@ -6,7 +6,7 @@ import { desktop } from "../../state/desktop";
 type TaskActionDependencies = {
   selected: Target | null;
   focus: Focus;
-  canLeave: () => boolean;
+  canLeave: () => Promise<boolean>;
   selectSnapshot: (
     next: Target & { focus?: Focus },
     persist?: boolean,
@@ -21,7 +21,7 @@ export async function startNewWork(
   mode: "fanqie" | "toutiao",
   note = "",
 ) {
-  if (!deps.canLeave()) return;
+  if (!(await deps.canLeave())) return;
   const next = await desktop.newTarget(mode);
   await deps.selectSnapshot(next, false);
   deps.set((current) => ({

@@ -1,0 +1,258 @@
+/* 消息流：正文跟随“外观 → 字号”（默认 18px × 0.78 ≈ 14px）。 */
+.chat-messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--ui-space-3) var(--ui-space-4) var(--ui-space-4);
+  font-size: calc(var(--ui-body-size) * 0.78);
+  line-height: 1.7;
+}
+.chat-messages:focus-visible {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: -2px;
+}
+.chat-messages > button {
+  display: flex;
+  margin: 0 auto var(--ui-space-4);
+  font-size: var(--ui-size-12);
+  background: transparent;
+  color: var(--ui-text-3);
+}
+.chat-message {
+  margin-bottom: var(--ui-space-5);
+  overflow-wrap: anywhere;
+  color: var(--ui-text);
+  /* 长历史只布局、绘制视口附近的消息；auto 记住渲染过的真实高度，滚动不跳。
+     这会带上绘制裁剪，所以消息内部不放阴影，焦点环向内收。 */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 120px;
+}
+.chat-message :focus-visible {
+  outline-offset: -2px;
+}
+.chat-message-role {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  margin-bottom: var(--ui-space-1);
+  font-size: var(--ui-size-12);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ui-text-3);
+  line-height: 1.5;
+}
+.chat-message.assistant > .chat-message-role::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ui-accent);
+}
+.chat-message-typing {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ui-accent);
+  animation: chat-typing 1.2s ease-in-out infinite;
+}
+@keyframes chat-typing {
+  50% {
+    opacity: 0.25;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-message-typing {
+    animation: none;
+  }
+}
+.chat-message.user {
+  width: fit-content;
+  max-width: 88%;
+  margin-left: auto;
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border-radius: var(--ui-radius-lg) var(--ui-radius-lg) var(--ui-space-1) var(--ui-radius-lg);
+  background: var(--ui-accent-soft);
+}
+.chat-message.user > .chat-message-role {
+  justify-content: flex-end;
+}
+.chat-message .studio-markdown > :last-child,
+.chat-message .studio-markdown > :last-child > :last-child {
+  margin-bottom: 0;
+}
+.chat-message .studio-markdown p {
+  margin: 0 0 0.75em;
+}
+.chat-message .studio-markdown h1,
+.chat-message .studio-markdown h2,
+.chat-message .studio-markdown h3 {
+  margin: 1.1em 0 0.5em;
+  font-size: 1.05em;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.chat-message .studio-markdown ul,
+.chat-message .studio-markdown ol {
+  margin: 0 0 0.75em;
+  padding-left: 1.4em;
+}
+.chat-message .studio-markdown li + li {
+  margin-top: 0.25em;
+}
+.chat-message .studio-markdown li::marker {
+  color: var(--ui-text-3);
+}
+.chat-message .studio-markdown blockquote {
+  margin: 0 0 0.75em;
+  padding: var(--ui-space-1) var(--ui-space-3);
+  border-left: 3px solid var(--ui-accent-soft);
+  border-radius: 0 var(--ui-radius-sm) var(--ui-radius-sm) 0;
+  background: var(--ui-fill);
+  color: var(--ui-text-2);
+}
+.chat-message .studio-markdown code {
+  padding: 0.1em 0.35em;
+  border-radius: var(--ui-space-1);
+  background: var(--ui-fill-strong);
+  font-family: var(--ui-font-mono);
+  font-size: 0.88em;
+}
+.chat-message .studio-markdown pre {
+  margin: 0 0 0.75em;
+  padding: var(--ui-space-3);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-bg);
+  font: var(--ui-size-12) / 1.65 var(--ui-font-mono);
+}
+.chat-message .studio-markdown pre code {
+  padding: 0;
+  background: transparent;
+  font-size: inherit;
+}
+.chat-message .studio-markdown hr {
+  margin: 1.2em 0;
+  border: 0;
+  border-top: 1px solid var(--ui-line);
+}
+.chat-message.custom {
+  font-size: var(--ui-size-12);
+  color: var(--ui-text-3);
+}
+.action-capsule details {
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-panel);
+  padding: 0 var(--ui-space-3);
+}
+.action-capsule summary {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--ui-space-3);
+  padding: var(--ui-space-2) 0;
+  cursor: pointer;
+  font-size: var(--ui-size-13);
+  color: var(--ui-text);
+}
+.action-capsule-more {
+  color: var(--ui-text-3);
+  font-size: var(--ui-size-12);
+  white-space: nowrap;
+}
+.action-capsule-body {
+  border-top: 1px solid var(--ui-line);
+  padding: var(--ui-space-2) 0;
+}
+.action-capsule-body .studio-markdown {
+  font-size: var(--ui-size-12);
+  color: var(--ui-text-3);
+}
+.tool-action {
+  margin: var(--ui-space-1) 0 var(--ui-space-3);
+  color: var(--ui-text-3);
+  font-size: var(--ui-size-12);
+}
+.tool-action summary {
+  cursor: pointer;
+  padding: 3px 0;
+  overflow-wrap: anywhere;
+}
+.tool-action pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-sm);
+  padding: var(--ui-space-3);
+  font: var(--ui-size-12) / 1.6 var(--ui-font-mono);
+  max-height: 340px;
+  overflow: auto;
+}
+
+/* 结果卡带阴影：外层留出余量，容器自身的绘制裁剪不会切掉阴影与焦点环。 */
+.chat-result {
+  margin: 0 calc(-1 * var(--ui-space-2)) var(--ui-space-3);
+  padding: var(--ui-space-1) var(--ui-space-2) var(--ui-space-3);
+  content-visibility: auto;
+  contain-intrinsic-size: auto 110px;
+}
+.result-card {
+  display: grid;
+  gap: var(--ui-space-1);
+  padding: var(--ui-space-3) var(--ui-space-4);
+  border: 1px solid var(--ui-line-strong);
+  border-left: 3px solid var(--ui-accent);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-paper);
+  box-shadow: var(--ui-shadow-1);
+  line-height: 1.6;
+}
+.result-card[data-kind="review"] {
+  border-left-color: var(--ui-warning);
+}
+.result-card[data-kind="qa"],
+.result-card[data-kind="delivery"] {
+  border-left-color: var(--ui-success);
+}
+.result-card.failed {
+  border-left-color: var(--ui-danger);
+}
+.result-card strong {
+  font-size: var(--ui-size-13);
+  font-weight: 600;
+}
+.result-card p {
+  margin: 0;
+  font-size: var(--ui-size-13);
+  color: var(--ui-text-2);
+}
+.result-card .studio-markdown {
+  font-size: var(--ui-size-13);
+  color: var(--ui-text-2);
+}
+.result-card button {
+  justify-self: start;
+  min-height: 0;
+  margin-top: var(--ui-space-1);
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  font-size: var(--ui-size-12);
+  font-weight: 600;
+  color: var(--ui-accent);
+}
+.result-card button:hover {
+  background: transparent;
+  text-decoration: underline;
+}
+.chat-empty {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  color: var(--ui-text-3);
+  font-size: var(--ui-size-13);
+  max-width: 260px;
+  margin: 70px auto;
+  text-align: center;
+  gap: var(--ui-space-3);
+}

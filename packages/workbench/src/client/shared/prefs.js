@@ -16,6 +16,8 @@ export const PREF = {
   fontStep: "fontStep",
   ttRoot: "toutiaoRoot",
   ttArticle: "toutiaoArticle",
+  // 对话输入框的未发送草稿，按作品范围加后缀分开存放。
+  agentDraft: "agentDraft:",
 };
 
 export function readPref(key, fallback = "") {

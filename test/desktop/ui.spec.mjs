@@ -12,6 +12,13 @@ const shot = async (name) => {
   await mkdir(folder, { recursive: true });
   await page.screenshot({ path: path.join(folder, name), fullPage: true, animations: "disabled" });
 };
+/** 打开设置的“写作引擎”页；上下文压缩的开关与预算在这里。 */
+const engineSettings = async () => {
+  await page.getByRole("button", { name: "设置", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "设置", exact: true });
+  await dialog.getByRole("button", { name: "写作引擎", exact: true }).click();
+  return dialog;
+};
 test.describe.configure({ mode: "default" });
 test.afterEach(async ({}, info) => {
   if (info.status !== info.expectedStatus) {
@@ -295,14 +302,17 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
     await method.fill(savedMethod + "\n未保存的界面校验草稿");
     await page.getByRole("button", { name: "新增一份", exact: true }).click();
     await page.locator(".wb-pf-add input").fill("guard-unsaved");
-    page.once("dialog", (dialog) => dialog.dismiss());
     await page.locator(".wb-pf-add button").click();
+    const confirmLeave = page.getByRole("dialog", { name: "确认操作" });
+    await confirmLeave.getByRole("button", { name: "取消", exact: true }).click();
+    await expect(confirmLeave).toBeHidden();
     await expect(method).toHaveValue(savedMethod + "\n未保存的界面校验草稿");
 
     await page.getByRole("button", { name: "关闭方法方案", exact: true }).click();
     await page.getByRole("tab", { name: "Agent", exact: true }).click();
-    page.once("dialog", (dialog) => dialog.dismiss());
     await candidate.getByRole("button", { name: /对照查看/ }).click();
+    await confirmLeave.getByRole("button", { name: "取消", exact: true }).click();
+    await expect(confirmLeave).toBeHidden();
     await page.getByRole("tab", { name: "方法方案", exact: true }).click();
     await page.getByRole("button", { name: "打开方法方案", exact: true }).click();
     await expect(method).toHaveValue(savedMethod + "\n未保存的界面校验草稿");
@@ -335,7 +345,7 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
     await page.getByRole("button", { name: "写作流水线", exact: true }).click();
     const pipeline = page.getByRole("dialog", { name: "写作流水线", exact: true });
     await expect(pipeline.getByText("任务历史与用量", { exact: true })).toBeVisible();
-    await pipeline.getByRole("button", { name: "个人规则", exact: true }).click();
+    await pipeline.getByRole("tab", { name: "个人规则", exact: true }).click();
     await expect(pipeline.getByText("已生效规则", { exact: true })).toBeVisible();
     await pipeline.getByRole("button", { name: "关闭", exact: true }).click();
     await page.evaluate(async (url) => {
@@ -463,7 +473,7 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
     await page.locator(".project-switch").click();
     await page
       .getByRole("menu")
-      .getByRole("button", { name: /编辑检查/ })
+      .getByRole("menuitem", { name: /编辑检查/ })
       .click();
     await page
       .getByRole("button", { name: /手工编辑检查章/ })
@@ -479,19 +489,11 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
         "作者亲手补写的一段。",
     );
     // Refusing a view change must keep the live draft.
-    await page.evaluate(() => {
-      window.__restoreConfirm = window.confirm;
-      window.confirm = () => false;
-    });
-    try {
-      await page.getByRole("button", { name: "全书仪表盘", exact: true }).click();
-      await expect(editor).toHaveValue(/作者亲手补写的一段/);
-    } finally {
-      await page.evaluate(() => {
-        window.confirm = window.__restoreConfirm;
-        delete window.__restoreConfirm;
-      });
-    }
+    await page.getByRole("button", { name: "全书仪表盘", exact: true }).click();
+    const refuse = page.getByRole("dialog", { name: "确认操作" });
+    await refuse.getByRole("button", { name: "取消", exact: true }).click();
+    await expect(refuse).toBeHidden();
+    await expect(editor).toHaveValue(/作者亲手补写的一段/);
     await page.keyboard.press("Control+s");
     await expect(editor).toBeHidden();
     await expect(page.locator(".studio-paper-column .wb-manuscript")).toContainText(
@@ -562,7 +564,7 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
   await test.step("今日头条使用同一套外壳与空态引导", async () => {
     const requestsBefore = model.calls.length;
     await page.locator(".project-switch").click();
-    await page.getByRole("button", { name: "新头条" }).click();
+    await page.getByRole("menuitem", { name: "新头条" }).click();
     await expect.poll(() => model.calls.length, { timeout: 10000 }).toBeGreaterThan(requestsBefore);
     await expect(page.getByRole("button", { name: "停止任务", exact: true })).toBeDisabled();
     await expect(page.locator(".studio-nav")).toContainText("文章");
@@ -583,7 +585,9 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
     const input = page.getByRole("textbox", { name: "写作要求" });
     await input.fill("检查模型失败后的任务状态");
     await input.press("Enter");
-    await expect(page.locator(".studio-error")).toContainText("模型认证失败");
+    await expect(
+      page.locator('.ui-notice[data-tone="danger"]', { hasText: "模型认证失败" }),
+    ).toBeVisible();
     await expect(page.getByRole("button", { name: "停止任务", exact: true })).toBeDisabled();
     await expect(page.locator(".task-card")).not.toContainText("正在进行");
 
@@ -601,16 +605,19 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
     }
     await shot("desktop-context-1100.png");
     await page.setViewportSize({ width: 1440, height: 1000 });
-    const enabled = panel.getByRole("checkbox", { name: "自动压缩" });
-    await enabled.uncheck();
-    await panel.getByRole("button", { name: "保存压缩设置", exact: true }).click();
-    await expect(panel.getByRole("status")).toContainText("压缩设置已保存");
+    let engine = await engineSettings();
+    await engine.getByRole("switch", { name: "自动压缩", exact: true }).uncheck();
+    await engine.getByRole("button", { name: "保存设置", exact: true }).click();
+    await expect(engine).toBeHidden();
+    await expect(panel).toContainText("自动压缩已关闭");
     expect(
       await page.evaluate(async () => (await window.writerDesktop.state()).context.enabled),
     ).toBe(false);
-    await enabled.check();
-    await panel.getByRole("button", { name: "保存压缩设置", exact: true }).click();
-    await expect(panel.getByRole("button", { name: "保存压缩设置", exact: true })).toBeEnabled();
+    engine = await engineSettings();
+    await engine.getByRole("switch", { name: "自动压缩", exact: true }).check();
+    await engine.getByRole("button", { name: "保存设置", exact: true }).click();
+    await expect(engine).toBeHidden();
+    await expect(panel).toContainText("自动压缩阈值");
     await panel.locator("summary").click();
     const cdp = await page.context().newCDPSession(page);
     await cdp.send("Emulation.clearDeviceMetricsOverride");
@@ -673,21 +680,23 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
     await input.press("Enter");
     await expect.poll(() => model.calls.length).toBeGreaterThan(before);
     await expect(page.getByRole("button", { name: "停止任务", exact: true })).toBeDisabled();
+    const keepRecent = async (tokens) => {
+      const engine = await engineSettings();
+      await engine.getByRole("spinbutton", { name: "近期保留 token" }).fill(tokens);
+      await engine.getByRole("button", { name: "保存设置", exact: true }).click();
+      await expect(engine).toBeHidden();
+    };
+    await keepRecent("0");
     const panel = page.locator(".context-panel");
     await panel.locator(":scope > summary").click();
-    await panel.getByRole("spinbutton", { name: "近期保留 token" }).fill("0");
-    await panel.getByRole("button", { name: "保存压缩设置", exact: true }).click();
-    await expect(panel.getByRole("button", { name: "保存压缩设置", exact: true })).toBeEnabled();
     await panel.getByRole("button", { name: "压缩当前会话", exact: true }).click();
     await expect(panel.getByRole("status")).toContainText("压缩完成");
-    const summary = panel.getByText("最近压缩摘要（原始历史保留）", { exact: true });
-    await summary.click();
+    await panel.getByRole("button", { name: "详情", exact: true }).click();
+    await expect(panel.getByText("最近压缩摘要（原始历史保留）", { exact: true })).toBeVisible();
     await expect(panel.locator("pre")).toBeVisible();
     await expect(panel.locator("pre")).not.toBeEmpty();
-    await panel.getByRole("spinbutton", { name: "近期保留 token" }).fill("20000");
-    await panel.getByRole("button", { name: "保存压缩设置", exact: true }).click();
-    await expect(panel.getByRole("button", { name: "保存压缩设置", exact: true })).toBeEnabled();
     await panel.locator(":scope > summary").click();
+    await keepRecent("20000");
     const next = model.calls.length;
     await input.fill("继续核对已保存素材");
     await input.press("Enter");

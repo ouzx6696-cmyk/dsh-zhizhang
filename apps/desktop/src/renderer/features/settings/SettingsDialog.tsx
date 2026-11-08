@@ -68,6 +68,7 @@ export function Settings({
     [models, setModels] = useState(state.models),
     [appearance, setAppearance] = useState(state.appearance),
     [engine, setEngine] = useState(state.engine),
+    [context, setContext] = useState(state.context),
     [search, setSearchDraft] = useState<SearchDraft>(() => initialSearchDraft(state)),
     [health, setHealth] = useState<Awaited<ReturnType<typeof desktop.storageHealth>> | null>(null),
     [message, setMessage] = useState(""),
@@ -124,6 +125,8 @@ export function Settings({
       if (options && JSON.stringify(options) !== JSON.stringify(initialOptions))
         await desktop.writerOptions(options);
       if (JSON.stringify(engine) !== JSON.stringify(state.engine)) await desktop.engine(engine);
+      if (JSON.stringify(context) !== JSON.stringify(state.context))
+        await desktop.contextSettings(context);
       if (state.workspace && preferences !== null) await desktop.preferences(preferences);
       if (search.changed)
         await desktop.search(
@@ -183,6 +186,8 @@ export function Settings({
               onChange={setEngine}
               options={options}
               onOptionsChange={setOptions}
+              context={context}
+              onContextChange={setContext}
             />
           )}
           {tab === "workspace" && (

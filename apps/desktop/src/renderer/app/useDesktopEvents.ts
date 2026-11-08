@@ -1,56 +1,43 @@
-import { useEffect, type RefObject } from "react";
+import { useEffect } from "react";
 import { taskEndCopy } from "../../../../../packages/ui/src/copy";
-import { scopeId, type Focus, type Target } from "../../context";
+import { notify } from "../../../../../packages/ui/src/notify";
+import { scopeId, type Target } from "../../context";
 import { chatStore } from "../state/chatStore";
-import { desktopStore, type ChatMessage, type SystemState } from "../state/store";
+import { desktopStore, useDesktopSelector, type ChatMessage } from "../state/store";
 import { desktop, onDesktopEvent } from "../state/desktop";
+import type { DesktopActions } from "./useDesktopController";
 
 const api = desktop;
 const set = desktopStore.set;
 
-/** 事件订阅期间需要反向调用的控制器方法；每次事件实时解引用。 */
-interface DesktopHandlers {
-  syncState: () => Promise<SystemState>;
-  selectSnapshot: (
-    next: (Target & { focus?: Focus }) | null | undefined,
-    persist?: boolean,
-    reopen?: boolean,
-  ) => Promise<void>;
-  loadProjects: () => Promise<void>;
-  jump: (target: Target | null, nextFocus?: Focus) => Promise<void>;
-  refreshWorkspace: () => void;
-  fail: (error: unknown) => void;
-}
-
 interface DesktopEventsInput {
-  handlers: RefObject<DesktopHandlers>;
-  appearance: SystemState["appearance"] | undefined;
-  selected: RefObject<Target | null>;
-  archived: RefObject<number | undefined>;
-  conversationId: RefObject<string | undefined>;
-  pendingMessages: RefObject<ChatMessage[] | null>;
-  limit: RefObject<number>;
+  actions: DesktopActions;
+  selected: { current: Target | null };
+  archived: { current: number | undefined };
+  conversationId: { current: string | undefined };
+  pendingMessages: { current: ChatMessage[] | null };
+  limit: { current: number };
 }
 
 export function useDesktopEvents({
-  handlers,
-  appearance,
+  actions,
   selected,
   archived,
   conversationId,
   pendingMessages,
   limit,
 }: DesktopEventsInput) {
+  const appearance = useDesktopSelector((state) => state.system?.appearance);
   useEffect(() => {
-    const { syncState, selectSnapshot, loadProjects, fail } = handlers.current;
-    void (async () => {
+    const { syncState, selectSnapshot, loadProjects, fail } = actions;
+    const startup = async () => {
       const value = await syncState();
       if (value.target) await selectSnapshot(value.target, false);
       const [running] = await Promise.all([api.running(), loadProjects()]);
       set({ running });
-    })().catch(fail);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 启动序列只在挂载时执行一次，方法经 handlers.current 实时解引用。
-  }, []);
+    };
+    startup().catch((error) => fail(error, startup));
+  }, [actions]);
 
   useEffect(() => {
     if (!appearance) return;
@@ -78,8 +65,8 @@ export function useDesktopEvents({
       frame = 0;
       delta = "";
     };
+    const { jump, selectSnapshot, loadProjects, refreshWorkspace, fail } = actions;
     const unsubscribe = onDesktopEvent((value) => {
-      const { jump, selectSnapshot, loadProjects, refreshWorkspace, fail } = handlers.current;
       if (value.running) {
         set({ running: value.running });
         if (archived.current === undefined)
@@ -103,7 +90,7 @@ export function useDesktopEvents({
       }
       if (value.target && scopeId(value.target) !== scopeId(selected.current)) return;
       if (value.error) {
-        set({ error: value.error });
+        notify({ tone: "danger", text: value.error });
         return;
       }
       if (value.refresh) {
@@ -161,7 +148,7 @@ export function useDesktopEvents({
           clearStream();
           chatStore.set({ stream: "" });
         }
-        if (message.errorMessage) set({ error: message.errorMessage });
+        if (message.errorMessage) notify({ tone: "danger", text: message.errorMessage });
       }
       if (event.type === "agent_settled") {
         clearStream();
@@ -176,6 +163,6 @@ export function useDesktopEvents({
       clearStream();
       unsubscribe();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 订阅只在挂载时建立；ref 与 handlers.current 每次事件实时读取，不参与依赖。
-  }, []);
+    // 控制器与这些 ref 都只建一次，订阅随之只建立一次；ref 的内容每次事件实时读取。
+  }, [actions, selected, archived, conversationId, pendingMessages, limit]);
 }

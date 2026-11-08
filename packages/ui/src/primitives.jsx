@@ -85,6 +85,8 @@ export function Dialog({
     <dialog
       ref={ref}
       aria-label={title}
+      // showModal() 不会自动加 aria-modal；显式标注，读屏和“是否有模态框”的判定才一致。
+      aria-modal={open ? "true" : undefined}
       className={`ui-dialog ${framed ? "wb-modal" : ""} ${className}`}
       onCancel={(event) => {
         event.preventDefault();

@@ -2,11 +2,11 @@ import { errorText } from "../../../../../../packages/core/src/errors.js";
 import { COPY as viewCopy } from "../../../../../../packages/ui/src/copy.js";
 import { Markdown } from "../../../Markdown";
 import { Dialog } from "../../../../../../packages/ui/src/primitives";
+import { TabList, tabPanelProps } from "../../../../../../packages/ui/src/tabs";
 import React, { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { profilesApi } from "../../../../../../packages/workbench/src/client/shared/api.js";
 import { Menu, PanelRightClose } from "lucide-react";
-import { askConfirm } from "../../state/confirm";
 
 // 方法方案编辑器体积大且仅在作者打开方法页时需要，按需加载。
 const ProfilesDialog = lazy(() =>
@@ -84,7 +84,6 @@ function MethodsEditor({
         onEditState={onEditState}
         onClose={() => {}}
         onChanged={() => {}}
-        confirm={askConfirm}
       />
     </Suspense>
   );
@@ -115,10 +114,14 @@ export function WorkspaceLayout({
   setDrawer: (open: boolean) => void;
   onMethodEditState: (state: EditState) => void;
 }) {
-  const tabs: [string, string][] = [
-    ["agent", "Agent"],
-    ["chapter", mode === "toutiao" ? viewCopy.workspaceLayoutText4 : viewCopy.inspector],
-    ["methods", viewCopy.pfButton],
+  const tabsId = React.useId();
+  const tabs = [
+    { id: "agent", label: "Agent" },
+    {
+      id: "chapter",
+      label: mode === "toutiao" ? viewCopy.workspaceLayoutText4 : viewCopy.inspector,
+    },
+    { id: "methods", label: viewCopy.pfButton },
   ];
   const [navOpen, setNavOpen] = useState(false);
   const [methodsOpen, setMethodsOpen] = useState(false);
@@ -149,12 +152,15 @@ export function WorkspaceLayout({
         />
       )}
       <aside className={"studio-sidebar " + (drawer ? "open" : "")}>
-        <div className="studio-tabs" role="tablist">
-          {tabs.map(([id, label]) => (
-            <button role="tab" aria-selected={tab === id} key={id} onClick={() => setTab(id)}>
-              {label}
-            </button>
-          ))}
+        <div className="studio-tabs">
+          <TabList
+            id={tabsId}
+            label={viewCopy.sidebarTabs}
+            items={tabs}
+            value={tab}
+            onChange={setTab}
+            className="studio-tablist"
+          />
           <button
             className="drawer-close icon-button"
             aria-label={viewCopy.workspaceLayoutText7}
@@ -164,11 +170,14 @@ export function WorkspaceLayout({
           </button>
         </div>
         <div className="studio-side-body" data-tab={tab}>
-          <div hidden={tab !== "agent"} className="agent-slot">
+          <div {...tabPanelProps(tabsId, "agent", tab)} className="agent-slot">
             {agent}
           </div>
-          {tab === "chapter" && <div className="decision-panel">{inspector}</div>}
-          <div hidden={tab !== "methods"} style={{ height: "100%" }}>
+          {/* 本章面板只在可见时挂载，避免后台读取诊断与检查数据。 */}
+          <div {...tabPanelProps(tabsId, "chapter", tab)} className="decision-panel">
+            {tab === "chapter" && inspector}
+          </div>
+          <div {...tabPanelProps(tabsId, "methods", tab)} className="methods-slot">
             <MethodsPane mode={mode} onOpen={openMethods} active={tab === "methods"} />
           </div>
         </div>

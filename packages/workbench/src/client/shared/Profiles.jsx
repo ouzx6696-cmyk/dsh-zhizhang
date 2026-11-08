@@ -1,17 +1,17 @@
 import { errorText } from "../../../../core/src/errors.js";
-import { useNotices } from "../../../../ui/src/use-notices.js";
-import { COPY as viewCopy } from "../../../../ui/src/copy.js";
+import { notify } from "../../../../ui/src/notify";
+import { COPY as viewCopy, t } from "../../../../ui/src/copy.js";
 import { Manuscript } from "./Manuscript.jsx";
 /**
  * 方法方案弹窗：左列方案（默认 / 原版 / 用户方案N），中列方法清单，右列全文。
  * 内置方案只读；用户方案可逐份保存、恢复底稿、新增、改名、删除；新建时可导入 .md 文件或整个文件夹。
  */
 import { canLeaveEdit } from "./useSourceGuard.js";
+import { confirmAction } from "./confirm.js";
 import React from "react";
-import { t } from "../../../../ui/src/copy.js";
 import { Button, cx, Icon, Tag } from "./ui.jsx";
 import { Dialog } from "../../../../ui/src/primitives.jsx";
-import { Callout, Notices } from "./common.jsx";
+import { Callout } from "./common.jsx";
 import { NewProfileForm } from "./ProfileNewForm.jsx";
 import { ProfileMethodsColumn } from "./ProfileMethodsColumn.jsx";
 import { ProfileMethodEditor } from "./ProfileMethodEditor.jsx";
@@ -31,10 +31,9 @@ export function ProfilesDialog({
   onChanged,
   inline = false,
   onEditState,
-  confirm,
 }) {
   const Frame = inline ? InlineProfiles : Dialog;
-  const { notices, push, dismiss } = useNotices();
+  const push = useCallback((tone, text) => void notify({ tone, text }), []);
   const [list, setList] = useState({ status: "loading", profiles: [], active: "", pinned: false });
   const [sel, setSel] = useState("");
   const [detail, setDetail] = useState(null);
@@ -116,9 +115,15 @@ export function ProfilesDialog({
     return () => window.removeEventListener("beforeunload", leave);
   }, [dirty]);
 
+  // Resolves false when the author keeps the method draft that is being edited.
+  const leaveMethod = useCallback(
+    async () => canLeaveEdit({ dirty, saving: busy === "save" }, confirmAction),
+    [dirty, busy],
+  );
+
   const openMethod = useCallback(
     async (id) => {
-      if (!canLeaveEdit({ dirty, saving: busy === "save" }, window.confirm)) return;
+      if (!(await leaveMethod())) return;
       const request = ++methodRequest.current;
       setBusy("method:" + id);
       try {
@@ -134,7 +139,7 @@ export function ProfilesDialog({
         if (request === methodRequest.current) setBusy("");
       }
     },
-    [api, sel, dirty, push, busy],
+    [api, sel, leaveMethod, push],
   );
 
   const run = async (key, fn, ok) => {
@@ -223,8 +228,8 @@ export function ProfilesDialog({
         loadList(sel);
       }
     });
-  const addMethod = (id) => {
-    if (!canLeaveEdit({ dirty, saving: busy === "save" }, window.confirm)) return;
+  const addMethod = async (id) => {
+    if (!(await leaveMethod())) return;
     const clean = id.trim();
     if (!clean) return;
     setAdding(null);
@@ -237,8 +242,7 @@ export function ProfilesDialog({
     (m) => !filter || m.id.includes(filter) || (m.title || "").includes(filter),
   );
   const close = async () => {
-    const ask = confirm || ((message) => Promise.resolve(window.confirm(message)));
-    if (dirty && !(await ask(t("pfUnsaved")))) return;
+    if (dirty && !(await confirmAction(t("pfUnsaved")))) return;
     onClose();
   };
 
@@ -262,9 +266,8 @@ export function ProfilesDialog({
                   type="button"
                   className={cx("wb-pf-item", p.id === sel && "wb-pf-item-on")}
                   aria-current={p.id === sel || undefined}
-                  onClick={() => {
-                    if (p.id === sel) return;
-                    if (!canLeaveEdit({ dirty, saving: busy === "save" }, window.confirm)) return;
+                  onClick={async () => {
+                    if (p.id === sel || !(await leaveMethod())) return;
                     setSel(p.id);
                   }}
                 >
@@ -352,7 +355,6 @@ export function ProfilesDialog({
           </>
         )}
       </div>
-      <Notices notices={notices} onDismiss={dismiss} />
     </Frame>
   );
 }

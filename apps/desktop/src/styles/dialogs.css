@@ -1,192 +1,241 @@
-/* 弹窗、抽屉、命令面板与向导。 */
+/* 弹窗、作品菜单、命令面板、向导与抽屉遮罩。 */
 .confirm-dialog {
   width: min(440px, 92vw);
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: var(--ui-space-3);
   align-items: flex-start;
-  padding: 20px;
+  padding: var(--ui-space-5);
   background: var(--ui-panel);
-  border: 1px solid var(--ui-line);
-  border-radius: 12px;
+  border: 1px solid var(--ui-line-strong);
+  border-radius: var(--ui-radius-md);
   box-shadow: var(--ui-shadow-2);
 }
-
+.confirm-dialog[open] {
+  animation: studio-dialog-in var(--ui-duration) var(--ui-ease);
+}
 .confirm-dialog > svg {
   flex-shrink: 0;
   margin-top: 2px;
   color: var(--ui-warning);
 }
-
 .confirm-dialog p {
   flex: 1;
   margin: 0;
   line-height: 1.7;
 }
-
 .confirm-actions {
   flex-basis: 100%;
   display: flex;
-  gap: 8px;
+  gap: var(--ui-space-2);
   justify-content: flex-end;
-  margin-top: 2px;
+  margin-top: var(--ui-space-2);
 }
-
 .path-label {
   font-size: var(--ui-size-12);
   overflow-wrap: anywhere;
 }
-
 .button-row {
   display: flex;
-  gap: 8px;
+  gap: var(--ui-space-2);
   flex-wrap: wrap;
-  margin-bottom: 20px;
+  margin-bottom: var(--ui-space-5);
 }
 
+/* 作品菜单：从“作品切换”按钮下方弹出。 */
 .project-menu {
   position: fixed;
-  left: 42px;
-  top: 44px;
+  left: 52px;
+  top: 52px;
   width: 320px;
   max-height: 75vh;
   overflow-y: auto;
+  padding: var(--ui-space-1);
   background: var(--ui-paper);
-  border: 1px solid var(--ui-line);
-  border-radius: 8px;
+  border: 1px solid var(--ui-line-strong);
+  border-radius: var(--ui-radius-sm);
   box-shadow: var(--ui-shadow-2);
-  padding: 10px;
-  z-index: 100;
+  z-index: var(--ui-z-popover);
+  transform-origin: top left;
+  animation: studio-dialog-in var(--ui-duration-fast) var(--ui-ease);
 }
-
 .project-menu h3 {
-  padding: 8px;
+  margin: 0;
+  padding: var(--ui-space-2) var(--ui-space-2) var(--ui-space-1);
   font-size: var(--ui-size-12);
+  font-weight: 600;
+  letter-spacing: 0.04em;
   color: var(--ui-text-3);
 }
-
 .project-menu > button {
   display: flex;
   justify-content: flex-start;
-  text-align: left;
-  border: 0;
+  gap: var(--ui-space-2);
   width: 100%;
-  padding: 8px;
+  min-height: 32px;
+  padding: 0 var(--ui-space-2);
+  border: 0;
+  border-radius: var(--ui-radius-xs);
   background: transparent;
+  text-align: left;
+}
+.project-menu > button > svg {
+  flex-shrink: 0;
+  color: var(--ui-text-3);
+}
+.project-menu > button > span {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
+.project-menu > button[aria-current="true"] > svg {
+  color: var(--ui-accent);
+}
+.project-menu button:hover,
+.project-menu button:focus-visible {
+  outline: 0;
+  background: var(--ui-fill-strong);
+}
 .project-menu small {
   margin-left: auto;
   font-size: var(--ui-size-12);
 }
-
 .menu-actions {
   display: flex;
-  gap: 5px;
+  gap: var(--ui-space-1);
   flex-wrap: wrap;
-  padding-top: 10px;
-  margin-top: 8px;
+  padding: var(--ui-space-2) var(--ui-space-1) var(--ui-space-1);
+  margin-top: var(--ui-space-1);
   border-top: 1px solid var(--ui-line);
 }
-
 .menu-actions button {
+  min-height: 28px;
+  padding: 0 var(--ui-space-2);
   font-size: var(--ui-size-12);
 }
 
+/* 命令面板 */
 .command-search {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
+  gap: var(--ui-space-3);
+  padding: var(--ui-space-1) var(--ui-space-2) var(--ui-space-3);
   border-bottom: 1px solid var(--ui-line);
+  color: var(--ui-text-3);
 }
-
-.command-search input {
+.command-search input,
+.command-search input:focus {
+  flex: 1;
+  padding: 0;
   border: 0;
   outline: 0;
-  flex: 1;
+  box-shadow: none;
   background: transparent;
+  color: var(--ui-text);
+  font-size: var(--ui-size-16);
 }
-
 .command-list {
   max-height: 55vh;
   overflow-y: auto;
-  padding: 8px;
+  padding: var(--ui-space-2) 0 0;
 }
-
 .command-list button {
   width: 100%;
   display: flex;
   justify-content: space-between;
-  text-align: left;
+  gap: var(--ui-space-3);
+  min-height: 0;
+  padding: var(--ui-space-2) var(--ui-space-3);
   border: 0;
+  border-radius: var(--ui-radius-xs);
   background: transparent;
-  padding: 10px 12px;
+  text-align: left;
 }
-
-.command-list [aria-selected="true"] {
-  background: var(--ui-accent-soft);
+.command-list button > svg {
+  flex-shrink: 0;
+  color: var(--ui-text-3);
+  opacity: 0;
+  transform: translateX(-4px);
+  transition:
+    opacity var(--ui-duration-fast) var(--ui-ease),
+    transform var(--ui-duration-fast) var(--ui-ease);
 }
-
+.command-list [aria-selected="true"],
+.command-list [aria-selected="true"]:hover {
+  background: var(--ui-fill-strong);
+}
+.command-list [aria-selected="true"] > svg {
+  opacity: 1;
+  transform: none;
+}
+.command-list strong {
+  font-size: var(--ui-size-13);
+  font-weight: 500;
+  color: var(--ui-text);
+}
 .command-list small {
   display: block;
+  margin-top: 2px;
   font-size: var(--ui-size-12);
-  margin-top: 3px;
 }
 
-.command-list strong {
-  font-size: var(--ui-size-12);
-  font-weight: 400;
-}
-
+/* 首次引导里的步骤内容 */
 .wizard-root {
   text-align: center;
-  padding: 20px 0;
+  padding: var(--ui-space-5) 0;
 }
-
 .wizard-root p {
   color: var(--ui-text-3);
   font-size: var(--ui-size-12);
-  margin-bottom: 28px;
+  margin-bottom: var(--ui-space-6);
 }
-
 .start-options {
   display: grid;
-  gap: 12px;
-  margin-top: 20px;
+  gap: var(--ui-space-3);
+  margin-top: var(--ui-space-5);
 }
-
 .start-options button {
-  padding: 20px;
   justify-content: flex-start;
+  gap: var(--ui-space-3);
+  padding: var(--ui-space-5);
+  border-color: var(--ui-line-strong);
+  text-align: left;
 }
-
+.start-options button:hover {
+  border-color: var(--ui-accent);
+  background: var(--ui-accent-soft);
+}
 .start-options svg {
   color: var(--ui-accent);
 }
 
+/* 窄窗时右栏是浮层：遮罩压暗正文，点击收起。 */
 .drawer-scrim {
   display: none;
 }
-
 @media (max-width: 959px) {
-  .drawer-scrim {
+  .drawer-scrim,
+  .drawer-scrim:hover {
     display: block;
     position: fixed;
-    inset: 48px 0 0;
-    z-index: 70;
+    inset: 56px 0 0;
+    z-index: var(--ui-z-drawer);
     padding: 0;
     border: 0;
     border-radius: 0;
     background: color-mix(in srgb, var(--ui-overlay-1) 32%, transparent);
     cursor: default;
+    animation: studio-fade-in var(--ui-duration) var(--ui-ease);
   }
 }
-
-@media (max-width: 959px) {
-  .drawer-scrim:hover {
-    background: color-mix(in srgb, var(--ui-overlay-1) 32%, transparent);
+@keyframes studio-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+@keyframes studio-fade-in {
+  from {
+    opacity: 0;
   }
 }

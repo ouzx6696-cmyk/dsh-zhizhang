@@ -1,0 +1,110 @@
+/* 发送区 */
+.agent-input-area {
+  flex-shrink: 0;
+  padding: var(--ui-space-2) var(--ui-space-3) var(--ui-space-3);
+}
+.quick-actions {
+  display: flex;
+  gap: var(--ui-space-1);
+  flex-wrap: wrap;
+  margin-bottom: var(--ui-space-2);
+}
+.quick-actions button {
+  font-size: var(--ui-size-12);
+  padding: 3px var(--ui-space-2);
+  border-radius: var(--ui-radius-lg);
+  background: transparent;
+}
+.agent-queue {
+  display: grid;
+  gap: 2px;
+  margin: 0 0 var(--ui-space-2);
+  padding: var(--ui-space-1) var(--ui-space-2);
+  list-style: none;
+  border: 1px dashed var(--ui-line-strong);
+  border-radius: var(--ui-radius-sm);
+  font-size: var(--ui-size-12);
+}
+.agent-queue li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ui-space-2);
+  min-width: 0;
+}
+.agent-queue-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-queue small {
+  flex: 0 0 auto;
+}
+.agent-input-area form {
+  background: var(--ui-paper);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-md);
+  padding: var(--ui-space-2) var(--ui-space-3);
+  transition: border-color 0.15s;
+}
+.agent-input-area form:focus-within {
+  border-color: var(--ui-accent);
+}
+.agent-input-area textarea {
+  display: block;
+  resize: none;
+  min-height: 64px;
+  max-height: 200px;
+  overflow-y: auto;
+  border: 0;
+  width: 100%;
+  padding: var(--ui-space-2) 0;
+  background: transparent;
+  font-size: calc(var(--ui-body-size) * 0.78);
+  line-height: 1.6;
+}
+/* 焦点由整个输入框的描边表示。 */
+.agent-input-area textarea:focus {
+  outline: none;
+}
+.agent-input-area footer {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+}
+.agent-input-status {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--ui-size-12);
+  color: var(--ui-text-3);
+  font-variant-numeric: tabular-nums;
+}
+.agent-input-area footer button {
+  font-size: var(--ui-size-12);
+  padding: var(--ui-space-1) var(--ui-space-3);
+}
+.agent-input-area footer .agent-input-stop {
+  border-color: var(--ui-danger);
+  background: transparent;
+  color: var(--ui-danger);
+}
+.agent-input-area footer .agent-input-stop:hover {
+  background: var(--ui-fill-strong);
+}
+.input-target {
+  display: inline-block;
+  color: var(--ui-accent);
+  font-size: var(--ui-size-12);
+  background: var(--ui-accent-soft);
+  padding: 1px var(--ui-space-1);
+  border-radius: var(--ui-space-1);
+}
+.running-target {
+  display: block;
+  font-size: var(--ui-size-12);
+  margin-top: 3px;
+}

@@ -17,10 +17,14 @@
   color: var(--wb-fg-3);
   font: 600 var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
 }
+/* The delivery sheet is read in full before submitting: body-sized, roomy, wrapping long URLs. */
 .wb-tt-delivery {
-  max-width: 44rem;
+  max-width: 40em;
   margin: 0 auto;
-  font: var(--ui-size-14)/var(--ui-size-24) var(--ui-font-ui);
+  font-family: var(--ui-font-ui);
+  font-size: calc(var(--ui-body-size) * 0.85 + var(--wb-font-step, 0) * var(--ui-font-step));
+  line-height: 1.8;
+  overflow-wrap: anywhere;
 }
 .wb-tt-note {
   display: flex;

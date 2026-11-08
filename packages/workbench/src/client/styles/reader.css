@@ -83,21 +83,29 @@
   max-width: 40rem;
   margin: 0 auto 16px;
 }
+/* Body size follows Settings → Appearance (--ui-body-size) plus the reader's own A−/A+ steps. */
 .wb-manuscript {
-  --wb-size: calc(17px + var(--wb-font-step, 0) * 1px);
-  max-width: 38em;
+  --wb-size: calc(var(--ui-body-size) + var(--wb-font-step, 0) * var(--ui-font-step));
+  max-width: 36em;
   margin: 0 auto;
   font-family: var(--wb-manuscript-font);
   font-size: var(--wb-size);
   line-height: 1.9;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.02em;
   color: var(--wb-fg);
+  text-align: justify;
+  text-justify: inter-character;
   text-wrap: pretty;
   overflow-wrap: anywhere;
 }
 .wb-manuscript p {
-  margin: 0 0 0.9em;
+  margin: 0 0 0.75em;
   text-indent: 2em;
+}
+/* Toutiao articles read like the published feed: no first-line indent, a full line between paragraphs. */
+.wb-reader[data-mode="toutiao"] .wb-manuscript p {
+  margin-bottom: 1em;
+  text-indent: 0;
 }
 .wb-manuscript h1,
 .wb-manuscript h2,
@@ -154,11 +162,21 @@
 .wb-manuscript ::selection {
   background: var(--wb-accent-soft);
 }
+/* Annotations stay readable: a soft wash plus an underline set below the glyphs, never through them. */
 .wb-manuscript mark {
   color: inherit;
   background: var(--wb-warn-soft);
+  border-radius: var(--wb-r-xs);
+  box-decoration-break: clone;
   text-decoration: underline wavy var(--wb-warn);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.3em;
+  text-decoration-skip-ink: none;
   cursor: pointer;
+  transition: background-color 120ms var(--wb-ease);
+}
+.wb-manuscript mark:hover {
+  background: color-mix(in srgb, var(--wb-warn) 26%, transparent);
 }
 .wb-manuscript mark[data-category="lazy_emotion"] {
   background: var(--wb-bad-soft);
@@ -172,6 +190,14 @@
 .wb-manuscript mark[data-category="slogan_ending"] {
   background: var(--wb-active);
   text-decoration: underline solid var(--wb-accent);
+}
+/* Reader find (Ctrl+F) paints through the CSS Custom Highlight API, so the text is not re-rendered. */
+.wb-reader-body ::highlight(wb-find) {
+  background-color: color-mix(in srgb, var(--wb-accent) 24%, transparent);
+}
+.wb-reader-body ::highlight(wb-find-current) {
+  background-color: var(--wb-accent);
+  color: var(--wb-bg);
 }
 .wb-manuscript mark:focus-visible {
   outline: 2px solid var(--wb-accent);
@@ -250,46 +276,4 @@
   .wb-reader-body {
     padding: 16px 16px 32px;
   }
-}
-.wb-source-editor {
-  max-width: 42rem;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.wb-source-editor-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 10px;
-}
-.wb-source-editor-head strong {
-  font: 600 var(--ui-size-14)/var(--ui-size-22) var(--ui-font-ui);
-}
-.wb-source-editor-head > span:not(.wb-muted) {
-  color: var(--wb-warn);
-  font: 600 var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
-}
-.wb-source-note {
-  margin: 0;
-}
-.wb-source-text {
-  width: 100%;
-  min-height: min(62vh, 640px);
-  resize: vertical;
-  padding: 22px 26px;
-  border: 1px solid var(--wb-line-strong);
-  border-radius: var(--wb-r-md);
-  background: var(--wb-card);
-  color: var(--wb-fg);
-  font-family: var(--wb-manuscript-font);
-  font-size: calc(var(--ui-size-15) + var(--wb-font-step, 0) * var(--ui-font-step));
-  line-height: 2;
-}
-.wb-source-editor .wb-source-text {
-  font-family: var(--ui-font-body);
-  font-size: var(--ui-body-size);
-  line-height: 2;
-  padding: 40px 48px;
 }

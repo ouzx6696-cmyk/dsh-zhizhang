@@ -1,25 +1,39 @@
-import { COPY as viewCopy } from "../../../../../../packages/ui/src/copy.js";
+import {
+  COPY as viewCopy,
+  formatCost,
+  formatElapsed,
+  formatTokens,
+  AGENT_COPY,
+} from "../../../../../../packages/ui/src/copy.js";
 import { actionTitle } from "../../format";
 import React, { useEffect, useState } from "react";
+import { Square } from "lucide-react";
 import type { TaskState } from "../../../renderer-contracts";
 
-/** 任务耗时：一分钟内按秒，超过后显示 m:ss，长任务一眼能读。 */
-function elapsedLabel(seconds: number) {
-  if (seconds < 60) return seconds + viewCopy.taskProgressText7;
-  return Math.floor(seconds / 60) + ":" + String(seconds % 60).padStart(2, "0");
+function stepState(task: TaskState, step: string) {
+  if (task.completed.includes(step)) return "done";
+  return task.current === step ? "current" : "pending";
 }
+
+const STEP_LABEL = {
+  done: AGENT_COPY.stepDone,
+  current: AGENT_COPY.stepCurrent,
+  pending: AGENT_COPY.stepPending,
+};
 
 export function TaskProgress({
   task,
   busy,
   phase,
   steps,
+  queued,
   onStop,
 }: {
   task: TaskState | null;
   busy: boolean;
   phase: string;
   steps: string[];
+  queued: number;
   onStop: () => void;
 }) {
   const [now, setNow] = useState(Date.now());
@@ -29,62 +43,63 @@ export function TaskProgress({
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [busy, task?.id]);
+  if (!task) return null;
   return (
-    <>
-      {task && (
-        <section className="task-card" aria-label={viewCopy.taskProgressText1}>
-          <header>
-            <strong>
-              {busy ? viewCopy.taskProgressText2 : viewCopy.taskProgressText3} ·{" "}
-              {task.name.startsWith(viewCopy.agentPanelText30)
-                ? actionTitle(task.name)
-                : task.name || phase}
-            </strong>
-            <button
-              className="stop-task"
-              disabled={!busy}
-              aria-label={viewCopy.taskProgressText4}
-              onClick={() => onStop()}
-            >
-              {viewCopy.taskProgressText5}
-            </button>
-          </header>
-          <div className="lamp-task-meta">
-            <span>{task.current}</span>
-            {task.startedAt > 0 && (busy || task.endedAt) && (
-              <span>
-                {viewCopy.taskProgressText6}
-                {elapsedLabel(
-                  Math.max(0, Math.floor(((task.endedAt ?? now) - task.startedAt) / 1000)),
-                )}
+    <section
+      className="task-card"
+      data-state={busy ? "running" : "ended"}
+      aria-label={viewCopy.taskProgressText1}
+    >
+      <header>
+        <strong>
+          {busy ? viewCopy.taskProgressText2 : viewCopy.taskProgressText3} ·{" "}
+          {task.name.startsWith(viewCopy.agentPanelText30)
+            ? actionTitle(task.name)
+            : task.name || phase}
+        </strong>
+        <button
+          className="stop-task"
+          disabled={!busy}
+          aria-label={viewCopy.taskProgressText4}
+          onClick={() => onStop()}
+        >
+          <Square size={11} aria-hidden="true" />
+          {viewCopy.taskProgressText5}
+        </button>
+      </header>
+      <div className="lamp-task-meta">
+        {task.startedAt > 0 && (busy || task.endedAt) && (
+          <span>
+            {viewCopy.taskProgressText6}
+            {formatElapsed((task.endedAt ?? now) - task.startedAt)}
+          </span>
+        )}
+        {task.usage && <span>{formatTokens(task.usage)}</span>}
+        {task.cost > 0 && <span>{AGENT_COPY.estimated + formatCost(task.cost)}</span>}
+        {queued > 0 && (
+          <span className="task-card-queued">
+            {AGENT_COPY.queuedCount + queued + AGENT_COPY.queuedUnit}
+          </span>
+        )}
+      </div>
+      <ol className="task-track" aria-label={viewCopy.taskProgressText1}>
+        {steps.map((step) => {
+          const state = stepState(task, step);
+          return (
+            <li key={step} title={step} data-state={state}>
+              <span className="agent-sr-only">
+                {step}：{STEP_LABEL[state]}
               </span>
-            )}
-            {task.cost > 0 && (
-              <span>
-                {viewCopy.taskProgressText8}
-                {task.cost.toFixed(4)}
-              </span>
-            )}
-          </div>
-          <div className="task-track">
-            {steps.map((step) => (
-              <span
-                key={step}
-                title={step}
-                className={
-                  task.completed.includes(step) ? "done" : task.current === step ? "current" : ""
-                }
-              />
-            ))}
-          </div>
-          <p>
-            {task.completed.length
-              ? viewCopy.taskProgressText9 + task.completed.join(" → ") + " · "
-              : ""}
-            {busy ? viewCopy.taskProgressText10 + (task.current || phase) : task.waiting}
-          </p>
-        </section>
-      )}
-    </>
+            </li>
+          );
+        })}
+      </ol>
+      <p role="status" aria-atomic="true">
+        {task.completed.length
+          ? viewCopy.taskProgressText9 + task.completed.join(" → ") + " · "
+          : ""}
+        {busy ? viewCopy.taskProgressText10 + (task.current || phase) : task.waiting}
+      </p>
+    </section>
   );
 }

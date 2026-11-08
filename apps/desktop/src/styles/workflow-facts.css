@@ -1,0 +1,85 @@
+/* 连续性看板与个人规则共用的事实卡片。 */
+.wf-continuity,
+.wf-personal {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.wf-continuity .wf-tabs {
+  padding: 0;
+}
+.wf-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.wf-fact {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-fill);
+  font-size: var(--ui-size-13);
+}
+.wf-fact[data-pending="true"] {
+  border-left: 3px solid var(--ui-warning);
+}
+.wf-fact header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.wf-fact p {
+  margin: 0;
+  line-height: 1.6;
+}
+.wf-fact blockquote {
+  margin: 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--ui-line-strong);
+  color: var(--ui-text-2);
+  font-family: var(--ui-font-body);
+  line-height: 1.7;
+}
+.wf-fact label {
+  display: grid;
+  gap: 6px;
+  color: var(--ui-text-2);
+}
+.wf-rhythm h3 {
+  font-size: var(--ui-size-13);
+  color: var(--ui-text-2);
+}
+.wf-rhythm svg {
+  display: block;
+  width: 100%;
+  height: 96px;
+  color: var(--ui-accent);
+  background: var(--ui-fill);
+  border-radius: var(--ui-radius-sm);
+}
+.wf-rhythm ol {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: var(--ui-size-13);
+}
+.wf-rhythm p {
+  margin: 2px 0 0;
+  color: var(--ui-text-2);
+}
+.wf-rhythm-head {
+  display: flex;
+  gap: 8px;
+  color: var(--ui-text-3);
+  font-size: var(--ui-size-12);
+}
+.wf-rhythm-head strong {
+  color: var(--ui-text);
+}

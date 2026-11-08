@@ -1,39 +1,37 @@
 import { errorText } from "../../../../../packages/core/src/errors.js";
-import { useEffect, useRef } from "react";
-import type { MutableRefObject } from "react";
+import { notify } from "../../../../../packages/ui/src/notify";
+import { useEffect } from "react";
 import type { Target } from "../../context";
-import type { WorkspaceContext } from "../../renderer-contracts";
 import { chatStore } from "../state/chatStore";
 import { askConfirm } from "../state/confirm";
-import { desktopStore, type DesktopState } from "../state/store";
+import { desktopStore } from "../state/store";
 
-type Set = (
-  patch: Partial<DesktopState> | ((state: DesktopState) => Partial<DesktopState>),
-) => void;
+const set = desktopStore.set;
+const TABS = ["agent", "chapter", "methods"];
 
-export function useDesktopShortcuts(options: {
-  selected: MutableRefObject<Target | null>;
-  context: MutableRefObject<WorkspaceContext>;
-  set: Set;
+export function useDesktopShortcuts({
+  selected,
+  stop,
+}: {
+  selected: { current: Target | null };
   stop: (target?: Target) => Promise<void>;
 }) {
-  const latest = useRef(options);
-  latest.current = options;
   useEffect(() => {
     const keyboard = (event: KeyboardEvent) => {
       if (event.defaultPrevented || document.querySelector("dialog[open]")) return;
-      const { selected, context, set, stop } = latest.current;
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+      const mod = event.ctrlKey || event.metaKey,
+        key = event.key.toLowerCase();
+      if (mod && key === "k") {
         event.preventDefault();
         set((current) => ({ palette: !current.palette }));
       }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+      if (mod && key === "s") {
         event.preventDefault();
-        void context.current.actions?.saveParagraph?.();
+        void desktopStore.get().context.actions?.saveParagraph?.();
       }
-      if ((event.ctrlKey || event.metaKey) && ["1", "2", "3"].includes(event.key)) {
+      if (mod && ["1", "2", "3"].includes(event.key)) {
         event.preventDefault();
-        set({ tab: ["agent", "chapter", "methods"][Number(event.key) - 1], drawer: true });
+        set({ tab: TABS[Number(event.key) - 1], drawer: true });
       }
       if (event.key === "Escape") {
         const current = desktopStore.get();
@@ -50,7 +48,7 @@ export function useDesktopShortcuts(options: {
           void askConfirm("停止当前任务？已保存的稿件不会撤销。").then((ok) => {
             if (ok)
               void stop(selected.current || undefined).catch((error) =>
-                set({ error: errorText(error) }),
+                notify({ tone: "danger", text: errorText(error) }),
               );
           });
         } else set({ drawer: false });
@@ -58,5 +56,5 @@ export function useDesktopShortcuts(options: {
     };
     window.addEventListener("keydown", keyboard);
     return () => window.removeEventListener("keydown", keyboard);
-  }, []);
+  }, [selected, stop]);
 }

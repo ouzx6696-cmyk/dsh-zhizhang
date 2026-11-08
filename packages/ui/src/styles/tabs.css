@@ -1,0 +1,58 @@
+/* 通用标签页（tabs.tsx）：下划线式，选中项文字加深、底线着色。 */
+.ui-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: var(--ui-space-1);
+  min-width: 0;
+}
+.ui-tabs[aria-orientation="vertical"] {
+  flex-direction: column;
+}
+.ui-tabs > [role="tab"] {
+  position: relative;
+  min-height: 0;
+  padding: var(--ui-space-2) var(--ui-space-2);
+  border: 0;
+  border-radius: var(--ui-radius-xs);
+  background: transparent;
+  color: var(--ui-text-3);
+  font-size: var(--ui-size-13);
+  transition:
+    color var(--ui-duration-fast) var(--ui-ease),
+    background-color var(--ui-duration-fast) var(--ui-ease);
+}
+.ui-tabs > [role="tab"]::after {
+  content: "";
+  position: absolute;
+  left: var(--ui-space-2);
+  right: var(--ui-space-2);
+  bottom: -1px;
+  height: 2px;
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-accent);
+  transform: scaleX(0);
+  transition: transform var(--ui-duration) var(--ui-ease);
+}
+.ui-tabs > [role="tab"]:hover:not(:disabled) {
+  background: var(--ui-fill);
+  color: var(--ui-text-2);
+}
+.ui-tabs > [role="tab"][aria-selected="true"] {
+  color: var(--ui-text);
+}
+.ui-tabs > [role="tab"][aria-selected="true"]::after {
+  transform: scaleX(1);
+}
+.ui-tabs[aria-orientation="vertical"] > [role="tab"] {
+  justify-content: flex-start;
+}
+.ui-tabs[aria-orientation="vertical"] > [role="tab"]::after {
+  display: none;
+}
+.ui-tabs[aria-orientation="vertical"] > [role="tab"][aria-selected="true"] {
+  background: var(--ui-fill-strong);
+}
+.ui-tabs > [role="tab"]:focus-visible {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: -2px;
+}

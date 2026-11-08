@@ -1,50 +1,54 @@
-.onboarding {
-  z-index: 180;
-}
-.onboarding > section {
-  width: min(550px, 95vw);
-  max-height: 94vh;
-  overflow-y: auto;
-  background: var(--ui-panel);
-  padding: 28px 36px;
-  border: 1px solid var(--ui-line);
-  border-radius: 14px;
-  box-shadow: var(--ui-shadow-2);
-}
+/* 首次引导：品牌头、三步进度、模型表单。对话框外框由 .ui-dialog.onboarding 负责。 */
 .onboarding-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ui-space-1);
   text-align: center;
-  margin-bottom: 24px;
 }
 .onboarding-brand > svg {
   color: var(--ui-accent);
 }
 .onboarding-brand h1 {
+  margin: var(--ui-space-2) 0 0;
   font-size: var(--ui-size-24);
   font-family: var(--ui-font-body);
   font-weight: 400;
-  margin: 5px 0;
 }
 .onboarding-brand p {
+  margin: 0;
   font-size: var(--ui-size-12);
   color: var(--ui-text-3);
 }
 .onboarding-steps {
   display: flex;
-  justify-content: space-between;
+  gap: var(--ui-space-2);
+  margin: 0;
   padding: 0;
   list-style: none;
   font-size: var(--ui-size-12);
-  margin-bottom: 22px;
   color: var(--ui-text-3);
 }
 .onboarding-steps li {
+  flex: 1;
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--ui-space-2);
+  padding-top: var(--ui-space-2);
+  border-top: 2px solid var(--ui-line);
+  transition:
+    color var(--ui-duration) var(--ui-ease),
+    border-color var(--ui-duration) var(--ui-ease);
 }
-.onboarding-steps [data-active="true"] {
+.onboarding-steps li[data-state="done"] {
+  border-color: color-mix(in srgb, var(--ui-accent) 45%, transparent);
+  color: var(--ui-text-2);
+}
+.onboarding-steps li[data-state="current"] {
+  border-color: var(--ui-accent);
   color: var(--ui-accent);
+  font-weight: 600;
 }
 .onboarding .model-fields {
-  margin-bottom: 12px;
+  margin-bottom: var(--ui-space-3);
 }

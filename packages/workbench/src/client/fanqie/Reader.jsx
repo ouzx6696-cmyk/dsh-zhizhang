@@ -1,13 +1,21 @@
-import { COPY as viewCopy } from "../../../../ui/src/copy.js";
+import {
+  COPY as viewCopy,
+  formatBytes,
+  formatCount,
+  t,
+  EDITOR_COPY,
+} from "../../../../ui/src/copy.js";
 /** Centre column: manuscript reader with official, candidate and side-by-side views. */
 import React from "react";
-import { formatBytes, formatCount, t } from "../../../../ui/src/copy.js";
 import { Manuscript } from "../shared/Manuscript.jsx";
 import { EMPTY_ISSUES, editMatches } from "./edit-state.js";
 import { FONT_STEPS } from "./state.js";
 import { Button, Icon, SegmentedControl, Tag } from "../shared/ui.jsx";
 import { Callout, Empty, Skeleton } from "../shared/common.jsx";
 import { SourceEditor } from "../shared/SourceEditor.jsx";
+import { draftKey } from "../shared/drafts.js";
+import { useReadingPosition } from "../shared/reading-position.js";
+import { useReaderFind } from "../shared/useReaderFind.jsx";
 
 function BodyPane({ slot, kind, title, issues = EMPTY_ISSUES, annotationId }) {
   if (slot.status === "loading" || slot.status === "idle") {
@@ -60,6 +68,9 @@ export function Reader({
   const { current: selectedChapter, activeCand, chapterPending } = view;
   const meta = state.chapter.meta;
   const [editing, setEditing] = React.useState(null);
+  const shown = state.readerView === "candidate" ? state.candidate : state.chapter;
+  const reading = useReadingPosition(!editing && shown.status === "ready" ? shown.body : null);
+  const finder = useReaderFind(reading.body, !editing);
   const current =
     selectedChapter || (editing ? { id: editing.scope.chapter, title: editing.title } : null);
   if (!state.chapterId || !current) {
@@ -89,6 +100,8 @@ export function Reader({
         : meta?.status === "reviewed"
           ? t("editorReviewNote")
           : undefined;
+  // Saving over a final draft demotes it, so the author confirms that before the save goes out.
+  const forceSave = !!editing && !editing.candidateId && editing.status === "final";
   const options = [
     { value: "official", label: t("readerOfficial") },
     {
@@ -161,7 +174,8 @@ export function Reader({
                   size="sm"
                   disabled={!editable}
                   title={!editable ? t("editorUnavailable") : undefined}
-                  onClick={() =>
+                  onClick={() => {
+                    reading.enter();
                     setEditing({
                       initial: editorSlot.body,
                       title: current.title,
@@ -169,12 +183,21 @@ export function Reader({
                       scope: { base: state.projectId, work: state.work, chapter: current.id },
                       candidateId: readerView === "candidate" ? activeCand?.id : undefined,
                       status: meta?.status,
-                    })
-                  }
+                    });
+                  }}
                 >
                   {t("editorToggle")}
                 </Button>
               ) : null}
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={EDITOR_COPY.find}
+                title={EDITOR_COPY.find + " (Ctrl+F)"}
+                aria-keyshortcuts="Control+F"
+                onClick={() => finder.openFind("find")}
+                icon={<Icon name="search" size={14} />}
+              />
               <SegmentedControl
                 id="wb-reader"
                 label={t("readerViews")}
@@ -206,7 +229,9 @@ export function Reader({
           ) : null}
         </div>
       </div>
+      {finder.bar}
       <div
+        ref={reading.body}
         className="wb-reader-body wb-enter"
         key={
           editing
@@ -228,19 +253,31 @@ export function Reader({
             initial={editing.initial}
             title={t("editorTitle")}
             note={editorNote}
+            draftKey={draftKey([
+              "fanqie",
+              editing.scope.base,
+              editing.scope.work,
+              editing.scope.chapter,
+              editing.candidateId || "official",
+              editing.expectedRevision,
+            ])}
+            saveConfirm={forceSave ? viewCopy.readerText2 : undefined}
+            position={reading.position}
             onSave={async (text) => {
-              const force = !editing.candidateId && editing.status === "final";
-              if (force && !window.confirm(viewCopy.readerText2)) return;
               await actions.saveChapter({
                 body: text,
                 expectedRevision: editing.expectedRevision,
                 candidateId: editing.candidateId,
                 scope: editing.scope,
-                force,
+                force: forceSave,
               });
+              reading.leave();
               setEditing(null);
             }}
-            onCancel={() => setEditing(null)}
+            onCancel={() => {
+              reading.leave();
+              setEditing(null);
+            }}
             onStateChange={actions.sourceEditState}
           />
         ) : readerView === "split" ? (

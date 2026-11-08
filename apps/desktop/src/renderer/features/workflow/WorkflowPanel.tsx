@@ -1,118 +1,102 @@
-import React, { useEffect, useState } from "react";
-import { COPY as copy } from "../../../../../../packages/ui/src/copy.js";
-import { Dialog } from "../../../../../../packages/ui/src/primitives";
+import React, { useCallback, useEffect, useId, useRef, useState } from "react";
+import { Maximize2, Minimize2, PanelRightClose, Workflow, X } from "lucide-react";
+import {
+  COPY as copy,
+  formatElapsed,
+  WORKFLOW_COPY,
+} from "../../../../../../packages/ui/src/copy.js";
 import { errorText } from "../../../../../../packages/core/src/errors.js";
 import type {
   WorkflowRecord,
   WorkflowRequest,
   EngineSettings,
 } from "../../../../../../packages/core/src/workflow-config.js";
-import { CLASSICS } from "../../../../../../packages/toutiao/src/classics.js";
-import type { Target, Focus } from "../../../context";
+import { scopeId, type Target, type Focus } from "../../../context";
 import { desktop, onDesktopEvent } from "../../state/desktop";
+import { desktopStore } from "../../state/store";
+import { askConfirm } from "../../state/confirm";
 import { PersonalPane } from "./PersonalPane";
 import { HistoryPane } from "./HistoryPane";
 import { ContinuityPane } from "./ContinuityPane";
+import { RunOverview, type RunAction } from "./RunOverview";
+import { PhaseIcon, StageTimeline } from "./StageTimeline";
+import { DraftCompare } from "./DraftCompare";
+import { TaskForm } from "./TaskForm";
+import { TabList, tabPanelProps } from "../../../../../../packages/ui/src/tabs";
+import {
+  STATE_LABEL,
+  selectedCandidate,
+  spanElapsed,
+  stageProgress,
+  stageRows,
+  type Phase,
+} from "./workflow-model";
 
-const states = {
-  running: copy.workflowRunning,
-  paused: copy.workflowPaused,
-  failed: copy.workflowFailed,
-  "awaiting-author": copy.workflowReady,
+/** 只在流水线运行时每秒走一次，其余时间不重绘。 */
+function useNow(active: boolean) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) return;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [active]);
+  return now;
+}
+
+const PILL_PHASE: Record<WorkflowRecord["state"], Phase> = {
+  running: "running",
+  paused: "paused",
+  failed: "failed",
+  "awaiting-author": "complete",
 };
-/** True when the delivered work still carries hard issues or unsourced facts for the author. */
-function deliveryOpen(record: WorkflowRecord) {
-  const output = record.steps.find((step) => step.id === "delivery")?.output;
+
+function PillMeta({ record, now }: { record: WorkflowRecord; now: number }) {
+  const { done, total } = stageProgress(stageRows(record));
   return (
-    typeof output === "object" &&
-    output !== null &&
-    "unresolved" in output &&
-    output.unresolved === true
+    <span className="wf-pill-meta">
+      {STATE_LABEL[record.state]} · {WORKFLOW_COPY.stageCount(done, total)} ·{" "}
+      {formatElapsed(spanElapsed(record.steps, record, now))}
+    </span>
   );
 }
-function json(value: unknown) {
-  return JSON.stringify(value, null, 2);
-}
-function draftOutput(value: unknown): { title: string; body: string } | undefined {
-  if (
-    value &&
-    typeof value === "object" &&
-    "title" in value &&
-    "body" in value &&
-    typeof value.title === "string" &&
-    typeof value.body === "string"
-  )
-    return { title: value.title, body: value.body };
-}
-function StageReport({ record }: { record: WorkflowRecord }) {
-  const [selected, setSelected] = useState("delivery"),
-    [left, setLeft] = useState(0),
-    [right, setRight] = useState(1);
-  const step = record.steps.find((step) => step.id === selected);
-  const drafts = record.steps
-    .filter((step) => /^draft-\d+$/.test(step.id) && step.status === "complete")
-    .map((step) => draftOutput(step.output))
-    .filter((value): value is { title: string; body: string } => value !== undefined);
+
+/** 收起后的角标：只显示状态、阶段数与用时，点一下展开。 */
+function Pill({
+  record,
+  now,
+  onExpand,
+  pillRef,
+}: {
+  record: WorkflowRecord | null;
+  now: number;
+  onExpand: () => void;
+  pillRef: React.RefObject<HTMLButtonElement | null>;
+}) {
   return (
-    <>
-      <ol className="wf-stages">
-        {record.steps.map((step) => (
-          <li key={step.id}>
-            <button onClick={() => setSelected(step.id)}>{step.title}</button>
-            <span>
-              {step.status === "complete"
-                ? copy.workflowComplete
-                : step.status === "failed"
-                  ? copy.workflowFailed
-                  : copy.workflowRunning}
-            </span>
-            <small>
-              {(step.durationMs / 1000).toFixed(1)}s · {copy.workflowInput} {step.usage.input} ·{" "}
-              {copy.workflowOutput} {step.usage.output} · {copy.workflowCache}{" "}
-              {step.usage.cacheRead} · {copy.workflowCost}{" "}
-              {step.usage.cost === null ? copy.workflowUnknown : step.usage.cost.toFixed(6)}
-            </small>
-            {step.model && <small>{step.model}</small>}
-            {step.error && <p role="alert">{step.error}</p>}
-          </li>
-        ))}
-      </ol>
-      {step && (
-        <section>
-          <h3>{step.title}</h3>
-          <pre className="wf-output">{json(step.output)}</pre>
-        </section>
+    <button
+      ref={pillRef}
+      type="button"
+      className="wf-pill"
+      data-state={record?.state}
+      title={WORKFLOW_COPY.expand}
+      onClick={onExpand}
+    >
+      {record ? (
+        <PhaseIcon phase={PILL_PHASE[record.state]} />
+      ) : (
+        <Workflow size={16} aria-hidden="true" />
       )}
-      {drafts.length > 1 && (
-        <section>
-          <h3>{copy.workflowCompare}</h3>
-          <div className="wf-compare">
-            {[left, right].map((choice, column) => (
-              <section key={column}>
-                <select
-                  aria-label={copy.workflowCompare + " " + (column + 1)}
-                  value={Math.min(choice, drafts.length - 1)}
-                  onChange={(e) =>
-                    column === 0
-                      ? setLeft(Number(e.target.value))
-                      : setRight(Number(e.target.value))
-                  }
-                >
-                  {drafts.map((value, index) => (
-                    <option key={index} value={index}>
-                      {index + 1} · {value.title}
-                    </option>
-                  ))}
-                </select>
-                <pre>{drafts[Math.min(choice, drafts.length - 1)].body}</pre>
-              </section>
-            ))}
-          </div>
-        </section>
-      )}
-    </>
+      <span>{copy.workflowTitle}</span>
+      {record && <PillMeta record={record} now={now} />}
+    </button>
   );
 }
+
+/**
+ * 非模态的停靠面板：作者边看正文边看进度。Esc 收起到角落而不是关闭，
+ * 关闭按钮才卸载面板；运行中的流水线不受面板开合影响。
+ */
 export function WorkflowPanel({
   target,
   focus,
@@ -129,17 +113,22 @@ export function WorkflowPanel({
   const [value, setValue] = useState<WorkflowRecord | null>(null),
     [error, setError] = useState(""),
     [tab, setTab] = useState("task"),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [dismissed, setDismissed] = useState<string | null>(null),
+    [collapsed, setCollapsed] = useState(false),
+    [wide, setWide] = useState(false);
   const [request, setRequest] = useState<WorkflowRequest>({
     kind: target.mode === "toutiao" ? "article" : "chapter",
-    chapter: focus.chapter ?? "c001",
+    chapter: focus.chapter ?? "",
     instruction: "",
     grade: engine.grade,
     source: "",
     line: "news",
   });
-  const [archived, setArchived] = useState<WorkflowRecord | null>(null);
-  const key = JSON.stringify(target);
+  const base = useId(),
+    heading = useRef<HTMLHeadingElement>(null),
+    pill = useRef<HTMLButtonElement>(null);
+  const key = scopeId(target);
   useEffect(() => {
     let alive = true;
     desktop
@@ -154,228 +143,179 @@ export function WorkflowPanel({
         if (alive) setError(errorText(error));
       });
     const off = onDesktopEvent((event) => {
-      if (
-        event.workflow &&
-        event.target?.mode === target.mode &&
-        event.target?.root === target.root &&
-        event.target?.work === target.work &&
-        event.target?.article === target.article
-      )
-        setValue(event.workflow);
+      if (event.workflow && scopeId(event.target) === key) setValue(event.workflow);
     });
     return () => {
       alive = false;
       off();
     };
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
-  const action = async (action: "start" | "resume" | "pause" | "apply") => {
+  useEffect(() => {
+    (collapsed ? pill : heading).current?.focus();
+  }, [collapsed]);
+  const active = value && value.id !== dismissed ? value : null;
+  const now = useNow(value?.state === "running");
+  const run = async (action: RunAction | "start") => {
     setError("");
     setBusy(true);
     try {
       setValue(await desktop.workflow(target, action, action === "start" ? request : undefined));
+      return true;
     } catch (error) {
       setError(errorText(error));
+      return false;
     } finally {
       setBusy(false);
     }
   };
-  const running = value?.state === "running";
+  const cancel = async (record: WorkflowRecord) => {
+    const confirmed = await askConfirm({
+      message: WORKFLOW_COPY.cancelConfirm,
+      confirmLabel: WORKFLOW_COPY.cancel,
+      cancelLabel: WORKFLOW_COPY.keepRunning,
+    });
+    if (confirmed && (await run("pause"))) setDismissed(record.id);
+  };
+  const viewCandidate = (record: WorkflowRecord) => {
+    void onNavigate(target, {
+      chapter: record.request.chapter,
+      source: "candidate",
+      candidate: selectedCandidate(record),
+    }).catch((error) => setError(errorText(error)));
+  };
+  const onError = useCallback((message: string) => setError(message), []);
+  const tabs = [
+    { id: "task", label: copy.workflowTaskTab },
+    ...(target.mode === "fanqie" ? [{ id: "state", label: copy.workflowStateTab }] : []),
+    { id: "personal", label: copy.workflowPersonalTab },
+  ];
   return (
-    <Dialog title={copy.workflowTitle} className="studio-workflow" onClose={onClose}>
-      <header>
-        <h2>{copy.workflowTitle}</h2>
-        <button onClick={onClose}>{copy.close}</button>
-      </header>
-      <nav className="wf-tabs">
-        <button aria-pressed={tab === "task"} onClick={() => setTab("task")}>
-          {copy.workflowTaskTab}
-        </button>
-        {target.mode === "fanqie" && (
-          <button aria-pressed={tab === "state"} onClick={() => setTab("state")}>
-            {copy.workflowStateTab}
+    <>
+      <section
+        className="wf-dock"
+        data-wide={wide}
+        hidden={collapsed}
+        role="dialog"
+        aria-modal="false"
+        aria-labelledby={`${base}-title`}
+        onKeyDown={(event) => {
+          if (event.key !== "Escape") return;
+          event.preventDefault();
+          setCollapsed(true);
+        }}
+      >
+        <header className="wf-dock-head">
+          <h2 id={`${base}-title`} ref={heading} tabIndex={-1}>
+            {copy.workflowTitle}
+          </h2>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label={wide ? WORKFLOW_COPY.narrow : WORKFLOW_COPY.widen}
+            title={wide ? WORKFLOW_COPY.narrow : WORKFLOW_COPY.widen}
+            onClick={() => setWide(!wide)}
+          >
+            {wide ? (
+              <Minimize2 size={16} aria-hidden="true" />
+            ) : (
+              <Maximize2 size={16} aria-hidden="true" />
+            )}
           </button>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label={WORKFLOW_COPY.collapse}
+            title={WORKFLOW_COPY.collapse}
+            onClick={() => setCollapsed(true)}
+          >
+            <PanelRightClose size={16} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label={copy.close}
+            title={copy.close}
+            onClick={onClose}
+          >
+            <X size={16} aria-hidden="true" />
+          </button>
+        </header>
+        <TabList
+          id={base}
+          className="wf-tabs"
+          label={WORKFLOW_COPY.views}
+          items={tabs}
+          value={tab}
+          onChange={setTab}
+        />
+        {error && (
+          <p role="alert" className="wf-error">
+            {error}
+          </p>
         )}
-        <button aria-pressed={tab === "personal"} onClick={() => setTab("personal")}>
-          {copy.workflowPersonalTab}
-        </button>
-      </nav>
-      {tab === "task" && (
-        <>
-          <fieldset disabled={busy || running}>
-            <label>
-              {copy.workflowKind}
-              <select
-                value={request.kind}
-                onChange={(e) =>
-                  setRequest({ ...request, kind: e.target.value as WorkflowRequest["kind"] })
-                }
-              >
-                {target.mode === "fanqie" ? (
-                  <>
-                    <option value="book">{copy.workflowBook}</option>
-                    <option value="chapter">{copy.workflowChapter}</option>
-                    <option value="ledger">{copy.workflowLedger}</option>
-                  </>
-                ) : (
-                  <option value="article">{copy.workflowArticle}</option>
-                )}
-              </select>
-            </label>
-            {request.kind !== "article" && request.kind !== "book" && (
-              <label>
-                {copy.workflowChapterId}
-                <input
-                  value={request.chapter}
-                  onChange={(e) => setRequest({ ...request, chapter: e.target.value })}
-                />
-              </label>
-            )}
-            <label>
-              {copy.workflowInstruction}
-              <textarea
-                value={request.instruction}
-                onChange={(e) => setRequest({ ...request, instruction: e.target.value })}
-              />
-            </label>
-            <label>
-              {copy.workflowGrade}
-              <select
-                value={request.grade}
-                onChange={(e) =>
-                  setRequest({ ...request, grade: e.target.value as WorkflowRequest["grade"] })
-                }
-              >
-                <option value="economy">{copy.workflowEconomy}</option>
-                <option value="standard">{copy.workflowStandard}</option>
-                <option value="premium">{copy.workflowPremium}</option>
-              </select>
-            </label>
-            {request.kind === "article" && (
-              <>
-                <label>
-                  {copy.workflowLine}
-                  <select
-                    value={request.line}
-                    onChange={(e) =>
-                      setRequest({ ...request, line: e.target.value as WorkflowRequest["line"] })
-                    }
-                  >
-                    <option value="news">{copy.workflowNews}</option>
-                    <option value="story">{copy.workflowStory}</option>
-                    <option value="micro">{copy.workflowMicro}</option>
-                  </select>
-                </label>
-                {request.line === "story" && (
-                  <label>
-                    {copy.workflowClassic}
-                    <select
-                      defaultValue=""
-                      onChange={(e) => {
-                        const classic = CLASSICS.find((value) => value.id === e.target.value);
-                        if (classic)
-                          setRequest({ ...request, source: classic.source + "\n" + classic.text });
-                      }}
-                    >
-                      <option value="">{copy.workflowClassicNone}</option>
-                      {CLASSICS.map((value) => (
-                        <option key={value.id} value={value.id}>
-                          {value.title}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-                <label>
-                  {copy.workflowSource}
-                  <textarea
-                    value={request.source}
-                    onChange={(e) => setRequest({ ...request, source: e.target.value })}
-                  />
-                </label>
-                <p>{copy.workflowSourceNote}</p>
-              </>
-            )}
-            <p>{copy.workflowCostNote}</p>
-          </fieldset>
-          <div className="wf-actions">
-            <button disabled={busy || running} onClick={() => void action("start")}>
-              {copy.workflowStart}
-            </button>
-            <button
-              disabled={busy || !value || running || value.state === "awaiting-author"}
-              onClick={() => void action("resume")}
-            >
-              {copy.workflowResume}
-            </button>
-            <button disabled={!running || busy} onClick={() => void action("pause")}>
-              {copy.workflowPause}
-            </button>
-            <HistoryPane
-              target={target}
-              revision={value ? value.id + ":" + value.state : ""}
-              onError={setError}
-              onSelect={setArchived}
-            />
-            {archived && (
-              <section>
-                <h3>
-                  {archived.created} · {archived.request.instruction}
-                </h3>
-                <StageReport record={archived} />
-              </section>
-            )}
-            {value?.state === "awaiting-author" &&
-              (value.request.kind === "book" || value.request.kind === "article") &&
-              !value.steps.some(
-                (step) => step.id === "author-application" && step.status === "complete",
-              ) && (
-                <button disabled={busy} onClick={() => void action("apply")}>
-                  {value.request.kind === "book" ? copy.workflowApply : copy.workflowApplyArticle}
-                </button>
-              )}
-          </div>
-          {value ? (
+        <div {...tabPanelProps(base, tab, tab)} tabIndex={0} className="wf-dock-body">
+          {tab === "task" && (
             <>
-              <p role="status">{states[value.state]}</p>
-              {value.error && <p role="alert">{value.error}</p>}
-              {deliveryOpen(value) && <p role="alert">{copy.workflowOpenIssues}</p>}
-              <StageReport record={value} />
-            </>
-          ) : (
-            <p>{copy.workflowNoTask}</p>
-          )}
-          {value?.state === "awaiting-author" && value.request.kind === "chapter" && (
-            <button
-              onClick={() => {
-                void onNavigate(target, {
-                  chapter: value.request.chapter,
-                  source: "candidate",
-                  candidate: (() => {
-                    const output = value.steps.find((step) => step.id === "delivery")?.output;
-                    if (
-                      output &&
-                      typeof output === "object" &&
-                      "candidates" in output &&
-                      Array.isArray(output.candidates)
-                    ) {
-                      const chosen = output.candidates.find((row) => row.selected === true);
-                      if (chosen && typeof chosen.id === "string") return chosen.id;
+              {active ? (
+                <>
+                  <RunOverview
+                    record={active}
+                    now={now}
+                    engine={engine}
+                    busy={busy}
+                    onAction={(action) => void run(action)}
+                    onCancel={() => void cancel(active)}
+                    onDismiss={() => setDismissed(active.id)}
+                    onOpenSettings={() => desktopStore.set({ settingsOpen: true })}
+                    onViewCandidate={() => viewCandidate(active)}
+                  />
+                  <StageTimeline
+                    record={active}
+                    now={now}
+                    onRetry={
+                      active.state === "failed" && !busy ? () => void run("resume") : undefined
                     }
-                    return undefined;
-                  })(),
-                })
-                  .then(onClose)
-                  .catch((error) => setError(errorText(error)));
-              }}
-            >
-              {copy.workflowViewCandidate}
-            </button>
+                  />
+                  <DraftCompare record={active} />
+                </>
+              ) : (
+                <>
+                  {value ? (
+                    <p className="wf-hint wf-previous">
+                      {value.state === "awaiting-author"
+                        ? WORKFLOW_COPY.previousDone
+                        : WORKFLOW_COPY.previousStopped}
+                      <button type="button" className="wf-quiet" onClick={() => setDismissed(null)}>
+                        {WORKFLOW_COPY.backToPrevious}
+                      </button>
+                    </p>
+                  ) : (
+                    <p className="wf-hint">{copy.workflowNoTask}</p>
+                  )}
+                  <TaskForm
+                    target={target}
+                    request={request}
+                    setRequest={setRequest}
+                    busy={busy}
+                    onStart={() => void run("start")}
+                    onError={onError}
+                  />
+                </>
+              )}
+              <HistoryPane
+                target={target}
+                revision={value ? value.id + ":" + value.state : ""}
+                onError={onError}
+              />
+            </>
           )}
-        </>
+          {tab === "state" && <ContinuityPane target={target} onError={onError} />}
+          {tab === "personal" && <PersonalPane target={target} onError={onError} />}
+        </div>
+      </section>
+      {collapsed && (
+        <Pill record={active} now={now} onExpand={() => setCollapsed(false)} pillRef={pill} />
       )}
-      {tab === "state" && <ContinuityPane target={target} onError={setError} />}
-      {tab === "personal" && <PersonalPane target={target} onError={setError} />}
-      {error && <p role="alert">{error}</p>}
-    </Dialog>
+    </>
   );
 }

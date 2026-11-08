@@ -1,19 +1,23 @@
 .task-card {
-  margin: 14px 14px 4px;
+  margin: var(--ui-space-3) var(--ui-space-3) var(--ui-space-1);
   border: 1px solid var(--ui-line);
-  border-radius: 7px;
-  padding: 10px;
+  border-radius: var(--ui-radius-md);
+  padding: var(--ui-space-2) var(--ui-space-3);
   font-size: var(--ui-size-12);
   background: var(--ui-paper);
+  box-shadow: var(--ui-shadow-1);
+}
+.task-card[data-state="running"] {
+  border-color: var(--ui-accent-soft);
 }
 .task-card header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--ui-space-2);
 }
 .task-card strong {
-  font-size: var(--ui-size-12);
-  font-weight: 400;
+  font-size: var(--ui-size-13);
+  font-weight: 600;
   flex: 1;
   overflow: hidden;
   display: -webkit-box;
@@ -27,27 +31,45 @@
   margin: 0;
   line-height: 1.6;
 }
+.task-card .lamp-task-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px var(--ui-space-3);
+  margin-top: 2px;
+  color: var(--ui-text-3);
+  font-variant-numeric: tabular-nums;
+}
+.task-card-queued {
+  color: var(--ui-accent);
+}
 .stop-task {
   flex: 0 0 auto;
-  padding: 2px 8px;
+  min-height: 0;
+  padding: 2px var(--ui-space-2);
   border-color: var(--ui-line);
   background: transparent;
   font-size: var(--ui-size-12);
 }
+.stop-task:not(:disabled) {
+  border-color: var(--ui-danger);
+  color: var(--ui-danger);
+}
 .task-track {
   display: flex;
-  gap: 4px;
-  margin: 7px 0;
+  gap: var(--ui-space-1);
+  margin: var(--ui-space-2) 0;
+  padding: 0;
+  list-style: none;
 }
-.task-track span {
+.task-track li {
   height: 3px;
   border-radius: 2px;
-  background: var(--ui-line);
+  background: var(--ui-line-strong);
   flex: 1;
 }
-.task-track span.done {
+.task-track li[data-state="done"] {
   background: var(--ui-success);
 }
-.task-track span.current {
+.task-track li[data-state="current"] {
   background: var(--ui-accent);
 }

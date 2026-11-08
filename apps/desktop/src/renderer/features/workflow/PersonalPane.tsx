@@ -3,6 +3,7 @@ import { COPY as copy } from "../../../../../../packages/ui/src/copy.js";
 import { errorText } from "../../../../../../packages/core/src/errors.js";
 import { desktop } from "../../state/desktop";
 import type { Target } from "../../../context";
+import "../../../styles/workflow-facts.css";
 export function PersonalPane({
   target,
   onError,
@@ -38,15 +39,16 @@ export function PersonalPane({
     }
   };
   return (
-    <section>
-      <p>{copy.workflowPersonalNote}</p>
-      {!state?.pending.length && <p>{copy.workflowRuleEmpty}</p>}
+    <div className="wf-personal">
+      <p className="wf-hint">{copy.workflowPersonalNote}</p>
+      {!state?.pending.length && <p className="wf-hint">{copy.workflowRuleEmpty}</p>}
       {state?.pending.map((rule) => (
-        <article className="wf-fact" key={rule.id}>
-          <strong>{rule.condition}</strong>
-          <p>
-            {rule.why} · {rule.count}
-          </p>
+        <article className="wf-fact" data-pending="true" key={rule.id}>
+          <header>
+            <strong>{rule.condition}</strong>
+            <small>{rule.count}</small>
+          </header>
+          <p>{rule.why}</p>
           <blockquote>
             {rule.example.before} → {rule.example.after}
           </blockquote>
@@ -57,27 +59,36 @@ export function PersonalPane({
               onChange={(e) => setEdits({ ...edits, [rule.id]: e.target.value })}
             />
           </label>
-          <button disabled={busy} onClick={() => void decide(rule.id, "accept")}>
-            {copy.workflowAccept}
-          </button>
-          <button disabled={busy} onClick={() => void decide(rule.id, "reject")}>
-            {copy.workflowReject}
-          </button>
+          <div className="wf-actions">
+            <button
+              type="button"
+              className="primary"
+              disabled={busy}
+              onClick={() => void decide(rule.id, "accept")}
+            >
+              {copy.workflowAccept}
+            </button>
+            <button type="button" disabled={busy} onClick={() => void decide(rule.id, "reject")}>
+              {copy.workflowReject}
+            </button>
+          </div>
         </article>
       ))}
       <h3>{copy.workflowRuleActive}</h3>
       {state?.rules.map((rule) => (
         <article className="wf-fact" key={rule.id}>
-          <strong>{rule.condition}</strong>
+          <header>
+            <strong>{rule.condition}</strong>
+            <small>{rule.id}</small>
+          </header>
           <p>{rule.change}</p>
-          <small>{rule.id}</small>
-          <p>
+          <p className="wf-hint">
             {copy.workflowRuleProgress} {rule.subsequent} · {copy.workflowRuleRecurring}{" "}
             {rule.recurring}
           </p>
-          {rule.subsequent >= 10 && <p>{copy.workflowRuleReview}</p>}
+          {rule.subsequent >= 10 && <p className="wf-notice-raw">{copy.workflowRuleReview}</p>}
         </article>
       ))}
-    </section>
+    </div>
   );
 }

@@ -1,45 +1,85 @@
-button.icon-button {
-  padding: 6px;
-  border-color: transparent;
-  background: transparent;
-}
+/* 顶栏：品牌、作品切换、视图切换、模型状态、导出、命令、设置。 */
 .studio-topbar {
+  /* 顶栏自成层叠上下文，导出菜单在其中；按弹层级别放置，才能盖住稿纸的吸顶条。 */
+  position: relative;
+  z-index: var(--ui-z-popover);
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 14px;
+  gap: var(--ui-space-2);
+  height: 56px;
+  min-height: 56px;
+  padding: 0 var(--ui-space-3) 0 var(--ui-space-4);
   border-bottom: 1px solid var(--ui-line);
-  z-index: 20;
+  background: color-mix(in srgb, var(--ui-panel) 88%, transparent);
+  backdrop-filter: var(--ui-blur);
 }
 .studio-brand {
   display: flex;
+  margin-right: var(--ui-space-1);
   color: var(--ui-accent);
-  padding: 0 4px 0 0;
 }
-.project-switch {
-  max-width: 260px;
-  border-color: var(--ui-line);
+/* 顶栏里的次要按钮一律“幽灵”样式：静止时无框，悬停才出底色。 */
+.studio-topbar button:not(.primary) {
+  min-height: 32px;
+  border-color: transparent;
   background: transparent;
+  color: var(--ui-text-2);
+}
+.studio-topbar button:not(.primary):hover:not(:disabled) {
+  background: var(--ui-fill-strong);
+  color: var(--ui-text);
+}
+.studio-topbar button[aria-expanded="true"] {
+  background: var(--ui-fill-strong);
+  color: var(--ui-text);
+}
+.studio-topbar button.project-switch {
+  max-width: 260px;
+  padding: 0 var(--ui-space-2) 0 var(--ui-space-3);
+  border-color: var(--ui-line);
+  color: var(--ui-text);
+  font-weight: 600;
 }
 .project-switch span {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.studio-caret {
+  flex-shrink: 0;
+  color: var(--ui-text-3);
+  transition: transform var(--ui-duration) var(--ui-ease);
+}
+.studio-caret[data-open="true"] {
+  transform: rotate(180deg);
+}
+.studio-topbar .topbar-action {
+  font-size: var(--ui-size-13);
+}
 .view-switch {
   display: flex;
   gap: 2px;
+  padding: 2px;
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-fill);
 }
-.view-switch button {
-  border: 0;
-  background: transparent;
-  padding: 5px 9px;
+.studio-topbar .view-switch button {
+  min-height: 28px;
+  padding: 0 var(--ui-space-3);
+  border-radius: calc(var(--ui-radius-sm) - 2px);
   font-size: var(--ui-size-12);
 }
-.view-switch .active {
-  background: var(--ui-accent-soft);
-  color: var(--ui-accent);
+.studio-topbar .view-switch .active {
+  background: var(--ui-paper);
+  color: var(--ui-text);
+  box-shadow: var(--ui-shadow-1);
+}
+.studio-topbar .view-switch .active:hover:not(:disabled) {
+  background: var(--ui-paper);
 }
 .model-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-1);
   margin-left: auto;
   white-space: nowrap;
   font-size: var(--ui-size-12);
@@ -49,64 +89,80 @@ button.icon-button {
   display: inline-block;
   width: 6px;
   height: 6px;
-  border-radius: 50%;
+  margin-right: var(--ui-space-1);
+  border-radius: var(--ui-radius-pill);
   background: var(--ui-warning);
-  margin-right: 5px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-warning) 18%, transparent);
 }
 .model-status i[data-ready="true"] {
   background: var(--ui-success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-success) 18%, transparent);
 }
 .export-menu {
   position: relative;
 }
-.export-trigger {
-  min-height: 28px;
-  padding: 0 8px;
-  border-color: transparent;
-  background: transparent;
+.studio-topbar .export-trigger {
+  padding: 0 var(--ui-space-2);
   font-size: var(--ui-size-12);
 }
 .export-options {
   position: absolute;
   right: 0;
-  top: calc(100% + 6px);
-  z-index: 30;
+  top: calc(100% + var(--ui-space-2));
+  z-index: var(--ui-z-popover);
   display: flex;
   flex-direction: column;
-  min-width: 156px;
-  padding: 4px;
-  border: 1px solid var(--ui-line);
-  border-radius: 8px;
+  min-width: 168px;
+  padding: var(--ui-space-1);
+  border: 1px solid var(--ui-line-strong);
+  border-radius: var(--ui-radius-sm);
   background: var(--ui-paper);
   box-shadow: var(--ui-shadow-2);
+  transform-origin: top right;
+  animation: studio-pop var(--ui-duration-fast) var(--ui-ease);
 }
-.export-options button {
+.studio-topbar .export-options button {
   justify-content: flex-start;
-  border: 0;
-  background: transparent;
-  padding: 6px 8px;
+  min-height: 30px;
+  padding: 0 var(--ui-space-2);
+  border-radius: var(--ui-radius-xs);
+  font-size: var(--ui-size-13);
+}
+.studio-topbar .export-options button:focus-visible {
+  outline: 0;
+  background: var(--ui-accent-soft);
+  color: var(--ui-text);
+}
+.studio-topbar .command-button {
+  gap: var(--ui-space-2);
+  padding: 0 var(--ui-space-2);
   font-size: var(--ui-size-12);
 }
-.export-options button:hover {
-  background: var(--ui-accent-soft);
+.command-button span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-2);
 }
-@media (max-width: 1199px) {
-  .model-status small {
-    display: none;
+.sidebar-open {
+  display: none;
+}
+@keyframes studio-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
   }
 }
 @media (max-width: 1199px) {
   .studio-topbar {
-    gap: 5px;
+    gap: var(--ui-space-1);
   }
-}
-@media (max-width: 1199px) {
-  .view-switch button {
-    padding: 5px 6px;
+  .model-status small {
+    display: none;
   }
-}
-@media (max-width: 1199px) {
-  .project-switch {
+  .studio-topbar .view-switch button {
+    padding: 0 var(--ui-space-2);
+  }
+  .studio-topbar button.project-switch {
     max-width: 190px;
   }
 }
@@ -114,82 +170,39 @@ button.icon-button {
   .model-status {
     display: none;
   }
-}
-@media (max-width: 959px) {
   .view-switch {
     margin-right: auto;
   }
-}
-@media (max-width: 959px) {
-  .project-switch {
+  .studio-topbar button.project-switch {
     max-width: 170px;
   }
-}
-.studio-topbar .view-switch .active {
-  background: var(--ui-fill-strong);
-  color: var(--ui-text);
-}
-.studio-topbar {
-  height: 56px;
-  min-height: 56px;
-  background: var(--ui-panel);
-}
-.command-button {
-  font-size: var(--ui-size-12);
-  padding: 4px 6px;
-  background: transparent;
-  border: 0;
-}
-@media (max-width: 959px) {
   .command-button span {
     display: none;
   }
+  .sidebar-open {
+    display: inline-flex;
+  }
 }
-.sidebar-open {
-  display: none;
-}
+
+/* 顶栏下的状态条：只读提示与其它作品的后台任务。 */
 .readonly-banner,
 .background-tasks {
-  padding: 7px 16px;
-  background: var(--ui-accent-soft);
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: var(--ui-size-12);
   flex-wrap: wrap;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-1) var(--ui-space-4);
+  border-bottom: 1px solid var(--ui-line);
+  background: var(--ui-accent-soft);
+  font-size: var(--ui-size-12);
 }
 .readonly-banner {
   color: var(--ui-warning);
 }
 .background-tasks button {
-  padding: 2px 6px;
+  min-height: 24px;
+  padding: 0 var(--ui-space-2);
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-paper);
   font-size: var(--ui-size-12);
-}
-.studio-error {
-  position: relative;
-  inset: auto;
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  max-width: none;
-  flex-shrink: 0;
-  margin: 0;
-  padding: 10px 20px;
-  border: 0;
-  border-bottom: 1px solid var(--ui-danger);
-  border-radius: 8px;
-  background: var(--ui-panel);
-  box-shadow: none;
-  font-size: var(--ui-size-12);
-  z-index: 21;
-}
-.studio-error > svg {
-  color: var(--ui-danger);
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-@media (max-width: 959px) {
-  .sidebar-open {
-    display: inline-flex;
-  }
 }

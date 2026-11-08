@@ -1,0 +1,99 @@
+/* 历史：合计、摘要列表、详情。 */
+.wf-history {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--ui-line);
+}
+.wf-history h3 {
+  margin: 0;
+  font-size: var(--ui-size-13);
+  color: var(--ui-text-2);
+  font-weight: 600;
+}
+.wf-history-totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+.wf-history-totals div {
+  padding: 8px 10px;
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-fill);
+}
+.wf-history-totals dt {
+  font-size: var(--ui-size-12);
+  color: var(--ui-text-3);
+}
+.wf-history-totals dd {
+  margin: 0;
+  font-size: var(--ui-size-12);
+  font-variant-numeric: tabular-nums;
+}
+.wf-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.wf-history-item {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 10px 32px 10px 12px;
+  text-align: left;
+  white-space: normal;
+  background: transparent;
+  border-color: var(--ui-line);
+}
+.wf-history-item:hover {
+  background: var(--ui-hover);
+}
+.wf-history-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--ui-size-13);
+}
+.wf-history-line time {
+  margin-left: auto;
+  color: var(--ui-text-3);
+  font-size: var(--ui-size-12);
+  font-variant-numeric: tabular-nums;
+}
+.wf-history-instruction {
+  color: var(--ui-text);
+  font-size: var(--ui-size-13);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wf-history-meta {
+  color: var(--ui-text-3);
+  font-size: var(--ui-size-12);
+  font-variant-numeric: tabular-nums;
+}
+.wf-history-chevron {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--ui-text-3);
+}
+.wf-history-detail {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+.wf-history-detail > .wf-quiet {
+  align-self: flex-start;
+  padding-left: 4px;
+}

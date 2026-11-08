@@ -16,8 +16,8 @@ export function messageOf(err) {
 export function createFanqieActions({ ref, viewRef, alive, refresh, dispatch }) {
   const notify = (tone, text) => dispatch({ type: "notice", tone, text });
   return {
-    refresh: () => {
-      if (!dispatch({ type: "reloadBodies" })) return;
+    refresh: async () => {
+      if (!(await dispatch({ type: "reloadBodies" }))) return;
       return refresh({ projects: true });
     },
     dispatch,
