@@ -693,7 +693,7 @@ test("CI 信号终止必须失败；错误立项卡返回参数错误而非 trac
           file,
           "--json",
         ],
-        { encoding: "utf8" },
+        { encoding: "utf8", env: { ...process.env, PYTHONIOENCODING: "utf-8", PYTHONUTF8: "1" } },
       );
       assert.equal(qa.status, 2);
       assert.match(qa.stdout, /立项卡/);

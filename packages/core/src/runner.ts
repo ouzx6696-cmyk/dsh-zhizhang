@@ -1,6 +1,6 @@
 /**
  * Python 规则脚本运行器。
- * - 定位 Python：指定的解释器（参数或环境变量 WRITER_PYTHON）只用它本身，未指定才按平台候选探测；校验 ≥ 3.8；
+ * - 定位 Python：指定的解释器（参数或环境变量 WRITER_PYTHON）只用它本身，未指定才按平台候选探测；校验 ≥ 3.10；
  * - 带超时与取消运行脚本；
  * - stdout 必须是且只是一个 JSON 对象，含 tool/rules_version/ok；否则一律 SCRIPT_FAILED，绝不当作通过。
  */
@@ -123,7 +123,7 @@ export interface PythonCommand {
 
 const cache = new Map<string, Promise<PythonCommand>>();
 
-/** 找可用 Python ≥ 3.8。explicit 为指定的解释器路径（整串即命令），指定了就不再自动探测。 */
+/** 找可用 Python ≥ 3.10。explicit 为指定的解释器路径（整串即命令），指定了就不再自动探测。 */
 export function locatePython(explicit?: string): Promise<PythonCommand> {
   const key = explicit?.trim() || process.env.WRITER_PYTHON?.trim() || "";
   let p = cache.get(key);
@@ -138,7 +138,7 @@ export function locatePython(explicit?: string): Promise<PythonCommand> {
 
 const VERSION_PROBE = 'import sys;print("%d.%d"%sys.version_info[:2])';
 
-/** 能跑且版本 ≥ 3.8 返回 undefined，否则返回原因；找不到命令时为"未找到"。 */
+/** 能跑且版本 ≥ 3.10 返回 undefined，否则返回原因；找不到命令时为"未找到"。 */
 async function pythonProblem(c: PythonCommand): Promise<string | undefined> {
   let r: Proc;
   try {
@@ -148,9 +148,9 @@ async function pythonProblem(c: PythonCommand): Promise<string | undefined> {
     throw error;
   }
   const m = /^(\d+)\.(\d+)/.exec(r.stdout.trim());
-  if (r.code === 0 && m && (Number(m[1]) > 3 || (Number(m[1]) === 3 && Number(m[2]) >= 8)))
+  if (r.code === 0 && m && (Number(m[1]) > 3 || (Number(m[1]) === 3 && Number(m[2]) >= 10)))
     return undefined;
-  return m ? `版本 ${m[0]} 低于 3.8` : `无法运行（退出码 ${r.code}）`;
+  return m ? `版本 ${m[0]} 低于 3.10` : `无法运行（退出码 ${r.code}）`;
 }
 
 async function findPython(explicit?: string): Promise<PythonCommand> {
@@ -185,7 +185,7 @@ async function findPython(explicit?: string): Promise<PythonCommand> {
   }
   throw new WriterError(
     "SCRIPT_FAILED",
-    `找不到 Python 3.8+（试过：${tried.join("、")}）。请安装 Python，或用环境变量 WRITER_PYTHON 指定解释器路径。`,
+    `找不到 Python 3.10+（试过：${tried.join("、")}）。请安装 Python，或用环境变量 WRITER_PYTHON 指定解释器路径。`,
   );
 }
 
