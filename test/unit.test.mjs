@@ -200,6 +200,40 @@ test("运行器：超时", async () => {
   await assert.rejects(runScript(py, f, [], { timeoutMs: 300 }), /超时/);
 });
 
+test("运行器：输出超过上限即终止并报脚本失败；取消报 CANCELLED", async () => {
+  const py = await locatePython();
+  const dir = await tempDir();
+  const loud = path.join(dir, "loud.py");
+  // 写满 9 MB 后挂起：不终止就会一直等到超时
+  await atomicWrite(
+    loud,
+    "import sys, time\nsys.stdout.write('x' * (9 * 1024 * 1024))\nsys.stdout.flush()\ntime.sleep(30)\n",
+  );
+  await assert.rejects(
+    runScript(py, loud, [], { timeoutMs: 20000 }),
+    (error) => error.code === "SCRIPT_FAILED" && /输出超过/.test(error.message),
+  );
+  const slow = path.join(dir, "slow.py");
+  await atomicWrite(slow, "import time\ntime.sleep(5)\n");
+  const controller = new AbortController();
+  const pending = runScript(py, slow, [], { signal: controller.signal });
+  setTimeout(() => controller.abort(), 100);
+  await assert.rejects(pending, (error) => error.code === "CANCELLED");
+  await assert.rejects(
+    runScript(py, slow, [], { signal: AbortSignal.abort() }),
+    (error) => error.code === "CANCELLED",
+  );
+});
+
+test("addUsage：没有用量的一项不把已知费用变成未知", async () => {
+  const { addUsage, emptyUsage } = await import(buildUrl("core/src/workflow-config.js"));
+  const u = (cost) => ({ input: 10, output: 5, cacheRead: 0, cacheWrite: 0, cost });
+  assert.equal(addUsage(u(0.1), emptyUsage()).cost, 0.1);
+  assert.equal(addUsage(emptyUsage(), u(0.1)).cost, 0.1);
+  assert.equal(addUsage(u(0.1), u(0.2)).input, 20);
+  assert.equal(addUsage(u(0.1), u(null)).cost, null, "用过模型却费用未知，合计仍未知");
+});
+
 test("门禁引擎：deny 优先；ask 记录 token，只能消费一次；锁定规则不能关", async () => {
   const rules = [
     {

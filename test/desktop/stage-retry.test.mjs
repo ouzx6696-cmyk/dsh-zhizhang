@@ -13,6 +13,8 @@ import { defaultModels } from "../../apps/desktop/out-test/models.mjs";
 import { WorkflowJournal, WorkflowPause } from "../../build/core/src/workflow.js";
 import { fakeModel } from "./fake-model.mjs";
 
+const usage = (output) => ({ input: 10, output, cacheRead: 0, cacheWrite: 0, cost: null });
+
 // DK-01: the corrected order is out-of-credit wording → leading status → pi-ai fallback.
 const PROVIDER_ERRORS = [
   ["400 Invalid request: max_tokens must be less than or equal to 500", "provider"],
@@ -109,12 +111,12 @@ test("transient provider failures back off and retry before succeeding", async (
     async () => {
       calls++;
       if (calls < 3) throw new Error("429 rate limit reached");
-      return "ok";
+      return { value: "ok", usage: usage(1) };
     },
     new AbortController().signal,
     [1, 1, 1],
   );
-  assert.equal(value, "ok");
+  assert.equal(value.value, "ok");
   assert.equal(calls, 3);
 });
 
@@ -174,7 +176,10 @@ test("abort during backoff stops waiting immediately", async () => {
     [60000],
   );
   setTimeout(() => controller.abort(new Error("stopped")), 5);
-  await assert.rejects(pending, /stopped/);
+  await assert.rejects(
+    pending,
+    (error) => error.kind === "aborted" && error.cause.message === "stopped",
+  );
 });
 
 test("the journal does not spend a second attempt on a budget pause", async () => {
@@ -203,7 +208,6 @@ test("the journal does not spend a second attempt on a budget pause", async () =
   }
 });
 
-const usage = (output) => ({ input: 10, output, cacheRead: 0, cacheWrite: 0, cost: null });
 async function journalIn(dir) {
   return WorkflowJournal.open(path.join(dir, "w.json"), {}, "h", "b", () => {});
 }
@@ -482,6 +486,247 @@ test("journal: when saving a failed stage also fails, the stage error stays firs
         typeof error.errors[1].code === "string",
     );
   } finally {
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("billed usage: failed attempts add to the answer, or travel on the error that ends the stage", async () => {
+  let calls = 0;
+  const answer = await withProviderRetry(
+    async () => {
+      calls++;
+      if (calls < 3) throw new StageError("503 overloaded", "transient", usage(7));
+      return { value: "ok", usage: usage(5) };
+    },
+    new AbortController().signal,
+    [1, 1, 1],
+  );
+  assert.deepEqual(answer.usage, {
+    input: 30,
+    output: 19,
+    cacheRead: 0,
+    cacheWrite: 0,
+    cost: null,
+  });
+  calls = 0;
+  await assert.rejects(
+    withProviderRetry(
+      async () => {
+        calls++;
+        if (calls < 2) throw new StageError("503 overloaded", "transient", usage(7));
+        throw new StageError("402 Insufficient Balance", "balance", usage(1));
+      },
+      new AbortController().signal,
+      [1, 1, 1],
+    ),
+    (error) =>
+      error.constructor.name === "WorkflowPause" &&
+      error.reason === "balance" &&
+      error.usage.output === 8,
+  );
+});
+
+test("an SDK request timeout is retried once, like a stalled stream, not three times", async () => {
+  let calls = 0;
+  await assert.rejects(
+    withProviderRetry(
+      async () => {
+        calls++;
+        throw new Error("Request timed out.");
+      },
+      new AbortController().signal,
+      [1, 1, 1],
+    ),
+    (error) => error.kind === "transient",
+  );
+  assert.equal(calls, 2);
+});
+
+test("journal: a stage that succeeds after two billed 503s records all three calls", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "stage-retry-"));
+  try {
+    const journal = await journalIn(dir);
+    let calls = 0;
+    await journal.step(
+      "s",
+      "阶段",
+      (v) => v,
+      () =>
+        withProviderRetry(
+          async () => {
+            calls++;
+            if (calls < 3) throw new StageError("503 overloaded", "transient", usage(7));
+            return { value: "ok", usage: usage(5) };
+          },
+          new AbortController().signal,
+          [1, 1],
+        ),
+      new AbortController().signal,
+    );
+    assert.equal(journal.record.steps[0].usage.input, 30);
+    assert.equal(journal.record.steps[0].usage.output, 19);
+    assert.equal(journal.record.steps[0].attempts, 1);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("journal: a missing model connection fails once instead of earning a content retry", async () => {
+  const base = await mkdtemp(path.join(tmpdir(), "stage-model-"));
+  try {
+    const host = await stageHost(base, "http://127.0.0.1:9/v1");
+    host.settings().writer.apiKey = "";
+    const journal = await journalIn(base);
+    await assert.rejects(
+      journal.step(
+        "s",
+        "阶段",
+        (v) => v,
+        () => stageModel(host, "writer", PACKET, new AbortController().signal),
+        new AbortController().signal,
+        1,
+      ),
+      (error) => error.kind === "provider" && /请先配置阶段模型连接/.test(error.message),
+    );
+    assert.equal(journal.record.steps[0].attempts, 1);
+  } finally {
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+/** Waits on real time, which the mocked setTimeout does not drive. */
+const realPause = (ms = 2) =>
+  new Promise((resolve) => {
+    const beat = setInterval(() => {
+      clearInterval(beat);
+      resolve();
+    }, ms);
+  });
+async function realUntil(predicate) {
+  for (let tries = 0; !predicate(); tries++) {
+    if (tries > 5000) throw new Error("fake model never streamed");
+    await realPause();
+  }
+}
+/** Advances mocked time in small steps until the promise settles; returns the mocked time spent. */
+async function drive(t, promise, step = 500) {
+  let settled = false,
+    elapsed = 0;
+  promise.then(
+    () => (settled = true),
+    () => (settled = true),
+  );
+  while (!settled) {
+    if (elapsed > 30 * 60_000) throw new Error("stage never settled");
+    await realPause();
+    t.mock.timers.tick(step);
+    elapsed += step;
+  }
+  return elapsed;
+}
+async function stallScenario(t, reply, run) {
+  const base = await mkdtemp(path.join(tmpdir(), "stage-model-"));
+  const model = await fakeModel({ "mock-writer": [{ text: "warm" }] }, reply);
+  try {
+    const host = await stageHost(base, model.url);
+    // One real request first builds the cached runtime, so only the stage request runs on mocked time.
+    assert.equal(
+      (await stageModel(host, "writer", PACKET, new AbortController().signal)).value,
+      "warm",
+    );
+    model.calls.length = 0;
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    return await run(host, model);
+  } finally {
+    t.mock.timers.reset();
+    await model.close();
+    await rm(base, { recursive: true, force: true });
+  }
+}
+
+test("stall watchdog: a stream that goes quiet after its first chunk stops at 150 s and is retried once", async (t) => {
+  await stallScenario(
+    t,
+    () => ({ hang: "after-first" }),
+    async (host, model) => {
+      let failure;
+      const pending = stageModel(host, "writer", PACKET, new AbortController().signal).catch(
+        (error) => (failure = error),
+      );
+      await realUntil(() => model.streamed.length === 1);
+      await realPause(50); // let the client take in the first chunk
+      const elapsed = await drive(t, pending);
+      assert.equal(failure.kind, "stalled", String(failure));
+      assert.match(failure.message, /模型长时间无输出/);
+      assert.equal(model.calls.length, 2, "first request plus one retry");
+      // The first attempt stalled on the 150 s gap, not on the 6 minute first-event bound.
+      assert.ok(elapsed >= 2 * 150_000 && elapsed < 360_000 + 150_000, String(elapsed));
+    },
+  );
+});
+
+test("stall watchdog: keep-alives are not progress; no content within 6 minutes stalls", async (t) => {
+  await stallScenario(
+    t,
+    () => ({ hang: "keepalive" }),
+    async (host, model) => {
+      let failure;
+      const pending = stageModel(host, "writer", PACKET, new AbortController().signal).catch(
+        (error) => (failure = error),
+      );
+      const elapsed = await drive(t, pending);
+      assert.equal(failure.kind, "stalled", String(failure));
+      assert.equal(model.calls.length, 2);
+      assert.ok(elapsed >= 2 * 360_000, String(elapsed));
+    },
+  );
+});
+
+test("stall watchdog: a model that keeps thinking past 150 s in total is not cut off", async (t) => {
+  await stallScenario(
+    t,
+    () => ({ thinking: { count: 80, everyMs: 15 }, text: "答案" }),
+    async (host, model) => {
+      const pending = stageModel(host, "writer", PACKET, new AbortController().signal);
+      const elapsed = await drive(t, pending);
+      assert.equal((await pending).value, "答案");
+      assert.equal(model.calls.length, 1);
+      assert.ok(elapsed > 150_000, String(elapsed));
+    },
+  );
+});
+
+test("author stop mid-stream: cancel semantics, billed usage kept, no content retry", async () => {
+  const base = await mkdtemp(path.join(tmpdir(), "stage-model-"));
+  const model = await fakeModel({}, () => ({
+    hang: "after-first",
+    usage: { prompt_tokens: 50, completion_tokens: 3 },
+  }));
+  try {
+    const host = await stageHost(base, model.url);
+    const journal = await journalIn(base);
+    const controller = new AbortController();
+    const pending = journal.step(
+      "s",
+      "阶段",
+      (v) => v,
+      () => stageModel(host, "writer", PACKET, controller.signal),
+      controller.signal,
+      1,
+    );
+    await realUntil(() => model.streamed.length === 1);
+    await realPause(50);
+    controller.abort();
+    await assert.rejects(
+      pending,
+      (error) => error.kind === "aborted" && error.message === "已取消",
+    );
+    const [row] = journal.record.steps;
+    assert.equal(row.usage.input, 50, "the part billed before the stop is recorded");
+    assert.equal(row.attempts, 1);
+    assert.equal(model.calls.length, 1);
+  } finally {
+    await model.close();
     await rm(base, { recursive: true, force: true });
   }
 });

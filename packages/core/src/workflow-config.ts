@@ -16,11 +16,15 @@ export type PauseReason = Extract<
   WorkflowReason,
   "run-budget" | "stage-budget" | "balance" | "context"
 >;
-/** A resumable stop at a stage boundary; the run keeps its completed stages. */
+/**
+ * A resumable stop at a stage boundary; the run keeps its completed stages. `usage` carries what
+ * the provider already billed for the stage before it paused, so the journal still counts it.
+ */
 export class WorkflowPause extends Error {
   constructor(
     readonly reason: PauseReason,
     message: string,
+    readonly usage?: WorkflowUsage,
   ) {
     super(message);
     this.name = "WorkflowPause";
@@ -163,17 +167,20 @@ export function hasUsage(usage: WorkflowUsage) {
   return usage.input + usage.output + usage.cacheRead + usage.cacheWrite > 0;
 }
 
-/** Adds one call's usage to a stage total; an unknown cost anywhere keeps the total unknown. */
+/**
+ * Adds one call's usage to a stage total; an unknown cost on a call that used tokens keeps the
+ * total unknown. A call without tokens (a local step, a request refused before billing) adds
+ * nothing, so it cannot turn a known cost into an unknown one.
+ */
 export function addUsage(total: WorkflowUsage, next: WorkflowUsage): WorkflowUsage {
+  if (!hasUsage(next)) return total;
+  if (!hasUsage(total)) return next;
   return {
     input: total.input + next.input,
     output: total.output + next.output,
     cacheRead: total.cacheRead + next.cacheRead,
     cacheWrite: total.cacheWrite + next.cacheWrite,
-    cost:
-      next.cost === null || (hasUsage(total) && total.cost === null)
-        ? null
-        : (total.cost ?? 0) + next.cost,
+    cost: next.cost === null || total.cost === null ? null : total.cost + next.cost,
   };
 }
 

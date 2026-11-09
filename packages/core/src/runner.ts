@@ -29,14 +29,18 @@ interface Proc {
   stdout: string;
   stderr: string;
   timedOut: boolean;
+  /** The stream that outgrew its cap; the process was stopped and its output is incomplete. */
+  overflow?: "stdout" | "stderr";
 }
 
 const KILL_GRACE_MS = 2000;
+/** A rule script answers with one JSON object; anything near these sizes is a runaway script. */
+const OUTPUT_LIMITS = { stdout: 8 * 1024 * 1024, stderr: 64 * 1024 } as const;
 
 function exec(cmd: string, args: string[], opts: RunOptions = {}): Promise<Proc> {
   return new Promise((resolve, reject) => {
     if (opts.signal?.aborted) {
-      reject(new WriterError("SCRIPT_FAILED", "已取消"));
+      reject(new WriterError("CANCELLED", "已取消"));
       return;
     }
     let child;
@@ -52,7 +56,9 @@ function exec(cmd: string, args: string[], opts: RunOptions = {}): Promise<Proc>
     }
     const out: Buffer[] = [];
     const errb: Buffer[] = [];
+    const size = { stdout: 0, stderr: 0 };
     let timedOut = false;
+    let overflow: Proc["overflow"];
     let forceKill: NodeJS.Timeout | undefined;
     // A script that traps or ignores SIGTERM must not hang the tool call forever.
     const stop = () => {
@@ -83,8 +89,17 @@ function exec(cmd: string, args: string[], opts: RunOptions = {}): Promise<Proc>
       clearTimeout(forceKill);
       opts.signal?.removeEventListener("abort", stop);
     };
-    child.stdout.on("data", (d: Buffer) => out.push(d));
-    child.stderr.on("data", (d: Buffer) => errb.push(d));
+    const collect = (stream: "stdout" | "stderr", into: Buffer[]) => (chunk: Buffer) => {
+      if (overflow) return;
+      size[stream] += chunk.length;
+      if (size[stream] <= OUTPUT_LIMITS[stream]) into.push(chunk);
+      else {
+        overflow = stream;
+        stop();
+      }
+    };
+    child.stdout.on("data", collect("stdout", out));
+    child.stderr.on("data", collect("stderr", errb));
     child.on("error", (e) => {
       settle();
       reject(e);
@@ -96,6 +111,7 @@ function exec(cmd: string, args: string[], opts: RunOptions = {}): Promise<Proc>
         stdout: Buffer.concat(out).toString("utf8"),
         stderr: Buffer.concat(errb).toString("utf8"),
         timedOut,
+        overflow,
       });
     });
   });
@@ -175,17 +191,23 @@ export async function runScript(
   try {
     r = await exec(python.cmd, [...python.prefix, script, ...args], { ...opts, timeoutMs });
   } catch (err) {
+    if (err instanceof WriterError) throw err;
     throw new WriterError(
       "SCRIPT_FAILED",
       `无法启动 Python：${err instanceof Error ? err.message : String(err)}`,
     );
   }
+  if (opts.signal?.aborted) throw new WriterError("CANCELLED", "已取消");
+  if (r.overflow)
+    throw new WriterError(
+      "SCRIPT_FAILED",
+      `脚本 ${r.overflow} 输出超过 ${OUTPUT_LIMITS[r.overflow] / 1024} KB，已终止：${script.split(/[\\/]/).pop()}`,
+    );
   if (r.timedOut)
     throw new WriterError(
       "TIMEOUT",
       `脚本超时（${Math.round(timeoutMs / 1000)} 秒）：${script.split(/[\\/]/).pop()}`,
     );
-  if (opts.signal?.aborted) throw new WriterError("SCRIPT_FAILED", "已取消");
   return parseContract(r.stdout, r.stderr, r.code);
 }
 

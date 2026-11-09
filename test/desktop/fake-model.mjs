@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 export async function fakeModel(scripts = {}, respond) {
   const calls = [],
+    streamed = [],
     queues = structuredClone(scripts);
   const server = createServer((request, response) => {
     let text = "";
@@ -77,6 +78,35 @@ export async function fakeModel(scripts = {}, respond) {
             }) +
             "\n\n",
         );
+      // Streams that stall after the response headers: "after-first" sends one text chunk (with
+      // usage when given) and goes silent; "keepalive" never sends content, only SSE comments.
+      if (next.hang) {
+        if (next.hang === "after-first")
+          send({ role: "assistant", content: next.text || "半" }, null, next.usage);
+        else send({ role: "assistant" });
+        const beat = setInterval(() => response.write(": keep-alive\n\n"), 20);
+        response.on("close", () => clearInterval(beat));
+        streamed.push(body.model);
+        return;
+      }
+      // A reasoning model that thinks for a while: one reasoning delta per tick, then the answer.
+      if (next.thinking) {
+        send({ role: "assistant" });
+        let sent = 0;
+        const beat = setInterval(() => {
+          if (sent++ < next.thinking.count) {
+            send({ reasoning_content: "想" });
+            return;
+          }
+          clearInterval(beat);
+          send({ content: next.text || "完成。" });
+          send({}, "stop", { prompt_tokens: 30, completion_tokens: 8, total_tokens: 38 });
+          response.end("data: [DONE]\n\n");
+        }, next.thinking.everyMs);
+        response.on("close", () => clearInterval(beat));
+        streamed.push(body.model);
+        return;
+      }
       send({
         role: "assistant",
         ...(tool ? { tool_calls: [{ index: 0, ...tool }] } : { content: next.text || "完成。" }),
@@ -94,6 +124,8 @@ export async function fakeModel(scripts = {}, respond) {
   return {
     url: `http://127.0.0.1:${server.address().port}/v1`,
     calls,
+    /** Models whose hanging or thinking stream has sent its first chunk. */
+    streamed,
     push: (model, ...items) => {
       (queues[model] ||= []).push(...items);
     },
