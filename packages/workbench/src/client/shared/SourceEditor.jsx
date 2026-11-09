@@ -75,6 +75,7 @@ export function SourceEditor({
   note,
   hint,
   draftKey,
+  baseRevision,
   saveConfirm,
   position,
   onSave,
@@ -87,7 +88,7 @@ export function SourceEditor({
   const [discard, setDiscard] = useState(false);
   const [current, setCurrent] = useState(0);
   const [replaced, setReplaced] = useState(null);
-  const stash = useDraftStash(draftKey, initial, text);
+  const stash = useDraftStash(draftKey, initial, text, baseRevision);
   const find = useFind();
   const { open: openFind, close: closeFind } = find;
   // Stepping, a new query or a replace asks the next render to select and reveal the current
@@ -132,7 +133,9 @@ export function SourceEditor({
     setSaving(true);
     setError("");
     try {
-      await onSave(text);
+      // A restored draft saves against the revision it was typed on; if the text on disk moved on
+      // since, the save is refused as a conflict and the draft stays.
+      await onSave(text, stash.base);
       stash.settle();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

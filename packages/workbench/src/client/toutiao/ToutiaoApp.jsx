@@ -5,7 +5,7 @@ import { Button, Icon, SegmentedControl, StateDot, Tag, cx } from "../shared/ui.
 import { Callout, Empty, Skeleton } from "../shared/common.jsx";
 import { Manuscript } from "../shared/Manuscript.jsx";
 import { SourceEditor } from "../shared/SourceEditor.jsx";
-import { draftKey } from "../shared/drafts.js";
+import { articleDraftKey } from "../shared/drafts.js";
 import { useReadingPosition } from "../shared/reading-position.js";
 import { useReaderFind } from "../shared/useReaderFind.jsx";
 import { statusInfo, statusLabel, statusTone } from "../../../../ui/src/status.js";
@@ -219,14 +219,15 @@ export function Body({ detail, onSave, readOnly = false, onEditState }) {
             initial={a.draft.text}
             title={t("editorTitle")}
             note={t("ttEditorNote")}
-            draftKey={draftKey(["toutiao", a.root, a.id, a.draft.rev, a.draft.sha256])}
+            draftKey={articleDraftKey({ root: a.root, id: a.id })}
+            baseRevision={{ rev: a.draft.rev, sha256: a.draft.sha256 }}
             position={reading.position}
-            onSave={async (text) => {
+            onSave={async (text, baseRevision) => {
               await onSave(text, {
                 root: a.root,
                 id: a.id,
-                expectedRev: a.draft.rev,
-                expectedSha256: a.draft.sha256,
+                expectedRev: baseRevision.rev,
+                expectedSha256: baseRevision.sha256,
               });
               reading.leave();
               setEditing(null);

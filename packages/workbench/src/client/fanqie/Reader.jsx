@@ -13,7 +13,7 @@ import { FONT_STEPS } from "./state.js";
 import { Button, Icon, SegmentedControl, Tag } from "../shared/ui.jsx";
 import { Callout, Empty, Skeleton } from "../shared/common.jsx";
 import { SourceEditor } from "../shared/SourceEditor.jsx";
-import { draftKey } from "../shared/drafts.js";
+import { chapterDraftKey } from "../shared/drafts.js";
 import { useReadingPosition } from "../shared/reading-position.js";
 import { useReaderFind } from "../shared/useReaderFind.jsx";
 
@@ -253,20 +253,19 @@ export function Reader({
             initial={editing.initial}
             title={t("editorTitle")}
             note={editorNote}
-            draftKey={draftKey([
-              "fanqie",
-              editing.scope.base,
-              editing.scope.work,
-              editing.scope.chapter,
-              editing.candidateId || "official",
-              editing.expectedRevision,
-            ])}
+            draftKey={chapterDraftKey({
+              base: editing.scope.base,
+              work: editing.scope.work,
+              chapter: editing.scope.chapter,
+              slot: editing.candidateId || "official",
+            })}
+            baseRevision={editing.expectedRevision}
             saveConfirm={forceSave ? viewCopy.readerText2 : undefined}
             position={reading.position}
-            onSave={async (text) => {
+            onSave={async (text, baseRevision) => {
               await actions.saveChapter({
                 body: text,
-                expectedRevision: editing.expectedRevision,
+                expectedRevision: baseRevision,
                 candidateId: editing.candidateId,
                 scope: editing.scope,
                 force: forceSave,

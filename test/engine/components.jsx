@@ -13,12 +13,16 @@ export { notify, dismissNotice, dismissNotices, NoticeStack } from "../../packag
 export { TabList, tabPanelProps } from "../../packages/ui/src/tabs";
 export { shortcutLabel } from "../../packages/ui/src/keys";
 export {
-  draftKey,
+  chapterDraftKey,
+  articleDraftKey,
   readDraft,
   writeDraft,
   clearDraft,
-  pruneDrafts,
+  otherDraftKeys,
+  sweepDrafts,
 } from "../../packages/workbench/src/client/shared/drafts.js";
+export { SourceEditor } from "../../packages/workbench/src/client/shared/SourceEditor.jsx";
+export { setConfirm } from "../../packages/workbench/src/client/shared/confirm.js";
 export { findMatches, matchFrom } from "../../packages/workbench/src/client/shared/find.js";
 export { useDraftStash } from "../../packages/workbench/src/client/shared/useDraftStash.js";
 export {

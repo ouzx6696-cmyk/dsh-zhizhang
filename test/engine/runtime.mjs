@@ -3,8 +3,9 @@
  * state / ref / memo / effect / 外部订阅，setState 或外部 store 变化之后由 flush 重渲染。
  * 用来在 Node 里驱动写作台与设计系统组件的真实状态流，不引入新的测试依赖。
  * effect 先子后父执行；一次渲染中没再出现的实例视为卸载，执行它的清理。
+ * 给了 `hostNode` 时，宿主元素上的对象 ref 挂上它造出的替身节点（需要读写 DOM 的组件用）。
  */
-export function createRuntime() {
+export function createRuntime({ hostNode } = {}) {
   const instances = new Map();
   let current = null;
   let dirty = false;
@@ -64,6 +65,7 @@ export function createRuntime() {
     useCallback: (fn, deps) => react.useMemo(() => fn, deps),
     useEffect,
     useLayoutEffect: useEffect,
+    useDeferredValue: (value) => value,
     useSyncExternalStore(subscribe, getSnapshot) {
       const cell = slot(() => ({ effect: true, cleanup: undefined }));
       if (!cell.value.cleanup)
@@ -105,6 +107,9 @@ export function createRuntime() {
       order.push(instance);
       return tree;
     }
+    const { ref } = node.props;
+    if (hostNode && ref && typeof ref === "object" && ref.current == null)
+      ref.current = hostNode(node);
     return { ...node, children: expand(node.children, path) };
   };
   return {

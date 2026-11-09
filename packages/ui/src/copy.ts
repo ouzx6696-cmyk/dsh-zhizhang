@@ -1125,6 +1125,11 @@ export const EDITOR_COPY = {
   noMatch: "无结果",
   position: (index: number, total: number) => `${index}/${total}`,
   replacedAll: (n: number) => `已替换 ${n} 处`,
+  stashFull: "本机草稿空间已满，正在编辑的文字没能暂存；请尽快保存，或清理其它作品的草稿。",
+  clearOtherDrafts: "清理其它作品的草稿",
+  clearOtherDraftsConfirm: (n: number) =>
+    `删除其它作品暂存在本机的 ${n} 份未保存草稿？删除后无法恢复，当前作品的草稿保留。`,
+  sweepFailed: "整理本机草稿失败，过期草稿未清理：",
 } as const;
 
 export const PROJECT_INDEX_FAILED = "项目列表暂时读不到，已按默认目录打开：";

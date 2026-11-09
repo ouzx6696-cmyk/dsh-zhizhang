@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { loadComponents } from "./helpers.mjs";
-import { createRuntime, fakeClock, plain } from "./runtime.mjs";
+import { byClass, createRuntime, fakeClock, findAll, plain, text } from "./runtime.mjs";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -16,7 +16,7 @@ function memoryStorage() {
     key: (index) => [...items.keys()][index] ?? null,
     getItem: (key) => (items.has(key) ? items.get(key) : null),
     setItem(key, value) {
-      if (this.full) throw new Error("QuotaExceededError: storage is full");
+      if (this.full) throw new DOMException("storage is full", "QuotaExceededError");
       items.set(key, String(value));
     },
     removeItem: (key) => items.delete(key),
@@ -24,12 +24,15 @@ function memoryStorage() {
   };
 }
 
-/** 一份全新的组件包，配内存存储、假时钟与可手动触发的 pagehide。 */
+/** 一份全新的组件包，配内存存储、假时钟、可手动触发的 pagehide 与记下来的控制台告警。 */
 function draftsFixture() {
-  const runtime = createRuntime();
   const clock = fakeClock();
+  const runtime = createRuntime({
+    hostNode: () => ({ scrollTop: 0, scrollHeight: 0, clientHeight: 0, focus() {} }),
+  });
   const storage = memoryStorage();
   const listeners = new Map();
+  const warnings = [];
   const window = {
     localStorage: storage,
     addEventListener: (type, fn) => listeners.set(type, fn),
@@ -42,64 +45,143 @@ function draftsFixture() {
     setTimeout: clock.setTimeout,
     clearTimeout: clock.clearTimeout,
     Date: clock.Date,
+    DOMException,
+    console: { warn: (message) => warnings.push(message) },
   });
-  return { runtime, clock, storage, listeners, ui };
+  return { runtime, clock, storage, listeners, warnings, ui };
 }
+
+const CHAPTER = { base: "b", work: "w", chapter: "c001", slot: "official" };
+/** 1.0.1 之前的键：末尾带版本。 */
+const legacyKey = (parts) => "dsh-writer-draft:" + JSON.stringify(parts);
 
 // —— drafts.js ——
 
-test("草稿键：同一组定位信息得到同一个键，任一部分不同则键不同", () => {
+test("草稿键：只含模式、作品、章节与槽位，不含版本；槽位或作品不同则键不同", () => {
   const { ui } = draftsFixture();
-  const parts = { mode: "fanqie", work: "w", chapter: "c001", slot: "official", revision: "r1" };
-  assert.equal(ui.draftKey(parts), ui.draftKey({ ...parts }));
-  assert.notEqual(ui.draftKey(parts), ui.draftKey({ ...parts, revision: "r2" }));
-  assert.notEqual(ui.draftKey(parts), ui.draftKey({ ...parts, slot: "cand-1" }));
-  assert.ok(ui.draftKey(parts).startsWith("dsh-writer-draft:"));
+  assert.equal(ui.chapterDraftKey(CHAPTER), ui.chapterDraftKey({ ...CHAPTER }));
+  assert.equal(ui.chapterDraftKey(CHAPTER), legacyKey(["fanqie", "b", "w", "c001", "official"]));
+  assert.notEqual(ui.chapterDraftKey(CHAPTER), ui.chapterDraftKey({ ...CHAPTER, slot: "cand-1" }));
+  assert.notEqual(ui.chapterDraftKey(CHAPTER), ui.chapterDraftKey({ ...CHAPTER, work: "w2" }));
+  assert.equal(ui.articleDraftKey({ root: "r", id: "a1" }), legacyKey(["toutiao", "r", "a1"]));
 });
 
-test("草稿：写入后读回原文与写入时间，清除后读不到", () => {
+test("草稿：写入后读回原文、写入时间与起草时的版本，清除后读不到", () => {
   const { ui, clock } = draftsFixture();
-  const key = ui.draftKey({ work: "w", chapter: "c1" });
+  const key = ui.chapterDraftKey(CHAPTER);
   clock.advance(5000);
-  assert.equal(ui.writeDraft(key, "未保存的正文"), 5000);
-  assert.deepEqual(plain(ui.readDraft(key)), { text: "未保存的正文", savedAt: 5000 });
+  assert.equal(ui.writeDraft(key, "未保存的正文", "r1"), 5000);
+  assert.deepEqual(plain(ui.readDraft(key)), {
+    text: "未保存的正文",
+    savedAt: 5000,
+    baseRevision: "r1",
+  });
   ui.clearDraft(key);
   assert.equal(ui.readDraft(key), null);
 });
 
-test("草稿：损坏或格式不对的条目被移除，不拿来提示作者", () => {
+test("草稿：损坏、格式不对或缺起草版本的条目被移除，不拿来提示作者", () => {
   const { ui, storage } = draftsFixture();
-  const broken = ui.draftKey({ chapter: "broken" });
-  const shapeless = ui.draftKey({ chapter: "shapeless" });
+  const broken = ui.chapterDraftKey({ ...CHAPTER, chapter: "broken" });
+  const shapeless = ui.chapterDraftKey({ ...CHAPTER, chapter: "shapeless" });
+  const baseless = ui.chapterDraftKey({ ...CHAPTER, chapter: "baseless" });
   storage.setItem(broken, "{not json");
   storage.setItem(shapeless, JSON.stringify({ text: 1, savedAt: "now" }));
+  storage.setItem(baseless, JSON.stringify({ text: "x", savedAt: 1 }));
   assert.equal(ui.readDraft(broken), null);
   assert.equal(ui.readDraft(shapeless), null);
+  assert.equal(ui.readDraft(baseless), null);
   assert.deepEqual(storage.keys(), []);
 });
 
 test("草稿：存储本身读写失败时原样抛出，由编辑器告诉作者", () => {
   const { ui, storage } = draftsFixture();
   storage.full = true;
-  assert.throws(() => ui.writeDraft(ui.draftKey({ chapter: "c1" }), "x"), /storage is full/);
+  assert.throws(() => ui.writeDraft(ui.chapterDraftKey(CHAPTER), "x", "r1"), /storage is full/);
 });
 
-test("草稿清理：超过两周的草稿与损坏条目被删，近期草稿与其它键保留", () => {
+test("启动清理：超过两周的草稿与损坏条目被删，近期草稿与其它键保留", () => {
   const { ui, storage, clock } = draftsFixture();
-  const old = ui.draftKey({ chapter: "old" });
-  const fresh = ui.draftKey({ chapter: "fresh" });
-  const broken = ui.draftKey({ chapter: "broken" });
-  ui.writeDraft(old, "旧");
+  const old = ui.chapterDraftKey({ ...CHAPTER, chapter: "old" });
+  const fresh = ui.chapterDraftKey({ ...CHAPTER, chapter: "fresh" });
+  const broken = ui.chapterDraftKey({ ...CHAPTER, chapter: "broken" });
+  ui.writeDraft(old, "旧", "r1");
   clock.advance(DAY);
-  ui.writeDraft(fresh, "新");
+  ui.writeDraft(fresh, "新", "r1");
   storage.setItem(broken, "oops");
   storage.setItem("dsh-writer-prefs", "{}");
   clock.advance(13 * DAY);
-  ui.pruneDrafts();
+  ui.sweepDrafts();
   assert.deepEqual(storage.keys().sort(), ["dsh-writer-prefs", fresh, old].sort());
   clock.advance(1);
-  ui.pruneDrafts();
+  ui.sweepDrafts();
   assert.deepEqual(storage.keys().sort(), ["dsh-writer-prefs", fresh].sort());
+});
+
+test("启动清理：旧格式键改写成新键，版本段转存为 baseRevision；同一章多份只留最新", () => {
+  const { ui, storage, clock } = draftsFixture();
+  clock.advance(DAY);
+  const r1 = legacyKey(["fanqie", "b", "w", "c001", "official", "r1"]);
+  const r2 = legacyKey(["fanqie", "b", "w", "c001", "official", "r2"]);
+  const other = legacyKey(["fanqie", "b", "w", "c002", "cand-1", "r7"]);
+  const article = legacyKey(["toutiao", "root", "a1", 3, "sha"]);
+  storage.setItem(r2, JSON.stringify({ text: "较早的草稿", savedAt: 1000 }));
+  storage.setItem(r1, JSON.stringify({ text: "最新的草稿", savedAt: 2000 }));
+  storage.setItem(other, JSON.stringify({ text: "候选草稿", savedAt: 1500 }));
+  storage.setItem(article, JSON.stringify({ text: "头条草稿", savedAt: 1500 }));
+  ui.sweepDrafts();
+  for (const key of [r1, r2, other, article]) assert.equal(storage.getItem(key), null);
+  assert.deepEqual(plain(ui.readDraft(ui.chapterDraftKey(CHAPTER))), {
+    text: "最新的草稿",
+    savedAt: 2000,
+    baseRevision: "r1",
+  });
+  assert.equal(
+    ui.readDraft(ui.chapterDraftKey({ ...CHAPTER, chapter: "c002", slot: "cand-1" })).baseRevision,
+    "r7",
+  );
+  assert.deepEqual(plain(ui.readDraft(ui.articleDraftKey({ root: "root", id: "a1" }))), {
+    text: "头条草稿",
+    savedAt: 1500,
+    baseRevision: { rev: 3, sha256: "sha" },
+  });
+});
+
+test("启动清理：已有更新的新格式草稿时旧键不覆盖它；旧键超期照常清掉", () => {
+  const { ui, storage, clock } = draftsFixture();
+  const key = ui.chapterDraftKey(CHAPTER);
+  clock.advance(DAY);
+  ui.writeDraft(key, "新格式", "r3");
+  storage.setItem(
+    legacyKey(["fanqie", "b", "w", "c001", "official", "r1"]),
+    JSON.stringify({ text: "旧格式", savedAt: 10 }),
+  );
+  const stale = legacyKey(["fanqie", "b", "w", "c009", "official", "r1"]);
+  storage.setItem(stale, JSON.stringify({ text: "很久以前", savedAt: 0 }));
+  clock.advance(14 * DAY);
+  ui.sweepDrafts();
+  assert.deepEqual(storage.keys(), [key]);
+  assert.equal(ui.readDraft(key).text, "新格式");
+});
+
+test("启动清理：旧格式条目无法解析时原样保留并写诊断，不删除", () => {
+  const f = draftsFixture();
+  const broken = legacyKey(["fanqie", "b", "w", "c001", "official", "r1"]);
+  f.storage.setItem(broken, "{not json");
+  f.ui.sweepDrafts();
+  assert.equal(f.storage.getItem(broken), "{not json");
+  assert.equal(f.storage.keys().length, 1);
+  assert.match(f.warnings[0], /原条目保留/);
+});
+
+test("其它作品的草稿：同一作品的其它章节与槽位不算，其它作品与头条文章算", () => {
+  const { ui } = draftsFixture();
+  const own = ui.chapterDraftKey(CHAPTER);
+  const sameWork = ui.chapterDraftKey({ ...CHAPTER, chapter: "c002", slot: "cand-1" });
+  const otherWork = ui.chapterDraftKey({ ...CHAPTER, work: "w2" });
+  const article = ui.articleDraftKey({ root: "r", id: "a1" });
+  for (const key of [own, sameWork, otherWork, article]) ui.writeDraft(key, "x", "r1");
+  assert.deepEqual(plain(ui.otherDraftKeys(own)).sort(), [otherWork, article].sort());
 });
 
 // —— find.js ——
@@ -164,11 +246,15 @@ test("阅读位置：滚动比例往返后回到同一位置，不可滚动时�
 
 // —— useDraftStash.js ——
 
-function mountStash(f, { key = f.ui.draftKey({ chapter: "c1" }), initial = "盘上原文" } = {}) {
+function mountStash(
+  f,
+  { key = f.ui.chapterDraftKey(CHAPTER), initial = "盘上原文", base = "r1" } = {},
+) {
   const box = { current: null };
+  // 提示栈与草稿暂存挂在同一棵树里，写满时的提示能直接读到。
   function Host({ storageKey, disk, text }) {
-    box.current = f.ui.useDraftStash(storageKey, disk, text);
-    return null;
+    box.current = f.ui.useDraftStash(storageKey, disk, text, base);
+    return f.runtime.react.createElement(f.ui.NoticeStack, { label: "提示" });
   }
   const view = f.runtime.mount(Host, { storageKey: key, disk: initial, text: initial });
   const type = async (text) => {
@@ -179,10 +265,11 @@ function mountStash(f, { key = f.ui.draftKey({ chapter: "c1" }), initial = "盘�
     f.clock.advance(ms);
     await view.flush();
   };
-  return { key, view, type, advance, stash: () => box.current };
+  const notices = () => byClass(view.tree, "ui-notice");
+  return { key, view, type, advance, notices, stash: () => box.current };
 }
 
-test("草稿暂存：停止输入 800 毫秒后才写入，连续输入只写最后一次", async () => {
+test("草稿暂存：停止输入 800 毫秒后才写入，连续输入只写最后一次，带上起草版本", async () => {
   const f = draftsFixture();
   const m = mountStash(f);
   await m.type("改一");
@@ -192,6 +279,7 @@ test("草稿暂存：停止输入 800 毫秒后才写入，连续输入只写最
   assert.equal(f.ui.readDraft(m.key), null);
   await m.advance(1);
   assert.equal(f.ui.readDraft(m.key).text, "改二");
+  assert.equal(f.ui.readDraft(m.key).baseRevision, "r1");
   assert.equal(m.stash().stashed, "改二");
 });
 
@@ -208,8 +296,8 @@ test("草稿暂存：改回盘上原文后草稿被清除", async () => {
 
 test("草稿暂存：打开时提示与原文不同的旧草稿，提示期间输入不覆盖它", async () => {
   const f = draftsFixture();
-  const key = f.ui.draftKey({ chapter: "c1" });
-  f.ui.writeDraft(key, "上次没保存的");
+  const key = f.ui.chapterDraftKey(CHAPTER);
+  f.ui.writeDraft(key, "上次没保存的", "r1");
   const m = mountStash(f, { key });
   assert.equal(m.stash().offer.text, "上次没保存的");
   await m.type("新输入");
@@ -220,33 +308,49 @@ test("草稿暂存：打开时提示与原文不同的旧草稿，提示期间�
   assert.equal(m.stash().offer, null);
 });
 
-test("草稿暂存：与盘上原文相同的旧草稿不提示", async () => {
+test("草稿暂存：章节版本变了（r1 → r2）重开编辑器仍提示，恢复后以 r1 为准", async () => {
   const f = draftsFixture();
-  const key = f.ui.draftKey({ chapter: "c1" });
-  f.ui.writeDraft(key, "盘上原文");
-  const m = mountStash(f, { key });
-  assert.equal(m.stash().offer, null);
+  const key = f.ui.chapterDraftKey(CHAPTER);
+  f.ui.writeDraft(key, "基于 r1 的修改", "r1");
+  const m = mountStash(f, { key, initial: "流水线写出的 r2", base: "r2" });
+  assert.equal(m.stash().offer.text, "基于 r1 的修改");
+  assert.equal(m.stash().base, "r2");
+  assert.equal(m.stash().restore(), "基于 r1 的修改");
+  await m.view.flush();
+  assert.equal(m.stash().base, "r1");
+  await m.type("基于 r1 的修改，又改一句");
+  await m.advance(800);
+  assert.equal(f.ui.readDraft(key).baseRevision, "r1");
 });
 
-test("草稿暂存：作者放弃旧草稿后，当前编辑器里的文字立即写入", async () => {
+test("草稿暂存：放弃旧草稿后按编辑器打开时的版本暂存", async () => {
   const f = draftsFixture();
-  const key = f.ui.draftKey({ chapter: "c1" });
-  f.ui.writeDraft(key, "旧草稿");
-  const m = mountStash(f, { key });
+  const key = f.ui.chapterDraftKey(CHAPTER);
+  f.ui.writeDraft(key, "旧草稿", "r1");
+  const m = mountStash(f, { key, base: "r2" });
   await m.type("现在的");
   m.stash().drop();
   await m.view.flush();
   assert.equal(m.stash().offer, null);
-  assert.equal(f.ui.readDraft(key).text, "现在的");
+  assert.equal(m.stash().base, "r2");
+  assert.deepEqual([f.ui.readDraft(key).text, f.ui.readDraft(key).baseRevision], ["现在的", "r2"]);
 });
 
-test("草稿暂存：打开时清掉超期草稿", async () => {
+test("草稿暂存：与盘上原文相同的旧草稿不提示", async () => {
   const f = draftsFixture();
-  const stale = f.ui.draftKey({ chapter: "stale" });
-  f.ui.writeDraft(stale, "很久以前");
+  const key = f.ui.chapterDraftKey(CHAPTER);
+  f.ui.writeDraft(key, "盘上原文", "r1");
+  const m = mountStash(f, { key });
+  assert.equal(m.stash().offer, null);
+});
+
+test("草稿暂存：打开编辑器不清理别处的草稿，过期清理只在启动时做", async () => {
+  const f = draftsFixture();
+  const stale = f.ui.chapterDraftKey({ ...CHAPTER, chapter: "stale" });
+  f.ui.writeDraft(stale, "很久以前", "r1");
   f.clock.advance(15 * DAY);
   mountStash(f);
-  assert.equal(f.storage.getItem(stale), null);
+  assert.equal(f.ui.readDraft(stale).text, "很久以前");
 });
 
 test("草稿暂存：保存或丢弃（settle）后草稿删除，之后的输入与卸载都不再写回", async () => {
@@ -290,6 +394,53 @@ test("草稿暂存：存储写满时报告失败，文字仍在编辑器里，�
   assert.equal(f.ui.readDraft(m.key).text, "再试");
 });
 
+test("草稿暂存：写满时发 danger 提示，作者确认后才清其它作品的草稿，随后重新暂存", async () => {
+  const f = draftsFixture();
+  const sameWork = f.ui.chapterDraftKey({ ...CHAPTER, chapter: "c002" });
+  const otherWork = f.ui.chapterDraftKey({ ...CHAPTER, work: "w2" });
+  f.ui.writeDraft(sameWork, "本书别的章", "r1");
+  f.ui.writeDraft(otherWork, "另一本书", "r1");
+  const answers = [];
+  f.ui.setConfirm((message) => {
+    answers.push(message);
+    return Promise.resolve(answers.length > 1);
+  });
+  const m = mountStash(f);
+  f.storage.full = true;
+  await m.type("写不进去");
+  await m.advance(800);
+  const [notice] = m.notices();
+  assert.equal(notice.props["data-tone"], "danger");
+  assert.match(text(notice), /草稿空间已满/);
+  assert.equal(f.ui.readDraft(otherWork).text, "另一本书");
+  const run = async () => {
+    byClass(m.notices()[0], "ui-notice-action")[0].props.onClick();
+    await m.view.flush();
+  };
+  await run();
+  assert.match(answers[0], /1 份/);
+  assert.equal(f.ui.readDraft(otherWork).text, "另一本书");
+  await m.type("还是写不进去");
+  await m.advance(800);
+  // 腾出空间后的重新暂存不再碰到配额。
+  f.storage.full = false;
+  await run();
+  assert.equal(f.storage.getItem(otherWork), null);
+  assert.equal(f.ui.readDraft(sameWork).text, "本书别的章");
+  assert.equal(f.ui.readDraft(m.key).text, "还是写不进去");
+  assert.equal(m.stash().failure, "");
+});
+
+test("草稿暂存：写满但没有其它作品的草稿时，提示不带清理动作", async () => {
+  const f = draftsFixture();
+  const m = mountStash(f);
+  f.storage.full = true;
+  await m.type("写不进去");
+  await m.advance(800);
+  assert.equal(m.notices().length, 1);
+  assert.equal(byClass(m.notices()[0], "ui-notice-action").length, 0);
+});
+
 test("草稿暂存：打开时存储不可读，失败显示出来而编辑照常", async () => {
   const f = draftsFixture();
   f.storage.getItem = () => {
@@ -298,4 +449,60 @@ test("草稿暂存：打开时存储不可读，失败显示出来而编辑照�
   const m = mountStash(f);
   assert.equal(m.stash().offer, null);
   assert.match(m.stash().failure, /storage disabled/);
+});
+
+// —— SourceEditor.jsx ——
+
+/** 按按钮文字找到它并点一下。 */
+async function press(view, label) {
+  const [button] = findAll(view.tree, (n) => n.type === "button" && text(n) === label);
+  assert.ok(button, `应有按钮“${label}”`);
+  await button.props.onClick();
+  await view.flush();
+}
+
+function mountEditor(f, onSave) {
+  return f.runtime.mount(f.ui.SourceEditor, {
+    initial: "流水线写出的 r2",
+    draftKey: f.ui.chapterDraftKey(CHAPTER),
+    baseRevision: "r2",
+    position: { current: 0 },
+    onSave,
+    onCancel() {},
+  });
+}
+
+test("编辑器：版本变化后重开仍提示草稿；恢复后保存以草稿的 r1 提交，冲突时草稿保留", async () => {
+  const f = draftsFixture();
+  f.ui.writeDraft(f.ui.chapterDraftKey(CHAPTER), "基于 r1 的修改", "r1");
+  const calls = [];
+  const view = mountEditor(f, async (body, base) => {
+    calls.push([body, base]);
+    throw new Error("目标章已变化，请读取现行正文后重新准备候选。");
+  });
+  await view.flush();
+  assert.match(text(view.tree), /暂存的未保存草稿/);
+  await press(view, "恢复");
+  await press(view, "保存修改");
+  assert.deepEqual(calls, [["基于 r1 的修改", "r1"]]);
+  const alerts = findAll(view.tree, (n) => n.type === "p" && n.props.role === "alert");
+  assert.match(text(alerts), /目标章已变化/);
+  assert.equal(f.ui.readDraft(f.ui.chapterDraftKey(CHAPTER)).text, "基于 r1 的修改");
+});
+
+test("编辑器：没有草稿时按打开时的版本保存，保存成功后草稿清除", async () => {
+  const f = draftsFixture();
+  const calls = [];
+  const view = mountEditor(f, async (body, base) => calls.push([body, base]));
+  await view.flush();
+  findAll(view.tree, (n) => n.type === "textarea")[0].props.onChange({
+    target: { value: "作者改了一句" },
+  });
+  await view.flush();
+  f.clock.advance(800);
+  await view.flush();
+  assert.equal(f.ui.readDraft(f.ui.chapterDraftKey(CHAPTER)).baseRevision, "r2");
+  await press(view, "保存修改");
+  assert.deepEqual(calls, [["作者改了一句", "r2"]]);
+  assert.equal(f.ui.readDraft(f.ui.chapterDraftKey(CHAPTER)), null);
 });
