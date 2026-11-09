@@ -130,6 +130,7 @@ export function locatePython(explicit?: string): Promise<PythonCommand> {
   if (!p) {
     p = findPython(explicit);
     cache.set(key, p);
+    // allow-catch: evict the failed cache entry; callers receive the original rejected promise.
     p.catch(() => cache.delete(key));
   }
   return p;

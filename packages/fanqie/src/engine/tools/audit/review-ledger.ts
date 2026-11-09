@@ -77,7 +77,8 @@ export const reviewLedger = defineTool({
     if (typeof args.issues_json === "string" && args.issues_json.trim()) {
       try {
         issues = JSON.parse(args.issues_json);
-      } catch {
+      } catch (error) {
+        if (!(error instanceof SyntaxError)) throw error;
         fail("issues_json 不是合法 JSON");
       }
     }

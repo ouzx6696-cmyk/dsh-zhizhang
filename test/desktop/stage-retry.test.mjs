@@ -671,7 +671,10 @@ async function drive(t, promise, step = 500) {
     elapsed = 0;
   promise.then(
     () => (settled = true),
-    () => (settled = true),
+    () => {
+      // allow-catch: only stop the fake clock; the original promise is awaited by the test.
+      settled = true;
+    },
   );
   while (!settled) {
     if (elapsed > 30 * 60_000) throw new Error("stage never settled");

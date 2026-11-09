@@ -1252,3 +1252,25 @@ test("CORE-22 快照经原子写落盘：内容与源一致，目录内无临时
   await assert.rejects(snapshotFiles(root, [path.join(root, "c001.md")]), { code: "unsafe_path" });
   assert.deepEqual(await readdir(outside), []);
 });
+
+for (const source of [
+  "function f() { for (;;) { try { g(); } catch { continue; } } }",
+  "promise.catch(() => DEFAULT);",
+  "promise.then(ok, function () { return null; });",
+  "try { f(); } catch (unused) { recover(); }",
+])
+  test(`守卫拒绝未使用错误且未抛出的处理：${source}`, async (t) => {
+    const f = await guardFixture(t);
+    await f.write("packages/core/src/probe.js", source);
+    assert.notEqual(f.run().status, 0);
+  });
+test("守卫拒绝 core 外部依赖，允许记录原因的降级", async (t) => {
+  const f = await guardFixture(t);
+  await f.write("packages/core/src/probe.js", 'import x from "external";');
+  assert.notEqual(f.run().status, 0);
+  await f.write(
+    "packages/core/src/probe.js",
+    "// allow-catch: queue continuation, original promise returned separately.\np.catch(() => DEFAULT);",
+  );
+  assert.equal(f.run().status, 0);
+});

@@ -119,6 +119,8 @@ function checkDependencies(file) {
       report(file, `渲染层不能访问 ${spec}`);
     if (BROWSER_SAFE.includes(file.rel) && spec.startsWith("node:"))
       report(file, "文本分析须保持浏览器可用，不能引用 node 内置模块");
+    if (file.pkg === "core" && !spec.startsWith(".") && !spec.startsWith("node:"))
+      report(file, `core 只允许 node: 与相对导入：${spec}`);
     if (!spec.startsWith(".")) {
       if (file.client && !["react", "react-dom"].includes(spec))
         report(file, `浏览器端不能引用 ${spec}`);
@@ -176,31 +178,28 @@ function checkDependencies(file) {
   graph.set(file.file, edges);
 }
 
-function literal(node) {
-  if (!node) return true;
-  if (ts.isParenthesizedExpression(node)) return literal(node.expression);
-  return (
-    ts.isLiteralExpression(node) ||
-    ts.isObjectLiteralExpression(node) ||
-    ts.isArrayLiteralExpression(node) ||
-    [
-      ts.SyntaxKind.NullKeyword,
-      ts.SyntaxKind.TrueKeyword,
-      ts.SyntaxKind.FalseKeyword,
-      ts.SyntaxKind.VoidExpression,
-    ].includes(node.kind) ||
-    (ts.isIdentifier(node) && node.text === "undefined")
-  );
+function rejectionHandler(node) {
+  if (ts.isCatchClause(node)) return { body: node.block, binding: node.variableDeclaration?.name };
+  if (!ts.isCallExpression(node) || !ts.isPropertyAccessExpression(node.expression)) return;
+  const method = node.expression.name.text;
+  const handler = node.arguments[method === "then" ? 1 : 0];
+  if (
+    !["catch", "then"].includes(method) ||
+    !handler ||
+    !(ts.isArrowFunction(handler) || ts.isFunctionExpression(handler))
+  )
+    return;
+  return { body: handler.body, binding: handler.parameters[0]?.name };
 }
-
-function swallowed(body) {
-  if (!ts.isBlock(body)) return literal(body);
-  return (
-    body.statements.length === 0 ||
-    (body.statements.length === 1 &&
-      ts.isReturnStatement(body.statements[0]) &&
-      literal(body.statements[0].expression))
-  );
+function swallowed(body, binding) {
+  let throws = false,
+    used = false;
+  visit(body, (node) => {
+    if (ts.isThrowStatement(node)) throws = true;
+    if (binding && ts.isIdentifier(binding) && ts.isIdentifier(node) && node.text === binding.text)
+      used = true;
+  });
+  return !throws && !used;
 }
 
 const rules = [
@@ -288,23 +287,16 @@ const rules = [
     check(file, source) {
       const lines = source.split(/\r?\n/);
       visit(file.ast, (node) => {
-        const caught = ts.isCatchClause(node)
-          ? swallowed(node.block)
-          : ts.isCallExpression(node) &&
-            ts.isPropertyAccessExpression(node.expression) &&
-            node.expression.name.text === "catch" &&
-            node.arguments.length > 0 &&
-            (ts.isArrowFunction(node.arguments[0]) || ts.isFunctionExpression(node.arguments[0])) &&
-            swallowed(node.arguments[0].body);
-        if (!caught) return;
+        const handler = rejectionHandler(node);
+        if (!handler || !swallowed(handler.body, handler.binding)) return;
         const { line } = file.ast.getLineAndCharacterOfPosition(node.getStart(file.ast));
         // Prettier 会把 catch 前的注释挪进块内首行，所以注释位置要一直看到第一条语句。
-        const body = ts.isCatchClause(node) ? node.block : node.arguments[0].body;
+        const body = handler.body;
         const first = ts.isBlock(body) ? body.statements[0] : undefined;
         const firstLine = first
           ? file.ast.getLineAndCharacterOfPosition(first.getStart(file.ast)).line
-          : line + 1;
-        const candidates = [lines[line], lines[line - 1], ...lines.slice(line + 1, firstLine)];
+          : file.ast.getLineAndCharacterOfPosition(body.getEnd()).line;
+        const candidates = [lines[line], lines[line - 1], ...lines.slice(line + 1, firstLine + 1)];
         if (candidates.some((text) => /\/\/\s*allow-catch:\s*\S/.test(text))) return;
         swallowedCount++;
         report(file, `${line + 1}: 吞错须注明 // allow-catch: 原因`);

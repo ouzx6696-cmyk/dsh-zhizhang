@@ -111,7 +111,9 @@ export class Runtime {
     });
     this.confirmations = result.then(
       () => {},
-      () => {},
+      () => {
+        // allow-catch: keep the confirmation queue usable; result is returned with its error.
+      },
     );
     return result;
   }

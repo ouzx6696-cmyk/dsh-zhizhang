@@ -3961,7 +3961,10 @@ test("改稿学习：番茄收集阅读面板改稿对、归纳候选落盘、�
     assert.equal(
       await readFile(pendingFile, "utf8").then(
         () => true,
-        () => false,
+        (error) => {
+          if (error.code === "ENOENT") return false;
+          throw error;
+        },
       ),
       false,
       "最后一条采纳后 pending 文件须删除",
@@ -4057,7 +4060,10 @@ test("改稿学习：头条收集 author 版改稿对与 feedback 条目，采�
     assert.equal(
       await readFile(pendingFile, "utf8").then(
         () => true,
-        () => false,
+        (error) => {
+          if (error.code === "ENOENT") return false;
+          throw error;
+        },
       ),
       false,
       "采纳后 pending 文件须删除",
@@ -4108,7 +4114,10 @@ test("改稿学习：模型输出非法 JSON 时如实报归纳失败且不落�
     assert.equal(
       await readFile(pendingFile, "utf8").then(
         () => true,
-        () => false,
+        (error) => {
+          if (error.code === "ENOENT") return false;
+          throw error;
+        },
       ),
       false,
       "归纳失败不得落盘",

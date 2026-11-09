@@ -146,6 +146,7 @@ export function stageRuntimeModel(settings: ModelConnection, authPath: string, r
     stageRuntimes.set(key, hit);
     const pending = hit;
     pending.catch(() => {
+      // allow-catch: rejected cached runtime is evicted; the original promise remains the result.
       if (stageRuntimes.get(key) === pending) stageRuntimes.delete(key);
     });
   }
