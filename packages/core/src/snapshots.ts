@@ -1,7 +1,18 @@
 import { assertWorkspaceWritable } from "./workspace-lock.js";
-import { atomicWrite, readText } from "./fsx.js";
+import { atomicWrite, isMissingFileError, readText } from "./fsx.js";
+import { stat } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+/** Only regular files are snapshot sources; a missing path or a directory is skipped. */
+async function fileText(file: string) {
+  try {
+    if (!(await stat(file)).isFile()) return undefined;
+  } catch (error) {
+    if (isMissingFileError(error)) return undefined;
+    throw error;
+  }
+  return readText(file);
+}
 /**
  * Small pre-decision copies; existing immutable revisions remain authoritative.
  * 快照是作者回退的依据，同样走原子写：中途失败不能留下半份快照冒充完整副本。
@@ -10,7 +21,7 @@ export async function snapshotFiles(root: string, files: string[]) {
   await assertWorkspaceWritable(root);
   const existing: { file: string; text: string }[] = [];
   for (const file of files) {
-    const text = await readText(file);
+    const text = await fileText(file);
     if (text !== undefined) existing.push({ file, text });
   }
   if (!existing.length) return;
