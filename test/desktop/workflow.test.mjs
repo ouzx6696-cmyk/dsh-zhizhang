@@ -123,7 +123,11 @@ function respondStage(call, control) {
   if (text.includes('返回 {"hard"')) return answer({ hard: [], suggestions: [] });
   throw new Error("未覆盖的本地阶段输入：" + JSON.stringify(input).slice(0, 100));
 }
-async function fixture(respond, options = {}) {
+async function fixture(
+  respond,
+  options = {},
+  engine = { guided: true, grade: "standard", inputBudget: 24000, runBudget: 200000 },
+) {
   const base = await mkdtemp(path.join(tmpdir(), "writer-workflow-")),
     home = path.join(base, "app"),
     data = path.join(base, "data");
@@ -153,9 +157,7 @@ async function fixture(respond, options = {}) {
     confirm: async () => control.confirm,
     options,
     created: async () => {},
-    extras: {
-      engine: () => ({ guided: true, grade: "standard", inputBudget: 24000, runBudget: 200000 }),
-    },
+    extras: { engine: () => engine },
   });
   return {
     base,
@@ -474,4 +476,61 @@ test("两轮定向修订后仍有硬伤：交付最佳稿并标注待作者判�
   assert.ok(selection.comparisons[0].reasons[0].startsWith("四五十岁的资讯读者"));
   const votes = ids.filter((id) => id.startsWith("pair-"));
   assert.deepEqual(votes.slice(0, 2), ["pair-1-0-0", "pair-1-0-1"], "先跑两个位置预热前缀");
+});
+
+test("停止原因写进记录：任务预算、余额不足、作者暂停为可恢复暂停，鉴权失败为失败且不重试", async () => {
+  const fixtureDir = path.join(root, "packages/toutiao/skill/tests/fixtures"),
+    card = JSON.parse(await readFile(path.join(fixtureDir, "story_long_card.json"), "utf8"));
+  const req = {
+    ...request("article"),
+    grade: "economy",
+    line: "story",
+    instruction: "解释精卫填海原典",
+    source: "《山海经》：精卫常衔西山之木石，以堙于东海。",
+  };
+  async function run(respond, engine, act) {
+    const f = await fixture(respond, {}, engine);
+    try {
+      const store = new ArticleStore(f.data),
+        meta = await store.create("story", { line: "故事线", genre: "长图文" }),
+        target = { mode: "toutiao", root: f.data, article: meta.id };
+      await store.writeCard(meta.id, card);
+      await f.host.workflows.start(target, req);
+      await act?.(f, target);
+      return { state: await f.done(target), calls: f.model.calls.length };
+    } finally {
+      await f.close();
+    }
+  }
+  const tight = { guided: true, grade: "economy", inputBudget: 24000, runBudget: 2000 };
+  const budget = await run((call) => respondStage(call, {}), tight);
+  assert.equal(budget.state.state, "paused", budget.state.error);
+  assert.equal(budget.state.reason, "run-budget");
+
+  const balance = await run(() => ({ status: 402, error: "Insufficient Balance" }));
+  assert.equal(balance.state.state, "paused", balance.state.error);
+  assert.equal(balance.state.reason, "balance");
+
+  const auth = await run(() => ({
+    status: 401,
+    error: "Incorrect API key provided. See https://x/account/billing for details",
+  }));
+  assert.equal(auth.state.state, "failed", auth.state.error);
+  assert.equal(auth.state.reason, "auth");
+  assert.match(auth.state.error, /鉴权或权限失败/);
+
+  const hold = { held: false };
+  const stopped = await run(
+    () => {
+      hold.held = true;
+      return { wait: true };
+    },
+    undefined,
+    async (f, target) => {
+      await until(() => hold.held);
+      await f.host.workflows.stop(target);
+    },
+  );
+  assert.equal(stopped.state.state, "paused", stopped.state.error);
+  assert.equal(stopped.state.reason, "stopped");
 });

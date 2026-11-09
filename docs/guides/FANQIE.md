@@ -6,6 +6,7 @@
 - forge 三件套（inspiration-forge 规划、inspiration-forge-library 拆书、novel-writer 写作与编辑）原文放在 `packages/fanqie/skill/forge/`，**一字未改**。
 - 原文里的落盘指令（自有目录、init_project.py、archive_draft.py）在取用时由 `fanqie_method_get`（`原版:id` 读原件）前置的对照表改道到引擎工具。这样原文可以随上游升级整体替换。
 - forge 的五个检查脚本通过 `fanqie_bridge.py` 包成统一 JSON 契约；脚本本身不改，同输入同输出。
+- 例外：`novel-writer/scripts/manuscript_linter.py` 里的 `scan_style`、`utf16_positions` 是本仓在上游 forge 之外新增的，供 `fanqie_bridge.py style` 给桌面端返回按 UTF-16 计的命中坐标；上游原有函数未改。
 
 ## 2. 字段映射
 引擎章纲与 forge 章纲接口（check_outline.py 的 BLOCKS / FIELDS）一一对应：

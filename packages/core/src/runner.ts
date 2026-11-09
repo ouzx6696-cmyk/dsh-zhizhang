@@ -159,7 +159,7 @@ async function findPython(explicit?: string): Promise<PythonCommand> {
   }
   throw new WriterError(
     "SCRIPT_FAILED",
-    `找不到 Python 3.8+（试过：${tried.join("、")}）。请安装 Python，或在插件配置里填写 python 路径。`,
+    `找不到 Python 3.8+（试过：${tried.join("、")}）。请安装 Python，或用环境变量 WRITER_PYTHON 指定 Python 路径。`,
   );
 }
 

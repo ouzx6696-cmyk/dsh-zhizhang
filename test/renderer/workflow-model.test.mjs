@@ -232,29 +232,31 @@ test("stageProgress：按行计数，只有完成的行算进度", () => {
 
 // —— stopReason ——
 
-test("stopReason：没有错误时没有原因", () => {
+test("stopReason：没有记录原因时没有原因", () => {
   assert.equal(model.stopReason(record([], { state: "paused" })), undefined);
-});
-
-test("stopReason：按运行时写下的固定句子识别五种原因", () => {
-  const cases = [
-    ["模型返回：余额不足，请充值", "balance"],
-    ["阶段上下文超预算（12000 > 8000）", "stageBudget"],
-    ["已达到任务输入预算", "runBudget"],
-    ["上次运行已中断，可继续", "interrupted"],
-    ["任务已暂停", "stopped"],
-  ];
-  for (const [error, key] of cases)
-    assert.equal(model.stopReason(record([], { state: "paused", error })), key, error);
-});
-
-test("stopReason：识别不到的错误不归类，界面只显示原始错误", () => {
   assert.equal(model.stopReason(record([], { state: "failed", error: "ECONNRESET" })), undefined);
 });
 
-test("stopReason：一句话同时命中多条时按表的先后取第一条（余额优先）", () => {
-  const error = "任务已暂停：余额不足";
-  assert.equal(model.stopReason(record([], { state: "paused", error })), "balance");
+test("stopReason：七种原因都只读记录上的 reason，与错误文案无关", () => {
+  const cases = [
+    ["paused", "run-budget"],
+    ["paused", "stage-budget"],
+    ["paused", "balance"],
+    ["paused", "context"],
+    ["paused", "interrupted"],
+    ["paused", "stopped"],
+    ["failed", "auth"],
+  ];
+  for (const [state, reason] of cases) {
+    // 文案故意改写：旧实现按句子匹配，改写后就认不出原因
+    const r = record([], { state, reason, error: "措辞已调整的说明" });
+    assert.equal(model.stopReason(r), reason, reason);
+  }
+});
+
+test("stopReason：运行中或待作者处理的任务不显示停止原因", () => {
+  for (const state of ["running", "awaiting-author"])
+    assert.equal(model.stopReason(record([], { state, reason: "stopped" })), undefined, state);
 });
 
 // —— deliveryOpen / selectedCandidate ——

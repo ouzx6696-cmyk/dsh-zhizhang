@@ -162,6 +162,15 @@ test("限量诊断按正文顺序保留，代码与对白不触发叙述规则�
   assert.ok(report.issues.some((issue) => issue.origin === "statistic"));
 });
 
+test("正文含孤立代理项时直接说明原因，不交给 Python 报脚本错误；成对的 emoji 照常扫描", async () => {
+  const { scanStyle } = await import("../../build/fanqie/src/engine/style-linter.js");
+  await assert.rejects(scanStyle("他推开门\ud800。"), (error) => error.code === "bad_text");
+  await assert.rejects(scanStyle("\udc00他推开门。"), (error) => error.code === "bad_text");
+  const scan = await scanStyle("😀他不禁退后。");
+  assert.equal(scan.totalHits, 1);
+  assert.equal(scan.hits[0].start, 3, "emoji 占两个 UTF-16 单位");
+});
+
 test("对白范围按配对符号识别，未闭合引号不会吞掉叙述", async () => {
   const { scanStyle, lintStyle } = await import("../../build/fanqie/src/engine/style-linter.js");
   assert.deepEqual((await scanStyle("“甲「乙」丙”外。")).dialogueRanges, [[0, 7]]);

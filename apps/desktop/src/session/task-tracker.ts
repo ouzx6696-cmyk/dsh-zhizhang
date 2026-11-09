@@ -242,10 +242,8 @@ export function trackSession(options: {
     if (event.type === "tool_execution_end") {
       const text = toolErrorText(event.result);
       const error = event.isError ? text : undefined;
-      // 门禁拒绝有两种可见形态：门禁引擎 deny 抛错（【门禁 前缀），引擎工具把
-      // WriterError("GATE_DENIED") 以 错误[GATE_DENIED] 文本随成功回执带回
-      const denied =
-        text !== undefined && (text.startsWith("【门禁") || text.startsWith("错误[GATE_DENIED]"));
+      // 门禁拒绝无论来自门禁引擎还是工具内复核，都以 错误[GATE_DENIED] 带着错误码回到这里
+      const denied = text !== undefined && text.startsWith("错误[GATE_DENIED]");
       host.extras.log?.("tool_call", {
         role,
         tool: event.toolName,

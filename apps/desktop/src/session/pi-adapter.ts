@@ -13,10 +13,38 @@ import {
   getSupportedThinkingLevels,
   clampThinkingLevel,
   InMemoryModelsStore,
+  isContextOverflow,
   isRetryableAssistantError,
+  type AssistantMessage,
 } from "@earendil-works/pi-ai";
 import { createHash } from "node:crypto";
-export { getSupportedThinkingLevels, clampThinkingLevel, isRetryableAssistantError };
+export { getSupportedThinkingLevels, clampThinkingLevel };
+/**
+ * pi-ai's verdict on a provider error text: whether it reads as a context overflow and whether it
+ * reads as transient. Both judge only the error text of a failed answer, so a thrown error's
+ * message is wrapped as one.
+ */
+export function providerErrorTraits(message: string) {
+  const answer: AssistantMessage = {
+    role: "assistant",
+    content: [],
+    api: "openai-completions",
+    provider: "",
+    model: "",
+    usage: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    },
+    stopReason: "error",
+    errorMessage: message,
+    timestamp: 0,
+  };
+  return { overflow: isContextOverflow(answer), retryable: isRetryableAssistantError(answer) };
+}
 const catalogStore = new InMemoryModelsStore();
 let proxyConfigured = false;
 const LOOPBACK = ["localhost", "127.0.0.1", "::1"];

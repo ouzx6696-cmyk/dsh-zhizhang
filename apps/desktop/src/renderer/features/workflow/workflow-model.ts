@@ -3,6 +3,7 @@ import {
   emptyUsage,
   hasUsage,
   type WorkflowKind,
+  type WorkflowReason,
   type WorkflowRecord,
   type WorkflowStep,
   type WorkflowUsage,
@@ -125,22 +126,9 @@ export function stageProgress(rows: StageRow[]) {
   return { done: rows.filter((row) => row.phase === "complete").length, total: rows.length };
 }
 
-/**
- * 暂停或失败的原因只以文案形式存在记录里；按运行时写下的固定句子识别，
- * 识别不到就只显示原始错误。
- */
-const REASONS: { key: keyof typeof WORKFLOW_COPY.guidance; pattern: RegExp }[] = [
-  { key: "balance", pattern: /余额不足/ },
-  { key: "stageBudget", pattern: /阶段上下文超预算/ },
-  { key: "runBudget", pattern: /任务输入预算/ },
-  { key: "interrupted", pattern: /上次运行已中断/ },
-  { key: "stopped", pattern: /任务已暂停/ },
-];
-
-export function stopReason(record: WorkflowRecord) {
-  const error = record.error;
-  if (error === undefined) return undefined;
-  return REASONS.find((reason) => reason.pattern.test(error))?.key;
+/** 暂停或失败的原因由运行时记在记录上；只有停下来的任务才显示。 */
+export function stopReason(record: WorkflowRecord): WorkflowReason | undefined {
+  return record.state === "paused" || record.state === "failed" ? record.reason : undefined;
 }
 
 function deliveryOutput(record: WorkflowRecord) {

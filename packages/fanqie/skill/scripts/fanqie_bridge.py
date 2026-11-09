@@ -10,6 +10,8 @@ stdout 只输出一个 JSON 对象，含 tool / rules_version / ok。原脚本�
   ledger  <file> [<file> ...]          跨文档数字与时间对照（ledger_check.scan）+ 连续性候选（continuity_scan.scan）
   continuity <file> [<file> ...]       连续性候选抽取（物件/伤势/知情线索句；只抽取不判定）
   lint    <long_para> <file> [...]     正文体检（manuscript_linter.lint_file）
+  style   <request.json>               文风命中坐标（manuscript_linter.scan_style；scan_style 与
+                                       utf16_positions 是本仓在上游 forge 之外新增的，坐标按 UTF-16 计）
   scan    <file> <top> <keywords>      长篇测绘（novel_scanner.scan_novel）
   quote   <source> <analysis> <min>    引文核对（quote_check.check）
 只用 Python 标准库；只读，不写任何文件。

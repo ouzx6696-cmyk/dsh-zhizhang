@@ -1,12 +1,6 @@
 export type PreToolDecision =
-  | { kind: "allow" }
-  | { kind: "deny"; reason: string; info?: { name: string; code: string } }
-  | { kind: "cancel" }
-  | {
-      kind: "ask";
-      reason?: string;
-      displayReason?: { readonly en: string; readonly [locale: string]: string };
-    };
+  | { kind: "deny"; reason: string; code: "GATE_DENIED" | "GATE_ERROR" }
+  | { kind: "ask"; reason: string };
 
 /** The executor binds every call to an explicit workspace. */
 export interface ToolExecution {
@@ -49,10 +43,11 @@ export interface ToolFailure {
     | "NOT_FOUND"
     | "CONFLICT"
     | "GATE_DENIED"
+    | "GATE_ERROR"
+    | "CANCELLED"
     | "SCRIPT_FAILED"
     | "TIMEOUT"
     | "OUT_OF_ROOT"
-    | "NO_AGENT"
     | "unsafe_path";
   message: string;
 }
@@ -62,8 +57,11 @@ export interface WriterToolSpec<A> {
   description: string;
   properties: Record<string, JsonSchemaNode>;
   required?: string[];
-  /** 业务实现；返回任意可 JSON 序列化对象。抛 WriterError 视为业务失败。 */
-  run(args: A, exec: ToolExecution): Promise<Record<string, unknown>>;
+  /**
+   * 业务实现；返回任意可 JSON 序列化对象。抛 WriterError 视为业务失败。
+   * `ok` 由包装层决定，业务回执不能自带。
+   */
+  run(args: A, exec: ToolExecution): Promise<Record<string, unknown> & { ok?: never }>;
 }
 
 export class WriterError extends Error {
@@ -99,7 +97,7 @@ export function defineWriterTool<A>(spec: WriterToolSpec<A>): ToolDefinition {
       try {
         const value = await spec.run((args ?? {}) as A, exec);
         // 去掉 undefined 等非 JSON 值：模型只能接收可序列化的工具回执
-        return JSON.parse(JSON.stringify({ ok: true, ...value }));
+        return JSON.parse(JSON.stringify({ ...value, ok: true }));
       } catch (err) {
         if (err instanceof WriterError) {
           const failure: ToolFailure = { ok: false, code: err.code, message: err.message };

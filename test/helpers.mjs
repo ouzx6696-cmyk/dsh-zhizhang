@@ -84,7 +84,15 @@ export async function createToolHarness({ mode, role = "writer", cwd, config = {
       try {
         return (await execute(name, args)).value;
       } catch (error) {
-        if (!error.code) return { denied: true, reason: error.message };
+        // executeTool stops a call before it runs with a gate deny (reason marked 【门禁 …】),
+        // a gate error or the author's refusal; a tool's own business failure keeps its code.
+        if (
+          !error.code ||
+          error.code === "CANCELLED" ||
+          error.code === "GATE_ERROR" ||
+          (error.code === "GATE_DENIED" && error.message.startsWith("【门禁"))
+        )
+          return { denied: true, code: error.code, reason: error.message };
         return { ok: false, code: error.code, message: error.message };
       }
     }

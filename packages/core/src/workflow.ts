@@ -4,8 +4,10 @@ import { atomicWrite, nowIso, readJson } from "./fsx.js";
 import {
   addUsage,
   emptyUsage,
-  WorkflowBudgetError,
+  WORKFLOW_REASONS,
+  WorkflowPause,
   parseWorkflowRequest,
+  type WorkflowReason,
   type WorkflowRecord,
   type WorkflowRequest,
   type WorkflowStep,
@@ -13,6 +15,29 @@ import {
 } from "./workflow-config.js";
 export * from "./workflow-config.js";
 
+/**
+ * Records written before the reason field carried their stop reason only in the message text.
+ * They are read here once; everything past this boundary sees the structured reason.
+ */
+const LEGACY_REASONS: [RegExp, WorkflowReason][] = [
+  [/余额不足/, "balance"],
+  [/阶段上下文超预算/, "stage-budget"],
+  [/任务输入预算/, "run-budget"],
+  [/上次运行已中断/, "interrupted"],
+  [/任务已暂停/, "stopped"],
+];
+function parseReason(value: Record<string, unknown>): WorkflowReason | undefined {
+  if (value.reason !== undefined) {
+    if (!WORKFLOW_REASONS.includes(value.reason as WorkflowReason))
+      throw new Error("流水线停止原因损坏");
+    return value.reason as WorkflowReason;
+  }
+  if (typeof value.error !== "string") return undefined;
+  const text = value.error;
+  const legacy = LEGACY_REASONS.find(([pattern]) => pattern.test(text))?.[1];
+  // Every legacy pause came from one of the sentences above or from the author stopping the run.
+  return legacy ?? (value.state === "paused" ? "stopped" : undefined);
+}
 function parseRecord(value: unknown): WorkflowRecord {
   if (
     !isRecord(value) ||
@@ -57,6 +82,7 @@ function parseRecord(value: unknown): WorkflowRecord {
     throw new Error("流水线时间损坏");
   if (new Set(value.steps.map((step) => step.id)).size !== value.steps.length)
     throw new Error("流水线阶段编号重复");
+  const reason = parseReason(value);
   const steps: WorkflowStep[] = value.steps.map((raw) => {
     if (!isRecord(raw) || !isRecord(raw.usage)) throw new Error("流水线阶段损坏");
     if (
@@ -98,6 +124,7 @@ function parseRecord(value: unknown): WorkflowRecord {
     steps,
     basis: value.basis,
     ...(typeof value.error === "string" ? { error: value.error } : {}),
+    ...(reason ? { reason } : {}),
   };
 }
 /** The journal records pure stage outputs before any delivery; delivery has its own idempotency receipt. */
@@ -197,6 +224,7 @@ export class WorkflowJournal {
     }
     this.record.state = "running";
     delete this.record.error;
+    delete this.record.reason;
     let lastError: string | undefined;
     for (let attempt = 0; attempt <= retries; attempt++) {
       const started = Date.now();
@@ -223,12 +251,17 @@ export class WorkflowJournal {
         row.durationMs += Date.now() - started;
         row.error = error instanceof Error ? error.message : String(error);
         lastError = row.error;
-        await this.save();
+        try {
+          await this.save();
+        } catch (saveError) {
+          // The stage failure is the cause the author needs; keep it first next to the write failure.
+          throw new AggregateError([error, saveError], row.error);
+        }
         // Only content failures earn a second attempt. Provider retries already happened inside
         // the stage (transient), and a truncation or a provider refusal would repeat as is.
         const typed = error as { retryable?: unknown; kind?: unknown } | null;
         const fatal =
-          error instanceof WorkflowBudgetError ||
+          error instanceof WorkflowPause ||
           typed?.retryable === false ||
           typed?.kind === "transient";
         if (signal.aborted || attempt === retries || fatal) throw error;

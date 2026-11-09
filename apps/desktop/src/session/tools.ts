@@ -11,6 +11,8 @@ import { focusLabel } from "../context";
 import { PLANNING_WRITES } from "./roles";
 import { ArticleStore } from "../../../../packages/toutiao/src/store";
 import { executeTool } from "../../../../packages/core/src/execute";
+import { WriterError } from "../../../../packages/core/src/tool";
+import { formatToolError } from "../../../../packages/fanqie/src/engine/errors";
 import { withPluginConfig } from "../../../../packages/fanqie/src/engine/tools/context";
 import type {
   ToolDefinition as WriterToolDefinition,
@@ -20,6 +22,15 @@ import type { createGateEngine } from "../../../../packages/core/src/gates";
 import type { Sessions } from "./manager";
 import type { SessionEntry } from "./types";
 
+/** The SDK hands only an error's message to the model and the task tracker; keep the code in it. */
+async function withErrorCode<T>(run: () => Promise<T>) {
+  try {
+    return await run();
+  } catch (error) {
+    if (error instanceof WriterError) throw new Error(formatToolError(error), { cause: error });
+    throw error;
+  }
+}
 function candidateSummary(text: string) {
   const words = /约\s*(\d+)\s*字/.exec(text)?.[1];
   const at = new Date().toLocaleTimeString("zh-CN", {
@@ -216,11 +227,13 @@ export function createBusinessTools(options: {
           }
         }
       }
-      const { value, content } = await executeTool(def, input, exec, {
-        gates,
-        bind: (run) => withPluginConfig(config, run),
-        confirm: host.confirm,
-      });
+      const { value, content } = await withErrorCode(() =>
+        executeTool(def, input, exec, {
+          gates,
+          bind: (run) => withPluginConfig(config, run),
+          confirm: host.confirm,
+        }),
+      );
       if (def.name === "fanqie_method_get" || def.name === "toutiao_method_get") {
         for (const receipt of methodReceipts(def.name, value)) {
           const duplicate = entry.methods.get(receipt.id)?.hash === receipt.hash;

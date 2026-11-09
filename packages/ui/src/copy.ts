@@ -1029,14 +1029,24 @@ export const WORKFLOW_COPY = {
       body: "进度已保存。充值或在设置里更换模型连接后，点“从已完成阶段继续”。",
       settings: true,
     },
-    runBudget: {
+    "run-budget": {
       title: "已到任务输入预算",
       body: "进度已保存。可在设置 › 写作引擎调高“任务输入预算”，再继续。",
       settings: true,
     },
-    stageBudget: {
+    "stage-budget": {
       title: "阶段材料超出预算",
       body: "关键材料放不进单个阶段。可调高“阶段输入预算”或缩小本次要求后再继续。",
+      settings: true,
+    },
+    context: {
+      title: "超出模型上下文窗口",
+      body: "进度已保存。可缩小本次要求、调低“阶段输入预算”或换用上下文更长的模型后再继续。",
+      settings: true,
+    },
+    auth: {
+      title: "鉴权或权限失败",
+      body: "请在设置里检查模型连接的 Key 与权限，再重新开始任务。",
       settings: true,
     },
     interrupted: {

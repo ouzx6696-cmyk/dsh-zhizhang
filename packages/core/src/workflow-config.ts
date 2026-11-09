@@ -1,6 +1,31 @@
 import { isRecord } from "./parse.js";
 
-export class WorkflowBudgetError extends Error {}
+/** Why a run stopped short of delivery, recorded on the run so the UI never parses its message. */
+export const WORKFLOW_REASONS = [
+  "run-budget",
+  "stage-budget",
+  "balance",
+  "context",
+  "interrupted",
+  "stopped",
+  "auth",
+] as const;
+export type WorkflowReason = (typeof WORKFLOW_REASONS)[number];
+/** Reasons a stage can stop the run at a boundary with its progress kept for a later resume. */
+export type PauseReason = Extract<
+  WorkflowReason,
+  "run-budget" | "stage-budget" | "balance" | "context"
+>;
+/** A resumable stop at a stage boundary; the run keeps its completed stages. */
+export class WorkflowPause extends Error {
+  constructor(
+    readonly reason: PauseReason,
+    message: string,
+  ) {
+    super(message);
+    this.name = "WorkflowPause";
+  }
+}
 
 const WORKFLOW_GRADES = ["economy", "standard", "premium"] as const;
 export type WorkflowGrade = (typeof WORKFLOW_GRADES)[number];
@@ -124,6 +149,7 @@ export interface WorkflowRecord {
   steps: WorkflowStep[];
   basis: string;
   error?: string;
+  reason?: WorkflowReason;
 }
 export const emptyUsage = (): WorkflowUsage => ({
   input: 0,
@@ -171,7 +197,10 @@ export function contextPacket(stable: ContextBlock[], variable: ContextBlock[], 
       .map((block) => `## ${block.name}\n${block.text}`)
       .join("\n\n");
   if (estimateInput(serialize(required)) > limit)
-    throw new WorkflowBudgetError("阶段上下文超预算；请缩小任务或调整预算，未截断关键材料");
+    throw new WorkflowPause(
+      "stage-budget",
+      "阶段上下文超预算；请缩小任务或调整预算，未截断关键材料",
+    );
   const accepted = new Set(required);
   // Prefix-stable selection: once one optional block does not fit, every later optional block
   // yields too, so stages of one run differ only at the tail of their shared prefix. Callers

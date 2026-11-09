@@ -7,7 +7,7 @@ import { atomicWrite, readText, sha256, shortId } from "../../../../packages/cor
 import { assertWorkspaceWritable } from "../../../../packages/core/src/workspace-lock";
 import {
   WorkflowJournal,
-  WorkflowBudgetError,
+  WorkflowPause,
   DEFAULT_ENGINE,
   type WorkflowRecord,
   type WorkflowRequest,
@@ -22,10 +22,27 @@ import { articlePipeline } from "./article";
 import { bookPipeline } from "./book";
 import { ledgerPipeline, readContinuity, decideFact, parseContinuity } from "./continuity";
 import { record } from "./schema";
+import { StageError } from "./stage-model";
+import { errorText } from "../../../../packages/core/src/errors";
 import type { Sessions } from "../session/manager";
 import type { Target } from "../context";
 import type { AgentSession } from "../session/pi-adapter";
 
+/**
+ * How a run that threw ends: the author's stop and a stage pause keep it resumable, anything else
+ * fails it. A stage whose journal write also failed throws both; the stage error comes first.
+ */
+function stopOutcome(
+  thrown: unknown,
+  aborted: boolean,
+): Pick<WorkflowRecord, "state" | "error" | "reason"> {
+  if (aborted) return { state: "paused", reason: "stopped", error: "任务已暂停，阶段进度保留" };
+  const cause = thrown instanceof AggregateError ? thrown.errors[0] : thrown;
+  if (cause instanceof WorkflowPause)
+    return { state: "paused", reason: cause.reason, error: errorText(thrown) };
+  const reason = cause instanceof StageError && cause.kind === "auth" ? "auth" : undefined;
+  return { state: "failed", reason, error: errorText(thrown) };
+}
 interface Active {
   controller: AbortController;
   target: Target;
@@ -69,6 +86,7 @@ export class WorkflowService {
         (value) => this.publish(target, value),
       );
       journal.record.state = "paused";
+      journal.record.reason = "interrupted";
       journal.record.error = "上次运行已中断，可从已保存阶段恢复";
       await journal.save();
       return journal.record;
@@ -113,6 +131,7 @@ export class WorkflowService {
         );
         journal.record.state = "awaiting-author";
         delete journal.record.error;
+        delete journal.record.reason;
         await journal.save();
         this.active.delete(key);
         return journal.record;
@@ -151,14 +170,9 @@ export class WorkflowService {
           else await articlePipeline(run, target);
           journal.record.state = "awaiting-author";
           delete journal.record.error;
+          delete journal.record.reason;
         } catch (error) {
-          journal.record.state =
-            controller.signal.aborted || error instanceof WorkflowBudgetError ? "paused" : "failed";
-          journal.record.error = controller.signal.aborted
-            ? "任务已暂停，阶段进度保留"
-            : error instanceof Error
-              ? error.message
-              : String(error);
+          Object.assign(journal.record, stopOutcome(error, controller.signal.aborted));
         } finally {
           try {
             await journal.save();

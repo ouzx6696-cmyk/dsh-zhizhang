@@ -1,5 +1,5 @@
 import {
-  WorkflowBudgetError,
+  WorkflowPause,
   contextPacket,
   estimateInput,
   type ContextBlock,
@@ -115,7 +115,10 @@ export class WorkflowRun {
           // together and overshoot the run budget.
           const estimate = estimateInput(packet.text);
           if (used + this.inflight - reserved + estimate > this.settings.runBudget)
-            throw new WorkflowBudgetError("任务输入预算已到阶段边界，进度已保存；可调整预算后恢复");
+            throw new WorkflowPause(
+              "run-budget",
+              "任务输入预算已到阶段边界，进度已保存；可调整预算后恢复",
+            );
           this.inflight += estimate - reserved;
           reserved = estimate;
           const started = Date.now();

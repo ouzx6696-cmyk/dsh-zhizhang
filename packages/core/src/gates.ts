@@ -91,7 +91,7 @@ export function createGateEngine(rules: GateRule[], config: GateConfig = {}): Ga
           return {
             kind: "deny",
             reason: `门禁 ${rule.id} 检查出错：${errorText(err)}`,
-            info: { name: "WriterGate", code: "GATE_ERROR" },
+            code: "GATE_ERROR",
           };
         }
         if (!outcome) continue;
@@ -99,7 +99,7 @@ export function createGateEngine(rules: GateRule[], config: GateConfig = {}): Ga
           return {
             kind: "deny",
             reason: `【门禁 ${rule.id}】${outcome.reason}`,
-            info: { name: "WriterGate", code: "GATE_DENIED" },
+            code: "GATE_DENIED",
           };
         }
         asks.push(rule);
@@ -117,8 +117,7 @@ export function createGateEngine(rules: GateRule[], config: GateConfig = {}): Ga
           arguments: args,
         });
       }
-      const text = reasons.join("；");
-      return { kind: "ask", reason: text, displayReason: { en: text, "zh-CN": text, zh: text } };
+      return { kind: "ask", reason: reasons.join("；") };
     },
     confirmationArguments(exec) {
       const rec = exec.token ? asked.get(exec.token) : undefined;

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
@@ -10,17 +10,97 @@ import {
   withProviderRetry,
 } from "../../apps/desktop/out-test/stage-model.mjs";
 import { defaultModels } from "../../apps/desktop/out-test/models.mjs";
-import { WorkflowJournal, WorkflowBudgetError } from "../../build/core/src/workflow.js";
+import { WorkflowJournal, WorkflowPause } from "../../build/core/src/workflow.js";
 import { fakeModel } from "./fake-model.mjs";
 
-test("stage errors are classified into balance, transient and content failures", () => {
+// DK-01: the corrected order is out-of-credit wording → leading status → pi-ai fallback.
+const PROVIDER_ERRORS = [
+  ["400 Invalid request: max_tokens must be less than or equal to 500", "provider"],
+  ["401 Incorrect API key provided. See https://x/account/billing for details", "auth"],
+  ["403 Your account billing_status is inactive", "auth"],
+  ["402 Insufficient Balance", "balance"],
+  [
+    "429 You exceeded your current quota, please check your plan and billing details. (insufficient_quota)",
+    "balance",
+  ],
+  [
+    "400 Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.",
+    "balance",
+  ],
+  ["400 Arrearage: Access denied, please make sure your account is in good standing.", "balance"],
+  ["429 Rate limit reached for requests", "transient"],
+  ["503 Service Unavailable", "transient"],
+  ["404 model not found: deepseek-reasoner-500", "provider"],
+  ["Request timed out.", "transient"],
+  ["Connection error.", "transient"],
+  ["terminated", "transient"],
+  [
+    "400 This model's maximum context length is 65536 tokens. However, you requested 70000 tokens.",
+    "context",
+  ],
+];
+
+test("provider errors: the 13 reference messages and the overflow case land in their class", () => {
+  for (const [message, kind] of PROVIDER_ERRORS)
+    assert.equal(classifyStageError(message), kind, message);
+});
+
+test("provider errors: earlier classification answers still hold", () => {
   assert.equal(classifyStageError("402 Insufficient Balance"), "balance");
   assert.equal(classifyStageError("账户余额不足"), "balance");
   assert.equal(classifyStageError("429 Too Many Requests"), "transient");
   assert.equal(classifyStageError("503 Service Unavailable"), "transient");
   assert.equal(classifyStageError("fetch failed: ECONNRESET"), "transient");
   assert.equal(classifyStageError("You exceeded your current quota: billing details"), "balance");
-  assert.equal(classifyStageError("模型返回格式不合法"), "other");
+  // Unknown text is a provider failure (fails the run), never a pause.
+  assert.equal(classifyStageError("模型返回格式不合法"), "provider");
+});
+
+test("a parameter error that mentions 500 is sent once and fails as a provider error", async () => {
+  for (const message of [
+    "400 Invalid request: max_tokens must be less than or equal to 500",
+    "404 model not found: deepseek-reasoner-500",
+  ]) {
+    let calls = 0;
+    await assert.rejects(
+      withProviderRetry(
+        async () => {
+          calls++;
+          throw new Error(message);
+        },
+        new AbortController().signal,
+        [1, 1, 1],
+      ),
+      (error) => error.kind === "provider" && error.message === message,
+    );
+    assert.equal(calls, 1, message);
+  }
+});
+
+test("an invalid key with a billing link fails as auth instead of pausing for balance", async () => {
+  await assert.rejects(
+    withProviderRetry(
+      async () => {
+        throw new Error(PROVIDER_ERRORS[1][0]);
+      },
+      new AbortController().signal,
+      [1],
+    ),
+    (error) => error.kind === "auth" && /鉴权或权限失败/.test(error.message),
+  );
+});
+
+test("context overflow becomes a resumable pause with its own reason", async () => {
+  await assert.rejects(
+    withProviderRetry(
+      async () => {
+        throw new Error(PROVIDER_ERRORS.at(-1)[0]);
+      },
+      new AbortController().signal,
+      [1],
+    ),
+    (error) => error.constructor.name === "WorkflowPause" && error.reason === "context",
+  );
 });
 
 test("transient provider failures back off and retry before succeeding", async () => {
@@ -77,7 +157,10 @@ test("an out-of-credit answer becomes a resumable budget pause", async () => {
       [1],
     ),
     // The test bundle inlines its own copy of the class, so match by name rather than identity.
-    (error) => error.constructor.name === "WorkflowBudgetError" && /余额不足/.test(error.message),
+    (error) =>
+      error.constructor.name === "WorkflowPause" &&
+      error.reason === "balance" &&
+      /余额不足/.test(error.message),
   );
 });
 
@@ -106,12 +189,12 @@ test("the journal does not spend a second attempt on a budget pause", async () =
         (v) => v,
         async () => {
           calls++;
-          throw new WorkflowBudgetError("余额不足");
+          throw new WorkflowPause("balance", "余额不足");
         },
         new AbortController().signal,
         2,
       ),
-      WorkflowBudgetError,
+      WorkflowPause,
     );
     assert.equal(calls, 1);
     assert.equal(journal.record.steps[0].status, "failed");
@@ -147,7 +230,7 @@ test("a typed transient failure that outlasts the backoff is final for the stage
       new AbortController().signal,
       [1],
     ),
-    (error) => error.constructor.name === "WorkflowBudgetError",
+    (error) => error.constructor.name === "WorkflowPause" && error.reason === "balance",
   );
 });
 
@@ -274,6 +357,131 @@ test("stage request: prefix as system prompt, no SDK retry, truncation keeps usa
     assert.match(JSON.stringify(call.messages.at(-1)), /本阶段输入/);
   } finally {
     await model.close();
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+async function stageHost(base, url) {
+  await mkdir(path.join(base, "agent"), { recursive: true });
+  const models = defaultModels();
+  Object.assign(models.writer, {
+    provider: "fixture",
+    baseUrl: url,
+    apiKey: "fixture-key",
+    model: "mock-writer",
+    reasoning: false,
+    thinkingLevel: "off",
+  });
+  return { settings: () => models, home: base };
+}
+const PACKET = { prefix: "## 阶段职责\n只返回 JSON", suffix: "## 本阶段输入\n{}" };
+
+test("stage request: a 401 with a billing link is classified once, as auth, on the production path", async () => {
+  const base = await mkdtemp(path.join(tmpdir(), "stage-model-"));
+  const model = await fakeModel({}, () => ({
+    status: 401,
+    error: "Incorrect API key provided. See https://x/account/billing for details",
+  }));
+  try {
+    const host = await stageHost(base, model.url);
+    let seen;
+    await assert.rejects(
+      stageModel(host, "writer", PACKET, new AbortController().signal),
+      (error) => {
+        seen = error;
+        return error.kind === "auth";
+      },
+    );
+    assert.equal(model.calls.length, 1, "auth failures are not retried");
+    assert.equal(classifyStageError(seen.cause.message), "auth");
+  } finally {
+    await model.close();
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+const REQUEST = {
+  kind: "chapter",
+  chapter: "c001",
+  instruction: "写",
+  grade: "standard",
+  source: "",
+  line: "news",
+};
+function legacyRecord(fields) {
+  return {
+    schema: 1,
+    id: "run-1",
+    request: REQUEST,
+    sourceHash: "h",
+    created: "2026-11-01T00:00:00.000Z",
+    updated: "2026-11-01T00:00:00.000Z",
+    steps: [],
+    basis: "b",
+    ...fields,
+  };
+}
+
+test("journal boundary: records written before the reason field get it from their text once", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "stage-retry-"));
+  try {
+    const file = path.join(dir, "run-1.json");
+    const cases = [
+      ["paused", "任务输入预算已到阶段边界，进度已保存；可调整预算后恢复", "run-budget"],
+      ["paused", "阶段上下文超预算；请缩小任务或调整预算，未截断关键材料", "stage-budget"],
+      [
+        "paused",
+        "模型服务余额不足，进度已保存并暂停；充值或更换模型连接后可恢复（402）",
+        "balance",
+      ],
+      ["paused", "上次运行已中断，可从已保存阶段恢复", "interrupted"],
+      ["paused", "任务已暂停，阶段进度保留", "stopped"],
+      ["paused", "Request was aborted", "stopped"],
+      ["failed", "503 Service Unavailable", undefined],
+    ];
+    for (const [state, error, reason] of cases) {
+      await writeFile(file, JSON.stringify(legacyRecord({ state, error })));
+      assert.equal((await WorkflowJournal.read(file)).reason, reason, error);
+    }
+    await writeFile(
+      file,
+      JSON.stringify(legacyRecord({ state: "paused", error: "任务已暂停", reason: "balance" })),
+    );
+    assert.equal((await WorkflowJournal.read(file)).reason, "balance", "a stored reason wins");
+    await writeFile(file, JSON.stringify(legacyRecord({ state: "paused", reason: "later" })));
+    await assert.rejects(WorkflowJournal.read(file), /停止原因损坏/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("journal: when saving a failed stage also fails, the stage error stays first", async () => {
+  const base = await mkdtemp(path.join(tmpdir(), "stage-retry-"));
+  const dir = path.join(base, "journal");
+  try {
+    await mkdir(dir);
+    const journal = await journalIn(dir);
+    await assert.rejects(
+      journal.step(
+        "s",
+        "阶段",
+        (v) => v,
+        async () => {
+          // The journal directory turns into a file, so the failure save cannot be written.
+          await rm(dir, { recursive: true, force: true });
+          await writeFile(dir, "");
+          throw new StageError("400 bad request", "provider");
+        },
+        new AbortController().signal,
+        1,
+      ),
+      (error) =>
+        error instanceof AggregateError &&
+        error.errors[0].kind === "provider" &&
+        error.message === "400 bad request" &&
+        typeof error.errors[1].code === "string",
+    );
+  } finally {
     await rm(base, { recursive: true, force: true });
   }
 });

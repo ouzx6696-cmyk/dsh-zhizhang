@@ -1,7 +1,7 @@
 /**
  * 作者自备资产：配置里 toutiao.assets / fanqie.assets 指定的目录。
  * 目录里的 .md / .txt / .json 按相对路径成为方法 id：user:<相对路径去扩展名>，
- * 经 toutiao_method_get 读取。只读，不覆盖插件自带的方法；
+ * 经 toutiao_method_get 读取。只读，不覆盖应用自带的方法；
  * 自带方法的更新走 scripts/assets.mjs（见 docs/guides/ASSETS.md）。
  */
 import { lstat, stat } from "node:fs/promises";

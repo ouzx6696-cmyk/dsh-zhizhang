@@ -287,6 +287,75 @@ test("稿件只增不改，哈希记录", async () => {
   assert.equal(issues[0].id, m.id);
 });
 
+test("executeTool：门禁拒绝、门禁出错、作者取消与业务失败都抛带错误码的 WriterError", async () => {
+  const { executeTool } = await import(buildUrl("core/src/execute.js"));
+  const { WriterError, defineWriterTool } = await import(buildUrl("core/src/tool.js"));
+  const rule = (check) => [{ id: "r", tool: "t", locked: true, description: "", check }];
+  const tool = defineWriterTool({
+    name: "t",
+    description: "",
+    properties: {},
+    async run(args) {
+      if (args.fail) throw new WriterError("CONFLICT", "版本已变");
+      return { done: true };
+    },
+  });
+  const run = (gates, args = {}, confirm = async () => true) =>
+    executeTool(
+      tool,
+      args,
+      { cwd: "/w", name: "t", arguments: args, token: Symbol("t") },
+      { gates, bind: (fn) => fn(), confirm },
+    );
+  const expect = async (promise, code, message) =>
+    assert.rejects(promise, (error) => {
+      assert.ok(error instanceof WriterError, String(error));
+      assert.equal(error.code, code);
+      if (message) assert.match(error.message, message);
+      return true;
+    });
+  await expect(
+    run(createGateEngine(rule(() => ({ kind: "deny", reason: "不许" })))),
+    "GATE_DENIED",
+    /【门禁 r】不许/,
+  );
+  await expect(
+    run(
+      createGateEngine(
+        rule(() => {
+          throw new Error("坏了");
+        }),
+      ),
+    ),
+    "GATE_ERROR",
+    /门禁 r 检查出错：坏了/,
+  );
+  await expect(
+    run(createGateEngine(rule(() => ({ kind: "ask", reason: "确认？" }))), {}, async () => false),
+    "CANCELLED",
+  );
+  await expect(run(createGateEngine([]), { fail: true }), "CONFLICT", /版本已变/);
+  assert.equal((await run(createGateEngine([]))).value.ok, true);
+});
+
+test("defineWriterTool：业务回执里的 ok 不能盖掉包装层的成功标记", async () => {
+  const { executeTool } = await import(buildUrl("core/src/execute.js"));
+  const { defineWriterTool } = await import(buildUrl("core/src/tool.js"));
+  const tool = defineWriterTool({
+    name: "t",
+    description: "",
+    properties: {},
+    run: async () => ({ ok: false, n: 1 }),
+  });
+  const { value } = await executeTool(
+    tool,
+    {},
+    { cwd: "/w", name: "t", arguments: {} },
+    { gates: createGateEngine([]), bind: (fn) => fn(), confirm: async () => true },
+  );
+  assert.deepEqual(value, { ok: true, n: 1 });
+});
+
 test("R3 文章目录日期取本地日期（跨时区）", () => {
   // 注入固定时刻再调产品入口 today()：同一 UTC 时刻在东九区必须是次日，
   // 若 today() 退化成 UTC 截取则两地都会得 1970-01-01。

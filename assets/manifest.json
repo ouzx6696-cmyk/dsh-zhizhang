@@ -73,7 +73,7 @@
       "kind": "local",
       "version": null,
       "files": 2,
-      "bytes": 14995,
+      "bytes": 16126,
       "loadable": 0,
       "byKind": {
         "rule": 1,
@@ -2201,16 +2201,16 @@
       "kind": "rule",
       "origin": "local",
       "path": "packages/fanqie/skill/scripts/fanqie_bridge.py",
-      "bytes": 8511,
-      "sha256": "75f70041c7c5b298c12e497a573c850a6c6fe2deb5e2bfef9d6c1a721cf3b8a0"
+      "bytes": 8739,
+      "sha256": "2030a900e2519e8884a54a35a64ce580c5b30497bbb5a7da0c2a8d07ac89ad8f"
     },
     {
       "source": "writer-fanqie-rules",
       "kind": "test",
       "origin": "local",
       "path": "packages/fanqie/skill/tests/test_bridge.py",
-      "bytes": 6484,
-      "sha256": "c0a2a0eb2fa30d376470a8486c5fca3cb4b176aa8f35df89a8dcc3c2b7436d4c"
+      "bytes": 7387,
+      "sha256": "0cd941fd8b5ab212efc2d44a82f705899c7e1e1d88167f64896e789614a64e5e"
     },
     {
       "source": "engine-method-assets",

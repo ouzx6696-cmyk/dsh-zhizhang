@@ -2,6 +2,7 @@
 import { bridge, withTempFiles } from "../forge.js";
 import { config } from "./runtime-config.js";
 import { asObject, asString } from "./parse.js";
+import { NovelError } from "./errors.js";
 interface StyleHit {
   category: string;
   start: number;
@@ -48,6 +49,10 @@ export async function scanStyle(
   limit = 120,
   ranges?: readonly { start: number; end: number }[],
 ) {
+  // A lone surrogate cannot be encoded for the Python bridge; say so instead of a script failure.
+  // With the u flag a well-formed pair matches as one code point, so only lone halves hit.
+  if (/\p{Cs}/u.test(text))
+    throw new NovelError("bad_text", "正文含无法编码的字符（孤立代理项），请删除后再试");
   const request = { text, limit: Number.isFinite(limit) ? limit : null, ranges };
   const result = await withTempFiles(
     [{ name: "style.json", text: JSON.stringify(request) }],

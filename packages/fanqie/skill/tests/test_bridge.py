@@ -142,6 +142,24 @@ def t_scan_invalid_encoding():
         assert report['ok'] is False, report
 
 
+def style(request):
+    with tempfile.TemporaryDirectory() as d:
+        file = Path(d) / 'style.json'
+        file.write_text(json.dumps(request, ensure_ascii=False), encoding='utf-8')
+        return run('style', file)
+
+
+def t_style():
+    report = style({'text': '😀他不禁退后。' * 3, 'limit': None})
+    assert report['ok'] and report['totalHits'] == 3 and len(report['hits']) == 3, report
+    # 坐标按 UTF-16 计：emoji 占两个单位，与桌面端字符串下标一致
+    assert [hit['start'] for hit in report['hits']] == [3, 11, 19], report['hits']
+    limited = style({'text': '他不禁退后。' * 3, 'limit': 1})
+    assert limited['totalHits'] == 3 and len(limited['hits']) == 1, limited
+    outside = style({'text': '他不禁退后。', 'limit': None, 'ranges': [{'start': 0, 'end': 99}]})
+    assert outside['ok'] is False and outside['code'] == 'SCRIPT_FAILED', outside
+
+
 for n, f in list(globals().items()):
     if n.startswith('t_'):
         case(n[2:], f)
