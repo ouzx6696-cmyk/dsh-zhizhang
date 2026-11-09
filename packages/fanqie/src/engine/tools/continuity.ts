@@ -35,7 +35,7 @@ import {
 import { listChapters, readChapter } from "../storage/chapters.js";
 import { readWorkMeta } from "../storage/work-meta.js";
 import { requireContinuityEnabled } from "../ports/continuity.js";
-import { asObject, asString, boolArg, config, fail, openWork } from "./context.js";
+import { asObject, asString, asStringArray, boolArg, config, fail, openWork } from "./context.js";
 import { B, I, S, WORK_OPT, WORKING_DIR } from "./schema.js";
 import { defineTool } from "./types.js";
 import { withResourceLock } from "../storage/process-lock.js";
@@ -440,7 +440,7 @@ const continuityCommit = defineTool({
               `${r.line.id} 第 ${position} 章 ${r.beat.kind} 未核验（${r.status}）：${r.beat.note}`,
           ),
       ];
-      const mustCarry = (args.must_carry as string[] | undefined) ?? [
+      const mustCarry = asStringArray(args, "must_carry", { trim: false }) ?? [
         ...beatResults.filter((r) => r.status === "confirmed").map((r) => r.beat.note),
         ...knowledgeResults
           .filter((r) => r.status === "confirmed")
@@ -465,17 +465,17 @@ const continuityCommit = defineTool({
         chapter: chapterId,
         summary,
         mustCarry,
-        nextConstraints: (args.next_constraints as string[] | undefined) ?? [],
+        nextConstraints: asStringArray(args, "next_constraints", { trim: false }) ?? [],
         openLoops,
         at: nowIso(),
       };
+      if (linesAdvanced.length > 0) await saveForeshadow(dir, nextLines, foreshadow.revision);
+      await saveHandoff(dir, handoffRecord, existingHandoff?.revision);
       await saveCommits(
         dir,
         [...commits.commits.filter((v) => v.chapter !== chapterId), record],
         commits.revision,
       );
-      await saveHandoff(dir, handoffRecord, existingHandoff?.revision);
-      if (linesAdvanced.length > 0) await saveForeshadow(dir, nextLines, foreshadow.revision);
       return JSON.stringify(
         {
           chapter: chapterId,

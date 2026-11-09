@@ -2303,3 +2303,56 @@ test("长线节奏巡检：三类候选命中与不命中", () => {
     [],
   );
 });
+
+test("T115 交接写失败不发布完成标记，重试能补齐交接与伏笔", async () => {
+  const { default: fs } = await import("node:fs/promises");
+  const { syncBuiltinESMExports } = await import("node:module");
+  const f = await setup(CONTINUITY_ON),
+    original = fs.rename;
+  try {
+    const { dir, key } = await continuityWork(f, "完成标记");
+    await updateChapter(dir, { id: "c001", title: "一", body: "桌角摆着铜钥匙。" });
+    await f.run("fanqie_foreshadow_set", {
+      work: key,
+      line: "L1",
+      title: "钥匙",
+      seed: "线索",
+      planned_plant: 1,
+      planned_payoff: 2,
+      beats: [{ chapter: 1, kind: "埋设", note: "得到钥匙", evidence: ["铜钥匙"] }],
+    });
+    fs.rename = async (from, to) => {
+      if (String(to).includes("handoff"))
+        throw Object.assign(new Error("handoff disk fault"), { code: "EIO" });
+      return original(from, to);
+    };
+    syncBuiltinESMExports();
+    assert.match(
+      await f.run("fanqie_continuity_commit", { work: key, chapter: "c001" }),
+      /handoff disk fault/,
+    );
+    await assert.rejects(
+      stat(path.join(dir, "continuity/commits.json")),
+      (error) => error.code === "ENOENT",
+    );
+    fs.rename = original;
+    syncBuiltinESMExports();
+    const result = JSON.parse(
+      await f.run("fanqie_continuity_commit", { work: key, chapter: "c001" }),
+    );
+    assert.equal(result.chapter, "c001");
+    assert.equal(
+      JSON.parse(await readFile(path.join(dir, "continuity/commits.json"), "utf8")).commits.length,
+      1,
+    );
+    assert.equal(
+      JSON.parse(await readFile(path.join(dir, "continuity/foreshadow.json"), "utf8")).lines[0]
+        .status,
+      "written",
+    );
+  } finally {
+    fs.rename = original;
+    syncBuiltinESMExports();
+    await f.close();
+  }
+});

@@ -92,6 +92,14 @@ export async function atomicWrite(file: string, data: string): Promise<void> {
       await handle.close();
     }
     await publish(tmp, file);
+    if (process.platform !== "win32") {
+      const directory = await open(path.dirname(file), "r");
+      try {
+        await directory.sync();
+      } finally {
+        await directory.close();
+      }
+    }
   } catch (error) {
     try {
       await rm(tmp, { force: true });
