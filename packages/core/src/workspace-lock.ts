@@ -16,6 +16,8 @@ const FILE = ".writer-workspace-lock.json";
  */
 const GUARD = ".writer-workspace-claim";
 const GUARD_REGISTRATION = "owner.json";
+/** 并发登记者正在目录里发布登记时，Windows 的 rmdir 可能报这些错误而不是 ENOTEMPTY。 */
+const GUARD_BUSY = ["EPERM", "EACCES", "EBUSY"];
 export type WorkspaceOwner = {
   id: string;
   pid: number;
@@ -172,7 +174,10 @@ async function readGuardState(guard: string): Promise<GuardState> {
   return live(owner) ? { kind: "held", owner } : { kind: "idle", owner };
 }
 
-/** 移除无主登记。ENOTEMPTY 说明并发登记者刚写入登记（或目录含外来文件），按当前内容重新判定。 */
+/**
+ * 移除无主登记。ENOTEMPTY 说明并发登记者刚写入登记（或目录含外来文件），按当前内容重新判定；
+ * Windows 上目录句柄尚未关闭时 rmdir 报 EPERM/EACCES/EBUSY，同样表示目录已转给并发登记者。
+ */
 async function sweepIdleGuard(guard: string, owner: WorkspaceOwner | null): Promise<GuardState> {
   if (owner) {
     try {
@@ -186,7 +191,8 @@ async function sweepIdleGuard(guard: string, owner: WorkspaceOwner | null): Prom
     return { kind: "absent" };
   } catch (error) {
     if (isMissingFileError(error)) return { kind: "absent" };
-    if (!isFsError(error, "ENOTEMPTY")) throw error;
+    if (!isFsError(error, "ENOTEMPTY") && !GUARD_BUSY.some((code) => isFsError(error, code)))
+      throw error;
   }
   const state = await readGuardState(guard);
   if (state.kind === "idle" && !state.owner)
@@ -234,8 +240,13 @@ async function releaseGuard(guard: string) {
   try {
     await rmdir(guard);
   } catch (error) {
-    // ENOENT：并发清理者已移走。ENOTEMPTY：目录已转给刚写入登记的并发登记者，由其收尾。
-    if (!isMissingFileError(error) && !isFsError(error, "ENOTEMPTY")) throw error;
+    // ENOENT：并发清理者已移走。ENOTEMPTY/占用：目录已转给刚写入登记的并发登记者，由其收尾。
+    if (
+      !isMissingFileError(error) &&
+      !isFsError(error, "ENOTEMPTY") &&
+      !GUARD_BUSY.some((code) => isFsError(error, code))
+    )
+      throw error;
   }
 }
 
