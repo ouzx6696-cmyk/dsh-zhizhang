@@ -13,6 +13,7 @@ import { WriterError } from "../../../core/src/tool.js";
 import { listKnownRoots, type ToutiaoConfig } from "../env.js";
 import {
   ArticleStore,
+  deliveryCurrent,
   MAX_RETURN_ROUNDS,
   nowIso,
   STATUSES,
@@ -87,7 +88,7 @@ export async function listArticles() {
       genre: m.genre,
       rev: m.current_rev,
       qa: q ? { score: q.score, pass: q.pass, rev: q.rev, current: q.rev === m.current_rev } : null,
-      delivered: m.delivered,
+      delivered: deliveryCurrent(m),
       returnRounds: m.return_rounds,
       updatedAt: m.updated_at,
     });
@@ -113,7 +114,9 @@ export async function articleDetail(rootIn: string, id: string) {
   }
   const truncated = draft.length > BODY_CAP;
   if (truncated) draft = draft.slice(0, BODY_CAP) + "\n\n…（已截断）";
-  const delivery = m.delivered ? await readText(store.deliveryPath(id)) : undefined;
+  const delivered = deliveryCurrent(m);
+  const delivery = delivered ? await readText(store.deliveryPath(id)) : undefined;
+  const hasDelivery = delivery !== undefined;
   const qaValid = problem
     ? { ok: false as const, reason: problem }
     : m.current_rev > 0
@@ -173,7 +176,7 @@ export async function articleDetail(rootIn: string, id: string) {
     qaProblem: qaValid.ok ? undefined : qaValid.reason,
     delivery: delivery ?? null,
     history: m.history.map((h) => ({ from: h.from, to: h.to, by: h.by, at: h.at, note: h.note })),
-    adoptable: m.status === "已验收" && m.delivered && qaValid.ok,
+    adoptable: m.status === "已验收" && delivered && hasDelivery && qaValid.ok,
     updatedAt: m.updated_at,
   };
 }
@@ -236,8 +239,10 @@ export async function adopt(
     const draft = store.currentDraft(mm);
     if (!draft || draft.rev !== expected.rev || draft.sha256 !== expected.sha256)
       throw new WriterError("CONFLICT", "文章版本已变化，请重新阅读当前稿后确认采用");
-    if (mm.status !== "已验收" || !mm.delivered)
-      throw new WriterError("CONFLICT", "只有已验收且已生成交稿单的文章可以采用");
+    if (mm.status !== "已验收" || !deliveryCurrent(mm))
+      throw new WriterError("CONFLICT", "只有已验收且交稿单对应当前稿的文章可以采用");
+    if ((await readText(store.deliveryPath(id))) === undefined)
+      throw new WriterError("CONFLICT", "交稿单文件缺失，请重新出交稿单（toutiao_delivery_save）");
     const v = await validPassingQa(store, mm);
     if (!v.ok) throw new WriterError("GATE_DENIED", v.reason);
     await snapshotFiles(store.dir(id), [store.metaPath(id), store.draftPath(id, draft.rev)]);

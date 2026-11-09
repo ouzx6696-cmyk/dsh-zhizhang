@@ -19,6 +19,7 @@ import { createProfileTool } from "../../core/src/profile-tool.js";
 import { getUserAsset, listUserAssets, USER_PREFIX } from "../../core/src/user-assets.js";
 import {
   canTransition,
+  deliveryCurrent,
   MAX_RETURN_ROUNDS,
   nowIso,
   parseFeedbackEntries,
@@ -613,7 +614,7 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
         "S6 质检当前版稿件（带立项卡与台账核对）。结果与稿件哈希、立项卡哈希绑定；改稿或改卡后需重跑。过线 = 综合 ≥ 84、零 fail、无硬闸。",
       properties: {
         id: ID,
-        mode: E(["long", "short", "micro"], "体裁模式；立项卡写了体裁就不用给"),
+        mode: E(["long", "short", "micro"], "体裁模式；只在没有立项卡时生效"),
       },
       required: ["id"],
       async run(args, exec) {
@@ -639,7 +640,9 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
           id,
         ];
         if (cardText !== undefined) a.push("--card", store.cardPath(id));
-        if (args.mode) a.push("--mode", args.mode);
+        if (m.headlines.main) a.push("--title", m.headlines.main);
+        // 立项卡的体裁是权威来源；只有没卡时才允许按参数选模式，避免绕过体裁硬闸。
+        if (args.mode && cardText === undefined) a.push("--mode", args.mode);
         const r = await bridge(config, a, { timeoutMs: 120_000, signal: exec.signal });
         const hardGates = scriptStrArray(r.hard_gates, "hard_gates");
         const fails = scriptArray(r.fails, "fails");
@@ -729,6 +732,16 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
         if (to === "已交稿") {
           if (!before.delivered)
             throw new WriterError("GATE_DENIED", "还没有交稿单（toutiao_delivery_save）");
+          if (!deliveryCurrent(before))
+            throw new WriterError(
+              "GATE_DENIED",
+              "交稿单对应当前稿之前的版本，请重新出交稿单（toutiao_delivery_save）",
+            );
+          if ((await readText(store.deliveryPath(id))) === undefined)
+            throw new WriterError(
+              "GATE_DENIED",
+              "交稿单文件缺失，请重新出交稿单（toutiao_delivery_save）",
+            );
           if (!gates || !gates.consumeConfirmation(exec, "toutiao.deliver_requires_author")) {
             throw new WriterError(
               "GATE_DENIED",
@@ -767,39 +780,49 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
       async run(args, exec) {
         const store = await st(exec);
         const id = reqStr(args, "id");
-        const m = await store.get(id);
-        if (m.status !== "已验收")
-          throw new WriterError("GATE_DENIED", `只有 已验收 的文章能出交稿单（当前：${m.status}）`);
-        const v = await validPassingQa(store, m);
-        if (!v.ok) throw new WriterError("GATE_DENIED", v.reason);
         let md = String(args.markdown ?? "")
           .replace(/\r\n/g, "\n")
           .trim();
         if (!md) throw new WriterError("INVALID_ARGS", "markdown 不能为空");
-        const problems: string[] = [];
-        const slot = md.match(/\[(?:主标题|标题|事实与所在句|链接|时间|X|字数|分)\]/);
-        if (slot) problems.push(`还有模板槽位没填：${slot[0]}`);
-        const main = m.headlines.main;
-        if (main && !md.includes(main)) problems.push("交稿单里没有主推标题");
-        const draft = await store.readDraft(id, m.current_rev);
-        const probe = draft
-          .split("\n")
-          .map((s) => s.trim())
-          .filter((s) => s && !s.startsWith("#") && !s.startsWith("【配图"))
-          .slice(0, 2);
-        if (probe.some((p) => !md.includes(p)))
-          problems.push("交稿单正文与当前终稿不一致（终稿开头段落没找到）");
-        if (problems.length) throw new WriterError("INVALID_ARGS", problems.join("；"));
-        md = md
-          .split("\n")
-          .filter((l) => !l.includes("AI 到此止步"))
-          .join("\n")
-          .trimEnd();
-        md += `\n\n---\n> ${STOP_LINE}\n`;
-        await store.writable();
-        await atomicWrite(store.deliveryPath(id), md);
-        const after = await store.update(id, (mm) => {
-          mm.delivered = true;
+        const after = await store.update(id, async (m) => {
+          if (m.status !== "已验收")
+            throw new WriterError(
+              "GATE_DENIED",
+              `只有 已验收 的文章能出交稿单（当前：${m.status}）`,
+            );
+          const cur = store.currentDraft(m);
+          if (!cur) throw new WriterError("NOT_FOUND", "还没有稿件");
+          const v = await validPassingQa(store, m);
+          if (!v.ok) throw new WriterError("GATE_DENIED", v.reason);
+          const draft = await store.readDraft(id, cur.rev);
+          if (sha256(draft) !== cur.sha256)
+            throw new WriterError(
+              "CONFLICT",
+              "稿件文件被外部改动，与记录哈希不一致；请重新 toutiao_draft_stage",
+            );
+          const problems: string[] = [];
+          const slot = md.match(/\[(?:主标题|标题|事实与所在句|链接|时间|X|字数|分)\]/);
+          if (slot) problems.push(`还有模板槽位没填：${slot[0]}`);
+          const main = m.headlines.main;
+          if (main && !md.includes(main)) problems.push("交稿单里没有主推标题");
+          const probe = draft
+            .split("\n")
+            .map((s) => s.trim())
+            .filter((s) => s && !s.startsWith("#") && !s.startsWith("【配图"))
+            .slice(0, 2);
+          if (probe.some((p) => !md.includes(p)))
+            problems.push("交稿单正文与当前终稿不一致（终稿开头段落没找到）");
+          if (problems.length) throw new WriterError("INVALID_ARGS", problems.join("；"));
+          md = md
+            .split("\n")
+            .filter((l) => !l.includes("AI 到此止步"))
+            .join("\n")
+            .trimEnd();
+          md += `\n\n---\n> ${STOP_LINE}\n`;
+          await atomicWrite(store.deliveryPath(id), md);
+          m.delivered = true;
+          m.delivered_rev = cur.rev;
+          m.delivered_sha256 = cur.sha256;
         });
         return { article: summary(after), path: store.deliveryPath(id), chars: [...md].length };
       },

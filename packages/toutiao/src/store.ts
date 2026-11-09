@@ -107,6 +107,9 @@ export interface ArticleMeta {
   return_rounds: number;
   headlines: { main: string; alts: string[] };
   delivered: boolean;
+  /** 交稿单对应的稿件版本；旧数据没有这两个字段，视为未出交稿单。 */
+  delivered_rev?: number;
+  delivered_sha256?: string;
   history: HistoryRecord[];
   created_at: string;
   updated_at: string;
@@ -123,6 +126,16 @@ const TRANSITIONS: Record<Status, Status[]> = {
 
 export function canTransition(from: Status, to: Status): boolean {
   return TRANSITIONS[from].includes(to);
+}
+
+export function deliveryCurrent(m: ArticleMeta): boolean {
+  const cur = m.drafts.find((d) => d.rev === m.current_rev);
+  return (
+    m.delivered &&
+    cur !== undefined &&
+    m.delivered_rev === cur.rev &&
+    m.delivered_sha256 === cur.sha256
+  );
 }
 
 export { nowIso } from "../../core/src/fsx.js";
@@ -328,6 +341,9 @@ export class ArticleStore {
         note,
       });
       m.current_rev = rev;
+      m.delivered = false;
+      delete m.delivered_rev;
+      delete m.delivered_sha256;
       if (m.status !== "初稿待改") {
         m.history.push({
           from: m.status,
@@ -353,13 +369,18 @@ export class ArticleStore {
     return hits[hits.length - 1];
   }
 
-  /** 读者评审落到 meta.qa 最近一条（与该次质检同一稿件版本）。没有质检记录时返回 false。 */
+  /** 读者评审落到该稿件版本最近一条质检。稿件或版本不匹配时返回 false。 */
   async attachReaderReview(id: string, review: ReaderReview): Promise<boolean> {
-    const m = await this.update(id, (meta) => {
-      const last = meta.qa[meta.qa.length - 1];
-      if (last) last.readerReview = review;
+    let attached = false;
+    await this.update(id, (meta) => {
+      const cur = this.currentDraft(meta);
+      if (!cur || review.rev !== cur.rev) return;
+      const last = meta.qa.findLast((q) => q.rev === cur.rev && q.sha256 === cur.sha256);
+      if (!last) return;
+      last.readerReview = review;
+      attached = true;
     });
-    return Boolean(m.qa[m.qa.length - 1]?.readerReview);
+    return attached;
   }
 }
 

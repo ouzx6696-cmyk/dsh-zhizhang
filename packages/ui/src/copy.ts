@@ -563,7 +563,6 @@ export const COPY = {
   toutiaoAppText1: " 字 · ",
   toutiaoAppText2: " 分",
   toutiaoAppText3: " 字",
-  toutiaoAppText4: "已交稿",
   toutiaoAppText5: "{value0}（第 {value1} 版）",
   appText1: "正在打开写作 Agent…",
   appText2: "【写作台】为本书规划下一章。先确认标题、冲突和章纲，不自动写正文。",

@@ -26,7 +26,7 @@ export function ArticleList({ articles, sel, onSelect }) {
   const [query, setQuery] = useState("");
   const visible = articles.filter((a) => matches(a, query));
   const weekOf = (article) => {
-    const date = new Date(article.updatedAt || article.createdAt || article.id.slice(0, 10));
+    const date = new Date(article.updatedAt || article.id.slice(0, 10));
     if (Number.isNaN(date.getTime())) return t("olderArticles");
     date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
     return (
@@ -144,7 +144,7 @@ export function Body({ detail, onSave, readOnly = false, onEditState }) {
         <div className="wb-reader-heading">
           <h2 className="wb-reader-title">{a.title}</h2>
           <p className="wb-reader-meta">
-            <Tag tone={statusTone(a.status)}>{statusLabel(a.status)}</Tag>
+            <Tag tone={statusTone("toutiao", a.status)}>{statusLabel("toutiao", a.status)}</Tag>
             {a.draft ? (
               <span>
                 {t("ttRev", { n: a.draft.rev })} · {formatCount(a.draft.chars)}

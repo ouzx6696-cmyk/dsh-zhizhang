@@ -1,4 +1,5 @@
 import { COPY as viewCopy } from "../../../../../../packages/ui/src/copy.js";
+import { TOUTIAO_DELIVERED } from "../../../../../../packages/ui/src/status.js";
 import { getCommand } from "../../../commands";
 import type { WorkspaceContext } from "../../../renderer-contracts";
 
@@ -8,7 +9,7 @@ type QuickItem = readonly [id: string, label?: string];
 /** 按作品状态挑快捷动作，自上而下第一个成立的条件生效，都不成立时用通用组合。 */
 const QUICK_ACTIONS: readonly [(context: WorkspaceContext) => boolean, readonly QuickItem[]][] = [
   [
-    (c) => c.kind === "article" && c.article?.status === viewCopy.toutiaoAppText4,
+    (c) => c.kind === "article" && c.article?.status === TOUTIAO_DELIVERED,
     [
       [viewCopy.agentPanelText7, viewCopy.ttContinue],
       [viewCopy.agentPanelText8, viewCopy.agentPanelText9],

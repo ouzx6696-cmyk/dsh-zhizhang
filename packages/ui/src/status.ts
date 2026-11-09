@@ -13,12 +13,15 @@ const FANQIE: Record<string, { label: string; tone: StatusTone; dot: string }> =
   live: { label: "已交稿", tone: "success", dot: "done" },
 };
 
+/** 业务状态词；界面判断“已交稿”时用这个常量，不读展示文案。 */
+export const TOUTIAO_DELIVERED = "已交稿";
+
 const TOUTIAO: Record<string, { label: string; tone: StatusTone; dot: string }> = {
-  初稿待改: { label: "待改稿", tone: "neutral", dot: "warning" },
+  初稿待改: { label: "初稿待改", tone: "neutral", dot: "warning" },
   待验收: { label: "待验收", tone: "info", dot: "warning" },
-  验收退回: { label: "待改", tone: "danger", dot: "error" },
+  验收退回: { label: "验收退回", tone: "danger", dot: "error" },
   已验收: { label: "已验收", tone: "success", dot: "done" },
-  已交稿: { label: "已交稿", tone: "success", dot: "done" },
+  [TOUTIAO_DELIVERED]: { label: TOUTIAO_DELIVERED, tone: "success", dot: "done" },
 };
 
 export function statusInfo(mode: StatusMode, status?: string) {

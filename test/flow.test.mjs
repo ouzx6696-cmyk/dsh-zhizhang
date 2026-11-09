@@ -203,7 +203,8 @@ test("工具自身仍拒绝未经作者确认的“已交稿”", async () => {
 });
 
 test("写作台（今日头条模式）：列表与详情可见，按钮指令按状态生成；采用后为已交稿；未验收的不能采用", async () => {
-  const { call } = await setup();
+  const harness = await setup();
+  const { call } = harness;
   const id = (await call("toutiao_article_create", { slug: "panel" })).article.id;
   await call("toutiao_card_set", { id, card: CARD });
   await call("toutiao_headline_set", { id, main: CARD["主标题"], alts: ["一", "二", "三", "四"] });
@@ -251,9 +252,16 @@ test("写作台（今日头条模式）：列表与详情可见，按钮指令�
   assert.equal(d1.adoptable, true);
   assert.match(d1.delivery, /交稿单/);
   await call("toutiao_draft_stage", { id, text: STORY + "\n" });
+  const stale = await articleDetail(root, id);
+  assert.equal(stale.delivery, null, "新稿后旧交稿单立即失效");
+  assert.equal(stale.adoptable, false);
   await call("toutiao_status", { id, to: "待验收" });
   await call("toutiao_qa_check", { id });
   await call("toutiao_status", { id, to: "已验收" });
+  harness.approved = true;
+  const staleDone = await call("toutiao_status", { id, to: "已交稿" });
+  assert.equal(staleDone.code, "GATE_DENIED");
+  assert.match(staleDone.message, /还没有交稿单/);
   await call("toutiao_delivery_save", { id, markdown: deliveryMd(CARD["主标题"], STORY + "\n") });
   await assert.rejects(adopt(root, id, d1.draft), /版本已变化/);
   assert.equal((await articleDetail(root, id)).status, "已验收");
@@ -517,6 +525,10 @@ test("质检记录六维分项；读者评审解析后落到 meta.qa 最近一�
   assert.ok(qa.dims, JSON.stringify(qa));
   for (const key of ["ai", "read", "title", "detail", "structure", "compliance"])
     assert.equal(typeof qa.dims[key], "number", key);
+  assert.equal(qa.title, CARD["主标题"], "质检必须使用主推标题");
+  const forced = await call("toutiao_qa_check", { id, mode: "micro" });
+  assert.equal(forced.score, qa.score, "有立项卡时 mode 参数不能改变判定");
+  assert.deepEqual(forced.hard_gates, qa.hard_gates);
   const got = await call("toutiao_article_get", { id });
   assert.deepEqual(got.qa.at(-1).dims, qa.dims);
   assert.equal(got.qa.at(-1).readerReview, undefined);
@@ -554,6 +566,12 @@ test("质检记录六维分项；读者评审解析后落到 meta.qa 最近一�
   assert.equal(after.qa.at(-1).readerReview.scores["标题"], 4);
   assert.equal(after.qa.at(-1).readerReview.evidences["节奏"], "节奏的一句证据");
   assert.equal(after.qa.at(-1).readerReview.rev, meta.current_rev);
+  assert.equal(await store.attachReaderReview(id, { ...review, rev: review.rev - 1 }), false);
+  assert.equal(
+    (await call("toutiao_article_get", { id })).qa.at(-1).readerReview.rev,
+    meta.current_rev,
+    "旧版本读者评审不能覆盖当前记录",
+  );
   const detail = await articleDetail((await call("toutiao_article_list", {})).root, id);
   assert.equal(detail.qa.at(-1).readerReview.scores["读完意愿"], 2);
 });

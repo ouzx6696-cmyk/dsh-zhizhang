@@ -43,7 +43,7 @@ async function attachReaderReviewNote(
   const attached = await store.attachReaderReview(articleId, review);
   return attached
     ? `读者评审已记入 meta.qa 最近一条（rev ${review.rev}）：读完意愿 ${review.scores["读完意愿"]} 分。`
-    : "读者评审未落盘：这篇文章还没有质检记录，先跑 toutiao_qa_check 再评审。";
+    : "读者评审未落盘：这篇文章还没有与当前版本匹配的质检记录，先重跑 toutiao_qa_check 再评审。";
 }
 
 export function createDelegateTools(options: {

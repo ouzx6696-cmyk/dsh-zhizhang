@@ -14,6 +14,7 @@ import {
   articleProgress,
   statusLabel,
   statusTone,
+  TOUTIAO_DELIVERED,
 } from "../../../../ui/src/status.js";
 
 const { useState } = React;
@@ -89,7 +90,9 @@ function ReaderReviewBlock({ review }) {
 export function ToutiaoSide({ tt, hideAgent = false }) {
   const { detail, busy, deliverOff, actions } = tt;
   const doneAt = tt.doneAt || {};
-  const [confirming, setConfirming] = useState(false);
+  const [confirming, setConfirming] = useState(
+    /** @type {null | { title: string, rev: number }} */ (null),
+  );
   const [note, setNote] = useState("");
   const a = detail.article;
   const send = (action) => actions.deliver(action, note);
@@ -100,7 +103,9 @@ export function ToutiaoSide({ tt, hideAgent = false }) {
         <>
           <Section
             title={t("ttFacts")}
-            aside={<Tag tone={statusTone(a.status)}>{statusLabel(a.status)}</Tag>}
+            aside={
+              <Tag tone={statusTone("toutiao", a.status)}>{statusLabel("toutiao", a.status)}</Tag>
+            }
           >
             <AuthorSteps
               steps={ARTICLE_STEPS}
@@ -198,7 +203,7 @@ export function ToutiaoSide({ tt, hideAgent = false }) {
             </Section>
           ) : null}
           <Section title={t("ttStatus")}>
-            {a.status === viewCopy.toutiaoAppText4 ? (
+            {a.status === TOUTIAO_DELIVERED ? (
               <p className="wb-muted">{t("ttDelivered")}</p>
             ) : (
               <>
@@ -218,7 +223,7 @@ export function ToutiaoSide({ tt, hideAgent = false }) {
                 {confirming ? (
                   <Dialog
                     open
-                    onClose={() => setConfirming(false)}
+                    onClose={() => setConfirming(null)}
                     title={t("ttAdoptTitle")}
                     closeLabel={t("close")}
                     description={t("ttAdoptConfirm", {
@@ -230,13 +235,13 @@ export function ToutiaoSide({ tt, hideAgent = false }) {
                     footer={
                       <div className="wb-scope">
                         <div className="wb-dialog-actions">
-                          <Button variant="ghost" onClick={() => setConfirming(false)}>
+                          <Button variant="ghost" onClick={() => setConfirming(null)}>
                             {t("cancel")}
                           </Button>
                           <Button
                             variant="primary"
                             onClick={() => {
-                              setConfirming(false);
+                              setConfirming(null);
                               actions.adopt(confirming);
                             }}
                           >
@@ -283,7 +288,7 @@ export function ToutiaoSide({ tt, hideAgent = false }) {
             />
           </label>
           <div className="wb-action-cards">
-            {a && a.status !== viewCopy.toutiaoAppText4 ? (
+            {a && a.status !== TOUTIAO_DELIVERED ? (
               <>
                 <ActionCard
                   icon="sparkles"
@@ -321,7 +326,7 @@ export function ToutiaoSide({ tt, hideAgent = false }) {
             ) : null}
             <ActionCard
               icon="pen"
-              primary={!a || a.status === viewCopy.toutiaoAppText4}
+              primary={!a || a.status === TOUTIAO_DELIVERED}
               title={t("ttNew")}
               hint={t("ttNewHint")}
               busy={busy === "new"}
