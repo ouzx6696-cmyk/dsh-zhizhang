@@ -226,8 +226,21 @@ test("编排完整旅程：调度工具→规划采用→章节多稿、校验�
     await f.host.workflows.apply(target);
     assert.equal((await readWorkMeta(work.dir)).chapters.length, 3, "重复采用不新增章节");
     await setOutline(work.dir, "c004", { targetWords: 300, pov: "林川" }, "归站");
+    const eventStart = f.events.length,
+      measuredAt = Date.now();
     await f.host.workflows.start(target, request("chapter"));
     state = await f.done(target);
+    const measured = f.events.slice(eventStart).filter((event) => event.workflow?.id === state.id);
+    assert.ok(measured.length < state.steps.length * 2);
+    assert.deepEqual(measured.at(-1).workflow, state);
+    console.log(
+      "workflow-events",
+      JSON.stringify({
+        count: measured.length,
+        bytes: measured.reduce((sum, event) => sum + Buffer.byteLength(JSON.stringify(event)), 0),
+        elapsedMs: Date.now() - measuredAt,
+      }),
+    );
     assert.equal(state.state, "awaiting-author", state.error);
     assert.equal(state.steps.find((row) => row.id === "draft-0").attempts, 2);
     const draftCalls = f.model.calls.filter(

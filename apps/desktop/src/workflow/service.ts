@@ -60,6 +60,12 @@ interface Active {
 /** One active writer per target; stage generation is pure until a version-checked delivery. */
 export class WorkflowService {
   private active = new Map<string, Active>();
+  private updates = new Map<
+    string,
+    { target: Target; state: WorkflowRecord; timer: ReturnType<typeof setTimeout> }
+  >();
+  private lastSent = new Map<string, number>();
+  private runningSignature = "";
   constructor(private host: Sessions) {}
   private directory(target: Target) {
     return path.join(this.host.home, "workflows", this.host.key(target));
@@ -105,9 +111,34 @@ export class WorkflowService {
     return state;
   }
   private publish(target: Target, state: WorkflowRecord) {
-    const active = this.active.get(this.host.key(target));
+    const key = this.host.key(target),
+      active = this.active.get(key);
     if (active) active.record = state;
-    this.host.emit({ target, workflow: state, running: this.host.running() });
+    const pending = this.updates.get(key);
+    if (pending) clearTimeout(pending.timer);
+    this.updates.delete(key);
+    const delay = 150 - (Date.now() - (this.lastSent.get(key) ?? 0));
+    if (state.state !== "running" || delay <= 0) {
+      this.sendUpdate(target, state);
+      if (state.state !== "running") this.lastSent.delete(key);
+    } else {
+      const timer = setTimeout(() => {
+        this.updates.delete(key);
+        this.sendUpdate(target, state);
+      }, delay);
+      this.updates.set(key, { target, state, timer });
+    }
+  }
+  private sendUpdate(target: Target, state: WorkflowRecord) {
+    this.lastSent.set(this.host.key(target), Date.now());
+    const running = this.host.running(),
+      signature = JSON.stringify(running);
+    this.host.emit({
+      target,
+      workflow: state,
+      ...(signature !== this.runningSignature ? { running } : {}),
+    });
+    this.runningSignature = signature;
   }
   async start(target: Target, request: WorkflowRequest, resume = false, parent?: AgentSession) {
     return this.launch(target, request, { resume, parent, replace: false });
@@ -278,7 +309,16 @@ export class WorkflowService {
   }
   async dispose() {
     for (const active of this.active.values()) active.controller.abort();
-    await Promise.all([...this.active.values()].map((row) => row.promise));
+    try {
+      await Promise.all([...this.active.values()].map((row) => row.promise));
+    } finally {
+      for (const { target, state, timer } of this.updates.values()) {
+        clearTimeout(timer);
+        this.sendUpdate(target, state);
+      }
+      this.updates.clear();
+      this.lastSent.clear();
+    }
   }
   async continuity(target: Target) {
     return readContinuity(await resolveFanqieWork(this.host.options, target));
