@@ -51,11 +51,13 @@ export function NewProfileForm({ profiles, base, onCancel, onCreate, busy }) {
       <label className="wb-form-row">
         <span className="wb-form-label">{t("pfNewBase")}</span>
         <select className="wb-select" value={from} onChange={(e) => setFrom(e.target.value)}>
-          {profiles.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
+          {profiles
+            .filter((p) => !p.broken)
+            .map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
         </select>
       </label>
       <label className="wb-form-row">

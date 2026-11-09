@@ -532,3 +532,35 @@ test("T7 按周分组的标题没有文章状态点，行状态仍可见", () =>
   assert.equal(headings, 1);
   assert.ok(dots > 0, "文章行保留真实状态点");
 });
+
+test("FQ-20 拆书导入的大小上限同时覆盖 file 与 text，超限不读文件、不新增书源", async () => {
+  const { open, rm } = await import("node:fs/promises");
+  const path = await import("node:path");
+  const { LibraryPort } = await import("../../build/fanqie/src/engine/ports/index.js");
+  const { storagePaths } = await import("../../build/fanqie/src/engine/storage/paths.js");
+  const cwd = await tempDir("fq20-");
+  try {
+    // 稀疏文件：占 40 MB 逻辑大小，不真占磁盘。
+    const handle = await open(path.join(cwd, "巨本.txt"), "w");
+    await handle.truncate(40 * 1024 * 1024);
+    await handle.close();
+    const config = { storageRoot: path.join(cwd, ".writer") };
+    const harness = await createToolHarness({ mode: "fanqie", cwd, config });
+    const paths = storagePaths(null, config);
+    const before = (await LibraryPort.listSources(paths)).length;
+    const big = await harness.call("fanqie_library_import", { title: "巨本", file: "巨本.txt" });
+    assert.equal(big.code, "file_too_large", JSON.stringify(big));
+    const long = await harness.call("fanqie_library_import", {
+      title: "长文",
+      text: "字".repeat(12 * 1024 * 1024),
+    });
+    assert.equal(long.code, "file_too_large", JSON.stringify(long));
+    assert.equal((await LibraryPort.listSources(paths)).length, before);
+    assert.match(
+      await harness.call("fanqie_library_import", { title: "短文", text: "第一章\n正文。\n" }),
+      /已导入「短文」/,
+    );
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});

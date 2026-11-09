@@ -1,10 +1,11 @@
 import { dialog, clipboard } from "electron";
 import { writeFile } from "node:fs/promises";
 import type { Runtime } from "../runtime";
-import { handle } from "./handle";
+import { ipcHandler } from "./handle";
 import { exportContent, wordDocument } from "../../exports";
 
 export function registerExportIpc(state: Runtime) {
+  const handle = ipcHandler(state);
   handle("export", async (target, focus, format) => {
     const next = target;
     const content = await exportContent(next, focus, state.writerConfig);

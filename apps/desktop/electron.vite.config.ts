@@ -1,5 +1,6 @@
 import { defineConfig, externalizeDepsPlugin } from "electron-vite";
 import { VERSION } from "../../packages/core/src/version";
+import { CONTENT_SECURITY_POLICY } from "./src/main/csp";
 import path from "node:path";
 export default defineConfig({
   main: {
@@ -29,6 +30,18 @@ export default defineConfig({
           if (id.includes("/@fontsource/") && id.endsWith(".css"))
             return code.replace(/,\s*url\([^)]*\.woff\)\s*format\(['"]woff['"]\)/g, "");
         },
+      },
+      {
+        // 生产窗口走 file://，响应头不生效，策略只能写进页面；开发服务器不注入（见 csp.ts）。
+        name: "desktop-csp",
+        apply: "build",
+        transformIndexHtml: () => [
+          {
+            tag: "meta",
+            attrs: { "http-equiv": "Content-Security-Policy", content: CONTENT_SECURITY_POLICY },
+            injectTo: "head-prepend",
+          },
+        ],
       },
     ],
     root: ".",

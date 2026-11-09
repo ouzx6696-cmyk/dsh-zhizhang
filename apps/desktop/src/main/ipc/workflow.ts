@@ -2,9 +2,10 @@ import { learningStatus, decideLearning } from "../../session/learning-store";
 import path from "node:path";
 import { atomicWrite, readJson } from "../../../../../packages/core/src/fsx";
 import { asRecord } from "./validate";
-import { handle } from "./handle";
+import { ipcHandler } from "./handle";
 import type { Runtime } from "../runtime";
 export function registerWorkflowIpc(state: Runtime) {
+  const handle = ipcHandler(state);
   handle("workflow-history", (target) => state.sessions.workflows.history(target));
   handle("learning", async (target, action, id, text) => {
     if (action !== "status") {

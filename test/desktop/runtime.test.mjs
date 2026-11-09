@@ -1,6 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm, writeFile, symlink, realpath } from "node:fs/promises";
+import {
+  appendFile,
+  mkdtemp,
+  mkdir,
+  readFile,
+  rm,
+  writeFile,
+  symlink,
+  realpath,
+} from "node:fs/promises";
 import { tmpdir, hostname } from "node:os";
 import { createHash, randomUUID } from "node:crypto";
 import { promisify } from "node:util";
@@ -42,6 +51,17 @@ function settled() {
   });
   return { promise, finish };
 }
+/** 生产 handle() 只认主窗口主帧的调用：替身窗口带一个主帧，事件按真实 Electron 的形状给出。 */
+function fakeWindow(send = () => {}) {
+  return {
+    isDestroyed: () => false,
+    webContents: { send, mainFrame: { url: "file:///index.html" } },
+  };
+}
+const fromWindow = (window) => ({
+  sender: window.webContents,
+  senderFrame: window.webContents.mainFrame,
+});
 function models(url) {
   const value = defaultModels();
   value.planner = { ...value.writer };
@@ -902,7 +922,7 @@ test("FQ-03 崩溃遗留写锁：作者确认后经恢复入口先清锁、再�
   state.resources = resources;
   state.target = { mode: "fanqie", root: paths.base, work: work.meta.key };
   state.diagnostics = { write: async (event, fields) => diagnostics.push({ event, ...fields }) };
-  state.window = { isDestroyed: () => false, webContents: { send: () => {} } };
+  state.window = fakeWindow();
   state.sessions = new Sessions({
     home: appHome,
     python: "python3",
@@ -948,11 +968,17 @@ test("FQ-03 崩溃遗留写锁：作者确认后经恢复入口先清锁、再�
     assert.equal(check.staleLock, true);
     assert.match(check.reason, /遗留写入锁/);
     // 作者取消：锁和记录原样保留。
-    assert.equal(await recover({}, { id: check.id, fingerprint: check.fingerprint }), null);
+    assert.equal(
+      await recover(fromWindow(state.window), { id: check.id, fingerprint: check.fingerprint }),
+      null,
+    );
     assert.match(prompts.at(-1), /先清理写锁，再备份/);
     assert.ok((await readFile(path.join(lockDir, "owner.json"), "utf8")).length > 0);
     answer = 1;
-    const result = await recover({}, { id: check.id, fingerprint: check.fingerprint });
+    const result = await recover(fromWindow(state.window), {
+      id: check.id,
+      fingerprint: check.fingerprint,
+    });
     await assert.rejects(readFile(path.join(lockDir, "owner.json")), { code: "ENOENT" });
     assert.ok(result.file.startsWith(backups));
     assert.ok(diagnostics.some((entry) => entry.event === "write_lock_cleared"));
@@ -971,7 +997,7 @@ test("FQ-03 崩溃遗留写锁：作者确认后经恢复入口先清锁、再�
     const lockOnly = await inspectRecovery(work.dir);
     assert.equal(lockOnly.canRecover, true, lockOnly.reason);
     assert.equal(lockOnly.kind, "lock");
-    await recover({}, { id: lockOnly.id, fingerprint: lockOnly.fingerprint });
+    await recover(fromWindow(state.window), { id: lockOnly.id, fingerprint: lockOnly.fingerprint });
     assert.match(prompts.at(-1), /清理《.+》的遗留写入锁/);
     await assert.rejects(readFile(path.join(lockDir, "owner.json")), { code: "ENOENT" });
     assert.equal(diagnostics.filter((entry) => entry.event === "write_lock_cleared").length, 2);
@@ -1009,27 +1035,27 @@ test("CORE-08 只读作品可经接管入口取得写权限，锁已换人时拒
     decrypt: (text) => text,
   });
   state.diagnostics = { write: async (event, fields) => diagnostics.push({ event, ...fields }) };
-  state.window = {
-    isDestroyed: () => false,
-    webContents: { send: (_, event) => events.push(event) },
-  };
+  state.window = fakeWindow((_, event) => events.push(event));
   state.target = { mode: "toutiao", root: folder };
   state.access = await claimWorkspace(folder);
   registerWorkspaceIpc(state);
   const read = ipcMain.handlers.get("writer:state");
   const takeOver = ipcMain.handlers.get("writer:take-over-workspace");
   try {
-    const before = await read({});
+    const before = await read(fromWindow(state.window));
     assert.equal(before.access.readOnly, true);
     assert.deepEqual(before.access.owner, foreign);
     await assert.rejects(assertWorkspaceWritable(folder), /只读/);
-    await assert.rejects(takeOver({}, "stale-id"), (error) => error.code === "CONFLICT");
-    assert.equal((await read({})).access.readOnly, true);
-    await assert.rejects(async () => takeOver({}, 42), /参数无效/);
-    const access = await takeOver({}, foreign.id);
+    await assert.rejects(
+      takeOver(fromWindow(state.window), "stale-id"),
+      (error) => error.code === "CONFLICT",
+    );
+    assert.equal((await read(fromWindow(state.window))).access.readOnly, true);
+    await assert.rejects(async () => takeOver(fromWindow(state.window), 42), /参数无效/);
+    const access = await takeOver(fromWindow(state.window), foreign.id);
     assert.equal(access.readOnly, false);
     assert.equal(access.owner.pid, process.pid);
-    assert.equal((await read({})).access.readOnly, false);
+    assert.equal((await read(fromWindow(state.window))).access.readOnly, false);
     await assertWorkspaceWritable(folder);
     assert.ok(events.some((event) => event.refresh));
     const logged = diagnostics.find((entry) => entry.event === "workspace_taken_over");
@@ -1037,6 +1063,129 @@ test("CORE-08 只读作品可经接管入口取得写权限，锁已换人时拒
   } finally {
     await releaseWorkspace(folder);
     await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("WB-08 只读打开时主进程拒绝写作品的请求；诊断与方法方案照常；DK-05 只认主窗口主帧", async () => {
+  const base = await realpath(await mkdtemp(path.join(tmpdir(), "writer-readonly-")));
+  const { ensureStorage, createWork, readChapter, updateChapter } =
+    await import("../../apps/desktop/out-test/work-store.mjs");
+  const { Runtime, registerSessionIpc, ipcMain } =
+    await import("../../apps/desktop/out-test/runtime-effects.mjs");
+  const appHome = path.join(base, "app");
+  await mkdir(appHome);
+  process.env.WRITER_STATE_ROOT = appHome;
+  process.env.WRITER_PROFILES_DIR = path.join(base, "profiles");
+  const paths = await ensureStorage(null, { storageRoot: path.join(base, "data") });
+  const work = await createWork(paths, { title: "只读" });
+  await updateChapter(work.dir, { id: "c001", title: "第一章", body: "站台上的雨。\n" });
+  const chapterFile = path.join(work.dir, "chapters/c001.md");
+  const state = new Runtime();
+  state.home = appHome;
+  state.target = { mode: "fanqie", root: paths.base, work: work.meta.key };
+  state.diagnostics = { write: async () => {} };
+  state.window = fakeWindow();
+  state.model = defaultModels();
+  state.sessions = new Sessions({
+    home: appHome,
+    python: "python3",
+    settings: defaultModels,
+    emit: () => {},
+    confirm: async () => false,
+    options: {},
+    created: async () => {},
+    extras: {},
+  });
+  // 另一实例占着作品；磁盘上没有它的锁文件，所以挡住写入的只能是主进程这道检查。
+  state.access = {
+    readOnly: true,
+    owner: {
+      id: "other",
+      pid: 4242,
+      machine: "other-host",
+      host: "DSH",
+      at: "2026-11-09T03:00:00Z",
+    },
+  };
+  registerSessionIpc(state);
+  const request = ipcMain.handlers.get("writer:request");
+  const main = fromWindow(state.window);
+  try {
+    const before = await readFile(chapterFile, "utf8");
+    const { revision, body: chapterBody } = await readChapter(work.dir, "c001");
+    const save = {
+      method: "POST",
+      body: {
+        work: work.meta.key,
+        chapter: "c001",
+        body: "只读实例写进来的正文。\n",
+        expectedRevision: revision,
+      },
+    };
+    const refused = await request(main, "/chapter/save", save);
+    assert.equal(refused.status, 409);
+    assert.equal(refused.data.code, "CONFLICT");
+    assert.match(refused.data.error, /DSH.*只读/);
+    assert.equal(await readFile(chapterFile, "utf8"), before);
+    // 不写作品的请求照常：读、诊断扫描、方法方案（只写用户数据目录）。
+    assert.equal(
+      (await request(main, "/chapter", { query: { work: work.meta.key, id: "c001" } })).status,
+      200,
+    );
+    const scan = await request(main, "/diagnostics/scan", {
+      method: "POST",
+      body: {
+        work: work.meta.key,
+        kind: "chapter",
+        chapter: "c001",
+        expectedRevision: revision,
+        bodyHash: createHash("sha256").update(chapterBody).digest("hex"),
+      },
+    });
+    assert.equal(scan.status, 200, JSON.stringify(scan.data));
+    const profile = await request(main, "/fanqie/profiles/create", {
+      method: "POST",
+      body: { name: "只读时建" },
+    });
+    assert.equal(profile.status, 200, JSON.stringify(profile.data));
+    assert.equal(
+      (await request(main, "/agent/deliver", { method: "POST", body: { action: "write" } })).status,
+      409,
+    );
+
+    // DK-05：别的 webContents、子帧、窗口已销毁时一律拒绝，处理函数不执行。
+    const stranger = { send: () => {}, mainFrame: {} };
+    await assert.rejects(
+      async () => request({ sender: stranger, senderFrame: stranger.mainFrame }, "/chapter", {}),
+      /非主窗口/,
+    );
+    await assert.rejects(
+      async () =>
+        request(
+          { sender: state.window.webContents, senderFrame: { url: "file:///frame.html" } },
+          "/chapter",
+          {},
+        ),
+      /非主窗口/,
+    );
+    await assert.rejects(
+      async () => request({ sender: state.window.webContents, senderFrame: null }, "/chapter", {}),
+      /非主窗口/,
+    );
+    const window = state.window;
+    state.window = { ...window, isDestroyed: () => true };
+    await assert.rejects(async () => request(main, "/chapter", {}), /非主窗口/);
+    state.window = window;
+
+    // 取得写权限后同一请求照常写入。
+    state.access = { readOnly: false, owner: null };
+    const saved = await request(main, "/chapter/save", save);
+    assert.equal(saved.status, 200, JSON.stringify(saved.data));
+    assert.match(await readFile(chapterFile, "utf8"), /只读实例写进来的正文/);
+  } finally {
+    delete process.env.WRITER_PROFILES_DIR;
+    await state.sessions.dispose();
+    await rm(base, { recursive: true, force: true });
   }
 });
 
@@ -1545,10 +1694,7 @@ test("任务运行或准备中拒绝保存模型，不中止任务也不改写�
   });
   state.model = state.settings.models;
   state.diagnostics = { write: async () => {} };
-  state.window = {
-    isDestroyed: () => false,
-    webContents: { send: (_, event) => events.push(event) },
-  };
+  state.window = fakeWindow((_, event) => events.push(event));
   const target = { mode: "toutiao", root: home };
   state.sessions = new Sessions({
     home,
@@ -1566,12 +1712,12 @@ test("任务运行或准备中拒绝保存模型，不中止任务也不改写�
   next.writer = { ...next.writer, model: "changed-model" };
   try {
     state.sessions.preparations.set(Symbol("task"), { target, focus: {}, generation: 0 });
-    await assert.rejects(save({}, next), /请等待任务结束后修改模型设置/);
+    await assert.rejects(save(fromWindow(state.window), next), /请等待任务结束后修改模型设置/);
     assert.equal(state.sessions.preparations.size, 1);
     await assert.rejects(readFile(path.join(home, "model.json"), "utf8"), { code: "ENOENT" });
     assert.equal(state.model.writer.model, defaultModels().writer.model);
     state.sessions.preparations.clear();
-    await save({}, next);
+    await save(fromWindow(state.window), next);
     assert.equal(state.model.writer.model, "changed-model");
     assert.ok(events.some((event) => event.refresh));
   } finally {
@@ -1634,6 +1780,43 @@ test("诊断精确脱敏并保留容量和无 Key 配置", async () => {
     assert.equal(result.config.keyless, true);
     for (const key of ["apiKey", "token", "secret", "password", "authorization"])
       assert.equal(result.config[key], "[已移除]");
+
+    // CORE-07：键名归一后精确匹配，值与日志正文里的凭据一并清洗。
+    const nested = await diagnostics.bundle({
+      model: {
+        api_key: "sk-live-1",
+        accessToken: "at-1",
+        "x-api-key": "xk-1",
+        baseUrl: "https://u:p@h/v1",
+        maxTokens: 4096,
+        max_output_tokens: 2048,
+      },
+    });
+    assert.equal(nested.config.model.api_key, "[已移除]");
+    assert.equal(nested.config.model.accessToken, "[已移除]");
+    assert.equal(nested.config.model["x-api-key"], "[已移除]");
+    assert.equal(nested.config.model.baseUrl, "https://[已移除]@h/v1");
+    assert.equal(nested.config.model.maxTokens, 4096);
+    assert.equal(nested.config.model.max_output_tokens, 2048);
+    await diagnostics.write("model_failed", {
+      message: "401 from https://alice:hunter2@api.example/v1 with Bearer sk-abc.def",
+      api_key: "sk-written",
+      maxTokens: 1024,
+    });
+    // 旧版本落盘的日志里已有凭据：导出时同样清洗。
+    const day = new Date().toISOString().slice(0, 10) + ".jsonl";
+    await appendFile(
+      path.join(home, "logs", day),
+      JSON.stringify({ event: "old", apiKey: "sk-old" }) + "\nplain Authorization: Bearer sk-raw\n",
+    );
+    const raw = await readFile(path.join(home, "logs", day), "utf8");
+    assert.doesNotMatch(raw.split("\n")[0], /hunter2|sk-abc|sk-written/);
+    const entries = (await diagnostics.bundle({})).logs.at(-1).entries;
+    assert.doesNotMatch(entries, /hunter2|sk-abc|sk-written|sk-old|sk-raw/);
+    assert.match(entries, /"maxTokens":1024/);
+    assert.match(entries, /https:\/\/\[已移除\]@api\.example/);
+    assert.doesNotMatch(entries, /alice/);
+    for (const line of entries.trim().split("\n")) assert.ok(line.length > 0);
   } finally {
     await rm(home, { recursive: true, force: true });
   }

@@ -1,10 +1,11 @@
 import { dialog } from "electron";
 import { writeFile } from "node:fs/promises";
 import type { Runtime } from "../runtime";
-import { handle } from "./handle";
+import { ipcHandler } from "./handle";
 import { VERSION } from "../../../../../packages/core/src/version";
 
 export function registerDiagnosticsIpc(state: Runtime) {
+  const handle = ipcHandler(state);
   handle("diagnostics", async () => {
     const result = await dialog.showSaveDialog(state.windowOrThrow(), {
       title: "导出诊断包",

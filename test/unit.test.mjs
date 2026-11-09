@@ -192,6 +192,36 @@ test("脚本契约：非 JSON、缺字段、非零退出码都判失败", () => 
   assert.equal(parseContract('{"tool":"qa","rules_version":"4","ok":true}', "", 0).ok, true);
 });
 
+test("CORE-05 指定的 Python 失效就报错，不回落到系统 Python", async () => {
+  await assert.rejects(locatePython("/nonexistent/python3"), (error) => {
+    assert.equal(error.code, "SCRIPT_FAILED");
+    assert.match(error.message, /\/nonexistent\/python3/);
+    return true;
+  });
+  // 带参数的整串不拆分：作为一个命令找不到就报错。
+  await assert.rejects(locatePython("python3 -X dev"), { code: "SCRIPT_FAILED" });
+  const saved = process.env.WRITER_PYTHON;
+  process.env.WRITER_PYTHON = "/nonexistent/env-python";
+  try {
+    await assert.rejects(locatePython(), /\/nonexistent\/env-python/);
+  } finally {
+    if (saved === undefined) delete process.env.WRITER_PYTHON;
+    else process.env.WRITER_PYTHON = saved;
+  }
+  const found = await locatePython();
+  assert.ok(found.cmd);
+  // 生产路径：会话建头条工具时按配置的 python 加载规则上限，失效即报错。
+  const { createToolHarness } = await import("./helpers.mjs");
+  await assert.rejects(
+    createToolHarness({
+      mode: "toutiao",
+      cwd: await tempDir(),
+      config: { python: "/nonexistent/python3" },
+    }),
+    (error) => error.code === "SCRIPT_FAILED" && error.message.includes("/nonexistent/python3"),
+  );
+});
+
 test("运行器：超时", async () => {
   const py = await locatePython();
   const dir = await tempDir();
@@ -257,6 +287,7 @@ test("门禁引擎：deny 优先；ask 记录 token，只能消费一次；锁�
   assert.equal((await e.evaluate({ name: "t", arguments: { x: 1 }, token: tok })).kind, "deny");
   const d = await e.evaluate({ name: "t", arguments: {}, token: tok });
   assert.equal(d.kind, "ask");
+  e.approveConfirmation({ name: "t", arguments: {}, token: tok });
   assert.equal(e.consumeConfirmation({ name: "t", arguments: {}, token: tok }, "b"), true);
   assert.equal(e.consumeConfirmation({ name: "t", arguments: {}, token: tok }, "b"), false);
   assert.equal(await e.evaluate({ name: "other", arguments: {} }), undefined);
@@ -278,6 +309,43 @@ test("门禁引擎：deny 优先；ask 记录 token，只能消费一次；锁�
     "deny",
     "门禁出错按拒绝处理",
   );
+});
+
+test("CORE-20 门禁没有默认预批准：未经作者确认的调用不能消费确认", async () => {
+  const { executeTool } = await import(buildUrl("core/src/execute.js"));
+  const { WriterError } = await import(buildUrl("core/src/tool.js"));
+  const gates = createGateEngine([
+    {
+      id: "author",
+      tool: "proof",
+      locked: true,
+      description: "",
+      check: () => ({ kind: "ask", reason: "确认写入？" }),
+    },
+  ]);
+  let writes = 0;
+  const definition = {
+    name: "proof",
+    execute: async (_args, exec) => {
+      if (!gates.consumeConfirmation(exec, "author"))
+        throw new WriterError("GATE_DENIED", "需要作者确认");
+      writes++;
+      return { saved: true };
+    },
+    output: { render: () => [] },
+  };
+  const exec = { cwd: ROOT, name: "proof", arguments: {}, token: Symbol("direct") };
+  assert.equal((await gates.evaluate(exec)).kind, "ask");
+  assert.equal(gates.confirmationArguments(exec), undefined);
+  // 宿主没走确认就直接执行：工具内复核必须拦下。
+  await assert.rejects(definition.execute({}, exec), { code: "GATE_DENIED" });
+  await executeTool(
+    definition,
+    {},
+    { ...exec, token: Symbol("confirmed") },
+    { gates, bind: (fn) => fn(), confirm: async () => true },
+  );
+  assert.equal(writes, 1);
 });
 
 test("立项卡预检：样例卡通过，模板卡报占位，故事线缺字段报错", async () => {
@@ -1153,4 +1221,34 @@ test("改稿学习开关：两包 config 解析 learn.enabled，非布尔或未�
   assert.ok(parseToutiaoConfig({ learn: 3 }).issues.length >= 1);
   assert.equal(parseFanqieConfig({}).value.learn, undefined, "缺省即关");
   assert.equal(parseToutiaoConfig({}).value.learn, undefined, "缺省即关");
+});
+
+test("CORE-22 快照经原子写落盘：内容与源一致，目录内无临时文件", async (t) => {
+  const { snapshotFiles } = await import(buildUrl("core/src/snapshots.js"));
+  const { readdir } = await import("node:fs/promises");
+  const root = await tempDir();
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await writeFile(path.join(root, "meta.json"), '{"title":"长夜"}\n');
+  await writeFile(path.join(root, "c001.md"), "第一章\n站台上的雨。\n");
+  const output = await snapshotFiles(root, [
+    path.join(root, "meta.json"),
+    path.join(root, "missing.md"),
+    path.join(root, "c001.md"),
+  ]);
+  assert.deepEqual((await readdir(output)).sort(), ["0-meta.json", "1-c001.md"]);
+  assert.equal(await readFile(path.join(output, "0-meta.json"), "utf8"), '{"title":"长夜"}\n');
+  assert.equal(await readFile(path.join(output, "1-c001.md"), "utf8"), "第一章\n站台上的雨。\n");
+  assert.equal(await snapshotFiles(root, [path.join(root, "missing.md")]), undefined);
+  // 快照目录里放一个指向外部的链接父目录时，原子写拒绝落盘，不经链接写到别处。
+  const { symlink } = await import("node:fs/promises");
+  const outside = await tempDir();
+  t.after(() => rm(outside, { recursive: true, force: true }));
+  await rm(path.join(root, ".writer-snapshots"), { recursive: true });
+  await symlink(
+    outside,
+    path.join(root, ".writer-snapshots"),
+    process.platform === "win32" ? "junction" : "dir",
+  );
+  await assert.rejects(snapshotFiles(root, [path.join(root, "c001.md")]), { code: "unsafe_path" });
+  assert.deepEqual(await readdir(outside), []);
 });

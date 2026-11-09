@@ -1,10 +1,11 @@
 import { sessionUsage } from "../../session/usage";
 import type { Runtime } from "../runtime";
-import { handle } from "./handle";
+import { ipcHandler } from "./handle";
 import { request } from "../operations";
 import { selectTarget } from "../targets";
 
 export function registerSessionIpc(state: Runtime) {
+  const handle = ipcHandler(state);
   handle("context-usage", (target) => sessionUsage(state.sessions, target));
   handle("compact", (target, instructions) => state.sessions.compact(target, instructions));
   handle("context-settings", async (value) =>

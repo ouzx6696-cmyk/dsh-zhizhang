@@ -68,8 +68,9 @@ export class WriterError extends Error {
   constructor(
     readonly code: ToolFailure["code"],
     message: string,
+    options?: ErrorOptions,
   ) {
-    super(message);
+    super(message, options);
     this.name = "WriterError";
   }
 }

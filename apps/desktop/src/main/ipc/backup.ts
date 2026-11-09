@@ -4,7 +4,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { localDay } from "../../../../../packages/core/src/fsx";
 import type { Runtime } from "../runtime";
-import { handle } from "./handle";
+import { ipcHandler } from "./handle";
 import { lockRoot } from "../targets";
 import { inspectRecovery, recoverWork } from "../../recovery";
 
@@ -51,6 +51,7 @@ function recoverPrompt(work: string, check: Awaited<ReturnType<typeof inspectRec
 }
 
 export function registerBackupIpc(state: Runtime) {
+  const handle = ipcHandler(state);
   handle("backup", async () => {
     if (!state.settings.workspace) throw new Error("请先选择写作根");
     return backupDirectory(state, state.settings.workspace);

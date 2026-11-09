@@ -751,6 +751,27 @@ _pr = subprocess.run([sys.executable, QA, _tpath, "--card", _typecard], capture_
 check("立项卡母体须为文本（解析期报错，退出码 2）", _pr.returncode == 2 and "母体" in _pr.stdout,
       (_pr.returncode, _pr.stdout[:80]))
 
+# —— 台账 CSV 公式注入：写入前置 '，读回剥离，标题比较不变 ——
+csv_root = os.path.join(tmpd, "csv-injection")
+os.makedirs(csv_root, exist_ok=True)
+csv_ledger = os.path.join(csv_root, "log.csv")
+_formula = '=HYPERLINK("http://evil.example","点我")'
+_pa = subprocess.run([sys.executable, WB, "ledger-add", "--card", _card(**{**base, "主标题": _formula}),
+                      "--ledger", csv_ledger],
+                     capture_output=True, text=True)
+_raw = open(csv_ledger, encoding="utf-8-sig").read()
+check("台账：公式开头的单元格写入时前置单引号",
+      _pa.returncode == 0 and "'=HYPERLINK" in _raw and ',=HYPERLINK' not in _raw, _pa.stdout + _raw)
+_ps = subprocess.run([sys.executable, WB, "ledger-status", "--title", _formula, "--to", "已交稿",
+                      "--ledger", csv_ledger], capture_output=True, text=True)
+check("台账：按原标题读回与比较不受前缀影响",
+      json.loads(_ps.stdout)["ok"] is True and _lg.read(csv_ledger)[0]["主标题"] == _formula
+      and _lg.read(csv_ledger)[0]["状态"] == "已交稿", _ps.stdout)
+check("台账：前缀转义读写往返不丢字，纯数字原样写",
+      [_lg.unescape_cell(_lg.escape_cell(v)) for v in ["@a", "+1 招", "'=已有引号", "-3", "12%", "普通"]]
+      == ["@a", "+1 招", "'=已有引号", "-3", "12%", "普通"]
+      and _lg.escape_cell("-3") == "-3" and _lg.escape_cell("'=x") == "''=x", "")
+
 class GateChecks(unittest.TestCase):
     """Each collected behavior assertion is an independently reported case."""
 

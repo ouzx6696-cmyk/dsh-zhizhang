@@ -8,6 +8,8 @@ import { createRequire } from "node:module";
 import { fakeModel } from "./fake-model.mjs";
 let app, page, home, root, model;
 const rendererErrors = [];
+// 控制台里的 CSP 拦截报告：生产策略拦掉任何正常资源都算旅程失败。
+const cspViolations = [];
 const shot = async (name) => {
   const folder = path.resolve(process.env.WRITER_SCREENSHOT_DIR || "test-results/screenshots");
   await mkdir(folder, { recursive: true });
@@ -36,6 +38,7 @@ test.afterEach(async ({}, info) => {
     }
   }
   expect(rendererErrors.splice(0)).toEqual([]);
+  expect(cspViolations.splice(0)).toEqual([]);
 });
 test.beforeAll(async () => {
   home = await mkdtemp(path.join(tmpdir(), "writer-ui-app-"));
@@ -124,6 +127,9 @@ test.beforeAll(async () => {
   });
   page = await app.firstWindow();
   page.on("pageerror", (error) => rendererErrors.push(error.message));
+  page.on("console", (message) => {
+    if (/Content Security Policy/i.test(message.text())) cspViolations.push(message.text());
+  });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await app.evaluate(({ dialog }, directory) => {
     dialog.showOpenDialog = async () => ({
@@ -161,6 +167,36 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
     await expect(page.locator(".quick-actions")).toContainText("派编辑审");
 
     expect(rendererErrors.splice(0)).toEqual([]);
+  });
+  await test.step("生产窗口：file:// 下 meta CSP 生效，渲染进程开沙箱且 preload 可用", async () => {
+    const { CONTENT_SECURITY_POLICY } = await import("../../apps/desktop/src/main/csp.ts");
+    expect(page.url()).toMatch(/^file:/);
+    const html = await readFile(path.resolve("apps/desktop/out/renderer/index.html"), "utf8");
+    expect(html.indexOf('http-equiv="Content-Security-Policy"')).toBeGreaterThan(-1);
+    expect(html.indexOf('http-equiv="Content-Security-Policy"')).toBeLessThan(
+      html.indexOf("<script"),
+    );
+    const meta = await page.evaluate(() =>
+      document.querySelector('meta[http-equiv="Content-Security-Policy"]')?.getAttribute("content"),
+    );
+    expect(meta).toBe(CONTENT_SECURITY_POLICY);
+    const probe = await page.evaluate(async () => {
+      const script = document.createElement("script");
+      script.textContent = "window.__cspProbe = 1";
+      document.head.append(script);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      script.remove();
+      return window.__cspProbe;
+    });
+    expect(probe).toBeUndefined();
+    await expect.poll(() => cspViolations.length).toBeGreaterThan(0);
+    expect(cspViolations.splice(0).filter((text) => !/inline script/i.test(text))).toEqual([]);
+    const sandboxed = await app.evaluate(
+      ({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows()[0].webContents.getLastWebPreferences().sandbox,
+    );
+    expect(sandboxed).toBe(true);
+    expect(await page.evaluate(() => typeof window.writerDesktop?.state)).toBe("function");
   });
   await test.step("决策不被 Agent 挡住，右栏标签与响应式布局，亮暗截图", async () => {
     await page.getByRole("button", { name: "设置", exact: true }).click();

@@ -260,3 +260,6 @@
     min-height: 320px;
   }
 }
+.wb-pf-item:disabled {
+  cursor: not-allowed;
+}

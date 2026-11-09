@@ -266,6 +266,7 @@ export function ProfilesDialog({
                   type="button"
                   className={cx("wb-pf-item", p.id === sel && "wb-pf-item-on")}
                   aria-current={p.id === sel || undefined}
+                  disabled={!!p.broken}
                   onClick={async () => {
                     if (p.id === sel || !(await leaveMethod())) return;
                     setSel(p.id);
@@ -276,6 +277,8 @@ export function ProfilesDialog({
                     {p.active ? (
                       <Tag tone="success">{p.pinned ? t("pfPinned") : t("pfActive")}</Tag>
                     ) : null}
+                    {p.broken ? <Tag tone="danger">{t("pfBroken")}</Tag> : null}
+                    {p.nameConflict ? <Tag tone="warning">{t("pfNameConflict")}</Tag> : null}
                   </span>
                   <span className="wb-pf-item-meta">
                     <span>{p.kind === "user" ? t("pfUser") : t("pfBuiltin")}</span>
@@ -284,7 +287,12 @@ export function ProfilesDialog({
                       <span>{t("pfOverrides", { n: p.overrides || 0 })}</span>
                     ) : null}
                   </span>
-                  {p.note ? <span className="wb-pf-item-note">{p.note}</span> : null}
+                  {p.broken || p.note ? (
+                    <span className="wb-pf-item-note">{p.broken || p.note}</span>
+                  ) : null}
+                  {p.nameConflict ? (
+                    <span className="wb-pf-item-note">{t("pfNameConflictHint")}</span>
+                  ) : null}
                 </button>
               </li>
             ))}

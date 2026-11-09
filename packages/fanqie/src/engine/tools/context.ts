@@ -5,9 +5,9 @@ export { asObject, asString, asStringArray, boolArg } from "../parse.js";
 /**
  * Shared tool context: plugin config, session last-work, openWork helpers.
  */
-import { realpath, stat } from "node:fs/promises";
+import { stat } from "node:fs/promises";
 import { claimWorkspace } from "../../../../core/src/workspace-lock.js";
-import { isMissingFileError, resolveInside } from "../../../../core/src/fsx.js";
+import { isMissingFileError, resolveInside, resolveRealInside } from "../../../../core/src/fsx.js";
 import { WriterError } from "../../../../core/src/tool.js";
 import { NovelError } from "../errors.js";
 import type { OpenWorkContext } from "../types.js";
@@ -88,15 +88,15 @@ export async function localFile(roots: readonly string[], p: string): Promise<st
     const candidate = lexicallyInside(root, p);
     if (candidate === undefined) continue;
     insideAnyRoot = true;
-    let real: string;
+    const real = await resolveRealInside(root, candidate);
+    let info;
     try {
-      real = await realpath(candidate);
+      info = await stat(real);
     } catch (error) {
       if (isMissingFileError(error)) continue;
       throw error;
     }
-    resolveInside(await realpath(root), real);
-    if (!(await stat(real)).isFile()) throw new WriterError("NOT_FOUND", `不是文件：${p}`);
+    if (!info.isFile()) throw new WriterError("NOT_FOUND", `不是文件：${p}`);
     return real;
   }
   if (!insideAnyRoot) throw new WriterError("OUT_OF_ROOT", `路径越界：${p}`);

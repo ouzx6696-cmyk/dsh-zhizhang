@@ -10,6 +10,8 @@ import { rm } from "node:fs/promises";
 import { stateRoot } from "./paths.js";
 import path from "node:path";
 import { WriterError } from "./tool.js";
+import { errorText } from "./errors.js";
+import { isRecord } from "./parse.js";
 import {
   exists,
   nowIso,
@@ -123,10 +125,15 @@ function checkMethodId(id: string): string {
   return clean;
 }
 
+/** 与方案 id 同形的名称会让"按名称找"命中别的方案，一律保留给 id。 */
+const isReservedName = (name: string) => /^(default|original|user-\d+)$/i.test(name);
+
 function checkName(name: string): string {
   const n = name.trim();
   if (!n || [...n].length > PROFILE_LIMITS.nameChars || /[\r\n\t]/.test(n))
     throw new WriterError("INVALID_ARGS", `方案名须为 1–${PROFILE_LIMITS.nameChars} 个字`);
+  if (isReservedName(n))
+    throw new WriterError("INVALID_ARGS", `方案名不能用 default、original 或 user-数字：${n}`);
   return n;
 }
 
@@ -144,25 +151,62 @@ async function userDirs(mode: ProfileMode): Promise<string[]> {
     .map((e) => e.name);
 }
 
-async function userMetas(mode: ProfileMode): Promise<ProfileMeta[]> {
+/** 读不出来的用户方案：按目录名占位，保留原因与文件位置，不让一份坏文件拖垮整个列表。 */
+export interface BrokenProfile {
+  id: string;
+  broken: string;
+}
+type UserProfile = ProfileMeta | BrokenProfile;
+const isBroken = (row: UserProfile): row is BrokenProfile => "broken" in row;
+const optionalText = (value: unknown) => (typeof value === "string" ? value : undefined);
+
+/** profile.json 是磁盘上的作者数据，在读文件边界解析成 ProfileMeta，只取已知字段；不合格的按损坏行返回。 */
+function parseProfileMeta(
+  mode: ProfileMode,
+  dir: string,
+  file: string,
+  value: unknown,
+): UserProfile {
+  const broken = (reason: string): BrokenProfile => ({ id: dir, broken: `${reason}：${file}` });
+  if (!isRecord(value)) return broken("内容不是对象");
+  if (value.id !== dir) return broken(`id 与目录不符（文件里是 ${String(value.id)}）`);
+  if (typeof value.name !== "string" || !value.name.trim()) return broken("缺少方案名");
+  if (value.base !== undefined && value.base !== "default" && value.base !== "original")
+    return broken(`底稿方案无效：${String(value.base)}`);
+  return {
+    id: dir,
+    name: value.name,
+    mode,
+    kind: "user",
+    base: value.base ?? "default",
+    note: optionalText(value.note),
+    created_at: optionalText(value.created_at),
+    updated_at: optionalText(value.updated_at),
+  };
+}
+
+async function userMetas(mode: ProfileMode): Promise<UserProfile[]> {
   const entries = await userDirs(mode);
   const loaded = await Promise.all(
-    entries.map(async (name) => {
-      const m = await readJson<ProfileMeta>(path.join(modeDir(mode), name, "profile.json"));
-      if (m?.id !== name) return undefined;
-      const meta: ProfileMeta = {
-        ...m,
-        mode,
-        kind: "user",
-        base: m.base === "original" ? "original" : "default",
-      };
-      return meta;
+    entries.map(async (name): Promise<UserProfile | undefined> => {
+      const file = path.join(modeDir(mode), name, "profile.json");
+      let raw: unknown;
+      try {
+        raw = await readJson<unknown>(file);
+      } catch (error) {
+        if (!(error instanceof WriterError && error.code === "CONFLICT")) throw error;
+        return { id: name, broken: errorText(error) };
+      }
+      // 没有 profile.json 的目录是新建中途失败的残留（只占编号），不是方案。
+      return raw === undefined ? undefined : parseProfileMeta(mode, name, file, raw);
     }),
   );
   return loaded
-    .filter((m): m is ProfileMeta => m !== undefined)
+    .filter((m): m is UserProfile => m !== undefined)
     .sort((a, b) => userSeq(a.id) - userSeq(b.id));
 }
+
+const healthy = (rows: UserProfile[]) => rows.filter((row): row is ProfileMeta => !isBroken(row));
 
 function builtinMeta(mode: ProfileMode, id: BuiltinProfile): ProfileMeta {
   return { id, name: BUILTIN_NAMES[id], mode, kind: "builtin", note: BUILTIN_NOTES[id] };
@@ -174,8 +218,13 @@ export async function findProfile(mode: ProfileMode, key: string): Promise<Profi
   if (isBuiltin(k)) return builtinMeta(mode, k);
   for (const b of ["default", "original"] as const)
     if (BUILTIN_NAMES[b] === k) return builtinMeta(mode, b);
-  const users = await userMetas(mode);
-  const hit = users.find((u) => u.id === k || u.name === k);
+  const rows = await userMetas(mode);
+  const users = healthy(rows);
+  // id 优先：名称与别的方案 id 撞上时，按 id 找到的才是作者指的那一个。
+  const byId = rows.find((u) => u.id === k);
+  if (byId && isBroken(byId))
+    throw new WriterError("CONFLICT", `方案 ${byId.id} 已损坏：${byId.broken}`);
+  const hit = byId ?? users.find((u) => u.name === k);
   if (!hit)
     throw new WriterError(
       "NOT_FOUND",
@@ -206,18 +255,19 @@ async function overrideIds(mode: ProfileMode, id: string): Promise<string[]> {
 
 const activeFile = () => path.join(profilesRoot(), "active.json");
 
+/** 当前方案的键：配置钉死的优先，其次 active.json 里存的，都没有就是默认。 */
+async function activeKey(mode: ProfileMode, pinned?: string) {
+  if (pinned) return { key: pinned, pinned: true };
+  const saved = (await readJson<Record<string, string>>(activeFile()))?.[mode];
+  return { key: saved || "default", pinned: false };
+}
+
 export async function activeProfile(
   mode: ProfileMode,
   pinned?: string,
 ): Promise<ProfileMeta & { pinned: boolean }> {
-  if (pinned) {
-    return { ...(await findProfile(mode, pinned)), pinned: true };
-  }
-  const saved = (await readJson<Record<string, string>>(activeFile()))?.[mode];
-  if (saved) {
-    return { ...(await findProfile(mode, saved)), pinned: false };
-  }
-  return { ...builtinMeta(mode, "default"), pinned: false };
+  const active = await activeKey(mode, pinned);
+  return { ...(await findProfile(mode, active.key)), pinned: active.pinned };
 }
 
 export async function activateProfile(
@@ -308,21 +358,41 @@ export interface ProfileSummary extends ProfileMeta {
   pinned: boolean;
   methods: number;
   overrides?: number;
+  /** 方案读不出来的原因与文件位置；有它的行不能激活或打开。 */
+  broken?: string;
+  /** 名称与保留的方案 id 同形（旧数据）：照常可用，提示作者改名。 */
+  nameConflict?: boolean;
 }
 
 export async function listProfiles(
   lib: MethodLibrary,
   pinned?: string,
 ): Promise<{ active: string; activeName: string; pinned: boolean; profiles: ProfileSummary[] }> {
-  const [act, def, orig, users] = await Promise.all([
-    activeProfile(lib.mode, pinned),
+  const [key, def, orig, users] = await Promise.all([
+    activeKey(lib.mode, pinned),
     lib.defaultIds(),
     lib.originalIds(),
     userMetas(lib.mode),
   ]);
+  // 当前方案本身损坏时列表照常给出，损坏行标为当前；读方法时 findProfile 会如实报错。
+  const brokenActive = users.find((u) => isBroken(u) && u.id === key.key);
+  const act = brokenActive
+    ? { id: brokenActive.id, name: brokenActive.id, pinned: key.pinned }
+    : { ...(await findProfile(lib.mode, key.key)), pinned: key.pinned };
   const defIds = def.map((d) => d.id);
   const userRows = await Promise.all(
-    users.map(async (u) => {
+    users.map(async (u): Promise<ProfileSummary> => {
+      if (isBroken(u))
+        return {
+          id: u.id,
+          name: u.id,
+          mode: lib.mode,
+          kind: "user",
+          broken: u.broken,
+          active: act.id === u.id,
+          pinned: act.pinned && act.id === u.id,
+          methods: 0,
+        };
       const ov = await overrideIds(lib.mode, u.id);
       const baseIds = u.base === "original" ? orig : defIds;
       return {
@@ -331,6 +401,7 @@ export async function listProfiles(
         pinned: act.pinned && act.id === u.id,
         methods: new Set([...baseIds, ...ov]).size,
         overrides: ov.length,
+        ...(isReservedName(u.name) ? { nameConflict: true } : {}),
       };
     }),
   );
@@ -440,7 +511,7 @@ async function createProfileUnlocked(
   const n = (await userDirs(lib.mode)).reduce((mx, id) => Math.max(mx, userSeq(id)), 0) + 1;
   const id = `user-${n}`;
   const name = input.name?.trim() ? checkName(input.name) : `用户方案${chineseNumber(n)}`;
-  if ([...users.map((u) => u.name), ...Object.values(BUILTIN_NAMES)].includes(name))
+  if ([...healthy(users).map((u) => u.name), ...Object.values(BUILTIN_NAMES)].includes(name))
     throw new WriterError("CONFLICT", `已有同名方案：${name}`);
   let base: BuiltinProfile = "default";
   let copyFrom: ProfileMeta | undefined;
@@ -554,7 +625,9 @@ export async function renameProfile(
   return mutateProfiles(mode, async () => {
     const meta = await editable(mode, key);
     const n = checkName(name);
-    const others = (await userMetas(mode)).filter((u) => u.id !== meta.id).map((u) => u.name);
+    const others = healthy(await userMetas(mode))
+      .filter((u) => u.id !== meta.id)
+      .map((u) => u.name);
     if ([...others, ...Object.values(BUILTIN_NAMES)].includes(n))
       throw new WriterError("CONFLICT", `已有同名方案：${n}`);
     return touch(mode, meta, {

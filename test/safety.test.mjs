@@ -188,18 +188,15 @@ test("T3-08 定稿检查保留章节读取错误，不伪造成空正文", async
   const { createGateEngine } = await import(buildUrl("core/src/gates.js"));
   const { executeTool } = await import(buildUrl("core/src/execute.js"));
   const { engineTools } = await import(buildUrl("fanqie/src/engine/bootstrap.js"));
-  const gates = createGateEngine(
-    [
-      {
-        id: "fanqie.finalize_requires_author",
-        tool: "fanqie_chapter_save",
-        locked: true,
-        description: "作者确认",
-        check: () => ({ kind: "ask", reason: "确认" }),
-      },
-    ],
-    { requireApproval: true },
-  );
+  const gates = createGateEngine([
+    {
+      id: "fanqie.finalize_requires_author",
+      tool: "fanqie_chapter_save",
+      locked: true,
+      description: "作者确认",
+      check: () => ({ kind: "ask", reason: "确认" }),
+    },
+  ]);
   const config = { storageRoot: root, requireEditorPass: true };
   const tool = engineTools(config, gates).find((tool) => tool.name === "fanqie_chapter_save");
   await assert.rejects(
@@ -387,3 +384,55 @@ test("随包 Python 准备失败保留现有运行目录，命中校验标记时
   }
   assert.equal(await readFile(sentinel, "utf8"), "keep");
 });
+
+// 用例需要文件符号链接；Windows 普通账户不能建，目录 junction 的越界已由拆书导入用例覆盖。
+test(
+  "CORE-06 方案工具读文件按 realpath 收口在会话目录内，file 只收 .md",
+  {
+    skip: process.platform === "win32",
+  },
+  async (t) => {
+    const { symlink, realpath } = await import("node:fs/promises");
+    const cwd = await realpath(await tempDir());
+    const outside = await realpath(await tempDir());
+    const profiles = await tempDir("writer-profiles-");
+    t.after(() =>
+      Promise.all([cwd, outside, profiles].map((dir) => rm(dir, { recursive: true, force: true }))),
+    );
+    process.env.WRITER_PROFILES_DIR = profiles;
+    t.after(() => delete process.env.WRITER_PROFILES_DIR);
+    await writeFile(path.join(outside, "secret.txt"), "# 机密\n外部文件内容\n");
+    await mkdir(path.join(outside, "dir"));
+    await writeFile(path.join(outside, "dir", "s3-headline.md"), "# 外部\n外部方法\n");
+    await symlink(path.join(outside, "secret.txt"), path.join(cwd, "note.md"));
+    await symlink(path.join(outside, "dir"), path.join(cwd, "linked"), "dir");
+    await mkdir(path.join(cwd, "mine"));
+    await writeFile(path.join(cwd, "mine", "s3-headline.md"), "# 我的\n先写钱。\n");
+    await symlink(path.join(outside, "secret.txt"), path.join(cwd, "mine", "leak.md"));
+    await writeFile(path.join(cwd, "own.md"), "# 自己的\n作品内的方法。\n");
+    await writeFile(path.join(cwd, "note.txt"), "# 文本\n");
+    const { call } = await createToolHarness({ mode: "toutiao", cwd });
+    const made = await call("toutiao_profile", { action: "create", from_dir: "mine" });
+    // 文件夹里指向外部的链接不算方法文件。
+    assert.deepEqual(made.imported, ["s3-headline"]);
+    const methodsDir = path.join(profiles, "toutiao", made.profile.id, "methods");
+    assert.deepEqual(await readdir(methodsDir), ["s3-headline.md"]);
+    const save = (file) =>
+      call("toutiao_profile", {
+        action: "save",
+        profile: made.profile.id,
+        method: "s4-common",
+        file,
+      });
+    const escaped = await save("note.md");
+    assert.equal(escaped.code, "OUT_OF_ROOT", JSON.stringify(escaped));
+    assert.equal((await save("note.txt")).code, "INVALID_ARGS");
+    assert.equal(
+      (await call("toutiao_profile", { action: "create", from_dir: "linked" })).code,
+      "OUT_OF_ROOT",
+    );
+    assert.deepEqual(await readdir(methodsDir), ["s3-headline.md"], "越界内容没有落进方案");
+    assert.equal((await save("own.md")).id, "s4-common");
+    assert.match(await readFile(path.join(methodsDir, "s4-common.md"), "utf8"), /作品内的方法/);
+  },
+);

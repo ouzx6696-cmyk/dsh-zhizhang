@@ -363,13 +363,16 @@ async function claimWorkspaceUnlocked(root: string): Promise<WorkspaceAccess> {
   }
   throw new WriterError("CONFLICT", `作品锁反复被其他进程抢占：${key}`);
 }
+/** 只读打开时拒绝写入的统一错误：工具、存储与主进程请求入口共用一份文案与错误码。 */
+export function workspaceReadOnlyError(owner: WorkspaceOwner) {
+  return new WriterError(
+    "CONFLICT",
+    `作品由 ${owner.host} 占用（进程 ${owner.pid}），当前只读。请先在另一应用关闭作品。`,
+  );
+}
 export async function assertWorkspaceWritable(root: string) {
   const access = await workspaceAccess(root);
-  if (access.readOnly)
-    throw new WriterError(
-      "CONFLICT",
-      `作品由 ${access.owner.host} 占用（进程 ${access.owner.pid}），当前只读。请先在另一应用关闭作品。`,
-    );
+  if (access.readOnly) throw workspaceReadOnlyError(access.owner);
 }
 export async function releaseWorkspace(root: string) {
   const resolved = path.resolve(root);

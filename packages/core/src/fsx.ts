@@ -1,5 +1,15 @@
 /** 文件工具：原子写、根目录越界检查、按路径串行化。只用 Node 标准库。 */
-import { mkdir, readdir, readFile, rename, open, lstat, rm, stat } from "node:fs/promises";
+import {
+  mkdir,
+  readdir,
+  readFile,
+  realpath,
+  rename,
+  open,
+  lstat,
+  rm,
+  stat,
+} from "node:fs/promises";
 import { randomBytes, createHash } from "node:crypto";
 import path from "node:path";
 import { WriterError } from "./tool.js";
@@ -14,6 +24,32 @@ export function resolveInside(root: string, ...rel: string[]): string {
   const relative = path.relative(base, target);
   if (relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))) return target;
   throw new WriterError("OUT_OF_ROOT", `路径越界：${rel.join("/")}`);
+}
+
+/**
+ * 读侧的路径沙箱：先按字面 resolveInside，再把根与目标都按 realpath 解析后比较，
+ * 挡住经符号链接或 junction 逃出根目录的读取。目标不存在时检查最近的已存在祖先。
+ * 返回解析后的真实路径（不存在的部分原样接在真实祖先后面）。
+ */
+export async function resolveRealInside(root: string, ...rel: string[]): Promise<string> {
+  const target = resolveInside(root, ...rel);
+  const realRoot = await realpath(root);
+  let existing = target;
+  const missing: string[] = [];
+  for (;;) {
+    try {
+      existing = await realpath(existing);
+      break;
+    } catch (error) {
+      if (!isMissingFileError(error) || existing === path.dirname(existing)) throw error;
+      missing.unshift(path.basename(existing));
+      existing = path.dirname(existing);
+    }
+  }
+  const real = path.join(existing, ...missing);
+  const relative = path.relative(realRoot, real);
+  if (relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))) return real;
+  throw new WriterError("OUT_OF_ROOT", `路径越界（经链接指向目录外）：${rel.join("/")}`);
 }
 
 /** Reject links and non-directory ancestors before publishing a local file. Returns true if immediate parent exists. */
@@ -106,8 +142,8 @@ export async function readJson<T>(file: string): Promise<T | undefined> {
   if (t === undefined) return undefined;
   try {
     return JSON.parse(t.replace(/^\uFEFF/, "")) as T;
-  } catch {
-    throw new WriterError("CONFLICT", `JSON 文件损坏：${path.basename(file)}`);
+  } catch (error) {
+    throw new WriterError("CONFLICT", `JSON 文件损坏：${path.resolve(file)}`, { cause: error });
   }
 }
 

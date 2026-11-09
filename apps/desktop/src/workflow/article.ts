@@ -49,7 +49,7 @@ export async function productionQa(
   if (!cur || cur.sha256 !== sha256(value.body))
     await store.stageDraft(id, value.body, "editor", "流水线工作稿");
   const config = { ...run.host.options.toutiao, storageRoot: store.root, python: run.host.python },
-    gates = createGateEngine(toutiaoGateRules(config), { requireApproval: true });
+    gates = createGateEngine(toutiaoGateRules(config));
   const definitions = await createToutiaoTools({ config, role: "editor", gates: () => gates });
   const tool = definitions.find((tool) => tool.name === "toutiao_qa_check");
   if (!tool) throw new Error("文章质检工具不可用");

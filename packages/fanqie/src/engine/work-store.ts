@@ -1,7 +1,13 @@
-import { shortId, exists, isFsError, resolveInside } from "../../../core/src/fsx.js";
+import {
+  shortId,
+  exists,
+  isFsError,
+  resolveInside,
+  resolveRealInside,
+} from "../../../core/src/fsx.js";
 import { errorText } from "../../../core/src/errors.js";
 
-import { mkdir, realpath } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
 import { EMPTY_FOUNDATION, SCHEMA_VERSION } from "./types.js";
@@ -171,7 +177,7 @@ export async function assembleManuscript(
     const out = resolveInside(paths.manuscripts, path.resolve(paths.base, rel));
     await mkdir(paths.manuscripts, { recursive: true });
     await mkdir(path.dirname(out), { recursive: true });
-    resolveInside(await realpath(paths.manuscripts), await realpath(path.dirname(out)));
+    await resolveRealInside(paths.manuscripts, path.dirname(out));
     await atomicWrite(out, parts.join("\n") + "\n");
     return { file: out, words, chapters: included };
   });

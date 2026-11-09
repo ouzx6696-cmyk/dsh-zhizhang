@@ -314,3 +314,72 @@ test("原版方案支持常驻提示中的写作方法入口，保留用户覆�
   }
   await assert.rejects(readMethod(fanqieLibrary, "original", "missing-method"), /没有这份方法/);
 });
+
+test("CORE-03/04/24 方案按 id 优先、拒绝保留名；单个方案损坏或 id 不符只标该行", async () => {
+  const dir = await tempDir("writer-profiles-");
+  process.env.WRITER_PROFILES_DIR = dir;
+  const request = await createRouteHarness();
+  const get = async (route) => (await request(route)).json();
+  const post = async (route, body) => {
+    const response = await request(route, { method: "POST", body });
+    return { status: response.status, ...(await response.json()) };
+  };
+  const { findProfile, readMethod } = await import(buildUrl("core/src/profiles.js"));
+  const { readJson } = await import(buildUrl("core/src/fsx.js"));
+  const { toutiaoLibrary } = await import(buildUrl("toutiao/src/methods.js"));
+  const metaFile = (id) => path.join(dir, "toutiao", id, "profile.json");
+  try {
+    assert.equal((await post("/toutiao/profiles/create", { name: "甲" })).profile.id, "user-1");
+    assert.equal((await post("/toutiao/profiles/create", { name: "乙" })).profile.id, "user-2");
+    // 旧数据：user-1 的名称恰好是 user-2。
+    const first = JSON.parse(await readFile(metaFile("user-1"), "utf8"));
+    await writeFile(metaFile("user-1"), JSON.stringify({ ...first, name: "user-2" }));
+    assert.equal((await findProfile("toutiao", "user-2")).id, "user-2");
+    let list = await get("/toutiao/profiles");
+    assert.equal(list.profiles.find((p) => p.id === "user-1").nameConflict, true);
+    assert.equal(list.profiles.find((p) => p.id === "user-2").nameConflict, undefined);
+    for (const name of ["User-3", "default", "ORIGINAL"]) {
+      const made = await post("/toutiao/profiles/create", { name });
+      assert.equal(made.status, 400, name);
+      assert.equal(made.code, "INVALID_ARGS");
+    }
+    const renamed = await post("/toutiao/profiles/rename", { profile: "user-2", name: "user-1" });
+    assert.equal(renamed.code, "INVALID_ARGS");
+
+    // 一份 profile.json 损坏：列表照常两行，损坏行带完整路径，读该方案如实报错。
+    await writeFile(metaFile("user-2"), "{");
+    list = await get("/toutiao/profiles");
+    assert.equal(list.ok, true);
+    const users = list.profiles.filter((p) => p.kind === "user");
+    assert.deepEqual(
+      users.map((p) => p.id),
+      ["user-1", "user-2"],
+    );
+    assert.equal(users[0].broken, undefined);
+    assert.ok(users[1].broken.includes(metaFile("user-2")), users[1].broken);
+    await assert.rejects(readMethod(toutiaoLibrary, "user-2", "s3-headline"), (error) => {
+      assert.equal(error.code, "CONFLICT");
+      assert.ok(error.message.includes("user-2") && error.message.includes(metaFile("user-2")));
+      return true;
+    });
+    await assert.rejects(readJson(metaFile("user-2")), (error) => {
+      assert.ok(error.cause instanceof SyntaxError);
+      return true;
+    });
+    // 新建不复用损坏方案的编号，也不受它影响。
+    assert.equal((await post("/toutiao/profiles/create", { name: "丙" })).profile.id, "user-3");
+
+    // id 与目录不符：不再凭空消失，按目录名标为损坏。
+    await writeFile(metaFile("user-1"), JSON.stringify({ ...first, id: "user-9" }));
+    list = await get("/toutiao/profiles");
+    const mismatch = list.profiles.find((p) => p.id === "user-1");
+    assert.match(mismatch.broken, /id/);
+    assert.equal(
+      JSON.parse(await readFile(metaFile("user-1"), "utf8")).id,
+      "user-9",
+      "不改作者文件",
+    );
+  } finally {
+    delete process.env.WRITER_PROFILES_DIR;
+  }
+});

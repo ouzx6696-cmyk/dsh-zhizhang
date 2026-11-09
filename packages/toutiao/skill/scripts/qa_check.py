@@ -20,12 +20,13 @@
 字数口径：去掉空白后的全部字符（含标点、数字、字母），配图行与【配图：…】标记不计。
 分数是底线不是目标：过线后不要为了多拿分去堆口语词、数字或引号。
 """
-import argparse, csv, datetime, json, math, os, re, sys
+import argparse, datetime, json, math, os, re, sys
 from dataclasses import dataclass
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from rules import *          # noqa: F401,F403  唯一规则源
 import rules as R
+import ledger as ledger_store  # noqa: E402
 
 def clamp(n):
     return max(0, min(100, round(n)))
@@ -544,10 +545,8 @@ def validate_card_types(card):
 
 
 def read_ledger(path):
-    if not path or not os.path.isfile(path):
-        return []
-    with open(path, encoding="utf-8-sig", newline="") as f:
-        return [row for row in csv.DictReader(f)]
+    # 台账的读法（含公式前缀还原）只在 ledger.py 一处。
+    return ledger_store.read(path) if path else []
 
 
 def _is_draft(name):

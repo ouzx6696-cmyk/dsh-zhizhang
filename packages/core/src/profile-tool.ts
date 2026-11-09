@@ -2,7 +2,7 @@
 import { stat } from "node:fs/promises";
 import path from "node:path";
 import { defineWriterTool, WriterError, type ToolDefinition, type JsonSchemaNode } from "./tool.js";
-import { isMissingFileError, listDir, readText, resolveInside } from "./fsx.js";
+import { isMissingFileError, listDir, readText, resolveRealInside } from "./fsx.js";
 import { str } from "./parse.js";
 import {
   createProfile,
@@ -18,7 +18,7 @@ import {
 
 const S = (description: string): JsonSchemaNode => ({ type: "string", description });
 
-/** 读会话目录下的一个文件夹里的 .md，作为一组方法 */
+/** 读会话目录下的一个文件夹里的 .md，作为一组方法。Dirent 不跟随链接，链接既不算文件也不算目录，一律跳过。 */
 export async function readMethodFolder(dir: string): Promise<{ id: string; text: string }[]> {
   const out: { id: string; text: string }[] = [];
   const walk = async (d: string, depth: number) => {
@@ -93,7 +93,7 @@ export function createProfileTool(
           let files: { id: string; text: string }[] = [];
           const dir = str(args.from_dir);
           if (dir) {
-            const abs = resolveInside(cwd, dir);
+            const abs = await resolveRealInside(cwd, dir);
             if (
               !(
                 await stat(abs).catch((error) => {
@@ -122,7 +122,9 @@ export function createProfileTool(
           let text: unknown = args.text;
           const file = str(args.file);
           if (file) {
-            text = await readText(resolveInside(cwd, file));
+            if (!file.toLowerCase().endsWith(".md"))
+              throw new WriterError("INVALID_ARGS", `file 只接受 .md 文件：${file}`);
+            text = await readText(await resolveRealInside(cwd, file));
             if (text === undefined) throw new WriterError("NOT_FOUND", `文件不存在：${file}`);
           }
           return await saveMethod(

@@ -1,11 +1,10 @@
 /**
  * Python 规则脚本运行器。
- * - 定位 Python（配置 → 环境变量 WRITER_PYTHON → 平台候选），校验 ≥ 3.8；
+ * - 定位 Python：指定的解释器（参数或环境变量 WRITER_PYTHON）只用它本身，未指定才按平台候选探测；校验 ≥ 3.8；
  * - 带超时与取消运行脚本；
  * - stdout 必须是且只是一个 JSON 对象，含 tool/rules_version/ok；否则一律 SCRIPT_FAILED，绝不当作通过。
  */
 import { isMissingFileError } from "./fsx.js";
-import path from "node:path";
 import { spawn } from "node:child_process";
 import { WriterError } from "./tool.js";
 
@@ -124,9 +123,9 @@ export interface PythonCommand {
 
 const cache = new Map<string, Promise<PythonCommand>>();
 
-/** 找可用 Python ≥ 3.8。explicit 为配置项 python（可写 "py -3" 这类带参数的命令）。 */
+/** 找可用 Python ≥ 3.8。explicit 为指定的解释器路径（整串即命令），指定了就不再自动探测。 */
 export function locatePython(explicit?: string): Promise<PythonCommand> {
-  const key = explicit ?? "";
+  const key = explicit?.trim() || process.env.WRITER_PYTHON?.trim() || "";
   let p = cache.get(key);
   if (!p) {
     p = findPython(explicit);
@@ -136,46 +135,56 @@ export function locatePython(explicit?: string): Promise<PythonCommand> {
   return p;
 }
 
-async function findPython(explicit?: string): Promise<PythonCommand> {
-  const candidates: PythonCommand[] = [];
-  const add = (s: string | undefined) => {
-    if (!s || !s.trim()) return;
-    if (path.isAbsolute(s.trim())) {
-      candidates.push({ cmd: s.trim(), prefix: [] });
-      return;
-    }
-    const parts = s.trim().split(/\s+/);
-    candidates.push({ cmd: parts[0], prefix: parts.slice(1) });
-  };
-  add(explicit);
-  add(process.env.WRITER_PYTHON);
-  if (process.platform === "win32") {
-    add("py -3");
-    add("python");
-    add("python3");
-  } else {
-    add("python3");
-    add("python");
+const VERSION_PROBE = 'import sys;print("%d.%d"%sys.version_info[:2])';
+
+/** 能跑且版本 ≥ 3.8 返回 undefined，否则返回原因；找不到命令时为"未找到"。 */
+async function pythonProblem(c: PythonCommand): Promise<string | undefined> {
+  let r: Proc;
+  try {
+    r = await exec(c.cmd, [...c.prefix, "-c", VERSION_PROBE], { timeoutMs: 15000 });
+  } catch (error) {
+    if (isMissingFileError(error)) return "未找到";
+    throw error;
   }
+  const m = /^(\d+)\.(\d+)/.exec(r.stdout.trim());
+  if (r.code === 0 && m && (Number(m[1]) > 3 || (Number(m[1]) === 3 && Number(m[2]) >= 8)))
+    return undefined;
+  return m ? `版本 ${m[0]} 低于 3.8` : `无法运行（退出码 ${r.code}）`;
+}
+
+async function findPython(explicit?: string): Promise<PythonCommand> {
+  // 指定了解释器就只用它：悄悄换成系统 Python 会让质检跑在作者不知道的环境里。
+  const chosen = explicit?.trim() || process.env.WRITER_PYTHON?.trim();
+  if (chosen) {
+    const command = { cmd: chosen, prefix: [] };
+    const problem = await pythonProblem(command);
+    if (problem)
+      throw new WriterError(
+        "SCRIPT_FAILED",
+        `指定的 Python 不可用：${chosen}（${problem}）。请检查环境变量 WRITER_PYTHON；安装包自带的 Python 损坏时请重新安装。`,
+      );
+    return command;
+  }
+  const candidates: PythonCommand[] =
+    process.platform === "win32"
+      ? [
+          { cmd: "py", prefix: ["-3"] },
+          { cmd: "python", prefix: [] },
+          { cmd: "python3", prefix: [] },
+        ]
+      : [
+          { cmd: "python3", prefix: [] },
+          { cmd: "python", prefix: [] },
+        ];
   const tried: string[] = [];
   for (const c of candidates) {
-    tried.push([c.cmd, ...c.prefix].join(" "));
-    try {
-      const r = await exec(
-        c.cmd,
-        [...c.prefix, "-c", 'import sys;print("%d.%d"%sys.version_info[:2])'],
-        { timeoutMs: 15000 },
-      );
-      const m = /^(\d+)\.(\d+)/.exec(r.stdout.trim());
-      if (r.code === 0 && m && (Number(m[1]) > 3 || (Number(m[1]) === 3 && Number(m[2]) >= 8)))
-        return c;
-    } catch (error) {
-      if (!isMissingFileError(error)) throw error;
-    }
+    const problem = await pythonProblem(c);
+    if (!problem) return c;
+    tried.push(`${[c.cmd, ...c.prefix].join(" ")}（${problem}）`);
   }
   throw new WriterError(
     "SCRIPT_FAILED",
-    `找不到 Python 3.8+（试过：${tried.join("、")}）。请安装 Python，或用环境变量 WRITER_PYTHON 指定 Python 路径。`,
+    `找不到 Python 3.8+（试过：${tried.join("、")}）。请安装 Python，或用环境变量 WRITER_PYTHON 指定解释器路径。`,
   );
 }
 

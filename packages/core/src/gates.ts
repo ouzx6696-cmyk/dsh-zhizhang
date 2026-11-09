@@ -26,7 +26,6 @@ export interface GateRule {
 export interface GateConfig {
   /** 关闭的非锁定规则 id */
   disabled?: string[];
-  requireApproval?: boolean;
 }
 
 export interface GateEngine {
@@ -113,7 +112,8 @@ export function createGateEngine(rules: GateRule[], config: GateConfig = {}): Ga
           ruleIds: new Set(asks.map((r) => r.id)),
           at: now,
           input: JSON.stringify([exec.name, exec.arguments]),
-          approved: !config.requireApproval,
+          // 放行只来自作者确认（approveConfirmation），没有默认预批准。
+          approved: false,
           arguments: args,
         });
       }

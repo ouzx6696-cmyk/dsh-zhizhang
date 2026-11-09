@@ -1,7 +1,7 @@
 import { app } from "electron";
 import updater from "electron-updater";
 import type { Runtime } from "../runtime";
-import { handle } from "./handle";
+import { ipcHandler } from "./handle";
 import { releaseWorkspaces } from "../../../../../packages/core/src/workspace-lock";
 
 const { autoUpdater } = updater;
@@ -38,6 +38,7 @@ export function initUpdates(state: Runtime) {
 }
 
 export function registerUpdatesIpc(state: Runtime) {
+  const handle = ipcHandler(state);
   handle("updates", async (action) => {
     if (!app.isPackaged) throw new Error("开发环境不下载更新");
     if (action === "download") await autoUpdater.downloadUpdate();

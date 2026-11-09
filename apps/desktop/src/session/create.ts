@@ -95,7 +95,6 @@ async function startSession(
   };
   const gates = createGateEngine(
     target.mode === "toutiao" ? toutiaoGateRules(config) : fanqieGateRules(config, role),
-    { requireApproval: true },
   );
   const definitions: WriterToolDefinition[] =
     target.mode === "toutiao"

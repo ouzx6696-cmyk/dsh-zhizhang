@@ -3,9 +3,10 @@ import { dialog, shell } from "electron";
 import { LibraryPort } from "../../../../../packages/fanqie/src/engine/ports/library";
 import { resolveFanqiePaths } from "../storage";
 import type { Runtime } from "../runtime";
-import { handle } from "./handle";
+import { ipcHandler } from "./handle";
 
 export function registerLibraryIpc(state: Runtime) {
+  const handle = ipcHandler(state);
   handle("library-storage", async (action) => {
     const target =
       state.target?.mode === "fanqie"

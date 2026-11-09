@@ -75,7 +75,7 @@ export async function learningStatus(host: Sessions, target: Target) {
 }
 async function appendFeedback(host: Sessions, target: Target, item: LearnItem, value?: string) {
   const config = { ...host.options.toutiao, storageRoot: target.root, python: host.python },
-    gates = createGateEngine(toutiaoGateRules(config), { requireApproval: true });
+    gates = createGateEngine(toutiaoGateRules(config));
   const tool = (await createToutiaoTools({ config, role: "writer", gates: () => gates })).find(
     (tool) => tool.name === "toutiao_feedback_append",
   );

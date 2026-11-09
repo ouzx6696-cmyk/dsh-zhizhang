@@ -1,12 +1,13 @@
 import { searchSources } from "../../network";
 import path from "node:path";
 import type { Runtime } from "../runtime";
-import { handle } from "./handle";
+import { ipcHandler } from "./handle";
 import { connection } from "../../models";
 import { modelCatalog, discoverModels, testConnection } from "../../session/pi-adapter";
 import { explainError } from "../../diagnostics";
 
 export function registerModelsIpc(state: Runtime) {
+  const handle = ipcHandler(state);
   handle("model", async (next) =>
     state.reconfigure(async () => {
       // 保存模型会重建全部会话；运行中的任务会被中止，须先等任务结束。

@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { BrowserWindow, nativeTheme, shell } from "electron";
 import type { Runtime } from "./runtime";
 import { guardUnload } from "./exit";
+import { DEV_CONTENT_SECURITY_POLICY } from "./csp";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -25,6 +26,8 @@ export function createMainWindow(state: Runtime) {
       preload: path.join(here, "../preload/preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
+      // preload 只用 contextBridge 与 ipcRenderer，沙箱内可用；显式写出，不依赖 Electron 的默认值。
+      sandbox: true,
     },
   });
   state.window = window;
@@ -44,18 +47,16 @@ export function createMainWindow(state: Runtime) {
       if (/^https?:/.test(url)) void shell.openExternal(url);
     }
   });
-  window.webContents.session.webRequest.onHeadersReceived((details, callback) =>
-    callback({
-      responseHeaders: {
-        ...details.responseHeaders,
-        "Content-Security-Policy": [
-          "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self'" +
-            (rendererOrigin ? " ws: http://localhost:* http://127.0.0.1:*" : "") +
-            "; object-src 'none'; base-uri 'none'; frame-src 'none'",
-        ],
-      },
-    }),
-  );
+  // 生产构建的策略在 index.html 的 meta 里；响应头只对开发服务器的 http 页面生效。
+  if (rendererOrigin)
+    window.webContents.session.webRequest.onHeadersReceived((details, callback) =>
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          "Content-Security-Policy": [DEV_CONTENT_SECURITY_POLICY],
+        },
+      }),
+    );
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   // 渲染层在挂载前读取主题，syncState 返回前的首帧就用对的配色。
   const query = { theme: resolved };

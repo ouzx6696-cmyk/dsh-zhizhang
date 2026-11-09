@@ -7,7 +7,13 @@ import { profileRoutes } from "../../../../packages/workbench/src/profile-api";
 import { toutiaoLibrary } from "../../../../packages/toutiao/src/methods";
 import { fanqieLibrary } from "../../../../packages/fanqie/src/forge";
 import { buildToutiaoDelivery } from "../../../../packages/toutiao/src/workbench/data";
-import { API, ROUTES, type RouteContext } from "../../../../packages/workbench/src/routes";
+import {
+  API,
+  ROUTES,
+  sendError,
+  type RouteContext,
+} from "../../../../packages/workbench/src/routes";
+import { workspaceReadOnlyError } from "../../../../packages/core/src/workspace-lock";
 import { selectTarget } from "./targets";
 import { resolveFanqieWork } from "./storage";
 import type { Runtime } from "./runtime";
@@ -167,7 +173,24 @@ async function notifyWrite(
   }
   state.emit({ refresh: true });
 }
+/**
+ * 只读打开（作品被另一实例占用）时，主进程是拒写的唯一关口：界面上哪个入口发来的 POST 都在这里挡下。
+ * 放行的只有不写作品的请求：诊断扫描、统一整理的简报，以及只写用户数据目录的方法方案。
+ */
+function writesWork(operation: string, options: RequestOptions) {
+  if (options.method !== "POST") return false;
+  if (operation === ROUTES.diagnose || operation === ROUTES.unifyPrepare) return false;
+  return !/^\/(toutiao|fanqie)\/profiles\//.test(operation);
+}
+/** 主进程入口自己拒绝的请求，与路由失败同一形状（code + error），界面按同一提示显示。 */
+function refused(error: unknown): RequestResult {
+  let result: RequestResult = { status: 500, data: {} };
+  sendError({ json: (status, data) => (result = { status, data }) }, error);
+  return result;
+}
 async function performRequest(state: Runtime, operation: string, options: RequestOptions = {}) {
+  if (state.access.readOnly && writesWork(operation, options))
+    return refused(workspaceReadOnlyError(state.access.owner));
   const context = await resolveOperationTarget(state, operation, options);
   if (operation === ROUTES.deliver || operation === ROUTES.deliverArticle)
     return deliver(state, context);

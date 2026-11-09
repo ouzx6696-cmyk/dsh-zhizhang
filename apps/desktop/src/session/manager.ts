@@ -46,7 +46,7 @@ export class Sessions {
   constructor(
     private setup: {
       home: string;
-      python: string;
+      python: string | undefined;
       settings: () => ModelSettings;
       emit: (event: DesktopEvent) => void;
       confirm: (text: string, signal?: AbortSignal) => Promise<boolean>;

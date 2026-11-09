@@ -428,10 +428,9 @@ test("敏感工具不能跳过确认入口，拒绝确认不残留授权", async
     );
   const { createGateEngine } = await import(buildUrl("core/src/gates.js"));
   const { executeTool } = await import(buildUrl("core/src/execute.js"));
-  const gates = createGateEngine(
-    [{ id: "proof", tool: "proof", locked: true, check: () => ({ kind: "ask", reason: "确认" }) }],
-    { requireApproval: true },
-  );
+  const gates = createGateEngine([
+    { id: "proof", tool: "proof", locked: true, check: () => ({ kind: "ask", reason: "确认" }) },
+  ]);
   let writes = 0;
   const definition = {
     name: "proof",
@@ -465,7 +464,7 @@ test("敏感工具不能跳过确认入口，拒绝确认不残留授权", async
   });
   const { fanqieGateRules } = await import(buildUrl("fanqie/src/gates.js"));
   const config = { storageRoot: path.join(cwd, ".writer") };
-  const boundGates = createGateEngine(fanqieGateRules(config, "writer"), { requireApproval: true });
+  const boundGates = createGateEngine(fanqieGateRules(config, "writer"));
   const boundTool = engineTools(config, boundGates).find((t) => t.name === "fanqie_chapter_save");
   const { withPluginConfig } = await import(buildUrl("fanqie/src/engine/tools/context.js"));
   const input = { work: work.key, chapter: "c001", status: "final" };

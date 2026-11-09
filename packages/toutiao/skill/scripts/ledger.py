@@ -14,7 +14,7 @@
   （内容线按主驱动推断：故事型算故事线，其余算资讯线）。平台回流由 writer_bridge metrics-import
   写入：一篇文章一行，整批取数据日期最新的一天做快照，不按日拆行，存量数据不迁移。
 """
-import argparse, csv, datetime, json, os, sys, tempfile, time
+import argparse, csv, datetime, json, os, re, sys, tempfile, time
 from contextlib import contextmanager
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -23,11 +23,31 @@ from rules import LEDGER_FIELDS, LEDGER_METRIC_FIELDS, GENRE_MODE, LINES, line_o
 STATUSES = ["初稿待改", "待验收", "已验收", "验收退回", "已交稿"]
 
 
+# 以 = + - @ 制表符或回车开头的单元格在 Excel/WPS 里可能被当公式执行（CSV 注入）。
+# 写入时前置一个 '，读取时去掉一个；本来就以 ' 加这些字符开头的值也多垫一个，读写往返不丢字。
+# 纯数字（含负数、百分比）不是公式，原样写，表格里仍按数字处理。
+_FORMULA = re.compile(r"'*[=+\-@\t\r]")
+_ESCAPED = re.compile(r"'+[=+\-@\t\r]")
+_NUMBER = re.compile(r"[+-]?\d+(\.\d+)?%?")
+
+
+def escape_cell(value):
+    if isinstance(value, str) and _FORMULA.match(value) and not _NUMBER.fullmatch(value):
+        return "'" + value
+    return value
+
+
+def unescape_cell(value):
+    if isinstance(value, str) and _ESCAPED.match(value):
+        return value[1:]
+    return value
+
+
 def read(path):
     if not os.path.isfile(path):
         return []
     with open(path, encoding="utf-8-sig", newline="") as f:
-        return list(csv.DictReader(f))
+        return [{k: unescape_cell(v) for k, v in row.items()} for row in csv.DictReader(f)]
 
 
 @contextmanager
@@ -85,7 +105,7 @@ def write(path, rows):
                 r = dict(r)
                 if not r.get("内容线"):
                     r["内容线"] = line_of(r)
-                w.writerow(r)
+                w.writerow({k: escape_cell(v) for k, v in r.items()})
             f.flush()
             os.fsync(f.fileno())
         deadline = time.monotonic() + 5

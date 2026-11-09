@@ -132,13 +132,14 @@ export class Runtime {
     }
   }
 
-  pythonPath() {
+  /** 打包态固定用随包 Python；开发态只透传作者指定的 WRITER_PYTHON，没指定交给运行器自动探测。 */
+  pythonPath(): string | undefined {
     return app.isPackaged
       ? path.join(
           process.resourcesPath,
           "python",
           process.platform === "win32" ? "python.exe" : "bin/python3",
         )
-      : process.env.WRITER_PYTHON || (process.platform === "win32" ? "py -3" : "python3");
+      : process.env.WRITER_PYTHON;
   }
 }
