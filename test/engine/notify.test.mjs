@@ -54,7 +54,7 @@ test("提示队列：每个用例拿到新的模块实例，开头队列为空",
   assert.equal(f.items().length, 0);
 });
 
-test("提示队列：同色同文只留最新一条，最多同时显示五条", async () => {
+test("提示队列：同色同文只留最新一条，同一分区最多同时显示五条", async () => {
   const f = noticeFixture();
   f.ui.notify({ tone: "info", text: "重复" });
   f.ui.notify({ tone: "warning", text: "重复" });
@@ -64,7 +64,8 @@ test("提示队列：同色同文只留最新一条，最多同时显示五条",
   for (let index = 0; index < 6; index += 1) f.ui.notify({ tone: "warning", text: `第${index}条` });
   await f.view.flush();
   const shown = f.items().map((item) => text(item.children[1].children[0]));
-  assert.deepEqual(shown, ["第1条", "第2条", "第3条", "第4条", "第5条"]);
+  // 警告分区挤掉最旧的两条（含“重复”警告）；信息分区的“重复”不受影响。
+  assert.deepEqual(shown, ["第1条", "第2条", "第3条", "第4条", "第5条", "重复"]);
 });
 
 test("提示队列：错误与警告进 alert 分区，成功与信息进 status 分区", async () => {
@@ -206,4 +207,44 @@ test("提示计时：焦点移到提示内的按钮不算离开，计时仍暂�
   await f.act("onBlur", f.focusEvent(new FakeNode()));
   await f.advance(4000);
   assert.equal(f.items().length, 0);
+});
+
+test("提示队列：两个分区各自限额，连续成功提示挤不掉未读的错误与警告", async () => {
+  const f = noticeFixture();
+  const tones = () =>
+    f.items().map((item) => item.props["data-tone"] + ":" + text(item.children[1].children[0]));
+  f.ui.notify({ tone: "danger", text: "错误一" });
+  f.ui.notify({ tone: "danger", text: "错误二" });
+  for (const n of [1, 2, 3]) f.ui.notify({ tone: "warning", text: `警告${n}` });
+  for (const n of [1, 2, 3]) f.ui.notify({ tone: "success", text: `成功${n}` });
+  await f.view.flush();
+  assert.deepEqual(tones(), [
+    "danger:错误一",
+    "danger:错误二",
+    "warning:警告1",
+    "warning:警告2",
+    "warning:警告3",
+    "success:成功1",
+    "success:成功2",
+    "success:成功3",
+  ]);
+  f.ui.notify({ tone: "warning", text: "警告4" });
+  await f.view.flush();
+  assert.deepEqual(tones(), [
+    "danger:错误二",
+    "warning:警告1",
+    "warning:警告2",
+    "warning:警告3",
+    "warning:警告4",
+    "success:成功1",
+    "success:成功2",
+    "success:成功3",
+  ]);
+  for (const n of [4, 5, 6]) f.ui.notify({ tone: "info", text: `信息${n}` });
+  await f.view.flush();
+  assert.equal(f.items().filter((item) => item.props["data-tone"] === "danger").length, 1);
+  assert.deepEqual(
+    tones().filter((tone) => !tone.startsWith("danger") && !tone.startsWith("warning")),
+    ["success:成功2", "success:成功3", "info:信息4", "info:信息5", "info:信息6"],
+  );
 });

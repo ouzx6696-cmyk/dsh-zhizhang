@@ -900,6 +900,14 @@ export const UNLOAD_COPY = {
   leave: "离开",
 } as const;
 
+/** 界面兜底：渲染出错时的替代画面，以及没人接住的后台失败。 */
+export const CRASH_COPY = {
+  title: "界面出错了",
+  hint: "作品文件不受影响。重新加载窗口后可继续；已暂存的未保存修改会在再次打开编辑器时提示恢复。",
+  reload: "重新加载窗口",
+  rejected: "后台操作失败：",
+} as const;
+
 /** Human byte size (KB/MB) for truncation notices. */
 export function formatBytes(n: unknown) {
   const value = Number(n) || 0;

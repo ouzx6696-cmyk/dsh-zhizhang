@@ -21,7 +21,9 @@ interface Notice extends NoticeInput {
 
 // 成功与信息类提示是确认，过一会儿自己收起；警告与错误要作者看到并亲手关掉。
 const LIFETIME: Record<NoticeTone, number> = { success: 4000, info: 4000, warning: 0, danger: 0 };
+// 每个分区各自的上限：成功提示再多也挤不掉作者还没看的错误与警告。
 const LIMIT = 5;
+const URGENT = new Set<NoticeTone>(["danger", "warning"]);
 
 let queue: Notice[] = [];
 let sequence = 0;
@@ -32,15 +34,20 @@ function publish(next: Notice[]) {
   for (const listener of listeners) listener();
 }
 
-/** 全应用唯一的提示队列：同样的提示只留最新一条，最多同时显示五条，互不覆盖。 */
+/**
+ * 全应用唯一的提示队列：同样的提示只留最新一条；错误与警告、成功与信息两个分区各自最多五条，
+ * 超出时只淘汰本分区最旧的一条。
+ */
 export function notify(input: NoticeInput) {
   const id = ++sequence;
-  publish(
-    queue
-      .filter((notice) => notice.tone !== input.tone || notice.text !== input.text)
-      .concat({ ...input, id })
-      .slice(-LIMIT),
-  );
+  const urgent = URGENT.has(input.tone);
+  const kept = queue.filter((notice) => notice.tone !== input.tone || notice.text !== input.text);
+  const own = kept
+    .filter((notice) => URGENT.has(notice.tone) === urgent)
+    .concat({ ...input, id })
+    .slice(-LIMIT);
+  const other = kept.filter((notice) => URGENT.has(notice.tone) !== urgent);
+  publish(other.concat(own).sort((a, b) => a.id - b.id));
   return id;
 }
 
@@ -152,8 +159,6 @@ function NoticeItem({ notice }: { notice: Notice }) {
     </div>
   );
 }
-
-const URGENT = new Set<NoticeTone>(["danger", "warning"]);
 
 /**
  * 提示栈：挂一次即可。两个分区常驻 DOM，读屏才能可靠播报后插入的内容：

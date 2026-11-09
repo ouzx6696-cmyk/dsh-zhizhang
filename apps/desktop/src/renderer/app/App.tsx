@@ -23,6 +23,7 @@ import { AgentPanel } from "../features/agent/AgentPanel";
 import { Workspace } from "../features/workspace/Workspace";
 import { CommandPalette } from "../features/palette/CommandPalette";
 import { ConfirmDialog } from "../features/confirm/ConfirmDialog";
+import { RootErrorBoundary, reportUnhandledRejection } from "./crash";
 
 const set = desktopStore.set;
 
@@ -173,12 +174,15 @@ if (initialTheme === "dark" || initialTheme === "light")
   document.documentElement.dataset.theme = initialTheme;
 const root = document.getElementById("root");
 if (!root) throw new Error("找不到界面挂载点 #root，无法启动界面");
+window.addEventListener("unhandledrejection", reportUnhandledRejection);
 createRoot(root).render(
-  preview ? (
-    <Suspense fallback={null}>
-      <DesignPreview />
-    </Suspense>
-  ) : (
-    <App />
-  ),
+  <RootErrorBoundary>
+    {preview ? (
+      <Suspense fallback={null}>
+        <DesignPreview />
+      </Suspense>
+    ) : (
+      <App />
+    )}
+  </RootErrorBoundary>,
 );

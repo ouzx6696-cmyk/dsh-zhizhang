@@ -33,13 +33,20 @@ export function createRuntime({ hostNode } = {}) {
     for (const cell of instance.slots)
       if (cell.value?.effect && typeof cell.value.cleanup === "function") cell.value.cleanup();
   };
+  // 类组件只支持 render 与错误边界（getDerivedStateFromError + componentDidCatch）。
+  class Component {
+    constructor(props) {
+      this.props = props;
+      this.state = {};
+    }
+  }
   const react = {
     createElement: (type, props, ...children) => ({
       type,
       props: props || {},
       children: children.flat(),
     }),
-    Component: class {},
+    Component,
     Fragment: "fragment",
     memo: (component) => component,
     forwardRef: (render) => (props) => render(props, null),
@@ -87,7 +94,10 @@ export function createRuntime({ hostNode } = {}) {
     current = instance;
     instance.cursor = 0;
     try {
-      return { instance, out: type(props) };
+      if (!(type.prototype instanceof Component)) return { instance, out: type(props) };
+      instance.object ??= new type(props);
+      instance.object.props = props;
+      return { instance, out: instance.object.render() };
     } finally {
       current = parent;
     }
@@ -103,7 +113,16 @@ export function createRuntime({ hostNode } = {}) {
         { ...node.props, children: node.children },
         at,
       );
-      const tree = expand(out, at);
+      let tree;
+      try {
+        tree = expand(out, at);
+      } catch (error) {
+        if (!node.type.getDerivedStateFromError) throw error;
+        const object = instance.object;
+        object.state = { ...object.state, ...node.type.getDerivedStateFromError(error) };
+        object.componentDidCatch?.(error, { componentStack: "" });
+        tree = expand(object.render(), at);
+      }
       order.push(instance);
       return tree;
     }

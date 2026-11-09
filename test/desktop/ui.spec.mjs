@@ -314,6 +314,18 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
 
     expect(rendererErrors.splice(0)).toEqual([]);
   });
+  await test.step("没人接住的 Promise 失败显示 danger 提示", async () => {
+    await page.evaluate(() => {
+      void Promise.reject(new Error("probe"));
+    });
+    const notice = page.locator('.ui-notice[data-tone="danger"]', { hasText: "probe" });
+    await expect(notice).toBeVisible();
+    await expect(notice).toContainText("后台操作失败：probe");
+    await notice.getByRole("button", { name: "关闭" }).click();
+    await expect(notice).toBeHidden();
+    // 未调用 preventDefault，浏览器原样报出这次未处理的失败。
+    await expect.poll(() => rendererErrors.splice(0)).toEqual(["probe"]);
+  });
   await test.step("命令面板、角色设置与新对话保留作品", async () => {
     await page.getByRole("tab", { name: "Agent", exact: true }).click();
     const candidate = page.locator('.result-card[data-kind="candidate"]').first();
