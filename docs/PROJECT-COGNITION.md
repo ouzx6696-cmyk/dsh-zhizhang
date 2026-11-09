@@ -1,8 +1,10 @@
 # 织章（dsh-zhizhang）项目认知文档
 
-> 基线：`master @ 64a40e2`（2026-11-09）。源码版本 `1.0.0-preview.1`；最近正式版 `0.9.9`；当前处于 `1.0.1` 稳定性补丁开发阶段，未打标签、未发版。
+> 基线：`master @ bef7fec`（2026-11-09，T126/D01 与 Electron 45 GUI 验证之后）。源码版本 `1.0.0-preview.1`；最近正式版 `0.9.9`；当前处于 `1.0.1` 稳定性补丁开发阶段，未打标签、未发版。
 >
 > 生成方式：文档全量阅读 + 源码按包分工通读 + 核心链路（`core/execute`、写作流水线、IPC、会话层）逐行复核。**本文以代码实际行为为准**；与 `docs/` 旧文冲突处已在正文标注。
+>
+> 本次复核更新：运行时版本、测试计数、只读保护口径、真实模型实测与发布门槛。
 
 ---
 
@@ -299,6 +301,7 @@ test/                         单元/流程/引擎/桌面/PI/渲染/GUI 测试
 | `blueprint` | 开篇三段、主稿结构、延伸 |
 | `draft-N` | economy=1 / standard=2 / premium=3，全部并发；主标题撞近期文章触发重试 |
 | `selection` | 头条读者画像擂台 |
+| `review-0..2` / `revise-0..1` | 编辑硬伤审读 + 最多两轮定向修订；硬伤引文必须落在当前正文 |
 | `facts` / `facts-revise` / `facts-1` | 事实链；允许 `unsupported`，自动删改一轮后复核 |
 | `qa-0..2` | **真实 Python 质检硬闸**；不过线则 `qa-revise-N` 精修，最多两轮 |
 | `facts-final` | 精修改动正文后重核事实链 |
@@ -306,6 +309,8 @@ test/                         单元/流程/引擎/桌面/PI/渲染/GUI 测试
 | `prepared` / `delivery` | 保存工作稿与报告；向文章追加带 `workflow:<runId>` 标记的草稿，幂等 |
 
 与章节不同，头条**不降低质检门槛**：真实 `qa_check` 两轮不过仍失败；有硬伤/无来源事实/未解决修订时，工作稿与报告保留并标注，但**不替作者交稿**。
+
+**经济档只减少起稿数量**（`article.ts:221`），标题矩阵、结构、审读/精修、事实链和质检都不缩减。这是头条真实模型耗时明显高于番茄章节的主要原因，也是后续可做减法的地方。
 
 ### 8.7 规划与记账流水线
 
@@ -466,7 +471,7 @@ test/                         单元/流程/引擎/桌面/PI/渲染/GUI 测试
 - **窗口**：`sandbox: true`、`contextIsolation: true`、`nodeIntegration: false`；导航只允许开发源或同一 `file://`；`window.open` 一律拒绝。
 - **CSP**：生产环境写入 `index.html` meta；`script-src 'self'`，仅样式允许 `unsafe-inline`；开发环境由主进程下发放宽版。
 - **IPC**：只接受主窗口主帧；每个通道在 `validate.ts` 解析；渲染层不能直接碰 Node。
-- **只读保护**：作品被另一实例占用时，主进程在 `operations.ts` 拒绝一切写作品 POST；界面提供「接管」，接管会核对作者看到的锁 id。
+- **只读保护**：主进程入口先按当前选中项目拒绝写作品 POST；带 `base`/`root` 指向另一项目的写请求，再由实际目标作品的存储层锁拒绝（D01 回归覆盖）。界面提供「接管」，接管会核对作者看到的锁 id。
 - **路径**：工具入参 `working_dir` / 文件路径限制在作品根或指定根内；拆书导入限制 32 MiB。
 - **密钥**：API Key 只以 `safeStorage` 密文落盘；不可用时只留内存并在界面提示；`publicModels` 抹掉明文。
 - **日志**：诊断包对密钥、URL 凭据、Bearer/Basic 令牌统一打码；日志保留 7 天。
@@ -487,7 +492,7 @@ test/                         单元/流程/引擎/桌面/PI/渲染/GUI 测试
 | 桌面/PI | `test/desktop/*.test.mjs` | 真实 PI + 本地假模型；运行时、流水线、重试、退出、任务池 |
 | GUI | `npm run test:desktop:ui` | Playwright 驱动真实 Electron，一条完整旅程（含无障碍断言） |
 
-官方记录（`docs/STATUS.md`）：Python 224 + 14 + 2；Node 350（349 通过、1 项 Windows 专属跳过）；PI 与流水线 116；GUI 1 条旅程。假模型是本地 OpenAI 兼容服务，支持工具调用、SSE、错误、截断、挂起与推理事件。
+最近一次 Windows 本地执行：Python 224 + 14 + 2；Node 351（349 通过、2 项按平台跳过；Linux CI 为 350 通过、1 项 Windows 专属跳过）；PI 与流水线 118；GUI 1 条旅程（Electron 45.2.3 下通过）。假模型是本地 OpenAI 兼容服务，支持工具调用、SSE、错误、截断、挂起与推理事件。
 
 ### 13.2 架构守卫
 
@@ -496,6 +501,7 @@ test/                         单元/流程/引擎/桌面/PI/渲染/GUI 测试
 - 依赖分层、包边界、PI 导入边界、渲染层访问边界、`BROWSER_SAFE`；
 - 吞错（无 `allow-catch` 注明）、`any` / 非空断言（AST 计数，基线 1 / 0）；
 - 组件前缀跨文件归属、文件行数提示；
+- `tsconfig.jsx.json` 对 `packages/ui` 与 `packages/workbench` 的 21 个 JSX 做 `checkJs` 检查；`npm run typecheck` 同时跑 core、desktop、JSX 三套配置；
 - 全仓退役包扫描、相对导入循环；
 - 版本一致性：`package.json`、`apps/desktop/package.json`、`core/src/version.ts`、`CHANGELOG` 首个 `##` 标题首词。
 
@@ -503,7 +509,7 @@ test/                         单元/流程/引擎/桌面/PI/渲染/GUI 测试
 
 - `ci.yml`：`scope`（判断改动范围）→ `test`（Linux 跑 core）→ `desktop-ui`（Windows 跑桌面/PI、构建、GUI、打包）→ 可选生成 NSIS/ZIP、检查随包 Python、`latest.yml`、`SHA256SUMS`。
 - `release.yml`：tag `v*` 或手动 dispatch；校验版本、校验和，创建 draft release；含 `-` 的 tag 标 prerelease。
-- 发布门槛：P0 全关、verify/test:desktop 全绿、守卫不退化、Windows 真机安装/升级/卸载手工回归、真实模型经济档实测（需预算授权）。当前未满足后两项。
+- 发布门槛：P0 全关、verify/test:desktop 全绿、守卫不退化、Windows 真机安装/升级/卸载手工回归、真实模型经济档实测。当前 Windows 真机与头条真实模型验收（RM02）未完成；番茄 RM01 已完成。
 
 ---
 
@@ -516,11 +522,21 @@ test/                         单元/流程/引擎/桌面/PI/渲染/GUI 测试
 | 当前阶段 | `1.0.1` 稳定性补丁，已有多项提交在 `master`，未打 tag |
 | 核心能力 | 阶段式写作、上下文预算、方法阶段卡、章节/文章流水线、连续性看板、个人规则、非模态流水线面板 |
 | 待授权 | T134 评分规则调整 |
-| 已完成 | T126 Electron 42→45（45.2.3）、D01 跨项目写保护回归（待 CI/真机确认） |
-| 待执行 | 真实模型经济档验收（需预算）；Windows 真机安装/升级/卸载/关窗手工回归 |
+| 已完成 | T126 Electron 42→45（45.2.3，本地 GUI 旅程通过）；D01 跨项目写保护回归；Windows 锁清理修复；Python 3.10 |
+| 真实模型 | RM01 番茄：已定稿并记账（等待作者确认事实）；RM02 头条：未完成（见 14.1） |
+| 待执行 | CI 结果确认；Windows 真机安装/升级/卸载/关窗回归；RM02 续跑；T134 |
 | 已知不交付 | 段落级多稿合并、第二厂商评审、空闲调度、平台数据自动导入 |
 
 **重要口径**：仓库自述的 token 节省、缓存命中、耗时下降多数是**结构估算或本地微基准**，不是真实服务商实测；不得据此宣称质量提升或费用下降。
+
+### 14.1 真实模型实测（2026-11-09）
+
+| 项 | 结果 |
+| --- | --- |
+| 端点/模型 | `https://api.stepfun.com/step_plan/v1` / `step-5-preview` |
+| RM01 番茄一章 | 完成：章 `c001`《归站》747 字，状态 `final`；候选以作者覆盖参数采纳（有 brief/payoff 警告）；记账完成 extract/delivery，停在等待作者确认事实。正文：`acceptance-results/real-model-summary/RM01-归站.md` |
+| RM02 头条一篇 | 未完成：第一次在编辑审读的硬伤引文校验失败；第二次完成两轮审读/精修后在事实链阶段被 20 分钟墙钟暂停，未进入 Python 质检、未交付、未采用。草稿：`acceptance-results/real-model-summary/RM02-精卫草稿（未质检未采用）.md` |
+| 结论 | 番茄真实模型链路已跑通；头条真实模型验收未达标，不能计入发布门槛。详细记录：`acceptance-results/real-model-summary/REPORT.md`（本地、未提交） |
 
 ---
 
@@ -530,29 +546,30 @@ test/                         单元/流程/引擎/桌面/PI/渲染/GUI 测试
 
 ### 15.1 数据与恢复
 
-- **恢复错误码被统一重包**：`journal.ts` 的 `finish()` 把 conflict/invalid 等错误重包为 `recovery_required`，调用方失去可区分错误码；`read()` 的错误码还依赖文件名分段。
+- **恢复错误码**：`journal.ts` 的 `finish()` 已保留 `NovelError` 原 code，只有未知故障归为 `recovery_required`；`read()` 的错误码仍依赖文件名分段。
 - **连续性写入缺少资源锁**：`storage/continuity.ts` 的 `saveHandoff` 是「读 revision → 比对 → 写」的乐观并发，未持 `withResourceLock`，两进程同 revision 并发写可互相覆盖。
 - **revision 不含 title/status**：改标题/纯状态变更不升 revision，也不留痕；但汇编输出会变化，可能造成「审读仍视为同一版本」的语义偏差。
-- **`selectTarget` 在取得作品锁之前写作品根**：`ensureStorage`、灵感绑定迁移、项目登记发生在 `claimWorkspace` 之前，只读打开也可能改动作品根。
+- **`selectTarget` 预写**：已改为先取得作品锁，再执行 `ensureStorage`、灵感绑定迁移与项目登记；仅保留创建空作品根目录用于 `realpath` 这一步预写。
 - **工作流 basis 过宽**：章节 basis 包含整本书的 foundation/planning/伏笔/连续性，任何无关改动都会让任务中途失败或无法恢复；issue 已在审查报告中提出，尚未重构。
 
 ### 15.2 安全与边界
 
-- **IPC `writer:request` 信任渲染层传入的 root**：`operations.ts:56-60` 直接采用 `root/base/work` 并 `selectTarget` 加锁；CSP 之外没有第二道防线，XSS 可对任意目录发起写请求。
-- **`learning-store` 写保护检查错根**：用 `target.root` 判断只读，而番茄作品锁在作品目录；其他实例锁住作品时仍可能写入（子代理阅读发现，建议复核）。
+- **IPC `writer:request` 信任渲染层传入的 root**：`operations.ts:56-60` 采用 `root/base/work` 解析目标；D01 起写请求会由实际目标作品的存储层锁兜底，但未锁定的其他已登记项目仍可被指定写入。CSP 之外没有针对调用方的第二道身份校验。
+- **`learning-store` 写保护**：已改为按 `learn-pending.json` / 个人规则实际所在目录判断只读，番茄落在作品目录。
 - **主进程错误码不跨 IPC**：渲染层通常只拿到 Electron 包装后的 message，`WriterError.code` 在多数通道丢失。
 
 ### 15.3 文档漂移
 
-- `docs/` 与旧注释仍写「32 条 IPC」，实际 `IpcMap` 为 **39 条**（`apps/desktop/src/main/ipc/contract.ts:60-144`）。
+- `docs/AUDIT.md` 的旧 IPC 计数已更正为 **39 条**（`apps/desktop/src/main/ipc/contract.ts:60-144`）；其他旧文与注释若仍写 32 条，以代码为准。
+- `docs/STATUS.md` 仍写「本轮没有调用真实模型 API」，`docs/ACCEPTANCE.md` 仍把真实模型列为待授权；与 2026-11-09 的 RM01 实测不符，待同步。
 - `docs/engine/*` 的目录优先级、`.writer/` 默认位置带 DSH 插件时代痕迹；桌面恒传 `storageRoot`，实际根由桌面目标决定。
 - `docs/guides/FANQIE.md` 中「默认作品在 `D:/写作/novels`」只适用于统一写作根布局；是否成立取决于 `worksRoot` 项目登记。
 
 ### 15.4 业务规则与文案
 
 - **84 分阈值/规则版本有多处副本**：`qa_check.py`、`brief.ts`、`tools.ts`、`SKILL.md`；`rules.py` 没有独立的 `PASS_SCORE` 常量。
-- **状态词当逻辑用**：`ToutiaoSide.jsx` 用 `copy.ts` 的「已交稿」文案判断状态，改文案即改逻辑。
-- **屏显状态词漂移**：`status.ts` 把「初稿待改」显示为「待改稿」、「验收退回」显示为「待改」，与业务状态词不完全一致。
+- **状态词当逻辑用**（已修复）：`ToutiaoSide.jsx` 与 `quickActions.ts` 不再读展示文案判断状态，统一使用 `status.ts` 的 `TOUTIAO_DELIVERED` 常量。
+- **屏显状态词漂移**（已修复）：`status.ts` 恢复显示「初稿待改」「验收退回」，与业务状态词一致。
 - **头条六维/九项标尺多处重复**：`store.ts`、`tools.ts`、`ToutiaoSide.jsx` 各列一份。
 
 ### 15.5 代码整洁与死代码
@@ -560,8 +577,8 @@ test/                         单元/流程/引擎/桌面/PI/渲染/GUI 测试
 - `draw-task.ts` 的 `drawEnabled` 参数无人传入；`useToutiao.js` 读取服务端从不返回的 `data.sessions`；`ToutiaoApp` 使用 `ArticleRow` 没有的 `createdAt`；`shared/ui.jsx` 的 `toBody` 零引用。
 - `quality-lexicon.ts` 有 import 写在函数之后；`ports/library.ts` 的 `new Map()` 无泛型；`ports/inspiration.ts` 有重复注释。
 - `api.ts` 的 body 上限在桌面 `ctx.body()` 里被忽略；`/projects` 忽略 `base/project`，与 `/works` 来源可能不同。
-- `test/desktop/runtime.test.mjs` 等数十处硬编码 `python: "python3"`，纯 Windows（只有 `python`）环境会失败；`test:desktop` 不加载 `test/setup.mjs`，新增桌面用例可能写真实用户目录。
-- `test:desktop` 与 `scripts/test.mjs` 存在重复构建；CI 的 `core` 与 `test` job 也有重复编译，反馈时间偏长。
+- 桌面测试已统一经 `test/desktop/python.mjs` 探测 Python 3.10+；`test:desktop` 已加载 `test/setup.mjs`；`test:desktop:ui` 已先构建再跑 GUI。
+- `test:desktop` 与 `scripts/test.mjs` 仍存在重复构建；CI 的 `core` 与 `test` job 也有重复编译，反馈时间偏长。
 
 ### 15.6 守卫盲区
 
@@ -664,9 +681,9 @@ npm run assets -- check
 
 **未验证/需要外部条件**
 
-- 真实模型的缓存命中率、实际费用、成稿质量与耗时：仓库自述均为估算或本地假模型结果。
+- 真实模型：RM01 番茄一章已跑通；RM02 头条未完成（无 Python 质检、无采用），不能宣称头条真实模型验收通过；费用与质量只按已发生的单次实测记录，不外推。
 - Windows 真机安装、从 0.9.9 升级、卸载、Alt+F4/任务栏关闭：未执行。
-- 安装包安装与 Windows 真机回归（T126 代码已实现，Electron 45 本地完整 GUI 旅程已通过，待 CI/真机确认）；评分规则调整（T134）未实施。
+- 安装包安装与 Windows 真机回归：T126 代码已实现，Electron 45 本地完整 GUI 旅程已通过，待 CI/真机确认；评分规则调整（T134）未实施。
 - PI SDK 的 auth.json 是否落盘明文凭据：由 SDK 决定，本仓库只传路径，未验证其内部行为。
 
 ---
