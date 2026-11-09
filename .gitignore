@@ -12,4 +12,8 @@ playwright-report/
 
 acceptance-results/
 
+# 可随时删除的本地下载缓存（Electron 运行时等），说明见 .cache/README.md
+/.cache/*
+!/.cache/README.md
+
 .zcode/
