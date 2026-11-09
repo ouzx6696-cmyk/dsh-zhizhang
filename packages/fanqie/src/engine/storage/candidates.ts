@@ -12,7 +12,7 @@ import { lintStyle } from "../style-linter.js";
 import { fingerprint } from "../domain/lifecycle.js";
 import { NovelError } from "../errors.js";
 import { resolveHappenedText } from "../domain/foundation-outcome.js";
-import { readJsonCached } from "../file-cache.js";
+import { readJsonCachedWithStat } from "../file-cache.js";
 import {
   assertCandidateFile,
   assertResourceId,
@@ -441,10 +441,7 @@ export async function listCandidates(dir: string): Promise<CandidateListRow[]> {
         try {
           const metaFile = path.join(candidatesDir(dir), name);
           // mtime 缓存：面板每次刷新都全量列候选，未变的候选不必重读。
-          const [raw, metaStat] = await Promise.all([
-            readJsonCached<CandidateMeta>(metaFile),
-            stat(metaFile),
-          ]);
+          const { value: raw, identity } = await readJsonCachedWithStat<CandidateMeta>(metaFile);
           const bodyFile = candidateBodyFile(raw, name.slice(0, -5));
           const bodyPath = path.join(candidatesDir(dir), bodyFile);
           const bodyStat = await stat(bodyPath);
@@ -459,10 +456,7 @@ export async function listCandidates(dir: string): Promise<CandidateListRow[]> {
           return {
             ...raw,
             readVersion: [
-              metaStat.mtimeMs,
-              metaStat.ctimeMs,
-              metaStat.ino,
-              metaStat.size,
+              ...identity,
               bodyStat.mtimeMs,
               bodyStat.ctimeMs,
               bodyStat.ino,

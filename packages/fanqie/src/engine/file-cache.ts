@@ -10,6 +10,7 @@ interface CacheEntry {
   ino: number;
   size: number;
   text: string;
+  json?: unknown;
   jsonl?: Record<string, unknown>[];
 }
 
@@ -36,6 +37,7 @@ function remember(file: string, entry: CacheEntry) {
 
 async function readEntryCached(file: string): Promise<CacheEntry> {
   const st = await stat(file);
+  if (!st.isFile()) throw new Error(`缓存读取目标不是普通文件：${file}`);
   const hit = textCache.get(file);
   if (
     hit &&
@@ -72,9 +74,18 @@ export async function readTextCached(file: string): Promise<string> {
   return (await readEntryCached(file)).text;
 }
 
-/** readTextCached + JSON.parse；解析失败照常抛错（坏文件不缓存）。 */
+/** Copy parsed data on return: callers cannot mutate later readers' cached value. */
 export async function readJsonCached<T = Record<string, unknown>>(file: string): Promise<T> {
-  return JSON.parse(await readTextCached(file)) as T;
+  return (await readJsonCachedWithStat<T>(file)).value;
+}
+/** Polling candidates need the same metadata identity, without a duplicate stat call. */
+export async function readJsonCachedWithStat<T>(file: string) {
+  const entry = await readEntryCached(file);
+  if (!("json" in entry)) entry.json = JSON.parse(entry.text);
+  return {
+    value: structuredClone(entry.json) as T,
+    identity: [entry.mtimeMs, entry.ctimeMs, entry.ino, entry.size],
+  };
 }
 
 /**

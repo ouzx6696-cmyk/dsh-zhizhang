@@ -919,3 +919,46 @@ test("T130 二十章元数据不随正文长度膨胀", async () => {
   }
 });
 
+test("T131 200 候选冷热列表等价，外部改写和删除即时可见", async () => {
+  const { readJsonCached } = await import("../../build/fanqie/src/engine/file-cache.js");
+  const f = await fixture();
+  try {
+    const { dir } = await createWork(f.paths, { title: "候选缓存" });
+    await setOutline(dir, "c001", {}, "一");
+    const sample = await stageCandidate(dir, { chapterId: "c001", body: "候选正文" });
+    const folder = path.join(dir, "candidates");
+    const template = JSON.parse(await readFile(path.join(folder, sample.id + ".json"), "utf8"));
+    for (let n = 0; n < 200; n++) {
+      const id = `cand-${String(n).padStart(3, "0")}`;
+      await writeFile(path.join(folder, id + ".md"), "候选正文");
+      await writeFile(
+        path.join(folder, id + ".json"),
+        JSON.stringify({
+          ...template,
+          id,
+          bodyFile: id + ".md",
+          stagedAt: new Date(1700000000000 + n).toISOString(),
+        }),
+      );
+    }
+    const cold = await listCandidates(dir);
+    assert.equal(cold.length, 201);
+    assert.deepEqual(await listCandidates(dir), cold);
+    const file = path.join(folder, "cand-000.json"),
+      first = await readJsonCached(file);
+    first.title = "缓存污染";
+    assert.notEqual((await readJsonCached(file)).title, "缓存污染");
+    await writeFile(file, JSON.stringify({ ...first, title: "外部更新" }));
+    let rows = await listCandidates(dir);
+    assert.equal(rows.find((row) => row.id === "cand-000").title, "外部更新");
+    assert.notEqual(
+      rows.find((row) => row.id === "cand-000").readVersion,
+      cold.find((row) => row.id === "cand-000").readVersion,
+    );
+    await rm(path.join(folder, "cand-000.md"));
+    rows = await listCandidates(dir);
+    assert.equal(rows.find((row) => row.id === "cand-000").unavailable, true);
+  } finally {
+    await f.close();
+  }
+});
