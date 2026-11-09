@@ -1,6 +1,6 @@
 # 织章 1.0.1 交接说明
 
-更新：2026-11-09 12:45 HKT。仓库 `ouzx6696-cmyk/dsh-zhizhang`，`master@c54828a`。
+更新：2026-11-09 12:45 HKT。仓库 `ouzx6696-cmyk/dsh-zhizhang`，`master@b926d8c`（CI 全绿）。
 
 计划原文：《织章 1.0.1 优化计划（新版）》，以 `99-路线图与任务单.md` 为准，逐条细节在 `modules/01–06`。计划不在仓库里，交接时请把计划目录一并给接手方。
 
@@ -129,5 +129,11 @@ P0 状态：除 **ENG-01（Electron 42 → 45，T126）** 外，11 条已关闭�
 ## 8. CI 记录
 
 - 43e876a（第 1 周末）：scope、test、desktop-ui 全部 success。
-- c54828a（第 2 周末）：test 失败，原因是 CHANGELOG 标题写成 1.0.1，与版本号守卫冲突（代码无问题）。已在下一个提交修正标题。
-- 下一个提交（含本文件）：推送后由接手方用 `apicall github check_runs_list` 或 GitHub Actions 页面确认。
+- c54828a：CHANGELOG 标题写成 1.0.1，被版本号守卫拦下；404c19c 改为“1.0.0-preview.1 + 1.0.1 开发中”。
+- 推送 Windows 后又暴露两处只在 Windows 上失败的测试，已修（都是测试问题，不是产品代码）：
+  - d2a00ad：`rootIdentity` 大小写断言只在非 Windows 上做。
+  - 896359c：“思考超过 150 秒不被中止”用例在 Windows 粗粒度计时器下推进的模拟时间不够，改为每步推进 2.5 秒。
+  - b926d8c：GUI 旅程里推算流水线目录键时，按 core 的 `rootIdentity` 规则处理（Windows 下小写、正斜杠）。
+- **b926d8c：scope、test、desktop-ui（Windows）全部 success。**
+- 注意：CI 对只改 `docs/**` 和 `*.md` 的推送不触发，需要时用 workflow_dispatch 手动跑 ci.yml。
+- 沙箱提示：本会话末尾沙箱里的 GTK 库丢了（没有 root，装不回去），本地 GUI 旅程起不来；最后一处 GUI 修复只经 Windows CI 验证。换环境后先装 libgtk-3-0、libatk1.0-0、libnss3、libgbm1。
