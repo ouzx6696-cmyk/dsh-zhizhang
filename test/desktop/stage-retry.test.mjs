@@ -745,7 +745,10 @@ test("stall watchdog: a model that keeps thinking past 150 s in total is not cut
     () => ({ thinking: { count: 80, everyMs: 15 }, text: "答案" }),
     async (host, model) => {
       const pending = stageModel(host, "writer", PACKET, new AbortController().signal);
-      const elapsed = await drive(t, pending);
+      // The fake model streams on real time, so mocked time per real tick must be large enough to
+      // pass 150 s even where real timers are coarse (about 15 ms on Windows), yet small enough
+      // that one gap between thinking chunks never reaches 150 s.
+      const elapsed = await drive(t, pending, 2_500);
       assert.equal((await pending).value, "答案");
       assert.equal(model.calls.length, 1);
       assert.ok(elapsed > 150_000, String(elapsed));
