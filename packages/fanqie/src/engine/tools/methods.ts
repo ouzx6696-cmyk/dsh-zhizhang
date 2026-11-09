@@ -1,3 +1,4 @@
+import { chapterTail } from "../storage/chapters.js";
 /** Shared MethodRegistry tools + chapter_brief (writing entry that injects craft packs). */
 import { WriterError } from "../../../../core/src/tool.js";
 import {
@@ -377,10 +378,19 @@ export function methodsTools() {
               (d: import("../domain/lifecycle.js").ChapterDependency) => d.chapterId,
             ),
           ]);
-          const select = (entries: Array<{ chapterId: string }>) =>
-            entries.filter((v) => selectedIds.has(v.chapterId));
-          const finalized = select(meta.continuity.finalized),
-            working = select(meta.continuity.working);
+          const select = (entries: Array<{ chapterId: string; revision: string; at: string }>) =>
+            Promise.all(
+              entries
+                .filter((entry) => selectedIds.has(entry.chapterId))
+                .map(async (entry) => ({
+                  ...entry,
+                  excerpt: await chapterTail(dir, entry.chapterId, 200),
+                })),
+            );
+          const [finalized, working] = await Promise.all([
+            select(meta.continuity.finalized),
+            select(meta.continuity.working),
+          ]);
           lines.push(
             "",
             "## 相关接续索引",

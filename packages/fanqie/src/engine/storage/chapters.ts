@@ -416,9 +416,7 @@ export async function prepareChapterSaveUnlocked(dir: string, input: ChapterSave
     meta.revisionImpacts = (meta.revisionImpacts ?? []).filter((v) => v.chapterId !== id);
   }
   const continuity = meta.continuity ?? { schemaVersion: 1, finalized: [], working: [] };
-  if (!Array.isArray(continuity.finalized) || !Array.isArray(continuity.working))
-    throw new NovelError("bad_continuity", "接续状态格式损坏，请核对元数据。");
-  const entry = { chapterId: id, revision, excerpt: record.body.slice(-200), at: record.updatedAt };
+  const entry = { chapterId: id, revision, at: record.updatedAt };
   continuity.finalized = continuity.finalized.filter((v) => v.chapterId !== id);
   continuity.working = continuity.working.filter((v) => v.chapterId !== id);
   if (record.body.trim())
@@ -493,6 +491,8 @@ async function saveChapterUnlocked(dir: string, input: ChapterSaveInput) {
   const ledgerBefore = input.ledgerEntry ? await snapshotFile(ledgerPath) : null;
   if (input.ledgerEntry) ledger = await readLedger(dir);
   const prepared = await prepareChapterSaveUnlocked(dir, input);
+  if (input.status === "final")
+    await snapshotFiles(dir, [metaPath(dir), chapterFile(dir, prepared.record.id)]);
   await mkdir(chaptersDir(dir), { recursive: true });
   const { chapterBefore, metaBefore } = prepared;
   try {
@@ -579,8 +579,6 @@ export async function updateChapter(
     const previous = await findChapter(dir, input.id);
     if (!previous && input.body === undefined)
       throw new NovelError("bad_args", "新建章节必须提供 content");
-    if (input.status === "final")
-      await snapshotFiles(dir, [metaPath(dir), chapterFile(dir, input.id)]);
     return saveChapterUnlocked(dir, {
       id: input.id,
       title: input.title ?? previous?.title ?? input.id,
@@ -597,4 +595,11 @@ export async function updateChapter(
       ledgerEntry: input.ledgerEntry ?? `显式保存 ${input.id}`,
     });
   });
+}
+
+/** Read the requested chapter only; slicing code points preserves astral characters. */
+export async function chapterTail(dir: string, chapterId: string, length: number) {
+  return Array.from((await readChapter(dir, chapterId)).body.trim())
+    .slice(-length)
+    .join("");
 }

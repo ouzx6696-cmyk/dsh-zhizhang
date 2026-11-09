@@ -1,3 +1,4 @@
+import { chapterTail } from "../../../../packages/fanqie/src/engine/storage/chapters";
 import { resolveFanqieWork } from "../main/storage";
 import type { Target, Focus } from "../context";
 import type { Chapter, Outline, WorkMeta } from "../../../../packages/fanqie/src/engine/types";
@@ -145,17 +146,13 @@ export async function toutiaoContext(
   };
 }
 
-/** 上一章结尾节选：优先接续索引的末尾摘录，没有就读上一章正文结尾。 */
+/** 上一章结尾节选按需读取，索引只保留来源凭据。 */
 async function previousEnding(dir: string, meta: WorkMeta, chapterId: string) {
   const rows = [...meta.chapters].sort((a, b) => a.position - b.position);
   const index = rows.findIndex((row) => row.id === chapterId);
   const previous = index > 0 ? rows[index - 1] : undefined;
   if (!previous) return undefined;
-  const excerpt = [...(meta.continuity?.finalized ?? []), ...(meta.continuity?.working ?? [])]
-    .filter((entry) => entry.chapterId === previous.id)
-    .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))[0]
-    ?.excerpt.trim();
-  const tail = excerpt || (await readChapter(dir, previous.id)).body.trim().slice(-300);
+  const tail = await chapterTail(dir, previous.id, 300);
   return tail ? `${previous.title}（${previous.id}）结尾节选：${tail}` : undefined;
 }
 

@@ -861,3 +861,61 @@ test("CRLF 章节保留正文原始换行，快照读取实际文件元数据", 
     await work.cleanup();
   }
 });
+
+test("T130 拒绝的定稿不生成快照，索引不保存摘录且章尾不切断字符", async () => {
+  const { readdir } = await import("node:fs/promises");
+  const { chapterTail } = await import("../../build/fanqie/src/engine/storage/chapters.js");
+  const f = await fixture();
+  try {
+    const { dir } = await createWork(f.paths, { title: "按需章尾" });
+    for (const id of ["c001", "c002", "c003"]) {
+      await setOutline(dir, id, { targetWords: 100, pov: "林川" }, id);
+      await updateChapter(dir, { id, body: "正文😀😀😀" });
+    }
+    assert.doesNotMatch(await readFile(path.join(dir, "meta.json"), "utf8"), /"excerpt"/);
+    assert.equal(await chapterTail(dir, "c001", 2), "😀😀");
+    const count = () =>
+      readdir(path.join(dir, ".writer-snapshots")).then(
+        (entries) => entries.length,
+        (error) => {
+          if (error.code === "ENOENT") return 0;
+          throw error;
+        },
+      );
+    const before = await count();
+    let ch = await readChapter(dir, "c001");
+    await assert.rejects(
+      updateChapter(dir, { id: "c001", status: "final", expectedRevision: ch.revision }),
+      /审读/,
+    );
+    assert.equal(await count(), before);
+    await updateChapter(dir, { id: "c001", status: "reviewed", expectedRevision: ch.revision });
+    ch = await readChapter(dir, "c001");
+    await updateChapter(dir, { id: "c001", status: "final", expectedRevision: ch.revision });
+    assert.equal(await count(), before + 1);
+  } finally {
+    await f.close();
+  }
+});
+test("T130 二十章元数据不随正文长度膨胀", async () => {
+  const f = await fixture();
+  try {
+    const sizes = [];
+    for (const length of [3000, 30000]) {
+      const { dir } = await createWork(f.paths, {
+        title: "体积验证",
+        key: length === 3000 ? "small" : "large",
+      });
+      for (let n = 1; n <= 20; n++) {
+        const id = `c${String(n).padStart(3, "0")}`;
+        await setOutline(dir, id, { targetWords: 3000, pov: "林川" }, id);
+        await updateChapter(dir, { id, body: "文".repeat(length) });
+      }
+      sizes.push(Buffer.byteLength(await readFile(path.join(dir, "meta.json"), "utf8")));
+    }
+    assert.equal(sizes[1] - sizes[0], 20, "每章 wordCount 增加一位数字；正文不进入 meta");
+  } finally {
+    await f.close();
+  }
+});
+

@@ -204,8 +204,8 @@ export interface WorkMeta {
   }>;
   continuity?: {
     schemaVersion: 1;
-    finalized: Array<{ chapterId: string; revision: string; excerpt: string; at: string }>;
-    working: Array<{ chapterId: string; revision: string; excerpt: string; at: string }>;
+    finalized: Array<{ chapterId: string; revision: string; at: string }>;
+    working: Array<{ chapterId: string; revision: string; at: string }>;
   };
 }
 
