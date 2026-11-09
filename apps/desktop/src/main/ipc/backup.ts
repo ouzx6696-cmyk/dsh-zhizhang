@@ -5,12 +5,14 @@ import { promisify } from "node:util";
 import { localDay } from "../../../../../packages/core/src/fsx";
 import type { Runtime } from "../runtime";
 import { ipcHandler } from "./handle";
+import { dialogStartPath } from "./dialogs";
 import { lockRoot } from "../targets";
 import { inspectRecovery, recoverWork } from "../../recovery";
 
 async function backupDirectory(state: Runtime, source: string) {
   const result = await dialog.showOpenDialog(state.windowOrThrow(), {
     title: "选择备份保存位置（写作根以外）",
+    defaultPath: dialogStartPath(state),
     properties: ["openDirectory", "createDirectory"],
   });
   if (result.canceled) return null;

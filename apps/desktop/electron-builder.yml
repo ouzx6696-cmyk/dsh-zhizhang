@@ -13,6 +13,11 @@ extraResources:
   - from: resources/python
     to: python
 asar: true
+electronFuses:
+  runAsNode: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  onlyLoadAppFromAsar: true
 publish:
   provider: github
   owner: ouzx6696-cmyk

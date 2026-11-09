@@ -19,7 +19,7 @@ export function registerExportIpc(state: Runtime) {
     });
     if (answer.response !== 1) return null;
     if (format === "copy") {
-      clipboard.writeText(content.text);
+      await clipboard.writeText(content.text);
       return { copied: true as const };
     }
     const extension = format === "docx" ? "docx" : "txt",

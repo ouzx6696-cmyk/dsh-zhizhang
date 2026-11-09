@@ -4,6 +4,7 @@ import { mkdir } from "node:fs/promises";
 import type { Runtime } from "../runtime";
 import { selectTarget, takeOverTarget } from "../targets";
 import { ipcHandler } from "./handle";
+import { dialogStartPath } from "./dialogs";
 import { listProjects } from "../../../../../packages/fanqie/src/engine/work-store";
 import { listArticles } from "../../../../../packages/toutiao/src/workbench/data";
 import { VERSION } from "../../../../../packages/core/src/version";
@@ -24,6 +25,7 @@ export function registerWorkspaceIpc(state: Runtime) {
     const mode = value;
     const result = await dialog.showOpenDialog(state.windowOrThrow(), {
       title: mode === "fanqie" ? "选择长篇数据根（包含 works，或空目录）" : "选择头条文章目录",
+      defaultPath: dialogStartPath(state),
       properties: ["openDirectory", "createDirectory"],
     });
     return result.canceled ? null : selectTarget(state, { mode, root: result.filePaths[0] });
@@ -31,6 +33,7 @@ export function registerWorkspaceIpc(state: Runtime) {
   handle("workspace", async () => {
     const result = await dialog.showOpenDialog(state.windowOrThrow(), {
       title: "选择统一写作根",
+      defaultPath: dialogStartPath(state),
       properties: ["openDirectory", "createDirectory"],
     });
     if (result.canceled) return null;

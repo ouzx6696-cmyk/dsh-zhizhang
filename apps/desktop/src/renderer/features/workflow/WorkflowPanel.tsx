@@ -73,7 +73,7 @@ function Pill({
   record: WorkflowRecord | null;
   now: number;
   onExpand: () => void;
-  pillRef: React.RefObject<HTMLButtonElement | null>;
+  pillRef: React.RefObject<HTMLButtonElement>;
 }) {
   return (
     <button

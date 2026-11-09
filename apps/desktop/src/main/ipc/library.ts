@@ -4,6 +4,7 @@ import { LibraryPort } from "../../../../../packages/fanqie/src/engine/ports/lib
 import { resolveFanqiePaths } from "../storage";
 import type { Runtime } from "../runtime";
 import { ipcHandler } from "./handle";
+import { dialogStartPath } from "./dialogs";
 
 export function registerLibraryIpc(state: Runtime) {
   const handle = ipcHandler(state);
@@ -27,6 +28,7 @@ export function registerLibraryIpc(state: Runtime) {
     }
     const result = await dialog.showOpenDialog(state.windowOrThrow(), {
       title: "导入小说原文到拆书库",
+      defaultPath: dialogStartPath(state),
       properties: ["openFile"],
       filters: [{ name: "小说文本", extensions: ["txt", "md"] }],
     });
