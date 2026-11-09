@@ -44,7 +44,7 @@
 
 ## 开发与验证
 
-Node.js 22.19+（建议 24）、npm、Python 3；Windows 可用 `WRITER_PYTHON` 指定 Python。
+Node.js 24.11+、npm、Python 3.10+；Windows 可用 `WRITER_PYTHON` 指定 Python。
 
 ```sh
 npm ci

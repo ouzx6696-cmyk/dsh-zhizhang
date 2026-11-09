@@ -47,7 +47,7 @@
 
 ## 开发
 
-需要 Node.js ≥ 22.19（推荐 24）、npm 和 Python 3.8 及以上；Windows 可用 `WRITER_PYTHON` 指定解释器。
+需要 Node.js ≥ 24.11、npm 和 Python 3.10 及以上；Windows 可用 `WRITER_PYTHON` 指定解释器。
 
 ```bash
 npm ci
