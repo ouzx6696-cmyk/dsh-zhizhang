@@ -62,17 +62,20 @@ npm run desktop:build
 
 Linux 下跑 GUI 旅程：先启动 Xvfb，再 `CI=1 DISPLAY=:99 npm run test:desktop:ui`。方法资产用 `npm run assets -- check` 核对，更新后运行 `npm run assets -- manifest`。代码约定见 [AGENTS.md](AGENTS.md) 与[编码指南](docs/CODING-GUIDE.md)。
 
-| 路径 | 职责 |
-| --- | --- |
-| `apps/desktop` | Electron 主进程、IPC、PI 会话、写作流水线与桌面界面 |
-| `packages/core` | 工具执行、门禁、存储、锁、方法方案、流水线记录 |
-| `packages/fanqie` | 长篇业务、Python 文风规则与方法资产 |
-| `packages/toutiao` | 头条业务、Python 质检与语料方法 |
-| `packages/workbench` | 稿纸阅读器、编辑器与路由契约 |
-| `packages/ui` | 设计系统、文案、通知与基础组件 |
+| 路径                 | 职责                                                |
+| -------------------- | --------------------------------------------------- |
+| `apps/desktop`       | Electron 主进程、IPC、PI 会话、写作流水线与桌面界面 |
+| `packages/core`      | 工具执行、门禁、存储、锁、方法方案、流水线记录      |
+| `packages/fanqie`    | 长篇业务、Python 文风规则与方法资产                 |
+| `packages/toutiao`   | 头条业务、Python 质检与语料方法                     |
+| `packages/workbench` | 稿纸阅读器、编辑器与路由契约                        |
+| `packages/ui`        | 设计系统、文案、通知与基础组件                      |
 
 ## 文档
 
+完整导航见[文档索引](docs/README.md)。
+
+- [剩余工作完成方案](docs/REMAINING-WORK-PLAN.md)：实施顺序、授权、测试矩阵与发布门槛
 - [当前状态](docs/STATUS.md)：已实现范围、验证情况与边界
 - [架构说明](docs/ARCHITECTURE.md)：数据流、上下文与缓存、阶段式写作
 - [自动化验收](docs/ACCEPTANCE.md)
