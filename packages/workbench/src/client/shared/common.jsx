@@ -11,15 +11,17 @@ export function clip(value, n) {
   return text.length <= n ? text : text.slice(0, n) + "…";
 }
 
+/** @param {{ status?: string, mode?: "fanqie" | "toutiao" }} props */
 export function StatusTag({ status, mode = "fanqie" }) {
   const info = statusInfo(mode, status);
   return <Tag tone={info.tone}>{info.label}</Tag>;
 }
+/** @param {{ status?: string, mode?: "fanqie" | "toutiao" }} props */
 export function StatusDot({ status, mode = "fanqie" }) {
   return <StateDot state={statusInfo(mode, status).dot} size={8} />;
 }
 
-export function Section({ title, aside, children, className }) {
+export function Section({ title, aside = null, children, className = "" }) {
   return (
     <section className={cx("wb-section", className)}>
       {title ? (
@@ -33,7 +35,7 @@ export function Section({ title, aside, children, className }) {
   );
 }
 
-export function Empty({ title, hint, icon, children }) {
+export function Empty({ title = null, hint = null, icon = null, children = null }) {
   return (
     <div className="wb-empty">
       {icon ? (
@@ -61,7 +63,7 @@ export function Skeleton({ lines = 6 }) {
   );
 }
 
-export function Callout({ tone = "info", role, children, onDismiss }) {
+export function Callout({ tone = "info", role = undefined, children, onDismiss = undefined }) {
   return (
     <div className="wb-callout" data-tone={tone} role={role}>
       {tone === "danger" || tone === "warning" ? <Icon name="alert" size={14} /> : null}
@@ -81,7 +83,16 @@ export function Callout({ tone = "info", role, children, onDismiss }) {
 }
 
 /** 动作卡片：图标 + 标题 + 一句说明；进行中显示转圈 */
-export function ActionCard({ icon, title, hint, onClick, disabled, busy, primary, offReason }) {
+export function ActionCard({
+  icon,
+  title,
+  hint,
+  onClick,
+  disabled = false,
+  busy = false,
+  primary = false,
+  offReason = undefined,
+}) {
   return (
     <button
       type="button"
@@ -113,7 +124,7 @@ export function ActionCard({ icon, title, hint, onClick, disabled, busy, primary
   );
 }
 
-export function Foundation({ foundation, limit = 240 }) {
+export function Foundation({ foundation = null, limit = 240 }) {
   const f = foundation || {};
   const rows = [
     ["foundationLocks", f.locks],

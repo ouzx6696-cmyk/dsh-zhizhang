@@ -59,10 +59,10 @@ export function FindBar({
   label,
   index,
   total,
-  status: override,
+  status: override = undefined,
   onStep,
-  onReplace,
-  onReplaceAll,
+  onReplace = null,
+  onReplaceAll = null,
   onClose,
   canReplace = false,
 }) {
@@ -152,13 +152,23 @@ export function FindBar({
             onKeyDown={(event) => {
               if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
               event.preventDefault();
-              onReplace();
+              onReplace?.();
             }}
           />
-          <Button variant="outline" size="sm" disabled={!total} onClick={onReplace}>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!total || !onReplace}
+            onClick={() => onReplace?.()}
+          >
             {c.replace}
           </Button>
-          <Button variant="outline" size="sm" disabled={!total} onClick={onReplaceAll}>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!total || !onReplaceAll}
+            onClick={() => onReplaceAll?.()}
+          >
             {c.replaceAll}
           </Button>
         </div>

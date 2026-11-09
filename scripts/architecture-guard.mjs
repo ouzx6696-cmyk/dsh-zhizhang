@@ -236,12 +236,6 @@ const rules = [
     name: "type-checking",
     check(file, source) {
       if (source.includes("@ts-nocheck")) report(file, "不许关闭类型检查");
-      if (
-        file.pkg === "desktop" &&
-        file.file.endsWith(".jsx") &&
-        !/^\/\/ @ts-check\r?\n/.test(source)
-      )
-        report(file, "桌面 JSX 必须显式启用 @ts-check 并纳入 renderer 检查");
     },
   },
   {

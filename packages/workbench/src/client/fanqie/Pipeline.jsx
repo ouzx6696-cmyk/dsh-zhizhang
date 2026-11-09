@@ -91,7 +91,7 @@ function Library({ library }) {
   );
 }
 
-function PlanCard({ title, meta, content, truncated }) {
+function PlanCard({ title, meta = null, content, truncated }) {
   return (
     <li className="wb-card">
       <span className="wb-card-title">{title}</span>

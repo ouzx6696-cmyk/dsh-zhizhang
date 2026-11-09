@@ -25,11 +25,12 @@ function flatten(root) {
       node.parentElement.closest(SKIPPED) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
   });
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-    const owner = node.parentElement.closest(BLOCKS);
+    const textNode = /** @type {Text} */ (node);
+    const owner = textNode.parentElement.closest(BLOCKS);
     if (block && owner !== block) text += "\n";
     block = owner;
-    nodes.push({ node, start: text.length });
-    text += node.data;
+    nodes.push({ node: textNode, start: text.length });
+    text += textNode.data;
   }
   return { nodes, text };
 }

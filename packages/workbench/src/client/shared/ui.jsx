@@ -1,6 +1,5 @@
 /** Resolve optional host controls once. Rendering errors belong to the page boundary. */
 import React from "react";
-import { createPortal } from "react-dom";
 import { Button as UiButton } from "../../../../ui/src/primitives.jsx";
 
 const { useEffect, useRef } = React;
@@ -10,9 +9,9 @@ const cx = (...parts) => parts.filter(Boolean).join(" ");
 function LocalButton({
   variant = "ghost",
   size = "md",
-  icon,
-  className,
-  children,
+  icon = null,
+  className = "",
+  children = null,
   type = "button",
   ...rest
 }) {
@@ -35,7 +34,7 @@ function LocalButton({
   );
 }
 
-function LocalTag({ tone = "outline", className, children }) {
+function LocalTag({ tone = "outline", className = "", children }) {
   return (
     <span className={cx("wb-tag", className)} data-tone={tone}>
       {children}
@@ -43,7 +42,7 @@ function LocalTag({ tone = "outline", className, children }) {
   );
 }
 
-function LocalStateDot({ state, size, className }) {
+function LocalStateDot({ state, size, className = "" }) {
   const edge = size || 10;
   return (
     <span
@@ -62,7 +61,7 @@ function LocalSegmentedControl({
   onChange,
   label,
   disabled = false,
-  className,
+  className = "",
 }) {
   const onKeyDown = (event) => {
     const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
@@ -106,7 +105,14 @@ function LocalSegmentedControl({
   );
 }
 
-function LocalCheckbox({ checked, onChange, label, disabled = false, title, className }) {
+function LocalCheckbox({
+  checked,
+  onChange,
+  label,
+  disabled = false,
+  title = undefined,
+  className = "",
+}) {
   return (
     <label className={cx("wb-checkbox", className)} title={title}>
       <input
@@ -126,11 +132,6 @@ export const StateDot = LocalStateDot;
 export const SegmentedControl = LocalSegmentedControl;
 export const Checkbox = LocalCheckbox;
 export { cx };
-
-/** Portal overlays share the desktop document. */
-export function toBody(node) {
-  return typeof document === "undefined" ? node : createPortal(node, document.body);
-}
 
 const ICONS = {
   book: [
@@ -190,7 +191,7 @@ const ICONS = {
 };
 
 /** 加载中的小圆环（尊重 prefers-reduced-motion，由样式控制） */
-export function Spinner({ size = 14, label }) {
+export function Spinner({ size = 14, label = undefined }) {
   return (
     <span
       className="wb-spinner"
@@ -228,7 +229,7 @@ export function ActionButton({ busy = false, done = 0, icon, children, disabled,
 }
 
 /** Stroke icon; decorative unless a `label` is given. */
-export function Icon({ name, size = 16, label }) {
+export function Icon({ name, size = 16, label = undefined }) {
   const paths = ICONS[name] || ICONS.book;
   return (
     <svg

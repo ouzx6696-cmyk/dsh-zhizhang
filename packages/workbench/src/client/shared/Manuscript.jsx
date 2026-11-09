@@ -33,12 +33,15 @@ function floorBoundary(boundaries, value) {
   return boundaries[Math.max(0, hi)];
 }
 
-export const Manuscript = React.memo(function Manuscript({
-  text,
-  title,
-  issues = EMPTY_ISSUES,
-  annotationId = "wb-reader",
-}) {
+/**
+ * @param {{
+ *   text: string,
+ *   title?: string,
+ *   issues?: readonly { start: number, end: number, id: string, category: string, hint: string }[],
+ *   annotationId?: string
+ * }} props
+ */
+function ManuscriptView({ text, title, issues = EMPTY_ISSUES, annotationId = "wb-reader" }) {
   function marked(run) {
     if (run.text === "\n") return <br key={run.start} />;
     const hits = issues.filter((hit) => hit.start < run.end && hit.end > run.start);
@@ -74,7 +77,7 @@ export const Manuscript = React.memo(function Manuscript({
               const item = [...(reader?.querySelectorAll("li[id]") || [])].find(
                 (item) => item.id === annotationId + "-issue-" + hit.id,
               );
-              item?.focus();
+              if (item instanceof HTMLElement) item.focus();
             }}
           >
             {value}
@@ -104,6 +107,7 @@ export const Manuscript = React.memo(function Manuscript({
     }
   }
 
+  /** @type {import("react").ReactNode[]} */
   const body = parseManuscript(text).map((block) =>
     React.createElement(
       block.kind,
@@ -126,4 +130,6 @@ export const Manuscript = React.memo(function Manuscript({
       {body}
     </article>
   );
-});
+}
+
+export const Manuscript = React.memo(ManuscriptView);

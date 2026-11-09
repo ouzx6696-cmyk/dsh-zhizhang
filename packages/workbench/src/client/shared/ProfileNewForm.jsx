@@ -88,8 +88,7 @@ export function NewProfileForm({ profiles, base, onCancel, onCreate, busy }) {
             <input
               type="file"
               multiple
-              webkitdirectory=""
-              directory=""
+              {...{ webkitdirectory: "", directory: "" }}
               onChange={(e) => pick(e.target.files)}
             />
           </label>

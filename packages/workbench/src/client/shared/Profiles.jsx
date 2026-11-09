@@ -34,7 +34,13 @@ export function ProfilesDialog({
 }) {
   const Frame = inline ? InlineProfiles : Dialog;
   const push = useCallback((tone, text) => void notify({ tone, text }), []);
-  const [list, setList] = useState({ status: "loading", profiles: [], active: "", pinned: false });
+  const [list, setList] = useState({
+    status: "loading",
+    profiles: [],
+    active: "",
+    pinned: false,
+    error: "",
+  });
   const [sel, setSel] = useState("");
   const [detail, setDetail] = useState(null);
   const [filter, setFilter] = useState("");
@@ -52,7 +58,7 @@ export function ProfilesDialog({
     async (keep) => {
       try {
         const r = await api.list();
-        setList({ status: "ready", ...r });
+        setList({ status: "ready", error: "", ...r });
         setSel((cur) =>
           keep && r.profiles.some((p) => p.id === keep)
             ? keep

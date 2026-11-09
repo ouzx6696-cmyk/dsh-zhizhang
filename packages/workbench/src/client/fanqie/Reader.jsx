@@ -121,7 +121,9 @@ export function Reader({
     <div
       className="wb-reader"
       data-view={readerView}
-      style={{ "--wb-font-step": String(state.fontStep) }}
+      style={
+        /** @type {import("react").CSSProperties} */ ({ "--wb-font-step": String(state.fontStep) })
+      }
     >
       <div className="wb-reader-bar">
         <div className="wb-reader-heading">
