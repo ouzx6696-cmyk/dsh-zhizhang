@@ -192,7 +192,9 @@ test("rootIdentity：Windows 下反斜杠归一且不区分大小写", () => {
   } finally {
     Object.defineProperty(process, "platform", platform);
   }
-  assert.notEqual(rootIdentity("Writer/Night"), rootIdentity("writer/night"));
+  // Case-sensitive roots stay distinct only where the host filesystem is case-sensitive.
+  if (process.platform !== "win32")
+    assert.notEqual(rootIdentity("Writer/Night"), rootIdentity("writer/night"));
 });
 
 test("snapshotFiles：只复制存在的文件，内容一致；全部缺失时不建快照目录", async (t) => {
