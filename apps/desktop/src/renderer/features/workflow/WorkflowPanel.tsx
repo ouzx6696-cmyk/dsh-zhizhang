@@ -26,6 +26,7 @@ import { TaskForm } from "./TaskForm";
 import { TabList, tabPanelProps } from "../../../../../../packages/ui/src/tabs";
 import {
   STATE_LABEL,
+  acceptRecord,
   selectedCandidate,
   spanElapsed,
   stageProgress,
@@ -136,7 +137,7 @@ export function WorkflowPanel({
       .workflow(target, "status")
       .then((value) => {
         if (alive) {
-          setValue(value);
+          setValue((current) => acceptRecord(current, value));
           if (value) setRequest(value.request);
         }
       })
@@ -144,7 +145,8 @@ export function WorkflowPanel({
         if (alive) setError(errorText(error));
       });
     const off = onDesktopEvent((event) => {
-      if (event.workflow && scopeId(event.target) === key) setValue(event.workflow);
+      const next = event.workflow;
+      if (next && scopeId(event.target) === key) setValue((current) => acceptRecord(current, next));
     });
     return () => {
       alive = false;
@@ -161,7 +163,8 @@ export function WorkflowPanel({
     setBusy(true);
     try {
       const fresh = action === "start" || action === "replace";
-      setValue(await desktop.workflow(target, action, fresh ? request : undefined));
+      const next = await desktop.workflow(target, action, fresh ? request : undefined);
+      setValue((current) => acceptRecord(current, next));
       return true;
     } catch (error) {
       setError(errorText(error));

@@ -150,3 +150,10 @@ export function selectedCandidate(record: WorkflowRecord) {
 }
 
 export { canApply } from "../../../../../../packages/core/src/workflow-config.js";
+
+/** Keep a newer event when an older status/action response arrives later. */
+export function acceptRecord(current: WorkflowRecord | null, next: WorkflowRecord | null) {
+  return current && next && current.id === next.id && next.updated < current.updated
+    ? current
+    : next;
+}

@@ -351,3 +351,12 @@ test("KIND_LABEL 与 STATE_LABEL 覆盖每一种流水线类型与状态", () =>
   for (const label of [...Object.values(model.KIND_LABEL), ...Object.values(model.STATE_LABEL)])
     assert.ok(typeof label === "string" && label.length > 0);
 });
+
+test("T132 较旧响应不覆盖同任务的新快照", () => {
+  const latest = { id: "run-one", updated: at(2000) },
+    older = { ...latest, updated: at(1000) };
+  assert.equal(model.acceptRecord(latest, older), latest);
+  assert.equal(model.acceptRecord(older, latest), latest);
+  assert.equal(model.acceptRecord(latest, null), null);
+  assert.equal(model.acceptRecord(latest, { ...older, id: "different" }).id, "different");
+});
