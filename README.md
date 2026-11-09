@@ -77,6 +77,7 @@ Linux 下跑 GUI 旅程：先启动 Xvfb，再 `CI=1 DISPLAY=:99 npm run test:de
 
 - [剩余工作完成方案](docs/REMAINING-WORK-PLAN.md)：实施顺序、授权、测试矩阵与发布门槛
 - [当前状态](docs/STATUS.md)：已实现范围、验证情况与边界
+- [项目认知](docs/PROJECT-COGNITION.md)：全局地图、已修复项与当前风险
 - [架构说明](docs/ARCHITECTURE.md)：数据流、上下文与缓存、阶段式写作
 - [自动化验收](docs/ACCEPTANCE.md)
 - [方法方案](docs/guides/PROFILES.md)、[长篇指南](docs/guides/FANQIE.md)

@@ -15,6 +15,7 @@
 ## 开发与引擎
 
 - [仓库规则](../AGENTS.md)、[编码指南](CODING-GUIDE.md)
+- [项目认知与风险](PROJECT-COGNITION.md)：全局地图、已修复项与当前技术债
 - [应用架构](ARCHITECTURE.md)、[引擎架构](engine/ARCHITECTURE.md)
 - [数据与恢复](engine/DATA.md)、[端口契约](engine/PORTS.md)
 - [任务与交接](engine/MAP.md)、[引擎工具](engine/TOOLS.md)

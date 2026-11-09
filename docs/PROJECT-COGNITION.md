@@ -1,10 +1,10 @@
 # 织章（dsh-zhizhang）项目认知文档
 
-> 基线：`master @ bef7fec`（2026-11-09，T126/D01 与 Electron 45 GUI 验证之后）。源码版本 `1.0.0-preview.1`；最近正式版 `0.9.9`；当前处于 `1.0.1` 稳定性补丁开发阶段，未打标签、未发版。
+> 基线：`master`（2026-11-09，全量代码审查与修复之后）。源码版本 `1.0.0-preview.1`；最近正式版 `0.9.9`；当前处于 `1.0.1` 稳定性补丁开发阶段，未打标签、未发版。
 >
 > 生成方式：文档全量阅读 + 源码按包分工通读 + 核心链路（`core/execute`、写作流水线、IPC、会话层）逐行复核。**本文以代码实际行为为准**；与 `docs/` 旧文冲突处已在正文标注。
 >
-> 本次复核更新：运行时版本、测试计数、只读保护口径、真实模型实测与发布门槛。
+> 本次复核更新：运行时版本、测试计数、只读保护口径、真实模型实测、全量审查修复项与发布门槛。
 
 ---
 
@@ -560,8 +560,8 @@ test/                         单元/流程/引擎/桌面/PI/渲染/GUI 测试
 
 ### 15.3 文档漂移
 
-- `docs/AUDIT.md` 的旧 IPC 计数已更正为 **39 条**（`apps/desktop/src/main/ipc/contract.ts:60-144`）；其他旧文与注释若仍写 32 条，以代码为准。
-- `docs/STATUS.md` 仍写「本轮没有调用真实模型 API」，`docs/ACCEPTANCE.md` 仍把真实模型列为待授权；与 2026-11-09 的 RM01 实测不符，待同步。
+- 历史审查报告与旧交接单已从 `docs/` 移除，需要追溯时查 Git 历史；IPC 总数以 `apps/desktop/src/main/ipc/contract.ts` 为准（39 条）。
+- `docs/STATUS.md` 与 `docs/ACCEPTANCE.md` 已同步 2026-11-09 的真实模型实测口径（RM01 通过、RM02 未达标）。
 - `docs/engine/*` 的目录优先级、`.writer/` 默认位置带 DSH 插件时代痕迹；桌面恒传 `storageRoot`，实际根由桌面目标决定。
 - `docs/guides/FANQIE.md` 中「默认作品在 `D:/写作/novels`」只适用于统一写作根布局；是否成立取决于 `worksRoot` 项目登记。
 
@@ -574,7 +574,7 @@ test/                         单元/流程/引擎/桌面/PI/渲染/GUI 测试
 
 ### 15.5 代码整洁与死代码
 
-- `draw-task.ts` 的 `drawEnabled` 参数无人传入；`useToutiao.js` 读取服务端从不返回的 `data.sessions`；`ToutiaoApp` 使用 `ArticleRow` 没有的 `createdAt`；`shared/ui.jsx` 的 `toBody` 零引用。
+- `useToutiao.js` 仍读取服务端从不返回的 `data.sessions`；`drawEnabled` 参数、`ArticleRow.createdAt` 与 `toBody` 已在全量审查中删除。
 - `quality-lexicon.ts` 有 import 写在函数之后；`ports/library.ts` 的 `new Map()` 无泛型；`ports/inspiration.ts` 有重复注释。
 - `api.ts` 的 body 上限在桌面 `ctx.body()` 里被忽略；`/projects` 忽略 `base/project`，与 `/works` 来源可能不同。
 - 桌面测试已统一经 `test/desktop/python.mjs` 探测 Python 3.10+；`test:desktop` 已加载 `test/setup.mjs`；`test:desktop:ui` 已先构建再跑 GUI。
