@@ -7,12 +7,16 @@ export async function runTaskPool<T>(
   count: number,
   limit: number,
   worker: (index: number) => Promise<T>,
+  options: { stopOn?: (error: unknown) => boolean } = {},
 ): Promise<PoolOutcome<T>[]> {
   const outcomes: PoolOutcome<T>[] = new Array(count);
-  let next = 0;
+  let next = 0,
+    stopped = false;
+  let failure: unknown;
   await Promise.all(
     Array.from({ length: Math.min(limit, count) }, async () => {
       for (;;) {
+        if (stopped) return;
         const index = next++;
         if (index >= count) return;
         try {
@@ -20,9 +24,14 @@ export async function runTaskPool<T>(
         } catch (error) {
           // allow-catch: 池契约就是单路失败进结果，由调用方决定降级或整单报错。
           outcomes[index] = { status: "failed", error };
+          if (options.stopOn?.(error)) {
+            stopped = true;
+            failure = error;
+          }
         }
       }
     }),
   );
+  if (stopped) throw failure;
   return outcomes;
 }

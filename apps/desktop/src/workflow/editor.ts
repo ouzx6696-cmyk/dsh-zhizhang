@@ -67,13 +67,14 @@ export async function selectDraft(
     };
     // Jobs 0 and 1 are the two positions of the first persona: running them first lets both
     // (A, B) prefixes reach the provider's cache before the remaining votes go out in parallel.
-    const seeded = await runTaskPool(2, 2, vote);
+    const seeded = await runTaskPool(2, 2, vote, run.poolOptions);
     const seedFailed = seeded.find((outcome) => outcome.status === "failed");
     if (seedFailed?.status === "failed") throw seedFailed.error;
     const rest = await runTaskPool(
       jobs.length - 2,
       VOTE_CONCURRENCY,
       (job) => vote(job + 2),
+      run.poolOptions,
     );
     const outcomes = [...seeded, ...rest];
     const failed = outcomes.find((outcome) => outcome.status === "failed");

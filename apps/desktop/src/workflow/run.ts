@@ -38,6 +38,9 @@ export class WorkflowRun {
       this.fresh = { at: now, check: this.context.assertCurrent() };
     return this.fresh.check;
   }
+  get poolOptions() {
+    return { stopOn: (error: unknown) => error instanceof WorkflowPause || this.signal.aborted };
+  }
   async model<T>(
     id: string,
     title: string,

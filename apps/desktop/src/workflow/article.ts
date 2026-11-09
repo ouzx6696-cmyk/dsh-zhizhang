@@ -232,6 +232,7 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
           },
         },
       ),
+    run.poolOptions,
   );
   const drafts: Draft[] = outcomes.map((outcome) => {
     if (outcome.status === "failed") throw outcome.error;
