@@ -46,3 +46,21 @@ test("DK-11 普通单路失败保持原有隔离，结果没有空洞", async ()
   assert.equal(result[1].status, "failed");
   assert.equal(result[4].value, 4);
 });
+
+test("DK-11 已启动任务的后续失败不覆盖首个暂停原因", async () => {
+  const first = new Error("first pause"),
+    later = new Error("later failure");
+  await assert.rejects(
+    runTaskPool(
+      5,
+      2,
+      async (index) => {
+        if (index === 0) throw first;
+        await new Promise((resolve) => setImmediate(resolve));
+        throw later;
+      },
+      { stopOn: () => true },
+    ),
+    (error) => error === first,
+  );
+});

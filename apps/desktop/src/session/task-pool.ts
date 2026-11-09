@@ -24,7 +24,7 @@ export async function runTaskPool<T>(
         } catch (error) {
           // allow-catch: 池契约就是单路失败进结果，由调用方决定降级或整单报错。
           outcomes[index] = { status: "failed", error };
-          if (options.stopOn?.(error)) {
+          if (!stopped && options.stopOn?.(error)) {
             stopped = true;
             failure = error;
           }
