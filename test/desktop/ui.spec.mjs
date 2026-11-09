@@ -1,11 +1,18 @@
 import AxeBuilder from "@axe-core/playwright";
 import { test, expect, _electron as electron } from "@playwright/test";
-import { mkdtemp, rm, mkdir, writeFile, readdir, readFile, realpath } from "node:fs/promises";
+import { mkdtemp, rm, mkdir, writeFile, readdir, readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
+import { realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { fakeModel } from "./fake-model.mjs";
+
+/** Mirrors core rootIdentity: native realpath, forward slashes, lower case on Windows. */
+function rootIdentityOf(root) {
+  const value = realpathSync.native(path.resolve(root)).replaceAll("\\", "/");
+  return process.platform === "win32" ? value.toLowerCase() : value;
+}
 let app, page, home, root, model;
 const rendererErrors = [];
 // 控制台里的 CSP 拦截报告：生产策略拦掉任何正常资源都算旅程失败。
@@ -471,7 +478,7 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
     // A run left paused on disk, as an interrupted earlier session would leave it.
     const key = createHash("sha256")
       .update(
-        JSON.stringify({ mode: target.mode, root: await realpath(target.root), work: target.work }),
+        JSON.stringify({ mode: target.mode, root: rootIdentityOf(target.root), work: target.work }),
       )
       .digest("hex")
       .slice(0, 24);
