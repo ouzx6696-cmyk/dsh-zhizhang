@@ -693,6 +693,43 @@ test("完整修订保留原稿，旧候选不覆盖新稿并提示接续核对",
   }
 });
 
+test("定稿章改章纲或顺序会降回草稿并失效审读", async () => {
+  const f = await fixture();
+  try {
+    const { dir } = await createWork(f.paths, { title: "定稿章纲" });
+    await setOutline(dir, "c001", { ending: "交出钥匙" }, "第一章");
+    await updateChapter(dir, { id: "c001", body: "她交出了钥匙。" });
+    const first = await readChapter(dir, "c001");
+    await updateChapter(dir, { id: "c001", status: "reviewed", expectedRevision: first.revision });
+    const reviewed = await readChapter(dir, "c001");
+    await updateChapter(dir, { id: "c001", status: "final", expectedRevision: reviewed.revision });
+    const final = await readChapter(dir, "c001");
+    assert.equal(final.status, "final");
+
+    await setOutline(dir, "c001", { ending: "拒绝交出钥匙" });
+    const changed = await readChapter(dir, "c001");
+    assert.equal(changed.status, "drafted", "定稿章改章纲必须降回草稿");
+    assert.notEqual(changed.revision, final.revision);
+    assert.notEqual(changed.review?.revision, changed.revision, "旧审读不能覆盖新版本");
+    await assert.rejects(updateChapter(dir, { id: "c001", status: "final" }), /审读/);
+
+    await updateChapter(dir, {
+      id: "c001",
+      status: "reviewed",
+      expectedRevision: changed.revision,
+    });
+    const again = await readChapter(dir, "c001");
+    await updateChapter(dir, { id: "c001", status: "final", expectedRevision: again.revision });
+    const positioned = await readChapter(dir, "c001");
+    await updateChapter(dir, { id: "c001", position: positioned.position + 1 });
+    const moved = await readChapter(dir, "c001");
+    assert.equal(moved.status, "drafted", "定稿章改顺序必须降回草稿");
+    assert.notEqual(moved.revision, positioned.revision);
+  } finally {
+    await f.close();
+  }
+});
+
 test("只有章纲的章第一次写正文不记修订；之后再改正文才记一条", async () => {
   const f = await fixture();
   try {

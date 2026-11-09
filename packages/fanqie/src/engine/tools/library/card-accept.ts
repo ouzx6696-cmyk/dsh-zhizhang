@@ -30,10 +30,17 @@ export const libraryCardAccept = defineTool({
     ];
     if (work) {
       const card = await LibraryPort.getCard(paths, cardId);
-      const meta = await FoundationPort.appendStyleCard(work.dir, styleCardFoundationEntry(card));
-      lines.push(
-        `- 文风三段+迁移试写已追加进作品「${meta.title}」foundation.style（条目头：文风卡 ${cardId} · 当日日期）`,
-      );
+      try {
+        const meta = await FoundationPort.appendStyleCard(work.dir, styleCardFoundationEntry(card));
+        lines.push(
+          `- 文风三段+迁移试写已追加进作品「${meta.title}」foundation.style（条目头：文风卡 ${cardId} · 当日日期）`,
+        );
+      } catch (error) {
+        throw new Error(
+          `卡「${title}」已采纳（${cardId}），但文风写入作品失败：${error instanceof Error ? error.message : String(error)}。请重试采纳或在作品根基里手工补写 foundation.style。`,
+          { cause: error },
+        );
+      }
     }
     lines.push(
       ...(warnings && warnings.length

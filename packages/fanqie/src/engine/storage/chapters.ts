@@ -335,6 +335,10 @@ export async function prepareChapterSaveUnlocked(dir: string, input: ChapterSave
     ...(input.outline ?? {}),
   });
   const changed = previous != null && previous.body !== input.body;
+  const structureChanged =
+    previous != null &&
+    chapterRevision({ body: previous.body, outline, position }) !== previous.revision;
+  const contentChanged = changed || structureChanged;
   if (input.expectedRevision !== undefined && previous?.revision !== input.expectedRevision)
     throw new NovelError("revision_conflict", "目标章已变化，请读取现行正文后重新准备候选。");
   if (changed && previous?.status === "final" && input.force !== true)
@@ -343,7 +347,7 @@ export async function prepareChapterSaveUnlocked(dir: string, input: ChapterSave
       "定稿正文修改须明确 force=true；修订后降回 drafted 并需重新审读定稿。",
     );
   let status =
-    changed && (previous?.status === "final" || previous?.status === "reviewed")
+    contentChanged && (previous?.status === "final" || previous?.status === "reviewed")
       ? "drafted"
       : input.status && CHAPTER_STATUSES.includes(input.status)
         ? input.status
@@ -446,7 +450,9 @@ export async function prepareChapterSaveUnlocked(dir: string, input: ChapterSave
     const next = meta.chapters.find((c) => c.position > position);
     const impacts = Array.isArray(meta.revisionImpacts) ? meta.revisionImpacts : [];
     let dependents = transitiveDependents(meta.chapters, id);
-    let reason = "正文已修改；请核对已有状态记录、相关后稿与简报依据";
+    let reason = changed
+      ? "正文已修改；请核对已有状态记录、相关后稿与简报依据"
+      : "章纲或章节顺序已修改；请核对后稿、简报依据与连续性";
     // T10 连续性联动（数据驱动）：该章有 committed 核验记录时，受影响线/知识条目并入 dependents。
     // 开关关闭时 commits.json 从未被写出（工具拒绝写入），这里读到空数据，行为与从前一致。
     const entry = (await readCommits(dir)).commits.find((v) => v.chapter === id);

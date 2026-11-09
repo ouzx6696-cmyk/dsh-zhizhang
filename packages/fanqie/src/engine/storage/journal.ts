@@ -317,10 +317,12 @@ export function journal<M extends object, C>(spec: Spec<M, C>) {
       if (j.id !== id) throw problem("conflict", "恢复记录已变化，未继续写入。");
       await apply(context, j);
     } catch (error) {
-      // 记录里的非法 id 等已知错误也属于记录格式问题，统一归为 invalid，原错误挂在 cause 上。
+      // 已经是恢复语义的错误保留原 code（conflict/invalid 等），只有未知故障才归为 required。
+      if (error instanceof NovelError) throw error;
       throw problem(
         "required",
         `${spec.label}未完成（${error instanceof Error ? error.message : String(error)}），请先检查恢复记录。`,
+        { cause: error },
       );
     }
   }
