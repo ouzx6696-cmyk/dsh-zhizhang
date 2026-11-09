@@ -1274,3 +1274,19 @@ test("守卫拒绝 core 外部依赖，允许记录原因的降级", async (t) =
   );
   assert.equal(f.run().status, 0);
 });
+
+test("T124 可选上下文保持精确 token 边界与整块前缀", async () => {
+  const { contextPacket, estimateInput } = await import(buildUrl("core/src/workflow-config.js"));
+  const required = { name: "必带", text: "中文😀ASCII", required: true },
+    optional = { name: "可选", text: "正文", required: false };
+  const full = contextPacket([required], [optional], 1000);
+  assert.deepEqual(contextPacket([required], [optional], estimateInput(full.text)), full);
+  assert.deepEqual(
+    contextPacket(
+      [required],
+      [{ ...optional, text: "正文".repeat(1000) }, optional],
+      estimateInput(full.text),
+    ).omitted,
+    ["可选", "可选"],
+  );
+});

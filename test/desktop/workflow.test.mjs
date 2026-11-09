@@ -61,7 +61,7 @@ function packet(call) {
     .join("\n");
 }
 function stageInput(text) {
-  const value = text.split("## 本阶段输入\n")[1]?.split("\n\n## 本次作者要求")[0];
+  const value = text.split("## 本阶段输入\n")[1]?.split("\n\n## ")[0];
   return value ? JSON.parse(value) : undefined;
 }
 async function until(predicate) {
@@ -415,7 +415,7 @@ test("审读不要求模型回显指纹；硬伤原文按定位结果绑定当�
   );
   assert.equal(result.bodyHash, hash(text));
   assert.equal(result.hard[0].quote, "他说：“走吧。”");
-  assert.throws(() => review('{"hard":[],"suggestions":[]}', text, hash("别的正文")));
+  assert.equal(review('{"hard":[],"suggestions":[]}', text).bodyHash, hash(text));
 });
 
 test("写作引擎预算：旧默认 200000 升级为能跑完标准档的新默认，其余值保留", async () => {
@@ -747,6 +747,46 @@ test("恢复：标题矩阵完成后发了同名文章，已完成阶段不被�
       !f.model.calls.slice(calls).some((call) => packet(call).includes('返回 {"titles"')),
       "标题矩阵不重新生成",
     );
+  } finally {
+    await f.close();
+  }
+});
+
+test("T124 方法缓存不带作品私有数据，跨书复用且模型变化重新生成", async () => {
+  const { WorkflowJournal } = await import("../../build/core/src/workflow.js");
+  const { WorkflowRun } = await import("../../apps/desktop/out-test/workflow-run.mjs");
+  const { stageCard } = await import("../../apps/desktop/out-test/workflow-methods.mjs");
+  const f = await fixture((call) => respondStage(call, {}));
+  try {
+    const create = async (number) =>
+      new WorkflowRun(
+        f.host,
+        await WorkflowJournal.open(
+          path.join(f.home, `card-${number}.json`),
+          { ...request("chapter"), instruction: `PRIVATE INSTRUCTION ${number}` },
+          "hash",
+          "basis",
+          () => {},
+        ),
+        {
+          stable: `PRIVATE BOOK ${number}`,
+          material: [{ name: "private", text: "PRIVATE MATERIAL", required: true }],
+          assertCurrent: async () => {},
+        },
+        { inputBudget: 24000, runBudget: 1200000, grade: "standard", guided: true },
+        new AbortController().signal,
+      );
+    await stageCard(await create(1), "toutiao", "s3-headline");
+    assert.equal(f.model.calls.length, 1);
+    assert.doesNotMatch(
+      JSON.stringify(f.model.calls),
+      /PRIVATE BOOK|PRIVATE INSTRUCTION|PRIVATE MATERIAL/,
+    );
+    await stageCard(await create(2), "toutiao", "s3-headline");
+    assert.equal(f.model.calls.length, 1);
+    f.host.settings().planner.model = "changed-planner";
+    await stageCard(await create(3), "toutiao", "s3-headline");
+    assert.equal(f.model.calls.length, 2);
   } finally {
     await f.close();
   }

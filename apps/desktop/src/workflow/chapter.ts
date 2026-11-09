@@ -87,9 +87,11 @@ export async function chapterPipeline(run: WorkflowRun, target: Target) {
     '返回 {"scenes":[{"purpose":"目的","conflict":"阻力","information":"信息增量","change":"结尾状态变化"}]}，1至6场；单场完整收束不机械拆分。',
     scenes,
   );
-  const writeCard = await stageCard(run, "fanqie", "write-chapter");
-  const editCard = await stageCard(run, "fanqie", "edit"),
-    reviseCard = await stageCard(run, "fanqie", "revise");
+  const [writeCard, editCard, reviseCard] = await Promise.all([
+    stageCard(run, "fanqie", "write-chapter"),
+    stageCard(run, "fanqie", "edit"),
+    stageCard(run, "fanqie", "revise"),
+  ]);
   const count =
     request.grade === "economy"
       ? 1
@@ -111,27 +113,30 @@ export async function chapterPipeline(run: WorkflowRun, target: Target) {
     "从一项误判进入",
   ];
   // Candidates are independent fresh requests with distinct entries; run them side by side.
-  const outcomes = await runTaskPool(count, DRAFT_CONCURRENCY, (index) =>
-    run.model(
-      `draft-${index}`,
-      `起稿 ${index + 1}/${count}`,
-      "writer",
-      writeCard,
-      { plan, scenePlan, entry: entries[index] },
-      (run.context.chapterPosition <= 3
-        ? `这是黄金前三章的第${run.context.chapterPosition}章。第一章前300字进入人物处境和异常、章末留具体钩子；第三章交还一次明确兑现。`
-        : "") + '一次写完整章，不写工具调用或审读标签，返回 {"title":"章名","body":"完整正文"}。',
-      (value) => {
-        const result = draft(value);
-        result.body = normalizeDraft(result.body);
-        const length = countWords(result.body);
-        if (length < plan.targetWords * 0.6 || length > plan.targetWords * 1.5)
-          throw new Error("正文篇幅与章纲目标不匹配，未交付候选");
-        if (/\[(?:待补|占位|TODO)|【(?:待补|占位)/i.test(result.body))
-          throw new Error("正文仍有占位符");
-        return result;
-      },
-    ),
+  const outcomes = await runTaskPool(
+    count,
+    DRAFT_CONCURRENCY,
+    (index) =>
+      run.model(
+        `draft-${index}`,
+        `起稿 ${index + 1}/${count}`,
+        "writer",
+        writeCard,
+        { plan, scenePlan, entry: entries[index] },
+        (run.context.chapterPosition <= 3
+          ? `这是黄金前三章的第${run.context.chapterPosition}章。第一章前300字进入人物处境和异常、章末留具体钩子；第三章交还一次明确兑现。`
+          : "") + '一次写完整章，不写工具调用或审读标签，返回 {"title":"章名","body":"完整正文"}。',
+        (value) => {
+          const result = draft(value);
+          result.body = normalizeDraft(result.body);
+          const length = countWords(result.body);
+          if (length < plan.targetWords * 0.6 || length > plan.targetWords * 1.5)
+            throw new Error("正文篇幅与章纲目标不匹配，未交付候选");
+          if (/\[(?:待补|占位|TODO)|【(?:待补|占位)/i.test(result.body))
+            throw new Error("正文仍有占位符");
+          return result;
+        },
+      ),
   );
   const drafts: Draft[] = outcomes.map((outcome) => {
     if (outcome.status === "failed") throw outcome.error;

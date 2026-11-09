@@ -16,6 +16,9 @@ interface Card {
   sourceHash: string;
   rules: Rule[];
 }
+const CARD_PROMPT = "保留每一节的因果、禁止事项与边界，去掉工具调用和文件操作指令。";
+const CARD_SHAPE =
+  '将各节压为可执行规则；每节对应一项、编号不变，所有规则文字合计不超过1500字。返回 {"rules":[{"id":"原编号","text":"执行规则"}]}。';
 /** Default/original/user profiles remain the only method source; generated cards have no independent editable copy. */
 export async function stageCard(run: WorkflowRun, mode: "fanqie" | "toutiao", id: string) {
   const method = await readMethod(
@@ -47,19 +50,35 @@ export async function stageCard(run: WorkflowRun, mode: "fanqie" | "toutiao", id
       throw new Error("阶段卡超过 1500 字，请压缩表达而不删规则");
     return { sourceHash, rules };
   };
-  const file = path.join(run.host.home, "stage-cards", sourceHash + ".json");
+  const planner = run.host.settings().planner ?? run.host.settings().writer;
+  const key = sha256(
+    JSON.stringify([
+      id,
+      method.text,
+      CARD_PROMPT,
+      CARD_SHAPE,
+      {
+        provider: planner.provider,
+        model: planner.model,
+        baseUrl: planner.baseUrl,
+        thinkingLevel: planner.thinkingLevel,
+        maxTokens: planner.maxTokens,
+      },
+    ]),
+  );
+  const file = path.join(run.host.home, "stage-cards", key + ".json");
   const cached = await readJson<unknown>(file);
   const card =
     cached === undefined
       ? await run.model(
-          `method-${sourceHash.slice(0, 16)}`,
+          `method-${key.slice(0, 16)}`,
           "准备阶段方法",
           "planner",
-          "保留每一节的因果、禁止事项与边界，去掉工具调用和文件操作指令。",
+          CARD_PROMPT,
           { sections },
-          '将各节压为可执行规则；每节对应一项、编号不变，所有规则文字合计不超过1500字。返回 {"rules":[{"id":"原编号","text":"执行规则"}]}。',
+          CARD_SHAPE,
           parse,
-          { material: [], retries: 2 },
+          { bare: true, retries: 2 },
         )
       : parse(cached);
   if (cached === undefined) await atomicWrite(file, JSON.stringify(card, null, 2));

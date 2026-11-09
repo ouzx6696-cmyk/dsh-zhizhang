@@ -1,4 +1,3 @@
-import { sha256 } from "../../../../packages/core/src/fsx";
 import { pairVote, review, revised, type Draft, type Review } from "./schema";
 import { runTaskPool } from "../session/task-pool";
 import type { ContextBlock } from "../../../../packages/core/src/workflow";
@@ -71,7 +70,11 @@ export async function selectDraft(
     const seeded = await runTaskPool(2, 2, vote);
     const seedFailed = seeded.find((outcome) => outcome.status === "failed");
     if (seedFailed?.status === "failed") throw seedFailed.error;
-    const rest = await runTaskPool(jobs.length - 2, VOTE_CONCURRENCY, (job) => vote(job + 2));
+    const rest = await runTaskPool(
+      jobs.length - 2,
+      VOTE_CONCURRENCY,
+      (job) => vote(job + 2),
+    );
     const outcomes = [...seeded, ...rest];
     const failed = outcomes.find((outcome) => outcome.status === "failed");
     if (failed?.status === "failed") throw failed.error;
@@ -144,7 +147,6 @@ export async function editDraft(
   let current = initial;
   let report: Review = { bodyHash: "", hard: [], suggestions: [] };
   for (let round = 0; round <= 2; round++) {
-    const hash = sha256(current.body);
     report = await run.model(
       `review-${round}`,
       "硬伤审读",
@@ -152,7 +154,7 @@ export async function editDraft(
       editCard,
       { draft: current },
       '审读最多5条真正影响读者理解、信任或设定一致性的硬伤。章纲偏离本身只列建议。每条必须引用正文、写明读者影响和定向改法。返回 {"hard":[{"location":"位置","quote":"正文原文","impact":"读者会怎样","fix":"局部改法"}],"suggestions":["章纲偏离或风格建议"]}。',
-      (v) => review(v, current.body, hash),
+      (v) => review(v, current.body),
     );
     if (!report.hard.length)
       return { draft: current, review: report, rounds: round, unresolved: false };

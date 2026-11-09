@@ -199,10 +199,13 @@ export function addUsage(total: WorkflowUsage, next: WorkflowUsage): WorkflowUsa
   };
 }
 
-export function estimateInput(text: string) {
+function inputUnits(text: string) {
   let units = 0;
   for (const char of text) units += char.charCodeAt(0) < 128 ? 0.25 : 1;
-  return Math.ceil(units);
+  return units;
+}
+export function estimateInput(text: string) {
+  return Math.ceil(inputUnits(text));
 }
 export interface ContextBlock {
   name: string;
@@ -224,15 +227,25 @@ export function contextPacket(stable: ContextBlock[], variable: ContextBlock[], 
       "阶段上下文超预算；请缩小任务或调整预算，未截断关键材料",
     );
   const accepted = new Set(required);
+  const occurrences = new Map<ContextBlock, number>();
+  for (const block of blocks) occurrences.set(block, (occurrences.get(block) ?? 0) + 1);
+  let units = required.reduce(
+    (sum, block) => sum + inputUnits(`## ${block.name}\n${block.text}`) + 0.5,
+    -0.5,
+  );
   // Prefix-stable selection: once one optional block does not fit, every later optional block
   // yields too, so stages of one run differ only at the tail of their shared prefix. Callers
   // order optional material from most to least important.
   let full = false;
   for (const block of blocks)
     if (!block.required && block.text.trim()) {
-      const next = blocks.filter((value) => accepted.has(value) || value === block);
-      if (!full && estimateInput(serialize(next)) <= limit) accepted.add(block);
-      else {
+      const addition = accepted.has(block)
+        ? 0
+        : (inputUnits(`## ${block.name}\n${block.text}`) + 0.5) * (occurrences.get(block) ?? 1);
+      if (!full && Math.ceil(units + addition) <= limit) {
+        accepted.add(block);
+        units += addition;
+      } else {
         full = true;
         omitted.push(block.name);
       }

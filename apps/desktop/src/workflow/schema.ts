@@ -176,10 +176,10 @@ export interface Review {
   hard: HardIssue[];
   suggestions: string[];
 }
-export function review(value: unknown, body: string, hash: string): Review {
+export function review(value: unknown, body: string): Review {
   const r = jsonOutput(value);
   // The code binds the review to the body it sent; models are never asked to echo a 64-char hash.
-  if (sha256(body) !== hash) throw new Error("审读未绑定当前正文指纹");
+  const hash = sha256(body);
   const hard = list(r.hard, "硬伤", 5).map((raw) => {
     const i = record(raw),
       quote = locate(body, text(i.quote, "定位原文", 1000));

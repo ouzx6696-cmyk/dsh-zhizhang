@@ -201,34 +201,37 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
     { material },
   );
   const count = request.grade === "economy" ? 1 : request.grade === "premium" ? 3 : 2;
-  const outcomes = await runTaskPool(count, count, (index) =>
-    run.model(
-      `draft-${index}`,
-      `文章起稿 ${index + 1}/${count}`,
-      "writer",
-      writing,
-      {
-        card,
-        source: sourceRef,
-        blueprint,
-        titles: matrix.titles,
-        entry: ["从人物处境切入", "从具体事实影响切入", "从读者的问题切入"][index],
-      },
-      '返回 {"title":"主标题","body":"完整正文（含主标题、必要来源标注与AI参与声明；故事演绎明确标注）"}。只采用来源支持的事实，不伪造采访和人物。',
-      (value) => {
-        const result = draft(value);
-        if ([...result.title].length > limits.titleMax) throw new Error("主标题超过硬上限");
-        result.body = normalizeDraft(result.body);
-        return result;
-      },
-      {
-        material,
-        accept: (result) => {
-          if (recentTitles.includes(result.title)) throw new Error("主标题与近期文章重复");
+  const outcomes = await runTaskPool(
+    count,
+    count,
+    (index) =>
+      run.model(
+        `draft-${index}`,
+        `文章起稿 ${index + 1}/${count}`,
+        "writer",
+        writing,
+        {
+          card,
+          source: sourceRef,
+          blueprint,
+          titles: matrix.titles,
+          entry: ["从人物处境切入", "从具体事实影响切入", "从读者的问题切入"][index],
+        },
+        '返回 {"title":"主标题","body":"完整正文（含主标题、必要来源标注与AI参与声明；故事演绎明确标注）"}。只采用来源支持的事实，不伪造采访和人物。',
+        (value) => {
+          const result = draft(value);
+          if ([...result.title].length > limits.titleMax) throw new Error("主标题超过硬上限");
+          result.body = normalizeDraft(result.body);
           return result;
         },
-      },
-    ),
+        {
+          material,
+          accept: (result) => {
+            if (recentTitles.includes(result.title)) throw new Error("主标题与近期文章重复");
+            return result;
+          },
+        },
+      ),
   );
   const drafts: Draft[] = outcomes.map((outcome) => {
     if (outcome.status === "failed") throw outcome.error;
@@ -327,7 +330,7 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
           edit,
           { draft: checked.draft },
           '返回 {"hard":[{"location":"位置","quote":"正文原文","impact":"读者影响","fix":"局部改法"}],"suggestions":["建议"]}。只报告真正影响阅读或事实信任的硬伤。',
-          (value) => review(value, checked.draft.body, finalHash),
+          (value) => review(value, checked.draft.body),
         );
   // Remaining issues travel with the working draft to the author; nothing is submitted for them.
   const open = finalReview.hard.length > 0 || checked.unresolved || unverified.length > 0;

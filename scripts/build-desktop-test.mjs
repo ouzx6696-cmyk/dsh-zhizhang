@@ -16,6 +16,8 @@ const entries = [
   ["exports", "apps/desktop/src/exports.ts"],
 ];
 entries.push(
+  ["workflow-run", "apps/desktop/src/workflow/run.ts"],
+  ["workflow-methods", "apps/desktop/src/workflow/methods.ts"],
   ["lease", "packages/core/src/workspace-lock.ts"],
   ["work-store", "packages/fanqie/src/engine/work-store.ts"],
   ["review", "packages/fanqie/src/review.ts"],
