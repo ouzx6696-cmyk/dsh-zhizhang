@@ -149,7 +149,7 @@ export async function ledgerPipeline(run: WorkflowRun, target: Target) {
   const result = await run.journal.step(
     "delivery",
     "登记定稿事实与冲突",
-    record,
+    { parse: record },
     async () =>
       withResourceLock(dir, async () => {
         await run.context.assertCurrent();

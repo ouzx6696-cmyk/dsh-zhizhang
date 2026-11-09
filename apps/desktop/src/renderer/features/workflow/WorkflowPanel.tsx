@@ -6,10 +6,11 @@ import {
   WORKFLOW_COPY,
 } from "../../../../../../packages/ui/src/copy.js";
 import { errorText } from "../../../../../../packages/core/src/errors.js";
-import type {
-  WorkflowRecord,
-  WorkflowRequest,
-  EngineSettings,
+import {
+  isUnfinishedRun,
+  type WorkflowRecord,
+  type WorkflowRequest,
+  type EngineSettings,
 } from "../../../../../../packages/core/src/workflow-config.js";
 import { scopeId, type Target, type Focus } from "../../../context";
 import { desktop, onDesktopEvent } from "../../state/desktop";
@@ -155,11 +156,12 @@ export function WorkflowPanel({
   }, [collapsed]);
   const active = value && value.id !== dismissed ? value : null;
   const now = useNow(value?.state === "running");
-  const run = async (action: RunAction | "start") => {
+  const run = async (action: RunAction | "start" | "replace") => {
     setError("");
     setBusy(true);
     try {
-      setValue(await desktop.workflow(target, action, action === "start" ? request : undefined));
+      const fresh = action === "start" || action === "replace";
+      setValue(await desktop.workflow(target, action, fresh ? request : undefined));
       return true;
     } catch (error) {
       setError(errorText(error));
@@ -175,6 +177,20 @@ export function WorkflowPanel({
       cancelLabel: WORKFLOW_COPY.keepRunning,
     });
     if (confirmed && (await run("pause"))) setDismissed(record.id);
+  };
+  /** 上一任务还能继续或采用时，新任务会让它失去入口，先在应用内确认。 */
+  const startNew = async () => {
+    const replace = value !== null && isUnfinishedRun(value);
+    if (
+      replace &&
+      !(await askConfirm({
+        message: WORKFLOW_COPY.replaceConfirm,
+        confirmLabel: WORKFLOW_COPY.replaceStart,
+        cancelLabel: WORKFLOW_COPY.keepPrevious,
+      }))
+    )
+      return;
+    await run(replace ? "replace" : "start");
   };
   const viewCandidate = (record: WorkflowRecord) => {
     void onNavigate(target, {
@@ -297,7 +313,7 @@ export function WorkflowPanel({
                     request={request}
                     setRequest={setRequest}
                     busy={busy}
-                    onStart={() => void run("start")}
+                    onStart={() => void startNew()}
                     onError={onError}
                   />
                 </>

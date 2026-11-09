@@ -15,6 +15,7 @@ import {
   listCandidates,
   updateChapter,
   readWorkMeta,
+  createWork,
 } from "../../apps/desktop/out-test/work-store.mjs";
 import { fakeModel } from "./fake-model.mjs";
 const root = fileURLToPath(new URL("../../", import.meta.url));
@@ -268,7 +269,7 @@ test("编排完整旅程：调度工具→规划采用→章节多稿、校验�
       paused.id,
       "定稿不抢暂停任务的恢复入口",
     );
-    assert.ok(f.events.some((event) => /自动记账暂缓/.test(event.error ?? "")));
+    assert.ok(f.events.some((event) => /记账已排队/.test(event.error ?? "")));
     await f.host.workflows.start(target, request("chapter", "c005"), true);
     state = await f.done(target);
     assert.equal(state.state, "awaiting-author", state.error);
@@ -533,4 +534,220 @@ test("停止原因写进记录：任务预算、余额不足、作者暂停为�
   );
   assert.equal(stopped.state.state, "paused", stopped.state.error);
   assert.equal(stopped.state.reason, "stopped");
+});
+
+/** A fanqie work with complete outlines for `ids`, opened as the desktop target. */
+async function fanqieWork(f, key, ids) {
+  const paths = await ensureStorage(null, { storageRoot: f.data });
+  const { dir } = await createWork(paths, { title: key, key });
+  for (const id of ids) await setOutline(dir, id, plan, "归站");
+  return { dir, target: { mode: "fanqie", root: f.data, work: path.basename(dir) } };
+}
+async function finalize(dir, id) {
+  await updateChapter(dir, { id, body });
+  await updateChapter(dir, {
+    id,
+    status: "reviewed",
+    expectedRevision: (await readChapter(dir, id)).revision,
+  });
+  await updateChapter(dir, { id, status: "final" });
+}
+const pendingLedger = async (f, target) =>
+  JSON.parse(
+    await readFile(
+      path.join(f.home, "workflows", f.host.key(target), "pending-ledger.json"),
+      "utf8",
+    ),
+  ).chapters;
+
+test("新建任务覆盖可继续的任务前先经作者确认；取消则原任务照常恢复，应用内已确认则直接开始", async () => {
+  const control = { holdNext: false, held: false };
+  const f = await fixture((call) => respondStage(call, control));
+  try {
+    const { target } = await fanqieWork(f, "confirm", ["c001", "c002"]);
+    const hold = async (chapter) => {
+      control.holdNext = true;
+      control.held = false;
+      await f.host.workflows.start(target, request("chapter", chapter));
+      await until(() => control.held);
+      await f.host.workflows.stop(target);
+      const paused = await f.host.workflows.status(target);
+      assert.equal(paused.state, "paused");
+      return paused;
+    };
+    const paused = await hold("c001");
+    f.control.confirm = false;
+    await assert.rejects(
+      f.host.workflows.start(target, request("chapter", "c002")),
+      /已取消新建任务/,
+    );
+    assert.equal((await f.host.workflows.status(target)).id, paused.id, "指针仍指向原任务");
+    assert.equal(f.host.workflows.busy(target), false);
+    await f.host.workflows.start(target, paused.request, true);
+    let state = await f.done(target);
+    assert.equal(state.id, paused.id);
+    assert.equal(state.state, "awaiting-author", state.error);
+
+    const second = await hold("c002");
+    f.control.confirm = true;
+    await f.host.workflows.start(target, request("chapter", "c001"));
+    state = await f.done(target);
+    assert.notEqual(state.id, second.id);
+    assert.equal(state.state, "awaiting-author", state.error);
+    assert.ok((await f.host.workflows.history(target)).some((row) => row.id === second.id));
+
+    // The renderer asked in the app already: `replace` must not ask again.
+    const third = await hold("c002");
+    f.control.confirm = false;
+    const replaced = await f.host.workflows.replace(target, request("chapter", "c001"));
+    assert.notEqual(replaced.id, third.id);
+    state = await f.done(target);
+    assert.equal(state.state, "awaiting-author", state.error);
+  } finally {
+    await f.close();
+  }
+});
+
+test("记账给失败与待采用的任务让位并排队；放行后两章依次补记，队列清空", async () => {
+  const control = { failDrafts: true };
+  const f = await fixture((call) => {
+    const text = packet(call),
+      input = stageInput(text),
+      answer = (value) => ({ text: JSON.stringify(value) });
+    if (input?.scenePlan && control.failDrafts) return { text: "不是JSON" };
+    if (text.includes("只细化未来3至5章"))
+      return answer({ chapters: [4, 5, 6].map((n) => ({ id: `c00${n}`, ...plan })) });
+    if (text.includes('返回 {"facts"'))
+      return answer({ facts: [], summary: "取回车票", hook: "悬念", emotion: 3 });
+    return respondStage(call, {});
+  });
+  try {
+    const { dir, target } = await fanqieWork(f, "yield", ["c001", "c002", "c003"]);
+    await finalize(dir, "c001");
+    await finalize(dir, "c002");
+    await f.host.workflows.start(target, { ...request("chapter", "c003"), grade: "economy" });
+    const failed = await f.done(target);
+    assert.equal(failed.state, "failed");
+
+    await f.host.notify(target, { operation: "/chapter/finalize", chapter: "c001" });
+    const after = await f.host.workflows.status(target);
+    assert.equal(after.id, failed.id, "定稿不覆盖失败任务的指针");
+    assert.equal(after.state, "failed");
+    assert.deepEqual(await pendingLedger(f, target), ["c001"]);
+    assert.ok(f.events.some((event) => /记账已排队/.test(event.error ?? "")));
+    control.failDrafts = false;
+    await f.host.workflows.start(target, after.request, true);
+    const retried = await f.done(target);
+    assert.equal(retried.id, failed.id, "从失败处重试仍可用");
+    assert.equal(retried.state, "awaiting-author", retried.error);
+
+    await f.host.workflows.start(target, request("book", ""));
+    const book = await f.done(target);
+    assert.equal(book.state, "awaiting-author", book.error);
+    await f.host.notify(target, { operation: "/chapter/finalize", chapter: "c002" });
+    assert.equal((await f.host.workflows.status(target)).id, book.id, "待采用方案保留");
+    assert.deepEqual(await pendingLedger(f, target), ["c001", "c002"]);
+    await f.host.workflows.apply(target);
+    assert.equal((await readWorkMeta(dir)).chapters.length, 6, "方案仍可采用");
+
+    await f.host.notify(target, { operation: "/chapter/finalize", chapter: "c002" });
+    await until(
+      async () => !f.host.isRunning(target) && (await pendingLedger(f, target)).length === 0,
+    );
+    const recorded = (await f.host.workflows.continuity(target)).chapters.map((row) => row.id);
+    assert.deepEqual(recorded.sort(), ["c001", "c002"]);
+    const ledgers = (await f.host.workflows.history(target)).filter(
+      (row) => row.request.kind === "ledger",
+    );
+    assert.deepEqual(
+      ledgers.map((row) => row.state),
+      ["awaiting-author", "awaiting-author"],
+    );
+  } finally {
+    await f.close();
+  }
+});
+
+test("待补记账队列损坏时报错并提示作者重跑记账，不当作空队列", async () => {
+  const f = await fixture((call) => respondStage(call, {}));
+  try {
+    const { dir, target } = await fanqieWork(f, "broken", ["c001"]);
+    await finalize(dir, "c001");
+    const file = path.join(f.home, "workflows", f.host.key(target), "pending-ledger.json");
+    await mkdir(path.dirname(file), { recursive: true });
+    for (const broken of ["{坏", '{"chapters":"c001"}', '{"chapters":[1]}']) {
+      await writeFile(file, broken);
+      await f.host.notify(target, { operation: "/chapter/finalize", chapter: "c001" });
+      assert.match(f.events.at(-1).error, /待补记账队列已损坏.*定稿记账/);
+      assert.equal(await readFile(file, "utf8"), broken, "损坏文件原样保留");
+    }
+    assert.equal(await f.host.workflows.status(target), undefined, "没有启动记账");
+  } finally {
+    await f.close();
+  }
+});
+
+test("恢复：标题矩阵完成后发了同名文章，已完成阶段不被重新判为不合格", async () => {
+  const fixtureDir = path.join(root, "packages/toutiao/skill/tests/fixtures"),
+    articleBody = await readFile(path.join(fixtureDir, "story_long_good.md"), "utf8"),
+    card = JSON.parse(await readFile(path.join(fixtureDir, "story_long_card.json"), "utf8"));
+  const title = card["主标题"],
+    titles = [title, ...card["备选标题"]];
+  const control = { holdNext: true, held: false };
+  const f = await fixture((call) => {
+    const text = packet(call),
+      input = stageInput(text),
+      answer = (value) => ({ text: JSON.stringify(value) });
+    if (input?.sections) return respondStage(call, {});
+    if (text.includes('返回 {"titles"')) return answer({ titles });
+    if (text.includes('返回 {"opening"'))
+      return answer({ opening: "精卫飞来", structure: "逐项解读原典", extension: "比较西西弗斯" });
+    if (input?.blueprint) {
+      if (control.holdNext) {
+        control.holdNext = false;
+        control.held = true;
+        return { wait: true };
+      }
+      return answer({ title, body: articleBody });
+    }
+    if (text.includes('返回 {"hard"')) return answer({ hard: [], suggestions: [] });
+    if (text.includes('返回 {"claims"'))
+      return answer({ claims: [{ claim: "精卫", quote: "精卫", kind: "quotation" }] });
+    throw new Error("未覆盖文章阶段：" + text.slice(-160));
+  });
+  try {
+    const store = new ArticleStore(f.data),
+      meta = await store.create("story", { line: "故事线", genre: "长图文" }),
+      target = { mode: "toutiao", root: f.data, article: meta.id };
+    await store.writeCard(meta.id, card);
+    const req = {
+      ...request("article"),
+      grade: "economy",
+      line: "story",
+      instruction: "解释精卫填海原典",
+      source: "《山海经》：精卫常衔西山之木石，以堙于东海。",
+    };
+    await f.host.workflows.start(target, req);
+    await until(() => control.held);
+    await f.host.workflows.stop(target);
+    const paused = await f.host.workflows.status(target);
+    assert.equal(paused.state, "paused");
+    assert.equal(paused.steps.find((row) => row.id === "headlines").status, "complete");
+    // While paused the author published another article under one of the alternative titles.
+    const other = await store.create("other", { line: "故事线", genre: "长图文" });
+    await store.update(other.id, (row) => {
+      row.headlines = { main: titles[1], alts: [] };
+    });
+    const calls = f.model.calls.length;
+    await f.host.workflows.start(target, req, true);
+    const state = await f.done(target);
+    assert.equal(state.state, "awaiting-author", state.error);
+    assert.equal(state.id, paused.id);
+    assert.ok(
+      !f.model.calls.slice(calls).some((call) => packet(call).includes('返回 {"titles"')),
+      "标题矩阵不重新生成",
+    );
+  } finally {
+    await f.close();
+  }
 });

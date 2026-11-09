@@ -45,7 +45,7 @@ export async function chapterPipeline(run: WorkflowRun, target: Target) {
     ? await run.journal.step(
         "outline",
         "采用作者章纲",
-        outline,
+        { parse: outline },
         async () => ({
           value: { ...existing.outline, title: existing.title },
           usage: emptyUsage(),
@@ -60,19 +60,22 @@ export async function chapterPipeline(run: WorkflowRun, target: Target) {
         planCard,
         { chapter: existing },
         "返回完整章纲 JSON：title,pov,targetWords（整数）,locks,knowledge,synopsis,conflict,beats,ending。只能补空白，原有字段逐字保留；缺少关键事实时明确报错。",
-        (value) => {
-          const result = outline(value);
-          if (existing.title !== existing.id && result.title !== existing.title)
-            throw new Error("补全章纲改变了作者章名");
-          for (const key of required)
-            if (existing.outline[key].trim() && result[key] !== existing.outline[key])
-              throw new Error("补全章纲修改了作者已有字段");
-          if (
-            existing.outline.targetWords >= 300 &&
-            result.targetWords !== existing.outline.targetWords
-          )
-            throw new Error("补全章纲改变了作者目标篇幅");
-          return result;
+        outline,
+        {
+          // Checked against the outline as the author left it when this stage ran.
+          accept: (result) => {
+            if (existing.title !== existing.id && result.title !== existing.title)
+              throw new Error("补全章纲改变了作者章名");
+            for (const key of required)
+              if (existing.outline[key].trim() && result[key] !== existing.outline[key])
+                throw new Error("补全章纲修改了作者已有字段");
+            if (
+              existing.outline.targetWords >= 300 &&
+              result.targetWords !== existing.outline.targetWords
+            )
+              throw new Error("补全章纲改变了作者目标篇幅");
+            return result;
+          },
         },
       );
   const scenePlan = await run.model(
@@ -143,7 +146,7 @@ export async function chapterPipeline(run: WorkflowRun, target: Target) {
   await run.journal.step(
     "selection",
     "保留选稿报告",
-    record,
+    { parse: record },
     async () => ({ value: selection, usage: emptyUsage() }),
     run.signal,
     0,
@@ -152,7 +155,7 @@ export async function chapterPipeline(run: WorkflowRun, target: Target) {
   await run.journal.step(
     "prepared",
     "保存交付依据",
-    record,
+    { parse: record },
     async () => ({
       value: {
         original: {
@@ -171,7 +174,7 @@ export async function chapterPipeline(run: WorkflowRun, target: Target) {
   return run.journal.step(
     "delivery",
     "交付待采纳候选",
-    record,
+    { parse: record },
     async () => {
       await run.context.assertCurrent();
       return withResourceLock(dir, async () => {

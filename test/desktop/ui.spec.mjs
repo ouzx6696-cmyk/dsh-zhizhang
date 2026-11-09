@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { test, expect, _electron as electron } from "@playwright/test";
-import { mkdtemp, rm, mkdir, writeFile, readdir, readFile } from "node:fs/promises";
+import { mkdtemp, rm, mkdir, writeFile, readdir, readFile, realpath } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
@@ -414,6 +415,63 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
       return api.contextUsage((await api.state()).target);
     });
     expect(idleUsage.stats).toBeNull();
+
+    expect(rendererErrors.splice(0)).toEqual([]);
+  });
+  await test.step("有可继续的任务时开始新任务先在应用内确认，选择保留则原任务不动", async () => {
+    const target = await page.evaluate(async () => (await window.writerDesktop.state()).target);
+    // A run left paused on disk, as an interrupted earlier session would leave it.
+    const key = createHash("sha256")
+      .update(
+        JSON.stringify({ mode: target.mode, root: await realpath(target.root), work: target.work }),
+      )
+      .digest("hex")
+      .slice(0, 24);
+    const dir = path.join(home, "workflows", key),
+      id = "run-0123456789ab",
+      now = new Date().toISOString();
+    await mkdir(dir, { recursive: true });
+    await writeFile(
+      path.join(dir, id + ".json"),
+      JSON.stringify({
+        schema: 1,
+        id,
+        sourceHash: "0",
+        request: {
+          kind: "chapter",
+          chapter: "c001",
+          instruction: "按章纲写完本章",
+          grade: "standard",
+          source: "",
+          line: "news",
+        },
+        state: "paused",
+        created: now,
+        updated: now,
+        steps: [],
+        basis: "{}",
+        error: "任务已暂停，阶段进度保留",
+      }),
+    );
+    await writeFile(path.join(dir, "current"), id);
+    const requestsBefore = model.calls.length;
+    await page.getByRole("button", { name: "写作流水线", exact: true }).click();
+    const pipeline = page.getByRole("dialog", { name: "写作流水线", exact: true });
+    await pipeline.getByRole("button", { name: "放弃此任务", exact: true }).click();
+    await pipeline.getByRole("button", { name: "开始新任务", exact: true }).click();
+    const confirm = page.getByRole("dialog", { name: "确认操作" });
+    await expect(confirm).toBeVisible();
+    await expect(confirm).toContainText("上一任务将不能再继续或采用");
+    await confirm.getByRole("button", { name: "保留上一任务", exact: true }).click();
+    await expect(confirm).toBeHidden();
+    const status = await page.evaluate(
+      (value) => window.writerDesktop.workflow(value, "status"),
+      target,
+    );
+    expect(status.id).toBe(id);
+    expect(status.state).toBe("paused");
+    expect(model.calls.length).toBe(requestsBefore);
+    await pipeline.getByRole("button", { name: "关闭", exact: true }).click();
 
     expect(rendererErrors.splice(0)).toEqual([]);
   });

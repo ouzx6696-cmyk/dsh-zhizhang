@@ -8,6 +8,7 @@ import { mkdir, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { atomicWrite, exists, sha256 } from "../../../../packages/core/src/fsx";
 import { errorText } from "../../../../packages/core/src/errors";
+import { WORKFLOW_COPY } from "../../../../packages/ui/src/copy";
 import type { Focus, Target } from "../context";
 import type { DesktopEvent, WriterMessage } from "../renderer-contracts";
 import type { ModelSettings } from "../models";
@@ -190,27 +191,13 @@ export class Sessions {
     await notifyAuthor(this, target, value);
     if (value.operation === "/chapter/finalize" && value.chapter && this.extras.engine?.().guided) {
       try {
-        // A paused writing run owns this work's resume pointer, and its basis includes the
-        // continuity ledger: auto-ledgering now would make that run unrecoverable. Hold off.
-        const current = await this.workflows.status(target);
-        if (current?.state === "paused" && current.request.kind !== "ledger") {
-          this.emit({
-            target,
-            error: "定稿已保存；有暂停中的写作任务，自动记账暂缓，任务结束后可在连续性看板补记。",
-          });
-          return;
-        }
-        await this.workflows.start(target, {
-          kind: "ledger",
-          chapter: value.chapter,
-          instruction: "记录作者已定稿章节的实际变化，冲突交作者确认。",
-          grade: "economy",
-          source: "",
-          line: "news",
-        });
+        // A run the author can still continue or adopt keeps the work's pointer, and its basis
+        // includes the continuity ledger: the ledger waits in the queue instead of displacing it.
+        if ((await this.workflows.recordFinal(target, value.chapter)) === "queued")
+          this.emit({ target, error: WORKFLOW_COPY.ledgerQueued });
       } catch (error) {
         // allow-catch: 定稿已经成功，记账失败独立提示，不把已完成定稿显示为失败。
-        this.emit({ target, error: "定稿已保存，自动记账未启动：" + String(error) });
+        this.emit({ target, error: "定稿已保存，自动记账未启动：" + errorText(error) });
       }
     }
   }

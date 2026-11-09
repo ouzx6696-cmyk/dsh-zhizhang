@@ -4,11 +4,13 @@ import { recoverDelivery } from "./recovery";
 import { readdir } from "node:fs/promises";
 import { readFile } from "node:fs/promises";
 import { atomicWrite, readText, sha256, shortId } from "../../../../packages/core/src/fsx";
+import { errorText } from "../../../../packages/core/src/errors";
 import { assertWorkspaceWritable } from "../../../../packages/core/src/workspace-lock";
 import {
   WorkflowJournal,
   WorkflowPause,
   DEFAULT_ENGINE,
+  isUnfinishedRun,
   type WorkflowRecord,
   type WorkflowRequest,
 } from "../../../../packages/core/src/workflow";
@@ -23,7 +25,13 @@ import { bookPipeline } from "./book";
 import { ledgerPipeline, readContinuity, decideFact, parseContinuity } from "./continuity";
 import { record } from "./schema";
 import { StageError } from "./stage-model";
-import { errorText } from "../../../../packages/core/src/errors";
+import {
+  addPendingLedger,
+  ledgerRequest,
+  pendingLedger,
+  removePendingLedger,
+} from "./ledger-queue";
+import { WORKFLOW_COPY } from "../../../../packages/ui/src/copy";
 import type { Sessions } from "../session/manager";
 import type { Target } from "../context";
 import type { AgentSession } from "../session/pi-adapter";
@@ -58,6 +66,9 @@ export class WorkflowService {
   }
   private pointer(target: Target) {
     return path.join(this.directory(target), "current");
+  }
+  private pendingFile(target: Target) {
+    return path.join(this.directory(target), "pending-ledger.json");
   }
   private file(target: Target, id: string) {
     if (!/^run-[a-f0-9]+$/.test(id)) throw new Error("流水线记录编号无效");
@@ -99,6 +110,31 @@ export class WorkflowService {
     this.host.emit({ target, workflow: state, running: this.host.running() });
   }
   async start(target: Target, request: WorkflowRequest, resume = false, parent?: AgentSession) {
+    return this.launch(target, request, { resume, parent, replace: false });
+  }
+  /** Starts a new run after the author confirmed in the app that the unfinished one may go. */
+  async replace(target: Target, request: WorkflowRequest) {
+    return this.launch(target, request, { resume: false, replace: true });
+  }
+  /**
+   * The current run is set aside only with the author's consent: `replace` means it was already
+   * given in the app, otherwise it is asked here. A set-aside ledger run goes back to the queue,
+   * so its chapter is still recorded later.
+   */
+  private async setAside(target: Target, replace: boolean) {
+    const current = await this.status(target);
+    if (!current || !isUnfinishedRun(current)) return;
+    if (!replace && !(await this.host.confirm(WORKFLOW_COPY.replaceConfirm)))
+      throw new Error(WORKFLOW_COPY.replaceCancelled);
+    if (current.request.kind === "ledger")
+      await addPendingLedger(this.pendingFile(target), [current.request.chapter]);
+  }
+  private async launch(
+    target: Target,
+    request: WorkflowRequest,
+    options: { resume: boolean; parent?: AgentSession; replace: boolean },
+  ) {
+    const { resume, parent } = options;
     if (this.host.reconfiguring) throw new Error("正在更新设置，请稍后开始流水线");
     if (
       this.busy(target) ||
@@ -117,6 +153,7 @@ export class WorkflowService {
       controller.signal.throwIfAborted();
       const previous = resume ? await this.status(target) : undefined;
       if (resume && !previous) throw new Error("没有可恢复的流水线记录");
+      if (!resume) await this.setAside(target, options.replace);
       if (previous?.state === "awaiting-author") {
         this.active.delete(key);
         return previous;
@@ -182,15 +219,43 @@ export class WorkflowService {
           }
         }
       })();
-      // Keep persistence errors visible while the UI starts polling the journal.
-      void active.promise.catch((error) =>
-        this.host.emit({ target, error: error instanceof Error ? error.message : String(error) }),
-      );
+      // Keep persistence errors visible while the UI starts polling the journal; a completed
+      // ledger run hands over to the next chapter waiting in the queue.
+      void active.promise
+        .then(() =>
+          input.kind === "ledger" ? this.ledgerSettled(target, journal.record) : undefined,
+        )
+        .catch((error) => this.host.emit({ target, error: errorText(error) }));
       return structuredClone(journal.record);
     } catch (error) {
       this.active.delete(key);
       throw error;
     }
+  }
+  /**
+   * Records the continuity of a chapter the author just finalized. The ledger never takes the
+   * work's pointer from a run the author can still continue or adopt; it waits in the queue and
+   * is drained by the next finalize that gets through or by a ledger run that completes.
+   */
+  async recordFinal(target: Target, chapter: string) {
+    await addPendingLedger(this.pendingFile(target), [chapter]);
+    return this.drainLedger(target);
+  }
+  private async drainLedger(target: Target): Promise<"started" | "queued" | "idle"> {
+    const next = (await pendingLedger(this.pendingFile(target)))[0];
+    if (next === undefined) return "idle";
+    if (this.busy(target) || this.host.isRunning(target)) return "queued";
+    const current = await this.status(target);
+    if (current && current.request.kind !== "ledger" && isUnfinishedRun(current)) return "queued";
+    // A ledger run of its own may be replaced: setAside puts its chapter back in the queue.
+    await this.launch(target, ledgerRequest(next), { resume: false, replace: true });
+    await removePendingLedger(this.pendingFile(target), next);
+    return "started";
+  }
+  private async ledgerSettled(target: Target, state: WorkflowRecord) {
+    if (state.state !== "awaiting-author") return;
+    await removePendingLedger(this.pendingFile(target), state.request.chapter);
+    await this.drainLedger(target);
   }
   async history(target: Target) {
     const dir = this.directory(target),
@@ -312,7 +377,7 @@ export class WorkflowService {
       await journal.step(
         "author-application",
         "作者已采用方案",
-        record,
+        { parse: record },
         async () => ({
           value:
             state.request.kind === "book"

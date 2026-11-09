@@ -1,7 +1,7 @@
 /** User assets: recovery, compatibility, concurrency and offline backup. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { execFile } from "node:child_process";
@@ -693,6 +693,27 @@ test("完整修订保留原稿，旧候选不覆盖新稿并提示接续核对",
   }
 });
 
+test("只有章纲的章第一次写正文不记修订；之后再改正文才记一条", async () => {
+  const f = await fixture();
+  try {
+    const { dir } = await createWork(f.paths, { title: "首写" });
+    await setOutline(dir, "c001", { ending: "交出钥匙" }, "第一章");
+    await setOutline(dir, "c002", { ending: "进门" }, "第二章");
+    await updateChapter(dir, { id: "c001", body: "她交出了钥匙。" });
+    await updateChapter(dir, { id: "c002", body: "他推门进去。" });
+    assert.deepEqual((await readWorkMeta(dir)).revisionImpacts ?? [], []);
+    await assert.rejects(readdir(path.join(dir, "revisions")), { code: "ENOENT" });
+    await updateChapter(dir, { id: "c001", body: "她犹豫后交出了钥匙。" });
+    const impacts = (await readWorkMeta(dir)).revisionImpacts;
+    assert.equal(impacts.length, 1);
+    assert.equal(impacts[0].chapterId, "c001");
+    assert.deepEqual(await readdir(path.join(dir, "revisions", "c001")), [
+      path.basename(impacts[0].history),
+    ]);
+  } finally {
+    await f.close();
+  }
+});
 test("直接保存先核账本，中断后正文、目录和留痕一并恢复", async () => {
   const f = await fixture();
   try {

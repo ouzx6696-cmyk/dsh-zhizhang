@@ -26,7 +26,7 @@ export function chaptersDir(dir: string) {
 type ChapterDraft = Omit<Chapter, "revision"> & { revision?: string };
 /** 章节保存入参（updateChapter / setOutline / 候选落稿 / 灵感套用共用的落盘契约）。 */
 interface ChapterSaveInput {
-  id?: string;
+  id: string;
   title: string;
   body: string;
   position?: number;
@@ -319,7 +319,7 @@ export async function prepareChapterSaveUnlocked(dir: string, input: ChapterSave
   const meta = await readWorkMeta(dir);
   const pace = validateStoryPace(input.workPace);
   if (pace !== undefined) meta.pace = pace;
-  const id = input.id?.trim() || `c${String(meta.chapters.length + 1).padStart(3, "0")}`;
+  const id = input.id;
   const chapterBefore = await snapshotFile(chapterFile(dir, id));
   const existingIdx = meta.chapters.findIndex((c) => c.id === id);
   // 登记过但文件缺失可以当新建恢复；front matter 损坏由 findChapter 原样抛出，
@@ -438,7 +438,9 @@ export async function prepareChapterSaveUnlocked(dir: string, input: ChapterSave
   meta.chapters.sort((a, b) => a.position - b.position);
   meta.updatedAt = nowIso();
   let history: string | undefined;
-  if (previous && (changed || previous.revision !== revision)) {
+  // Writing the first body into an outline-only chapter is a first draft, not a revision: there is
+  // nothing for later chapters or recorded state to have relied on.
+  if (previous?.body.trim() && (changed || previous.revision !== revision)) {
     const before = chapterBefore;
     if (!before) throw new NovelError("revision_conflict", "原稿已缺失，未覆盖。");
     const preserved = await preserveChapter(dir, id, before);

@@ -71,9 +71,11 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
   const source = await run.journal.step(
     "sources",
     "准备来源",
-    (value) => {
-      const r = record(value);
-      return { text: text(r.text, "来源原文"), attribution: text(r.attribution, "来源说明") };
+    {
+      parse: (value) => {
+        const r = record(value);
+        return { text: text(r.text, "来源原文"), attribution: text(r.attribution, "来源说明") };
+      },
     },
     async () => {
       let material = request.source.trim(),
@@ -117,19 +119,22 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
       (request.line === "micro" && r["体裁"] !== "微头条")
     )
       throw new Error("立项卡与所选线路不一致");
-    if (oldCard === undefined)
-      for (const raw of list(r["出处"], "出处")) {
-        const link = text(record(raw)["链接"], "出处链接");
-        if (link !== "作者素材" && !(source.text + source.attribution).includes(link))
-          throw new Error("立项卡引入了未提供的来源链接");
-      }
+    return r;
+  };
+  // A generated card may cite only the source this run was given.
+  const acceptCard = (r: Record<string, unknown>) => {
+    for (const raw of list(r["出处"], "出处")) {
+      const link = text(record(raw)["链接"], "出处链接");
+      if (link !== "作者素材" && !(source.text + source.attribution).includes(link))
+        throw new Error("立项卡引入了未提供的来源链接");
+    }
     return r;
   };
   const card = oldCard
     ? await run.journal.step(
         "article-card",
         "核对既有立项卡",
-        parseCard,
+        { parse: parseCard },
         async () => ({ value: oldCard, usage: emptyUsage() }),
         run.signal,
         0,
@@ -142,7 +147,7 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
         { source: sourceRef, line: request.line },
         "返回合法立项卡 JSON，包含 内容线（资讯线/故事线）、体裁（长图文/短图文/微头条）、垂类、主驱动、人群、情绪、主问题、延伸（起始小标题/接的问题）、出处（事实/链接）、主标题、备选标题；故事线还包含故事、母题、改编方式、所用版本。来源按给定原文，不伪造核实记录。",
         parseCard,
-        { material },
+        { material, accept: acceptCard },
       );
   const headlineCard = await stageCard(run, "toutiao", "s3-headline");
   // Recent titles are excluded up front so a finished run is never rejected for a duplicate title.
@@ -158,15 +163,20 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
     headlineCard,
     { card, source: sourceRef, avoid: recentTitles },
     `返回 {"titles":["标题"]}，至少5个不同切入的标题，每个不超过${limits.titleMax}字；不承诺正文或来源中不存在的事实；不得与 avoid 中的近期标题相同。`,
-    (value) => {
-      const titles = list(jsonOutput(value).titles, "标题", 20)
-        .map((item) => text(item, "标题", limits.titleMax))
-        .filter((title) => !recentTitles.includes(title));
-      if (titles.length < 5 || new Set(titles).size !== titles.length)
-        throw new Error("标题矩阵需要至少5个不同标题");
-      return { titles };
+    (value) => ({
+      titles: list(jsonOutput(value).titles, "标题", 20).map((item) =>
+        text(item, "标题", limits.titleMax),
+      ),
+    }),
+    {
+      material,
+      accept: ({ titles }) => {
+        const fresh = titles.filter((title) => !recentTitles.includes(title));
+        if (fresh.length < 5 || new Set(fresh).size !== fresh.length)
+          throw new Error("标题矩阵需要至少5个不同标题");
+        return { titles: fresh };
+      },
     },
-    { material },
   );
   const writing = await stageCard(
     run,
@@ -208,11 +218,16 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
       (value) => {
         const result = draft(value);
         if ([...result.title].length > limits.titleMax) throw new Error("主标题超过硬上限");
-        if (recentTitles.includes(result.title)) throw new Error("主标题与近期文章重复");
         result.body = normalizeDraft(result.body);
         return result;
       },
-      { material },
+      {
+        material,
+        accept: (result) => {
+          if (recentTitles.includes(result.title)) throw new Error("主标题与近期文章重复");
+          return result;
+        },
+      },
     ),
   );
   const drafts: Draft[] = outcomes.map((outcome) => {
@@ -226,7 +241,7 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
   await run.journal.step(
     "selection",
     "保留选稿报告",
-    record,
+    { parse: record },
     async () => ({ value: selection, usage: emptyUsage() }),
     run.signal,
     0,
@@ -266,7 +281,7 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
     const qa = await run.journal.step(
       `qa-${round}`,
       "质检硬闸",
-      record,
+      { parse: record },
       async () => ({
         value: await productionQa(
           run,
@@ -329,7 +344,7 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
   const prepared = await run.journal.step(
     "prepared",
     "保存交付依据",
-    record,
+    { parse: record },
     async () => ({
       value: {
         body: checked.draft.body,
@@ -357,7 +372,7 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
   return run.journal.step(
     "delivery",
     "交付文章工作稿",
-    record,
+    { parse: record },
     async () => {
       await run.context.assertCurrent();
       const prior = (await real.get(initial.id)).drafts.find(

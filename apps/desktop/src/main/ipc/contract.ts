@@ -66,7 +66,7 @@ export interface IpcMap {
   engine: { args: [EngineSettings?]; result: EngineSettings };
   "writer-options": { args: [SessionOptions?]; result: SessionOptions };
   workflow: {
-    args: [Target, "status" | "start" | "resume" | "pause" | "apply", WorkflowRequest?];
+    args: [Target, "status" | "start" | "replace" | "resume" | "pause" | "apply", WorkflowRequest?];
     result: WorkflowRecord | null;
   };
   continuity: {
@@ -175,7 +175,7 @@ export const IPC_PARSERS: { [K in IpcChannel]: (args: unknown[]) => IpcArgs<K> }
   "writer-options": ([value]) => [value === undefined ? undefined : parseWriterOptions(value)],
   workflow: ([target, action, value]) => [
     parseTarget(target),
-    parseChoice(action, ["status", "start", "resume", "pause", "apply"] as const),
+    parseChoice(action, ["status", "start", "replace", "resume", "pause", "apply"] as const),
     value === undefined ? undefined : parseWorkflowRequest(value),
   ],
   continuity: ([target, action, id]) => [

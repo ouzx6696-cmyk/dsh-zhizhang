@@ -15,6 +15,66 @@ import {
 } from "./workflow-config.js";
 export * from "./workflow-config.js";
 
+const RECORD_STATES: readonly WorkflowRecord["state"][] = [
+  "running",
+  "paused",
+  "failed",
+  "awaiting-author",
+];
+const STEP_STATUSES: readonly WorkflowStep["status"][] = ["running", "complete", "failed"];
+function oneOf<T extends string>(choices: readonly T[], value: unknown): value is T {
+  return choices.some((choice) => choice === value);
+}
+function parseUsage(value: unknown): WorkflowUsage {
+  if (!isRecord(value)) throw new Error("流水线阶段记录损坏");
+  const count = (key: "input" | "output" | "cacheRead" | "cacheWrite") => {
+    const amount = value[key];
+    if (typeof amount !== "number" || !Number.isFinite(amount) || amount < 0)
+      throw new Error("流水线用量损坏");
+    return amount;
+  };
+  const cost = value.cost;
+  if (cost !== null && (typeof cost !== "number" || !Number.isFinite(cost) || cost < 0))
+    throw new Error("流水线费用损坏");
+  return {
+    input: count("input"),
+    output: count("output"),
+    cacheRead: count("cacheRead"),
+    cacheWrite: count("cacheWrite"),
+    cost,
+  };
+}
+function parseStep(raw: unknown): WorkflowStep {
+  if (
+    !isRecord(raw) ||
+    typeof raw.id !== "string" ||
+    typeof raw.title !== "string" ||
+    !oneOf(STEP_STATUSES, raw.status)
+  )
+    throw new Error("流水线阶段记录损坏");
+  const usage = parseUsage(raw.usage);
+  if (
+    typeof raw.started !== "string" ||
+    typeof raw.durationMs !== "number" ||
+    raw.durationMs < 0 ||
+    typeof raw.attempts !== "number" ||
+    !Number.isInteger(raw.attempts) ||
+    raw.attempts < 0
+  )
+    throw new Error("流水线阶段计时损坏");
+  return {
+    id: raw.id,
+    title: raw.title,
+    status: raw.status,
+    started: raw.started,
+    durationMs: raw.durationMs,
+    attempts: raw.attempts,
+    output: raw.output,
+    usage,
+    ...(typeof raw.error === "string" ? { error: raw.error } : {}),
+    ...(typeof raw.model === "string" ? { model: raw.model } : {}),
+  };
+}
 /**
  * Records written before the reason field carried their stop reason only in the message text.
  * They are read here once; everything past this boundary sees the structured reason.
@@ -28,9 +88,8 @@ const LEGACY_REASONS: [RegExp, WorkflowReason][] = [
 ];
 function parseReason(value: Record<string, unknown>): WorkflowReason | undefined {
   if (value.reason !== undefined) {
-    if (!WORKFLOW_REASONS.includes(value.reason as WorkflowReason))
-      throw new Error("流水线停止原因损坏");
-    return value.reason as WorkflowReason;
+    if (!oneOf(WORKFLOW_REASONS, value.reason)) throw new Error("流水线停止原因损坏");
+    return value.reason;
   }
   if (typeof value.error !== "string") return undefined;
   const text = value.error;
@@ -47,78 +106,24 @@ function parseRecord(value: unknown): WorkflowRecord {
     !Array.isArray(value.steps)
   )
     throw new Error("流水线记录损坏，已保留原文件");
-  if (!["running", "paused", "failed", "awaiting-author"].includes(String(value.state)))
-    throw new Error("流水线状态损坏");
-  parseWorkflowRequest(value.request);
-  for (const step of value.steps) {
-    if (
-      !isRecord(step) ||
-      typeof step.id !== "string" ||
-      typeof step.title !== "string" ||
-      !["running", "complete", "failed"].includes(String(step.status)) ||
-      !isRecord(step.usage)
-    )
-      throw new Error("流水线阶段记录损坏");
-    for (const key of ["input", "output", "cacheRead", "cacheWrite"])
-      if (
-        typeof step.usage[key] !== "number" ||
-        !Number.isFinite(step.usage[key]) ||
-        Number(step.usage[key]) < 0
-      )
-        throw new Error("流水线用量损坏");
-    if (
-      step.usage.cost !== null &&
-      (typeof step.usage.cost !== "number" ||
-        !Number.isFinite(step.usage.cost) ||
-        step.usage.cost < 0)
-    )
-      throw new Error("流水线费用损坏");
-  }
+  if (!oneOf(RECORD_STATES, value.state)) throw new Error("流水线状态损坏");
+  const request = parseWorkflowRequest(value.request);
+  const steps = value.steps.map(parseStep);
   if (
     typeof value.basis !== "string" ||
     typeof value.created !== "string" ||
     typeof value.updated !== "string"
   )
     throw new Error("流水线时间损坏");
-  if (new Set(value.steps.map((step) => step.id)).size !== value.steps.length)
+  if (new Set(steps.map((step) => step.id)).size !== steps.length)
     throw new Error("流水线阶段编号重复");
   const reason = parseReason(value);
-  const steps: WorkflowStep[] = value.steps.map((raw) => {
-    if (!isRecord(raw) || !isRecord(raw.usage)) throw new Error("流水线阶段损坏");
-    if (
-      typeof raw.started !== "string" ||
-      typeof raw.durationMs !== "number" ||
-      raw.durationMs < 0 ||
-      typeof raw.attempts !== "number" ||
-      !Number.isInteger(raw.attempts) ||
-      raw.attempts < 0
-    )
-      throw new Error("流水线阶段计时损坏");
-    return {
-      id: String(raw.id),
-      title: String(raw.title),
-      status: raw.status as WorkflowStep["status"],
-      started: raw.started,
-      durationMs: raw.durationMs,
-      attempts: raw.attempts,
-      output: raw.output,
-      usage: {
-        input: Number(raw.usage.input),
-        output: Number(raw.usage.output),
-        cacheRead: Number(raw.usage.cacheRead),
-        cacheWrite: Number(raw.usage.cacheWrite),
-        cost: raw.usage.cost === null ? null : Number(raw.usage.cost),
-      },
-      ...(typeof raw.error === "string" ? { error: raw.error } : {}),
-      ...(typeof raw.model === "string" ? { model: raw.model } : {}),
-    };
-  });
   return {
     schema: 1,
     id: value.id,
     sourceHash: value.sourceHash,
-    request: parseWorkflowRequest(value.request),
-    state: value.state as WorkflowRecord["state"],
+    request,
+    state: value.state,
     created: value.created,
     updated: value.updated,
     steps,
@@ -126,6 +131,17 @@ function parseRecord(value: unknown): WorkflowRecord {
     ...(typeof value.error === "string" ? { error: value.error } : {}),
     ...(reason ? { reason } : {}),
   };
+}
+/**
+ * How a stage's answer is checked. `parse` checks structure only and must accept its own output,
+ * because a resumed run re-reads the saved value through it. `accept` checks the answer against
+ * the world as it is now (titles published since, the author's current outline) and may narrow it;
+ * it runs only when the stage executes, so a stage that already completed is never rejected later
+ * for something that changed while the run was paused.
+ */
+export interface StageCheck<T> {
+  parse: (value: unknown) => T;
+  accept?: (value: T) => T;
 }
 /** The journal records pure stage outputs before any delivery; delivery has its own idempotency receipt. */
 export class WorkflowJournal {
@@ -141,13 +157,15 @@ export class WorkflowJournal {
     basis: string,
     publish: (record: WorkflowRecord) => void,
   ) {
+    // Parsed on the way in as well as on the way back, so a record that opens is one that reopens.
+    const wanted = parseWorkflowRequest(request);
     const raw = await readJson<unknown>(file);
     const record =
       raw === undefined
         ? {
             schema: 1 as const,
             id: path.basename(file, ".json"),
-            request,
+            request: wanted,
             sourceHash,
             state: "running" as const,
             created: nowIso(),
@@ -158,7 +176,7 @@ export class WorkflowJournal {
         : parseRecord(raw);
     if (
       record.sourceHash !== sourceHash ||
-      JSON.stringify(record.request) !== JSON.stringify(request)
+      JSON.stringify(record.request) !== JSON.stringify(wanted)
     )
       throw new Error("作品、来源或任务要求已改变，请新建任务；旧进度已保留");
     return new WorkflowJournal(file, record, publish);
@@ -198,7 +216,7 @@ export class WorkflowJournal {
   async step<T>(
     id: string,
     title: string,
-    parse: (value: unknown) => T,
+    check: StageCheck<T>,
     execute: (attempt: {
       index: number;
       lastError?: string;
@@ -208,7 +226,7 @@ export class WorkflowJournal {
   ): Promise<T> {
     signal.throwIfAborted();
     let row = this.record.steps.find((step) => step.id === id);
-    if (row?.status === "complete") return parse(row.output);
+    if (row?.status === "complete") return check.parse(row.output);
     if (!row) {
       row = {
         id,
@@ -237,12 +255,13 @@ export class WorkflowJournal {
         const result = await execute({ index: attempt, lastError });
         row.usage = addUsage(row.usage, result.usage);
         signal.throwIfAborted();
-        const parsed = parse(result.value);
-        row.output = parsed;
+        const parsed = check.parse(result.value);
+        const accepted = check.accept ? check.accept(parsed) : parsed;
+        row.output = accepted;
         row.status = "complete";
         row.durationMs += Date.now() - started;
         await this.save();
-        return parsed;
+        return accepted;
       } catch (error) {
         // A failed call can still have been billed (a truncated answer is the costly case).
         const lost = (error as { usage?: WorkflowUsage } | null)?.usage;

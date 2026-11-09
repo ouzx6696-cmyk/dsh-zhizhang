@@ -155,6 +155,21 @@ export interface WorkflowRecord {
   error?: string;
   reason?: WorkflowReason;
 }
+/** A finished plan or article report the author has not adopted yet. */
+export function canApply(record: WorkflowRecord) {
+  return (
+    record.state === "awaiting-author" &&
+    (record.request.kind === "book" || record.request.kind === "article") &&
+    !record.steps.some((step) => step.id === "author-application" && step.status === "complete")
+  );
+}
+/**
+ * A run the author can still continue (running, paused, failed) or adopt. Pointing the work at
+ * another run would leave it unreachable.
+ */
+export function isUnfinishedRun(record: WorkflowRecord) {
+  return record.state !== "awaiting-author" || canApply(record);
+}
 export const emptyUsage = (): WorkflowUsage => ({
   input: 0,
   output: 0,

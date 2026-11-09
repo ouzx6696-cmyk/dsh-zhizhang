@@ -54,7 +54,7 @@ export async function bookPipeline(run: WorkflowRun) {
   return run.journal.step(
     "delivery",
     "交付规划方案",
-    record,
+    { parse: record },
     async () => ({
       value: {
         foundation,

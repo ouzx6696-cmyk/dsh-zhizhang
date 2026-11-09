@@ -967,6 +967,12 @@ export const WORKFLOW_COPY = {
   cancelConfirm:
     "取消后流水线立即停止。已完成的阶段保留在历史里，但这个任务不会再继续，需要重新开始。确定取消？",
   keepRunning: "继续运行",
+  replaceConfirm:
+    "上一任务还没有完成（运行中断、已暂停、失败，或方案尚未采用）。开始新任务后，上一任务将不能再继续或采用，只保留在历史里。确定开始新任务？",
+  replaceStart: "开始新任务",
+  keepPrevious: "保留上一任务",
+  replaceCancelled: "已取消新建任务，上一任务保留，可继续或采用",
+  ledgerQueued: "定稿已保存；当前有未完成的任务，本章连续性记账已排队，稍后会自动补上。",
   discard: "放弃此任务",
   retry: "从失败阶段重试",
   retryHint: "已完成的阶段不会重跑，从失败处接着做。",

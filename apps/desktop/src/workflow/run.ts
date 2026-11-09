@@ -46,7 +46,7 @@ export class WorkflowRun {
     input: unknown,
     shape: string,
     parse: (value: unknown) => T,
-    options: { material?: ContextBlock[]; retries?: number } = {},
+    options: { material?: ContextBlock[]; retries?: number; accept?: (value: T) => T } = {},
   ) {
     const material = options.material ?? this.context.material;
     let reserved = 0;
@@ -54,7 +54,7 @@ export class WorkflowRun {
       return await this.journal.step(
         id,
         title,
-        parse,
+        { parse, accept: options.accept },
         async ({ lastError }) => {
           this.signal.throwIfAborted();
           await this.assertFresh();

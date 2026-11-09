@@ -149,10 +149,4 @@ export function selectedCandidate(record: WorkflowRecord) {
   return isRecord(chosen) && typeof chosen.id === "string" ? chosen.id : undefined;
 }
 
-export function canApply(record: WorkflowRecord) {
-  return (
-    record.state === "awaiting-author" &&
-    (record.request.kind === "book" || record.request.kind === "article") &&
-    !record.steps.some((step) => step.id === "author-application" && step.status === "complete")
-  );
-}
+export { canApply } from "../../../../../../packages/core/src/workflow-config.js";

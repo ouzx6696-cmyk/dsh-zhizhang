@@ -55,9 +55,11 @@ export function registerWorkflowIpc(state: Runtime) {
           state.maintenance = false;
         }
       });
-    if (action === "start") {
+    if (action === "start" || action === "replace") {
       if (!value) throw new Error("缺少流水线任务");
-      return state.sessions.workflows.start(target, value);
+      return action === "replace"
+        ? state.sessions.workflows.replace(target, value)
+        : state.sessions.workflows.start(target, value);
     }
     if (action === "resume") {
       const previous = await state.sessions.workflows.status(target);

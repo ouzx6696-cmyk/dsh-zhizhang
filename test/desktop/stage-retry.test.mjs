@@ -14,6 +14,14 @@ import { WorkflowJournal, WorkflowPause } from "../../build/core/src/workflow.js
 import { fakeModel } from "./fake-model.mjs";
 
 const usage = (output) => ({ input: 10, output, cacheRead: 0, cacheWrite: 0, cost: null });
+const REQUEST = {
+  kind: "chapter",
+  chapter: "c001",
+  instruction: "写第一章",
+  grade: "standard",
+  source: "",
+  line: "news",
+};
 
 // DK-01: the corrected order is out-of-credit wording → leading status → pi-ai fallback.
 const PROVIDER_ERRORS = [
@@ -185,13 +193,19 @@ test("abort during backoff stops waiting immediately", async () => {
 test("the journal does not spend a second attempt on a budget pause", async () => {
   const dir = await mkdtemp(path.join(tmpdir(), "stage-retry-"));
   try {
-    const journal = await WorkflowJournal.open(path.join(dir, "w.json"), {}, "h", "b", () => {});
+    const journal = await WorkflowJournal.open(
+      path.join(dir, "w.json"),
+      REQUEST,
+      "h",
+      "b",
+      () => {},
+    );
     let calls = 0;
     await assert.rejects(
       journal.step(
         "s",
         "阶段",
-        (v) => v,
+        { parse: (v) => v },
         async () => {
           calls++;
           throw new WorkflowPause("balance", "余额不足");
@@ -209,7 +223,7 @@ test("the journal does not spend a second attempt on a budget pause", async () =
 });
 
 async function journalIn(dir) {
-  return WorkflowJournal.open(path.join(dir, "w.json"), {}, "h", "b", () => {});
+  return WorkflowJournal.open(path.join(dir, "w.json"), REQUEST, "h", "b", () => {});
 }
 
 test("a typed transient failure that outlasts the backoff is final for the stage", async () => {
@@ -247,7 +261,7 @@ test("journal: a truncated answer is not retried and its usage is still recorded
       journal.step(
         "draft",
         "起稿",
-        (v) => v,
+        { parse: (v) => v },
         async () => {
           calls++;
           throw new StageError("阶段输出被截断", "truncated", usage(4096));
@@ -274,9 +288,11 @@ test("journal: a content retry is told why the previous answer failed", async ()
     const value = await journal.step(
       "scene",
       "场景",
-      (v) => {
-        if (v !== "ok") throw new Error("返回缺少 scenes");
-        return v;
+      {
+        parse: (v) => {
+          if (v !== "ok") throw new Error("返回缺少 scenes");
+          return v;
+        },
       },
       async (attempt) => {
         seen.push(attempt);
@@ -404,14 +420,6 @@ test("stage request: a 401 with a billing link is classified once, as auth, on t
   }
 });
 
-const REQUEST = {
-  kind: "chapter",
-  chapter: "c001",
-  instruction: "写",
-  grade: "standard",
-  source: "",
-  line: "news",
-};
 function legacyRecord(fields) {
   return {
     schema: 1,
@@ -459,6 +467,55 @@ test("journal boundary: records written before the reason field get it from thei
   }
 });
 
+test("journal: a stage completed before a pause is not rejected on resume by a check that depends on the world now", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "stage-retry-"));
+  try {
+    const taken = new Set();
+    let accepts = 0,
+      runs = 0;
+    const check = {
+      parse: (value) => ({ titles: value.titles.map((title) => title.trim()) }),
+      accept: (value) => {
+        accepts++;
+        const fresh = value.titles.filter((title) => !taken.has(title));
+        if (fresh.length < 2) throw new Error("标题矩阵需要至少2个不同标题");
+        return { titles: fresh };
+      },
+    };
+    const execute = async () => {
+      runs++;
+      return { value: { titles: [" 甲 ", "乙", "丙"] }, usage: usage(1) };
+    };
+    const first = await journalIn(dir);
+    const value = await first.step(
+      "headlines",
+      "标题",
+      check,
+      execute,
+      new AbortController().signal,
+    );
+    assert.deepEqual(value, { titles: ["甲", "乙", "丙"] });
+    assert.equal(accepts, 1);
+    // While paused, other work took two of the titles: accepting again would now fail.
+    taken.add("甲").add("乙");
+    assert.throws(() => check.accept(value), /至少2个/);
+    accepts = 0;
+    const reopened = await journalIn(dir);
+    const resumed = await reopened.step(
+      "headlines",
+      "标题",
+      check,
+      execute,
+      new AbortController().signal,
+    );
+    assert.deepEqual(resumed, { titles: ["甲", "乙", "丙"] }, "恢复直接返回已存输出");
+    assert.equal(accepts, 0, "恢复不重跑接受校验");
+    assert.equal(runs, 1, "已完成阶段不再执行");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("journal: when saving a failed stage also fails, the stage error stays first", async () => {
   const base = await mkdtemp(path.join(tmpdir(), "stage-retry-"));
   const dir = path.join(base, "journal");
@@ -469,7 +526,7 @@ test("journal: when saving a failed stage also fails, the stage error stays firs
       journal.step(
         "s",
         "阶段",
-        (v) => v,
+        { parse: (v) => v },
         async () => {
           // The journal directory turns into a file, so the failure save cannot be written.
           await rm(dir, { recursive: true, force: true });
@@ -550,7 +607,7 @@ test("journal: a stage that succeeds after two billed 503s records all three cal
     await journal.step(
       "s",
       "阶段",
-      (v) => v,
+      { parse: (v) => v },
       () =>
         withProviderRetry(
           async () => {
@@ -581,7 +638,7 @@ test("journal: a missing model connection fails once instead of earning a conten
       journal.step(
         "s",
         "阶段",
-        (v) => v,
+        { parse: (v) => v },
         () => stageModel(host, "writer", PACKET, new AbortController().signal),
         new AbortController().signal,
         1,
@@ -709,7 +766,7 @@ test("author stop mid-stream: cancel semantics, billed usage kept, no content re
     const pending = journal.step(
       "s",
       "阶段",
-      (v) => v,
+      { parse: (v) => v },
       () => stageModel(host, "writer", PACKET, controller.signal),
       controller.signal,
       1,
@@ -728,5 +785,55 @@ test("author stop mid-stream: cancel semantics, billed usage kept, no content re
   } finally {
     await model.close();
     await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("journal: a first-run acceptance failure is a content failure that is retried, and the narrowed value is what gets saved", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "stage-retry-"));
+  try {
+    const journal = await journalIn(dir);
+    const seen = [];
+    const value = await journal.step(
+      "titles",
+      "标题",
+      {
+        parse: (value) => value,
+        accept: (value) => {
+          const fresh = value.filter((title) => title !== "旧题");
+          if (!fresh.length) throw new Error("标题与近期文章重复");
+          return fresh;
+        },
+      },
+      async (attempt) => {
+        seen.push(attempt.lastError);
+        return { value: attempt.index ? ["旧题", "新题"] : ["旧题"], usage: usage(1) };
+      },
+      new AbortController().signal,
+      1,
+    );
+    assert.deepEqual(value, ["新题"]);
+    assert.deepEqual(seen, [undefined, "标题与近期文章重复"]);
+    const disk = JSON.parse(await readFile(path.join(dir, "w.json"), "utf8"));
+    assert.deepEqual(disk.steps[0].output, ["新题"]);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("journal: open rejects an invalid request before anything is written", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "stage-retry-"));
+  try {
+    const file = path.join(dir, "w.json");
+    await assert.rejects(
+      WorkflowJournal.open(file, {}, "h", "b", () => {}),
+      /流水线请求须为对象|流水线类型无效/,
+    );
+    await assert.rejects(
+      WorkflowJournal.open(file, { ...REQUEST, chapter: "../c1" }, "h", "b", () => {}),
+      /章节标识无效/,
+    );
+    await assert.rejects(readFile(file), { code: "ENOENT" });
+  } finally {
+    await rm(dir, { recursive: true, force: true });
   }
 });
