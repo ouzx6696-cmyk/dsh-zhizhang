@@ -35,38 +35,36 @@ function remember(file: string, entry: CacheEntry) {
   }
 }
 
+function sameFile(
+  a: Pick<CacheEntry, "mtimeMs" | "ctimeMs" | "ino" | "size">,
+  b: Pick<CacheEntry, "mtimeMs" | "ctimeMs" | "ino" | "size">,
+) {
+  return a.mtimeMs === b.mtimeMs && a.ctimeMs === b.ctimeMs && a.ino === b.ino && a.size === b.size;
+}
 async function readEntryCached(file: string): Promise<CacheEntry> {
-  const st = await stat(file);
-  if (!st.isFile()) throw new Error(`缓存读取目标不是普通文件：${file}`);
-  const hit = textCache.get(file);
-  if (
-    hit &&
-    hit.mtimeMs === st.mtimeMs &&
-    hit.ctimeMs === st.ctimeMs &&
-    hit.ino === st.ino &&
-    hit.size === st.size
-  ) {
-    textCache.delete(file);
-    textCache.set(file, hit);
-    return hit;
-  }
-  const text = await readFile(file, "utf8");
-  const after = await stat(file);
-  const entry: CacheEntry = {
-    mtimeMs: after.mtimeMs,
-    ctimeMs: after.ctimeMs,
-    ino: after.ino,
-    size: after.size,
-    text,
-  };
-  if (
-    st.mtimeMs === after.mtimeMs &&
-    st.ctimeMs === after.ctimeMs &&
-    st.ino === after.ino &&
-    st.size === after.size
-  )
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const before = await stat(file);
+    if (!before.isFile()) throw new Error(`缓存读取目标不是普通文件：${file}`);
+    const hit = textCache.get(file);
+    if (hit && sameFile(hit, before)) {
+      textCache.delete(file);
+      textCache.set(file, hit);
+      return hit;
+    }
+    const text = await readFile(file, "utf8"),
+      after = await stat(file);
+    if (!sameFile(before, after)) continue;
+    const entry: CacheEntry = {
+      mtimeMs: after.mtimeMs,
+      ctimeMs: after.ctimeMs,
+      ino: after.ino,
+      size: after.size,
+      text,
+    };
     remember(file, entry);
-  return entry;
+    return entry;
+  }
+  throw new Error(`文件在读取期间持续变化，请稍后刷新：${file}`);
 }
 
 /** Cached polling read; callers needing integrity must read and hash the file directly. */
@@ -91,7 +89,7 @@ export async function readJsonCachedWithStat<T>(file: string) {
 /**
  * JSONL: an absent file is empty; malformed or inaccessible files remain visible errors.
  * 缓存层只负责解析与复用行对象，具体行结构由调用方声明。
- * 命中缓存时返回行对象的浅拷贝：调用方只读，嵌套字段与缓存共享引用。
+ * 返回独立副本，嵌套字段也不允许污染缓存。
  */
 export async function readJsonlCached<T = Record<string, unknown>>(file: string): Promise<T[]> {
   let entry: CacheEntry;
@@ -102,7 +100,7 @@ export async function readJsonlCached<T = Record<string, unknown>>(file: string)
     throw err;
   }
   if (entry.jsonl) {
-    return entry.jsonl.map((item) => ({ ...item })) as T[];
+    return structuredClone(entry.jsonl) as T[];
   }
   const out: Record<string, unknown>[] = [];
   const lines = entry.text.split("\n");
@@ -116,5 +114,5 @@ export async function readJsonlCached<T = Record<string, unknown>>(file: string)
     }
   }
   entry.jsonl = out;
-  return out.map((item) => ({ ...item })) as T[];
+  return structuredClone(out) as T[];
 }

@@ -962,3 +962,38 @@ test("T131 200 候选冷热列表等价，外部改写和删除即时可见", as
     await f.close();
   }
 });
+
+test("缓存重试读取期间的文件替换，JSONL 嵌套数据不能污染缓存", async () => {
+  const fs = await import("node:fs/promises"),
+    { syncBuiltinESMExports } = await import("node:module");
+  const { readJsonCachedWithStat, readJsonlCached } =
+    await import("../../build/fanqie/src/engine/file-cache.js");
+  const f = await fixture(),
+    original = fs.default.readFile;
+  try {
+    const file = path.join(f.root, "race.json");
+    await writeFile(file, '{"value":"old"}');
+    let replaced = false;
+    fs.default.readFile = async (...args) => {
+      const text = await original(...args);
+      if (args[0] === file && !replaced) {
+        replaced = true;
+        await writeFile(file, '{"value":"new and longer"}');
+      }
+      return text;
+    };
+    syncBuiltinESMExports();
+    const result = await readJsonCachedWithStat(file);
+    assert.equal(result.value.value, "new and longer");
+    assert.equal(result.identity[3], (await fs.stat(file)).size);
+    const lines = path.join(f.root, "nested.jsonl");
+    await writeFile(lines, '{"nested":{"value":"original"}}\n');
+    const rows = await readJsonlCached(lines);
+    rows[0].nested.value = "changed";
+    assert.equal((await readJsonlCached(lines))[0].nested.value, "original");
+  } finally {
+    fs.default.readFile = original;
+    syncBuiltinESMExports();
+    await f.close();
+  }
+});
