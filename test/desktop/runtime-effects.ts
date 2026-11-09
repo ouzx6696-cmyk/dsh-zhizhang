@@ -1,6 +1,7 @@
 export { Runtime } from "../../apps/desktop/src/main/runtime";
 export { claimWorkspace, releaseWorkspace } from "../../packages/core/src/workspace-lock";
 export { registerModelsIpc } from "../../apps/desktop/src/main/ipc/models";
+export { rememberProject } from "../../packages/fanqie/src/engine/storage/projects";
 export { registerBackupIpc } from "../../apps/desktop/src/main/ipc/backup";
 export { registerWorkspaceIpc } from "../../apps/desktop/src/main/ipc/workspace";
 export { registerSessionIpc } from "../../apps/desktop/src/main/ipc/session";

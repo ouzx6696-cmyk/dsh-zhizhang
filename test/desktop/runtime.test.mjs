@@ -921,6 +921,11 @@ test("FQ-03 崩溃遗留写锁：作者确认后经恢复入口先清锁、再�
   state.home = appHome;
   state.resources = resources;
   state.target = { mode: "fanqie", root: paths.base, work: work.meta.key };
+  state.settings = new Settings(appHome, {
+    available: () => false,
+    encrypt: (text) => text,
+    decrypt: (text) => text,
+  });
   state.diagnostics = { write: async (event, fields) => diagnostics.push({ event, ...fields }) };
   state.window = fakeWindow();
   state.sessions = new Sessions({
@@ -1184,6 +1189,118 @@ test("WB-08 只读打开时主进程拒绝写作品的请求；诊断与方法�
     assert.match(await readFile(chapterFile, "utf8"), /只读实例写进来的正文/);
   } finally {
     delete process.env.WRITER_PROFILES_DIR;
+    await state.sessions.dispose();
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("D01 从可写项目向另一实例占用的项目写入被拒绝", async () => {
+  const base = await realpath(await mkdtemp(path.join(tmpdir(), "writer-cross-project-")));
+  const { ensureStorage, createWork, readChapter, updateChapter } =
+    await import("../../apps/desktop/out-test/work-store.mjs");
+  const { Runtime, registerSessionIpc, ipcMain, rememberProject } =
+    await import("../../apps/desktop/out-test/runtime-effects.mjs");
+  const appHome = path.join(base, "app");
+  await mkdir(appHome);
+  process.env.WRITER_STATE_ROOT = appHome;
+  process.env.WRITER_PROFILES_DIR = path.join(base, "profiles");
+  const a = await ensureStorage(null, { storageRoot: path.join(base, "a") });
+  const b = await ensureStorage(null, { storageRoot: path.join(base, "b") });
+  await rememberProject(a.base, a.works);
+  await rememberProject(b.base, b.works);
+  const workA = await createWork(a, { title: "可写项目" });
+  const workB = await createWork(b, { title: "被占用项目" });
+  await updateChapter(workB.dir, { id: "c001", title: "第一章", body: "B 的正文。\n" });
+  const chapterFile = path.join(workB.dir, "chapters/c001.md"),
+    before = await readFile(chapterFile, "utf8");
+  // 头条目录放在 B 的锁范围内，D01 的另一条入口走 /toutiao/draft。
+  const articlesB = path.join(b.base, "toutiao");
+  await mkdir(articlesB);
+  await writeFile(path.join(appHome, "writer-toutiao-roots.json"), JSON.stringify([articlesB]));
+  const storeB = new ArticleStore(articlesB);
+  const article = await storeB.create("locked", { titleHint: "被占用" });
+  await storeB.stageDraft(article.id, "B 的文章初稿。\n", "writer", "测试初稿");
+  const metaB = await storeB.get(article.id),
+    draftB = storeB.currentDraft(metaB),
+    draftFile = storeB.draftPath(article.id, metaB.current_rev),
+    draftBefore = await readFile(draftFile, "utf8");
+  const moduleURL = new URL("../../apps/desktop/out-test/lease.mjs", import.meta.url).href;
+  const child = spawn(
+    process.execPath,
+    [
+      "--input-type=module",
+      "-e",
+      `import {claimWorkspace,setWorkspaceHost} from ${JSON.stringify(moduleURL)};setWorkspaceHost('DSH');await claimWorkspace(${JSON.stringify(b.base)});console.log('READY');process.stdin.resume();`,
+    ],
+    { stdio: ["pipe", "pipe", "pipe"] },
+  );
+  const state = new Runtime();
+  state.home = appHome;
+  state.target = { mode: "fanqie", root: a.base, work: workA.meta.key };
+  // 主进程只知道当前选中项目 A 可写；请求里带上的 B 不在 state.access 的检查范围内。
+  state.access = { readOnly: false, owner: null };
+  state.diagnostics = { write: async () => {} };
+  state.window = fakeWindow();
+  state.model = defaultModels();
+  state.sessions = new Sessions({
+    home: appHome,
+    python: "python3",
+    settings: defaultModels,
+    emit: () => {},
+    confirm: async () => false,
+    options: {},
+    created: async () => {},
+    extras: {},
+  });
+  registerSessionIpc(state);
+  const request = ipcMain.handlers.get("writer:request");
+  const main = fromWindow(state.window);
+  try {
+    await new Promise((resolve, reject) => {
+      child.stdout.once("data", resolve);
+      child.once("error", reject);
+    });
+    const { revision } = await readChapter(workB.dir, "c001");
+    const save = {
+      method: "POST",
+      body: {
+        base: b.base,
+        work: workB.meta.key,
+        chapter: "c001",
+        body: "从 A 越过锁写进 B。\n",
+        expectedRevision: revision,
+      },
+    };
+    const refused = await request(main, "/chapter/save", save);
+    assert.equal(refused.status, 409, JSON.stringify(refused.data));
+    assert.equal(refused.data.code, "CONFLICT");
+    assert.match(refused.data.error, /DSH.*只读/);
+    assert.equal(await readFile(chapterFile, "utf8"), before);
+    const articleRefused = await request(main, "/toutiao/draft", {
+      method: "POST",
+      body: {
+        root: articlesB,
+        id: article.id,
+        text: "从 A 越过锁写进 B 的文章。\n",
+        expectedRev: metaB.current_rev,
+        expectedSha256: draftB.sha256,
+      },
+    });
+    assert.equal(articleRefused.status, 409, JSON.stringify(articleRefused.data));
+    assert.equal(articleRefused.data.code, "CONFLICT");
+    assert.match(articleRefused.data.error, /DSH.*只读/);
+    assert.equal(await readFile(draftFile, "utf8"), draftBefore);
+    // 占用结束后同一请求照常写入：拒绝来自 B 的实际占用，而不是请求本身不可用。
+    child.kill();
+    await new Promise((resolve) => child.once("exit", resolve));
+    const saved = await request(main, "/chapter/save", {
+      ...save,
+      body: { ...save.body, body: "锁释放后写入。\n" },
+    });
+    assert.equal(saved.status, 200, JSON.stringify(saved.data));
+    assert.match(await readFile(chapterFile, "utf8"), /锁释放后写入/);
+  } finally {
+    child.kill();
     await state.sessions.dispose();
     await rm(base, { recursive: true, force: true });
   }
