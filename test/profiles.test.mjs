@@ -297,6 +297,8 @@ test("写作台接口：方案列表、详情、全文、新建、保存、切�
   await fs.mkdir(path.join(broken, "fanqie/user-1"), { recursive: true });
   await fs.writeFile(path.join(broken, "fanqie/user-1/profile.json"), "{broken");
   await assert.rejects(activeProfile("fanqie", "user-1"), /损坏/);
+  await fs.writeFile(path.join(broken, "active.json"), JSON.stringify({ fanqie: 123 }));
+  assert.equal((await activeProfile("fanqie")).id, "default", "损坏的 active.json 回落到默认方案");
   setProfilesRoot(undefined);
   await fs.rm(broken, { recursive: true, force: true });
 });

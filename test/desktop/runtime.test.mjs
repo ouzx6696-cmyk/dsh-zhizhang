@@ -19,6 +19,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { ArticleStore, parseFeedbackEntries } from "../../apps/desktop/out-test/article-store.mjs";
 import { fakeModel } from "./fake-model.mjs";
+import { PYTHON } from "./python.mjs";
 import { Sessions } from "../../apps/desktop/out-test/session.mjs";
 import { Settings } from "../../apps/desktop/out-test/settings.mjs";
 import { defaultModels } from "../../apps/desktop/out-test/models.mjs";
@@ -174,7 +175,7 @@ test("真实 Pi：建书归属、候选定位、独立编辑、角色模型、�
     onSettled = done.finish;
   const sessions = new Sessions({
     home: home,
-    python: "python3",
+    python: PYTHON,
     settings: () => models(model.url),
     emit: (event) => {
       events.push(event);
@@ -396,7 +397,7 @@ test("T15 编辑常驻（creationFirst 版）同样带读者标尺段", async ()
   let onSettled = done.finish;
   const sessions = new Sessions({
     home: home,
-    python: "python3",
+    python: PYTHON,
     settings: () => models(model.url),
     emit: (event) => {
       if (event.event?.type === "agent_settled" && !event.editor) onSettled();
@@ -610,7 +611,7 @@ test("停止任务同时取消父会话与子角色会话", async () => {
   const home = await mkdtemp(path.join(tmpdir(), "writer-cancel-tree-"));
   const sessions = new Sessions({
     home: home,
-    python: "python3",
+    python: PYTHON,
     settings: defaultModels,
     emit: () => {},
     confirm: async () => false,
@@ -653,7 +654,7 @@ test("停止任务：文章创建后会话键已迁移，按根目标停止仍�
   const home = await mkdtemp(path.join(tmpdir(), "writer-cancel-rekey-"));
   const sessions = new Sessions({
     home: home,
-    python: "python3",
+    python: PYTHON,
     settings: defaultModels,
     emit: () => {},
     confirm: async () => false,
@@ -702,7 +703,7 @@ test("模型等待中停止：2 秒内收尾且取消后不再请求模型", asy
   const model = await fakeModel({ "mock-writer": [{ wait: true }] });
   const sessions = new Sessions({
     home: home,
-    python: "python3",
+    python: PYTHON,
     settings: () => models(model.url),
     emit: () => {},
     confirm: async () => false,
@@ -754,7 +755,7 @@ test("首轮审读交接允许无旧回报，恢复须先备份并拒绝锁和�
   let onSettled = () => {};
   const sessions = new Sessions({
     home: appHome,
-    python: "python3",
+    python: PYTHON,
     settings: () => models(model.url),
     emit: (event) => {
       if (event.event?.type === "agent_settled" && !event.editor) onSettled();
@@ -930,7 +931,7 @@ test("FQ-03 崩溃遗留写锁：作者确认后经恢复入口先清锁、再�
   state.window = fakeWindow();
   state.sessions = new Sessions({
     home: appHome,
-    python: "python3",
+    python: PYTHON,
     settings: defaultModels,
     emit: () => {},
     confirm: async () => false,
@@ -1093,7 +1094,7 @@ test("WB-08 只读打开时主进程拒绝写作品的请求；诊断与方法�
   state.model = defaultModels();
   state.sessions = new Sessions({
     home: appHome,
-    python: "python3",
+    python: PYTHON,
     settings: defaultModels,
     emit: () => {},
     confirm: async () => false,
@@ -1244,7 +1245,7 @@ test("D01 从可写项目向另一实例占用的项目写入被拒绝", async (
   state.model = defaultModels();
   state.sessions = new Sessions({
     home: appHome,
-    python: "python3",
+    python: PYTHON,
     settings: defaultModels,
     emit: () => {},
     confirm: async () => false,
@@ -1317,7 +1318,7 @@ test("连续作品切换及持久化失败保留目标与租约一致", async ()
     writerConfig: {},
     sessions: new Sessions({
       home: base,
-      python: "python3",
+      python: PYTHON,
       settings: defaultModels,
       emit: () => {},
       confirm: async () => false,
@@ -1358,7 +1359,7 @@ test("PI 作用范围、目录别名及显式内核配置", async () => {
   const model = await fakeModel();
   const host = new Sessions({
     home: process.env.WRITER_STATE_ROOT,
-    python: "python3",
+    python: PYTHON,
     settings: () => models(model.url),
     emit: () => {},
     confirm: async () => true,
@@ -1418,7 +1419,7 @@ test("文章独立历史、旧依据冲突与准备阶段取消", async () => {
   });
   const host = new Sessions({
     home: process.env.WRITER_STATE_ROOT,
-    python: "python3",
+    python: PYTHON,
     settings: () => models(model.url),
     emit: () => {},
     confirm: async () => true,
@@ -1478,7 +1479,7 @@ test("准备阶段取消只发送一次 cancelled 结束事件", async () => {
   const events = [];
   const host = new Sessions({
     home: home,
-    python: "python3",
+    python: PYTHON,
     settings: () => models(model.url),
     emit: (event) => events.push(event),
     confirm: async () => true,
@@ -1519,7 +1520,7 @@ test("启动前失败标为 failed 并保留真实错误", async () => {
     events = [];
   const host = new Sessions({
     home: home,
-    python: "python3",
+    python: PYTHON,
     settings: () => models(model.url),
     emit: (event) => events.push(event),
     confirm: async () => true,
@@ -1551,7 +1552,7 @@ test("会话历史不可访问不能显示成空历史", async () => {
   const home = await mkdtemp(path.join(tmpdir(), "writer-history-error-"));
   const host = new Sessions({
     home: home,
-    python: "python3",
+    python: PYTHON,
     settings: defaultModels,
     emit: () => {},
     confirm: async () => false,
@@ -1600,7 +1601,7 @@ test("后台工作区释放失败告知作者，保留锁以供核对", async ()
   state.target = { mode: "toutiao", root: current };
   state.sessions = new Sessions({
     home,
-    python: "python3",
+    python: PYTHON,
     settings: defaultModels,
     emit: () => {},
     confirm: async () => false,
@@ -1657,7 +1658,7 @@ test("SDK 错误后正确结束，下一次成功任务有独立结束事件", a
   let finish;
   const host = new Sessions({
     home: home,
-    python: "python3",
+    python: PYTHON,
     settings: () => models(model.url),
     emit: (event) => {
       events.push(event);
@@ -1718,7 +1719,7 @@ test("PI 上下文：连续请求和重启保持历史前缀，缓存用量使�
   const make = () =>
     new Sessions({
       home: home,
-      python: "python3",
+      python: PYTHON,
       settings: () => models(model.url),
       emit: (event) => {
         if (event.event?.type === "agent_settled" && !event.editor) finish?.();
@@ -1815,7 +1816,7 @@ test("任务运行或准备中拒绝保存模型，不中止任务也不改写�
   const target = { mode: "toutiao", root: home };
   state.sessions = new Sessions({
     home,
-    python: "python3",
+    python: PYTHON,
     settings: () => state.model,
     emit: () => {},
     confirm: async () => false,
@@ -1973,7 +1974,7 @@ test("交接埋点：write 任务记录 handoff 事件并携带方法字节与 l
   let onSettled = first.finish;
   const host = new Sessions({
     home: appHome,
-    python: "python3",
+    python: PYTHON,
     settings: () => models(model.url),
     emit: (event) => {
       if (event.event?.type === "agent_settled") onSettled();
@@ -2037,7 +2038,7 @@ test("工具调用埋点：tool_call 随执行落盘，失败记录错误原文"
   const done = settled();
   const host = new Sessions({
     home,
-    python: "python3",
+    python: PYTHON,
     settings: () => models(model.url),
     emit: (event) => {
       if (event.event?.type === "agent_settled") done.finish();
@@ -2090,7 +2091,7 @@ test("方法加载埋点：同一方法重复读取时 method_loaded 带 duplica
   const done = settled();
   const host = new Sessions({
     home,
-    python: "python3",
+    python: PYTHON,
     settings: () => models(model.url),
     emit: (event) => {
       if (event.event?.type === "agent_settled") done.finish();
@@ -2138,7 +2139,7 @@ test("压缩埋点：context_compacted 记录 trigger、触发比例与作者任
     const done = settled();
     const host = new Sessions({
       home,
-      python: "python3",
+      python: PYTHON,
       settings: () => models(model.url),
       emit: (event) => {
         if (event.event?.type === "agent_settled") done.finish();
@@ -2184,7 +2185,7 @@ test("旧目录对话只迁移一次，后续读取不访问旧目录", async ()
   const events = [];
   const host = new Sessions({
     home,
-    python: "python3",
+    python: PYTHON,
     settings: defaultModels,
     emit: () => {},
     confirm: async () => false,
@@ -2234,7 +2235,7 @@ test("作者素材可保存，未读取网页仍拒绝且不覆盖旧卡", async
   const done = settled();
   const host = new Sessions({
     home,
-    python: "python3",
+    python: PYTHON,
     settings: () => models(model.url),
     emit: (e) => {
       if (e.event?.type === "agent_settled") done.finish();
@@ -2346,7 +2347,7 @@ test("手动压缩保留原始历史和会话，自动阈值会产生压缩条�
     const events = [];
     const host = new Sessions({
       home,
-      python: "python3",
+      python: PYTHON,
       settings: () => models(model.url),
       emit: (e) => {
         events.push(e);
@@ -2394,7 +2395,7 @@ test("手动压缩互斥，可取消且不删除原始历史", async () => {
   });
   const host = new Sessions({
     home,
-    python: "python3",
+    python: PYTHON,
     settings: () => models(model.url),
     emit: (e) => {
       if (e.event?.type === "agent_settled") done.finish();
@@ -2452,7 +2453,7 @@ test("Agent 直接保存尚无文件的新章正文，不因缺少已读版本�
   const model = await fakeModel();
   const host = new Sessions({
     home: appHome,
-    python: "python3",
+    python: PYTHON,
     settings: () => models(model.url),
     emit: () => {},
     confirm: async () => true,
@@ -2482,7 +2483,7 @@ test("配置更新期间拒绝新任务与压缩，失败后恢复接收", async
   const state = new Runtime();
   state.sessions = new Sessions({
     home,
-    python: "python3",
+    python: PYTHON,
     settings: defaultModels,
     emit: () => {},
     confirm: async () => false,
@@ -2539,7 +2540,7 @@ test("长篇任务自动注入当前用户方法，并记录与实际内容一�
   const done = settled();
   const host = new Sessions({
     home,
-    python: "python3",
+    python: PYTHON,
     settings: () => models(model.url),
     emit: (event) => {
       if (event.event?.type === "agent_settled") done.finish();
@@ -2585,7 +2586,7 @@ function handoffHost(base, options, model, logs, extras = {}) {
   let onSettled = () => {};
   const host = new Sessions({
     home: base,
-    python: "python3",
+    python: PYTHON,
     settings: () => models(model.url),
     emit: (event) => {
       if (event.event?.type === "agent_settled") onSettled();
@@ -3150,7 +3151,7 @@ test("主动压缩：写手结算空闲后达窗口 75% 自动整理并带写作
       packed = enabled ? settled() : undefined;
     const host = new Sessions({
       home,
-      python: "python3",
+      python: PYTHON,
       settings: () => value,
       emit: (event) => {
         if (event.event?.type === "agent_settled") done.finish();
@@ -3216,7 +3217,7 @@ test("writer_remember：作者约束落盘并随下一条任务注入", async ()
   let onSettled = () => {};
   const host = new Sessions({
     home,
-    python: "python3",
+    python: PYTHON,
     settings: () => models(model.url),
     emit: (event) => {
       if (event.event?.type === "agent_settled") onSettled();
@@ -3331,7 +3332,7 @@ test("抽卡：writer_draw 并发起草候选、编辑评估排序与用量回�
   const { dir, key } = await makeDrawWork(data);
   const sessions = new Sessions({
     home,
-    python: "python3",
+    python: PYTHON,
     settings: () => models(model.url),
     emit: (event) => {
       events.push(event);
@@ -3433,7 +3434,7 @@ test("抽卡：单路起草失败其余成功时交回部分结果", async () =>
   const { key } = await makeDrawWork(data);
   const sessions = new Sessions({
     home,
-    python: "python3",
+    python: PYTHON,
     settings: () => models(model.url),
     emit: (event) => {
       events.push(event);
@@ -3480,7 +3481,7 @@ test("抽卡开关关闭时 writer_draw 不注册", async () => {
   const { key } = await makeDrawWork(data);
   const sessions = new Sessions({
     home,
-    python: "python3",
+    python: PYTHON,
     settings: () => models(model.url),
     emit: (event) => {
       if (event.event?.type === "agent_settled" && !event.editor) onSettled();
@@ -3589,7 +3590,7 @@ test("头条标题抽卡：五母体各一版、按四问分数排序、指回 t
   let onSettled = done.finish;
   const sessions = new Sessions({
     home,
-    python: "python3",
+    python: PYTHON,
     settings: () => models(model.url),
     emit: (event) => {
       events.push(event);
@@ -3688,7 +3689,7 @@ test("头条标题抽卡：n 超上限被钳制；开关关闭不注册", async 
   let onSettled = done.finish;
   const sessions = new Sessions({
     home,
-    python: "python3",
+    python: PYTHON,
     settings: () => models(model.url),
     emit: (event) => {
       events.push(event);
@@ -3725,7 +3726,7 @@ test("头条标题抽卡：n 超上限被钳制；开关关闭不注册", async 
   let offSettled = offDone.finish;
   const offSessions = new Sessions({
     home,
-    python: "python3",
+    python: PYTHON,
     settings: () => models(offModel.url),
     emit: (event) => {
       if (event.event?.type === "agent_settled" && !event.editor) offSettled();
@@ -3839,7 +3840,7 @@ test("qa.judge 开启：writer_review 任务附九项标尺，读者评审落到
     let onSettled = done.finish;
     const sessions = new Sessions({
       home,
-      python: "python3",
+      python: PYTHON,
       settings: () => models(model.url),
       emit: (event) => {
         events.push(event);
@@ -3982,7 +3983,7 @@ async function makeLearnWork(data) {
 function learnSessions(home, model, options, events, settle) {
   return new Sessions({
     home,
-    python: "python3",
+    python: PYTHON,
     settings: () => models(model.url),
     emit: (event) => {
       events.push(event);

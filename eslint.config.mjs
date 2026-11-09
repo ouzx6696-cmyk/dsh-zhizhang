@@ -12,6 +12,7 @@ export default [
       "apps/desktop/release/**",
       "test-results/**",
       "playwright-report/**",
+      ".cache/**",
       "**/*.d.ts",
     ],
   },

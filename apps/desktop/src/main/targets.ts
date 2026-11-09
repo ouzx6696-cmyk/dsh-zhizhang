@@ -1,8 +1,11 @@
 import { resolveFanqieWork } from "./storage";
 import { migrateInspirationBindings } from "../../../../packages/fanqie/src/engine/storage/inspiration-migration";
+import { storagePaths } from "../../../../packages/fanqie/src/engine/storage/paths";
 import { physicalRoot } from "../../../../packages/core/src/identity";
+import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import type { Target } from "../context";
+import type { PluginConfig } from "../../../../packages/fanqie/src/engine/types";
 import { rememberRoot } from "../../../../packages/toutiao/src/env";
 import { atomicWrite, serialize } from "../../../../packages/core/src/fsx";
 import {
@@ -10,6 +13,7 @@ import {
   listProjects,
   projectIdOf,
   rememberProject,
+  resolveWorkDir,
 } from "../../../../packages/fanqie/src/engine/work-store";
 import {
   claimWorkspace,
@@ -33,12 +37,14 @@ export async function selectTarget(state: Runtime, next: Target) {
       ...(next.article ? { article: next.article } : {}),
       ...(next.work ? { work: next.work } : {}),
     };
+    let storage: { config: PluginConfig; paths: ReturnType<typeof storagePaths> } | undefined;
+    let newRoot = normalized.root;
     if (normalized.mode !== "toutiao") {
       const project = (await listProjects()).find((p) => p.id === projectIdOf(normalized.root));
       const unified =
         state.settings?.workspace &&
         normalized.root === path.join(state.settings.workspace, ".writer");
-      const paths = await ensureStorage(null, {
+      const config: PluginConfig = {
         ...state.writerConfig.fanqie,
         storageRoot: normalized.root,
         ...(project?.worksRoot
@@ -46,14 +52,21 @@ export async function selectTarget(state: Runtime, next: Target) {
           : unified
             ? { worksRoot: path.join(state.settings.workspace, "novels") }
             : {}),
-      });
-      await migrateInspirationBindings(paths);
-      await rememberProject(paths.base, paths.works);
+      };
+      const paths = storagePaths(null, config);
+      // 先只建作品根以便取得锁；项目登记、灵感迁移和目录初始化都放到锁内。
+      await mkdir(paths.base, { recursive: true });
+      storage = { config, paths };
+      newRoot = normalized.work ? await resolveWorkDir(paths, normalized.work) : paths.base;
     }
-    await state.sessions.initialize(normalized);
-    const newRoot = await lockRoot(state, normalized);
     const access = await claimWorkspace(newRoot);
     try {
+      if (storage) {
+        await ensureStorage(null, storage.config);
+        await migrateInspirationBindings(storage.paths);
+        await rememberProject(storage.paths.base, storage.paths.works);
+      }
+      await state.sessions.initialize(normalized);
       if (normalized.mode === "toutiao") await rememberRoot(normalized.root);
       await atomicWrite(path.join(state.home, "target.json"), JSON.stringify(normalized));
     } catch (error) {
@@ -107,19 +120,21 @@ export async function takeOverTarget(state: Runtime, ownerId: string) {
 }
 
 export async function releaseInactiveTarget(state: Runtime, target: Target) {
-  if (
-    !state.target ||
-    state.sessions.same(target, state.target) ||
-    state.sessions.isRunning(target)
-  )
-    return;
-  try {
-    const root = await lockRoot(state, target);
-    if (!state.target || root !== (await lockRoot(state, state.target)))
-      await releaseWorkspace(root);
-  } catch (error) {
-    await reportReleaseFailure(state, error);
-  }
+  await serialize(`target:${state.home}`, async () => {
+    if (
+      !state.target ||
+      state.sessions.same(target, state.target) ||
+      state.sessions.isRunning(target)
+    )
+      return;
+    try {
+      const root = await lockRoot(state, target);
+      if (!state.target || root !== (await lockRoot(state, state.target)))
+        await releaseWorkspace(root);
+    } catch (error) {
+      await reportReleaseFailure(state, error);
+    }
+  });
 }
 
 async function reportReleaseFailure(state: Runtime, error: unknown) {

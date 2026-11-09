@@ -5,7 +5,10 @@ import { readdir } from "node:fs/promises";
 import { readFile } from "node:fs/promises";
 import { atomicWrite, readText, sha256, shortId } from "../../../../packages/core/src/fsx";
 import { errorText } from "../../../../packages/core/src/errors";
-import { assertWorkspaceWritable } from "../../../../packages/core/src/workspace-lock";
+import {
+  assertWorkspaceWritable,
+  workspaceAccess,
+} from "../../../../packages/core/src/workspace-lock";
 import {
   WorkflowJournal,
   WorkflowPause,
@@ -73,6 +76,12 @@ export class WorkflowService {
   private pointer(target: Target) {
     return path.join(this.directory(target), "current");
   }
+  /** 番茄的锁在作品目录，头条在数据根；只读判定必须与实际写入位置一致。 */
+  private writableRoot(target: Target) {
+    return target.mode === "fanqie" && target.work
+      ? resolveFanqieWork(this.host.options, target)
+      : Promise.resolve(target.root);
+  }
   private pendingFile(target: Target) {
     return path.join(this.directory(target), "pending-ledger.json");
   }
@@ -95,6 +104,9 @@ export class WorkflowService {
     const id = await readText(this.pointer(target));
     const state = id ? await WorkflowJournal.read(this.file(target, id)) : undefined;
     if (state?.state === "running" && !this.busy(target)) {
+      const access = await workspaceAccess(await this.writableRoot(target));
+      // 另一进程正在跑同一作品时只能读；不能把它的 running 改写成 interrupted。
+      if (access.readOnly) return state;
       const journal = await WorkflowJournal.open(
         this.file(target, state.id),
         state.request,
@@ -180,7 +192,7 @@ export class WorkflowService {
     const active: Active = { target: { ...target }, controller, promise: Promise.resolve() };
     this.active.set(key, active);
     try {
-      await assertWorkspaceWritable(target.root);
+      await assertWorkspaceWritable(await this.writableRoot(target));
       controller.signal.throwIfAborted();
       const previous = resume ? await this.status(target) : undefined;
       if (resume && !previous) throw new Error("没有可恢复的流水线记录");
@@ -294,8 +306,16 @@ export class WorkflowService {
     try {
       for (const name of await readdir(dir))
         if (/^run-[a-f0-9]+\.json$/.test(name)) {
-          const value = await WorkflowJournal.read(path.join(dir, name));
-          if (value) rows.push(value);
+          try {
+            const value = await WorkflowJournal.read(path.join(dir, name));
+            if (value) rows.push(value);
+          } catch (error) {
+            // allow-catch: 单份历史损坏时保留其余记录；原因写入诊断日志供排查。
+            this.host.extras.log?.("workflow_history_unavailable", {
+              file: name,
+              error: errorText(error),
+            });
+          }
         }
     } catch (error) {
       if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
@@ -324,14 +344,14 @@ export class WorkflowService {
     return readContinuity(await resolveFanqieWork(this.host.options, target));
   }
   async decide(target: Target, id: string, accept: boolean) {
-    await assertWorkspaceWritable(target.root);
+    await assertWorkspaceWritable(await this.writableRoot(target));
     if (this.host.isRunning(target)) throw new Error("请先等待当前任务结束");
     const result = await decideFact(await resolveFanqieWork(this.host.options, target), id, accept);
     this.host.emit({ target, refresh: true });
     return result;
   }
   async migrate(target: Target) {
-    await assertWorkspaceWritable(target.root);
+    await assertWorkspaceWritable(await this.writableRoot(target));
     if (this.host.isRunning(target)) throw new Error("请先等待当前任务结束");
     if (
       !(await this.host.confirm(
@@ -384,7 +404,7 @@ export class WorkflowService {
     });
   }
   async apply(target: Target) {
-    await assertWorkspaceWritable(target.root);
+    await assertWorkspaceWritable(await this.writableRoot(target));
     if (this.host.isRunning(target)) throw new Error("请先等待当前任务结束");
     const state = await this.status(target);
     if (

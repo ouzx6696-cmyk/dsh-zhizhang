@@ -51,15 +51,17 @@ export const DEFAULT_ENGINE: EngineSettings = {
   inputBudget: 24000,
   runBudget: 1200000,
 };
-/** 0.9.x / 1.0.0-preview.1 shipped 200000, which stops every standard golden chapter mid-run. */
-const LEGACY_RUN_BUDGET = 200000;
 export const BUDGET_LIMITS = { min: 2000, input: 1000000, run: 20000000 } as const;
 export function parseEngine(value: unknown): EngineSettings {
   if (!isRecord(value)) throw new Error("写作引擎设置须为对象");
   if (
-    Object.keys(value).some((key) => !["guided", "grade", "inputBudget", "runBudget"].includes(key))
+    Object.keys(value).some(
+      (key) => !["guided", "grade", "inputBudget", "runBudget", "engineVersion"].includes(key),
+    )
   )
     throw new Error("写作引擎设置含未知字段");
+  if (value.engineVersion !== undefined && value.engineVersion !== 2)
+    throw new Error("写作引擎配置版本无效");
   if (typeof value.guided !== "boolean" || !WORKFLOW_GRADES.includes(value.grade as WorkflowGrade))
     throw new Error("写作引擎模式或档位无效");
   for (const key of ["inputBudget", "runBudget"] as const) {
@@ -78,10 +80,7 @@ export function parseEngine(value: unknown): EngineSettings {
     guided: value.guided,
     grade: value.grade as WorkflowGrade,
     inputBudget: Number(value.inputBudget),
-    runBudget:
-      Number(value.runBudget) === LEGACY_RUN_BUDGET
-        ? DEFAULT_ENGINE.runBudget
-        : Number(value.runBudget),
+    runBudget: Number(value.runBudget),
   };
 }
 export interface WorkflowRequest {

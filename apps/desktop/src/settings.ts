@@ -45,13 +45,41 @@ export class Settings {
     }
   }
   async saveEngine(value: EngineSettings) {
-    await atomicWrite(path.join(this.home, "engine.json"), JSON.stringify(value, null, 2));
+    await atomicWrite(
+      path.join(this.home, "engine.json"),
+      JSON.stringify({ ...value, engineVersion: 2 }, null, 2),
+    );
     this.engine = value;
   }
   async load() {
     try {
       const engine = await readText(path.join(this.home, "engine.json"));
-      if (engine !== undefined) this.engine = parseEngine(JSON.parse(engine));
+      if (engine !== undefined) {
+        const raw: unknown = JSON.parse(engine);
+        if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("配置须为对象");
+        const legacy = !Object.hasOwn(raw, "engineVersion");
+        const migrated = legacy
+          ? {
+              ...(raw as Record<string, unknown>),
+              engineVersion: 2,
+              ...(Object.hasOwn(raw, "runBudget") &&
+              (raw as { runBudget?: unknown }).runBudget === 200000
+                ? { runBudget: DEFAULT_ENGINE.runBudget }
+                : {}),
+            }
+          : raw;
+        this.engine = parseEngine(migrated);
+        if (legacy) {
+          await atomicWrite(
+            path.join(this.home, "engine.json"),
+            JSON.stringify({ ...this.engine, engineVersion: 2 }, null, 2),
+          );
+          if (this.engine.runBudget !== (raw as { runBudget?: unknown }).runBudget)
+            this.notices.push(
+              "旧版 20 万 token 任务预算已升级为 120 万；如需更低预算请在设置中调整。",
+            );
+        }
+      }
     } catch (error) {
       // allow-catch: 保留损坏的配置并在启动提示，允许作者打开设置修复。
       this.notices.push("流水线配置无法读取，已使用默认设置：" + String(error));

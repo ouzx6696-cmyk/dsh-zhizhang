@@ -184,13 +184,10 @@ export function createDrawTools(options: {
   drawMax: number;
   /** 头条标题抽卡单批上限（draw.max ?? 5）；只在 toutiao 模式用 */
   toutiaoDrawMax?: number;
-  /** 开关关闭时不注册（头条与番茄的开关独立，create.ts 按模式判断） */
-  drawEnabled?: boolean;
   /** 起草子会话工厂由 create.ts 注入（createDraftSession），避免 create ↔ draw-task 依赖环。 */
   createDraft: (constraint: string) => Promise<AgentSession>;
 }): ToolDefinition[] {
   const { host, target, getEntry, getSession } = options;
-  if (options.drawEnabled === false) return [];
   if (target.mode === "toutiao")
     return [
       {

@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { fakeModel } from "./fake-model.mjs";
+import { PYTHON } from "./python.mjs";
 
 /** Mirrors core rootIdentity: native realpath, forward slashes, lower case on Windows. */
 function rootIdentityOf(root) {
@@ -129,7 +130,7 @@ test.beforeAll(async () => {
     env: {
       ...process.env,
       WRITER_USER_DATA: home,
-      WRITER_PYTHON: process.env.WRITER_PYTHON || "python3",
+      WRITER_PYTHON: PYTHON,
     },
   });
   page = await app.firstWindow();

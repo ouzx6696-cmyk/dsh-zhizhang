@@ -39,6 +39,8 @@ export async function sendPrompt(
     if (session.isIdle) {
       Object.assign(entry.task, preparingTask);
     }
+    // 新会话（章级轮换或新建对话）可能换了 conversationId；先单独告知界面，避免首条事件被当成旧会话丢弃。
+    host.emit({ target, conversationId: session.sessionId });
     host.emit({
       target,
       task: entry.task,

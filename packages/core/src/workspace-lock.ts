@@ -45,6 +45,8 @@ function parseOwner(raw: string, file: string): WorkspaceOwner {
     !isRecord(value) ||
     typeof value.id !== "string" ||
     typeof value.pid !== "number" ||
+    !Number.isInteger(value.pid) ||
+    value.pid <= 0 ||
     typeof value.machine !== "string" ||
     typeof value.host !== "string" ||
     typeof value.at !== "string"
@@ -389,10 +391,15 @@ export async function releaseWorkspace(root: string) {
   const resolved = path.resolve(root);
   const key = held.has(resolved) ? resolved : await realpath(root),
     owner = held.get(key);
-  if (owner) {
-    if ((await ownerAt(key))?.id === owner.id) await unlink(path.join(key, FILE));
-    held.delete(key);
+  if (!owner) return;
+  try {
+    await withClaimGuard(key, async () => {
+      if ((await ownerAt(key))?.id === owner.id) await unlink(path.join(key, FILE));
+    });
+  } catch (error) {
+    if (!isMissingFileError(error)) throw error;
   }
+  held.delete(key);
 }
 export async function releaseWorkspaces() {
   for (const root of held.keys()) await releaseWorkspace(root);

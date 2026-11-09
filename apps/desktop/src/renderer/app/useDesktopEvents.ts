@@ -97,15 +97,17 @@ export function useDesktopEvents({
         refreshWorkspace();
         void loadProjects().catch(fail);
       }
+      if (value.conversationId && !value.event) {
+        // 只携带 conversationId 的事件是主进程对新会话的显式告知；先接受它，后续事件才不会被旧 id 挡住。
+        if (archived.current === undefined) conversationId.current = value.conversationId;
+        return;
+      }
       const event = value.event;
       if (!event || archived.current !== undefined) return;
-      if (
-        value.conversationId &&
-        conversationId.current &&
-        value.conversationId !== conversationId.current
-      )
-        return;
-      if (value.conversationId) conversationId.current = value.conversationId;
+      if (value.conversationId) {
+        if (conversationId.current && value.conversationId !== conversationId.current) return;
+        conversationId.current = value.conversationId;
+      }
       if (value.phase) chatStore.set({ phase: value.phase });
       if (value.task && !value.editor) chatStore.set({ task: { ...value.task } });
       if (value.editor) return;

@@ -21,21 +21,25 @@ export function DraftCompare({ record }: { record: WorkflowRecord }) {
   const [choice, setChoice] = useState<[number, number]>([0, 1]);
   const drafts = completedDrafts(record);
   if (drafts.length < 2) return null;
+  const shown: [number, number] = [
+    Math.min(choice[0], drafts.length - 1),
+    Math.min(choice[1], drafts.length - 1),
+  ];
   return (
     <details className="wf-compare">
       <summary>
         {copy.workflowCompare} · {drafts.length}
       </summary>
       <div className="wf-compare-grid">
-        {choice.map((index, column) => {
+        {shown.map((index, column) => {
           return (
             <section key={column}>
               <select
                 aria-label={copy.workflowCompare + " " + (column + 1)}
                 value={index}
                 onChange={(event) => {
-                  const next: [number, number] = [...choice];
-                  next[column] = Number(event.target.value);
+                  const next: [number, number] = [...shown];
+                  next[column] = Math.min(Number(event.target.value), drafts.length - 1);
                   setChoice(next);
                 }}
               >

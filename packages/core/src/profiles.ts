@@ -258,7 +258,8 @@ const activeFile = () => path.join(profilesRoot(), "active.json");
 /** 当前方案的键：配置钉死的优先，其次 active.json 里存的，都没有就是默认。 */
 async function activeKey(mode: ProfileMode, pinned?: string) {
   if (pinned) return { key: pinned, pinned: true };
-  const saved = (await readJson<Record<string, string>>(activeFile()))?.[mode];
+  const raw = await readJson<unknown>(activeFile());
+  const saved = isRecord(raw) && typeof raw[mode] === "string" ? raw[mode] : "";
   return { key: saved || "default", pinned: false };
 }
 

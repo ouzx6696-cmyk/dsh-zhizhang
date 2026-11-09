@@ -101,11 +101,11 @@ export async function decideLearning(
   action: "accept" | "reject",
   value?: string,
 ) {
-  await assertWorkspaceWritable(target.root);
   if (value !== undefined && id === "all") throw new Error("编辑内容只适用于单条规则");
   const file = await learningFile(host, target),
     snapshot = await readText(file),
     pending = await readLearning(host, target);
+  await assertWorkspaceWritable(path.dirname(file));
   const chosen = pending?.items.filter((item) => id === "all" || item.id === id) ?? [];
   if (!chosen.length || !pending) throw new Error("没有这个待确认的改稿学习候选");
   if (

@@ -20,3 +20,6 @@ apps/desktop/resources/
 # 文档按原文排版，不做自动折行
 docs/
 *.md
+
+# 本地可删除缓存（真实模型驱动与下载运行时）
+.cache/

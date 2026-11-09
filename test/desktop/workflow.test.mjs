@@ -18,6 +18,8 @@ import {
   createWork,
 } from "../../apps/desktop/out-test/work-store.mjs";
 import { fakeModel } from "./fake-model.mjs";
+import { Settings } from "../../apps/desktop/out-test/settings.mjs";
+import { PYTHON } from "./python.mjs";
 const root = fileURLToPath(new URL("../../", import.meta.url));
 for (const mode of ["FANQIE", "TOUTIAO"]) {
   process.env[`WRITER_${mode}_SKILL_DIR`] = path.join(root, `packages/${mode.toLowerCase()}/skill`);
@@ -152,7 +154,7 @@ async function fixture(
     events = [];
   const host = new Sessions({
     home,
-    python: process.platform === "win32" ? "python" : "python3",
+    python: PYTHON,
     settings: () => models,
     emit: (event) => events.push(event),
     confirm: async () => control.confirm,
@@ -454,14 +456,33 @@ test("审读不要求模型回显指纹；硬伤原文按定位结果绑定当�
   assert.equal(review('{"hard":[],"suggestions":[]}', text).bodyHash, hash(text));
 });
 
-test("写作引擎预算：旧默认 200000 升级为能跑完标准档的新默认，其余值保留", async () => {
+test("写作引擎预算：旧默认只在缺少版本标记时迁移一次，显式值保留", async () => {
   const { parseEngine, DEFAULT_ENGINE } =
     await import("../../apps/desktop/out-test/workflow-config.mjs");
   const base = { guided: true, grade: "standard", inputBudget: 24000 };
-  assert.equal(parseEngine({ ...base, runBudget: 200000 }).runBudget, DEFAULT_ENGINE.runBudget);
+  assert.equal(parseEngine({ ...base, runBudget: 200000 }).runBudget, 200000);
   assert.equal(parseEngine({ ...base, runBudget: 300000 }).runBudget, 300000);
   assert.equal(parseEngine({ ...base, runBudget: 5000000 }).runBudget, 5000000);
   assert.throws(() => parseEngine({ ...base, runBudget: 30000000 }));
+  assert.throws(() => parseEngine({ ...base, runBudget: 200000, engineVersion: 3 }));
+
+  const home = await mkdtemp(path.join(tmpdir(), "writer-engine-"));
+  const secrets = { available: () => true, encrypt: (text) => text, decrypt: (text) => text };
+  try {
+    await writeFile(path.join(home, "engine.json"), JSON.stringify({ ...base, runBudget: 200000 }));
+    const legacy = new Settings(home, secrets);
+    await legacy.load();
+    assert.equal(legacy.engine.runBudget, DEFAULT_ENGINE.runBudget);
+    assert.match(legacy.notices.join(), /20 万 token/);
+
+    await legacy.saveEngine({ ...legacy.engine, runBudget: 200000 });
+    const reopened = new Settings(home, secrets);
+    await reopened.load();
+    assert.equal(reopened.engine.runBudget, 200000, "作者显式选择的预算不能被再次迁移");
+    assert.equal(reopened.notices.length, 0);
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
 });
 
 test("两轮定向修订后仍有硬伤：交付最佳稿并标注待作者判断，不丢弃整次任务", async () => {

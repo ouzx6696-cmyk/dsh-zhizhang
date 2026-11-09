@@ -37,16 +37,22 @@ export function registerWorkspaceIpc(state: Runtime) {
       properties: ["openDirectory", "createDirectory"],
     });
     if (result.canceled) return null;
+    const previous = state.settings.workspace;
     await state.settings.saveUI({ workspace: result.filePaths[0] });
     await Promise.all([
       mkdir(path.join(state.settings.workspace, "novels"), { recursive: true }),
       mkdir(path.join(state.settings.workspace, "toutiao"), { recursive: true }),
     ]);
-    const chosen = await selectTarget(state, {
-      mode: "fanqie",
-      root: path.join(state.settings.workspace, ".writer"),
-    });
-    return { target: chosen, ...state.settings.public() };
+    try {
+      const chosen = await selectTarget(state, {
+        mode: "fanqie",
+        root: path.join(state.settings.workspace, ".writer"),
+      });
+      return { target: chosen, ...state.settings.public() };
+    } catch (error) {
+      await state.settings.saveUI({ workspace: previous });
+      throw error;
+    }
   });
   handle("projects", async () => {
     const [projects, articles] = await Promise.all([
