@@ -35,7 +35,8 @@
       "patched": [
         "scripts/ledger.py",
         "scripts/qa_check.py",
-        "tests/test_gates.py"
+        "tests/test_gates.py",
+        "tests/test_bridge.py"
       ],
       "exclude": []
     },

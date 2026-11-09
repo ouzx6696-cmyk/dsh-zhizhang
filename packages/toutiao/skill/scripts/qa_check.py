@@ -22,6 +22,7 @@
 """
 import argparse, datetime, json, math, os, re, sys
 from dataclasses import dataclass
+from typing import Dict, List, Set, Tuple, Union
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from rules import *          # noqa: F401,F403  唯一规则源
@@ -64,12 +65,12 @@ def punct_issues(chunks):
 @dataclass(frozen=True)
 class LoadedManuscript:
     title: str
-    headings: list[str]
-    paras: list[str]
+    headings: List[str]
+    paras: List[str]
     images: int
-    hpos: list[tuple[str, int]]
+    hpos: List[Tuple[str, int]]
     bold: int
-    bold_by_para: list[int]
+    bold_by_para: List[int]
 
 
 def load(path):
@@ -163,33 +164,33 @@ class QualitySignals:
     avg: float
     buzz: int
     chars: int
-    driver: str | None
+    driver: Union[str, None]
     dup: int
     empty_end: int
-    ext_start: str | None
-    headings: list[str]
+    ext_start: Union[str, None]
+    headings: List[str]
     hook_len: int
-    hpos: list[tuple[str,int]] | None
+    hpos: Union[List[Tuple[str, int]], None]
     images: int
     ladder: int
     leak: int
-    leak_hits: list[tuple[str,int]]
+    leak_hits: List[Tuple[str, int]]
     long_para: int
     micro: bool
-    mode: str | None
-    names: tuple[str,...] | list[str]
+    mode: Union[str, None]
+    names: Union[Tuple[str, ...], List[str]]
     near_dup: int
     open_tpl: int
     opener: int
-    paras: list[str]
+    paras: List[str]
     pronoun_mix: int
     scan: str
     seesaw: int
-    sents: list[str]
+    sents: List[str]
     story: bool
     text: str
     title: str
-    unfilled: list[str]
+    unfilled: List[str]
     uniform_pen: int
     var: float
 
@@ -546,7 +547,10 @@ def validate_card_types(card):
 
 def read_ledger(path):
     # 台账的读法（含公式前缀还原）只在 ledger.py 一处。
-    return ledger_store.read(path) if path else []
+    try:
+        return ledger_store.read(path) if path else []
+    except ValueError as error:
+        raise QAInputError(str(error)) from error
 
 
 def _is_draft(name):
@@ -704,16 +708,16 @@ def _as_list(v):
 
 @dataclass(frozen=True)
 class CardSignals:
-    card: dict
-    headings: list[str] | None
-    hpos: list[tuple[str,int]] | None
-    ledger_rows: list[dict]
+    card: Dict
+    headings: Union[List[str], None]
+    hpos: Union[List[Tuple[str, int]], None]
+    ledger_rows: List[Dict]
     line: str
-    out: list[tuple[str,str]]
-    paras: list[str]
+    out: List[Tuple[str, str]]
+    paras: List[str]
     text: str
     title: str
-    today: datetime.date | None
+    today: Union[datetime.date, None]
 
 def check_card_basics(signals: CardSignals):
     if signals.card.get("内容线") and signals.card.get("内容线") not in LINES:

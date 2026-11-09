@@ -31,6 +31,44 @@ export function publicAddress(address: string) {
     !ip.startsWith("2002:")
   );
 }
+function decodeSource(bytes: Buffer, contentType: string) {
+  const head = bytes.subarray(0, 2048).toString("latin1");
+  const charset =
+    /charset\s*=\s*["']?([^\s;"'>]+)/i.exec(contentType)?.[1] ??
+    /<meta\b[^>]*charset\s*=\s*["']?([^\s;"'>]+)/i.exec(head)?.[1] ??
+    "utf-8";
+  return new TextDecoder(charset, { fatal: true }).decode(bytes);
+}
+const ENTITIES: Record<string, string> = {
+  nbsp: " ",
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  ldquo: "“",
+  rdquo: "”",
+  lsquo: "‘",
+  rsquo: "’",
+  mdash: "—",
+  ndash: "–",
+  hellip: "…",
+  middot: "·",
+};
+function decodeEntities(value: string) {
+  return value.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (match, entity: string) => {
+    if (entity.startsWith("#")) {
+      const point =
+        entity[1].toLowerCase() === "x"
+          ? parseInt(entity.slice(2), 16)
+          : parseInt(entity.slice(1), 10);
+      return point > 0 && point <= 0x10ffff && !(point >= 0xd800 && point <= 0xdfff)
+        ? String.fromCodePoint(point)
+        : match;
+    }
+    return ENTITIES[entity.toLowerCase()] ?? match;
+  });
+}
 export async function readSource(
   input: string,
   signal?: AbortSignal,
@@ -100,7 +138,15 @@ export async function readSource(
             chunks.push(chunk);
           });
           response.on("error", reject);
-          response.on("end", () => resolve({ text: Buffer.concat(chunks).toString("utf8") }));
+          response.on("end", () => {
+            try {
+              resolve({
+                text: decodeSource(Buffer.concat(chunks), response.headers["content-type"] || ""),
+              });
+            } catch (error) {
+              reject(error);
+            }
+          });
         },
       );
       request.on("timeout", () => request.destroy(new Error("资料网站连接超时，请稍后重试")));
@@ -110,13 +156,11 @@ export async function readSource(
       url = new URL(result.location);
       continue;
     }
-    const text = (result.text || "")
-      .replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, "")
-      .replace(/<[^>]*>/g, " ")
-      .replace(/&nbsp;/g, " ")
-      .replace(/&amp;/g, "&")
-      .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">")
+    const text = decodeEntities(
+      (result.text || "")
+        .replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, "")
+        .replace(/<[^>]*>/g, " "),
+    )
       .replace(/\s+/g, " ")
       .trim();
     return {

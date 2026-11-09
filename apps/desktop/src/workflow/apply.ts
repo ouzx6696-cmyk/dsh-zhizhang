@@ -1,5 +1,5 @@
 import path from "node:path";
-import { readFile } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import { atomicWrite, readText, readJson, nowIso, sha256 } from "../../../../packages/core/src/fsx";
 import { resolveFanqieWork } from "../main/storage";
 import {
@@ -119,7 +119,14 @@ export async function applyArticle(
     if (old === undefined) {
       const cardHash = nowCard === undefined ? null : sha256(JSON.stringify(nowCard));
       if (cardHash !== output.previousCardHash) throw new Error("立项卡已改变，未覆盖作者新卡片");
-      await atomicWrite(backup, JSON.stringify({ meta, card: nowCard ?? null }, null, 2));
+      await atomicWrite(
+        backup,
+        JSON.stringify(
+          { meta, card: nowCard ?? null, cardText: (await readText(store.cardPath(id))) ?? null },
+          null,
+          2,
+        ),
+      );
     } else {
       const original = record(old);
       if (
@@ -138,9 +145,37 @@ export async function applyArticle(
       host.extras.engine?.() ?? DEFAULT_ENGINE,
       controller.signal,
     );
-    const qa = await productionQa(run, store, id, card, { title, body });
-    if (qa.pass !== true)
-      throw new Error("实际台账质检未通过，工作稿和备份保留；请根据质检结果修订，未标记已验收");
+    let qa;
+    try {
+      qa = await productionQa(run, store, id, card, { title, body });
+      if (qa.pass !== true)
+        throw new Error("实际台账质检未通过，工作稿和备份保留；请根据质检结果修订，未标记已验收");
+    } catch (error) {
+      try {
+        const original = record(await readJson<unknown>(backup));
+        const headlines = record(record(original.meta).headlines);
+        if (
+          typeof headlines.main !== "string" ||
+          !Array.isArray(headlines.alts) ||
+          headlines.alts.some((value) => typeof value !== "string")
+        )
+          throw new Error("采用备份中的标题格式损坏");
+        const prior = { main: headlines.main, alts: headlines.alts as string[] };
+        const cardText = original.cardText;
+        if (cardText === null || (cardText === undefined && original.card === null))
+          await rm(store.cardPath(id), { force: true });
+        else if (typeof cardText === "string") await atomicWrite(store.cardPath(id), cardText);
+        else if (cardText === undefined)
+          await atomicWrite(store.cardPath(id), JSON.stringify(original.card, null, 2));
+        else throw new Error("采用备份中的卡片格式损坏");
+        await store.update(id, (meta) => {
+          meta.headlines = prior;
+        });
+      } catch (restoreError) {
+        throw new AggregateError([error, restoreError], "采用质检失败，原卡片与标题恢复也失败");
+      }
+      throw error;
+    }
     return { at: nowIso(), backup, revision: expected.rev, qa };
   });
 }

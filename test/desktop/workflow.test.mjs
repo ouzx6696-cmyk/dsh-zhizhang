@@ -333,6 +333,8 @@ test("头条完整旅程：本地故事来源→工作稿真实质检→中断�
     const store = new ArticleStore(f.data),
       meta = await store.create("story", { line: "故事线", genre: "长图文" }),
       target = { mode: "toutiao", root: f.data, article: meta.id };
+    const broken = await store.create("broken", { line: "故事线", genre: "长图文" });
+    await writeFile(store.metaPath(broken.id), "{broken");
     await store.writeCard(meta.id, card);
     const req = {
       ...request("article"),
@@ -349,6 +351,12 @@ test("头条完整旅程：本地故事来源→工作稿真实质检→中断�
       true,
       "沿用真实Python质检硬闸",
     );
+    assert.ok(
+      state.steps
+        .find((row) => row.id === "prepared")
+        .output.skippedHistory.some((issue) => issue.id === broken.id),
+    );
+    assert.ok(!state.steps.some((row) => row.id === "facts-final"));
     assert.equal((await store.get(meta.id)).current_rev, 1);
     assert.equal((await store.get(meta.id)).status, "初稿待改");
     assert.equal(
@@ -383,6 +391,22 @@ test("头条完整旅程：本地故事来源→工作稿真实质检→中断�
     );
     assert.equal((await store.get(meta.id)).drafts.length, 1);
     assert.ok(state.steps.find((row) => row.id === "delivery").output.card);
+    const originalCard = await readFile(store.cardPath(meta.id), "utf8"),
+      originalHeadlines = (await store.get(meta.id)).headlines;
+    const prepared = state.steps.find((row) => row.id === "prepared").output;
+    const goodCard = prepared.card;
+    prepared.card = { ...goodCard, 主驱动: "非法驱动" };
+    state.steps.find((row) => row.id === "delivery").output.card = prepared.card;
+    await writeFile(file, JSON.stringify(state));
+    await assert.rejects(f.host.workflows.apply(target), /质检未通过/);
+    assert.equal(await readFile(store.cardPath(meta.id), "utf8"), originalCard);
+    assert.deepEqual((await store.get(meta.id)).headlines, originalHeadlines);
+    prepared.card = goodCard;
+    state.steps.find((row) => row.id === "delivery").output.card = goodCard;
+    await writeFile(file, JSON.stringify(state));
+    const draftCall = f.model.calls.find((call) => stageInput(packet(call))?.blueprint);
+    assert.match(packet(draftCall), /不贴链接/);
+    assert.doesNotMatch(packet(draftCall), /与AI参与声明/);
     await f.host.workflows.apply(target);
     const adopted = await store.get(meta.id);
     assert.equal(adopted.qa.at(-1).pass, true);
@@ -424,7 +448,6 @@ test("审读不要求模型回显指纹；硬伤原文按定位结果绑定当�
       suggestions: [],
     }),
     text,
-    hash(text),
   );
   assert.equal(result.bodyHash, hash(text));
   assert.equal(result.hard[0].quote, "他说：“走吧。”");
@@ -800,6 +823,54 @@ test("T124 方法缓存不带作品私有数据，跨书复用且模型变化重
     f.host.settings().planner.model = "changed-planner";
     await stageCard(await create(3), "toutiao", "s3-headline");
     assert.equal(f.model.calls.length, 2);
+  } finally {
+    await f.close();
+  }
+});
+
+test("T123 非法驱动当场重试，QA 精修后事实链绑定终稿", async () => {
+  const dir = path.join(root, "packages/toutiao/skill/tests/fixtures"),
+    body = await readFile(path.join(dir, "story_long_good.md"), "utf8"),
+    card = JSON.parse(await readFile(path.join(dir, "story_long_card.json"), "utf8"));
+  card["出处"] = card["出处"].map((item) => ({ ...item, 链接: "作者素材" }));
+  let cardCalls = 0;
+  const f = await fixture((call) => {
+    const text = packet(call),
+      input = stageInput(text),
+      answer = (value) => ({ text: JSON.stringify(value) });
+    if (input?.sections) return respondStage(call, {});
+    if (text.includes("返回合法立项卡"))
+      return answer({ ...card, 主驱动: ++cardCalls === 1 ? "非法驱动" : card["主驱动"] });
+    if (text.includes('返回 {"titles"'))
+      return answer({ titles: [card["主标题"], ...card["备选标题"]] });
+    if (text.includes('返回 {"opening"'))
+      return answer({ opening: "精卫飞来", structure: "原典解读", extension: "比较西西弗斯" });
+    if (input?.blueprint) return answer({ title: card["主标题"], body: body + "\n本文由AI生成。" });
+    if (text.includes('返回 {"hard"')) return answer({ hard: [], suggestions: [] });
+    if (text.includes('返回 {"claims"'))
+      return answer({ claims: [{ claim: "精卫", quote: "精卫", kind: "quotation" }] });
+    if (input?.qa) return answer({ title: card["主标题"], body });
+    throw new Error("未覆盖阶段 " + text.slice(-200));
+  });
+  try {
+    const store = new ArticleStore(f.data),
+      meta = await store.create("story", { line: "故事线", genre: "长图文" }),
+      target = { mode: "toutiao", root: f.data, article: meta.id };
+    await f.host.workflows.start(target, {
+      ...request("article"),
+      grade: "economy",
+      line: "story",
+      instruction: "解释精卫填海原典",
+      source: "《山海经》：精卫常衔西山之木石，以堙于东海。",
+    });
+    const state = await f.done(target);
+    assert.equal(state.state, "awaiting-author", state.error);
+    assert.equal(state.steps.find((row) => row.id === "article-card").attempts, 2);
+    assert.equal(state.steps.find((row) => row.id === "qa-0").output.pass, false);
+    const final = state.steps.find((row) => row.id === "facts-final");
+    assert.ok(final);
+    assert.deepEqual(state.steps.find((row) => row.id === "prepared").output.facts, final.output);
+    assert.match(body, new RegExp(final.output.claims[0].claim));
   } finally {
     await f.close();
   }

@@ -11,7 +11,7 @@ import {
 } from "../../core/src/tool.js";
 import { atomicWrite, readJson, readText, serialize, sha256 } from "../../core/src/fsx.js";
 import type { GateEngine } from "../../core/src/gates.js";
-import { checkCard } from "./card.js";
+import { checkCard, titleLength } from "./card.js";
 import { bridge, storeFor, type ToutiaoConfig } from "./env.js";
 import { METHOD_FILES, toutiaoLibrary } from "./methods.js";
 import { activeProfile, profileDetail, readMethod } from "../../core/src/profiles.js";
@@ -289,7 +289,7 @@ export async function validPassingQa(store: Awaited<ReturnType<typeof storeFor>>
 
 export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition[]> {
   const { config } = deps;
-  const { titleMax: TITLE_MAX } = await loadLimits(config);
+  const { titleMax: TITLE_MAX, drivers } = await loadLimits(config);
   const st = (exec: ToolExecution) => storeFor(config, exec);
 
   return [
@@ -435,7 +435,7 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
         const card = args.card;
         if (!card || typeof card !== "object" || Array.isArray(card))
           throw new WriterError("INVALID_ARGS", "card 必须是对象");
-        return await saveCard(await st(exec), id, card, TITLE_MAX);
+        return await saveCard(await st(exec), id, card, TITLE_MAX, drivers);
       },
     }),
 
@@ -456,7 +456,7 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
             if (v === null) delete next[k];
             else next[k] = v;
           }
-          return await saveCard(store, id, next, TITLE_MAX);
+          return await saveCard(store, id, next, TITLE_MAX, drivers);
         });
       },
     }),
@@ -475,11 +475,11 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
         const alts = (Array.isArray(args.alts) ? args.alts : [])
           .map((x) => String(x).trim())
           .filter(Boolean);
-        const over = [main, ...alts].filter((t) => [...t].length > TITLE_MAX);
+        const over = [main, ...alts].filter((t) => titleLength(t) > TITLE_MAX);
         if (over.length)
           throw new WriterError(
             "INVALID_ARGS",
-            `超过 ${TITLE_MAX} 字硬上限：${over.map((t) => `${t}（${[...t].length}字）`).join("；")}`,
+            `超过 ${TITLE_MAX} 字硬上限：${over.map((t) => `${t}（${titleLength(t)}字）`).join("；")}`,
           );
         const store = await st(exec);
         await store.update(id, (m) => {
@@ -487,11 +487,11 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
         });
         const saved = await serialize(store.cardPath(id), async () => {
           const card = (await store.readCard(id)) ?? {};
-          return saveCard(store, id, { ...card, 主标题: main, 备选标题: alts }, TITLE_MAX);
+          return saveCard(store, id, { ...card, 主标题: main, 备选标题: alts }, TITLE_MAX, drivers);
         });
         return {
           headlines: { main, alts },
-          lengths: [main, ...alts].map((t) => [...t].length),
+          lengths: [main, ...alts].map((t) => titleLength(t)),
           card_issues: saved.issues,
           warnings: alts.length !== 4 ? ["标题矩阵应为 1 主 4 备"] : [],
         };
@@ -629,7 +629,15 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
             "稿件文件被外部改动，与记录哈希不一致；请重新 toutiao_draft_stage",
           );
         const cardText = await readText(store.cardPath(id));
-        const a = ["qa", "--file", store.draftPath(id, cur.rev), "--ledger", store.ledgerPath];
+        const a = [
+          "qa",
+          "--file",
+          store.draftPath(id, cur.rev),
+          "--ledger",
+          store.ledgerPath,
+          "--article-id",
+          id,
+        ];
         if (cardText !== undefined) a.push("--card", store.cardPath(id));
         if (args.mode) a.push("--mode", args.mode);
         const r = await bridge(config, a, { timeoutMs: 120_000, signal: exec.signal });
@@ -989,8 +997,9 @@ async function saveCard(
   id: string,
   card: Record<string, unknown>,
   titleMax: number,
+  drivers: readonly string[],
 ) {
-  const issues = checkCard(card, titleMax);
+  const issues = checkCard(card, titleMax, drivers);
   const sha = await store.writeCard(id, card);
   const line = typeof card["内容线"] === "string" ? card["内容线"] : "";
   const genre = typeof card["体裁"] === "string" ? card["体裁"] : "";

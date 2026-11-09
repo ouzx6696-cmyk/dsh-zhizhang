@@ -14,7 +14,7 @@ const { parseContract, locatePython, runScript } = await import(buildUrl("core/s
 const { createGateEngine } = await import(buildUrl("core/src/gates.js"));
 const { checkCard } = await import(buildUrl("toutiao/src/card.js"));
 const { loadLimits } = await import(buildUrl("toutiao/src/rule-limits.js"));
-const { titleMax } = await loadLimits();
+const { titleMax, drivers } = await loadLimits();
 const { ArticleStore, canTransition } = await import(buildUrl("toutiao/src/store.js"));
 const { buildMethodPack } = await import(buildUrl("core/src/method-pack.js"));
 
@@ -351,11 +351,11 @@ test("CORE-20 门禁没有默认预批准：未经作者确认的调用不能消
 test("立项卡预检：样例卡通过，模板卡报占位，故事线缺字段报错", async () => {
   const card = JSON.parse(await readFile(path.join(FIX, "story_long_card.json"), "utf8"));
   assert.deepEqual(
-    checkCard(card, titleMax).filter((i) => i.level === "fail"),
+    checkCard(card, titleMax, drivers).filter((i) => i.level === "fail"),
     [],
   );
   const bad = { ...card, 母题: "", 主标题: "一".repeat(35), 备注: "{name}" };
-  const issues = checkCard(bad, titleMax).map((i) => i.field);
+  const issues = checkCard(bad, titleMax, drivers).map((i) => i.field);
   assert.ok(issues.includes("母题"));
   assert.ok(issues.includes("主标题"));
   assert.ok(issues.includes("备注"));
@@ -1288,5 +1288,20 @@ test("T124 可选上下文保持精确 token 边界与整块前缀", async () =>
       estimateInput(full.text),
     ).omitted,
     ["可选", "可选"],
+  );
+});
+
+test("T123 卡片预检按 Python 驱动列表拒绝非法值，标题按码点计数", async () => {
+  const { titleLength } = await import(buildUrl("toutiao/src/card.js"));
+  assert.equal(titleLength("𠮷".repeat(34)), 34);
+  assert.ok(
+    checkCard({ 主驱动: "故事驱动" }, titleMax, drivers).some(
+      (issue) => issue.field === "主驱动" && issue.level === "fail",
+    ),
+  );
+  assert.ok(
+    !checkCard({ 主驱动: drivers[0], 主标题: "𠮷".repeat(34) }, titleMax, drivers).some(
+      (issue) => issue.field === "主标题",
+    ),
   );
 });

@@ -2,6 +2,12 @@ import { jsonOutput, list, locate, record, text, type Draft } from "./schema";
 import type { ContextBlock } from "../../../../packages/core/src/workflow";
 import type { WorkflowRun } from "./run";
 
+function numbers(value: string) {
+  return [...new Set(value.match(/\d+(?:\.\d+)?/g) ?? [])];
+}
+function hasNumber(value: string, number: string) {
+  return new RegExp(`(?<![\\d.])${number.replace(/\./g, "\\.")}(?![\\d.])`).test(value);
+}
 /**
  * One fact-chain pass: every external claim with its source evidence, or marked unsupported. The
  * model reads the source from the cached material block; evidence is still located in the real text.
@@ -34,10 +40,17 @@ export function factChain(
         if (kind === "unsupported") return { claim, quote: "", kind };
         const quote = locate(source.text, text(r.quote, "来源证据"));
         if (quote === undefined) throw new Error("事实链的来源证据不在来源原文中");
+        if (Array.from(quote).length < Math.min(6, Array.from(claim).length))
+          throw new Error("事实链来源证据过短，不能核对正文声明");
+        if (numbers(claim).some((number) => !hasNumber(quote, number)))
+          throw new Error("正文声明中的数字没有来源证据支持");
         return { claim, quote, kind };
       });
       if (!claims.length) throw new Error("未提供可核对的事实链");
-      return { claims };
+      const unverified = numbers(body.body)
+        .filter((number) => !claims.some((item) => hasNumber(item.claim, number)))
+        .map((number) => `正文数字 ${number} 尚未由事实链覆盖`);
+      return { claims, unverified };
     },
     { material: shared.material },
   );

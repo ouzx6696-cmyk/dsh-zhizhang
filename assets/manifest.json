@@ -7,8 +7,8 @@
       "mode": "toutiao",
       "kind": "upstream",
       "version": "4.0.0",
-      "files": 44,
-      "bytes": 365660,
+      "files": 45,
+      "bytes": 367798,
       "loadable": 30,
       "byKind": {
         "meta": 1,
@@ -17,7 +17,7 @@
         "method": 11,
         "rule": 5,
         "template": 2,
-        "test": 8
+        "test": 9
       }
     },
     "inspiration-forge-suite": {
@@ -395,16 +395,16 @@
       "kind": "rule",
       "origin": "patched",
       "path": "packages/toutiao/skill/scripts/ledger.py",
-      "bytes": 11118,
-      "sha256": "be6cd0cb4bfdac2aa7ea2fe47e390909d7cb71eff0aa1b35158d7a7b40157739"
+      "bytes": 11280,
+      "sha256": "c54c9b23a458c8620a88eff931bb5c08f6c7b811ed0f18d081ed7f0e2f91a50f"
     },
     {
       "source": "toutiao-viral-writer",
       "kind": "rule",
       "origin": "patched",
       "path": "packages/toutiao/skill/scripts/qa_check.py",
-      "bytes": 56152,
-      "sha256": "a87c36b36e04b82581ec994771ffc3ea018c89119daa5469f9c74973bfc96917"
+      "bytes": 56349,
+      "sha256": "f32ea00fc5045eb09629ca5c87b34e5ffb02dcd58392384ebde64bbca2920e11"
     },
     {
       "source": "toutiao-viral-writer",
@@ -497,6 +497,14 @@
       "path": "packages/toutiao/skill/tests/fixtures/story_long_good.md",
       "bytes": 9622,
       "sha256": "5f4d9bbb24af8510ea85a39d04b629d689d5bbafbda05939200834656561fce3"
+    },
+    {
+      "source": "toutiao-viral-writer",
+      "kind": "test",
+      "origin": "patched",
+      "path": "packages/toutiao/skill/tests/test_bridge.py",
+      "bytes": 1779,
+      "sha256": "355eda7df52d6c9d94c314fe1eb992071e66fa73ede21a7dd9092fc1cfe3164f"
     },
     {
       "source": "toutiao-viral-writer",

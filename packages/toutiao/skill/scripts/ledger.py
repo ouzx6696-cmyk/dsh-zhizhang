@@ -46,8 +46,11 @@ def unescape_cell(value):
 def read(path):
     if not os.path.isfile(path):
         return []
-    with open(path, encoding="utf-8-sig", newline="") as f:
-        return [{k: unescape_cell(v) for k, v in row.items()} for row in csv.DictReader(f)]
+    try:
+        with open(path, encoding="utf-8-sig", newline="") as f:
+            return [{k: unescape_cell(v) for k, v in row.items()} for row in csv.DictReader(f)]
+    except UnicodeDecodeError as error:
+        raise ValueError(f"台账 {path} 不是 UTF-8 编码，请用 UTF-8 另存后重试") from error
 
 
 @contextmanager

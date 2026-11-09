@@ -4,7 +4,7 @@ import { emptyUsage } from "../../../../packages/core/src/workflow";
 import { sha256 } from "../../../../packages/core/src/fsx";
 import { ArticleStore } from "../../../../packages/toutiao/src/store";
 import { CLASSICS } from "../../../../packages/toutiao/src/classics";
-import { checkCard } from "../../../../packages/toutiao/src/card";
+import { checkCard, titleLength } from "../../../../packages/toutiao/src/card";
 import { loadLimits } from "../../../../packages/toutiao/src/rule-limits";
 import { createToutiaoTools } from "../../../../packages/toutiao/src/tools";
 import { createGateEngine } from "../../../../packages/core/src/gates";
@@ -111,7 +111,9 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
   const oldCard = await real.readCard(initial.id);
   const parseCard = (value: unknown) => {
     const r = jsonOutput(value),
-      issues = checkCard(r, limits.titleMax).filter((issue) => issue.level === "fail");
+      issues = checkCard(r, limits.titleMax, limits.drivers).filter(
+        (issue) => issue.level === "fail",
+      );
     if (issues.length)
       throw new Error("立项卡未过预检：" + issues.map((issue) => issue.message).join("；"));
     if (
@@ -151,7 +153,21 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
       );
   const headlineCard = await stageCard(run, "toutiao", "s3-headline");
   // Recent titles are excluded up front so a finished run is never rejected for a duplicate title.
-  const recentTitles = (await real.list())
+  const skippedHistory: { root: string; id?: string; error: string }[] = [];
+  const recentArticles = async () => {
+    const issues: { root: string; id?: string; error: string }[] = [];
+    const rows = await real.list(issues);
+    for (const issue of issues)
+      if (!skippedHistory.some((prior) => prior.id === issue.id && prior.error === issue.error)) {
+        skippedHistory.push(issue);
+        run.host.emit({
+          error: `标题历史已跳过损坏文章 ${issue.id ?? issue.root}：${issue.error}`,
+        });
+        run.host.extras.log?.("workflow_history_unavailable", { id: issue.id, error: issue.error });
+      }
+    return rows;
+  };
+  const recentTitles = (await recentArticles())
     .slice(0, 30)
     .filter((meta) => meta.id !== initial.id)
     .map((meta) => meta.headlines.main)
@@ -164,9 +180,11 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
     { card, source: sourceRef, avoid: recentTitles },
     `返回 {"titles":["标题"]}，至少5个不同切入的标题，每个不超过${limits.titleMax}字；不承诺正文或来源中不存在的事实；不得与 avoid 中的近期标题相同。`,
     (value) => ({
-      titles: list(jsonOutput(value).titles, "标题", 20).map((item) =>
-        text(item, "标题", limits.titleMax),
-      ),
+      titles: list(jsonOutput(value).titles, "标题", 20).map((item) => {
+        const title = text(item, "标题", limits.titleMax * 2);
+        if (titleLength(title) > limits.titleMax) throw new Error("标题超过硬上限");
+        return title;
+      }),
     }),
     {
       material,
@@ -217,10 +235,10 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
           titles: matrix.titles,
           entry: ["从人物处境切入", "从具体事实影响切入", "从读者的问题切入"][index],
         },
-        '返回 {"title":"主标题","body":"完整正文（含主标题、必要来源标注与AI参与声明；故事演绎明确标注）"}。只采用来源支持的事实，不伪造采访和人物。',
+        '返回 {"title":"主标题","body":"完整正文（含主标题；不写 AI 参与声明，发布时在平台勾选；来源标注只写媒体名与日期，不贴链接；故事演绎明确标注）"}。只采用来源支持的事实，不伪造采访和人物。',
         (value) => {
           const result = draft(value);
-          if ([...result.title].length > limits.titleMax) throw new Error("主标题超过硬上限");
+          if (titleLength(result.title) > limits.titleMax) throw new Error("主标题超过硬上限");
           result.body = normalizeDraft(result.body);
           return result;
         },
@@ -269,7 +287,7 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
     checked = { ...checked, draft: repaired };
     facts = await factChain(run, "facts-1", edit, checked.draft, source, shared);
   }
-  const unverified = facts.claims.filter((claim) => claim.kind === "unsupported");
+  const factsHash = sha256(checked.draft.body);
   const working = new ArticleStore(
     path.join(run.host.home, "workflow-working", run.journal.record.id),
   );
@@ -311,7 +329,7 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
       "writer",
       writing,
       { draft: checked.draft, qa, source: sourceRef },
-      '只处理给定质检失败与对应段落，禁止堆数字和口语词刷分；返回 {"title":"标题","body":"完整正文"}。',
+      '只处理给定质检失败与对应段落，禁止堆数字和口语词刷分，不得新增来源中没有的事实、数字或引语；返回 {"title":"标题","body":"完整正文"}。',
       draft,
       { material },
     );
@@ -319,6 +337,12 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
     checked = { ...checked, draft: refined };
   }
   const finalHash = sha256(checked.draft.body);
+  if (finalHash !== factsHash)
+    facts = await factChain(run, "facts-final", edit, checked.draft, source, shared);
+  const unverified = [
+    ...facts.claims.filter((claim) => claim.kind === "unsupported"),
+    ...facts.unverified,
+  ];
   // When neither fact repair nor QA refinement touched the body since the last review in
   // editDraft, that review already covers this exact text; reuse it instead of paying again.
   const finalReview =
@@ -340,7 +364,7 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
     主标题: checked.draft.title,
     备选标题: matrix.titles.filter((title) => title !== checked.draft.title).slice(0, 4),
   };
-  const recent = (await real.list()).slice(0, 30);
+  const recent = (await recentArticles()).slice(0, 30);
   const duplicates = recent
     .filter((meta) => meta.id !== initial.id && meta.headlines.main === checked.draft.title)
     .map((meta) => meta.id);
@@ -363,6 +387,7 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
         workingQa: workingMeta.id,
         finalReview,
         unverified,
+        skippedHistory,
         unresolved: open,
         note: open
           ? "已保存工作稿，但仍有硬伤或无来源事实待作者处理，见报告；未替作者交稿"

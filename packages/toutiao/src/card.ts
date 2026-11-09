@@ -21,7 +21,11 @@ function walk(v: unknown, p: string, out: [string, string][]) {
     for (const [k, x] of Object.entries(v)) walk(x, p ? `${p}.${k}` : k, out);
 }
 
-export function checkCard(card: Record<string, unknown>, titleMax: number): CardIssue[] {
+export function checkCard(
+  card: Record<string, unknown>,
+  titleMax: number,
+  drivers: readonly string[],
+): CardIssue[] {
   const out: CardIssue[] = [];
   const fail = (field: string, message: string) => out.push({ level: "fail", field, message });
   const warn = (field: string, message: string) => out.push({ level: "warn", field, message });
@@ -42,6 +46,7 @@ export function checkCard(card: Record<string, unknown>, titleMax: number): Card
   const genre = str(card["体裁"]);
   if (!(GENRES as readonly string[]).includes(genre)) fail("体裁", `应为 ${GENRES.join(" / ")}`);
   for (const k of ["垂类", "人群", "主驱动"]) if (!str(card[k])) fail(k, "必填");
+  if (!drivers.includes(str(card["主驱动"]))) fail("主驱动", `应为 ${drivers.join(" / ")}`);
   if (!str(card["主问题"])) fail("主问题", "必填：主稿回答读者心里的哪个问号");
 
   if (genre === "长图文") {
@@ -69,14 +74,18 @@ export function checkCard(card: Record<string, unknown>, titleMax: number): Card
   }
 
   const title = str(card["主标题"]);
-  if (title && [...title].length > titleMax)
-    fail("主标题", `${[...title].length} 字，超过 ${titleMax} 字硬上限`);
+  if (title && titleLength(title) > titleMax)
+    fail("主标题", `${titleLength(title)} 字，超过 ${titleMax} 字硬上限`);
   const alts = card["备选标题"];
   if (Array.isArray(alts))
     alts.forEach((t, i) => {
-      if (typeof t === "string" && [...t.trim()].length > titleMax)
+      if (typeof t === "string" && titleLength(t.trim()) > titleMax)
         fail(`备选标题[${i}]`, `超过 ${titleMax} 字硬上限`);
     });
   if (str(card["主数字"]) && !str(card["主数字出处"])) fail("主数字出处", "写了主数字就要写出处");
   return out;
+}
+
+export function titleLength(title: string) {
+  return Array.from(title).length;
 }

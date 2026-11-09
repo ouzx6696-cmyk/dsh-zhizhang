@@ -16,6 +16,7 @@ const entries = [
   ["exports", "apps/desktop/src/exports.ts"],
 ];
 entries.push(
+  ["article-facts", "apps/desktop/src/workflow/article-facts.ts"],
   ["task-pool", "apps/desktop/src/session/task-pool.ts"],
   ["workflow-run", "apps/desktop/src/workflow/run.ts"],
   ["workflow-methods", "apps/desktop/src/workflow/methods.ts"],
