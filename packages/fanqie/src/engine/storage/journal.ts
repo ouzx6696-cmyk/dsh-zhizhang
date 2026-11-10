@@ -6,7 +6,7 @@ import { atomicWrite, isMissingFileError, nowIso, sha256 } from "../../../../cor
 import { isRecord } from "../../../../core/src/parse.js";
 import { NovelError } from "../errors.js";
 import { createExclusive } from "./primitives.js";
-import { ensureRecoveryOwnerInactive, withResourceLock } from "./process-lock.js";
+import { afterLocalWrites, ensureRecoveryOwnerInactive, withResourceLock } from "./process-lock.js";
 
 export type InputWrite = {
   file: string;
@@ -140,7 +140,8 @@ export function journal<M extends object, C>(spec: Spec<M, C>) {
     }
   }
   async function assertNone(context: C) {
-    if (await has(context))
+    if (!(await has(context))) return;
+    if (await afterLocalWrites(spec.root(context), () => has(context)))
       throw problem(
         "required",
         `${spec.label}尚未完成，请先检查恢复记录，再决定是否恢复；不要重复操作。`,

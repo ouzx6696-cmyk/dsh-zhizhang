@@ -98,6 +98,16 @@ export async function withResourceLock<T>(root: string, fn: () => Promise<T>): P
   });
 }
 
+/**
+ * 不持写锁的读者撞见恢复记录时，记录可能属于本进程正在 create 与 finish 之间的写入，并非中断；
+ * 排到本进程同一资源的在途写入之后再判定。已持该锁时直接判定，避免自等死锁。
+ */
+export async function afterLocalWrites<T>(root: string, fn: () => Promise<T>): Promise<T> {
+  const key = await realpath(root);
+  if (held.getStore()?.has(key)) return fn();
+  return withLock(`resource:${key}`, fn);
+}
+
 async function releaseOwner(dir: string, id: string) {
   const ownerFile = path.join(dir, OWNER_FILE);
   let current: LockOwner;

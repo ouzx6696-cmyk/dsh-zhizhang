@@ -327,3 +327,34 @@ test("FQ-11 恢复记录解码失败保留 cause：程序错误与已知错误�
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("同进程在途写入的恢复记录不算中断：无锁读者等写入收尾；真正中断的记录照常报错", async () => {
+  const { withResourceLock } =
+    await import("../../build/fanqie/src/engine/storage/process-lock.js");
+  const { createChapterJournal, finishChapterJournal, assertNoPendingChapterSave } =
+    await import("../../build/fanqie/src/engine/storage/chapter-journal.js");
+  const root = await mkdtemp(path.join(tmpdir(), "writer-journal-inflight-"));
+  const input = { chapterId: "c001", writes: [write("chapters/c001.md"), write("meta.json")] };
+  try {
+    await mkdir(path.join(root, "chapters"));
+    let entered, release;
+    const staged = new Promise((resolve) => (entered = resolve));
+    const gate = new Promise((resolve) => (release = resolve));
+    const writer = withResourceLock(root, async () => {
+      const id = await createChapterJournal(root, input);
+      entered();
+      await gate;
+      await finishChapterJournal(root, id);
+    });
+    await staged;
+    // 读者在记录已落盘、写入尚未收尾时到达（并发抽卡的另一路读作品目录就是这个时刻）。
+    const reader = assertNoPendingChapterSave(root);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    release();
+    await Promise.all([writer, reader]);
+    await createChapterJournal(root, input);
+    await assert.rejects(assertNoPendingChapterSave(root), { code: "recovery_required" });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

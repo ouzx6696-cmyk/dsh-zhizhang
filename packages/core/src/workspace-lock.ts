@@ -252,39 +252,55 @@ async function releaseGuard(guard: string) {
   }
 }
 
+type GuardAttempt = "claimed" | "retry" | "wait";
+
+/** 抢一次登记目录：claimed 已登记；retry 目录刚被清走，立即再抢；wait 他人持有或正在登记。 */
+async function attemptGuard(key: string, guard: string, deadline: number): Promise<GuardAttempt> {
+  try {
+    await mkdir(guard);
+  } catch (error) {
+    if (!isFsError(error, "EEXIST")) throw error;
+    const state = await readGuardState(guard);
+    if (state.kind === "held") {
+      if (Date.now() >= deadline)
+        throw new WriterError(
+          "CONFLICT",
+          `作品占用登记由 ${state.owner.host}（进程 ${state.owner.pid}）持有：${guard}。请先关闭占用该作品的其他应用。`,
+        );
+      return "wait";
+    }
+    const after = await sweepIdleGuard(guard, state.kind === "idle" ? state.owner : null);
+    // 登记在清理间隙被并发写入：按持有处理，回到等待节奏。
+    return after.kind === "absent" ? "retry" : "wait";
+  }
+  // 已持有登记目录；目录被并发清理（ENOENT）或被并发登记者抢先登记（EEXIST）时重新抢。
+  try {
+    await writeGuardRegistration(key);
+    return "claimed";
+  } catch (error) {
+    if (!isMissingFileError(error) && !isFsError(error, "EEXIST")) throw error;
+    return "retry";
+  }
+}
+
 /** Serialize reclamation and publication together: unlink cannot compare ownership atomically. */
 function withClaimGuard<T>(key: string, fn: () => Promise<T>): Promise<T> {
   return serialize(`workspace-claim:${key}`, async () => {
     const guard = path.join(key, GUARD);
     const deadline = Date.now() + 2000;
     for (;;) {
+      let next: GuardAttempt;
       try {
-        await mkdir(guard);
+        next = await attemptGuard(key, guard, deadline);
       } catch (error) {
-        if (!isFsError(error, "EEXIST")) throw error;
-        const state = await readGuardState(guard);
-        if (state.kind === "held") {
-          if (Date.now() >= deadline)
-            throw new WriterError(
-              "CONFLICT",
-              `作品占用登记由 ${state.owner.host}（进程 ${state.owner.pid}）持有：${guard}。请先关闭占用该作品的其他应用。`,
-            );
-          await new Promise((resolve) => setTimeout(resolve, 25));
-          continue;
-        }
-        const after = await sweepIdleGuard(guard, state.kind === "idle" ? state.owner : null);
-        if (after.kind === "absent") continue;
-        // 登记在清理间隙被并发写入：按持有处理，回到等待节奏。
-        await new Promise((resolve) => setTimeout(resolve, 25));
-        continue;
+        // Windows 上刚被并发清理的登记目录在其他进程关闭句柄前处于删除挂起：mkdir、stat、
+        // 读写登记都报 EPERM/EACCES/EBUSY。这是争用而非权限问题，等它消失再抢；超时原样抛出。
+        if (!GUARD_BUSY.some((code) => isFsError(error, code)) || Date.now() >= deadline)
+          throw error;
+        next = "wait";
       }
-      // 已持有登记目录；目录被并发清理（ENOENT）或被并发登记者抢先登记（EEXIST）时重新抢。
-      try {
-        await writeGuardRegistration(key);
-        break;
-      } catch (error) {
-        if (!isMissingFileError(error) && !isFsError(error, "EEXIST")) throw error;
-      }
+      if (next === "claimed") break;
+      if (next === "wait") await new Promise((resolve) => setTimeout(resolve, 25));
     }
     try {
       return await fn();
