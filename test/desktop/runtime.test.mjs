@@ -1631,6 +1631,49 @@ test("后台工作区释放失败告知作者，保留锁以供核对", async ()
   }
 });
 
+test("后台作品的流水线结束后释放其作品锁，不等到退出", async () => {
+  const { Runtime, claimWorkspace, releaseWorkspace } =
+    await import("../../apps/desktop/out-test/runtime-effects.mjs");
+  const home = await realpath(await mkdtemp(path.join(tmpdir(), "writer-workflow-release-")));
+  const previous = path.join(home, "previous"),
+    current = path.join(home, "current");
+  await mkdir(previous);
+  await mkdir(current);
+  await claimWorkspace(previous);
+  const lock = path.join(previous, ".writer-workspace-lock.json");
+  const state = new Runtime();
+  state.target = { mode: "toutiao", root: current };
+  state.sessions = new Sessions({
+    home,
+    python: PYTHON,
+    settings: defaultModels,
+    emit: () => {},
+    confirm: async () => false,
+    options: {},
+    created: async () => {},
+    extras: {},
+  });
+  state.diagnostics = { write: async () => {} };
+  state.window = {
+    isDestroyed: () => false,
+    isFocused: () => true,
+    webContents: { send: () => {} },
+  };
+  try {
+    // WorkflowService 收尾时发出的事件形状：没有 agent_settled，只有 running/target/refresh。
+    await state.sessionEvent({
+      running: [],
+      target: { mode: "toutiao", root: previous },
+      refresh: true,
+    });
+    await assert.rejects(readFile(lock), { code: "ENOENT" });
+    assert.equal(state.notice, "");
+  } finally {
+    await releaseWorkspace(previous);
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
 test("窗口已销毁时任务收尾与作者确认不触碰窗口，不产生收尾失败提示", async () => {
   const { Runtime } = await import("../../apps/desktop/out-test/runtime-effects.mjs");
   const state = new Runtime();

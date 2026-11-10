@@ -70,6 +70,10 @@ export class Runtime {
         ]);
       } else if (value.event?.type === "tool_execution_end") {
         await this.diagnostics.write("tool_ended", { tool: value.event.toolName });
+      } else if (!value.event && value.target && value.refresh && value.running) {
+        // 流水线结束只发 {target, running, refresh}，没有 agent_settled；作者切走后仍在跑的
+        // 后台作品，其占用锁要在这里释放，否则要等退出才放开，另一实例一直只读。
+        await releaseInactiveTarget(this, value.target);
       }
     } catch (error) {
       this.notice = "任务结束后的处理失败：" + String(error);
