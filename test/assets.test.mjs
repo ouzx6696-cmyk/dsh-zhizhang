@@ -35,7 +35,7 @@ test("资产清单与磁盘、登记表、版本号一致", async () => {
   assert.equal(m.sources["engine-method-assets"].loadable, 10);
   assert.equal(m.sources["toutiao-default-profile"].loadable, 29);
   assert.equal(m.sources["fanqie-default-profile"].loadable, 17);
-  // 上游原件之外只有本项目自写的桥接与测试
+  // 上游原件之外包含本项目自写桥接、阅读统计与测试
   const locals = m.entries
     .filter(
       (e) => e.origin === "local" && e.kind !== "builtin" && !e.source.endsWith("-default-profile"),
@@ -43,6 +43,7 @@ test("资产清单与磁盘、登记表、版本号一致", async () => {
     .map((e) => e.path);
   assert.deepEqual(locals.sort(), [
     "packages/fanqie/skill/scripts/fanqie_bridge.py",
+    "packages/fanqie/skill/scripts/reading_metrics.py",
     "packages/fanqie/skill/tests/test_bridge.py",
     "packages/toutiao/skill/scripts/writer_bridge.py",
   ]);

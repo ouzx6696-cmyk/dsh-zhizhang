@@ -1,9 +1,30 @@
+import type { PursuitOutline } from "../domain/pursuit.js";
 import { Scheduler, StyleLinterPort } from "../ports/index.js";
 import type { StoragePaths } from "../types.js";
 function clip(text: string, max: number) {
   const t = (text ?? "").trim();
   if (!t) return "（空）";
   return t.length <= max ? t : `${t.slice(0, max)}…`;
+}
+function renderPursuit(outline: PursuitOutline) {
+  const labels = {
+    function: "本章功能",
+    unit: "所在单元",
+    unitPos: "单元内章序",
+    hookType: "计划钩子",
+    payoffType: "计划兑现",
+    newTerms: "新设定",
+    newCharacters: "新人物",
+    threadsOpen: "计划开悬念",
+    threadsClose: "计划收悬念",
+    pressure: "连续受压章数",
+  };
+  return (Object.keys(labels) as (keyof typeof labels)[]).flatMap((key) => {
+    const value = outline[key];
+    return value === undefined
+      ? []
+      : [`- ${labels[key]}：${Array.isArray(value) ? value.join("、") || "无" : value}`];
+  });
 }
 /** Lean outline preserves necessary causal steps and character knowledge without full method packs. */
 export function renderOutlineLean(o: import("../types.js").Outline) {
@@ -20,7 +41,7 @@ export function renderOutlineLean(o: import("../types.js").Outline) {
   ];
   if (o.stateLens?.trim()) lines.push(`- 状态透镜：${o.stateLens.trim()}`);
   if (o.livedScene?.trim()) lines.push(`- 亲历：${clip(o.livedScene, 120)}`);
-  return lines.join("\n");
+  return [...lines, ...renderPursuit(o)].join("\n");
 }
 export function renderOutline(o: import("../types.js").Outline) {
   const lines = [
@@ -36,7 +57,7 @@ export function renderOutline(o: import("../types.js").Outline) {
     `- 落点：${o.ending || "（空）"}`,
     `- 概要：${o.synopsis || "（空）"}`,
   ];
-  return lines.join("\n");
+  return [...lines, ...renderPursuit(o)].join("\n");
 }
 export function renderStatus(
   meta: import("../types.js").WorkMeta,

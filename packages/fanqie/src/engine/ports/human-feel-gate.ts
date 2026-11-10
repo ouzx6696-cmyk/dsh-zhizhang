@@ -14,7 +14,10 @@ const TASK_DIALOGUE_RE =
   /^(?:把|拿|交|查|点|对|补|报|签|请|过来|过去|打开|关上|放回|拿走|核对|登记|确认|盘点|实点|差价|货架|收据|发票|金额|下次|现在|立刻|马上|必须|需要|应该|给我|你把|你去|你来|先|再|然后)/;
 const DIALOGUE_PAIR = /([“「])([\s\S]*?)([”」])/g;
 const MIN_CHARS = 120;
-export function auditHumanFeel(text: string, opts: { craftCue?: string } = {}) {
+export function auditHumanFeel(
+  text: string,
+  opts: { craftCue?: string; generalOnly?: boolean } = {},
+) {
   const body = text.trim();
   const hits = [];
   if (body.length < MIN_CHARS) {
@@ -39,9 +42,9 @@ export function auditHumanFeel(text: string, opts: { craftCue?: string } = {}) {
   if (objectCold) hits.push(objectCold);
   const enumDump = detectSettingEnumDump(sentences);
   if (enumDump) hits.push(enumDump);
-  const ledger = detectLedgerDump(paras);
+  const ledger = opts.generalOnly ? null : detectLedgerDump(paras);
   if (ledger) hits.push(ledger);
-  const domestic = detectDomesticTrivia(sentences);
+  const domestic = opts.generalOnly ? null : detectDomesticTrivia(sentences);
   if (domestic) hits.push(domestic);
   const stiff = detectStiffnessTidy(sentences, opts?.craftCue);
   if (stiff) hits.push(stiff);
@@ -258,8 +261,16 @@ export function formatHumanFeelAudit(label: string, result: ReturnType<typeof au
 }
 export const HumanFeelGate = {
   audit: auditHumanFeel,
-  evaluateAccept(opts: { body: string; strictHuman: boolean; craftCue?: string }) {
-    const result = auditHumanFeel(opts.body, { craftCue: opts.craftCue });
+  evaluateAccept(opts: {
+    body: string;
+    strictHuman: boolean;
+    craftCue?: string;
+    generalOnly?: boolean;
+  }) {
+    const result = auditHumanFeel(opts.body, {
+      craftCue: opts.craftCue,
+      generalOnly: opts.generalOnly,
+    });
     if (opts.strictHuman && result.hitCount > 0) {
       return deny(
         "human_feel_strict",

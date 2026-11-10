@@ -3,7 +3,7 @@
 """
 番茄长篇规则桥（writer-agent · fanqie）。
 把 inspiration-forge-suite 1.3.0 的原脚本包成统一 JSON 契约：
-stdout 只输出一个 JSON 对象，含 tool / rules_version / ok。原脚本一行不改，这里只做适配。
+stdout 只输出一个 JSON 对象，含 tool / rules_version / ok。沿用上游方法入口；语感雷达与阅读统计包含本地扩展，改动由资产指纹追溯。
 
 子命令：
   outline <input.json>                 章纲字段检查（长篇章纲 ↔ forge 章纲接口一一对应）
@@ -29,6 +29,7 @@ FORGE = HERE.parent / 'forge'
 for sub in ('inspiration-forge/scripts', 'novel-writer/scripts', 'inspiration-forge-library/scripts'):
     sys.path.insert(0, str(FORGE / sub))
 
+import reading_metrics  # noqa: E402
 import check_outline  # noqa: E402
 import ledger_check  # noqa: E402
 import manuscript_linter  # noqa: E402
@@ -156,7 +157,7 @@ def cmd_lint(long_para, files):
 
 def cmd_style(file):
     request = json.loads(Path(file).read_text(encoding='utf-8'))
-    result = manuscript_linter.scan_style(request['text'], request.get('limit'), request.get('ranges'))
+    result = manuscript_linter.scan_style(request['text'], request.get('limit'), request.get('ranges'), density_thresholds=request.get('densityThresholds'))
     out({'tool': 'style', 'ok': True, **result})
 
 
@@ -194,6 +195,9 @@ def main(argv):
             cmd_continuity(rest)
         elif cmd == 'lint' and len(rest) >= 2:
             cmd_lint(rest[0], rest[1:])
+        elif cmd == 'reading' and len(rest) == 1:
+            request = json.loads(Path(rest[0]).read_text(encoding='utf-8'))
+            out({'tool': 'reading', 'ok': True, 'chapters': [reading_metrics.chapter_metrics(chapter) for chapter in request['chapters']]})
         elif cmd == 'style' and len(rest) == 1:
             cmd_style(rest[0])
         elif cmd == 'scan' and len(rest) == 3:

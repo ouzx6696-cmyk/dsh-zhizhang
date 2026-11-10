@@ -20,7 +20,12 @@ const CARD_PROMPT = "保留每一节的因果、禁止事项与边界，去掉�
 const CARD_SHAPE =
   '将各节压为可执行规则；每节对应一项、编号不变，所有规则文字合计不超过1500字。返回 {"rules":[{"id":"原编号","text":"执行规则"}]}。';
 /** Default/original/user profiles remain the only method source; generated cards have no independent editable copy. */
-export async function stageCard(run: WorkflowRun, mode: "fanqie" | "toutiao", id: string) {
+export async function stageCard(
+  run: WorkflowRun,
+  mode: "fanqie" | "toutiao",
+  id: string,
+  options: { maxChars?: number; examples?: boolean } = {},
+) {
   const method = await readMethod(
     mode === "fanqie" ? fanqieLibrary : toutiaoLibrary,
     undefined,
@@ -33,6 +38,12 @@ export async function stageCard(run: WorkflowRun, mode: "fanqie" | "toutiao", id
     .filter((section) => section.trim())
     .map((section, index) => ({ id: `${id}:${index + 1}`, text: section }));
   const ids = sections.map((section) => section.id);
+  const maximum = options.maxChars ?? 1500;
+  const overhead = ids.reduce((sum, id) => sum + id.length + 4, 0);
+  const ruleBudget = options.maxChars === undefined ? 1500 : maximum - overhead;
+  if (ruleBudget < sections.length * 4) throw new Error("方法卡预算不足以覆盖各节");
+  const shape =
+    options.maxChars === undefined ? CARD_SHAPE : CARD_SHAPE.replaceAll("1500", String(ruleBudget));
   const parse = (value: unknown): Card => {
     const r = jsonOutput(value),
       rules = list(r.rules, "阶段规则", 100).map((value) => {
@@ -46,8 +57,8 @@ export async function stageCard(run: WorkflowRun, mode: "fanqie" | "toutiao", id
       ids.some((id) => !rules.some((rule) => rule.id === id))
     )
       throw new Error("阶段卡规则覆盖与方法来源不一致");
-    if ([...rules.map((rule) => rule.text).join("\n")].length > 1500)
-      throw new Error("阶段卡超过 1500 字，请压缩表达而不删规则");
+    if ([...rules.map((rule) => rule.text).join("\n")].length > ruleBudget)
+      throw new Error(`阶段卡超过 ${ruleBudget} 字，请压缩表达而不删规则`);
     return { sourceHash, rules };
   };
   const planner = run.host.settings().planner ?? run.host.settings().writer;
@@ -56,7 +67,7 @@ export async function stageCard(run: WorkflowRun, mode: "fanqie" | "toutiao", id
       id,
       method.text,
       CARD_PROMPT,
-      CARD_SHAPE,
+      shape,
       {
         provider: planner.provider,
         model: planner.model,
@@ -76,14 +87,19 @@ export async function stageCard(run: WorkflowRun, mode: "fanqie" | "toutiao", id
           "planner",
           CARD_PROMPT,
           { sections },
-          CARD_SHAPE,
+          shape,
           parse,
           { bare: true, retries: 2 },
         )
       : parse(cached);
   if (cached === undefined) await atomicWrite(file, JSON.stringify(card, null, 2));
   const examples = sections
-    .filter((section) => /反例|正例|例如/.test(section.text) && section.text.length <= 1200)
+    .filter(
+      (section) =>
+        options.examples !== false &&
+        /反例|正例|例如/.test(section.text) &&
+        section.text.length <= 1200,
+    )
     .slice(0, 2);
   return [
     card.rules.map((rule) => `[${rule.id}] ${rule.text}`).join("\n"),
@@ -99,7 +115,13 @@ export async function methodBasis(host: Sessions, request: WorkflowRequest) {
     request.kind === "book"
       ? ["plan-foundation", "plan-outline"]
       : request.kind === "chapter"
-        ? ["plan-outline", "write-chapter", "edit", "revise"]
+        ? [
+            "plan-outline",
+            "write-chapter",
+            "edit",
+            "revise",
+            ...(host.options.fanqie?.pursuit?.enabled === true ? ["prose", "rhythm"] : []),
+          ]
         : request.kind === "ledger"
           ? []
           : [

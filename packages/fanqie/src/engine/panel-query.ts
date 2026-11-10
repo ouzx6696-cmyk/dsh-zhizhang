@@ -115,8 +115,7 @@ const PATROL_PLAIN: Record<
 };
 /**
  * 开关开时读 continuity/ 数据并跑巡检，供快照段（view）与提示（forgotten/breaches/patrol）共用。
- * pressureCount 口径：作品没有逐章受压计数的存量字段（章纲只有 conflict/beats/ending），
- * 巡检输入统一取 0——pressure_over_cap 因此暂不产候选；接入逐章计数来源时在这里替换取值。
+ * 受压计数来自显式章纲；旧作品未记录时不推断受压。
  */
 async function continuityPatrol(dir: string, meta: WorkMeta) {
   const [foreshadow, knowledge, handoffs] = await Promise.all([
@@ -142,7 +141,7 @@ async function continuityPatrol(dir: string, meta: WorkMeta) {
         .map((part) => part.trim())
         .filter(Boolean)
         .join("\n"),
-      pressureCount: 0,
+      pressureCount: c.outline.pressure ?? 0,
     })),
   });
   const latest = handoffs.reduce<HandoffRecord | undefined>(

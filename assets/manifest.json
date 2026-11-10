@@ -26,7 +26,7 @@
       "kind": "upstream",
       "version": "1.3.0",
       "files": 124,
-      "bytes": 632668,
+      "bytes": 633722,
       "loadable": 111,
       "byKind": {
         "meta": 5,
@@ -58,7 +58,7 @@
       "kind": "profile",
       "version": null,
       "files": 18,
-      "bytes": 117874,
+      "bytes": 117928,
       "loadable": 17,
       "byKind": {
         "method": 13,
@@ -72,11 +72,11 @@
       "mode": "fanqie",
       "kind": "local",
       "version": null,
-      "files": 2,
-      "bytes": 16126,
+      "files": 3,
+      "bytes": 19344,
       "loadable": 0,
       "byKind": {
-        "rule": 1,
+        "rule": 2,
         "test": 1
       }
     },
@@ -1717,8 +1717,8 @@
       "kind": "rule",
       "origin": "upstream",
       "path": "packages/fanqie/skill/forge/novel-writer/scripts/manuscript_linter.py",
-      "bytes": 15116,
-      "sha256": "09296b3a72bfe288a269fe036496d2ed793192e5798d9e46b99b23491376a29b"
+      "bytes": 16170,
+      "sha256": "95698199de66adf971ddfd72f49c273aa3f8bfe89913de5426dbc8f9fa5f2343"
     },
     {
       "source": "inspiration-forge-suite",
@@ -2043,8 +2043,8 @@
       "kind": "method",
       "origin": "local",
       "path": "packages/fanqie/profiles/default/edit.md",
-      "bytes": 5603,
-      "sha256": "1492c2dbd2691c611f25ea865cb502ce63d92e772eb5a96808f890d043a8cc94"
+      "bytes": 5657,
+      "sha256": "a81a2a82aad6af770d15361439b8831f944a01c2600bba28eae0c81b642bd97e"
     },
     {
       "source": "fanqie-default-profile",
@@ -2209,8 +2209,16 @@
       "kind": "rule",
       "origin": "local",
       "path": "packages/fanqie/skill/scripts/fanqie_bridge.py",
-      "bytes": 8739,
-      "sha256": "2030a900e2519e8884a54a35a64ce580c5b30497bbb5a7da0c2a8d07ac89ad8f"
+      "bytes": 9155,
+      "sha256": "3d25f2237a54072758af7cf30a0ac821b401e4f57908aec298231ec8e82726da"
+    },
+    {
+      "source": "writer-fanqie-rules",
+      "kind": "rule",
+      "origin": "local",
+      "path": "packages/fanqie/skill/scripts/reading_metrics.py",
+      "bytes": 2802,
+      "sha256": "9d13415da0c0363ab28a5c0bd5238bafbc0a0373c10f19f132f5394903545805"
     },
     {
       "source": "writer-fanqie-rules",

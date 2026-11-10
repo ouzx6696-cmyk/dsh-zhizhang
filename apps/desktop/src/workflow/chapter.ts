@@ -1,3 +1,9 @@
+import { draftReading } from "./reading";
+import { pursuitWriterCard } from "./writer-card";
+import {
+  parsePursuitOutline,
+  PURSUIT_OUTLINE_SHAPE,
+} from "../../../../packages/fanqie/src/engine/domain/pursuit";
 import { readability } from "./readability";
 import { sha256, nowIso } from "../../../../packages/core/src/fsx";
 import {
@@ -59,11 +65,15 @@ export async function chapterPipeline(run: WorkflowRun, target: Target) {
         "planner",
         planCard,
         { chapter: existing },
-        "返回完整章纲 JSON：title,pov,targetWords（整数）,locks,knowledge,synopsis,conflict,beats,ending。只能补空白，原有字段逐字保留；缺少关键事实时明确报错。",
-        outline,
+        "返回完整章纲 JSON：title,pov,targetWords（整数）,locks,knowledge,synopsis,conflict,beats,ending。只能补空白，原有字段逐字保留；缺少关键事实时明确报错。" +
+          (run.host.options.fanqie?.pursuit?.enabled === true ? PURSUIT_OUTLINE_SHAPE : ""),
+        (value) => outline(value, run.host.options.fanqie?.pursuit?.enabled === true),
         {
           // Checked against the outline as the author left it when this stage ran.
           accept: (result) => {
+            for (const [key, value] of Object.entries(parsePursuitOutline({ ...existing.outline })))
+              if (JSON.stringify(Reflect.get(result, key)) !== JSON.stringify(value))
+                throw new Error("补全章纲改变了作者追读规划");
             if (existing.title !== existing.id && result.title !== existing.title)
               throw new Error("补全章纲改变了作者章名");
             for (const key of required)
@@ -88,7 +98,9 @@ export async function chapterPipeline(run: WorkflowRun, target: Target) {
     scenes,
   );
   const [writeCard, editCard, reviseCard] = await Promise.all([
-    stageCard(run, "fanqie", "write-chapter"),
+    run.host.options.fanqie?.pursuit?.enabled === true
+      ? pursuitWriterCard(run)
+      : stageCard(run, "fanqie", "write-chapter"),
     stageCard(run, "fanqie", "edit"),
     stageCard(run, "fanqie", "revise"),
   ]);
@@ -123,7 +135,7 @@ export async function chapterPipeline(run: WorkflowRun, target: Target) {
         "writer",
         writeCard,
         { plan, scenePlan, entry: entries[index] },
-        (run.context.chapterPosition <= 3
+        (run.host.options.fanqie?.pursuit?.enabled !== true && run.context.chapterPosition <= 3
           ? `这是黄金前三章的第${run.context.chapterPosition}章。第一章前300字进入人物处境和异常、章末留具体钩子；第三章交还一次明确兑现。`
           : "") + '一次写完整章，不写工具调用或审读标签，返回 {"title":"章名","body":"完整正文"}。',
         (value) => {
@@ -145,7 +157,11 @@ export async function chapterPipeline(run: WorkflowRun, target: Target) {
   });
   // Readers judge the prose against the chapter's own promise, not the whole book file.
   const readerMaterial = [
-    ...run.context.material.filter((block) => block.name === "前章结尾"),
+    ...run.context.material.filter(
+      (block) =>
+        block.name === "前章结尾" ||
+        (run.host.options.fanqie?.pursuit?.enabled === true && block.name.startsWith("追读账本")),
+    ),
     { name: "本章章纲", text: JSON.stringify(plan), required: true },
   ];
   const selection = await selectDraft(run, drafts, "fanqie", readerMaterial);
@@ -242,6 +258,9 @@ export async function chapterPipeline(run: WorkflowRun, target: Target) {
             candidates: receipts,
             selection,
             readability: readability(checked.draft.body),
+            ...(run.host.options.fanqie?.pursuit?.radar === true
+              ? { reading: await draftReading(run, checked.draft.body, plan.targetWords) }
+              : {}),
             review: checked.review,
             rounds: checked.rounds,
             unresolved: checked.unresolved,

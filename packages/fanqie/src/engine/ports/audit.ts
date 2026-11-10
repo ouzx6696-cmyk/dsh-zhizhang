@@ -1,9 +1,10 @@
+import { config } from "../runtime-config.js";
 /**
  * Audit adapters — style / payoff / human-feel / novel-sense soft radars behind stable ports.
  * Sensors stay pure; this file is the only place tools should import them from
  * when wiring (gates/tests may still import sensors for unit isolation).
  */
-import { lintStyle, scanStyle, summarizeStyleLint } from "../style-linter.js";
+import { lintStyle, scanStyle, scanWorkStyle, summarizeStyleLint } from "../style-linter.js";
 import { auditPayoff, formatPayoffAudit } from "../payoff-audit.js";
 import { auditHumanFeel, formatHumanFeelAudit } from "./human-feel-gate.js";
 import { auditNovelSense, formatNovelSenseAudit } from "./novel-sense-gate.js";
@@ -11,8 +12,8 @@ export const StyleLinterPort = {
   lint(text: string) {
     return lintStyle(text);
   },
-  scan(text: string) {
-    return scanStyle(text, Infinity);
+  scan(text: string, dir?: string) {
+    return dir === undefined ? scanStyle(text, Infinity) : scanWorkStyle(dir, text);
   },
   format(label: string, scan: Awaited<ReturnType<typeof scanStyle>>) {
     const { hits, statistics } = scan,
@@ -66,7 +67,12 @@ export const PayoffAuditorPort = {
       caseLexicon?: import("../storage/payoff-lexicon.js").PayoffCaseLexicon;
     },
   ) {
-    return auditPayoff(outline, body, opts);
+    return auditPayoff(outline, body, {
+      ...opts,
+      ...(config.pursuit?.enabled === true && opts.lexicon === undefined
+        ? { lexicon: [...(outline.newTerms ?? []), ...(outline.newCharacters ?? [])] }
+        : {}),
+    });
   },
   format(label: string, result: ReturnType<typeof auditPayoff>) {
     return formatPayoffAudit(label, result);
@@ -75,7 +81,7 @@ export const PayoffAuditorPort = {
 export const HumanFeelAuditorPort = {
   /** Pass craftCue so stiffness_tidy matches Accept (shatter cues from craft cards). */
   audit(text: string, opts: { craftCue?: string }) {
-    return auditHumanFeel(text, opts);
+    return auditHumanFeel(text, { ...opts, generalOnly: config.pursuit?.enabled === true });
   },
   format(label: string, result: ReturnType<typeof auditHumanFeel>) {
     return formatHumanFeelAudit(label, result);
@@ -83,7 +89,7 @@ export const HumanFeelAuditorPort = {
 };
 export const NovelSenseAuditorPort = {
   audit(text: string, opts: { prevBody?: string | null }) {
-    return auditNovelSense(text, opts);
+    return auditNovelSense(text, { ...opts, generalOnly: config.pursuit?.enabled === true });
   },
   format(label: string, result: ReturnType<typeof auditNovelSense>) {
     return formatNovelSenseAudit(label, result);

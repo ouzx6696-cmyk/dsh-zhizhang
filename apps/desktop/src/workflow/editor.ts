@@ -1,3 +1,4 @@
+import { draftReading } from "./reading";
 import { pairVote, review, revised, type Draft, type Review } from "./schema";
 import { runTaskPool } from "../session/task-pool";
 import type { ContextBlock } from "../../../../packages/core/src/workflow";
@@ -19,6 +20,14 @@ const READERS = {
     ],
   },
 } as const;
+function readerPreference(persona: string) {
+  if (persona.includes("人物")) return "优先关心人物当场的所求、反差和声线；拒绝人物只为任务服务";
+  if (persona.includes("节奏") || persona.includes("追更"))
+    return "优先看局面推进、此前承诺的小兑现和章末具体的新问题";
+  if (persona.includes("事实") || persona.includes("接续"))
+    return "优先核对前章后果、人物知情来源和规则兑现，不能靠临时能力救场";
+  return "熟悉套路，偏好对手合理回应、变化有代价、兑现有铺垫；不为熟悉词语扣分";
+}
 /** Parallel reader calls per challenger; each vote is an independent fresh request. */
 const VOTE_CONCURRENCY = 4;
 /** Readers get a short reader brief, not the editor's method card. */
@@ -34,6 +43,11 @@ export async function selectDraft(
   mode: "fanqie" | "toutiao" = "fanqie",
   material?: ContextBlock[],
 ) {
+  const pursuit = mode === "fanqie" && run.host.options.fanqie?.pursuit?.enabled === true;
+  const reading =
+    mode === "fanqie"
+      ? await Promise.all(drafts.map((draft) => draftReading(run, draft.body)))
+      : [];
   let winner = 0;
   const comparisons: { left: number; right: number; winner: number | null; reasons: string[] }[] =
     [];
@@ -54,7 +68,19 @@ export async function selectDraft(
         "editor",
         READER_CARD,
         // Drafts first and persona last: votes in the same position share the long prefix.
-        { A: drafts[a], B: drafts[b], persona },
+        {
+          A: drafts[a],
+          B: drafts[b],
+          persona,
+          ...(pursuit
+            ? {
+                preferences: readerPreference(persona),
+                criteria:
+                  "期待、局面变化、兑现、接续、追读意愿；人物型读者另看人味，对手必须合理；开篇另看处境与异常、独有办法、首次小兑现。仅依据已发生内容，不把规划当证据",
+              }
+            : {}),
+          ...(reading[a] === undefined ? {} : { reading: { A: reading[a], B: reading[b] } }),
+        },
         '你是给定画像的普通读者，只依据正文比较继续阅读意愿，不评估软件。指出每稿具体弃读段；位置交换后重新独立判断。返回 {"winner":"A或B或tie","reason":"正文证据","abandonA":"段落及原因或未发现","abandonB":"段落及原因或未发现"}。',
         pairVote,
         material ? { material } : {},
@@ -153,8 +179,13 @@ export async function editDraft(
       "硬伤审读",
       "editor",
       editCard,
-      { draft: current },
-      '审读最多5条真正影响读者理解、信任或设定一致性的硬伤。章纲偏离本身只列建议。每条必须引用正文、写明读者影响和定向改法。返回 {"hard":[{"location":"位置","quote":"正文原文","impact":"读者会怎样","fix":"局部改法"}],"suggestions":["章纲偏离或风格建议"]}。',
+      {
+        draft: current,
+        ...(run.journal.record.request.kind === "chapter"
+          ? { reading: await draftReading(run, current.body) }
+          : {}),
+      },
+      '审读最多5条真正影响读者理解、信任或设定一致性的硬伤。作者明确锁定的关键经历或落点被违反且影响理解、信任或设定时算硬伤；未锁定的章纲偏离只列建议。量化警告仅供定位，不自动算硬伤。每条必须引用正文、写明读者影响和定向改法。返回 {"hard":[{"location":"位置","quote":"正文原文","impact":"读者会怎样","fix":"局部改法"}],"suggestions":["章纲偏离或风格建议"]}。',
       (v) => review(v, current.body),
     );
     if (!report.hard.length)

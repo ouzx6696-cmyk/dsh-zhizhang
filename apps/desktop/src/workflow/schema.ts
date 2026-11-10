@@ -1,3 +1,7 @@
+import {
+  parsePursuitOutline,
+  type PursuitOutline,
+} from "../../../../packages/fanqie/src/engine/domain/pursuit";
 import { isRecord } from "../../../../packages/core/src/parse";
 import { sha256 } from "../../../../packages/core/src/fsx";
 export const record = (value: unknown): Record<string, unknown> => {
@@ -104,7 +108,7 @@ export function list(value: unknown, name: string, maximum = 30): unknown[] {
     throw new Error(`${name} 须为不超过 ${maximum} 项的数组`);
   return value;
 }
-export interface Outline {
+export interface Outline extends PursuitOutline {
   title: string;
   pov: string;
   targetWords: number;
@@ -115,8 +119,23 @@ export interface Outline {
   beats: string;
   ending: string;
 }
-export function outline(value: unknown): Outline {
+export function outline(value: unknown, requirePursuit = false): Outline {
   const r = jsonOutput(value);
+  if (
+    requirePursuit &&
+    [
+      "function",
+      "unit",
+      "unitPos",
+      "hookType",
+      "pressure",
+      "newTerms",
+      "newCharacters",
+      "threadsOpen",
+      "threadsClose",
+    ].some((key) => r[key] === undefined)
+  )
+    throw new Error("追读章纲缺少必填规划字段");
   if (
     typeof r.targetWords !== "number" ||
     !Number.isInteger(r.targetWords) ||
@@ -125,6 +144,7 @@ export function outline(value: unknown): Outline {
   )
     throw new Error("目标字数须为 300–12000 的整数");
   return {
+    ...parsePursuitOutline(r),
     title: text(r.title, "章名", 100),
     pov: text(r.pov, "视角"),
     targetWords: r.targetWords,

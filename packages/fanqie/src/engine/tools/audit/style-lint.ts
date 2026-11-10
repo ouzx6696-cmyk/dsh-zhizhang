@@ -26,7 +26,7 @@ export const styleLint = defineTool({
     if (candidateId) {
       const { dir } = await openWork(exec, args);
       const cand = await readCandidate(dir, candidateId);
-      const scan = await StyleLinterPort.scan(cand.body),
+      const scan = await StyleLinterPort.scan(cand.body, dir),
         hits = scan.hits;
       const pass = await LintGate.issueToken(dir, candidateId, hits.length, cand.body);
       return [
@@ -47,7 +47,7 @@ export const styleLint = defineTool({
       const ch = await readChapter(dir, chapterId);
       text = ch.body;
       label = `${ch.title}（${ch.id}）`;
-      const scan = await StyleLinterPort.scan(text),
+      const scan = await StyleLinterPort.scan(text, dir),
         hits = scan.hits;
       await writeLedgerEntry(dir, {
         chapterId,

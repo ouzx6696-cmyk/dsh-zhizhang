@@ -863,7 +863,12 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
 
     expect(rendererErrors.splice(0)).toEqual([]);
   });
-  await test.step("Exa 设置可保存和清除 Key，公开状态不暴露密钥", async () => {
+  await test.step("本地对标书、开篇时序与Exa设置，公开状态不暴露密钥", async () => {
+    await page.locator(".project-switch").click();
+    await page
+      .getByRole("menu")
+      .getByRole("menuitem", { name: /编辑检查/ })
+      .click();
     const resources = async () => {
       await page.getByRole("button", { name: "设置", exact: true }).click();
       const dialog = page.getByRole("dialog", { name: "设置", exact: true });
@@ -892,6 +897,35 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
         )
       ).some((text) => text.includes("雨停了，她收起伞")),
     ).toBe(true);
+
+    await dialog
+      .getByRole("combobox", { name: "选择已导入的书源", exact: true })
+      .selectOption({ label: "原文示例" });
+    await dialog.getByRole("button", { name: "设为当前小说的对标书", exact: true }).click();
+    await expect(dialog).toContainText("对标统计已保存，样本章节数：1");
+    await dialog.getByLabel("首章异常位置（0–100%，人工确认）").fill("30");
+    await dialog.getByRole("button", { name: "保存开篇时序参考", exact: true }).click();
+    await expect
+      .poll(
+        async () =>
+          (await page.evaluate(() => window.writerDesktop.libraryStorage())).benchmark?.opening
+            ?.anomalyRatio,
+      )
+      .toBe(0.3);
+    const currentTarget = await page.evaluate(
+      async () => (await window.writerDesktop.state()).target,
+    );
+    const benchmarkMeta = JSON.parse(
+      await readFile(path.join(root, "novels", currentTarget.work, "meta.json"), "utf8"),
+    );
+    expect(benchmarkMeta.readingBenchmark.sampledChapters).toBe(1);
+    expect(JSON.stringify(benchmarkMeta.readingBenchmark)).not.toContain("雨停了，她收起伞");
+    await dialog.getByRole("button", { name: "恢复默认阅读标尺", exact: true }).click();
+    await expect
+      .poll(
+        async () => (await page.evaluate(() => window.writerDesktop.libraryStorage())).benchmark,
+      )
+      .toBeUndefined();
 
     await dialog.getByRole("combobox", { name: "搜索服务", exact: true }).selectOption("exa");
     await dialog.getByRole("combobox", { name: "搜索模式", exact: true }).selectOption("lite");

@@ -4,7 +4,7 @@
 
 基于内置 PI SDK 的 Electron 应用（Electron 45，Windows x64）。作品只存在你的电脑上；模型只在你发起任务时收到相关创作内容。
 
-> 最近正式版 **[v0.9.9](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/v0.9.9)**；测试版 **[v1.0.0-preview.1](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/v1.0.0-preview.1)**。`master` 上的源码为 1.0.1 稳定性补丁（开发与 CI 已完成，待 Windows 真机回归后发布），变化见 [CHANGELOG](CHANGELOG.md)。
+> 最近正式版 **[v0.9.9](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/v0.9.9)**；测试版 **[v1.0.0-preview.1](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/v1.0.0-preview.1)**。本次源码为 1.1.0-preview.1 追读工程预览版（实验功能默认关闭，真实模型质量对照未执行），变化见 [CHANGELOG](CHANGELOG.md)。
 
 ## 能做什么
 

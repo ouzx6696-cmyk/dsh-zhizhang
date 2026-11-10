@@ -286,7 +286,15 @@ async function taskPromptV2(host: Sessions, target: Target, text: string, focus:
     saved = {
       brief,
       review,
-      ...(chapter ? await fanqieAttachments(dir, meta, chapter, kinds) : {}),
+      ...(chapter
+        ? await fanqieAttachments(
+            dir,
+            meta,
+            chapter,
+            kinds,
+            host.options.fanqie?.pursuit?.enabled === true,
+          )
+        : {}),
       title: meta.title,
       chapters: meta.chapters.length,
       chapter: chapter

@@ -1,3 +1,4 @@
+import { parsePursuitOutline } from "../domain/pursuit.js";
 /** Chapter encoding, reads and serialized updates; the store facade re-exports the public API. */
 import { snapshotFiles } from "../../../../core/src/snapshots.js";
 import { errorText } from "../../../../core/src/errors.js";
@@ -49,6 +50,7 @@ function normalizeOutline(value: unknown): Outline {
   const raw = asObject(value);
   return {
     ...raw,
+    ...parsePursuitOutline(raw),
     pov: asString(raw, "pov", { trim: false }) ?? "",
     targetWords:
       typeof raw.targetWords === "number" && raw.targetWords > 0 ? raw.targetWords : 2500,

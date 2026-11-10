@@ -8,7 +8,7 @@ import { randomUUID } from "node:crypto";
 import { SCHEMA_VERSION } from "../types.js";
 import type { Candidate } from "../types.js";
 import { assertContextBasis } from "./chapters.js";
-import { lintStyle } from "../style-linter.js";
+import { scanWorkStyle } from "../style-linter.js";
 import { fingerprint } from "../domain/lifecycle.js";
 import { NovelError } from "../errors.js";
 import { resolveHappenedText } from "../domain/foundation-outcome.js";
@@ -312,7 +312,8 @@ export async function acceptCandidate(
         `候选 ${id} 已于 ${cand.acceptedAt} 采纳，禁止重复写回。请重新暂存候选。`,
       );
     if (!cand.body.trim()) throw new NovelError("candidate_empty", `候选 ${id} 正文为空，拒绝采纳`);
-    if (!cand.lintPassToken) cand.lintHitCount = (await lintStyle(cand.body)).length;
+    // A token proves an earlier scan, not that its rule configuration is still current.
+    cand.lintHitCount = (await scanWorkStyle(dir, cand.body)).hits.length;
     const checked = await opts.validate?.(cand);
     const provided = opts.lintPassToken;
     if (provided && (!cand.lintPassToken || cand.lintPassToken !== provided))

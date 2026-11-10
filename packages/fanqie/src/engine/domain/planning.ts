@@ -1,3 +1,4 @@
+import { parseUnitPlans, type UnitPlan } from "./pursuit.js";
 /** Author-approved book and volume plans. Old works may have no planning field. */
 import { NovelError } from "../errors.js";
 interface PlanSection {
@@ -18,6 +19,7 @@ interface Planning {
   volumes: PlanGroup[];
   acts: PlanGroup[];
   updatedAt?: string;
+  units?: UnitPlan[];
 }
 function section(value: unknown): value is PlanSection {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
@@ -50,6 +52,7 @@ export function readPlanning(meta: { planning?: unknown }): Planning | null {
   return {
     ...raw,
     schemaVersion: 1,
+    ...(raw.units === undefined ? {} : { units: parseUnitPlans(raw.units) }),
     book: raw.book as PlanSection | undefined,
     volumes: raw.volumes,
     acts: (raw.acts ?? []) as PlanGroup[],
@@ -69,6 +72,15 @@ function sourceLine(p: PlanSection) {
     : [];
   const goal = typeof source.authorGoal === "string" ? source.authorGoal : "";
   return `作者目标：${goal.length > 300 ? goal.slice(0, 300) + "…" : goal || "未记录"}；所选参考卡：${ids.length ? ids.join("、") : "无"}；工作区迁移参考：${Array.isArray(source.selectedReferenceIds) ? source.selectedReferenceIds.join("、") || "无" : "无"}（记录选择，不证明实际阅读或具体影响）`;
+}
+function formatUnit(unit: UnitPlan) {
+  return [
+    `## 单元 · ${unit.title}（${unit.id}，第${unit.from}–${unit.to}章）`,
+    `- 核心问题：${unit.question}`,
+    `- 兑现：${unit.payoffs.join("；") || "未列出"}`,
+    `- 结算：${unit.settlement}`,
+    `- 下单元伏笔：${unit.next}`,
+  ].join("\n");
 }
 export function formatPlanningBrief(meta: import("../types.js").WorkMeta, chapterId: string) {
   const planning = readPlanning(meta);
@@ -98,6 +110,9 @@ export function formatPlanningBrief(meta: import("../types.js").WorkMeta, chapte
     lines.push(`（另有 ${volumes.length - 3} 个卷规划关联本章，请查看完整规划。）`);
   if (volumes.length > 1) lines.push("（本章关联多个卷规划，请核对归属。）");
   if (acts.length > 3) lines.push(`（另有 ${acts.length - 3} 个幕规划关联本章，请查看完整规划。）`);
+  const position = meta.chapters.find((row) => row.id === chapterId)?.position;
+  for (const unit of planning.units ?? [])
+    if (position === undefined || unit.to >= position) lines.push(formatUnit(unit));
   return lines.join("\n");
 }
 export function formatPlanningStatus(meta: import("../types.js").WorkMeta) {
@@ -124,5 +139,6 @@ export function formatPlanningStatus(meta: import("../types.js").WorkMeta) {
       a.content,
       `- ${sourceLine(a)}`,
     );
+  lines.push(...(planning.units ?? []).map(formatUnit));
   return lines.join("\n");
 }

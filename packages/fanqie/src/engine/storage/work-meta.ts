@@ -1,3 +1,4 @@
+import { parseReadingBenchmark } from "../reading-radar.js";
 /** Work metadata shared by chapter storage and the public store facade. */
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -65,6 +66,8 @@ export function parseWorkMeta(raw: unknown, file: string): WorkMeta {
   if (meta.revisionImpacts !== undefined && !Array.isArray(meta.revisionImpacts))
     throw new NovelError("bad_work_meta", "修订影响记录格式损坏。");
   readPlanning(meta);
+  if (meta.readingBenchmark !== undefined)
+    meta.readingBenchmark = parseReadingBenchmark(meta.readingBenchmark);
   if (
     meta.continuity !== undefined &&
     (!meta.continuity ||

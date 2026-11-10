@@ -23,6 +23,8 @@ export interface FanqieConfig extends PluginConfig {
   draw?: { enabled?: boolean; max?: number };
   /** 结构化连续性：伏笔线/知识边界/章末交接的登记与核验工具、简报投影与修订影响联动，默认关 */
   continuity?: { enabled?: boolean };
+  /** 追读工程：单元规划、节奏章纲与定稿账本，实验功能默认关闭。 */
+  pursuit?: { enabled?: boolean; radar?: boolean };
   /** handoff.v2：任务交接改用方法包决策表（按状态收集方法与附件），默认关 */
   handoff?: { v2?: boolean };
   /** 会话策略：perChapter 章级会话（写手跨章自动开新对话，前章材料由交接简报从文件带入），
@@ -81,6 +83,7 @@ const KNOWN = new Set<string>([
   "multiDraft",
   "draw",
   "continuity",
+  "pursuit",
   "handoff",
   "session",
   "brief",
@@ -212,6 +215,21 @@ export function parseFanqieConfig(
         path: [...at, "brief"],
       });
     else out.brief = { creationFirst: b.creationFirst === true };
+  }
+  if (v.pursuit !== undefined) {
+    const l = v.pursuit as Record<string, unknown> | null;
+    if (
+      !l ||
+      typeof l !== "object" ||
+      Array.isArray(l) ||
+      (l.enabled !== undefined && typeof l.enabled !== "boolean") ||
+      (l.radar !== undefined && typeof l.radar !== "boolean")
+    )
+      issues.push({
+        message: `${[...at, "pursuit"].join(".")} 应为 { enabled: 布尔值 }`,
+        path: [...at, "pursuit"],
+      });
+    else out.pursuit = { enabled: l.enabled === true, radar: l.radar === true };
   }
   if (v.learn !== undefined) {
     const l = v.learn as Record<string, unknown> | null;

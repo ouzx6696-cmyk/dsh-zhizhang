@@ -1,6 +1,6 @@
 {
   "name": "writer-agent",
-  "version": "1.0.1",
+  "version": "1.1.0-preview.1",
   "private": true,
   "description": "基于内置 PI 的独立写作客户端：今日头条与番茄长篇",
   "type": "module",
@@ -17,6 +17,7 @@
     "test:node": "tsc -p tsconfig.json && node scripts/build-test-components.mjs && node --test --import ./test/setup.mjs test/*.test.mjs test/engine/*.test.mjs test/renderer/*.test.mjs",
     "test": "npm run verify",
     "assets": "node scripts/assets.mjs",
+    "corpus:fanqie": "node scripts/fanqie-corpus.mjs",
     "desktop:dev": "npm run dev -w @writer/desktop",
     "desktop:build": "npm run typecheck && npm run build -w @writer/desktop",
     "desktop:pack": "npm run desktop:build && npm run pack -w @writer/desktop",

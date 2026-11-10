@@ -11,6 +11,7 @@ novel-writer 正文体检（manuscript_linter.py）
 from bisect import bisect_left, bisect_right
 import argparse
 import json
+import math
 import os
 import re
 
@@ -174,9 +175,14 @@ def statistics(text, long_para):
     }
 
 
-def scan_style(text, limit=None, allowed_ranges=None, long_para=160):
+def scan_style(text, limit=None, allowed_ranges=None, long_para=160, density_thresholds=None):
     if not isinstance(text, str) or (limit is not None and (not isinstance(limit, int) or limit < 0)):
         raise ValueError('invalid style input')
+    if density_thresholds is not None:
+        if not isinstance(density_thresholds, dict) or any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v < 0 for v in density_thresholds.values()):
+            raise ValueError('invalid density thresholds')
+    chars = max(1, len(re.sub(r'\s', '', text)))
+    density = {term: text.count(term) * 10000 / chars for term in ('一丝', '一抹', '几分', '些许', '然而', '与此同时')}
     positions = utf16_positions(text)
     quotes = dialogue_ranges(text, positions)
     quote_starts = [start for start, _ in quotes]
@@ -201,6 +207,12 @@ def scan_style(text, limit=None, allowed_ranges=None, long_para=160):
     for order, (rule, pattern, is_primary) in enumerate(RULES):
         offset, part = last if rule.get('endingOnly') else (0, text)
         for match in pattern.finditer(part):
+            if density_thresholds is not None:
+                if rule['pattern'] == PRIMARY_RULES[6]['pattern']:
+                    continue  # 感知前置在对标密度模式只作描述，不因单次出现警告。
+                term = next((word for word in density if match.group().startswith(word)), None)
+                if term in density_thresholds and density[term] <= density_thresholds[term]:
+                    continue
             start, end = positions[offset + match.start()], positions[offset + match.end()]
             if eligible(start, end):
                 hit = {'category': rule['category'], 'start': start, 'end': end,
@@ -233,7 +245,7 @@ def scan_style(text, limit=None, allowed_ranges=None, long_para=160):
         (spoken if quote >= 0 and start < quotes[quote][1] else narrative).append(hit)
     return {'hits': narrative if limit is None else narrative[:limit], 'totalHits': len(narrative),
             'dialogueRanges': quotes, 'dialogueHits': spoken if limit is None else spoken[:limit],
-            'statistics': statistics(text, long_para)}
+            'statistics': {**statistics(text, long_para), 'term_density_per10000': density, 'perception_count': len(re.findall(PRIMARY_RULES[6]['pattern'], text))}}
 
 
 def lint_file(file_path, long_para=160):

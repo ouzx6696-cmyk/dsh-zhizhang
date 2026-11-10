@@ -1,8 +1,13 @@
+import { pursuitLedger } from "./pursuit";
 import { methodBasis } from "./methods";
 import { readContinuity } from "./continuity";
 import { readText, sha256 } from "../../../../packages/core/src/fsx";
 import { ArticleStore } from "../../../../packages/toutiao/src/store";
-import { findChapter, readChapter } from "../../../../packages/fanqie/src/engine/storage/chapters";
+import {
+  findChapter,
+  readChapter,
+  readChapterLenses,
+} from "../../../../packages/fanqie/src/engine/storage/chapters";
 import { readWorkMeta } from "../../../../packages/fanqie/src/engine/storage/work-meta";
 import {
   readForeshadow,
@@ -41,6 +46,8 @@ function fanqieMaterial(input: {
   confirmed: unknown[];
   recent: unknown[];
   whole: boolean;
+  previousTail: number;
+  previousSummary: string;
 }): ContextBlock[] {
   const { meta, chapter, prev, whole } = input;
   const planning = readPlanning(meta) ?? undefined;
@@ -60,7 +67,9 @@ function fanqieMaterial(input: {
     { name: "本章", text: chapter ? JSON.stringify(chapter) : "", required: true },
     {
       name: "前章结尾",
-      text: prev ? `《${prev.title}》\n${prev.body.slice(-800)}` : "",
+      text: prev
+        ? `《${prev.title}》\n${input.previousSummary ? "前章摘要：" + input.previousSummary + "\n" : ""}${prev.body.slice(-input.previousTail)}`
+        : "",
       required: true,
     },
     {
@@ -128,6 +137,7 @@ function fanqieDocument(
     },
     foundation: meta.foundation,
     planning: meta.planning,
+    ...(meta.readingBenchmark === undefined ? {} : { readingBenchmark: meta.readingBenchmark }),
     chapter: chapter?.revision,
     previous: previous?.revision,
     foreshadow,
@@ -141,12 +151,20 @@ export async function workflowContext(
 ): Promise<WorkflowContext> {
   const author = (await host.extras.preferences?.()) ?? "",
     methods = await methodBasis(host, request);
-  const identity = { author, methods };
+  const enabled = host.options.fanqie?.pursuit?.enabled === true;
+  const identity = {
+    author,
+    methods,
+    ...(enabled ? { pursuit: true } : {}),
+    ...(host.options.fanqie?.pursuit?.radar === true ? { readingRadar: true } : {}),
+  };
   const assertIdentity = async () => {
     if (
       JSON.stringify({
         author: (await host.extras.preferences?.()) ?? "",
         methods: await methodBasis(host, request),
+        ...(host.options.fanqie?.pursuit?.enabled === true ? { pursuit: true } : {}),
+        ...(host.options.fanqie?.pursuit?.radar === true ? { readingRadar: true } : {}),
       }) !== JSON.stringify(identity)
     )
       throw new Error("作者偏好或方法方案已变化，请新建任务以采用新依据");
@@ -219,9 +237,55 @@ export async function workflowContext(
     ),
   };
   const structured = await readContinuity(dir);
+  const readPursuit = async (current: Meta, state: Awaited<ReturnType<typeof readContinuity>>) => {
+    const candidates = state.chapters.filter((row) =>
+      current.chapters.some((chapter) => chapter.id === row.id && chapter.status === "final"),
+    );
+    const lenses = await readChapterLenses(
+      dir,
+      candidates.map((row) => row.id),
+    );
+    const versions = lenses.map((row) => {
+      if (row.lens === undefined)
+        throw new Error(`追读账本关联章节无法读取：${row.id} ${row.error}`);
+      return [row.id, row.lens.revision];
+    });
+    const rows = candidates.filter(
+      (row, index) => row.pursuit !== undefined && row.revision === versions[index][1],
+    );
+    return { rows, versions };
+  };
+  const pursuit = enabled ? await readPursuit(meta, structured) : undefined;
+  const auditChapter = structured.chapters.find((row) => row.id === structured.audit?.chapter);
+  const audit =
+    pursuit !== undefined &&
+    pursuit.rows.length === structured.chapters.filter((row) => row.pursuit !== undefined).length &&
+    structured.audit !== undefined &&
+    structured.audit.sources !== undefined &&
+    structured.audit.sources.every((source) =>
+      pursuit.versions.some(([id, revision]) => source.id === id && source.revision === revision),
+    ) &&
+    auditChapter?.position !== undefined &&
+    auditChapter.position < position &&
+    position <= auditChapter.position + 5 &&
+    pursuit.rows.some(
+      (row) => row.id === structured.audit?.chapter && row.hash === structured.audit.hash,
+    )
+      ? structured.audit
+      : undefined;
+  const readingLedger =
+    pursuit === undefined
+      ? undefined
+      : pursuitLedger(
+          pursuit.rows,
+          position,
+          chapter?.outline.unit,
+          meta.chapters.filter((row) => row.status === "final" && row.position < position).length,
+        );
   const basis = JSON.stringify({
     document: fanqieDocument(meta, chapter, prev, foreshadow, knowledge),
     structured,
+    ...(pursuit === undefined ? {} : { pursuitVersions: pursuit.versions }),
     identity,
   });
   return {
@@ -229,6 +293,9 @@ export async function workflowContext(
       title: meta.title,
       genre: meta.genre,
       premise: meta.premise,
+      ...(enabled && meta.readingBenchmark
+        ? { readingTargets: meta.readingBenchmark.targets }
+        : {}),
       foundation: {
         locks: meta.foundation.locks,
         characters: meta.foundation.characters,
@@ -244,8 +311,47 @@ export async function workflowContext(
       confirmed: structured.facts.filter((fact) => presence.includes(fact.subject)),
       recent: structured.chapters.slice(-3),
       whole: request.kind === "book",
-    }),
+      previousTail: enabled ? 1500 : 800,
+      previousSummary:
+        enabled && prev
+          ? (structured.chapters.find((row) => row.id === prev.id && row.hash === sha256(prev.body))
+              ?.summary ?? "")
+          : "",
+    }).concat(
+      pursuit === undefined
+        ? []
+        : [
+            {
+              name: "当前与下一单元规划",
+              text: JSON.stringify(readPlanning(meta)?.units ?? []),
+              required: true,
+            },
+            {
+              name: "追读账本（仅有效定稿）",
+              text: JSON.stringify(readingLedger),
+              required: true,
+            },
+            {
+              name: "十章体检的后续规划建议",
+              text:
+                audit === undefined
+                  ? ""
+                  : JSON.stringify({
+                      chapter: audit.chapter,
+                      risks: audit.risks,
+                      forgotten: audit.forgotten,
+                      rhythm: audit.rhythm,
+                      constraints: audit.constraints,
+                    }),
+              required: true,
+            },
+          ],
+    ),
     chapterPosition: position,
+    pace: meta.pace,
+    readingBenchmark: meta.readingBenchmark,
+    readingLedger,
+    pursuitSources: pursuit?.versions.map(([id, revision]) => ({ id, revision })),
     basis,
     sourceHash: sha256(basis + author),
     assertCurrent: async () => {
@@ -265,6 +371,7 @@ export async function workflowContext(
         JSON.stringify({
           document: fanqieDocument(now, current, prior, f, k),
           structured: c,
+          ...(enabled ? { pursuitVersions: (await readPursuit(now, c)).versions } : {}),
           identity,
         }) !== basis
       )

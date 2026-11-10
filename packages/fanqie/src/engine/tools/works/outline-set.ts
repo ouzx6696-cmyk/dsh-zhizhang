@@ -1,8 +1,9 @@
+import { parsePursuitOutline } from "../../domain/pursuit.js";
 import { setOutline } from "../../storage/chapters.js";
 
 import { asString, fail, openWork } from "../context.js";
 import { renderOutline } from "../render.js";
-import { OUTLINE_PROPS, S, WORK_OPT, WORKING_DIR } from "../schema.js";
+import { OUTLINE_PROPS, PURSUIT_PROPS, S, WORK_OPT, WORKING_DIR } from "../schema.js";
 import { defineTool } from "../types.js";
 
 export const outlineSet = defineTool({
@@ -20,8 +21,9 @@ export const outlineSet = defineTool({
   async execute(args, exec) {
     const chapterId = asString(args, "chapter", { required: true });
     const { dir } = await openWork(exec, args);
-    const patch: Record<string, unknown> = {};
+    const patch: Record<string, unknown> = { ...parsePursuitOutline(args) };
     for (const key of Object.keys(OUTLINE_PROPS)) {
+      if (key in PURSUIT_PROPS) continue;
       if (args[key] === undefined || args[key] === null) continue;
       if (key === "targetWords") {
         if (

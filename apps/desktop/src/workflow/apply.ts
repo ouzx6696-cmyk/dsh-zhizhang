@@ -1,3 +1,5 @@
+import { parseUnitPlans } from "../../../../packages/fanqie/src/engine/domain/pursuit";
+import { readPlanning } from "../../../../packages/fanqie/src/engine/domain/planning";
 import path from "node:path";
 import { readFile, rm } from "node:fs/promises";
 import { atomicWrite, readText, readJson, nowIso, sha256 } from "../../../../packages/core/src/fsx";
@@ -5,6 +7,7 @@ import { resolveFanqieWork } from "../main/storage";
 import {
   readWorkMeta,
   parseWorkMeta,
+  writeWorkMeta,
 } from "../../../../packages/fanqie/src/engine/storage/work-meta";
 import { findChapter, setOutline } from "../../../../packages/fanqie/src/engine/storage/chapters";
 import { setFoundation } from "../../../../packages/fanqie/src/engine/work-store";
@@ -42,6 +45,7 @@ export async function applyPlan(
     const receipt = path.join(dir, "writer-plan-receipts", state.id + ".json"),
       done = await readJson<unknown>(receipt);
     if (done !== undefined) return done;
+    const units = output.units === undefined ? undefined : parseUnitPlans(output.units);
     const foundation = record(output.foundation),
       chapters = list(output.chapters, "滚动章纲", 5).map((value) => {
         const r = record(value);
@@ -62,7 +66,17 @@ export async function applyPlan(
     for (const key of foundationKeys)
       if (current.foundation[key] !== old[key] && current.foundation[key] !== foundation[key])
         throw new Error("采用规划中断后根基又被修改，已保留备份；不会覆盖作者修改");
-    if (JSON.stringify(current.planning) !== JSON.stringify(original.planning))
+    const planning =
+      units === undefined
+        ? original.planning
+        : {
+            ...(readPlanning(original) ?? { schemaVersion: 1 as const, volumes: [], acts: [] }),
+            units,
+          };
+    if (
+      JSON.stringify(current.planning) !== JSON.stringify(original.planning) &&
+      JSON.stringify(current.planning) !== JSON.stringify(planning)
+    )
       throw new Error("卷幕规划已变化，未覆盖");
     const originalIds = new Set(
       list(original.chapters, "旧章节", 10000).map((value) =>
@@ -85,6 +99,11 @@ export async function applyPlan(
       await setFoundation(dir, foundation);
     for (const row of chapters)
       if (!(await findChapter(dir, row.id))) await setOutline(dir, row.id, { ...row }, row.title);
+    if (units !== undefined) {
+      const latest = await readWorkMeta(dir);
+      latest.planning = planning;
+      await writeWorkMeta(dir, latest);
+    }
     const value = { at: nowIso(), backup, chapters: chapters.map((row) => row.id) };
     await atomicWrite(receipt, JSON.stringify(value));
     return value;

@@ -1933,9 +1933,17 @@ test("T11 面板快照：开关开时输出 continuityView，巡检候选进 nex
     assert.match(breachHint, /林晚忽然想起/);
     const patrolHint = snapshot.nextHints.find((h) => h.includes("节奏巡检候选"));
     assert.match(patrolHint, /节奏巡检候选：c001、c002、c003；冲突字段连续近同/);
-    // pressureCount 口径未接入（统一 0）：快爽档连写四章也不报受压超限。
+    // 旧章纲未记录受压，不推断为受压超限。
     assert.ok(snapshot.nextHints.every((h) => !h.includes("受压连跑")));
     assert.ok(!snapshot.panelHints.some((h) => h.includes("超过档位上限")));
+
+    for (let n = 1; n <= 3; n++)
+      await f.run("fanqie_outline_set", { work: key, chapter: `c00${n}`, pressure: n });
+    const pressured = await withPortConfig({ continuity: { enabled: true } }, () =>
+      buildPanelSnapshot(dir, f.paths, { scope: "work" }),
+    );
+    assert.ok(pressured.nextHints.some((h) => h.includes("受压连跑 3 章")));
+    assert.ok(pressured.panelHints.some((h) => h.includes("超过档位上限")));
 
     // panelHints：人话版
     assert.equal(snapshot.panelHints.filter((h) => h.includes("还没核验到兑现")).length, 3);

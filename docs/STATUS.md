@@ -1,6 +1,6 @@
 # 当前状态
 
-最近正式版为 [0.9.9](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/v0.9.9)，测试版为 [1.0.0-preview.1](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/v1.0.0-preview.1)。`master` 源码版本为 `1.0.1`（稳定性补丁）：开发、全量审查和 Windows CI 已完成，尚未创建 `v1.0.1` 标签或发行包。逐项变化见 [CHANGELOG](../CHANGELOG.md)。
+最近正式版为 [0.9.9](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/v0.9.9)，测试版为 [1.0.0-preview.1](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/v1.0.0-preview.1)。本次源码版本为 `1.1.0-preview.1`（追读工程预览版），新增能力与范围见 CHANGELOG。下面的 1.0.1 验证记录属于历史基线，本次发布的实际验证结果以对应提交和 CI 为准。逐项变化见 [CHANGELOG](../CHANGELOG.md)。
 
 ## 已具备的能力
 
@@ -11,7 +11,7 @@
 - 运行时：Electron 45.2.3、Node 24.11、随包 Python 3.13（开发需 3.10+）；生产窗口启用 CSP 与沙箱，打包启用 Fuses（关闭 NODE_OPTIONS 与命令行 inspect、只从 app.asar 加载，保留备份脚本所需的 RunAsNode）。
 - 界面：大窗口默认“自适应铺开”，左右栏与稿纸行宽随窗口变宽、字号不变；可在“设置 › 外观 › 大窗口布局”改为等比放大或关闭。
 
-业务规则保持不变：标题 ≤34 字、质检 ≥84 分过线、编辑两轮打回、固定末句与状态词；头条评分规则版本 4.0.0；方法原文未改。
+业务规则保持不变：标题 ≤34 字、质检 ≥84 分过线、编辑两轮打回、固定末句与状态词；头条评分规则版本 4.0.0；本次只统一默认 edit 方法对“锁定剧情与未锁定章纲偏离”的审读口径。
 
 ## 验证情况
 

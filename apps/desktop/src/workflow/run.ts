@@ -10,6 +10,10 @@ import type { Sessions } from "../session/manager";
 import { stageModel } from "./stage-model";
 
 export interface WorkflowContext {
+  pursuitSources?: { id: string; revision: string }[];
+  pace?: "快爽" | "稳推" | "慢燃";
+  readingLedger?: ReturnType<typeof import("./pursuit").pursuitLedger>;
+  readingBenchmark?: import("../../../../packages/fanqie/src/engine/reading-radar").ReadingBenchmark;
   stable: string;
   /** Ordered stage material; required blocks are never cut, optional ones yield to the budget. */
   material: ContextBlock[];

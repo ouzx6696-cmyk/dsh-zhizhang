@@ -45,8 +45,17 @@ export const desktopAPI = {
     invoke("workflow", target, action, value),
   continuity: (target: Target, action: IpcArgs<"continuity">[1] = "status", id?: string) =>
     invoke("continuity", target, action, id),
-  libraryStorage: (action: "status" | "open" | "import" = "status") =>
-    invoke("library-storage", action),
+  libraryStorage: (
+    action:
+      | "status"
+      | "open"
+      | "import"
+      | "benchmark"
+      | "clear-benchmark"
+      | "benchmark-opening" = "status",
+    id?: string,
+    opening?: import("../../../packages/fanqie/src/engine/reading-radar").OpeningTiming,
+  ) => invoke("library-storage", action, id, opening),
   contextSettings: (value: import("./context-settings").ContextSettings) =>
     invoke("context-settings", value),
   contextUsage: (target: Target) => invoke("context-usage", target),

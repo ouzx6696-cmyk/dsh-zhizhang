@@ -30,6 +30,12 @@ function LibraryStorage({ scope, busy, action }: { scope: string; busy: boolean;
     ReturnType<typeof desktop.libraryStorage>
   > | null>(null);
   const [message, setMessage] = useState("");
+  const [sourceId, setSourceId] = useState("");
+  const [opening, setOpening] = useState({
+    anomalyRatio: 0.4,
+    abilityChapter: 3,
+    firstPayoffChapter: 3,
+  });
   useEffect(() => {
     let current = true;
     setLocation(null);
@@ -37,7 +43,11 @@ function LibraryStorage({ scope, busy, action }: { scope: string; busy: boolean;
     void desktop
       .libraryStorage()
       .then((result) => {
-        if (current) setLocation(result);
+        if (current) {
+          setLocation(result);
+          setSourceId(result.benchmark?.sourceId ?? "");
+          if (result.benchmark?.opening) setOpening(result.benchmark.opening);
+        }
       })
       .catch((error) => {
         if (current) setMessage(errorText(error));
@@ -46,10 +56,20 @@ function LibraryStorage({ scope, busy, action }: { scope: string; busy: boolean;
       current = false;
     };
   }, [scope]);
-  const run = (operation: "open" | "import") =>
+  const run = (operation: "open" | "import" | "benchmark" | "clear-benchmark") =>
     action(async () => {
-      const result = await desktop.libraryStorage(operation);
+      const result = await desktop.libraryStorage(
+        operation,
+        operation === "benchmark" ? sourceId : undefined,
+      );
       setLocation(result);
+      if (result.imported) setSourceId(result.imported.id);
+      if (operation === "benchmark" && result.benchmark)
+        setMessage(viewCopy.libraryBenchmarkSaved + result.benchmark.sampledChapters);
+      if (operation === "clear-benchmark") {
+        setSourceId("");
+        setMessage("");
+      }
       if (result.imported)
         setMessage(
           viewCopy.libraryStorageImported +
@@ -77,6 +97,82 @@ function LibraryStorage({ scope, busy, action }: { scope: string; busy: boolean;
       <button disabled={busy || !location} onClick={() => void run("import")}>
         {viewCopy.libraryStorageImport}
       </button>
+      <label>
+        {viewCopy.libraryBenchmarkSelect}
+        <select
+          value={sourceId}
+          disabled={busy || !location}
+          onChange={(event) => setSourceId(event.target.value)}
+        >
+          <option value="">{viewCopy.libraryBenchmarkSelect}</option>
+          {(location?.sources ?? []).map((source) => (
+            <option key={source.id} value={source.id}>
+              {source.title}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="form-note">{viewCopy.libraryBenchmarkNote}</p>
+      {location && !location.canBenchmark && (
+        <p className="form-note">{viewCopy.libraryBenchmarkNeedsWork}</p>
+      )}
+      <button
+        disabled={busy || !sourceId || !location?.canBenchmark}
+        onClick={() => void run("benchmark")}
+      >
+        {viewCopy.libraryBenchmark}
+      </button>
+      <button disabled={busy || !location?.benchmark} onClick={() => void run("clear-benchmark")}>
+        {viewCopy.libraryBenchmarkClear}
+      </button>
+      {location?.benchmark && (
+        <fieldset disabled={busy || sourceId !== location.benchmark.sourceId}>
+          <label>
+            {viewCopy.libraryOpeningAnomaly}
+            <input
+              type="number"
+              min="0"
+              max="100"
+              value={opening.anomalyRatio * 100}
+              onChange={(event) =>
+                setOpening({ ...opening, anomalyRatio: Number(event.target.value) / 100 })
+              }
+            />
+          </label>
+          <label>
+            {viewCopy.libraryOpeningAbility}
+            <input
+              type="number"
+              min="1"
+              value={opening.abilityChapter}
+              onChange={(event) =>
+                setOpening({ ...opening, abilityChapter: Number(event.target.value) })
+              }
+            />
+          </label>
+          <label>
+            {viewCopy.libraryOpeningPayoff}
+            <input
+              type="number"
+              min="1"
+              value={opening.firstPayoffChapter}
+              onChange={(event) =>
+                setOpening({ ...opening, firstPayoffChapter: Number(event.target.value) })
+              }
+            />
+          </label>
+          <button
+            onClick={() =>
+              void action(async () => {
+                setLocation(await desktop.libraryStorage("benchmark-opening", undefined, opening));
+                setMessage(viewCopy.libraryOpeningSave);
+              })
+            }
+          >
+            {viewCopy.libraryOpeningSave}
+          </button>
+        </fieldset>
+      )}
       {message && <p role="status">{message}</p>}
     </section>
   );

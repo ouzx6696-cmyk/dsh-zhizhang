@@ -1,9 +1,10 @@
+import { readContinuity } from "../workflow/continuity";
 import { chapterTail } from "../../../../packages/fanqie/src/engine/storage/chapters";
 import { resolveFanqieWork } from "../main/storage";
 import type { Target, Focus } from "../context";
 import type { Chapter, Outline, WorkMeta } from "../../../../packages/fanqie/src/engine/types";
 import { readChapter, readWorkMeta } from "../../../../packages/fanqie/src/engine/work-store";
-import { exists, readText } from "../../../../packages/core/src/fsx";
+import { exists, readText, sha256 } from "../../../../packages/core/src/fsx";
 import {
   ArticleStore,
   formatFeedbackLine,
@@ -147,11 +148,18 @@ export async function toutiaoContext(
 }
 
 /** 上一章结尾节选按需读取，索引只保留来源凭据。 */
-async function previousEnding(dir: string, meta: WorkMeta, chapterId: string) {
+async function previousEnding(dir: string, meta: WorkMeta, chapterId: string, pursuit: boolean) {
   const rows = [...meta.chapters].sort((a, b) => a.position - b.position);
   const index = rows.findIndex((row) => row.id === chapterId);
   const previous = index > 0 ? rows[index - 1] : undefined;
   if (!previous) return undefined;
+  if (pursuit) {
+    const chapter = await readChapter(dir, previous.id);
+    const summary = (await readContinuity(dir)).chapters.find(
+      (row) => row.id === previous.id && row.hash === sha256(chapter.body),
+    )?.summary;
+    return `${previous.title}（${previous.id}）结尾1500字：${chapter.body.slice(-1500)}${summary ? "\n前章摘要：" + summary : ""}`;
+  }
   const tail = await chapterTail(dir, previous.id, 300);
   return tail ? `${previous.title}（${previous.id}）结尾节选：${tail}` : undefined;
 }
@@ -176,6 +184,7 @@ export async function fanqieAttachments(
   meta: WorkMeta,
   chapter: Chapter,
   kinds: MethodAttachmentKind[],
+  pursuit = false,
 ) {
   const report =
     kinds.includes("review-report") || kinds.includes("revision-scope")
@@ -188,7 +197,7 @@ export async function fanqieAttachments(
       : {}),
     ...(report && kinds.includes("revision-scope") && scope ? { revisionScope: scope } : {}),
     ...(kinds.includes("previous-ending")
-      ? { previousEnding: await previousEnding(dir, meta, chapter.id) }
+      ? { previousEnding: await previousEnding(dir, meta, chapter.id, pursuit) }
       : {}),
     ...(kinds.includes("act-outline") ? { actOutline: actOutline(meta, chapter.id) } : {}),
   };

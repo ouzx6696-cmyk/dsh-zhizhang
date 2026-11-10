@@ -1,3 +1,5 @@
+import { PURSUIT_CHOICES } from "../../../../packages/fanqie/src/engine/domain/pursuit";
+import { pursuitReceipt, PURSUIT_RECEIPT_SHAPE, type PursuitChapter } from "./pursuit";
 import path from "node:path";
 import { atomicWrite, readJson, sha256, nowIso } from "../../../../packages/core/src/fsx";
 import { withResourceLock } from "../../../../packages/fanqie/src/engine/storage/process-lock";
@@ -26,7 +28,16 @@ export interface ContinuityState {
   schema: 1;
   facts: Fact[];
   pending: PendingFact[];
-  chapters: { id: string; hash: string; summary: string; hook: string; emotion: number }[];
+  chapters: (PursuitChapter & { summary: string; emotion: number })[];
+  audit?: {
+    chapter: string;
+    hash: string;
+    risks: string[];
+    forgotten: string[];
+    rhythm: string[];
+    constraints: string[];
+    sources?: { id: string; revision: string }[];
+  };
 }
 function parseFact(value: unknown): Fact {
   const r = record(value);
@@ -57,6 +68,10 @@ export function parseContinuity(value: unknown): ContinuityState {
     if (typeof row.emotion !== "number" || row.emotion < 0 || row.emotion > 5)
       throw new Error("章节情绪强度无效");
     return {
+      ...(row.pursuit === undefined ? {} : { pursuit: pursuitReceipt(row.pursuit) }),
+      ...(row.revision === undefined ? {} : { revision: text(row.revision, "章节版本", 64) }),
+      ...(row.position === undefined ? {} : { position: chapterPosition(row.position) }),
+      ...(row.unit === undefined ? {} : { unit: text(row.unit, "单元", 200) }),
       id: text(row.id, "章节", 64),
       hash: text(row.hash, "正文指纹", 64),
       summary: text(row.summary, "章节摘要", 2000),
@@ -70,7 +85,49 @@ export function parseContinuity(value: unknown): ContinuityState {
     new Set(chapters.map((c) => c.id)).size !== chapters.length
   )
     throw new Error("连续性状态存在重复记录");
-  return { schema: 1, facts, pending, chapters };
+  return {
+    schema: 1,
+    facts,
+    pending,
+    chapters,
+    ...(r.audit === undefined ? {} : { audit: parseAudit(r.audit) }),
+  };
+}
+function chapterPosition(value: unknown): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1)
+    throw new Error("记账章序无效");
+  return value;
+}
+function parseAudit(value: unknown): NonNullable<ContinuityState["audit"]> {
+  const r = record(value);
+  return {
+    ...(r.sources === undefined
+      ? {}
+      : {
+          sources: list(r.sources, "体检依赖", 10000).map((value) => {
+            const source = record(value);
+            return {
+              id: text(source.id, "来源章节", 64),
+              revision: text(source.revision, "来源版本", 64),
+            };
+          }),
+        }),
+    chapter: text(r.chapter, "体检章节", 64),
+    hash: text(r.hash, "体检指纹", 64),
+    ...auditAdvice(r),
+  };
+}
+function auditAdvice(r: Record<string, unknown>) {
+  const strings = (key: string) => list(r[key], key, 30).map((v) => text(v, key, 1000));
+  return {
+    risks: strings("risks"),
+    forgotten: strings("forgotten"),
+    rhythm: strings("rhythm"),
+    constraints:
+      r.constraints === undefined
+        ? []
+        : list(r.constraints, "后续规划约束", 5).map((v) => text(v, "规划约束", 1000)),
+  };
 }
 export async function readContinuity(dir: string): Promise<ContinuityState> {
   const value = await readJson<unknown>(path.join(dir, "writer-continuity.json"));
@@ -85,6 +142,7 @@ export async function ledgerPipeline(run: WorkflowRun, target: Target) {
   const dir = await resolveFanqieWork(run.host.options, target),
     chapter = await readChapter(dir, run.journal.record.request.chapter);
   if (chapter.status !== "final") throw new Error("只有作者已定稿的正文才进入自动记账");
+  const enabled = run.host.options.fanqie?.pursuit?.enabled === true;
   const hash = sha256(chapter.body),
     before = await readContinuity(dir);
   const changes = await run.model(
@@ -95,9 +153,19 @@ export async function ledgerPipeline(run: WorkflowRun, target: Target) {
     {
       body: chapter.body,
       // Only prior states of subjects this chapter actually names; the ledger itself grows per chapter.
+      ...(enabled
+        ? {
+            pursuitHistory: run.context.material.filter(
+              (block) => block.name === "追读账本（仅有效定稿）",
+            ),
+          }
+        : {}),
       previous: before.facts.filter((fact) => chapter.body.includes(fact.subject)),
     },
-    '返回 {"facts":[{"kind":"character/object/knowledge/thread/timeline","subject":"主体","value":"当前状态","quote":"正文原文"}],"summary":"本章实际后果","hook":"悬念/反转/危机/期待/收束","emotion":3}，emotion为0至5。',
+    '返回 {"facts":[{"kind":"character/object/knowledge/thread/timeline","subject":"主体","value":"当前状态","quote":"正文原文"}],"summary":"本章实际后果","hook":"悬念/反转/危机/期待/收束","emotion":3}，emotion为0至5。' +
+      (enabled
+        ? PURSUIT_RECEIPT_SHAPE + "hook只取悬念/危机/反转/揭示/情绪/预告，按实际正文判断。"
+        : ""),
     (value) => {
       const r = jsonOutput(value),
         facts = list(r.facts, "定稿变化", 30).map((value) => {
@@ -108,8 +176,11 @@ export async function ledgerPipeline(run: WorkflowRun, target: Target) {
         });
       if (typeof r.emotion !== "number" || r.emotion < 0 || r.emotion > 5)
         throw new Error("情绪强度应为0至5");
+      if (enabled && !(PURSUIT_CHOICES.hookType as readonly unknown[]).includes(r.hook))
+        throw new Error("定稿钩子类型无效");
       return {
         facts,
+        ...(enabled ? { pursuit: pursuitReceipt(r.pursuit, chapter.body) } : {}),
         summary: text(r.summary, "本章后果", 2000),
         hook: text(r.hook, "钩子类型", 100),
         emotion: r.emotion,
@@ -117,35 +188,49 @@ export async function ledgerPipeline(run: WorkflowRun, target: Target) {
     },
     { material: [] },
   );
-  if (run.context.chapterPosition % 10 === 0)
-    await run.model(
-      "long-audit",
-      "长线状态体检",
-      "editor",
-      "只依据已落盘的结构化状态与摘要检查矛盾、未回收事项和重复钩子，不编造正文事实。",
-      {
-        state: {
-          facts: before.facts.slice(-AUDIT_FACTS),
-          pending: before.pending,
-          chapters: before.chapters.slice(-AUDIT_CHAPTERS),
-        },
-        changes,
-      },
-      '返回 {"risks":["定位到主体或章节的风险"],"forgotten":["到期未回收事项"],"rhythm":["连续重复或缺少推进的章节"]}。',
-      (value) => {
-        const r = jsonOutput(value);
-        return {
-          risks: list(r.risks, "风险").map((v) => text(v, "风险")),
-          forgotten: list(r.forgotten, "未回收").map((v) => text(v, "未回收")),
-          rhythm: list(r.rhythm, "节奏").map((v) => text(v, "节奏")),
-        };
-      },
-      {
-        material: [
-          { name: "范围", text: "本阶段仅使用已给定的状态与摘要，不读取章节全文", required: true },
-        ],
-      },
-    );
+  const audit =
+    run.context.chapterPosition % 10 === 0
+      ? await run.model(
+          "long-audit",
+          "长线状态体检",
+          "editor",
+          "只依据已落盘的结构化状态与摘要检查矛盾、未回收事项和重复钩子，不编造正文事实。",
+          {
+            state: {
+              facts: before.facts.slice(-AUDIT_FACTS),
+              pending: before.pending,
+              chapters: before.chapters.slice(-AUDIT_CHAPTERS),
+            },
+            changes,
+            ...(enabled
+              ? {
+                  pursuitHistory: run.context.material.filter(
+                    (block) => block.name === "追读账本（仅有效定稿）",
+                  ),
+                }
+              : {}),
+          },
+          '返回 {"risks":["定位到主体或章节的风险"],"forgotten":["到期未回收事项"],"rhythm":["连续重复或缺少推进的章节"]}。' +
+            (enabled
+              ? "另返回 constraints 数组，至多5条可供接下来3至5章执行的规划建议，不得把推断当事实。"
+              : ""),
+          (value) => {
+            const r = jsonOutput(value);
+            if (enabled && r.constraints === undefined)
+              throw new Error("十章体检缺少后续规划建议数组");
+            return auditAdvice(r);
+          },
+          {
+            material: [
+              {
+                name: "范围",
+                text: "本阶段仅使用已给定的状态与摘要，不读取章节全文",
+                required: true,
+              },
+            ],
+          },
+        )
+      : undefined;
   const result = await run.journal.step(
     "delivery",
     "登记定稿事实与冲突",
@@ -156,7 +241,14 @@ export async function ledgerPipeline(run: WorkflowRun, target: Target) {
         if (sha256((await readChapter(dir, chapter.id)).body) !== hash)
           throw new Error("定稿正文已变化，未提交旧版事实");
         const current = await readContinuity(dir);
-        if (current.chapters.some((row) => row.id === chapter.id && row.hash === hash))
+        if (
+          current.chapters.some(
+            (row) =>
+              row.id === chapter.id &&
+              row.hash === hash &&
+              (!enabled || (row.pursuit !== undefined && row.revision === chapter.revision)),
+          )
+        )
           return { value: { chapter: chapter.id, duplicate: true }, usage: emptyUsage() };
         for (const fact of changes.facts) {
           const old = current.facts.find(
@@ -175,7 +267,29 @@ export async function ledgerPipeline(run: WorkflowRun, target: Target) {
           summary: changes.summary,
           hook: changes.hook,
           emotion: changes.emotion,
+          ...(enabled
+            ? {
+                revision: chapter.revision,
+                position: chapter.position,
+                pursuit: changes.pursuit,
+                ...(chapter.outline.unit === undefined ? {} : { unit: chapter.outline.unit }),
+              }
+            : {}),
         });
+        if (enabled && audit !== undefined) {
+          const previousPosition =
+            current.chapters.find((row) => row.id === current.audit?.chapter)?.position ?? 0;
+          if (chapter.position >= previousPosition)
+            current.audit = {
+              chapter: chapter.id,
+              hash,
+              ...audit,
+              sources: [
+                ...(run.context.pursuitSources ?? []).filter((row) => row.id !== chapter.id),
+                { id: chapter.id, revision: chapter.revision },
+              ],
+            };
+        }
         await atomicWrite(
           path.join(dir, "writer-continuity.json"),
           JSON.stringify(current, null, 2),

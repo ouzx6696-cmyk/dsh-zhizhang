@@ -1,3 +1,4 @@
+import { config } from "../runtime-config.js";
 import type { Candidate } from "../types.js";
 import type { GateDecision, GateMessage } from "./types.js";
 interface PolicyInput {
@@ -54,6 +55,7 @@ export const AcceptPolicy = {
       ? HumanFeelGate.evaluateAccept({
           body: input.candidate.body,
           strictHuman,
+          generalOnly: config.pursuit?.enabled === true,
           craftCue: input.craftCue,
         })
       : allow([]);
@@ -62,6 +64,7 @@ export const AcceptPolicy = {
           body: input.candidate.body,
           prevBody: input.prevBody,
           strictNovel,
+          generalOnly: config.pursuit?.enabled === true,
         })
       : allow([]);
     const merged = mergeDecisions(briefD, lintD, payoffD, humanD, novelD, editD);

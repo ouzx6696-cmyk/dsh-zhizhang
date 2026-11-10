@@ -1,4 +1,8 @@
 import {
+  parseOpeningTiming,
+  type OpeningTiming,
+} from "../../../../../packages/fanqie/src/engine/reading-radar";
+import {
   parseEngine,
   parseWorkflowRequest,
   type EngineSettings,
@@ -74,8 +78,19 @@ export interface IpcMap {
     result: ContinuityState;
   };
   "library-storage": {
-    args: ["status" | "open" | "import"];
-    result: { root: string; sourceRoot: string; imported?: { id: string; title: string } };
+    args: [
+      "status" | "open" | "import" | "benchmark" | "clear-benchmark" | "benchmark-opening",
+      string?,
+      OpeningTiming?,
+    ];
+    result: {
+      root: string;
+      sourceRoot: string;
+      canBenchmark?: boolean;
+      sources?: { id: string; title: string }[];
+      benchmark?: { sourceId: string; sampledChapters: number; opening?: OpeningTiming };
+      imported?: { id: string; title: string };
+    };
   };
 
   "context-settings": { args: [ContextSettings]; result: PublicSettings };
@@ -183,7 +198,18 @@ export const IPC_PARSERS: { [K in IpcChannel]: (args: unknown[]) => IpcArgs<K> }
     parseChoice(action, ["status", "migrate", "accept", "reject"] as const),
     id === undefined ? undefined : parseText(id),
   ],
-  "library-storage": ([action]) => [parseChoice(action, ["status", "open", "import"] as const)],
+  "library-storage": ([action, id, opening]) => [
+    parseChoice(action, [
+      "status",
+      "open",
+      "import",
+      "benchmark",
+      "clear-benchmark",
+      "benchmark-opening",
+    ] as const),
+    id === undefined ? undefined : parseText(id),
+    opening === undefined ? undefined : parseOpeningTiming(opening),
+  ],
   "context-settings": ([value]) => [parseContextSettings(value)],
   "context-usage": ([target]) => [parseTarget(target)],
   compact: ([target, instructions]) => [parseTarget(target), parseText(instructions)],

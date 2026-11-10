@@ -9,6 +9,8 @@ import type { SessionOptions } from "../../../session/types";
 import type { ContextSettings } from "../../../context-settings";
 
 const FLAGS = [
+  ["pursuit", "enabled", copy.workflowPursuit, "fanqie"],
+  ["pursuit", "radar", copy.workflowReadingRadar, "fanqie"],
   ["handoff", "v2", copy.workflowHandoff, "both"],
   ["continuity", "enabled", copy.workflowContinuity, "fanqie"],
   ["multiDraft", "enabled", copy.workflowMultiDraft, "fanqie"],

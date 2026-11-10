@@ -1,3 +1,4 @@
+import { readWorkMeta } from "./storage/work-meta.js";
 /** Python owns prose rules; this boundary validates offsets into the unchanged UTF-16 source. */
 import { bridge, withTempFiles } from "../forge.js";
 import { config } from "./runtime-config.js";
@@ -48,12 +49,13 @@ export async function scanStyle(
   text: string,
   limit = 120,
   ranges?: readonly { start: number; end: number }[],
+  densityThresholds?: Record<string, number>,
 ) {
   // A lone surrogate cannot be encoded for the Python bridge; say so instead of a script failure.
   // With the u flag a well-formed pair matches as one code point, so only lone halves hit.
   if (/\p{Cs}/u.test(text))
     throw new NovelError("bad_text", "正文含无法编码的字符（孤立代理项），请删除后再试");
-  const request = { text, limit: Number.isFinite(limit) ? limit : null, ranges };
+  const request = { text, limit: Number.isFinite(limit) ? limit : null, ranges, densityThresholds };
   const result = await withTempFiles(
     [{ name: "style.json", text: JSON.stringify(request) }],
     ([file]) => bridge(config.python, ["style", file], { timeoutMs: 30000 }),
@@ -113,4 +115,12 @@ export function summarizeStyleLint(hits: readonly StyleHit[]) {
   };
   for (const hit of hits) summary[hit.category] = (summary[hit.category] ?? 0) + 1;
   return summary;
+}
+
+export async function scanWorkStyle(dir: string, body: string) {
+  const thresholds =
+    config.pursuit?.radar === true
+      ? (await readWorkMeta(dir)).readingBenchmark?.termDensityP90
+      : undefined;
+  return scanStyle(body, Infinity, undefined, thresholds);
 }

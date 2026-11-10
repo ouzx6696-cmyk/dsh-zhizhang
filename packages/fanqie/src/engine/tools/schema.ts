@@ -1,3 +1,4 @@
+import { PURSUIT_CHOICES, PURSUIT_LISTS } from "../domain/pursuit.js";
 import type { JsonSchemaNode } from "../../../../core/src/tool.js";
 /** JSON-schema helpers for novel tool parameters (Chinese descriptions). */
 export function S(description: string): JsonSchemaNode {
@@ -14,7 +15,19 @@ export function E(values: string[], description: string): JsonSchemaNode {
 }
 export const WORKING_DIR = S("可选：存储根（默认 <cwd>/.writer/）");
 export const WORK_OPT = S("可选：作品 key/标题（默认本会话最近作品）");
+export const PURSUIT_PROPS: Record<string, JsonSchemaNode> = {
+  ...Object.fromEntries(
+    Object.entries(PURSUIT_CHOICES).map(([key, choices]) => [key, E([...choices], key)]),
+  ),
+  ...Object.fromEntries(
+    PURSUIT_LISTS.map((key) => [key, { type: "array", items: S(key), maxItems: 30 }]),
+  ),
+  unit: S("所在单元标识"),
+  unitPos: I("本章在单元内的位置，从1起"),
+  pressure: I("连续受压章数，0表示本章未受压"),
+};
 export const OUTLINE_PROPS = {
+  ...PURSUIT_PROPS,
   pov: S("视角人物与限知范围"),
   targetWords: I("本章目标字数"),
   locks: S("本章不得违背的锁定"),

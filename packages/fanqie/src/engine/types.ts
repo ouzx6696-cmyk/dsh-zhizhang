@@ -1,3 +1,4 @@
+import type { PursuitOutline } from "./domain/pursuit.js";
 /**
  * On-disk + in-memory types for Writer Agent. No Postgres.
  *
@@ -137,7 +138,7 @@ export interface CommitsFile {
   commits: ContinuityCommitRecord[];
 }
 
-export interface Outline {
+export interface Outline extends PursuitOutline {
   pov: string;
   targetWords: number;
   locks: string;
@@ -174,6 +175,7 @@ export interface Chapter extends Omit<ChapterMeta, "outline"> {
 }
 
 export interface WorkMeta {
+  readingBenchmark?: import("./reading-radar.js").ReadingBenchmark;
   schemaVersion: number;
   key: string;
   title: string;
@@ -189,6 +191,7 @@ export interface WorkMeta {
     schemaVersion: 1;
     book?: { content: string; [key: string]: unknown };
     volumes: Array<{ id: string; content: string; chapters: string[]; [key: string]: unknown }>;
+    units?: import("./domain/pursuit.js").UnitPlan[];
     acts?: Array<{ id: string; content: string; chapters: string[]; [key: string]: unknown }>;
     [key: string]: unknown;
   };
@@ -277,6 +280,7 @@ export interface StoragePaths {
 }
 
 export interface PluginConfig {
+  pursuit?: { enabled?: boolean; radar?: boolean };
   rootDir?: string;
   storageRoot?: string;
   worksRoot?: string;

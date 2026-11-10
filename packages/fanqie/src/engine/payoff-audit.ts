@@ -142,8 +142,7 @@ export function auditPayoff(
   const text = body;
   const promiseBlob = outlinePromiseText(outline, opts.premise);
   const endingText = (outline.ending ?? "").trim();
-  const lexicon =
-    Array.isArray(opts.lexicon) && opts.lexicon.length ? opts.lexicon : DEFAULT_ENDING_LEXICON;
+  const lexicon = opts.lexicon === undefined ? DEFAULT_ENDING_LEXICON : opts.lexicon;
   const sc = scoreEnding(endingText, text, { lexicon });
   const hasAnchors = sc.anchorTotal > 0;
   if (sc.score === null) {

@@ -21,7 +21,10 @@ const DEBT_CUE_RE = QUALITY_BOOK_DEBT_CUE_RE;
 /** Strong short-story closure cues. */
 const CLOSED_CUE_RE =
   /就像什么都没发生|一切(?:又)?恢复|一切如常|故事到此|就此结束|圆满|完整闭环|睡了个好觉|终于安心|尘埃落定|画上了句号|像从没发生过|岁月静好/;
-export function auditNovelSense(text: string, opts: { prevBody?: string | null } = {}) {
+export function auditNovelSense(
+  text: string,
+  opts: { prevBody?: string | null; generalOnly?: boolean } = {},
+) {
   const body = text.trim();
   const hits = [];
   if (body.length < MIN_CHARS) {
@@ -33,13 +36,13 @@ export function auditNovelSense(text: string, opts: { prevBody?: string | null }
   }
   const prev = (opts.prevBody ?? "").trim();
   if (prev.length >= MIN_CHARS) {
-    const iso = detectSameSkeletonRedemo(body, prev);
+    const iso = detectSameSkeletonRedemo(body, prev, opts.generalOnly === true);
     if (iso) hits.push(iso);
   }
   const closed = detectClosedShortStory(body);
   if (closed) hits.push(closed);
   // Flat landing without strong closure phrase
-  if (!closed) {
+  if (!closed && !opts.generalOnly) {
     const debt = detectNoBookDebt(body);
     if (debt) hits.push(debt);
   }
@@ -49,9 +52,10 @@ export function auditNovelSense(text: string, opts: { prevBody?: string | null }
       : `书感软雷达命中 ${hits.length} 类：${hits.map((h) => h.code).join("、")}`;
   return { hitCount: hits.length, hits, summary };
 }
-function detectSameSkeletonRedemo(curr: string, prev: string) {
-  const prevHits = RITUAL_MOTIFS.filter((m) => m.re.test(prev)).map((m) => m.id);
-  const currHits = RITUAL_MOTIFS.filter((m) => m.re.test(curr)).map((m) => m.id);
+function detectSameSkeletonRedemo(curr: string, prev: string, generalOnly: boolean) {
+  const motifs = generalOnly ? [] : RITUAL_MOTIFS;
+  const prevHits = motifs.filter((m) => m.re.test(prev)).map((m) => m.id);
+  const currHits = motifs.filter((m) => m.re.test(curr)).map((m) => m.id);
   const shared = prevHits.filter((id: string) => currHits.includes(id));
   // Need a real ritual chain in both, not a single motif mention
   if (shared.length < 4) {
@@ -154,7 +158,12 @@ export function formatNovelSenseAudit(label: string, result: ReturnType<typeof a
 }
 export const NovelSenseGate = {
   audit: auditNovelSense,
-  evaluateAccept(opts: { body: string; strictNovel: boolean; prevBody?: string | null }) {
+  evaluateAccept(opts: {
+    body: string;
+    strictNovel: boolean;
+    prevBody?: string | null;
+    generalOnly?: boolean;
+  }) {
     const result = auditNovelSense(opts.body, { prevBody: opts.prevBody });
     if (opts.strictNovel && result.hitCount > 0) {
       return deny(

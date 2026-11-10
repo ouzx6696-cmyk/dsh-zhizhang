@@ -896,3 +896,265 @@ test("T123 非法驱动当场重试，QA 精修后事实链绑定终稿", async 
     await f.close();
   }
 });
+
+test("追读P1：单元与章纲采用、证据记账、十章建议进入规划，旧正文修改后停用旧账", async () => {
+  let nextPosition = 1;
+  const quote = "他在门缝里摸到了另一张票。";
+  const pursuit = {
+    payoffs: [{ type: "解谜", quote }],
+    terms: [{ name: "另一张票", action: "introduced", quote }],
+    characters: [
+      { name: "林川", tag: "取票者", action: "debut", quote: "林川把手里的车票递到窗口。" },
+    ],
+    threads: [{ name: "另一张票来历", span: "short", action: "open", due: 13, quote }],
+  };
+  const f = await fixture(
+    (call) => {
+      const contents = packet(call),
+        input = stageInput(contents);
+      if (contents.includes('返回 {"units"'))
+        return {
+          text: JSON.stringify({
+            units: [
+              {
+                id: "u1",
+                title: "归站",
+                from: 1,
+                to: 12,
+                question: "票从何来",
+                payoffs: ["取票"],
+                settlement: "拿到票",
+                next: "票的来历",
+              },
+              {
+                id: "u2",
+                title: "启程",
+                from: 13,
+                to: 24,
+                question: "列车去向",
+                payoffs: ["登车"],
+                settlement: "找到列车",
+                next: "下一站",
+              },
+            ],
+          }),
+        };
+      if (contents.includes("只细化未来3至5章"))
+        return {
+          text: JSON.stringify({
+            chapters: [0, 1, 2].map((offset) => {
+              const position = nextPosition + offset;
+              return {
+                id: `c${String(position).padStart(3, "0")}`,
+                ...plan,
+                function: "冲突",
+                unit: position <= 12 ? "u1" : "u2",
+                unitPos: position <= 12 ? position : position - 12,
+                hookType: "悬念",
+                pressure: 1,
+                newTerms: [],
+                newCharacters: [],
+                threadsOpen: [],
+                threadsClose: [],
+              };
+            }),
+          }),
+        };
+      if (input?.body && Array.isArray(input.previous))
+        return {
+          text: JSON.stringify({ facts: [], summary: "取回票", hook: "悬念", emotion: 3, pursuit }),
+        };
+      if (contents.includes('返回 {"risks"'))
+        return {
+          text: JSON.stringify({
+            risks: [],
+            forgotten: [],
+            rhythm: ["钩子需要变化"],
+            constraints: ["后3章安排一次主角主导兑现"],
+          }),
+        };
+      return respondStage(call, {});
+    },
+    { fanqie: { pursuit: { enabled: true } } },
+  );
+  try {
+    const { dir, target } = await fanqieWork(f, "pursuit", []);
+    await f.host.workflows.start(target, request("book", ""));
+    let result = await f.done(target);
+    assert.equal(result.state, "awaiting-author", result.error);
+    await f.host.workflows.apply(target);
+    assert.equal((await readChapter(dir, "c001")).outline.unit, "u1");
+    assert.deepEqual((await readChapter(dir, "c001")).outline.newTerms, []);
+    assert.equal((await readWorkMeta(dir)).planning.units.length, 2);
+    for (let n = 4; n <= 10; n++)
+      await setOutline(dir, `c${String(n).padStart(3, "0")}`, { ...plan, unit: "u1" }, "归站");
+    for (let n = 1; n <= 10; n++) await finalize(dir, `c${String(n).padStart(3, "0")}`);
+    await f.host.workflows.start(target, request("ledger", "c009"));
+    assert.equal((await f.done(target)).state, "awaiting-author");
+    await f.host.workflows.start(target, request("ledger", "c010"));
+    result = await f.done(target);
+    assert.equal(result.state, "awaiting-author", result.error);
+    let ledger = await f.host.workflows.continuity(target);
+    assert.deepEqual(ledger.chapters.find((row) => row.id === "c010").pursuit, pursuit);
+    assert.equal(ledger.chapters.find((row) => row.id === "c010").position, 10);
+    assert.deepEqual(ledger.audit.constraints, ["后3章安排一次主角主导兑现"]);
+    await f.host.workflows.start(target, request("ledger", "c010"));
+    result = await f.done(target);
+    assert.equal(result.state, "awaiting-author", result.error);
+    ledger = await f.host.workflows.continuity(target);
+    assert.equal(ledger.chapters.length, 2, "重跑记账不重复累加");
+    nextPosition = 11;
+    let calls = f.model.calls.length;
+    await f.host.workflows.start(target, request("book", ""));
+    result = await f.done(target);
+    assert.equal(result.state, "awaiting-author", result.error);
+    const planning = JSON.stringify(f.model.calls.slice(calls).map((call) => call.messages));
+    assert.match(planning, /后3章安排一次主角主导兑现/);
+    assert.match(planning, /chaptersSince.*1/);
+    assert.match(planning, /另一张票来历/);
+    assert.match(planning, /unitPayoffs/);
+    const file = path.join(dir, "chapters/c009.md");
+    await writeFile(file, (await readFile(file, "utf8")) + "\n灯还亮着。");
+    calls = f.model.calls.length;
+    await f.host.workflows.start(target, request("book", ""));
+    result = await f.done(target);
+    assert.equal(result.state, "awaiting-author", result.error);
+    const refreshed = JSON.stringify(f.model.calls.slice(calls).map((call) => call.messages));
+    assert.doesNotMatch(refreshed, /后3章安排一次主角主导兑现/);
+    assert.match(refreshed, /recorded.*1/);
+    await f.host.workflows.start(target, request("ledger", "c009"));
+    result = await f.done(target);
+    assert.equal(result.state, "awaiting-author", result.error);
+    calls = f.model.calls.length;
+    await f.host.workflows.start(target, request("book", ""));
+    result = await f.done(target);
+    assert.equal(result.state, "awaiting-author", result.error);
+    assert.doesNotMatch(
+      JSON.stringify(f.model.calls.slice(calls).map((call) => call.messages)),
+      /后3章安排一次主角主导兑现/,
+    );
+  } finally {
+    await f.close();
+  }
+});
+
+test("追读P1：假引文不落盘，旧版同正文记账可以补齐新账本", async () => {
+  let valid = false;
+  const f = await fixture(
+    (call) => {
+      const input = stageInput(packet(call));
+      if (input?.body && Array.isArray(input.previous))
+        return {
+          text: JSON.stringify({
+            facts: [],
+            summary: "取回票",
+            hook: "悬念",
+            emotion: 3,
+            pursuit: {
+              payoffs: [
+                { type: "解谜", quote: valid ? "他在门缝里摸到了另一张票。" : "正文里没有这句话" },
+              ],
+              terms: [],
+              characters: [],
+              threads: [],
+            },
+          }),
+        };
+      return respondStage(call, {});
+    },
+    { fanqie: { pursuit: { enabled: true } } },
+  );
+  try {
+    const { dir, target } = await fanqieWork(f, "pursuit-evidence", ["c001"]);
+    await finalize(dir, "c001");
+    const old = {
+      schema: 1,
+      facts: [],
+      pending: [],
+      chapters: [{ id: "c001", hash: hash(body), summary: "旧记账", hook: "悬念", emotion: 3 }],
+    };
+    const file = path.join(dir, "writer-continuity.json");
+    await writeFile(file, JSON.stringify(old));
+    await f.host.workflows.start(target, request("ledger", "c001"));
+    let result = await f.done(target);
+    assert.equal(result.state, "failed");
+    assert.match(result.error, /证据不在定稿正文/);
+    assert.deepEqual(JSON.parse(await readFile(file, "utf8")), old);
+    valid = true;
+    await f.host.workflows.start(target, request("ledger", "c001"));
+    result = await f.done(target);
+    assert.equal(result.state, "awaiting-author", result.error);
+    const recorded = (await f.host.workflows.continuity(target)).chapters;
+    assert.equal(recorded.length, 1);
+    assert.equal(recorded[0].pursuit.payoffs.length, 1);
+    assert.equal(recorded[0].revision, (await readChapter(dir, "c001")).revision);
+  } finally {
+    await f.close();
+  }
+});
+
+test("追读P2/P3：写手规则与四账摘要受限，前章1500字加摘要，读者与审读拿到数值", async () => {
+  const f = await fixture(
+    (call) => {
+      const input = stageInput(packet(call));
+      if (input?.sections)
+        return {
+          text: JSON.stringify({
+            rules: input.sections.map((row) => ({ id: row.id, text: "保留因果、声线与边界" })),
+          }),
+        };
+      return respondStage(call, {});
+    },
+    { fanqie: { pursuit: { enabled: true, radar: true } } },
+  );
+  try {
+    const { dir, target } = await fanqieWork(f, "pursuit-cards", ["c001", "c002"]);
+    const previous =
+      "开头独有的旧事。" +
+      "街上的风掀起纸票，他顺着站牌找到了旧窗。".repeat(140) +
+      "末尾的锁还没打开。";
+    await updateChapter(dir, { id: "c001", body: previous });
+    await updateChapter(dir, {
+      id: "c001",
+      status: "reviewed",
+      expectedRevision: (await readChapter(dir, "c001")).revision,
+    });
+    await updateChapter(dir, { id: "c001", status: "final" });
+    await writeFile(
+      path.join(dir, "writer-continuity.json"),
+      JSON.stringify({
+        schema: 1,
+        facts: [],
+        pending: [],
+        chapters: [
+          { id: "c001", hash: hash(previous), summary: "有效前章摘要", hook: "危机", emotion: 3 },
+        ],
+      }),
+    );
+    await f.host.workflows.start(target, { ...request("chapter", "c002"), grade: "economy" });
+    const result = await f.done(target);
+    assert.equal(result.state, "awaiting-author", result.error);
+    const drafting = f.model.calls.find((call) => stageInput(packet(call))?.scenePlan);
+    const prompt = packet(drafting);
+    const card = prompt.split("## 本阶段方法\n")[1].split("\n\n## 本阶段输入")[0];
+    assert.ok([...card].length <= 2500);
+    assert.match(card, /prose:/);
+    assert.match(card, /rhythm:/);
+    assert.match(card, /开篇规格/);
+    assert.match(card, /四账摘要/);
+    const full = JSON.stringify(drafting.messages);
+    assert.match(full, /有效前章摘要/);
+    assert.ok(full.includes(previous.slice(-1500)));
+    assert.ok(!full.includes("开头独有的旧事"));
+    const review = f.model.calls.find((call) => {
+      const input = stageInput(packet(call));
+      return input?.draft && !input.report;
+    });
+    assert.equal(stageInput(packet(review)).reading.metrics.characters > 0, true);
+    const delivered = result.steps.find((step) => step.id === "delivery").output;
+    assert.ok(delivered.reading.metrics.characters > 0);
+    assert.ok(Array.isArray(delivered.reading.warnings));
+  } finally {
+    await f.close();
+  }
+});
