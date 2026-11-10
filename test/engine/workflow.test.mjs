@@ -2356,3 +2356,25 @@ test("T115 交接写失败不发布完成标记，重试能补齐交接与伏笔
     await f.close();
   }
 });
+
+test("较早章节正文文件缺失时简报不因接续索引读章尾而整体失败", async () => {
+  const f = await setup();
+  try {
+    const { dir, meta } = await createWork(f.paths, { title: "缺章作品" });
+    for (const [id, body] of [
+      ["c001", "她推开门，走廊尽头亮着一盏灯。"],
+      ["c002", "灯下坐着一个陌生人。"],
+    ]) {
+      await setOutline(dir, id, { ending: "门开了" }, id);
+      await updateChapter(dir, { id, body });
+    }
+    await setOutline(dir, "c003", { ending: "灯灭了" }, "第三章");
+    assert.equal((await readWorkMeta(dir)).continuity.working.length, 2);
+    await rm(path.join(dir, "chapters", "c001.md"));
+    const brief = await f.run("fanqie_chapter_brief", { work: meta.key, chapter: "c003" });
+    assert.match(brief, /## 相关接续索引/);
+    assert.match(brief, /灯下坐着一个陌生人。/);
+  } finally {
+    await f.close();
+  }
+});

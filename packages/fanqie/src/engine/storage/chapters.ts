@@ -603,9 +603,13 @@ export async function updateChapter(
   });
 }
 
-/** Read the requested chapter only; slicing code points preserves astral characters. */
+/**
+ * Read the requested chapter only; slicing code points preserves astral characters. A chapter
+ * registered in meta whose body file is missing yields "": callers already report the missing
+ * file themselves, and the index excerpt must not turn that warning into a failed brief.
+ */
 export async function chapterTail(dir: string, chapterId: string, length: number) {
-  return Array.from((await readChapter(dir, chapterId)).body.trim())
-    .slice(-length)
-    .join("");
+  const chapter = await findChapter(dir, chapterId);
+  if (!chapter) return "";
+  return Array.from(chapter.body.trim()).slice(-length).join("");
 }
