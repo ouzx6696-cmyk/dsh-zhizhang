@@ -749,6 +749,9 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
               "GATE_DENIED",
               "交稿单文件缺失，请重新出交稿单（toutiao_delivery_save）",
             );
+          // 交稿单之后立项卡或稿件文件仍可能被改动；与写作台“采用”同样要求当前质检有效。
+          const v = await validPassingQa(store, before);
+          if (!v.ok) throw new WriterError("GATE_DENIED", v.reason);
           if (!gates || !gates.consumeConfirmation(exec, "toutiao.deliver_requires_author")) {
             throw new WriterError(
               "GATE_DENIED",
@@ -756,9 +759,16 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
             );
           }
         }
-        const m = await store.update(id, (mm) => {
+        const m = await store.update(id, async (mm) => {
           if (mm.status !== before.status)
             throw new WriterError("CONFLICT", "状态已被其他操作改变，请重试");
+          // 前面的检查在锁外完成；落盘前在锁内复核，避免检查与写入之间卡片或交稿单被换掉。
+          if (to === "已交稿" && !deliveryCurrent(mm))
+            throw new WriterError("CONFLICT", "交稿单已不对应当前稿，请重新出交稿单");
+          if (to === "已验收" || to === "已交稿") {
+            const v = await validPassingQa(store, mm);
+            if (!v.ok) throw new WriterError("CONFLICT", v.reason);
+          }
           if (to === "验收退回") mm.return_rounds += 1;
           mm.history.push({
             from: mm.status,

@@ -602,3 +602,15 @@ test("质检后稿件文件被外部原地改写：验收与采用不再沿用�
   assert.equal(detail.qaValid, false);
   assert.equal(detail.adoptable, false);
 });
+
+test("交稿单之后改立项卡：工具路径的“已交稿”与写作台采用同样要求质检仍有效", async () => {
+  const { harness, call, id, root } = await acceptedArticle("cardafter");
+  await call("toutiao_status", { id, to: "已验收" });
+  await call("toutiao_delivery_save", { id, markdown: deliveryMd(CARD["主标题"], STORY) });
+  await call("toutiao_card_set", { id, card: { ...CARD, 人群: CARD["人群"] + "（改）" } });
+  harness.approved = true;
+  const done = await call("toutiao_status", { id, to: "已交稿" });
+  assert.equal(done.code, "GATE_DENIED", JSON.stringify(done));
+  assert.match(done.message, /立项卡在质检后改过/);
+  assert.equal((await articleDetail(root, id)).status, "已验收");
+});
