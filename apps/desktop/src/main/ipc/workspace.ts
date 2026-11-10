@@ -39,11 +39,12 @@ export function registerWorkspaceIpc(state: Runtime) {
     if (result.canceled) return null;
     const previous = state.settings.workspace;
     await state.settings.saveUI({ workspace: result.filePaths[0] });
-    await Promise.all([
-      mkdir(path.join(state.settings.workspace, "novels"), { recursive: true }),
-      mkdir(path.join(state.settings.workspace, "toutiao"), { recursive: true }),
-    ]);
     try {
+      // 建子目录失败（只读卷、同名文件等）同样要退回原写作根，否则设置指向一个用不了的根。
+      await Promise.all([
+        mkdir(path.join(state.settings.workspace, "novels"), { recursive: true }),
+        mkdir(path.join(state.settings.workspace, "toutiao"), { recursive: true }),
+      ]);
       const chosen = await selectTarget(state, {
         mode: "fanqie",
         root: path.join(state.settings.workspace, ".writer"),

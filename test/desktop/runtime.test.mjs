@@ -1016,6 +1016,40 @@ test("FQ-03 崩溃遗留写锁：作者确认后经恢复入口先清锁、再�
   }
 });
 
+test("统一写作根建子目录失败时退回原写作根，不留下指向不可用根的设置", async () => {
+  const { Runtime, registerWorkspaceIpc, ipcMain, dialog } =
+    await import("../../apps/desktop/out-test/runtime-effects.mjs");
+  const home = await realpath(await mkdtemp(path.join(tmpdir(), "writer-workspace-rollback-")));
+  const previous = path.join(home, "old-root"),
+    chosen = path.join(home, "new-root");
+  await mkdir(previous);
+  await mkdir(chosen);
+  // 与子目录同名的普通文件让 mkdir 失败，模拟只读卷或被占用的路径。
+  await writeFile(path.join(chosen, "novels"), "not a directory");
+  const state = new Runtime();
+  state.home = home;
+  state.settings = new Settings(home, {
+    available: () => false,
+    encrypt: (text) => text,
+    decrypt: (text) => text,
+  });
+  await state.settings.saveUI({ workspace: previous });
+  state.diagnostics = { write: async () => {} };
+  state.window = fakeWindow();
+  const original = dialog.showOpenDialog;
+  dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [chosen] });
+  registerWorkspaceIpc(state);
+  try {
+    await assert.rejects(ipcMain.handlers.get("writer:workspace")(fromWindow(state.window)));
+    assert.equal(state.settings.workspace, previous);
+    const saved = JSON.parse(await readFile(path.join(home, "desktop.json"), "utf8"));
+    assert.equal(saved.workspace, previous);
+  } finally {
+    dialog.showOpenDialog = original;
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
 test("CORE-08 只读作品可经接管入口取得写权限，锁已换人时拒绝", async () => {
   // 接管登记在主进程那份模块实例里，认领与释放必须用同一实例。
   const { Runtime, registerWorkspaceIpc, ipcMain, claimWorkspace, releaseWorkspace } =
