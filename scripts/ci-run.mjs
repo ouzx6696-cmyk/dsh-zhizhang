@@ -20,12 +20,25 @@ child.on("error", (error) => {
 child.on("close", (code, signal) => {
   if (signal) console.error(`Command terminated by ${signal}`);
   if (code !== 0) {
-    const escaped = tail
-      .slice(-6000)
-      .replace(/%/g, "%25")
-      .replace(/\r/g, "%0D")
-      .replace(/\n/g, "%0A");
-    console.error("::error::" + escaped);
+    // GitHub truncates annotation messages by UTF-8 bytes, not JavaScript characters.
+    const parts = [];
+    let part = "",
+      bytes = 0;
+    for (const char of tail.slice(-6000)) {
+      const size = Buffer.byteLength(char);
+      if (bytes + size > 1800) {
+        parts.push(part);
+        part = "";
+        bytes = 0;
+      }
+      part += char;
+      bytes += size;
+    }
+    if (part) parts.push(part);
+    for (const [index, value] of parts.entries()) {
+      const escaped = value.replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
+      console.error(`::error title=Command failure ${index + 1}/${parts.length}::` + escaped);
+    }
   }
-  process.exitCode = code === 0 && !signal ? 0 : 1;
+  process.exitCode = signal ? 1 : (code ?? 1);
 });
