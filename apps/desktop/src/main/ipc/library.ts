@@ -58,7 +58,7 @@ export function registerLibraryIpc(state: Runtime) {
           paths,
           dir,
           action === "benchmark" ? sourceId : undefined,
-          state.writerConfig.fanqie?.python,
+          state.pythonPath(),
         );
       state.emit({ refresh: true });
       return getLocation();

@@ -876,7 +876,7 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
       return dialog;
     };
     let dialog = await resources();
-    const libraryPath = path.join(root, ".writer", "library");
+    const libraryPath = path.join(realpathSync.native(root), ".writer", "library");
     await expect(dialog.getByLabel("当前项目的拆书库路径")).toHaveValue(libraryPath);
     const bookFile = path.join(root, "原文示例.txt");
     await writeFile(bookFile, "第1章 原文\n雨停了，她收起伞。", "utf8");

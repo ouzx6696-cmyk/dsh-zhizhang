@@ -19,7 +19,7 @@ export function draftReading(run: WorkflowRun, body: string, targetWords = 0): P
   if (previous) return previous;
   const result = readingMetrics(
     [{ number: run.context.chapterPosition, body }],
-    run.host.options.fanqie?.python,
+    run.host.python,
   ).then(([metrics]) => ({
     metrics,
     warnings: readingWarnings(

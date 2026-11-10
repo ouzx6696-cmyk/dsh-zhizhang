@@ -1105,7 +1105,12 @@ test("追读P2/P3：写手规则与四账摘要受限，前章1500字加摘要�
         };
       return respondStage(call, {});
     },
-    { fanqie: { pursuit: { enabled: true, radar: true } } },
+    {
+      fanqie: {
+        python: "missing-python-that-must-not-override-desktop-runtime",
+        pursuit: { enabled: true, radar: true },
+      },
+    },
   );
   try {
     const { dir, target } = await fanqieWork(f, "pursuit-cards", ["c001", "c002"]);
