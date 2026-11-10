@@ -1,6 +1,6 @@
 {
   "name": "writer-agent",
-  "version": "1.0.0-preview.1",
+  "version": "1.0.1",
   "private": true,
   "description": "基于内置 PI 的独立写作客户端：今日头条与番茄长篇",
   "type": "module",
