@@ -3,7 +3,18 @@ import type { ModelConnection, ModelSettings, ModelsInput } from "./models";
 import type { Appearance } from "./settings";
 import type { DesktopEvent } from "./renderer-contracts";
 import type { IpcArgs, IpcChannel, IpcResult, RequestOptions } from "./main/ipc/contract";
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webFrame } from "electron";
+import { fitZoom } from "./main/zoom";
+
+// 最大化、全屏或拖大窗口时按窗口等比放大界面（见 main/zoom.ts），不再四周留出大片深色空白。
+// 以渲染层实际视口换算回未缩放尺寸来算，不依赖主进程 resize 事件里可能滞后的窗口尺寸。
+const fitWindowZoom = () => {
+  const current = webFrame.getZoomFactor();
+  const next = fitZoom(window.innerWidth * current, window.innerHeight * current);
+  if (Math.abs(next - current) > 0.001) webFrame.setZoomFactor(next);
+};
+window.addEventListener("resize", fitWindowZoom);
+window.addEventListener("DOMContentLoaded", fitWindowZoom);
 
 const invoke = <K extends IpcChannel>(name: K, ...args: IpcArgs<K>) =>
   ipcRenderer.invoke("writer:" + name, ...args) as Promise<IpcResult<K>>;

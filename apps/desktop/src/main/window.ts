@@ -4,7 +4,6 @@ import { BrowserWindow, nativeTheme, shell } from "electron";
 import type { Runtime } from "./runtime";
 import { guardUnload } from "./exit";
 import { DEV_CONTENT_SECURITY_POLICY } from "./csp";
-import { fitZoom } from "./zoom";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -34,22 +33,6 @@ export function createMainWindow(state: Runtime) {
   state.window = window;
   guardUnload(window);
   window.once("ready-to-show", () => window.show());
-  // 最大化、全屏或拖大窗口时按窗口内容区等比放大界面（见 zoom.ts），不再四周留黑边。
-  const applyZoom = () => {
-    if (window.isDestroyed()) return;
-    const [width, height] = window.getContentSize();
-    const factor = fitZoom(width ?? 0, height ?? 0);
-    if (window.webContents.getZoomFactor() !== factor) window.webContents.setZoomFactor(factor);
-  };
-  for (const event of [
-    "resize",
-    "maximize",
-    "unmaximize",
-    "enter-full-screen",
-    "leave-full-screen",
-  ] as const)
-    window.on(event as "resize", applyZoom);
-  window.webContents.on("did-finish-load", applyZoom);
   // ready-to-show 依赖首帧；渲染进程启动出错时它不会触发，兜底显示窗口，让错误可见。
   setTimeout(() => {
     if (!window.isDestroyed() && !window.isVisible()) window.show();

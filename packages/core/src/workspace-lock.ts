@@ -188,15 +188,19 @@ async function sweepIdleGuard(guard: string, owner: WorkspaceOwner | null): Prom
       if (!isMissingFileError(error)) throw error;
     }
   }
+  let busy: unknown = null;
   try {
     await rmdir(guard);
     return { kind: "absent" };
   } catch (error) {
     if (isMissingFileError(error)) return { kind: "absent" };
-    if (!isFsError(error, "ENOTEMPTY") && !GUARD_BUSY.some((code) => isFsError(error, code)))
-      throw error;
+    if (GUARD_BUSY.some((code) => isFsError(error, code))) busy = error;
+    else if (!isFsError(error, "ENOTEMPTY")) throw error;
   }
   const state = await readGuardState(guard);
+  // Windows 上并发进程正在 stat/读取该目录或它处于删除挂起时 rmdir 报占用，而目录里并没有外来文件：
+  // 原样抛出占用错误，由 withClaimGuard 按争用等待重试，超时才报错。
+  if (busy && state.kind === "idle" && !state.owner) throw busy;
   if (state.kind === "idle" && !state.owner)
     throw new WriterError(
       "CONFLICT",
