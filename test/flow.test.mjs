@@ -575,3 +575,30 @@ test("质检记录六维分项；读者评审解析后落到 meta.qa 最近一�
   const detail = await articleDetail((await call("toutiao_article_list", {})).root, id);
   assert.equal(detail.qa.at(-1).readerReview.scores["读完意愿"], 2);
 });
+
+async function acceptedArticle(slug) {
+  const harness = await setup();
+  const { call } = harness;
+  const id = (await call("toutiao_article_create", { slug })).article.id;
+  await call("toutiao_card_set", { id, card: CARD });
+  await call("toutiao_headline_set", { id, main: CARD["主标题"], alts: ["一", "二", "三", "四"] });
+  await call("toutiao_draft_stage", { id, text: STORY });
+  await call("toutiao_status", { id, to: "待验收" });
+  const qa = await call("toutiao_qa_check", { id });
+  assert.equal(qa.pass, true, JSON.stringify(qa));
+  const root = (await call("toutiao_article_list", {})).root;
+  return { harness, call, id, root };
+}
+
+test("质检后稿件文件被外部原地改写：验收与采用不再沿用旧质检", async () => {
+  const { call, id, root } = await acceptedArticle("rewrite");
+  const file = path.join(root, id, "drafts", "rev-001.md");
+  const original = await readFile(file, "utf8");
+  await writeFile(file, original + "\n作者在外部编辑器里补的一段未质检文字。\n");
+  const denied = await call("toutiao_status", { id, to: "已验收" });
+  assert.equal(denied.code, "GATE_DENIED", JSON.stringify(denied));
+  assert.match(denied.message, /外部改动/);
+  const detail = await articleDetail(root, id);
+  assert.equal(detail.qaValid, false);
+  assert.equal(detail.adoptable, false);
+});

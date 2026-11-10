@@ -271,12 +271,19 @@ function summary(m: ArticleMeta) {
 export async function validPassingQa(store: Awaited<ReturnType<typeof storeFor>>, m: ArticleMeta) {
   const q = store.latestQaFor(m);
   if (!q) return { ok: false as const, reason: "当前版本还没跑质检（toutiao_qa_check）" };
+  let draft: string;
   try {
-    await store.readDraft(m.id, m.current_rev);
+    draft = await store.readDraft(m.id, m.current_rev);
   } catch (error) {
     if (!(error instanceof WriterError) || error.code !== "NOT_FOUND") throw error;
     return { ok: false as const, reason: "稿件文件缺失，请保留现有文件并核对。" };
   }
+  // 质检绑定的是记录哈希；稿件文件被外部原地改写后，那次质检不再覆盖实际正文。
+  if (sha256(draft) !== q.sha256)
+    return {
+      ok: false as const,
+      reason: "稿件文件被外部改动，与质检时的哈希不一致；请重新 toutiao_draft_stage 并重跑质检",
+    };
   const cardSha = await store.cardSha(m.id);
   if (q.card_sha256 !== cardSha)
     return { ok: false as const, reason: "立项卡在质检后改过，请重跑 toutiao_qa_check" };
