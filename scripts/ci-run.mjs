@@ -35,10 +35,11 @@ child.on("close", (code, signal) => {
       bytes += size;
     }
     if (part) parts.push(part);
+    if (!parts.length) parts.push(`Command exited with code ${code}, signal ${signal ?? "none"}`);
     for (const [index, value] of parts.entries()) {
       const escaped = value.replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
       console.error(`::error title=Command failure ${index + 1}/${parts.length}::` + escaped);
     }
   }
-  process.exitCode = signal ? 1 : (code ?? 1);
+  process.exitCode = signal || code === null || code < 0 ? 1 : code;
 });

@@ -679,6 +679,13 @@ test("CI 信号终止必须失败；错误立项卡返回参数错误而非 trac
     });
     assert.equal(runner.status, 1);
     assert.match(runner.stderr, /terminated|error/i);
+    await writeFile(child, "process.exit(1);");
+    const silent = spawnSync(process.execPath, ["scripts/ci-run.mjs", process.execPath, child], {
+      encoding: "utf8",
+    });
+    assert.equal(silent.status, 1);
+    assert.match(silent.stderr, /::error/);
+
     const fixture = "packages/toutiao/skill/tests/fixtures/";
     const card = JSON.parse(await readFile(fixture + "story_long_card.json", "utf8"));
     for (const patch of [{ 主问题: 123 }, { 延伸: [] }, { 蓝图: [null] }]) {
