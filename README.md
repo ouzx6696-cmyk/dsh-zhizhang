@@ -2,9 +2,9 @@
 
 面向中文网文与图文创作者的本地桌面写作客户端：**番茄长篇**与**今日头条图文**两种模式，规划、起稿、审读、修订、质检走成一条可看、可停、可恢复的流水线，**每一次采纳、定稿和交稿都由作者决定**。
 
-基于内置 PI SDK 的 Electron 应用。作品只存在你的电脑上；模型只在你发起任务时收到相关创作内容。
+基于内置 PI SDK 的 Electron 应用（Electron 45，Windows x64）。作品只存在你的电脑上；模型只在你发起任务时收到相关创作内容。
 
-> 最近正式版 **[v0.9.9](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/v0.9.9)**；测试版 **[v1.0.0-preview.1](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/v1.0.0-preview.1)**。`master` 上的源码为 1.0.1（待发布），变化见 [CHANGELOG](CHANGELOG.md)。
+> 最近正式版 **[v0.9.9](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/v0.9.9)**；测试版 **[v1.0.0-preview.1](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/v1.0.0-preview.1)**。`master` 上的源码为 1.0.1 稳定性补丁（开发与 CI 已完成，待 Windows 真机回归后发布），变化见 [CHANGELOG](CHANGELOG.md)。
 
 ## 能做什么
 
@@ -22,7 +22,7 @@
 
 **写作台**
 
-- 稿纸阅读与编辑：查找替换（Ctrl+F / Ctrl+H）、未保存内容本机暂存可恢复、阅读位置保持、字号可调。
+- 稿纸阅读与编辑：查找替换（Ctrl+F / Ctrl+H）、未保存内容本机暂存可恢复、阅读位置保持、字号可调；最大化或全屏时左右栏与稿纸随窗口铺开。
 - 写作流水线面板：停靠在侧边，边看正文边看进度；每个阶段的耗时、用量、费用和产出都能展开查看，可暂停、恢复、从失败处重试。
 - 写作助手对话：随时下指令或追问，忙时消息排队；上下文占用一眼可见，支持手动压缩。
 - 个人规则：从你的改稿里归纳候选规则，确认后才生效。
@@ -75,7 +75,7 @@ Linux 下跑 GUI 旅程：先启动 Xvfb，再 `CI=1 DISPLAY=:99 npm run test:de
 
 完整导航见[文档索引](docs/README.md)。
 
-- [剩余工作完成方案](docs/REMAINING-WORK-PLAN.md)：实施顺序、授权、测试矩阵与发布门槛
+- [发布前剩余事项与 1.0.2 待办](docs/REMAINING-WORK-PLAN.md)：授权、真机与实测矩阵、发布流程、后续工程
 - [当前状态](docs/STATUS.md)：已实现范围、验证情况与边界
 - [项目认知](docs/PROJECT-COGNITION.md)：全局地图、已修复项与当前风险
 - [架构说明](docs/ARCHITECTURE.md)：数据流、上下文与缓存、阶段式写作

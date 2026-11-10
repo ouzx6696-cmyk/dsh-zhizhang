@@ -11,7 +11,7 @@
 
 ## 清单（assets/）
 - `assets/sources.json`：来源登记与更新预设。每个来源写明模式、版本、在仓库里的位置、上游目录名与识别文件、版本号从哪读（`versionFrom`）、代码里哪些地方写着这个版本号（`versionRefs`）、登记表（头条的 `METHOD_FILES`）、本项目放在上游目录里的文件（`local`，导入时保留）、有意改过的上游文件（`patched`，导入时不覆盖、列为需人工合并）。
-- `assets/manifest.json`：生成的清单，每个文件一行：来源、类别（入口 / 方法 / 语料 / 模板 / 案例 / 规则 / 测试 / 内置 / 其他）、出处（upstream / local / patched）、可加载 id 与工具、字节数、SHA-256。随插件包一起发布（包内 `assets/`），用来核对装的是哪一版。
+- `assets/manifest.json`：生成的清单，每个文件一行：来源、类别（入口 / 方法 / 语料 / 模板 / 案例 / 规则 / 测试 / 内置 / 其他）、出处（upstream / local / patched）、可加载 id 与工具、字节数、SHA-256。随应用安装包一起发布，用来核对装的是哪一版。
 - 数量、可加载 ID、来源与哈希以当前 `assets/manifest.json` 和 `npm run assets -- check` 输出为准；不要把历史版本的数量当作当前盘点。默认方法、上游原件、patched 补丁和用户资产分别维护。
 
 命令（先 `npm run build`，引擎内置方法从构建产物读）：
