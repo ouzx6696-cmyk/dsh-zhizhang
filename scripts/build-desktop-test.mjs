@@ -28,6 +28,7 @@ entries.push(
   ["workflow-editor", "apps/desktop/src/workflow/editor.ts"],
   ["stage-model", "apps/desktop/src/workflow/stage-model.ts"],
   ["workflow-config", "packages/core/src/workflow-config.ts"],
+  ["zoom", "apps/desktop/src/main/zoom.ts"],
 );
 const options = {
   bundle: true,
