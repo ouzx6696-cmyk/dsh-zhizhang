@@ -49,6 +49,7 @@ export function useDesktopEvents({
       document.documentElement.dataset.transparency = appearance.reducedTransparency
         ? "reduced"
         : "normal";
+      document.documentElement.dataset.layout = appearance.layout ?? "fluid";
       document.documentElement.style.setProperty("--ui-body-size", appearance.fontSize + "px");
     };
     update();

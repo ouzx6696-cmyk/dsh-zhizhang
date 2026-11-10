@@ -38,6 +38,19 @@ export function AppearanceFields({
           }
         />
       </label>
+      <label>
+        {viewCopy.appearanceLayoutLabel}
+        <select
+          value={appearance.layout ?? "fluid"}
+          onChange={(event) =>
+            onChange({ ...appearance, layout: event.target.value as Appearance["layout"] })
+          }
+        >
+          <option value="fluid">{viewCopy.appearanceLayoutFluid}</option>
+          <option value="zoom">{viewCopy.appearanceLayoutZoom}</option>
+          <option value="off">{viewCopy.appearanceLayoutOff}</option>
+        </select>
+      </label>
       <div className="lamp-theme-options" aria-label={viewCopy.appearanceFieldsText5}>
         {[
           ["dark", viewCopy.appearanceFieldsText6],

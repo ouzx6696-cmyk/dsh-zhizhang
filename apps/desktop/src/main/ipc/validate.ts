@@ -120,6 +120,11 @@ export function parseAppearance(value: unknown): Partial<Appearance> {
     if (typeof source.reducedTransparency !== "boolean") throw new Error("参数无效：透明效果");
     result.reducedTransparency = source.reducedTransparency;
   }
+  if (source.layout !== undefined) {
+    if (!["fluid", "zoom", "off"].includes(String(source.layout)))
+      throw new Error("参数无效：大窗口布局");
+    result.layout = source.layout as Appearance["layout"];
+  }
   if (source.fontSize !== undefined) {
     const size = source.fontSize;
     if (

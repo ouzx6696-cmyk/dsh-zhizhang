@@ -1860,6 +1860,10 @@ test("IPC 边界拒绝非法角色、动作、恢复条件与字号", async () =
   assert.throws(() => p.export([{ mode: "fanqie", root: "/tmp" }, {}, "html"]), /参数无效/);
   for (const fontSize of [15, 23, "18"]) assert.throws(() => p.appearance([{ fontSize }]), /字号/);
   assert.deepEqual(p.appearance([{ fontSize: 22 }]), [{ fontSize: 22 }]);
+  for (const layout of ["auto", 1, null])
+    assert.throws(() => p.appearance([{ layout }]), /大窗口布局/);
+  for (const layout of ["fluid", "zoom", "off"])
+    assert.deepEqual(p.appearance([{ layout }]), [{ layout }]);
   assert.deepEqual(p.view([{ mode: "toutiao", root: "/tmp" }]), [
     { mode: "toutiao", root: "/tmp" },
     80,

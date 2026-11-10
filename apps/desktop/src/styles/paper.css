@@ -116,7 +116,7 @@
 
 .studio-paper-column .wb-reader-bar {
   width: 100%;
-  max-width: calc(38 * var(--ui-body-size));
+  max-width: calc(var(--paper-measure, 38) * var(--ui-body-size));
   margin: 0 auto;
   border: 0;
   padding: var(--ui-space-4) 0;
@@ -124,7 +124,7 @@
 }
 
 .studio-paper-column .wb-reader[data-view="split"] .wb-reader-bar {
-  max-width: calc(76 * var(--ui-body-size));
+  max-width: calc(var(--paper-split-measure, 76) * var(--ui-body-size));
 }
 
 .studio-paper-column .wb-reader-title {
@@ -136,9 +136,9 @@
 .studio-paper-column .wb-manuscript {
   font-family: var(--ui-font-body);
   line-height: 2;
-  max-width: 38em;
+  max-width: calc(var(--paper-measure, 38) * 1em);
   margin: 0 auto;
-  min-height: clamp(420px, calc(100vh - 210px), 860px);
+  min-height: clamp(420px, calc(100vh - 210px), var(--paper-min-height-cap, 860px));
 }
 
 .studio-paper-column .wb-split .wb-manuscript {
@@ -146,11 +146,11 @@
 }
 
 .studio-paper-column .wb-source-editor {
-  max-width: calc(38 * var(--ui-body-size));
+  max-width: calc(var(--paper-measure, 38) * var(--ui-body-size));
 }
 
 .studio-paper-column .wb-manuscript p {
-  max-width: 38em;
+  max-width: calc(var(--paper-measure, 38) * 1em);
   margin: 0 auto 0.65em;
   text-indent: 2em;
 }

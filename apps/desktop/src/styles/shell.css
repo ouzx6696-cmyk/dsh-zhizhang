@@ -33,7 +33,7 @@
   display: none;
 }
 .studio-layout[data-fullwidth="true"] > .studio-paper-column {
-  max-width: 1320px;
+  max-width: var(--paper-fullwidth-max, 1320px);
   width: 100%;
   margin: auto;
   grid-column: 1;
@@ -230,5 +230,26 @@ button.icon-button:hover {
   from {
     opacity: 0;
     transform: translateX(8px);
+  }
+}
+
+/* 自适应铺开（外观“大窗口布局”的默认项）：宽屏上三栏与稿纸随窗口伸展，字号不变，不留大片空白。
+   “等比放大”由 preload 设缩放系数，“关闭”保持设计尺寸；两者都不吃这里的规则。 */
+@media (min-width: 1440px) {
+  html[data-layout="fluid"] {
+    --paper-measure: 42;
+    --paper-split-measure: 92;
+    --paper-fullwidth-max: 1760px;
+    --paper-min-height-cap: 100vh;
+  }
+  html[data-layout="fluid"] .studio-layout:not([data-fullwidth="true"]) {
+    grid-template-columns: clamp(232px, 14vw, 340px) minmax(0, 1fr) clamp(392px, 27vw, 720px);
+  }
+}
+@media (min-width: 1920px) {
+  html[data-layout="fluid"] {
+    --paper-measure: 46;
+    --paper-split-measure: 104;
+    --paper-fullwidth-max: 2200px;
   }
 }
