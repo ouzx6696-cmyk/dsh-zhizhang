@@ -141,7 +141,7 @@ jobs:
           } finally { $zip.Dispose() }
           & apps/desktop/release/win-unpacked/resources/python/python.exe -c "import json; print(json.dumps({'runtime':'ok','text':'中文'},ensure_ascii=False))"
           if ($LASTEXITCODE -ne 0) { throw '随包 Python 无法运行' }
-          node scripts/check-desktop-package.mjs
+          node scripts/ci-run.mjs node scripts/check-desktop-package.mjs
           if ($LASTEXITCODE -ne 0) { throw '交付客户端启动检查未通过' }
           Write-Output "::notice::Windows 原生 NSIS 和 ZIP 完整；更新清单引用 exe；随包 Python 可运行；签名状态=$($signature.Status)"
       - name: 整理交付文件

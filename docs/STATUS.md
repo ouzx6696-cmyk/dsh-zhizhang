@@ -1,6 +1,6 @@
 # 当前状态
 
-最近正式版为 [0.9.9](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/v0.9.9)，测试版为 [1.0.0-preview.1](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/v1.0.0-preview.1)。本次源码版本为 `1.1.0-preview.2`（追读工程预览版），新增能力与范围见 CHANGELOG。下面的 1.0.1 验证记录属于历史基线，本次发布的实际验证结果以对应提交和 CI 为准。逐项变化见 [CHANGELOG](../CHANGELOG.md)。
+最近正式版为 [0.9.9](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/v0.9.9)，测试版为 [1.0.0-preview.1](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/v1.0.0-preview.1)。本次源码版本为 `1.1.0-preview.3`（追读工程预览版），新增能力与范围见 CHANGELOG。下面的 1.0.1 验证记录属于历史基线，本次发布的实际验证结果以对应提交和 CI 为准。逐项变化见 [CHANGELOG](../CHANGELOG.md)。
 
 ## 已具备的能力
 
