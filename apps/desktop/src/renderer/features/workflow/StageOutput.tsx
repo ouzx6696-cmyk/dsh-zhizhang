@@ -287,7 +287,7 @@ const VIEWS: { match: RegExp; View: (props: { data: Data }) => React.ReactNode }
   { match: /^(review-\d+|final-review)$/, View: ReviewView },
   { match: /^pair-/, View: VoteView },
   { match: /^selection$/, View: SelectionView },
-  { match: /^facts(-\d+)?$/, View: ClaimsView },
+  { match: /^facts(-\d+|-final)?$/, View: ClaimsView },
   {
     match: /^outline$/,
     View: ({ data }) => <Fields data={data} labels={WORKFLOW_COPY.fields.outline} />,
