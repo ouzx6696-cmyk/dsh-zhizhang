@@ -250,6 +250,46 @@ test("FQ-03 写锁检查：当前进程持有判为活锁且不可清理，记�
   }
 });
 
+test("RC-06 锁目录整体 rename 到位：持锁期间总有 owner.json，残留暂存目录不影响取锁，失败不留暂存", async () => {
+  const { withResourceLock, inspectWriteLock } =
+    await import("../../build/fanqie/src/engine/storage/process-lock.js");
+  const { readdir } = await import("node:fs/promises");
+  const root = await mkdtemp(path.join(tmpdir(), "writer-lock-rename-"));
+  try {
+    // a crash during an earlier attempt leaves only a private staging directory behind
+    await mkdir(path.join(root, ".writer-write-lock.staging-crashed"));
+    assert.equal((await inspectWriteLock(root)).state, "absent");
+    await withResourceLock(root, async () => {
+      const owner = JSON.parse(
+        await readFile(path.join(root, ".writer-write-lock", "owner.json"), "utf8"),
+      );
+      assert.equal(owner.pid, process.pid);
+      assert.equal((await inspectWriteLock(root)).state, "active");
+    });
+    assert.deepEqual(
+      (await readdir(root)).filter((name) => name.startsWith(".writer-write-lock")),
+      [".writer-write-lock.staging-crashed"],
+    );
+    // an existing lock (here an empty one left by 1.1.0 mid-acquire) is never replaced
+    await mkdir(path.join(root, ".writer-write-lock"));
+    const started = Date.now();
+    await assert.rejects(
+      withResourceLock(root, async () => "never"),
+      { code: "resource_locked" },
+    );
+    assert.ok(Date.now() - started >= 9000);
+    assert.deepEqual(await readdir(path.join(root, ".writer-write-lock")), []);
+    assert.deepEqual(
+      (await readdir(root)).filter(
+        (name) => name.includes("staging-") && !name.endsWith("crashed"),
+      ),
+      [],
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("FQ-11 锁释放失败不盖掉写入的原错误；写入成功时如实抛释放错误", async () => {
   const { withResourceLock } =
     await import("../../build/fanqie/src/engine/storage/process-lock.js");

@@ -1,4 +1,4 @@
-import { jsonOutput, list, locate, record, text, type Draft } from "./schema";
+import { jsonOutput, list, locate, record, text, unlocated, type Draft } from "./schema";
 import type { ContextBlock } from "../../../../packages/core/src/workflow";
 import type { WorkflowRun } from "./run";
 
@@ -29,17 +29,20 @@ export function factChain(
     { draft: body, source: shared.sourceRef },
     '逐条列出正文中的外部事实或原典引文及其来源证据。返回 {"claims":[{"claim":"正文原文","quote":"来源原文；无来源时为空","kind":"fact或quotation或fiction或unsupported"}]}。没有来源的事实标 unsupported，不能省略；fiction只用于已明确标注的故事演绎。',
     (value) => {
-      const claims = list(jsonOutput(value).claims, "事实链", 100).map((raw) => {
+      const claims = list(jsonOutput(value).claims, "事实链", 100).map((raw, index) => {
         const r = record(raw),
           kind = String(r.kind),
-          claim = locate(body.body, text(r.claim, "正文声明"));
-        if (claim === undefined) throw new Error("事实链引用的正文不在当前稿中");
+          askedClaim = text(r.claim, "正文声明"),
+          claim = locate(body.body, askedClaim);
+        if (claim === undefined) throw unlocated("事实链引用的正文不在当前稿中", index, askedClaim);
         if (!["fact", "quotation", "fiction", "unsupported"].includes(kind))
           throw new Error("事实分类无效");
         if (kind === "fiction" && line !== "story") throw new Error("资讯稿不得标为故事演绎");
         if (kind === "unsupported") return { claim, quote: "", kind };
-        const quote = locate(source.text, text(r.quote, "来源证据"));
-        if (quote === undefined) throw new Error("事实链的来源证据不在来源原文中");
+        const askedQuote = text(r.quote, "来源证据"),
+          quote = locate(source.text, askedQuote);
+        if (quote === undefined)
+          throw unlocated("事实链的来源证据不在来源原文中", index, askedQuote);
         if (Array.from(quote).length < Math.min(6, Array.from(claim).length))
           throw new Error("事实链来源证据过短，不能核对正文声明");
         if (numbers(claim).some((number) => !hasNumber(quote, number)))

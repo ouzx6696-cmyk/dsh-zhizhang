@@ -441,6 +441,47 @@ test("引文定位：容忍空白与引号样式差异，返回正文原文；�
   assert.equal(locate(text, "门外有人"), undefined);
 });
 
+test("RC-01 引文定位：全角半角、字面转义、书名号与省略号分段都能定位，伪造引文仍失败", async () => {
+  const { locate } = await import("../../apps/desktop/out-test/workflow-schema.mjs");
+  const body =
+    "第１２章里，他翻开《山海经》读了三遍。\n\n“明天，我们去北山。”她说完就走了，没有回头。\n\n风停了。";
+  // 1 full-width digits written half-width
+  assert.equal(locate(body, "第12章里"), "第１２章里");
+  // 2 a literal escape sequence the model wrote inside the JSON string
+  assert.equal(locate(body, "三遍。\\n\\n“明天"), "三遍。\n\n“明天");
+  // 3 book-title marks dropped by the model
+  assert.equal(locate(body, "翻开山海经读了"), "翻开《山海经》读了");
+  // 4 half-width punctuation
+  assert.equal(locate(body, "明天,我们去北山。"), "明天，我们去北山。");
+  // 5 an elided quotation, segments in order
+  assert.equal(locate(body, "她说完就走了……风停了"), "她说完就走了，没有回头。\n\n风停了");
+  // 6 three-dot elision
+  assert.equal(locate(body, "他翻开...读了三遍"), "他翻开《山海经》读了三遍");
+  // forged or reordered quotations still fail
+  assert.equal(locate(body, "她说完就走了，回头看他"), undefined);
+  assert.equal(locate(body, "风停了……她说完就走了"), undefined);
+  assert.equal(locate(body, "第……了"), undefined);
+});
+
+test("RC-02 硬伤定位失败时点名是第几条、哪段引文，供重试提示使用", async () => {
+  const { review } = await import("../../apps/desktop/out-test/workflow-schema.mjs");
+  const body = "风把木门吹得直响。";
+  assert.throws(
+    () =>
+      review(
+        {
+          hard: [
+            { location: "首段", quote: "风把木门吹得直响", impact: "无", fix: "无" },
+            { location: "次段", quote: "门外站着一个人", impact: "无", fix: "无" },
+          ],
+          suggestions: [],
+        },
+        body,
+      ),
+    /第 2 条：「门外站着一个人」/,
+  );
+});
+
 test("审读不要求模型回显指纹；硬伤原文按定位结果绑定当前正文", async () => {
   const { review } = await import("../../apps/desktop/out-test/workflow-schema.mjs");
   const text = "他说：“走吧。”\n\n风把木门吹得直响。";

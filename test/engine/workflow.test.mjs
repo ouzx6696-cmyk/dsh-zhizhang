@@ -224,6 +224,51 @@ test("全量阅读须明确同意且确认参数不能变化，原计划保持�
     await f.close();
   }
 });
+test("A-02 Full 拆书：模型拿到 confirm_token 也要经作者门禁；作者拒绝时不替换计划", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "writer-full-gate-"));
+  try {
+    const paths = await ensureStorage(null, { storageRoot: root });
+    const harness = await createToolHarness({
+      mode: "fanqie",
+      cwd: root,
+      config: { storageRoot: root },
+    });
+    const run = async (name, args) => {
+      try {
+        return (await harness.execute(name, args)).value;
+      } catch (error) {
+        return formatToolError(error);
+      }
+    };
+    const { sourceId } = await LibraryPort.importSource(paths, { title: "参考", text: BOOK });
+    await run("fanqie_library_plan", { source: sourceId });
+    const planPath = path.join(paths.library, "analyses", sourceId, "plan.json");
+    const before = await readFile(planPath, "utf8");
+    const cost = await run("fanqie_library_plan", { source: sourceId, mode: "full", reset: true });
+    const token = id(cost, /confirm_token：(fp-[a-z0-9-]+)/);
+    assert.equal(harness.approvals.length, 0, "成本回执本身不需要确认");
+    harness.approved = false;
+    const denied = await run("fanqie_library_plan", {
+      source: sourceId,
+      mode: "full",
+      confirm_full: true,
+      confirm_token: token,
+    });
+    assert.match(denied, /GATE_DENIED|作者/);
+    assert.match(harness.approvals.at(-1).reason, /Full 全量拆书/);
+    assert.equal(await readFile(planPath, "utf8"), before);
+    harness.approved = true;
+    await run("fanqie_library_plan", {
+      source: sourceId,
+      mode: "full",
+      confirm_full: true,
+      confirm_token: token,
+    });
+    assert.equal(JSON.parse(await readFile(planPath, "utf8")).mode, "full");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
 test("暂存后的书源变化须重新核对，未声明的阅读程度不推断为已读", async () => {
   const f = await setup();
   try {
@@ -689,6 +734,101 @@ test("T5 灵感旧绑定只在项目初始化时迁移一次，坏来源报错�
     } finally {
       await damaged.close();
     }
+  }
+});
+
+test("RC-04 删已绑定的卡同步解绑；历史悬空绑定报 craft_binding_dangling，repair 后恢复", async () => {
+  const f = await setup();
+  try {
+    const { meta } = await createWork(f.paths, { title: "绑定作品" });
+    const { sourceId } = await LibraryPort.importSource(f.paths, { title: "原文", text: BOOK });
+    const ids = [];
+    for (let i = 0; i < 2; i++) {
+      const staged = await LibraryPort.stageCard(f.paths, cardInput(sourceId));
+      ids.push((await LibraryPort.acceptCard(f.paths, staged.candId)).cardId);
+    }
+    const { sessionId } = await InspirationPort.startSession(f.paths, { goal: "绑", cardIds: ids });
+    const { candId } = await InspirationPort.stageEmit(f.paths, sessionId, {
+      kind: "foundation",
+      payload: { planned: "寻找证据" },
+    });
+    await InspirationPort.acceptEmit(f.paths, candId, { workKey: meta.key, apply: true });
+    const file = path.join(f.paths.inspiration, "bindings.json");
+    // 1. deleting through the port also removes the binding (same file shape)
+    const removed = await LibraryPort.discardCard(f.paths, ids[0]);
+    assert.deepEqual(removed.unboundWorks, [meta.key]);
+    assert.deepEqual(JSON.parse(await readFile(file, "utf8"))[meta.key], [ids[1]]);
+    assert.deepEqual(
+      (await InspirationPort.resolveCardsForBrief(f.paths, { workKey: meta.key })).cardIds,
+      [ids[1]],
+    );
+    // 2. a dangling binding left by an older version is a clear error, not a raw card_not_found
+    await writeFile(file, JSON.stringify({ [meta.key]: ["card-gone", ids[1]] }));
+    await assert.rejects(
+      InspirationPort.resolveCardsForBrief(f.paths, { workKey: meta.key }),
+      (error) => error.code === "craft_binding_dangling" && /card-gone/.test(error.message),
+    );
+    const repaired = await f.run("fanqie_inspire_status", {
+      work: meta.key,
+      repair: "unbind_dangling",
+    });
+    assert.match(repaired, /已解除.*card-gone/);
+    assert.deepEqual(
+      (await InspirationPort.resolveCardsForBrief(f.paths, { workKey: meta.key })).cardIds,
+      [ids[1]],
+    );
+  } finally {
+    await f.close();
+  }
+});
+
+test("A-01 灵感应用只以规划字段为依据：采纳章节后仍可应用，章纲真被改时拒绝；旧会话按旧算法", async () => {
+  const f = await setup();
+  const { fingerprint } = await import("../../build/fanqie/src/engine/domain/lifecycle.js");
+  try {
+    const { meta, dir } = await createWork(f.paths, { title: "依据作品" });
+    const { cardId } = await acceptedCard(f);
+    await setOutline(dir, "c001", { ending: "交出钥匙" }, "第一章");
+    const session = async () =>
+      (
+        await InspirationPort.startSession(f.paths, {
+          goal: "依据",
+          cardIds: [cardId],
+          workKey: meta.key,
+        })
+      ).sessionId;
+    const stage = async (sessionId) =>
+      (
+        await InspirationPort.stageEmit(f.paths, sessionId, {
+          kind: "foundation",
+          payload: { planned: "寻找证据" },
+        })
+      ).candId;
+    // 1. writing and reviewing a chapter is not a planning change
+    const first = await stage(await session());
+    await updateChapter(dir, { id: "c001", body: "她交出了钥匙。" });
+    await InspirationPort.acceptEmit(f.paths, first, { workKey: meta.key, apply: true });
+    // 2. a real outline change is still refused
+    const second = await stage(await session());
+    await setOutline(dir, "c001", { ending: "拒绝交出钥匙" });
+    await assert.rejects(
+      InspirationPort.acceptEmit(f.paths, second, { workKey: meta.key, apply: true }),
+      (error) => error.code === "planning_changed",
+    );
+    // 3. a session written by 1.1.0 (whole-meta fingerprint) keeps the old, stricter check
+    const legacyId = await session();
+    const file = path.join(f.paths.inspiration, "sessions", `${legacyId}.json`);
+    const legacy = JSON.parse(await readFile(file, "utf8"));
+    legacy.targetPlanningRevision = fingerprint(await readWorkMeta(dir));
+    await writeFile(file, JSON.stringify(legacy));
+    const third = await stage(legacyId);
+    await updateChapter(dir, { id: "c001", body: "她又一次交出了钥匙。" });
+    await assert.rejects(
+      InspirationPort.acceptEmit(f.paths, third, { workKey: meta.key, apply: true }),
+      (error) => error.code === "planning_changed",
+    );
+  } finally {
+    await f.close();
   }
 });
 

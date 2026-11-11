@@ -315,7 +315,11 @@ export function analysisTools() {
         if (args.confirm !== true) throw new NovelError("confirm_required", "删卡须 confirm=true");
         const paths = await openLibrary(exec, args, true);
         const r = await LibraryPort.discardCard(paths, cardId);
-        return `已删除「${r.title}」（${r.cardId}），剩余 ${r.remaining} 张卡。`;
+        return [
+          `已删除「${r.title}」（${r.cardId}），剩余 ${r.remaining} 张卡。`,
+          ...(r.unboundWorks.length ? [`已同步解除 ${r.unboundWorks.join("、")} 的绑定。`] : []),
+          ...(r.bindingWarning ? [`提醒：绑定未同步解除——${r.bindingWarning}`] : []),
+        ].join("\n");
       },
     }),
   ];

@@ -94,6 +94,22 @@ export function fanqieGateRules(config: FanqieConfig, role: Role): GateRule[] {
         };
       },
     },
+    {
+      // A-02 (G5): the Full cost receipt hands the model its own confirm_token, so the token
+      // alone is self-approval. The author confirms here before a Full plan replaces anything.
+      id: "fanqie.full_dissect_requires_author",
+      tool: "fanqie_library_plan",
+      locked: true,
+      description: "Full 拆书须作者确认",
+      async check(args) {
+        if (config.safety?.fullDissectAuthor === false) return undefined;
+        if (args.mode !== "full" || args.confirm_full !== true) return undefined;
+        return {
+          kind: "ask",
+          reason: `对书源「${String(args.source ?? "")}」执行 Full 全量拆书会按成本回执逐批阅读全书，需要作者确认。`,
+        };
+      },
+    },
   ];
   if (role === "writer" && config.toolset?.narrowed === true) rules.push(...narrowedFlagRules());
   return rules;

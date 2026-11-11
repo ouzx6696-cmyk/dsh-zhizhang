@@ -9,9 +9,20 @@ import {
 } from "../../../../packages/core/src/workflow";
 import { errorText } from "../../../../packages/core/src/errors";
 
-/** Out-of-credit wording. OpenAI sends it with 429, Anthropic and Qwen with 400, so it wins over the status. */
+/**
+ * Out-of-credit wording that no rate limit uses. OpenAI sends it with 429, Anthropic and Qwen with
+ * 400, so it wins over the status.
+ */
 const NO_BALANCE =
-  /\b402\b|insufficient[ _]balance|insufficient[ _]quota|exceeded[ _]current[ _]quota|exceeded your current quota|quota exceeded|credit balance is too low|arrearage|out of budget|payment required|余额不足|欠费/i;
+  /insufficient[ _]balance|insufficient[ _]quota|exceeded your current quota|exceeded[ _]current[ _]quota|credit balance is too low|arrearage|out of budget|payment required|余额不足|欠费/i;
+/**
+ * Rate and per-window quota wording (Gemini RESOURCE_EXHAUSTED "Quota exceeded for metric … per
+ * minute", DashScope Throttling.*): the window resets, so it is transient even when it says quota.
+ */
+const RATE_LIMITED =
+  /rate[ _-]?limit|resource[ _]exhausted|throttl|too many requests|per[ _-]?(?:minute|second|hour|day)|requests? per|tokens? per|\b[RT]PM\b|限流|频率|请求过于频繁/i;
+/** Generic quota wording; out of credit only when no rate-limit wording explains it. */
+const QUOTA = /quota[ _]exceeded|exceeded[ _].*quota/i;
 /** Only a status at the very start counts; a number inside the text ("≤ 500", "model-500") is not one. */
 const LEADING_STATUS = /^\s*(\d{3})\b/;
 const STAGE_BACKOFF_MS = [2000, 6000, 15000];
@@ -39,8 +50,9 @@ type ProviderErrorKind = Extract<
 >;
 
 /**
- * The one classifier for provider error text. The order is the contract: out-of-credit wording
- * first (it arrives under 400, 402 and 429), then the leading status, then pi-ai's overflow and
+ * The one classifier for provider error text. The order is the contract: unambiguous out-of-credit
+ * wording first (it arrives under 400, 402 and 429), then rate-limit wording, then a leading 402 or
+ * generic quota wording, then the leading status, then pi-ai's overflow and
  * transient heuristics for what the status leaves open. Unknown errors fail rather than pause.
  */
 export function classifyStageError(message: string): ProviderErrorKind {
@@ -48,6 +60,8 @@ export function classifyStageError(message: string): ProviderErrorKind {
   const denied = status === 401 || status === 403;
   if (NO_BALANCE.test(message) && !denied) return "balance";
   if (denied) return "auth";
+  if (RATE_LIMITED.test(message)) return "transient";
+  if (status === 402 || QUOTA.test(message)) return "balance";
   if (status === 408 || status === 429 || status >= 500) return "transient";
   const traits = providerErrorTraits(message);
   if (traits.overflow) return "context";

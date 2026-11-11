@@ -1230,6 +1230,29 @@ test("改稿学习开关：两包 config 解析 learn.enabled，非布尔或未�
   assert.equal(parseToutiaoConfig({}).value.learn, undefined, "缺省即关");
 });
 
+test("1.1.1 安全开关：fanqie.safety.finalStructureGuard 缺省开启，可显式关闭，非布尔或未知字段报错", async () => {
+  const { parseFanqieConfig } = await import(buildUrl("fanqie/src/config.js"));
+  assert.deepEqual(parseFanqieConfig({ safety: {} }).value.safety, {
+    finalStructureGuard: true,
+    narrowPlanningBasis: true,
+    fullDissectAuthor: true,
+  });
+  assert.deepEqual(parseFanqieConfig({ safety: { finalStructureGuard: false } }).value.safety, {
+    finalStructureGuard: false,
+    narrowPlanningBasis: true,
+    fullDissectAuthor: true,
+  });
+  assert.equal(parseFanqieConfig({}).value.safety, undefined, "缺省时由端口默认值开启");
+  assert.ok(parseFanqieConfig({ safety: { finalStructureGuard: "on" } }).issues.length >= 1);
+  assert.ok(parseFanqieConfig({ safety: { typo: true } }).issues.length >= 1);
+  const { parseToutiaoConfig } = await import(buildUrl("toutiao/src/config.js"));
+  assert.deepEqual(parseToutiaoConfig({ revision: {} }).value.revision, { strict: true });
+  assert.deepEqual(parseToutiaoConfig({ revision: { strict: false } }).value.revision, {
+    strict: false,
+  });
+  assert.ok(parseToutiaoConfig({ revision: { strict: 1 } }).issues.length >= 1);
+});
+
 test("CORE-22 快照经原子写落盘：内容与源一致，目录内无临时文件", async (t) => {
   const { snapshotFiles } = await import(buildUrl("core/src/snapshots.js"));
   const { readdir } = await import("node:fs/promises");

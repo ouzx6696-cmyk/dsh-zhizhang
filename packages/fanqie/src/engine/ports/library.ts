@@ -29,6 +29,7 @@ import { createSourceJournal, finishSourceJournal } from "../storage/source-jour
 import { createDiscardJournal, finishDiscardJournal } from "../storage/discard-journal.js";
 import { snapshotFile } from "../storage/journal.js";
 import { withResourceLock } from "../storage/process-lock.js";
+import { unbindCards } from "../storage/inspiration-migration.js";
 import { atomicWrite, assertResourceId } from "../work-store.js";
 import { readJsonCached } from "../file-cache.js";
 import { parseChapterNumber } from "../domain/chapter-heading.js";
@@ -760,7 +761,7 @@ export const LibraryPort = {
     const id = assertResourceId(cardId, "卡 id");
     await LibraryPort.ensureLibrary(paths);
     const d = libraryDirs(paths);
-    return withResourceLock(paths.library, async () => {
+    const removed = await withResourceLock(paths.library, async () => {
       const indexBefore = await snapshotFile(d.index);
       if (!indexBefore)
         throw new NovelError("library_index_missing", "拆书库索引缺失，请先检查原文件。");
@@ -780,6 +781,18 @@ export const LibraryPort = {
       await finishDiscardJournal(paths.library, journal);
       return { cardId: id, title: hit.title, remaining: fresh.cards.length };
     });
+    // G6: deleting a card also removes it from every work's bindings, after the library lock is
+    // released (the two roots are never held together). A pending inspiration apply keeps the
+    // binding; the brief then reports it as dangling with the repair action.
+    let unboundWorks: string[] = [],
+      bindingWarning: string | undefined;
+    try {
+      unboundWorks = await unbindCards(paths, [id]);
+    } catch (error) {
+      if (!(error instanceof NovelError && error.code === "inspiration_pending")) throw error;
+      bindingWarning = error.message;
+    }
+    return { ...removed, unboundWorks, bindingWarning };
   },
   async listCards(paths: StoragePaths, opts: CardFilter = {}) {
     const idx = await readIndex(paths);

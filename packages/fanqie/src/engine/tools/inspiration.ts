@@ -164,6 +164,7 @@ export function inspirationTools() {
         history: B("与 work 一起使用，查看已应用的候选历史"),
         candidate: S("可选灵感候选 id；查看该候选的完整内容和状态"),
         recovery: E(["inspect", "resume"], "灵感应用中断时检查或恢复原操作"),
+        repair: E(["unbind_dangling"], "与 work 一起使用：解除本作品已被删除的技法卡绑定"),
         working_dir: WORKING_DIR,
       },
       required: [],
@@ -186,6 +187,17 @@ export function inspirationTools() {
           return `已恢复灵感应用：候选 ${r.candidateId} → 作品 ${r.workKey}；请勿重复应用。`;
         }
         if (recovery) fail("recovery 只支持 inspect 或 resume");
+        const repair = asString(args, "repair");
+        if (repair !== undefined) {
+          if (repair !== "unbind_dangling") fail("repair 只支持 unbind_dangling");
+          const work = asString(args, "work");
+          if (!work) fail("repair 需要同时提供 work");
+          const meta = await readWorkMeta(await resolveWorkDir(paths, work));
+          const r = await InspirationPort.unbindDangling(paths, meta.key);
+          return r.removed.length
+            ? `已解除作品「${r.workKey}」的失效绑定：${r.removed.join("、")}。`
+            : `作品「${r.workKey}」没有失效的技法卡绑定。`;
+        }
         const candidateId = asString(args, "candidate");
         if (candidateId) {
           const candidate = await InspirationPort.getCandidate(paths, candidateId);

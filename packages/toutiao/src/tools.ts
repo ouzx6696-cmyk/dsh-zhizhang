@@ -24,6 +24,8 @@ import {
   nowIso,
   parseFeedbackEntries,
   formatFeedbackLine,
+  GENRES,
+  LINES,
   STATUSES,
   STOP_LINE,
   today,
@@ -443,7 +445,11 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
         const card = args.card;
         if (!card || typeof card !== "object" || Array.isArray(card))
           throw new WriterError("INVALID_ARGS", "card 必须是对象");
-        return await saveCard(await st(exec), id, card, TITLE_MAX, drivers);
+        const store = await st(exec);
+        // A-06: the same per-card serialization as card_patch and headline_set.
+        return await serialize(store.cardPath(id), () =>
+          saveCard(store, id, card, TITLE_MAX, drivers),
+        );
       },
     }),
 
@@ -541,9 +547,19 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
         // 角色由挂载决定，不信任参数：主写手不能把自己的稿子记成编辑版
         const role =
           deps.role === "editor" ? "editor" : args.role === "author" ? "author" : "writer";
-        const m = await (
-          await st(exec)
-        ).stageDraft(
+        const store = await st(exec);
+        // A-05 (toutiao.revision.strict): once a draft exists, a new one must name the version it
+        // was written against; the store then checks it under the article lock.
+        if (
+          args.expected_rev === undefined &&
+          deps.config.revision?.strict !== false &&
+          (await store.get(reqStr(args, "id"))).current_rev > 0
+        )
+          throw new WriterError(
+            "INVALID_ARGS",
+            "expected_revision_required：已有稿件时存稿须提供 expected_rev 与 expected_sha256（先用 toutiao_draft_get 读取当前稿件）。",
+          );
+        const m = await store.stageDraft(
           reqStr(args, "id"),
           text.replace(/\r\n/g, "\n"),
           role,
@@ -1041,8 +1057,16 @@ async function saveCard(
 ) {
   const issues = checkCard(card, titleMax, drivers);
   const sha = await store.writeCard(id, card);
-  const line = typeof card["内容线"] === "string" ? card["内容线"] : "";
-  const genre = typeof card["体裁"] === "string" ? card["体裁"] : "";
+  // A-06: only values that passed the card check reach meta; an invalid 内容线 stays in the card
+  // (reported in issues) instead of steering the article's line.
+  const line =
+    typeof card["内容线"] === "string" && (LINES as readonly string[]).includes(card["内容线"])
+      ? card["内容线"]
+      : "";
+  const genre =
+    typeof card["体裁"] === "string" && (GENRES as readonly string[]).includes(card["体裁"])
+      ? card["体裁"]
+      : "";
   await store.update(id, (m) => {
     if (line) m.line = line;
     if (genre) m.genre = genre;

@@ -1,9 +1,10 @@
 import { parsePursuitOutline } from "../../domain/pursuit.js";
 import { setOutline } from "../../storage/chapters.js";
+import { getPortConfig } from "../../ports/config.js";
 
-import { asString, fail, openWork } from "../context.js";
+import { asString, boolArg, fail, openWork } from "../context.js";
 import { renderOutline } from "../render.js";
-import { OUTLINE_PROPS, PURSUIT_PROPS, S, WORK_OPT, WORKING_DIR } from "../schema.js";
+import { B, OUTLINE_PROPS, PURSUIT_PROPS, S, WORK_OPT, WORKING_DIR } from "../schema.js";
 import { defineTool } from "../types.js";
 
 export const outlineSet = defineTool({
@@ -15,6 +16,7 @@ export const outlineSet = defineTool({
     working_dir: WORKING_DIR,
     chapter: S("章节 id；不存在则新建"),
     title: S("可选章节标题（新建或改名）"),
+    force: B("改定稿章的章纲须 true（需作者确认）；改后降回 drafted 并需重新审读定稿"),
     ...OUTLINE_PROPS,
   },
   required: ["chapter"],
@@ -38,7 +40,10 @@ export const outlineSet = defineTool({
         if (v !== undefined) patch[key] = v;
       }
     }
-    const saved = await setOutline(dir, chapterId, patch, asString(args, "title"));
+    const saved = await setOutline(dir, chapterId, patch, asString(args, "title"), {
+      force: boolArg(args, "force") === true,
+      structureGuard: getPortConfig().finalStructureGuard,
+    });
     return [`已写入章纲「${saved.title}」`, renderOutline(saved.outline)].join("\n");
   },
 });

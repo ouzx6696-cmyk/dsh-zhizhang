@@ -5,7 +5,17 @@ import { errorText } from "../../../../core/src/errors.js";
 import { isRecord } from "../../../../core/src/parse.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
-import { lstat, mkdir, open, readFile, realpath, rmdir, unlink } from "node:fs/promises";
+import {
+  lstat,
+  mkdir,
+  open,
+  readFile,
+  realpath,
+  rename,
+  rm,
+  rmdir,
+  unlink,
+} from "node:fs/promises";
 import { hostname } from "node:os";
 import path from "node:path";
 import { NovelError } from "../errors.js";
@@ -37,20 +47,27 @@ export async function withResourceLock<T>(root: string, fn: () => Promise<T>): P
   if (previous?.has(key)) return fn();
   return withLock(`resource:${key}`, async () => {
     const dir = path.join(key, LOCK_DIR);
-    const ownerFile = path.join(dir, OWNER_FILE);
     const owner = {
       id: randomUUID(),
       pid: process.pid,
       host: hostname(),
       createdAt: new Date().toISOString(),
     };
-    const deadline = Date.now() + WAIT_MS;
-    for (;;) {
+    // RC-06: owner.json is written into a private sibling directory first and the whole
+    // directory is renamed into place, so a crash can never leave a lock without its owner.
+    const staging = path.join(key, `${LOCK_DIR}.staging-${owner.id}`);
+    await mkdir(staging);
+    try {
+      const handle = await open(path.join(staging, OWNER_FILE), "wx", 0o600);
       try {
-        await mkdir(dir);
-        break;
-      } catch (err) {
-        if (!isFsError(err, "EEXIST")) throw err;
+        await handle.writeFile(JSON.stringify(owner) + "\n");
+        await handle.sync();
+      } finally {
+        await handle.close();
+      }
+      const deadline = Date.now() + WAIT_MS;
+      for (;;) {
+        if (await claim(staging, dir)) break;
         if (Date.now() >= deadline)
           throw new NovelError(
             "resource_locked",
@@ -58,21 +75,10 @@ export async function withResourceLock<T>(root: string, fn: () => Promise<T>): P
           );
         await new Promise((resolve) => setTimeout(resolve, 50));
       }
-    }
-    try {
-      const handle = await open(ownerFile, "wx", 0o600);
-      try {
-        await handle.writeFile(JSON.stringify(owner) + "\n");
-        await handle.sync();
-      } finally {
-        await handle.close();
-      }
-    } catch (err) {
-      // A partly created lock is kept for inspection rather than removed blindly.
-      throw new NovelError(
-        "resource_lock_invalid",
-        `无法建立锁所有权记录：${dir}；请确认没有写入进程后人工核对。${err instanceof Error ? err.message : String(err)}`,
-      );
+    } catch (error) {
+      // The staging directory is private to this attempt; the real lock is never touched here.
+      await rm(staging, { recursive: true, force: true });
+      throw error;
     }
     const next = new Set(previous ?? []);
     next.add(key);
@@ -96,6 +102,33 @@ export async function withResourceLock<T>(root: string, fn: () => Promise<T>): P
     if (!outcome.ok) throw outcome.error;
     return outcome.value;
   });
+}
+
+/**
+ * Renames the prepared lock directory into place. False when a lock already exists: POSIX
+ * reports EEXIST or ENOTEMPTY, Windows EPERM or EACCES. An existing lock is checked first, since
+ * POSIX rename would replace an empty directory left by an older version mid-acquire.
+ */
+async function claim(staging: string, dir: string) {
+  try {
+    await lstat(dir);
+    return false;
+  } catch (error) {
+    if (!isMissingFileError(error)) throw error;
+  }
+  try {
+    await rename(staging, dir);
+    return true;
+  } catch (error) {
+    if (
+      isFsError(error, "EEXIST") ||
+      isFsError(error, "ENOTEMPTY") ||
+      isFsError(error, "EPERM") ||
+      isFsError(error, "EACCES")
+    )
+      return false;
+    throw error;
+  }
 }
 
 /**

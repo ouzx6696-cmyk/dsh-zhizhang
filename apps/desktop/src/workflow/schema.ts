@@ -70,21 +70,30 @@ export function jsonOutput(value: unknown) {
     return record(JSON.parse(escapeControlInStrings(candidate)));
   }
 }
-/** Whitespace and quote-style insensitive form used to locate model quotations in real text. */
+/**
+ * Comparison-only form used to locate model quotations in real text: NFKC (full-width digits and
+ * punctuation), whitespace, quote style and book-title marks are ignored. Never sent to a model.
+ */
 function loose(value: string) {
   return value
+    .normalize("NFKC")
     .replace(/\s+/g, "")
-    .replace(/[“”「」『』]/g, '"')
-    .replace(/[‘’]/g, "'");
+    .replace(/[《》〈〉]/g, "")
+    .replace(/[“”「」『』＂"]/g, '"')
+    .replace(/[‘’＇']/g, "'");
 }
-/**
- * Returns the exact substring of `body` the model meant by `quote`, tolerating whitespace and
- * quote-style drift; undefined when the quotation is not in the text.
- */
-export function locate(body: string, quote: string): string | undefined {
-  if (body.includes(quote)) return quote;
-  const target = loose(quote);
-  if (!target) return undefined;
+/** Escape sequences a model sometimes writes literally inside a JSON string ("\\n", "\\t"). */
+function unescapeLiteral(value: string) {
+  return value.replace(/\\[nrt]/g, " ");
+}
+/** Ellipses a model uses to elide part of a long quotation. */
+const ELLIPSIS = /(?:…+|\.{3,}|。{3,}|⋯+)/;
+interface Flat {
+  chars: string[];
+  flat: string;
+  map: number[];
+}
+function flatten(body: string): Flat {
   const chars = [...body],
     map: number[] = [];
   let flat = "";
@@ -94,9 +103,47 @@ export function locate(body: string, quote: string): string | undefined {
     flat += normal;
     for (let k = 0; k < normal.length; k++) map.push(index);
   }
-  const at = flat.indexOf(target);
-  if (at < 0) return undefined;
-  return chars.slice(map[at], map[at + target.length - 1] + 1).join("");
+  return { chars, flat, map };
+}
+/**
+ * Returns the exact substring of `body` the model meant by `quote`, tolerating whitespace,
+ * full-width, quote-style, book-title-mark and literal-escape drift, and an elided quotation
+ * ("甲……乙") matched segment by segment in order. Undefined when the quotation is not in the
+ * text; the result is always an original span of `body`.
+ */
+export function locate(body: string, quote: string): string | undefined {
+  if (body.includes(quote)) return quote;
+  const segments = unescapeLiteral(quote)
+    .split(ELLIPSIS)
+    .map(loose)
+    .filter((segment) => segment.length > 0);
+  if (segments.length === 0) return undefined;
+  // An elision joins real fragments; one-character fragments or a span far longer than the quoted
+  // text would let almost any pair of words "match".
+  if (segments.length > 1 && segments.some((segment) => [...segment].length < 2)) return undefined;
+  const quoted = segments.reduce((sum, segment) => sum + segment.length, 0);
+  const { chars, flat, map } = flatten(body);
+  let from = 0,
+    start = -1,
+    end = -1;
+  for (const segment of segments) {
+    const at = flat.indexOf(segment, from);
+    if (at < 0) return undefined;
+    if (start < 0) start = at;
+    end = at + segment.length - 1;
+    from = at + segment.length;
+  }
+  if (segments.length > 1 && end - start + 1 > quoted * 4 + 200) return undefined;
+  return chars.slice(map[start], map[end] + 1).join("");
+}
+/**
+ * Names the quotation that could not be located, so a retry tells the model which item to fix.
+ * Only reaches the model through the retry note; the first request is unchanged.
+ */
+export function unlocated(what: string, index: number, quote: string): Error {
+  const chars = [...quote.replace(/\s+/g, " ").trim()];
+  const shown = chars.length > 40 ? `${chars.slice(0, 40).join("")}…` : chars.join("");
+  return new Error(`${what}（第 ${index + 1} 条：「${shown}」）`);
 }
 export function text(value: unknown, name: string, max = 60000): string {
   if (typeof value !== "string" || !value.trim() || value.length > max)
@@ -200,10 +247,11 @@ export function review(value: unknown, body: string): Review {
   const r = jsonOutput(value);
   // The code binds the review to the body it sent; models are never asked to echo a 64-char hash.
   const hash = sha256(body);
-  const hard = list(r.hard, "硬伤", 5).map((raw) => {
+  const hard = list(r.hard, "硬伤", 5).map((raw, index) => {
     const i = record(raw),
-      quote = locate(body, text(i.quote, "定位原文", 1000));
-    if (quote === undefined) throw new Error("硬伤定位不是当前正文原文");
+      asked = text(i.quote, "定位原文", 1000),
+      quote = locate(body, asked);
+    if (quote === undefined) throw unlocated("硬伤定位不是当前正文原文", index, asked);
     return {
       location: text(i.location, "位置"),
       quote,

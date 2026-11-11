@@ -646,6 +646,82 @@ test("损坏的分析形状或计划在读取和面板中明确报错", async ()
   }
 });
 
+test("RC-05 定稿章改章纲或位置须 force，不再被静默降回 drafted；structureGuard=false 回退旧行为", async () => {
+  const f = await fixture();
+  try {
+    const { dir } = await createWork(f.paths, { title: "定稿结构" });
+    await setOutline(dir, "c001", { ending: "交出钥匙" }, "第一章");
+    await updateChapter(dir, { id: "c001", body: "她交出了钥匙。" });
+    await updateChapter(dir, {
+      id: "c001",
+      status: "reviewed",
+      expectedRevision: (await readChapter(dir, "c001")).revision,
+    });
+    await updateChapter(dir, { id: "c001", status: "final" });
+    const before = await readFile(path.join(dir, "chapters/c001.md"), "utf8");
+    await assert.rejects(
+      setOutline(dir, "c001", { ending: "没交钥匙" }),
+      (e) => e.code === "refuse_restructure_final",
+    );
+    await assert.rejects(
+      updateChapter(dir, { id: "c001", position: 3 }),
+      (e) => e.code === "refuse_restructure_final",
+    );
+    assert.equal(await readFile(path.join(dir, "chapters/c001.md"), "utf8"), before);
+    assert.equal((await readChapter(dir, "c001")).status, "final");
+    await setOutline(dir, "c001", { ending: "没交钥匙" }, undefined, { force: true });
+    assert.equal((await readChapter(dir, "c001")).status, "drafted");
+    // switch off: 1.1.0 behaviour (silent downgrade) for authors who opt out
+    await updateChapter(dir, {
+      id: "c001",
+      status: "reviewed",
+      expectedRevision: (await readChapter(dir, "c001")).revision,
+    });
+    await updateChapter(dir, { id: "c001", status: "final" });
+    await setOutline(dir, "c001", { ending: "又改" }, undefined, { structureGuard: false });
+    assert.equal((await readChapter(dir, "c001")).status, "drafted");
+  } finally {
+    await f.close();
+  }
+});
+
+test("A-04 章节位置写入时唯一；新章排到最后一章之后；旧书的重复位置只提示不改号", async () => {
+  const f = await fixture();
+  try {
+    const { dir } = await createWork(f.paths, { title: "位置" });
+    await updateChapter(dir, { id: "c001", body: "一。" });
+    await updateChapter(dir, { id: "c005", body: "五。", position: 5 });
+    await updateChapter(dir, { id: "c006", body: "六。" });
+    assert.equal((await readChapter(dir, "c006")).position, 6, "不再用 length+1 撞到第 3 位");
+    await assert.rejects(
+      updateChapter(dir, { id: "c002", body: "二。", position: 5 }),
+      (e) => e.code === "duplicate_position",
+    );
+    await assert.rejects(
+      updateChapter(dir, { id: "c001", position: 6 }),
+      (e) => e.code === "duplicate_position",
+    );
+    // a legacy book with a duplicate still opens and saves, and the panel reports it
+    const metaFile = path.join(dir, "meta.json");
+    const meta = JSON.parse(await readFile(metaFile, "utf8"));
+    meta.chapters.find((c) => c.id === "c006").position = 5;
+    await writeFile(metaFile, JSON.stringify(meta));
+    const chapterFile = path.join(dir, "chapters", "c006.md");
+    await writeFile(
+      chapterFile,
+      (await readFile(chapterFile, "utf8")).replace(/"position": 6/, '"position": 5'),
+    );
+    await updateChapter(dir, { id: "c006", body: "六，改。" });
+    const snapshot = await buildPanelSnapshot(dir, f.paths);
+    assert.ok(
+      snapshot.nextHints.some((h) => h.includes("章节位置重复")),
+      snapshot.nextHints.join("\n"),
+    );
+  } finally {
+    await f.close();
+  }
+});
+
 test("完整修订保留原稿，旧候选不覆盖新稿并提示接续核对", async () => {
   const f = await fixture();
   try {
@@ -693,7 +769,7 @@ test("完整修订保留原稿，旧候选不覆盖新稿并提示接续核对",
   }
 });
 
-test("定稿章改章纲或顺序会降回草稿并失效审读", async () => {
+test("定稿章改章纲或顺序（经 force 确认）会降回草稿并失效审读", async () => {
   const f = await fixture();
   try {
     const { dir } = await createWork(f.paths, { title: "定稿章纲" });
@@ -706,7 +782,8 @@ test("定稿章改章纲或顺序会降回草稿并失效审读", async () => {
     const final = await readChapter(dir, "c001");
     assert.equal(final.status, "final");
 
-    await setOutline(dir, "c001", { ending: "拒绝交出钥匙" });
+    // RC-05: since 1.1.1 a structure change on a final chapter needs force (author-confirmed).
+    await setOutline(dir, "c001", { ending: "拒绝交出钥匙" }, undefined, { force: true });
     const changed = await readChapter(dir, "c001");
     assert.equal(changed.status, "drafted", "定稿章改章纲必须降回草稿");
     assert.notEqual(changed.revision, final.revision);
@@ -721,7 +798,7 @@ test("定稿章改章纲或顺序会降回草稿并失效审读", async () => {
     const again = await readChapter(dir, "c001");
     await updateChapter(dir, { id: "c001", status: "final", expectedRevision: again.revision });
     const positioned = await readChapter(dir, "c001");
-    await updateChapter(dir, { id: "c001", position: positioned.position + 1 });
+    await updateChapter(dir, { id: "c001", position: positioned.position + 1, force: true });
     const moved = await readChapter(dir, "c001");
     assert.equal(moved.status, "drafted", "定稿章改顺序必须降回草稿");
     assert.notEqual(moved.revision, positioned.revision);

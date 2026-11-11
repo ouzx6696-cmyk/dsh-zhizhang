@@ -1,6 +1,6 @@
 {
   "name": "@writer/desktop",
-  "version": "1.1.0-preview.3",
+  "version": "1.1.1",
   "private": true,
   "type": "module",
   "main": "out/main/main.js",

@@ -23,6 +23,39 @@ export async function readInspirationBindings(
   }
   return bindings;
 }
+/**
+ * Removes card ids from the existing bindings index (same file shape). Scoped to one work when
+ * `workKey` is given. Refuses while an inspiration apply is pending, since its recovery compares
+ * bindings.json against the snapshot it took. Returns the works whose bindings changed.
+ */
+export async function unbindCards(
+  paths: StoragePaths,
+  cardIds: readonly string[],
+  workKey?: string,
+): Promise<string[]> {
+  const root = paths.inspiration,
+    file = path.join(root, "bindings.json"),
+    drop = new Set(cardIds.map((id) => assertResourceId(id, "技法卡 id")));
+  if (!drop.size || !(await exists(file))) return [];
+  return withResourceLock(root, async () => {
+    if (await exists(path.join(root, ".writer-inspiration-pending.json")))
+      throw new NovelError(
+        "inspiration_pending",
+        "有未完成的灵感应用，先用 fanqie_inspire_status(recovery=inspect) 检查并恢复，再解除绑定。",
+      );
+    const bindings = (await readInspirationBindings(root)) ?? {},
+      changed: string[] = [];
+    for (const key of Object.keys(bindings)) {
+      if (workKey !== undefined && key !== workKey) continue;
+      const next = bindings[key].filter((id) => !drop.has(id));
+      if (next.length === bindings[key].length) continue;
+      bindings[key] = next;
+      changed.push(key);
+    }
+    if (changed.length) await atomicWrite(file, JSON.stringify(bindings, null, 2) + "\n");
+    return changed;
+  });
+}
 async function completed(root: string) {
   const marker = await readJson<unknown>(path.join(root, MARKER));
   if (marker === undefined) return false;

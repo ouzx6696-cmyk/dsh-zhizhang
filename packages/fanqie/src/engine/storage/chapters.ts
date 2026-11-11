@@ -43,6 +43,8 @@ interface ChapterSaveInput {
   reviewedBy?: string;
   acknowledgeRevision?: boolean;
   ledgerEntry?: string;
+  /** RC-05 (safety.finalStructureGuard): false restores the 1.1.0 silent downgrade. */
+  structureGuard?: boolean;
 }
 function normalizeOutline(value: unknown): Outline {
   const base = EMPTY_OUTLINE();
@@ -331,7 +333,22 @@ export async function prepareChapterSaveUnlocked(dir: string, input: ChapterSave
     typeof input.position === "number"
       ? input.position
       : (previous?.position ??
-        (existingIdx >= 0 ? meta.chapters[existingIdx].position : meta.chapters.length + 1));
+        (existingIdx >= 0
+          ? meta.chapters[existingIdx].position
+          : // A-04: a new chapter goes after the last one; length + 1 collides once positions
+            // have gaps (an explicit position, a removed chapter).
+            Math.max(0, ...meta.chapters.map((c) => c.position)) + 1));
+  // A-04: positions are unique. A chapter keeping its own position is never refused, so a legacy
+  // book that already has duplicates still opens and saves; diagnostics report those.
+  const ownPosition = existingIdx >= 0 ? meta.chapters[existingIdx].position : undefined;
+  if (position !== ownPosition) {
+    const taken = meta.chapters.find((c) => c.id !== id && c.position === position);
+    if (taken)
+      throw new NovelError(
+        "duplicate_position",
+        `位置 ${position} 已被「${taken.title}」（${taken.id}）占用；请换一个位置，或先移动那一章。`,
+      );
+  }
   const outline = normalizeOutline({
     ...(previous?.outline ?? EMPTY_OUTLINE()),
     ...(input.outline ?? {}),
@@ -347,6 +364,19 @@ export async function prepareChapterSaveUnlocked(dir: string, input: ChapterSave
     throw new NovelError(
       "refuse_overwrite_final",
       "定稿正文修改须明确 force=true；修订后降回 drafted 并需重新审读定稿。",
+    );
+  // RC-05: a structure change (outline or position) also drops a final chapter back to drafted,
+  // so it needs the same explicit force (and author gate) instead of a silent downgrade.
+  if (
+    structureChanged &&
+    !changed &&
+    previous?.status === "final" &&
+    input.force !== true &&
+    input.structureGuard !== false
+  )
+    throw new NovelError(
+      "refuse_restructure_final",
+      "定稿章的章纲或位置修改须明确 force=true（作者确认）；修改后降回 drafted 并需重新审读定稿。",
     );
   let status =
     contentChanged && (previous?.status === "final" || previous?.status === "reviewed")
@@ -547,7 +577,7 @@ export async function setOutline(
   chapterId: string,
   patch: Record<string, unknown>,
   title?: string,
-  options: { pace?: string } = {},
+  options: { pace?: string; force?: boolean; structureGuard?: boolean } = {},
 ) {
   return withResourceLock(dir, async () => {
     // 章节文件损坏（front matter 非法等）不能当成「不存在」继续写：
@@ -561,6 +591,8 @@ export async function setOutline(
       status: previous?.status ?? "planned",
       outline: { ...(previous?.outline ?? EMPTY_OUTLINE()), ...patch },
       workPace: options.pace,
+      force: options.force,
+      structureGuard: options.structureGuard,
     });
   });
 }
@@ -581,6 +613,7 @@ export async function updateChapter(
     reviewResult?: "pass" | "blocked";
     reviewedBy?: string;
     acknowledgeRevision?: boolean;
+    structureGuard?: boolean;
   },
 ) {
   return withResourceLock(dir, async () => {
@@ -601,6 +634,7 @@ export async function updateChapter(
       reviewedBy: input.reviewedBy,
       acknowledgeRevision: input.acknowledgeRevision,
       ledgerEntry: input.ledgerEntry ?? `显式保存 ${input.id}`,
+      structureGuard: input.structureGuard,
     });
   });
 }

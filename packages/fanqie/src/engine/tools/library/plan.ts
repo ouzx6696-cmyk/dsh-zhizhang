@@ -21,7 +21,7 @@ import {
 } from "../../ports/analysis/plan.js";
 
 import { AUTO_SAMPLE_HEAD, AUTO_SAMPLE_RATIO, AUTO_SAMPLE_TAIL } from "../../domain/workflow.js";
-import { asString, fail } from "../context.js";
+import { asString, config, fail } from "../context.js";
 import { S, B, WORKING_DIR } from "../schema.js";
 import { defineTool } from "../types.js";
 
@@ -124,7 +124,9 @@ export const libraryPlan = defineTool({
         });
         plan.consent = {
           at: new Date().toISOString(),
-          note: asString(args, "note") || "作者明确要求全量",
+          note:
+            (config.safety?.fullDissectAuthor === false ? "（模型自确认：未经作者门禁）" : "") +
+            (asString(args, "note") || "作者明确要求全量"),
         };
       }
       await writePlan(paths, plan, {

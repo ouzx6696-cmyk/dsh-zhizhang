@@ -1383,6 +1383,42 @@ test("连续作品切换及持久化失败保留目标与租约一致", async ()
   }
 });
 
+test("RC-07 头条在同一根下切换文章失败时保留仍在使用的锁根", async () => {
+  const { selectTarget } = await import("../../apps/desktop/out-test/targets.mjs");
+  const { access } = await import("node:fs/promises");
+  const base = await realpath(await mkdtemp(path.join(tmpdir(), "writer-select-same-")));
+  const root = path.join(base, "articles");
+  await mkdir(root);
+  const state = {
+    home: base,
+    writerConfig: {},
+    sessions: new Sessions({
+      home: base,
+      python: PYTHON,
+      settings: defaultModels,
+      emit: () => {},
+      confirm: async () => false,
+      options: {},
+      created: async () => {},
+      extras: {},
+    }),
+  };
+  try {
+    await selectTarget(state, { mode: "toutiao", root, article: "a1" });
+    const owner = state.access.owner.id;
+    await rm(path.join(base, "target.json"));
+    await mkdir(path.join(base, "target.json"));
+    await assert.rejects(selectTarget(state, { mode: "toutiao", root, article: "a2" }));
+    assert.equal(state.target.article, "a1");
+    assert.equal(state.access.owner.id, owner);
+    await access(path.join(root, ".writer-workspace-lock.json"));
+  } finally {
+    const { releaseWorkspaces } = await import("../../apps/desktop/out-test/targets.mjs");
+    await releaseWorkspaces();
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
 test("PI 作用范围、目录别名及显式内核配置", async () => {
   const base = await mkdtemp(path.join(tmpdir(), "writer-scope-"));
   process.env.WRITER_STATE_ROOT = path.join(base, "home");

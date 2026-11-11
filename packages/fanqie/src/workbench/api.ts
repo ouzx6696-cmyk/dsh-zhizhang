@@ -478,6 +478,8 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
           {
             multiDraft: { enabled: config.multiDraft?.enabled === true },
             continuity: { enabled: config.continuity?.enabled === true },
+            finalStructureGuard: config.safety?.finalStructureGuard !== false,
+            narrowPlanningBasis: config.safety?.narrowPlanningBasis !== false,
           },
           () => withPluginConfig(config, () => route(ctx)),
         );

@@ -66,6 +66,34 @@ test("provider errors: earlier classification answers still hold", () => {
   assert.equal(classifyStageError("模型返回格式不合法"), "provider");
 });
 
+// RC-03 (D03): per-window quota and throttling are rate limits, not an empty wallet; a bare 402
+// inside the text is not a status.
+const RATE_LIMIT_ERRORS = [
+  [
+    "429 RESOURCE_EXHAUSTED: Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 15, model: gemini-2.5-flash. Please retry in 21s.",
+    "transient",
+  ],
+  ["429 Quota exceeded for quota metric 'Generate Content API requests per minute'", "transient"],
+  ["429 Throttling.RateQuota: Requests rate limit exceeded, please try again later.", "transient"],
+  [
+    "429 Throttling.AllocationQuota: Allocated quota exceeded, please increase your quota limit.",
+    "transient",
+  ],
+  ["400 max_tokens 402 exceeds model-402 limit", "provider"],
+  ["400 Arrearage: Access denied, please make sure your account is in good standing.", "balance"],
+  [
+    "429 You exceeded your current quota, please check your plan and billing details. (insufficient_quota)",
+    "balance",
+  ],
+  ["402 Payment Required", "balance"],
+  ["Quota exceeded for this account", "balance"],
+];
+
+test("RC-03 provider errors: rate-limit quota wording is transient, unanchored 402 is not balance", () => {
+  for (const [message, kind] of RATE_LIMIT_ERRORS)
+    assert.equal(classifyStageError(message), kind, message);
+});
+
 test("a parameter error that mentions 500 is sent once and fails as a provider error", async () => {
   for (const message of [
     "400 Invalid request: max_tokens must be less than or equal to 500",

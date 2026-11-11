@@ -38,6 +38,8 @@ export function engineTools(
   const policy = {
     multiDraft: { enabled: boundConfig.multiDraft?.enabled === true },
     continuity: { enabled: boundConfig.continuity?.enabled === true },
+    finalStructureGuard: boundConfig.safety?.finalStructureGuard !== false,
+    narrowPlanningBasis: boundConfig.safety?.narrowPlanningBasis !== false,
   };
   const narrowed = role === "writer" && boundConfig.toolset?.narrowed === true;
   return allTools()
@@ -63,6 +65,12 @@ export function engineTools(
             ? ["fanqie.continuity_commit_requires_author"]
             : []),
           ...(args.force === true ? ["fanqie.force_requires_author"] : []),
+          ...(tool.name === "fanqie_library_plan" &&
+          args.mode === "full" &&
+          args.confirm_full === true &&
+          boundConfig.safety?.fullDissectAuthor !== false
+            ? ["fanqie.full_dissect_requires_author"]
+            : []),
         ])
           if (!gates?.consumeConfirmation(exec, rule))
             throw new WriterError(

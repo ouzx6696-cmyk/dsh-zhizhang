@@ -70,7 +70,11 @@ export async function selectTarget(state: Runtime, next: Target) {
       if (normalized.mode === "toutiao") await rememberRoot(normalized.root);
       await atomicWrite(path.join(state.home, "target.json"), JSON.stringify(normalized));
     } catch (error) {
+      // RC-07: a failed switch keeps the lock root the current target still uses (two toutiao
+      // articles share one root; a running task keeps its own).
+      const stillUsed = previous !== undefined && (await lockRoot(state, previous)) === newRoot;
       if (
+        !stillUsed &&
         (!previous || !state.sessions.same(previous, normalized)) &&
         !state.sessions.isRunning(normalized)
       )

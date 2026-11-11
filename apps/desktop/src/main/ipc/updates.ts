@@ -2,7 +2,6 @@ import { app } from "electron";
 import updater from "electron-updater";
 import type { Runtime } from "../runtime";
 import { ipcHandler } from "./handle";
-import { releaseWorkspaces } from "../../../../../packages/core/src/workspace-lock";
 
 const { autoUpdater } = updater;
 
@@ -42,11 +41,10 @@ export function registerUpdatesIpc(state: Runtime) {
   handle("updates", async (action) => {
     if (!app.isPackaged) throw new Error("开发环境不下载更新");
     if (action === "download") await autoUpdater.downloadUpdate();
-    else if (action === "install") {
-      await state.sessions.dispose();
-      await releaseWorkspaces();
-      autoUpdater.quitAndInstall(false, true);
-    } else await autoUpdater.checkForUpdates();
+    // RC-07: sessions and workspace locks are released by the will-quit cleanup, which runs only
+    // after every window agreed to close; a cancelled or failed install keeps the work locked.
+    else if (action === "install") autoUpdater.quitAndInstall(false, true);
+    else await autoUpdater.checkForUpdates();
     return state.updateState;
   });
 }

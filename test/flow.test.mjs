@@ -138,6 +138,53 @@ test("全流程：故事线长图文 立项→标题→成稿→质检→验收�
   assert.equal(after.code, "CONFLICT", "已交稿不能再改");
 });
 
+test("A-05 已有稿件时存稿必须带 expected_rev；首稿不需要；revision.strict=false 回退", async () => {
+  const raw = async (harness, args) => {
+    try {
+      return (await harness.execute("toutiao_draft_stage", args)).value;
+    } catch (error) {
+      return { ok: false, code: error.code, message: error.message };
+    }
+  };
+  const harness = await setup();
+  const id = (await harness.call("toutiao_article_create", { slug: "rev" })).article.id;
+  await harness.call("toutiao_card_set", { id, card: CARD });
+  assert.equal((await raw(harness, { id, text: STORY })).rev, 1, "首稿无需依据");
+  const refused = await raw(harness, { id, text: STORY + "\n" });
+  assert.equal(refused.code, "INVALID_ARGS");
+  assert.match(refused.message, /expected_revision_required/);
+  const stale = await raw(harness, {
+    id,
+    text: STORY + "\n",
+    expected_rev: 0,
+    expected_sha256: "",
+  });
+  assert.equal(stale.code, "CONFLICT");
+  const loose = await setup({ config: { revision: { strict: false } } });
+  const other = (await loose.call("toutiao_article_create", { slug: "loose" })).article.id;
+  await loose.call("toutiao_card_set", { id: other, card: CARD });
+  await raw(loose, { id: other, text: STORY });
+  assert.equal((await raw(loose, { id: other, text: STORY + "\n" })).rev, 2);
+});
+
+test("A-06 立项卡 set 与 patch 串行化；内容线不合法时不写进文章元数据", async () => {
+  const { call } = await setup();
+  const id = (await call("toutiao_article_create", { slug: "card-lock", line: "故事线" })).article
+    .id;
+  await call("toutiao_card_set", { id, card: CARD });
+  // set and patch on the same card in parallel: the patch must apply on top of a whole card
+  await Promise.all([
+    call("toutiao_card_set", { id, card: { ...CARD, 情绪: "温暖" } }),
+    call("toutiao_card_patch", { id, patch: { 母题: "并发母题" } }),
+  ]);
+  const card = (await call("toutiao_article_get", { id })).card;
+  assert.ok(card && typeof card === "object");
+  assert.equal(Object.keys(card).length >= Object.keys(CARD).length, true, "没有半张卡");
+  const saved = await call("toutiao_card_patch", { id, patch: { 内容线: "乱写线" } });
+  assert.equal(saved.ready, false);
+  assert.equal((await call("toutiao_article_get", { id })).article.line, "故事线");
+});
+
 test("改稿或改立项卡都会让旧质检作废", async () => {
   const { call } = await setup();
   const id = (await call("toutiao_article_create", { slug: "inv" })).article.id;

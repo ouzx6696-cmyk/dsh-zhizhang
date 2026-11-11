@@ -4,7 +4,7 @@ import type {
   StageEmissionInput,
   CardSelection,
 } from "./inspiration-input.js";
-import { readInspirationBindings } from "../storage/inspiration-migration.js";
+import { readInspirationBindings, unbindCards } from "../storage/inspiration-migration.js";
 import {
   nowIso,
   readJson,
@@ -13,7 +13,7 @@ import {
 } from "../../../../core/src/fsx.js";
 import { errorText } from "../../../../core/src/errors.js";
 import { readReference } from "../services/reference.js";
-import { fingerprint } from "../domain/lifecycle.js";
+import { fingerprint, planningBasis, planningUnchanged } from "../domain/lifecycle.js";
 import { withResourceLock } from "../storage/process-lock.js";
 /**
  * InspirationPort — 灵感推演支柱（live）。
@@ -51,8 +51,16 @@ import {
   hasShatterCraftCue,
 } from "./library.js";
 import { MethodRegistry } from "./methods.js";
+import { getPortConfig } from "./config.js";
 import { QualityPolicy } from "./quality-policy.js";
-import type { StoragePaths } from "../types.js";
+import type { StoragePaths, WorkMeta } from "../types.js";
+/** Chapter outlines live in the chapter files, not in meta; a missing file has no outline. */
+async function chapterOutlines(dir: string, meta: WorkMeta) {
+  const outlines: Record<string, unknown> = {};
+  for (const chapter of meta.chapters)
+    outlines[chapter.id] = (await findChapter(dir, chapter.id))?.outline ?? null;
+  return outlines;
+}
 function inspDirs(paths: StoragePaths) {
   return {
     root: paths.inspiration,
@@ -153,9 +161,13 @@ export const InspirationPort = {
         ...(input.workKey
           ? {
               targetWorkKey: input.workKey,
-              targetPlanningRevision: fingerprint(
-                await readWorkMeta(await resolveWorkDir(paths, input.workKey)),
-              ),
+              targetPlanningRevision: await (async () => {
+                const dir = await resolveWorkDir(paths, input.workKey ?? "");
+                const meta = await readWorkMeta(dir);
+                return getPortConfig().narrowPlanningBasis
+                  ? planningBasis(meta, await chapterOutlines(dir, meta))
+                  : fingerprint(meta);
+              })(),
             }
           : {}),
         createdAt: now,
@@ -580,7 +592,8 @@ export const InspirationPort = {
         const meta = await readWorkMeta(dir);
         if (
           cand.targetWorkKey &&
-          (cand.targetWorkKey !== meta.key || cand.targetPlanningRevision !== fingerprint(meta))
+          (cand.targetWorkKey !== meta.key ||
+            !planningUnchanged(meta, await chapterOutlines(dir, meta), cand.targetPlanningRevision))
         )
           throw new NovelError(
             "planning_changed",
@@ -764,6 +777,7 @@ export const InspirationPort = {
             status: previous?.status ?? "planned",
             outline: { ...(previous?.outline ?? {}), ...patch },
             workPace: pace,
+            structureGuard: getPortConfig().finalStructureGuard,
           });
           writes.push({
             target: "work",
@@ -880,10 +894,27 @@ export const InspirationPort = {
       const d = inspDirs(paths);
       const bindings = await readInspirationBindings(d.root);
       const ids = bindings?.[workKey] ?? [];
+      const dangling: string[] = [];
       const loaded = await Promise.all(
-        ids.slice(0, limit).map((id) => LibraryPort.getCard(paths, id)),
+        ids.slice(0, limit).map(async (id) => {
+          try {
+            return await LibraryPort.getCard(paths, id);
+          } catch (error) {
+            if (!(error instanceof NovelError && error.code === "card_not_found")) throw error;
+            dangling.push(id);
+            return undefined;
+          }
+        }),
       );
-      const cards = loaded.filter((card) => card.status === "accepted");
+      if (dangling.length)
+        throw new NovelError(
+          "craft_binding_dangling",
+          `作品「${workKey}」绑定的技法卡已被删除：${dangling.join("、")}。可用 fanqie_inspire_status(work="${workKey}", repair="unbind_dangling") 解除这些绑定后重试。`,
+        );
+      const cards = loaded.filter(
+        (card): card is NonNullable<typeof card> =>
+          card !== undefined && card.status === "accepted",
+      );
       if (cards.length)
         return {
           cards,
@@ -902,6 +933,22 @@ export const InspirationPort = {
       note: "未绑定技法卡：可按本书章纲与方法包继续创作；需要参考时可用 library_combo_suggest 选择 card_ids，或通过 inspire_accept(apply=true) 绑定。",
       cardIds: [],
     };
+  },
+  /** G6 repair: drops bindings of one work whose cards no longer exist in the library. */
+  async unbindDangling(paths: StoragePaths, workKey: string) {
+    const key = assertResourceId(workKey, "作品 key");
+    const ids = (await readInspirationBindings(inspDirs(paths).root))?.[key] ?? [];
+    const missing: string[] = [];
+    for (const id of ids) {
+      try {
+        await LibraryPort.getCard(paths, id);
+      } catch (error) {
+        if (!(error instanceof NovelError && error.code === "card_not_found")) throw error;
+        missing.push(id);
+      }
+    }
+    const changed = await unbindCards(paths, missing, key);
+    return { workKey: key, removed: changed.length ? missing : [] };
   },
   /**
    * Craft shatter/feel cue blob for Accept + human_feel_audit (same source).

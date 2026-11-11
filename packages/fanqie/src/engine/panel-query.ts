@@ -243,6 +243,18 @@ async function readPanelWork(dir: string) {
   } else if (!multiDraftEnabledEarly && pending >= 2) {
     nextHints.unshift("同章多份待采纳：开启 multiDraft 后可统一整理（默认关，不进主链）");
   }
+  // A-04: older versions could write two chapters at one position; report, never auto-renumber.
+  const seen = new Map<number, string>(),
+    duplicates: string[] = [];
+  for (const chapter of chapters) {
+    const other = seen.get(chapter.position);
+    if (other !== undefined) duplicates.push(`${other}/${chapter.id}@${chapter.position}`);
+    else seen.set(chapter.position, chapter.id);
+  }
+  if (duplicates.length)
+    nextHints.unshift(
+      `章节位置重复（${duplicates.slice(0, 5).join("、")}）：排序可能不稳定；用 fanqie_chapter_save(position=…) 把其中一章移到空位，系统不会自动改号。`,
+    );
   if (chapters.some((chapter) => chapter.unavailable))
     nextHints.unshift("部分章节不可读，请检查原文件；未将读取失败当作空白正文。");
   if (chapters.some((c) => !c.situationLens))

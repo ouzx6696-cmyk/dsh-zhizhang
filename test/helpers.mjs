@@ -77,6 +77,23 @@ export async function createToolHarness({ mode, role = "writer", cwd, config = {
     }
     async function call(name, args = {}) {
       if (!tools.has(name)) throw new Error(`unknown tool ${name}`);
+      // Mirrors the desktop session layer, which injects the basis it last read into every
+      // toutiao_draft_stage (A-05 makes the basis mandatory once a draft exists).
+      if (
+        name === "toutiao_draft_stage" &&
+        args.expected_rev === undefined &&
+        tools.has("toutiao_draft_get")
+      )
+        try {
+          const current = (await execute("toutiao_draft_get", { id: args.id })).value;
+          args = {
+            ...args,
+            expected_rev: current.rev,
+            expected_sha256: current.record?.sha256 ?? "",
+          };
+        } catch (error) {
+          if (error.code !== "NOT_FOUND") throw error;
+        }
       try {
         return (await execute(name, args)).value;
       } catch (error) {

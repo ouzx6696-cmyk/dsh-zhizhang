@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.1.1 — 2026-11-11
+
+稳定性补丁版，基于 1.1.0-preview.3。方法原文、评分规则、词表与阈值、标题 ≤34 字、质检 ≥84、两轮打回、固定末句与状态词均未改；未新增运行时依赖。自动化回归走本地假模型，真实模型续跑（RM02）与 Windows 真机回归未执行。
+
+- 编辑审读引文定位容错：全角/半角、字面 `\n`、书名号、省略号分段的引文能正确定位；伪造或乱序引文仍判失败（RC-01）。硬伤/事实链定位失败时，重试提示点名第几条、哪段引文（RC-02）。
+- 错误分类：Gemini、DashScope 的限流与窗口配额 429 不再误报“余额不足”（RC-03）。
+- 规则卡：删除已绑定的卡同步解绑；旧版本留下的悬空绑定报 `craft_binding_dangling`，可用 `fanqie_inspire_status(work, repair="unbind_dangling")` 修复（RC-04）。
+- 写入锁：先在私有暂存目录写好 owner.json 再整体改名到位，已存在的锁（含 1.1.0 遗留空锁）一律不替换（RC-06）；安装更新不再提前释放作品锁，头条同根切换失败保留仍在使用的锁根（RC-07）。
+- 章节位置：新章排在最后一章之后，移动到已占用位置报 `duplicate_position`；旧书已有的重复位置只在面板提示，不自动改号（A-04）。
+- 头条立项卡：set 与 patch/标题写入串行化，不再出现半张卡；不合法的内容线/体裁不写进文章元数据（A-06）。
+
+### 安全收紧（默认开，“设置 › 写作引擎 › 安全收紧”可逐项关闭，关闭即恢复 1.1.0 行为）
+
+- `fanqie.safety.finalStructureGuard`：定稿章改章纲或位置须 `force=true` 并经作者确认；`outline_set` 新增 `force` 参数（RC-05）。
+- `fanqie.safety.narrowPlanningBasis`：灵感应用只核对规划字段，采纳章节不再算冲突；依据值带 `basis2:` 前缀写在原字段，旧会话仍按旧算法核对（A-01）。
+- `fanqie.safety.fullDissectAuthor`：Full 拆书须作者门禁 `fanqie.full_dissect_requires_author`，模型持有 confirm_token 也不能自行放行（A-02）。
+- `toutiao.revision.strict`：已有稿件时 `toutiao_draft_stage` 必须带 `expected_rev`，否则报 `expected_revision_required`（A-05）。
+
+降级：1.1.1 不新增数据字段，新开关写在设置里；回到 1.1.0 读取时这些键被忽略。
+
+验证（2026-11-11，Linux、Node 24.22.1、Python 3.12.14）：`npm run verify` 通过（Node 368 项：367 通过、1 项 Windows 专属跳过；typecheck、lint、guard、format、audit:exports、Python 通过）；生产构建、桌面运行时 129/129 与完整 GUI 旅程通过。锁文件统一使用已声明的 undici 8.12.3，干净安装与依赖审计通过。
+
+限制：Windows 安装/升级/卸载真机回归、付费真实模型续跑、GitHub 分支保护未在本版执行；A-03、A-07、A-08 及前端止血 WS-C 等计划项顺延。
+
 ## 1.1.0-preview.3 — 2026-11-10
 
 番茄追读工程预览版。追读规划、写手材料和阅读量化提醒默认关闭，可在“设置 › 写作引擎”启用；未经真实模型 A/B，不承诺追读率或成稿质量提升。

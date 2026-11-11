@@ -1,6 +1,6 @@
 # 当前状态
 
-最近正式版为 [0.9.9](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/v0.9.9)，最新预览版为 [1.1.0-preview.3](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/v1.1.0-preview.3)（追读工程，实验功能默认关闭）。新增能力与范围见 [CHANGELOG](../CHANGELOG.md)，使用与质量边界见[创作与质量方法](engine/QUALITY.md)。
+最近正式版为 [0.9.9](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/v0.9.9)，最新版为 1.1.1（稳定性补丁，基于 [1.1.0-preview.3](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/v1.1.0-preview.3)；安全收紧开关默认开）。新增能力与范围见 [CHANGELOG](../CHANGELOG.md)，使用与质量边界见[创作与质量方法](engine/QUALITY.md)。
 
 ## 已具备的能力
 
@@ -18,7 +18,9 @@
 
 2026-11-10 本地验收：`npm run verify` 通过（Node 359 项：358 通过、1 项 Windows 专属跳过；Python 224 项头条质检、14 项长篇桥接、2 项编码兼容）；桌面运行时 125/125，完整 GUI 旅程通过。类型、lint、格式、导出、资产与架构守卫通过。
 
-发布提交为 `b53412211a71444b6443c1fff83f3078864e11d2`。[Windows 原生发行流水线](https://github.com/ouzx6696-cmyk/dsh-zhizhang/actions/runs/42820372045)全部通过：核心、桌面运行时、构建、GUI、NSIS/ZIP、随包 Python 和生产包启动；生产包保持禁用 Node 调试参数。安装版、免安装版、源码、更新清单与 SHA256SUMS 已发布；签名状态为 `NotSigned`。安装、升级与卸载的人工真机检查仍未完成，不由自动化启动检查替代。
+1.1.1 本地验收（2026-11-11，Node 24.22.1、Python 3.12.14）：核心 Node 368 项（367 通过、1 项 Windows 专属跳过），Python 全部通过；生产构建、桌面运行时 129/129 与完整 GUI 旅程通过。依赖干净安装与审计通过，undici 锁定为声明的 8.12.3。Windows 原生发行构建待本次 Release 流水线验证。
+
+以下为已发布的 1.1.0-preview.3 记录，发布提交为 `b53412211a71444b6443c1fff83f3078864e11d2`。[Windows 原生发行流水线](https://github.com/ouzx6696-cmyk/dsh-zhizhang/actions/runs/42820372045)全部通过：核心、桌面运行时、构建、GUI、NSIS/ZIP、随包 Python 和生产包启动；生产包保持禁用 Node 调试参数。安装版、免安装版、源码、更新清单与 SHA256SUMS 已发布；签名状态为 `NotSigned`。安装、升级与卸载的人工真机检查仍未完成，不由自动化启动检查替代。
 
 软件验收只用本地假模型、业务回归、PI 运行时和 GUI 旅程。真实模型经济档实测单独记录：2026-11-09 RM01 番茄一章跑到定稿并完成记账；RM02 头条两次未通过（编辑审读硬伤引文校验失败；事实链阶段触发 20 分钟墙钟暂停），未进入 Python 质检、未交付，未计入验收。
 
