@@ -1,9 +1,7 @@
 import { applyPlan, applyArticle } from "./apply";
 import path from "node:path";
 import { recoverDelivery } from "./recovery";
-import { readdir } from "node:fs/promises";
-import { readFile } from "node:fs/promises";
-import { atomicWrite, readText, sha256, shortId } from "../../../../packages/core/src/fsx";
+import { atomicWrite, readText, shortId } from "../../../../packages/core/src/fsx";
 import { errorText } from "../../../../packages/core/src/errors";
 import {
   assertWorkspaceWritable,
@@ -18,14 +16,14 @@ import {
   type WorkflowRequest,
 } from "../../../../packages/core/src/workflow";
 import { resolveFanqieWork } from "../main/storage";
-import { readWorkMeta } from "../../../../packages/fanqie/src/engine/storage/work-meta";
-import { withResourceLock } from "../../../../packages/fanqie/src/engine/storage/process-lock";
 import { workflowContext } from "./context";
 import { WorkflowRun } from "./run";
 import { chapterPipeline } from "./chapter";
 import { articlePipeline } from "./article";
 import { bookPipeline } from "./book";
-import { ledgerPipeline, readContinuity, decideFact, parseContinuity } from "./continuity";
+import { ledgerPipeline, readContinuity, decideFact } from "./continuity";
+import { migrateLegacyContinuity } from "./continuity-migration";
+import { readWorkflowHistory } from "./history";
 import { record } from "./schema";
 import { StageError } from "./stage-model";
 import {
@@ -301,26 +299,7 @@ export class WorkflowService {
     await this.drainLedger(target);
   }
   async history(target: Target) {
-    const dir = this.directory(target),
-      rows: WorkflowRecord[] = [];
-    try {
-      for (const name of await readdir(dir))
-        if (/^run-[a-f0-9]+\.json$/.test(name)) {
-          try {
-            const value = await WorkflowJournal.read(path.join(dir, name));
-            if (value) rows.push(value);
-          } catch (error) {
-            // allow-catch: 单份历史损坏时保留其余记录；原因写入诊断日志供排查。
-            this.host.extras.log?.("workflow_history_unavailable", {
-              file: name,
-              error: errorText(error),
-            });
-          }
-        }
-    } catch (error) {
-      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
-    }
-    return rows.sort((a, b) => b.created.localeCompare(a.created));
+    return readWorkflowHistory(this.directory(target), this.host.extras.log);
   }
   async stop(target: Target) {
     const active = this.active.get(this.host.key(target));
@@ -361,47 +340,7 @@ export class WorkflowService {
       throw new Error("作者取消了迁移");
     if (this.host.isRunning(target)) throw new Error("此作品已开始新任务，请稍后迁移");
     const dir = await resolveFanqieWork(this.host.options, target);
-    return withResourceLock(dir, async () => {
-      const meta = await readWorkMeta(dir),
-        state = await readContinuity(dir);
-      const backup = path.join(
-        dir,
-        "writer-migration-backups",
-        sha256(JSON.stringify(meta)).slice(0, 24) + ".json",
-      );
-      if ((await readText(backup)) === undefined)
-        await atomicWrite(backup, await readFile(path.join(dir, "meta.json"), "utf8"));
-      for (const [kind, source] of [
-        ["thread", meta.foundation.threads],
-        ["knowledge", meta.foundation.readerKnowledge],
-        ["timeline", meta.foundation.happened],
-      ] as const)
-        for (const line of source
-          .split(/\r?\n/)
-          .map((line) => line.trim())
-          .filter(Boolean)) {
-          const id = sha256(kind + line).slice(0, 24);
-          if (
-            !state.pending.some((row) => row.id === id) &&
-            !state.facts.some((row) => row.subject === line.slice(0, 80) && row.value === line)
-          )
-            state.pending.push({
-              id,
-              kind,
-              subject: line.slice(0, 80),
-              value: line,
-              quote: line,
-              chapter: "legacy",
-              bodyHash: sha256(line),
-              reason: "旧自由文本迁移，尚未确认人物、时间及证据",
-            });
-        }
-      await atomicWrite(
-        path.join(dir, "writer-continuity.json"),
-        JSON.stringify(parseContinuity(state), null, 2),
-      );
-      return { backup, state };
-    });
+    return migrateLegacyContinuity(dir);
   }
   async apply(target: Target) {
     await assertWorkspaceWritable(await this.writableRoot(target));

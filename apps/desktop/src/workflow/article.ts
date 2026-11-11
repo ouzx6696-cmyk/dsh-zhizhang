@@ -1,16 +1,9 @@
 import { readability } from "./readability";
-import path from "node:path";
 import { emptyUsage } from "../../../../packages/core/src/workflow";
 import { sha256 } from "../../../../packages/core/src/fsx";
 import { ArticleStore } from "../../../../packages/toutiao/src/store";
-import { CLASSICS } from "../../../../packages/toutiao/src/classics";
 import { checkCard, titleLength } from "../../../../packages/toutiao/src/card";
 import { loadLimits } from "../../../../packages/toutiao/src/rule-limits";
-import { createToutiaoTools } from "../../../../packages/toutiao/src/tools";
-import { createGateEngine } from "../../../../packages/core/src/gates";
-import { executeTool } from "../../../../packages/core/src/execute";
-import { toutiaoGateRules } from "../../../../packages/toutiao/src/gates";
-import { readSource } from "../network";
 import {
   draft,
   jsonOutput,
@@ -24,81 +17,19 @@ import {
 import { stageCard } from "./methods";
 import { runTaskPool } from "../session/task-pool";
 import { factChain } from "./article-facts";
+import { qaGate } from "./article-qa";
+import { articleSource } from "./article-source";
 import { selectDraft, editDraft } from "./editor";
 import type { WorkflowRun } from "./run";
 import type { Target } from "../context";
 
-export async function productionQa(
-  run: WorkflowRun,
-  store: ArticleStore,
-  id: string,
-  card: Record<string, unknown>,
-  value: Draft,
-) {
-  await store.writeCard(id, card);
-  await store.update(id, (meta) => {
-    meta.headlines = {
-      main: value.title,
-      alts: Array.isArray(card["备选标题"])
-        ? card["备选标题"].filter((value): value is string => typeof value === "string")
-        : [],
-    };
-  });
-  const meta = await store.get(id),
-    cur = store.currentDraft(meta);
-  if (!cur || cur.sha256 !== sha256(value.body))
-    await store.stageDraft(id, value.body, "editor", "流水线工作稿");
-  const config = { ...run.host.options.toutiao, storageRoot: store.root, python: run.host.python },
-    gates = createGateEngine(toutiaoGateRules(config));
-  const definitions = await createToutiaoTools({ config, role: "editor", gates: () => gates });
-  const tool = definitions.find((tool) => tool.name === "toutiao_qa_check");
-  if (!tool) throw new Error("文章质检工具不可用");
-  const args = { id };
-  const result = await executeTool(
-    tool,
-    args,
-    { cwd: store.root, role: "editor", name: tool.name, arguments: args, signal: run.signal },
-    { gates, bind: (execute) => execute(), confirm: () => Promise.resolve(false) },
-  );
-  return record(result.value);
-}
 export async function articlePipeline(run: WorkflowRun, target: Target) {
   if (!target.article) throw new Error("请先新建或选择文章");
   const request = run.journal.record.request,
     real = new ArticleStore(target.root),
     initial = await real.get(target.article);
   const limits = await loadLimits(run.host.options.toutiao);
-  const source = await run.journal.step(
-    "sources",
-    "准备来源",
-    {
-      parse: (value) => {
-        const r = record(value);
-        return { text: text(r.text, "来源原文"), attribution: text(r.attribution, "来源说明") };
-      },
-    },
-    async () => {
-      let material = request.source.trim(),
-        attribution = "作者提供的素材";
-      if (request.line === "story" && !material) {
-        const classic = CLASSICS.find((item) => request.instruction.includes(item.title));
-        if (!classic)
-          throw new Error("本地原典库没有匹配题材，请选择内置原典或提供原文；不消耗新闻抓取额度");
-        material = classic.text;
-        attribution = classic.source;
-      } else if (/^https?:\/\/\S+$/.test(material)) {
-        if (request.line === "story")
-          throw new Error("故事线请提供原文或选择本地原典，不抓取新闻链接");
-        const value = await readSource(material, run.signal);
-        material = value.text;
-        attribution = value.url + " " + value.date;
-      }
-      if (!material) throw new Error("资讯与微头条需要真实来源原文或链接");
-      return { value: { text: material, attribution }, usage: emptyUsage() };
-    },
-    run.signal,
-    0,
-  );
+  const source = await articleSource(run);
   // The source rides in the run-constant material (cached prefix) instead of each stage's input;
   // stage inputs point at it, and every code-side check below still uses the real source.
   const material = [
@@ -288,54 +219,8 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
     facts = await factChain(run, "facts-1", edit, checked.draft, source, shared);
   }
   const factsHash = sha256(checked.draft.body);
-  const working = new ArticleStore(
-    path.join(run.host.home, "workflow-working", run.journal.record.id),
-  );
-  let workingMeta;
-  const all = await working.list();
-  if (all.length) workingMeta = all[0];
-  else
-    workingMeta = await working.create("working", {
-      line: request.line === "story" ? "故事线" : "资讯线",
-      genre: String(card["体裁"]),
-    });
-  for (let round = 0; round <= 2; round++) {
-    const qa = await run.journal.step(
-      `qa-${round}`,
-      "质检硬闸",
-      { parse: record },
-      async () => ({
-        value: await productionQa(
-          run,
-          working,
-          workingMeta.id,
-          {
-            ...card,
-            主标题: checked.draft.title,
-            备选标题: matrix.titles.filter((title) => title !== checked.draft.title).slice(0, 4),
-          },
-          checked.draft,
-        ),
-        usage: emptyUsage(),
-      }),
-      run.signal,
-      0,
-    );
-    if (qa.pass === true) break;
-    if (round === 2) throw new Error("文章两轮精修后仍未通过现有质检硬闸，工作稿与报告已保留");
-    const refined = await run.model(
-      `qa-revise-${round}`,
-      "按质检精修",
-      "writer",
-      writing,
-      { draft: checked.draft, qa, source: sourceRef },
-      '只处理给定质检失败与对应段落，禁止堆数字和口语词刷分，不得新增来源中没有的事实、数字或引语；返回 {"title":"标题","body":"完整正文"}。',
-      draft,
-      { material },
-    );
-    refined.body = normalizeDraft(refined.body);
-    checked = { ...checked, draft: refined };
-  }
+  const gated = await qaGate(run, card, matrix.titles, checked, writing, sourceRef, material);
+  checked = gated.checked;
   const finalHash = sha256(checked.draft.body);
   if (finalHash !== factsHash)
     facts = await factChain(run, "facts-final", edit, checked.draft, source, shared);
@@ -384,7 +269,7 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
         title: checked.draft.title,
         previousCardHash: oldCard === undefined ? null : sha256(JSON.stringify(oldCard)),
         headlines: matrix.titles.slice(0, 3),
-        workingQa: workingMeta.id,
+        workingQa: gated.workingId,
         finalReview,
         unverified,
         skippedHistory,

@@ -216,11 +216,11 @@ test/                         单元/流程/引擎/桌面/PI/渲染/GUI 测试
 
 | 文件 | 职责 |
 | --- | --- |
-| `workflow/service.ts` | 每作品一个活动 run；启动/恢复/替换/暂停；指针与历史；交付/采用；记账队列 |
+| `workflow/service.ts` | 每作品一个活动 run；启动/恢复/替换/暂停；指针；交付/采用；记账队列（历史读取在 `history.ts`，旧根基迁移在 `continuity-migration.ts`） |
 | `workflow/run.ts` | `WorkflowRun.model()`：拼阶段包、预算预检、in-flight 预留、调用 `stageModel`、写日志 |
 | `workflow/context.ts` | 组装作品材料（stable/material）、basis 指纹、`assertCurrent` 新鲜度检查 |
 | `workflow/stage-model.ts` | 单阶段模型请求：stall watchdog、供应商错误分类、退避、截断/余额/鉴权处理 |
-| `workflow/chapter.ts` / `article.ts` / `book.ts` / `continuity.ts` | 四条业务流水线 |
+| `workflow/chapter.ts` / `article.ts` / `book.ts` / `continuity.ts` | 四条业务流水线（文章的来源准备在 `article-source.ts`，质检硬闸与两轮精修在 `article-qa.ts`） |
 | `workflow/editor.ts` | 读者擂台选稿、硬伤审读、两轮定向修订 |
 | `workflow/methods.ts` | 阶段卡生成与缓存；方法依据指纹 |
 | `workflow/schema.ts` | 模型 JSON 容错解析、引文定位、各类输出结构校验 |
@@ -308,13 +308,13 @@ test/                         单元/流程/引擎/桌面/PI/渲染/GUI 测试
 
 与章节不同，头条**不降低质检门槛**：真实 `qa_check` 两轮不过仍失败；有硬伤/无来源事实/未解决修订时，工作稿与报告保留并标注，但**不替作者交稿**。
 
-**经济档只减少起稿数量**（`article.ts:221`），标题矩阵、结构、审读/精修、事实链和质检都不缩减。这是头条真实模型耗时明显高于番茄章节的主要原因，也是后续可做减法的地方。
+**经济档只减少起稿数量**（`article.ts` 的 `count`），标题矩阵、结构、审读/精修、事实链和质检都不缩减。这是头条真实模型耗时明显高于番茄章节的主要原因，也是后续可做减法的地方。
 
 ### 8.7 规划与记账流水线
 
 - `bookPipeline`：`foundation` → `rolling-outline`（3–5 个未来章，不得覆盖已有章）→ `delivery`；作者点「采用」后 `applyPlan` 备份 meta、核对根基/规划未被修改，再写根基与章纲。
 - `ledgerPipeline`：定稿后自动记账。`extract` 只记正文明确发生的变化；每章结 10 章时跑 `long-audit`；`delivery` 在作品锁内再次核对正文哈希，冲突事实进入 `pending` 待作者确认。
-- 记账不会抢占一个「作者仍可继续/采用」的 run：先写入 `pending-ledger.json` 队列，等空档再跑（`service.ts:266-290`）。
+- 记账不会抢占一个「作者仍可继续/采用」的 run：先写入 `pending-ledger.json` 队列，等空档再跑（`service.ts` 的 `drainLedger`）。
 
 ### 8.8 交付幂等与恢复
 

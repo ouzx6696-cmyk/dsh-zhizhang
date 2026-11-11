@@ -14,7 +14,7 @@ import { setFoundation } from "../../../../packages/fanqie/src/engine/work-store
 import { withResourceLock } from "../../../../packages/fanqie/src/engine/storage/process-lock";
 import { ArticleStore } from "../../../../packages/toutiao/src/store";
 import { record, text, list, outline } from "./schema";
-import { productionQa } from "./article";
+import { productionQa } from "./article-qa";
 import { workflowContext } from "./context";
 import { WorkflowRun } from "./run";
 import {

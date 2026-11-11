@@ -16,7 +16,7 @@
 
 ## 验证情况
 
-2026-11-10 本地验收：`npm run verify` 通过（Node 359 项：358 通过、1 项 Windows 专属跳过；Python 224 项头条质检、14 项长篇桥接、2 项编码兼容）；桌面运行时 125/125，完整 GUI 旅程通过。类型、lint、格式、导出、资产与架构守卫通过；article.ts、service.ts 的行数提示不阻断验收。
+2026-11-10 本地验收：`npm run verify` 通过（Node 359 项：358 通过、1 项 Windows 专属跳过；Python 224 项头条质检、14 项长篇桥接、2 项编码兼容）；桌面运行时 125/125，完整 GUI 旅程通过。类型、lint、格式、导出、资产与架构守卫通过。
 
 发布提交为 `b53412211a71444b6443c1fff83f3078864e11d2`。[Windows 原生发行流水线](https://github.com/ouzx6696-cmyk/dsh-zhizhang/actions/runs/42820372045)全部通过：核心、桌面运行时、构建、GUI、NSIS/ZIP、随包 Python 和生产包启动；生产包保持禁用 Node 调试参数。安装版、免安装版、源码、更新清单与 SHA256SUMS 已发布；签名状态为 `NotSigned`。安装、升级与卸载的人工真机检查仍未完成，不由自动化启动检查替代。
 
