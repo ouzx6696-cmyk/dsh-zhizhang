@@ -73,7 +73,7 @@ export function ChatStream({
 }: {
   hasMessages: boolean;
   listRef: React.RefObject<HTMLDivElement | null>;
-  stickToBottom: React.MutableRefObject<boolean>;
+  stickToBottom: React.RefObject<boolean>;
 }) {
   const stream = useChatSelector((chat) => chat.stream);
   const announcement = useReplyAnnouncement(stream);
