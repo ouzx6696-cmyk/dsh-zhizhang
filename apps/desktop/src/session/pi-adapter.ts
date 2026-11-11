@@ -18,7 +18,7 @@ import {
   type AssistantMessage,
 } from "@earendil-works/pi-ai";
 import { createHash } from "node:crypto";
-export { getSupportedThinkingLevels, clampThinkingLevel };
+export { clampThinkingLevel };
 /**
  * pi-ai's verdict on a provider error text: whether it reads as a context overflow and whether it
  * reads as transient. Both judge only the error text of a failed answer, so a thrown error's

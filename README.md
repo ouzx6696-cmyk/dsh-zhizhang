@@ -60,7 +60,7 @@ npm run test:desktop:ui  # 完整桌面旅程（需显示服务）
 npm run desktop:build
 ```
 
-Linux 下跑 GUI 旅程：先启动 Xvfb，再 `CI=1 DISPLAY=:99 npm run test:desktop:ui`。方法资产用 `npm run assets -- check` 核对，更新后运行 `npm run assets -- manifest`。代码约定见 [AGENTS.md](AGENTS.md) 与[编码指南](docs/CODING-GUIDE.md)。
+Linux 下跑 GUI 旅程：先启动 Xvfb，再 `CI=1 DISPLAY=:99 npm run test:desktop:ui`。方法资产用 `npm run assets -- check` 核对，更新后运行 `npm run assets -- manifest`。代码约定见 [AGENTS.md](AGENTS.md)。
 
 | 路径                 | 职责                                                |
 | -------------------- | --------------------------------------------------- |
@@ -75,7 +75,7 @@ Linux 下跑 GUI 旅程：先启动 Xvfb，再 `CI=1 DISPLAY=:99 npm run test:de
 
 完整导航见[文档索引](docs/README.md)。
 
-- [发布前剩余事项与 1.0.2 待办](docs/REMAINING-WORK-PLAN.md)：授权、真机与实测矩阵、发布流程、后续工程
+- [发布前剩余事项与 1.0.2 待办](docs/REMAINING-WORK-PLAN.md)：发布前检查、真机矩阵、已知问题与后续工程
 - [当前状态](docs/STATUS.md)：已实现范围、验证情况与边界
 - [项目认知](docs/PROJECT-COGNITION.md)：全局地图、已修复项与当前风险
 - [架构说明](docs/ARCHITECTURE.md)：数据流、上下文与缓存、阶段式写作

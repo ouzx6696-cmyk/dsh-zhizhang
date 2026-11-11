@@ -27,7 +27,7 @@
 
 ## 代码约定
 
-`scripts/architecture-guard.mjs` 在 verify 里执行，会检查依赖方向、吞错、`any` 上限等；守卫失败就修代码，不要放宽守卫。写法参考 `docs/CODING-GUIDE.md`，要点：
+`scripts/architecture-guard.mjs` 在 verify 里执行，会检查依赖方向、吞错、`any` 上限等；守卫失败就修代码，不要放宽守卫。要点：
 
 - 在边界（IPC、路由、读文件、模型工具参数、配置）解析输入，内部信任类型。
 - 不吞错；只降级明确认识的错误（如 `ENOENT`）。确需吞错写 `// allow-catch: 原因`。

@@ -11,6 +11,8 @@
  */
 import path from "node:path";
 import { readJsonCached } from "./file-cache.js";
+import { isMissingFileError } from "./storage/primitives.js";
+import { asObject, asStringArray } from "./parse.js";
 
 export async function loadEndingLexicon(dir: string): Promise<string[] | undefined> {
   let raw: unknown;
@@ -24,6 +26,3 @@ export async function loadEndingLexicon(dir: string): Promise<string[] | undefin
   const list = asStringArray(obj, "endingKeywords", { required: true });
   return list.length ? list : undefined;
 }
-
-import { isMissingFileError } from "./storage/primitives.js";
-import { asObject, asStringArray } from "./parse.js";

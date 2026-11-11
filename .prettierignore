@@ -1,7 +1,5 @@
 node_modules/
 build/
-bundle/
-dist-pack/
 outputs/
 acceptance-results/
 test-results/

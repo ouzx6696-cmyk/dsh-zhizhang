@@ -1,10 +1,8 @@
 # 织章（dsh-zhizhang）项目认知文档
 
-> 基线：`master`（2026-11-10，发版前审查与窗口布局修复之后）。源码版本 `1.0.1`；最近正式版 `0.9.9`；1.0.1 开发与 Windows CI 已完成，未打标签、未发版。
+> 基线：`master`（2026-11-11，1.1.0-preview.3 之后）。版本、验证与发布状态以 [STATUS](STATUS.md) 为准，本文只讲结构与风险。
 >
 > 生成方式：文档全量阅读 + 源码按包分工通读 + 核心链路（`core/execute`、写作流水线、IPC、会话层）逐行复核。**本文以代码实际行为为准**；与 `docs/` 旧文冲突处已在正文标注。
->
-> 本次复核更新：测试计数、CI 状态、大窗口布局、发布门槛与已知未修问题。
 
 ---
 
@@ -515,28 +513,9 @@ test/                         单元/流程/引擎/桌面/PI/渲染/GUI 测试
 
 ## 14. 当前状态与路线
 
-| 项 | 状态 |
-| --- | --- |
-| 源码版本 | `1.0.1`（未打标签） |
-| 最近正式版 | `0.9.9` |
-| 当前阶段 | `1.0.1` 稳定性补丁：开发、审查与 Windows CI 完成，未打 tag |
-| 核心能力 | 阶段式写作、上下文预算、方法阶段卡、章节/文章流水线、连续性看板、个人规则、非模态流水线面板 |
-| 待授权 | T134 评分规则调整 |
-| 已完成 | T101–T132；T126 Electron 42→45（45.2.3）；D01 跨项目写保护回归；Windows 锁清理修复；Python 3.10；大窗口布局（自适应铺开 / 等比放大 / 关闭） |
-| 真实模型 | RM01 番茄：已定稿并记账（等待作者确认事实）；RM02 头条：未完成（见 14.1） |
-| 待执行 | CI 打包路径；Windows 真机安装/升级/卸载/关窗/全屏回归；RM02 续跑（需授权）；T134（需授权） |
-| 已知不交付 | 段落级多稿合并、第二厂商评审、空闲调度、平台数据自动导入 |
+版本、验证计数、真实模型实测与待办不在本文重复：当前状态见 [STATUS](STATUS.md)，未完成事项见[剩余事项](REMAINING-WORK-PLAN.md)。
 
 **重要口径**：仓库自述的 token 节省、缓存命中、耗时下降多数是**结构估算或本地微基准**，不是真实服务商实测；不得据此宣称质量提升或费用下降。
-
-### 14.1 真实模型实测（2026-11-09）
-
-| 项 | 结果 |
-| --- | --- |
-| 端点/模型 | `https://api.stepfun.com/step_plan/v1` / `step-5-preview` |
-| RM01 番茄一章 | 完成：章 `c001`《归站》747 字，状态 `final`；候选以作者覆盖参数采纳（有 brief/payoff 警告）；记账完成 extract/delivery，停在等待作者确认事实。正文：`acceptance-results/real-model-summary/RM01-归站.md` |
-| RM02 头条一篇 | 未完成：第一次在编辑审读的硬伤引文校验失败；第二次完成两轮审读/精修后在事实链阶段被 20 分钟墙钟暂停，未进入 Python 质检、未交付、未采用。草稿：`acceptance-results/real-model-summary/RM02-精卫草稿（未质检未采用）.md` |
-| 结论 | 番茄真实模型链路已跑通；头条真实模型验收未达标，不能计入发布门槛。详细记录：`acceptance-results/real-model-summary/REPORT.md`（本地、未提交） |
 
 ---
 
@@ -544,7 +523,7 @@ test/                         单元/流程/引擎/桌面/PI/渲染/GUI 测试
 
 > 分级：P0=可能产生错误行为/数据风险；P1=违反仓库规则或恢复/安全语义；P2=可维护性/一致性问题。以下为阅读发现，未全部修复。
 >
-> 2026-11-10 发版前审查新发现、排入 1.0.2 的问题（更新安装时的锁释放、父目录 fsync、切换文章失败释放锁根等）见[剩余事项第 7 节](REMAINING-WORK-PLAN.md#7-已知未修问题进入-102)。
+> 2026-11-10 发版前审查新发现、排入 1.0.2 的问题（更新安装时的锁释放、父目录 fsync、切换文章失败释放锁根等）见[剩余事项第 3 节](REMAINING-WORK-PLAN.md#3-已知未修问题)。
 
 ### 15.1 数据与恢复
 
@@ -563,7 +542,6 @@ test/                         单元/流程/引擎/桌面/PI/渲染/GUI 测试
 ### 15.3 文档漂移
 
 - 历史审查报告与旧交接单已从 `docs/` 移除，需要追溯时查 Git 历史；IPC 总数以 `apps/desktop/src/main/ipc/contract.ts` 为准（39 条）。
-- `docs/STATUS.md`、`docs/ACCEPTANCE.md`、`docs/REMAINING-WORK-PLAN.md` 已于 2026-11-10 同步当前计数、CI 口径与剩余事项。
 - `docs/engine/DATA.md` 的目录优先级保留引擎独立调用的解析顺序；桌面恒传 `storageRoot`，实际根由桌面目标决定。
 - `docs/guides/FANQIE.md` 中「默认作品在 `D:/写作/novels`」只适用于统一写作根布局；是否成立取决于 `worksRoot` 项目登记。
 
@@ -576,8 +554,7 @@ test/                         单元/流程/引擎/桌面/PI/渲染/GUI 测试
 
 ### 15.5 代码整洁与死代码
 
-- `useToutiao.js` 仍读取服务端从不返回的 `data.sessions`；`drawEnabled` 参数、`ArticleRow.createdAt` 与 `toBody` 已在全量审查中删除。
-- `quality-lexicon.ts` 有 import 写在函数之后；`ports/library.ts` 的 `new Map()` 无泛型；`ports/inspiration.ts` 有重复注释。
+- `useToutiao.js` 读取服务端从不返回的 `data.sessions`、`drawEnabled` 参数、`ArticleRow.createdAt` 与 `toBody` 均已删除。
 - `api.ts` 的 body 上限在桌面 `ctx.body()` 里被忽略；`/projects` 忽略 `base/project`，与 `/works` 来源可能不同。
 - 桌面测试已统一经 `test/desktop/python.mjs` 探测 Python 3.10+；`test:desktop` 已加载 `test/setup.mjs`；`test:desktop:ui` 已先构建再跑 GUI。
 - `test:desktop` 与 `scripts/test.mjs` 仍存在重复构建；CI 的 `core` 与 `test` job 也有重复编译，反馈时间偏长。
@@ -600,7 +577,7 @@ test/                         单元/流程/引擎/桌面/PI/渲染/GUI 测试
 
 ### 16.1 建议阅读顺序
 
-1. `AGENTS.md` + `docs/CODING-GUIDE.md`：规则与正反例。
+1. `AGENTS.md`：仓库约定。
 2. `docs/PROJECT-COGNITION.md`（本文）：全局地图。
 3. `packages/core/src/{tool,execute,gates,fsx,workflow,workflow-config}.ts`：执行、门禁、持久化、流水线底座。
 4. `apps/desktop/src/workflow/{service,run,stage-model,context,chapter,article,editor}.ts`：核心流水线。
@@ -637,7 +614,7 @@ npm run assets -- check
 ### 16.4 不要做的事
 
 - 不要改 `packages/*/skill/` 方法原文；不要改质检阈值/标题上限/两轮打回/固定末句。
-- 不要新增运行时依赖或改锁定版本（除非任务单明确授权）。
+- 不要新增运行时依赖或改锁定版本（除非作者同意）。
 - 不要用空 catch 吞错；不要在边界内重复校验；不要为测试在生产代码加分支。
 - 不要把对话里的「完成」当作落盘成功；不要跳过版本/哈希核对。
 - 不要在未授权时调用真实模型、发版或打 tag。

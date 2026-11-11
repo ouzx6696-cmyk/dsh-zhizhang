@@ -14,7 +14,7 @@ const NO_BALANCE =
   /\b402\b|insufficient[ _]balance|insufficient[ _]quota|exceeded[ _]current[ _]quota|exceeded your current quota|quota exceeded|credit balance is too low|arrearage|out of budget|payment required|余额不足|欠费/i;
 /** Only a status at the very start counts; a number inside the text ("≤ 500", "model-500") is not one. */
 const LEADING_STATUS = /^\s*(\d{3})\b/;
-export const STAGE_BACKOFF_MS = [2000, 6000, 15000];
+const STAGE_BACKOFF_MS = [2000, 6000, 15000];
 /**
  * A request that went silent gets one more attempt; a second silence on the same packet is final.
  * The SDK's own timeout ("Request timed out") counts as the same kind of silence.

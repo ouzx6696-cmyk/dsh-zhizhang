@@ -71,7 +71,6 @@ import {
   reconcileIndex,
 } from "./library/store.js";
 export * from "./library/schema.js";
-export { auditCardContent, normForMatch } from "./library/audit.js";
 // —— § 拆书源缓存（文本 + 章索引派生） ——
 // 面板刷新与阅读复用源文本缓存；证据校验单独读取源文件字节，不把缓存当完整性证明。
 const SOURCE_CACHE_MAX = 6;
@@ -960,7 +959,14 @@ export const LibraryPort = {
       axis: opts.axis,
     });
     if (opts.cardId) rows = rows.filter((r) => r.id === opts.cardId);
-    const srcCache = new Map();
+    const srcCache = new Map<
+      string,
+      {
+        text: string;
+        norm: ReturnType<typeof normForMatch>;
+        index: ReturnType<typeof sourceIndexOf>;
+      }
+    >();
     const out = [];
     for (const row of rows) {
       const card = await LibraryPort.getCard(paths, row.id);

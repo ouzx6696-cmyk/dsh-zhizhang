@@ -21,7 +21,6 @@ export function useToutiao({ onTarget, onSourceEditState } = {}) {
     status: "loading",
     articles: [],
     roots: [],
-    sessions: {},
     statuses: [],
     currentRoot: "",
     error: "",
@@ -55,7 +54,6 @@ export function useToutiao({ onTarget, onSourceEditState } = {}) {
           statuses: data.statuses || [],
           roots: data.roots || [],
           currentRoot: data.currentRoot,
-          sessions: data.sessions || {},
           deliver: !!data.deliver,
           deliverReason: data.deliverReason || "",
           error: (data.issues || [])
