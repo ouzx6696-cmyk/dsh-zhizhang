@@ -13,10 +13,10 @@ import {
 import { NovelError } from "../engine/errors.js";
 
 /**
- * Resolve storage root for HTTP (no agent session).
+ * Resolve the storage root for a workbench command.
  * Priority: config.storageRoot → env WRITER_NOVEL_ROOT → cwd/.writer if present → ensureStorage default.
  */
-export async function resolveHttpPaths(config: PluginConfig) {
+export async function resolvePanelPaths(config: PluginConfig) {
   const configured = config.storageRoot || process.env.WRITER_NOVEL_ROOT?.trim();
   if (configured)
     return {
@@ -32,19 +32,10 @@ export async function resolveHttpPaths(config: PluginConfig) {
   return { ...(await ensureStorage(null, config)), resolvedVia: "cwd" };
 }
 
-export async function panelPaths(
-  url: URL,
-  config: PluginConfig,
-  baseOverride = "",
-): Promise<StoragePaths> {
-  const requested = (
-    baseOverride ||
-    url.searchParams.get("base") ||
-    url.searchParams.get("project") ||
-    ""
-  ).trim();
+export async function panelPaths(config: PluginConfig, baseOverride = ""): Promise<StoragePaths> {
+  const requested = baseOverride.trim();
   if (!requested) {
-    return resolveHttpPaths(config);
+    return resolvePanelPaths(config);
   }
   const want = projectIdOf(requested);
   const find = (list: Awaited<ReturnType<typeof listProjects>>) =>

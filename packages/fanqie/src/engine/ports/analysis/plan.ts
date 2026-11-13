@@ -19,7 +19,7 @@ export const PLAN_BATCH_DEFAULT = 30000;
 export const PLAN_BATCH_MIN = 4000;
 export const PLAN_BATCH_MAX = 100000;
 /** 10% 不足这个字数时，Auto 直接全读（小书）。 */
-const PLAN_SMALL_BOOK_CHARS = 30000;
+export const PLAN_SMALL_BOOK_CHARS = 30000;
 /** 估算：中文约 1.4 字/token；每批 5 分钟（含读 + 白描）。 */
 const PLAN_CHARS_PER_TOKEN = 1.4;
 const PLAN_MINUTES_PER_BATCH = 5;

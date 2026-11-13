@@ -32,7 +32,7 @@ export class Runtime {
   access: WorkspaceAccess = { readOnly: false, owner: null };
   maintenance = false;
   updateState: UpdateStatus = { state: "idle" };
-  deliveries = new Map<string, Promise<{ status: number; data: unknown }>>();
+  deliveries = new Map<string, Promise<{ data: unknown }>>();
   writerConfig: WriterConfig = {};
   notice = "";
   private confirmations = Promise.resolve();

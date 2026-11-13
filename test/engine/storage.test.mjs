@@ -299,6 +299,17 @@ test("离线备份拒绝覆盖并能发现备份内容变化", async () => {
     const script = path.resolve("scripts/backup.mjs");
     await run(process.execPath, [script, "--source", source, "--output", output]);
     await run(process.execPath, [script, "--verify", output]);
+    await writeFile(path.join(source, ".writer-write-lock-gate"), "");
+    await assert.rejects(
+      run(process.execPath, [
+        script,
+        "--source",
+        source,
+        "--output",
+        path.join(root, "busy-backup"),
+      ]),
+    );
+    await rm(path.join(source, ".writer-write-lock-gate"));
     await assert.rejects(run(process.execPath, [script, "--source", source, "--output", output]));
     await assert.rejects(
       run(process.execPath, [script, "--source", source, "--output", path.join(source, "inside")]),
@@ -646,7 +657,7 @@ test("损坏的分析形状或计划在读取和面板中明确报错", async ()
   }
 });
 
-test("RC-05 定稿章改章纲或位置须 force，不再被静默降回 drafted；structureGuard=false 回退旧行为", async () => {
+test("RC-05 定稿章改章纲或位置须 force，不再被静默降回 drafted", async () => {
   const f = await fixture();
   try {
     const { dir } = await createWork(f.paths, { title: "定稿结构" });
@@ -670,15 +681,6 @@ test("RC-05 定稿章改章纲或位置须 force，不再被静默降回 drafted
     assert.equal(await readFile(path.join(dir, "chapters/c001.md"), "utf8"), before);
     assert.equal((await readChapter(dir, "c001")).status, "final");
     await setOutline(dir, "c001", { ending: "没交钥匙" }, undefined, { force: true });
-    assert.equal((await readChapter(dir, "c001")).status, "drafted");
-    // switch off: 1.1.0 behaviour (silent downgrade) for authors who opt out
-    await updateChapter(dir, {
-      id: "c001",
-      status: "reviewed",
-      expectedRevision: (await readChapter(dir, "c001")).revision,
-    });
-    await updateChapter(dir, { id: "c001", status: "final" });
-    await setOutline(dir, "c001", { ending: "又改" }, undefined, { structureGuard: false });
     assert.equal((await readChapter(dir, "c001")).status, "drafted");
   } finally {
     await f.close();

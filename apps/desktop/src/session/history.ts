@@ -10,8 +10,14 @@ import {
 } from "../../../../packages/core/src/fsx";
 import type { Target } from "../context";
 import { SessionManager } from "./pi-adapter";
-import { parseHistory } from "./migration";
 import type { Sessions } from "./manager";
+
+function parseHistory(text: string | undefined): string[] {
+  const rows: unknown = JSON.parse(text ?? "[]");
+  if (!Array.isArray(rows) || !rows.every((row: unknown) => typeof row === "string"))
+    throw new Error("会话历史索引损坏");
+  return rows;
+}
 
 export async function conversations(
   host: Sessions,

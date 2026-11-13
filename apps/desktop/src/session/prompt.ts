@@ -17,7 +17,7 @@ import { fanqieLibrary } from "../../../../packages/fanqie/src/forge";
 import { chapterReviewInfo } from "../../../../packages/fanqie/src/review";
 import { assertWorkspaceWritable } from "../../../../packages/core/src/workspace-lock";
 import { engineTools } from "../../../../packages/fanqie/src/engine/bootstrap";
-import { validPassingQa } from "../../../../packages/toutiao/src/tools";
+import { validPassingQa } from "../../../../packages/toutiao/src/article-service";
 import { SYSTEM_BRIEF } from "../../../../packages/fanqie/src/engine/tools/brief";
 import {
   buildToutiaoBrief,

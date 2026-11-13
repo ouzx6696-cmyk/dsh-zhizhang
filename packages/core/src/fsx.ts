@@ -9,6 +9,7 @@ import {
   lstat,
   rm,
   stat,
+  unlink,
 } from "node:fs/promises";
 import { randomBytes, createHash } from "node:crypto";
 import path from "node:path";
@@ -16,6 +17,36 @@ import { WriterError } from "./tool.js";
 import { isFsError, isMissingFileError } from "./errors.js";
 
 export { isFsError, isMissingFileError } from "./errors.js";
+
+/** Serialize lock-file transitions across processes. A crashed transition is left for inspection. */
+export async function withFileGate<T>(
+  file: string,
+  fn: () => Promise<T>,
+  waitMs = 10000,
+): Promise<T> {
+  const deadline = Date.now() + waitMs;
+  let handle;
+  for (;;) {
+    try {
+      handle = await open(file, "wx", 0o600);
+      break;
+    } catch (error) {
+      if (!isFsError(error, "EEXIST")) throw error;
+      if (Date.now() >= deadline)
+        throw new WriterError(
+          "CONFLICT",
+          `锁登记正忙：${file}。请关闭所有织章实例，确认没有进程写入后删除此登记文件并重试。`,
+        );
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+  }
+  try {
+    return await fn();
+  } finally {
+    await handle.close();
+    await unlink(file);
+  }
+}
 
 /** 把 rel 解析到 root 下；越界（含 .. 与绝对路径跳出）抛 OUT_OF_ROOT。 */
 export function resolveInside(root: string, ...rel: string[]): string {

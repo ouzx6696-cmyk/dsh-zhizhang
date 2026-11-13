@@ -79,29 +79,10 @@ export function parseOperation(value: unknown): string {
 export function parseRequestOptions(value: unknown): RequestOptions {
   if (value === undefined || value === null) return {};
   const source = asRecord(value, "请求参数");
-  if (source.method !== undefined && typeof source.method !== "string")
-    throw new Error("参数无效：请求方法");
-  const method = source.method?.toUpperCase();
-  if (method && method !== "GET" && method !== "POST") throw new Error("参数无效：请求方法");
-  let query: Record<string, unknown> | undefined;
-  if (source.query !== undefined) {
-    query = asRecord(source.query, "查询参数");
-    for (const [key, item] of Object.entries(query))
-      if (
-        item !== undefined &&
-        item !== null &&
-        typeof item !== "string" &&
-        typeof item !== "number" &&
-        typeof item !== "boolean"
-      )
-        throw new Error(`参数无效：查询参数 ${key}`);
-  }
-  if (
-    source.body !== undefined &&
-    (typeof source.body !== "object" || source.body === null || Array.isArray(source.body))
-  )
-    throw new Error("参数无效：请求内容");
-  return { method, query, body: source.body };
+  if (source.kind !== undefined && source.kind !== "read" && source.kind !== "write")
+    throw new Error("参数无效：操作类型");
+  const input = source.input === undefined ? undefined : asRecord(source.input, "操作内容");
+  return { kind: source.kind, input };
 }
 
 export function parseAppearance(value: unknown): Partial<Appearance> {

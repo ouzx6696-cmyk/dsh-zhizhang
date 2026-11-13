@@ -1,6 +1,6 @@
 # 织章（dsh-zhizhang）项目认知文档
 
-> 基线：`master`（2026-11-11，1.1.1）。版本、验证与发布状态以 [STATUS](STATUS.md) 为准，本文只讲结构与风险。
+> 基线：1.1.2 开发版（基于 1.1.1）。版本、验证与发布状态以 [STATUS](STATUS.md) 为准，本文只讲结构与风险。
 >
 > 生成方式：文档全量阅读 + 源码按包分工通读 + 核心链路（`core/execute`、写作流水线、IPC、会话层）逐行复核。**本文以代码实际行为为准**；与 `docs/` 旧文冲突处已在正文标注。
 
@@ -24,7 +24,7 @@
 ## 2. 一眼架构
 
 ```text
-┌────────────────────────────── Electron 渲染进程（React 18）──────────────────────────────┐
+┌────────────────────────────── Electron 渲染进程（React 19）──────────────────────────────┐
 │ App / Workspace / AgentPanel / WorkflowPanel / Settings / CommandPalette                 │
 │ 单一 desktopStore + chatStore（useSyncExternalStore 字段订阅）                            │
 │ 写作区组件来自 packages/workbench/src/client（fanqie / toutiao / shared）                │
@@ -53,7 +53,7 @@
 
 **关键事实**
 
-- **没有 HTTP 服务**。写作台的「路由」只是 `packages/workbench/src/routes.ts` 里的路径契约，实际由主进程 `writer:request` IPC 调起。
+- **没有 HTTP 服务**。写作台命令由主进程 `writer:request` IPC 调起，契约在 `packages/workbench/src/commands.ts`。
 - **没有数据库**。作品、候选、审读、质检、台账、流水线记录全部是文件；原子写、fsync、锁与 journal 构成持久化协议。
 - **PI SDK 是唯一模型接入层**，且只在 `apps/desktop/src/session/pi-adapter.ts` 导入（架构守卫强制）。
 
@@ -64,8 +64,8 @@
 | 项 | 值 |
 | --- | --- |
 | 运行时 | Electron `45.2.3`；Node.js `>=24.11`（推荐 24） |
-| 语言/构建 | TypeScript `~5.8.3`、React `18.3`、Vite 7 + electron-vite 5、esbuild 压缩渲染包 |
-| 模型 | `@earendil-works/pi-coding-agent` / `pi-ai` `1.4.0` |
+| 语言/构建 | TypeScript `~5.8.3`、React `19.3.1`、Vite 8 + electron-vite 6、esbuild 压缩渲染包 |
+| 模型 | `@earendil-works/pi-coding-agent` / `pi-ai` `1.5.0` |
 | Python | `>=3.10`；发行包内置 python-build-standalone `3.13.18`；`WRITER_PYTHON` 可指定解释器 |
 | 包管理 | npm；根 `package.json` 的 `workspaces` 只声明了 `apps/desktop` |
 | 依赖策略 | 不新增运行时依赖；`undici` 被根 `overrides` 固定为 `8.12.3` |
@@ -161,13 +161,12 @@ test/                         单元/流程/引擎/桌面/PI/渲染/GUI 测试
 5. `registerIpc(state)` → 创建主窗口（`show:false` + 主题底色 + `ready-to-show`，3 秒兜底）→ 初始化自动更新。
 6. 退出：`will-quit` 时 `sessions.dispose()` + `releaseWorkspaces()`，单步失败记日志后继续。
 
-### 打开作品时的锁与迁移（`main/targets.ts:selectTarget`）
+### 打开作品时的锁与初始化（`main/targets.ts:selectTarget`）
 
-- 归一化 root（`physicalRoot`）；番茄先 `ensureStorage`、迁移灵感绑定、登记项目，再 `sessions.initialize`（会话历史迁移）。
+- 归一化 root（`physicalRoot`），创建必要的空目录后先认领作品锁；再执行 `ensureStorage` 和项目登记。
 - `lockRoot`：番茄有作品时锁**作品目录**，否则锁写作根；头条锁文章根。
 - `claimWorkspace` 取得跨进程作品锁；只读时返回 owner，界面提示「接管」。
 - 写 `target.json`；切换目标时，旧根在无运行任务时释放锁并 `sessions.release`。
-- **注意**：`ensureStorage` / 迁移发生在 `claimWorkspace` 之前（见「技术债」），这是当前实现的已知顺序问题。
 
 ---
 
@@ -216,7 +215,7 @@ test/                         单元/流程/引擎/桌面/PI/渲染/GUI 测试
 
 | 文件 | 职责 |
 | --- | --- |
-| `workflow/service.ts` | 每作品一个活动 run；启动/恢复/替换/暂停；指针；交付/采用；记账队列（历史读取在 `history.ts`，旧根基迁移在 `continuity-migration.ts`） |
+| `workflow/service.ts` | 每作品一个活动 run；启动/恢复/替换/暂停；指针；交付/采用；记账队列（历史读取在 `history.ts`） |
 | `workflow/run.ts` | `WorkflowRun.model()`：拼阶段包、预算预检、in-flight 预留、调用 `stageModel`、写日志 |
 | `workflow/context.ts` | 组装作品材料（stable/material）、basis 指纹、`assertCurrent` 新鲜度检查 |
 | `workflow/stage-model.ts` | 单阶段模型请求：stall watchdog、供应商错误分类、退避、截断/余额/鉴权处理 |
@@ -482,6 +481,8 @@ test/                         单元/流程/引擎/桌面/PI/渲染/GUI 测试
 
 ### 13.1 测试分层
 
+日常可先运行 `npm run test:quick`，提交前运行 `npm run verify`；桌面变更运行 `npm run verify:desktop`，完整发行检查用 `npm run test:all`。
+
 | 层 | 命令/位置 | 覆盖 |
 | --- | --- | --- |
 | 类型/lint/格式/守卫/导出 | `npm run verify` 的 checks | tsc、eslint、格式化、架构守卫、番茄导出审计 |
@@ -490,7 +491,7 @@ test/                         单元/流程/引擎/桌面/PI/渲染/GUI 测试
 | 桌面/PI | `test/desktop/*.test.mjs` | 真实 PI + 本地假模型；运行时、流水线、重试、退出、任务池 |
 | GUI | `npm run test:desktop:ui` | Playwright 驱动真实 Electron，一条完整旅程（含无障碍断言） |
 
-最近一次本地执行（2026-11-10）：Python 224 + 14 + 2；Node 355（354 通过、1 项 Windows 专属跳过）；PI 与流水线 122；GUI 1 条旅程（Electron 45.2.3，Windows CI 通过，含最大化 / 全屏铺满检查）。假模型是本地 OpenAI 兼容服务，支持工具调用、SSE、错误、截断、挂起与推理事件。
+最近一次本地执行（2026-11-12，Linux）：Python 224 + 14 + 2；核心 Node 369（368 通过、1 项 Windows 专属跳过）；桌面运行时 131；GUI 1 条旅程。假模型是本地 OpenAI 兼容服务，支持工具调用、SSE、错误、截断、挂起与推理事件。
 
 ### 13.2 架构守卫
 
@@ -530,7 +531,7 @@ test/                         单元/流程/引擎/桌面/PI/渲染/GUI 测试
 - **恢复错误码**：`journal.ts` 的 `finish()` 已保留 `NovelError` 原 code，只有未知故障归为 `recovery_required`；`read()` 的错误码仍依赖文件名分段。
 - **连续性写入缺少资源锁**：`storage/continuity.ts` 的 `saveHandoff` 是「读 revision → 比对 → 写」的乐观并发，未持 `withResourceLock`，两进程同 revision 并发写可互相覆盖。
 - **revision 不含 title/status**：改标题/纯状态变更不升 revision，也不留痕；但汇编输出会变化，可能造成「审读仍视为同一版本」的语义偏差。
-- **`selectTarget` 预写**：已改为先取得作品锁，再执行 `ensureStorage`、灵感绑定迁移与项目登记；仅保留创建空作品根目录用于 `realpath` 这一步预写。
+- **`selectTarget` 预写**：先取得作品锁，再执行 `ensureStorage` 与项目登记；仅保留创建空作品根目录用于 `realpath` 这一步预写。
 - **工作流 basis 过宽**：章节 basis 包含整本书的 foundation/planning/伏笔/连续性，任何无关改动都会让任务中途失败或无法恢复；issue 已在审查报告中提出，尚未重构。
 
 ### 15.2 安全与边界
@@ -557,7 +558,7 @@ test/                         单元/流程/引擎/桌面/PI/渲染/GUI 测试
 - `useToutiao.js` 读取服务端从不返回的 `data.sessions`、`drawEnabled` 参数、`ArticleRow.createdAt` 与 `toBody` 均已删除。
 - `api.ts` 的 body 上限在桌面 `ctx.body()` 里被忽略；`/projects` 忽略 `base/project`，与 `/works` 来源可能不同。
 - 桌面测试已统一经 `test/desktop/python.mjs` 探测 Python 3.10+；`test:desktop` 已加载 `test/setup.mjs`；`test:desktop:ui` 已先构建再跑 GUI。
-- `test:desktop` 与 `scripts/test.mjs` 仍存在重复构建；CI 的 `core` 与 `test` job 也有重复编译，反馈时间偏长。
+- `scripts/test.mjs` 统一测试分组；同一次完整检查复用核心编译、桌面测试准备与桌面构建。Linux 和 Windows CI 分开执行，以保留平台验证。
 
 ### 15.6 守卫盲区
 
@@ -583,7 +584,7 @@ test/                         单元/流程/引擎/桌面/PI/渲染/GUI 测试
 4. `apps/desktop/src/workflow/{service,run,stage-model,context,chapter,article,editor}.ts`：核心流水线。
 5. `apps/desktop/src/main/{lifecycle,targets,operations}.ts` + `main/ipc/{contract,validate,register}.ts` + `preload.ts`：启动、IPC、RPC。
 6. `packages/fanqie/src/engine/{storage,domain,services,tools}` 与 `packages/toutiao/src/{store,tools,gates}.ts`：业务规则。
-7. `packages/workbench/src/routes.ts` + `client/`：写作台契约与组件。
+7. `packages/workbench/src/commands.ts` + `client/`：写作台契约与组件。
 8. `test/desktop/workflow.test.mjs` + `test/desktop/fake-model.mjs`：流水线如何被验证。
 
 ### 16.2 常用命令
@@ -606,7 +607,7 @@ npm run assets -- check
 | --- | --- |
 | 新增模型工具 | `packages/*/src/tools.ts` 或 `engine/tools/`；在 `create.ts` 按角色装配；补门禁与测试 |
 | 新增 IPC 通道 | `main/ipc/contract.ts`（IpcMap + IPC_PARSERS）→ `validate.ts` → `register*.ts` → `preload.ts` |
-| 新增写作台接口 | `packages/workbench/src/routes.ts` ROUTES → 业务包 `workbench/api.ts` 表驱动路由 → 适配器 |
+| 新增写作台操作 | `packages/workbench/src/commands.ts` COMMANDS → 业务包 `workbench/api.ts` 命令 → 适配器 |
 | 新增流水线阶段 | `workflow/<pipeline>.ts` 用 `run.model(id, ...)`；id 加入阶段表；确保 `parse` 能恢复、交付幂等 |
 | 改业务阈值 | 先改 Python `rules.py`（唯一源），再核对 TS 引用；不得直接改文档或常量副本 |
 | 加测试 | 业务经 `executeTool`/路由；桌面经假模型；界面经 Playwright 现有旅程 |
@@ -696,7 +697,7 @@ npm run assets -- check
 | 番茄工具 | `packages/fanqie/src/engine/tools/` + `packages/fanqie/src/tools.ts` |
 | 番茄写作台 | `packages/fanqie/src/workbench/` |
 | 头条业务 | `packages/toutiao/src/` + `packages/toutiao/skill/scripts/` |
-| 写作台契约 | `packages/workbench/src/routes.ts` |
+| 写作台契约 | `packages/workbench/src/commands.ts` |
 | 写作区组件 | `packages/workbench/src/client/` |
 | 设计系统 | `packages/ui/src/` |
 | 流水线 | `apps/desktop/src/workflow/` |

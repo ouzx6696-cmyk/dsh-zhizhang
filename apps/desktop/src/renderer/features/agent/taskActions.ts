@@ -1,4 +1,5 @@
 import { newRequestId } from "../../../../../../packages/ui/src/request";
+import { fanqie, toutiao } from "../../../../../../packages/workbench/src/client/shared/api.js";
 import type { Focus, Target } from "../../../context";
 import type { DesktopState } from "../../state/store";
 import { desktop } from "../../state/desktop";
@@ -31,15 +32,11 @@ export async function startNewWork(
     drawer: true,
   }));
   if (mode === "toutiao")
-    await desktop.request("/toutiao/agent/deliver", {
-      method: "POST",
-      body: {
-        root: next.root,
-        action: "new",
-        note,
-        confirm: true,
-        requestId: newRequestId("desktop"),
-      },
+    await toutiao.deliver({
+      root: next.root,
+      action: "new",
+      note,
+      requestId: newRequestId("desktop"),
     });
   else
     await deps.sendText(
@@ -76,9 +73,7 @@ export async function deliverAction(deps: TaskActionDependencies, action: string
           confirm: true,
           requestId: newRequestId("desktop"),
         };
-  await desktop.request(target.mode === "fanqie" ? "/agent/deliver" : "/toutiao/agent/deliver", {
-    method: "POST",
-    body,
-  });
+  if (target.mode === "fanqie") await fanqie.deliver(body);
+  else await toutiao.deliver(body);
   deps.set({ tab: "agent", drawer: true });
 }

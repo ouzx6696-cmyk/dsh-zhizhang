@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readdir, readFile, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { ROOT, createToolHarness, createRouteHarness, tempDir, buildUrl } from "./helpers.mjs";
+import { ROOT, createToolHarness, createCommandHarness, tempDir, buildUrl } from "./helpers.mjs";
 
 const TT = path.join(ROOT, "packages/toutiao/profiles/default");
 const FQ = path.join(ROOT, "packages/fanqie/profiles/default");
@@ -226,12 +226,9 @@ test("工具：默认 → 原版回落 → 用户方案一（导入、覆盖、�
 
 test("写作台接口：方案列表、详情、全文、新建、保存、切换、删除；配置固定方案", async () => {
   process.env.WRITER_PROFILES_DIR = await tempDir("writer-profiles-");
-  const request = await createRouteHarness({ fanqie: { profile: "原版" } });
-  const get = async (route) => (await request(route)).json();
-  const post = async (route, body) => {
-    const response = await request(route, { method: "POST", body });
-    return { status: response.status, ...(await response.json()) };
-  };
+  const request = await createCommandHarness({ fanqie: { profile: "原版" } });
+  const get = async (route) => await request(route);
+  const post = (route, input) => request(route, { kind: "write", input });
   try {
     let l = await get("/toutiao/profiles");
     assert.equal(l.ok, true);
@@ -266,8 +263,8 @@ test("写作台接口：方案列表、详情、全文、新建、保存、切�
     assert.equal((await post("/toutiao/profiles/use", { profile: "user-1" })).ok, true);
     assert.equal((await get("/toutiao/profiles")).active, "user-1");
     assert.equal(
-      (await post("/toutiao/profiles/delete", { profile: "user-1" })).status,
-      400,
+      (await post("/toutiao/profiles/delete", { profile: "user-1" })).ok,
+      false,
       "删除须确认",
     );
     const del = await post("/toutiao/profiles/delete", { profile: "user-1", confirm: true });
@@ -277,14 +274,14 @@ test("写作台接口：方案列表、详情、全文、新建、保存、切�
     l = await get("/fanqie/profiles");
     assert.equal(l.active, "original");
     assert.equal(l.pinned, true);
-    assert.equal((await post("/fanqie/profiles/use", { profile: "default" })).status, 409);
+    assert.equal((await post("/fanqie/profiles/use", { profile: "default" })).ok, false);
     assert.equal(
       (await get("/fanqie/profiles/method?profile=default&id=edit")).method.from,
       "default",
     );
     assert.equal(
-      (await post("/fanqie/profiles/save", { profile: "default", id: "edit", text: "x" })).status,
-      409,
+      (await post("/fanqie/profiles/save", { profile: "default", id: "edit", text: "x" })).ok,
+      false,
       "内置方案只读",
     );
   } finally {
@@ -320,12 +317,9 @@ test("原版方案支持常驻提示中的写作方法入口，保留用户覆�
 test("CORE-03/04/24 方案按 id 优先、拒绝保留名；单个方案损坏或 id 不符只标该行", async () => {
   const dir = await tempDir("writer-profiles-");
   process.env.WRITER_PROFILES_DIR = dir;
-  const request = await createRouteHarness();
-  const get = async (route) => (await request(route)).json();
-  const post = async (route, body) => {
-    const response = await request(route, { method: "POST", body });
-    return { status: response.status, ...(await response.json()) };
-  };
+  const request = await createCommandHarness();
+  const get = async (route) => await request(route);
+  const post = (route, input) => request(route, { kind: "write", input });
   const { findProfile, readMethod } = await import(buildUrl("core/src/profiles.js"));
   const { readJson } = await import(buildUrl("core/src/fsx.js"));
   const { toutiaoLibrary } = await import(buildUrl("toutiao/src/methods.js"));
@@ -342,7 +336,7 @@ test("CORE-03/04/24 方案按 id 优先、拒绝保留名；单个方案损坏�
     assert.equal(list.profiles.find((p) => p.id === "user-2").nameConflict, undefined);
     for (const name of ["User-3", "default", "ORIGINAL"]) {
       const made = await post("/toutiao/profiles/create", { name });
-      assert.equal(made.status, 400, name);
+      assert.equal(made.ok, false, name);
       assert.equal(made.code, "INVALID_ARGS");
     }
     const renamed = await post("/toutiao/profiles/rename", { profile: "user-2", name: "user-1" });

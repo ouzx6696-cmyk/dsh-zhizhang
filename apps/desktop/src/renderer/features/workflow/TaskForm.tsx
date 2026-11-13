@@ -4,7 +4,7 @@ import { COPY as copy, WORKFLOW_COPY } from "../../../../../../packages/ui/src/c
 import { statusLabel } from "../../../../../../packages/ui/src/status.js";
 import { errorText } from "../../../../../../packages/core/src/errors.js";
 import { isRecord } from "../../../../../../packages/core/src/parse.js";
-import { ROUTES } from "../../../../../../packages/workbench/src/routes.js";
+import { COMMANDS } from "../../../../../../packages/workbench/src/commands.js";
 import type { WorkflowRequest } from "../../../../../../packages/core/src/workflow-config.js";
 import { CLASSICS } from "../../../../../../packages/toutiao/src/classics.js";
 import { scopeId, type Target } from "../../../context";
@@ -18,11 +18,11 @@ interface ChapterOption {
 
 /** 章节列表来自工作台快照接口；这里是渲染层读取它的边界，逐行收窄。 */
 async function loadChapters(target: Target): Promise<ChapterOption[]> {
-  const result = await desktop.request(ROUTES.snapshot, {
-    query: { base: target.root, work: target.work, scope: "work" },
+  const result = await desktop.request(COMMANDS.snapshot, {
+    input: { base: target.root, work: target.work, scope: "work" },
   });
   const data = isRecord(result.data) ? result.data : {};
-  if (result.status >= 400 || data.ok === false)
+  if (data.ok === false)
     throw new Error(typeof data.error === "string" ? data.error : WORKFLOW_COPY.chapterFailed);
   // 空作品或需要先选作品时快照里没有章节，表单显示“暂无章节”。
   const snapshot = data.snapshot;

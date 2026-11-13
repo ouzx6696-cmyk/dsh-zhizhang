@@ -80,11 +80,11 @@ E02（类型对齐）、E04、E06（沙箱 preload）、E07（生产 CSP）已�
 
 发版前审查发现、判定不阻塞发布 的问题：
 
+更新安装前释放作品锁和头条同根切换失败时误释放锁的两项已修复，分别见 `main/ipc/updates.ts` 与 `main/targets.ts`。
+
 | 级别 | 位置 | 问题 | 方向 |
 | --- | --- | --- | --- |
-| P2 | `apps/desktop/src/main/updates.ts` | 安装更新时先释放作品锁再 `quitAndInstall`；安装失败或作者选“留下”时应用仍在运行却已无锁 | 在确认退出后才释放，失败时重新取得 |
 | P2 | `packages/core` 原子写（T115） | rename 后 fsync 父目录，网络盘 / FUSE 可能报 EINVAL 导致误回滚 | 只对明确不支持的错误降级，并记录诊断 |
-| P2 | `apps/desktop/src/main/targets.ts` | 头条切换文章失败时可能释放仍在使用的锁根 | 失败路径保留原锁 |
 | P3 | `workflow/service.ts` | runningSignature 去重可能漏发进度 | 以快照版本去重 |
 | P3 | `workflow-model.ts` | acceptRecord 在挂载竞态下可能被旧响应覆盖 | 请求作用域守卫 |
 | P3 | 头条 `article-facts.ts` | 只认阿拉伯数字，中文 / 全角数字可绕过数字覆盖检查（只提示，不阻断） | 归入 T134 或单独规则版本 |

@@ -1,5 +1,4 @@
 import { WorkflowService } from "../workflow/service";
-import { migrateSessionHistory } from "./migration";
 import { DEFAULT_HISTORY_LIMIT } from "../history-options";
 import { shouldProactivelyCompact } from "../context-settings";
 import path from "node:path";
@@ -33,7 +32,7 @@ export class Sessions {
     SessionManager,
     { leaf: string | null; limit: number; messages: WriterMessage[]; total: number }
   >();
-  readonly workflows = new WorkflowService(this);
+  readonly workflows: WorkflowService = new WorkflowService(this);
   reconfiguring = false;
   compactions = new Set<string>();
   preparations = new Map<symbol, { target: Target; focus: Focus; generation: number }>();
@@ -82,7 +81,7 @@ export class Sessions {
   same(a: Target, b: Target) {
     return this.key(a) === this.key(b);
   }
-  isRunning(target: Target) {
+  isRunning(target: Target): boolean {
     const key = this.key(target);
     return (
       this.workflows.busy(target) ||
@@ -92,10 +91,6 @@ export class Sessions {
       this.sessions.get(key)?.session.isIdle === false
     );
   }
-  async initialize(target: Target) {
-    return migrateSessionHistory(this, target);
-  }
-
   hasPending() {
     return this.preparations.size > 0 || this.opening.size > 0 || this.workflows.rows().length > 0;
   }

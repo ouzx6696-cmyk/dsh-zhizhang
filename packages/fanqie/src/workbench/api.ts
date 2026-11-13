@@ -2,12 +2,11 @@ import { withPluginConfig } from "../engine/runtime-config.js";
 import path from "node:path";
 import { readText } from "../../../core/src/fsx.js";
 import {
-  API,
-  ROUTES,
+  COMMANDS,
   sendError,
-  type RouteContext,
-  type WorkbenchMode,
-} from "../../../workbench/src/routes.js";
+  type CommandContext,
+  type WorkbenchCommands,
+} from "../../../workbench/src/commands.js";
 import type { StoragePaths, PluginConfig } from "../engine/types.js";
 import { NovelError } from "../engine/errors.js";
 import { asString, asStringArray, boolArg } from "../engine/parse.js";
@@ -37,14 +36,14 @@ import { MultiDraftPort } from "../engine/ports/multi-draft.js";
 import { chapterReviewInfo, finalizeProblem } from "../review.js";
 import { DELIVERY_ACTIONS } from "./delivery.js";
 import { runPanelAccept } from "./accept.js";
-import { panelPaths, resolveHttpPaths } from "./paths.js";
+import { panelPaths, resolvePanelPaths } from "./paths.js";
 import { prepareUnifyBrief } from "./unify.js";
 
 /** 作者在写作台阅读面板保存正文时写入 ledger 的固定摘要；改稿学习据此识别作者改动（learn-task.ts 引用） */
 export const AUTHOR_PANEL_SAVE_SUMMARY = "作者在阅读面板保存正文";
 
-type RouteHandler = (ctx: RouteContext) => Promise<unknown>;
-type ProjectRequest = { ctx: RouteContext; input: Record<string, unknown>; paths: StoragePaths };
+type RouteHandler = (ctx: CommandContext) => Promise<unknown>;
+type ProjectRequest = { ctx: CommandContext; input: Record<string, unknown>; paths: StoragePaths };
 type WorkRequest = ProjectRequest & { workKey: string; dir: string };
 const PANEL_BODY_BYTE_CAP = 400 * 1024;
 function capPanelBody(body: string) {
@@ -63,29 +62,23 @@ function requireValue(input: Record<string, unknown>, key: string, code: string,
   if (!value) throw new NovelError(code, message);
   return value;
 }
-function routesFor(config: PluginConfig): Record<string, RouteHandler> {
+function commandsFor(config: PluginConfig): Record<string, RouteHandler> {
   const withPaths =
-    (handler: (request: ProjectRequest) => Promise<unknown>, limit?: number): RouteHandler =>
+    (handler: (request: ProjectRequest) => Promise<unknown>): RouteHandler =>
     async (ctx) => {
-      const input =
-        ctx.method === "POST" ? await ctx.body(limit) : Object.fromEntries(ctx.url.searchParams);
-      if (!input) return;
+      const input = ctx.input;
       const paths = await panelPaths(
-        ctx.url,
         config,
         asString(input, "base") ?? asString(input, "project") ?? "",
       );
       return handler({ ctx, input, paths });
     };
-  const withWork = (
-    handler: (request: WorkRequest) => Promise<unknown>,
-    limit?: number,
-  ): RouteHandler =>
+  const withWork = (handler: (request: WorkRequest) => Promise<unknown>): RouteHandler =>
     withPaths(async (request) => {
       const workKey = requireValue(request.input, "work", "work_required", "缺少 work");
       const dir = await resolveWorkDir(request.paths, workKey);
       return handler({ ...request, workKey, dir });
-    }, limit);
+    });
   const chapterAction = (action: "review" | "finalize" | "acknowledge") =>
     withWork(async ({ ctx, input, dir }) => {
       if (
@@ -109,7 +102,7 @@ function routesFor(config: PluginConfig): Record<string, RouteHandler> {
         reviewedBy: "panel author",
         acknowledgeRevision: action === "acknowledge",
       });
-      return ctx.json(200, { ok: true, chapterId: chapter.id, status: chapter.status });
+      return ctx.reply({ ok: true, chapterId: chapter.id, status: chapter.status });
     });
   const readBody = (kind: "chapter" | "candidate") =>
     withWork(async ({ ctx, input, dir, workKey }) => {
@@ -119,7 +112,7 @@ function routesFor(config: PluginConfig): Record<string, RouteHandler> {
       if (kind === "chapter") {
         const rec = await readChapter(dir, id),
           writer = await chapterReviewInfo(dir, id, rec.body, config.requireEditorPass === true);
-        return ctx.json(200, {
+        return ctx.reply({
           ok: true,
           workKey,
           meta: {
@@ -141,7 +134,7 @@ function routesFor(config: PluginConfig): Record<string, RouteHandler> {
       }
       const cand = await readCandidate(dir, id),
         wordCount = countWords(cand.body);
-      return ctx.json(200, {
+      return ctx.reply({
         ok: true,
         workKey,
         meta: {
@@ -169,7 +162,7 @@ function routesFor(config: PluginConfig): Record<string, RouteHandler> {
     });
   const health = withPaths(async ({ ctx, paths }) => {
     const product = buildProductView();
-    return ctx.json(200, {
+    return ctx.reply({
       ok: true,
       plugin: "writer-agent",
       version: product.version,
@@ -178,14 +171,14 @@ function routesFor(config: PluginConfig): Record<string, RouteHandler> {
       acceptViaPost: true,
       base: paths.base,
       resolvedVia: paths.resolvedVia,
-      routes: FANQIE_ROUTES,
+      commands: FANQIE_COMMANDS,
       multiDraftEnabled: MultiDraftPort.isEnabled(),
     });
   });
   const unify = withPaths(async ({ ctx, input, paths }) => {
     const raw = input.candidateIds;
     const candidateIds =
-      ctx.method === "POST"
+      ctx.kind === "write"
         ? (asStringArray(input, "candidateIds") ?? [])
         : typeof raw === "string"
           ? raw.split(/[,\s]+/).filter(Boolean)
@@ -195,22 +188,13 @@ function routesFor(config: PluginConfig): Record<string, RouteHandler> {
       chapter: asString(input, "chapter") ?? "",
       candidateIds: [...new Set(candidateIds)].slice(0, 8),
     });
-    return ctx.json(
-      result.ok
-        ? 200
-        : result.code === MultiDraftPort.disabledCode
-          ? 400
-          : result.code === "work_not_found"
-            ? 404
-            : 422,
-      result,
-    );
+    return ctx.reply(result);
   });
   const table: Record<string, RouteHandler> = {
-    [`GET ${API}`]: health,
-    [`GET ${API}/health`]: health,
-    [`GET ${API + ROUTES.capabilities}`]: async (ctx) =>
-      ctx.json(200, {
+    [`read /`]: health,
+    [`read /health`]: health,
+    [`read ${COMMANDS.capabilities}`]: async (ctx) =>
+      ctx.reply({
         ok: true,
         quick: true,
         deep: false,
@@ -218,19 +202,16 @@ function routesFor(config: PluginConfig): Record<string, RouteHandler> {
         deliverReason: "请先保存模型连接",
         deliverActions: DELIVERY_ACTIONS,
       }),
-    [`POST ${API + ROUTES.diagnose}`]: withWork(
-      async ({ ctx, input, dir }) => ctx.json(200, { ok: true, ...(await diagnose(dir, input)) }),
-      64000,
+    [`write ${COMMANDS.diagnose}`]: withWork(async ({ ctx, input, dir }) =>
+      ctx.reply({ ok: true, ...(await diagnose(dir, input)) }),
     ),
-    [`POST ${API + ROUTES.stageRevision}`]: withWork(
-      async ({ ctx, input, dir }) =>
-        ctx.json(200, { ok: true, ...(await stageRevisionCandidate(dir, input)) }),
-      1024 * 1024,
+    [`write ${COMMANDS.stageRevision}`]: withWork(async ({ ctx, input, dir }) =>
+      ctx.reply({ ok: true, ...(await stageRevisionCandidate(dir, input)) }),
     ),
-    [`POST ${API + ROUTES.reviewChapter}`]: chapterAction("review"),
-    [`POST ${API + ROUTES.finalizeChapter}`]: chapterAction("finalize"),
-    [`POST ${API + ROUTES.acknowledge}`]: chapterAction("acknowledge"),
-    [`POST ${API + ROUTES.accept}`]: withPaths(async ({ ctx, input, paths }) => {
+    [`write ${COMMANDS.reviewChapter}`]: chapterAction("review"),
+    [`write ${COMMANDS.finalizeChapter}`]: chapterAction("finalize"),
+    [`write ${COMMANDS.acknowledge}`]: chapterAction("acknowledge"),
+    [`write ${COMMANDS.accept}`]: withPaths(async ({ ctx, input, paths }) => {
       const mode = asString(input, "mode") ?? "replace";
       if (mode !== "append" && mode !== "replace")
         throw new NovelError("bad_mode", "mode 只支持 append / replace");
@@ -250,64 +231,50 @@ function routesFor(config: PluginConfig): Record<string, RouteHandler> {
         acceptAfterEdit: boolArg(input, "acceptAfterEdit"),
         confirmAcceptAfterEdit: boolArg(input, "confirmAcceptAfterEdit"),
       });
-      const status = result.ok
-        ? 200
-        : result.code === "recovery_required" || result.code === "recovery_conflict"
-          ? 409
-          : ["confirm_required", "edit_accept_confirm_required", "bad_id", "bad_args"].includes(
-                result.code,
-              )
-            ? 400
-            : result.code === "work_not_found" || result.code === "candidate_not_found"
-              ? 404
-              : 422;
-      return ctx.json(status, result);
+      return ctx.reply(result);
     }),
-    [`GET ${API + ROUTES.unifyPrepare}`]: unify,
-    [`POST ${API + ROUTES.unifyPrepare}`]: unify,
-    [`POST ${API + ROUTES.saveChapter}`]: withWork(
-      async ({ ctx, input, dir }) => {
-        const chapter = asString(input, "chapter", { required: true }),
-          body = asString(input, "body", { required: true, trim: false }),
-          expectedRevision = asString(input, "expectedRevision", { required: true });
-        if (input.mode === "candidate") {
-          const cand = await stageCandidate(dir, {
-            chapterId: chapter,
-            body,
-            expectedRevision,
-            editOf: asString(input, "editOf"),
-            source: "author",
-            note: "作者在阅读面板保存",
-            draftLabel: asString(input, "draftLabel") || "作者修订",
-          });
-          return ctx.json(200, {
-            ok: true,
-            candidateId: cand.id,
-            chapterId: cand.chapterId,
-            wordCount: cand.wordCount,
-          });
-        }
-        const saved = await updateChapter(dir, {
-          id: chapter,
+    [`read ${COMMANDS.unifyPrepare}`]: unify,
+    [`write ${COMMANDS.unifyPrepare}`]: unify,
+    [`write ${COMMANDS.saveChapter}`]: withWork(async ({ ctx, input, dir }) => {
+      const chapter = asString(input, "chapter", { required: true }),
+        body = asString(input, "body", { required: true, trim: false }),
+        expectedRevision = asString(input, "expectedRevision", { required: true });
+      if (input.mode === "candidate") {
+        const cand = await stageCandidate(dir, {
+          chapterId: chapter,
           body,
           expectedRevision,
-          force: boolArg(input, "force"),
-          ledgerEntry: AUTHOR_PANEL_SAVE_SUMMARY,
+          editOf: asString(input, "editOf"),
+          source: "author",
+          note: "作者在阅读面板保存",
+          draftLabel: asString(input, "draftLabel") || "作者修订",
         });
-        return ctx.json(200, {
+        return ctx.reply({
           ok: true,
-          chapterId: saved.id,
-          revision: saved.revision,
-          status: saved.status,
-          wordCount: saved.wordCount,
+          candidateId: cand.id,
+          chapterId: cand.chapterId,
+          wordCount: cand.wordCount,
         });
-      },
-      4 * 1024 * 1024,
-    ),
-    [`GET ${API + ROUTES.projects}`]: async (ctx) => {
-      const paths = await resolveHttpPaths(config),
+      }
+      const saved = await updateChapter(dir, {
+        id: chapter,
+        body,
+        expectedRevision,
+        force: boolArg(input, "force"),
+        ledgerEntry: AUTHOR_PANEL_SAVE_SUMMARY,
+      });
+      return ctx.reply({
+        ok: true,
+        chapterId: saved.id,
+        revision: saved.revision,
+        status: saved.status,
+        wordCount: saved.wordCount,
+      });
+    }),
+    [`read ${COMMANDS.projects}`]: async (ctx) => {
+      const paths = await resolvePanelPaths(config),
         current = projectIdOf(paths.base),
-        known = await listProjects({ refresh: ctx.url.searchParams.get("refresh") === "1" });
+        known = await listProjects({ refresh: String(ctx.input.refresh) === "1" });
       if (!known.some((p) => p.id === current))
         known.unshift({
           id: current,
@@ -322,7 +289,7 @@ function routesFor(config: PluginConfig): Record<string, RouteHandler> {
           words: 0,
           recoveryPending: false,
         });
-      return ctx.json(200, {
+      return ctx.reply({
         ok: true,
         base: paths.base,
         resolvedVia: paths.resolvedVia,
@@ -330,9 +297,9 @@ function routesFor(config: PluginConfig): Record<string, RouteHandler> {
         projects: known,
       });
     },
-    [`GET ${API}/works`]: withPaths(async ({ ctx, paths }) => {
+    [`read /works`]: withPaths(async ({ ctx, paths }) => {
       const works = await listWorks(paths);
-      return ctx.json(200, {
+      return ctx.reply({
         ok: true,
         base: paths.base,
         resolvedVia: paths.resolvedVia,
@@ -349,22 +316,22 @@ function routesFor(config: PluginConfig): Record<string, RouteHandler> {
         })),
       });
     }),
-    [`GET ${API}/library`]: withPaths(async ({ ctx, paths }) =>
-      ctx.json(200, {
+    [`read /library`]: withPaths(async ({ ctx, paths }) =>
+      ctx.reply({
         ok: true,
         base: paths.base,
         library: await buildLibraryView(paths),
         product: buildProductView(),
       }),
     ),
-    [`GET ${API}/report`]: withPaths(async ({ ctx, input, paths }) => {
+    [`read /report`]: withPaths(async ({ ctx, input, paths }) => {
       const source = assertSourceId(asString(input, "source"));
       const report = await readText(path.join(paths.library, "analyses", source, "report.md"));
       if (report === undefined)
         throw new NovelError("report_not_found", "报告未生成（先跑 fanqie_library_report）");
-      return ctx.json(200, { ok: true, source, report });
+      return ctx.reply({ ok: true, source, report });
     }),
-    [`GET ${API}/inspiration`]: withPaths(async ({ ctx, input, paths }) => {
+    [`read /inspiration`]: withPaths(async ({ ctx, input, paths }) => {
       const works = await listWorks(paths),
         workKey = asString(input, "work") || (works.length === 1 ? works[0].key : "");
       let foundation = {
@@ -386,7 +353,7 @@ function routesFor(config: PluginConfig): Record<string, RouteHandler> {
           stateLens: c.stateLens,
         }));
       }
-      return ctx.json(200, {
+      return ctx.reply({
         ok: true,
         base: paths.base,
         workKey: workKey || null,
@@ -394,7 +361,7 @@ function routesFor(config: PluginConfig): Record<string, RouteHandler> {
         product: buildProductView(),
       });
     }),
-    [`GET ${API + ROUTES.snapshot}`]: withPaths(async ({ ctx, input, paths }) => {
+    [`read ${COMMANDS.snapshot}`]: withPaths(async ({ ctx, input, paths }) => {
       const scope = input.scope === "work" ? "work" : "all",
         works = await listWorks(paths);
       let workKey = asString(input, "work");
@@ -415,7 +382,7 @@ function routesFor(config: PluginConfig): Record<string, RouteHandler> {
                 summary: error instanceof Error ? error.message : String(error),
               }))
             : undefined;
-        return ctx.json(200, {
+        return ctx.reply({
           ...common,
           empty: true,
           message:
@@ -433,7 +400,7 @@ function routesFor(config: PluginConfig): Record<string, RouteHandler> {
         recoveryPending: w.recoveryPending === true,
       }));
       if (!workKey && works.length > 1)
-        return ctx.json(200, {
+        return ctx.reply({
           ...common,
           needWork: true,
           message: "请选择作品",
@@ -443,7 +410,7 @@ function routesFor(config: PluginConfig): Record<string, RouteHandler> {
       workKey = workKey ?? works[0].key;
       const dir = await resolveWorkDir(paths, workKey),
         snapshot = await buildPanelSnapshot(dir, paths, { scope });
-      return ctx.json(200, {
+      return ctx.reply({
         ...common,
         empty: false,
         snapshot,
@@ -451,26 +418,24 @@ function routesFor(config: PluginConfig): Record<string, RouteHandler> {
         works: rows,
       });
     }),
-    [`GET ${API + ROUTES.chapter}`]: readBody("chapter"),
-    [`GET ${API + ROUTES.candidate}`]: readBody("candidate"),
+    [`read ${COMMANDS.chapter}`]: readBody("chapter"),
+    [`read ${COMMANDS.candidate}`]: readBody("candidate"),
   };
   return table;
 }
-const FANQIE_ROUTES = [
-  ...new Set(Object.keys(routesFor({})).map((key) => key.slice(key.indexOf(" ") + 1))),
+const FANQIE_COMMANDS = [
+  ...new Set(Object.keys(commandsFor({})).map((key) => key.slice(key.indexOf(" ") + 1))),
 ];
-const FANQIE_ROUTE_SET = new Set(FANQIE_ROUTES);
-export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
-  const routes = routesFor(config);
+const FANQIE_COMMAND_SET = new Set(FANQIE_COMMANDS);
+export function fanqieApi(config: PluginConfig = {}): WorkbenchCommands {
+  const handlers = commandsFor(config);
   return {
-    routes: FANQIE_ROUTES,
+    commands: FANQIE_COMMANDS,
     async handle(ctx) {
-      if (!FANQIE_ROUTE_SET.has(ctx.path)) return false;
-      const method =
-        ctx.method === "HEAD" && ctx.path !== API + ROUTES.capabilities ? "GET" : ctx.method;
-      const route = routes[`${method} ${ctx.path}`];
-      if (!route) {
-        ctx.json(405, { ok: false, code: "method", error: `method not allowed: ${ctx.method}` });
+      if (!FANQIE_COMMAND_SET.has(ctx.command)) return false;
+      const handler = handlers[`${ctx.kind} ${ctx.command}`];
+      if (!handler) {
+        ctx.reply({ ok: false, code: "invalid_command", error: `操作类型不匹配：${ctx.command}` });
         return true;
       }
       try {
@@ -478,10 +443,8 @@ export function fanqieApi(config: PluginConfig = {}): WorkbenchMode {
           {
             multiDraft: { enabled: config.multiDraft?.enabled === true },
             continuity: { enabled: config.continuity?.enabled === true },
-            finalStructureGuard: config.safety?.finalStructureGuard !== false,
-            narrowPlanningBasis: config.safety?.narrowPlanningBasis !== false,
           },
-          () => withPluginConfig(config, () => route(ctx)),
+          () => withPluginConfig(config, () => handler(ctx)),
         );
       } catch (error) {
         sendError(ctx, error);

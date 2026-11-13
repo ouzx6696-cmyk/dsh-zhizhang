@@ -420,8 +420,8 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
         },
       });
       await api.request("/agent/deliver", {
-        method: "POST",
-        body: {
+        kind: "write",
+        input: {
           base: state.target.root,
           work: state.target.work,
           chapter: "c001",
@@ -449,8 +449,8 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
           requestId: "ui-dedupe",
         };
       await Promise.all([
-        api.request("/agent/deliver", { method: "POST", body }),
-        api.request("/agent/deliver", { method: "POST", body }),
+        api.request("/agent/deliver", { kind: "write", input: body }),
+        api.request("/agent/deliver", { kind: "write", input: body }),
       ]);
     });
     await expect
@@ -621,17 +621,17 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
       const api = window.writerDesktop;
       const state = await api.state();
       const work = state.target.work;
-      const current = await api.request("/chapter", { query: { work, id: "c001" } });
+      const current = await api.request("/chapter", { input: { work, id: "c001" } });
       const result = await api.request("/chapter/save", {
-        method: "POST",
-        body: {
+        kind: "write",
+        input: {
           work,
           chapter: "c001",
           expectedRevision: current.data.meta.revision,
           body: current.data.body + "\n后台先保存的新正文。",
         },
       });
-      if (result.status !== 200) throw new Error(JSON.stringify(result));
+      if (result.data.ok === false) throw new Error(JSON.stringify(result));
     });
     await expect(editor).toHaveValue("作者尚未保存的局部修改");
     await page.keyboard.press("Control+s");

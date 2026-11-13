@@ -23,7 +23,7 @@ import {
   type WorkflowRecord,
 } from "../../../../packages/core/src/workflow";
 import type { Target } from "../context";
-import type { Sessions } from "../session/manager";
+import type { WorkflowHost } from "./host";
 const foundationKeys = [
   "locks",
   "happened",
@@ -35,7 +35,7 @@ const foundationKeys = [
 ] as const;
 
 export async function applyPlan(
-  host: Sessions,
+  host: WorkflowHost,
   target: Target,
   state: WorkflowRecord,
   output: Record<string, unknown>,
@@ -110,7 +110,7 @@ export async function applyPlan(
   });
 }
 export async function applyArticle(
-  host: Sessions,
+  host: WorkflowHost,
   target: Target,
   state: WorkflowRecord,
   output: Record<string, unknown>,

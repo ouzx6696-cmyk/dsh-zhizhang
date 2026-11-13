@@ -4,7 +4,9 @@
 
 基于内置 PI SDK 的 Electron 应用（Electron 45，Windows x64）。作品只存在你的电脑上；模型只在你发起任务时收到相关创作内容。
 
-> 最近正式版 **[v0.9.9](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/v0.9.9)**；最新版 **1.1.1**（稳定性补丁，基于 1.1.0-preview.3；安全收紧开关默认开），变化见 [CHANGELOG](CHANGELOG.md)。
+> 最近正式版 **[v1.1.1](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/v1.1.1)**；当前开发版本 **1.1.2**（审计修订），变化见 [CHANGELOG](CHANGELOG.md)。
+
+当前开发版使用现行作品格式，不提供旧版本作品、旧会话或旧草稿的迁移。新建作品的草稿暂存与中断恢复继续保留。
 
 ## 能做什么
 
@@ -52,7 +54,8 @@
 ```bash
 npm ci
 npm run desktop:dev      # 启动开发版
-npm run verify           # 架构守卫、导出审计、Python 与 Node 回归
+npm run test:quick       # 日常核心流程与锁回归
+npm run verify           # 静态检查、Python 与完整 Node 回归
 npm run lint
 npm run typecheck
 npm run test:desktop     # 真实 PI + 本地假模型

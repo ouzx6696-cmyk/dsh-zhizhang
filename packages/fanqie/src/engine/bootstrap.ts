@@ -38,8 +38,6 @@ export function engineTools(
   const policy = {
     multiDraft: { enabled: boundConfig.multiDraft?.enabled === true },
     continuity: { enabled: boundConfig.continuity?.enabled === true },
-    finalStructureGuard: boundConfig.safety?.finalStructureGuard !== false,
-    narrowPlanningBasis: boundConfig.safety?.narrowPlanningBasis !== false,
   };
   const narrowed = role === "writer" && boundConfig.toolset?.narrowed === true;
   return allTools()
@@ -67,8 +65,7 @@ export function engineTools(
           ...(args.force === true ? ["fanqie.force_requires_author"] : []),
           ...(tool.name === "fanqie_library_plan" &&
           args.mode === "full" &&
-          args.confirm_full === true &&
-          boundConfig.safety?.fullDissectAuthor !== false
+          args.confirm_full === true
             ? ["fanqie.full_dissect_requires_author"]
             : []),
         ])

@@ -113,31 +113,34 @@ export async function createToolHarness({ mode, role = "writer", cwd, config = {
   }
 }
 
-export async function createRouteHarness(config = {}) {
+export async function createCommandHarness(config = {}) {
   const { profileRoutes } = await import(buildUrl("workbench/src/profile-api.js"));
   const { toutiaoLibrary } = await import(buildUrl("toutiao/src/methods.js"));
   const { fanqieLibrary } = await import(buildUrl("fanqie/src/forge.js"));
-  const { toutiaoApi } = await import(buildUrl("toutiao/src/workbench/api.js"));
+  const { isToutiaoCommand, runToutiaoCommand } = await import(
+    buildUrl("toutiao/src/workbench/api.js")
+  );
   const { fanqieApi } = await import(buildUrl("fanqie/src/workbench/api.js"));
   const handlers = [
-    toutiaoApi(config.toutiao || {}, () => true),
     fanqieApi(config.fanqie || {}),
-    profileRoutes("/api/writer/toutiao", toutiaoLibrary, () => config.toutiao?.profile),
-    profileRoutes("/api/writer/fanqie", fanqieLibrary, () => config.fanqie?.profile),
+    profileRoutes("/toutiao", toutiaoLibrary, () => config.toutiao?.profile),
+    profileRoutes("/fanqie", fanqieLibrary, () => config.fanqie?.profile),
   ];
-  return async (route, { method = "GET", body = {} } = {}) => {
-    const url = new URL("/api/writer" + route, "app://writer");
-    let response = new Response("{}", { status: 404 });
+  return async (name, { kind = "read", input = {} } = {}) => {
+    const [command, query = ""] = name.split("?", 2);
+    const values = { ...Object.fromEntries(new URLSearchParams(query)), ...input };
+    if (isToutiaoCommand(command))
+      return (await runToutiaoCommand(command, values, config.toutiao || {}, true)).data;
+    let result = { ok: false, code: "NOT_FOUND" };
     const ctx = {
-      url,
-      method,
-      path: url.pathname,
-      json: (status, data) => {
-        response = new Response(JSON.stringify(data), { status });
+      command,
+      kind,
+      input: values,
+      reply: (data) => {
+        result = data;
       },
-      body: async () => body,
     };
     for (const handler of handlers) if (await handler.handle(ctx)) break;
-    return response;
+    return result;
   };
 }

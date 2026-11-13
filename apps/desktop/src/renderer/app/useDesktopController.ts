@@ -167,7 +167,7 @@ function createDesktopController() {
     if (persist || scopeId(desktopStore.get().system?.target) !== scopeId(chosen))
       await syncState();
     const [, archives] = await Promise.all([loadView(chosen), api.conversations(chosen)]);
-    chatStore.set({ archives });
+    if (request === selectionRequest) chatStore.set({ archives });
   }
 
   async function changeView(view: string) {

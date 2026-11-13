@@ -2,16 +2,27 @@
 
 软件验收使用本地假模型和确定性的业务回归，不要求人工打分、盲评或连续多日冒烟；真实模型经济档实测单独记录，不替代自动化门槛。
 
-## 日常检查
+## 检查入口
 
-- `npm run verify`：类型、lint、架构、格式、导出、Python 与 Node 业务回归。
-- `npm run verify:desktop`：桌面构建、PI 与本地假模型、完整 GUI 旅程。
-- `npm run test:all`：发行前运行上述两组检查。Linux GUI 需先启动显示服务并设置 `CI=1 DISPLAY=:99`。
-- `npm run assets -- check`：核对资产清单与磁盘一致。
+| 场景 | 命令 | 范围 |
+| --- | --- | --- |
+| 日常修改后快速反馈 | `npm run test:quick` | 番茄、头条主要流程，锁竞争、流水线基础和前端状态；不含完整静态检查、全部 Python、桌面与 GUI |
+| 合并前的核心验收 | `npm run verify` | 类型、lint、架构、格式、导出、所有 Python 和 Node 核心测试 |
+| 桌面相关改动 | `npm run verify:desktop` | 类型检查、桌面构建、PI 与本地假模型、GUI 旅程 |
+| 发行前完整验收 | `npm run test:all` | 核心与桌面全部检查，每种构建准备只执行一次 |
 
-`test/desktop/workflow.test.mjs` 的完整流水线场景直接经过生产 `Sessions.workflows` 与 PI 本地假模型，文章质检调用真实 Python 规则；GUI 旅程覆盖引导、作品菜单编辑保存、设置取消、流水线入口与窗口铺满检查。
+也可用 `npm run test:node`、`npm run test:desktop`、`npm run test:desktop:ui` 单独运行对应范围。GUI 需要显示服务；Linux 可使用 `CI=1 DISPLAY=:99`。`npm run assets -- check` 用于核对资产清单。
 
-每个场景核对完整行为和失败恢复，不逐句拆测试；子进程失败或被信号终止即失败，跳过不计通过。假模型覆盖工具调用、错误与取消、作者确认、候选与审读、保存和恢复，GUI 通过真实作品菜单完成编辑与保存。
+## 测试如何组织
+
+- `test/architecture.test.mjs`：架构守卫本身的识别规则；`test/unit.test.mjs`：跨模块基础能力。
+- `test/flow.test.mjs`、`test/engine/`：头条和番茄的业务入口、存储、并发与恢复。
+- `test/renderer/`：前端状态；`test/desktop/*.test.mjs`：桌面进程、PI、流水线和本地假模型；`test/desktop/ui.spec.mjs`：真实 Electron 交互。
+- `packages/*/skill/tests/test_*.py`：Python 规则与桥接，自动发现，不需手工登记。
+
+新增测试优先验证用户可观察的结果或曾经发生的故障。相同流程的输入变体可用数据表合并；涉及稿件、作者确认、锁和恢复的不同故障点分别保留。不要为了增加数量重复断言实现细节，也不要用假模型结果代替真实模型质量验证。
+
+桌面完整流水线测试走生产 `Sessions.workflows` 与本地假模型，文章质检调用真实 Python 规则；GUI 旅程覆盖引导、作品菜单编辑保存、设置取消、流水线入口与窗口铺满检查。测试运行器在每次调用内复用编译和构建，测试失败或被信号终止时停止并返回失败。
 
 ## 云端与发行
 

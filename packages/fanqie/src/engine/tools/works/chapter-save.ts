@@ -11,7 +11,6 @@ import {
 } from "../../ports/index.js";
 import { CHAPTER_STATUSES } from "../../types.js";
 import { asString, boolArg, config, fail, openWork } from "../context.js";
-import { getPortConfig } from "../../ports/config.js";
 
 import { B, E, I, S, WORK_OPT, WORKING_DIR } from "../schema.js";
 import { defineTool } from "../types.js";
@@ -89,7 +88,6 @@ export const chapterSave = defineTool({
       reviewedBy: asString(args, "reviewed_by"),
       acknowledgeRevision: boolArg(args, "acknowledge_revision") === true,
       ledgerEntry: `chapter_save 显式保存 ${chapterId}${bypassNoted ? " confirm_bypass=true" : ""}`,
-      structureGuard: getPortConfig().finalStructureGuard,
     });
     const bypassTag = bypassNoted
       ? " confirm_bypass=true"

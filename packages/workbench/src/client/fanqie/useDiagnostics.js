@@ -111,7 +111,7 @@ export function useDiagnostics({ state, stateRef, alive, setEdit, refresh, notif
       }
     } catch (error) {
       if (!alive.current || stateRef.current.edit?.requestId !== edit.requestId) return;
-      const pendingSave = !error.status || error.status >= 500;
+      const pendingSave = error.uncertain !== false;
       const message = error.message + " · " + (pendingSave ? c.retry : c.retained);
       setEdit({ ...edit, saving: false, pendingSave, saveError: message });
       if (current(generation)) setStatus({ key, busy: false, error: message });

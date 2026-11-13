@@ -4,7 +4,7 @@ import { atomicWrite, readJson, sha256 } from "../../../../packages/core/src/fsx
 import { fanqieLibrary } from "../../../../packages/fanqie/src/forge";
 import { toutiaoLibrary } from "../../../../packages/toutiao/src/methods";
 import { jsonOutput, list, record, text } from "./schema";
-import type { Sessions } from "../session/manager";
+import type { WorkflowHost } from "./host";
 import type { WorkflowRequest } from "../../../../packages/core/src/workflow";
 import type { WorkflowRun } from "./run";
 
@@ -109,7 +109,7 @@ export async function stageCard(
   ].join("\n\n");
 }
 
-export async function methodBasis(host: Sessions, request: WorkflowRequest) {
+export async function methodBasis(host: WorkflowHost, request: WorkflowRequest) {
   const mode = request.kind === "article" ? "toutiao" : "fanqie";
   const ids =
     request.kind === "book"

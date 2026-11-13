@@ -1,4 +1,4 @@
-import { ROUTES } from "../routes.js";
+import { COMMANDS } from "../commands.js";
 import {
   ApiError,
   type DesktopBridge,
@@ -18,11 +18,12 @@ function isJsonObject(value: unknown): value is Record<string, unknown> {
 async function call(
   bridge: DesktopBridge,
   path: string,
-  { method = "GET", query, body, signal }: RequestOptions = {},
+  { kind = "read", input, signal }: RequestOptions = {},
 ): Promise<Json> {
   if (signal?.aborted) throw new ApiError("aborted", { code: "aborted" });
-  const result = await bridge.request(path, { method, query, body });
-  if (signal?.aborted) throw new ApiError("aborted", { code: "aborted" });
+  const result = await bridge.request(path, { kind, input });
+  if (signal?.aborted)
+    throw new ApiError("aborted", { code: "aborted", uncertain: kind === "write" });
   const data = isJsonObject(result.data) ? result.data : {};
   const message =
     typeof data.error === "string" && data.error
@@ -30,9 +31,9 @@ async function call(
       : typeof data.message === "string" && data.message
         ? data.message
         : "操作失败";
-  if (result.status >= 400 || data.ok === false)
+  if (data.ok === false)
     throw new ApiError(message, {
-      status: result.status,
+      uncertain: data.uncertain === true,
       code: typeof data.code === "string" ? data.code : undefined,
     });
   return result.data;
@@ -41,46 +42,48 @@ async function call(
 function fanqie(bridge: DesktopBridge): FanqieData {
   return {
     projects: (refresh, signal) =>
-      call(bridge, ROUTES.projects, { query: { refresh: refresh ? 1 : "" }, signal }),
+      call(bridge, COMMANDS.projects, { input: { refresh: refresh ? 1 : "" }, signal }),
     snapshot: (base, work, signal, scope = "all") =>
-      call(bridge, ROUTES.snapshot, { query: { base, work, scope }, signal }),
+      call(bridge, COMMANDS.snapshot, { input: { base, work, scope }, signal }),
     chapter: (base, work, id, signal) =>
-      call(bridge, ROUTES.chapter, { query: { base, work, id }, signal }),
-    saveChapter: (payload) => call(bridge, ROUTES.saveChapter, { method: "POST", body: payload }),
+      call(bridge, COMMANDS.chapter, { input: { base, work, id }, signal }),
+    saveChapter: (payload) => call(bridge, COMMANDS.saveChapter, { kind: "write", input: payload }),
     candidate: (base, work, id, signal) =>
-      call(bridge, ROUTES.candidate, { query: { base, work, id }, signal }),
+      call(bridge, COMMANDS.candidate, { input: { base, work, id }, signal }),
     diagnose: (payload, signal) =>
-      call(bridge, ROUTES.diagnose, { method: "POST", body: payload, signal }),
+      call(bridge, COMMANDS.diagnose, { kind: "write", input: payload, signal }),
     stageRevision: (payload) =>
-      call(bridge, ROUTES.stageRevision, { method: "POST", body: payload }),
-    accept: (payload) => call(bridge, ROUTES.accept, { method: "POST", body: payload }),
+      call(bridge, COMMANDS.stageRevision, { kind: "write", input: payload }),
+    accept: (payload) => call(bridge, COMMANDS.accept, { kind: "write", input: payload }),
     chapterAction: (action, payload) =>
       call(
         bridge,
         action === "acknowledge"
-          ? ROUTES.acknowledge
+          ? COMMANDS.acknowledge
           : action === "review"
-            ? ROUTES.reviewChapter
-            : ROUTES.finalizeChapter,
+            ? COMMANDS.reviewChapter
+            : COMMANDS.finalizeChapter,
         {
-          method: "POST",
-          body: payload,
+          kind: "write",
+          input: payload,
         },
       ),
-    unifyPrepare: (payload) => call(bridge, ROUTES.unifyPrepare, { method: "POST", body: payload }),
-    capabilities: (base, signal) => call(bridge, ROUTES.capabilities, { query: { base }, signal }),
-    deliver: (payload) => call(bridge, ROUTES.deliver, { method: "POST", body: payload }),
+    unifyPrepare: (payload) =>
+      call(bridge, COMMANDS.unifyPrepare, { kind: "write", input: payload }),
+    capabilities: (base, signal) =>
+      call(bridge, COMMANDS.capabilities, { input: { base }, signal }),
+    deliver: (payload) => call(bridge, COMMANDS.deliver, { kind: "write", input: payload }),
   };
 }
 
 function toutiao(bridge: DesktopBridge): ToutiaoData {
   return {
-    articles: (signal) => call(bridge, ROUTES.articles, { signal }),
-    article: (root, id, signal) => call(bridge, ROUTES.article, { query: { root, id }, signal }),
+    articles: (signal) => call(bridge, COMMANDS.articles, { signal }),
+    article: (root, id, signal) => call(bridge, COMMANDS.article, { input: { root, id }, signal }),
     adopt: (article) =>
-      call(bridge, ROUTES.adoptArticle, {
-        method: "POST",
-        body: {
+      call(bridge, COMMANDS.adoptArticle, {
+        kind: "write",
+        input: {
           root: article.root,
           id: article.id,
           expectedRev: article.rev,
@@ -88,9 +91,12 @@ function toutiao(bridge: DesktopBridge): ToutiaoData {
           confirm: true,
         },
       }),
-    saveDraft: (payload) => call(bridge, ROUTES.saveArticle, { method: "POST", body: payload }),
+    saveDraft: (payload) => call(bridge, COMMANDS.saveArticle, { kind: "write", input: payload }),
     deliver: (payload) =>
-      call(bridge, ROUTES.deliverArticle, { method: "POST", body: { ...payload, confirm: true } }),
+      call(bridge, COMMANDS.deliverArticle, {
+        kind: "write",
+        input: { ...payload, confirm: true },
+      }),
   };
 }
 
@@ -98,19 +104,19 @@ function profiles(bridge: DesktopBridge, mode: string): ProfilesData {
   const base = "/" + mode + "/profiles";
   return {
     list: (signal) => call(bridge, base, { signal }),
-    detail: (profile, signal) => call(bridge, base + "/detail", { query: { profile }, signal }),
+    detail: (profile, signal) => call(bridge, base + "/detail", { input: { profile }, signal }),
     method: (profile, id, signal) =>
-      call(bridge, base + "/method", { query: { profile, id }, signal }),
-    use: (profile) => call(bridge, base + "/use", { method: "POST", body: { profile } }),
-    create: (payload) => call(bridge, base + "/create", { method: "POST", body: payload }),
+      call(bridge, base + "/method", { input: { profile, id }, signal }),
+    use: (profile) => call(bridge, base + "/use", { kind: "write", input: { profile } }),
+    create: (payload) => call(bridge, base + "/create", { kind: "write", input: payload }),
     save: (profile, id, text) =>
-      call(bridge, base + "/save", { method: "POST", body: { profile, id, text } }),
+      call(bridge, base + "/save", { kind: "write", input: { profile, id, text } }),
     reset: (profile, id) =>
-      call(bridge, base + "/reset", { method: "POST", body: { profile, id } }),
+      call(bridge, base + "/reset", { kind: "write", input: { profile, id } }),
     rename: (profile, name, note) =>
-      call(bridge, base + "/rename", { method: "POST", body: { profile, name, note } }),
+      call(bridge, base + "/rename", { kind: "write", input: { profile, name, note } }),
     remove: (profile) =>
-      call(bridge, base + "/delete", { method: "POST", body: { profile, confirm: true } }),
+      call(bridge, base + "/delete", { kind: "write", input: { profile, confirm: true } }),
   };
 }
 

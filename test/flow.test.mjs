@@ -107,6 +107,11 @@ test("全流程：故事线长图文 立项→标题→成稿→质检→验收�
     markdown: `# 交稿单 · ${CARD["主标题"]}\n正文略`,
   });
   assert.equal(badDelivery.code, "INVALID_ARGS");
+  const partial = await call("toutiao_delivery_save", {
+    id,
+    markdown: deliveryMd(CARD["主标题"], STORY.slice(0, 300) + "\n替换的结尾"),
+  });
+  assert.equal(partial.code, "INVALID_ARGS");
   const ds = await call("toutiao_delivery_save", {
     id,
     markdown: deliveryMd(CARD["主标题"], STORY) + "\n> ——AI 到此止步。随便写的",
@@ -115,6 +120,12 @@ test("全流程：故事线长图文 立项→标题→成稿→质检→验收�
   const saved = await readFile(ds.path, "utf8");
   assert.ok(saved.trimEnd().endsWith(STOP_LINE), "末句必须是固定止步句");
   assert.equal(saved.split("AI 到此止步").length, 2, "止步句只出现一次");
+
+  await writeFile(ds.path, saved.replace(STORY.slice(80, 150), "被替换的正文"));
+  assert.equal((await articleDetail(c.root, id)).adoptable, false);
+  const current = (await harness.call("toutiao_draft_get", { id })).record;
+  await assert.rejects(adopt(c.root, id, { rev: current.rev, sha256: current.sha256 }), /交稿单/);
+  await writeFile(ds.path, saved);
 
   const led = await call("toutiao_ledger_add", { id });
   assert.equal(led.ok, true, JSON.stringify(led));
@@ -138,7 +149,7 @@ test("全流程：故事线长图文 立项→标题→成稿→质检→验收�
   assert.equal(after.code, "CONFLICT", "已交稿不能再改");
 });
 
-test("A-05 已有稿件时存稿必须带 expected_rev；首稿不需要；revision.strict=false 回退", async () => {
+test("A-05 已有稿件时存稿必须带 expected_rev；首稿不需要", async () => {
   const raw = async (harness, args) => {
     try {
       return (await harness.execute("toutiao_draft_stage", args)).value;
@@ -160,11 +171,6 @@ test("A-05 已有稿件时存稿必须带 expected_rev；首稿不需要；revis
     expected_sha256: "",
   });
   assert.equal(stale.code, "CONFLICT");
-  const loose = await setup({ config: { revision: { strict: false } } });
-  const other = (await loose.call("toutiao_article_create", { slug: "loose" })).article.id;
-  await loose.call("toutiao_card_set", { id: other, card: CARD });
-  await raw(loose, { id: other, text: STORY });
-  assert.equal((await raw(loose, { id: other, text: STORY + "\n" })).rev, 2);
 });
 
 test("A-06 立项卡 set 与 patch 串行化；内容线不合法时不写进文章元数据", async () => {

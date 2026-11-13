@@ -26,7 +26,7 @@ const BROWSER_SAFE = [
   "packages/core/src/workflow-config.ts",
   "packages/toutiao/src/classics.ts",
   "packages/fanqie/src/engine/domain/manuscript.ts",
-  "packages/workbench/src/routes.ts",
+  "packages/workbench/src/commands.ts",
 ];
 const problems = [],
   warnings = [],

@@ -68,4 +68,4 @@
 
 `requireEditorPass` 的"通过且版本匹配的审读回报"条件在 `review.ts finalizeProblem`（工具定稿与写作台定稿共用）；编辑角色不能采纳/定稿/改根基/入库的只读边界由桌面编辑子会话的工具白名单实现。两者都不是门禁 id。
 
-写作台通过桌面 IPC 调用业务路由，不启动 HTTP 服务；路由契约见 `packages/workbench/src/routes.ts`。
+写作台通过桌面 IPC 调用业务命令，不启动 HTTP 服务；命令契约见 `packages/workbench/src/commands.ts`。

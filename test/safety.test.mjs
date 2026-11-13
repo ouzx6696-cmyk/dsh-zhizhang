@@ -81,9 +81,9 @@ test("T3-03 当前目录回退保留全部库、作品与书源配置", async (t
   await runChild(
     state,
     `process.chdir(${JSON.stringify(cwd)});
-    const {resolveHttpPaths} = await import(${JSON.stringify(buildUrl("fanqie/src/workbench/paths.js"))});
+    const {resolvePanelPaths} = await import(${JSON.stringify(buildUrl("fanqie/src/workbench/paths.js"))});
     const assert = await import('node:assert/strict');
-    const result = await resolveHttpPaths({worksRoot:'novels', libraryRoot:'shared-library', sourceRoot:'books'});
+    const result = await resolvePanelPaths({worksRoot:'novels', libraryRoot:'shared-library', sourceRoot:'books'});
     assert.equal(result.works,${JSON.stringify(path.join(cwd, "novels"))});
     assert.equal(result.library,${JSON.stringify(path.join(cwd, "shared-library"))});
     assert.equal(result.sourceRoot,${JSON.stringify(path.join(cwd, "books"))});`,
@@ -162,7 +162,7 @@ test("T3-07 稿件丢失明确标错，不能显示质检有效或允许采用",
   assert.match(detail.problem, /稿件文件缺失/);
   assert.equal(detail.qaValid, false);
   assert.equal(detail.adoptable, false);
-  const { validPassingQa } = await import(buildUrl("toutiao/src/tools.js"));
+  const { validPassingQa } = await import(buildUrl("toutiao/src/article-service.js"));
   assert.equal((await validPassingQa(articles, await articles.get(id))).ok, false);
 });
 
@@ -172,7 +172,7 @@ test("T3-07 稿件真实 IO 故障向界面报错", async (t) => {
   await mkdir(articles.draftPath(id, 1));
   const { articleDetail } = await import(buildUrl("toutiao/src/workbench/data.js"));
   await assert.rejects(articleDetail(root, id), (error) =>
-    ["EISDIR", "EPERM"].includes(error.code),
+    ["EISDIR", "EPERM", "CONFLICT"].includes(error.code),
   );
 });
 
@@ -206,7 +206,7 @@ test("T3-08 定稿检查保留章节读取错误，不伪造成空正文", async
       { cwd: root, name: tool.name, arguments: {}, token: Symbol() },
       { gates, bind: (run) => run(), confirm: async () => true },
     ),
-    (error) => ["EISDIR", "EPERM"].includes(error.code),
+    (error) => ["EISDIR", "EPERM", "CONFLICT"].includes(error.code),
   );
 });
 

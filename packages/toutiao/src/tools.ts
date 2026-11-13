@@ -1,4 +1,5 @@
 import { loadLimits } from "./rule-limits.js";
+import { adoptArticle, syncLedgerStatus, validPassingQa } from "./article-service.js";
 import { PLANNER_TOOLS } from "../../core/src/tool-roles.js";
 /** 头条工具集。全部返回结构化 JSON；业务失败返回 ok:false。 */
 import { appendFile } from "node:fs/promises";
@@ -20,6 +21,7 @@ import { getUserAsset, listUserAssets, USER_PREFIX } from "../../core/src/user-a
 import {
   canTransition,
   deliveryCurrent,
+  deliveryMatches,
   MAX_RETURN_ROUNDS,
   nowIso,
   parseFeedbackEntries,
@@ -267,34 +269,6 @@ function summary(m: ArticleMeta) {
     delivered: m.delivered,
     updated_at: m.updated_at,
   };
-}
-
-/** 当前版本是否有仍然有效（稿件与立项卡都未改）的过线质检 */
-export async function validPassingQa(store: Awaited<ReturnType<typeof storeFor>>, m: ArticleMeta) {
-  const q = store.latestQaFor(m);
-  if (!q) return { ok: false as const, reason: "当前版本还没跑质检（toutiao_qa_check）" };
-  let draft: string;
-  try {
-    draft = await store.readDraft(m.id, m.current_rev);
-  } catch (error) {
-    if (!(error instanceof WriterError) || error.code !== "NOT_FOUND") throw error;
-    return { ok: false as const, reason: "稿件文件缺失，请保留现有文件并核对。" };
-  }
-  // 质检绑定的是记录哈希；稿件文件被外部原地改写后，那次质检不再覆盖实际正文。
-  if (sha256(draft) !== q.sha256)
-    return {
-      ok: false as const,
-      reason: "稿件文件被外部改动，与质检时的哈希不一致；请重新 toutiao_draft_stage 并重跑质检",
-    };
-  const cardSha = await store.cardSha(m.id);
-  if (q.card_sha256 !== cardSha)
-    return { ok: false as const, reason: "立项卡在质检后改过，请重跑 toutiao_qa_check" };
-  if (!q.pass)
-    return {
-      ok: false as const,
-      reason: `当前版本质检未过线（${q.score} 分${q.hard_gates.length ? "，硬闸：" + q.hard_gates.join("、") : ""}）`,
-    };
-  return { ok: true as const, qa: q };
 }
 
 export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition[]> {
@@ -548,11 +522,10 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
         const role =
           deps.role === "editor" ? "editor" : args.role === "author" ? "author" : "writer";
         const store = await st(exec);
-        // A-05 (toutiao.revision.strict): once a draft exists, a new one must name the version it
+        // Once a draft exists, a new one must name the version it
         // was written against; the store then checks it under the article lock.
         if (
           args.expected_rev === undefined &&
-          deps.config.revision?.strict !== false &&
           (await store.get(reqStr(args, "id"))).current_rev > 0
         )
           throw new WriterError(
@@ -582,11 +555,11 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
         const m = await store.get(reqStr(args, "id"));
         const rev = Number(args.rev ?? m.current_rev);
         if (!rev) throw new WriterError("NOT_FOUND", "还没有稿件");
-        return {
-          rev,
-          text: await store.readDraft(m.id, rev),
-          record: m.drafts.find((d) => d.rev === rev) ?? null,
-        };
+        const text = await store.readDraft(m.id, rev);
+        const record = m.drafts.find((d) => d.rev === rev) ?? null;
+        if (record && sha256(text) !== record.sha256)
+          throw new WriterError("CONFLICT", "稿件文件已变化，请核对后重新保存。");
+        return { rev, text, record };
       },
     }),
 
@@ -775,26 +748,30 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
             );
           }
         }
-        const m = await store.update(id, async (mm) => {
-          if (mm.status !== before.status)
-            throw new WriterError("CONFLICT", "状态已被其他操作改变，请重试");
-          // 前面的检查在锁外完成；落盘前在锁内复核，避免检查与写入之间卡片或交稿单被换掉。
-          if (to === "已交稿" && !deliveryCurrent(mm))
-            throw new WriterError("CONFLICT", "交稿单已不对应当前稿，请重新出交稿单");
-          if (to === "已验收" || to === "已交稿") {
-            const v = await validPassingQa(store, mm);
-            if (!v.ok) throw new WriterError("CONFLICT", v.reason);
-          }
-          if (to === "验收退回") mm.return_rounds += 1;
-          mm.history.push({
-            from: mm.status,
-            to,
-            by: to === "已交稿" ? "author" : "agent",
-            at: nowIso(),
-            note: optStr(args, "note"),
-          });
-          mm.status = to;
-        });
+        const m =
+          to === "已交稿"
+            ? await adoptArticle(store, id, {
+                by: "author",
+                note: optStr(args, "note"),
+                expectedStatus: before.status,
+              })
+            : await store.update(id, async (mm) => {
+                if (mm.status !== before.status)
+                  throw new WriterError("CONFLICT", "状态已被其他操作改变，请重试");
+                if (to === "已验收") {
+                  const v = await validPassingQa(store, mm);
+                  if (!v.ok) throw new WriterError("CONFLICT", v.reason);
+                }
+                if (to === "验收退回") mm.return_rounds += 1;
+                mm.history.push({
+                  from: mm.status,
+                  to,
+                  by: "agent",
+                  at: nowIso(),
+                  note: optStr(args, "note"),
+                });
+                mm.status = to;
+              });
         // allow-catch: article status is already committed; report ledger failure explicitly for repair.
         const ledger = await syncLedgerStatus(config, store, m).catch((e: unknown) => ({
           synced: false,
@@ -817,6 +794,11 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
           .replace(/\r\n/g, "\n")
           .trim();
         if (!md) throw new WriterError("INVALID_ARGS", "markdown 不能为空");
+        md = md
+          .split("\n")
+          .filter((line) => !line.includes("AI 到此止步"))
+          .join("\n")
+          .trimEnd();
         const after = await store.update(id, async (m) => {
           if (m.status !== "已验收")
             throw new WriterError(
@@ -838,19 +820,8 @@ export async function createToutiaoTools(deps: ToolDeps): Promise<ToolDefinition
           if (slot) problems.push(`还有模板槽位没填：${slot[0]}`);
           const main = m.headlines.main;
           if (main && !md.includes(main)) problems.push("交稿单里没有主推标题");
-          const probe = draft
-            .split("\n")
-            .map((s) => s.trim())
-            .filter((s) => s && !s.startsWith("#") && !s.startsWith("【配图"))
-            .slice(0, 2);
-          if (probe.some((p) => !md.includes(p)))
-            problems.push("交稿单正文与当前终稿不一致（终稿开头段落没找到）");
+          if (!deliveryMatches(md, draft)) problems.push("交稿单正文与当前终稿不一致");
           if (problems.length) throw new WriterError("INVALID_ARGS", problems.join("；"));
-          md = md
-            .split("\n")
-            .filter((l) => !l.includes("AI 到此止步"))
-            .join("\n")
-            .trimEnd();
           md += `\n\n---\n> ${STOP_LINE}\n`;
           await atomicWrite(store.deliveryPath(id), md);
           m.delivered = true;
@@ -1072,31 +1043,4 @@ async function saveCard(
     if (genre) m.genre = genre;
   });
   return { saved: true, card_sha256: sha, ready: !issues.some((i) => i.level === "fail"), issues };
-}
-
-/** 文章状态变化后同步台账里同标题那一行（若已记账） */
-export async function syncLedgerStatus(
-  config: ToutiaoConfig,
-  store: Awaited<ReturnType<typeof storeFor>>,
-  m: ArticleMeta,
-) {
-  const title = String((await store.readCard(m.id))?.["主标题"] ?? "");
-  if (!title || !(await readText(store.ledgerPath))) return { synced: false };
-  try {
-    await bridge(config, [
-      "ledger-status",
-      "--article-id",
-      m.id,
-      "--title",
-      title,
-      "--to",
-      m.status,
-      "--ledger",
-      store.ledgerPath,
-    ]);
-    return { synced: true };
-  } catch (e) {
-    if (e instanceof WriterError && e.code === "NOT_FOUND") return { synced: false };
-    throw e;
-  }
 }

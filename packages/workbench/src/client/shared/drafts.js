@@ -88,48 +88,10 @@ export function otherDraftKeys(key) {
   });
 }
 
-// Until 1.0.1 the key ended with the revision. Converted once at start-up; remove in 1.0.2.
-const LEGACY = {
-  fanqie: { length: 6, keep: 5, base: (parts) => parts[5] },
-  toutiao: { length: 5, keep: 3, base: (parts) => ({ rev: parts[3], sha256: parts[4] }) },
-};
-
-function legacyShape(parts) {
-  const shape = parts && Object.hasOwn(LEGACY, parts[0]) ? LEGACY[parts[0]] : null;
-  return shape && parts.length === shape.length ? shape : null;
-}
-
-/** Moves one old-format draft under its new key; the newest draft of a slot wins. */
-function convertLegacy(key, parts, shape) {
-  const draft = parseStored(window.localStorage.getItem(key));
-  if (!draft) {
-    // Kept as it is: conversion must never be the step that loses an author's text.
-    console.warn(`草稿旧格式无法解析，原条目保留未改：${key}`);
-    return;
-  }
-  const target = draftKey(parts.slice(0, shape.keep));
-  const existing = readDraft(target);
-  if (!existing || existing.savedAt < draft.savedAt)
-    window.localStorage.setItem(
-      target,
-      JSON.stringify({ text: draft.text, savedAt: draft.savedAt, baseRevision: shape.base(parts) }),
-    );
-  window.localStorage.removeItem(key);
-}
-
-/**
- * Runs once when the app starts, not when an editor opens: converts old-format keys, then drops
- * drafts older than two weeks and unreadable entries.
- */
+/** Runs once at startup to drop expired and unreadable drafts. */
 export function sweepDrafts() {
-  for (const key of storedDraftKeys()) {
-    const parts = keyParts(key);
-    const shape = legacyShape(parts);
-    if (shape) convertLegacy(key, parts, shape);
-  }
   const cutoff = Date.now() - MAX_AGE_MS;
   for (const key of storedDraftKeys()) {
-    if (legacyShape(keyParts(key))) continue;
     const draft = readDraft(key);
     if (draft && draft.savedAt < cutoff) window.localStorage.removeItem(key);
   }

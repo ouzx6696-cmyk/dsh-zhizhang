@@ -1,11 +1,10 @@
 /**
- * 写作工作台 · 今日头条模式的数据与动作（与 HTTP 无关；路由由 packages/app 挂到写作台接口上）。
+ * 写作工作台 · 今日头条模式的数据与动作。
  *   - listArticles   全部已知数据目录里的文章（按状态排序）
  *   - articleDetail  单篇：立项卡要点、标题、当前稿、质检、交稿单、状态历史
  *   - adopt          作者在写作台“采用”：已验收 + 已出交稿单 + 质检仍有效 → 已交稿
  *   - buildToutiaoDelivery  写作台按钮 → 投递到对话的一条消息
  */
-import { snapshotFiles } from "../../../core/src/snapshots.js";
 import path from "node:path";
 import { readText } from "../../../core/src/fsx.js";
 import { errorText } from "../../../core/src/errors.js";
@@ -14,13 +13,13 @@ import { listKnownRoots, type ToutiaoConfig } from "../env.js";
 import {
   ArticleStore,
   deliveryCurrent,
+  deliveryMatches,
   MAX_RETURN_ROUNDS,
-  nowIso,
   STATUSES,
   type ArticleMeta,
   type Status,
 } from "../store.js";
-import { syncLedgerStatus, validPassingQa } from "../tools.js";
+import { adoptArticle, syncLedgerStatus, validPassingQa } from "../article-service.js";
 
 export const TOUTIAO_ACTIONS = ["new", "continue", "review", "revise"] as const;
 type ToutiaoAction = (typeof TOUTIAO_ACTIONS)[number];
@@ -112,11 +111,12 @@ export async function articleDetail(rootIn: string, id: string) {
       problem = "稿件文件缺失，请保留现有文件并核对；质检依据已不可用。";
     }
   }
+  const fullDraft = draft;
   const truncated = draft.length > BODY_CAP;
   if (truncated) draft = draft.slice(0, BODY_CAP) + "\n\n…（已截断）";
   const delivered = deliveryCurrent(m);
   const delivery = delivered ? await readText(store.deliveryPath(id)) : undefined;
-  const hasDelivery = delivery !== undefined;
+  const hasDelivery = delivery !== undefined && deliveryMatches(delivery, fullDraft);
   const qaValid = problem
     ? { ok: false as const, reason: problem }
     : m.current_rev > 0
@@ -235,25 +235,10 @@ export async function adopt(
     !/^[a-f0-9]{64}$/.test(expected.sha256)
   )
     throw new WriterError("INVALID_ARGS", "须指明已经加载的文章版本与正文指纹");
-  const m = await store.update(id, async (mm) => {
-    const draft = store.currentDraft(mm);
-    if (!draft || draft.rev !== expected.rev || draft.sha256 !== expected.sha256)
-      throw new WriterError("CONFLICT", "文章版本已变化，请重新阅读当前稿后确认采用");
-    if (mm.status !== "已验收" || !deliveryCurrent(mm))
-      throw new WriterError("CONFLICT", "只有已验收且交稿单对应当前稿的文章可以采用");
-    if ((await readText(store.deliveryPath(id))) === undefined)
-      throw new WriterError("CONFLICT", "交稿单文件缺失，请重新出交稿单（toutiao_delivery_save）");
-    const v = await validPassingQa(store, mm);
-    if (!v.ok) throw new WriterError("GATE_DENIED", v.reason);
-    await snapshotFiles(store.dir(id), [store.metaPath(id), store.draftPath(id, draft.rev)]);
-    mm.history.push({
-      from: mm.status,
-      to: "已交稿",
-      by: "author-panel",
-      at: nowIso(),
-      note: "作者在写作台采用",
-    });
-    mm.status = "已交稿";
+  const m = await adoptArticle(store, id, {
+    by: "author-panel",
+    note: "作者在写作台采用",
+    expected,
   });
   await syncLedgerStatus(config, store, m).catch((error) => {
     throw new WriterError(

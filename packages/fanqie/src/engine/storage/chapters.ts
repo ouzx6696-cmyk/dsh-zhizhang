@@ -43,8 +43,6 @@ interface ChapterSaveInput {
   reviewedBy?: string;
   acknowledgeRevision?: boolean;
   ledgerEntry?: string;
-  /** RC-05 (safety.finalStructureGuard): false restores the 1.1.0 silent downgrade. */
-  structureGuard?: boolean;
 }
 function normalizeOutline(value: unknown): Outline {
   const base = EMPTY_OUTLINE();
@@ -367,13 +365,7 @@ export async function prepareChapterSaveUnlocked(dir: string, input: ChapterSave
     );
   // RC-05: a structure change (outline or position) also drops a final chapter back to drafted,
   // so it needs the same explicit force (and author gate) instead of a silent downgrade.
-  if (
-    structureChanged &&
-    !changed &&
-    previous?.status === "final" &&
-    input.force !== true &&
-    input.structureGuard !== false
-  )
+  if (structureChanged && !changed && previous?.status === "final" && input.force !== true)
     throw new NovelError(
       "refuse_restructure_final",
       "定稿章的章纲或位置修改须明确 force=true（作者确认）；修改后降回 drafted 并需重新审读定稿。",
@@ -577,7 +569,7 @@ export async function setOutline(
   chapterId: string,
   patch: Record<string, unknown>,
   title?: string,
-  options: { pace?: string; force?: boolean; structureGuard?: boolean } = {},
+  options: { pace?: string; force?: boolean } = {},
 ) {
   return withResourceLock(dir, async () => {
     // 章节文件损坏（front matter 非法等）不能当成「不存在」继续写：
@@ -592,7 +584,6 @@ export async function setOutline(
       outline: { ...(previous?.outline ?? EMPTY_OUTLINE()), ...patch },
       workPace: options.pace,
       force: options.force,
-      structureGuard: options.structureGuard,
     });
   });
 }
@@ -613,7 +604,6 @@ export async function updateChapter(
     reviewResult?: "pass" | "blocked";
     reviewedBy?: string;
     acknowledgeRevision?: boolean;
-    structureGuard?: boolean;
   },
 ) {
   return withResourceLock(dir, async () => {
@@ -634,7 +624,6 @@ export async function updateChapter(
       reviewedBy: input.reviewedBy,
       acknowledgeRevision: input.acknowledgeRevision,
       ledgerEntry: input.ledgerEntry ?? `显式保存 ${input.id}`,
-      structureGuard: input.structureGuard,
     });
   });
 }

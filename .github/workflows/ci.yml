@@ -100,10 +100,7 @@ jobs:
             if [ "$attempt" -lt 3 ]; then sleep $((attempt * 20)); fi
           done
           exit 1
-      - run: node scripts/ci-run.mjs node scripts/test.mjs core
-      - run: node scripts/ci-run.mjs npm run test:desktop
-      - run: node scripts/ci-run.mjs npm run desktop:build
-      - run: node scripts/ci-run.mjs npm run test:desktop:ui
+      - run: node scripts/ci-run.mjs npm run test:all
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:

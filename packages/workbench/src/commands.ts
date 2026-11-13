@@ -1,22 +1,18 @@
 import { isMissingFileError } from "../../core/src/errors.js";
 
-export const API = "/api/writer";
-
-export interface RouteContext {
-  url: URL;
-  /** 去掉末尾斜杠的路径 */
-  path: string;
-  method: string;
-  json(status: number, body: unknown): void;
-  body(limit?: number): Promise<Record<string, unknown> | undefined>;
+export interface CommandContext {
+  command: string;
+  kind: "read" | "write";
+  input: Record<string, unknown>;
+  reply(result: unknown): void;
 }
 
-export interface WorkbenchMode {
-  routes: string[];
-  handle(ctx: RouteContext): Promise<boolean>;
+export interface WorkbenchCommands {
+  commands: string[];
+  handle(ctx: CommandContext): Promise<boolean>;
 }
 
-export const ROUTES = {
+export const COMMANDS = {
   projects: "/projects",
   snapshot: "/snapshot",
   chapter: "/chapter",
@@ -38,7 +34,7 @@ export const ROUTES = {
   deliverArticle: "/toutiao/agent/deliver",
 } as const;
 
-export function sendError(ctx: Pick<RouteContext, "json">, error: unknown) {
+export function sendError(ctx: Pick<CommandContext, "reply">, error: unknown) {
   const domain = error instanceof Error && ["WriterError", "NovelError"].includes(error.name);
   const missing = isMissingFileError(error);
   const code = missing
@@ -46,27 +42,10 @@ export function sendError(ctx: Pick<RouteContext, "json">, error: unknown) {
     : domain && "code" in error && typeof error.code === "string"
       ? error.code
       : "failed";
-  const status =
-    code === "NOT_FOUND" || code.endsWith("_not_found")
-      ? 404
-      : code === "body_too_large"
-        ? 413
-        : code === "INVALID_ARGS" ||
-            code === "OUT_OF_ROOT" ||
-            code.startsWith("bad_") ||
-            [
-              "too_many_paragraphs",
-              "work_required",
-              "id_required",
-              "confirmation_required",
-            ].includes(code)
-          ? 400
-          : code !== "failed"
-            ? 409
-            : 500;
-  ctx.json(status, {
+  ctx.reply({
     ok: false,
     code,
+    uncertain: code === "failed",
     error: error instanceof Error ? error.message : String(error),
   });
 }

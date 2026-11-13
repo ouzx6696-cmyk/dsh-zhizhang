@@ -29,7 +29,7 @@ import { createSourceJournal, finishSourceJournal } from "../storage/source-jour
 import { createDiscardJournal, finishDiscardJournal } from "../storage/discard-journal.js";
 import { snapshotFile } from "../storage/journal.js";
 import { withResourceLock } from "../storage/process-lock.js";
-import { unbindCards } from "../storage/inspiration-migration.js";
+import { unbindCards } from "../storage/inspiration-bindings.js";
 import { atomicWrite, assertResourceId } from "../work-store.js";
 import { readJsonCached } from "../file-cache.js";
 import { parseChapterNumber } from "../domain/chapter-heading.js";

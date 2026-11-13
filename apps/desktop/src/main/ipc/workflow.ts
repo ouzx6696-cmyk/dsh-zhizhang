@@ -71,7 +71,6 @@ export function registerWorkflowIpc(state: Runtime) {
   });
   handle("continuity", async (target, action, id) => {
     if (target.mode !== "fanqie") throw new Error("连续性看板只适用于长篇作品");
-    if (action === "migrate") return (await state.sessions.workflows.migrate(target)).state;
     if (action === "accept" || action === "reject") {
       if (!id) throw new Error("缺少事实编号");
       return state.sessions.workflows.decide(target, id, action === "accept");

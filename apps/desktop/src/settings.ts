@@ -44,6 +44,21 @@ export class Settings {
       return {};
     }
   }
+  async writerOptions(): Promise<Record<string, unknown>> {
+    const raw = await this.readObject("writer.json");
+    for (const [mode, key] of [
+      ["fanqie", "safety"],
+      ["toutiao", "revision"],
+    ] as const) {
+      const section = raw[mode];
+      if (section && typeof section === "object" && !Array.isArray(section)) {
+        const options = { ...section } as Record<string, unknown>;
+        delete options[key];
+        raw[mode] = options;
+      }
+    }
+    return raw;
+  }
   async saveEngine(value: EngineSettings) {
     await atomicWrite(
       path.join(this.home, "engine.json"),
@@ -100,25 +115,25 @@ export class Settings {
     const legacy = !Object.hasOwn(stored, "writer") && Object.keys(stored).length > 0;
     const canonical = legacy ? { writer: stored } : stored;
     const source = structuredClone(canonical);
-    for (const role of ["writer", "editor", "planner"] as const) {
-      const value = source[role];
-      if (!value) continue;
-      const row = asRecord(value, "模型连接");
-      if (row.secret) {
-        try {
-          if (!this.secrets.available()) throw new Error("系统安全存储不可用");
-          if (typeof row.secret !== "string") throw new Error("Key 密文无效");
-          row.apiKey = this.secrets.decrypt(row.secret);
-        } catch (error) {
-          // allow-catch: 密钥解密失败后要求作者重新输入，不将密文当作有效 Key。
-          row.apiKey = "";
-          this.notices.push(
-            `${role === "editor" ? "编辑" : role === "planner" ? "规划" : "写手"}模型 Key 无法解密，请重新填写：${String(error)}`,
-          );
+    try {
+      for (const role of ["writer", "editor", "planner"] as const) {
+        const value = source[role];
+        if (!value) continue;
+        const row = asRecord(value, "模型连接");
+        if (row.secret) {
+          try {
+            if (!this.secrets.available()) throw new Error("系统安全存储不可用");
+            if (typeof row.secret !== "string") throw new Error("Key 密文无效");
+            row.apiKey = this.secrets.decrypt(row.secret);
+          } catch (error) {
+            // allow-catch: 密钥解密失败后要求作者重新输入，不将密文当作有效 Key。
+            row.apiKey = "";
+            this.notices.push(
+              `${role === "editor" ? "编辑" : role === "planner" ? "规划" : "写手"}模型 Key 无法解密，请重新填写：${String(error)}`,
+            );
+          }
         }
       }
-    }
-    try {
       this.models = normalizeModels(source);
       if (legacy) {
         await atomicWrite(path.join(this.home, "model.json"), JSON.stringify(canonical, null, 2));
@@ -129,14 +144,19 @@ export class Settings {
       this.notices.push("模型配置无效，已恢复默认模型，请重新连接：" + String(error));
     }
     const search = await this.readObject("search.json");
-    this.searchProvider =
-      search.provider === undefined
-        ? search.secret
-          ? "tavily"
-          : "exa"
-        : parseChoice(search.provider, ["exa", "tavily"] as const);
-    this.searchMode =
-      search.mode === undefined ? "lite" : parseChoice(search.mode, ["lite", "auto"] as const);
+    try {
+      this.searchProvider =
+        search.provider === undefined
+          ? search.secret
+            ? "tavily"
+            : "exa"
+          : parseChoice(search.provider, ["exa", "tavily"] as const);
+      this.searchMode =
+        search.mode === undefined ? "lite" : parseChoice(search.mode, ["lite", "auto"] as const);
+    } catch (error) {
+      // allow-catch: 配置无效时保留原文件，使用默认搜索设置。
+      this.notices.push("搜索配置无效，已使用默认设置：" + String(error));
+    }
     if (search.secret) {
       try {
         if (!this.secrets.available()) throw new Error("系统安全存储不可用");

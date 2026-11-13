@@ -1,6 +1,6 @@
 import path from "node:path";
 import { providerErrorTraits, stageRuntimeModel } from "../session/pi-adapter";
-import type { Sessions } from "../session/manager";
+import type { WorkflowHost } from "./host";
 import {
   WorkflowPause,
   addUsage,
@@ -8,23 +8,8 @@ import {
   type WorkflowUsage,
 } from "../../../../packages/core/src/workflow";
 import { errorText } from "../../../../packages/core/src/errors";
+import { classifyProviderMessage } from "../../../../packages/core/src/provider-error";
 
-/**
- * Out-of-credit wording that no rate limit uses. OpenAI sends it with 429, Anthropic and Qwen with
- * 400, so it wins over the status.
- */
-const NO_BALANCE =
-  /insufficient[ _]balance|insufficient[ _]quota|exceeded your current quota|exceeded[ _]current[ _]quota|credit balance is too low|arrearage|out of budget|payment required|余额不足|欠费/i;
-/**
- * Rate and per-window quota wording (Gemini RESOURCE_EXHAUSTED "Quota exceeded for metric … per
- * minute", DashScope Throttling.*): the window resets, so it is transient even when it says quota.
- */
-const RATE_LIMITED =
-  /rate[ _-]?limit|resource[ _]exhausted|throttl|too many requests|per[ _-]?(?:minute|second|hour|day)|requests? per|tokens? per|\b[RT]PM\b|限流|频率|请求过于频繁/i;
-/** Generic quota wording; out of credit only when no rate-limit wording explains it. */
-const QUOTA = /quota[ _]exceeded|exceeded[ _].*quota/i;
-/** Only a status at the very start counts; a number inside the text ("≤ 500", "model-500") is not one. */
-const LEADING_STATUS = /^\s*(\d{3})\b/;
 const STAGE_BACKOFF_MS = [2000, 6000, 15000];
 /**
  * A request that went silent gets one more attempt; a second silence on the same packet is final.
@@ -56,16 +41,11 @@ type ProviderErrorKind = Extract<
  * transient heuristics for what the status leaves open. Unknown errors fail rather than pause.
  */
 export function classifyStageError(message: string): ProviderErrorKind {
-  const status = Number(LEADING_STATUS.exec(message)?.[1] ?? 0);
-  const denied = status === 401 || status === 403;
-  if (NO_BALANCE.test(message) && !denied) return "balance";
-  if (denied) return "auth";
-  if (RATE_LIMITED.test(message)) return "transient";
-  if (status === 402 || QUOTA.test(message)) return "balance";
-  if (status === 408 || status === 429 || status >= 500) return "transient";
+  const category = classifyProviderMessage(message);
+  if (category && category !== "provider") return category === "rate" ? "transient" : category;
   const traits = providerErrorTraits(message);
   if (traits.overflow) return "context";
-  if (status >= 400) return "provider";
+  if (category === "provider") return "provider";
   return traits.retryable ? "transient" : "provider";
 }
 /**
@@ -170,7 +150,7 @@ export interface StagePacket {
 }
 /** Fresh requests carry only a stage packet; model tools and inherited session history are absent. */
 export async function stageModel(
-  host: Pick<Sessions, "settings" | "home">,
+  host: Pick<WorkflowHost, "settings" | "home">,
   role: "writer" | "planner" | "editor",
   packet: StagePacket,
   signal: AbortSignal,
@@ -206,7 +186,7 @@ function stallWatch(signal: AbortSignal) {
   };
 }
 async function stageRequest(
-  host: Pick<Sessions, "settings" | "home">,
+  host: Pick<WorkflowHost, "settings" | "home">,
   role: "writer" | "planner" | "editor",
   packet: StagePacket,
   signal: AbortSignal,

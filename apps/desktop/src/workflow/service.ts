@@ -22,7 +22,6 @@ import { chapterPipeline } from "./chapter";
 import { articlePipeline } from "./article";
 import { bookPipeline } from "./book";
 import { ledgerPipeline, readContinuity, decideFact } from "./continuity";
-import { migrateLegacyContinuity } from "./continuity-migration";
 import { readWorkflowHistory } from "./history";
 import { record } from "./schema";
 import { StageError } from "./stage-model";
@@ -33,7 +32,7 @@ import {
   removePendingLedger,
 } from "./ledger-queue";
 import { WORKFLOW_COPY } from "../../../../packages/ui/src/copy";
-import type { Sessions } from "../session/manager";
+import type { WorkflowHost } from "./host";
 import type { Target } from "../context";
 import type { AgentSession } from "../session/pi-adapter";
 
@@ -67,7 +66,7 @@ export class WorkflowService {
   >();
   private lastSent = new Map<string, number>();
   private runningSignature = "";
-  constructor(private host: Sessions) {}
+  constructor(private host: WorkflowHost) {}
   private directory(target: Target) {
     return path.join(this.host.home, "workflows", this.host.key(target));
   }
@@ -328,19 +327,6 @@ export class WorkflowService {
     const result = await decideFact(await resolveFanqieWork(this.host.options, target), id, accept);
     this.host.emit({ target, refresh: true });
     return result;
-  }
-  async migrate(target: Target) {
-    await assertWorkspaceWritable(await this.writableRoot(target));
-    if (this.host.isRunning(target)) throw new Error("请先等待当前任务结束");
-    if (
-      !(await this.host.confirm(
-        "将备份作品元数据，并把旧根基中的已发生、读者已知与伏笔转成待确认条目，不自动认定为新事实。是否继续？",
-      ))
-    )
-      throw new Error("作者取消了迁移");
-    if (this.host.isRunning(target)) throw new Error("此作品已开始新任务，请稍后迁移");
-    const dir = await resolveFanqieWork(this.host.options, target);
-    return migrateLegacyContinuity(dir);
   }
   async apply(target: Target) {
     await assertWorkspaceWritable(await this.writableRoot(target));

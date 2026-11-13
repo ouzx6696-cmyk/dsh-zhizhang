@@ -56,5 +56,5 @@ CI=1 DISPLAY=:99 npm run test:desktop:ui   # 完整 GUI 旅程（需要虚拟显
 - `apps/desktop/src/renderer`：桌面界面
 - `packages/core`：原子写、门禁、方法方案、锁、Python 运行器、工具定义；`src/execute.ts` 是 `executeTool`
 - `packages/toutiao`、`packages/fanqie`：两种模式的工具、存储、路由处理
-- `packages/workbench/src/client`：写作区 React 组件；`src/routes.ts` 是路由表
+- `packages/workbench/src/client`：写作区 React 组件；`src/commands.ts` 是命令契约
 - `packages/ui`：tokens、通用组件、状态映射、文案

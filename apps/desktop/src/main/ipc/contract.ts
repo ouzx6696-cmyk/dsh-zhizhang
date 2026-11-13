@@ -45,11 +45,10 @@ export type SessionView = {
 };
 export type ExportResult = { copied?: true; file?: string } | null;
 export type RequestOptions = {
-  method?: string;
-  query?: Record<string, unknown>;
-  body?: unknown;
+  kind?: "read" | "write";
+  input?: unknown;
 };
-export type RequestResult = { status: number; data: unknown };
+export type RequestResult = { data: unknown };
 export type RendererState = PublicSettings & {
   target?: Target;
   notice: string;
@@ -74,7 +73,7 @@ export interface IpcMap {
     result: WorkflowRecord | null;
   };
   continuity: {
-    args: [Target, "status" | "migrate" | "accept" | "reject", string?];
+    args: [Target, "status" | "accept" | "reject", string?];
     result: ContinuityState;
   };
   "library-storage": {
@@ -195,7 +194,7 @@ export const IPC_PARSERS: { [K in IpcChannel]: (args: unknown[]) => IpcArgs<K> }
   ],
   continuity: ([target, action, id]) => [
     parseTarget(target),
-    parseChoice(action, ["status", "migrate", "accept", "reject"] as const),
+    parseChoice(action, ["status", "accept", "reject"] as const),
     id === undefined ? undefined : parseText(id),
   ],
   "library-storage": ([action, id, opening]) => [

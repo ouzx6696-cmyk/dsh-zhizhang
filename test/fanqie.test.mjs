@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { ROOT, createToolHarness, createRouteHarness, tempDir, buildUrl } from "./helpers.mjs";
+import { ROOT, createToolHarness, createCommandHarness, tempDir, buildUrl } from "./helpers.mjs";
 
 const { ensureStorage, createWork, setOutline, updateChapter, readChapter } = await import(
   buildUrl("fanqie/src/engine/work-store.js")
@@ -328,14 +328,14 @@ test("常驻规则重排：creationFirst 开时创作定向在前、工程约束
 test("写作台路由：审读信息、定稿条件、状态转换与投递指令", async () => {
   const { call, work, cwd } = await setup({ fanqie: { requireEditorPass: true } });
   const config = { fanqie: { storageRoot: path.join(cwd, ".writer"), requireEditorPass: true } };
-  const request = await createRouteHarness(config);
+  const request = await createCommandHarness(config);
   const { buildDeliveryPrompt } = await import(buildUrl("fanqie/src/workbench/delivery.js"));
   await call("fanqie_chapter_list", {});
-  const projects = await (await request("/projects?refresh=1")).json();
+  const projects = await request("/projects?refresh=1");
   const project = projects.projects.find((project) => project.base === path.join(cwd, ".writer"));
   assert.ok(project);
   const chapterRoute = `/chapter?base=${encodeURIComponent(project.id)}&work=${work.key}&id=c001`;
-  const getChapter = async () => (await request(chapterRoute)).json();
+  const getChapter = async () => await request(chapterRoute);
   const input = async () => ({
     base: project.id,
     work: work.key,
@@ -343,15 +343,15 @@ test("写作台路由：审读信息、定稿条件、状态转换与投递指�
     expectedRevision: (await readChapter(work.dir, "c001")).revision,
     confirm: true,
   });
-  const post = (route, body) => request(route, { method: "POST", body });
+  const post = (route, body) => request(route, { kind: "write", input: body });
   let chapter = await getChapter();
   assert.equal(chapter.writer.editorReview, null);
   assert.equal(chapter.writer.requireEditorPass, true);
   assert.match(chapter.writer.finalizeBlocked, /还没有编辑审读回报/);
-  assert.equal((await post("/chapter/review", await input())).status, 200);
+  assert.equal((await post("/chapter/review", await input())).ok, true);
   const blocked = await post("/chapter/finalize", await input());
-  assert.equal(blocked.status, 409);
-  assert.match((await blocked.json()).error, /还没有编辑审读回报/);
+  assert.equal(blocked.ok, false);
+  assert.match(blocked.error, /还没有编辑审读回报/);
   await call("fanqie_review_report", {
     chapter: "c001",
     verdict: "未通过",
@@ -384,17 +384,17 @@ test("写作台路由：审读信息、定稿条件、状态转换与投递指�
   });
   chapter = await getChapter();
   assert.equal(chapter.writer.finalizeBlocked, undefined);
-  assert.equal((await post("/chapter/finalize", await input())).status, 200);
+  assert.equal((await post("/chapter/finalize", await input())).ok, true);
   assert.equal((await readChapter(work.dir, "c001")).status, "final");
   const toutiao = await createToolHarness({ mode: "toutiao", cwd });
   const article = (await toutiao.call("toutiao_article_create", { slug: "wb" })).article;
   await toutiao.call("toutiao_draft_stage", { id: article.id, text: "第一段。\n\n第二段。" });
-  const list = await (await request("/toutiao/articles")).json();
+  const list = await request("/toutiao/articles");
   const row = list.articles.find((row) => row.id === article.id);
   assert.ok(row);
-  const detail = await (
-    await request(`/toutiao/article?root=${encodeURIComponent(row.root)}&id=${row.id}`)
-  ).json();
+  const detail = await request(
+    `/toutiao/article?root=${encodeURIComponent(row.root)}&id=${row.id}`,
+  );
   assert.equal(detail.article.draft.rev, 1);
   const { buildToutiaoDelivery } = await import(buildUrl("toutiao/src/workbench/data.js"));
   assert.match(
@@ -410,8 +410,8 @@ test("写作台路由：审读信息、定稿条件、状态转换与投递指�
         expectedSha256: detail.article.draft.sha256,
         confirm: true,
       })
-    ).status,
-    409,
+    ).ok,
+    false,
   );
 });
 

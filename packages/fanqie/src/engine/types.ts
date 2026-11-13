@@ -294,12 +294,6 @@ export interface PluginConfig {
   continuity?: { enabled?: boolean };
   /** 内部：parseFanqieConfig 解析的写手工具面收窄开关 */
   toolset?: { narrowed?: boolean };
-  /** 1.1.1 安全收紧开关（B 类，默认开，可关闭回退）；parseFanqieConfig 解析后随配置传入 */
-  safety?: {
-    finalStructureGuard?: boolean;
-    narrowPlanningBasis?: boolean;
-    fullDissectAuthor?: boolean;
-  };
   /** 固定方法方案（默认 / 原版 / 用户方案名或 id）；parseFanqieConfig 解析后随配置传入 */
   profile?: string;
   [key: string]: unknown;

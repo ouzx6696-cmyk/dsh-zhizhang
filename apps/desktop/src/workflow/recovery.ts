@@ -5,11 +5,11 @@ import { resolveFanqieWork } from "../main/storage";
 import { record, outline, text } from "./schema";
 import type { WorkflowRecord } from "../../../../packages/core/src/workflow";
 import type { WorkflowContext } from "./run";
-import type { Sessions } from "../session/manager";
+import type { WorkflowHost } from "./host";
 import type { Target } from "../context";
 /** Recognize only this run's recorded side effect, never an arbitrary change of author source. */
 export async function recoverDelivery(
-  host: Sessions,
+  host: WorkflowHost,
   target: Target,
   previous: WorkflowRecord,
   context: WorkflowContext,
@@ -51,6 +51,17 @@ export async function recoverDelivery(
     current.drafts = meta.drafts.filter((row) => row.rev !== prior.rev);
     current.current_rev = original.current_rev;
     current.updated_at = original.updated_at;
+    if (
+      current.delivered !== false ||
+      Object.hasOwn(current, "delivered_rev") ||
+      Object.hasOwn(current, "delivered_sha256")
+    )
+      throw new Error("交稿状态已变化，不能恢复旧交付");
+    current.delivered = original.delivered;
+    for (const key of ["delivered_rev", "delivered_sha256"]) {
+      if (Object.hasOwn(original, key)) current[key] = original[key];
+      else delete current[key];
+    }
     if (original.status !== "初稿待改") {
       const history = Array.isArray(current.history) ? current.history : [];
       const last = record(history.at(-1));

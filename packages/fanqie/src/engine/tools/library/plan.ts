@@ -15,13 +15,14 @@ import {
   assertFullConsent,
   planProgress,
   PLAN_RATIO_DEFAULT,
+  PLAN_SMALL_BOOK_CHARS,
   PLAN_BATCH_DEFAULT,
   PLAN_BATCH_MIN,
   PLAN_BATCH_MAX,
 } from "../../ports/analysis/plan.js";
 
 import { AUTO_SAMPLE_HEAD, AUTO_SAMPLE_RATIO, AUTO_SAMPLE_TAIL } from "../../domain/workflow.js";
-import { asString, config, fail } from "../context.js";
+import { asString, fail } from "../context.js";
 import { S, B, WORKING_DIR } from "../schema.js";
 import { defineTool } from "../types.js";
 
@@ -62,7 +63,7 @@ export const libraryPlan = defineTool({
       const batchChars = Math.max(PLAN_BATCH_MIN, Math.min(PLAN_BATCH_MAX, rawBatch));
       // Keep the current plan until a replacement has actually been confirmed and saved.
       const existing = await readPlan(paths, sourceId);
-      if (existing && args.reset !== true && !(mode === "full" && args.confirm_full === true)) {
+      if (existing && args.reset !== true && !(args.confirm_full === true)) {
         const prog = planProgress(existing, (await readAnalysisBundle(paths, sourceId)).chapters);
         return [
           "已有计划：" + planLabel(existing),
@@ -91,6 +92,15 @@ export const libraryPlan = defineTool({
         ratio,
         batchChars,
       });
+      // 小书的既有全读规则保留；其他 Auto 计划若实际覆盖全书，走 Full 确认流程。
+      if (
+        plan.mode === "auto" &&
+        plan.planChapters === plan.totalChapters &&
+        plan.totalChars >= PLAN_SMALL_BOOK_CHARS
+      ) {
+        plan.mode = "full";
+        plan.ratio = 1;
+      }
       const est = estimatePlan(plan);
       if (plan.mode === "full" && args.confirm_full !== true) {
         const token = makeConfirmToken();
@@ -124,9 +134,7 @@ export const libraryPlan = defineTool({
         });
         plan.consent = {
           at: new Date().toISOString(),
-          note:
-            (config.safety?.fullDissectAuthor === false ? "（模型自确认：未经作者门禁）" : "") +
-            (asString(args, "note") || "作者明确要求全量"),
+          note: asString(args, "note") || "作者明确要求全量",
         };
       }
       await writePlan(paths, plan, {

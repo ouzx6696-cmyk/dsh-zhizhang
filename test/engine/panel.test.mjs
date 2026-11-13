@@ -1,5 +1,5 @@
 import path from "node:path";
-/** HTTP contracts and the one generated-client boundary. Pure state lives in domain tests. */
+/** Workbench commands and the desktop client boundary. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile, writeFile } from "node:fs/promises";
@@ -18,19 +18,15 @@ import {
   reducer,
   bodyKey,
 } from "../../packages/workbench/src/client/fanqie/state.js";
-import { jpost, servePanel, withWork, loadComponents } from "./helpers.mjs";
+import { jget, jpost, createPanel, withWork, loadComponents } from "./helpers.mjs";
 test("真实快照按版本使正文和候选失效，写作台不扫描无关库", async () => {
   const work = await withWork("面板读取"),
-    server = await servePanel({ storageRoot: work.base });
+    panel = await createPanel({ storageRoot: work.base });
   try {
     await updateChapter(work.dir, { id: "c001", title: "一", body: "门外有人。" });
     const candidate = await stageCandidate(work.dir, { chapterId: "c001", body: "候选正文。" });
     const snapshot = async (scope) =>
-      await (
-        await fetch(
-          server.api + "/snapshot?work=" + encodeURIComponent(work.key) + "&scope=" + scope,
-        )
-      ).json();
+      await jget(panel, "/snapshot?work=" + encodeURIComponent(work.key) + "&scope=" + scope);
     let state = { ...initialState(), work: work.key, view: "chapters" };
     const first = await snapshot("work");
     assert.equal("library" in first.snapshot, false);
@@ -45,9 +41,7 @@ test("真实快照按版本使正文和候选失效，写作台不扫描无关�
       slot: "chapter",
       value: { key, status: "ready", body: chapter.body, meta: chapter },
     });
-    const loaded = await (
-      await fetch(server.api + "/chapter?work=" + encodeURIComponent(work.key) + "&id=c001")
-    ).json();
+    const loaded = await jget(panel, "/chapter?work=" + encodeURIComponent(work.key) + "&id=c001");
     assert.equal(loaded.body, chapter.body);
     await updateChapter(work.dir, {
       id: "c001",
@@ -88,41 +82,40 @@ test("真实快照按版本使正文和候选失效，写作台不扫描无关�
     const all = await snapshot("all");
     assert.ok(all.snapshot.library && all.snapshot.inspiration);
   } finally {
-    await server.close();
     await work.cleanup();
   }
 });
 
-test("HTTP 采纳、审读和定稿调用共同作品操作", async () => {
+test("写作台采纳、审读和定稿调用共同作品操作", async () => {
   const work = await withWork("面板采纳");
-  const server = await servePanel({ storageRoot: work.base });
+  const panel = await createPanel({ storageRoot: work.base });
   try {
     await setOutline(work.dir, "c001", { ending: "门开了" }, "第一章");
     await recordBriefBreadcrumb(work.dir, { chapterId: "c001", assetIds: [] });
     const candidate = await stageCandidate(work.dir, { chapterId: "c001", body: "她推开门。" });
     await markCandidateLinted(work.dir, candidate.id, 0);
     for (const confirm of [undefined, 1, "true"]) {
-      const response = await jpost(server.api, "/candidate/accept", {
+      const response = await jpost(panel, "/candidate/accept", {
         work: work.key,
         candidate: candidate.id,
         confirm,
       });
-      assert.equal(response.status, 400);
-      assert.equal((await response.json()).code, "confirm_required");
+      assert.equal(response.ok, false);
+      assert.equal(response.code, "confirm_required");
     }
-    const invalid = await jpost(server.api, "/candidate/accept", {
+    const invalid = await jpost(panel, "/candidate/accept", {
       work: work.key,
       candidate: candidate.id,
       confirm: true,
       mode: "merge",
     });
-    assert.equal((await invalid.json()).code, "bad_mode");
-    const accepted = await jpost(server.api, "/candidate/accept", {
+    assert.equal(invalid.code, "bad_mode");
+    const accepted = await jpost(panel, "/candidate/accept", {
       work: work.key,
       candidate: candidate.id,
       confirm: true,
     });
-    assert.equal(accepted.status, 200);
+    assert.equal(accepted.ok, true);
     assert.equal((await readChapter(work.dir, "c001")).body, "她推开门。");
     const request = {
       work: work.key,
@@ -131,13 +124,12 @@ test("HTTP 采纳、审读和定稿调用共同作品操作", async () => {
       confirm: true,
     };
     assert.equal(
-      (await jpost(server.api, "/chapter/review", { ...request, expectedRevision: "stale" }))
-        .status,
-      409,
+      (await jpost(panel, "/chapter/review", { ...request, expectedRevision: "stale" })).ok,
+      false,
     );
-    assert.equal((await jpost(server.api, "/chapter/finalize", request)).status, 409);
-    assert.equal((await jpost(server.api, "/chapter/review", request)).status, 200);
-    assert.equal((await jpost(server.api, "/chapter/finalize", request)).status, 200);
+    assert.equal((await jpost(panel, "/chapter/finalize", request)).ok, false);
+    assert.equal((await jpost(panel, "/chapter/review", request)).ok, true);
+    assert.equal((await jpost(panel, "/chapter/finalize", request)).ok, true);
     assert.equal((await readChapter(work.dir, "c001")).status, "final");
     const basis = await readChapter(work.dir, "c001");
     const edit = {
@@ -146,12 +138,11 @@ test("HTTP 采纳、审读和定稿调用共同作品操作", async () => {
       body: "作者明确修订",
       expectedRevision: basis.revision,
     };
-    assert.equal((await jpost(server.api, "/chapter/save", edit)).status, 409);
+    assert.equal((await jpost(panel, "/chapter/save", edit)).ok, false);
     assert.equal((await readChapter(work.dir, "c001")).body, basis.body);
-    assert.equal((await jpost(server.api, "/chapter/save", { ...edit, force: true })).status, 200);
+    assert.equal((await jpost(panel, "/chapter/save", { ...edit, force: true })).ok, true);
     assert.equal((await readChapter(work.dir, "c001")).status, "drafted");
   } finally {
-    await server.close();
     await work.cleanup();
   }
 });
@@ -171,13 +162,18 @@ test("桌面请求取消后不回填结果，预先取消不发送 IPC", async (
   const ctrl = new AbortController();
   const pending = adapter.fanqie.chapter("root", "work", "c001", ctrl.signal);
   ctrl.abort();
-  settle({ status: 200, data: { body: "旧响应" } });
-  await assert.rejects(pending, (error) => error.code === "aborted");
+  settle({ data: { body: "旧响应" } });
+  await assert.rejects(pending, (error) => error.code === "aborted" && !error.uncertain);
   await assert.rejects(
     adapter.fanqie.chapter("root", "work", "c001", ctrl.signal),
     (error) => error.code === "aborted",
   );
   assert.equal(requests, 1);
+  const writeCtrl = new AbortController();
+  const write = adapter.fanqie.diagnose({ work: "work" }, writeCtrl.signal);
+  writeCtrl.abort();
+  settle({ data: { ok: true } });
+  await assert.rejects(write, (error) => error.code === "aborted" && error.uncertain);
 });
 
 test("新的正文渲染以文本节点保留换行与 Markdown 结构", async () => {
@@ -240,23 +236,23 @@ test("新的正文渲染以文本节点保留换行与 Markdown 结构", async (
   assert.ok(!JSON.stringify(tree).includes("dangerouslySetInnerHTML"));
 });
 
-test("诊断修订 HTTP 绑定来源、幂等请求及损坏目录边界", async () => {
+test("诊断修订命令 绑定来源、幂等请求及损坏目录边界", async () => {
   const { bodyHash } = await import("../../build/fanqie/src/engine/services/diagnostics.js");
   const { unlink } = await import("node:fs/promises");
   const work = await withWork("修订边界"),
-    server = await servePanel({ storageRoot: work.base });
+    panel = await createPanel({ storageRoot: work.base });
   try {
     await updateChapter(work.dir, { id: "c001", title: "一", body: "门外有人。" });
     const chapter = await readChapter(work.dir, "c001");
-    const response = await jpost(server.api, "/diagnostics/scan", {
+    const response = await jpost(panel, "/diagnostics/scan", {
       work: work.key,
       chapter: "c001",
       kind: "chapter",
       expectedRevision: chapter.revision,
       bodyHash: bodyHash(chapter.body),
     });
-    assert.equal(response.status, 200);
-    const report = await response.json();
+    assert.equal(response.ok, true);
+    const report = await response;
     assert.equal("basis" in report.source, false);
     const edit = { ...report.blocks[0], before: chapter.body, after: "门外无人。" };
     const input = {
@@ -266,46 +262,43 @@ test("诊断修订 HTTP 绑定来源、幂等请求及损坏目录边界", async
       requestId: "canonical-request",
       edits: [edit],
     };
-    const first = await (await jpost(server.api, "/diagnostics/stage", input)).json();
+    const first = await jpost(panel, "/diagnostics/stage", input);
     assert.equal(first.ok, true);
     const reorder = (object) => Object.fromEntries(Object.entries(object).reverse());
-    const second = await (
-      await jpost(server.api, "/diagnostics/stage", {
-        ...input,
-        source: reorder(report.source),
-        edits: [reorder(edit)],
-      })
-    ).json();
+    const second = await jpost(panel, "/diagnostics/stage", {
+      ...input,
+      source: reorder(report.source),
+      edits: [reorder(edit)],
+    });
     assert.equal(second.candidateId, first.candidateId);
     assert.equal(second.reused, true);
     assert.equal((await readChapter(work.dir, "c001")).body, chapter.body);
-    const conflict = await jpost(server.api, "/diagnostics/stage", {
+    const conflict = await jpost(panel, "/diagnostics/stage", {
       ...input,
       edits: [{ ...edit, after: "窗外无人。" }],
     });
-    assert.equal(conflict.status, 409);
-    assert.equal((await conflict.json()).code, "request_conflict");
-    const wrongWork = await jpost(server.api, "/diagnostics/stage", {
+    assert.equal(conflict.ok, false);
+    assert.equal(conflict.code, "request_conflict");
+    const wrongWork = await jpost(panel, "/diagnostics/stage", {
       ...input,
       source: { ...report.source, workIdentity: "0".repeat(64) },
     });
-    assert.equal((await wrongWork.json()).code, "source_changed");
+    assert.equal(wrongWork.code, "source_changed");
     const damaged = work.dir + "/candidates/damaged.json";
     await writeFile(damaged, "{");
-    const blocked = await jpost(server.api, "/diagnostics/stage", {
+    const blocked = await jpost(panel, "/diagnostics/stage", {
       ...input,
       requestId: "another-request",
     });
-    assert.equal((await blocked.json()).code, "candidate_unavailable");
+    assert.equal(blocked.code, "candidate_unavailable");
     await unlink(damaged);
     await updateChapter(work.dir, { id: "c001", title: "一", body: "章节已变化。" });
-    const stale = await jpost(server.api, "/diagnostics/stage", {
+    const stale = await jpost(panel, "/diagnostics/stage", {
       ...input,
       requestId: "another-request",
     });
-    assert.equal((await stale.json()).code, "source_changed");
+    assert.equal(stale.code, "source_changed");
   } finally {
-    await server.close();
     await work.cleanup();
   }
 });

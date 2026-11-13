@@ -15,7 +15,7 @@ import {
 } from "../../../../packages/fanqie/src/engine/storage/continuity";
 import { readPlanning } from "../../../../packages/fanqie/src/engine/domain/planning";
 import { resolveFanqieWork } from "../main/storage";
-import type { Sessions } from "../session/manager";
+import type { WorkflowHost } from "./host";
 import type { Target } from "../context";
 import type { ContextBlock, WorkflowRequest } from "../../../../packages/core/src/workflow";
 import type { WorkflowContext } from "./run";
@@ -145,7 +145,7 @@ function fanqieDocument(
   };
 }
 export async function workflowContext(
-  host: Sessions,
+  host: WorkflowHost,
   target: Target,
   request: WorkflowRequest,
 ): Promise<WorkflowContext> {

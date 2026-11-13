@@ -112,7 +112,7 @@ export function ContinuityPane({
       active = false;
     };
   }, [key, onError]); // eslint-disable-line react-hooks/exhaustive-deps
-  const action = async (operation: "migrate" | "accept" | "reject", id?: string) => {
+  const action = async (operation: "accept" | "reject", id?: string) => {
     setBusy(true);
     try {
       setState(await desktop.continuity(target, operation, id));
@@ -131,11 +131,6 @@ export function ContinuityPane({
   );
   return (
     <div className="wf-continuity">
-      <div className="wf-actions">
-        <button type="button" disabled={busy} onClick={() => void action("migrate")}>
-          {copy.workflowMigrate}
-        </button>
-      </div>
       <TabList
         id={base}
         className="wf-tabs"

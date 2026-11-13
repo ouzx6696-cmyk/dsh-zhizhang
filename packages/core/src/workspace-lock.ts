@@ -1,10 +1,9 @@
 /** A host owns an open workspace; other processes may read but cannot write. */
 import { link, open, readFile, unlink, realpath, mkdir, rmdir, stat } from "node:fs/promises";
-import { readFileSync, unlinkSync } from "node:fs";
 import { hostname } from "node:os";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import { isFsError, isMissingFileError, serialize } from "./fsx.js";
+import { isFsError, isMissingFileError, serialize, withFileGate } from "./fsx.js";
 import { errorText } from "./errors.js";
 import { isRecord } from "./parse.js";
 import { WriterError } from "./tool.js";
@@ -289,29 +288,35 @@ async function attemptGuard(key: string, guard: string, deadline: number): Promi
 
 /** Serialize reclamation and publication together: unlink cannot compare ownership atomically. */
 function withClaimGuard<T>(key: string, fn: () => Promise<T>): Promise<T> {
-  return serialize(`workspace-claim:${key}`, async () => {
-    const guard = path.join(key, GUARD);
-    const deadline = Date.now() + 2000;
-    for (;;) {
-      let next: GuardAttempt;
-      try {
-        next = await attemptGuard(key, guard, deadline);
-      } catch (error) {
-        // Windows 上刚被并发清理的登记目录在其他进程关闭句柄前处于删除挂起：mkdir、stat、
-        // 读写登记都报 EPERM/EACCES/EBUSY。这是争用而非权限问题，等它消失再抢；超时原样抛出。
-        if (!GUARD_BUSY.some((code) => isFsError(error, code)) || Date.now() >= deadline)
-          throw error;
-        next = "wait";
-      }
-      if (next === "claimed") break;
-      if (next === "wait") await new Promise((resolve) => setTimeout(resolve, 25));
-    }
-    try {
-      return await fn();
-    } finally {
-      await releaseGuard(guard);
-    }
-  });
+  return serialize(`workspace-claim:${key}`, () =>
+    withFileGate(
+      path.join(key, ".writer-workspace-claim-gate"),
+      async () => {
+        const guard = path.join(key, GUARD);
+        const deadline = Date.now() + 2000;
+        for (;;) {
+          let next: GuardAttempt;
+          try {
+            next = await attemptGuard(key, guard, deadline);
+          } catch (error) {
+            // Windows 上刚被并发清理的登记目录在其他进程关闭句柄前处于删除挂起：mkdir、stat、
+            // 读写登记都报 EPERM/EACCES/EBUSY。这是争用而非权限问题，等它消失再抢；超时原样抛出。
+            if (!GUARD_BUSY.some((code) => isFsError(error, code)) || Date.now() >= deadline)
+              throw error;
+            next = "wait";
+          }
+          if (next === "claimed") break;
+          if (next === "wait") await new Promise((resolve) => setTimeout(resolve, 25));
+        }
+        try {
+          return await fn();
+        } finally {
+          await releaseGuard(guard);
+        }
+      },
+      2000,
+    ),
+  );
 }
 
 export async function claimWorkspace(root: string) {
@@ -355,24 +360,30 @@ export async function cleanStaleWorkspaceClaim(root: string): Promise<WorkspaceC
     return { kind: "absent" }; // 作品根不存在则没有登记可清理
   }
   const guard = path.join(key, GUARD);
-  return serialize(`workspace-claim:${key}`, async () => {
-    for (;;) {
-      const state = await readGuardState(guard);
-      if (state.kind === "absent") return { kind: "absent" };
-      if (state.kind === "held")
-        return { kind: "occupied", owner: { pid: state.owner.pid, host: state.owner.host } };
-      const after = await sweepIdleGuard(guard, state.owner);
-      if (after.kind === "absent")
-        return {
-          kind: "cleaned",
-          owner: state.owner
-            ? { pid: state.owner.pid, host: state.owner.host, at: state.owner.at }
-            : null,
-        };
-      if (after.kind === "idle") continue; // 登记内容在清理间隙发生变化，重新判定
-      return { kind: "occupied", owner: { pid: after.owner.pid, host: after.owner.host } };
-    }
-  });
+  return serialize(`workspace-claim:${key}`, () =>
+    withFileGate(
+      path.join(key, ".writer-workspace-claim-gate"),
+      async () => {
+        for (;;) {
+          const state = await readGuardState(guard);
+          if (state.kind === "absent") return { kind: "absent" };
+          if (state.kind === "held")
+            return { kind: "occupied", owner: { pid: state.owner.pid, host: state.owner.host } };
+          const after = await sweepIdleGuard(guard, state.owner);
+          if (after.kind === "absent")
+            return {
+              kind: "cleaned",
+              owner: state.owner
+                ? { pid: state.owner.pid, host: state.owner.host, at: state.owner.at }
+                : null,
+            };
+          if (after.kind === "idle") continue; // 登记内容在清理间隙发生变化，重新判定
+          return { kind: "occupied", owner: { pid: after.owner.pid, host: after.owner.host } };
+        }
+      },
+      2000,
+    ),
+  );
 }
 async function claimWorkspaceUnlocked(root: string): Promise<WorkspaceAccess> {
   const key = await realpath(root);
@@ -424,13 +435,3 @@ export async function releaseWorkspace(root: string) {
 export async function releaseWorkspaces() {
   for (const root of held.keys()) await releaseWorkspace(root);
 }
-process.once("exit", () => {
-  for (const [root, owner] of held) {
-    try {
-      if (JSON.parse(readFileSync(path.join(root, FILE), "utf8")).id === owner.id)
-        unlinkSync(path.join(root, FILE));
-    } catch (error) {
-      if (!isMissingFileError(error)) console.error("退出时释放作品锁失败：", error);
-    }
-  }
-});

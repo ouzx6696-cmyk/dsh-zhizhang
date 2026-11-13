@@ -1,19 +1,7 @@
-/**
- * 写作台 · 方法方案接口（两种模式共用，挂在 /api/writer/<mode>/profiles 下）：
- *   GET  …/profiles                          全部方案与当前方案
- *   GET  …/profiles/detail?profile=          某方案的方法清单
- *   GET  …/profiles/method?profile=&id=      某方案下一份方法的全文（覆盖时附底稿全文）
- *   POST …/profiles/use    {profile}
- *   POST …/profiles/create {name?, base?, note?, files?: [{id,text}]}
- *   POST …/profiles/save   {profile, id, text}
- *   POST …/profiles/reset  {profile, id}
- *   POST …/profiles/rename {profile, name, note?}
- *   POST …/profiles/delete {profile, confirm: true}
- * 这里不依赖写作台包（同层），上下文按结构对上 RouteContext 即可。
- */
+/** 写作台方法方案命令：查询、创建、切换、修改及删除。 */
 import { str } from "../../core/src/parse.js";
 import { WriterError } from "../../core/src/tool.js";
-import { sendError } from "./routes.js";
+import { sendError, type CommandContext } from "./commands.js";
 import {
   createProfile,
   deleteProfile,
@@ -28,49 +16,38 @@ import {
   type MethodLibrary,
 } from "../../core/src/profiles.js";
 
-interface ProfileRouteContext {
-  url: URL;
-  path: string;
-  method: string;
-  json(status: number, body: unknown): void;
-  body(limit?: number): Promise<Record<string, unknown> | undefined>;
-}
-
-const GETS = new Set(["", "/detail", "/method"]);
-const POSTS = ["/use", "/create", "/save", "/reset", "/rename", "/delete"] as const;
+const READS = new Set(["", "/detail", "/method"]);
+const WRITES = ["/use", "/create", "/save", "/reset", "/rename", "/delete"] as const;
 
 export function profileRoutes(base: string, lib: MethodLibrary, pinned?: () => string | undefined) {
   const root = `${base}/profiles`;
-  const routes = [...GETS, ...POSTS].map((s) => root + s);
-  const routeSet = new Set(routes);
-  async function handle(ctx: ProfileRouteContext): Promise<boolean> {
-    if (!routeSet.has(ctx.path)) return false;
-    const sub = ctx.path.slice(root.length);
-    const want = GETS.has(sub) ? "GET" : "POST";
-    if (ctx.method !== want) {
-      ctx.json(405, { ok: false, code: "method", error: `${want} required` });
+  const commands = [...READS, ...WRITES].map((s) => root + s);
+  const commandSet = new Set(commands);
+  async function handle(ctx: CommandContext): Promise<boolean> {
+    if (!commandSet.has(ctx.command)) return false;
+    const sub = ctx.command.slice(root.length);
+    const want = READS.has(sub) ? "read" : "write";
+    if (ctx.kind !== want) {
+      ctx.reply({ ok: false, code: "invalid_command", error: `操作类型不匹配：${ctx.command}` });
       return true;
     }
     const pin = pinned?.();
     try {
       if (sub === "")
-        return (
-          ctx.json(200, { ok: true, mode: lib.mode, ...(await listProfiles(lib, pin)) }),
-          true
-        );
+        return (ctx.reply({ ok: true, mode: lib.mode, ...(await listProfiles(lib, pin)) }), true);
       if (sub === "/detail")
         return (
-          ctx.json(200, {
+          ctx.reply({
             ok: true,
-            ...(await profileDetail(lib, ctx.url.searchParams.get("profile") || "default", pin)),
+            ...(await profileDetail(lib, str(ctx.input.profile) || "default", pin)),
           }),
           true
         );
       if (sub === "/method") {
-        const profile = ctx.url.searchParams.get("profile") || "default",
-          id = ctx.url.searchParams.get("id") || "";
+        const profile = str(ctx.input.profile) || "default",
+          id = str(ctx.input.id) || "";
         if (!id)
-          return (ctx.json(400, { ok: false, code: "bad_request", error: "须指明方法 id" }), true);
+          return (ctx.reply({ ok: false, code: "bad_request", error: "须指明方法 id" }), true);
         const m = await readMethod(lib, profile, id, pin);
         let baseText: string | undefined;
         if (m.from === "user") {
@@ -82,12 +59,12 @@ export function profileRoutes(base: string, lib: MethodLibrary, pinned?: () => s
               throw error;
             });
         }
-        return (ctx.json(200, { ok: true, method: m, base_text: baseText }), true);
+        return (ctx.reply({ ok: true, method: m, base_text: baseText }), true);
       }
-      const body = await ctx.body(sub === "/create" ? 4_000_000 : 400_000);
+      const body = ctx.input;
       if (!body) return true;
       if (sub === "/use")
-        ctx.json(200, {
+        ctx.reply({
           ok: true,
           profile: await activateProfile(lib.mode, str(body.profile), pin),
         });
@@ -98,7 +75,7 @@ export function profileRoutes(base: string, lib: MethodLibrary, pinned?: () => s
               text: String((f as Record<string, unknown>)?.text ?? ""),
             }))
           : [];
-        ctx.json(200, {
+        ctx.reply({
           ok: true,
           profile: await createProfile(lib, {
             name: str(body.name) || undefined,
@@ -108,14 +85,14 @@ export function profileRoutes(base: string, lib: MethodLibrary, pinned?: () => s
           }),
         });
       } else if (sub === "/save")
-        ctx.json(200, {
+        ctx.reply({
           ok: true,
           ...(await saveMethod(lib, str(body.profile), str(body.id), body.text)),
         });
       else if (sub === "/reset")
-        ctx.json(200, { ok: true, ...(await resetMethod(lib, str(body.profile), str(body.id))) });
+        ctx.reply({ ok: true, ...(await resetMethod(lib, str(body.profile), str(body.id))) });
       else if (sub === "/rename")
-        ctx.json(200, {
+        ctx.reply({
           ok: true,
           profile: await renameProfile(
             lib.mode,
@@ -126,13 +103,13 @@ export function profileRoutes(base: string, lib: MethodLibrary, pinned?: () => s
         });
       else {
         if (body.confirm !== true)
-          ctx.json(400, { ok: false, code: "confirmation_required", error: "删除方案须明确确认" });
-        else ctx.json(200, { ok: true, ...(await deleteProfile(lib.mode, str(body.profile))) });
+          ctx.reply({ ok: false, code: "confirmation_required", error: "删除方案须明确确认" });
+        else ctx.reply({ ok: true, ...(await deleteProfile(lib.mode, str(body.profile))) });
       }
     } catch (err) {
       sendError(ctx, err);
     }
     return true;
   }
-  return { routes, handle };
+  return { commands, handle };
 }

@@ -19,6 +19,7 @@ entries.push(
   ["article-facts", "apps/desktop/src/workflow/article-facts.ts"],
   ["task-pool", "apps/desktop/src/session/task-pool.ts"],
   ["workflow-run", "apps/desktop/src/workflow/run.ts"],
+  ["workflow-recovery", "apps/desktop/src/workflow/recovery.ts"],
   ["workflow-methods", "apps/desktop/src/workflow/methods.ts"],
   ["lease", "packages/core/src/workspace-lock.ts"],
   ["work-store", "packages/fanqie/src/engine/work-store.ts"],

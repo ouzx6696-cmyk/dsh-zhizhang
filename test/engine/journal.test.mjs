@@ -3,57 +3,8 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir, hostname } from "node:os";
 import path from "node:path";
-import { createToolHarness } from "../helpers.mjs";
-import { ensureStorage } from "../../build/fanqie/src/engine/work-store.js";
 import { sha256 } from "../../build/core/src/fsx.js";
 import { snapshotFile } from "../../build/fanqie/src/engine/storage/journal.js";
-
-for (const file of [
-  "chapter-v1.json",
-  "chapter-v2-brief.json",
-  "chapter-v2-payoff.json",
-  "chapter-v3-lint.json",
-  "chapter-v4-stage.json",
-  "chapter-v5.json",
-]) {
-  test(`T4 旧事务样本 ${file} 经生产工具检查、断点续写且字节不变`, async () => {
-    const root = await mkdtemp(path.join(tmpdir(), "writer-legacy-journal-"));
-    try {
-      const paths = await ensureStorage({ cwd: root }, { storageRoot: root });
-      const dir = path.join(paths.works, "legacy");
-      await mkdir(dir, { recursive: true });
-      await writeFile(path.join(dir, "meta.json"), "{}");
-      const j = JSON.parse(
-        await readFile(new URL(`../fixtures/journals/${file}`, import.meta.url), "utf8"),
-      );
-      j.owner = { pid: process.pid, host: hostname() };
-      // Reproduce a crash after the first write, with the rest at their recorded baseline.
-      const first = path.join(dir, j.writes[0].file);
-      await mkdir(path.dirname(first), { recursive: true });
-      await writeFile(first, j.writes[0].content);
-      const pending = path.join(dir, ".writer-chapter-pending.json");
-      await writeFile(pending, JSON.stringify(j));
-      const harness = await createToolHarness({
-        mode: "fanqie",
-        cwd: root,
-        config: { storageRoot: root },
-      });
-      assert.match(
-        await harness.call("fanqie_status", { work: "legacy", recovery: "inspect" }),
-        /已写入/,
-      );
-      assert.match(
-        await harness.call("fanqie_status", { work: "legacy", recovery: "resume" }),
-        /已恢复/,
-      );
-      for (const w of j.writes)
-        assert.equal(await readFile(path.join(dir, w.file), "utf8"), w.content);
-      assert.equal(await snapshotFile(pending), null);
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
-  });
-}
 
 const write = (file, content = "after") => ({ file, before: null, content });
 const cases = [

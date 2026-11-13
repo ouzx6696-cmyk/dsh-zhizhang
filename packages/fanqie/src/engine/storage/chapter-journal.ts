@@ -5,10 +5,8 @@ const recovery = journal({
   file: ".writer-chapter-pending.json",
   label: "章节、候选或留痕操作",
   root: (dir: string) => dir,
-  legacy: true,
   decode: (r) => {
-    requireValid([1, 2, 3, 4, 5].includes(Number(r.version)) && typeof r.version === "number");
-    const kind = r.kind ?? (r.version === 1 || r.version === 5 ? "save" : undefined);
+    const kind = r.kind;
     requireValid(
       kind === "save" ||
         kind === "brief" ||
@@ -16,19 +14,10 @@ const recovery = journal({
         kind === "lint" ||
         kind === "stage",
     );
-    requireValid(
-      r.version === 1 ||
-        (r.version === 2 && (kind === "brief" || kind === "payoff")) ||
-        (r.version === 3 && kind === "lint") ||
-        (r.version === 4 && kind === "stage") ||
-        (r.version === 5 && kind === "save"),
-    );
     const chapterId = text(r.chapterId),
       candidateId =
         kind === "lint" || kind === "stage" ? assertResourceId(text(r.candidateId)) : undefined;
-    const ledger =
-      r.version === 5 ||
-      (r.version === 1 && r.kind === "save" && Array.isArray(r.writes) && r.writes.length === 3);
+    const ledger = kind === "save" && Array.isArray(r.writes) && r.writes.length === 3;
     const files =
       kind === "save"
         ? [
