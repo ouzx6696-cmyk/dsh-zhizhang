@@ -9,6 +9,7 @@
 | 日常修改后快速反馈 | `npm run test:quick` | 番茄、头条主要流程，锁竞争、流水线基础和前端状态；不含完整静态检查、全部 Python、桌面与 GUI |
 | 合并前的核心验收 | `npm run verify` | 类型、lint、架构、格式、导出、所有 Python 和 Node 核心测试 |
 | 桌面相关改动 | `npm run verify:desktop` | 类型检查、桌面构建、PI 与本地假模型、GUI 旅程 |
+| 平台 CI | `npm run test:platform` | 类型与桌面构建、Python、全部 Node、桌面运行时和 GUI；静态检查由 Linux CI 执行 |
 | 发行前完整验收 | `npm run test:all` | 核心与桌面全部检查，每种构建准备只执行一次 |
 
 也可用 `npm run test:node`、`npm run test:desktop`、`npm run test:desktop:ui` 单独运行对应范围。GUI 需要显示服务；Linux 可使用 `CI=1 DISPLAY=:99`。`npm run assets -- check` 用于核对资产清单。
@@ -26,7 +27,7 @@
 
 ## 云端与发行
 
-推送后等待当前提交的 CI 完成；出现错误须修复并重新运行，只对明确的偶发问题有限重跑。普通推送的 Windows CI 跑 core、桌面运行时、构建和 GUI 旅程；打包路径（NSIS、ZIP、随包 Python、应用启动、更新清单与校验文件）只在手动触发或标签时执行。推送 `v*` 标签会进入 release.yml 自动发布，不能用临时标签测试打包。纯文档推送不触发 CI。
+推送后等待当前提交的 CI 完成；出现错误须修复并重新运行，只对明确的偶发问题有限重跑。普通推送的 Windows CI 跑平台测试和 GUI 旅程，静态检查统一在 Linux CI 执行；打包路径（NSIS、ZIP、随包 Python、应用启动、更新清单与校验文件）只在手动触发或标签时执行。推送 `v*` 标签会进入 release.yml 自动发布，不能用临时标签测试打包。纯文档推送不触发 CI。
 
 应用中的模型调用、连接测试和作者对稿件的决定属于产品功能，不是软件发布的人工测评门槛。
 

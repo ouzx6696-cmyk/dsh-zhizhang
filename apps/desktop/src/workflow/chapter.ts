@@ -185,6 +185,7 @@ export async function chapterPipeline(run: WorkflowRun, target: Target) {
           position: existing.position,
           outline: existing.outline,
           title: existing.title,
+          status: existing.status,
         },
         plan,
       },

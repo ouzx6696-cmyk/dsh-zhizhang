@@ -7,8 +7,6 @@
  * the editor removes it. Storage errors reach the editor, which tells the author.
  */
 const PREFIX = "dsh-writer-draft:";
-// Drafts nobody came back to within two weeks are dropped at start-up so storage does not fill up.
-const MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 // Mode, root and work (or article) name the work a draft belongs to.
 const WORK_PARTS = 3;
 
@@ -86,13 +84,4 @@ export function otherDraftKeys(key) {
     const parts = keyParts(other);
     return parts !== null && JSON.stringify(parts.slice(0, WORK_PARTS)) !== work;
   });
-}
-
-/** Runs once at startup to drop expired and unreadable drafts. */
-export function sweepDrafts() {
-  const cutoff = Date.now() - MAX_AGE_MS;
-  for (const key of storedDraftKeys()) {
-    const draft = readDraft(key);
-    if (draft && draft.savedAt < cutoff) window.localStorage.removeItem(key);
-  }
 }

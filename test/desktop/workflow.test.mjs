@@ -8,6 +8,7 @@ import { createHash } from "node:crypto";
 import { Sessions } from "../../apps/desktop/out-test/session.mjs";
 import { defaultModels } from "../../apps/desktop/out-test/models.mjs";
 import { ArticleStore } from "../../apps/desktop/out-test/article-store.mjs";
+import { workflowContext } from "../../apps/desktop/out-test/workflow-context.mjs";
 import {
   ensureStorage,
   setOutline,
@@ -16,6 +17,7 @@ import {
   updateChapter,
   readWorkMeta,
   createWork,
+  setFoundation,
 } from "../../apps/desktop/out-test/work-store.mjs";
 import { fakeModel } from "./fake-model.mjs";
 import { Settings } from "../../apps/desktop/out-test/settings.mjs";
@@ -227,11 +229,18 @@ test("编排完整旅程：调度工具→规划采用→章节多稿、校验�
     assert.equal(planned.chapters.length, 3);
     await f.host.workflows.apply(target);
     assert.equal((await readWorkMeta(work.dir)).chapters.length, 3, "重复采用不新增章节");
-    await setOutline(work.dir, "c004", { targetWords: 300, pov: "林川" }, "归站");
+    await setOutline(work.dir, "c004", { targetWords: 300, pov: "林川" }, "c004");
+    await updateChapter(work.dir, { id: "c004", body: "作者已审读的初稿" });
+    await updateChapter(work.dir, {
+      id: "c004",
+      status: "reviewed",
+      expectedRevision: (await readChapter(work.dir, "c004")).revision,
+    });
     const eventStart = f.events.length,
       measuredAt = Date.now();
     await f.host.workflows.start(target, request("chapter"));
     state = await f.done(target);
+    assert.equal(state.state, "awaiting-author", state.error);
     const measured = f.events.slice(eventStart).filter((event) => event.workflow?.id === state.id);
     assert.ok(measured.length < state.steps.length * 2);
     assert.deepEqual(measured.at(-1).workflow, state);
@@ -243,7 +252,6 @@ test("编排完整旅程：调度工具→规划采用→章节多稿、校验�
         elapsedMs: Date.now() - measuredAt,
       }),
     );
-    assert.equal(state.state, "awaiting-author", state.error);
     assert.equal(state.steps.find((row) => row.id === "draft-0").attempts, 2);
     const draftCalls = f.model.calls.filter(
       (call) => stageInput(packet(call))?.entry === "从动作进入主场面",
@@ -256,9 +264,11 @@ test("编排完整旅程：调度工具→规划采用→章节多稿、校验�
     assert.match(JSON.stringify(system.content), /阶段职责/);
     assert.ok(!packet(draftCalls[0]).includes("## 阶段职责"), "前缀不重复进入用户消息");
     assert.equal(state.steps.filter((row) => row.id.startsWith("pair-")).length, 6);
-    assert.equal((await readChapter(work.dir, "c004")).body, "", "候选不代替作者正文");
+    assert.equal((await readChapter(work.dir, "c004")).body, "作者已审读的初稿");
+    assert.equal((await readChapter(work.dir, "c004")).status, "drafted");
     const candidates = await listCandidates(work.dir);
     assert.equal(candidates.length, 2);
+    assert.equal((await readChapter(work.dir, "c004")).title, "归站");
     const calls = f.model.calls.length;
     const file = path.join(f.home, "workflows", f.host.key(target), state.id + ".json");
     state.steps = state.steps.filter((row) => row.id !== "delivery");
@@ -306,6 +316,54 @@ test("编排完整旅程：调度工具→规划采用→章节多稿、校验�
       f.model.calls.filter((call) => stageInput(packet(call))).every((call) => !call.tools?.length),
       "各阶段没有模型工具面",
     );
+  } finally {
+    await f.close();
+  }
+});
+
+test("流水线所见状态、标题和节奏变化会阻止旧任务继续", async () => {
+  const f = await fixture(() => ({ text: "" }));
+  try {
+    const paths = await ensureStorage(null, { storageRoot: f.data });
+    const work = await createWork(paths, { key: "basis", title: "依据测试" });
+    await updateChapter(work.dir, { id: "c001", title: "原题", body: "作者正文" });
+    const target = { mode: "fanqie", root: f.data, work: "basis" };
+    const statusContext = await workflowContext(f.host, target, request("chapter", "c001"));
+    await updateChapter(work.dir, {
+      id: "c001",
+      status: "reviewed",
+      expectedRevision: (await readChapter(work.dir, "c001")).revision,
+    });
+    await assert.rejects(statusContext.assertCurrent(), /作品依据或前章已变化/);
+    const titleContext = await workflowContext(f.host, target, request("chapter", "c001"));
+    await updateChapter(work.dir, { id: "c001", title: "新题", body: "作者正文" });
+    await assert.rejects(titleContext.assertCurrent(), /作品依据或前章已变化/);
+    const externalContext = await workflowContext(f.host, target, request("chapter", "c001"));
+    const chapterFile = path.join(work.dir, "chapters", "c001.md");
+    const chapter = await readFile(chapterFile, "utf8");
+    assert.match(chapter, /"title": "新题"/);
+    await writeFile(chapterFile, chapter.replace('"title": "新题"', '"title": "外部新题"'));
+    await assert.rejects(externalContext.assertCurrent(), /作品依据或前章已变化/);
+    const paceContext = await workflowContext(f.host, target, request("chapter", "c001"));
+    await setFoundation(work.dir, {}, { pace: "慢燃" });
+    await assert.rejects(paceContext.assertCurrent(), /作品依据或前章已变化/);
+  } finally {
+    await f.close();
+  }
+});
+
+test("流水线发现头条稿件被外部修改后停止，并在新任务开始时提示核对", async () => {
+  const f = await fixture(() => ({ text: "" }));
+  try {
+    const store = new ArticleStore(f.data);
+    const article = await store.create("basis", {});
+    const staged = await store.stageDraft(article.id, "原始稿件", "writer", "");
+    const target = { mode: "toutiao", root: f.data, article: article.id };
+    const input = request("article");
+    const context = await workflowContext(f.host, target, input);
+    await writeFile(store.draftPath(article.id, staged.current_rev), "外部修改的稿件");
+    await assert.rejects(context.assertCurrent(), /稿件.*版本/);
+    await assert.rejects(workflowContext(f.host, target, input), /稿件.*版本/);
   } finally {
     await f.close();
   }

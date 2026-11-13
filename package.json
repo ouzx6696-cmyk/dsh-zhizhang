@@ -29,6 +29,7 @@
     "verify:release": "node scripts/verify-release.mjs",
     "audit:exports": "node scripts/audit-fanqie-exports.mjs",
     "test:all": "node scripts/test.mjs all",
+    "test:platform": "node scripts/test.mjs platform",
     "test:quick": "node scripts/test.mjs quick"
   },
   "devDependencies": {

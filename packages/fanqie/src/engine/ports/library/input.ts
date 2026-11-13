@@ -13,6 +13,8 @@ function fields<K extends string>(
   if (value === undefined) return undefined;
   const raw = asObject(value),
     out: Partial<Record<K, string>> = {};
+  const unsupported = Object.keys(raw).find((key) => !keys.some((known) => known === key));
+  if (unsupported) throw new NovelError("bad_args", `不支持的字段：${unsupported}`);
   for (const key of keys) {
     const v = asString(raw, key);
     if (v !== undefined) out[key] = v;
@@ -52,9 +54,6 @@ export function parseStageCardArgs(args: Record<string, unknown>): StageCardInpu
       "stateOnPage",
       "allowedEdges",
       "failAsTemplate",
-      "voice",
-      "voiceRange",
-      "realness",
     ]),
     bookCraft: fields(args.book_craft, ["continueWhy", "adjacentChange", "failAsShortStory"]),
     mind: fields(args.mind, [

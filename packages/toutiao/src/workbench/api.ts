@@ -1,4 +1,4 @@
-import { COMMANDS, sendError } from "../../../workbench/src/commands.js";
+import { COMMANDS, commandPolicy, sendError } from "../../../workbench/src/commands.js";
 import type { ToutiaoConfig } from "../env.js";
 import { str } from "../../../core/src/parse.js";
 import { adopt, articleDetail, listArticles, saveAuthorDraft, TOUTIAO_ACTIONS } from "./data.js";
@@ -10,9 +10,7 @@ export type ToutiaoCommand =
   | typeof COMMANDS.saveArticle;
 
 export function isToutiaoCommand(operation: string): operation is ToutiaoCommand {
-  return [COMMANDS.articles, COMMANDS.article, COMMANDS.adoptArticle, COMMANDS.saveArticle].some(
-    (name) => name === operation,
-  );
+  return commandPolicy(operation)?.handler === "toutiao";
 }
 
 /** Desktop commands share the same author actions as the writer tools. */

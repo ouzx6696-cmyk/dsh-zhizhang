@@ -117,7 +117,7 @@ test("定稿条件：requireEditorPass 时写作台与工具两条路径都要�
   try {
     await setOutline(work.dir, "c001", { ending: "门开了" }, "第一章");
     await updateChapter(work.dir, { id: "c001", title: "第一章", body: "她推开门。" });
-    let chapter = await get(panel, `/chapter?work=${encodeURIComponent(work.key)}&id=c001`);
+    let chapter = await get(panel, "/chapter", { work: work.key, id: "c001" });
     assert.equal(chapter.writer.editorReview, null);
     assert.equal(chapter.writer.requireEditorPass, true);
     assert.match(chapter.writer.finalizeBlocked, /还没有编辑审读回报/);
@@ -165,12 +165,12 @@ test("定稿条件：requireEditorPass 时写作台与工具两条路径都要�
         at: new Date().toISOString(),
       });
     await review("通过", bodyFingerprint("旧正文"));
-    chapter = await get(panel, `/chapter?work=${encodeURIComponent(work.key)}&id=c001`);
+    chapter = await get(panel, "/chapter", { work: work.key, id: "c001" });
     assert.equal(chapter.writer.editorReview.stale, true);
     assert.match(chapter.writer.finalizeBlocked, /旧正文/);
     await new Promise((r) => setTimeout(r, 5));
     await review("通过", bodyFingerprint(body));
-    chapter = await get(panel, `/chapter?work=${encodeURIComponent(work.key)}&id=c001`);
+    chapter = await get(panel, "/chapter", { work: work.key, id: "c001" });
     assert.equal(chapter.writer.editorReview.verdict, "通过");
     assert.equal(chapter.writer.finalizeBlocked, undefined);
     assert.equal((await jpost(panel, "/chapter/finalize", after)).ok, true);
@@ -264,7 +264,6 @@ test("拆书导入：模型给的 file 只能落在会话目录或本地书源�
 
 test("写作台按命令处理，未知命令不接管", async () => {
   const api = fanqieApi({});
-  assert.ok(api.commands.includes("/projects"));
   let response;
   assert.equal(
     await api.handle({

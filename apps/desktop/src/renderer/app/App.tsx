@@ -1,4 +1,4 @@
-import { COPY as viewCopy, EDITOR_COPY } from "../../../../../packages/ui/src/copy.js";
+import { COPY as viewCopy } from "../../../../../packages/ui/src/copy.js";
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "@fontsource/noto-sans-sc/400.css";
@@ -10,9 +10,8 @@ import "../../../../../packages/ui/src/tokens.css";
 import "../../../../../packages/workbench/src/client/styles.css";
 import "../../desktop.css";
 import { LoaderCircle } from "lucide-react";
-import { NoticeStack, notify } from "../../../../../packages/ui/src/notify";
+import { NoticeStack } from "../../../../../packages/ui/src/notify";
 import { setConfirm } from "../../../../../packages/workbench/src/client/shared/confirm.js";
-import { sweepDrafts } from "../../../../../packages/workbench/src/client/shared/drafts.js";
 import { scopeId, type Focus, type Target } from "../../context";
 import { useDesktopController } from "./useDesktopController";
 import { desktopStore, useDesktopSelector } from "../state/store";
@@ -51,18 +50,6 @@ function App() {
   const [workflowOpen, setWorkflowOpen] = useState(false);
   // 工作台里的确认（放弃修改、删除等）统一走桌面确认框，不再弹原生 window.confirm。
   useEffect(() => setConfirm(askConfirm), []);
-  // 草稿的过期清理与旧键转换在启动后做一次，不放在打开编辑器的路径上。
-  useEffect(() => {
-    try {
-      sweepDrafts();
-    } catch (error) {
-      console.error(error);
-      notify({
-        tone: "danger",
-        text: EDITOR_COPY.sweepFailed + (error instanceof Error ? error.message : String(error)),
-      });
-    }
-  }, []);
   const system = useDesktopSelector((state) => state.system);
   const view = useDesktopSelector((state) => state.view);
   const tab = useDesktopSelector((state) => state.tab);

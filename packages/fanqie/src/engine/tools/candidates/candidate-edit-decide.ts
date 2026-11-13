@@ -17,7 +17,7 @@ export const candidateEditDecide = defineTool({
     choice: E(["A", "B", "C"], "用户抉择"),
     confirm_accept_after_edit: B("路径 A 必填 true：确认采纳本章编辑稿为当前工作稿"),
     mode: E(["replace", "append"], "A 时写入模式，默认 replace"),
-    expected_revision: S("旧候选缺少基线时，显式核对的现行章节 revision"),
+    expected_revision: S("可选：已读取并确认的现行章节 revision"),
     force: B("A 且目标章 final 时须 true"),
     lint_pass_token: S("A 可选：显式 lintPassToken"),
     skip_brief: B("A 时跳过 brief 硬闸"),
@@ -73,7 +73,7 @@ export const candidateEditDecide = defineTool({
     return runAcceptPipeline(args, exec, {
       candidateId,
       mode,
-      expectedRevision: asString(args, "expected_revision"),
+      observedRevision: asString(args, "expected_revision"),
       force: boolArg(args, "force") ?? false,
       lintPassToken: asString(args, "lint_pass_token") ?? undefined,
       skipBrief: boolArg(args, "skip_brief") ?? false,

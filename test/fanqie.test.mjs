@@ -331,11 +331,11 @@ test("写作台路由：审读信息、定稿条件、状态转换与投递指�
   const request = await createCommandHarness(config);
   const { buildDeliveryPrompt } = await import(buildUrl("fanqie/src/workbench/delivery.js"));
   await call("fanqie_chapter_list", {});
-  const projects = await request("/projects?refresh=1");
+  const projects = await request("/projects", { input: { refresh: 1 } });
   const project = projects.projects.find((project) => project.base === path.join(cwd, ".writer"));
   assert.ok(project);
-  const chapterRoute = `/chapter?base=${encodeURIComponent(project.id)}&work=${work.key}&id=c001`;
-  const getChapter = async () => await request(chapterRoute);
+  const getChapter = async () =>
+    await request("/chapter", { input: { base: project.id, work: work.key, id: "c001" } });
   const input = async () => ({
     base: project.id,
     work: work.key,
@@ -392,9 +392,7 @@ test("写作台路由：审读信息、定稿条件、状态转换与投递指�
   const list = await request("/toutiao/articles");
   const row = list.articles.find((row) => row.id === article.id);
   assert.ok(row);
-  const detail = await request(
-    `/toutiao/article?root=${encodeURIComponent(row.root)}&id=${row.id}`,
-  );
+  const detail = await request("/toutiao/article", { input: { root: row.root, id: row.id } });
   assert.equal(detail.article.draft.rev, 1);
   const { buildToutiaoDelivery } = await import(buildUrl("toutiao/src/workbench/data.js"));
   assert.match(

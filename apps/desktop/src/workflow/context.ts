@@ -14,6 +14,7 @@ import {
   readKnowledge,
 } from "../../../../packages/fanqie/src/engine/storage/continuity";
 import { readPlanning } from "../../../../packages/fanqie/src/engine/domain/planning";
+import type { Chapter } from "../../../../packages/fanqie/src/engine/types";
 import { resolveFanqieWork } from "../main/storage";
 import type { WorkflowHost } from "./host";
 import type { Target } from "../context";
@@ -26,6 +27,16 @@ const DUE_AHEAD = 3;
 const FOUNDATION_TAIL = 3000;
 const RECENT_TOC = 20;
 const FEEDBACK_TAIL = 4000;
+async function readDraftAtVersion(
+  store: ArticleStore,
+  article: string,
+  draft: { rev: number; sha256: string } | undefined,
+) {
+  if (!draft) return "";
+  const body = await store.readDraft(article, draft.rev);
+  if (sha256(body) !== draft.sha256) throw new Error("稿件正文与登记版本不一致，请先核对稿件");
+  return body;
+}
 function tail(value: string, max: number) {
   return value.length > max ? `（前文略）…${value.slice(-max)}` : value;
 }
@@ -33,6 +44,9 @@ function head(value: string, max: number) {
   return value.length > max ? `${value.slice(0, max)}…（后文略）` : value;
 }
 type Meta = Awaited<ReturnType<typeof readWorkMeta>>;
+function chapterDirectory(meta: Meta) {
+  return meta.chapters.map(({ id, title, position, status }) => ({ id, title, position, status }));
+}
 /**
  * Chapter material scales with the chapter, not with the book: the current chapter, the
  * previous tail, due continuity and confirmed facts are required; plans, accumulated
@@ -57,12 +71,7 @@ function fanqieMaterial(input: {
       )
     : [];
   const foundation = meta.foundation;
-  const toc = meta.chapters.map((row) => ({
-    id: row.id,
-    title: row.title,
-    position: row.position,
-    status: row.status,
-  }));
+  const toc = chapterDirectory(meta);
   return [
     { name: "本章", text: chapter ? JSON.stringify(chapter) : "", required: true },
     {
@@ -119,12 +128,12 @@ function fanqieMaterial(input: {
 }
 /**
  * The book state a fanqie run depends on. Built once for the basis and again for every freshness
- * check, so the two can never drift apart; the basis string itself is unchanged for old journals.
+ * check, so the two use the same fields.
  */
 function fanqieDocument(
   meta: Meta,
-  chapter: { revision?: unknown } | undefined,
-  previous: { revision?: unknown } | undefined,
+  chapter: Pick<Chapter, "revision" | "title" | "status"> | undefined,
+  previous: Pick<Chapter, "revision" | "title" | "status"> | undefined,
   foreshadow: unknown,
   knowledge: unknown,
 ) {
@@ -133,13 +142,22 @@ function fanqieDocument(
       title: meta.title,
       genre: meta.genre,
       premise: meta.premise,
-      chapters: meta.chapters.map((row) => ({ id: row.id, position: row.position })),
+      pace: meta.pace,
+      chapters: chapterDirectory(meta),
     },
     foundation: meta.foundation,
     planning: meta.planning,
     ...(meta.readingBenchmark === undefined ? {} : { readingBenchmark: meta.readingBenchmark }),
-    chapter: chapter?.revision,
-    previous: previous?.revision,
+    chapter: chapter && {
+      revision: chapter.revision,
+      title: chapter.title,
+      status: chapter.status,
+    },
+    previous: previous && {
+      revision: previous.revision,
+      title: previous.title,
+      status: previous.status,
+    },
     foreshadow,
     knowledge,
   };
@@ -176,7 +194,8 @@ export async function workflowContext(
       card = await store.readCard(meta.id);
     if (meta.delivered || meta.status === "已交稿") throw new Error("文章已交稿，请新建文章");
     const feedback = (await readText(store.feedbackPath)) ?? "";
-    const current = store.currentDraft(meta);
+    const current = store.currentDraft(meta),
+      draftText = await readDraftAtVersion(store, meta.id, current);
     const basis = JSON.stringify({ meta, card, identity, feedback });
     return {
       // Author feedback accumulates per article; the newest part carries the current preferences.
@@ -185,7 +204,7 @@ export async function workflowContext(
         { name: "文章与立项卡", text: JSON.stringify({ article: meta, card }), required: true },
         {
           name: "当前工作稿",
-          text: current ? await store.readDraft(meta.id, current.rev) : "",
+          text: draftText,
           required: true,
         },
       ],
@@ -205,6 +224,7 @@ export async function workflowContext(
           }) !== basis
         )
           throw new Error("文章、标题或立项卡已变化，进度保留，请新建任务以采用当前版本");
+        await readDraftAtVersion(store, now.id, store.currentDraft(now));
       },
     };
   }

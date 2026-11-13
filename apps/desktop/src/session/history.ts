@@ -22,7 +22,7 @@ function parseHistory(text: string | undefined): string[] {
 export async function conversations(
   host: Sessions,
   target: Target,
-): Promise<{ id: number; name: string; file: string; legacy?: boolean }[]> {
+): Promise<{ id: number; name: string; file: string }[]> {
   const dir = await host.directory(target);
   const history: string[] = parseHistory(await readText(path.join(dir, "history.json")));
   return history.map((file, index) => ({

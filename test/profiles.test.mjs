@@ -227,14 +227,14 @@ test("工具：默认 → 原版回落 → 用户方案一（导入、覆盖、�
 test("写作台接口：方案列表、详情、全文、新建、保存、切换、删除；配置固定方案", async () => {
   process.env.WRITER_PROFILES_DIR = await tempDir("writer-profiles-");
   const request = await createCommandHarness({ fanqie: { profile: "原版" } });
-  const get = async (route) => await request(route);
+  const get = async (route, input = {}) => await request(route, { input });
   const post = (route, input) => request(route, { kind: "write", input });
   try {
     let l = await get("/toutiao/profiles");
     assert.equal(l.ok, true);
     assert.equal(l.active, "default");
     assert.equal(l.profiles[0].methods, 30);
-    const d = await get("/toutiao/profiles/detail?profile=default");
+    const d = await get("/toutiao/profiles/detail", { profile: "default" });
     assert.equal(d.methods.length, 30);
     assert.ok(d.methods.find((m) => m.id === "s3-headline").title);
     const c = await post("/toutiao/profiles/create", {
@@ -244,10 +244,10 @@ test("写作台接口：方案列表、详情、全文、新建、保存、切�
       ],
     });
     assert.equal(c.profile.name, "用户方案一");
-    const m = await get("/toutiao/profiles/method?profile=user-1&id=s3-headline");
+    const m = await get("/toutiao/profiles/method", { profile: "user-1", id: "s3-headline" });
     assert.equal(m.method.from, "user");
     assert.ok(m.base_text.length > 500, "覆盖时附底稿");
-    const det = await get("/toutiao/profiles/detail?profile=user-1");
+    const det = await get("/toutiao/profiles/detail", { profile: "user-1" });
     assert.equal(det.methods.find((x) => x.id === "新方法").added, true);
     assert.equal(det.profile.overrides, 2);
     assert.equal(
@@ -276,7 +276,7 @@ test("写作台接口：方案列表、详情、全文、新建、保存、切�
     assert.equal(l.pinned, true);
     assert.equal((await post("/fanqie/profiles/use", { profile: "default" })).ok, false);
     assert.equal(
-      (await get("/fanqie/profiles/method?profile=default&id=edit")).method.from,
+      (await get("/fanqie/profiles/method", { profile: "default", id: "edit" })).method.from,
       "default",
     );
     assert.equal(

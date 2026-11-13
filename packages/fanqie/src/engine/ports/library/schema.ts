@@ -50,45 +50,23 @@ export function normalizeMechanism(raw: MechanismInput, i: number) {
 }
 /**
  * Normalize optional humanFeel. Missing block → soft warn, card still stages.
- * Accepts writerCraft/characterState shape and the older voice/realness field names.
- * Never hard-reject for migration.
+ * Uses the current writerCraft/characterState fields.
  */
 export function normalizeHumanFeel(raw?: HumanFeelInput) {
   const warnings: string[] = [];
   if (raw == null) {
     warnings.push(
-      "未填 humanFeel（活人证据）：兼容可过；新拆书请补 writerCraft / characterState / allowedEdges / failAsTemplate",
+      "未填 humanFeel（活人证据）：建议补 writerCraft / characterState / allowedEdges / failAsTemplate",
     );
     return { warnings };
   }
   const h = raw;
-  // Older field names
-  const legacyVoice = (h.voice ?? "").trim();
-  const legacyVoiceRange = (h.voiceRange ?? h.voice_range ?? "").trim();
-  const legacyRealness = (h.realness ?? "").trim();
-  let writerCraft = (h.writerCraft ?? h.writer_craft ?? "").trim();
-  let craftRange = (h.craftRange ?? h.craft_range ?? "").trim();
-  let characterState = (h.characterState ?? h.character_state ?? "").trim();
-  let stateOnPage = (h.stateOnPage ?? h.state_on_page ?? "").trim();
-  const allowedEdges = (h.allowedEdges ?? h.allowed_edges ?? "").trim();
-  const failAsTemplate = (h.failAsTemplate ?? h.fail_as_template ?? "").trim();
-  // Migrate legacy → new
-  if (!writerCraft && legacyRealness) {
-    writerCraft = legacyRealness;
-    warnings.push("已将旧 humanFeel.realness 迁为 writerCraft（写法）");
-  }
-  if (!craftRange && legacyVoiceRange) {
-    craftRange = legacyVoiceRange;
-  }
-  if (!stateOnPage && legacyVoice) {
-    stateOnPage = legacyVoice;
-    warnings.push("已将旧 humanFeel.voice 迁为 stateOnPage（落纸手法证据）");
-  }
-  if (legacyVoice && !h.writerCraft && !h.characterState) {
-    warnings.push(
-      "检测到旧口径 voice/realness：请改填 writerCraft（作家写法）+ characterState（角色状态）",
-    );
-  }
+  const writerCraft = (h.writerCraft ?? "").trim();
+  const craftRange = (h.craftRange ?? "").trim();
+  const characterState = (h.characterState ?? "").trim();
+  const stateOnPage = (h.stateOnPage ?? "").trim();
+  const allowedEdges = (h.allowedEdges ?? "").trim();
+  const failAsTemplate = (h.failAsTemplate ?? "").trim();
   if (!writerCraft) {
     warnings.push("humanFeel.writerCraft 为空：未写作家写法（场面取舍/信息怎么漏/节奏或小物等）");
   }

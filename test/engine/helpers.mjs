@@ -23,7 +23,7 @@ export async function withWork(title = "测试作品") {
 }
 export const createPanel = (config = {}) => createCommandHarness({ fanqie: config });
 export const jpost = (api, command, input) => api(command, { kind: "write", input });
-export const jget = (api, command) => api(command);
+export const jget = (api, command, input = {}) => api(command, { input });
 
 /** 依赖包里的自动 JSX（react-markdown）落到注入的 createElement 上。 */
 function jsxRuntime(react) {

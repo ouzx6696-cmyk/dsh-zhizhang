@@ -49,7 +49,6 @@ type CandidateListRow = Omit<Candidate, "body"> & {
 };
 const OPTIONAL_META_KEYS = [
   "revisionSource",
-  "targetRevision",
   "basis",
   "lintPassToken",
   "lintedAt",
@@ -71,10 +70,11 @@ function candidateToDiskMeta(cand: Candidate): CandidateMeta {
     workKey: cand.workKey,
     chapterId: cand.chapterId,
     stagedAt: cand.stagedAt,
+    targetRevision: cand.targetRevision,
     source: cand.source,
     note: cand.note,
     bodyFile: cand.bodyFile,
-    wordCount: typeof cand.wordCount === "number" ? cand.wordCount : countWords(cand.body),
+    wordCount: cand.wordCount,
   };
   for (const key of OPTIONAL_META_KEYS) {
     const include =
@@ -182,11 +182,15 @@ function candidateBodyFile(disk: Record<string, unknown> | null | undefined, id:
     typeof disk !== "object" ||
     Array.isArray(disk) ||
     disk.id !== id ||
-    typeof disk.chapterId !== "string"
+    typeof disk.chapterId !== "string" ||
+    typeof disk.bodyFile !== "string" ||
+    typeof disk.targetRevision !== "string" ||
+    !disk.targetRevision ||
+    typeof disk.wordCount !== "number"
   )
     throw new NovelError("bad_candidate", `候选 ${id} 元数据损坏，请保留文件并核对。`);
   assertResourceId(disk.chapterId, "章节 id");
-  return assertCandidateFile(typeof disk.bodyFile === "string" ? disk.bodyFile : `${id}.md`);
+  return assertCandidateFile(disk.bodyFile);
 }
 async function readCandidateUnlocked(dir: string, candidateId: string): Promise<Candidate> {
   const id = assertResourceId(candidateId, "候选 id");
@@ -288,7 +292,7 @@ export function candidateHasLintPass(cand: Candidate) {
  */
 interface CandidateAcceptOptions {
   force?: boolean;
-  expectedRevision?: string;
+  observedRevision?: string;
   lintPassToken?: string;
   validate?: (candidate: Candidate) => Promise<{ outline: string }>;
 }
@@ -334,12 +338,7 @@ export async function acceptCandidate(
     )
       throw new NovelError("context_changed", "修订采用的节奏已变化");
     if (cand.basis) await assertContextBasis(dir, cand.basis, chapterId);
-    if (!cand.targetRevision && opts.expectedRevision === undefined)
-      throw new NovelError(
-        "legacy_baseline_required",
-        "旧候选无目标版本，请传 expected_revision 明确核对当前目标，或重新暂存。",
-      );
-    const bodyFile = assertCandidateFile(cand.bodyFile ?? `${id}.md`);
+    const bodyFile = assertCandidateFile(cand.bodyFile);
     const bodyHash = await snapshotFile(path.join(candidatesDir(dir), bodyFile));
     if (!bodyHash || bodyHash !== sha256(cand.body))
       throw new NovelError("candidate_changed", "候选正文在采纳期间发生变化，请重新检查并扫描。");
@@ -354,6 +353,8 @@ export async function acceptCandidate(
     let title = chapterId;
     let existingFinal = false;
     const existing = await findChapter(dir, chapterId);
+    if (opts.observedRevision !== undefined && opts.observedRevision !== existing?.revision)
+      throw new NovelError("revision_conflict", "确认时的章节版本已变化，请重新阅读后采纳。");
     if (existing) {
       title = existing.title;
       if (checked && checked.outline !== fingerprint(existing.outline))
@@ -374,8 +375,7 @@ export async function acceptCandidate(
       body,
       status: "drafted",
       force: opts.force,
-      expectedRevision:
-        acceptMode === "replace" ? (cand.targetRevision ?? opts.expectedRevision) : undefined,
+      expectedRevision: acceptMode === "replace" ? cand.targetRevision : undefined,
       dependencies: cand.basis?.previous ? [cand.basis.previous] : [],
     });
     // The prepared intent already includes the versioned continuation index.
@@ -448,12 +448,6 @@ export async function listCandidates(dir: string): Promise<CandidateListRow[]> {
           const bodyStat = await stat(bodyPath);
           if (!bodyStat.isFile())
             throw new NovelError("bad_candidate", `候选 ${raw.id} 正文不是普通文件。`);
-          // wordCount is persisted at stage time; only legacy rows re-read the body.
-          let wordCount = typeof raw.wordCount === "number" ? raw.wordCount : 0;
-          if (typeof raw.wordCount !== "number") {
-            const body = await readFile(bodyPath, "utf8");
-            wordCount = countWords(body);
-          }
           return {
             ...raw,
             readVersion: [
@@ -463,7 +457,6 @@ export async function listCandidates(dir: string): Promise<CandidateListRow[]> {
               bodyStat.ino,
               bodyStat.size,
             ].join(":"),
-            wordCount,
             pending: !raw.acceptedAt,
           };
           // allow-catch: 单个损坏候选转为 unavailable 条目展示，不阻塞列表其余项

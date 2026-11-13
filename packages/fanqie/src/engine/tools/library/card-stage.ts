@@ -64,7 +64,7 @@ export const libraryCardStage = defineTool({
     human_feel: {
       type: "object",
       description:
-        "craft 轴活人证据：{writerCraft, craftRange, characterState, stateOnPage, allowedEdges, failAsTemplate}；旧 voice/realness 可读迁；禁人设墙",
+        "craft 轴活人证据：{writerCraft, craftRange, characterState, stateOnPage, allowedEdges, failAsTemplate}；禁人设墙",
       additionalProperties: false,
       properties: {
         writerCraft: S("作家写法：叙述口吻/场面取舍/信息怎么漏/节奏或小物"),
@@ -73,10 +73,6 @@ export const libraryCardStage = defineTool({
         stateOnPage: S("状态落纸手法（身体/偏题/半截话等），非台词范本"),
         allowedEdges: S("重造时允许的毛边"),
         failAsTemplate: S("写成齐整范文腔即失败"),
-        // legacy aliases accepted by normalizeHumanFeel (also listed for discoverability)
-        voice: S("【旧】迁为 stateOnPage；落纸手法证据"),
-        voiceRange: S("【旧】迁为 craftRange"),
-        realness: S("【旧】迁为 writerCraft"),
       },
     },
     book_craft: {

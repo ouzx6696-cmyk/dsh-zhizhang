@@ -102,7 +102,9 @@ export async function start() {
         );
       await selectTarget(state, target);
     } catch (error) {
-      notice = "最近项目恢复未完成，请重新选择目录：" + String(error);
+      notice = [notice, "最近项目恢复未完成，请重新选择目录：" + String(error)]
+        .filter(Boolean)
+        .join("\n");
     }
   }
   state.notice = notice;

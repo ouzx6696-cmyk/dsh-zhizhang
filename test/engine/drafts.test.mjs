@@ -97,22 +97,18 @@ test("草稿：存储本身读写失败时原样抛出，由编辑器告诉作�
   assert.throws(() => ui.writeDraft(ui.chapterDraftKey(CHAPTER), "x", "r1"), /storage is full/);
 });
 
-test("启动清理：超过两周的草稿与损坏条目被删，近期草稿与其它键保留", () => {
-  const { ui, storage, clock } = draftsFixture();
-  const old = ui.chapterDraftKey({ ...CHAPTER, chapter: "old" });
-  const fresh = ui.chapterDraftKey({ ...CHAPTER, chapter: "fresh" });
-  const broken = ui.chapterDraftKey({ ...CHAPTER, chapter: "broken" });
-  ui.writeDraft(old, "旧", "r1");
-  clock.advance(DAY);
-  ui.writeDraft(fresh, "新", "r1");
-  storage.setItem(broken, "oops");
-  storage.setItem("dsh-writer-prefs", "{}");
-  clock.advance(13 * DAY);
-  ui.sweepDrafts();
-  assert.deepEqual(storage.keys().sort(), ["dsh-writer-prefs", fresh, old].sort());
-  clock.advance(1);
-  ui.sweepDrafts();
-  assert.deepEqual(storage.keys().sort(), ["dsh-writer-prefs", fresh].sort());
+test("未保存的草稿超过两周仍可恢复，保存或放弃后由作者清除", () => {
+  const { ui, clock } = draftsFixture();
+  const key = ui.chapterDraftKey(CHAPTER);
+  ui.writeDraft(key, "长期保留的正文", "r1");
+  clock.advance(30 * DAY);
+  assert.deepEqual(plain(ui.readDraft(key)), {
+    text: "长期保留的正文",
+    savedAt: 0,
+    baseRevision: "r1",
+  });
+  ui.clearDraft(key);
+  assert.equal(ui.readDraft(key), null);
 });
 
 test("其它作品的草稿：同一作品的其它章节与槽位不算，其它作品与头条文章算", () => {
@@ -285,7 +281,7 @@ test("草稿暂存：与盘上原文相同的旧草稿不提示", async () => {
   assert.equal(m.stash().offer, null);
 });
 
-test("草稿暂存：打开编辑器不清理别处的草稿，过期清理只在启动时做", async () => {
+test("草稿暂存：打开编辑器不清理别处的草稿", async () => {
   const f = draftsFixture();
   const stale = f.ui.chapterDraftKey({ ...CHAPTER, chapter: "stale" });
   f.ui.writeDraft(stale, "很久以前", "r1");

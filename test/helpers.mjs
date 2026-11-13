@@ -114,6 +114,7 @@ export async function createToolHarness({ mode, role = "writer", cwd, config = {
 }
 
 export async function createCommandHarness(config = {}) {
+  const { commandPolicy } = await import(buildUrl("workbench/src/commands.js"));
   const { profileRoutes } = await import(buildUrl("workbench/src/profile-api.js"));
   const { toutiaoLibrary } = await import(buildUrl("toutiao/src/methods.js"));
   const { fanqieLibrary } = await import(buildUrl("fanqie/src/forge.js"));
@@ -126,16 +127,18 @@ export async function createCommandHarness(config = {}) {
     profileRoutes("/toutiao", toutiaoLibrary, () => config.toutiao?.profile),
     profileRoutes("/fanqie", fanqieLibrary, () => config.fanqie?.profile),
   ];
-  return async (name, { kind = "read", input = {} } = {}) => {
-    const [command, query = ""] = name.split("?", 2);
-    const values = { ...Object.fromEntries(new URLSearchParams(query)), ...input };
+  return async (command, { kind = "read", input = {} } = {}) => {
+    const policy = commandPolicy(command);
+    if (!policy) return { ok: false, code: "NOT_FOUND" };
+    if (policy.kind !== "both" && policy.kind !== kind)
+      return { ok: false, code: "invalid_command" };
     if (isToutiaoCommand(command))
-      return (await runToutiaoCommand(command, values, config.toutiao || {}, true)).data;
+      return (await runToutiaoCommand(command, input, config.toutiao || {}, true)).data;
     let result = { ok: false, code: "NOT_FOUND" };
     const ctx = {
       command,
       kind,
-      input: values,
+      input,
       reply: (data) => {
         result = data;
       },

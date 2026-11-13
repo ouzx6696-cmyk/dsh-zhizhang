@@ -42,14 +42,19 @@ export const FoundationPort = {
     return appendHappenedLine(dir, chapterId, line, input.replace === true);
   },
   /**
-   * 文风卡采纳追加 foundation.style（带日期与来源卡号的条目由调用方拼好）。
-   * 追加语义：作者或 foundation_set 写入的既有文风约束原样保留；同一把作品锁内读改写。
+   * 追加文风卡或个人规则；指定卡号时，同一作品不重复追加。
+   * 作者或 foundation_set 写入的既有文风约束原样保留；同一把作品锁内读改写。
    */
-  async appendStyleCard(dir: string, entry: string) {
+  async appendStyle(dir: string, entry: string, cardId?: string) {
     return withResourceLock(dir, async () => {
       const meta = await readWorkMeta(dir);
       const previous = meta.foundation.style.trimEnd();
-      return setFoundation(dir, { style: previous ? `${previous}\n\n${entry}` : entry });
+      if (cardId && previous.split("\n").some((line) => line.startsWith(`【文风卡 ${cardId} · `)))
+        return { meta, added: false };
+      return {
+        meta: await setFoundation(dir, { style: previous ? `${previous}\n\n${entry}` : entry }),
+        added: true,
+      };
     });
   },
   /**

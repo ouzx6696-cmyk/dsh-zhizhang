@@ -186,6 +186,8 @@ test("章节、候选与留痕中断后不覆盖作者修改", async () => {
         chapterId: "c001",
         bodyFile: `${id}.md`,
         stagedAt: new Date().toISOString(),
+        targetRevision: (await readChapter(dir, "c001")).revision,
+        wordCount: 4,
       }) + "\n";
     await createWorkRecordJournal(dir, {
       kind: "stage",
@@ -430,6 +432,27 @@ test("多个进程同时追加候选时保留正文和留痕", async () => {
     const chapter = await readChapter(dir, "c001");
     for (let i = 0; i < 4; i++) assert.ok(chapter.body.includes(`正文标记-${i}-结束`));
     assert.equal((await readLedger(dir)).entries.filter((e) => e.kind === "note").length, 4);
+  } finally {
+    await f.close();
+  }
+});
+
+test("追加候选时显式提供的已读版本必须仍是当前章节", async () => {
+  const f = await fixture();
+  try {
+    const { dir } = await createWork(f.paths, { title: "追加版本" });
+    await updateChapter(dir, { id: "c001", title: "第一章", body: "原文" });
+    const before = await readChapter(dir, "c001");
+    const candidate = await stageCandidate(dir, { chapterId: "c001", body: "追加内容" });
+    await updateChapter(dir, { id: "c001", title: "第一章", body: "作者新稿" });
+    await assert.rejects(
+      acceptCandidate(dir, candidate.id, "append", { observedRevision: before.revision }),
+      (error) => error.code === "revision_conflict",
+    );
+    assert.equal((await readChapter(dir, "c001")).body, "作者新稿");
+    const current = await readChapter(dir, "c001");
+    await acceptCandidate(dir, candidate.id, "append", { observedRevision: current.revision });
+    assert.match((await readChapter(dir, "c001")).body, /作者新稿\s+追加内容/);
   } finally {
     await f.close();
   }

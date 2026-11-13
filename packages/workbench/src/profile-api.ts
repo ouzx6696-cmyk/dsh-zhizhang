@@ -1,7 +1,7 @@
 /** 写作台方法方案命令：查询、创建、切换、修改及删除。 */
 import { str } from "../../core/src/parse.js";
 import { WriterError } from "../../core/src/tool.js";
-import { sendError, type CommandContext } from "./commands.js";
+import { commandPolicy, sendError, type CommandContext } from "./commands.js";
 import {
   createProfile,
   deleteProfile,
@@ -16,18 +16,12 @@ import {
   type MethodLibrary,
 } from "../../core/src/profiles.js";
 
-const READS = new Set(["", "/detail", "/method"]);
-const WRITES = ["/use", "/create", "/save", "/reset", "/rename", "/delete"] as const;
-
 export function profileRoutes(base: string, lib: MethodLibrary, pinned?: () => string | undefined) {
-  const root = `${base}/profiles`;
-  const commands = [...READS, ...WRITES].map((s) => root + s);
-  const commandSet = new Set(commands);
   async function handle(ctx: CommandContext): Promise<boolean> {
-    if (!commandSet.has(ctx.command)) return false;
-    const sub = ctx.command.slice(root.length);
-    const want = READS.has(sub) ? "read" : "write";
-    if (ctx.kind !== want) {
+    const policy = commandPolicy(ctx.command);
+    if (policy?.handler !== "profile" || base !== `/${policy.mode}`) return false;
+    const sub = policy.profileAction;
+    if (ctx.kind !== policy.kind) {
       ctx.reply({ ok: false, code: "invalid_command", error: `操作类型不匹配：${ctx.command}` });
       return true;
     }
@@ -111,5 +105,5 @@ export function profileRoutes(base: string, lib: MethodLibrary, pinned?: () => s
     }
     return true;
   }
-  return { commands, handle };
+  return { handle };
 }

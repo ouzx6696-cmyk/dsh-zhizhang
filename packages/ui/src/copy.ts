@@ -1152,7 +1152,6 @@ export const EDITOR_COPY = {
   clearOtherDrafts: "清理其它作品的草稿",
   clearOtherDraftsConfirm: (n: number) =>
     `删除其它作品暂存在本机的 ${n} 份未保存草稿？删除后无法恢复，当前作品的草稿保留。`,
-  sweepFailed: "整理本机草稿失败，过期草稿未清理：",
 } as const;
 
 export const PROJECT_INDEX_FAILED = "项目列表暂时读不到，已按默认目录打开：";

@@ -9,6 +9,8 @@ const require = createRequire(import.meta.url);
 const tsc = require.resolve("typescript/bin/tsc");
 const playwright = require.resolve("@playwright/test/cli");
 const profile = process.argv[2] || "core";
+const desktopPreparation = ["buildCore", "jsxTypes", "desktopBuild"];
+const platformTests = ["python", "components", "node", "desktopTests", "runtime", "ui"];
 const profiles = {
   quick: ["buildCore", "components", "quick"],
   node: ["buildCore", "components", "node"],
@@ -16,18 +18,8 @@ const profiles = {
   ui: ["rootTypes", "jsxTypes", "desktopBuild", "ui"],
   core: ["buildCore", "desktopTypes", "jsxTypes", "checks", "python", "components", "node"],
   desktop: ["buildCore", "jsxTypes", "desktopBuild", "desktopTests", "runtime", "ui"],
-  all: [
-    "buildCore",
-    "jsxTypes",
-    "desktopBuild",
-    "checks",
-    "python",
-    "components",
-    "node",
-    "desktopTests",
-    "runtime",
-    "ui",
-  ],
+  platform: [...desktopPreparation, ...platformTests],
+  all: [...desktopPreparation, "checks", ...platformTests],
 };
 if (!Object.hasOwn(profiles, profile)) throw new Error(`Unknown test profile: ${profile}`);
 
@@ -64,7 +56,7 @@ const stages = {
   quick: () =>
     suite([
       "test/flow.test.mjs",
-      "test/engine/workflow.test.mjs",
+      "test/engine/quick-workflow.test.mjs",
       "test/engine/lock-cleanup-race.test.mjs",
       "test/workflow-core.test.mjs",
       "test/renderer/shell.test.mjs",

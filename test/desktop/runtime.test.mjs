@@ -1197,6 +1197,13 @@ test("WB-08 只读打开时主进程拒绝写作品的请求；诊断与方法�
       (await request(main, "/chapter", { input: { work: work.meta.key, id: "c001" } })).data.ok,
       true,
     );
+    const capabilities = await request(main, "/diagnostics/capabilities");
+    assert.equal(capabilities.data.deliver, false);
+    assert.equal(capabilities.data.deliverReason, "请先保存模型连接");
+    for (const operation of ["/chapter/save", "/toutiao/draft", "/fanqie/profiles/delete"]) {
+      const mismatch = await request(main, operation, { kind: "read" });
+      assert.equal(mismatch.data.code, "invalid_command");
+    }
     const scan = await request(main, "/diagnostics/scan", {
       kind: "write",
       input: {
@@ -3687,9 +3694,7 @@ test("写作台抽卡投递：指令带 writer_draw 场景并要求转报作者�
     logLevel: "silent",
   });
   try {
-    const { buildDeliveryPrompt, DELIVERY_ACTIONS } = await import(pathToFileURL(outfile).href);
-    assert.ok(DELIVERY_ACTIONS.includes("draw-opening"));
-    assert.ok(DELIVERY_ACTIONS.includes("draw-chapter-end"));
+    const { buildDeliveryPrompt } = await import(pathToFileURL(outfile).href);
     const opening = await buildDeliveryPrompt(dir, { action: "draw-opening", chapter: "c001" });
     assert.equal(opening.chapterId, "c001");
     assert.match(opening.text, /writer_draw（scenario="opening"）/);

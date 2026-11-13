@@ -1,8 +1,7 @@
 import { withPluginConfig } from "../engine/runtime-config.js";
-import path from "node:path";
-import { readText } from "../../../core/src/fsx.js";
 import {
   COMMANDS,
+  commandPolicy,
   sendError,
   type CommandContext,
   type WorkbenchCommands,
@@ -10,7 +9,7 @@ import {
 import type { StoragePaths, PluginConfig } from "../engine/types.js";
 import { NovelError } from "../engine/errors.js";
 import { asString, asStringArray, boolArg } from "../engine/parse.js";
-import { assertResourceId, assertSourceId } from "../engine/storage/primitives.js";
+import { assertResourceId } from "../engine/storage/primitives.js";
 import {
   candidateHasLintPass,
   countWords,
@@ -19,22 +18,15 @@ import {
   projectIdOf,
   readCandidate,
   readChapter,
-  readWorkMeta,
   resolveWorkDir,
   stageCandidate,
 } from "../engine/work-store.js";
 import { diagnose, stageRevisionCandidate, bodyHash } from "../engine/services/diagnostics.js";
-import { buildPanelSnapshot, listChapterLensRows } from "../engine/panel-query.js";
-import {
-  buildInspirationView,
-  buildLibraryView,
-  buildProductView,
-} from "../engine/panel-enrich.js";
+import { buildPanelSnapshot } from "../engine/panel-query.js";
+import { buildLibraryView, buildProductView } from "../engine/panel-enrich.js";
 import { updateChapter } from "../engine/storage/chapters.js";
 import { withPortConfig } from "../engine/ports/config.js";
-import { MultiDraftPort } from "../engine/ports/multi-draft.js";
 import { chapterReviewInfo, finalizeProblem } from "../review.js";
-import { DELIVERY_ACTIONS } from "./delivery.js";
 import { runPanelAccept } from "./accept.js";
 import { panelPaths, resolvePanelPaths } from "./paths.js";
 import { prepareUnifyBrief } from "./unify.js";
@@ -160,21 +152,6 @@ function commandsFor(config: PluginConfig): Record<string, RouteHandler> {
         pending: !cand.acceptedAt,
       });
     });
-  const health = withPaths(async ({ ctx, paths }) => {
-    const product = buildProductView();
-    return ctx.reply({
-      ok: true,
-      plugin: "writer-agent",
-      version: product.version,
-      toolCount: product.toolCount,
-      readOnlyGets: true,
-      acceptViaPost: true,
-      base: paths.base,
-      resolvedVia: paths.resolvedVia,
-      commands: FANQIE_COMMANDS,
-      multiDraftEnabled: MultiDraftPort.isEnabled(),
-    });
-  });
   const unify = withPaths(async ({ ctx, input, paths }) => {
     const raw = input.candidateIds;
     const candidateIds =
@@ -191,27 +168,16 @@ function commandsFor(config: PluginConfig): Record<string, RouteHandler> {
     return ctx.reply(result);
   });
   const table: Record<string, RouteHandler> = {
-    [`read /`]: health,
-    [`read /health`]: health,
-    [`read ${COMMANDS.capabilities}`]: async (ctx) =>
-      ctx.reply({
-        ok: true,
-        quick: true,
-        deep: false,
-        deliver: false,
-        deliverReason: "请先保存模型连接",
-        deliverActions: DELIVERY_ACTIONS,
-      }),
-    [`write ${COMMANDS.diagnose}`]: withWork(async ({ ctx, input, dir }) =>
+    [COMMANDS.diagnose]: withWork(async ({ ctx, input, dir }) =>
       ctx.reply({ ok: true, ...(await diagnose(dir, input)) }),
     ),
-    [`write ${COMMANDS.stageRevision}`]: withWork(async ({ ctx, input, dir }) =>
+    [COMMANDS.stageRevision]: withWork(async ({ ctx, input, dir }) =>
       ctx.reply({ ok: true, ...(await stageRevisionCandidate(dir, input)) }),
     ),
-    [`write ${COMMANDS.reviewChapter}`]: chapterAction("review"),
-    [`write ${COMMANDS.finalizeChapter}`]: chapterAction("finalize"),
-    [`write ${COMMANDS.acknowledge}`]: chapterAction("acknowledge"),
-    [`write ${COMMANDS.accept}`]: withPaths(async ({ ctx, input, paths }) => {
+    [COMMANDS.reviewChapter]: chapterAction("review"),
+    [COMMANDS.finalizeChapter]: chapterAction("finalize"),
+    [COMMANDS.acknowledge]: chapterAction("acknowledge"),
+    [COMMANDS.accept]: withPaths(async ({ ctx, input, paths }) => {
       const mode = asString(input, "mode") ?? "replace";
       if (mode !== "append" && mode !== "replace")
         throw new NovelError("bad_mode", "mode 只支持 append / replace");
@@ -220,7 +186,7 @@ function commandsFor(config: PluginConfig): Record<string, RouteHandler> {
         candidate: asString(input, "candidate") ?? "",
         confirm: input.confirm === true,
         mode,
-        expectedRevision: asString(input, "expectedRevision"),
+        observedRevision: asString(input, "expectedRevision"),
         lintPassToken: asString(input, "lintPassToken"),
         force: boolArg(input, "force"),
         skipBrief: boolArg(input, "skipBrief"),
@@ -233,9 +199,8 @@ function commandsFor(config: PluginConfig): Record<string, RouteHandler> {
       });
       return ctx.reply(result);
     }),
-    [`read ${COMMANDS.unifyPrepare}`]: unify,
-    [`write ${COMMANDS.unifyPrepare}`]: unify,
-    [`write ${COMMANDS.saveChapter}`]: withWork(async ({ ctx, input, dir }) => {
+    [COMMANDS.unifyPrepare]: unify,
+    [COMMANDS.saveChapter]: withWork(async ({ ctx, input, dir }) => {
       const chapter = asString(input, "chapter", { required: true }),
         body = asString(input, "body", { required: true, trim: false }),
         expectedRevision = asString(input, "expectedRevision", { required: true });
@@ -271,7 +236,7 @@ function commandsFor(config: PluginConfig): Record<string, RouteHandler> {
         wordCount: saved.wordCount,
       });
     }),
-    [`read ${COMMANDS.projects}`]: async (ctx) => {
+    [COMMANDS.projects]: async (ctx) => {
       const paths = await resolvePanelPaths(config),
         current = projectIdOf(paths.base),
         known = await listProjects({ refresh: String(ctx.input.refresh) === "1" });
@@ -297,71 +262,7 @@ function commandsFor(config: PluginConfig): Record<string, RouteHandler> {
         projects: known,
       });
     },
-    [`read /works`]: withPaths(async ({ ctx, paths }) => {
-      const works = await listWorks(paths);
-      return ctx.reply({
-        ok: true,
-        base: paths.base,
-        resolvedVia: paths.resolvedVia,
-        works: works.map((w) => ({
-          key: w.key,
-          title: w.title,
-          genre: w.genre,
-          chapters: w.recoveryPending ? null : w.chapters.length,
-          words: w.recoveryPending
-            ? null
-            : w.chapters.reduce((sum: number, c: { wordCount: number }) => sum + c.wordCount, 0),
-          recoveryPending: w.recoveryPending === true,
-          updatedAt: w.updatedAt,
-        })),
-      });
-    }),
-    [`read /library`]: withPaths(async ({ ctx, paths }) =>
-      ctx.reply({
-        ok: true,
-        base: paths.base,
-        library: await buildLibraryView(paths),
-        product: buildProductView(),
-      }),
-    ),
-    [`read /report`]: withPaths(async ({ ctx, input, paths }) => {
-      const source = assertSourceId(asString(input, "source"));
-      const report = await readText(path.join(paths.library, "analyses", source, "report.md"));
-      if (report === undefined)
-        throw new NovelError("report_not_found", "报告未生成（先跑 fanqie_library_report）");
-      return ctx.reply({ ok: true, source, report });
-    }),
-    [`read /inspiration`]: withPaths(async ({ ctx, input, paths }) => {
-      const works = await listWorks(paths),
-        workKey = asString(input, "work") || (works.length === 1 ? works[0].key : "");
-      let foundation = {
-        locks: "",
-        happened: "",
-        characters: "",
-        readerKnowledge: "",
-        planned: "",
-        threads: "",
-        style: "",
-      };
-      let chapters: { situationLens: string; livedScene: string; stateLens: string }[] = [];
-      if (workKey) {
-        const dir = await resolveWorkDir(paths, workKey);
-        foundation = (await readWorkMeta(dir)).foundation;
-        chapters = (await listChapterLensRows(dir)).map((c) => ({
-          situationLens: c.situationLens,
-          livedScene: c.livedScene,
-          stateLens: c.stateLens,
-        }));
-      }
-      return ctx.reply({
-        ok: true,
-        base: paths.base,
-        workKey: workKey || null,
-        inspiration: await buildInspirationView(paths, { workKey, foundation, chapters }),
-        product: buildProductView(),
-      });
-    }),
-    [`read ${COMMANDS.snapshot}`]: withPaths(async ({ ctx, input, paths }) => {
+    [COMMANDS.snapshot]: withPaths(async ({ ctx, input, paths }) => {
       const scope = input.scope === "work" ? "work" : "all",
         works = await listWorks(paths);
       let workKey = asString(input, "work");
@@ -418,23 +319,19 @@ function commandsFor(config: PluginConfig): Record<string, RouteHandler> {
         works: rows,
       });
     }),
-    [`read ${COMMANDS.chapter}`]: readBody("chapter"),
-    [`read ${COMMANDS.candidate}`]: readBody("candidate"),
+    [COMMANDS.chapter]: readBody("chapter"),
+    [COMMANDS.candidate]: readBody("candidate"),
   };
   return table;
 }
-const FANQIE_COMMANDS = [
-  ...new Set(Object.keys(commandsFor({})).map((key) => key.slice(key.indexOf(" ") + 1))),
-];
-const FANQIE_COMMAND_SET = new Set(FANQIE_COMMANDS);
 export function fanqieApi(config: PluginConfig = {}): WorkbenchCommands {
   const handlers = commandsFor(config);
   return {
-    commands: FANQIE_COMMANDS,
     async handle(ctx) {
-      if (!FANQIE_COMMAND_SET.has(ctx.command)) return false;
-      const handler = handlers[`${ctx.kind} ${ctx.command}`];
-      if (!handler) {
+      const handler = handlers[ctx.command];
+      if (!handler) return false;
+      const policy = commandPolicy(ctx.command);
+      if (!policy || (policy.kind !== "both" && policy.kind !== ctx.kind)) {
         ctx.reply({ ok: false, code: "invalid_command", error: `操作类型不匹配：${ctx.command}` });
         return true;
       }

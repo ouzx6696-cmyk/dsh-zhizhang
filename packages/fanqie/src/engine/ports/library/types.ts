@@ -14,18 +14,7 @@ interface HumanFeel {
   allowedEdges: string;
   failAsTemplate: string;
 }
-export type HumanFeelInput = Partial<HumanFeel> & {
-  voice?: string;
-  voiceRange?: string;
-  realness?: string;
-  voice_range?: string;
-  writer_craft?: string;
-  craft_range?: string;
-  character_state?: string;
-  state_on_page?: string;
-  allowed_edges?: string;
-  fail_as_template?: string;
-};
+export type HumanFeelInput = Partial<HumanFeel>;
 export interface BookCraft {
   continueWhy: string;
   adjacentChange?: string;

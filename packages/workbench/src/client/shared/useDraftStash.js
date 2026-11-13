@@ -16,7 +16,7 @@ function messageOf(error) {
 
 /**
  * A kept draft that differs from what is on disk, whatever revision it was typed against, or the
- * storage failure. Expired drafts were already dropped at start-up, so opening reads one entry.
+ * storage failure. Opening reads only the entry belonging to this editor.
  */
 function openDraft(key, initial) {
   try {

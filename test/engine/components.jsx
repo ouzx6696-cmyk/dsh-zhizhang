@@ -19,7 +19,6 @@ export {
   writeDraft,
   clearDraft,
   otherDraftKeys,
-  sweepDrafts,
 } from "../../packages/workbench/src/client/shared/drafts.js";
 export { SourceEditor } from "../../packages/workbench/src/client/shared/SourceEditor.jsx";
 export { setConfirm } from "../../packages/workbench/src/client/shared/confirm.js";

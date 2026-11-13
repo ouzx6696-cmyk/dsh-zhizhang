@@ -7,7 +7,7 @@
 import { readWorkMeta } from "../engine/work-store.js";
 import { NovelError } from "../engine/errors.js";
 
-export const DELIVERY_ACTIONS = [
+const DELIVERY_ACTIONS = [
   "continue",
   "review",
   "revise",

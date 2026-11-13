@@ -25,8 +25,7 @@ test("真实快照按版本使正文和候选失效，写作台不扫描无关�
   try {
     await updateChapter(work.dir, { id: "c001", title: "一", body: "门外有人。" });
     const candidate = await stageCandidate(work.dir, { chapterId: "c001", body: "候选正文。" });
-    const snapshot = async (scope) =>
-      await jget(panel, "/snapshot?work=" + encodeURIComponent(work.key) + "&scope=" + scope);
+    const snapshot = async (scope) => await jget(panel, "/snapshot", { work: work.key, scope });
     let state = { ...initialState(), work: work.key, view: "chapters" };
     const first = await snapshot("work");
     assert.equal("library" in first.snapshot, false);
@@ -41,7 +40,7 @@ test("真实快照按版本使正文和候选失效，写作台不扫描无关�
       slot: "chapter",
       value: { key, status: "ready", body: chapter.body, meta: chapter },
     });
-    const loaded = await jget(panel, "/chapter?work=" + encodeURIComponent(work.key) + "&id=c001");
+    const loaded = await jget(panel, "/chapter", { work: work.key, id: "c001" });
     assert.equal(loaded.body, chapter.body);
     await updateChapter(work.dir, {
       id: "c001",
@@ -110,10 +109,19 @@ test("写作台采纳、审读和定稿调用共同作品操作", async () => {
       mode: "merge",
     });
     assert.equal(invalid.code, "bad_mode");
+    const seen = await readChapter(work.dir, "c001");
+    const stale = await jpost(panel, "/candidate/accept", {
+      work: work.key,
+      candidate: candidate.id,
+      confirm: true,
+      expectedRevision: "stale",
+    });
+    assert.equal(stale.code, "revision_conflict");
     const accepted = await jpost(panel, "/candidate/accept", {
       work: work.key,
       candidate: candidate.id,
       confirm: true,
+      expectedRevision: seen.revision,
     });
     assert.equal(accepted.ok, true);
     assert.equal((await readChapter(work.dir, "c001")).body, "她推开门。");

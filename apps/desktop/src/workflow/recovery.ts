@@ -2,7 +2,7 @@ import { sha256 } from "../../../../packages/core/src/fsx";
 import { ArticleStore } from "../../../../packages/toutiao/src/store";
 import { readChapter } from "../../../../packages/fanqie/src/engine/storage/chapters";
 import { resolveFanqieWork } from "../main/storage";
-import { record, outline, text } from "./schema";
+import { record, outline, text, list } from "./schema";
 import type { WorkflowRecord } from "../../../../packages/core/src/workflow";
 import type { WorkflowContext } from "./run";
 import type { WorkflowHost } from "./host";
@@ -15,7 +15,7 @@ export async function recoverDelivery(
   context: WorkflowContext,
 ) {
   const prepared = previous.steps.find((row) => row.id === "prepared" && row.status === "complete");
-  if (!prepared) throw new Error("任务依据已改变，不能把旧进度套到新稿上");
+  if (!prepared) throw new Error("任务依据已改变，请新建任务；旧进度不会套用到新稿上");
   const old = record(JSON.parse(previous.basis)),
     now = record(JSON.parse(context.basis)),
     data = record(prepared.output);
@@ -27,14 +27,27 @@ export async function recoverDelivery(
       original = record(data.original),
       plan = outline(data.plan);
     const expected = { ...record(original.outline), ...plan };
+    const expectedStatus =
+      original.status === "reviewed" &&
+      JSON.stringify(original.outline) !== JSON.stringify(expected)
+        ? "drafted"
+        : original.status;
     if (
       current.body !== original.body ||
       current.position !== original.position ||
       current.title !== plan.title ||
+      current.status !== expectedStatus ||
       JSON.stringify(current.outline) !== JSON.stringify(expected)
     )
       throw new Error("章节已被作者修改，旧交付未覆盖");
     record(old.document).chapter = record(now.document).chapter;
+    const oldChapters = list(record(record(old.document).book).chapters, "既有章节", 10000);
+    const oldChapter = oldChapters.map((row) => record(row)).find((row) => row.id === current.id);
+    // The run may fill the outline, set its title and demote a reviewed chapter to draft.
+    if (oldChapter) {
+      if (oldChapter.title === original.title) oldChapter.title = current.title;
+      if (oldChapter.status === original.status) oldChapter.status = current.status;
+    }
   } else if (previous.request.kind === "article" && target.article) {
     const store = new ArticleStore(target.root),
       meta = await store.get(target.article),
@@ -76,5 +89,5 @@ export async function recoverDelivery(
     }
   } else throw new Error("任务依据已变化，请新建任务");
   if (JSON.stringify(old) !== JSON.stringify(now))
-    throw new Error("作品其他依据已变化，不能恢复旧交付");
+    throw new Error("作品其他依据已变化，请新建任务；不会恢复旧交付");
 }

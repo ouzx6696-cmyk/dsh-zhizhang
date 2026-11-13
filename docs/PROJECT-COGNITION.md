@@ -445,7 +445,7 @@ test/                         单元/流程/引擎/桌面/PI/渲染/GUI 测试
     manuscripts/
 ```
 
-应用数据目录（userData）保存：模型配置、会话文件与指针、界面偏好、去敏日志、方法方案、流水线记录、个人规则、工作稿、未保存正文草稿（localStorage 明文，14 天清理）。
+应用数据目录（userData）保存：模型配置、会话文件与指针、界面偏好、去敏日志、方法方案、流水线记录、个人规则、工作稿、未保存正文草稿（localStorage 明文，保存或放弃时清理）。
 
 ### 11.2 原子性与锁
 
@@ -529,7 +529,7 @@ test/                         单元/流程/引擎/桌面/PI/渲染/GUI 测试
 ### 15.1 数据与恢复
 
 - **恢复错误码**：`journal.ts` 的 `finish()` 已保留 `NovelError` 原 code，只有未知故障归为 `recovery_required`；`read()` 的错误码仍依赖文件名分段。
-- **连续性写入缺少资源锁**：`storage/continuity.ts` 的 `saveHandoff` 是「读 revision → 比对 → 写」的乐观并发，未持 `withResourceLock`，两进程同 revision 并发写可互相覆盖。
+- **连续性写入**：`storage/continuity.ts` 的保存函数由调用方持有作品资源锁；现有工具入口在锁内读取并写入伏笔、知情、交接和提交记录。
 - **revision 不含 title/status**：改标题/纯状态变更不升 revision，也不留痕；但汇编输出会变化，可能造成「审读仍视为同一版本」的语义偏差。
 - **`selectTarget` 预写**：先取得作品锁，再执行 `ensureStorage` 与项目登记；仅保留创建空作品根目录用于 `realpath` 这一步预写。
 - **工作流 basis 过宽**：章节 basis 包含整本书的 foundation/planning/伏笔/连续性，任何无关改动都会让任务中途失败或无法恢复；issue 已在审查报告中提出，尚未重构。
@@ -558,7 +558,7 @@ test/                         单元/流程/引擎/桌面/PI/渲染/GUI 测试
 - `useToutiao.js` 读取服务端从不返回的 `data.sessions`、`drawEnabled` 参数、`ArticleRow.createdAt` 与 `toBody` 均已删除。
 - `api.ts` 的 body 上限在桌面 `ctx.body()` 里被忽略；`/projects` 忽略 `base/project`，与 `/works` 来源可能不同。
 - 桌面测试已统一经 `test/desktop/python.mjs` 探测 Python 3.10+；`test:desktop` 已加载 `test/setup.mjs`；`test:desktop:ui` 已先构建再跑 GUI。
-- `scripts/test.mjs` 统一测试分组；同一次完整检查复用核心编译、桌面测试准备与桌面构建。Linux 和 Windows CI 分开执行，以保留平台验证。
+- `scripts/test.mjs` 统一测试分组；同一次完整检查复用核心编译、桌面测试准备与桌面构建。Linux 和 Windows CI 分别运行平台测试，静态检查在 Linux 执行。
 
 ### 15.6 守卫盲区
 
@@ -677,6 +677,8 @@ npm run assets -- check
 资源/维护：`export`、`backup`、`storage-health`、`recover`、`diagnostics`、`updates`、`library-storage`
 
 ## 附录 B：写作台路由（19 条）
+
+操作所属模式、读写范围和变更通知在 `packages/workbench/src/commands.ts` 集中声明；方法方案命令由同一契约生成。
 
 `/projects`、`/snapshot`、`/chapter`、`/chapter/save`、`/chapter/review`、`/chapter/finalize`、`/candidate`、`/diagnostics/scan`、`/diagnostics/stage`、`/candidate/accept`、`/revision/acknowledge`、`/unify/prepare`、`/diagnostics/capabilities`、`/agent/deliver`、`/toutiao/articles`、`/toutiao/article`、`/toutiao/adopt`、`/toutiao/draft`、`/toutiao/agent/deliver`
 
