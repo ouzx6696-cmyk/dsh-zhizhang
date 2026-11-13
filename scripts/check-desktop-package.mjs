@@ -25,7 +25,9 @@ async function chooseDirectory(page, action, title, directory) {
   Add-Type -AssemblyName UIAutomationClient
   Add-Type -AssemblyName UIAutomationTypes
   $root = [System.Windows.Automation.AutomationElement]::RootElement
-  $condition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, $env:WRITER_DIALOG_TITLE)
+  $condition = [System.Windows.Automation.AndCondition]::new(
+    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, $env:WRITER_DIALOG_TITLE),
+    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Window))
   $dialog = $null
   for ($i=0; $i -lt 100; $i++) {
     $dialog = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
@@ -33,17 +35,25 @@ async function chooseDirectory(page, action, title, directory) {
     Start-Sleep -Milliseconds 100
   }
   if ($null -eq $dialog) { throw 'Native directory dialog not found' }
-  $controls = $dialog.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
-  $inputs = $controls | Where-Object { $_.Current.AutomationId -in @('1148','1152') -and $_.GetCurrentPropertyValue([System.Windows.Automation.AutomationElement]::IsValuePatternAvailableProperty) }
-  $folder = $inputs | Select-Object -First 1
+  $folder = $null
+  $select = $null
+  for ($i=0; $i -lt 100; $i++) {
+    $controls = $dialog.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
+    $inputs = @($controls | Where-Object {
+      $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::Edit -and
+      -not $_.Current.IsOffscreen -and $_.Current.IsEnabled -and
+      $_.Current.Name -notmatch 'Search' -and $_.Current.AutomationId -notmatch 'Search' -and
+      $_.GetCurrentPropertyValue([System.Windows.Automation.AutomationElement]::IsValuePatternAvailableProperty) -eq $true
+    })
+    $select = $controls | Where-Object { $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button -and $_.Current.AutomationId -eq '1' } | Select-Object -First 1
+    if ($inputs.Count -eq 1 -and $null -ne $select) { $folder = $inputs[0]; break }
+    Start-Sleep -Milliseconds 100
+  }
   if ($null -eq $folder) {
-    $details = $controls | Where-Object { $_.GetCurrentPropertyValue([System.Windows.Automation.AutomationElement]::IsValuePatternAvailableProperty) } | ForEach-Object { $_.Current.Name + ':' + $_.Current.AutomationId }
-    throw ('Folder input not found: ' + ($details -join ', '))
+    $details = $controls | ForEach-Object { @{ name=$_.Current.Name; id=$_.Current.AutomationId; type=$_.Current.ControlType.ProgrammaticName; offscreen=$_.Current.IsOffscreen; value=($_.GetCurrentPropertyValue([System.Windows.Automation.AutomationElement]::IsValuePatternAvailableProperty) -eq $true) } }
+    throw ('Folder controls not ready: ' + ($details | ConvertTo-Json -Compress))
   }
   $folder.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($env:WRITER_DIALOG_DIRECTORY)
-  $buttons = $controls | Where-Object { $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button }
-  $select = $buttons | Where-Object { $_.Current.AutomationId -eq '1' } | Select-Object -First 1
-  if ($null -eq $select) { throw ('Select Folder button not found: ' + (($buttons | ForEach-Object { $_.Current.Name + ':' + $_.Current.AutomationId }) -join ', ')) }
   $select.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()`;
   let timer;
   try {
@@ -52,7 +62,7 @@ async function chooseDirectory(page, action, title, directory) {
         page.evaluate((operation) => window.writerDesktop[operation](), action),
         promisify(execFile)("powershell", ["-NoProfile", "-STA", "-Command", script], {
           env: { ...process.env, WRITER_DIALOG_TITLE: title, WRITER_DIALOG_DIRECTORY: directory },
-          timeout: 15000,
+          timeout: 25000,
         }),
       ]),
       new Promise((_, reject) => {
