@@ -18,6 +18,51 @@ const { titleMax, drivers } = await loadLimits();
 const { ArticleStore, canTransition } = await import(buildUrl("toutiao/src/store.js"));
 const { buildMethodPack } = await import(buildUrl("core/src/method-pack.js"));
 
+test(
+  "withFileGate：Windows 短暂拒绝删除中的锁文件时重试，持续权限错误保留原码",
+  { skip: process.platform !== "win32" },
+  async () => {
+    const fs = await import("node:fs/promises"),
+      { syncBuiltinESMExports } = await import("node:module");
+    const { withFileGate } = await import(buildUrl("core/src/fsx.js"));
+    const dir = await tempDir(),
+      file = path.join(dir, "gate"),
+      original = fs.default.open;
+    let attempts = 0,
+      entered = false;
+    try {
+      fs.default.open = async (target, ...args) => {
+        if (target === file && attempts++ === 0)
+          throw Object.assign(new Error("delete pending"), { code: "EPERM" });
+        return original(target, ...args);
+      };
+      syncBuiltinESMExports();
+      assert.equal(await withFileGate(file, async () => "owned"), "owned");
+      assert.equal(attempts, 2);
+      fs.default.open = async (target, ...args) => {
+        if (target === file)
+          throw Object.assign(new Error("permission denied"), { code: "EACCES" });
+        return original(target, ...args);
+      };
+      syncBuiltinESMExports();
+      await assert.rejects(
+        withFileGate(
+          file,
+          async () => {
+            entered = true;
+          },
+          40,
+        ),
+        { code: "EACCES" },
+      );
+      assert.equal(entered, false);
+    } finally {
+      fs.default.open = original;
+      syncBuiltinESMExports();
+    }
+  },
+);
+
 test("运行器：大参数通过 stdin JSON 原样传输", async () => {
   const py = await locatePython(),
     dir = await tempDir();

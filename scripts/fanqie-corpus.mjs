@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { parseArgs } from "node:util";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { chapterIndex } from "../build/fanqie/src/engine/ports/analysis/chapters.js";
+import { chapterIndex } from "../build/fanqie/src/engine/services/analysis/chapters.js";
 import { sha256 } from "../build/core/src/fsx.js";
 
 const root = fileURLToPath(new URL("../", import.meta.url));

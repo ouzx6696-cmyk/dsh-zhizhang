@@ -1,6 +1,6 @@
 /** Test profiles share build steps within one invocation; standalone commands remain available. */
 import { spawnSync } from "node:child_process";
-import { globSync } from "node:fs";
+import { globSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
@@ -41,7 +41,11 @@ function suite(patterns) {
   node("--test", "--import", "./test/setup.mjs", ...files.sort());
 }
 const stages = {
-  buildCore: () => npm("run", "build"),
+  buildCore: () => {
+    // A moved source must not keep working through a stale emitted module.
+    rmSync(new URL("../build/", import.meta.url), { recursive: true, force: true });
+    npm("run", "build");
+  },
   // buildCore checks the root tsconfig while emitting files; desktopBuild checks desktop types.
   rootTypes: () => node(tsc, "-p", "tsconfig.json", "--noEmit"),
   desktopTypes: () => node(tsc, "-p", "apps/desktop/tsconfig.json", "--noEmit"),
