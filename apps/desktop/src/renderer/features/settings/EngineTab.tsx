@@ -1,6 +1,6 @@
 import React from "react";
-import { AGENT_COPY, COPY as copy } from "../../../../../../packages/ui/src/copy.js";
-import { Toggle } from "../../../../../../packages/ui/src/primitives";
+import { AGENT_COPY, COPY as copy } from "@writer/ui/copy";
+import { Toggle } from "@writer/ui/primitives";
 import {
   BUDGET_LIMITS,
   type EngineSettings,
@@ -22,18 +22,6 @@ const FLAGS = [
   ["brief", "creationFirst", copy.workflowCreation, "both"],
   ["qa", "judge", copy.workflowReader, "toutiao"],
 ] as const;
-/** 1.1.1 safety switches: on unless explicitly false, so turning one off restores 1.1.0. */
-const SAFETY = [
-  ["safety", "finalStructureGuard", copy.safetyFinalStructure, "fanqie"],
-  ["safety", "narrowPlanningBasis", copy.safetyPlanningBasis, "fanqie"],
-  ["safety", "fullDissectAuthor", copy.safetyFullDissect, "fanqie"],
-  ["revision", "strict", copy.safetyStrictRevision, "toutiao"],
-] as const;
-function safety(options: SessionOptions, mode: "fanqie" | "toutiao", group: string, key: string) {
-  const section = options[mode];
-  const value = section && group in section ? Reflect.get(section, group) : undefined;
-  return !(typeof value === "object" && value !== null && Reflect.get(value, key) === false);
-}
 function flag(options: SessionOptions, mode: "fanqie" | "toutiao", group: string, key: string) {
   const section = options[mode];
   if (!section || !(group in section)) return false;
@@ -165,25 +153,6 @@ export function EngineTab({
           )}
         </fieldset>
       ))}
-      <h3>{copy.safetyTitle}</h3>
-      <p className="form-note">{copy.safetyNote}</p>
-      {(["fanqie", "toutiao"] as const).map((mode) => {
-        const rows = SAFETY.filter((row) => row[3] === mode);
-        if (!rows.length) return null;
-        return (
-          <fieldset key={`safety-${mode}`} disabled={!options}>
-            <legend>{mode === "fanqie" ? copy.workflowChapter : copy.workflowArticle}</legend>
-            {rows.map(([group, key, label]) => (
-              <Toggle
-                key={group + key}
-                label={label}
-                checked={options ? safety(options, mode, group, key) : true}
-                onChange={(checked: boolean) => void change(mode, group, key, checked)}
-              />
-            ))}
-          </fieldset>
-        );
-      })}
     </section>
   );
 }

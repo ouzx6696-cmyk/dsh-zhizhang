@@ -59,14 +59,6 @@ function stagedCandidateId(child: AgentSession): string | undefined {
   return undefined;
 }
 
-/** 子会话注册进停止级联；返回解除注册的闭包，并发的路互不误删。 */
-function registerChild(host: Sessions, parent: AgentSession, child: AgentSession) {
-  host.children.set(parent, child);
-  return () => {
-    if (host.children.get(parent) === child) host.children.delete(parent);
-  };
-}
-
 /** 头条标题抽卡：五母体各一版 → 按 s3 四问排序；不落候选，作者选定后自己 toutiao_headline_set。 */
 async function runToutiaoTitleDraw(deps: {
   host: Sessions;
@@ -92,7 +84,7 @@ async function runToutiaoTitleDraw(deps: {
   let done = 0;
   const outcomes = await runTaskPool<DrawDraft>(n, DRAW_CONCURRENCY, async (index) => {
     const child = await deps.createDraft(TOUTIAO_DRAFT_CONSTRAINT);
-    const releaseChild = registerChild(host, session, child);
+    const releaseChild = host.registerChild(session, child);
     try {
       await promptWithSignal(
         child,
@@ -129,7 +121,7 @@ async function runToutiaoTitleDraw(deps: {
   let ranked: { label: string; score: number; reason: string }[] | undefined;
   let rankError: string | undefined;
   const evaluator = await host.open(target, true, false);
-  const releaseEvaluator = registerChild(host, session, evaluator);
+  const releaseEvaluator = host.registerChild(session, evaluator);
   try {
     await promptWithSignal(
       evaluator,
@@ -266,7 +258,7 @@ export function createDrawTools(options: {
         const outcomes = await runTaskPool<DrawDraft>(n, DRAW_CONCURRENCY, async (index) => {
           const intended = `抽卡-${index + 1}`;
           const child = await options.createDraft(DRAFT_CONSTRAINT);
-          const releaseChild = registerChild(host, session, child);
+          const releaseChild = host.registerChild(session, child);
           try {
             await promptWithSignal(
               child,
@@ -310,7 +302,7 @@ export function createDrawTools(options: {
         let ranked: { label: string; score: number; reason: string }[] | undefined;
         let rankError: string | undefined;
         const evaluator = await host.open(target, true, false);
-        const releaseEvaluator = registerChild(host, session, evaluator);
+        const releaseEvaluator = host.registerChild(session, evaluator);
         try {
           await promptWithSignal(evaluator, async () => evaluateTask(scenario, drafts), signal);
           requireFinished(evaluator, "评估会话");

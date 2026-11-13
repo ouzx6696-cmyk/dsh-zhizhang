@@ -1,5 +1,5 @@
-import { notify as pushNotice } from "../../../../ui/src/notify";
-import { newRequestId } from "../../../../ui/src/request.js";
+import { notify as pushNotice } from "@writer/ui/notify";
+import { newRequestId } from "@writer/ui/request";
 import { useSourceGuard } from "../shared/useSourceGuard.js";
 /**
  * 今日头条模式的数据：文章列表（挂载时加载，之后按需刷新）+ 选中文章详情 + 采用 / 投递动作。
@@ -8,7 +8,7 @@ import { useSourceGuard } from "../shared/useSourceGuard.js";
 import React from "react";
 import { toutiao } from "../shared/api.js";
 import { PREF, readPref, writePref } from "../shared/prefs.js";
-import { t } from "../../../../ui/src/copy.js";
+import { t } from "@writer/ui/copy";
 
 const { useCallback, useEffect, useRef, useState } = React;
 

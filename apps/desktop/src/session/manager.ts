@@ -1,5 +1,4 @@
 import { WorkflowService } from "../workflow/service";
-import { migrateSessionHistory } from "./migration";
 import { DEFAULT_HISTORY_LIMIT } from "../history-options";
 import { shouldProactivelyCompact } from "../context-settings";
 import path from "node:path";
@@ -8,7 +7,7 @@ import { mkdir, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { atomicWrite, exists, sha256 } from "../../../../packages/core/src/fsx";
 import { errorText } from "../../../../packages/core/src/errors";
-import { WORKFLOW_COPY } from "../../../../packages/ui/src/copy";
+import { WORKFLOW_COPY } from "@writer/ui/copy";
 import type { Focus, Target } from "../context";
 import type { DesktopEvent, WriterMessage } from "../renderer-contracts";
 import type { ModelSettings } from "../models";
@@ -33,7 +32,7 @@ export class Sessions {
     SessionManager,
     { leaf: string | null; limit: number; messages: WriterMessage[]; total: number }
   >();
-  readonly workflows = new WorkflowService(this);
+  readonly workflows: WorkflowService = new WorkflowService(this);
   reconfiguring = false;
   compactions = new Set<string>();
   preparations = new Map<symbol, { target: Target; focus: Focus; generation: number }>();
@@ -41,7 +40,17 @@ export class Sessions {
   historyCache: HistoryCache = new Map();
   sessions = new Map<string, SessionEntry>();
   opening = new Map<string, Promise<AgentSession>>();
-  children = new Map<AgentSession, AgentSession>();
+  private children = new Map<AgentSession, Set<AgentSession>>();
+
+  registerChild(parent: AgentSession, child: AgentSession) {
+    const children = this.children.get(parent) ?? new Set<AgentSession>();
+    this.children.set(parent, children);
+    children.add(child);
+    return () => {
+      children.delete(child);
+      if (!children.size && this.children.get(parent) === children) this.children.delete(parent);
+    };
+  }
 
   constructor(
     private setup: {
@@ -82,7 +91,7 @@ export class Sessions {
   same(a: Target, b: Target) {
     return this.key(a) === this.key(b);
   }
-  isRunning(target: Target) {
+  isRunning(target: Target): boolean {
     const key = this.key(target);
     return (
       this.workflows.busy(target) ||
@@ -92,10 +101,6 @@ export class Sessions {
       this.sessions.get(key)?.session.isIdle === false
     );
   }
-  async initialize(target: Target) {
-    return migrateSessionHistory(this, target);
-  }
-
   hasPending() {
     return this.preparations.size > 0 || this.opening.size > 0 || this.workflows.rows().length > 0;
   }
@@ -335,10 +340,11 @@ export class Sessions {
       this.generations.set(actualKey, (this.generations.get(actualKey) || 0) + 1);
     if (this.opening.has(key)) await this.opening.get(key);
     const session = entry?.session;
+    const children = session ? this.children.get(session) : undefined;
     session?.clearQueue();
     await Promise.all([
       this.workflows.stop(!target.work && !target.article && entry ? entry.target : target),
-      session ? this.children.get(session)?.abort() : undefined,
+      ...[...(children ?? [])].map((child) => child.abort()),
       session?.abort(),
     ]);
   }
@@ -351,7 +357,7 @@ export class Sessions {
     }
     await Promise.allSettled(this.opening.values());
     for (const session of [
-      ...this.children.values(),
+      ...new Set([...this.children.values()].flatMap((children) => [...children])),
       ...[...this.sessions.values()].map((entry) => entry.session),
     ]) {
       session.clearQueue();
@@ -359,6 +365,7 @@ export class Sessions {
       session.dispose();
     }
     this.sessions.clear();
+    this.children.clear();
     this.historyCache.clear();
     this.preparations.clear();
   }

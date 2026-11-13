@@ -1,6 +1,9 @@
 /** The single renderer boundary for the preload bridge. */
-export type DesktopApi = typeof window.writerDesktop;
-export const desktop: DesktopApi = window.writerDesktop;
+import { createDesktopApi } from "../../desktop-api";
+export type { DesktopApi } from "../../desktop-api";
+import type { DesktopApi } from "../../desktop-api";
+export const desktop = createDesktopApi(window.writerBridge);
+window.writerDesktop = desktop;
 
 type DesktopEventListener = Parameters<DesktopApi["subscribe"]>[0];
 const listeners = new Set<DesktopEventListener>();

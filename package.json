@@ -1,6 +1,6 @@
 {
   "name": "writer-agent",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "private": true,
   "description": "基于内置 PI 的独立写作客户端：今日头条与番茄长篇",
   "type": "module",
@@ -14,7 +14,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p apps/desktop/tsconfig.json --noEmit && tsc -p tsconfig.jsx.json",
     "build": "tsc -p tsconfig.json",
     "test:py": "node scripts/test-python.mjs",
-    "test:node": "tsc -p tsconfig.json && node scripts/build-test-components.mjs && node --test --import ./test/setup.mjs test/*.test.mjs test/engine/*.test.mjs test/renderer/*.test.mjs",
+    "test:node": "node scripts/test.mjs node",
     "test": "npm run verify",
     "assets": "node scripts/assets.mjs",
     "corpus:fanqie": "node scripts/fanqie-corpus.mjs",
@@ -22,13 +22,15 @@
     "desktop:build": "npm run typecheck && npm run build -w @writer/desktop",
     "desktop:pack": "npm run desktop:build && npm run pack -w @writer/desktop",
     "desktop:portable": "npm run desktop:build && npm run pack:portable -w @writer/desktop",
-    "test:desktop": "npm run build && node scripts/build-desktop-test.mjs && node --import ./test/setup.mjs --test test/desktop/*.test.mjs",
-    "test:desktop:ui": "npm run desktop:build && playwright test --config apps/desktop/playwright.config.mjs",
+    "test:desktop": "node scripts/test.mjs runtime",
+    "test:desktop:ui": "node scripts/test.mjs ui",
     "verify": "node scripts/test.mjs core",
     "verify:desktop": "node scripts/test.mjs desktop",
     "verify:release": "node scripts/verify-release.mjs",
     "audit:exports": "node scripts/audit-fanqie-exports.mjs",
-    "test:all": "node scripts/test.mjs all"
+    "test:all": "node scripts/test.mjs all",
+    "test:platform": "node scripts/test.mjs platform",
+    "test:quick": "node scripts/test.mjs quick"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -44,9 +46,11 @@
     "typescript-eslint": "^8.72.1"
   },
   "workspaces": [
-    "apps/desktop"
+    "apps/desktop",
+    "packages/ui"
   ],
   "overrides": {
-    "undici": "8.12.3"
+    "undici": "8.12.3",
+    "minimatch@^10": "11.0.8"
   }
 }

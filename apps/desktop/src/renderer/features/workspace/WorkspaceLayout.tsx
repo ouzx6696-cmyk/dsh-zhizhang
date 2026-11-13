@@ -1,8 +1,8 @@
 import { errorText } from "../../../../../../packages/core/src/errors.js";
-import { COPY as viewCopy } from "../../../../../../packages/ui/src/copy.js";
+import { COPY as viewCopy } from "@writer/ui/copy";
 import { Markdown } from "../../../Markdown";
-import { Dialog } from "../../../../../../packages/ui/src/primitives";
-import { TabList, tabPanelProps } from "../../../../../../packages/ui/src/tabs";
+import { Dialog } from "@writer/ui/primitives";
+import { TabList, tabPanelProps } from "@writer/ui/tabs";
 import React, { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { profilesApi } from "../../../../../../packages/workbench/src/client/shared/api.js";

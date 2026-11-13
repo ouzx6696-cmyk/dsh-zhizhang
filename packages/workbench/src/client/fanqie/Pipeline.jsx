@@ -1,10 +1,10 @@
-import { COPY as viewCopy, chapterName, formatCount, t } from "../../../../ui/src/copy.js";
-import { statusLabel as canonicalStatusLabel } from "../../../../ui/src/status.js";
+import { COPY as viewCopy, chapterName, formatCount, t } from "@writer/ui/copy";
+import { statusLabel as canonicalStatusLabel } from "@writer/ui/status";
 const statusLabel = (status) => canonicalStatusLabel("fanqie", status);
 import { Dashboard } from "./Dashboard.jsx";
 /** Whole-book overview: product loop, reference library, planning, writing, ledger. */
 import React from "react";
-import { Button, SegmentedControl, Tag } from "../shared/ui.jsx";
+import { Button, SegmentedControl, Tag } from "../shared/ui.js";
 import { Callout, Empty, Foundation, Section, StatusDot, clip } from "../shared/common.jsx";
 
 function Library({ library }) {

@@ -10,5 +10,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["packages/ui/src/**/*.jsx", "packages/workbench/src/client/**/*.jsx"]
+  "include": ["packages/workbench/src/client/**/*.jsx", "packages/workbench/src/client/**/*.tsx"]
 }

@@ -125,7 +125,7 @@ export async function decideLearning(
       for (const item of chosen) {
         if (!rules.some((row) => row.id === item.id)) {
           if (target.mode === "fanqie")
-            await FoundationPort.appendStyleCard(
+            await FoundationPort.appendStyle(
               await resolveFanqieWork(host.options, target),
               styleEntryOf(item, value),
             );

@@ -1,5 +1,6 @@
+import { BOOK, setup, id, cardInput } from "./workflow-fixture.mjs";
 import { createToolHarness } from "../helpers.mjs";
-import { servePanel } from "./helpers.mjs";
+import { createPanel, jget } from "./helpers.mjs";
 import { formatToolError } from "../../build/fanqie/src/engine/errors.js";
 import { allTools } from "../../build/fanqie/src/engine/tools/index.js";
 import { parseFanqieConfig } from "../../build/fanqie/src/config.js";
@@ -13,6 +14,7 @@ import {
   LibraryPort,
   InspirationPort,
   MultiDraftPort,
+  FoundationPort,
 } from "../../build/fanqie/src/engine/ports/index.js";
 import { ensureStorage } from "../../build/fanqie/src/engine/storage/paths.js";
 import {
@@ -34,160 +36,6 @@ import { latestReview } from "../../build/fanqie/src/review.js";
 import { VERSION } from "../../build/core/src/version.js";
 import { patrolRhythm } from "../../build/fanqie/src/engine/rhythm-patrol.js";
 import { withPortConfig } from "../../build/fanqie/src/engine/ports/config.js";
-const BOOK = [
-  "第1章 差三罐",
-  "凌晨两点，屏幕上的数字比昨天少了三罐咖啡。他把时间戳抄在纸条上。",
-  "第2章 四秒",
-  "他调出监控回放，侧窗的人影只用了四秒。",
-].join("\n");
-async function setup(extraConfig = {}) {
-  const root = await mkdtemp(path.join(tmpdir(), "writer-novel-workflow-"));
-  const paths = await ensureStorage(null, { storageRoot: root });
-  const harness = await createToolHarness({
-    mode: "fanqie",
-    cwd: root,
-    config: { ...extraConfig, storageRoot: root },
-  });
-  const run = async (name, args = {}) => {
-    try {
-      return (await harness.execute(name, args)).value;
-    } catch (error) {
-      return formatToolError(error);
-    }
-  };
-  return { root, paths, run, close: () => rm(root, { recursive: true, force: true }) };
-}
-function id(text, expression) {
-  const found = text.match(expression)?.[1];
-  assert.ok(found, text);
-  return found;
-}
-function cardInput(sourceId) {
-  return {
-    title: "差数引出疑问",
-    sourceId,
-    axis: "craft",
-    layer: "scene",
-    dimension: "hook",
-    body: "用可核对的细节引出疑问。",
-    mechanisms: [
-      {
-        name: "差数",
-        experience: "三罐",
-        rebuild: "换成其他差数",
-        discard: "便利店",
-        failWhen: "差数无后果",
-      },
-    ],
-    humanFeel: {
-      writerCraft: "重数后再开口",
-      craftRange: "近景",
-      characterState: "怀疑",
-      stateOnPage: "停半拍",
-      allowedEdges: "一句噪音",
-      failAsTemplate: "句句解释",
-    },
-    readerWant: "差数缘由",
-    emotionArc: "平静到起疑",
-    dramaticUnit: "盘点差数",
-    replaceables: ["数字"],
-    mustNotCopy: ["人物"],
-    evidence: [{ quote: "屏幕上的数字比昨天少了三罐咖啡", chapter: 1 }],
-    transfer: "其他可核对的差异",
-    failWhen: "差数无后果",
-  };
-}
-test("拆书证据经明确采纳进入规划，正文经扫描采纳后供续章使用", async () => {
-  const f = await setup();
-  try {
-    const originalFile = path.join(f.root, "original.txt");
-    await writeFile(originalFile, BOOK);
-    const { sourceId } = await LibraryPort.importSource(f.paths, {
-      title: "参考书",
-      file: originalFile,
-    });
-    await rm(originalFile);
-    const fact = await f.run("fanqie_library_facts_stage", {
-      source: sourceId,
-      facts: {
-        n: 1,
-        events: [{ desc: "盘点少了三罐", quote: "屏幕上的数字比昨天少了三罐咖啡" }],
-        readingLevel: "正文已读",
-      },
-    });
-    assert.match(fact, /已记录 1 章/);
-    const candidate = await LibraryPort.stageCard(f.paths, cardInput(sourceId));
-    const { cardId } = await LibraryPort.acceptCard(f.paths, candidate.candId);
-    const card = await LibraryPort.getCard(f.paths, cardId);
-    assert.equal(card.readingEvidence.chapters[0].readingLevel, "正文已读");
-    assert.match(card.readingEvidence.note, /不证明/);
-    await assert.rejects(
-      LibraryPort.acceptCard(f.paths, candidate.candId),
-      (e) => e.code === "candidate_already_accepted",
-    );
-    const combo = await LibraryPort.suggestCombo(f.paths);
-    assert.equal(combo.ok, true);
-    assert.equal(combo.mind, null);
-    assert.ok(combo.cardIds.includes(cardId));
-    assert.match(await f.run("fanqie_library_combo_suggest"), new RegExp(cardId));
-    const session = await InspirationPort.startSession(f.paths, {
-      goal: "新故事",
-      cardIds: [cardId],
-      pace: "慢燃",
-    });
-    const foundation = await InspirationPort.stageEmit(f.paths, session.sessionId, {
-      kind: "foundation",
-      payload: { planned: "追查差数" },
-    });
-    await InspirationPort.acceptEmit(f.paths, foundation.candId, { workKey: "新作", apply: true });
-    const outline = await InspirationPort.stageEmit(f.paths, session.sessionId, {
-      kind: "outline",
-      payload: { chapter: "c001", title: "第一章", ending: "她把门推开。" },
-    });
-    await InspirationPort.acceptEmit(f.paths, outline.candId, { workKey: "新作", apply: true });
-    const dir = await resolveWorkDir(f.paths, "新作");
-    assert.equal((await readWorkMeta(dir)).pace, "慢燃");
-    const handoff = JSON.parse(
-      await f.run("fanqie_chapter_brief", { work: "新作", chapter: "c001", handoff_only: true }),
-    );
-    assert.ok(handoff.references.assets.includes("card:" + cardId));
-    assert.match(handoff.references.content, /其他可核对的差异/);
-    assert.equal(handoff.requiresBodyRead, true);
-    await f.run("fanqie_chapter_brief", { work: "新作", chapter: "c001" });
-    const body = "夜班第七天，她查完账，把门推开。";
-    const staged = await f.run("fanqie_candidate_stage", {
-      work: "新作",
-      chapter: "c001",
-      content: body,
-    });
-    const candId = id(staged, /(cand-[a-z0-9]+)/);
-
-    await f.run("fanqie_payoff_audit", {
-      work: "新作",
-      chapter: "c001",
-      text: "另一版正文，他把门关上。",
-    });
-    assert.match(
-      await f.run("fanqie_candidate_accept", {
-        work: "新作",
-        candidate: candId,
-        require_payoff: true,
-      }),
-      /payoff_missing/,
-    );
-    assert.match(
-      await f.run("fanqie_candidate_accept", { work: "新作", candidate: candId }),
-      /已采纳/,
-    );
-    assert.equal((await readChapter(dir, "c001")).body, body);
-    await f.run("fanqie_outline_set", { work: "新作", chapter: "c002", ending: "他翻开账本。" });
-    assert.ok(
-      (await f.run("fanqie_chapter_brief", { work: "新作", chapter: "c002" })).includes(body),
-    );
-  } finally {
-    await f.close();
-  }
-});
 test("全量阅读须明确同意且确认参数不能变化，原计划保持可用", async () => {
   const f = await setup();
   try {
@@ -269,6 +117,68 @@ test("A-02 Full 拆书：模型拿到 confirm_token 也要经作者门禁；作�
     await rm(root, { recursive: true, force: true });
   }
 });
+test("Auto 实际全量阅读须走成本回执和作者确认", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "writer-auto-full-"));
+  try {
+    const paths = await ensureStorage(null, { storageRoot: root });
+    const harness = await createToolHarness({
+      mode: "fanqie",
+      cwd: root,
+      config: { storageRoot: root },
+    });
+    const run = async (args) => {
+      try {
+        return (await harness.execute("fanqie_library_plan", args)).value;
+      } catch (error) {
+        return formatToolError(error);
+      }
+    };
+    const book = Array.from(
+      { length: 40 },
+      (_, n) => `第${n + 1}章 故事\n${"人物在雨夜走进车站。".repeat(320)}`,
+    ).join("\n");
+    const { sourceId } = await LibraryPort.importSource(paths, { title: "参考", text: book });
+    const defaultCost = await run({ source: sourceId, mode: "auto" });
+    assert.match(defaultCost, /Full 成本回执/);
+    const cost = await run({ source: sourceId, mode: "auto", ratio: 1 });
+    const token = id(cost, /confirm_token：(fp-[a-z0-9-]+)/);
+    harness.approved = false;
+    assert.match(
+      await run({
+        source: sourceId,
+        mode: "auto",
+        ratio: 1,
+        confirm_full: true,
+        confirm_token: token,
+      }),
+      /GATE_DENIED|作者/,
+    );
+    await assert.rejects(readFile(path.join(paths.library, "analyses", sourceId, "plan.json")), {
+      code: "ENOENT",
+    });
+    assert.match(
+      await run({ source: sourceId, ratio: 1, confirm_full: true, confirm_token: token }),
+      /GATE_DENIED|作者/,
+    );
+    harness.approved = true;
+    await run({
+      source: sourceId,
+      mode: "auto",
+      ratio: 1,
+      confirm_full: true,
+      confirm_token: token,
+    });
+    assert.equal(
+      JSON.parse(
+        await readFile(path.join(paths.library, "analyses", sourceId, "plan.json"), "utf8"),
+      ).mode,
+      "full",
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("暂存后的书源变化须重新核对，未声明的阅读程度不推断为已读", async () => {
   const f = await setup();
   try {
@@ -659,84 +569,6 @@ test("前章变更和插入前章使候选与审读依据失效", async () => {
   }
 });
 
-test("T5 灵感旧绑定只在项目初始化时迁移一次，坏来源报错且不覆盖索引", async () => {
-  const f = await setup();
-  const { migrateInspirationBindings } =
-    await import("../../build/fanqie/src/engine/storage/inspiration-migration.js");
-  try {
-    const { meta } = await createWork(f.paths, { title: "迁移作品" });
-    const { sourceId } = await LibraryPort.importSource(f.paths, { title: "原文", text: BOOK });
-    const staged = await LibraryPort.stageCard(f.paths, cardInput(sourceId));
-    const { cardId } = await LibraryPort.acceptCard(f.paths, staged.candId);
-    const { sessionId } = await InspirationPort.startSession(f.paths, {
-      goal: "迁移",
-      cardIds: [cardId],
-    });
-    const { candId } = await InspirationPort.stageEmit(f.paths, sessionId, {
-      kind: "foundation",
-      payload: { planned: "寻找证据" },
-    });
-    await InspirationPort.acceptEmit(f.paths, candId, { workKey: meta.key, apply: true });
-    const file = path.join(f.paths.inspiration, "bindings.json");
-    await rm(file);
-    await Promise.all([migrateInspirationBindings(f.paths), migrateInspirationBindings(f.paths)]);
-    const before = await readFile(file, "utf8");
-    assert.deepEqual(JSON.parse(before)[meta.key], [cardId]);
-    assert.deepEqual(
-      (await InspirationPort.resolveCardsForBrief(f.paths, { workKey: meta.key })).cardIds,
-      [cardId],
-    );
-    await writeFile(path.join(f.paths.inspiration, "sessions", `${sessionId}.json`), "{broken");
-    await rm(path.join(f.paths.inspiration, "candidates", `${candId}.json`));
-    await migrateInspirationBindings(f.paths);
-    assert.equal(await readFile(file, "utf8"), before);
-    assert.deepEqual(
-      (await InspirationPort.resolveCardsForBrief(f.paths, { workKey: meta.key })).cardIds,
-      [cardId],
-    );
-  } finally {
-    await f.close();
-  }
-  for (const failure of ["candidate", "session", "card"]) {
-    const damaged = await setup();
-    try {
-      const root = damaged.paths.inspiration,
-        file = path.join(root, "bindings.json"),
-        at = new Date().toISOString();
-      await (
-        await import("node:fs/promises")
-      ).mkdir(path.join(root, "candidates"), { recursive: true });
-      await (
-        await import("node:fs/promises")
-      ).mkdir(path.join(root, "sessions"), { recursive: true });
-      const candidate = {
-        status: "accepted",
-        appliedWorkKey: "legacy",
-        sessionId: "insp-old",
-        acceptedAt: at,
-      };
-      await writeFile(
-        path.join(root, "candidates", "icand-old.json"),
-        failure === "candidate" ? "{broken" : JSON.stringify(candidate),
-      );
-      if (failure !== "session")
-        await writeFile(
-          path.join(root, "sessions", "insp-old.json"),
-          JSON.stringify({ cardIds: ["card-missing"] }),
-        );
-      await writeFile(file, "{}");
-      await assert.rejects(migrateInspirationBindings(damaged.paths));
-      assert.equal(await readFile(file, "utf8"), "{}");
-      await assert.rejects(
-        readFile(path.join(root, ".writer-bindings-migration.json")),
-        (e) => e.code === "ENOENT",
-      );
-    } finally {
-      await damaged.close();
-    }
-  }
-});
-
 test("RC-04 删已绑定的卡同步解绑；历史悬空绑定报 craft_binding_dangling，repair 后恢复", async () => {
   const f = await setup();
   try {
@@ -782,9 +614,8 @@ test("RC-04 删已绑定的卡同步解绑；历史悬空绑定报 craft_binding
   }
 });
 
-test("A-01 灵感应用只以规划字段为依据：采纳章节后仍可应用，章纲真被改时拒绝；旧会话按旧算法", async () => {
+test("A-01 灵感应用只以规划字段为依据：采纳章节后仍可应用，章纲真被改时拒绝", async () => {
   const f = await setup();
-  const { fingerprint } = await import("../../build/fanqie/src/engine/domain/lifecycle.js");
   try {
     const { meta, dir } = await createWork(f.paths, { title: "依据作品" });
     const { cardId } = await acceptedCard(f);
@@ -813,18 +644,6 @@ test("A-01 灵感应用只以规划字段为依据：采纳章节后仍可应用
     await setOutline(dir, "c001", { ending: "拒绝交出钥匙" });
     await assert.rejects(
       InspirationPort.acceptEmit(f.paths, second, { workKey: meta.key, apply: true }),
-      (error) => error.code === "planning_changed",
-    );
-    // 3. a session written by 1.1.0 (whole-meta fingerprint) keeps the old, stricter check
-    const legacyId = await session();
-    const file = path.join(f.paths.inspiration, "sessions", `${legacyId}.json`);
-    const legacy = JSON.parse(await readFile(file, "utf8"));
-    legacy.targetPlanningRevision = fingerprint(await readWorkMeta(dir));
-    await writeFile(file, JSON.stringify(legacy));
-    const third = await stage(legacyId);
-    await updateChapter(dir, { id: "c001", body: "她又一次交出了钥匙。" });
-    await assert.rejects(
-      InspirationPort.acceptEmit(f.paths, third, { workKey: meta.key, apply: true }),
       (error) => error.code === "planning_changed",
     );
   } finally {
@@ -907,6 +726,11 @@ test("T14 文风卡：三段式缺段或迁移试写字数越界报错不静默�
   const f = await setup();
   try {
     const { sourceId } = await LibraryPort.importSource(f.paths, { title: "参考书", text: BOOK });
+    const unsupported = await f.run("fanqie_library_card_stage", {
+      ...styleCardInput(sourceId),
+      human_feel: { writerCraft: "细节落纸", voice: "未支持的旧字段" },
+    });
+    assert.match(unsupported, /错误\[bad_args\].*voice/);
     const missing = await f.run("fanqie_library_card_stage", {
       ...styleCardInput(sourceId),
       styleMust: [],
@@ -927,7 +751,10 @@ test("T14 文风卡：三段式缺段或迁移试写字数越界报错不静默�
     });
     assert.match(long, /错误\[bad_module\]/);
     assert.match(long, /文风卡 transferSample 须 200–300 字（现 320 字）/);
-    const staged = await f.run("fanqie_library_card_stage", styleCardInput(sourceId));
+    const staged = await f.run("fanqie_library_card_stage", {
+      ...styleCardInput(sourceId),
+      human_feel: cardInput(sourceId).humanFeel,
+    });
     const candId = id(staged, /(lcand-[a-z0-9]+)/);
     const cand = await LibraryPort.getCandidate(f.paths, candId);
     assert.deepEqual(cand.styleMust, ["先给可核对的具体物，再给情绪"]);
@@ -988,6 +815,52 @@ test("T14 文风卡采纳缺目标作品：报 no_work，不静默跳过根基�
     assert.match(out, /错误\[no_work\]：还没有作品/);
     assert.equal((await LibraryPort.getCandidate(f.paths, candId)).status, "drafted");
   } finally {
+    await f.close();
+  }
+});
+
+test("文风卡入库后写入失败可指定作品重试，重复重试不会重复追加", async () => {
+  const f = await setup();
+  const append = FoundationPort.appendStyle;
+  try {
+    const { sourceId } = await LibraryPort.importSource(f.paths, { title: "参考书", text: BOOK });
+    const candId = id(
+      await f.run("fanqie_library_card_stage", styleCardInput(sourceId)),
+      /(lcand-[a-z0-9]+)/,
+    );
+    const { dir, meta } = await createWork(f.paths, { title: "文风作品" });
+    await setFoundation(dir, { style: "既有约束" });
+    FoundationPort.appendStyle = async () => {
+      throw new Error("模拟写入失败");
+    };
+    const failure = await f.run("fanqie_library_card_accept", {
+      candidate: candId,
+      work: meta.key,
+    });
+    assert.match(failure, /已采纳.*模拟写入失败/);
+    assert.match(failure, new RegExp(`work=${meta.key}`));
+    const saved = await LibraryPort.getCandidate(f.paths, candId);
+    assert.ok(saved.acceptedCardId);
+    assert.equal((await readWorkMeta(dir)).foundation.style, "既有约束");
+    FoundationPort.appendStyle = append;
+    assert.match(
+      await f.run("fanqie_library_card_accept", { candidate: candId }),
+      /须明确指定目标 work/,
+    );
+    assert.match(
+      await f.run("fanqie_library_card_accept", { candidate: candId, work: meta.key }),
+      /已追加进作品/,
+    );
+    const style = (await readWorkMeta(dir)).foundation.style;
+    assert.match(style, new RegExp(`文风卡 ${saved.acceptedCardId}`));
+    assert.match(
+      await f.run("fanqie_library_card_accept", { candidate: candId, work: meta.key }),
+      /未重复追加/,
+    );
+    assert.equal((await readWorkMeta(dir)).foundation.style, style);
+    assert.equal((await LibraryPort.listCards(f.paths)).length, 1);
+  } finally {
+    FoundationPort.appendStyle = append;
     await f.close();
   }
 });
@@ -2176,30 +2049,17 @@ test("T11 写作台直连：api 组装点透传 continuity.enabled，快照路�
       beats: [{ chapter: 1, kind: "埋设", note: "n", evidence: ["从来没有这句"] }],
     });
     await f.run("fanqie_continuity_commit", { work: key, chapter: "c001" });
-    const server = await servePanel({ storageRoot: f.root, continuity: { enabled: true } });
-    try {
-      const data = await (
-        await fetch(server.api + "/snapshot?work=" + encodeURIComponent(key) + "&scope=work")
-      ).json();
-      assert.equal(data.ok, true);
-      assert.deepEqual(
-        data.snapshot.continuityView.lines.map((l) => [l.id, l.status, l.plannedPayoff]),
-        [["L1", "missed", 1]],
-      );
-      assert.equal(data.snapshot.continuityView.breachCount, 0);
-    } finally {
-      await server.close();
-    }
-    // 开关关：同一数据，快照路由不带 continuityView。
-    const plain = await servePanel({ storageRoot: f.root });
-    try {
-      const data = await (
-        await fetch(plain.api + "/snapshot?work=" + encodeURIComponent(key) + "&scope=work")
-      ).json();
-      assert.equal("continuityView" in data.snapshot, false);
-    } finally {
-      await plain.close();
-    }
+    const panel = await createPanel({ storageRoot: f.root, continuity: { enabled: true } });
+    const data = await jget(panel, "/snapshot", { work: key, scope: "work" });
+    assert.equal(data.ok, true);
+    assert.deepEqual(
+      data.snapshot.continuityView.lines.map((l) => [l.id, l.status, l.plannedPayoff]),
+      [["L1", "missed", 1]],
+    );
+    assert.equal(data.snapshot.continuityView.breachCount, 0);
+    const plain = await createPanel({ storageRoot: f.root });
+    const plainData = await jget(plain, "/snapshot", { work: key, scope: "work" });
+    assert.equal("continuityView" in plainData.snapshot, false);
   } finally {
     await f.close();
   }
@@ -2452,9 +2312,11 @@ test("长线节奏巡检：三类候选命中与不命中", () => {
   );
 });
 
-test("T115 交接写失败不发布完成标记，重试能补齐交接与伏笔", async () => {
+test("T115 交接写失败不发布完成标记，经事务恢复补齐交接与伏笔后可重试", async () => {
   const { default: fs } = await import("node:fs/promises");
   const { syncBuiltinESMExports } = await import("node:module");
+  const { inspectPendingChapterSave, resumePendingChapterSave } =
+    await import("../../build/fanqie/src/engine/storage/chapter-journal.js");
   const f = await setup(CONTINUITY_ON),
     original = fs.rename;
   try {
@@ -2477,7 +2339,7 @@ test("T115 交接写失败不发布完成标记，重试能补齐交接与伏笔
     syncBuiltinESMExports();
     assert.match(
       await f.run("fanqie_continuity_commit", { work: key, chapter: "c001" }),
-      /handoff disk fault/,
+      /错误\[recovery_required\]/,
     );
     await assert.rejects(
       stat(path.join(dir, "continuity/commits.json")),
@@ -2485,10 +2347,16 @@ test("T115 交接写失败不发布完成标记，重试能补齐交接与伏笔
     );
     fs.rename = original;
     syncBuiltinESMExports();
-    const result = JSON.parse(
+    assert.match(
       await f.run("fanqie_continuity_commit", { work: key, chapter: "c001" }),
+      /错误\[GATE_ERROR\].*请先检查恢复记录/,
     );
-    assert.equal(result.chapter, "c001");
+    const pending = await inspectPendingChapterSave(dir);
+    await resumePendingChapterSave(dir, { id: pending.id, fingerprint: pending.fingerprint });
+    assert.match(
+      await f.run("fanqie_continuity_commit", { work: key, chapter: "c001" }),
+      /本章已在 revision \w{12,} 核验过/,
+    );
     assert.equal(
       JSON.parse(await readFile(path.join(dir, "continuity/commits.json"), "utf8")).commits.length,
       1,

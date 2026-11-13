@@ -1,16 +1,10 @@
-import {
-  COPY as viewCopy,
-  formatBytes,
-  formatCount,
-  t,
-  EDITOR_COPY,
-} from "../../../../ui/src/copy.js";
+import { COPY as viewCopy, formatBytes, formatCount, t, EDITOR_COPY } from "@writer/ui/copy";
 /** Centre column: manuscript reader with official, candidate and side-by-side views. */
 import React from "react";
 import { Manuscript } from "../shared/Manuscript.jsx";
 import { EMPTY_ISSUES, editMatches } from "./edit-state.js";
 import { FONT_STEPS } from "./state.js";
-import { Button, Icon, SegmentedControl, Tag } from "../shared/ui.jsx";
+import { Button, Icon, SegmentedControl, Tag } from "../shared/ui.js";
 import { Callout, Empty, Skeleton } from "../shared/common.jsx";
 import { SourceEditor } from "../shared/SourceEditor.jsx";
 import { chapterDraftKey } from "../shared/drafts.js";
@@ -182,6 +176,7 @@ export function Reader({
                       initial: editorSlot.body,
                       title: current.title,
                       expectedRevision: revision,
+                      expectedReadVersion: meta?.readVersion,
                       scope: { base: state.projectId, work: state.work, chapter: current.id },
                       candidateId: readerView === "candidate" ? activeCand?.id : undefined,
                       status: meta?.status,
@@ -268,6 +263,7 @@ export function Reader({
               await actions.saveChapter({
                 body: text,
                 expectedRevision: baseRevision,
+                expectedReadVersion: editing.expectedReadVersion,
                 candidateId: editing.candidateId,
                 scope: editing.scope,
                 force: forceSave,

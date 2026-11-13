@@ -75,27 +75,10 @@ function parseStep(raw: unknown): WorkflowStep {
     ...(typeof raw.model === "string" ? { model: raw.model } : {}),
   };
 }
-/**
- * Records written before the reason field carried their stop reason only in the message text.
- * They are read here once; everything past this boundary sees the structured reason.
- */
-const LEGACY_REASONS: [RegExp, WorkflowReason][] = [
-  [/余额不足/, "balance"],
-  [/阶段上下文超预算/, "stage-budget"],
-  [/任务输入预算/, "run-budget"],
-  [/上次运行已中断/, "interrupted"],
-  [/任务已暂停/, "stopped"],
-];
 function parseReason(value: Record<string, unknown>): WorkflowReason | undefined {
-  if (value.reason !== undefined) {
-    if (!oneOf(WORKFLOW_REASONS, value.reason)) throw new Error("流水线停止原因损坏");
-    return value.reason;
-  }
-  if (typeof value.error !== "string") return undefined;
-  const text = value.error;
-  const legacy = LEGACY_REASONS.find(([pattern]) => pattern.test(text))?.[1];
-  // Every legacy pause came from one of the sentences above or from the author stopping the run.
-  return legacy ?? (value.state === "paused" ? "stopped" : undefined);
+  if (value.reason === undefined) return undefined;
+  if (!oneOf(WORKFLOW_REASONS, value.reason)) throw new Error("流水线停止原因损坏");
+  return value.reason;
 }
 function parseRecord(value: unknown): WorkflowRecord {
   if (

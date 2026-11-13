@@ -36,17 +36,6 @@ export interface FanqieConfig extends PluginConfig {
   brief?: { creationFirst?: boolean };
   /** 改稿学习：writer_revision_learn 从作者改稿记录归纳偏好候选（writer_revision_decide 经作者确认落盘），默认关 */
   learn?: { enabled?: boolean };
-  /**
-   * 1.1.1 安全收紧（默认开，设为 false 回退到 1.1.0 行为）：
-   * finalStructureGuard 定稿章改章纲或位置与改正文一样须 force=true（作者确认）；
-   * narrowPlanningBasis 灵感会话只以规划字段（根基、卷纲、章纲与位置、节奏）为依据；
-   * fullDissectAuthor Full 拆书须作者确认，确认凭据不再等于放行。
-   */
-  safety?: {
-    finalStructureGuard?: boolean;
-    narrowPlanningBasis?: boolean;
-    fullDissectAuthor?: boolean;
-  };
   /** 固定使用的方法方案（默认 / 原版 / 用户方案名或 id）；不填则用写作台或工具选的当前方案 */
   profile?: string;
 }
@@ -100,7 +89,6 @@ const KNOWN = new Set<string>([
   "brief",
   "learn",
   "toolset",
-  "safety",
 ]);
 
 /** 校验并填默认值；未知字段报错，免得拼错的配置悄悄不生效 */
@@ -256,27 +244,6 @@ export function parseFanqieConfig(
         path: [...at, "learn"],
       });
     else out.learn = { enabled: l.enabled === true };
-  }
-  if (v.safety !== undefined) {
-    const t = v.safety as Record<string, unknown> | null;
-    const keys = ["finalStructureGuard", "narrowPlanningBasis", "fullDissectAuthor"];
-    if (
-      !t ||
-      typeof t !== "object" ||
-      Array.isArray(t) ||
-      Object.keys(t).some((k) => !keys.includes(k)) ||
-      keys.some((k) => t[k] !== undefined && typeof t[k] !== "boolean")
-    )
-      issues.push({
-        message: `${[...at, "safety"].join(".")} 应为 { finalStructureGuard、narrowPlanningBasis、fullDissectAuthor: 布尔值 }`,
-        path: [...at, "safety"],
-      });
-    else
-      out.safety = {
-        finalStructureGuard: t.finalStructureGuard !== false,
-        narrowPlanningBasis: t.narrowPlanningBasis !== false,
-        fullDissectAuthor: t.fullDissectAuthor !== false,
-      };
   }
   if (v.toolset !== undefined) {
     const t = v.toolset as Record<string, unknown> | null;

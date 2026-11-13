@@ -4,7 +4,7 @@ import {
   formatElapsed,
   formatTokens,
   AGENT_COPY,
-} from "../../../../../../packages/ui/src/copy.js";
+} from "@writer/ui/copy";
 import { actionTitle } from "../../format";
 import React, { useEffect, useState } from "react";
 import { Square } from "lucide-react";

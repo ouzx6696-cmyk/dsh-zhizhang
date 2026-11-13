@@ -64,12 +64,131 @@ import {
 import {
   ensureAnalysis,
   readAnalysisBundle,
-} from "../../build/fanqie/src/engine/ports/analysis/meta.js";
+} from "../../build/fanqie/src/engine/services/analysis/meta.js";
 async function fixture() {
   const root = await mkdtemp(path.join(tmpdir(), "writer-novel-rebuild-"));
   const paths = await ensureStorage({ cwd: root }, { storageRoot: root });
   return { root, paths, close: () => rm(root, { recursive: true, force: true }) };
 }
+test("标题属于内容版本，状态与审读只改变读版本，旧编辑不能覆盖状态变化", async () => {
+  const f = await fixture();
+  try {
+    const { dir } = await createWork(f.paths, { title: "版本语义" });
+    const created = await updateChapter(dir, { id: "c001", title: "原题", body: "同一段正文。" });
+    const original = await readChapter(dir, "c001");
+    assert.equal(created.readVersion, original.readVersion);
+    await updateChapter(dir, {
+      id: "c001",
+      status: "reviewed",
+      expectedRevision: original.revision,
+    });
+    const reviewed = await readChapter(dir, "c001");
+    assert.equal(reviewed.revision, original.revision);
+    assert.notEqual(reviewed.readVersion, original.readVersion);
+    await assert.rejects(
+      updateChapter(dir, {
+        id: "c001",
+        body: "迟到的编辑。",
+        expectedRevision: original.revision,
+        expectedReadVersion: original.readVersion,
+      }),
+      { code: "revision_conflict" },
+    );
+    await updateChapter(dir, {
+      id: "c001",
+      title: "新题",
+      expectedRevision: reviewed.revision,
+      expectedReadVersion: reviewed.readVersion,
+    });
+    const renamed = await readChapter(dir, "c001");
+    assert.notEqual(renamed.revision, reviewed.revision);
+    assert.equal(renamed.status, "drafted");
+    assert.equal(renamed.body, original.body);
+  } finally {
+    await f.close();
+  }
+});
+test("连续性事务中断后可恢复，冲突保留作者修改，并发登记核对版本", async () => {
+  const f = await fixture();
+  const { commitContinuity, readForeshadow, readHandoff, readCommits, saveForeshadow } =
+    await import("../../build/fanqie/src/engine/storage/continuity.js");
+  try {
+    const { dir } = await createWork(f.paths, { title: "连续性事务" });
+    const input = {
+      lines: [],
+      foreshadowRevision: 0,
+      handoff: {
+        chapter: "c001",
+        summary: "交出钥匙",
+        mustCarry: ["钥匙"],
+        nextConstraints: [],
+        openLoops: [],
+        at: "2026-11-13",
+      },
+      handoffRevision: 0,
+      commits: [
+        { chapter: "c001", revision: "body-revision", at: "2026-11-13", beats: [], knowledge: [] },
+      ],
+      commitsRevision: 0,
+    };
+    const storeUrl = pathToFileURL(
+      path.resolve("build/fanqie/src/engine/storage/continuity.js"),
+    ).href;
+    const child = `
+      import fs from 'node:fs'; import path from 'node:path'; import { syncBuiltinESMExports } from 'node:module';
+      const dir = process.argv[1], original = fs.promises.rename;
+      fs.promises.rename = async (from, to) => { if (to === path.join(dir, 'continuity/commits.json')) throw Object.assign(new Error('interrupted commit'), { code: 'EIO' }); return original(from, to); };
+      syncBuiltinESMExports(); const { commitContinuity } = await import(${JSON.stringify(storeUrl)});
+      try { await commitContinuity(dir, JSON.parse(process.argv[2])); throw new Error('expected failure'); }
+      catch (e) { if (e.code !== 'recovery_required') throw e; }
+    `;
+    await promisify(execFile)(process.execPath, [
+      "--input-type=module",
+      "-e",
+      child,
+      dir,
+      JSON.stringify(input),
+    ]);
+    const pending = await inspectPendingChapterSave(dir);
+    assert.equal(pending.kind, "continuity");
+    assert.deepEqual(
+      pending.writes.map((w) => w.state),
+      ["已写入", "已写入", "待写入"],
+    );
+    for (const read of [readForeshadow, readCommits, (root) => readHandoff(root, "c001")])
+      await assert.rejects(read(dir), { code: "recovery_required" });
+    const file = path.join(dir, "continuity/handoff/c001.json"),
+      before = await readFile(file, "utf8");
+    await writeFile(file, "作者手动修正");
+    assert.equal((await inspectPendingChapterSave(dir)).conflict, true);
+    await assert.rejects(resumePendingChapterSave(dir), { code: "recovery_conflict" });
+    assert.equal(await readFile(file, "utf8"), "作者手动修正");
+    await writeFile(file, before);
+    const fresh = await inspectPendingChapterSave(dir);
+    await resumePendingChapterSave(dir, { id: fresh.id, fingerprint: fresh.fingerprint });
+    assert.equal((await readForeshadow(dir)).revision, 1);
+    assert.deepEqual(await readHandoff(dir, "c001"), { ...input.handoff, revision: 1 });
+    assert.deepEqual((await readCommits(dir)).commits, input.commits);
+    await assert.rejects(commitContinuity(dir, input), { code: "revision_conflict" });
+    await commitContinuity(dir, {
+      ...input,
+      lines: undefined,
+      foreshadowRevision: 1,
+      handoffRevision: 1,
+      commitsRevision: 1,
+    });
+    assert.equal((await readForeshadow(dir)).revision, 1);
+    assert.equal((await readCommits(dir)).revision, 2);
+    const concurrent = await Promise.allSettled([
+      saveForeshadow(dir, [], 1),
+      saveForeshadow(dir, [], 1),
+    ]);
+    assert.equal(concurrent.filter((r) => r.status === "fulfilled").length, 1);
+    assert.equal(concurrent.find((r) => r.status === "rejected").reason.code, "revision_conflict");
+  } finally {
+    await f.close();
+  }
+});
 test("灵感应用中断后保护作者修改并恢复原操作", async () => {
   const f = await fixture();
   try {
@@ -186,6 +305,8 @@ test("章节、候选与留痕中断后不覆盖作者修改", async () => {
         chapterId: "c001",
         bodyFile: `${id}.md`,
         stagedAt: new Date().toISOString(),
+        targetRevision: (await readChapter(dir, "c001")).revision,
+        wordCount: 4,
       }) + "\n";
     await createWorkRecordJournal(dir, {
       kind: "stage",
@@ -299,6 +420,17 @@ test("离线备份拒绝覆盖并能发现备份内容变化", async () => {
     const script = path.resolve("scripts/backup.mjs");
     await run(process.execPath, [script, "--source", source, "--output", output]);
     await run(process.execPath, [script, "--verify", output]);
+    await writeFile(path.join(source, ".writer-write-lock-gate"), "");
+    await assert.rejects(
+      run(process.execPath, [
+        script,
+        "--source",
+        source,
+        "--output",
+        path.join(root, "busy-backup"),
+      ]),
+    );
+    await rm(path.join(source, ".writer-write-lock-gate"));
     await assert.rejects(run(process.execPath, [script, "--source", source, "--output", output]));
     await assert.rejects(
       run(process.execPath, [script, "--source", source, "--output", path.join(source, "inside")]),
@@ -419,6 +551,27 @@ test("多个进程同时追加候选时保留正文和留痕", async () => {
     const chapter = await readChapter(dir, "c001");
     for (let i = 0; i < 4; i++) assert.ok(chapter.body.includes(`正文标记-${i}-结束`));
     assert.equal((await readLedger(dir)).entries.filter((e) => e.kind === "note").length, 4);
+  } finally {
+    await f.close();
+  }
+});
+
+test("追加候选时显式提供的已读版本必须仍是当前章节", async () => {
+  const f = await fixture();
+  try {
+    const { dir } = await createWork(f.paths, { title: "追加版本" });
+    await updateChapter(dir, { id: "c001", title: "第一章", body: "原文" });
+    const before = await readChapter(dir, "c001");
+    const candidate = await stageCandidate(dir, { chapterId: "c001", body: "追加内容" });
+    await updateChapter(dir, { id: "c001", title: "第一章", body: "作者新稿" });
+    await assert.rejects(
+      acceptCandidate(dir, candidate.id, "append", { observedRevision: before.revision }),
+      (error) => error.code === "revision_conflict",
+    );
+    assert.equal((await readChapter(dir, "c001")).body, "作者新稿");
+    const current = await readChapter(dir, "c001");
+    await acceptCandidate(dir, candidate.id, "append", { observedRevision: current.revision });
+    assert.match((await readChapter(dir, "c001")).body, /作者新稿\s+追加内容/);
   } finally {
     await f.close();
   }
@@ -646,7 +799,7 @@ test("损坏的分析形状或计划在读取和面板中明确报错", async ()
   }
 });
 
-test("RC-05 定稿章改章纲或位置须 force，不再被静默降回 drafted；structureGuard=false 回退旧行为", async () => {
+test("RC-05 定稿章改章纲或位置须 force，不再被静默降回 drafted", async () => {
   const f = await fixture();
   try {
     const { dir } = await createWork(f.paths, { title: "定稿结构" });
@@ -670,15 +823,6 @@ test("RC-05 定稿章改章纲或位置须 force，不再被静默降回 drafted
     assert.equal(await readFile(path.join(dir, "chapters/c001.md"), "utf8"), before);
     assert.equal((await readChapter(dir, "c001")).status, "final");
     await setOutline(dir, "c001", { ending: "没交钥匙" }, undefined, { force: true });
-    assert.equal((await readChapter(dir, "c001")).status, "drafted");
-    // switch off: 1.1.0 behaviour (silent downgrade) for authors who opt out
-    await updateChapter(dir, {
-      id: "c001",
-      status: "reviewed",
-      expectedRevision: (await readChapter(dir, "c001")).revision,
-    });
-    await updateChapter(dir, { id: "c001", status: "final" });
-    await setOutline(dir, "c001", { ending: "又改" }, undefined, { structureGuard: false });
     assert.equal((await readChapter(dir, "c001")).status, "drafted");
   } finally {
     await f.close();

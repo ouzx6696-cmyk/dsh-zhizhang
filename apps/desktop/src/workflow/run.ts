@@ -6,7 +6,7 @@ import {
   type EngineSettings,
   type WorkflowJournal,
 } from "../../../../packages/core/src/workflow";
-import type { Sessions } from "../session/manager";
+import type { WorkflowHost } from "./host";
 import { stageModel } from "./stage-model";
 
 export interface WorkflowContext {
@@ -29,7 +29,7 @@ export class WorkflowRun {
   private inflight = 0;
   private fresh?: { at: number; check: Promise<void> };
   constructor(
-    readonly host: Sessions,
+    readonly host: WorkflowHost,
     readonly journal: WorkflowJournal,
     readonly context: WorkflowContext,
     readonly settings: EngineSettings,

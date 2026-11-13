@@ -10,9 +10,9 @@ import { buildDeliveryPrompt } from "../../build/fanqie/src/workbench/delivery.j
 import { fanqieApi } from "../../build/fanqie/src/workbench/api.js";
 import { bodyFingerprint, saveReview } from "../../build/fanqie/src/review.js";
 import { createToolHarness, tempDir } from "../helpers.mjs";
-import { jpost, servePanel, withWork, loadComponents } from "./helpers.mjs";
+import { jget, jpost, createPanel, withWork, loadComponents } from "./helpers.mjs";
 
-const get = (api, route) => fetch(`${api}${route}`);
+const get = jget;
 
 test("工具执行缺少 cwd 时在执行前拒绝，不回落进程目录", async () => {
   const { executeTool } = await import("../../build/core/src/execute.js");
@@ -41,28 +41,29 @@ test("工具执行缺少 cwd 时在执行前拒绝，不回落进程目录", asy
   assert.equal(writes, 0);
 });
 
-test("路由错误统一区分参数、缺失、冲突和基础设施故障", async () => {
-  const { sendError } = await import("../../build/workbench/src/routes.js");
+test("命令错误保留原因，并区分未知写入结果", async () => {
+  const { sendError } = await import("../../build/workbench/src/commands.js");
   const { WriterError } = await import("../../build/core/src/tool.js");
-  for (const [error, status] of [
-    [new WriterError("NOT_FOUND", "缺失"), 404],
-    [new WriterError("INVALID_ARGS", "输入错误"), 400],
-    [new WriterError("OUT_OF_ROOT", "越界"), 400],
-    [new WriterError("CONFLICT", "冲突"), 409],
-    [new Error("磁盘读取失败"), 500],
-    [Object.assign(new Error("权限不足"), { code: "EACCES" }), 500],
+  for (const [error, code, uncertain] of [
+    [new WriterError("NOT_FOUND", "缺失"), "NOT_FOUND", false],
+    [new WriterError("INVALID_ARGS", "输入错误"), "INVALID_ARGS", false],
+    [new WriterError("OUT_OF_ROOT", "越界"), "OUT_OF_ROOT", false],
+    [new WriterError("CONFLICT", "冲突"), "CONFLICT", false],
+    [new Error("磁盘读取失败"), "failed", true],
+    [Object.assign(new Error("权限不足"), { code: "EACCES" }), "failed", true],
   ]) {
     let response;
     sendError(
       {
-        json: (status, data) => {
-          response = { status, data };
+        reply: (data) => {
+          response = data;
         },
       },
       error,
     );
-    assert.equal(response.status, status);
-    assert.equal(response.data.error, error.message);
+    assert.equal(response.code, code);
+    assert.equal(response.uncertain, uncertain);
+    assert.equal(response.error, error.message);
   }
 });
 
@@ -112,13 +113,11 @@ test("下一章选择：第一章没正文的，否则新的一章", async () =>
 
 test("定稿条件：requireEditorPass 时写作台与工具两条路径都要当前正文的通过回报；单章读取带审读信息", async () => {
   const work = await withWork("门禁");
-  const server = await servePanel({ storageRoot: work.base, requireEditorPass: true });
+  const panel = await createPanel({ storageRoot: work.base, requireEditorPass: true });
   try {
     await setOutline(work.dir, "c001", { ending: "门开了" }, "第一章");
     await updateChapter(work.dir, { id: "c001", title: "第一章", body: "她推开门。" });
-    let chapter = await (
-      await get(server.api, `/chapter?work=${encodeURIComponent(work.key)}&id=c001`)
-    ).json();
+    let chapter = await get(panel, "/chapter", { work: work.key, id: "c001" });
     assert.equal(chapter.writer.editorReview, null);
     assert.equal(chapter.writer.requireEditorPass, true);
     assert.match(chapter.writer.finalizeBlocked, /还没有编辑审读回报/);
@@ -129,14 +128,14 @@ test("定稿条件：requireEditorPass 时写作台与工具两条路径都要�
       confirm: true,
     };
     assert.equal(
-      (await jpost(server.api, "/chapter/review", request)).status,
-      200,
+      (await jpost(panel, "/chapter/review", request)).ok,
+      true,
       "作者审读声明不受定稿条件影响",
     );
     const after = { ...request, expectedRevision: (await readChapter(work.dir, "c001")).revision };
-    const blocked = await jpost(server.api, "/chapter/finalize", after);
-    assert.equal(blocked.status, 409);
-    assert.equal((await blocked.json()).code, "writer_finalize_blocked");
+    const blocked = await jpost(panel, "/chapter/finalize", after);
+    assert.equal(blocked.ok, false);
+    assert.equal(blocked.code, "writer_finalize_blocked");
     const harness = await createToolHarness({
       mode: "fanqie",
       cwd: work.base,
@@ -166,21 +165,16 @@ test("定稿条件：requireEditorPass 时写作台与工具两条路径都要�
         at: new Date().toISOString(),
       });
     await review("通过", bodyFingerprint("旧正文"));
-    chapter = await (
-      await get(server.api, `/chapter?work=${encodeURIComponent(work.key)}&id=c001`)
-    ).json();
+    chapter = await get(panel, "/chapter", { work: work.key, id: "c001" });
     assert.equal(chapter.writer.editorReview.stale, true);
     assert.match(chapter.writer.finalizeBlocked, /旧正文/);
     await new Promise((r) => setTimeout(r, 5));
     await review("通过", bodyFingerprint(body));
-    chapter = await (
-      await get(server.api, `/chapter?work=${encodeURIComponent(work.key)}&id=c001`)
-    ).json();
+    chapter = await get(panel, "/chapter", { work: work.key, id: "c001" });
     assert.equal(chapter.writer.editorReview.verdict, "通过");
     assert.equal(chapter.writer.finalizeBlocked, undefined);
-    assert.equal((await jpost(server.api, "/chapter/finalize", after)).status, 200);
+    assert.equal((await jpost(panel, "/chapter/finalize", after)).ok, true);
   } finally {
-    await server.close();
     await work.cleanup();
   }
 });
@@ -268,18 +262,15 @@ test("拆书导入：模型给的 file 只能落在会话目录或本地书源�
   }
 });
 
-test("写作台路由按真实路径处理，未知路径不接管", async () => {
+test("写作台按命令处理，未知命令不接管", async () => {
   const api = fanqieApi({});
-  assert.ok(api.routes.includes("/api/writer/projects"));
   let response;
-  const url = new URL("app://writer/api/writer/nope");
   assert.equal(
     await api.handle({
-      url,
-      path: url.pathname,
-      method: "GET",
-      body: async () => ({}),
-      json: (_, data) => {
+      command: "/nope",
+      kind: "read",
+      input: {},
+      reply: (data) => {
         response = data;
       },
     }),

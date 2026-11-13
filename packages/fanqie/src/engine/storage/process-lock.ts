@@ -1,6 +1,6 @@
 /** Cooperative filesystem lock for writers in different processes sharing a resource. */
 import { assertWorkspaceWritable } from "../../../../core/src/workspace-lock.js";
-import { isFsError, isMissingFileError, sha256 } from "../../../../core/src/fsx.js";
+import { isFsError, isMissingFileError, sha256, withFileGate } from "../../../../core/src/fsx.js";
 import { errorText } from "../../../../core/src/errors.js";
 import { isRecord } from "../../../../core/src/parse.js";
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -67,7 +67,10 @@ export async function withResourceLock<T>(root: string, fn: () => Promise<T>): P
       }
       const deadline = Date.now() + WAIT_MS;
       for (;;) {
-        if (await claim(staging, dir)) break;
+        if (
+          await withFileGate(path.join(key, ".writer-write-lock-gate"), () => claim(staging, dir))
+        )
+          break;
         if (Date.now() >= deadline)
           throw new NovelError(
             "resource_locked",
@@ -89,7 +92,9 @@ export async function withResourceLock<T>(root: string, fn: () => Promise<T>): P
       outcome = { ok: false, error };
     }
     try {
-      await releaseOwner(dir, owner.id);
+      await withFileGate(path.join(key, ".writer-write-lock-gate"), () =>
+        releaseOwner(dir, owner.id),
+      );
     } catch (releaseError) {
       // A release failure must never hide why the write itself failed.
       if (!outcome.ok)
@@ -268,17 +273,20 @@ export async function inspectWriteLock(root: string): Promise<WriteLockState> {
 
 /** Removes a lock only when it is provably stale; any other state is reported, never cleared. */
 export async function clearWriteLock(root: string) {
-  const lock = await inspectWriteLock(root);
-  if (lock.state !== "stale")
-    throw new NovelError(
-      "resource_lock_not_stale",
-      lock.state === "absent" ? "没有遗留写入锁。" : `写入锁不能清理：${lock.reason}。`,
-    );
-  const ownerFile = path.join(lock.dir, OWNER_FILE);
-  // Another cleaner may have removed the lock and a new writer taken it since inspection.
-  if (sha256(await readFile(ownerFile, "utf8")) !== lock.fingerprint)
-    throw new NovelError("resource_lock_changed", "写入锁在检查后发生变化，未清理；请重新检查。");
-  await unlink(ownerFile);
-  await rmdir(lock.dir);
-  return lock.owner;
+  const key = await realpath(root);
+  return withFileGate(path.join(key, ".writer-write-lock-gate"), async () => {
+    const lock = await inspectWriteLock(key);
+    if (lock.state !== "stale")
+      throw new NovelError(
+        "resource_lock_not_stale",
+        lock.state === "absent" ? "没有遗留写入锁。" : `写入锁不能清理：${lock.reason}。`,
+      );
+    const ownerFile = path.join(lock.dir, OWNER_FILE);
+    // Another cleaner may have removed the lock and a new writer taken it since inspection.
+    if (sha256(await readFile(ownerFile, "utf8")) !== lock.fingerprint)
+      throw new NovelError("resource_lock_changed", "写入锁在检查后发生变化，未清理；请重新检查。");
+    await unlink(ownerFile);
+    await rmdir(lock.dir);
+    return lock.owner;
+  });
 }

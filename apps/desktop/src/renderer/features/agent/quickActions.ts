@@ -1,5 +1,5 @@
-import { COPY as viewCopy } from "../../../../../../packages/ui/src/copy.js";
-import { TOUTIAO_DELIVERED } from "../../../../../../packages/ui/src/status.js";
+import { COPY as viewCopy } from "@writer/ui/copy";
+import { TOUTIAO_DELIVERED } from "@writer/ui/status";
 import { getCommand } from "../../../commands";
 import type { WorkspaceContext } from "../../../renderer-contracts";
 

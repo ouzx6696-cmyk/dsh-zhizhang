@@ -6,7 +6,7 @@ import { promptAccepted } from "./pi-adapter";
 import { taskPrompt } from "./prompt";
 import type { Sessions } from "./manager";
 import type { AuthorAction } from "./types";
-import { statusLabel } from "../../../../packages/ui/src/status";
+import { statusLabel } from "@writer/ui/status";
 
 export async function sendPrompt(
   host: Sessions,

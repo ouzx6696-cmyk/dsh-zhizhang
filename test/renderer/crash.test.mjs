@@ -9,7 +9,7 @@ function crashFixture() {
   const logged = [];
   const reloads = [];
   const renderer = loadRenderer(runtime.react, {
-    window: { writerDesktop: {}, location: { reload: () => reloads.push(1) } },
+    window: { writerBridge: {}, location: { reload: () => reloads.push(1) } },
     console: { error: (...args) => logged.push(args) },
   });
   return { runtime, renderer, logged, reloads };

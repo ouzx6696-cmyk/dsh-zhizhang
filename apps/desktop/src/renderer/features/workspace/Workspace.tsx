@@ -1,5 +1,5 @@
 import { humanVersion } from "../../format";
-import { COPY as viewCopy } from "../../../../../../packages/ui/src/copy.js";
+import { COPY as viewCopy } from "@writer/ui/copy";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { useFanqie } from "../../../../../../packages/workbench/src/client/fanqie/useFanqie.js";
 import { ChapterList } from "../../../../../../packages/workbench/src/client/fanqie/ChapterList.jsx";
@@ -9,7 +9,7 @@ import { Pipeline } from "../../../../../../packages/workbench/src/client/fanqie
 import { Dialogs } from "../../../../../../packages/workbench/src/client/fanqie/Dialogs.jsx";
 import { Diagnostics } from "../../../../../../packages/workbench/src/client/fanqie/Diagnostics.jsx";
 import { Check, FileCheck } from "lucide-react";
-import { StatusBadge } from "../../../../../../packages/ui/src/status-badge";
+import { StatusBadge } from "@writer/ui/status-badge";
 import type { WorkspaceProps } from "../../../renderer-contracts";
 import type { Focus, Target } from "../../../context";
 import { useWorkspaceNavigator } from "../../state/navigation";

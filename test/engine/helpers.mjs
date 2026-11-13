@@ -6,11 +6,9 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createServer } from "node:http";
+import { createCommandHarness } from "../helpers.mjs";
 import { createWork } from "../../build/fanqie/src/engine/work-store.js";
 import { ensureStorage } from "../../build/fanqie/src/engine/storage/paths.js";
-import { fanqieApi } from "../../build/fanqie/src/workbench/api.js";
-import { API } from "../../build/workbench/src/routes.js";
 export async function withWork(title = "测试作品") {
   const base = await mkdtemp(path.join(tmpdir(), "writer-engine-test-"));
   const paths = await ensureStorage(null, { storageRoot: base });
@@ -23,39 +21,9 @@ export async function withWork(title = "测试作品") {
     cleanup: () => rm(base, { recursive: true, force: true }),
   };
 }
-export async function servePanel(config = {}) {
-  const mode = fanqieApi(config);
-  const server = createServer(async (req, res) => {
-    const url = new URL(req.url, "http://writer.test");
-    const chunks = [];
-    for await (const chunk of req) chunks.push(chunk);
-    const body = Buffer.concat(chunks).toString("utf8");
-    const ctx = {
-      url,
-      method: req.method,
-      path: url.pathname,
-      body: async () => (body ? JSON.parse(body) : {}),
-      json: (status, data) => {
-        res.writeHead(status, { "content-type": "application/json" });
-        res.end(JSON.stringify(data));
-      },
-    };
-    if (!(await mode.handle(ctx))) ctx.json(404, { ok: false, code: "not_found" });
-  });
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const { port } = server.address();
-  return {
-    api: `http://127.0.0.1:${port}${API}`,
-    close: () =>
-      new Promise((resolve, reject) => server.close((err) => (err ? reject(err) : resolve()))),
-  };
-}
-export const jpost = (api, route, body) =>
-  fetch(`${api}${route}`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
+export const createPanel = (config = {}) => createCommandHarness({ fanqie: config });
+export const jpost = (api, command, input) => api(command, { kind: "write", input });
+export const jget = (api, command, input = {}) => api(command, { input });
 
 /** 依赖包里的自动 JSX（react-markdown）落到注入的 createElement 上。 */
 function jsxRuntime(react) {
@@ -133,12 +101,12 @@ export const loadComponents = (react, globals = {}) =>
   loadBundle("test-components.cjs", react, globals);
 
 /**
- * 桌面渲染层模块（test/renderer/entry.ts）。加载时会读 preload 桥（window.writerDesktop），
+ * 桌面渲染层模块（test/renderer/entry.ts）。加载时会读 preload 桥（window.writerBridge），
  * Markdown 依赖的实体解码包也会建一个元素备用；默认给空壳，用到它们的用例自己传替身。
  */
 export const loadRenderer = (react, globals = {}) =>
   loadBundle("test-renderer.cjs", react, {
-    window: { writerDesktop: {} },
+    window: { writerBridge: {} },
     document: { createElement: () => ({}) },
     ...globals,
   });

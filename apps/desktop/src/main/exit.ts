@@ -1,7 +1,7 @@
 import { app, dialog, type BrowserWindow } from "electron";
 import { errorText } from "../../../../packages/core/src/errors";
 import { releaseWorkspaces } from "../../../../packages/core/src/workspace-lock";
-import { UNLOAD_COPY } from "../../../../packages/ui/src/copy";
+import { UNLOAD_COPY } from "@writer/ui/copy";
 import type { Runtime } from "./runtime";
 
 /**
@@ -40,6 +40,12 @@ export function registerQuitCleanup(state: Runtime) {
 }
 
 const QUIT_STEPS: [string, (state: Runtime) => Promise<void>][] = [
+  [
+    "background",
+    async (state) => {
+      state.background.abort();
+    },
+  ],
   ["sessions", (state) => state.sessions.dispose()],
   ["workspaces", () => releaseWorkspaces()],
 ];

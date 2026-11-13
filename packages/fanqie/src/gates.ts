@@ -102,8 +102,7 @@ export function fanqieGateRules(config: FanqieConfig, role: Role): GateRule[] {
       locked: true,
       description: "Full 拆书须作者确认",
       async check(args) {
-        if (config.safety?.fullDissectAuthor === false) return undefined;
-        if (args.mode !== "full" || args.confirm_full !== true) return undefined;
+        if (args.confirm_full !== true) return undefined;
         return {
           kind: "ask",
           reason: `对书源「${String(args.source ?? "")}」执行 Full 全量拆书会按成本回执逐批阅读全书，需要作者确认。`,

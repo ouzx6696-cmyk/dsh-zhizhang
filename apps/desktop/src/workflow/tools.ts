@@ -1,10 +1,10 @@
 import { Type } from "typebox";
 import { parseWorkflowRequest } from "../../../../packages/core/src/workflow-config";
-import type { Sessions } from "../session/manager";
+import type { WorkflowService } from "./service";
 import type { Target } from "../context";
 import type { AgentSession, ToolDefinition } from "../session/pi-adapter";
 export function workflowTools(
-  host: Sessions,
+  host: { workflows: Pick<WorkflowService, "start" | "status" | "stop"> },
   target: Target,
   getSession: () => AgentSession,
 ): ToolDefinition[] {

@@ -1,13 +1,13 @@
-import { COPY as viewCopy } from "../../../../ui/src/copy.js";
+import { COPY as viewCopy } from "@writer/ui/copy";
 /**
  * Confirmation dialogs. Every write the panel can make (accept, review,
  * finalize, acknowledge) goes through one of these with an explicit checkbox
  * or button; nothing is written on a single click.
  */
 import React from "react";
-import { formatCount, t } from "../../../../ui/src/copy.js";
-import { Button, Checkbox, SegmentedControl } from "../shared/ui.jsx";
-import { Dialog } from "../../../../ui/src/primitives.jsx";
+import { formatCount, t } from "@writer/ui/copy";
+import { Button, Checkbox, SegmentedControl } from "../shared/ui.js";
+import { Dialog } from "@writer/ui/primitives";
 import { Callout } from "../shared/common.jsx";
 
 const { useState } = React;

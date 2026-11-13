@@ -205,6 +205,37 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
     );
     expect(sandboxed).toBe(true);
     expect(await page.evaluate(() => typeof window.writerDesktop?.state)).toBe("function");
+    const failure = await page.evaluate(async () => {
+      try {
+        await window.writerDesktop.takeOverWorkspace("stale-owner-id");
+        return null;
+      } catch (error) {
+        return { isError: error instanceof Error, code: error.code };
+      }
+    });
+    expect(failure).toEqual({ isError: true, code: "CONFLICT" });
+  });
+  await test.step("真实 utility process 完成备份与校验", async () => {
+    await expect
+      .poll(async () => (await page.evaluate(() => window.writerDesktop.running())).length)
+      .toBe(0);
+    const destination = await mkdtemp(path.join(tmpdir(), "writer-ui-backup-"));
+    try {
+      await app.evaluate(({ dialog }, directory) => {
+        dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [directory] });
+      }, destination);
+      const result = await page.evaluate(() => window.writerDesktop.backup());
+      const manifest = JSON.parse(
+        await readFile(path.join(result.file, "writer-novel-backup-manifest.json"), "utf8"),
+      );
+      expect(manifest.roots).toHaveLength(1);
+      expect(manifest.roots[0].entries.some((entry) => /c001\.md$/.test(entry.path))).toBe(true);
+    } finally {
+      await app.evaluate(({ dialog }, directory) => {
+        dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [directory] });
+      }, root);
+      await rm(destination, { recursive: true, force: true });
+    }
   });
   await test.step("决策不被 Agent 挡住，右栏标签与响应式布局，亮暗截图", async () => {
     await page.getByRole("button", { name: "设置", exact: true }).click();
@@ -420,8 +451,8 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
         },
       });
       await api.request("/agent/deliver", {
-        method: "POST",
-        body: {
+        kind: "write",
+        input: {
           base: state.target.root,
           work: state.target.work,
           chapter: "c001",
@@ -449,8 +480,8 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
           requestId: "ui-dedupe",
         };
       await Promise.all([
-        api.request("/agent/deliver", { method: "POST", body }),
-        api.request("/agent/deliver", { method: "POST", body }),
+        api.request("/agent/deliver", { kind: "write", input: body }),
+        api.request("/agent/deliver", { kind: "write", input: body }),
       ]);
     });
     await expect
@@ -621,17 +652,17 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
       const api = window.writerDesktop;
       const state = await api.state();
       const work = state.target.work;
-      const current = await api.request("/chapter", { query: { work, id: "c001" } });
+      const current = await api.request("/chapter", { input: { work, id: "c001" } });
       const result = await api.request("/chapter/save", {
-        method: "POST",
-        body: {
+        kind: "write",
+        input: {
           work,
           chapter: "c001",
           expectedRevision: current.data.meta.revision,
           body: current.data.body + "\n后台先保存的新正文。",
         },
       });
-      if (result.status !== 200) throw new Error(JSON.stringify(result));
+      if (result.data.ok === false) throw new Error(JSON.stringify(result));
     });
     await expect(editor).toHaveValue("作者尚未保存的局部修改");
     await page.keyboard.press("Control+s");

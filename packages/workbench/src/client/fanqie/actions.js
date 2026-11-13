@@ -1,6 +1,6 @@
 import { fanqie } from "../shared/api.js";
-import { newRequestId } from "../../../../ui/src/request.js";
-import { diagnosticCopy, t } from "../../../../ui/src/copy.js";
+import { newRequestId } from "@writer/ui/request";
+import { diagnosticCopy, t } from "@writer/ui/copy";
 
 export function messageOf(err) {
   if (!err) return "";
@@ -87,6 +87,7 @@ export function createFanqieActions({ ref, viewRef, alive, refresh, dispatch }) 
           work: target.work,
           chapter: target.chapterId,
           expectedRevision: meta.revision,
+          expectedReadVersion: meta.readVersion,
           confirm: true,
           ...(extra || {}),
         });
@@ -137,7 +138,7 @@ export function createFanqieActions({ ref, viewRef, alive, refresh, dispatch }) 
         return false;
       }
     },
-    async saveChapter({ body, expectedRevision, candidateId, scope, force }) {
+    async saveChapter({ body, expectedRevision, expectedReadVersion, candidateId, scope, force }) {
       const s = ref.current;
       if (!s.work || !s.chapterId) throw new Error(t("chapterSaveMissing"));
       if (
@@ -151,6 +152,7 @@ export function createFanqieActions({ ref, viewRef, alive, refresh, dispatch }) 
         chapter: s.chapterId,
         body,
         expectedRevision,
+        expectedReadVersion,
         force: force === true,
         ...(candidateId ? { mode: "candidate", editOf: candidateId, draftLabel: "作者修订" } : {}),
       });

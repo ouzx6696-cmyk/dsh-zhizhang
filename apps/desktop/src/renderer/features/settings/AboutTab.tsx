@@ -1,5 +1,5 @@
-import { COPY as viewCopy, t as viewText } from "../../../../../../packages/ui/src/copy.js";
-import { Brand } from "../../../../../../packages/ui/src/primitives";
+import { COPY as viewCopy, t as viewText } from "@writer/ui/copy";
+import { Brand } from "@writer/ui/primitives";
 import React from "react";
 import { Download } from "lucide-react";
 import type { SystemState } from "../../state/store";

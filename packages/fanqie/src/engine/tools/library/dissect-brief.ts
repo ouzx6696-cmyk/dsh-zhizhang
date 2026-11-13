@@ -4,10 +4,10 @@ import { withResourceLock } from "../../storage/process-lock.js";
 import { NovelError } from "../../errors.js";
 
 import { LibraryPort } from "../../ports/index.js";
-import { readAnalysisBundle } from "../../ports/analysis/meta.js";
+import { readAnalysisBundle } from "../../services/analysis/meta.js";
 
-import { planLabel, readPlan, planProgress } from "../../ports/analysis/plan.js";
-import { chapterText, chapterTitle } from "../../ports/analysis/chapters.js";
+import { planLabel, readPlan, planProgress } from "../../services/analysis/plan.js";
+import { chapterText, chapterTitle } from "../../services/analysis/chapters.js";
 
 import { asString, fail } from "../context.js";
 import { S, WORKING_DIR } from "../schema.js";

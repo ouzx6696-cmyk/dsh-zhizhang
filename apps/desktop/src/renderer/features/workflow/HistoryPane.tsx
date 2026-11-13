@@ -7,7 +7,7 @@ import {
   formatElapsed,
   formatTokens,
   WORKFLOW_COPY,
-} from "../../../../../../packages/ui/src/copy.js";
+} from "@writer/ui/copy";
 import { errorText } from "../../../../../../packages/core/src/errors.js";
 import type { WorkflowRecord } from "../../../../../../packages/core/src/workflow-config.js";
 import { desktop } from "../../state/desktop";

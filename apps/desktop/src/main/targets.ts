@@ -1,5 +1,4 @@
 import { resolveFanqieWork } from "./storage";
-import { migrateInspirationBindings } from "../../../../packages/fanqie/src/engine/storage/inspiration-migration";
 import { storagePaths } from "../../../../packages/fanqie/src/engine/storage/paths";
 import { physicalRoot } from "../../../../packages/core/src/identity";
 import { mkdir } from "node:fs/promises";
@@ -54,7 +53,7 @@ export async function selectTarget(state: Runtime, next: Target) {
             : {}),
       };
       const paths = storagePaths(null, config);
-      // 先只建作品根以便取得锁；项目登记、灵感迁移和目录初始化都放到锁内。
+      // 先只建作品根以便取得锁；项目登记和目录初始化都放到锁内。
       await mkdir(paths.base, { recursive: true });
       storage = { config, paths };
       newRoot = normalized.work ? await resolveWorkDir(paths, normalized.work) : paths.base;
@@ -62,11 +61,9 @@ export async function selectTarget(state: Runtime, next: Target) {
     const access = await claimWorkspace(newRoot);
     try {
       if (storage) {
-        await ensureStorage(null, storage.config);
-        await migrateInspirationBindings(storage.paths);
+        if (!access.readOnly) await ensureStorage(null, storage.config);
         await rememberProject(storage.paths.base, storage.paths.works);
       }
-      await state.sessions.initialize(normalized);
       if (normalized.mode === "toutiao") await rememberRoot(normalized.root);
       await atomicWrite(path.join(state.home, "target.json"), JSON.stringify(normalized));
     } catch (error) {

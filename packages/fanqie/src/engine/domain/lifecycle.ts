@@ -2,7 +2,7 @@ import { sha256 } from "../../../../core/src/fsx.js";
 /** Separate content identity, contextual applicability, and declared review. */
 
 export const fingerprint = (value: unknown) => sha256(JSON.stringify(value ?? null));
-/** Marks a planning revision computed by planningBasis (1.1.1); unmarked values are whole-meta. */
+/** Prefix identifies the planning facts used for an inspiration session. */
 const PLANNING_BASIS_PREFIX = "basis2:";
 /**
  * A-01: the planning facts an inspiration session was prepared against — foundation, volume and
@@ -30,16 +30,13 @@ export function planningBasis(
     })
   );
 }
-/** Checks a stored planning revision with the algorithm that produced it (old sessions: whole meta). */
+/** Compare the current planning facts with the session's recorded basis. */
 export function planningUnchanged(
   meta: import("../types.js").WorkMeta,
   outlines: Readonly<Record<string, unknown>>,
   stored: unknown,
 ) {
-  if (typeof stored !== "string") return false;
-  return stored.startsWith(PLANNING_BASIS_PREFIX)
-    ? stored === planningBasis(meta, outlines)
-    : stored === fingerprint(meta);
+  return typeof stored === "string" && stored === planningBasis(meta, outlines);
 }
 export interface ChapterDependency {
   chapterId: string;

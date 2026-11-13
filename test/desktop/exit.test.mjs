@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
-import { access, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
+import { access, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { Diagnostics } from "../../apps/desktop/out-test/diagnostics.mjs";
@@ -102,6 +102,25 @@ test("退出清理失败写诊断日志，仍释放占用并退出", async () =>
     assert.equal(entry.event, "quit_cleanup_failed");
     assert.equal(entry.step, "sessions");
     assert.equal(entry.error, "会话收尾超时");
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("退出取消运行中的备份进程，取消原因保持 CANCELLED", async () => {
+  const { runBackup } = await effects();
+  const { app, home, state } = await quitFixture();
+  try {
+    const script = path.join(home, "waiting.mjs");
+    await writeFile(script, "setTimeout(() => {}, 30000);");
+    const cancelled = assert.rejects(runBackup(script, [], state.background.signal), {
+      code: "CANCELLED",
+    });
+    app.emit("will-quit", electronEvent());
+    await cancelled;
+    await settle(app, 1);
+    assert.equal(state.background.signal.aborted, true);
+    assert.equal(app.quits, 1);
   } finally {
     await rm(home, { recursive: true, force: true });
   }

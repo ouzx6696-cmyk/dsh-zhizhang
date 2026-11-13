@@ -1,5 +1,5 @@
 import { ContextPanel } from "./ContextPanel";
-import { COPY as viewCopy, AGENT_COPY } from "../../../../../../packages/ui/src/copy.js";
+import { COPY as viewCopy, AGENT_COPY } from "@writer/ui/copy";
 import { TaskProgress } from "./TaskProgress";
 import { AgentMessageList, ChatStream } from "./AgentMessages";
 import React, { useCallback, useEffect, useLayoutEffect, useRef } from "react";
@@ -7,7 +7,7 @@ import { Send, Plus, History, Square } from "lucide-react";
 import { humanVersion } from "../../format";
 import { scopeId, focusLabel, type Focus, type Target } from "../../../context";
 import { useChatSelector } from "../../state/chatStore";
-import { ARTICLE_STEPS } from "../../../../../../packages/ui/src/status";
+import { ARTICLE_STEPS } from "@writer/ui/status";
 import { desktop } from "../../state/desktop";
 import type { DesktopActions } from "../../app/useDesktopController";
 import { useDesktopSelector } from "../../state/store";

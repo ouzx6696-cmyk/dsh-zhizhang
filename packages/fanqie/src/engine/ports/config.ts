@@ -18,10 +18,6 @@ const DEFAULTS = {
   defaultEditMode: "polish-depolish",
   multiDraft: { enabled: false },
   continuity: { enabled: false },
-  /** 1.1.1 B 类开关，默认开：定稿章结构变更须 force。 */
-  finalStructureGuard: true,
-  /** 1.1.1 B 类开关，默认开：灵感会话只以规划字段为依据。 */
-  narrowPlanningBasis: true,
 };
 type PortConfig = typeof DEFAULTS;
 export function getPortConfig(): PortConfig {

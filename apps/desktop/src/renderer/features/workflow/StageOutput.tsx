@@ -1,9 +1,5 @@
 import React, { memo, useState } from "react";
-import {
-  COPY as copy,
-  formatCount,
-  WORKFLOW_COPY,
-} from "../../../../../../packages/ui/src/copy.js";
+import { COPY as copy, formatCount, WORKFLOW_COPY } from "@writer/ui/copy";
 import { isRecord } from "../../../../../../packages/core/src/parse.js";
 import type { WorkflowStep } from "../../../../../../packages/core/src/workflow-config.js";
 import "../../../styles/workflow-output.css";

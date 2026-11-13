@@ -1,6 +1,6 @@
 import { FoundationPort, LibraryPort, styleCardFoundationEntry } from "../../ports/index.js";
 
-import { asString, openWork } from "../context.js";
+import { asString, fail, openWork } from "../context.js";
 import { S, WORK_OPT, WORKING_DIR } from "../schema.js";
 import { defineTool } from "../types.js";
 
@@ -21,23 +21,35 @@ export const libraryCardAccept = defineTool({
     // 文风卡落根基是采纳语义的一部分：先解析候选并解析到目标作品，解析不到就报错，
     // 不让作者以为采纳完成而文风没有落盘。
     const candidate = await LibraryPort.getCandidate(paths, candId);
+    if (candidate.dimension === "prose" && candidate.acceptedCardId && !asString(args, "work"))
+      fail("补写已采纳文风卡时须明确指定目标 work", "work_required");
     const work = candidate.dimension === "prose" ? await openWork(exec, args) : undefined;
-    const { cardId, title, warnings, judgment } = await LibraryPort.acceptCard(paths, candId);
+    const accepted =
+      work && candidate.acceptedCardId
+        ? { cardId: candidate.acceptedCardId, title: candidate.title, warnings: [], judgment: [] }
+        : await LibraryPort.acceptCard(paths, candId);
+    const { cardId, title, warnings, judgment } = accepted;
     const lines = [
       `已采纳技法卡「${title}」→ cardId=${cardId}`,
       `- 状态：accepted`,
       `- 可检索：fanqie_library_search / library_card_get`,
     ];
     if (work) {
-      const card = await LibraryPort.getCard(paths, cardId);
       try {
-        const meta = await FoundationPort.appendStyleCard(work.dir, styleCardFoundationEntry(card));
+        const card = await LibraryPort.getCard(paths, cardId);
+        const { meta, added } = await FoundationPort.appendStyle(
+          work.dir,
+          styleCardFoundationEntry(card),
+          cardId,
+        );
         lines.push(
-          `- 文风三段+迁移试写已追加进作品「${meta.title}」foundation.style（条目头：文风卡 ${cardId} · 当日日期）`,
+          added
+            ? `- 文风三段+迁移试写已追加进作品「${meta.title}」foundation.style（条目头：文风卡 ${cardId} · 当日日期）`
+            : `- 作品「${meta.title}」已包含文风卡 ${cardId}，未重复追加`,
         );
       } catch (error) {
         throw new Error(
-          `卡「${title}」已采纳（${cardId}），但文风写入作品失败：${error instanceof Error ? error.message : String(error)}。请重试采纳或在作品根基里手工补写 foundation.style。`,
+          `卡「${title}」已采纳（${cardId}），但文风写入作品失败：${error instanceof Error ? error.message : String(error)}。修复后请以 candidate=${candId}、work=${work.key} 重试采纳。`,
           { cause: error },
         );
       }

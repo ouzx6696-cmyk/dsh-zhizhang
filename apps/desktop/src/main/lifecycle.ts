@@ -50,7 +50,7 @@ export async function start() {
   state.diagnostics = new Diagnostics(state.home);
   await state.diagnostics.init();
   await state.diagnostics.write("start", { version: VERSION });
-  const raw = await state.settings.readObject("writer.json");
+  const raw = await state.settings.writerOptions();
   const toutiao = parseToutiaoConfig(raw.toutiao),
     fanqie = parseFanqieConfig(raw.fanqie);
   if (toutiao.issues.length || fanqie.issues.length)
@@ -102,7 +102,9 @@ export async function start() {
         );
       await selectTarget(state, target);
     } catch (error) {
-      notice = "最近项目恢复未完成，请重新选择目录：" + String(error);
+      notice = [notice, "最近项目恢复未完成，请重新选择目录：" + String(error)]
+        .filter(Boolean)
+        .join("\n");
     }
   }
   state.notice = notice;

@@ -12,7 +12,7 @@ export const candidateAccept = defineTool({
     working_dir: WORKING_DIR,
     candidate: S("候选 id（cand-…）"),
     mode: E(["replace", "append"], "默认 replace"),
-    expected_revision: S("旧候选缺少基线时，显式核对的现行章节 revision"),
+    expected_revision: S("可选：已读取并确认的现行章节 revision"),
     force: B("目标章为 final 时必须为 true 才允许覆盖（采纳后降为 drafted）"),
     lint_pass_token: S(
       "可选：fanqie_style_lint 返回的 lintPassToken；省略时自动扫描；已有凭据则核对是否仍对应候选正文",
@@ -39,7 +39,7 @@ export const candidateAccept = defineTool({
     return runAcceptPipeline(args, exec, {
       candidateId,
       mode,
-      expectedRevision: asString(args, "expected_revision"),
+      observedRevision: asString(args, "expected_revision"),
       force: boolArg(args, "force") ?? false,
       lintPassToken: asString(args, "lint_pass_token") ?? undefined,
       skipBrief: boolArg(args, "skip_brief") ?? false,

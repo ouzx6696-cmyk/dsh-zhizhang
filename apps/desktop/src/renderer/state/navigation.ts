@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { errorText } from "../../../../../packages/core/src/errors.js";
-import { notify } from "../../../../../packages/ui/src/notify";
+import { notify } from "@writer/ui/notify";
 import { scopeId, type Focus, type Target } from "../../context";
 
 /** 写作区的挂载范围：同一部长篇或同一个头条目录；切换文章、章节、候选稿都不出这个范围。 */

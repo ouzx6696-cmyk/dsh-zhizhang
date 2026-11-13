@@ -448,7 +448,7 @@ test("stage request: a 401 with a billing link is classified once, as auth, on t
   }
 });
 
-function legacyRecord(fields) {
+function workflowRecord(fields) {
   return {
     schema: 1,
     id: "run-1",
@@ -462,33 +462,13 @@ function legacyRecord(fields) {
   };
 }
 
-test("journal boundary: records written before the reason field get it from their text once", async () => {
+test("journal boundary: structured stop reason is validated", async () => {
   const dir = await mkdtemp(path.join(tmpdir(), "stage-retry-"));
   try {
     const file = path.join(dir, "run-1.json");
-    const cases = [
-      ["paused", "任务输入预算已到阶段边界，进度已保存；可调整预算后恢复", "run-budget"],
-      ["paused", "阶段上下文超预算；请缩小任务或调整预算，未截断关键材料", "stage-budget"],
-      [
-        "paused",
-        "模型服务余额不足，进度已保存并暂停；充值或更换模型连接后可恢复（402）",
-        "balance",
-      ],
-      ["paused", "上次运行已中断，可从已保存阶段恢复", "interrupted"],
-      ["paused", "任务已暂停，阶段进度保留", "stopped"],
-      ["paused", "Request was aborted", "stopped"],
-      ["failed", "503 Service Unavailable", undefined],
-    ];
-    for (const [state, error, reason] of cases) {
-      await writeFile(file, JSON.stringify(legacyRecord({ state, error })));
-      assert.equal((await WorkflowJournal.read(file)).reason, reason, error);
-    }
-    await writeFile(
-      file,
-      JSON.stringify(legacyRecord({ state: "paused", error: "任务已暂停", reason: "balance" })),
-    );
-    assert.equal((await WorkflowJournal.read(file)).reason, "balance", "a stored reason wins");
-    await writeFile(file, JSON.stringify(legacyRecord({ state: "paused", reason: "later" })));
+    await writeFile(file, JSON.stringify(workflowRecord({ state: "paused", reason: "balance" })));
+    assert.equal((await WorkflowJournal.read(file)).reason, "balance");
+    await writeFile(file, JSON.stringify(workflowRecord({ state: "paused", reason: "later" })));
     await assert.rejects(WorkflowJournal.read(file), /停止原因损坏/);
   } finally {
     await rm(dir, { recursive: true, force: true });

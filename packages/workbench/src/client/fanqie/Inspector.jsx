@@ -1,9 +1,9 @@
-import { COPY as viewCopy } from "../../../../ui/src/copy.js";
-import { Steps } from "../../../../ui/src/primitives.jsx";
+import { COPY as viewCopy } from "@writer/ui/copy";
+import { Steps } from "@writer/ui/primitives";
 /** Right column: chapter lifecycle, author actions, candidates and context. */
 import React from "react";
-import { formatCount, formatDateTime, t } from "../../../../ui/src/copy.js";
-import { Button, Icon, Tag, cx } from "../shared/ui.jsx";
+import { formatCount, formatDateTime, t } from "@writer/ui/copy";
+import { Button, Icon, Tag, cx } from "../shared/ui.js";
 import { ActionCard, Callout, Foundation, Hints, Section, StatusTag } from "../shared/common.jsx";
 
 const STAGES = [

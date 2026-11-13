@@ -2,7 +2,7 @@
 import { parseChapterNumber } from "../../domain/chapter-heading.js";
 import { quoteOk } from "../../domain/evidence.js";
 import { chapterText } from "./chapters.js";
-import type { CardEvidence } from "../library/types.js";
+import type { CardEvidence } from "../../ports/library/types.js";
 
 export { quoteOk, verifyBodyQuotes } from "../../domain/evidence.js";
 

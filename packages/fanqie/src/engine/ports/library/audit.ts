@@ -2,7 +2,7 @@
  * 单卡机械审计 — 引文回溯 / 章号对齐 / 字段占位 / mind 剧情分段。
  * 只诊断，不改卡；机械面通过 ≠ 卡能用。
  */
-import { chapterIndex } from "../analysis/chapters.js";
+import { chapterIndex } from "../../services/analysis/chapters.js";
 import { parseChapterNumber } from "../../domain/chapter-heading.js";
 
 const EVIDENCE_QUOTE_RE = /[“"]([^”"\n]{4,240})[”"]/g;

@@ -9,12 +9,7 @@ import {
   RotateCcw,
   type LucideIcon,
 } from "lucide-react";
-import {
-  WORKFLOW_COPY,
-  formatCost,
-  formatElapsed,
-  formatTokens,
-} from "../../../../../../packages/ui/src/copy.js";
+import { WORKFLOW_COPY, formatCost, formatElapsed, formatTokens } from "@writer/ui/copy";
 import {
   hasUsage,
   type WorkflowRecord,

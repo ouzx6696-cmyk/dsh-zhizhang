@@ -1,4 +1,4 @@
-import { COPY as viewCopy } from "../../../../../../packages/ui/src/copy.js";
+import { COPY as viewCopy } from "@writer/ui/copy";
 import React from "react";
 import { FolderOpen } from "lucide-react";
 import { desktop } from "../../state/desktop";

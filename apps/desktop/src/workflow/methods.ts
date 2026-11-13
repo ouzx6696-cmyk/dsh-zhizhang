@@ -4,9 +4,18 @@ import { atomicWrite, readJson, sha256 } from "../../../../packages/core/src/fsx
 import { fanqieLibrary } from "../../../../packages/fanqie/src/forge";
 import { toutiaoLibrary } from "../../../../packages/toutiao/src/methods";
 import { jsonOutput, list, record, text } from "./schema";
-import type { Sessions } from "../session/manager";
+import type { WorkflowHost } from "./host";
 import type { WorkflowRequest } from "../../../../packages/core/src/workflow";
 import type { WorkflowRun } from "./run";
+
+/** Dependencies precede their stage and appear once in both material and fingerprints. */
+export function methodIds(mode: "fanqie" | "toutiao", ids: string[]) {
+  return [
+    ...new Set(
+      ids.flatMap((id) => (mode === "toutiao" && id === "s4-news" ? ["s4-common", id] : [id])),
+    ),
+  ];
+}
 
 interface Rule {
   id: string;
@@ -26,17 +35,24 @@ export async function stageCard(
   id: string,
   options: { maxChars?: number; examples?: boolean } = {},
 ) {
-  const method = await readMethod(
-    mode === "fanqie" ? fanqieLibrary : toutiaoLibrary,
-    undefined,
-    id,
-    run.host.options[mode]?.profile,
+  const methods = await Promise.all(
+    methodIds(mode, [id]).map((methodId) =>
+      readMethod(
+        mode === "fanqie" ? fanqieLibrary : toutiaoLibrary,
+        undefined,
+        methodId,
+        run.host.options[mode]?.profile,
+      ),
+    ),
   );
-  const sourceHash = sha256(method.text);
-  const sections = method.text
-    .split(/\n(?=##\s)/)
-    .filter((section) => section.trim())
-    .map((section, index) => ({ id: `${id}:${index + 1}`, text: section }));
+  const methodText = methods.map((method) => method.text).join("\n\n");
+  const sourceHash = sha256(methodText);
+  const sections = methods.flatMap((method) =>
+    method.text
+      .split(/\n(?=##\s)/)
+      .filter((section) => section.trim())
+      .map((section, index) => ({ id: `${method.id}:${index + 1}`, text: section })),
+  );
   const ids = sections.map((section) => section.id);
   const maximum = options.maxChars ?? 1500;
   const overhead = ids.reduce((sum, id) => sum + id.length + 4, 0);
@@ -65,7 +81,7 @@ export async function stageCard(
   const key = sha256(
     JSON.stringify([
       id,
-      method.text,
+      methodText,
       CARD_PROMPT,
       shape,
       {
@@ -109,7 +125,7 @@ export async function stageCard(
   ].join("\n\n");
 }
 
-export async function methodBasis(host: Sessions, request: WorkflowRequest) {
+export async function methodBasis(host: WorkflowHost, request: WorkflowRequest) {
   const mode = request.kind === "article" ? "toutiao" : "fanqie";
   const ids =
     request.kind === "book"
@@ -135,7 +151,7 @@ export async function methodBasis(host: Sessions, request: WorkflowRequest) {
               "s5-editing",
             ];
   return Promise.all(
-    ids.map(async (id) => {
+    methodIds(mode, ids).map(async (id) => {
       const value = await readMethod(
         mode === "fanqie" ? fanqieLibrary : toutiaoLibrary,
         undefined,

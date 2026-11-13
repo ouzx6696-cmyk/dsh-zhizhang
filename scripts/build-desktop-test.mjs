@@ -1,6 +1,8 @@
 import { build } from "esbuild";
 import path from "node:path";
 const entries = [
+  ["context", "apps/desktop/src/context.ts"],
+  ["desktop-api", "apps/desktop/src/desktop-api.ts"],
   ["runtime-effects", "test/desktop/runtime-effects.ts"],
   ["targets", "apps/desktop/src/main/targets.ts"],
   ["usage", "apps/desktop/src/session/usage.ts"],
@@ -19,6 +21,8 @@ entries.push(
   ["article-facts", "apps/desktop/src/workflow/article-facts.ts"],
   ["task-pool", "apps/desktop/src/session/task-pool.ts"],
   ["workflow-run", "apps/desktop/src/workflow/run.ts"],
+  ["workflow-recovery", "apps/desktop/src/workflow/recovery.ts"],
+  ["workflow-context", "apps/desktop/src/workflow/context.ts"],
   ["workflow-methods", "apps/desktop/src/workflow/methods.ts"],
   ["lease", "packages/core/src/workspace-lock.ts"],
   ["work-store", "packages/fanqie/src/engine/work-store.ts"],

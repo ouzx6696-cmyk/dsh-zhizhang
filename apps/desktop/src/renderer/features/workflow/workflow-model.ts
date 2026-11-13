@@ -9,7 +9,7 @@ import {
   type WorkflowUsage,
 } from "../../../../../../packages/core/src/workflow-config.js";
 import { isRecord } from "../../../../../../packages/core/src/parse.js";
-import { COPY, WORKFLOW_COPY } from "../../../../../../packages/ui/src/copy.js";
+import { COPY, WORKFLOW_COPY } from "@writer/ui/copy";
 
 export const KIND_LABEL: Record<WorkflowKind, string> = {
   book: COPY.workflowBook,

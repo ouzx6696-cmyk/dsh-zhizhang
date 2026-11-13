@@ -36,7 +36,7 @@ export interface Foundation {
 /**
  * T10 结构化连续性（continuity.enabled，默认关）：伏笔线、知识边界、章末交接与定稿核验。
  * 落盘在作品目录 continuity/ 下（foreshadow.json / knowledge.json / commits.json / handoff/<章id>.json）；
- * Foundation 的 happened/threads/readerKnowledge 为 legacy 保留，可用 fanqie_continuity_migrate 生成候选迁移。
+ * 可从作品根基的 happened/threads/readerKnowledge 提取待确认的连续性候选。
  */
 export const FORESHADOW_BEAT_KINDS = [
   "埋设",
@@ -170,6 +170,7 @@ export interface Chapter extends Omit<ChapterMeta, "outline"> {
   body: string;
   outline: Outline;
   revision: string;
+  readVersion: string;
   review?: import("./domain/lifecycle.js").ChapterReview;
   dependencies: import("./domain/lifecycle.js").ChapterDependency[];
 }
@@ -238,7 +239,7 @@ export interface Candidate {
   bodyFile: string;
   wordCount: number;
   /** 语感雷达命中数（style_lint 写入） */
-  targetRevision?: string;
+  targetRevision: string;
   basis?: import("./domain/lifecycle.js").ContextBasis;
   lintHitCount?: number;
   /** 已扫过的凭据（只证明扫过，不等于过关） */
@@ -294,12 +295,6 @@ export interface PluginConfig {
   continuity?: { enabled?: boolean };
   /** 内部：parseFanqieConfig 解析的写手工具面收窄开关 */
   toolset?: { narrowed?: boolean };
-  /** 1.1.1 安全收紧开关（B 类，默认开，可关闭回退）；parseFanqieConfig 解析后随配置传入 */
-  safety?: {
-    finalStructureGuard?: boolean;
-    narrowPlanningBasis?: boolean;
-    fullDissectAuthor?: boolean;
-  };
   /** 固定方法方案（默认 / 原版 / 用户方案名或 id）；parseFanqieConfig 解析后随配置传入 */
   profile?: string;
   [key: string]: unknown;

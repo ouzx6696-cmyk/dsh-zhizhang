@@ -1,4 +1,5 @@
-import { mkdir } from "node:fs/promises";
+import { lstat, mkdir, open, realpath } from "node:fs/promises";
+import { constants } from "node:fs";
 import { claimWorkspace, assertWorkspaceWritable } from "../../core/src/workspace-lock.js";
 /**
  * 头条文章存储。目录布局：
@@ -18,6 +19,7 @@ import path from "node:path";
 import { WriterError } from "../../core/src/tool.js";
 import {
   atomicWrite,
+  assertSafeAncestors,
   exists,
   isMissingFileError,
   readJson,
@@ -126,6 +128,17 @@ const TRANSITIONS: Record<Status, Status[]> = {
 
 export function canTransition(from: Status, to: Status): boolean {
   return TRANSITIONS[from].includes(to);
+}
+
+/** 交稿单第三节必须与当前稿逐字一致；末尾止步语不属于正文。 */
+export function deliveryMatches(markdown: string, draft: string): boolean {
+  const section = markdown.replace(/\r\n/g, "\n").split(/^##\s*三[、.．]\s*终稿正文\s*$/m)[1];
+  if (section === undefined) return false;
+  const body = section.trimStart();
+  const expected = draft.replace(/\r\n/g, "\n").trim();
+  if (!body.startsWith(expected)) return false;
+  const rest = body.slice(expected.length).trim();
+  return !rest || rest === `---\n> ${STOP_LINE}` || /^##\s*四[、.．]\s*标签/.test(rest);
 }
 
 export function deliveryCurrent(m: ArticleMeta): boolean {
@@ -305,9 +318,27 @@ export class ArticleStore {
   }
 
   async readDraft(id: string, rev: number): Promise<string> {
-    const t = await readText(this.draftPath(id, rev));
-    if (t === undefined) throw new WriterError("NOT_FOUND", `没有第 ${rev} 版稿件`);
-    return t;
+    const file = this.draftPath(id, rev);
+    try {
+      await assertSafeAncestors(file);
+      if ((await lstat(file)).isSymbolicLink())
+        throw new WriterError("CONFLICT", "稿件不能是符号链接");
+      const root = await realpath(this.root);
+      const target = await realpath(file);
+      const relative = path.relative(root, target);
+      if (relative.startsWith(".." + path.sep) || relative === ".." || path.isAbsolute(relative))
+        throw new WriterError("CONFLICT", "稿件不在写作根目录中");
+      const handle = await open(file, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
+      try {
+        if (!(await handle.stat()).isFile()) throw new WriterError("CONFLICT", "稿件不是普通文件");
+        return await handle.readFile("utf8");
+      } finally {
+        await handle.close();
+      }
+    } catch (error) {
+      if (isMissingFileError(error)) throw new WriterError("NOT_FOUND", `没有第 ${rev} 版稿件`);
+      throw error;
+    }
   }
 
   /** 新增一版稿件（只增不改）。已交稿的文章不再接受新稿。 */
@@ -327,11 +358,18 @@ export class ArticleStore {
         (m.current_rev !== expected.rev || (this.currentDraft(m)?.sha256 || "") !== expected.sha256)
       )
         throw new WriterError("CONFLICT", "文章已变化，请保留当前修改并重新核对最新稿件。");
+      if (
+        expected &&
+        expected.rev > 0 &&
+        sha256(await this.readDraft(id, expected.rev)) !== expected.sha256
+      )
+        throw new WriterError("CONFLICT", "稿件文件已变化，请保留当前修改并重新核对。");
       const rev = m.current_rev + 1;
       const file = this.draftPath(id, rev);
-      if (await exists(file))
-        throw new WriterError("CONFLICT", `第 ${rev} 版已存在，meta 与稿件目录不一致`);
-      await atomicWrite(file, text);
+      if (await exists(file)) {
+        if ((await this.readDraft(id, rev)) !== text)
+          throw new WriterError("CONFLICT", `第 ${rev} 版已存在，请核对未完成的存稿`);
+      } else await atomicWrite(file, text);
       m.drafts.push({
         rev,
         role,

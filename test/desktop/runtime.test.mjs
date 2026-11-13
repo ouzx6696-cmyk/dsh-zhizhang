@@ -5,6 +5,7 @@ import {
   mkdtemp,
   mkdir,
   readFile,
+  readdir,
   rm,
   writeFile,
   symlink,
@@ -445,6 +446,30 @@ test("来源读取拒绝内网与保留地址；普通公网地址可识别", as
   await assert.rejects(readSource("http://127.0.0.1/"), /内网|保留/);
 });
 
+test("退役旧行为开关时保留其他写作配置", async () => {
+  const home = await mkdtemp(path.join(tmpdir(), "writer-options-"));
+  const settings = new Settings(home, {
+    available: () => false,
+    encrypt: (text) => text,
+    decrypt: (text) => text,
+  });
+  const stored = {
+    fanqie: { profile: "作者方案", safety: { finalStructureGuard: false } },
+    toutiao: { profile: "专栏", revision: { strict: false }, learn: { enabled: true } },
+  };
+  try {
+    const file = path.join(home, "writer.json");
+    await writeFile(file, JSON.stringify(stored));
+    assert.deepEqual(await settings.writerOptions(), {
+      fanqie: { profile: "作者方案" },
+      toutiao: { profile: "专栏", learn: { enabled: true } },
+    });
+    assert.deepEqual(JSON.parse(await readFile(file, "utf8")), stored);
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
 test("安全存储不可用不落盘明文 Key，损坏配置仍可恢复默认", async () => {
   const home = await mkdtemp(path.join(tmpdir(), "writer-settings-"));
   const store = new Settings(home, {
@@ -640,10 +665,13 @@ test("停止任务同时取消父会话与子角色会话", async () => {
     phase: "",
     task: {},
   });
-  sessions.children.set(parent, child);
+  const releaseChild = sessions.registerChild(parent, child);
+  sessions.registerChild(parent, { abort: async () => order.push("second") });
+  releaseChild();
+  sessions.registerChild(parent, child);
   try {
     await sessions.stop(target);
-    assert.deepEqual(order.sort(), ["child", "parent"]);
+    assert.deepEqual(order.sort(), ["child", "parent", "second"]);
     assert.equal(sessions.generations.get(sessions.key(target)), 1);
   } finally {
     await rm(home, { recursive: true, force: true });
@@ -793,6 +821,7 @@ test("首轮审读交接允许无旧回报，恢复须先备份并拒绝锁和�
     const nextMeta = JSON.stringify({ ...JSON.parse(oldMeta), title: "恢复后" });
     const journal = {
       version: 1,
+      kind: "save",
       id: randomUUID(),
       owner: { pid: process.pid, host: hostname() },
       createdAt: new Date().toISOString(),
@@ -1136,7 +1165,7 @@ test("WB-08 只读打开时主进程拒绝写作品的请求；诊断与方法�
     created: async () => {},
     extras: {},
   });
-  // 另一实例占着作品；磁盘上没有它的锁文件，所以挡住写入的只能是主进程这道检查。
+  // 实际磁盘锁决定是否可写，界面状态可能已经过期。
   state.access = {
     readOnly: true,
     owner: {
@@ -1147,6 +1176,11 @@ test("WB-08 只读打开时主进程拒绝写作品的请求；诊断与方法�
       at: "2026-11-09T03:00:00Z",
     },
   };
+  await writeFile(
+    path.join(work.dir, ".writer-workspace-lock.json"),
+    JSON.stringify(state.access.owner),
+  );
+  state.access = { readOnly: false, owner: null };
   registerSessionIpc(state);
   const request = ipcMain.handlers.get("writer:request");
   const main = fromWindow(state.window);
@@ -1154,8 +1188,8 @@ test("WB-08 只读打开时主进程拒绝写作品的请求；诊断与方法�
     const before = await readFile(chapterFile, "utf8");
     const { revision, body: chapterBody } = await readChapter(work.dir, "c001");
     const save = {
-      method: "POST",
-      body: {
+      kind: "write",
+      input: {
         work: work.meta.key,
         chapter: "c001",
         body: "只读实例写进来的正文。\n",
@@ -1163,18 +1197,25 @@ test("WB-08 只读打开时主进程拒绝写作品的请求；诊断与方法�
       },
     };
     const refused = await request(main, "/chapter/save", save);
-    assert.equal(refused.status, 409);
+    assert.equal(refused.data.ok, false);
     assert.equal(refused.data.code, "CONFLICT");
     assert.match(refused.data.error, /DSH.*只读/);
     assert.equal(await readFile(chapterFile, "utf8"), before);
     // 不写作品的请求照常：读、诊断扫描、方法方案（只写用户数据目录）。
     assert.equal(
-      (await request(main, "/chapter", { query: { work: work.meta.key, id: "c001" } })).status,
-      200,
+      (await request(main, "/chapter", { input: { work: work.meta.key, id: "c001" } })).data.ok,
+      true,
     );
+    const capabilities = await request(main, "/diagnostics/capabilities");
+    assert.equal(capabilities.data.deliver, false);
+    assert.equal(capabilities.data.deliverReason, "请先保存模型连接");
+    for (const operation of ["/chapter/save", "/toutiao/draft", "/fanqie/profiles/delete"]) {
+      const mismatch = await request(main, operation, { kind: "read" });
+      assert.equal(mismatch.data.code, "invalid_command");
+    }
     const scan = await request(main, "/diagnostics/scan", {
-      method: "POST",
-      body: {
+      kind: "write",
+      input: {
         work: work.meta.key,
         kind: "chapter",
         chapter: "c001",
@@ -1182,16 +1223,22 @@ test("WB-08 只读打开时主进程拒绝写作品的请求；诊断与方法�
         bodyHash: createHash("sha256").update(chapterBody).digest("hex"),
       },
     });
-    assert.equal(scan.status, 200, JSON.stringify(scan.data));
+    assert.equal(scan.data.ok, true, JSON.stringify(scan.data));
     const profile = await request(main, "/fanqie/profiles/create", {
-      method: "POST",
-      body: { name: "只读时建" },
+      kind: "write",
+      input: { name: "只读时建" },
     });
-    assert.equal(profile.status, 200, JSON.stringify(profile.data));
+    assert.equal(profile.data.ok, true, JSON.stringify(profile.data));
     assert.equal(
-      (await request(main, "/agent/deliver", { method: "POST", body: { action: "write" } })).status,
-      409,
+      (await request(main, "/agent/deliver", { kind: "write", input: { action: "write" } })).data
+        .ok,
+      false,
     );
+    const bypass = await request(main, "/agent/deliver", {
+      kind: "read",
+      input: { action: "write" },
+    });
+    assert.equal(bypass.data.code, "invalid_command");
 
     // DK-05：别的 webContents、子帧、窗口已销毁时一律拒绝，处理函数不执行。
     const stranger = { send: () => {}, mainFrame: {} };
@@ -1217,10 +1264,11 @@ test("WB-08 只读打开时主进程拒绝写作品的请求；诊断与方法�
     await assert.rejects(async () => request(main, "/chapter", {}), /非主窗口/);
     state.window = window;
 
-    // 取得写权限后同一请求照常写入。
-    state.access = { readOnly: false, owner: null };
+    // 磁盘锁已释放时，即使界面仍为只读，同一请求也能写入。
+    await rm(path.join(work.dir, ".writer-workspace-lock.json"));
+    state.access = { readOnly: true, owner: null };
     const saved = await request(main, "/chapter/save", save);
-    assert.equal(saved.status, 200, JSON.stringify(saved.data));
+    assert.equal(saved.data.ok, true, JSON.stringify(saved.data));
     assert.match(await readFile(chapterFile, "utf8"), /只读实例写进来的正文/);
   } finally {
     delete process.env.WRITER_PROFILES_DIR;
@@ -1297,8 +1345,8 @@ test("D01 从可写项目向另一实例占用的项目写入被拒绝", async (
     });
     const { revision } = await readChapter(workB.dir, "c001");
     const save = {
-      method: "POST",
-      body: {
+      kind: "write",
+      input: {
         base: b.base,
         work: workB.meta.key,
         chapter: "c001",
@@ -1307,13 +1355,22 @@ test("D01 从可写项目向另一实例占用的项目写入被拒绝", async (
       },
     };
     const refused = await request(main, "/chapter/save", save);
-    assert.equal(refused.status, 409, JSON.stringify(refused.data));
+    assert.equal(refused.data.ok, false, JSON.stringify(refused.data));
     assert.equal(refused.data.code, "CONFLICT");
     assert.match(refused.data.error, /DSH.*只读/);
     assert.equal(await readFile(chapterFile, "utf8"), before);
+    for (const input of [
+      { ...save.input, root: path.join(base, "unregistered") },
+      { ...save.input, root: a.base },
+    ]) {
+      await assert.rejects(
+        request(main, "/chapter/save", { kind: "write", input }),
+        /目录未登记|目录与项目不一致/,
+      );
+    }
     const articleRefused = await request(main, "/toutiao/draft", {
-      method: "POST",
-      body: {
+      kind: "write",
+      input: {
         root: articlesB,
         id: article.id,
         text: "从 A 越过锁写进 B 的文章。\n",
@@ -1321,7 +1378,7 @@ test("D01 从可写项目向另一实例占用的项目写入被拒绝", async (
         expectedSha256: draftB.sha256,
       },
     });
-    assert.equal(articleRefused.status, 409, JSON.stringify(articleRefused.data));
+    assert.equal(articleRefused.data.ok, false, JSON.stringify(articleRefused.data));
     assert.equal(articleRefused.data.code, "CONFLICT");
     assert.match(articleRefused.data.error, /DSH.*只读/);
     assert.equal(await readFile(draftFile, "utf8"), draftBefore);
@@ -1330,13 +1387,38 @@ test("D01 从可写项目向另一实例占用的项目写入被拒绝", async (
     await new Promise((resolve) => child.once("exit", resolve));
     const saved = await request(main, "/chapter/save", {
       ...save,
-      body: { ...save.body, body: "锁释放后写入。\n" },
+      input: { ...save.input, body: "锁释放后写入。\n" },
     });
-    assert.equal(saved.status, 200, JSON.stringify(saved.data));
+    assert.equal(saved.data.ok, true, JSON.stringify(saved.data));
     assert.match(await readFile(chapterFile, "utf8"), /锁释放后写入/);
   } finally {
     child.kill();
     await state.sessions.dispose();
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("只读选择项目不初始化共享目录", async () => {
+  const { selectTarget } = await import("../../apps/desktop/out-test/targets.mjs");
+  const base = await realpath(await mkdtemp(path.join(tmpdir(), "writer-readonly-select-")));
+  const home = path.join(base, "app"),
+    shared = path.join(base, "shared");
+  await mkdir(home);
+  await mkdir(shared);
+  process.env.WRITER_STATE_ROOT = home;
+  const owner = { id: "foreign", pid: 4242, machine: "other-host", host: "DSH", at: "2026-11-13" };
+  await writeFile(path.join(shared, ".writer-workspace-lock.json"), JSON.stringify(owner));
+  const state = { home, writerConfig: {}, sessions: {} };
+  try {
+    await selectTarget(state, { mode: "fanqie", root: shared });
+    assert.equal(state.access.readOnly, true);
+    assert.deepEqual(await readdir(shared), [".writer-workspace-lock.json"]);
+    assert.deepEqual(
+      JSON.parse(await readFile(path.join(home, "target.json"), "utf8")),
+      state.target,
+    );
+  } finally {
+    await releaseWorkspace(shared);
     await rm(base, { recursive: true, force: true });
   }
 });
@@ -1887,6 +1969,35 @@ test("PI 上下文：连续请求和重启保持历史前缀，缓存用量使�
   }
 });
 
+test("IPC 错误穿过序列化及浏览器接口后仍保留错误码，成功值不变", async () => {
+  const { Runtime, registerSessionIpc, ipcMain } =
+    await import("../../apps/desktop/out-test/runtime-effects.mjs");
+  const { createDesktopApi } = await import("../../apps/desktop/out-test/desktop-api.mjs");
+  const state = new Runtime();
+  state.window = fakeWindow();
+  state.sessions = {
+    view: async () => {
+      throw Object.assign(new Error("作品只读"), { name: "WriterError", code: "CONFLICT" });
+    },
+    running: () => [],
+  };
+  registerSessionIpc(state);
+  const api = createDesktopApi({
+    invoke: (name, ...args) => ipcMain.invoke("writer:" + name, fromWindow(state.window), ...args),
+    subscribe: () => () => {},
+  });
+  await assert.rejects(
+    api.view({ mode: "toutiao", root: "/tmp" }),
+    (error) =>
+      error instanceof Error &&
+      error.code === "CONFLICT" &&
+      error.message === "作品只读" &&
+      error.name === "WriterError",
+  );
+  await assert.rejects(api.view({ mode: "invalid", root: "/tmp" }), /未知模式/);
+  assert.deepEqual(await api.running(), []);
+});
+
 test("IPC 边界拒绝非法角色、动作、恢复条件与字号", async () => {
   const { IPC_PARSERS: p } = await import("../../apps/desktop/out-test/ipc-contract.mjs");
   assert.throws(() => p["model-catalog"](["unknown", {}]), /参数无效/);
@@ -1996,6 +2107,24 @@ test("搜索 Key 可清除，非法外观读盘提示，旧模型迁移保留密
   }
 });
 
+test("损坏的模型和搜索设置不阻断启动", async () => {
+  const home = await mkdtemp(path.join(tmpdir(), "writer-bad-config-"));
+  try {
+    await writeFile(path.join(home, "model.json"), JSON.stringify({ writer: 42 }));
+    await writeFile(path.join(home, "search.json"), JSON.stringify({ provider: "invalid" }));
+    const settings = new Settings(home, {
+      available: () => false,
+      encrypt: (s) => s,
+      decrypt: (s) => s,
+    });
+    await settings.load();
+    assert.ok(settings.notices.some((n) => n.includes("模型配置")));
+    assert.ok(settings.notices.some((n) => n.includes("搜索配置")));
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
 test("诊断精确脱敏并保留容量和无 Key 配置", async () => {
   const home = await mkdtemp(path.join(tmpdir(), "writer-diagnostic-fields-"));
   try {
@@ -2010,7 +2139,10 @@ test("诊断精确脱敏并保留容量和无 Key 配置", async () => {
       authorization: "secret",
       maxTokens: 8192,
       keyless: true,
+      endpoint: "https://example.com/v1?api_key=FAKE_SECRET&maxTokens=42",
     });
+    assert.ok(!result.config.endpoint.includes("FAKE_SECRET"));
+    assert.match(result.config.endpoint, /maxTokens=42/);
     assert.equal(result.config.maxTokens, 8192);
     assert.equal(result.config.keyless, true);
     for (const key of ["apiKey", "token", "secret", "password", "authorization"])
@@ -2297,9 +2429,8 @@ test("压缩埋点：context_compacted 记录 trigger、触发比例与作者任
   }
 });
 
-test("旧目录对话只迁移一次，后续读取不访问旧目录", async () => {
-  const home = await mkdtemp(path.join(tmpdir(), "writer-history-migration-"));
-  const events = [];
+test("当前作品对话历史从自身索引读取", async () => {
+  const home = await mkdtemp(path.join(tmpdir(), "writer-history-"));
   const host = new Sessions({
     home,
     python: PYTHON,
@@ -2308,21 +2439,16 @@ test("旧目录对话只迁移一次，后续读取不访问旧目录", async ()
     confirm: async () => false,
     options: {},
     created: async () => {},
-    extras: { log: (name, fields) => events.push({ name, ...fields }) },
+    extras: {},
   });
   const target = { mode: "toutiao", root: home, article: "article-1" };
   try {
-    const old = await host.directory({ ...target, article: undefined });
-    await mkdir(old, { recursive: true });
-    await writeFile(path.join(old, "history.json"), JSON.stringify(["/tmp/old-session.jsonl"]));
-    await host.initialize(target);
-    await rm(path.join(old, "history.json"));
-    await mkdir(path.join(old, "history.json"));
-    await host.initialize(target);
+    const dir = await host.directory(target);
+    await mkdir(dir, { recursive: true });
+    await writeFile(path.join(dir, "history.json"), JSON.stringify(["/tmp/session.jsonl"]));
     const rows = await host.conversations(target);
     assert.equal(rows.length, 1);
-    assert.equal(rows[0].file, "/tmp/old-session.jsonl");
-    assert.equal(events.filter((e) => e.name === "legacy_sessions_migrated").length, 1);
+    assert.equal(rows[0].file, "/tmp/session.jsonl");
   } finally {
     await host.dispose();
     await rm(home, { recursive: true, force: true });
@@ -2954,7 +3080,7 @@ function writerPrompt(model, index) {
 }
 
 function writerContext(prompt) {
-  const match = /^<writer-context>\n([^\n]+)\n<\/writer-context>\n\n/.exec(prompt);
+  const match = /<writer-context>\n([^\n]+)\n<\/writer-context>\n\n/.exec(prompt);
   assert.ok(match, "任务缺少 writer-context");
   return JSON.parse(match[1]);
 }
@@ -2997,7 +3123,7 @@ test("handoff.v2 注入形态：方法全文走 writer-method 块，writer-conte
     );
     const probe = "开书立项：卖点、主角、规则、节奏档位与读者承诺";
     assert.ok(block[2].includes(probe), "块须携带方法全文");
-    assert.ok(!prompt.match(/^<writer-context>\n([^\n]+)\n<\/writer-context>/)[1].includes(probe));
+    assert.ok(!prompt.match(/<writer-context>\n([^\n]+)\n<\/writer-context>/)[1].includes(probe));
     assert.ok(prompt.endsWith("规划本书开篇。"));
     const handoff = logs.find((row) => row.name === "handoff");
     assert.deepEqual(handoff.methodIds, ["plan-foundation"]);
@@ -3101,7 +3227,7 @@ test("handoff.v2 去重恢复：手动压缩后同方法恢复全文块", async 
     const prompt = model.calls
       .filter((call) => call.model === "mock-writer")
       .map(lastUserText)
-      .filter((text) => text.startsWith("<writer-context>") && text.endsWith("再开书规划一次。"))
+      .filter((text) => text.includes("<writer-context>") && text.endsWith("再开书规划一次。"))
       .at(-1);
     assert.ok(prompt, "压缩后缺少第三次任务调用");
     assert.match(prompt, /<writer-method id="plan-foundation" hash="[0-9a-f]{64}">/);
@@ -3641,9 +3767,7 @@ test("写作台抽卡投递：指令带 writer_draw 场景并要求转报作者�
     logLevel: "silent",
   });
   try {
-    const { buildDeliveryPrompt, DELIVERY_ACTIONS } = await import(pathToFileURL(outfile).href);
-    assert.ok(DELIVERY_ACTIONS.includes("draw-opening"));
-    assert.ok(DELIVERY_ACTIONS.includes("draw-chapter-end"));
+    const { buildDeliveryPrompt } = await import(pathToFileURL(outfile).href);
     const opening = await buildDeliveryPrompt(dir, { action: "draw-opening", chapter: "c001" });
     assert.equal(opening.chapterId, "c001");
     assert.match(opening.text, /writer_draw（scenario="opening"）/);

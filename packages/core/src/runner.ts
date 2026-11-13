@@ -4,7 +4,7 @@
  * - 带超时与取消运行脚本；
  * - stdout 必须是且只是一个 JSON 对象，含 tool/rules_version/ok；否则一律 SCRIPT_FAILED，绝不当作通过。
  */
-import { isMissingFileError } from "./fsx.js";
+import { isMissingFileError, isFsError } from "./fsx.js";
 import { spawn } from "node:child_process";
 import { WriterError } from "./tool.js";
 
@@ -36,7 +36,7 @@ const KILL_GRACE_MS = 2000;
 /** A rule script answers with one JSON object; anything near these sizes is a runaway script. */
 const OUTPUT_LIMITS = { stdout: 8 * 1024 * 1024, stderr: 64 * 1024 } as const;
 
-function exec(cmd: string, args: string[], opts: RunOptions = {}): Promise<Proc> {
+function exec(cmd: string, args: string[], opts: RunOptions = {}, input?: string): Promise<Proc> {
   return new Promise((resolve, reject) => {
     if (opts.signal?.aborted) {
       reject(new WriterError("CANCELLED", "已取消"));
@@ -48,6 +48,7 @@ function exec(cmd: string, args: string[], opts: RunOptions = {}): Promise<Proc>
         cwd: opts.cwd,
         env: { ...process.env, PYTHONIOENCODING: "utf-8", PYTHONUTF8: "1" },
         windowsHide: true,
+        detached: process.platform !== "win32",
       });
     } catch (err) {
       reject(err);
@@ -59,8 +60,23 @@ function exec(cmd: string, args: string[], opts: RunOptions = {}): Promise<Proc>
     let timedOut = false;
     let overflow: Proc["overflow"];
     let forceKill: NodeJS.Timeout | undefined;
+    let stopping = false;
+    const terminate = (signal: NodeJS.Signals) => {
+      if (process.platform === "win32") child.kill(signal);
+      else if (child.pid) {
+        try {
+          process.kill(-child.pid, signal);
+        } catch (error) {
+          if (!isFsError(error, "ESRCH")) {
+            settle();
+            reject(error);
+          }
+        }
+      }
+    };
     // A script that traps or ignores SIGTERM must not hang the tool call forever.
     const stop = () => {
+      stopping = true;
       // Windows 上 `py -3` 会再起一个 python.exe；只杀启动器时它仍持有 stdout 管道，
       // close 事件永不触发，工具调用照样挂死。taskkill /T 才能杀掉整棵进程树。
       if (process.platform === "win32") {
@@ -72,9 +88,9 @@ function exec(cmd: string, args: string[], opts: RunOptions = {}): Promise<Proc>
           if (code !== 0) child.kill();
         });
       } else {
-        child.kill();
+        terminate("SIGTERM");
       }
-      forceKill ??= setTimeout(() => child.kill("SIGKILL"), KILL_GRACE_MS);
+      forceKill ??= setTimeout(() => terminate("SIGKILL"), KILL_GRACE_MS);
     };
     const timer = opts.timeoutMs
       ? setTimeout(() => {
@@ -97,6 +113,13 @@ function exec(cmd: string, args: string[], opts: RunOptions = {}): Promise<Proc>
         stop();
       }
     };
+    child.stdin.on("error", (error) => {
+      if (!isFsError(error, "EPIPE")) {
+        settle();
+        reject(error);
+      }
+    });
+    child.stdin.end(input);
     child.stdout.on("data", collect("stdout", out));
     child.stderr.on("data", collect("stderr", errb));
     child.on("error", (e) => {
@@ -104,6 +127,7 @@ function exec(cmd: string, args: string[], opts: RunOptions = {}): Promise<Proc>
       reject(e);
     });
     child.on("close", (code) => {
+      if (stopping && process.platform !== "win32") terminate("SIGKILL");
       settle();
       resolve({
         code,
@@ -189,6 +213,14 @@ async function findPython(explicit?: string): Promise<PythonCommand> {
   );
 }
 
+// Keep method assets unchanged: only the Node/Python transport uses stdin JSON.
+const SCRIPT_STDIN = `import json,os,runpy,sys
+request=json.load(sys.stdin)
+script=os.path.abspath(request["script"])
+sys.path.insert(0,os.path.dirname(script))
+sys.argv=[script,*request["args"]]
+runpy.run_path(script,run_name="__main__")`;
+
 /** 运行脚本并按契约解析。 */
 export async function runScript(
   python: PythonCommand,
@@ -199,7 +231,12 @@ export async function runScript(
   const timeoutMs = opts.timeoutMs ?? 60_000;
   let r: Proc;
   try {
-    r = await exec(python.cmd, [...python.prefix, script, ...args], { ...opts, timeoutMs });
+    r = await exec(
+      python.cmd,
+      [...python.prefix, "-c", SCRIPT_STDIN],
+      { ...opts, timeoutMs },
+      JSON.stringify({ script, args }),
+    );
   } catch (err) {
     if (err instanceof WriterError) throw err;
     throw new WriterError(

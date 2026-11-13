@@ -1,10 +1,6 @@
 import { errorText } from "../../../../../packages/core/src/errors.js";
-import {
-  COPY as viewCopy,
-  formatDateTime,
-  t as viewText,
-} from "../../../../../packages/ui/src/copy.js";
-import { dismissNotices, notify } from "../../../../../packages/ui/src/notify";
+import { COPY as viewCopy, formatDateTime, t as viewText } from "@writer/ui/copy";
+import { dismissNotices, notify } from "@writer/ui/notify";
 import { DEFAULT_HISTORY_LIMIT } from "../../history-options";
 import { createDraftProtection } from "./draftProtection";
 import { useDesktopEvents } from "./useDesktopEvents";
@@ -167,7 +163,7 @@ function createDesktopController() {
     if (persist || scopeId(desktopStore.get().system?.target) !== scopeId(chosen))
       await syncState();
     const [, archives] = await Promise.all([loadView(chosen), api.conversations(chosen)]);
-    chatStore.set({ archives });
+    if (request === selectionRequest) chatStore.set({ archives });
   }
 
   async function changeView(view: string) {

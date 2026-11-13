@@ -2,29 +2,27 @@
 export type Json = unknown;
 
 export class ApiError extends Error {
-  status: number;
+  uncertain: boolean;
   code: string;
-  constructor(message: string, { status = 0, code = "" } = {}) {
+  constructor(message: string, { uncertain = false, code = "" } = {}) {
     super(message);
     this.name = "ApiError";
-    this.status = status;
+    this.uncertain = uncertain;
     this.code = code;
   }
 }
 
 export type RequestOptions = {
-  method?: string;
-  query?: Record<string, unknown>;
-  body?: unknown;
-  timeoutMs?: number;
+  kind?: "read" | "write";
+  input?: unknown;
   signal?: AbortSignal;
 };
 
 export type DesktopBridge = {
   request: (
     operation: string,
-    options: { method?: string; query?: Record<string, unknown>; body?: unknown },
-  ) => Promise<{ status: number; data: Json }>;
+    options: { kind?: "read" | "write"; input?: unknown },
+  ) => Promise<{ data: Json }>;
 };
 
 type SaveChapterInput = {

@@ -4,7 +4,11 @@ export { createStore, sameFields } from "../../apps/desktop/src/renderer/state/c
 export { footerStatus } from "../../apps/desktop/src/renderer/features/agent/composer";
 export { quickActions } from "../../apps/desktop/src/renderer/features/agent/quickActions";
 export {
+  deliverAction,
+  startNewWork,
+} from "../../apps/desktop/src/renderer/features/agent/taskActions";
+export {
   RootErrorBoundary,
   reportUnhandledRejection,
 } from "../../apps/desktop/src/renderer/app/crash";
-export { NoticeStack } from "../../packages/ui/src/notify";
+export { NoticeStack } from "@writer/ui/notify";

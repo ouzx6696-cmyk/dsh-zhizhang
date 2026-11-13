@@ -1,13 +1,27 @@
 import React from "react";
+import type { ReactNode, ComponentProps } from "react";
 
-export function Button({ variant = "secondary", className = "", children, ...props }) {
+export function Button({
+  variant = "secondary",
+  className = "",
+  children,
+  ...props
+}: ComponentProps<"button"> & { variant?: string }) {
   return (
     <button type="button" {...props} className={`ui-button ui-button-${variant} ${className}`}>
       {children}
     </button>
   );
 }
-export function Steps({ steps, current, label }) {
+export function Steps({
+  steps,
+  current,
+  label,
+}: {
+  steps: string[];
+  current: number;
+  label?: string;
+}) {
   return (
     <ol className="ui-steps" aria-label={label}>
       {steps.map((step, i) => (
@@ -23,7 +37,17 @@ export function Steps({ steps, current, label }) {
     </ol>
   );
 }
-export function Card({ title = "", children, actions = null, className = "" }) {
+export function Card({
+  title = "",
+  children,
+  actions = null,
+  className = "",
+}: {
+  title?: ReactNode;
+  children?: ReactNode;
+  actions?: ReactNode;
+  className?: string;
+}) {
   return (
     <section className={`ui-card ${className}`}>
       {title && <h3>{title}</h3>}
@@ -32,7 +56,15 @@ export function Card({ title = "", children, actions = null, className = "" }) {
     </section>
   );
 }
-export function Stat({ label, value, detail }) {
+export function Stat({
+  label,
+  value,
+  detail,
+}: {
+  label: ReactNode;
+  value: ReactNode;
+  detail?: ReactNode;
+}) {
   return (
     <div className="ui-stat">
       <span>{label}</span>
@@ -41,7 +73,15 @@ export function Stat({ label, value, detail }) {
     </div>
   );
 }
-export function Toggle({ label, checked, onChange }) {
+export function Toggle({
+  label,
+  checked,
+  onChange,
+}: {
+  label: ReactNode;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
   return (
     <label className="ui-toggle">
       <span>{label}</span>
@@ -62,7 +102,6 @@ export function Brand() {
   );
 }
 
-/** @param {{open?:boolean,title:string,className?:string,onClose:()=>void,children?:React.ReactNode,closeLabel?:string,description?:React.ReactNode,footer?:React.ReactNode}} props */
 export function Dialog({
   open = true,
   title,
@@ -72,10 +111,20 @@ export function Dialog({
   closeLabel,
   description,
   footer,
+}: {
+  open?: boolean;
+  title: string;
+  className?: string;
+  onClose: () => void;
+  children?: ReactNode;
+  closeLabel?: string;
+  description?: ReactNode;
+  footer?: ReactNode;
 }) {
-  const ref = React.useRef(null);
+  const ref = React.useRef<HTMLDialogElement>(null);
   React.useEffect(() => {
     const node = ref.current;
+    if (!node) return;
     if (open) node.showModal();
     else node.close();
     return () => node.close();

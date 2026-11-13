@@ -1,5 +1,5 @@
 import React from "react";
-import { statusInfo, type StatusMode } from "./status";
+import { statusInfo, type StatusMode } from "./status.js";
 
 export function StatusBadge({
   mode,

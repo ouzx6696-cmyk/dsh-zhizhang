@@ -32,7 +32,6 @@ function draftsFixture() {
   });
   const storage = memoryStorage();
   const listeners = new Map();
-  const warnings = [];
   const window = {
     localStorage: storage,
     addEventListener: (type, fn) => listeners.set(type, fn),
@@ -46,24 +45,22 @@ function draftsFixture() {
     clearTimeout: clock.clearTimeout,
     Date: clock.Date,
     DOMException,
-    console: { warn: (message) => warnings.push(message) },
   });
-  return { runtime, clock, storage, listeners, warnings, ui };
+  return { runtime, clock, storage, listeners, ui };
 }
 
 const CHAPTER = { base: "b", work: "w", chapter: "c001", slot: "official" };
-/** 1.0.1 之前的键：末尾带版本。 */
-const legacyKey = (parts) => "dsh-writer-draft:" + JSON.stringify(parts);
+const expectedKey = (parts) => "dsh-writer-draft:" + JSON.stringify(parts);
 
 // —— drafts.js ——
 
 test("草稿键：只含模式、作品、章节与槽位，不含版本；槽位或作品不同则键不同", () => {
   const { ui } = draftsFixture();
   assert.equal(ui.chapterDraftKey(CHAPTER), ui.chapterDraftKey({ ...CHAPTER }));
-  assert.equal(ui.chapterDraftKey(CHAPTER), legacyKey(["fanqie", "b", "w", "c001", "official"]));
+  assert.equal(ui.chapterDraftKey(CHAPTER), expectedKey(["fanqie", "b", "w", "c001", "official"]));
   assert.notEqual(ui.chapterDraftKey(CHAPTER), ui.chapterDraftKey({ ...CHAPTER, slot: "cand-1" }));
   assert.notEqual(ui.chapterDraftKey(CHAPTER), ui.chapterDraftKey({ ...CHAPTER, work: "w2" }));
-  assert.equal(ui.articleDraftKey({ root: "r", id: "a1" }), legacyKey(["toutiao", "r", "a1"]));
+  assert.equal(ui.articleDraftKey({ root: "r", id: "a1" }), expectedKey(["toutiao", "r", "a1"]));
 });
 
 test("草稿：写入后读回原文、写入时间与起草时的版本，清除后读不到", () => {
@@ -100,78 +97,18 @@ test("草稿：存储本身读写失败时原样抛出，由编辑器告诉作�
   assert.throws(() => ui.writeDraft(ui.chapterDraftKey(CHAPTER), "x", "r1"), /storage is full/);
 });
 
-test("启动清理：超过两周的草稿与损坏条目被删，近期草稿与其它键保留", () => {
-  const { ui, storage, clock } = draftsFixture();
-  const old = ui.chapterDraftKey({ ...CHAPTER, chapter: "old" });
-  const fresh = ui.chapterDraftKey({ ...CHAPTER, chapter: "fresh" });
-  const broken = ui.chapterDraftKey({ ...CHAPTER, chapter: "broken" });
-  ui.writeDraft(old, "旧", "r1");
-  clock.advance(DAY);
-  ui.writeDraft(fresh, "新", "r1");
-  storage.setItem(broken, "oops");
-  storage.setItem("dsh-writer-prefs", "{}");
-  clock.advance(13 * DAY);
-  ui.sweepDrafts();
-  assert.deepEqual(storage.keys().sort(), ["dsh-writer-prefs", fresh, old].sort());
-  clock.advance(1);
-  ui.sweepDrafts();
-  assert.deepEqual(storage.keys().sort(), ["dsh-writer-prefs", fresh].sort());
-});
-
-test("启动清理：旧格式键改写成新键，版本段转存为 baseRevision；同一章多份只留最新", () => {
-  const { ui, storage, clock } = draftsFixture();
-  clock.advance(DAY);
-  const r1 = legacyKey(["fanqie", "b", "w", "c001", "official", "r1"]);
-  const r2 = legacyKey(["fanqie", "b", "w", "c001", "official", "r2"]);
-  const other = legacyKey(["fanqie", "b", "w", "c002", "cand-1", "r7"]);
-  const article = legacyKey(["toutiao", "root", "a1", 3, "sha"]);
-  storage.setItem(r2, JSON.stringify({ text: "较早的草稿", savedAt: 1000 }));
-  storage.setItem(r1, JSON.stringify({ text: "最新的草稿", savedAt: 2000 }));
-  storage.setItem(other, JSON.stringify({ text: "候选草稿", savedAt: 1500 }));
-  storage.setItem(article, JSON.stringify({ text: "头条草稿", savedAt: 1500 }));
-  ui.sweepDrafts();
-  for (const key of [r1, r2, other, article]) assert.equal(storage.getItem(key), null);
-  assert.deepEqual(plain(ui.readDraft(ui.chapterDraftKey(CHAPTER))), {
-    text: "最新的草稿",
-    savedAt: 2000,
+test("未保存的草稿超过两周仍可恢复，保存或放弃后由作者清除", () => {
+  const { ui, clock } = draftsFixture();
+  const key = ui.chapterDraftKey(CHAPTER);
+  ui.writeDraft(key, "长期保留的正文", "r1");
+  clock.advance(30 * DAY);
+  assert.deepEqual(plain(ui.readDraft(key)), {
+    text: "长期保留的正文",
+    savedAt: 0,
     baseRevision: "r1",
   });
-  assert.equal(
-    ui.readDraft(ui.chapterDraftKey({ ...CHAPTER, chapter: "c002", slot: "cand-1" })).baseRevision,
-    "r7",
-  );
-  assert.deepEqual(plain(ui.readDraft(ui.articleDraftKey({ root: "root", id: "a1" }))), {
-    text: "头条草稿",
-    savedAt: 1500,
-    baseRevision: { rev: 3, sha256: "sha" },
-  });
-});
-
-test("启动清理：已有更新的新格式草稿时旧键不覆盖它；旧键超期照常清掉", () => {
-  const { ui, storage, clock } = draftsFixture();
-  const key = ui.chapterDraftKey(CHAPTER);
-  clock.advance(DAY);
-  ui.writeDraft(key, "新格式", "r3");
-  storage.setItem(
-    legacyKey(["fanqie", "b", "w", "c001", "official", "r1"]),
-    JSON.stringify({ text: "旧格式", savedAt: 10 }),
-  );
-  const stale = legacyKey(["fanqie", "b", "w", "c009", "official", "r1"]);
-  storage.setItem(stale, JSON.stringify({ text: "很久以前", savedAt: 0 }));
-  clock.advance(14 * DAY);
-  ui.sweepDrafts();
-  assert.deepEqual(storage.keys(), [key]);
-  assert.equal(ui.readDraft(key).text, "新格式");
-});
-
-test("启动清理：旧格式条目无法解析时原样保留并写诊断，不删除", () => {
-  const f = draftsFixture();
-  const broken = legacyKey(["fanqie", "b", "w", "c001", "official", "r1"]);
-  f.storage.setItem(broken, "{not json");
-  f.ui.sweepDrafts();
-  assert.equal(f.storage.getItem(broken), "{not json");
-  assert.equal(f.storage.keys().length, 1);
-  assert.match(f.warnings[0], /原条目保留/);
+  ui.clearDraft(key);
+  assert.equal(ui.readDraft(key), null);
 });
 
 test("其它作品的草稿：同一作品的其它章节与槽位不算，其它作品与头条文章算", () => {
@@ -344,7 +281,7 @@ test("草稿暂存：与盘上原文相同的旧草稿不提示", async () => {
   assert.equal(m.stash().offer, null);
 });
 
-test("草稿暂存：打开编辑器不清理别处的草稿，过期清理只在启动时做", async () => {
+test("草稿暂存：打开编辑器不清理别处的草稿", async () => {
   const f = draftsFixture();
   const stale = f.ui.chapterDraftKey({ ...CHAPTER, chapter: "stale" });
   f.ui.writeDraft(stale, "很久以前", "r1");

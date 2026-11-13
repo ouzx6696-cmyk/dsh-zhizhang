@@ -78,9 +78,6 @@ async function chapterRows(dir: string, chapters: ChapterMeta[]) {
     };
   });
 }
-export async function listChapterLensRows(dir: string) {
-  return chapterRows(dir, (await readWorkMeta(dir)).chapters);
-}
 // —— § continuity view (T11) ——
 /** 开关开时快照的 continuityView 段：伏笔线清单、知识边界、最近章末交接与知情越界候选数。 */
 interface ContinuityView {

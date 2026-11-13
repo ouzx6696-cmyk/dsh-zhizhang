@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { COPY as copy } from "../../../../../../packages/ui/src/copy.js";
+import { COPY as copy } from "@writer/ui/copy";
 import { errorText } from "../../../../../../packages/core/src/errors.js";
 import { desktop } from "../../state/desktop";
 import type { Target } from "../../../context";

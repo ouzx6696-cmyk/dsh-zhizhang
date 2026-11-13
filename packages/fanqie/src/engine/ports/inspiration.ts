@@ -4,7 +4,7 @@ import type {
   StageEmissionInput,
   CardSelection,
 } from "./inspiration-input.js";
-import { readInspirationBindings, unbindCards } from "../storage/inspiration-migration.js";
+import { readInspirationBindings, unbindCards } from "../storage/inspiration-bindings.js";
 import {
   nowIso,
   readJson,
@@ -51,7 +51,6 @@ import {
   hasShatterCraftCue,
 } from "./library.js";
 import { MethodRegistry } from "./methods.js";
-import { getPortConfig } from "./config.js";
 import { QualityPolicy } from "./quality-policy.js";
 import type { StoragePaths, WorkMeta } from "../types.js";
 /** Chapter outlines live in the chapter files, not in meta; a missing file has no outline. */
@@ -164,9 +163,7 @@ export const InspirationPort = {
               targetPlanningRevision: await (async () => {
                 const dir = await resolveWorkDir(paths, input.workKey ?? "");
                 const meta = await readWorkMeta(dir);
-                return getPortConfig().narrowPlanningBasis
-                  ? planningBasis(meta, await chapterOutlines(dir, meta))
-                  : fingerprint(meta);
+                return planningBasis(meta, await chapterOutlines(dir, meta));
               })(),
             }
           : {}),
@@ -777,7 +774,6 @@ export const InspirationPort = {
             status: previous?.status ?? "planned",
             outline: { ...(previous?.outline ?? {}), ...patch },
             workPace: pace,
-            structureGuard: getPortConfig().finalStructureGuard,
           });
           writes.push({
             target: "work",

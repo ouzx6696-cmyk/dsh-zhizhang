@@ -31,7 +31,19 @@ const isSecretKey = (key: string) => SECRET_KEYS.has(key.toLowerCase().replace(/
 function cleanText(text: string): string {
   return text
     .replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^\s/?#@]+@/gi, `$1${REMOVED}@`)
-    .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi, `$1 ${REMOVED}`);
+    .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi, `$1 ${REMOVED}`)
+    .replace(/https?:\/\/[^\s"'<>]+/gi, (match) => {
+      if (!match.includes("?")) return match;
+      try {
+        const url = new URL(match);
+        for (const key of url.searchParams.keys()) {
+          if (isSecretKey(key) || key.toLowerCase() === "key") url.searchParams.set(key, REMOVED);
+        }
+        return url.href;
+      } catch {
+        return match; // allow-catch: 非完整 URL 保持原文，其他脱敏规则仍生效。
+      }
+    });
 }
 
 /** JSON.stringify 的替换函数：诊断里所有字段与配置共用这一处脱敏。 */

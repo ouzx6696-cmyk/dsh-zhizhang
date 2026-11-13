@@ -40,8 +40,12 @@ async function scan(root) {
       const file = path.join(dir, name),
         item = rel ? path.join(rel, name) : name;
       const st = await lstat(file);
-      if (name === ".writer-write-lock")
-        fail(`发现写锁 ${file}；请停止所有写入进程并核对后再备份。`);
+      if (
+        [".writer-write-lock", ".writer-write-lock-gate", ".writer-workspace-claim-gate"].includes(
+          name,
+        )
+      )
+        fail(`发现写入登记 ${file}；请停止所有写入进程并核对后再备份。`);
       if (st.isSymbolicLink())
         entries.push({ path: item, type: "symlink", target: await readlink(file) });
       else if (st.isDirectory()) {
@@ -152,4 +156,10 @@ try {
 } catch (err) {
   console.error(`备份失败：${err instanceof Error ? err.message : String(err)}`);
   process.exitCode = 1;
+}
+// Electron's parent port keeps a utility worker alive after the CLI has finished.
+if (process.parentPort) {
+  await new Promise((resolve) => process.stdout.write("", resolve));
+  await new Promise((resolve) => process.stderr.write("", resolve));
+  process.exit(process.exitCode ?? 0);
 }

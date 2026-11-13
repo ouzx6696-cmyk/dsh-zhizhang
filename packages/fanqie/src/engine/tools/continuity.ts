@@ -1,5 +1,5 @@
 /**
- * T10 结构化连续性工具组：伏笔线/知识边界登记（规划期）、定稿核验（commit）、查询与 legacy 迁移。
+ * T10 结构化连续性工具组：伏笔线/知识边界登记（规划期）、定稿核验、查询与笔记候选提取。
  * 全部工具在开关关闭时返回 continuity_disabled；写路径在作品锁内走 storage/continuity.ts。
  */
 import { bridge, withTempFiles } from "../../forge.js";
@@ -27,9 +27,8 @@ import {
   readForeshadow,
   readHandoff,
   readKnowledge,
-  saveCommits,
+  commitContinuity,
   saveForeshadow,
-  saveHandoff,
   saveKnowledge,
 } from "../storage/continuity.js";
 import { listChapters, readChapter } from "../storage/chapters.js";
@@ -469,13 +468,14 @@ const continuityCommit = defineTool({
         openLoops,
         at: nowIso(),
       };
-      if (linesAdvanced.length > 0) await saveForeshadow(dir, nextLines, foreshadow.revision);
-      await saveHandoff(dir, handoffRecord, existingHandoff?.revision);
-      await saveCommits(
-        dir,
-        [...commits.commits.filter((v) => v.chapter !== chapterId), record],
-        commits.revision,
-      );
+      await commitContinuity(dir, {
+        ...(linesAdvanced.length > 0 ? { lines: nextLines } : {}),
+        foreshadowRevision: foreshadow.revision,
+        handoff: handoffRecord,
+        handoffRevision: existingHandoff?.revision ?? 0,
+        commits: [...commits.commits.filter((v) => v.chapter !== chapterId), record],
+        commitsRevision: commits.revision,
+      });
       return JSON.stringify(
         {
           chapter: chapterId,
@@ -599,7 +599,7 @@ const continuityGet = defineTool({
 const continuityMigrate = defineTool({
   name: "fanqie_continuity_migrate",
   description:
-    "legacy 迁移候选（只输出候选清单，不写盘）：从根基 happened/threads/readerKnowledge 与最近 N 章正文抽取伏笔线/知识候选，逐条带来源；作者确认后用 fanqie_foreshadow_set / fanqie_knowledge_set 登记。",
+    "从现有笔记提取候选（只输出清单，不写盘）：从根基 happened/threads/readerKnowledge 与最近 N 章正文抽取伏笔线/知识候选，逐条带来源；作者确认后用 fanqie_foreshadow_set / fanqie_knowledge_set 登记。",
   properties: {
     work: WORK_OPT,
     working_dir: WORKING_DIR,

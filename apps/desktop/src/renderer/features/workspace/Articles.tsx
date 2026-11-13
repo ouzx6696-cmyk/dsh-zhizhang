@@ -1,11 +1,6 @@
-import {
-  COPY as viewCopy,
-  formatDateTime,
-  t as viewText,
-  t,
-} from "../../../../../../packages/ui/src/copy.js";
-import { ARTICLE_STEPS, articleProgress } from "../../../../../../packages/ui/src/status";
-import { Steps } from "../../../../../../packages/ui/src/primitives";
+import { COPY as viewCopy, formatDateTime, t as viewText, t } from "@writer/ui/copy";
+import { ARTICLE_STEPS, articleProgress } from "@writer/ui/status";
+import { Steps } from "@writer/ui/primitives";
 import React, { useCallback, useEffect, useState } from "react";
 import { useToutiao } from "../../../../../../packages/workbench/src/client/toutiao/useToutiao.js";
 import {
@@ -14,7 +9,7 @@ import {
   ToutiaoSide,
 } from "../../../../../../packages/workbench/src/client/toutiao/ToutiaoApp.jsx";
 import { Check } from "lucide-react";
-import { StatusBadge } from "../../../../../../packages/ui/src/status-badge";
+import { StatusBadge } from "@writer/ui/status-badge";
 import type { ArticleDetail, ArticleRow, WorkspaceProps } from "../../../renderer-contracts";
 import { askConfirm } from "../../state/confirm";
 import { useWorkspaceNavigator } from "../../state/navigation";

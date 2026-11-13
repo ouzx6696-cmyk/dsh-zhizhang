@@ -1,6 +1,5 @@
 import { parsePursuitOutline } from "../../domain/pursuit.js";
 import { setOutline } from "../../storage/chapters.js";
-import { getPortConfig } from "../../ports/config.js";
 
 import { asString, boolArg, fail, openWork } from "../context.js";
 import { renderOutline } from "../render.js";
@@ -42,7 +41,6 @@ export const outlineSet = defineTool({
     }
     const saved = await setOutline(dir, chapterId, patch, asString(args, "title"), {
       force: boolArg(args, "force") === true,
-      structureGuard: getPortConfig().finalStructureGuard,
     });
     return [`已写入章纲「${saved.title}」`, renderOutline(saved.outline)].join("\n");
   },

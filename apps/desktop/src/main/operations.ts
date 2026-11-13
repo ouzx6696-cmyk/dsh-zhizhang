@@ -1,20 +1,29 @@
 import type { Target, Focus } from "../context";
 import { buildDeliveryPrompt } from "../../../../packages/fanqie/src/workbench/delivery";
 import { listProjects } from "../../../../packages/fanqie/src/engine/storage/projects";
-import { toutiaoApi } from "../../../../packages/toutiao/src/workbench/api";
+import { listKnownRoots } from "../../../../packages/toutiao/src/env";
+import { physicalRoot, rootIdentity } from "../../../../packages/core/src/identity";
+import {
+  isToutiaoCommand,
+  runToutiaoCommand,
+} from "../../../../packages/toutiao/src/workbench/api";
 import { fanqieApi } from "../../../../packages/fanqie/src/workbench/api";
 import { profileRoutes } from "../../../../packages/workbench/src/profile-api";
 import { toutiaoLibrary } from "../../../../packages/toutiao/src/methods";
 import { fanqieLibrary } from "../../../../packages/fanqie/src/forge";
 import { buildToutiaoDelivery } from "../../../../packages/toutiao/src/workbench/data";
 import {
-  API,
-  ROUTES,
+  COMMANDS,
+  commandPolicy,
   sendError,
-  type RouteContext,
-} from "../../../../packages/workbench/src/routes";
-import { workspaceReadOnlyError } from "../../../../packages/core/src/workspace-lock";
-import { selectTarget } from "./targets";
+  type CommandPolicy,
+  type CommandContext,
+} from "../../../../packages/workbench/src/commands";
+import {
+  workspaceAccess,
+  workspaceReadOnlyError,
+} from "../../../../packages/core/src/workspace-lock";
+import { lockRoot, selectTarget } from "./targets";
 import { resolveFanqieWork } from "./storage";
 import type { Runtime } from "./runtime";
 import type { RequestOptions, RequestResult } from "./ipc/contract";
@@ -35,27 +44,45 @@ function responseId(data: Record<string, unknown>, key: string): string | number
   const value = data[key];
   return typeof value === "string" || typeof value === "number" ? value : undefined;
 }
-async function resolveOperationTarget(state: Runtime, operation: string, options: RequestOptions) {
+async function resolveOperationTarget(
+  state: Runtime,
+  policy: CommandPolicy,
+  options: RequestOptions,
+) {
   const selected = state.target;
   if (!selected) throw new Error("请先选择创作目录");
-  if (state.maintenance && options.method === "POST")
+  if (state.maintenance && options.kind === "write")
     throw new Error("正在恢复作品，请等待完成后再修改");
-  const url = new URL(API + operation, "app://writer");
-  for (const [key, value] of Object.entries(options.query ?? {}))
-    if (value !== undefined && value !== "") url.searchParams.set(key, String(value));
-  const body = options.body === undefined ? {} : asRecord(options.body, "请求内容");
-  const base = operation.endsWith("/profiles/create")
-    ? undefined
-    : textField(body, "base") || textField(body, "project") || options.query?.base;
-  const project = (await listProjects()).find((row) =>
-    base ? row.id === base || row.base === base : row.base === selected.root,
+  const input = options.input === undefined ? {} : asRecord(options.input, "操作内容");
+  const base =
+    policy.profileAction === "/create"
+      ? undefined
+      : textField(input, "base") || textField(input, "project");
+  const requested = textField(input, "root");
+  const projects = await listProjects();
+  const project = projects.find((row) =>
+    base
+      ? row.id === base || rootIdentity(row.base) === rootIdentity(base)
+      : rootIdentity(row.base) === rootIdentity(requested || selected.root),
   );
   if (base && !project) throw new Error("项目未登记，请重新选择创作目录");
-  const mode = operation.startsWith("/toutiao") ? "toutiao" : "fanqie";
-  const work = textField(body, "work") || options.query?.work;
+  const mode = policy.mode;
+  const root = physicalRoot(requested || project?.base || selected.root);
+  if (requested) {
+    const roots = mode === "toutiao" ? await listKnownRoots() : projects.map((row) => row.base);
+    if (!roots.concat(selected.root).some((value) => rootIdentity(value) === rootIdentity(root)))
+      throw new Error("目录未登记，请先选择创作目录");
+    if (base && project && rootIdentity(root) !== rootIdentity(project.base))
+      throw new Error("目录与项目不一致，请重新选择创作目录");
+  }
+  const work =
+    textField(input, "work") ||
+    (mode === selected.mode && rootIdentity(root) === rootIdentity(selected.root)
+      ? selected.work
+      : undefined);
   const target: Target = {
     mode,
-    root: textField(body, "root") || String(options.query?.root || project?.base || selected.root),
+    root,
     ...(work ? { work: String(work) } : {}),
   };
   const config = {
@@ -64,11 +91,12 @@ async function resolveOperationTarget(state: Runtime, operation: string, options
     python: state.pythonPath(),
     ...(project?.worksRoot ? { worksRoot: project.worksRoot } : {}),
   };
-  return { selected, url, body, target, config };
+  return { selected, input, target, config };
 }
 type Operation = Awaited<ReturnType<typeof resolveOperationTarget>>;
+
 async function deliver(state: Runtime, context: Operation): Promise<RequestResult> {
-  const { target, body } = context;
+  const { target, input: body } = context;
   await selectTarget(state, target);
   state.emit({ selection: state.target });
   const action = textField(body, "action");
@@ -103,38 +131,34 @@ async function deliver(state: Runtime, context: Operation): Promise<RequestResul
             ? "plan"
             : "write",
   });
-  return { status: 200, data: { ok: true, text: prompt.text } };
+  return { data: { ok: true, text: prompt.text } };
 }
-async function route(
+async function dispatchCommand(
   state: Runtime,
   context: Operation,
+  operation: string,
   options: RequestOptions,
+  policy: CommandPolicy,
 ): Promise<RequestResult> {
-  const { config, url, body, selected } = context;
-  const modes = [
-    toutiaoApi(config, () => !!state.model.writer.apiKey),
-    fanqieApi(config),
-    profileRoutes(API + "/toutiao", toutiaoLibrary, () => state.writerConfig.toutiao?.profile),
-    profileRoutes(API + "/fanqie", fanqieLibrary, () => state.writerConfig.fanqie?.profile),
-  ];
-  let response: RequestResult = { status: 404, data: { ok: false, error: "未知操作" } };
-  const ctx: RouteContext = {
-    url,
-    method: options.method ?? "GET",
-    path: url.pathname,
-    json(status, data) {
-      response = { status, data };
-    },
-    async body() {
-      return body;
+  const { config, input } = context;
+  const handler =
+    policy.handler === "profile"
+      ? profileRoutes(
+          `/${policy.mode}`,
+          policy.mode === "toutiao" ? toutiaoLibrary : fanqieLibrary,
+          () => state.writerConfig[policy.mode]?.profile,
+        )
+      : fanqieApi(config);
+  let response: RequestResult = { data: { ok: false, code: "NOT_FOUND", error: "未知操作" } };
+  const ctx: CommandContext = {
+    command: operation,
+    kind: options.kind ?? "read",
+    input,
+    reply(data) {
+      response = { data };
     },
   };
-  for (const handler of modes) if (await handler.handle(ctx)) break;
-  if (url.pathname === API + "/toutiao/articles") {
-    const data = asRecord(response.data, "响应内容");
-    data.currentRoot = selected.root;
-    data.deliverReason = state.model.writer.apiKey ? undefined : "请先保存模型连接";
-  }
+  await handler.handle(ctx);
   return response;
 }
 async function notifyWrite(
@@ -143,13 +167,7 @@ async function notifyWrite(
   context: Operation,
   response: RequestResult,
 ) {
-  if (
-    !/\/(candidate\/accept|chapter\/(review|finalize|save)|revision\/acknowledge|diagnostics\/stage|toutiao\/(adopt|draft)|profiles\/(use|create|save|reset|rename|delete))$/.test(
-      operation,
-    )
-  )
-    return;
-  const { target, selected, body } = context;
+  const { target, selected, input: body } = context;
   try {
     const bound =
       !target.work && target.mode === selected.mode && target.root === selected.root
@@ -173,40 +191,48 @@ async function notifyWrite(
   }
   state.emit({ refresh: true });
 }
-/**
- * 只读打开（作品被另一实例占用）时，主进程是拒写的唯一关口：界面上哪个入口发来的 POST 都在这里挡下。
- * 放行的只有不写作品的请求：诊断扫描、统一整理的简报，以及只写用户数据目录的方法方案。
- */
-function writesWork(operation: string, options: RequestOptions) {
-  if (options.method !== "POST") return false;
-  if (operation === ROUTES.diagnose || operation === ROUTES.unifyPrepare) return false;
-  return !/^\/(toutiao|fanqie)\/profiles\//.test(operation);
-}
 /** 主进程入口自己拒绝的请求，与路由失败同一形状（code + error），界面按同一提示显示。 */
 function refused(error: unknown): RequestResult {
-  let result: RequestResult = { status: 500, data: {} };
-  sendError({ json: (status, data) => (result = { status, data }) }, error);
+  let result: RequestResult = { data: {} };
+  sendError({ reply: (data) => (result = { data }) }, error);
   return result;
 }
 async function performRequest(state: Runtime, operation: string, options: RequestOptions = {}) {
-  if (state.access.readOnly && writesWork(operation, options))
-    return refused(workspaceReadOnlyError(state.access.owner));
-  const context = await resolveOperationTarget(state, operation, options);
-  if (operation === ROUTES.deliver || operation === ROUTES.deliverArticle)
-    return deliver(state, context);
-  if (operation === ROUTES.capabilities)
+  const policy = commandPolicy(operation);
+  if (!policy) return { data: { ok: false, code: "NOT_FOUND", error: "未知操作" } };
+  const kind = options.kind ?? "read";
+  if (policy.kind !== "both" && policy.kind !== kind)
+    return { data: { ok: false, code: "invalid_command", error: `操作类型不匹配：${operation}` } };
+  const context = await resolveOperationTarget(state, policy, options);
+  if (policy.writes === "work") {
+    const access = await workspaceAccess(await lockRoot(state, context.target));
+    if (access.readOnly) return refused(workspaceReadOnlyError(access.owner));
+  }
+  if (policy.handler === "deliver") return deliver(state, context);
+  if (policy.handler === "capabilities")
     return {
-      status: 200,
       data: {
         ok: true,
         quick: true,
         deep: false,
         deliver: !!state.model.writer.apiKey,
-        reason: state.model.writer.apiKey ? undefined : "请先保存模型连接",
+        deliverReason: state.model.writer.apiKey ? undefined : "请先保存模型连接",
       },
     };
-  const response = await route(state, context, options);
-  if (options.method === "POST" && response.status < 400)
+  let response: RequestResult;
+  if (isToutiaoCommand(operation)) {
+    response = await runToutiaoCommand(
+      operation,
+      context.input,
+      context.config,
+      !!state.model.writer.apiKey,
+    );
+    if (operation === COMMANDS.articles) {
+      const data = asRecord(response.data, "响应内容");
+      data.currentRoot = context.selected.root;
+    }
+  } else response = await dispatchCommand(state, context, operation, options, policy);
+  if (policy.notify && asRecord(response.data, "回执内容").ok !== false)
     await notifyWrite(state, operation, context, response);
   return response;
 }
@@ -215,9 +241,9 @@ export async function request(
   operation: string,
   options: RequestOptions = {},
 ): Promise<RequestResult> {
-  const body = options.body === undefined ? {} : asRecord(options.body, "请求内容"),
+  const body = options.input === undefined ? {} : asRecord(options.input, "操作内容"),
     id = body.requestId;
-  if (!id || !(operation === ROUTES.deliver || operation === ROUTES.deliverArticle))
+  if (!id || !(operation === COMMANDS.deliver || operation === COMMANDS.deliverArticle))
     return performRequest(state, operation, options);
   const key = JSON.stringify([operation, id, body.root, body.base, body.work]);
   const existing = state.deliveries.get(key);

@@ -1,8 +1,8 @@
 /** 方法方案弹窗右列：单份方法的阅读、编辑、与底稿对照，以及保存和恢复。 */
 import React from "react";
-import { Button, Icon, Spinner, Tag } from "./ui.jsx";
+import { Button, Icon, Spinner, Tag } from "./ui.js";
 import { Callout } from "./common.jsx";
-import { COPY as viewCopy, t } from "../../../../ui/src/copy.js";
+import { COPY as viewCopy, t } from "@writer/ui/copy";
 
 const countChars = (s) => (s || "").replace(/\s/g, "").length;
 

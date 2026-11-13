@@ -1,5 +1,5 @@
-import { COPY as viewCopy } from "../../../../../../packages/ui/src/copy.js";
-import { Dialog } from "../../../../../../packages/ui/src/primitives";
+import { COPY as viewCopy } from "@writer/ui/copy";
+import { Dialog } from "@writer/ui/primitives";
 import React, { useState } from "react";
 import { Search, ArrowRight } from "lucide-react";
 import { COMMANDS } from "../../../commands";

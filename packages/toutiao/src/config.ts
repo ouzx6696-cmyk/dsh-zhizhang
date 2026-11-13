@@ -22,12 +22,7 @@ export interface ToutiaoConfig {
   learn?: { enabled?: boolean };
   /** draw.enabled：头条标题抽卡（writer_draw 仅 title-brief 场景，五母体各一版）；max 为单批上限，默认 5 */
   draw?: { enabled?: boolean; max?: number };
-  /**
-   * 1.1.1 安全收紧（默认开，设为 false 回退到 1.1.0 行为）：
-   * revision.strict 已有稿件时 toutiao_draft_stage 必须带 expected_rev（乐观锁）。
-   */
-  revision?: { strict?: boolean };
-  /** 作者自备方法 / 语料目录（toutiao_method_get id=user:…）；见 docs/guides/ASSETS.md */
+  /** 作者自备方法 / 语料目录（toutiao_method_get id=user:…）。 */
   assets?: AssetsConfig;
   /** 固定使用的方法方案（默认 / 原版 / 用户方案名或 id）；不填则用写作台或工具选的当前方案 */
   profile?: string;
@@ -45,7 +40,6 @@ const KNOWN = new Set<string>([
   "draw",
   "learn",
   "assets",
-  "revision",
 ]);
 
 /** 校验并填默认值；未知字段报错 */
@@ -165,21 +159,6 @@ export function parseToutiaoConfig(
         path: [...at, "learn"],
       });
     else out.learn = { enabled: l.enabled === true };
-  }
-  if (v.revision !== undefined) {
-    const t = v.revision as Record<string, unknown> | null;
-    if (
-      !t ||
-      typeof t !== "object" ||
-      Array.isArray(t) ||
-      Object.keys(t).some((k) => k !== "strict") ||
-      (t.strict !== undefined && typeof t.strict !== "boolean")
-    )
-      issues.push({
-        message: `${[...at, "revision"].join(".")} 应为 { strict: 布尔值 }`,
-        path: [...at, "revision"],
-      });
-    else out.revision = { strict: t.strict !== false };
   }
   if (v.assets !== undefined) {
     const a = parseAssetsConfig(v.assets, [...at, "assets"]);

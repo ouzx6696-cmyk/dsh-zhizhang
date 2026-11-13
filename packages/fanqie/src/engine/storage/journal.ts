@@ -42,7 +42,6 @@ type Spec<M, C> = {
   scope?: "library" | "inspiration";
   root: (context: C) => string;
   decode: (raw: Record<string, unknown>, context: C) => Decoded<M>;
-  legacy?: boolean;
   completed?: string;
   pending?: string;
 };
@@ -152,7 +151,7 @@ export function journal<M extends object, C>(spec: Spec<M, C>) {
       const r = object(JSON.parse(raw)),
         owner = object(r.owner);
       requireValid(
-        (spec.legacy || r.version === 1) &&
+        r.version === 1 &&
           /^[a-f0-9-]{36}$/.test(text(r.id)) &&
           Number.isSafeInteger(owner.pid) &&
           Number(owner.pid) > 0,

@@ -9,6 +9,7 @@ import {
   lstat,
   rm,
   stat,
+  unlink,
 } from "node:fs/promises";
 import { randomBytes, createHash } from "node:crypto";
 import path from "node:path";
@@ -16,6 +17,45 @@ import { WriterError } from "./tool.js";
 import { isFsError, isMissingFileError } from "./errors.js";
 
 export { isFsError, isMissingFileError } from "./errors.js";
+
+const WINDOWS_BUSY = ["EPERM", "EACCES", "EBUSY"];
+function windowsFileBusy(error: unknown) {
+  return process.platform === "win32" && WINDOWS_BUSY.some((code) => isFsError(error, code));
+}
+
+/** Serialize lock-file transitions across processes. A crashed transition is left for inspection. */
+export async function withFileGate<T>(
+  file: string,
+  fn: () => Promise<T>,
+  waitMs = 10000,
+): Promise<T> {
+  const deadline = Date.now() + waitMs;
+  let handle;
+  for (;;) {
+    try {
+      handle = await open(file, "wx", 0o600);
+      break;
+    } catch (error) {
+      const exists = isFsError(error, "EEXIST");
+      // Windows can deny an open while the previous gate is pending deletion.
+      if (!exists && !windowsFileBusy(error)) throw error;
+      if (Date.now() >= deadline) {
+        if (!exists) throw error;
+        throw new WriterError(
+          "CONFLICT",
+          `锁登记正忙：${file}。请关闭所有织章实例，确认没有进程写入后删除此登记文件并重试。`,
+        );
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+  }
+  try {
+    return await fn();
+  } finally {
+    await handle.close();
+    await unlink(file);
+  }
+}
 
 /** 把 rel 解析到 root 下；越界（含 .. 与绝对路径跳出）抛 OUT_OF_ROOT。 */
 export function resolveInside(root: string, ...rel: string[]): string {
@@ -111,7 +151,6 @@ export async function atomicWrite(file: string, data: string): Promise<void> {
 }
 
 /** Windows briefly denies the rename while a reader, indexer or antivirus still holds the target open. */
-const RENAME_BUSY = ["EPERM", "EACCES", "EBUSY"];
 async function publish(tmp: string, file: string): Promise<void> {
   const deadline = Date.now() + 2000;
   for (;;) {
@@ -119,8 +158,7 @@ async function publish(tmp: string, file: string): Promise<void> {
       await rename(tmp, file);
       return;
     } catch (error) {
-      const busy = RENAME_BUSY.some((code) => isFsError(error, code));
-      if (process.platform !== "win32" || !busy || Date.now() >= deadline) throw error;
+      if (!windowsFileBusy(error) || Date.now() >= deadline) throw error;
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
   }

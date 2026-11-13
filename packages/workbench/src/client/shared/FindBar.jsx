@@ -1,7 +1,7 @@
 /** The find (and, in the editor, replace) bar opened with Ctrl+F / Ctrl+H. */
 import React from "react";
-import { Button, Checkbox, Icon } from "./ui.jsx";
-import { EDITOR_COPY as c } from "../../../../ui/src/copy.js";
+import { Button, Checkbox, Icon } from "./ui.js";
+import { EDITOR_COPY as c } from "@writer/ui/copy";
 
 const { useCallback, useEffect, useRef, useState } = React;
 

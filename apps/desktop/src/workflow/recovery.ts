@@ -2,20 +2,20 @@ import { sha256 } from "../../../../packages/core/src/fsx";
 import { ArticleStore } from "../../../../packages/toutiao/src/store";
 import { readChapter } from "../../../../packages/fanqie/src/engine/storage/chapters";
 import { resolveFanqieWork } from "../main/storage";
-import { record, outline, text } from "./schema";
+import { record, outline, text, list } from "./schema";
 import type { WorkflowRecord } from "../../../../packages/core/src/workflow";
 import type { WorkflowContext } from "./run";
-import type { Sessions } from "../session/manager";
+import type { WorkflowHost } from "./host";
 import type { Target } from "../context";
 /** Recognize only this run's recorded side effect, never an arbitrary change of author source. */
 export async function recoverDelivery(
-  host: Sessions,
+  host: WorkflowHost,
   target: Target,
   previous: WorkflowRecord,
   context: WorkflowContext,
 ) {
   const prepared = previous.steps.find((row) => row.id === "prepared" && row.status === "complete");
-  if (!prepared) throw new Error("任务依据已改变，不能把旧进度套到新稿上");
+  if (!prepared) throw new Error("任务依据已改变，请新建任务；旧进度不会套用到新稿上");
   const old = record(JSON.parse(previous.basis)),
     now = record(JSON.parse(context.basis)),
     data = record(prepared.output);
@@ -27,14 +27,44 @@ export async function recoverDelivery(
       original = record(data.original),
       plan = outline(data.plan);
     const expected = { ...record(original.outline), ...plan };
+    const expectedStatus =
+      original.status === "reviewed" &&
+      (JSON.stringify(original.outline) !== JSON.stringify(expected) ||
+        original.title !== plan.title)
+        ? "drafted"
+        : original.status;
     if (
       current.body !== original.body ||
       current.position !== original.position ||
       current.title !== plan.title ||
+      current.status !== expectedStatus ||
       JSON.stringify(current.outline) !== JSON.stringify(expected)
     )
       throw new Error("章节已被作者修改，旧交付未覆盖");
     record(old.document).chapter = record(now.document).chapter;
+    const oldChapters = list(record(record(old.document).book).chapters, "既有章节", 10000);
+    const oldChapter = oldChapters.map((row) => record(row)).find((row) => row.id === current.id);
+    // The run may fill the outline, set its title and demote a reviewed chapter to draft.
+    if (oldChapter) {
+      if (oldChapter.title === original.title) oldChapter.title = current.title;
+      if (oldChapter.status === original.status) oldChapter.status = current.status;
+    }
+    const oldMaterial = list(old.material, "原阶段材料").map(record);
+    const newMaterial = list(now.material, "当前阶段材料").map(record);
+    const chapterBlock = oldMaterial.find((block) => block.name === "本章");
+    if (chapterBlock) chapterBlock.text = newMaterial.find((block) => block.name === "本章")?.text;
+    const toc = oldMaterial.find((block) => block.name === "章节目录");
+    if (toc) {
+      const value = record(JSON.parse(text(toc.text, "原章节目录")));
+      const row = list(value.chapters, "目录章节")
+        .map(record)
+        .find((row) => row.id === current.id);
+      if (row) {
+        row.title = current.title;
+        row.status = current.status;
+      }
+      toc.text = JSON.stringify(value);
+    }
   } else if (previous.request.kind === "article" && target.article) {
     const store = new ArticleStore(target.root),
       meta = await store.get(target.article),
@@ -51,6 +81,17 @@ export async function recoverDelivery(
     current.drafts = meta.drafts.filter((row) => row.rev !== prior.rev);
     current.current_rev = original.current_rev;
     current.updated_at = original.updated_at;
+    if (
+      current.delivered !== false ||
+      Object.hasOwn(current, "delivered_rev") ||
+      Object.hasOwn(current, "delivered_sha256")
+    )
+      throw new Error("交稿状态已变化，不能恢复旧交付");
+    current.delivered = original.delivered;
+    for (const key of ["delivered_rev", "delivered_sha256"]) {
+      if (Object.hasOwn(original, key)) current[key] = original[key];
+      else delete current[key];
+    }
     if (original.status !== "初稿待改") {
       const history = Array.isArray(current.history) ? current.history : [];
       const last = record(history.at(-1));
@@ -65,5 +106,5 @@ export async function recoverDelivery(
     }
   } else throw new Error("任务依据已变化，请新建任务");
   if (JSON.stringify(old) !== JSON.stringify(now))
-    throw new Error("作品其他依据已变化，不能恢复旧交付");
+    throw new Error("作品其他依据已变化，请新建任务；不会恢复旧交付");
 }

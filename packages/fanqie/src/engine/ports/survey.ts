@@ -9,7 +9,7 @@
  */
 
 import { cnNumber, VOLUME_HEADING_RE } from "../domain/chapter-heading.js";
-import type { ChapterFact } from "./analysis/types.js";
+import type { ChapterFact } from "../services/analysis/types.js";
 
 export { cnNumber };
 

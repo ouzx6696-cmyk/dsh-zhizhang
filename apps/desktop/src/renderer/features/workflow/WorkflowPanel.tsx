@@ -1,10 +1,6 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Maximize2, Minimize2, PanelRightClose, Workflow, X } from "lucide-react";
-import {
-  COPY as copy,
-  formatElapsed,
-  WORKFLOW_COPY,
-} from "../../../../../../packages/ui/src/copy.js";
+import { COPY as copy, formatElapsed, WORKFLOW_COPY } from "@writer/ui/copy";
 import { errorText } from "../../../../../../packages/core/src/errors.js";
 import {
   isUnfinishedRun,
@@ -23,7 +19,7 @@ import { RunOverview, type RunAction } from "./RunOverview";
 import { PhaseIcon, StageTimeline } from "./StageTimeline";
 import { DraftCompare } from "./DraftCompare";
 import { TaskForm } from "./TaskForm";
-import { TabList, tabPanelProps } from "../../../../../../packages/ui/src/tabs";
+import { TabList, tabPanelProps } from "@writer/ui/tabs";
 import {
   STATE_LABEL,
   acceptRecord,

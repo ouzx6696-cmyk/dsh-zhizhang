@@ -314,10 +314,7 @@ export async function decideFact(dir: string, id: string, accept: boolean) {
     const state = await readContinuity(dir),
       fact = state.pending.find((row) => row.id === id);
     if (!fact) throw new Error("待确认事实不存在或已处理");
-    if (
-      fact.chapter !== "legacy" &&
-      sha256((await readChapter(dir, fact.chapter)).body) !== fact.bodyHash
-    )
+    if (sha256((await readChapter(dir, fact.chapter)).body) !== fact.bodyHash)
       throw new Error("事实对应的正文已变化，请重新记账");
     if (accept) {
       state.facts = state.facts.filter(

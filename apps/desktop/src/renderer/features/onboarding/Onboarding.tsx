@@ -1,6 +1,6 @@
-import { COPY as viewCopy } from "../../../../../../packages/ui/src/copy.js";
+import { COPY as viewCopy } from "@writer/ui/copy";
 import { useConnectionTest } from "../settings/useConnectionTest";
-import { Dialog, Brand } from "../../../../../../packages/ui/src/primitives";
+import { Dialog, Brand } from "@writer/ui/primitives";
 import React, { useState } from "react";
 import { ArrowRight, BookOpen, Check, Feather } from "lucide-react";
 import { ModelFields } from "../settings/ModelFields";

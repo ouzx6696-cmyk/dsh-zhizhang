@@ -1,4 +1,4 @@
-import { dismissNotice, notify } from "../../../../ui/src/notify";
+import { dismissNotice, notify } from "@writer/ui/notify";
 import { canLeaveEdit, leaveState, useSourceGuard } from "../shared/useSourceGuard.js";
 import { confirmAction } from "../shared/confirm.js";
 /**
@@ -13,7 +13,7 @@ import { diagnosticScope } from "./edit-state.js";
 import { PREF, writePref } from "../shared/prefs.js";
 import { bodyKey, derive, initialState, reducer, snapshotSignature } from "./state.js";
 import { createFanqieActions, messageOf } from "./actions.js";
-import { PROJECT_INDEX_FAILED } from "../../../../ui/src/copy.js";
+import { PROJECT_INDEX_FAILED } from "@writer/ui/copy";
 
 const { useCallback, useEffect, useMemo, useReducer, useRef } = React;
 

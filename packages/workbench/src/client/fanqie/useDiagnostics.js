@@ -1,10 +1,10 @@
-import { newRequestId as requestId } from "../../../../ui/src/request.js";
+import { newRequestId as requestId } from "@writer/ui/request";
 /** Mounted with the workbench, so leaving the reader cannot detach an in-flight save. */
 import React from "react";
 import { canLeaveEdit } from "../shared/useSourceGuard.js";
 import { confirmAction } from "../shared/confirm.js";
 import { fanqie } from "../shared/api.js";
-import { diagnosticCopy as c } from "../../../../ui/src/copy.js";
+import { diagnosticCopy as c } from "@writer/ui/copy";
 import {
   changeParagraph,
   diagnosticScope,
@@ -111,7 +111,7 @@ export function useDiagnostics({ state, stateRef, alive, setEdit, refresh, notif
       }
     } catch (error) {
       if (!alive.current || stateRef.current.edit?.requestId !== edit.requestId) return;
-      const pendingSave = !error.status || error.status >= 500;
+      const pendingSave = error.uncertain !== false;
       const message = error.message + " · " + (pendingSave ? c.retry : c.retained);
       setEdit({ ...edit, saving: false, pendingSave, saveError: message });
       if (current(generation)) setStatus({ key, busy: false, error: message });

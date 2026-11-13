@@ -1,8 +1,8 @@
-import { chapterName, t } from "../../../../ui/src/copy.js";
+import { chapterName, t } from "@writer/ui/copy";
 /** 两种模式共用的展示组件（纯 props）。 */
 import React from "react";
-import { statusInfo } from "../../../../ui/src/status.js";
-import { Button, Icon, Spinner, StateDot, Tag, cx } from "./ui.jsx";
+import { statusInfo } from "@writer/ui/status";
+import { Button, Icon, Spinner, StateDot, Tag, cx } from "./ui.js";
 
 const { useState } = React;
 

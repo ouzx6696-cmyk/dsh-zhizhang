@@ -25,7 +25,7 @@ export interface AcceptInput {
   candidateId: string;
   mode?: "append" | "replace";
   lintPassToken?: string;
-  expectedRevision?: string;
+  observedRevision?: string;
   force?: boolean;
   skipBrief?: boolean;
   strictLint?: boolean;
@@ -43,7 +43,7 @@ export async function runAccept(input: AcceptInput) {
   try {
     saved = await acceptCandidate(dir, candidateId, mode, {
       force: input.force,
-      expectedRevision: input.expectedRevision,
+      observedRevision: input.observedRevision,
       lintPassToken: input.lintPassToken,
       validate: async (candidate) => {
         const recentMs = getPortConfig().briefRecentMs;

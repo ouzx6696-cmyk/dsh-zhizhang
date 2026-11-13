@@ -1,16 +1,13 @@
 import React from "react";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
 
 const REMARK_PLUGINS = [remarkGfm];
 const REHYPE_PLUGINS = [rehypeSanitize];
 
-/**
- * @param {{ text: string, onLink?: (href: string) => void }} props
- */
-function MarkdownView({ text, onLink }) {
-  const components = React.useMemo(
+function MarkdownView({ text, onLink }: { text: string; onLink?: (href: string) => void }) {
+  const components = React.useMemo<Components>(
     () => ({
       a: ({ href, children }) => (
         <a
