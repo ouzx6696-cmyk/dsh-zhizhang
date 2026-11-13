@@ -30,7 +30,7 @@ M1–M4 的实施项与完整本地验收已完成。1.2 尚未发布。基线�
 | 连续性存储缺锁 | 原生产工具已有外层锁；M1 在存储入口补齐锁与版本检查，commit 复用章节 journal 一并提交伏笔、交接、记录；中断使用现有恢复入口 |
 | 删除 `workflow/recovery.ts` | 不采用。当前处理中断后的自身交付识别，属于现行业务恢复能力 |
 | 删除技法卡 v1 与连续性候选工具 | 当前仍能生成简要卡；笔记候选提取仍在使用。统一或删除属于产品功能变化，不按版本号/名称机械清理 |
-| 关闭 RunAsNode | M3 已切换 utility process 并关闭 RunAsNode；Windows 正式产物检查覆盖真实目录选择、备份、正文校验与 Fuse |
+| 关闭 RunAsNode | M3 已切换 utility process 并关闭 RunAsNode；Windows 检查覆盖原始产物启动与全部 Fuse；临时副本只开放测试连接，替代系统目录对话框后验证真实备份和正文校验，RunAsNode 保持关闭 |
 | 常驻 Python worker | 不纳入。stdin、进程树取消、热榜二次进程等分别按具体调用链处理 |
 | 候选列表不再 stat 正文 | 不直接采用。正文身份参与 `readVersion`，支持外部改稿刷新和坏候选展示；必须有等效失效机制后再考虑减少检查 |
 | 连续性改滑动窗口 | 不采用会漏掉远期事实的裁剪；任何增量方案须保持原巡检语义，并验证外部文件变化 |
@@ -132,3 +132,5 @@ Python 短进程的参数通过 stdin JSON 传输，由轻量入口还原规则�
 `CI=1 DISPLAY=:99 npm run test:all` 通过（2026-11-13，Linux）：核心 Node 366 项（365 通过、1 项 Windows 专属跳过），桌面运行时 141/141，完整 Electron GUI 旅程 1/1；Python 224 + 14 + 2 项、生产编译、类型、lint、格式、导出和架构守卫通过，架构守卫 0 条提示。GUI 覆盖真实 utility process 备份及校验，退出回归覆盖备份取消。
 
 最终本地日志：`/workspace/work/v1.2-full-2026-11-13.log`。PR CI 对打包链路改动自动执行 Windows NSIS/ZIP、随包 Python、正式包启动及真实备份检查；产物与结果见 [分支 CI](https://github.com/ouzx6696-cmyk/dsh-zhizhang/actions?query=branch%3Afeat%2Fv1.2)。合并后保留同一验证记录，发布标签另行处理。
+
+正式包备份验收只替代系统目录对话框：先验证未修改的生产客户端，再在可调试副本中运行同一 app.asar、资源和真实 utility 备份进程。副本仅开启主进程测试连接，RunAsNode 与其他生产 Fuse 不变；结束后删除副本，并核对原始可执行文件 SHA256 未变化。

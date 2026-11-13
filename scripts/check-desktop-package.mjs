@@ -1,9 +1,10 @@
-/** Smoke the actual delivery without the Node inspector disabled by production fuses. */
-import { chromium } from "@playwright/test";
-import { spawn, execFile } from "node:child_process";
-import { promisify } from "node:util";
-import { getCurrentFuseWire, FuseV1Options } from "@electron/fuses";
-import { mkdtemp, readFile, rm, mkdir, writeFile } from "node:fs/promises";
+/** Check the original delivery, then exercise backup with only the OS picker mocked in a debug copy. */
+import { chromium, _electron as electron } from "@playwright/test";
+import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
+import { createReadStream } from "node:fs";
+import { getCurrentFuseWire, flipFuses, FuseVersion, FuseV1Options } from "@electron/fuses";
+import { mkdtemp, readFile, rm, mkdir, writeFile, copyFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,66 +15,29 @@ const home = await mkdtemp(path.join(tmpdir(), "writer-package-smoke-"));
 const executable = path.join(root, "apps/desktop/release/win-unpacked/WriterAgent.exe");
 const fuses = await getCurrentFuseWire(executable);
 // The fuse wire stores ASCII '0' for disabled and '1' for enabled.
-if (fuses[FuseV1Options.RunAsNode] !== 0x30 || fuses[FuseV1Options.OnlyLoadAppFromAsar] !== 0x31)
+if (
+  fuses[FuseV1Options.RunAsNode] !== 0x30 ||
+  fuses[FuseV1Options.EnableNodeOptionsEnvironmentVariable] !== 0x30 ||
+  fuses[FuseV1Options.EnableNodeCliInspectArguments] !== 0x30 ||
+  fuses[FuseV1Options.OnlyLoadAppFromAsar] !== 0x31
+)
   throw new Error("交付客户端 Fuse 不正确");
 const child = spawn(executable, ["--remote-debugging-port=0", `--user-data-dir=${home}`]);
 let browser;
 let output = "";
-async function chooseDirectory(page, action, title, directory) {
-  console.log(`Packaged ${action}: selecting directory`);
-  const script = `$ErrorActionPreference = 'Stop'
-  Add-Type -AssemblyName UIAutomationClient
-  Add-Type -AssemblyName UIAutomationTypes
-  $root = [System.Windows.Automation.AutomationElement]::RootElement
-  $condition = [System.Windows.Automation.AndCondition]::new(
-    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, $env:WRITER_DIALOG_TITLE),
-    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Window))
-  $dialog = $null
-  for ($i=0; $i -lt 100; $i++) {
-    $dialog = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
-    if ($null -ne $dialog) { break }
-    Start-Sleep -Milliseconds 100
-  }
-  if ($null -eq $dialog) { throw 'Native directory dialog not found' }
-  $folder = $null
-  $select = $null
-  for ($i=0; $i -lt 100; $i++) {
-    $controls = $dialog.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
-    $inputs = @($controls | Where-Object {
-      $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::Edit -and
-      -not $_.Current.IsOffscreen -and $_.Current.IsEnabled -and
-      $_.Current.Name -notmatch 'Search' -and $_.Current.AutomationId -notmatch 'Search' -and
-      $_.GetCurrentPropertyValue([System.Windows.Automation.AutomationElement]::IsValuePatternAvailableProperty) -eq $true
-    })
-    $select = $controls | Where-Object { $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button -and $_.Current.AutomationId -eq '1' } | Select-Object -First 1
-    if ($inputs.Count -eq 1 -and $null -ne $select) { $folder = $inputs[0]; break }
-    Start-Sleep -Milliseconds 100
-  }
-  if ($null -eq $folder) {
-    $details = $controls | ForEach-Object { @{ name=$_.Current.Name; id=$_.Current.AutomationId; type=$_.Current.ControlType.ProgrammaticName; offscreen=$_.Current.IsOffscreen; value=($_.GetCurrentPropertyValue([System.Windows.Automation.AutomationElement]::IsValuePatternAvailableProperty) -eq $true) } }
-    throw ('Folder controls not ready: ' + ($details | ConvertTo-Json -Compress))
-  }
-  $folder.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($env:WRITER_DIALOG_DIRECTORY)
-  $select.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()`;
-  let timer;
-  try {
-    const [result] = await Promise.race([
-      Promise.all([
-        page.evaluate((operation) => window.writerDesktop[operation](), action),
-        promisify(execFile)("powershell", ["-NoProfile", "-STA", "-Command", script], {
-          env: { ...process.env, WRITER_DIALOG_TITLE: title, WRITER_DIALOG_DIRECTORY: directory },
-          timeout: 25000,
-        }),
-      ]),
-      new Promise((_, reject) => {
-        timer = setTimeout(() => reject(new Error("目录选择或备份未完成")), 30000);
-      }),
-    ]);
-    console.log(`Packaged ${action}: directory accepted`);
-    return result;
-  } finally {
-    clearTimeout(timer);
-  }
+const debugExecutable = path.join(path.dirname(executable), "WriterAgent-backup-smoke.exe");
+let backupApp;
+async function hash(file) {
+  const digest = createHash("sha256");
+  for await (const chunk of createReadStream(file)) digest.update(chunk);
+  return digest.digest("hex");
+}
+const originalHash = await hash(executable);
+async function stopOriginal() {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  const exited = new Promise((resolve) => child.once("exit", resolve));
+  child.kill("SIGKILL");
+  await exited;
 }
 try {
   const endpoint = await new Promise((resolve, reject) => {
@@ -109,17 +73,41 @@ try {
   )
     throw new Error("交付客户端的版本或打包页面不正确");
   const source = path.join(home, "source"),
-    destination = path.join(home, "backups");
+    destination = path.join(home, "backups"),
+    backupHome = path.join(home, "backup-app");
   await mkdir(source);
   await mkdir(destination);
+  await mkdir(backupHome);
   await writeFile(path.join(source, "作者正文.md"), "正式包备份校验。\n");
-  await chooseDirectory(page, "workspace", "选择统一写作根", source);
-  const backup = await chooseDirectory(
-    page,
-    "backup",
-    "选择备份保存位置（写作根以外）",
-    destination,
-  );
+  await browser.close();
+  browser = undefined;
+  await stopOriginal();
+  // The shipped executable is never patched. Only this disposable copy exposes the main-process
+  // test connection, while RunAsNode and every other production fuse retain their shipped values.
+  await copyFile(executable, debugExecutable);
+  await flipFuses(debugExecutable, {
+    version: FuseVersion.V1,
+    [FuseV1Options.EnableNodeCliInspectArguments]: true,
+  });
+  const debugFuses = await getCurrentFuseWire(debugExecutable);
+  for (const [key, value] of Object.entries(fuses))
+    if (key !== String(FuseV1Options.EnableNodeCliInspectArguments) && debugFuses[key] !== value)
+      throw new Error("备份测试副本改变了其他生产 Fuse");
+  backupApp = await electron.launch({
+    executablePath: debugExecutable,
+    args: [`--user-data-dir=${backupHome}`],
+    timeout: 30000,
+  });
+  const backupPage = await backupApp.firstWindow();
+  await backupPage.locator(".writer-desktop").waitFor({ timeout: 30000 });
+  const choose = async (directory) =>
+    backupApp.evaluate(({ dialog }, value) => {
+      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [value] });
+    }, directory);
+  await choose(source);
+  await backupPage.evaluate(() => window.writerDesktop.workspace());
+  await choose(destination);
+  const backup = await backupPage.evaluate(() => window.writerDesktop.backup());
   const manifest = JSON.parse(
     await readFile(path.join(backup.file, "writer-novel-backup-manifest.json"), "utf8"),
   );
@@ -130,12 +118,19 @@ try {
       "正式包备份校验。\n"
   )
     throw new Error("正式包备份正文不一致");
-  console.log(`Windows packaged startup, fuses and utility backup OK: ${version}`);
+  await backupApp.close();
+  backupApp = undefined;
+  if ((await hash(executable)) !== originalHash) throw new Error("原始交付客户端发生变化");
+  console.log(
+    `Windows original package startup/fuses OK; real utility backup in debug copy (RunAsNode disabled) OK: ${version}`,
+  );
 } catch (error) {
   console.error(output);
   throw error;
 } finally {
-  if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+  await backupApp?.close();
   await browser?.close();
+  await stopOriginal();
+  await rm(debugExecutable, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   await rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 }
