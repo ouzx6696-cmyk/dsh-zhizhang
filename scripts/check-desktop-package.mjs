@@ -33,16 +33,15 @@ async function chooseDirectory(page, action, title, directory) {
     Start-Sleep -Milliseconds 100
   }
   if ($null -eq $dialog) { throw 'Native directory dialog not found' }
-  $shell = New-Object -ComObject WScript.Shell
-  if (-not $shell.AppActivate($env:WRITER_DIALOG_TITLE)) { throw 'Cannot focus directory dialog' }
-  $shell.SendKeys('%d')
-  Start-Sleep -Milliseconds 100
-  $address = [System.Windows.Automation.AutomationElement]::FocusedElement
-  $value = $address.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
-  $value.SetValue($env:WRITER_DIALOG_DIRECTORY)
-  $shell.SendKeys('{ENTER}')
-  Start-Sleep -Milliseconds 500
-  $buttons = $dialog.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button))
+  $controls = $dialog.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
+  $inputs = $controls | Where-Object { $_.Current.AutomationId -in @('1148','1152') -and $_.GetCurrentPropertyValue([System.Windows.Automation.AutomationElement]::IsValuePatternAvailableProperty) }
+  $folder = $inputs | Select-Object -First 1
+  if ($null -eq $folder) {
+    $details = $controls | Where-Object { $_.GetCurrentPropertyValue([System.Windows.Automation.AutomationElement]::IsValuePatternAvailableProperty) } | ForEach-Object { $_.Current.Name + ':' + $_.Current.AutomationId }
+    throw ('Folder input not found: ' + ($details -join ', '))
+  }
+  $folder.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($env:WRITER_DIALOG_DIRECTORY)
+  $buttons = $controls | Where-Object { $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button }
   $select = $buttons | Where-Object { $_.Current.AutomationId -eq '1' } | Select-Object -First 1
   if ($null -eq $select) { throw ('Select Folder button not found: ' + (($buttons | ForEach-Object { $_.Current.Name + ':' + $_.Current.AutomationId }) -join ', ')) }
   $select.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()`;
