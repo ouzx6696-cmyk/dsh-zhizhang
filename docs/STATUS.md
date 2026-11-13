@@ -1,6 +1,6 @@
 # 当前状态
 
-最近正式版为 [1.1.1](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/v1.1.1)；当前开发版本为 1.1.2（审计修订与框架重构，尚未发布）。新增能力与范围见 [CHANGELOG](../CHANGELOG.md)，使用与质量边界见[创作与质量方法](engine/QUALITY.md)。
+最近正式版为 [1.1.1](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/v1.1.1)；当前开发标识为 1.2.0-dev.0，M1 已实现并通过完整本地验收，基于 1.1.2 的已验证提交 `3382575`。1.1.2 与 1.2 均尚未正式发布。1.2 的范围、资料核对和实施顺序见 [1.2 开发清单](plans/v1.2/README.md)。新增能力与范围见 [CHANGELOG](../CHANGELOG.md)，使用与质量边界见[创作与质量方法](engine/QUALITY.md)。
 
 框架重构使用现行作品格式，不迁移旧版本项目、会话与草稿；当前作品的暂存和中断恢复继续支持。
 
@@ -17,6 +17,10 @@
 业务规则保持不变：标题 ≤34 字、质检 ≥84 分过线、编辑两轮打回、固定末句与状态词；头条评分规则版本 4.0.0；本次只统一默认 edit 方法对“锁定剧情与未锁定章纲偏离”的审读口径。
 
 ## 验证情况
+
+1.2 M1：`CI=1 DISPLAY=:99 npm run test:all` 通过（2026-11-13，Linux）：核心 Node 363 项（362 通过、1 项 Windows 专属跳过），桌面运行时 136/136，Electron GUI 完整旅程 1/1；Python 224 + 14 + 2 项、生产编译、类型、lint、格式、导出和架构守卫通过。架构守卫保留一条既有的 `workflow/context.ts` 超过建议行数提示。覆盖 IPC 错误传输、并发子会话停止、实际目标只读与连续性事务恢复。M2–M4 尚未实施，未运行 1.2 Windows CI、安装包构建或真实付费模型。
+
+1.2 准备阶段（2026-11-13）：`npm run desktop:build` 通过，含类型检查与 Electron 生产编译；项目版本与 lockfile 一致，依赖锁只更新项目版本元数据。未改业务行为，沿用基线 `3382575` 的业务回归及 Linux/Windows CI 记录；本次未运行安装包构建、1.2 Windows CI 或真实模型。
 
 1.1.2 最终梳理本地验收（2026-11-13，Linux）：`npm run test:all` 通过，核心 Node 362 项（361 通过、1 项 Windows 专属跳过）、桌面运行时 134 项和 Electron GUI 旅程 1 项通过，Python 224 + 14 + 2 项及静态检查通过。架构守卫有一条上下文文件超过建议行数的提示；未在本轮运行 Windows CI、安装包或真实付费模型。
 

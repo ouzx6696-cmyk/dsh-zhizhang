@@ -5,6 +5,7 @@ import {
   mkdtemp,
   mkdir,
   readFile,
+  readdir,
   rm,
   writeFile,
   symlink,
@@ -664,10 +665,13 @@ test("停止任务同时取消父会话与子角色会话", async () => {
     phase: "",
     task: {},
   });
-  sessions.children.set(parent, child);
+  const releaseChild = sessions.registerChild(parent, child);
+  sessions.registerChild(parent, { abort: async () => order.push("second") });
+  releaseChild();
+  sessions.registerChild(parent, child);
   try {
     await sessions.stop(target);
-    assert.deepEqual(order.sort(), ["child", "parent"]);
+    assert.deepEqual(order.sort(), ["child", "parent", "second"]);
     assert.equal(sessions.generations.get(sessions.key(target)), 1);
   } finally {
     await rm(home, { recursive: true, force: true });
@@ -1161,7 +1165,7 @@ test("WB-08 只读打开时主进程拒绝写作品的请求；诊断与方法�
     created: async () => {},
     extras: {},
   });
-  // 另一实例占着作品；磁盘上没有它的锁文件，所以挡住写入的只能是主进程这道检查。
+  // 实际磁盘锁决定是否可写，界面状态可能已经过期。
   state.access = {
     readOnly: true,
     owner: {
@@ -1172,6 +1176,11 @@ test("WB-08 只读打开时主进程拒绝写作品的请求；诊断与方法�
       at: "2026-11-09T03:00:00Z",
     },
   };
+  await writeFile(
+    path.join(work.dir, ".writer-workspace-lock.json"),
+    JSON.stringify(state.access.owner),
+  );
+  state.access = { readOnly: false, owner: null };
   registerSessionIpc(state);
   const request = ipcMain.handlers.get("writer:request");
   const main = fromWindow(state.window);
@@ -1255,8 +1264,9 @@ test("WB-08 只读打开时主进程拒绝写作品的请求；诊断与方法�
     await assert.rejects(async () => request(main, "/chapter", {}), /非主窗口/);
     state.window = window;
 
-    // 取得写权限后同一请求照常写入。
-    state.access = { readOnly: false, owner: null };
+    // 磁盘锁已释放时，即使界面仍为只读，同一请求也能写入。
+    await rm(path.join(work.dir, ".writer-workspace-lock.json"));
+    state.access = { readOnly: true, owner: null };
     const saved = await request(main, "/chapter/save", save);
     assert.equal(saved.data.ok, true, JSON.stringify(saved.data));
     assert.match(await readFile(chapterFile, "utf8"), /只读实例写进来的正文/);
@@ -1349,6 +1359,15 @@ test("D01 从可写项目向另一实例占用的项目写入被拒绝", async (
     assert.equal(refused.data.code, "CONFLICT");
     assert.match(refused.data.error, /DSH.*只读/);
     assert.equal(await readFile(chapterFile, "utf8"), before);
+    for (const input of [
+      { ...save.input, root: path.join(base, "unregistered") },
+      { ...save.input, root: a.base },
+    ]) {
+      await assert.rejects(
+        request(main, "/chapter/save", { kind: "write", input }),
+        /目录未登记|目录与项目不一致/,
+      );
+    }
     const articleRefused = await request(main, "/toutiao/draft", {
       kind: "write",
       input: {
@@ -1375,6 +1394,31 @@ test("D01 从可写项目向另一实例占用的项目写入被拒绝", async (
   } finally {
     child.kill();
     await state.sessions.dispose();
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("只读选择项目不初始化共享目录", async () => {
+  const { selectTarget } = await import("../../apps/desktop/out-test/targets.mjs");
+  const base = await realpath(await mkdtemp(path.join(tmpdir(), "writer-readonly-select-")));
+  const home = path.join(base, "app"),
+    shared = path.join(base, "shared");
+  await mkdir(home);
+  await mkdir(shared);
+  process.env.WRITER_STATE_ROOT = home;
+  const owner = { id: "foreign", pid: 4242, machine: "other-host", host: "DSH", at: "2026-11-13" };
+  await writeFile(path.join(shared, ".writer-workspace-lock.json"), JSON.stringify(owner));
+  const state = { home, writerConfig: {}, sessions: {} };
+  try {
+    await selectTarget(state, { mode: "fanqie", root: shared });
+    assert.equal(state.access.readOnly, true);
+    assert.deepEqual(await readdir(shared), [".writer-workspace-lock.json"]);
+    assert.deepEqual(
+      JSON.parse(await readFile(path.join(home, "target.json"), "utf8")),
+      state.target,
+    );
+  } finally {
+    await releaseWorkspace(shared);
     await rm(base, { recursive: true, force: true });
   }
 });
@@ -1923,6 +1967,35 @@ test("PI 上下文：连续请求和重启保持历史前缀，缓存用量使�
     await model.close();
     await rm(home, { recursive: true, force: true });
   }
+});
+
+test("IPC 错误穿过序列化及浏览器接口后仍保留错误码，成功值不变", async () => {
+  const { Runtime, registerSessionIpc, ipcMain } =
+    await import("../../apps/desktop/out-test/runtime-effects.mjs");
+  const { createDesktopApi } = await import("../../apps/desktop/out-test/desktop-api.mjs");
+  const state = new Runtime();
+  state.window = fakeWindow();
+  state.sessions = {
+    view: async () => {
+      throw Object.assign(new Error("作品只读"), { name: "WriterError", code: "CONFLICT" });
+    },
+    running: () => [],
+  };
+  registerSessionIpc(state);
+  const api = createDesktopApi({
+    invoke: (name, ...args) => ipcMain.invoke("writer:" + name, fromWindow(state.window), ...args),
+    subscribe: () => () => {},
+  });
+  await assert.rejects(
+    api.view({ mode: "toutiao", root: "/tmp" }),
+    (error) =>
+      error instanceof Error &&
+      error.code === "CONFLICT" &&
+      error.message === "作品只读" &&
+      error.name === "WriterError",
+  );
+  await assert.rejects(api.view({ mode: "invalid", root: "/tmp" }), /未知模式/);
+  assert.deepEqual(await api.running(), []);
 });
 
 test("IPC 边界拒绝非法角色、动作、恢复条件与字号", async () => {

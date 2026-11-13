@@ -40,7 +40,17 @@ export class Sessions {
   historyCache: HistoryCache = new Map();
   sessions = new Map<string, SessionEntry>();
   opening = new Map<string, Promise<AgentSession>>();
-  children = new Map<AgentSession, AgentSession>();
+  private children = new Map<AgentSession, Set<AgentSession>>();
+
+  registerChild(parent: AgentSession, child: AgentSession) {
+    const children = this.children.get(parent) ?? new Set<AgentSession>();
+    this.children.set(parent, children);
+    children.add(child);
+    return () => {
+      children.delete(child);
+      if (!children.size && this.children.get(parent) === children) this.children.delete(parent);
+    };
+  }
 
   constructor(
     private setup: {
@@ -330,10 +340,11 @@ export class Sessions {
       this.generations.set(actualKey, (this.generations.get(actualKey) || 0) + 1);
     if (this.opening.has(key)) await this.opening.get(key);
     const session = entry?.session;
+    const children = session ? this.children.get(session) : undefined;
     session?.clearQueue();
     await Promise.all([
       this.workflows.stop(!target.work && !target.article && entry ? entry.target : target),
-      session ? this.children.get(session)?.abort() : undefined,
+      ...[...(children ?? [])].map((child) => child.abort()),
       session?.abort(),
     ]);
   }
@@ -346,7 +357,7 @@ export class Sessions {
     }
     await Promise.allSettled(this.opening.values());
     for (const session of [
-      ...this.children.values(),
+      ...new Set([...this.children.values()].flatMap((children) => [...children])),
       ...[...this.sessions.values()].map((entry) => entry.session),
     ]) {
       session.clearQueue();
@@ -354,6 +365,7 @@ export class Sessions {
       session.dispose();
     }
     this.sessions.clear();
+    this.children.clear();
     this.historyCache.clear();
     this.preparations.clear();
   }

@@ -27,9 +27,8 @@ import {
   readForeshadow,
   readHandoff,
   readKnowledge,
-  saveCommits,
+  commitContinuity,
   saveForeshadow,
-  saveHandoff,
   saveKnowledge,
 } from "../storage/continuity.js";
 import { listChapters, readChapter } from "../storage/chapters.js";
@@ -469,13 +468,14 @@ const continuityCommit = defineTool({
         openLoops,
         at: nowIso(),
       };
-      if (linesAdvanced.length > 0) await saveForeshadow(dir, nextLines, foreshadow.revision);
-      await saveHandoff(dir, handoffRecord, existingHandoff?.revision);
-      await saveCommits(
-        dir,
-        [...commits.commits.filter((v) => v.chapter !== chapterId), record],
-        commits.revision,
-      );
+      await commitContinuity(dir, {
+        ...(linesAdvanced.length > 0 ? { lines: nextLines } : {}),
+        foreshadowRevision: foreshadow.revision,
+        handoff: handoffRecord,
+        handoffRevision: existingHandoff?.revision ?? 0,
+        commits: [...commits.commits.filter((v) => v.chapter !== chapterId), record],
+        commitsRevision: commits.revision,
+      });
       return JSON.stringify(
         {
           chapter: chapterId,

@@ -1,6 +1,7 @@
 import { build } from "esbuild";
 import path from "node:path";
 const entries = [
+  ["desktop-api", "apps/desktop/src/desktop-api.ts"],
   ["runtime-effects", "test/desktop/runtime-effects.ts"],
   ["targets", "apps/desktop/src/main/targets.ts"],
   ["usage", "apps/desktop/src/session/usage.ts"],

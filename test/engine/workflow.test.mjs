@@ -2312,9 +2312,11 @@ test("长线节奏巡检：三类候选命中与不命中", () => {
   );
 });
 
-test("T115 交接写失败不发布完成标记，重试能补齐交接与伏笔", async () => {
+test("T115 交接写失败不发布完成标记，经事务恢复补齐交接与伏笔后可重试", async () => {
   const { default: fs } = await import("node:fs/promises");
   const { syncBuiltinESMExports } = await import("node:module");
+  const { inspectPendingChapterSave, resumePendingChapterSave } =
+    await import("../../build/fanqie/src/engine/storage/chapter-journal.js");
   const f = await setup(CONTINUITY_ON),
     original = fs.rename;
   try {
@@ -2337,7 +2339,7 @@ test("T115 交接写失败不发布完成标记，重试能补齐交接与伏笔
     syncBuiltinESMExports();
     assert.match(
       await f.run("fanqie_continuity_commit", { work: key, chapter: "c001" }),
-      /handoff disk fault/,
+      /错误\[recovery_required\]/,
     );
     await assert.rejects(
       stat(path.join(dir, "continuity/commits.json")),
@@ -2345,10 +2347,16 @@ test("T115 交接写失败不发布完成标记，重试能补齐交接与伏笔
     );
     fs.rename = original;
     syncBuiltinESMExports();
-    const result = JSON.parse(
+    assert.match(
       await f.run("fanqie_continuity_commit", { work: key, chapter: "c001" }),
+      /错误\[GATE_ERROR\].*请先检查恢复记录/,
     );
-    assert.equal(result.chapter, "c001");
+    const pending = await inspectPendingChapterSave(dir);
+    await resumePendingChapterSave(dir, { id: pending.id, fingerprint: pending.fingerprint });
+    assert.match(
+      await f.run("fanqie_continuity_commit", { work: key, chapter: "c001" }),
+      /本章已在 revision \w{12,} 核验过/,
+    );
     assert.equal(
       JSON.parse(await readFile(path.join(dir, "continuity/commits.json"), "utf8")).commits.length,
       1,

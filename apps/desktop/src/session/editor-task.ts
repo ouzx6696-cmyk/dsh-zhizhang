@@ -117,7 +117,7 @@ export function createDelegateTools(options: {
           },
           (tool, receipt) => saved.push({ tool, receipt }),
         );
-        host.children.set(session, child);
+        const releaseChild = host.registerChild(session, child);
         const judgeOn =
           delegate === "editor" &&
           target.mode === "toutiao" &&
@@ -176,7 +176,7 @@ export function createDelegateTools(options: {
           };
         } finally {
           accumulateChildUsage(entry, child);
-          host.children.delete(session);
+          releaseChild();
           child.dispose();
           entry.phase =
             delegate === "editor" ? "编辑任务结束，正在整理结果…" : "规划任务结束，正在整理结果…";

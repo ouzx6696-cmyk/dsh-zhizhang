@@ -101,12 +101,12 @@ export const loadComponents = (react, globals = {}) =>
   loadBundle("test-components.cjs", react, globals);
 
 /**
- * 桌面渲染层模块（test/renderer/entry.ts）。加载时会读 preload 桥（window.writerDesktop），
+ * 桌面渲染层模块（test/renderer/entry.ts）。加载时会读 preload 桥（window.writerBridge），
  * Markdown 依赖的实体解码包也会建一个元素备用；默认给空壳，用到它们的用例自己传替身。
  */
 export const loadRenderer = (react, globals = {}) =>
   loadBundle("test-renderer.cjs", react, {
-    window: { writerDesktop: {} },
+    window: { writerBridge: {} },
     document: { createElement: () => ({}) },
     ...globals,
   });

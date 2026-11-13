@@ -1,6 +1,7 @@
 # 织章（dsh-zhizhang）项目认知文档
 
 > 基线：1.1.2 开发版（基于 1.1.1）。版本、验证与发布状态以 [STATUS](STATUS.md) 为准，本文只讲结构与风险。
+> 1.2 M1 已更新 IPC、目标只读、子会话与连续性事务；后续实施范围以 [1.2 开发清单](plans/v1.2/README.md) 为准。
 >
 > 生成方式：文档全量阅读 + 源码按包分工通读 + 核心链路（`core/execute`、写作流水线、IPC、会话层）逐行复核。**本文以代码实际行为为准**；与 `docs/` 旧文冲突处已在正文标注。
 
@@ -29,9 +30,9 @@
 │ 单一 desktopStore + chatStore（useSyncExternalStore 字段订阅）                            │
 │ 写作区组件来自 packages/workbench/src/client（fanqie / toutiao / shared）                │
 └───────────────▲───────────────────────────────────────────────┬─────────────────────────┘
-                │ window.writerDesktop（contextBridge）          │ 事件 writer:event
+                │ window.writerBridge（contextBridge）           │ 事件 writer:event
 ┌───────────────┴───────────────────────────────────────────────▼─────────────────────────┐
-│ preload.ts：39 个 invoke 封装 + subscribe                                                │
+│ preload.ts：统一回执桥；渲染端 desktop-api.ts：39 个 invoke 封装 + subscribe            │
 │ 主进程 main/ipc：contract.ts（通道唯一清单）→ validate.ts（边界解析）→ register*.ts      │
 │ main/operations.ts：把 writer:request 分发给 toutiao / fanqie / profiles 路由处理器      │
 └───────────────▲───────────────────────────────────────────────┬─────────────────────────┘
@@ -529,16 +530,16 @@ test/                         单元/流程/引擎/桌面/PI/渲染/GUI 测试
 ### 15.1 数据与恢复
 
 - **恢复错误码**：`journal.ts` 的 `finish()` 已保留 `NovelError` 原 code，只有未知故障归为 `recovery_required`；`read()` 的错误码仍依赖文件名分段。
-- **连续性写入**：`storage/continuity.ts` 的保存函数由调用方持有作品资源锁；现有工具入口在锁内读取并写入伏笔、知情、交接和提交记录。
+- **连续性写入（M1 已收口）**：存储保存入口持作品资源锁，commit 复用章节 journal，统一写入伏笔、交接与提交记录；中断通过现有恢复入口接续。
 - **revision 不含 title/status**：改标题/纯状态变更不升 revision，也不留痕；但汇编输出会变化，可能造成「审读仍视为同一版本」的语义偏差。
-- **`selectTarget` 预写**：先取得作品锁，再执行 `ensureStorage` 与项目登记；仅保留创建空作品根目录用于 `realpath` 这一步预写。
+- **`selectTarget` 初始化（M1 已修）**：先取得作品锁；只在可写时执行 `ensureStorage`，只读选择仍可登记到本机。保留创建空作品根目录用于取锁和 `realpath`。
 - **工作流 basis 过宽**：章节 basis 包含整本书的 foundation/planning/伏笔/连续性，任何无关改动都会让任务中途失败或无法恢复；issue 已在审查报告中提出，尚未重构。
 
 ### 15.2 安全与边界
 
-- **IPC `writer:request` 信任渲染层传入的 root**：`operations.ts:56-60` 采用 `root/base/work` 解析目标；D01 起写请求会由实际目标作品的存储层锁兜底，但未锁定的其他已登记项目仍可被指定写入。CSP 之外没有针对调用方的第二道身份校验。
+- **IPC 请求目标（M1 已收口）**：`root/base/work` 归一到已登记目录及物理路径，拒绝未登记 root 与项目不一致；跨已登记项目操作保留，写入核对实际目标磁盘锁。
 - **`learning-store` 写保护**：已改为按 `learn-pending.json` / 个人规则实际所在目录判断只读，番茄落在作品目录。
-- **主进程错误码不跨 IPC**：渲染层通常只拿到 Electron 包装后的 message，`WriterError.code` 在多数通道丢失。
+- **主进程错误码（M1 已修）**：主进程传输成功/错误回执，渲染端在 contextBridge 之后重建 Error，保留 name/message/code。
 
 ### 15.3 文档漂移
 
@@ -582,7 +583,7 @@ test/                         单元/流程/引擎/桌面/PI/渲染/GUI 测试
 2. `docs/PROJECT-COGNITION.md`（本文）：全局地图。
 3. `packages/core/src/{tool,execute,gates,fsx,workflow,workflow-config}.ts`：执行、门禁、持久化、流水线底座。
 4. `apps/desktop/src/workflow/{service,run,stage-model,context,chapter,article,editor}.ts`：核心流水线。
-5. `apps/desktop/src/main/{lifecycle,targets,operations}.ts` + `main/ipc/{contract,validate,register}.ts` + `preload.ts`：启动、IPC、RPC。
+5. `apps/desktop/src/main/{lifecycle,targets,operations}.ts` + `main/ipc/{contract,validate,register}.ts` + `preload.ts` + `desktop-api.ts`：启动、IPC、RPC。
 6. `packages/fanqie/src/engine/{storage,domain,services,tools}` 与 `packages/toutiao/src/{store,tools,gates}.ts`：业务规则。
 7. `packages/workbench/src/commands.ts` + `client/`：写作台契约与组件。
 8. `test/desktop/workflow.test.mjs` + `test/desktop/fake-model.mjs`：流水线如何被验证。
@@ -606,7 +607,7 @@ npm run assets -- check
 | 要改什么 | 去哪里 |
 | --- | --- |
 | 新增模型工具 | `packages/*/src/tools.ts` 或 `engine/tools/`；在 `create.ts` 按角色装配；补门禁与测试 |
-| 新增 IPC 通道 | `main/ipc/contract.ts`（IpcMap + IPC_PARSERS）→ `validate.ts` → `register*.ts` → `preload.ts` |
+| 新增 IPC 通道 | `main/ipc/contract.ts`（IpcMap + IPC_PARSERS）→ `validate.ts` → `register*.ts` → `desktop-api.ts`（preload 使用统一桥） |
 | 新增写作台操作 | `packages/workbench/src/commands.ts` COMMANDS → 业务包 `workbench/api.ts` 命令 → 适配器 |
 | 新增流水线阶段 | `workflow/<pipeline>.ts` 用 `run.model(id, ...)`；id 加入阶段表；确保 `parse` 能恢复、交付幂等 |
 | 改业务阈值 | 先改 Python `rules.py`（唯一源），再核对 TS 引用；不得直接改文档或常量副本 |

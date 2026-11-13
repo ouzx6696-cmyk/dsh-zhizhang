@@ -61,7 +61,7 @@ export async function selectTarget(state: Runtime, next: Target) {
     const access = await claimWorkspace(newRoot);
     try {
       if (storage) {
-        await ensureStorage(null, storage.config);
+        if (!access.readOnly) await ensureStorage(null, storage.config);
         await rememberProject(storage.paths.base, storage.paths.works);
       }
       if (normalized.mode === "toutiao") await rememberRoot(normalized.root);

@@ -16,6 +16,10 @@ import type {
   KnowledgeFile,
   KnowledgeItem,
 } from "../types.js";
+import { assertNoPendingAccept } from "./accept-journal.js";
+import { createWorkRecordJournal, finishChapterJournal } from "./chapter-journal.js";
+import { snapshotFile } from "./journal.js";
+import { withResourceLock } from "./process-lock.js";
 import { atomicWrite, assertResourceId, nowIso } from "./primitives.js";
 
 function continuityDir(dir: string) {
@@ -108,6 +112,7 @@ async function writeContinuityFile<
 }
 
 export async function readForeshadow(dir: string): Promise<ForeshadowFile> {
+  await assertNoPendingAccept(dir);
   return readContinuityFile<ForeshadowFile>(foreshadowFile(dir), EMPTY_FORESHADOW, "lines");
 }
 export async function saveForeshadow(
@@ -115,10 +120,18 @@ export async function saveForeshadow(
   lines: ForeshadowLine[],
   expectedRevision?: number,
 ): Promise<ForeshadowFile> {
-  const current = await readForeshadow(dir);
-  return writeContinuityFile(foreshadowFile(dir), current, { ...current, lines }, expectedRevision);
+  return withResourceLock(dir, async () => {
+    const current = await readForeshadow(dir);
+    return writeContinuityFile(
+      foreshadowFile(dir),
+      current,
+      { ...current, lines },
+      expectedRevision,
+    );
+  });
 }
 export async function readKnowledge(dir: string): Promise<KnowledgeFile> {
+  await assertNoPendingAccept(dir);
   return readContinuityFile<KnowledgeFile>(knowledgeFile(dir), EMPTY_KNOWLEDGE, "items");
 }
 export async function saveKnowledge(
@@ -126,25 +139,25 @@ export async function saveKnowledge(
   items: KnowledgeItem[],
   expectedRevision?: number,
 ): Promise<KnowledgeFile> {
-  const current = await readKnowledge(dir);
-  return writeContinuityFile(knowledgeFile(dir), current, { ...current, items }, expectedRevision);
+  return withResourceLock(dir, async () => {
+    const current = await readKnowledge(dir);
+    return writeContinuityFile(
+      knowledgeFile(dir),
+      current,
+      { ...current, items },
+      expectedRevision,
+    );
+  });
 }
 export async function readCommits(dir: string): Promise<CommitsFile> {
+  await assertNoPendingAccept(dir);
   return readContinuityFile<CommitsFile>(commitsFile(dir), EMPTY_COMMITS, "commits");
 }
-export async function saveCommits(
-  dir: string,
-  commits: ContinuityCommitRecord[],
-  expectedRevision?: number,
-): Promise<CommitsFile> {
-  const current = await readCommits(dir);
-  return writeContinuityFile(commitsFile(dir), current, { ...current, commits }, expectedRevision);
-}
-
 export async function readHandoff(
   dir: string,
   chapterId: string,
 ): Promise<HandoffRecord | undefined> {
+  await assertNoPendingAccept(dir);
   const raw = await readText(handoffFile(dir, chapterId));
   if (raw === undefined) return undefined;
   let data: unknown;
@@ -167,26 +180,62 @@ export async function readHandoff(
     throw new NovelError("bad_continuity", `章末交接格式损坏：handoff/${chapterId}.json`);
   return record;
 }
-export async function saveHandoff(
+/** Commit the three continuity views through the existing work journal. */
+export async function commitContinuity(
   dir: string,
-  record: Omit<HandoffRecord, "revision">,
-  expectedRevision?: number,
-): Promise<HandoffRecord> {
-  const file = handoffFile(dir, record.chapter);
-  const current = await readHandoff(dir, record.chapter);
-  const currentRevision = current?.revision ?? 0;
-  if (expectedRevision !== undefined && expectedRevision !== currentRevision)
-    throw new NovelError(
-      "revision_conflict",
-      `handoff/${record.chapter}.json 已被其他写入更新（盘上 revision ${currentRevision}），请重读后再试。`,
-    );
-  const next: HandoffRecord = { ...record, revision: currentRevision + 1 };
-  await mkdir(path.dirname(file), { recursive: true });
-  await atomicWrite(file, JSON.stringify(next, null, 2) + "\n");
-  return next;
+  input: {
+    lines?: ForeshadowLine[];
+    foreshadowRevision: number;
+    handoff: Omit<HandoffRecord, "revision">;
+    handoffRevision: number;
+    commits: ContinuityCommitRecord[];
+    commitsRevision: number;
+  },
+) {
+  return withResourceLock(dir, async () => {
+    await assertNoPendingAccept(dir);
+    const chapterId = assertResourceId(input.handoff.chapter, "章节 id");
+    const files = [
+      ...(input.lines ? ["continuity/foreshadow.json"] : []),
+      `continuity/handoff/${chapterId}.json`,
+      "continuity/commits.json",
+    ];
+    const before = await Promise.all(files.map((file) => snapshotFile(path.join(dir, file))));
+    const [foreshadow, handoff, commits] = await Promise.all([
+      readForeshadow(dir),
+      readHandoff(dir, chapterId),
+      readCommits(dir),
+    ]);
+    if (
+      foreshadow.revision !== input.foreshadowRevision ||
+      (handoff?.revision ?? 0) !== input.handoffRevision ||
+      commits.revision !== input.commitsRevision
+    )
+      throw new NovelError("revision_conflict", "连续性数据已变化，请重新核验后提交。");
+    const at = nowIso();
+    const values = [
+      ...(input.lines
+        ? [{ ...foreshadow, lines: input.lines, revision: foreshadow.revision + 1, updatedAt: at }]
+        : []),
+      { ...input.handoff, revision: input.handoffRevision + 1 },
+      { ...commits, commits: input.commits, revision: commits.revision + 1, updatedAt: at },
+    ];
+    const id = await createWorkRecordJournal(dir, {
+      kind: "continuity",
+      chapterId,
+      writes: files.map((file, index) => ({
+        file,
+        before: before[index],
+        content: JSON.stringify(values[index], null, 2) + "\n",
+      })),
+    });
+    await finishChapterJournal(dir, id);
+  });
 }
+
 /** 列出全部章末交接（按文件名，即章 id 排序）。 */
 export async function listHandoffs(dir: string): Promise<HandoffRecord[]> {
+  await assertNoPendingAccept(dir);
   let names: string[];
   try {
     names = await readdir(handoffDir(dir));

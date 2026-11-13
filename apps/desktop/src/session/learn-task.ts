@@ -87,7 +87,7 @@ export function createLearnTools(options: {
           };
         entry.phase = "改稿归纳中…";
         const child = await host.open(target, true, false);
-        host.children.set(session, child);
+        const releaseChild = host.registerChild(session, child);
         let items: LearnItem[];
         try {
           await promptWithSignal(
@@ -104,7 +104,7 @@ export function createLearnTools(options: {
           items = parseLearnOutput(child.getLastAssistantText() || "");
         } finally {
           accumulateChildUsage(entry, child);
-          host.children.delete(session);
+          releaseChild();
           child.dispose();
         }
         if (!items.length)

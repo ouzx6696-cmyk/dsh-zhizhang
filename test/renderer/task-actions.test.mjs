@@ -9,11 +9,11 @@ function setup(mode, result) {
   const renderer = loadRenderer(createRuntime().react, {
     crypto: { randomUUID: () => "request-id" },
     window: {
-      writerDesktop: {
-        newTarget: async () => target,
-        request: async (operation, options) => {
+      writerBridge: {
+        invoke: async (name, operation, options) => {
+          if (name === "new-target") return { ok: true, value: target };
           calls.push({ operation, options });
-          return { data: result };
+          return { ok: true, value: { data: result } };
         },
       },
     },

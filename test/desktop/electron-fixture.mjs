@@ -1,3 +1,4 @@
+import { unwrapIpcReply } from "../../apps/desktop/src/ipc-result";
 import { EventEmitter } from "node:events";
 import path from "node:path";
 // The OS boundary is inert in Node; session/storage behavior remains real.
@@ -23,9 +24,19 @@ export class Notification {
   }
 }
 // IPC registrations land in a map so tests call the production handlers directly.
+const ipcListeners = new Map();
 export const ipcMain = {
   handlers: new Map(),
+  async invoke(channel, ...args) {
+    const reply = await Promise.resolve()
+      .then(() => ipcListeners.get(channel)(...args))
+      .catch((error) => {
+        throw new Error(error.message);
+      });
+    return structuredClone(reply);
+  },
   handle(channel, listener) {
-    this.handlers.set(channel, listener);
+    ipcListeners.set(channel, listener);
+    this.handlers.set(channel, (...args) => this.invoke(channel, ...args).then(unwrapIpcReply));
   },
 };

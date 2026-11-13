@@ -1,6 +1,8 @@
 import type { Target, Focus } from "../context";
 import { buildDeliveryPrompt } from "../../../../packages/fanqie/src/workbench/delivery";
 import { listProjects } from "../../../../packages/fanqie/src/engine/storage/projects";
+import { listKnownRoots } from "../../../../packages/toutiao/src/env";
+import { physicalRoot, rootIdentity } from "../../../../packages/core/src/identity";
 import {
   isToutiaoCommand,
   runToutiaoCommand,
@@ -17,8 +19,11 @@ import {
   type CommandPolicy,
   type CommandContext,
 } from "../../../../packages/workbench/src/commands";
-import { workspaceReadOnlyError } from "../../../../packages/core/src/workspace-lock";
-import { selectTarget } from "./targets";
+import {
+  workspaceAccess,
+  workspaceReadOnlyError,
+} from "../../../../packages/core/src/workspace-lock";
+import { lockRoot, selectTarget } from "./targets";
 import { resolveFanqieWork } from "./storage";
 import type { Runtime } from "./runtime";
 import type { RequestOptions, RequestResult } from "./ipc/contract";
@@ -53,15 +58,31 @@ async function resolveOperationTarget(
     policy.profileAction === "/create"
       ? undefined
       : textField(input, "base") || textField(input, "project");
-  const project = (await listProjects()).find((row) =>
-    base ? row.id === base || row.base === base : row.base === selected.root,
+  const requested = textField(input, "root");
+  const projects = await listProjects();
+  const project = projects.find((row) =>
+    base
+      ? row.id === base || rootIdentity(row.base) === rootIdentity(base)
+      : rootIdentity(row.base) === rootIdentity(requested || selected.root),
   );
   if (base && !project) throw new Error("项目未登记，请重新选择创作目录");
   const mode = policy.mode;
-  const work = textField(input, "work");
+  const root = physicalRoot(requested || project?.base || selected.root);
+  if (requested) {
+    const roots = mode === "toutiao" ? await listKnownRoots() : projects.map((row) => row.base);
+    if (!roots.concat(selected.root).some((value) => rootIdentity(value) === rootIdentity(root)))
+      throw new Error("目录未登记，请先选择创作目录");
+    if (base && project && rootIdentity(root) !== rootIdentity(project.base))
+      throw new Error("目录与项目不一致，请重新选择创作目录");
+  }
+  const work =
+    textField(input, "work") ||
+    (mode === selected.mode && rootIdentity(root) === rootIdentity(selected.root)
+      ? selected.work
+      : undefined);
   const target: Target = {
     mode,
-    root: textField(input, "root") || project?.base || selected.root,
+    root,
     ...(work ? { work: String(work) } : {}),
   };
   const config = {
@@ -182,9 +203,11 @@ async function performRequest(state: Runtime, operation: string, options: Reques
   const kind = options.kind ?? "read";
   if (policy.kind !== "both" && policy.kind !== kind)
     return { data: { ok: false, code: "invalid_command", error: `操作类型不匹配：${operation}` } };
-  if (state.access.readOnly && policy.writes === "work")
-    return refused(workspaceReadOnlyError(state.access.owner));
   const context = await resolveOperationTarget(state, policy, options);
+  if (policy.writes === "work") {
+    const access = await workspaceAccess(await lockRoot(state, context.target));
+    if (access.readOnly) return refused(workspaceReadOnlyError(access.owner));
+  }
   if (policy.handler === "deliver") return deliver(state, context);
   if (policy.handler === "capabilities")
     return {

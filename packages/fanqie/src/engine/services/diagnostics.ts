@@ -16,7 +16,7 @@ import type {
 } from "../domain/diagnostics.js";
 import { fingerprint } from "../domain/lifecycle.js";
 import { currentContextBasis, assertContextBasis } from "../storage/chapters.js";
-import { withResourceLock } from "../storage/process-lock.js";
+import { afterLocalWrites, withResourceLock } from "../storage/process-lock.js";
 import {
   readChapter,
   readCandidate,
@@ -107,7 +107,7 @@ async function capture(dir: string, value: unknown): Promise<CapturedDiagnosticS
 }
 export async function diagnose(dir: string, value: unknown) {
   const input = object(value);
-  return withResourceLock(dir, async () => {
+  return afterLocalWrites(dir, async () => {
     if (input.mode && input.mode !== "quick")
       fail("deep_unavailable", "深度能力尚未验证，当前仅支持快速扫描");
     const { text, source } = await capture(dir, input);

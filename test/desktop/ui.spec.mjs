@@ -205,6 +205,15 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
     );
     expect(sandboxed).toBe(true);
     expect(await page.evaluate(() => typeof window.writerDesktop?.state)).toBe("function");
+    const failure = await page.evaluate(async () => {
+      try {
+        await window.writerDesktop.takeOverWorkspace("stale-owner-id");
+        return null;
+      } catch (error) {
+        return { isError: error instanceof Error, code: error.code };
+      }
+    });
+    expect(failure).toEqual({ isError: true, code: "CONFLICT" });
   });
   await test.step("决策不被 Agent 挡住，右栏标签与响应式布局，亮暗截图", async () => {
     await page.getByRole("button", { name: "设置", exact: true }).click();

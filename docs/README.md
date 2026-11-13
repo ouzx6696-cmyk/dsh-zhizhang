@@ -14,6 +14,7 @@
 
 ## 开发与引擎
 
+- [1.2 开发基线与实施清单](plans/v1.2/README.md)：原始资料、源码校准、里程碑与验收边界
 - [仓库约定](../AGENTS.md)
 - [项目认知与风险](PROJECT-COGNITION.md)：全局地图、已修复项与当前技术债
 - [应用架构](ARCHITECTURE.md)、[引擎架构](engine/ARCHITECTURE.md)
