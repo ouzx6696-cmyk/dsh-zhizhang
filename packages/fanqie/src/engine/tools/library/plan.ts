@@ -2,7 +2,7 @@ import { assertNoPendingCard } from "../../storage/card-journal.js";
 import { withResourceLock } from "../../storage/process-lock.js";
 
 import { LibraryPort } from "../../ports/index.js";
-import { readAnalysisBundle } from "../../ports/analysis/meta.js";
+import { readAnalysisBundle } from "../../services/analysis/meta.js";
 
 import {
   buildPlan,
@@ -19,7 +19,7 @@ import {
   PLAN_BATCH_DEFAULT,
   PLAN_BATCH_MIN,
   PLAN_BATCH_MAX,
-} from "../../ports/analysis/plan.js";
+} from "../../services/analysis/plan.js";
 
 import { AUTO_SAMPLE_HEAD, AUTO_SAMPLE_RATIO, AUTO_SAMPLE_TAIL } from "../../domain/workflow.js";
 import { asString, fail } from "../context.js";

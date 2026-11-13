@@ -1,8 +1,8 @@
-import { COPY as viewCopy, t as viewText } from "../../../../ui/src/copy.js";
+import { COPY as viewCopy, t as viewText } from "@writer/ui/copy";
 import React from "react";
-import { Stat, Card, Button } from "../../../../ui/src/primitives.jsx";
-import { chapterName, formatDateTime } from "../../../../ui/src/copy.js";
-import { Tag } from "../shared/ui.jsx";
+import { Stat, Card, Button } from "@writer/ui/primitives";
+import { chapterName, formatDateTime } from "@writer/ui/copy";
+import { Tag } from "../shared/ui.js";
 
 const FORESHADOW_STATUS_LABEL = {
   planned: viewCopy.foreshadowStatusPlanned,

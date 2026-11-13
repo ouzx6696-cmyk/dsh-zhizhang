@@ -17,7 +17,12 @@ async function guardFixture(t) {
     await mkdir(path.join(root, "packages", pkg, "src"), { recursive: true });
   for (const dir of ["apps/desktop/src/styles", "packages/workbench/src/client/styles", "test"])
     await mkdir(path.join(root, dir), { recursive: true });
-  for (const file of ["package.json", "apps/desktop/package.json", "packages/unused/package.json"])
+  for (const file of [
+    "package.json",
+    "apps/desktop/package.json",
+    "packages/ui/package.json",
+    "packages/unused/package.json",
+  ])
     await write(file, '{"version":"0.9.7"}');
   await write("packages/core/src/version.ts", 'export const VERSION = "0.9.7";');
   await write("CHANGELOG.md", "## 0.9.7\n");
@@ -57,6 +62,7 @@ test("架构守卫：一次扫描覆盖依赖、类型、样式、吞错与目�
     "promise.catch(() => ({}))",
     "promise.catch(() => { return false; })",
   ];
+  await write("packages/ui/src/unsafe.ts", 'import "node:fs";');
   await write(
     "packages/core/src/catches.js",
     invalid.map((source, i) => `async function check${i}() { ${source} }`).join("\n"),
@@ -71,6 +77,7 @@ test("架构守卫：一次扫描覆盖依赖、类型、样式、吞错与目�
     /any 数量 3 超过基线 0/,
     /组件前缀 wb-modal 必须唯一/,
     /文档历史目录不得存在/,
+    /渲染层不能访问 node:fs/,
   ])
     assert.match(failed.stderr, message);
   assert.match(failed.stdout, /吞错=10/);
@@ -79,6 +86,7 @@ test("架构守卫：一次扫描覆盖依赖、类型、样式、吞错与目�
   await write("scripts/broken.mjs", "");
   await write("test/broken.mjs", "");
   await write("packages/ui/src/overlay.css", "");
+  await write("packages/ui/src/unsafe.ts", "");
   await write("packages/ui/src/long.css", "\n".repeat(301));
   await rm(path.join(root, "docs/history"), { recursive: true });
   await write(

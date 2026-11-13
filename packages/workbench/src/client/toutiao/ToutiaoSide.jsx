@@ -1,21 +1,15 @@
 import React from "react";
-import {
-  COPY as viewCopy,
-  formatClock,
-  formatCount,
-  t,
-  t as viewText,
-} from "../../../../ui/src/copy.js";
-import { ActionButton, Button, Icon, Tag } from "../shared/ui.jsx";
+import { COPY as viewCopy, formatClock, formatCount, t, t as viewText } from "@writer/ui/copy";
+import { ActionButton, Button, Icon, Tag } from "../shared/ui.js";
 import { ActionCard, Section } from "../shared/common.jsx";
-import { Dialog, Steps as AuthorSteps } from "../../../../ui/src/primitives.jsx";
+import { Dialog, Steps as AuthorSteps } from "@writer/ui/primitives";
 import {
   ARTICLE_STEPS,
   articleProgress,
   statusLabel,
   statusTone,
   TOUTIAO_DELIVERED,
-} from "../../../../ui/src/status.js";
+} from "@writer/ui/status";
 
 const { useState } = React;
 

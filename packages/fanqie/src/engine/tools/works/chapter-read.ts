@@ -21,6 +21,7 @@ export const chapterRead = defineTool({
     return [
       `# ${ch.title}（${ch.id}）`,
       `- 修订：${ch.revision}`,
+      `- 读版本：${ch.readVersion}`,
       `- 审读声明：${ch.review ? `${ch.review.result} · ${ch.review.revision === ch.revision ? "正文版本匹配（依据仍须复核）" : "旧正文版本，已过期"} · ${ch.review.summary}` : "未记录；旧定稿不补造证据"}`,
       `- 条件依赖：${JSON.stringify(ch.dependencies ?? [])}`,
       `- 状态：${ch.status} · ${ch.wordCount} 字 · ${ch.updatedAt}`,

@@ -1,10 +1,10 @@
-import { COPY as viewCopy, t as viewText } from "../../../../ui/src/copy.js";
-import { statusLabel as canonicalStatusLabel } from "../../../../ui/src/status.js";
+import { COPY as viewCopy, t as viewText } from "@writer/ui/copy";
+import { statusLabel as canonicalStatusLabel } from "@writer/ui/status";
 const statusLabel = (status) => canonicalStatusLabel("fanqie", status);
 /** Left column: chapters with their pending candidates, filter and keyboard walk. */
 import React from "react";
-import { formatCount, t } from "../../../../ui/src/copy.js";
-import { Icon, SegmentedControl, cx } from "../shared/ui.jsx";
+import { formatCount, t } from "@writer/ui/copy";
+import { Icon, SegmentedControl, cx } from "../shared/ui.js";
 import { Empty, StatusDot, clip } from "../shared/common.jsx";
 
 const { memo, useMemo, useState } = React;

@@ -1,7 +1,7 @@
 /** 新建用户方案：名称、底本、备注，以及可选的 .md 文件或整个文件夹导入。 */
 import React from "react";
-import { Button, Icon, Spinner } from "./ui.jsx";
-import { t } from "../../../../ui/src/copy.js";
+import { Button, Icon, Spinner } from "./ui.js";
+import { t } from "@writer/ui/copy";
 
 const { useState } = React;
 

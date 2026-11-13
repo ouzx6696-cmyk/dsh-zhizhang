@@ -1,5 +1,15 @@
 import { draftReading } from "./reading";
-import { pairVote, review, revised, type Draft, type Review } from "./schema";
+import {
+  pairVote,
+  review,
+  revised,
+  jsonOutput,
+  list,
+  record,
+  text,
+  type Draft,
+  type Review,
+} from "./schema";
 import { runTaskPool } from "../session/task-pool";
 import type { ContextBlock } from "../../../../packages/core/src/workflow";
 import type { WorkflowRun } from "./run";
@@ -48,12 +58,55 @@ export async function selectDraft(
     mode === "fanqie"
       ? await Promise.all(drafts.map((draft) => draftReading(run, draft.body)))
       : [];
-  let winner = 0;
+  const ranking =
+    drafts.length > 2
+      ? await run.model(
+          "shortlist",
+          "多稿初选",
+          "editor",
+          READER_CARD,
+          { drafts: drafts.map((draft, index) => ({ index, ...draft })) },
+          '逐稿按理解、推进、可信、续读意愿四项打分（各0至10）。索引沿用输入，不按位置偏好。返回 {"scores":[{"index":0,"scores":[0,0,0,0],"reason":"正文证据"}]}，覆盖全部稿件。',
+          (value) => {
+            const rows = list(jsonOutput(value).scores, "选稿分数", drafts.length).map((raw) => {
+              const row = record(raw),
+                scores = list(row.scores, "分项分数", 4);
+              if (
+                !Number.isInteger(row.index) ||
+                Number(row.index) < 0 ||
+                Number(row.index) >= drafts.length ||
+                scores.length !== 4 ||
+                scores.some(
+                  (score) =>
+                    typeof score !== "number" || !Number.isFinite(score) || score < 0 || score > 10,
+                )
+              )
+                throw new Error("选稿索引或分项分数不正确");
+              return {
+                index: Number(row.index),
+                score: scores.reduce<number>((sum, score) => sum + Number(score), 0),
+                reason: text(row.reason, "选稿依据"),
+              };
+            });
+            if (
+              rows.length !== drafts.length ||
+              new Set(rows.map((row) => row.index)).size !== drafts.length
+            )
+              throw new Error("初选未覆盖全部稿件");
+            return rows.sort((a, b) => b.score - a.score || a.index - b.index);
+          },
+          material ? { material } : {},
+        )
+      : [];
+  const finalists = ranking.length
+    ? ranking.slice(0, 2).map((row) => row.index)
+    : drafts.map((_, index) => index);
+  let winner = finalists[0] ?? 0;
   const comparisons: { left: number; right: number; winner: number | null; reasons: string[] }[] =
     [];
   const readers =
     READERS[mode][run.journal.record.request.grade === "premium" ? "premium" : "standard"];
-  for (let challenger = 1; challenger < drafts.length; challenger++) {
+  for (const challenger of finalists.slice(1)) {
     const incumbent = winner;
     const jobs = readers.flatMap((persona, index) =>
       [false, true].map((swapped) => ({ persona, index, swapped })),
@@ -132,6 +185,7 @@ export async function selectDraft(
     settings.writer.model !== settings.editor.model;
   return {
     winner,
+    ranking,
     comparisons,
     independent,
     note: independent
@@ -200,9 +254,9 @@ export async function editDraft(
       "writer",
       reviseCard,
       { draft: previous, report },
-      '只修改硬伤原文所在段落及相邻段，保护其他段落，篇幅变化不超过30%。返回 {"title":"标题","body":"完整修订正文","resolved":["按硬伤顺序说明处理"]}。',
+      '只修改硬伤原文所在段落及相邻段，保护其他段落，篇幅变化不超过30%。优先返回 {"edits":[{"quote":"唯一的原段落","replacement":"修订段落"}],"resolved":["按硬伤顺序说明处理"]}；无法唯一定位时可返回 {"title":"标题","body":"完整修订正文","resolved":["逐项处理说明"]}。',
       (v) => {
-        const result = revised(v);
+        const result = revised(v, previous);
         if (result.resolved.length !== report.hard.length)
           throw new Error("修订未逐项交代硬伤处理");
         revisionScope(previous.body, result.body, report);

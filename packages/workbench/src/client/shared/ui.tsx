@@ -1,10 +1,14 @@
 /** Resolve optional host controls once. Rendering errors belong to the page boundary. */
 import React from "react";
-import { Button as UiButton } from "../../../../ui/src/primitives.jsx";
+import type { ReactNode, ComponentProps, KeyboardEvent } from "react";
+type ButtonProps = ComponentProps<"button"> & { variant?: string; size?: string; icon?: ReactNode };
+type Option = { value: string; label: ReactNode; disabled?: boolean; title?: string };
+
+import { Button as UiButton } from "@writer/ui/primitives";
 
 const { useEffect, useRef } = React;
 
-const cx = (...parts) => parts.filter(Boolean).join(" ");
+const cx = (...parts: unknown[]) => parts.filter(Boolean).join(" ");
 
 function LocalButton({
   variant = "ghost",
@@ -14,7 +18,7 @@ function LocalButton({
   children = null,
   type = "button",
   ...rest
-}) {
+}: ButtonProps) {
   return (
     <UiButton
       variant={variant === "outline" ? "secondary" : variant}
@@ -34,7 +38,15 @@ function LocalButton({
   );
 }
 
-function LocalTag({ tone = "outline", className = "", children }) {
+function LocalTag({
+  tone = "outline",
+  className = "",
+  children,
+}: {
+  tone?: string;
+  className?: string;
+  children?: ReactNode;
+}) {
   return (
     <span className={cx("wb-tag", className)} data-tone={tone}>
       {children}
@@ -42,7 +54,15 @@ function LocalTag({ tone = "outline", className = "", children }) {
   );
 }
 
-function LocalStateDot({ state, size, className = "" }) {
+function LocalStateDot({
+  state,
+  size,
+  className = "",
+}: {
+  state: string;
+  size?: number;
+  className?: string;
+}) {
   const edge = size || 10;
   return (
     <span
@@ -62,8 +82,16 @@ function LocalSegmentedControl({
   label,
   disabled = false,
   className = "",
+}: {
+  id: string;
+  value: string;
+  options: Option[];
+  onChange: (value: string) => void;
+  label?: string;
+  disabled?: boolean;
+  className?: string;
 }) {
-  const onKeyDown = (event) => {
+  const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
     if (keys.indexOf(event.key) < 0) return;
     event.preventDefault();
@@ -112,6 +140,13 @@ function LocalCheckbox({
   disabled = false,
   title = undefined,
   className = "",
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  label: ReactNode;
+  disabled?: boolean;
+  title?: string;
+  className?: string;
 }) {
   return (
     <label className={cx("wb-checkbox", className)} title={title}>
@@ -133,7 +168,7 @@ export const SegmentedControl = LocalSegmentedControl;
 export const Checkbox = LocalCheckbox;
 export { cx };
 
-const ICONS = {
+const ICONS: Record<string, string[]> = {
   book: [
     "M4 19.5A2.5 2.5 0 0 1 6.5 17H20",
     "M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z",
@@ -191,7 +226,7 @@ const ICONS = {
 };
 
 /** 加载中的小圆环（尊重 prefers-reduced-motion，由样式控制） */
-export function Spinner({ size = 14, label = undefined }) {
+export function Spinner({ size = 14, label = undefined }: { size?: number; label?: string }) {
   return (
     <span
       className="wb-spinner"
@@ -207,7 +242,14 @@ export function Spinner({ size = 14, label = undefined }) {
  * 带进行中与完成反馈的按钮：busy 时显示转圈并禁用；done（最近一次完成的时间戳）每变成一个新值，
  * 短暂显示一次对勾。外层包一层 span 承载动画，宿主 Button 不需要认识这些属性。
  */
-export function ActionButton({ busy = false, done = 0, icon, children, disabled, ...rest }) {
+export function ActionButton({
+  busy = false,
+  done = 0,
+  icon,
+  children,
+  disabled,
+  ...rest
+}: ButtonProps & { busy?: boolean; done?: number }) {
   const [flash, setFlash] = React.useState(false);
   const prev = useRef(done);
   useEffect(() => {
@@ -229,7 +271,15 @@ export function ActionButton({ busy = false, done = 0, icon, children, disabled,
 }
 
 /** Stroke icon; decorative unless a `label` is given. */
-export function Icon({ name, size = 16, label = undefined }) {
+export function Icon({
+  name,
+  size = 16,
+  label = undefined,
+}: {
+  name: string;
+  size?: number;
+  label?: string;
+}) {
   const paths = ICONS[name] || ICONS.book;
   return (
     <svg

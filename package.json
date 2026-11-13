@@ -1,6 +1,6 @@
 {
   "name": "writer-agent",
-  "version": "1.2.0-dev.0",
+  "version": "1.2.0",
   "private": true,
   "description": "基于内置 PI 的独立写作客户端：今日头条与番茄长篇",
   "type": "module",
@@ -46,7 +46,8 @@
     "typescript-eslint": "^8.72.1"
   },
   "workspaces": [
-    "apps/desktop"
+    "apps/desktop",
+    "packages/ui"
   ],
   "overrides": {
     "undici": "8.12.3",

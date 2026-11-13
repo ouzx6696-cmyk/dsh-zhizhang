@@ -10,8 +10,12 @@ import {
   chapterTitle,
   nearestChapter,
   totalChapters,
-} from "../analysis/chapters.js";
-import { ensureAnalysis, writeAnalysisMeta, readAnalysisBundle } from "../analysis/meta.js";
+} from "../../services/analysis/chapters.js";
+import {
+  ensureAnalysis,
+  writeAnalysisMeta,
+  readAnalysisBundle,
+} from "../../services/analysis/meta.js";
 import type { StoragePaths } from "../../types.js";
 import type { SourceMeta } from "./types.js";
 

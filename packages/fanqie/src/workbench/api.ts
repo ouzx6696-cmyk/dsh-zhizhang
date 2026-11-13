@@ -88,6 +88,7 @@ function commandsFor(config: PluginConfig): Record<string, RouteHandler> {
       const chapter = await updateChapter(dir, {
         id,
         expectedRevision: input.expectedRevision,
+        expectedReadVersion: asString(input, "expectedReadVersion"),
         status: action === "review" ? "reviewed" : action === "finalize" ? "final" : undefined,
         reviewSummary: asString(input, "summary") ?? "作者在阅读面板声明已完整审读当前版本",
         reviewResult: input.result === "blocked" ? "blocked" : "pass",
@@ -225,6 +226,7 @@ function commandsFor(config: PluginConfig): Record<string, RouteHandler> {
         id: chapter,
         body,
         expectedRevision,
+        expectedReadVersion: asString(input, "expectedReadVersion"),
         force: boolArg(input, "force"),
         ledgerEntry: AUTHOR_PANEL_SAVE_SUMMARY,
       });

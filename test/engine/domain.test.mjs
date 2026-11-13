@@ -103,10 +103,10 @@ test("证据按实际原文核对，心理词不误拒对白，重号不静默�
   assert.equal(quoteOk("她说我害怕", "她说：我害怕。"), false);
   assert.equal(quoteOk("她说：我害怕。", "她说：我害怕。"), true);
   const { chapterIndex, chapterText } =
-    await import("../../build/fanqie/src/engine/ports/analysis/chapters.js");
+    await import("../../build/fanqie/src/engine/services/analysis/chapters.js");
   const { validateChapterFacts } =
-    await import("../../build/fanqie/src/engine/ports/analysis/facts.js");
-  const { buildPlan } = await import("../../build/fanqie/src/engine/ports/analysis/plan.js");
+    await import("../../build/fanqie/src/engine/services/analysis/facts.js");
+  const { buildPlan } = await import("../../build/fanqie/src/engine/services/analysis/plan.js");
   const text = "第一章 夜归\n她说：我害怕。随后关门。\n第一章 番外\n他打开窗。";
   const index = chapterIndex(text);
   assert.equal(chapterText(text, index, 1), null);

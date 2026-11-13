@@ -1,4 +1,4 @@
-import { COPY as viewCopy } from "../../../../../../packages/ui/src/copy.js";
+import { COPY as viewCopy } from "@writer/ui/copy";
 import React, { useEffect, useState } from "react";
 import { errorText } from "../../../../../../packages/core/src/errors.js";
 import type { SystemState } from "../../state/store";

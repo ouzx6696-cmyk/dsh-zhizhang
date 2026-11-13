@@ -51,7 +51,15 @@ jobs:
           if (sourceNet > 500 && testNet <= 0) console.log(`::warning::源码净增 ${sourceNet} 行，测试净增 ${testNet} 行；请补回归测试或在 PR 中说明原因。`);
           const shared = files.some(p => /^(packages\/|scripts\/|test\/|\.github\/|package(?:-lock)?\.json$|tsconfig)/.test(p));
           const desktop = shared || files.some(p => p.startsWith('apps/desktop/'));
-          const pack = process.env.GITHUB_EVENT_NAME === 'workflow_dispatch' || process.env.GITHUB_REF.startsWith('refs/tags/');
+          // Changes to shipped resources, fuses or the backup worker must exercise the actual package.
+          const packageFiles = new Set([
+            'apps/desktop/electron-builder.yml', 'apps/desktop/package.json',
+            'apps/desktop/src/main/backup-process.ts', 'apps/desktop/src/main/ipc/backup.ts',
+            'packages/ui/package.json', 'scripts/runtime-assets.mjs', 'scripts/stage-desktop.mjs',
+            'scripts/prepare-desktop-python.mjs', 'scripts/check-desktop-package.mjs', 'scripts/backup.mjs',
+          ]);
+          const packageChanged = process.env.GITHUB_EVENT_NAME === 'pull_request' && files.some(p => packageFiles.has(p));
+          const pack = process.env.GITHUB_EVENT_NAME === 'workflow_dispatch' || process.env.GITHUB_REF.startsWith('refs/tags/') || packageChanged;
           appendFileSync(process.env.GITHUB_OUTPUT, `desktop=${desktop || pack}\npackage=${pack}\n`);
           JS
   test:

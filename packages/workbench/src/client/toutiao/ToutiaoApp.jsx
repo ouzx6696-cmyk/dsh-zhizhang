@@ -1,14 +1,14 @@
-import { COPY as viewCopy, formatCount, t, EDITOR_COPY } from "../../../../ui/src/copy.js";
+import { COPY as viewCopy, formatCount, t, EDITOR_COPY } from "@writer/ui/copy";
 /** 写作台 · 今日头条模式：左列文章、中间当前稿 / 交稿单、右侧状态、质检、采用与写作 Agent 按钮。 */
 import React from "react";
-import { Button, Icon, SegmentedControl, StateDot, Tag, cx } from "../shared/ui.jsx";
+import { Button, Icon, SegmentedControl, StateDot, Tag, cx } from "../shared/ui.js";
 import { Callout, Empty, Skeleton } from "../shared/common.jsx";
 import { Manuscript } from "../shared/Manuscript.jsx";
 import { SourceEditor } from "../shared/SourceEditor.jsx";
 import { articleDraftKey } from "../shared/drafts.js";
 import { useReadingPosition } from "../shared/reading-position.js";
 import { useReaderFind } from "../shared/useReaderFind.jsx";
-import { statusInfo, statusLabel, statusTone } from "../../../../ui/src/status.js";
+import { statusInfo, statusLabel, statusTone } from "@writer/ui/status";
 
 import { draftRoleLabel } from "./ToutiaoSide.jsx";
 

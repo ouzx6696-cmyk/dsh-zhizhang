@@ -1,7 +1,7 @@
 /** Full-chapter source editor shared by the novel and Toutiao readers. */
 import React from "react";
-import { Button, Icon } from "./ui.jsx";
-import { t, EDITOR_COPY as c } from "../../../../ui/src/copy.js";
+import { Button, Icon } from "./ui.js";
+import { t, EDITOR_COPY as c } from "@writer/ui/copy";
 import { confirmAction } from "./confirm.js";
 import { FindBar, isShortcut, typingElsewhere, useFind } from "./FindBar.jsx";
 import { findMatches, matchFrom } from "./find.js";

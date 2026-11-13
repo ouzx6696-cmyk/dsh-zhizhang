@@ -1,4 +1,4 @@
-import { formatDateTime } from "../../../../packages/ui/src/copy.js";
+import { formatDateTime } from "@writer/ui/copy";
 
 export function humanVersion(value: unknown, at?: string) {
   // 版本标签只带时刻（HH:mm），日期从 formatDateTime 的固定宽度输出里截取。

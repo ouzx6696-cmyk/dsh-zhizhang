@@ -13,7 +13,8 @@
     "outDir": "build",
     "noUnusedLocals": true,
     "noUnusedParameters": false,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "jsx": "react"
   },
-  "include": ["packages/*/src/**/*.ts"]
+  "include": ["packages/*/src/**/*.ts", "packages/ui/src/**/*.tsx"]
 }

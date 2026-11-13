@@ -1,6 +1,6 @@
 import { classifyProviderMessage } from "../../../packages/core/src/provider-error";
 import { errorText } from "../../../packages/core/src/errors.js";
-import { taskEndCopy } from "../../../packages/ui/src/copy.js";
+import { taskEndCopy } from "@writer/ui/copy";
 export { Diagnostics } from "../../../packages/core/src/diagnostics";
 export function explainError(error: unknown) {
   const text = errorText(error);

@@ -6,8 +6,13 @@ import path from "node:path";
 import { NovelError } from "../errors.js";
 import { assertResourceId, createExclusive } from "./primitives.js";
 
-export function chapterRevision(chapter: { body: string; outline: unknown; position: number }) {
-  return sha256(JSON.stringify([chapter.body, chapter.outline, chapter.position]));
+export function chapterRevision(chapter: {
+  title: string;
+  body: string;
+  outline: unknown;
+  position: number;
+}) {
+  return sha256(JSON.stringify([chapter.title, chapter.body, chapter.outline, chapter.position]));
 }
 
 /** Called under the work lock, before changing authoritative files. */

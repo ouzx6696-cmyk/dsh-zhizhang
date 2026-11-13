@@ -1,6 +1,6 @@
 # 当前状态
 
-最近正式版为 [1.1.1](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/v1.1.1)；当前开发标识为 1.2.0-dev.0，M1 已实现并通过完整本地验收，基于 1.1.2 的已验证提交 `3382575`。1.1.2 与 1.2 均尚未正式发布。1.2 的范围、资料核对和实施顺序见 [1.2 开发清单](plans/v1.2/README.md)。新增能力与范围见 [CHANGELOG](../CHANGELOG.md)，使用与质量边界见[创作与质量方法](engine/QUALITY.md)。
+最近正式版为 [1.1.1](https://github.com/ouzx6696-cmyk/dsh-zhizhang/releases/tag/v1.1.1)；当前代码版本为 1.2.0，M1–M4 实施与完整本地验收已完成，基于 1.1.2 的已验证提交 `3382575`。1.1.2 与 1.2 均尚未正式发布。1.2 的范围、资料核对和实施顺序见 [1.2 开发清单](plans/v1.2/README.md)。新增能力与范围见 [CHANGELOG](../CHANGELOG.md)，使用与质量边界见[创作与质量方法](engine/QUALITY.md)。
 
 框架重构使用现行作品格式，不迁移旧版本项目、会话与草稿；当前作品的暂存和中断恢复继续支持。
 
@@ -10,7 +10,7 @@
 - 上下文：阶段模型不带工具与聊天历史，按预算组装本阶段材料；方法阶段卡复用方法原文并校验源哈希、节编号覆盖和字数，缓存不含作品数据。
 - 连续性与个人规则：分类看板、冲突确认、定稿自动记账（排队不抢占）、十章长线巡检与节奏曲线；个人规则显示候选与前后例子，作者确认后才生效。
 - 数据保护：编辑离开确认、按作品与槽位保存的草稿及旧稿冲突检测、遗留锁恢复与作品锁接管、可恢复指针保护、读取期间替换文件的缓存保护、交稿单与质检结果绑定稿件版本和哈希。
-- 运行时：Electron 45.2.3、Node 24.11、随包 Python 3.13（开发需 3.10+）；生产窗口启用 CSP 与沙箱，打包启用 Fuses（关闭 NODE_OPTIONS 与命令行 inspect、只从 app.asar 加载，保留备份脚本所需的 RunAsNode）。
+- 运行时：Electron 45.2.3、Node 24.11、随包 Python 3.13（开发需 3.10+）；生产窗口启用 CSP 与沙箱，打包启用 Fuses（关闭 NODE_OPTIONS 与命令行 inspect、只从 app.asar 加载，关闭 RunAsNode，备份使用 utility process）。
 - 追读实验：单元规划与章纲节奏字段、定稿四账、受预算限制的写手卡与前章摘要、描述性阅读量化和本地对标书；可在“设置 › 写作引擎”分别开启规划与量化提醒。
 - 界面：大窗口默认“自适应铺开”，左右栏与稿纸行宽随窗口变宽、字号不变；可在“设置 › 外观 › 大窗口布局”改为等比放大或关闭。
 
@@ -18,7 +18,9 @@
 
 ## 验证情况
 
-1.2 M1：`CI=1 DISPLAY=:99 npm run test:all` 通过（2026-11-13，Linux）：核心 Node 363 项（362 通过、1 项 Windows 专属跳过），桌面运行时 136/136，Electron GUI 完整旅程 1/1；Python 224 + 14 + 2 项、生产编译、类型、lint、格式、导出和架构守卫通过。架构守卫保留一条既有的 `workflow/context.ts` 超过建议行数提示。覆盖 IPC 错误传输、并发子会话停止、实际目标只读与连续性事务恢复。M2–M4 尚未实施，未运行 1.2 Windows CI、安装包构建或真实付费模型。
+1.2 最终本地验收：`CI=1 DISPLAY=:99 npm run test:all` 通过（2026-11-13，Linux）：核心 Node 366 项（365 通过、1 项 Windows 专属跳过），桌面运行时 141/141，完整 Electron GUI 旅程 1/1；Python 224 + 14 + 2 项、生产编译、类型、lint、格式、导出和架构守卫通过，架构守卫 0 条提示。GUI 覆盖真实 utility process 备份及校验，退出回归覆盖备份取消。 Windows 产物与 CI 结果见 [分支 CI](https://github.com/ouzx6696-cmyk/dsh-zhizhang/actions?query=branch%3Afeat%2Fv1.2)。实现与取舍见 [实施记录](plans/v1.2/README.md#m2m4-完成记录)。
+
+1.2 M1：`CI=1 DISPLAY=:99 npm run test:all` 通过（2026-11-13，Linux）：核心 Node 363 项（362 通过、1 项 Windows 专属跳过），桌面运行时 136/136，Electron GUI 完整旅程 1/1；Python 224 + 14 + 2 项、生产编译、类型、lint、格式、导出和架构守卫通过。架构守卫保留一条既有的 `workflow/context.ts` 超过建议行数提示。覆盖 IPC 错误传输、并发子会话停止、实际目标只读与连续性事务恢复。该条是 M1 当时的记录；后续完整验收与 Windows 产物结果更新如下。
 
 1.2 准备阶段（2026-11-13）：`npm run desktop:build` 通过，含类型检查与 Electron 生产编译；项目版本与 lockfile 一致，依赖锁只更新项目版本元数据。未改业务行为，沿用基线 `3382575` 的业务回归及 Linux/Windows CI 记录；本次未运行安装包构建、1.2 Windows CI 或真实模型。
 

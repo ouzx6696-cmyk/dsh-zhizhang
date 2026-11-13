@@ -6,6 +6,7 @@ import { checkCard, titleLength } from "../../../../packages/toutiao/src/card";
 import { loadLimits } from "../../../../packages/toutiao/src/rule-limits";
 import {
   draft,
+  patchedDraft,
   jsonOutput,
   record,
   text,
@@ -132,23 +133,30 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
     "toutiao",
     request.line === "story" ? "s4-story" : request.line === "micro" ? "s4-micro" : "s4-news",
   );
-  const blueprint = await run.model(
-    "blueprint",
-    "准备文章结构",
-    "planner",
-    writing,
-    { card, source: sourceRef, titles: matrix.titles },
-    '返回 {"opening":"开篇三段的具体内容和信息推进","structure":"主稿结构与每段所得","extension":"延伸四条或微头条收束方式"}。',
-    (value) => {
-      const r = jsonOutput(value);
-      return {
-        opening: text(r.opening, "开篇"),
-        structure: text(r.structure, "结构"),
-        extension: text(r.extension, "延伸"),
-      };
-    },
-    { material },
-  );
+  const blueprint =
+    request.grade === "economy"
+      ? {
+          opening: "从给定来源的具体处境进入",
+          structure: String(card["主问题"] ?? "按立项卡推进"),
+          extension: String(card["延伸"] ?? "按体裁收束"),
+        }
+      : await run.model(
+          "blueprint",
+          "准备文章结构",
+          "planner",
+          writing,
+          { card, source: sourceRef, titles: matrix.titles },
+          '返回 {"opening":"开篇三段的具体内容和信息推进","structure":"主稿结构与每段所得","extension":"延伸四条或微头条收束方式"}。',
+          (value) => {
+            const r = jsonOutput(value);
+            return {
+              opening: text(r.opening, "开篇"),
+              structure: text(r.structure, "结构"),
+              extension: text(r.extension, "延伸"),
+            };
+          },
+          { material },
+        );
   const count = request.grade === "economy" ? 1 : request.grade === "premium" ? 3 : 2;
   const outcomes = await runTaskPool(
     count,
@@ -210,8 +218,8 @@ export async function articlePipeline(run: WorkflowRun, target: Target) {
       "writer",
       writing,
       { draft: checked.draft, unsupported, source: sourceRef },
-      '删除或改写 unsupported 中的每一条：改为来源支持的表述、明确的观点或删去；其他段落不动。返回 {"title":"标题","body":"完整正文"}。',
-      draft,
+      '删除或改写 unsupported 中的每一条：改为来源支持的表述、明确的观点或删去；其他段落不动。优先返回 {"edits":[{"quote":"唯一原段落","replacement":"修订段落"}]}；不能唯一定位时返回 {"title":"标题","body":"完整正文"}。',
+      (value) => patchedDraft(value, checked.draft),
       { material },
     );
     repaired.body = normalizeDraft(repaired.body);

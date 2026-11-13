@@ -6,11 +6,7 @@ import { promptContext, toolLabel, type Focus, type Target } from "../../../cont
 import { writerResult } from "../../../writer-result";
 import type { ChatMessage } from "../../state/store";
 import { chatStore, useChatSelector } from "../../state/chatStore";
-import {
-  COPY as viewCopy,
-  t as viewText,
-  AGENT_COPY,
-} from "../../../../../../packages/ui/src/copy.js";
+import { COPY as viewCopy, t as viewText, AGENT_COPY } from "@writer/ui/copy";
 
 // 会话里除作者与作者操作外的条目都由写作助手产生。
 const ROLE_LABEL: Record<string, string> = {

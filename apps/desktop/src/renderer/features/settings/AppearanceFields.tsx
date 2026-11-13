@@ -1,7 +1,7 @@
-import { COPY as viewCopy } from "../../../../../../packages/ui/src/copy.js";
+import { COPY as viewCopy } from "@writer/ui/copy";
 import { FONT_SIZE, type Appearance } from "../../../appearance";
 import React from "react";
-import { Toggle } from "../../../../../../packages/ui/src/primitives";
+import { Toggle } from "@writer/ui/primitives";
 export function AppearanceFields({
   appearance,
   onChange,

@@ -1,4 +1,4 @@
-import { newRequestId } from "../../../../../../packages/ui/src/request";
+import { newRequestId } from "@writer/ui/request";
 import { fanqie, toutiao } from "../../../../../../packages/workbench/src/client/shared/api.js";
 import type { Focus, Target } from "../../../context";
 import type { DesktopState } from "../../state/store";

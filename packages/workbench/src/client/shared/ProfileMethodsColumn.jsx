@@ -1,8 +1,8 @@
 /** 方法方案弹窗中列：方案头部操作（启用、复制、改名、删除）与可筛选的方法清单。 */
 import React from "react";
-import { Button, cx, Icon, Spinner, Tag } from "./ui.jsx";
+import { Button, cx, Icon, Spinner, Tag } from "./ui.js";
 import { Callout } from "./common.jsx";
-import { t } from "../../../../ui/src/copy.js";
+import { t } from "@writer/ui/copy";
 
 function FromTag({ row }) {
   if (row.added) return <Tag tone="info">{t("pfFromAdded")}</Tag>;

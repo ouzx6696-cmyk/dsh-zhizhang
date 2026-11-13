@@ -41,12 +41,10 @@ const METHOD_ATTR = /([a-zA-Z]+)="([^"]*)"/g;
 // Context travels with each queued prompt; browsing never changes a running task.
 export function promptText(text: string, context: unknown, methodBlocks?: string[]) {
   const blocks = methodBlocks?.length ? `${methodBlocks.join("\n")}\n\n` : "";
-  return `<writer-context>\n${JSON.stringify(context)}\n</writer-context>\n\n${blocks}${text}`;
+  return `${blocks}<writer-context>\n${JSON.stringify(context)}\n</writer-context>\n\n${text}`;
 }
 export function promptContext(text: string) {
-  const match = text.match(/^<writer-context>\n([^\n]+)\n<\/writer-context>\n\n/);
-  if (!match) return { context: null, text, methods: [] as PromptMethodBlock[] };
-  let rest = text.slice(match[0].length);
+  let rest = text;
   const methods: PromptMethodBlock[] = [];
   for (let block = rest.match(METHOD_BLOCK); block; block = rest.match(METHOD_BLOCK)) {
     const attrs: Record<string, string> = {};
@@ -54,7 +52,9 @@ export function promptContext(text: string) {
     methods.push({ id: attrs.id, hash: attrs.hash, text: block[2] });
     rest = rest.slice(block[0].length);
   }
-  return { context: JSON.parse(match[1]), text: rest, methods };
+  const match = rest.match(/^<writer-context>\n([^\n]+)\n<\/writer-context>\n\n/);
+  if (!match) return { context: null, text, methods: [] as PromptMethodBlock[] };
+  return { context: JSON.parse(match[1]), text: rest.slice(match[0].length), methods };
 }
 export function toolLabel(name: string) {
   if (name === "writer_review") return "编辑审读";

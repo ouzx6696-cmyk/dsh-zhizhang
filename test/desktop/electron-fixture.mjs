@@ -1,6 +1,10 @@
 import { unwrapIpcReply } from "../../apps/desktop/src/ipc-result";
 import { EventEmitter } from "node:events";
 import path from "node:path";
+import { fork } from "node:child_process";
+export const utilityProcess = {
+  fork: (file, args) => fork(file, args, { stdio: ["ignore", "pipe", "pipe", "ipc"] }),
+};
 // The OS boundary is inert in Node; session/storage behavior remains real.
 // Lifecycle listeners land on a real emitter so tests fire Electron's quit events in order;
 // quit() only records the call.

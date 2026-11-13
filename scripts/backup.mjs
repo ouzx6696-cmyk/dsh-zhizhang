@@ -157,3 +157,9 @@ try {
   console.error(`备份失败：${err instanceof Error ? err.message : String(err)}`);
   process.exitCode = 1;
 }
+// Electron's parent port keeps a utility worker alive after the CLI has finished.
+if (process.parentPort) {
+  await new Promise((resolve) => process.stdout.write("", resolve));
+  await new Promise((resolve) => process.stderr.write("", resolve));
+  process.exit(process.exitCode ?? 0);
+}

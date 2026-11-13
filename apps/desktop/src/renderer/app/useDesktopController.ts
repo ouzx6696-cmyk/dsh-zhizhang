@@ -1,10 +1,6 @@
 import { errorText } from "../../../../../packages/core/src/errors.js";
-import {
-  COPY as viewCopy,
-  formatDateTime,
-  t as viewText,
-} from "../../../../../packages/ui/src/copy.js";
-import { dismissNotices, notify } from "../../../../../packages/ui/src/notify";
+import { COPY as viewCopy, formatDateTime, t as viewText } from "@writer/ui/copy";
+import { dismissNotices, notify } from "@writer/ui/notify";
 import { DEFAULT_HISTORY_LIMIT } from "../../history-options";
 import { createDraftProtection } from "./draftProtection";
 import { useDesktopEvents } from "./useDesktopEvents";

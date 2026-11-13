@@ -6,7 +6,7 @@ import React from "react";
 import { FindBar, isShortcut, typingElsewhere, useFind } from "./FindBar.jsx";
 import { findMatches } from "./find.js";
 import { revealRect, scrollParentOf } from "./reading-position.js";
-import { EDITOR_COPY as c } from "../../../../ui/src/copy.js";
+import { EDITOR_COPY as c } from "@writer/ui/copy";
 
 const { useCallback, useEffect, useLayoutEffect, useRef, useState } = React;
 

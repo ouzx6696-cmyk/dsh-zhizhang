@@ -21,9 +21,9 @@ import {
 } from "../../storage/plan-journal.js";
 
 import { LibraryPort } from "../../ports/index.js";
-import { readAnalysisBundle, listAnalyses } from "../../ports/analysis/meta.js";
+import { readAnalysisBundle, listAnalyses } from "../../services/analysis/meta.js";
 
-import { planLabel, readPlan, planProgress } from "../../ports/analysis/plan.js";
+import { planLabel, readPlan, planProgress } from "../../services/analysis/plan.js";
 
 import { ensureStorage } from "../../storage/paths.js";
 import { listLocalBooks } from "../../storage/projects.js";

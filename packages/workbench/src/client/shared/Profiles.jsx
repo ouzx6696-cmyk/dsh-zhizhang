@@ -1,6 +1,6 @@
 import { errorText } from "../../../../core/src/errors.js";
-import { notify } from "../../../../ui/src/notify";
-import { COPY as viewCopy, t } from "../../../../ui/src/copy.js";
+import { notify } from "@writer/ui/notify";
+import { COPY as viewCopy, t } from "@writer/ui/copy";
 import { Manuscript } from "./Manuscript.jsx";
 /**
  * 方法方案弹窗：左列方案（默认 / 原版 / 用户方案N），中列方法清单，右列全文。
@@ -9,14 +9,15 @@ import { Manuscript } from "./Manuscript.jsx";
 import { canLeaveEdit } from "./useSourceGuard.js";
 import { confirmAction } from "./confirm.js";
 import React from "react";
-import { Button, cx, Icon, Tag } from "./ui.jsx";
-import { Dialog } from "../../../../ui/src/primitives.jsx";
+import { useRequestGuard } from "@writer/ui/use-request-guard";
+import { Button, cx, Icon, Tag } from "./ui.js";
+import { Dialog } from "@writer/ui/primitives";
 import { Callout } from "./common.jsx";
 import { NewProfileForm } from "./ProfileNewForm.jsx";
 import { ProfileMethodsColumn } from "./ProfileMethodsColumn.jsx";
 import { ProfileMethodEditor } from "./ProfileMethodEditor.jsx";
 
-const { useCallback, useEffect, useRef, useState } = React;
+const { useCallback, useEffect, useMemo, useState } = React;
 const MODE_NAME = { fanqie: viewCopy.modeFanqie, toutiao: viewCopy.ttTitle };
 
 function InlineProfiles({ children }) {
@@ -54,10 +55,17 @@ export function ProfilesDialog({
   const [renaming, setRenaming] = useState(null);
   const [adding, setAdding] = useState(null);
 
+  const scope = useMemo(() => ({ api, sel }), [api, sel]);
+  const listRequest = useRequestGuard(api);
+  const detailRequest = useRequestGuard(scope);
+  const methodRequest = useRequestGuard(scope);
+
   const loadList = useCallback(
     async (keep) => {
+      const current = listRequest();
       try {
         const r = await api.list();
+        if (!current()) return;
         setList({ status: "ready", error: "", ...r });
         setSel((cur) =>
           keep && r.profiles.some((p) => p.id === keep)
@@ -67,33 +75,30 @@ export function ProfilesDialog({
               : r.active,
         );
       } catch (e) {
-        setList((l) => ({ ...l, status: "error", error: errorText(e) }));
+        if (current()) setList((l) => ({ ...l, status: "error", error: errorText(e) }));
       }
     },
-    [api],
+    [api, listRequest],
   );
   useEffect(() => {
     loadList();
   }, [loadList]);
 
   // 只有最后一次发出的请求可以落地：快速切换方案或方法时，较早的回执晚到也不得覆盖当前内容。
-  const detailRequest = useRef(0);
-  const methodRequest = useRef(0);
   const loadDetail = useCallback(
     async (id) => {
       if (!id) return;
-      const request = ++detailRequest.current;
+      const current = detailRequest();
       try {
         const next = await api.detail(id);
-        if (request === detailRequest.current) setDetail(next);
+        if (current()) setDetail(next);
       } catch (e) {
-        if (request === detailRequest.current) push("danger", errorText(e));
+        if (current()) push("danger", errorText(e));
       }
     },
-    [api, push],
+    [api, push, detailRequest],
   );
   useEffect(() => {
-    methodRequest.current += 1;
     setBusy((current) => (current.startsWith("method:") ? "" : current));
     setDetail(null);
     setMethod(null);
@@ -129,23 +134,23 @@ export function ProfilesDialog({
 
   const openMethod = useCallback(
     async (id) => {
-      if (!(await leaveMethod())) return;
-      const request = ++methodRequest.current;
+      const current = methodRequest();
+      if (!(await leaveMethod()) || !current()) return;
       setBusy("method:" + id);
       try {
         const r = await api.method(sel, id);
-        if (request !== methodRequest.current) return;
+        if (!current()) return;
         setMethod({ ...r.method, base_text: r.base_text });
         setDraft(r.method.text);
         setShowBase(false);
         setModeView("read");
       } catch (e) {
-        if (request === methodRequest.current) push("danger", errorText(e));
+        if (current()) push("danger", errorText(e));
       } finally {
-        if (request === methodRequest.current) setBusy("");
+        if (current()) setBusy("");
       }
     },
-    [api, sel, leaveMethod, push],
+    [api, sel, leaveMethod, push, methodRequest],
   );
 
   const run = async (key, fn, ok) => {

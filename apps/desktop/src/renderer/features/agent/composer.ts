@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AGENT_COPY, formatCost, formatTokens } from "../../../../../../packages/ui/src/copy.js";
+import { AGENT_COPY, formatCost, formatTokens } from "@writer/ui/copy";
 import {
   PREF,
   readPref,

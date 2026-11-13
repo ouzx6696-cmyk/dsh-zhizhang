@@ -281,10 +281,36 @@ export function pairVote(value: unknown): PairVote {
     abandonB: text(r.abandonB, "B 弃读点"),
   };
 }
-export function revised(value: unknown): Draft & { resolved: string[] } {
+/** Resolve every edit against the original body, then apply disjoint spans from the end. */
+export function patchedDraft(value: unknown, before: Draft): Draft {
+  const r = jsonOutput(value);
+  if (r.edits === undefined) return draft(r);
+  const edits = list(r.edits, "局部修订", 20)
+    .map((raw) => {
+      const edit = record(raw),
+        quote = locate(before.body, text(edit.quote, "修订原文", 10000));
+      if (!quote) throw new Error("修订原文不在当前正文中");
+      const start = before.body.indexOf(quote);
+      if (before.body.indexOf(quote, start + 1) >= 0)
+        throw new Error("修订原文出现多次，请提供唯一的完整段落");
+      if (typeof edit.replacement !== "string") throw new Error("替换内容须为字符串");
+      return { start, end: start + quote.length, replacement: edit.replacement };
+    })
+    .sort((a, b) => b.start - a.start);
+  let body = before.body,
+    boundary = body.length;
+  for (const edit of edits) {
+    if (edit.end > boundary) throw new Error("局部修订范围重叠");
+    body = body.slice(0, edit.start) + edit.replacement + body.slice(edit.end);
+    boundary = edit.start;
+  }
+  return { title: r.title === undefined ? before.title : text(r.title, "标题", 100), body };
+}
+
+export function revised(value: unknown, before: Draft): Draft & { resolved: string[] } {
   const r = jsonOutput(value);
   return {
-    ...draft(r),
+    ...patchedDraft(r, before),
     resolved: list(r.resolved, "修订处理说明", 5).map((v) => text(v, "处理说明")),
   };
 }

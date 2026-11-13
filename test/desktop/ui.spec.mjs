@@ -215,6 +215,28 @@ test("桌面完整旅程：创作、审读、修改、取消、上下文和搜�
     });
     expect(failure).toEqual({ isError: true, code: "CONFLICT" });
   });
+  await test.step("真实 utility process 完成备份与校验", async () => {
+    await expect
+      .poll(async () => (await page.evaluate(() => window.writerDesktop.running())).length)
+      .toBe(0);
+    const destination = await mkdtemp(path.join(tmpdir(), "writer-ui-backup-"));
+    try {
+      await app.evaluate(({ dialog }, directory) => {
+        dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [directory] });
+      }, destination);
+      const result = await page.evaluate(() => window.writerDesktop.backup());
+      const manifest = JSON.parse(
+        await readFile(path.join(result.file, "writer-novel-backup-manifest.json"), "utf8"),
+      );
+      expect(manifest.roots).toHaveLength(1);
+      expect(manifest.roots[0].entries.some((entry) => /c001\.md$/.test(entry.path))).toBe(true);
+    } finally {
+      await app.evaluate(({ dialog }, directory) => {
+        dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [directory] });
+      }, root);
+      await rm(destination, { recursive: true, force: true });
+    }
+  });
   await test.step("决策不被 Agent 挡住，右栏标签与响应式布局，亮暗截图", async () => {
     await page.getByRole("button", { name: "设置", exact: true }).click();
     const initialAppearance = page.getByRole("dialog", { name: "设置", exact: true });

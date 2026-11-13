@@ -88,15 +88,27 @@ export async function chapterPipeline(run: WorkflowRun, target: Target) {
           },
         },
       );
-  const scenePlan = await run.model(
-    "scenes",
-    "准备场景",
-    "planner",
-    planCard,
-    plan,
-    '返回 {"scenes":[{"purpose":"目的","conflict":"阻力","information":"信息增量","change":"结尾状态变化"}]}，1至6场；单场完整收束不机械拆分。',
-    scenes,
-  );
+  const scenePlan =
+    request.grade === "economy"
+      ? {
+          scenes: [
+            {
+              purpose: plan.synopsis,
+              conflict: plan.conflict,
+              information: plan.beats,
+              change: plan.ending,
+            },
+          ],
+        }
+      : await run.model(
+          "scenes",
+          "准备场景",
+          "planner",
+          planCard,
+          plan,
+          '返回 {"scenes":[{"purpose":"目的","conflict":"阻力","information":"信息增量","change":"结尾状态变化"}]}，1至6场；单场完整收束不机械拆分。',
+          scenes,
+        );
   const [writeCard, editCard, reviseCard] = await Promise.all([
     run.host.options.fanqie?.pursuit?.enabled === true
       ? pursuitWriterCard(run)

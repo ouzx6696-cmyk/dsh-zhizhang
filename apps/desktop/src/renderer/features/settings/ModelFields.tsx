@@ -1,11 +1,11 @@
-import { COPY as viewCopy, t as viewText } from "../../../../../../packages/ui/src/copy.js";
+import { COPY as viewCopy, t as viewText } from "@writer/ui/copy";
 import { errorText } from "../../../../../../packages/core/src/errors.js";
 import type { ModelConnection, Thinking } from "../../../models";
 import type { ConnectionResult } from "../../state/store";
 import React, { useEffect, useState } from "react";
 import { desktop } from "../../state/desktop";
 import { Check, LoaderCircle } from "lucide-react";
-import { API_LABELS, COPY } from "../../../../../../packages/ui/src/copy";
+import { API_LABELS, COPY } from "@writer/ui/copy";
 import { APIS, PROVIDERS } from "../../../models";
 
 type ProviderChoice = Partial<ModelConnection> & { id: string; name?: string };

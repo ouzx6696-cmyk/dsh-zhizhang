@@ -115,18 +115,21 @@ function checkDependencies(file) {
       !file.rel.endsWith("/session/pi-adapter.ts")
     )
       report(file, "PI SDK 只能在 session/pi-adapter.ts 使用");
-    if (file.renderer && (spec.startsWith("node:") || spec === "electron"))
+    if ((file.renderer || file.pkg === "ui") && (spec.startsWith("node:") || spec === "electron"))
       report(file, `渲染层不能访问 ${spec}`);
     if (BROWSER_SAFE.includes(file.rel) && spec.startsWith("node:"))
       report(file, "文本分析须保持浏览器可用，不能引用 node 内置模块");
     if (file.pkg === "core" && !spec.startsWith(".") && !spec.startsWith("node:"))
       report(file, `core 只允许 node: 与相对导入：${spec}`);
-    if (!spec.startsWith(".")) {
+    const workspaceUi = spec.startsWith("@writer/ui/");
+    if (!spec.startsWith(".") && !workspaceUi) {
       if (file.client && !["react", "react-dom"].includes(spec))
         report(file, `浏览器端不能引用 ${spec}`);
       continue;
     }
-    const target = path.resolve(path.dirname(file.file), spec);
+    const target = workspaceUi
+      ? path.resolve(ROOT, "packages/ui/src", spec.slice("@writer/ui/".length))
+      : path.resolve(path.dirname(file.file), spec);
     const rel = path.relative(ROOT, target).split(path.sep).join("/");
     const targetPackage = rel.split("/")[1];
     const browserSafe = BROWSER_SAFE.includes(rel.replace(/\.js$/, ".ts"));
@@ -440,6 +443,7 @@ const repositoryRules = [
       for (const [file, kind] of [
         ["package.json", "json"],
         ["apps/desktop/package.json", "json"],
+        ["packages/ui/package.json", "json"],
         ["packages/core/src/version.ts", "ts"],
         ["CHANGELOG.md", "md"],
       ]) {

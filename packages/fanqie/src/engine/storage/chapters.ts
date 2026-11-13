@@ -24,7 +24,10 @@ export function chaptersDir(dir: string) {
   return path.join(dir, "chapters");
 }
 /** prepare 阶段的章节记录：revision 先算后回填，故可缺省。 */
-type ChapterDraft = Omit<Chapter, "revision"> & { revision?: string };
+type ChapterDraft = Omit<Chapter, "revision" | "readVersion"> & {
+  revision?: string;
+  readVersion?: string;
+};
 /** 章节保存入参（updateChapter / setOutline / 候选落稿 / 灵感套用共用的落盘契约）。 */
 interface ChapterSaveInput {
   id: string;
@@ -34,6 +37,7 @@ interface ChapterSaveInput {
   status?: ChapterStatus;
   force?: boolean;
   expectedRevision?: string;
+  expectedReadVersion?: string;
   outline?: Record<string, unknown>;
   dependencies?: ChapterDependency[];
   workPace?: string;
@@ -73,7 +77,7 @@ function chapterFile(dir: string, id: string) {
   return path.join(chaptersDir(dir), `${assertResourceId(id, "章节 id")}.md`);
 }
 function serializeChapterMarkdown(record: ChapterDraft) {
-  const { body: _body, revision: _revision, ...fm } = record;
+  const { body: _body, revision: _revision, readVersion: _readVersion, ...fm } = record;
   return `---\n${JSON.stringify(fm, null, 2)}\n---\n\n${record.body ?? ""}\n`;
 }
 function parseChapterMarkdown(raw: string, fallbackId: string) {
@@ -148,7 +152,7 @@ export async function findChapter(dir: string, chapterId: string): Promise<Chapt
   const raw = await readText(chapterFile(dir, chapterId));
   if (raw === undefined) return undefined;
   const chapter = parseChapterMarkdown(raw, chapterId);
-  return { ...chapter, revision: chapterRevision(chapter) };
+  return { ...chapter, revision: chapterRevision(chapter), readVersion: fingerprint(chapter) };
 }
 export async function readChapter(dir: string, chapterId: string): Promise<Chapter> {
   const chapter = await findChapter(dir, chapterId);
@@ -351,11 +355,17 @@ export async function prepareChapterSaveUnlocked(dir: string, input: ChapterSave
     ...(previous?.outline ?? EMPTY_OUTLINE()),
     ...(input.outline ?? {}),
   });
+  const title = input.title.trim() || previous?.title || id;
   const changed = previous != null && previous.body !== input.body;
   const structureChanged =
     previous != null &&
-    chapterRevision({ body: previous.body, outline, position }) !== previous.revision;
+    chapterRevision({ title, body: previous.body, outline, position }) !== previous.revision;
   const contentChanged = changed || structureChanged;
+  if (
+    input.expectedReadVersion !== undefined &&
+    previous?.readVersion !== input.expectedReadVersion
+  )
+    throw new NovelError("revision_conflict", "章节状态或审读记录已变化，请重新加载后再操作。");
   if (input.expectedRevision !== undefined && previous?.revision !== input.expectedRevision)
     throw new NovelError("revision_conflict", "目标章已变化，请读取现行正文后重新准备候选。");
   if (changed && previous?.status === "final" && input.force !== true)
@@ -379,7 +389,7 @@ export async function prepareChapterSaveUnlocked(dir: string, input: ChapterSave
   const record: ChapterDraft = {
     ...previous,
     id,
-    title: input.title.trim() || previous?.title || id,
+    title,
     position,
     status,
     wordCount: countWords(input.body),
@@ -394,7 +404,8 @@ export async function prepareChapterSaveUnlocked(dir: string, input: ChapterSave
   if (input.reviewDeclaration === true) {
     if (input.reviewResult !== undefined && !["pass", "blocked"].includes(input.reviewResult))
       throw new NovelError("bad_args", "review_result 只接受 pass 或 blocked。");
-    if (changed) throw new NovelError("review_changed", "正文修改后须另行审读，不能沿用旧审读。");
+    if (contentChanged)
+      throw new NovelError("review_changed", "正文修改后须另行审读，不能沿用旧审读。");
     if (input.expectedRevision === undefined)
       throw new NovelError(
         "review_revision_required",
@@ -476,7 +487,7 @@ export async function prepareChapterSaveUnlocked(dir: string, input: ChapterSave
     let dependents = transitiveDependents(meta.chapters, id);
     let reason = changed
       ? "正文已修改；请核对已有状态记录、相关后稿与简报依据"
-      : "章纲或章节顺序已修改；请核对后稿、简报依据与连续性";
+      : "标题、章纲或章节顺序已修改；请核对后稿、简报依据与连续性";
     // T10 连续性联动（数据驱动）：该章有 committed 核验记录时，受影响线/知识条目并入 dependents。
     // 开关关闭时 commits.json 从未被写出（工具拒绝写入），这里读到空数据，行为与从前一致。
     const entry = (await readCommits(dir)).commits.find((v) => v.chapter === id);
@@ -562,7 +573,10 @@ async function saveChapterUnlocked(dir: string, input: ChapterSaveInput) {
       `章节 ${prepared.record.id} 保存未完成（${errorText(err)}）。请用 fanqie_status(work=作品, recovery=inspect) 检查，不要重复保存。`,
     );
   }
-  return prepared.record;
+  return {
+    ...prepared.record,
+    readVersion: fingerprint(parseChapterMarkdown(prepared.chapterContent, prepared.record.id)),
+  };
 }
 export async function setOutline(
   dir: string,
@@ -599,6 +613,7 @@ export async function updateChapter(
     position?: number;
     force?: boolean;
     expectedRevision?: string;
+    expectedReadVersion?: string;
     ledgerEntry?: string;
     reviewSummary?: string;
     reviewResult?: "pass" | "blocked";
@@ -618,6 +633,7 @@ export async function updateChapter(
       position: input.position,
       force: input.force,
       expectedRevision: input.expectedRevision,
+      expectedReadVersion: input.expectedReadVersion,
       reviewDeclaration: input.status === "reviewed",
       reviewSummary: input.reviewSummary,
       reviewResult: input.reviewResult,

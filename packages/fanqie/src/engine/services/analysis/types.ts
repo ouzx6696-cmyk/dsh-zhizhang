@@ -135,5 +135,5 @@ export interface ReportInput {
   benchmark?: string;
   notes?: string;
   plan?: AnalysisPlan | null;
-  survey?: import("../survey.js").SurveyReport | null;
+  survey?: import("../../ports/survey.js").SurveyReport | null;
 }

@@ -6,12 +6,12 @@ export {
   ArticleList,
 } from "../../packages/workbench/src/client/toutiao/ToutiaoApp.jsx";
 export { ProfilesDialog } from "../../packages/workbench/src/client/shared/Profiles.jsx";
-export { ActionButton } from "../../packages/workbench/src/client/shared/ui.jsx";
+export { ActionButton } from "../../packages/workbench/src/client/shared/ui.js";
 export { Pipeline } from "../../packages/workbench/src/client/fanqie/Pipeline.jsx";
 export { initialState, reducer } from "../../packages/workbench/src/client/fanqie/state.js";
-export { notify, dismissNotice, dismissNotices, NoticeStack } from "../../packages/ui/src/notify";
-export { TabList, tabPanelProps } from "../../packages/ui/src/tabs";
-export { shortcutLabel } from "../../packages/ui/src/keys";
+export { notify, dismissNotice, dismissNotices, NoticeStack } from "@writer/ui/notify";
+export { TabList, tabPanelProps } from "@writer/ui/tabs";
+export { shortcutLabel } from "@writer/ui/keys";
 export {
   chapterDraftKey,
   articleDraftKey,

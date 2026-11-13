@@ -1,6 +1,6 @@
 import React from "react";
-import { CRASH_COPY } from "../../../../../packages/ui/src/copy.js";
-import { notify } from "../../../../../packages/ui/src/notify";
+import { CRASH_COPY } from "@writer/ui/copy";
+import { notify } from "@writer/ui/notify";
 
 const messageOf = (value: unknown) => (value instanceof Error ? value.message : String(value));
 

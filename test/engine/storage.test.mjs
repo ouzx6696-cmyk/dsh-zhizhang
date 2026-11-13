@@ -64,12 +64,50 @@ import {
 import {
   ensureAnalysis,
   readAnalysisBundle,
-} from "../../build/fanqie/src/engine/ports/analysis/meta.js";
+} from "../../build/fanqie/src/engine/services/analysis/meta.js";
 async function fixture() {
   const root = await mkdtemp(path.join(tmpdir(), "writer-novel-rebuild-"));
   const paths = await ensureStorage({ cwd: root }, { storageRoot: root });
   return { root, paths, close: () => rm(root, { recursive: true, force: true }) };
 }
+test("标题属于内容版本，状态与审读只改变读版本，旧编辑不能覆盖状态变化", async () => {
+  const f = await fixture();
+  try {
+    const { dir } = await createWork(f.paths, { title: "版本语义" });
+    const created = await updateChapter(dir, { id: "c001", title: "原题", body: "同一段正文。" });
+    const original = await readChapter(dir, "c001");
+    assert.equal(created.readVersion, original.readVersion);
+    await updateChapter(dir, {
+      id: "c001",
+      status: "reviewed",
+      expectedRevision: original.revision,
+    });
+    const reviewed = await readChapter(dir, "c001");
+    assert.equal(reviewed.revision, original.revision);
+    assert.notEqual(reviewed.readVersion, original.readVersion);
+    await assert.rejects(
+      updateChapter(dir, {
+        id: "c001",
+        body: "迟到的编辑。",
+        expectedRevision: original.revision,
+        expectedReadVersion: original.readVersion,
+      }),
+      { code: "revision_conflict" },
+    );
+    await updateChapter(dir, {
+      id: "c001",
+      title: "新题",
+      expectedRevision: reviewed.revision,
+      expectedReadVersion: reviewed.readVersion,
+    });
+    const renamed = await readChapter(dir, "c001");
+    assert.notEqual(renamed.revision, reviewed.revision);
+    assert.equal(renamed.status, "drafted");
+    assert.equal(renamed.body, original.body);
+  } finally {
+    await f.close();
+  }
+});
 test("连续性事务中断后可恢复，冲突保留作者修改，并发登记核对版本", async () => {
   const f = await fixture();
   const { commitContinuity, readForeshadow, readHandoff, readCommits, saveForeshadow } =

@@ -7,7 +7,7 @@ import { mkdir, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { atomicWrite, exists, sha256 } from "../../../../packages/core/src/fsx";
 import { errorText } from "../../../../packages/core/src/errors";
-import { WORKFLOW_COPY } from "../../../../packages/ui/src/copy";
+import { WORKFLOW_COPY } from "@writer/ui/copy";
 import type { Focus, Target } from "../context";
 import type { DesktopEvent, WriterMessage } from "../renderer-contracts";
 import type { ModelSettings } from "../models";

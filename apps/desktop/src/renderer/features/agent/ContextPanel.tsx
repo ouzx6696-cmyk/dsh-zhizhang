@@ -5,7 +5,7 @@ import {
   formatCount,
   formatTokens,
   AGENT_COPY,
-} from "../../../../../../packages/ui/src/copy.js";
+} from "@writer/ui/copy";
 import React, { useCallback, useEffect, useId, useRef, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { scopeId, type Target } from "../../../context";

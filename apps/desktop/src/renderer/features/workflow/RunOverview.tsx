@@ -7,7 +7,7 @@ import {
   formatElapsed,
   formatTokens,
   WORKFLOW_COPY,
-} from "../../../../../../packages/ui/src/copy.js";
+} from "@writer/ui/copy";
 import type {
   EngineSettings,
   WorkflowRecord,

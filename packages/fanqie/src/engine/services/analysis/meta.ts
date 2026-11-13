@@ -10,7 +10,7 @@ import { atomicWrite } from "../../storage/primitives.js";
 import { isMissingFileError } from "../../../../../core/src/fsx.js";
 import type { StoragePaths } from "../../types.js";
 import { analysisPaths, assertSourceId, ensureDir, nowIso, readJson, readJsonl } from "./paths.js";
-import type { SurveyReport } from "../survey.js";
+import type { SurveyReport } from "../../ports/survey.js";
 import type { Character, Rhythm } from "./types.js";
 import type { AnalysisMeta, ChapterFact, Plot } from "./types.js";
 import { chapterIndex, totalChapters } from "./chapters.js";

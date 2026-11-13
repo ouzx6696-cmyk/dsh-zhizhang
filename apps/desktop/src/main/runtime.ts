@@ -12,7 +12,7 @@ import type { FanqieConfig } from "../../../../packages/fanqie/src/config";
 import type { ToutiaoConfig } from "../../../../packages/toutiao/src/config";
 import { WriterError } from "../../../../packages/core/src/tool";
 import { releaseInactiveTarget } from "./targets";
-import { taskEndCopy } from "../../../../packages/ui/src/copy";
+import { taskEndCopy } from "@writer/ui/copy";
 
 type WriterConfig = {
   toutiao?: ToutiaoConfig;
@@ -31,6 +31,7 @@ export class Runtime {
   target?: Target;
   access: WorkspaceAccess = { readOnly: false, owner: null };
   maintenance = false;
+  readonly background = new AbortController();
   updateState: UpdateStatus = { state: "idle" };
   deliveries = new Map<string, Promise<{ data: unknown }>>();
   writerConfig: WriterConfig = {};

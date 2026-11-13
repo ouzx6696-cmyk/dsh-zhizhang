@@ -54,6 +54,121 @@ const request = (kind, chapter = "c004") => ({
   source: "",
   line: "news",
 });
+test("方法依赖：资讯公共规则先注入，并参与方法指纹", async () => {
+  const { stageCard, methodBasis } =
+    await import("../../apps/desktop/out-test/workflow-methods.mjs");
+  const f = await fixture(() => ({ text: "" }));
+  const sections = [];
+  try {
+    await stageCard(
+      {
+        host: f.host,
+        model: async (_id, _title, _role, _card, input, _shape, parse) => {
+          sections.push(...input.sections);
+          return parse({
+            rules: input.sections.map((row) => ({ id: row.id, text: "保留本节规则" })),
+          });
+        },
+      },
+      "toutiao",
+      "s4-news",
+    );
+    const ids = sections.map((row) => row.id);
+    assert.ok(ids[0].startsWith("s4-common:"));
+    assert.ok(ids.some((id) => id.startsWith("s4-news:")));
+    assert.equal(new Set(ids).size, ids.length);
+    const basis = await methodBasis(f.host, request("article"));
+    assert.ok(
+      basis.findIndex((row) => row.id === "s4-common") <
+        basis.findIndex((row) => row.id === "s4-news"),
+    );
+    assert.match(basis.find((row) => row.id === "s4-common").hash, /^[a-f0-9]{64}$/);
+  } finally {
+    await f.close();
+  }
+});
+
+test("局部修订：唯一引用定点替换，重复引用和重叠补丁拒绝，全文返回仍可用", async () => {
+  const { patchedDraft } = await import("../../apps/desktop/out-test/workflow-schema.mjs");
+  const before = { title: "原题", body: "保留这一段。\n\n铜钥匙掉在桌上。\n\n结尾不动。" };
+  assert.equal(
+    patchedDraft(
+      { edits: [{ quote: "铜钥匙掉在桌上。", replacement: "她把铜钥匙放上桌。" }] },
+      before,
+    ).body,
+    "保留这一段。\n\n她把铜钥匙放上桌。\n\n结尾不动。",
+  );
+  assert.throws(
+    () =>
+      patchedDraft(
+        {
+          edits: [
+            { quote: "铜钥匙", replacement: "钥匙" },
+            { quote: "铜钥匙掉在桌上。", replacement: "" },
+          ],
+        },
+        before,
+      ),
+    /重叠/,
+  );
+  assert.throws(
+    () =>
+      patchedDraft(
+        { edits: [{ quote: "重复", replacement: "" }] },
+        { title: "", body: "重复又重复" },
+      ),
+    /出现多次/,
+  );
+  assert.deepEqual(patchedDraft({ title: "新题", body: "完整替换" }, before), {
+    title: "新题",
+    body: "完整替换",
+  });
+});
+
+test("八稿初选只让前两名交换位置决胜，比较调用为十一轮", async () => {
+  const { selectDraft } = await import("../../apps/desktop/out-test/workflow-editor.mjs");
+  const calls = [];
+  const run = {
+    journal: { record: { request: { grade: "premium" } } },
+    host: {
+      settings: () => ({
+        writer: { provider: "a", model: "w" },
+        editor: { provider: "b", model: "e" },
+      }),
+    },
+    async model(id, _title, _role, _card, input, _shape, parse) {
+      calls.push(id);
+      return parse(
+        input.drafts
+          ? {
+              scores: input.drafts.map((row) => ({
+                index: row.index,
+                scores: [row.index, row.index, row.index, row.index],
+                reason: "具体正文依据",
+              })),
+            }
+          : {
+              winner: input.A.title === "7" ? "A" : "B",
+              reason: "正文推进更清楚",
+              abandonA: "未发现",
+              abandonB: "未发现",
+            },
+      );
+    },
+  };
+  const selected = await selectDraft(
+    run,
+    Array.from({ length: 8 }, (_, index) => ({ title: String(index), body: `第${index}稿正文` })),
+    "toutiao",
+  );
+  assert.equal(calls.length, 11);
+  assert.equal(selected.comparisons.length, 1);
+  assert.equal(selected.winner, 7);
+  assert.deepEqual(
+    selected.ranking.slice(0, 2).map((row) => row.index),
+    [7, 6],
+  );
+});
 function packet(call) {
   return call.messages
     .filter((row) => row.role === "user")
@@ -118,6 +233,14 @@ function respondStage(call, control) {
     }
     return answer({ title: "归站", body });
   }
+  if (input.drafts)
+    return answer({
+      scores: input.drafts.map((row) => ({
+        index: row.index,
+        scores: [5, 5, 5, 5],
+        reason: "正文推进相当",
+      })),
+    });
   if (input.persona)
     return answer({
       winner: "tie",
@@ -347,6 +470,27 @@ test("流水线所见状态、标题和节奏变化会阻止旧任务继续", as
     const paceContext = await workflowContext(f.host, target, request("chapter", "c001"));
     await setFoundation(work.dir, {}, { pace: "慢燃" });
     await assert.rejects(paceContext.assertCurrent(), /作品依据或前章已变化/);
+  } finally {
+    await f.close();
+  }
+});
+
+test("流水线依据复用实际材料，未引用的后章正文变化不打断当前章", async () => {
+  const f = await fixture(() => ({ text: "" }));
+  try {
+    const paths = await ensureStorage(null, { storageRoot: f.data });
+    const work = await createWork(paths, { title: "材料投影" });
+    await updateChapter(work.dir, { id: "c001", title: "第一章", body: "当前正文。" });
+    await updateChapter(work.dir, { id: "c002", title: "第二章", body: "尚未引用的后章。" });
+    const context = await workflowContext(
+      f.host,
+      { mode: "fanqie", root: f.data, work: work.meta.key },
+      request("chapter", "c001"),
+    );
+    await updateChapter(work.dir, { id: "c002", body: "作者修改后章正文。" });
+    await context.assertCurrent();
+    await updateChapter(work.dir, { id: "c001", body: "作者修改当前正文。" });
+    await assert.rejects(context.assertCurrent(), /作品依据或前章已变化/);
   } finally {
     await f.close();
   }

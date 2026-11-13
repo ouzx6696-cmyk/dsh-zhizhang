@@ -32,6 +32,7 @@ export const chapterSave = defineTool({
     review_result: E(["pass", "blocked"], "审读声明结果"),
     reviewed_by: S("审读声明者"),
     acknowledge_revision: B("声明已核对本章修订影响；须提供当前 expected_revision"),
+    expected_read_version: S("可选读章所得 readVersion；状态或审读记录变化则拒绝"),
     expected_revision: S("可选现行章节 revision；不匹配则拒绝覆盖"),
     confirm_bypass: B(
       `大正文旁路确认：正文超过 ${SAVE_BYPASS_WORD_THRESHOLD} 字直写时必须为 true；短稿/仅改状态可不传`,
@@ -83,6 +84,7 @@ export const chapterSave = defineTool({
       position,
       force: boolArg(args, "force") === true,
       expectedRevision: asString(args, "expected_revision"),
+      expectedReadVersion: asString(args, "expected_read_version"),
       reviewSummary: asString(args, "review_summary"),
       reviewResult: asString(args, "review_result") as "pass" | "blocked" | undefined,
       reviewedBy: asString(args, "reviewed_by"),

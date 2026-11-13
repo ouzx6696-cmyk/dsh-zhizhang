@@ -1,4 +1,4 @@
-import { newRequestId as requestId } from "../../../../ui/src/request.js";
+import { newRequestId as requestId } from "@writer/ui/request";
 /** One source of truth for local paragraph edits; no network or component state. */
 export const EMPTY_ISSUES = Object.freeze([]);
 const HISTORY_BYTES = 2 * 1024 * 1024;

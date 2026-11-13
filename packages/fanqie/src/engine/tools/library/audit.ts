@@ -1,9 +1,9 @@
 import { LibraryPort } from "../../ports/index.js";
-import { readAnalysisBundle } from "../../ports/analysis/meta.js";
-import { readSurvey } from "../../ports/analysis/survey.js";
+import { readAnalysisBundle } from "../../services/analysis/meta.js";
+import { readSurvey } from "../../services/analysis/survey.js";
 import { computeCoverage } from "../../domain/coverage.js";
-import { WHITE_DESC_HARD_RE } from "../../ports/analysis/facts.js";
-import { planLabel, readPlan } from "../../ports/analysis/plan.js";
+import { WHITE_DESC_HARD_RE } from "../../services/analysis/facts.js";
+import { planLabel, readPlan } from "../../services/analysis/plan.js";
 
 import { asString } from "../context.js";
 import { S, WORKING_DIR } from "../schema.js";

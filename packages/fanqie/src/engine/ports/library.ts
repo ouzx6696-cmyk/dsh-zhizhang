@@ -36,11 +36,11 @@ import { parseChapterNumber } from "../domain/chapter-heading.js";
 import { REPORT_SECTION_COUNT } from "../domain/report-sections.js";
 
 import type { StoragePaths } from "../types.js";
-import { chapterIndex } from "./analysis/chapters.js";
-import { readAnalysisBundle } from "./analysis/meta.js";
+import { chapterIndex } from "../services/analysis/chapters.js";
+import { readAnalysisBundle } from "../services/analysis/meta.js";
 import { dissectBatchText, dissectBriefText } from "./library/dissect.js";
 import { deriveAxis, validateModule } from "../domain/card-schema.js";
-import { verifyModuleEvidence } from "./analysis/evidence.js";
+import { verifyModuleEvidence } from "../services/analysis/evidence.js";
 import { verifyBodyQuotes } from "../domain/evidence.js";
 import { assertSourceId } from "../storage/primitives.js";
 import {

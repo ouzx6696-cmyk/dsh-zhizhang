@@ -31,7 +31,7 @@ import {
   pendingLedger,
   removePendingLedger,
 } from "./ledger-queue";
-import { WORKFLOW_COPY } from "../../../../packages/ui/src/copy";
+import { WORKFLOW_COPY } from "@writer/ui/copy";
 import type { WorkflowHost } from "./host";
 import type { Target } from "../context";
 import type { AgentSession } from "../session/pi-adapter";

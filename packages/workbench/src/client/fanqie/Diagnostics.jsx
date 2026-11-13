@@ -1,6 +1,6 @@
 import React from "react";
-import { Button } from "../shared/ui.jsx";
-import { diagnosticCopy as c } from "../../../../ui/src/copy.js";
+import { Button } from "../shared/ui.js";
+import { diagnosticCopy as c } from "@writer/ui/copy";
 import { diagnosticScope, editMatches } from "./edit-state.js";
 
 const { useEffect, useRef, useState } = React;

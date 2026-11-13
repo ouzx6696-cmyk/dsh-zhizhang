@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Play } from "lucide-react";
-import { COPY as copy, WORKFLOW_COPY } from "../../../../../../packages/ui/src/copy.js";
-import { statusLabel } from "../../../../../../packages/ui/src/status.js";
+import { COPY as copy, WORKFLOW_COPY } from "@writer/ui/copy";
+import { statusLabel } from "@writer/ui/status";
 import { errorText } from "../../../../../../packages/core/src/errors.js";
 import { isRecord } from "../../../../../../packages/core/src/parse.js";
 import { COMMANDS } from "../../../../../../packages/workbench/src/commands.js";

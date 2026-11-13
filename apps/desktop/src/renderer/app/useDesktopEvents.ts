@@ -1,6 +1,6 @@
 import { useEffect } from "react";
-import { taskEndCopy } from "../../../../../packages/ui/src/copy";
-import { notify } from "../../../../../packages/ui/src/notify";
+import { taskEndCopy } from "@writer/ui/copy";
+import { notify } from "@writer/ui/notify";
 import { scopeId, type Target } from "../../context";
 import { chatStore } from "../state/chatStore";
 import { desktopStore, useDesktopSelector, type ChatMessage } from "../state/store";

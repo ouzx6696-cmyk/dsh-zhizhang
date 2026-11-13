@@ -3080,7 +3080,7 @@ function writerPrompt(model, index) {
 }
 
 function writerContext(prompt) {
-  const match = /^<writer-context>\n([^\n]+)\n<\/writer-context>\n\n/.exec(prompt);
+  const match = /<writer-context>\n([^\n]+)\n<\/writer-context>\n\n/.exec(prompt);
   assert.ok(match, "任务缺少 writer-context");
   return JSON.parse(match[1]);
 }
@@ -3123,7 +3123,7 @@ test("handoff.v2 注入形态：方法全文走 writer-method 块，writer-conte
     );
     const probe = "开书立项：卖点、主角、规则、节奏档位与读者承诺";
     assert.ok(block[2].includes(probe), "块须携带方法全文");
-    assert.ok(!prompt.match(/^<writer-context>\n([^\n]+)\n<\/writer-context>/)[1].includes(probe));
+    assert.ok(!prompt.match(/<writer-context>\n([^\n]+)\n<\/writer-context>/)[1].includes(probe));
     assert.ok(prompt.endsWith("规划本书开篇。"));
     const handoff = logs.find((row) => row.name === "handoff");
     assert.deepEqual(handoff.methodIds, ["plan-foundation"]);
@@ -3227,7 +3227,7 @@ test("handoff.v2 去重恢复：手动压缩后同方法恢复全文块", async 
     const prompt = model.calls
       .filter((call) => call.model === "mock-writer")
       .map(lastUserText)
-      .filter((text) => text.startsWith("<writer-context>") && text.endsWith("再开书规划一次。"))
+      .filter((text) => text.includes("<writer-context>") && text.endsWith("再开书规划一次。"))
       .at(-1);
     assert.ok(prompt, "压缩后缺少第三次任务调用");
     assert.match(prompt, /<writer-method id="plan-foundation" hash="[0-9a-f]{64}">/);

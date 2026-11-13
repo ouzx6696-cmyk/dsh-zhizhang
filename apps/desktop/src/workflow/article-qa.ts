@@ -6,7 +6,7 @@ import { executeTool } from "../../../../packages/core/src/execute";
 import { ArticleStore } from "../../../../packages/toutiao/src/store";
 import { createToutiaoTools } from "../../../../packages/toutiao/src/tools";
 import { toutiaoGateRules } from "../../../../packages/toutiao/src/gates";
-import { draft, record, normalizeDraft, type Draft } from "./schema";
+import { patchedDraft, record, normalizeDraft, type Draft } from "./schema";
 import type { stageCard } from "./methods";
 import type { editDraft } from "./editor";
 import type { WorkflowRun } from "./run";
@@ -105,8 +105,8 @@ export async function qaGate(
       "writer",
       writing,
       { draft: checked.draft, qa, source: sourceRef },
-      '只处理给定质检失败与对应段落，禁止堆数字和口语词刷分，不得新增来源中没有的事实、数字或引语；返回 {"title":"标题","body":"完整正文"}。',
-      draft,
+      '只处理给定质检失败与对应段落，禁止堆数字和口语词刷分，不得新增来源中没有的事实、数字或引语；优先返回 {"edits":[{"quote":"唯一原段落","replacement":"修订段落"}]}；不能唯一定位时返回 {"title":"标题","body":"完整正文"}。',
+      (value) => patchedDraft(value, checked.draft),
       { material },
     );
     refined.body = normalizeDraft(refined.body);

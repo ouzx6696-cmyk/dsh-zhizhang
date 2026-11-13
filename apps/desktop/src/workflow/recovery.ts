@@ -29,7 +29,8 @@ export async function recoverDelivery(
     const expected = { ...record(original.outline), ...plan };
     const expectedStatus =
       original.status === "reviewed" &&
-      JSON.stringify(original.outline) !== JSON.stringify(expected)
+      (JSON.stringify(original.outline) !== JSON.stringify(expected) ||
+        original.title !== plan.title)
         ? "drafted"
         : original.status;
     if (
@@ -47,6 +48,22 @@ export async function recoverDelivery(
     if (oldChapter) {
       if (oldChapter.title === original.title) oldChapter.title = current.title;
       if (oldChapter.status === original.status) oldChapter.status = current.status;
+    }
+    const oldMaterial = list(old.material, "原阶段材料").map(record);
+    const newMaterial = list(now.material, "当前阶段材料").map(record);
+    const chapterBlock = oldMaterial.find((block) => block.name === "本章");
+    if (chapterBlock) chapterBlock.text = newMaterial.find((block) => block.name === "本章")?.text;
+    const toc = oldMaterial.find((block) => block.name === "章节目录");
+    if (toc) {
+      const value = record(JSON.parse(text(toc.text, "原章节目录")));
+      const row = list(value.chapters, "目录章节")
+        .map(record)
+        .find((row) => row.id === current.id);
+      if (row) {
+        row.title = current.title;
+        row.status = current.status;
+      }
+      toc.text = JSON.stringify(value);
     }
   } else if (previous.request.kind === "article" && target.article) {
     const store = new ArticleStore(target.root),

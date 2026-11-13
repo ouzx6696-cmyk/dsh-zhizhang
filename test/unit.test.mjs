@@ -18,6 +18,44 @@ const { titleMax, drivers } = await loadLimits();
 const { ArticleStore, canTransition } = await import(buildUrl("toutiao/src/store.js"));
 const { buildMethodPack } = await import(buildUrl("core/src/method-pack.js"));
 
+test("运行器：大参数通过 stdin JSON 原样传输", async () => {
+  const py = await locatePython(),
+    dir = await tempDir();
+  const script = path.join(dir, "arguments.py"),
+    payload = '中文\n引号"反斜线\\'.repeat(10000);
+  await writeFile(
+    script,
+    'import sys,json\nprint(json.dumps({"tool":"args","rules_version":"1","ok":True,"value":sys.argv[1]},ensure_ascii=False))',
+  );
+  const result = await runScript(py, script, [payload]);
+  assert.equal(result.value, payload);
+});
+
+test(
+  "运行器：POSIX 超时清理忽略 SIGTERM 的后代",
+  { skip: process.platform !== "linux" },
+  async () => {
+    const py = await locatePython(),
+      dir = await tempDir(),
+      script = path.join(dir, "tree.py"),
+      pidFile = path.join(dir, "pid");
+    await writeFile(
+      script,
+      `import sys,subprocess,time\np=subprocess.Popen([sys.executable,"-c","import signal,time;signal.signal(signal.SIGTERM,signal.SIG_IGN);time.sleep(30)"])\nopen(sys.argv[1],"w").write(str(p.pid))\ntime.sleep(30)\n`,
+    );
+    await assert.rejects(runScript(py, script, [pidFile], { timeoutMs: 1000 }), {
+      code: "TIMEOUT",
+    });
+    const pid = Number(await readFile(pidFile, "utf8"));
+    try {
+      const state = await readFile(`/proc/${pid}/stat`, "utf8");
+      assert.match(state, /\) Z /, "后代只能已退出或等待系统回收，不能继续运行");
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+  },
+);
+
 test("resolveInside 拒绝越界", () => {
   assert.equal(resolveInside("/a/b", "c"), path.resolve("/a/b/c"));
   assert.throws(() => resolveInside("/a/b", "../c"), /越界/);

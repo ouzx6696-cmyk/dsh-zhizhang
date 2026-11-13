@@ -170,6 +170,7 @@ export interface Chapter extends Omit<ChapterMeta, "outline"> {
   body: string;
   outline: Outline;
   revision: string;
+  readVersion: string;
   review?: import("./domain/lifecycle.js").ChapterReview;
   dependencies: import("./domain/lifecycle.js").ChapterDependency[];
 }

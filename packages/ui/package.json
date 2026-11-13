@@ -1,0 +1,21 @@
+{
+  "name": "@writer/ui",
+  "version": "1.2.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./copy": "./src/copy.ts",
+    "./status": "./src/status.ts",
+    "./primitives": "./src/primitives.tsx",
+    "./markdown": "./src/markdown.tsx",
+    "./tabs": "./src/tabs.tsx",
+    "./status-badge": "./src/status-badge.tsx",
+    "./notify": "./src/notify.tsx",
+    "./keys": "./src/keys.ts",
+    "./request": "./src/request.ts",
+    "./use-request-guard": "./src/use-request-guard.ts",
+    "./components.css": "./src/components.css",
+    "./tokens.css": "./src/tokens.css",
+    "./styles/*": "./src/styles/*"
+  }
+}

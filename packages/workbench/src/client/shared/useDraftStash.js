@@ -3,8 +3,8 @@
  * a draft left behind by an earlier session. Saving stays with the author; this only prevents loss.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { EDITOR_COPY as c } from "../../../../ui/src/copy.js";
-import { notify } from "../../../../ui/src/notify";
+import { EDITOR_COPY as c } from "@writer/ui/copy";
+import { notify } from "@writer/ui/notify";
 import { confirmAction } from "./confirm.js";
 import { clearDraft, otherDraftKeys, readDraft, writeDraft } from "./drafts.js";
 

@@ -1,7 +1,6 @@
 import path from "node:path";
 import { dialog } from "electron";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+import { runBackup } from "../backup-process";
 import { localDay } from "../../../../../packages/core/src/fsx";
 import type { Runtime } from "../runtime";
 import { ipcHandler } from "./handle";
@@ -20,25 +19,9 @@ async function backupDirectory(state: Runtime, source: string) {
   const pad = (value: number) => String(value).padStart(2, "0");
   const stamp = `${localDay(now)}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
   const output = path.join(result.filePaths[0], `写作备份-${stamp}`);
-  await promisify(execFile)(
-    process.execPath,
-    [
-      path.join(state.resources, "scripts/writer-backup.mjs"),
-      "--source",
-      source,
-      "--output",
-      output,
-    ],
-    {
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
-      maxBuffer: 1024 * 1024,
-    },
-  );
-  await promisify(execFile)(
-    process.execPath,
-    [path.join(state.resources, "scripts/writer-backup.mjs"), "--verify", output],
-    { env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" }, maxBuffer: 1024 * 1024 },
-  );
+  const script = path.join(state.resources, "scripts/writer-backup.mjs");
+  await runBackup(script, ["--source", source, "--output", output], state.background.signal);
+  await runBackup(script, ["--verify", output], state.background.signal);
   await state.diagnostics.write("backup_completed");
   return { file: output };
 }

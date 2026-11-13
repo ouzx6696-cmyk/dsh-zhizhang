@@ -11,4 +11,4 @@ export {
   RootErrorBoundary,
   reportUnhandledRejection,
 } from "../../apps/desktop/src/renderer/app/crash";
-export { NoticeStack } from "../../packages/ui/src/notify";
+export { NoticeStack } from "@writer/ui/notify";

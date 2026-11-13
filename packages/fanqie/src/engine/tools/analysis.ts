@@ -3,27 +3,27 @@ import { withResourceLock } from "../storage/process-lock.js";
 /** 拆书分析层工具：事实 / 聚合 / 报告 / 删卡。 */
 import { LibraryPort } from "../ports/library.js";
 import { NovelError } from "../errors.js";
-import { analysisPaths } from "../ports/analysis/paths.js";
-import { buildReport } from "../ports/analysis/report.js";
-import { chapterText } from "../ports/analysis/chapters.js";
+import { analysisPaths } from "../services/analysis/paths.js";
+import { buildReport } from "../services/analysis/report.js";
+import { chapterText } from "../services/analysis/chapters.js";
 import { computeCoverage, textStats } from "../domain/coverage.js";
-import { ensureAnalysis, readAnalysisBundle } from "../ports/analysis/meta.js";
-import { ensureSurvey } from "../ports/analysis/survey.js";
+import { ensureAnalysis, readAnalysisBundle } from "../services/analysis/meta.js";
+import { ensureSurvey } from "../services/analysis/survey.js";
 import {
   planLabel,
   planMembership,
   planProgress,
   readPlan,
   writePlan,
-} from "../ports/analysis/plan.js";
+} from "../services/analysis/plan.js";
 import { quoteOk } from "../domain/evidence.js";
 import { toCardView } from "../domain/card-schema.js";
-import { upsertChapter, validateChapterFacts } from "../ports/analysis/facts.js";
-import { upsertPlot, upsertCharacter, writeRhythm } from "../ports/analysis/structure.js";
+import { upsertChapter, validateChapterFacts } from "../services/analysis/facts.js";
+import { upsertPlot, upsertCharacter, writeRhythm } from "../services/analysis/structure.js";
 import { atomicWrite } from "../../../../core/src/fsx.js";
 import { REPORT_SECTION_COUNT } from "../domain/report-sections.js";
 import { stepPrefix } from "../domain/workflow.js";
-import type { ChapterFact } from "../ports/analysis/types.js";
+import type { ChapterFact } from "../services/analysis/types.js";
 import { asArray, asString } from "./context.js";
 import { openLibrary } from "./library/context.js";
 import { S, B, WORKING_DIR } from "./schema.js";

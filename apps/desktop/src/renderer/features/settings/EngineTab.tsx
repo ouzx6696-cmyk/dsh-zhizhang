@@ -1,6 +1,6 @@
 import React from "react";
-import { AGENT_COPY, COPY as copy } from "../../../../../../packages/ui/src/copy.js";
-import { Toggle } from "../../../../../../packages/ui/src/primitives";
+import { AGENT_COPY, COPY as copy } from "@writer/ui/copy";
+import { Toggle } from "@writer/ui/primitives";
 import {
   BUDGET_LIMITS,
   type EngineSettings,
