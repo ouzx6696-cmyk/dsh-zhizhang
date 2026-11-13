@@ -20,24 +20,38 @@ const child = spawn(executable, ["--remote-debugging-port=0", `--user-data-dir=$
 let browser;
 let output = "";
 async function chooseDirectory(page, action, title, directory) {
-  const script = `$shell = New-Object -ComObject WScript.Shell
-  $opened = $false
+  console.log(`Packaged ${action}: selecting directory`);
+  const script = `$ErrorActionPreference = 'Stop'
+  Add-Type -AssemblyName UIAutomationClient
+  Add-Type -AssemblyName UIAutomationTypes
+  $root = [System.Windows.Automation.AutomationElement]::RootElement
+  $condition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, $env:WRITER_DIALOG_TITLE)
+  $dialog = $null
   for ($i=0; $i -lt 100; $i++) {
-    if ($shell.AppActivate($env:WRITER_DIALOG_TITLE)) { $opened = $true; break }
+    $dialog = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
+    if ($null -ne $dialog) { break }
     Start-Sleep -Milliseconds 100
   }
-  if (-not $opened) { throw 'Native directory dialog not found' }
+  if ($null -eq $dialog) { throw 'Native directory dialog not found' }
+  $shell = New-Object -ComObject WScript.Shell
+  if (-not $shell.AppActivate($env:WRITER_DIALOG_TITLE)) { throw 'Cannot focus directory dialog' }
   $shell.SendKeys('%d')
-  $shell.SendKeys($env:WRITER_DIALOG_DIRECTORY)
+  Start-Sleep -Milliseconds 100
+  $address = [System.Windows.Automation.AutomationElement]::FocusedElement
+  $value = $address.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
+  $value.SetValue($env:WRITER_DIALOG_DIRECTORY)
   $shell.SendKeys('{ENTER}')
   Start-Sleep -Milliseconds 500
-  $shell.SendKeys('%s')`;
+  $buttons = $dialog.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button))
+  $select = $buttons | Where-Object { $_.Current.AutomationId -eq '1' } | Select-Object -First 1
+  if ($null -eq $select) { throw ('Select Folder button not found: ' + (($buttons | ForEach-Object { $_.Current.Name + ':' + $_.Current.AutomationId }) -join ', ')) }
+  $select.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()`;
   let timer;
   try {
     const [result] = await Promise.race([
       Promise.all([
         page.evaluate((operation) => window.writerDesktop[operation](), action),
-        promisify(execFile)("powershell", ["-NoProfile", "-Command", script], {
+        promisify(execFile)("powershell", ["-NoProfile", "-STA", "-Command", script], {
           env: { ...process.env, WRITER_DIALOG_TITLE: title, WRITER_DIALOG_DIRECTORY: directory },
           timeout: 15000,
         }),
@@ -46,6 +60,7 @@ async function chooseDirectory(page, action, title, directory) {
         timer = setTimeout(() => reject(new Error("目录选择或备份未完成")), 30000);
       }),
     ]);
+    console.log(`Packaged ${action}: directory accepted`);
     return result;
   } finally {
     clearTimeout(timer);
@@ -90,7 +105,12 @@ try {
   await mkdir(destination);
   await writeFile(path.join(source, "作者正文.md"), "正式包备份校验。\n");
   await chooseDirectory(page, "workspace", "选择统一写作根", source);
-  const backup = await chooseDirectory(page, "backup", "选择备份保存位置", destination);
+  const backup = await chooseDirectory(
+    page,
+    "backup",
+    "选择备份保存位置（写作根以外）",
+    destination,
+  );
   const manifest = JSON.parse(
     await readFile(path.join(backup.file, "writer-novel-backup-manifest.json"), "utf8"),
   );
