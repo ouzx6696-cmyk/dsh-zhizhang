@@ -3,6 +3,9 @@
   "version": "1.3.0",
   "private": true,
   "type": "module",
+  "sideEffects": [
+    "*.css"
+  ],
   "exports": {
     ".": "./src/index.ts",
     "./components.css": "./src/components.css",
@@ -21,6 +24,7 @@
     "./copy/toutiao": "./src/copy/toutiao.ts",
     "./copy/settings": "./src/copy/settings.ts",
     "./copy/errors": "./src/copy/errors.ts",
+    "./copy/workbench": "./src/copy/workbench.ts",
     "./status": "./src/status.ts",
     "./markdown": "./src/markdown.tsx",
     "./notify": "./src/notify.tsx",

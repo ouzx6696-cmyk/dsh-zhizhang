@@ -1,3 +1,4 @@
+import type { SemanticTone } from "./tokens/tokens.js";
 export type StatusMode = "fanqie" | "toutiao";
 type StatusTone = "neutral" | "info" | "warning" | "success" | "danger";
 
@@ -37,6 +38,18 @@ export function statusInfo(mode: StatusMode, status?: string) {
     return { label: status, tone: "neutral" as StatusTone, dot: "idle" };
   return { label: "状态未知", tone: "warning" as StatusTone, dot: "warning" };
 }
+
+const CHIP_TONE: Record<StatusTone, SemanticTone> = {
+  neutral: "neutral",
+  info: "run",
+  warning: "warn",
+  success: "ok",
+  danger: "bad",
+};
+
+/** 状态 → 语义色调（StatusChip / 状态点用）。 */
+export const statusChipTone = (mode: StatusMode, status?: string): SemanticTone =>
+  CHIP_TONE[statusInfo(mode, status).tone];
 
 export const statusLabel = (mode: StatusMode, status?: string) => statusInfo(mode, status).label;
 export const statusTone = (mode: StatusMode, status?: string) => statusInfo(mode, status).tone;

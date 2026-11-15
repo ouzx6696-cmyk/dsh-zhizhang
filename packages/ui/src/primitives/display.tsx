@@ -9,7 +9,7 @@ import {
 
 export function Brand({ label = "织章", className, children = "章" }: BrandProps) {
   return (
-    <span className={cx("ui-brand", "zz-brand", className)} aria-label={label}>
+    <span className={cx("zz-brand", className)} aria-label={label}>
       {children}
     </span>
   );
@@ -17,7 +17,7 @@ export function Brand({ label = "织章", className, children = "章" }: BrandPr
 
 export function Card({ title, description, footer, className, children }: CardProps) {
   return (
-    <section className={cx("ui-card", "zz-card", className)}>
+    <section className={cx("zz-card", className)}>
       {title ? <h3 className="zz-card__title">{title}</h3> : null}
       {description ? <p className="zz-card__desc">{description}</p> : null}
       {children}
@@ -28,7 +28,7 @@ export function Card({ title, description, footer, className, children }: CardPr
 
 export function Stat({ label, value, detail, className }: StatProps) {
   return (
-    <div className={cx("ui-stat", "zz-stat", className)}>
+    <div className={cx("zz-stat", className)}>
       <span>{label}</span>
       <strong>{value}</strong>
       {detail ? <small>{detail}</small> : null}
@@ -38,7 +38,7 @@ export function Stat({ label, value, detail, className }: StatProps) {
 
 export function Steps({ steps, current, label, className }: StepsProps) {
   return (
-    <ol className={cx("ui-steps", "zz-steps", className)} aria-label={label}>
+    <ol className={cx("zz-steps", className)} aria-label={label}>
       {steps.map((step, index) => {
         const state = progressStepState(index, current);
         const itemLabel = typeof step === "string" ? step : step.label;

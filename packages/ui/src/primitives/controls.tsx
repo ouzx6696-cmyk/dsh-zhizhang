@@ -1,7 +1,6 @@
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, type KeyboardEvent } from "react";
 import {
   checkboxClasses,
-  cx,
   fieldClasses,
   segmentedClasses,
   selectClasses,
@@ -64,7 +63,7 @@ export function Toggle({
   onChange,
 }: ToggleProps) {
   return (
-    <label className={cx("ui-toggle", toggleClasses({ disabled, className }))}>
+    <label className={toggleClasses({ disabled, className })}>
       <span className="zz-toggle__text">
         <span>{label}</span>
         {description ? <small className="zz-toggle__desc">{description}</small> : null}
@@ -170,6 +169,24 @@ export function Segmented<T extends string = string>({
       aria-label={label}
       data-testid={testId}
       className={segmentedClasses({ size, className })}
+      onKeyDown={(event) => {
+        const forward = event.key === "ArrowRight" || event.key === "ArrowDown";
+        const back = event.key === "ArrowLeft" || event.key === "ArrowUp";
+        if (!forward && !back) return;
+        const enabled = options.filter((opt) => !opt.disabled);
+        if (!enabled.length) return;
+        event.preventDefault();
+        const at = Math.max(
+          0,
+          enabled.findIndex((opt) => opt.value === value),
+        );
+        const next = enabled[(at + (forward ? 1 : -1) + enabled.length) % enabled.length];
+        onChange(next.value);
+        const host = event.currentTarget;
+        requestAnimationFrame(() =>
+          host.querySelector<HTMLElement>('[role="radio"][aria-checked="true"]')?.focus(),
+        );
+      }}
     >
       {options.map((opt) => {
         const selected = opt.value === value;
@@ -179,6 +196,7 @@ export function Segmented<T extends string = string>({
             type="button"
             role="radio"
             aria-checked={selected}
+            tabIndex={selected ? 0 : -1}
             data-testid={testId ? `${testId}-${opt.value}` : undefined}
             disabled={opt.disabled}
             className="zz-segmented__item"
@@ -192,6 +210,19 @@ export function Segmented<T extends string = string>({
   );
 }
 
+/** 方向键漫游：横向用 ←/→，纵向用 ↑/↓；Home/End 到两端。焦点与选中一起移动（自动激活）。 */
+function rovingTarget(
+  event: KeyboardEvent<HTMLElement>,
+  orientation: TabsProps["orientation"],
+): "next" | "prev" | "first" | "last" | null {
+  const vertical = orientation === "vertical";
+  if (event.key === (vertical ? "ArrowDown" : "ArrowRight")) return "next";
+  if (event.key === (vertical ? "ArrowUp" : "ArrowLeft")) return "prev";
+  if (event.key === "Home") return "first";
+  if (event.key === "End") return "last";
+  return null;
+}
+
 export function Tabs({
   id,
   label,
@@ -202,13 +233,35 @@ export function Tabs({
   testId,
   onChange,
 }: TabsProps) {
+  const listRef = useRef<HTMLDivElement>(null);
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const move = rovingTarget(event, orientation);
+    if (!move) return;
+    const enabled = items.filter((item) => !item.disabled);
+    if (!enabled.length) return;
+    event.preventDefault();
+    const at = Math.max(
+      0,
+      enabled.findIndex((item) => item.id === value),
+    );
+    const next =
+      move === "first"
+        ? enabled[0]
+        : move === "last"
+          ? enabled[enabled.length - 1]
+          : enabled[(at + (move === "next" ? 1 : -1) + enabled.length) % enabled.length];
+    if (next.id !== value) onChange(next.id);
+    listRef.current?.querySelector<HTMLElement>(`[id="${tabId(id, next.id)}"]`)?.focus();
+  };
   return (
     <div
+      ref={listRef}
       data-testid={testId}
       role="tablist"
       aria-label={label}
       aria-orientation={orientation}
       className={tabsClasses({ orientation, className })}
+      onKeyDown={onKeyDown}
     >
       {items.map((item) => {
         const selected = item.id === value;

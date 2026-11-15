@@ -1,23 +1,26 @@
-/* 全应用提示栈（notify.tsx）：底部居中，落在稿纸上方，不挡顶栏、右栏标签与输入框；新的在下。 */
+/* 全应用提示栈（notify.tsx）：底部居中，不挡顶栏、右栏标签与输入框；新的在下。 */
 .ui-notices {
   position: fixed;
-  bottom: var(--zz-space-5);
+  bottom: var(--zz-space-10);
   left: 50%;
-  transform: translateX(-50%);
   z-index: var(--zz-z-toast);
   display: flex;
   flex-direction: column;
-  width: min(380px, calc(100vw - 2 * var(--zz-space-4)));
+  width: min(400px, calc(100vw - var(--zz-space-8)));
+  transform: translateX(-50%);
   pointer-events: none;
 }
+
 .ui-notices > div {
   display: flex;
   flex-direction: column;
   gap: var(--zz-space-2);
 }
+
 .ui-notices > div:not(:empty) + div:not(:empty) {
   margin-top: var(--zz-space-2);
 }
+
 .ui-notice {
   position: relative;
   display: flex;
@@ -25,133 +28,124 @@
   gap: var(--zz-space-3);
   padding: var(--zz-space-3) var(--zz-space-2) var(--zz-space-3) var(--zz-space-4);
   overflow: hidden;
-  border: 1px solid var(--zz-line-strong);
+  border: 1px solid var(--zz-border-strong);
   border-radius: var(--zz-radius-md);
-  background: var(--zz-paper);
+  background: var(--zz-surface-2);
+  color: var(--zz-text-1);
   box-shadow: var(--zz-shadow-2);
-  color: var(--zz-text);
-  font: var(--zz-size-13) / 1.55 var(--zz-font-ui);
+  font: var(--zz-text-meta) / var(--zz-leading-meta) var(--zz-font-ui);
   pointer-events: auto;
-  animation: ui-notice-in var(--zz-duration) var(--zz-ease);
+  animation: zz-pop-in var(--zz-dur-2) var(--zz-ease);
 }
+
 .ui-notice-mark {
-  flex-shrink: 0;
-  width: 8px;
-  height: 8px;
-  margin-top: 7px;
+  flex: none;
+  width: var(--zz-dot-size);
+  height: var(--zz-dot-size);
+  margin-top: var(--zz-space-1);
   border-radius: var(--zz-radius-pill);
-  background: var(--zz-info);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--zz-info) 18%, transparent);
+  background: var(--zz-run);
 }
+
 .ui-notice[data-tone="success"] .ui-notice-mark {
-  background: var(--zz-success);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--zz-success) 18%, transparent);
+  background: var(--zz-ok);
 }
+
 .ui-notice[data-tone="warning"] .ui-notice-mark {
-  background: var(--zz-warning);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--zz-warning) 18%, transparent);
+  background: var(--zz-warn);
 }
+
 .ui-notice[data-tone="danger"] {
-  border-color: color-mix(in srgb, var(--zz-danger) 40%, var(--zz-line-strong));
+  border-color: color-mix(in srgb, var(--zz-bad) 45%, var(--zz-border-strong));
 }
+
 .ui-notice[data-tone="danger"] .ui-notice-mark {
-  background: var(--zz-danger);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--zz-danger) 18%, transparent);
+  background: var(--zz-bad);
 }
+
 .ui-notice-body {
   flex: 1;
   min-width: 0;
 }
+
 .ui-notice-body p {
   margin: 0;
   overflow-wrap: anywhere;
 }
+
 .ui-notice-body details {
   margin-top: var(--zz-space-1);
   color: var(--zz-text-2);
-  font-size: var(--zz-size-12);
 }
+
 .ui-notice-body summary {
-  width: fit-content;
-  cursor: pointer;
   color: var(--zz-text-3);
+  cursor: pointer;
 }
+
 .ui-notice-body summary:hover {
-  color: var(--zz-text);
+  color: var(--zz-text-1);
 }
+
 .ui-notice-body pre {
-  max-height: 180px;
+  max-height: 160px;
   margin: var(--zz-space-1) 0 0;
   padding: var(--zz-space-2);
   overflow: auto;
   border-radius: var(--zz-radius-xs);
-  background: var(--zz-fill);
-  font: var(--zz-size-12) / 1.5 var(--zz-font-mono);
+  background: var(--zz-active);
+  font: var(--zz-text-caption) / var(--zz-leading-caption) var(--zz-font-mono);
   white-space: pre-wrap;
-  overflow-wrap: anywhere;
 }
+
 .ui-notices .ui-notice-action {
-  min-height: 0;
   margin-top: var(--zz-space-2);
-  padding: var(--zz-space-1) var(--zz-space-3);
-  border: 1px solid var(--zz-line-strong);
-  border-radius: var(--zz-radius-xs);
-  background: transparent;
-  font-size: var(--zz-size-12);
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--zz-run);
+  font: inherit;
+  font-weight: var(--zz-weight-strong);
+  cursor: pointer;
 }
-.ui-notices .ui-notice-action:hover {
-  background: var(--zz-fill-strong);
-}
+
 .ui-notices .ui-notice-close {
-  flex-shrink: 0;
-  min-height: 0;
+  display: grid;
+  flex: none;
   width: 24px;
   height: 24px;
-  padding: 0;
-  border: 0;
+  place-items: center;
+  border: none;
   border-radius: var(--zz-radius-xs);
-  background: transparent;
+  background: none;
   color: var(--zz-text-3);
-  font-size: var(--zz-size-16);
-  line-height: 1;
+  font-size: var(--zz-text-strong);
+  cursor: pointer;
 }
+
 .ui-notices .ui-notice-close:hover {
-  background: var(--zz-fill-strong);
-  color: var(--zz-text);
+  background: var(--zz-hover);
+  color: var(--zz-text-1);
 }
+
 .ui-notice-timer {
   position: absolute;
-  left: 0;
+  right: 0;
   bottom: 0;
+  left: 0;
   height: 2px;
-  width: 100%;
+  background: var(--zz-border-strong);
   transform-origin: left;
-  background: color-mix(in srgb, var(--zz-success) 60%, transparent);
-  animation: ui-notice-timer linear forwards;
+  animation: zz-notice-timer linear forwards;
 }
-.ui-notice[data-tone="info"] .ui-notice-timer {
-  background: color-mix(in srgb, var(--zz-info) 60%, transparent);
-}
+
 .ui-notice:hover .ui-notice-timer,
 .ui-notice:focus-within .ui-notice-timer {
   animation-play-state: paused;
 }
-@keyframes ui-notice-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px) scale(0.98);
-  }
-}
-@keyframes ui-notice-timer {
+
+@keyframes zz-notice-timer {
   to {
     transform: scaleX(0);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .ui-notice {
-    animation: none;
-  }
-  .ui-notice-timer {
-    display: none;
   }
 }

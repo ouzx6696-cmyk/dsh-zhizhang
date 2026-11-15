@@ -60,7 +60,7 @@ export function Dialog({
       ref={ref}
       aria-label={title}
       data-testid={testId}
-      className={cx("ui-dialog", dialogClasses({ size, className }))}
+      className={dialogClasses({ size, className })}
       onCancel={(event) => {
         event.preventDefault();
         onClose();
@@ -76,11 +76,18 @@ export function Dialog({
           <h2 className="zz-dialog__title">{title}</h2>
           <button
             type="button"
-            className="zz-icon-btn zz-btn--ghost zz-icon-btn--sm"
+            className="zz-icon-btn zz-btn--ghost zz-icon-btn--sm zz-dialog__close"
             aria-label={closeLabel}
             onClick={onClose}
           >
-            ×
+            <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M6 6l12 12M18 6L6 18"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
           </button>
         </header>
       ) : null}

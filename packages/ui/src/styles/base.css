@@ -1,12 +1,65 @@
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation: none;
-    transition: none;
-    scroll-behavior: auto;
-  }
+/* 全局基线：盒模型、字体、焦点环、滚动条、选区。 */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
+
+html,
+body {
+  margin: 0;
+  background: var(--zz-bg);
+  color: var(--zz-text-1);
+  font: var(--zz-text-body) / var(--zz-leading-body) var(--zz-font-ui);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4,
+p {
+  margin: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
 small {
-  font-size: var(--zz-size-12);
+  font-size: var(--zz-text-meta);
+}
+
+:focus-visible {
+  outline: 2px solid var(--zz-focus);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--zz-decide-soft);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: var(--zz-radius-pill);
+  background: var(--zz-border-strong) padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--zz-text-3) padding-box;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
