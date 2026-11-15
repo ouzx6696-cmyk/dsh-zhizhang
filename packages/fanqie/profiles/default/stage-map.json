@@ -1,0 +1,13 @@
+{
+  "fanqie.book.card": { "take": [{ "file": "overview.md", "maxChars": 2000 }, { "file": "platform.md", "maxChars": 2000 }] },
+  "fanqie.book.foundation": { "take": [{ "file": "plan-foundation.md", "maxChars": 3000 }] },
+  "fanqie.book.structure": { "take": [{ "file": "plan-structure.md", "maxChars": 3000 }] },
+  "fanqie.book.outline": { "take": [{ "file": "plan-outline.md", "maxChars": 3000 }] },
+  "fanqie.chapter.beats": { "take": [{ "file": "scene.md", "maxChars": 2500 }, { "file": "rhythm.md", "maxChars": 1500 }] },
+  "fanqie.chapter.draft": { "take": [{ "file": "write-chapter.md", "maxChars": 3500 }, { "file": "prose.md", "maxChars": 2500 }] },
+  "fanqie.chapter.select": { "take": [{ "file": "edit.md", "maxChars": 2500 }] },
+  "fanqie.chapter.review": { "take": [{ "file": "edit.md", "maxChars": 3000 }, { "file": "continuity.md", "maxChars": 1500 }] },
+  "fanqie.chapter.revise": { "take": [{ "file": "revise.md", "maxChars": 2500 }, { "file": "prose.md", "maxChars": 1500 }] },
+  "fanqie.ledger.extract": { "take": [{ "file": "continuity.md", "maxChars": 2500 }] },
+  "library.dissect": { "take": [{ "file": "library.md", "maxChars": 4000 }] }
+}

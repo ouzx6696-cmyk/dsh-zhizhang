@@ -1,5 +1,5 @@
 import { utilityProcess } from "electron";
-import { WriterError } from "../../../../packages/core/src/tool";
+import { WriterError } from "@zhizhang/core";
 
 /** A Node utility process works with the production RunAsNode fuse disabled. */
 export function runBackup(script: string, args: string[], signal: AbortSignal) {

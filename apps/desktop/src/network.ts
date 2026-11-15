@@ -1,6 +1,6 @@
 export type SearchProvider = "exa" | "tavily";
 export type SearchMode = "lite" | "auto";
-import { VERSION } from "../../../packages/core/src/version";
+import { VERSION } from "@zhizhang/core";
 import { lookup } from "node:dns/promises";
 import type { LookupAddress, LookupOptions } from "node:dns";
 import http from "node:http";
@@ -94,7 +94,7 @@ export async function readSource(
           headers: {
             Accept: "text/html,text/plain,application/xhtml+xml",
             "Accept-Encoding": "identity",
-            "User-Agent": `WriterAgent/${VERSION}`,
+            "User-Agent": `Zhizhang/${VERSION}`,
           },
           lookup: (
             _host: string,

@@ -1,62 +1,62 @@
 /* 全应用提示栈（notify.tsx）：底部居中，落在稿纸上方，不挡顶栏、右栏标签与输入框；新的在下。 */
 .ui-notices {
   position: fixed;
-  bottom: var(--ui-space-5);
+  bottom: var(--zz-space-5);
   left: 50%;
   transform: translateX(-50%);
-  z-index: var(--ui-z-toast);
+  z-index: var(--zz-z-toast);
   display: flex;
   flex-direction: column;
-  width: min(380px, calc(100vw - 2 * var(--ui-space-4)));
+  width: min(380px, calc(100vw - 2 * var(--zz-space-4)));
   pointer-events: none;
 }
 .ui-notices > div {
   display: flex;
   flex-direction: column;
-  gap: var(--ui-space-2);
+  gap: var(--zz-space-2);
 }
 .ui-notices > div:not(:empty) + div:not(:empty) {
-  margin-top: var(--ui-space-2);
+  margin-top: var(--zz-space-2);
 }
 .ui-notice {
   position: relative;
   display: flex;
   align-items: flex-start;
-  gap: var(--ui-space-3);
-  padding: var(--ui-space-3) var(--ui-space-2) var(--ui-space-3) var(--ui-space-4);
+  gap: var(--zz-space-3);
+  padding: var(--zz-space-3) var(--zz-space-2) var(--zz-space-3) var(--zz-space-4);
   overflow: hidden;
-  border: 1px solid var(--ui-line-strong);
-  border-radius: var(--ui-radius-md);
-  background: var(--ui-paper);
-  box-shadow: var(--ui-shadow-2);
-  color: var(--ui-text);
-  font: var(--ui-size-13) / 1.55 var(--ui-font-ui);
+  border: 1px solid var(--zz-line-strong);
+  border-radius: var(--zz-radius-md);
+  background: var(--zz-paper);
+  box-shadow: var(--zz-shadow-2);
+  color: var(--zz-text);
+  font: var(--zz-size-13) / 1.55 var(--zz-font-ui);
   pointer-events: auto;
-  animation: ui-notice-in var(--ui-duration) var(--ui-ease);
+  animation: ui-notice-in var(--zz-duration) var(--zz-ease);
 }
 .ui-notice-mark {
   flex-shrink: 0;
   width: 8px;
   height: 8px;
   margin-top: 7px;
-  border-radius: var(--ui-radius-pill);
-  background: var(--ui-info);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-info) 18%, transparent);
+  border-radius: var(--zz-radius-pill);
+  background: var(--zz-info);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--zz-info) 18%, transparent);
 }
 .ui-notice[data-tone="success"] .ui-notice-mark {
-  background: var(--ui-success);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-success) 18%, transparent);
+  background: var(--zz-success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--zz-success) 18%, transparent);
 }
 .ui-notice[data-tone="warning"] .ui-notice-mark {
-  background: var(--ui-warning);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-warning) 18%, transparent);
+  background: var(--zz-warning);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--zz-warning) 18%, transparent);
 }
 .ui-notice[data-tone="danger"] {
-  border-color: color-mix(in srgb, var(--ui-danger) 40%, var(--ui-line-strong));
+  border-color: color-mix(in srgb, var(--zz-danger) 40%, var(--zz-line-strong));
 }
 .ui-notice[data-tone="danger"] .ui-notice-mark {
-  background: var(--ui-danger);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-danger) 18%, transparent);
+  background: var(--zz-danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--zz-danger) 18%, transparent);
 }
 .ui-notice-body {
   flex: 1;
@@ -67,40 +67,40 @@
   overflow-wrap: anywhere;
 }
 .ui-notice-body details {
-  margin-top: var(--ui-space-1);
-  color: var(--ui-text-2);
-  font-size: var(--ui-size-12);
+  margin-top: var(--zz-space-1);
+  color: var(--zz-text-2);
+  font-size: var(--zz-size-12);
 }
 .ui-notice-body summary {
   width: fit-content;
   cursor: pointer;
-  color: var(--ui-text-3);
+  color: var(--zz-text-3);
 }
 .ui-notice-body summary:hover {
-  color: var(--ui-text);
+  color: var(--zz-text);
 }
 .ui-notice-body pre {
   max-height: 180px;
-  margin: var(--ui-space-1) 0 0;
-  padding: var(--ui-space-2);
+  margin: var(--zz-space-1) 0 0;
+  padding: var(--zz-space-2);
   overflow: auto;
-  border-radius: var(--ui-radius-xs);
-  background: var(--ui-fill);
-  font: var(--ui-size-12) / 1.5 var(--ui-font-mono);
+  border-radius: var(--zz-radius-xs);
+  background: var(--zz-fill);
+  font: var(--zz-size-12) / 1.5 var(--zz-font-mono);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 .ui-notices .ui-notice-action {
   min-height: 0;
-  margin-top: var(--ui-space-2);
-  padding: var(--ui-space-1) var(--ui-space-3);
-  border: 1px solid var(--ui-line-strong);
-  border-radius: var(--ui-radius-xs);
+  margin-top: var(--zz-space-2);
+  padding: var(--zz-space-1) var(--zz-space-3);
+  border: 1px solid var(--zz-line-strong);
+  border-radius: var(--zz-radius-xs);
   background: transparent;
-  font-size: var(--ui-size-12);
+  font-size: var(--zz-size-12);
 }
 .ui-notices .ui-notice-action:hover {
-  background: var(--ui-fill-strong);
+  background: var(--zz-fill-strong);
 }
 .ui-notices .ui-notice-close {
   flex-shrink: 0;
@@ -109,15 +109,15 @@
   height: 24px;
   padding: 0;
   border: 0;
-  border-radius: var(--ui-radius-xs);
+  border-radius: var(--zz-radius-xs);
   background: transparent;
-  color: var(--ui-text-3);
-  font-size: var(--ui-size-16);
+  color: var(--zz-text-3);
+  font-size: var(--zz-size-16);
   line-height: 1;
 }
 .ui-notices .ui-notice-close:hover {
-  background: var(--ui-fill-strong);
-  color: var(--ui-text);
+  background: var(--zz-fill-strong);
+  color: var(--zz-text);
 }
 .ui-notice-timer {
   position: absolute;
@@ -126,11 +126,11 @@
   height: 2px;
   width: 100%;
   transform-origin: left;
-  background: color-mix(in srgb, var(--ui-success) 60%, transparent);
+  background: color-mix(in srgb, var(--zz-success) 60%, transparent);
   animation: ui-notice-timer linear forwards;
 }
 .ui-notice[data-tone="info"] .ui-notice-timer {
-  background: color-mix(in srgb, var(--ui-info) 60%, transparent);
+  background: color-mix(in srgb, var(--zz-info) 60%, transparent);
 }
 .ui-notice:hover .ui-notice-timer,
 .ui-notice:focus-within .ui-notice-timer {

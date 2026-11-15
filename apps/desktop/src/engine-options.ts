@@ -1,6 +1,6 @@
-import { parseFanqieConfig } from "../../../packages/fanqie/src/config";
-import { parseToutiaoConfig } from "../../../packages/toutiao/src/config";
-import { isRecord } from "../../../packages/core/src/parse";
+import { parseFanqieConfig } from "@zhizhang/fanqie";
+import { parseToutiaoConfig } from "@zhizhang/toutiao";
+import { isRecord } from "@zhizhang/core";
 import type { SessionOptions } from "./session/types";
 export function parseWriterOptions(value: unknown): SessionOptions {
   if (!isRecord(value) || Object.keys(value).some((key) => !["fanqie", "toutiao"].includes(key)))

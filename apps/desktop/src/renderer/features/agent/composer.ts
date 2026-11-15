@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AGENT_COPY, formatCost, formatTokens } from "@writer/ui/copy";
+import { AGENT_COPY, formatCost, formatTokens } from "../../../shared/copy";
 import {
   PREF,
   readPref,
   writePref,
-} from "../../../../../../packages/workbench/src/client/shared/prefs.js";
+} from "@zhizhang/workbench";
 import { promptContext } from "../../../context";
 import type { ChatMessage } from "../../state/store";
-import type { TaskState } from "../../../renderer-contracts";
+import type { TaskState } from "../../../shared/types";
 import { messageBody } from "./AgentMessages";
 
 type FooterState = {

@@ -1,5 +1,9 @@
-/** 服务端回执体：调用方按路由形状收窄；这里只承诺它是 JSON 值。 */
-export type Json = unknown;
+import type {
+  CommandInput,
+  CommandResult,
+  WorkbenchCommand,
+  WorkbenchCommandMap,
+} from "../contract/commands.js";
 
 export class ApiError extends Error {
   uncertain: boolean;
@@ -12,91 +16,81 @@ export class ApiError extends Error {
   }
 }
 
-export type RequestOptions = {
-  kind?: "read" | "write";
-  input?: unknown;
+export interface RequestOptions {
   signal?: AbortSignal;
-};
+}
+
+export interface ErrorReceipt {
+  ok: false;
+  error?: string;
+  message?: string;
+  uncertain?: boolean;
+  code?: string;
+}
 
 export type DesktopBridge = {
-  request: (
-    operation: string,
-    options: { kind?: "read" | "write"; input?: unknown },
-  ) => Promise<{ data: Json }>;
-};
-
-type SaveChapterInput = {
-  base?: string;
-  work: string;
-  chapter: string;
-  body: string;
-  expectedRevision: string;
-  force?: boolean;
-  mode?: "candidate";
-  editOf?: string;
-  draftLabel?: string;
-};
-type SaveDraftInput = {
-  root: string;
-  id: string;
-  text: string;
-  expectedRev: number;
-  expectedSha256: string;
+  request: <K extends WorkbenchCommand>(
+    command: K,
+    options: { kind: WorkbenchCommandMap[K]["access"]; input: CommandInput<K> },
+  ) => Promise<{ data: CommandResult<K> | ErrorReceipt }>;
 };
 
 export interface FanqieData {
-  projects(refresh?: boolean, signal?: AbortSignal): Promise<Json>;
-  snapshot(base?: string, work?: string, signal?: AbortSignal, scope?: string): Promise<Json>;
+  snapshot(
+    input: CommandInput<"fanqie.snapshot">,
+    options?: RequestOptions,
+  ): Promise<CommandResult<"fanqie.snapshot">>;
   chapter(
-    base: string | undefined,
-    work: string | undefined,
-    id: string,
-    signal?: AbortSignal,
-  ): Promise<Json>;
-  saveChapter(payload: SaveChapterInput): Promise<Json>;
-  candidate(
-    base: string | undefined,
-    work: string | undefined,
-    id: string,
-    signal?: AbortSignal,
-  ): Promise<Json>;
-  diagnose(payload: Json, signal?: AbortSignal): Promise<Json>;
-  stageRevision(payload: Json): Promise<Json>;
-  accept(payload: Json): Promise<Json>;
-  chapterAction(action: string, payload: Json): Promise<Json>;
-  unifyPrepare(payload: Json): Promise<Json>;
-  capabilities(base?: string, signal?: AbortSignal): Promise<Json>;
-  deliver(payload: Json): Promise<Json>;
+    input: CommandInput<"fanqie.chapter.get">,
+    options?: RequestOptions,
+  ): Promise<CommandResult<"fanqie.chapter.get">>;
+  saveChapter(
+    input: CommandInput<"fanqie.chapter.save">,
+    options?: RequestOptions,
+  ): Promise<CommandResult<"fanqie.chapter.save">>;
+  finalizeChapter(
+    input: CommandInput<"fanqie.chapter.finalize">,
+    options?: RequestOptions,
+  ): Promise<CommandResult<"fanqie.chapter.finalize">>;
+  acceptCandidate(
+    input: CommandInput<"fanqie.candidate.accept">,
+    options?: RequestOptions,
+  ): Promise<CommandResult<"fanqie.candidate.accept">>;
+  createWork(
+    input: CommandInput<"fanqie.work.create">,
+    options?: RequestOptions,
+  ): Promise<CommandResult<"fanqie.work.create">>;
+  exportBook(
+    input: CommandInput<"fanqie.book.export">,
+    options?: RequestOptions,
+  ): Promise<CommandResult<"fanqie.book.export">>;
 }
 
 export interface ToutiaoData {
-  articles(signal?: AbortSignal): Promise<Json>;
-  article(root: string, id: string, signal?: AbortSignal): Promise<Json>;
-  /** article 为 articleDetail 台账行/详情：adopt 只读 root/id/rev/draft.sha256。 */
-  adopt(article: {
-    root: string;
-    id: string;
-    rev: number;
-    draft: { sha256: string };
-  }): Promise<Json>;
-  saveDraft(payload: SaveDraftInput): Promise<Json>;
-  deliver(payload: Record<string, unknown>): Promise<Json>;
-}
-
-export interface ProfilesData {
-  list(signal?: AbortSignal): Promise<Json>;
-  detail(profile: string, signal?: AbortSignal): Promise<Json>;
-  method(profile: string, id: string, signal?: AbortSignal): Promise<Json>;
-  use(profile: string): Promise<Json>;
-  create(payload: Json): Promise<Json>;
-  save(profile: string, id: string, text: string): Promise<Json>;
-  reset(profile: string, id: string): Promise<Json>;
-  rename(profile: string, name: string, note?: string): Promise<Json>;
-  remove(profile: string): Promise<Json>;
+  articles(
+    input: CommandInput<"toutiao.articles">,
+    options?: RequestOptions,
+  ): Promise<CommandResult<"toutiao.articles">>;
+  createArticle(
+    input: CommandInput<"toutiao.article.create">,
+    options?: RequestOptions,
+  ): Promise<CommandResult<"toutiao.article.create">>;
+  transitionArticle(
+    input: CommandInput<"toutiao.article.transition">,
+    options?: RequestOptions,
+  ): Promise<CommandResult<"toutiao.article.transition">>;
+  deliverArticle(
+    input: CommandInput<"toutiao.article.deliver">,
+    options?: RequestOptions,
+  ): Promise<CommandResult<"toutiao.article.deliver">>;
 }
 
 export interface WorkbenchData {
+  call<K extends WorkbenchCommand>(
+    command: K,
+    input: CommandInput<K>,
+    options?: RequestOptions,
+  ): Promise<CommandResult<K>>;
   fanqie: FanqieData;
   toutiao: ToutiaoData;
-  profiles(mode: "fanqie" | "toutiao" | string): ProfilesData;
 }

@@ -1,23 +1,21 @@
-import { errorText } from "../../../../../../packages/core/src/errors.js";
-import { COPY as viewCopy } from "@writer/ui/copy";
+import { errorText } from "@zhizhang/core";
+import { DESKTOP_COPY as viewCopy } from "../../../shared/copy";
 import { Markdown } from "../../../Markdown";
-import { Dialog } from "@writer/ui/primitives";
-import { TabList, tabPanelProps } from "@writer/ui/tabs";
+import { Dialog } from "../../components/primitives";
 import React, { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { profilesApi } from "../../../../../../packages/workbench/src/client/shared/api.js";
-import { Menu, PanelRightClose } from "lucide-react";
+import { profilesApi } from "@zhizhang/workbench";
+import { Menu } from "lucide-react";
+import { RightDock } from "./RightDock";
 
-// 方法方案编辑器体积大且仅在作者打开方法页时需要，按需加载。
 const ProfilesDialog = lazy(() =>
-  import("../../../../../../packages/workbench/src/client/shared/Profiles.jsx").then((module) => ({
+  import("@zhizhang/workbench").then((module) => ({
     default: module.ProfilesDialog,
   })),
 );
 
 type EditState = { dirty: boolean; saving: boolean };
 
-/** 方法面板只读当前方案名；回执缺该字段时保持默认标题。 */
 function hasActiveName(value: unknown): value is { activeName: string } {
   return (
     typeof value === "object" &&
@@ -95,11 +93,14 @@ export function WorkspaceLayout({
   center,
   inspector,
   agent,
+  pipeline,
   tab,
   setTab,
   mode,
   drawer,
   setDrawer,
+  split = false,
+  onToggleSplit = () => {},
   onMethodEditState,
 }: {
   fullWidth?: boolean;
@@ -107,22 +108,16 @@ export function WorkspaceLayout({
   center: ReactNode;
   inspector: ReactNode;
   agent: ReactNode;
+  pipeline?: ReactNode;
   tab: string;
   setTab: (tab: string) => void;
   mode: "fanqie" | "toutiao";
   drawer: boolean;
   setDrawer: (open: boolean) => void;
+  split?: boolean;
+  onToggleSplit?: () => void;
   onMethodEditState: (state: EditState) => void;
 }) {
-  const tabsId = React.useId();
-  const tabs = [
-    { id: "agent", label: "Agent" },
-    {
-      id: "chapter",
-      label: mode === "toutiao" ? viewCopy.workspaceLayoutText4 : viewCopy.inspector,
-    },
-    { id: "methods", label: viewCopy.pfButton },
-  ];
   const [navOpen, setNavOpen] = useState(false);
   const [methodsOpen, setMethodsOpen] = useState(false);
   const [methodsMounted, setMethodsMounted] = useState(false);
@@ -151,37 +146,19 @@ export function WorkspaceLayout({
           onClick={() => setDrawer(false)}
         />
       )}
-      <aside className={"studio-sidebar " + (drawer ? "open" : "")}>
-        <div className="studio-tabs">
-          <TabList
-            id={tabsId}
-            label={viewCopy.sidebarTabs}
-            items={tabs}
-            value={tab}
-            onChange={setTab}
-            className="studio-tablist"
-          />
-          <button
-            className="drawer-close icon-button"
-            aria-label={viewCopy.workspaceLayoutText7}
-            onClick={() => setDrawer(false)}
-          >
-            <PanelRightClose size={16} />
-          </button>
-        </div>
-        <div className="studio-side-body" data-tab={tab}>
-          <div {...tabPanelProps(tabsId, "agent", tab)} className="agent-slot">
-            {agent}
-          </div>
-          {/* 本章面板只在可见时挂载，避免后台读取诊断与检查数据。 */}
-          <div {...tabPanelProps(tabsId, "chapter", tab)} className="decision-panel">
-            {tab === "chapter" && inspector}
-          </div>
-          <div {...tabPanelProps(tabsId, "methods", tab)} className="methods-slot">
-            <MethodsPane mode={mode} onOpen={openMethods} active={tab === "methods"} />
-          </div>
-        </div>
-      </aside>
+      <RightDock
+        tab={tab}
+        setTab={setTab}
+        drawer={drawer}
+        setDrawer={setDrawer}
+        split={split}
+        onToggleSplit={onToggleSplit}
+        mode={mode}
+        agent={agent}
+        pipeline={pipeline}
+        inspector={inspector}
+        methodsPane={<MethodsPane mode={mode} onOpen={openMethods} active={tab === "methods"} />}
+      />
       {methodsMounted && (
         <Dialog
           open={methodsOpen}

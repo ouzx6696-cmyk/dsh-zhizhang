@@ -1,5 +1,5 @@
 import type { Focus, Target } from "../../context";
-import { PREF, writePref } from "../../../../../packages/workbench/src/client/shared/prefs.js";
+import { PREF, writePref } from "@zhizhang/workbench";
 
 export function remember(target: Target, focus: Focus = {}, preserve = false) {
   if (target.mode === "fanqie") {

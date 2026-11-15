@@ -1,6 +1,6 @@
 .lamp-task-meta {
   display: flex;
   gap: 10px;
-  font-size: var(--ui-size-12);
-  color: var(--ui-text-3);
+  font-size: var(--zz-size-12);
+  color: var(--zz-text-3);
 }

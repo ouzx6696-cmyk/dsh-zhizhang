@@ -1,9 +1,9 @@
-import type { DesktopApi } from "./desktop-api";
-import type { DesktopBridge } from "./ipc-result";
+import type { DesktopBridge } from "./shared/ipc.js";
+
 declare global {
   interface Window {
-    writerDesktop: DesktopApi;
-    writerBridge: DesktopBridge;
+    zhizhangBridge: DesktopBridge;
   }
 }
+
 export {};

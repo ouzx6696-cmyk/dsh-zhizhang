@@ -1,129 +1,132 @@
-import { COMMANDS } from "../commands.js";
+import type {
+  CommandInput,
+  CommandResult,
+  WorkbenchCommand,
+  WorkbenchCommandMap,
+} from "../contract/commands.js";
 import {
   ApiError,
   type DesktopBridge,
+  type ErrorReceipt,
   type FanqieData,
-  type Json,
-  type ProfilesData,
   type RequestOptions,
   type ToutiaoData,
   type WorkbenchData,
 } from "./types.js";
 
-/** 回执对象判型；非对象回执按空对象处理，错误文案走默认值。 */
-function isJsonObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+const COMMAND_ACCESS: { [K in WorkbenchCommand]: WorkbenchCommandMap[K]["access"] } = {
+  "fanqie.snapshot": "read",
+  "fanqie.chapter.list": "read",
+  "fanqie.chapter.get": "read",
+  "fanqie.chapter.save": "write",
+  "fanqie.chapter.finalize": "write",
+  "fanqie.candidate.list": "read",
+  "fanqie.candidate.get": "read",
+  "fanqie.candidate.accept": "write",
+  "fanqie.candidate.reject": "write",
+  "fanqie.work.list": "read",
+  "fanqie.work.get": "read",
+  "fanqie.work.create": "write",
+  "fanqie.work.settings": "write",
+  "fanqie.book.export": "read",
+  "fanqie.bible.get": "read",
+  "fanqie.bible.view": "read",
+  "fanqie.bible.propose": "write",
+  "fanqie.bible.decide": "write",
+  "fanqie.bible.audit": "read",
+  "fanqie.reference.bind": "write",
+  "toutiao.articles": "read",
+  "toutiao.article.create": "write",
+  "toutiao.article.transition": "write",
+  "toutiao.article.deliver": "write",
+  "toutiao.article.export": "read",
+  "toutiao.draft.save": "write",
+  "toutiao.source.register": "write",
+  "toutiao.ledger.show": "read",
+  "toutiao.ledger.add": "write",
+  "toutiao.ledger.status": "write",
+  "toutiao.metrics.import": "write",
+  "profiles.list": "read",
+  "profiles.detail": "read",
+  "profiles.method": "read",
+  "profiles.use": "write",
+  "profiles.create": "write",
+  "profiles.save": "write",
+  "profiles.reset": "write",
+  "profiles.rename": "write",
+  "profiles.delete": "write",
+  "library.import": "write",
+  "library.list": "read",
+  "library.cards": "read",
+  "library.dissect": "write",
+};
+
+function isErrorReceipt(value: unknown): value is ErrorReceipt {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    (value as Record<string, unknown>).ok === false
+  );
 }
 
-async function call(
+async function callCommand<K extends WorkbenchCommand>(
   bridge: DesktopBridge,
-  path: string,
-  { kind = "read", input, signal }: RequestOptions = {},
-): Promise<Json> {
+  command: K,
+  input: CommandInput<K>,
+  { signal }: RequestOptions = {},
+): Promise<CommandResult<K>> {
+  const kind = COMMAND_ACCESS[command];
   if (signal?.aborted) throw new ApiError("aborted", { code: "aborted" });
-  const result = await bridge.request(path, { kind, input });
-  if (signal?.aborted)
+  const result = await bridge.request(command, { kind, input });
+  if (signal?.aborted) {
     throw new ApiError("aborted", { code: "aborted", uncertain: kind === "write" });
-  const data = isJsonObject(result.data) ? result.data : {};
-  const message =
-    typeof data.error === "string" && data.error
-      ? data.error
-      : typeof data.message === "string" && data.message
-        ? data.message
-        : "操作失败";
-  if (data.ok === false)
+  }
+  if (isErrorReceipt(result.data)) {
+    const message =
+      typeof result.data.error === "string" && result.data.error
+        ? result.data.error
+        : typeof result.data.message === "string" && result.data.message
+          ? result.data.message
+          : "操作失败";
     throw new ApiError(message, {
-      uncertain: data.uncertain === true,
-      code: typeof data.code === "string" ? data.code : undefined,
+      uncertain: result.data.uncertain === true,
+      code: typeof result.data.code === "string" ? result.data.code : "",
     });
+  }
   return result.data;
 }
 
 function fanqie(bridge: DesktopBridge): FanqieData {
   return {
-    projects: (refresh, signal) =>
-      call(bridge, COMMANDS.projects, { input: { refresh: refresh ? 1 : "" }, signal }),
-    snapshot: (base, work, signal, scope = "all") =>
-      call(bridge, COMMANDS.snapshot, { input: { base, work, scope }, signal }),
-    chapter: (base, work, id, signal) =>
-      call(bridge, COMMANDS.chapter, { input: { base, work, id }, signal }),
-    saveChapter: (payload) => call(bridge, COMMANDS.saveChapter, { kind: "write", input: payload }),
-    candidate: (base, work, id, signal) =>
-      call(bridge, COMMANDS.candidate, { input: { base, work, id }, signal }),
-    diagnose: (payload, signal) =>
-      call(bridge, COMMANDS.diagnose, { kind: "write", input: payload, signal }),
-    stageRevision: (payload) =>
-      call(bridge, COMMANDS.stageRevision, { kind: "write", input: payload }),
-    accept: (payload) => call(bridge, COMMANDS.accept, { kind: "write", input: payload }),
-    chapterAction: (action, payload) =>
-      call(
-        bridge,
-        action === "acknowledge"
-          ? COMMANDS.acknowledge
-          : action === "review"
-            ? COMMANDS.reviewChapter
-            : COMMANDS.finalizeChapter,
-        {
-          kind: "write",
-          input: payload,
-        },
-      ),
-    unifyPrepare: (payload) =>
-      call(bridge, COMMANDS.unifyPrepare, { kind: "write", input: payload }),
-    capabilities: (base, signal) =>
-      call(bridge, COMMANDS.capabilities, { input: { base }, signal }),
-    deliver: (payload) => call(bridge, COMMANDS.deliver, { kind: "write", input: payload }),
+    snapshot: (input, options) => callCommand(bridge, "fanqie.snapshot", input, options),
+    chapter: (input, options) => callCommand(bridge, "fanqie.chapter.get", input, options),
+    saveChapter: (input, options) => callCommand(bridge, "fanqie.chapter.save", input, options),
+    finalizeChapter: (input, options) =>
+      callCommand(bridge, "fanqie.chapter.finalize", input, options),
+    acceptCandidate: (input, options) =>
+      callCommand(bridge, "fanqie.candidate.accept", input, options),
+    createWork: (input, options) => callCommand(bridge, "fanqie.work.create", input, options),
+    exportBook: (input, options) => callCommand(bridge, "fanqie.book.export", input, options),
   };
 }
 
 function toutiao(bridge: DesktopBridge): ToutiaoData {
   return {
-    articles: (signal) => call(bridge, COMMANDS.articles, { signal }),
-    article: (root, id, signal) => call(bridge, COMMANDS.article, { input: { root, id }, signal }),
-    adopt: (article) =>
-      call(bridge, COMMANDS.adoptArticle, {
-        kind: "write",
-        input: {
-          root: article.root,
-          id: article.id,
-          expectedRev: article.rev,
-          expectedSha256: article.draft.sha256,
-          confirm: true,
-        },
-      }),
-    saveDraft: (payload) => call(bridge, COMMANDS.saveArticle, { kind: "write", input: payload }),
-    deliver: (payload) =>
-      call(bridge, COMMANDS.deliverArticle, {
-        kind: "write",
-        input: { ...payload, confirm: true },
-      }),
-  };
-}
-
-function profiles(bridge: DesktopBridge, mode: string): ProfilesData {
-  const base = "/" + mode + "/profiles";
-  return {
-    list: (signal) => call(bridge, base, { signal }),
-    detail: (profile, signal) => call(bridge, base + "/detail", { input: { profile }, signal }),
-    method: (profile, id, signal) =>
-      call(bridge, base + "/method", { input: { profile, id }, signal }),
-    use: (profile) => call(bridge, base + "/use", { kind: "write", input: { profile } }),
-    create: (payload) => call(bridge, base + "/create", { kind: "write", input: payload }),
-    save: (profile, id, text) =>
-      call(bridge, base + "/save", { kind: "write", input: { profile, id, text } }),
-    reset: (profile, id) =>
-      call(bridge, base + "/reset", { kind: "write", input: { profile, id } }),
-    rename: (profile, name, note) =>
-      call(bridge, base + "/rename", { kind: "write", input: { profile, name, note } }),
-    remove: (profile) =>
-      call(bridge, base + "/delete", { kind: "write", input: { profile, confirm: true } }),
+    articles: (input, options) => callCommand(bridge, "toutiao.articles", input, options),
+    createArticle: (input, options) =>
+      callCommand(bridge, "toutiao.article.create", input, options),
+    transitionArticle: (input, options) =>
+      callCommand(bridge, "toutiao.article.transition", input, options),
+    deliverArticle: (input, options) =>
+      callCommand(bridge, "toutiao.article.deliver", input, options),
   };
 }
 
 export function createDesktopAdapter(bridge: DesktopBridge): WorkbenchData {
   return {
+    call: (command, input, options) => callCommand(bridge, command, input, options),
     fanqie: fanqie(bridge),
     toutiao: toutiao(bridge),
-    profiles: (mode) => profiles(bridge, mode),
   };
 }

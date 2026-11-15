@@ -11,13 +11,13 @@
   flex-wrap: wrap;
 }
 .wf-overview-kind {
-  color: var(--ui-text-2);
-  font-size: var(--ui-size-13);
+  color: var(--zz-text-2);
+  font-size: var(--zz-text-meta);
 }
 .wf-overview-instruction {
   margin: 0;
-  color: var(--ui-text);
-  font-size: var(--ui-size-14);
+  color: var(--zz-text-1);
+  font-size: var(--zz-text-body);
   line-height: 1.6;
   display: -webkit-box;
   -webkit-line-clamp: 3;
@@ -29,34 +29,34 @@
   flex-direction: column;
   gap: 10px;
   padding: 12px;
-  border: 1px solid var(--ui-line);
-  border-radius: var(--ui-radius-md);
-  background: var(--ui-fill);
+  border: 1px solid var(--zz-border);
+  border-radius: var(--zz-radius-md);
+  background: var(--zz-surface-2);
 }
 .wf-stats-bar,
 .wf-stats-meter {
   display: block;
   height: 4px;
   border-radius: 2px;
-  background: var(--ui-line);
+  background: var(--zz-border);
   overflow: hidden;
 }
 .wf-stats-bar > span,
 .wf-stats-meter > span {
   display: block;
   height: 100%;
-  background: var(--ui-accent);
+  background: var(--zz-decide);
   transform-origin: left;
   transition: transform 400ms ease;
 }
 .wf-stats-bar[data-state="awaiting-author"] > span {
-  background: var(--ui-success);
+  background: var(--zz-ok);
 }
 .wf-stats-bar[data-state="failed"] > span {
-  background: var(--ui-danger);
+  background: var(--zz-bad);
 }
 .wf-stats-bar[data-state="paused"] > span {
-  background: var(--ui-warning);
+  background: var(--zz-warn);
 }
 .wf-stats-grid {
   display: grid;
@@ -65,12 +65,12 @@
   margin: 0;
 }
 .wf-stats-grid dt {
-  color: var(--ui-text-3);
-  font-size: var(--ui-size-12);
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-caption);
 }
 .wf-stats-grid dd {
   margin: 0;
-  font-size: var(--ui-size-13);
+  font-size: var(--zz-text-meta);
   font-variant-numeric: tabular-nums;
 }
 .wf-stats-wide {
@@ -80,30 +80,30 @@
   margin-top: 6px;
 }
 .wf-stats-wide[data-level="high"] dd {
-  color: var(--ui-warning);
+  color: var(--zz-warn);
 }
 .wf-stats-wide[data-level="high"] .wf-stats-meter > span {
-  background: var(--ui-warning);
+  background: var(--zz-warn);
 }
 
 /* 阻塞与交付提醒：左侧色条区分语气。 */
 .wf-notice {
-  --wf-tone: var(--ui-info);
+  --wf-tone: var(--zz-run);
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 6px;
   padding: 10px 12px;
   border-left: 3px solid var(--wf-tone);
-  border-radius: var(--ui-radius-sm);
+  border-radius: var(--zz-radius-sm);
   background: color-mix(in srgb, var(--wf-tone) 10%, transparent);
-  font-size: var(--ui-size-13);
+  font-size: var(--zz-text-meta);
 }
 .wf-notice[data-tone="warning"] {
-  --wf-tone: var(--ui-warning);
+  --wf-tone: var(--zz-warn);
 }
 .wf-notice[data-tone="danger"] {
-  --wf-tone: var(--ui-danger);
+  --wf-tone: var(--zz-bad);
 }
 .wf-notice strong {
   display: inline-flex;
@@ -116,13 +116,13 @@
   line-height: 1.6;
 }
 .wf-notice button {
-  font-size: var(--ui-size-12);
+  font-size: var(--zz-text-caption);
   min-height: 0;
   padding: 4px 10px;
 }
 .wf-notice-raw {
   margin: 0;
-  color: var(--ui-text-3);
-  font-size: var(--ui-size-12);
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-caption);
   overflow-wrap: anywhere;
 }

@@ -1,10 +1,10 @@
 import type { SessionOptions } from "../../../session/types";
 import { EngineTab } from "./EngineTab";
-import { COPY as viewCopy } from "@writer/ui/copy";
-import { errorText } from "../../../../../../packages/core/src/errors.js";
+import { DESKTOP_COPY as viewCopy } from "../../../shared/copy";
+import { errorText } from "@zhizhang/core";
 import { useConnectionTest } from "./useConnectionTest";
 import { AppearanceFields } from "./AppearanceFields";
-import { Dialog } from "@writer/ui/primitives";
+import { Dialog } from "../../components/primitives";
 import React, { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import type { SystemState } from "../../state/store";

@@ -4,16 +4,16 @@
   max-width: calc(100vw - 32px);
   max-height: calc(100dvh - 48px);
   overflow: auto;
-  border: 1px solid var(--ui-line-strong);
-  border-radius: var(--ui-radius-lg);
-  background: var(--ui-panel);
-  color: var(--ui-text);
-  box-shadow: var(--ui-shadow-2);
-  font: var(--ui-size-14)/1.6 var(--ui-font-ui);
+  border: 1px solid var(--zz-line-strong);
+  border-radius: var(--zz-radius-lg);
+  background: var(--zz-panel);
+  color: var(--zz-text);
+  box-shadow: var(--zz-shadow-2);
+  font: var(--zz-size-14)/1.6 var(--zz-font-ui);
 }
 .ui-dialog::backdrop {
-  background: var(--ui-mask);
-  backdrop-filter: var(--ui-blur);
+  background: var(--zz-mask);
+  backdrop-filter: var(--zz-blur);
 }
 @media (prefers-reduced-transparency: reduce) {
   .ui-dialog::backdrop {

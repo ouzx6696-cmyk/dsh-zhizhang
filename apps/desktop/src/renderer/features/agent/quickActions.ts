@@ -1,7 +1,7 @@
-import { COPY as viewCopy } from "@writer/ui/copy";
-import { TOUTIAO_DELIVERED } from "@writer/ui/status";
+import { DESKTOP_COPY as viewCopy } from "../../../shared/copy";
+import { TOUTIAO_DELIVERED } from "@zhizhang/ui/status";
 import { getCommand } from "../../../commands";
-import type { WorkspaceContext } from "../../../renderer-contracts";
+import type { WorkspaceContext } from "../../../shared/types";
 
 /** [命令 ID, 按钮文字]；文字省略时用命令自身的名称。 */
 type QuickItem = readonly [id: string, label?: string];

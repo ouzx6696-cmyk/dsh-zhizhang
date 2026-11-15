@@ -1,16 +1,16 @@
 import { humanVersion } from "../../format";
-import { COPY as viewCopy } from "@writer/ui/copy";
+import { DESKTOP_COPY as viewCopy } from "../../../shared/copy";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
-import { useFanqie } from "../../../../../../packages/workbench/src/client/fanqie/useFanqie.js";
-import { ChapterList } from "../../../../../../packages/workbench/src/client/fanqie/ChapterList.jsx";
-import { Reader } from "../../../../../../packages/workbench/src/client/fanqie/Reader.jsx";
-import { Inspector } from "../../../../../../packages/workbench/src/client/fanqie/Inspector.jsx";
-import { Pipeline } from "../../../../../../packages/workbench/src/client/fanqie/Pipeline.jsx";
-import { Dialogs } from "../../../../../../packages/workbench/src/client/fanqie/Dialogs.jsx";
-import { Diagnostics } from "../../../../../../packages/workbench/src/client/fanqie/Diagnostics.jsx";
+import { useFanqie } from "@zhizhang/workbench";
+import { ChapterList } from "@zhizhang/workbench";
+import { Reader } from "@zhizhang/workbench";
+import { Inspector } from "@zhizhang/workbench";
+import { Pipeline } from "@zhizhang/workbench";
+import { Dialogs } from "@zhizhang/workbench";
+import { Diagnostics } from "@zhizhang/workbench";
 import { Check, FileCheck } from "lucide-react";
-import { StatusBadge } from "@writer/ui/status-badge";
-import type { WorkspaceProps } from "../../../renderer-contracts";
+import { StatusBadge } from "@zhizhang/ui/status-badge";
+import type { WorkspaceProps } from "../../../shared/types";
 import type { Focus, Target } from "../../../context";
 import { useWorkspaceNavigator } from "../../state/navigation";
 import { WorkspaceLayout } from "./WorkspaceLayout";
@@ -277,8 +277,7 @@ const Novel = React.memo(function Novel(props: WorkspaceProps) {
     );
   return (
     <>
-      <WorkspaceLayout
-        tab={props.tab}
+      <WorkspaceLayout pipeline={props.pipeline as React.ReactNode} split={props.split} onToggleSplit={props.onToggleSplit} fullWidth={props.focusMode} tab={props.tab}
         setTab={props.setTab}
         drawer={props.drawer}
         setDrawer={props.setDrawer}

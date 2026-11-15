@@ -1,7 +1,7 @@
-import { COPY as viewCopy } from "@writer/ui/copy";
+import { DESKTOP_COPY as viewCopy } from "../../../shared/copy";
 import React from "react";
-import { Brand, Button, Card, Stat, Steps, Toggle } from "@writer/ui/primitives";
-import { StatusBadge } from "@writer/ui/status-badge";
+import { Brand, Button, Card, Stat, Steps, Toggle } from "../../components/primitives";
+import { StatusBadge } from "@zhizhang/ui/status-badge";
 
 export function DesignPreview() {
   const [checked, setChecked] = React.useState(true);

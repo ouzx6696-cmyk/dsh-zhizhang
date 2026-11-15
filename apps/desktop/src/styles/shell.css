@@ -12,7 +12,7 @@
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 232px minmax(0, 1fr) 392px;
+  grid-template-columns: 232px minmax(0, 1fr) var(--right-dock-width, 392px);
 }
 @media (max-width: 1199px) {
   .studio-layout {
@@ -41,31 +41,31 @@
 
 /* 左侧导航：小号分组标题、紧凑的章节行，选中态由工作台的高亮条承担。 */
 .studio-nav {
-  border-right: 1px solid var(--ui-line);
+  border-right: 1px solid var(--zz-border);
   overflow-y: auto;
-  padding: var(--ui-space-4) var(--ui-space-2);
+  padding: var(--zz-space-4) var(--zz-space-2);
   min-width: 0;
-  background: color-mix(in srgb, var(--ui-panel) 55%, transparent);
+  background: color-mix(in srgb, var(--zz-surface-1) 55%, transparent);
 }
 .studio-nav h2 {
-  margin: 0 0 var(--ui-space-2);
-  padding: 0 var(--ui-space-2);
-  font-size: var(--ui-size-12);
+  margin: 0 0 var(--zz-space-2);
+  padding: 0 var(--zz-space-2);
+  font-size: var(--zz-text-caption);
   font-weight: 600;
   letter-spacing: 0.04em;
-  color: var(--ui-text-3);
+  color: var(--zz-text-3);
 }
 .studio-nav > button:not(.nav-toggle) {
   width: 100%;
-  margin-top: var(--ui-space-3);
+  margin-top: var(--zz-space-3);
   border-style: dashed;
   background: transparent;
-  color: var(--ui-text-2);
-  font-size: var(--ui-size-13);
+  color: var(--zz-text-2);
+  font-size: var(--zz-text-meta);
 }
 .studio-nav > button:not(.nav-toggle):hover:not(:disabled) {
   border-style: solid;
-  color: var(--ui-text);
+  color: var(--zz-text-1);
 }
 .studio-nav .wb-chapter-nav {
   padding: 0;
@@ -75,20 +75,20 @@
 }
 .studio-nav .wb-chapter-row {
   min-height: 0;
-  padding: var(--ui-space-2) var(--ui-space-2) var(--ui-space-2) var(--ui-space-3);
-  border-radius: var(--ui-radius-xs);
+  padding: var(--zz-space-2) var(--zz-space-2) var(--zz-space-2) var(--zz-space-3);
+  border-radius: var(--zz-radius-xs);
 }
 .studio-nav .wb-chapter-title {
-  font-size: var(--ui-size-13);
+  font-size: var(--zz-text-meta);
 }
 .nav-volume + .nav-volume {
-  margin-top: var(--ui-space-3);
+  margin-top: var(--zz-space-3);
 }
 .nav-volume > h3 {
   margin: 0;
-  padding: var(--ui-space-2) var(--ui-space-2) var(--ui-space-1);
-  color: var(--ui-text-3);
-  font-size: var(--ui-size-12);
+  padding: var(--zz-space-2) var(--zz-space-2) var(--zz-space-1);
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-caption);
   font-weight: 500;
 }
 .nav-toggle {
@@ -96,9 +96,9 @@
 }
 @media (max-width: 1199px) {
   .studio-nav {
-    padding: var(--ui-space-3) var(--ui-space-2);
+    padding: var(--zz-space-3) var(--zz-space-2);
     position: relative;
-    background: var(--ui-panel);
+    background: var(--zz-surface-1);
   }
   .studio-nav > :not(.nav-toggle) {
     display: none;
@@ -109,9 +109,9 @@
     top: 56px;
     bottom: 0;
     width: 232px;
-    z-index: var(--ui-z-drawer);
-    box-shadow: var(--ui-shadow-2);
-    animation: studio-slide-in var(--ui-duration) var(--ui-ease);
+    z-index: var(--zz-z-drawer);
+    box-shadow: var(--zz-shadow-2);
+    animation: studio-slide-in var(--zz-dur-2) var(--zz-ease);
   }
   .studio-nav.expanded > :not(.nav-toggle) {
     display: block;
@@ -123,23 +123,24 @@
 
 /* 右侧抽屉 */
 .studio-sidebar {
+  position: relative;
   min-width: 0;
   min-height: 0;
-  border-left: 1px solid var(--ui-line);
+  border-left: 1px solid var(--zz-border);
   display: flex;
   flex-direction: column;
-  background: color-mix(in srgb, var(--ui-panel) 55%, transparent);
+  background: color-mix(in srgb, var(--zz-surface-1) 55%, transparent);
 }
 .studio-tabs {
   height: 45px;
   display: flex;
   align-items: stretch;
-  border-bottom: 1px solid var(--ui-line);
-  padding: 0 var(--ui-space-3);
+  border-bottom: 1px solid var(--zz-border);
+  padding: 0 var(--zz-space-3);
   flex-shrink: 0;
 }
 .studio-tabs .studio-tablist > [role="tab"] {
-  padding: 0 var(--ui-space-2);
+  padding: 0 var(--zz-space-2);
   border-radius: 0;
 }
 .studio-tabs .studio-tablist > [role="tab"]:hover:not(:disabled) {
@@ -155,7 +156,7 @@
   height: 100%;
 }
 .decision-panel {
-  padding: var(--ui-space-4);
+  padding: var(--zz-space-4);
   height: 100%;
   overflow-y: auto;
 }
@@ -163,40 +164,40 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: var(--ui-space-3);
-  padding: var(--ui-space-4);
+  gap: var(--zz-space-3);
+  padding: var(--zz-space-4);
 }
 .method-cta p {
   margin: 0;
-  font-size: var(--ui-size-12);
-  color: var(--ui-text-3);
+  font-size: var(--zz-text-caption);
+  color: var(--zz-text-3);
 }
 .methods-page {
   width: min(1360px, 94vw);
   height: 88vh;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--ui-line);
-  border-radius: var(--ui-radius-lg);
-  background: var(--ui-paper);
-  box-shadow: var(--ui-shadow-2);
+  border: 1px solid var(--zz-border);
+  border-radius: var(--zz-radius-lg);
+  background: var(--zz-paper);
+  box-shadow: var(--zz-shadow-2);
   overflow: hidden;
 }
 .methods-page > header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--ui-space-3) var(--ui-space-4);
-  border-bottom: 1px solid var(--ui-line);
+  padding: var(--zz-space-3) var(--zz-space-4);
+  border-bottom: 1px solid var(--zz-border);
 }
 .methods-page > header h2 {
   margin: 0;
-  font-size: var(--ui-size-15);
+  font-size: var(--zz-text-strong);
 }
 @media (max-width: 959px) {
   .studio-sidebar {
     display: none;
-    background: var(--ui-panel);
+    background: var(--zz-surface-1);
   }
   .studio-sidebar.open {
     display: flex;
@@ -205,20 +206,20 @@
     top: 56px;
     bottom: 0;
     width: min(392px, 92vw);
-    z-index: var(--ui-z-drawer);
-    box-shadow: var(--ui-shadow-2);
-    animation: studio-slide-in-right var(--ui-duration) var(--ui-ease);
+    z-index: var(--zz-z-drawer);
+    box-shadow: var(--zz-shadow-2);
+    animation: studio-slide-in-right var(--zz-dur-2) var(--zz-ease);
   }
 }
 button.icon-button {
-  padding: var(--ui-space-1) var(--ui-space-2);
+  padding: var(--zz-space-1) var(--zz-space-2);
   border-color: transparent;
   background: transparent;
-  color: var(--ui-text-2);
+  color: var(--zz-text-2);
 }
 button.icon-button:hover {
-  background: var(--ui-fill-strong);
-  color: var(--ui-text);
+  background: var(--zz-surface-2);
+  color: var(--zz-text-1);
 }
 @keyframes studio-slide-in {
   from {
@@ -251,5 +252,75 @@ button.icon-button:hover {
     --paper-measure: 46;
     --paper-split-measure: 104;
     --paper-fullwidth-max: 2200px;
+  }
+}
+
+/* RightDock 分屏与 FocusMode */
+.right-dock-split {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.right-dock-pane {
+  flex: 1 1 50%;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.right-dock-pane + .right-dock-pane {
+  border-top: 1px solid var(--zz-border);
+}
+.writer-desktop[data-focus-mode="true"] > .topbar {
+  display: none;
+}
+.writer-desktop[data-focus-mode="true"] .studio-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+.writer-desktop[data-focus-mode="true"] .studio-nav,
+.writer-desktop[data-focus-mode="true"] .studio-sidebar,
+.writer-desktop[data-focus-mode="true"] .drawer-scrim {
+  display: none;
+}
+.writer-desktop[data-focus-mode="true"] .studio-paper-column {
+  max-width: var(--paper-fullwidth-max, 1320px);
+  width: 100%;
+  margin: auto;
+}
+
+/* RightDock 拖拽分隔条与 >=1600px 四栏布局 */
+.right-dock-resizer {
+  position: absolute;
+  left: -3px;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: var(--zz-z-sticky);
+}
+.right-dock-resizer:hover {
+  background: color-mix(in srgb, var(--zz-decide) 35%, transparent);
+}
+.right-dock-split-resizer {
+  flex: 0 0 5px;
+  cursor: row-resize;
+  background: var(--zz-border);
+}
+.right-dock-split-resizer:hover {
+  background: var(--zz-decide);
+}
+.studio-inspector-col {
+  min-width: 0;
+  min-height: 0;
+  border-left: 1px solid var(--zz-border);
+  overflow-y: auto;
+}
+@media (min-width: 1600px) {
+  .studio-layout:not([data-fullwidth="true"]) {
+    grid-template-columns: 232px minmax(0, 1fr) var(--right-dock-width, 392px) 340px;
+  }
+  html[data-layout="fluid"] .studio-layout:not([data-fullwidth="true"]) {
+    grid-template-columns: clamp(232px, 14vw, 340px) minmax(0, 1fr) var(--right-dock-width, clamp(392px, 24vw, 600px)) clamp(320px, 20vw, 440px);
   }
 }

@@ -1,29 +1,29 @@
 .ui-badge {
   display: inline-flex;
   align-items: center;
-  gap: var(--ui-space-1);
+  gap: var(--zz-space-1);
   padding: 1px 7px;
-  border-radius: var(--ui-radius-sm);
-  background: color-mix(in srgb, var(--ui-text) 7%, transparent);
-  color: var(--ui-text-2);
-  font: 600 var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
+  border-radius: var(--zz-radius-sm);
+  background: color-mix(in srgb, var(--zz-text) 7%, transparent);
+  color: var(--zz-text-2);
+  font: 600 var(--zz-size-12)/var(--zz-size-18) var(--zz-font-ui);
   white-space: nowrap;
 }
 .ui-badge[data-tone="info"] {
-  background: var(--ui-accent-soft);
-  color: var(--ui-accent);
+  background: var(--zz-accent-soft);
+  color: var(--zz-accent);
 }
 .ui-badge[data-tone="warning"] {
-  background: color-mix(in srgb, var(--ui-warning) 14%, transparent);
-  color: var(--ui-warning);
+  background: color-mix(in srgb, var(--zz-warning) 14%, transparent);
+  color: var(--zz-warning);
 }
 .ui-badge[data-tone="success"] {
-  background: color-mix(in srgb, var(--ui-success) 14%, transparent);
-  color: var(--ui-success);
+  background: color-mix(in srgb, var(--zz-success) 14%, transparent);
+  color: var(--zz-success);
 }
 .ui-badge[data-tone="danger"] {
-  background: color-mix(in srgb, var(--ui-danger) 14%, transparent);
-  color: var(--ui-danger);
+  background: color-mix(in srgb, var(--zz-danger) 14%, transparent);
+  color: var(--zz-danger);
 }
 .ui-brand {
   display: grid;
@@ -31,25 +31,25 @@
   width: 32px;
   height: 32px;
   border-radius: 10px;
-  background: var(--ui-primary-fill);
-  color: var(--ui-on-accent);
-  font: 600 var(--ui-size-22)/1 var(--ui-font-body);
-  box-shadow: var(--ui-glow);
+  background: var(--zz-primary-fill);
+  color: var(--zz-on-accent);
+  font: 600 var(--zz-size-22)/1 var(--zz-font-body);
+  box-shadow: var(--zz-glow);
 }
 .ui-button {
-  border-radius: var(--ui-radius-sm);
+  border-radius: var(--zz-radius-sm);
 }
 .ui-button-primary {
-  background: var(--ui-primary-fill);
-  color: var(--ui-on-accent);
+  background: var(--zz-primary-fill);
+  color: var(--zz-on-accent);
 }
 .ui-button-danger {
-  color: var(--ui-danger);
+  color: var(--zz-danger);
 }
 .ui-card {
-  background: var(--ui-fill);
-  border: 1px solid var(--ui-line-strong);
-  border-radius: var(--ui-radius-md);
+  background: var(--zz-fill);
+  border: 1px solid var(--zz-line-strong);
+  border-radius: var(--zz-radius-md);
   padding: 20px;
 }
 .ui-card > footer {
@@ -64,31 +64,31 @@
   padding: 0;
   margin: 0;
   list-style: none;
-  font-size: var(--ui-size-12);
+  font-size: var(--zz-size-12);
 }
 .ui-steps li {
   display: flex;
   align-items: center;
   gap: 5px;
-  color: var(--ui-text-3);
+  color: var(--zz-text-3);
 }
 .ui-steps li > span {
   display: grid;
   place-items: center;
   width: 18px;
   height: 18px;
-  border: 1px solid var(--ui-line-strong);
+  border: 1px solid var(--zz-line-strong);
   border-radius: 50%;
 }
 .ui-steps [data-state="done"] {
-  color: var(--ui-success);
+  color: var(--zz-success);
 }
 .ui-steps [data-state="current"] {
-  color: var(--ui-accent);
+  color: var(--zz-accent);
 }
 .ui-steps [data-state="current"] > span {
-  background: var(--ui-accent);
-  color: var(--ui-on-accent);
+  background: var(--zz-accent);
+  color: var(--zz-on-accent);
 }
 .ui-stat {
   display: flex;
@@ -98,12 +98,12 @@
 }
 .ui-stat > span,
 .ui-stat small {
-  color: var(--ui-text-3);
-  font-size: var(--ui-size-12);
+  color: var(--zz-text-3);
+  font-size: var(--zz-size-12);
 }
 .ui-stat strong {
-  font: 600 var(--ui-size-32)/1.5 var(--ui-font-body);
-  color: var(--ui-title);
+  font: 600 var(--zz-size-32)/1.5 var(--zz-font-body);
+  color: var(--zz-title);
 }
 .ui-toggle {
   display: flex;
@@ -117,7 +117,7 @@
   min-height: 22px;
   height: 22px;
   border-radius: 20px;
-  background: var(--ui-fill-strong);
+  background: var(--zz-fill-strong);
   position: relative;
 }
 .ui-toggle input::before {
@@ -128,12 +128,12 @@
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: var(--ui-text-3);
+  background: var(--zz-text-3);
 }
 .ui-toggle input:checked {
-  background: var(--ui-accent);
+  background: var(--zz-accent);
 }
 .ui-toggle input:checked::before {
   left: 21px;
-  background: var(--ui-on-accent);
+  background: var(--zz-on-accent);
 }

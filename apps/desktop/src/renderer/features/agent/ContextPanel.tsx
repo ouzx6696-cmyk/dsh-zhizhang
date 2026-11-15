@@ -1,18 +1,11 @@
-import {
-  COPY as viewCopy,
-  formatBytes,
-  formatCost,
-  formatCount,
-  formatTokens,
-  AGENT_COPY,
-} from "@writer/ui/copy";
+import { DESKTOP_COPY as viewCopy, formatBytes, formatCost, formatCount, formatTokens, AGENT_COPY } from "../../../shared/copy";
 import React, { useCallback, useEffect, useId, useRef, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { scopeId, type Target } from "../../../context";
 import { type ContextSettings } from "../../../context-settings";
 import { desktop, onDesktopEvent } from "../../state/desktop";
-import { errorText } from "../../../../../../packages/core/src/errors.js";
-import type { TaskState } from "../../../renderer-contracts";
+import { errorText } from "@zhizhang/core";
+import type { TaskState } from "../../../shared/types";
 
 type Usage = Awaited<ReturnType<typeof desktop.contextUsage>>;
 const cacheCount = (value: number) =>

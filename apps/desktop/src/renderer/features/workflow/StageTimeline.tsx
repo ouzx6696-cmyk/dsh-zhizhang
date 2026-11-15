@@ -9,11 +9,11 @@ import {
   RotateCcw,
   type LucideIcon,
 } from "lucide-react";
-import { WORKFLOW_COPY, formatCost, formatElapsed, formatTokens } from "@writer/ui/copy";
+import { WORKFLOW_COPY, formatCost, formatElapsed, formatTokens } from "../../../shared/copy";
 import {
   hasUsage,
   type WorkflowRecord,
-} from "../../../../../../packages/core/src/workflow-config.js";
+} from "@zhizhang/core";
 import { StageOutput } from "./StageOutput";
 import {
   rowElapsed,

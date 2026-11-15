@@ -1,11 +1,17 @@
-import type { DesktopBridge } from "./ipc-result";
-import type { DesktopEvent } from "./renderer-contracts";
 import { contextBridge, ipcRenderer, webFrame } from "electron";
-import { fitZoom } from "./main/zoom";
+import type { DesktopEvent } from "./shared/events.js";
+import type { DesktopBridge } from "./shared/ipc.js";
 
-// 外观选“等比放大”时，最大化、全屏或拖大窗口按窗口等比放大界面（见 main/zoom.ts）；
-// 其余布局保持 1 倍，宽屏由 CSS 自适应铺开。渲染层把选项写在 <html data-layout>，DOM 与页面共享。
-// 以渲染层实际视口换算回未缩放尺寸来算，不依赖主进程 resize 事件里可能滞后的窗口尺寸。
+const ZOOM_BASE = { width: 1380, height: 760 } as const;
+const ZOOM_MAX = 1.75;
+
+function fitZoom(width: number, height: number): number {
+  if (!(width > 0) || !(height > 0)) return 1;
+  const ratio = Math.min(width / ZOOM_BASE.width, height / ZOOM_BASE.height);
+  const clamped = Math.min(ZOOM_MAX, Math.max(1, ratio));
+  return Math.round(clamped * 20) / 20;
+}
+
 const fitWindowZoom = () => {
   const current = webFrame.getZoomFactor();
   const next =
@@ -14,6 +20,7 @@ const fitWindowZoom = () => {
       : 1;
   if (Math.abs(next - current) > 0.001) webFrame.setZoomFactor(next);
 };
+
 window.addEventListener("resize", fitWindowZoom);
 window.addEventListener("DOMContentLoaded", () => {
   fitWindowZoom();
@@ -24,11 +31,12 @@ window.addEventListener("DOMContentLoaded", () => {
 });
 
 const bridge: DesktopBridge = {
-  invoke: (name, ...args) => ipcRenderer.invoke("writer:" + name, ...args),
+  invoke: (channel, ...args) => ipcRenderer.invoke(`zhizhang:${channel}`, ...args),
   subscribe: (callback) => {
     const listener = (_event: unknown, value: DesktopEvent) => callback(value);
-    ipcRenderer.on("writer:event", listener);
-    return () => ipcRenderer.removeListener("writer:event", listener);
+    ipcRenderer.on("zhizhang:event", listener);
+    return () => ipcRenderer.removeListener("zhizhang:event", listener);
   },
 };
-contextBridge.exposeInMainWorld("writerBridge", bridge);
+
+contextBridge.exposeInMainWorld("zhizhangBridge", bridge);

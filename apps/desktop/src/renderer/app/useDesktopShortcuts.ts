@@ -1,5 +1,5 @@
-import { errorText } from "../../../../../packages/core/src/errors.js";
-import { notify } from "@writer/ui/notify";
+import { errorText } from "@zhizhang/core";
+import { notify } from "@zhizhang/ui/notify";
 import { useEffect } from "react";
 import type { Target } from "../../context";
 import { chatStore } from "../state/chatStore";
@@ -7,7 +7,7 @@ import { askConfirm } from "../state/confirm";
 import { desktopStore } from "../state/store";
 
 const set = desktopStore.set;
-const TABS = ["agent", "chapter", "methods"];
+const TABS = ["agent", "pipeline", "chapter", "methods"];
 
 export function useDesktopShortcuts({
   selected,
@@ -21,6 +21,11 @@ export function useDesktopShortcuts({
       if (event.defaultPrevented || document.querySelector("dialog[open]")) return;
       const mod = event.ctrlKey || event.metaKey,
         key = event.key.toLowerCase();
+      if ((mod && event.key === ".") || event.key === "F11") {
+        event.preventDefault();
+        set((current) => ({ focusMode: !current.focusMode }));
+        return;
+      }
       if (mod && key === "k") {
         event.preventDefault();
         set((current) => ({ palette: !current.palette }));
@@ -29,9 +34,9 @@ export function useDesktopShortcuts({
         event.preventDefault();
         void desktopStore.get().context.actions?.saveParagraph?.();
       }
-      if (mod && ["1", "2", "3"].includes(event.key)) {
+      if (mod && ["1", "2", "3", "4"].includes(event.key)) {
         event.preventDefault();
-        set({ tab: TABS[Number(event.key) - 1], drawer: true });
+        set({ tab: TABS[Number(event.key) - 1], drawer: true, focusMode: false });
       }
       if (event.key === "Escape") {
         const current = desktopStore.get();
@@ -41,6 +46,10 @@ export function useDesktopShortcuts({
         }
         if (current.settingsOpen) {
           set({ settingsOpen: false });
+          return;
+        }
+        if (current.focusMode) {
+          set({ focusMode: false });
           return;
         }
         if (chatStore.get().busy) {

@@ -1,0 +1,1 @@
+{"version":3,"file":"classify.d.ts","sourceRoot":"","sources":["../../src/errors/classify.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,QAAQ,EAAc,MAAM,gBAAgB,CAAC;AAwCtD,wBAAgB,QAAQ,CAAC,GAAG,EAAE,OAAO,EAAE,IAAI,CAAC,EAAE;IAAE,QAAQ,CAAC,EAAE,OAAO,CAAA;CAAE,GAAG,QAAQ,CA8B9E"}

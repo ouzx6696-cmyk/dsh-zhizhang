@@ -1,14 +1,8 @@
-import {
-  COPY as viewCopy,
-  formatCost,
-  formatElapsed,
-  formatTokens,
-  AGENT_COPY,
-} from "@writer/ui/copy";
+import { DESKTOP_COPY as viewCopy, formatCost, formatElapsed, formatTokens, AGENT_COPY } from "../../../shared/copy";
 import { actionTitle } from "../../format";
 import React, { useEffect, useState } from "react";
 import { Square } from "lucide-react";
-import type { TaskState } from "../../../renderer-contracts";
+import type { TaskState } from "../../../shared/types";
 
 function stepState(task: TaskState, step: string) {
   if (task.completed.includes(step)) return "done";

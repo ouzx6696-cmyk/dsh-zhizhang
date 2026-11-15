@@ -1,2 +1,3 @@
-/** 客户端版本，与根 package.json 一致（测试会核对）。 */
-export const VERSION = "1.2.0";
+export const APP_VERSION = "1.3.0" as const;
+export const APP_ID = "app.zhizhang.desktop" as const;
+export const APP_NAME = "织章" as const;

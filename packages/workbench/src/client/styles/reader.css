@@ -8,14 +8,14 @@
   border: 0;
   border-radius: 999px;
   corner-shape: round;
-  background: var(--wb-warn-soft);
-  color: var(--wb-warn);
-  font: 600 var(--ui-size-12)/var(--ui-size-16) var(--ui-font-ui);
+  background: var(--zz-warn-soft);
+  color: var(--zz-warn);
+  font: 600 var(--zz-size-12)/var(--zz-size-16) var(--zz-font-ui);
   cursor: pointer;
 }
 .wb-candidate-badge:hover {
-  background: var(--wb-warn);
-  color: var(--wb-bg);
+  background: var(--zz-warn);
+  color: var(--zz-bg);
 }
 .wb-reader {
   display: flex;
@@ -31,7 +31,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  border-bottom: 0.5px solid var(--wb-line);
+  border-bottom: 0.5px solid var(--zz-line);
 }
 .wb-reader-heading {
   min-width: 0;
@@ -40,7 +40,7 @@
   gap: 2px;
 }
 .wb-reader-title {
-  font: 600 var(--ui-size-18)/var(--ui-size-26) var(--ui-font-ui);
+  font: 600 var(--zz-size-18)/var(--zz-size-26) var(--zz-font-ui);
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -51,8 +51,8 @@
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
-  color: var(--wb-fg-3);
-  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
+  color: var(--zz-fg-3);
+  font: var(--zz-size-12)/var(--zz-size-18) var(--zz-font-ui);
 }
 .wb-reader-tools {
   display: flex;
@@ -83,16 +83,16 @@
   max-width: 40rem;
   margin: 0 auto 16px;
 }
-/* Body size follows Settings → Appearance (--ui-body-size) plus the reader's own A−/A+ steps. */
+/* Body size follows Settings → Appearance (--zz-body-size) plus the reader's own A−/A+ steps. */
 .wb-manuscript {
-  --wb-size: calc(var(--ui-body-size) + var(--wb-font-step, 0) * var(--ui-font-step));
+  --zz-size: calc(var(--zz-body-size) + var(--zz-font-step, 0) * var(--zz-font-step));
   max-width: 36em;
   margin: 0 auto;
-  font-family: var(--wb-manuscript-font);
-  font-size: var(--wb-size);
+  font-family: var(--zz-manuscript-font);
+  font-size: var(--zz-size);
   line-height: 1.9;
   letter-spacing: 0.02em;
-  color: var(--wb-fg);
+  color: var(--zz-fg);
   text-align: justify;
   text-justify: inter-character;
   text-wrap: pretty;
@@ -112,7 +112,7 @@
 .wb-manuscript h3 {
   margin: 1.4em 0 0.6em;
   line-height: 1.4;
-  font-family: var(--ui-font-ui);
+  font-family: var(--zz-font-ui);
   font-weight: 600;
   text-indent: 0;
 }
@@ -128,31 +128,31 @@
 .wb-manuscript blockquote {
   margin: 0 0 1em;
   padding: 2px 0 2px 1em;
-  border-left: 2px solid var(--wb-line-strong);
-  color: var(--wb-fg-2);
+  border-left: 2px solid var(--zz-line-strong);
+  color: var(--zz-fg-2);
 }
 .wb-manuscript blockquote p {
   text-indent: 0;
 }
 .wb-manuscript hr {
   border: 0;
-  border-top: 0.5px solid var(--wb-line-strong);
+  border-top: 0.5px solid var(--zz-line-strong);
   margin: 1.6em auto;
   width: 40%;
 }
 .wb-manuscript code {
-  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-mono);
+  font: var(--zz-size-12)/var(--zz-size-18) var(--zz-font-mono);
   padding: 1px 5px;
-  border-radius: var(--wb-r-xs);
-  background: var(--wb-hover);
+  border-radius: var(--zz-r-xs);
+  background: var(--zz-hover);
 }
 .wb-manuscript pre {
   margin: 0 0 1em;
   padding: 12px;
   overflow: auto;
-  border-radius: var(--wb-r-lg);
-  background: var(--wb-hover);
-  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-mono);
+  border-radius: var(--zz-r-lg);
+  background: var(--zz-hover);
+  font: var(--zz-size-12)/var(--zz-size-18) var(--zz-font-mono);
   text-indent: 0;
 }
 .wb-manuscript pre code {
@@ -160,47 +160,47 @@
   background: none;
 }
 .wb-manuscript ::selection {
-  background: var(--wb-accent-soft);
+  background: var(--zz-accent-soft);
 }
 /* Annotations stay readable: a soft wash plus an underline set below the glyphs, never through them. */
 .wb-manuscript mark {
   color: inherit;
-  background: var(--wb-warn-soft);
-  border-radius: var(--wb-r-xs);
+  background: var(--zz-warn-soft);
+  border-radius: var(--zz-r-xs);
   box-decoration-break: clone;
-  text-decoration: underline wavy var(--wb-warn);
+  text-decoration: underline wavy var(--zz-warn);
   text-decoration-thickness: 1px;
   text-underline-offset: 0.3em;
   text-decoration-skip-ink: none;
   cursor: pointer;
-  transition: background-color 120ms var(--wb-ease);
+  transition: background-color 120ms var(--zz-ease);
 }
 .wb-manuscript mark:hover {
-  background: color-mix(in srgb, var(--wb-warn) 26%, transparent);
+  background: color-mix(in srgb, var(--zz-warn) 26%, transparent);
 }
 .wb-manuscript mark[data-category="lazy_emotion"] {
-  background: var(--wb-bad-soft);
-  text-decoration: underline dotted var(--wb-bad);
+  background: var(--zz-bad-soft);
+  text-decoration: underline dotted var(--zz-bad);
 }
 .wb-manuscript mark[data-category="rhythm"] {
-  background: var(--wb-accent-soft);
-  text-decoration: underline dashed var(--wb-accent);
+  background: var(--zz-accent-soft);
+  text-decoration: underline dashed var(--zz-accent);
 }
 .wb-manuscript mark[data-category="process_skip"],
 .wb-manuscript mark[data-category="slogan_ending"] {
-  background: var(--wb-active);
-  text-decoration: underline solid var(--wb-accent);
+  background: var(--zz-active);
+  text-decoration: underline solid var(--zz-accent);
 }
 /* Reader find (Ctrl+F) paints through the CSS Custom Highlight API, so the text is not re-rendered. */
 .wb-reader-body ::highlight(wb-find) {
-  background-color: color-mix(in srgb, var(--wb-accent) 24%, transparent);
+  background-color: color-mix(in srgb, var(--zz-accent) 24%, transparent);
 }
 .wb-reader-body ::highlight(wb-find-current) {
-  background-color: var(--wb-accent);
-  color: var(--wb-bg);
+  background-color: var(--zz-accent);
+  color: var(--zz-bg);
 }
 .wb-manuscript mark:focus-visible {
-  outline: 2px solid var(--wb-accent);
+  outline: 2px solid var(--zz-accent);
   outline-offset: 2px;
 }
 .wb-split {
@@ -218,10 +218,10 @@
   z-index: 1;
   margin: -24px 0 12px;
   padding: 12px 0 8px;
-  background: var(--wb-card);
-  color: var(--wb-fg-3);
-  font: 600 var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
-  border-bottom: 0.5px solid var(--wb-line);
+  background: var(--zz-card);
+  color: var(--zz-fg-3);
+  font: 600 var(--zz-size-12)/var(--zz-size-18) var(--zz-font-ui);
+  border-bottom: 0.5px solid var(--zz-line);
 }
 .wb-split .wb-manuscript {
   max-width: none;
@@ -238,29 +238,29 @@
   gap: 2px;
   padding: 8px 12px;
   border: 0;
-  border-radius: var(--wb-r-lg);
+  border-radius: var(--zz-r-lg);
   background: transparent;
   color: inherit;
   text-align: left;
   cursor: pointer;
-  box-shadow: inset 0 0 0 0.5px var(--wb-line-strong);
+  box-shadow: inset 0 0 0 0.5px var(--zz-line-strong);
 }
 .wb-candidate-card-on {
-  background: var(--wb-warn-soft);
-  box-shadow: inset 0 0 0 1px var(--wb-warn);
+  background: var(--zz-warn-soft);
+  box-shadow: inset 0 0 0 1px var(--zz-warn);
 }
 .wb-candidate-card-title {
-  font: 600 var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
+  font: 600 var(--zz-size-13)/var(--zz-size-20) var(--zz-font-ui);
   overflow-wrap: anywhere;
 }
 .wb-candidate-card-meta,
 .wb-candidate-card-note {
-  color: var(--wb-fg-3);
-  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
+  color: var(--zz-fg-3);
+  font: var(--zz-size-12)/var(--zz-size-18) var(--zz-font-ui);
 }
 @media (hover: hover) {
   .wb-candidate-card:not(.wb-candidate-card-on):hover {
-    background: var(--wb-hover);
+    background: var(--zz-hover);
   }
 }
 @container wb-panel (max-width: 860px) {

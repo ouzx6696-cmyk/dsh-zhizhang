@@ -1,11 +1,11 @@
 import type { AgentSession, SessionManager } from "./pi-adapter";
 import type { Focus, Target } from "../context";
-import type { DiagnosticFields } from "../../../../packages/core/src/diagnostics";
-import type { FanqieConfig } from "../../../../packages/fanqie/src/config";
-import type { ToutiaoConfig } from "../../../../packages/toutiao/src/config";
+import type { DiagnosticFields } from "@zhizhang/core";
+import type { FanqieConfig } from "@zhizhang/fanqie";
+import type { ToutiaoConfig } from "@zhizhang/toutiao";
 
-export type Task = import("../renderer-contracts").TaskState & {
-  usage: import("../renderer-contracts").TokenUsage;
+export type Task = import("../shared/types").TaskState & {
+  usage: import("../shared/types").TokenUsage;
 };
 
 /** 最近一次 v2 交接的方法包摘要（tracker 从实际进入上下文的任务 prompt 解析），供方法包面板展示。 */
@@ -31,7 +31,7 @@ export type SessionEntry = {
 export type SessionOptions = { toutiao?: ToutiaoConfig; fanqie?: FanqieConfig };
 
 export type SessionExtras = {
-  engine?: () => import("../../../../packages/core/src/workflow-config").EngineSettings;
+  engine?: () => import("@zhizhang/core").EngineSettings;
   context?: () => import("../context-settings").ContextSettings;
   preferences?: () => Promise<string>;
   /** 追加作者约束的写入口（writer_remember 用；与 save-preferences IPC 共用 Settings.savePreferences）。 */

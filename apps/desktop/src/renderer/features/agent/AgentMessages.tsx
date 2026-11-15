@@ -3,10 +3,10 @@ import { ArrowRight, Feather } from "lucide-react";
 import { Markdown } from "../../../Markdown";
 import { actionTitle, humanVersion } from "../../format";
 import { promptContext, toolLabel, type Focus, type Target } from "../../../context";
-import { writerResult } from "../../../writer-result";
+import { writerResult } from "../../../shared/types";
 import type { ChatMessage } from "../../state/store";
 import { chatStore, useChatSelector } from "../../state/chatStore";
-import { COPY as viewCopy, t as viewText, AGENT_COPY } from "@writer/ui/copy";
+import { DESKTOP_COPY as viewCopy, tDesktop as viewText, AGENT_COPY } from "../../../shared/copy";
 
 // 会话里除作者与作者操作外的条目都由写作助手产生。
 const ROLE_LABEL: Record<string, string> = {
@@ -123,7 +123,7 @@ function candidateNumbers(messages: ChatMessage[]) {
 type JumpHandler = (target: Target | null, nextFocus?: Focus) => void;
 
 function resultCard(
-  result: import("../../../renderer-contracts").WriterResult,
+  result: import("../../../shared/types").WriterResult,
   candidateNumber: number | undefined,
   onJump: JumpHandler,
 ) {

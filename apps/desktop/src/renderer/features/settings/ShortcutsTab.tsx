@@ -1,6 +1,6 @@
-import { COPY as viewCopy } from "@writer/ui/copy";
+import { DESKTOP_COPY as viewCopy } from "../../../shared/copy";
 import React from "react";
-import { shortcutLabel } from "@writer/ui/keys";
+import { shortcutLabel } from "@zhizhang/ui/keys";
 
 export function ShortcutsTab() {
   return (

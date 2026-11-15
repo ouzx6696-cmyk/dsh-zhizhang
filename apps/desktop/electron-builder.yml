@@ -1,7 +1,7 @@
-appId: local.writer.agent
-productName: 写作 Agent
-executableName: WriterAgent
-artifactName: WriterAgent-${version}-${os}-${arch}.${ext}
+appId: app.zhizhang.desktop
+productName: 织章
+executableName: Zhizhang
+artifactName: Zhizhang-${version}-win-x64.${ext}
 directories:
   output: release
 files:
@@ -21,7 +21,7 @@ electronFuses:
 publish:
   provider: github
   owner: ouzx6696-cmyk
-  repo: dsh-zhizhang
+  repo: zhizhang
 win:
   target: nsis
   icon: branding/icon.ico

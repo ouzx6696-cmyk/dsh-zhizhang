@@ -1,15 +1,15 @@
 .lamp-preview-paper {
-  background: var(--ui-paper);
-  color: var(--ui-text);
-  box-shadow: var(--ui-paper-shadow);
-  border-radius: var(--ui-radius-lg);
+  background: var(--zz-paper);
+  color: var(--zz-text);
+  box-shadow: var(--zz-paper-shadow);
+  border-radius: var(--zz-radius-lg);
   padding: 28px;
-  font-family: var(--ui-font-body);
+  font-family: var(--zz-font-body);
   line-height: 2;
 }
 .lamp-preview-paper h3 {
-  font-family: var(--ui-font-body);
-  color: var(--ui-title);
+  font-family: var(--zz-font-body);
+  color: var(--zz-title);
 }
 .lamp-theme-options {
   display: flex;
@@ -17,8 +17,8 @@
   margin: 12px 0 24px;
 }
 .lamp-theme-options button[aria-pressed="true"] {
-  border-color: var(--ui-accent);
-  background: var(--ui-accent-soft);
+  border-color: var(--zz-accent);
+  background: var(--zz-accent-soft);
 }
 .lamp-settings-preview {
   margin: 24px 0;
@@ -37,9 +37,9 @@
 }
 .lamp-preview-section {
   padding: 24px;
-  background: var(--ui-bg);
-  color: var(--ui-text);
-  border-radius: var(--ui-radius-lg);
+  background: var(--zz-bg);
+  color: var(--zz-text);
+  border-radius: var(--zz-radius-lg);
   display: grid;
   gap: 20px;
 }

@@ -3,25 +3,25 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: var(--ui-space-3) var(--ui-space-4) var(--ui-space-4);
-  font-size: calc(var(--ui-body-size) * 0.78);
+  padding: var(--zz-space-3) var(--zz-space-4) var(--zz-space-4);
+  font-size: calc(var(--zz-text-body) * 0.78);
   line-height: 1.7;
 }
 .chat-messages:focus-visible {
-  outline: 2px solid var(--ui-accent);
+  outline: 2px solid var(--zz-decide);
   outline-offset: -2px;
 }
 .chat-messages > button {
   display: flex;
-  margin: 0 auto var(--ui-space-4);
-  font-size: var(--ui-size-12);
+  margin: 0 auto var(--zz-space-4);
+  font-size: var(--zz-text-caption);
   background: transparent;
-  color: var(--ui-text-3);
+  color: var(--zz-text-3);
 }
 .chat-message {
-  margin-bottom: var(--ui-space-5);
+  margin-bottom: var(--zz-space-4);
   overflow-wrap: anywhere;
-  color: var(--ui-text);
+  color: var(--zz-text-1);
   /* 长历史只布局、绘制视口附近的消息；auto 记住渲染过的真实高度，滚动不跳。
      这会带上绘制裁剪，所以消息内部不放阴影，焦点环向内收。 */
   content-visibility: auto;
@@ -33,12 +33,12 @@
 .chat-message-role {
   display: flex;
   align-items: center;
-  gap: var(--ui-space-2);
-  margin-bottom: var(--ui-space-1);
-  font-size: var(--ui-size-12);
+  gap: var(--zz-space-2);
+  margin-bottom: var(--zz-space-1);
+  font-size: var(--zz-text-caption);
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: var(--ui-text-3);
+  color: var(--zz-text-3);
   line-height: 1.5;
 }
 .chat-message.assistant > .chat-message-role::before {
@@ -46,13 +46,13 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--ui-accent);
+  background: var(--zz-decide);
 }
 .chat-message-typing {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--ui-accent);
+  background: var(--zz-decide);
   animation: chat-typing 1.2s ease-in-out infinite;
 }
 @keyframes chat-typing {
@@ -69,9 +69,9 @@
   width: fit-content;
   max-width: 88%;
   margin-left: auto;
-  padding: var(--ui-space-2) var(--ui-space-3);
-  border-radius: var(--ui-radius-lg) var(--ui-radius-lg) var(--ui-space-1) var(--ui-radius-lg);
-  background: var(--ui-accent-soft);
+  padding: var(--zz-space-2) var(--zz-space-3);
+  border-radius: var(--zz-radius-lg) var(--zz-radius-lg) var(--zz-space-1) var(--zz-radius-lg);
+  background: var(--zz-decide-fill);
 }
 .chat-message.user > .chat-message-role {
   justify-content: flex-end;
@@ -100,30 +100,30 @@
   margin-top: 0.25em;
 }
 .chat-message .studio-markdown li::marker {
-  color: var(--ui-text-3);
+  color: var(--zz-text-3);
 }
 .chat-message .studio-markdown blockquote {
   margin: 0 0 0.75em;
-  padding: var(--ui-space-1) var(--ui-space-3);
-  border-left: 3px solid var(--ui-accent-soft);
-  border-radius: 0 var(--ui-radius-sm) var(--ui-radius-sm) 0;
-  background: var(--ui-fill);
-  color: var(--ui-text-2);
+  padding: var(--zz-space-1) var(--zz-space-3);
+  border-left: 3px solid var(--zz-decide-fill);
+  border-radius: 0 var(--zz-radius-sm) var(--zz-radius-sm) 0;
+  background: var(--zz-surface-2);
+  color: var(--zz-text-2);
 }
 .chat-message .studio-markdown code {
   padding: 0.1em 0.35em;
-  border-radius: var(--ui-space-1);
-  background: var(--ui-fill-strong);
-  font-family: var(--ui-font-mono);
+  border-radius: var(--zz-space-1);
+  background: var(--zz-surface-2);
+  font-family: var(--zz-font-mono);
   font-size: 0.88em;
 }
 .chat-message .studio-markdown pre {
   margin: 0 0 0.75em;
-  padding: var(--ui-space-3);
-  border: 1px solid var(--ui-line);
-  border-radius: var(--ui-radius-sm);
-  background: var(--ui-bg);
-  font: var(--ui-size-12) / 1.65 var(--ui-font-mono);
+  padding: var(--zz-space-3);
+  border: 1px solid var(--zz-border);
+  border-radius: var(--zz-radius-sm);
+  background: var(--zz-bg);
+  font: var(--zz-text-caption) / 1.65 var(--zz-font-mono);
 }
 .chat-message .studio-markdown pre code {
   padding: 0;
@@ -133,44 +133,44 @@
 .chat-message .studio-markdown hr {
   margin: 1.2em 0;
   border: 0;
-  border-top: 1px solid var(--ui-line);
+  border-top: 1px solid var(--zz-border);
 }
 .chat-message.custom {
-  font-size: var(--ui-size-12);
-  color: var(--ui-text-3);
+  font-size: var(--zz-text-caption);
+  color: var(--zz-text-3);
 }
 .action-capsule details {
-  border: 1px solid var(--ui-line);
-  border-radius: var(--ui-radius-sm);
-  background: var(--ui-panel);
-  padding: 0 var(--ui-space-3);
+  border: 1px solid var(--zz-border);
+  border-radius: var(--zz-radius-sm);
+  background: var(--zz-surface-1);
+  padding: 0 var(--zz-space-3);
 }
 .action-capsule summary {
   display: flex;
   justify-content: space-between;
-  gap: var(--ui-space-3);
-  padding: var(--ui-space-2) 0;
+  gap: var(--zz-space-3);
+  padding: var(--zz-space-2) 0;
   cursor: pointer;
-  font-size: var(--ui-size-13);
-  color: var(--ui-text);
+  font-size: var(--zz-text-meta);
+  color: var(--zz-text-1);
 }
 .action-capsule-more {
-  color: var(--ui-text-3);
-  font-size: var(--ui-size-12);
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-caption);
   white-space: nowrap;
 }
 .action-capsule-body {
-  border-top: 1px solid var(--ui-line);
-  padding: var(--ui-space-2) 0;
+  border-top: 1px solid var(--zz-border);
+  padding: var(--zz-space-2) 0;
 }
 .action-capsule-body .studio-markdown {
-  font-size: var(--ui-size-12);
-  color: var(--ui-text-3);
+  font-size: var(--zz-text-caption);
+  color: var(--zz-text-3);
 }
 .tool-action {
-  margin: var(--ui-space-1) 0 var(--ui-space-3);
-  color: var(--ui-text-3);
-  font-size: var(--ui-size-12);
+  margin: var(--zz-space-1) 0 var(--zz-space-3);
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-caption);
 }
 .tool-action summary {
   cursor: pointer;
@@ -180,66 +180,66 @@
 .tool-action pre {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  background: var(--ui-bg);
-  border: 1px solid var(--ui-line);
-  border-radius: var(--ui-radius-sm);
-  padding: var(--ui-space-3);
-  font: var(--ui-size-12) / 1.6 var(--ui-font-mono);
+  background: var(--zz-bg);
+  border: 1px solid var(--zz-border);
+  border-radius: var(--zz-radius-sm);
+  padding: var(--zz-space-3);
+  font: var(--zz-text-caption) / 1.6 var(--zz-font-mono);
   max-height: 340px;
   overflow: auto;
 }
 
 /* 结果卡带阴影：外层留出余量，容器自身的绘制裁剪不会切掉阴影与焦点环。 */
 .chat-result {
-  margin: 0 calc(-1 * var(--ui-space-2)) var(--ui-space-3);
-  padding: var(--ui-space-1) var(--ui-space-2) var(--ui-space-3);
+  margin: 0 calc(-1 * var(--zz-space-2)) var(--zz-space-3);
+  padding: var(--zz-space-1) var(--zz-space-2) var(--zz-space-3);
   content-visibility: auto;
   contain-intrinsic-size: auto 110px;
 }
 .result-card {
   display: grid;
-  gap: var(--ui-space-1);
-  padding: var(--ui-space-3) var(--ui-space-4);
-  border: 1px solid var(--ui-line-strong);
-  border-left: 3px solid var(--ui-accent);
-  border-radius: var(--ui-radius-md);
-  background: var(--ui-paper);
-  box-shadow: var(--ui-shadow-1);
+  gap: var(--zz-space-1);
+  padding: var(--zz-space-3) var(--zz-space-4);
+  border: 1px solid var(--zz-border-strong);
+  border-left: 3px solid var(--zz-decide);
+  border-radius: var(--zz-radius-md);
+  background: var(--zz-paper);
+  box-shadow: var(--zz-shadow-1);
   line-height: 1.6;
 }
 .result-card[data-kind="review"] {
-  border-left-color: var(--ui-warning);
+  border-left-color: var(--zz-warn);
 }
 .result-card[data-kind="qa"],
 .result-card[data-kind="delivery"] {
-  border-left-color: var(--ui-success);
+  border-left-color: var(--zz-ok);
 }
 .result-card.failed {
-  border-left-color: var(--ui-danger);
+  border-left-color: var(--zz-bad);
 }
 .result-card strong {
-  font-size: var(--ui-size-13);
+  font-size: var(--zz-text-meta);
   font-weight: 600;
 }
 .result-card p {
   margin: 0;
-  font-size: var(--ui-size-13);
-  color: var(--ui-text-2);
+  font-size: var(--zz-text-meta);
+  color: var(--zz-text-2);
 }
 .result-card .studio-markdown {
-  font-size: var(--ui-size-13);
-  color: var(--ui-text-2);
+  font-size: var(--zz-text-meta);
+  color: var(--zz-text-2);
 }
 .result-card button {
   justify-self: start;
   min-height: 0;
-  margin-top: var(--ui-space-1);
+  margin-top: var(--zz-space-1);
   padding: 2px 0;
   border: 0;
   background: transparent;
-  font-size: var(--ui-size-12);
+  font-size: var(--zz-text-caption);
   font-weight: 600;
-  color: var(--ui-accent);
+  color: var(--zz-decide);
 }
 .result-card button:hover {
   background: transparent;
@@ -249,10 +249,10 @@
   display: flex;
   align-items: center;
   flex-direction: column;
-  color: var(--ui-text-3);
-  font-size: var(--ui-size-13);
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-meta);
   max-width: 260px;
   margin: 70px auto;
   text-align: center;
-  gap: var(--ui-space-3);
+  gap: var(--zz-space-3);
 }

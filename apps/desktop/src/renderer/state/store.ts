@@ -1,7 +1,7 @@
 import { createStore } from "./createStore";
 import { useSyncExternalStore } from "react";
 import type { Focus, Target } from "../../context";
-import type { WorkspaceContext } from "../../renderer-contracts";
+import type { WorkspaceContext, WriterMessage } from "../../shared/types";
 import type { DesktopApi } from "./desktop";
 
 type Api = DesktopApi;
@@ -10,7 +10,7 @@ export type SystemModels = SystemState["models"];
 type ProjectItem = Awaited<ReturnType<Api["projects"]>>[number];
 export type ConversationItem = Awaited<ReturnType<Api["conversations"]>>[number];
 type RunningItem = Awaited<ReturnType<Api["running"]>>[number];
-export type ChatMessage = import("../../renderer-contracts").WriterMessage;
+export type ChatMessage = WriterMessage;
 export type ConnectionResult =
   | { busy: true; error?: undefined; latency?: undefined; model?: undefined }
   | { busy?: false; error: string; latency?: undefined; model?: undefined }
@@ -29,6 +29,8 @@ export type DesktopState = {
   tab: string;
   view: string;
   drawer: boolean;
+  rightDockSplit: boolean;
+  focusMode: boolean;
   settingsOpen: boolean;
   projects: ProjectItem[];
   picker: boolean;
@@ -48,6 +50,8 @@ const initialState: DesktopState = {
   tab: "agent",
   view: "writing",
   drawer: false,
+  rightDockSplit: false,
+  focusMode: false,
   settingsOpen: false,
   projects: [],
   picker: false,

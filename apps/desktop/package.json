@@ -1,12 +1,12 @@
 {
-  "name": "@writer/desktop",
-  "version": "1.2.0",
+  "name": "@zhizhang/desktop",
+  "version": "1.3.0",
   "private": true,
   "type": "module",
   "main": "out/main/main.js",
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "tsc --noEmit && node ../../scripts/stage-desktop.mjs && electron-vite build",
+    "build": "node ../../scripts/stage-desktop.mjs && electron-vite build",
     "pack": "node ../../scripts/prepare-desktop-python.mjs && electron-builder --win nsis --x64 --publish never",
     "predev": "node ../../scripts/stage-desktop.mjs",
     "pack:portable": "node ../../scripts/prepare-desktop-python.mjs && electron-builder --win zip --x64 --publish never"
@@ -14,6 +14,11 @@
   "dependencies": {
     "@earendil-works/pi-ai": "1.5.0",
     "@earendil-works/pi-coding-agent": "1.5.0",
+    "@zhizhang/core": "*",
+    "@zhizhang/fanqie": "*",
+    "@zhizhang/toutiao": "*",
+    "@zhizhang/ui": "*",
+    "@zhizhang/workbench": "*",
     "docx": "^9.15.3",
     "electron-updater": "^6.8.11",
     "typebox": "^1.4.6",
@@ -21,7 +26,6 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",
-    "@fontsource/noto-sans-sc": "^5.3.1",
     "@fontsource/noto-serif-sc": "^5.3.1",
     "@playwright/test": "^1.65.0",
     "electron": "45.2.3",
@@ -33,10 +37,9 @@
     "react-markdown": "^10.1.0",
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",
-    "vite": "^8.3.8",
-    "@writer/ui": "*"
+    "vite": "^8.3.8"
   },
-  "description": "独立写作客户端：今日头条与番茄长篇",
-  "author": "writer-agent contributors",
+  "description": "织章：独立写作客户端（今日头条与番茄长篇）",
+  "author": "zhizhang contributors",
   "license": "UNLICENSED"
 }

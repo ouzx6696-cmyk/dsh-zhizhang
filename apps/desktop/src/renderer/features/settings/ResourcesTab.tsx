@@ -1,6 +1,6 @@
-import { COPY as viewCopy } from "@writer/ui/copy";
+import { DESKTOP_COPY as viewCopy } from "../../../shared/copy";
 import React, { useEffect, useState } from "react";
-import { errorText } from "../../../../../../packages/core/src/errors.js";
+import { errorText } from "@zhizhang/core";
 import type { SystemState } from "../../state/store";
 import { desktop } from "../../state/desktop";
 

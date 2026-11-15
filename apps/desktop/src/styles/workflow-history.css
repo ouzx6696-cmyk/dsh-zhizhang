@@ -4,12 +4,12 @@
   flex-direction: column;
   gap: 10px;
   padding-top: 16px;
-  border-top: 1px solid var(--ui-line);
+  border-top: 1px solid var(--zz-border);
 }
 .wf-history h3 {
   margin: 0;
-  font-size: var(--ui-size-13);
-  color: var(--ui-text-2);
+  font-size: var(--zz-text-meta);
+  color: var(--zz-text-2);
   font-weight: 600;
 }
 .wf-history-totals {
@@ -20,16 +20,16 @@
 }
 .wf-history-totals div {
   padding: 8px 10px;
-  border-radius: var(--ui-radius-sm);
-  background: var(--ui-fill);
+  border-radius: var(--zz-radius-sm);
+  background: var(--zz-surface-2);
 }
 .wf-history-totals dt {
-  font-size: var(--ui-size-12);
-  color: var(--ui-text-3);
+  font-size: var(--zz-text-caption);
+  color: var(--zz-text-3);
 }
 .wf-history-totals dd {
   margin: 0;
-  font-size: var(--ui-size-12);
+  font-size: var(--zz-text-caption);
   font-variant-numeric: tabular-nums;
 }
 .wf-history-list {
@@ -51,33 +51,33 @@
   text-align: left;
   white-space: normal;
   background: transparent;
-  border-color: var(--ui-line);
+  border-color: var(--zz-border);
 }
 .wf-history-item:hover {
-  background: var(--ui-hover);
+  background: var(--zz-surface-2);
 }
 .wf-history-line {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: var(--ui-size-13);
+  font-size: var(--zz-text-meta);
 }
 .wf-history-line time {
   margin-left: auto;
-  color: var(--ui-text-3);
-  font-size: var(--ui-size-12);
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-caption);
   font-variant-numeric: tabular-nums;
 }
 .wf-history-instruction {
-  color: var(--ui-text);
-  font-size: var(--ui-size-13);
+  color: var(--zz-text-1);
+  font-size: var(--zz-text-meta);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .wf-history-meta {
-  color: var(--ui-text-3);
-  font-size: var(--ui-size-12);
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-caption);
   font-variant-numeric: tabular-nums;
 }
 .wf-history-chevron {
@@ -85,7 +85,7 @@
   right: 10px;
   top: 50%;
   transform: translateY(-50%);
-  color: var(--ui-text-3);
+  color: var(--zz-text-3);
 }
 .wf-history-detail {
   display: flex;

@@ -1,5 +1,5 @@
 import type { Focus, Target } from "./context";
-import type { WorkspaceContext } from "./renderer-contracts";
+import type { WorkspaceContext } from "./shared/types";
 import type { DesktopState } from "./renderer/state/store";
 import type { ChatState } from "./renderer/state/chatStore";
 import { desktop } from "./renderer/state/desktop";

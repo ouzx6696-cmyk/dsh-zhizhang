@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Maximize2, Minimize2, PanelRightClose, Workflow, X } from "lucide-react";
-import { COPY as copy, formatElapsed, WORKFLOW_COPY } from "@writer/ui/copy";
-import { errorText } from "../../../../../../packages/core/src/errors.js";
+import { DESKTOP_COPY as copy, formatElapsed, WORKFLOW_COPY } from "../../../shared/copy";
+import { errorText } from "@zhizhang/core";
 import {
   isUnfinishedRun,
   type WorkflowRecord,
   type WorkflowRequest,
   type EngineSettings,
-} from "../../../../../../packages/core/src/workflow-config.js";
+} from "@zhizhang/core";
 import { scopeId, type Target, type Focus } from "../../../context";
 import { desktop, onDesktopEvent } from "../../state/desktop";
 import { desktopStore } from "../../state/store";
@@ -19,7 +19,7 @@ import { RunOverview, type RunAction } from "./RunOverview";
 import { PhaseIcon, StageTimeline } from "./StageTimeline";
 import { DraftCompare } from "./DraftCompare";
 import { TaskForm } from "./TaskForm";
-import { TabList, tabPanelProps } from "@writer/ui/tabs";
+import { TabList, tabPanelProps } from "@zhizhang/ui/tabs";
 import {
   STATE_LABEL,
   acceptRecord,

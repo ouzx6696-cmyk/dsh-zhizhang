@@ -10,6 +10,7 @@ import re
 
 VERSION = "4.0.0"
 TITLE_MAX = 34
+PASS_SCORE = 84
 STRUCTURE_BASE = 34
 
 AI_WORDS = ["首先", "其次", "再者", "总而言之", "综上所述", "值得注意的是", "不仅仅是", "在当今社会",

@@ -1,4 +1,4 @@
-import { COPY as viewCopy } from "@writer/ui/copy";
+import { DESKTOP_COPY as viewCopy } from "../../../shared/copy";
 import React from "react";
 import { FolderOpen } from "lucide-react";
 import { desktop } from "../../state/desktop";

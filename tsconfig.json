@@ -1,20 +1,11 @@
 {
-  "compilerOptions": {
-    "target": "ES2023",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "strict": true,
-    "noImplicitOverride": true,
-    "skipLibCheck": true,
-    "declaration": false,
-    "sourceMap": false,
-    "types": ["node"],
-    "rootDir": "packages",
-    "outDir": "build",
-    "noUnusedLocals": true,
-    "noUnusedParameters": false,
-    "resolveJsonModule": true,
-    "jsx": "react"
-  },
-  "include": ["packages/*/src/**/*.ts", "packages/ui/src/**/*.tsx"]
+  "files": [],
+  "references": [
+    { "path": "packages/core" },
+    { "path": "packages/ui" },
+    { "path": "packages/workbench" },
+    { "path": "packages/fanqie" },
+    { "path": "packages/toutiao" },
+    { "path": "apps/desktop" }
+  ]
 }

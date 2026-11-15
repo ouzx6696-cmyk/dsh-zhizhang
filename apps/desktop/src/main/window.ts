@@ -7,7 +7,7 @@ import { DEV_CONTENT_SECURITY_POLICY } from "./csp";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-// 与 tokens.css 两套主题的 --ui-bg 一致：首帧之前的窗口底色不露白。
+// 与 tokens.css 两套主题的 --zz-bg 一致：首帧之前的窗口底色不露白。
 const BACKGROUND = { dark: "#101419", light: "#f1ebe0" };
 
 export function createMainWindow(state: Runtime) {
@@ -17,7 +17,7 @@ export function createMainWindow(state: Runtime) {
   const window = new BrowserWindow({
     width: 1380,
     height: 920,
-    title: "写作 Agent",
+    title: "织章",
     minWidth: 760,
     minHeight: 650,
     show: false,

@@ -1,4 +1,4 @@
-import type { WriterMessage } from "../renderer-contracts";
+import type { WriterMessage } from "../shared/types";
 import { DEFAULT_HISTORY_LIMIT } from "../history-options";
 import path from "node:path";
 import { access, mkdir, rm, stat } from "node:fs/promises";
@@ -7,7 +7,7 @@ import {
   assertSafeAncestors,
   isMissingFileError,
   readText,
-} from "../../../../packages/core/src/fsx";
+} from "@zhizhang/core";
 import type { Target } from "../context";
 import { SessionManager } from "./pi-adapter";
 import type { Sessions } from "./manager";

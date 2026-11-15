@@ -1,0 +1,1 @@
+{"version":3,"file":"estimate.d.ts","sourceRoot":"","sources":["../../src/model/estimate.ts"],"names":[],"mappings":"AAAA,wBAAgB,iBAAiB,CAAC,IAAI,EAAE,MAAM,GAAG,MAAM,CAMtD;AAED,wBAAgB,eAAe;kBAIb,MAAM,QAAQ,MAAM,GAAG,MAAM;mBAK5B,MAAM,aAAa,MAAM,eAAe,MAAM;EAOhE"}

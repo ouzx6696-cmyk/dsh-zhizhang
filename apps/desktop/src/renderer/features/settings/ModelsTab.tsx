@@ -1,5 +1,5 @@
-import { COPY as viewCopy } from "@writer/ui/copy";
-import { Toggle } from "@writer/ui/primitives";
+import { DESKTOP_COPY as viewCopy } from "../../../shared/copy";
+import { Toggle } from "../../components/primitives";
 import React from "react";
 import { Shield } from "lucide-react";
 import { ModelFields } from "./ModelFields";

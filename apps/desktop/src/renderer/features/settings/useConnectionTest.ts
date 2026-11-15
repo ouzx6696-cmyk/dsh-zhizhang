@@ -2,7 +2,7 @@ import { useState } from "react";
 import { desktop } from "../../state/desktop";
 import type { ConnectionResult } from "../../state/store";
 import type { ModelConnection, ModelSettings } from "../../../models";
-import { errorText } from "../../../../../../packages/core/src/errors.js";
+import { errorText } from "@zhizhang/core";
 export function useConnectionTest() {
   const [results, setResults] = useState<Partial<Record<keyof ModelSettings, ConnectionResult>>>(
     {},

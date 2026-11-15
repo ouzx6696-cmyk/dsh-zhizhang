@@ -1,9 +1,26 @@
-import { resolveFanqieWork } from "./main/storage";
-import type { FanqieConfig } from "../../../packages/fanqie/src/config";
-import { Document, Packer, Paragraph, HeadingLevel } from "docx";
-import { articleManuscript } from "../../../packages/toutiao/src/workbench/data";
-import { readWorkMeta, readChapter } from "../../../packages/fanqie/src/engine/work-store";
-import type { Target, Focus } from "./context";
+import {
+  commands as fanqieCommands,
+  listProjects,
+  projectIdOf,
+  resolveWorkDir,
+  storagePaths,
+  type FanqieConfig,
+} from "@zhizhang/fanqie";
+import { articleManuscript } from "@zhizhang/toutiao";
+import { Document, HeadingLevel, Packer, Paragraph } from "docx";
+import type { Focus, Target } from "./context";
+
+async function resolveFanqieWork(config: { fanqie?: FanqieConfig }, target: Target) {
+  if (!target.work) throw new Error("请先选择小说");
+  const project = (await listProjects()).find((row) => row.id === projectIdOf(target.root));
+  const paths = storagePaths(null, {
+    ...config.fanqie,
+    storageRoot: target.root,
+    ...(project?.worksRoot ? { worksRoot: project.worksRoot } : {}),
+  });
+  return resolveWorkDir(paths, target.work);
+}
+
 export function publishText(text: string) {
   return text
     .replace(/\r\n?/g, "\n")
@@ -19,12 +36,14 @@ export function publishText(text: string) {
     .replace(/^\s*[（(【\[]?(?:配图|配图提示|配图建议|插图建议|图片提示)[：:][^\n]*$/gm, "")
     .trim();
 }
+
 export function publicationIssues(text: string) {
   const issues: string[] = [];
   if (/\[(?:待补|待写|TODO|占位)[^\]]*\]|\{[^}\n]{1,40}\}/i.test(text)) issues.push("仍有占位标记");
   if (/<!--|```|\*\*/.test(text)) issues.push("仍有 Markdown 或批注标记，请核对");
   return issues;
 }
+
 export async function exportContent(
   target: Target,
   focus: Focus,
@@ -52,15 +71,17 @@ export async function exportContent(
   }
   if (!target.work) throw new Error("请先选择作品");
   const dir = await resolveFanqieWork(config, target);
-  const meta = await readWorkMeta(dir),
-    sections: string[] = [],
-    issues: string[] = [];
-  for (const row of [...meta.chapters].sort((a, b) => a.position - b.position)) {
-    const chapter = await readChapter(dir, row.id);
-    if (chapter.status !== "final") continue;
-    sections.push(`第${row.position}章 ${chapter.title}\n\n${publishText(chapter.body)}`);
+  const meta = await fanqieCommands.getWork(dir);
+  const rows = await fanqieCommands.listChapters(dir);
+  const sections: string[] = [];
+  const issues: string[] = [];
+  for (const row of rows) {
+    if (row.status !== "final") continue;
+    const chapter = await fanqieCommands.readChapter(dir, row.id);
+    const clean = publishText(chapter.body);
+    sections.push(`第${row.position}章 ${chapter.meta.title}\n\n${clean}`);
     issues.push(
-      ...publicationIssues(publishText(chapter.body)).map((issue) => `${chapter.title}：${issue}`),
+      ...publicationIssues(clean).map((issue) => `${chapter.meta.title}：${issue}`),
     );
   }
   if (!sections.length) throw new Error("还没有已定稿章节，先在写作台完成作者定稿");
@@ -72,6 +93,7 @@ export async function exportContent(
       "导出内容仅包含当前已定稿章节。发布前请核对平台要求的 AI 生成声明；应用不会登录或自动发布。",
   };
 }
+
 export async function wordDocument(title: string, text: string) {
   return Packer.toBuffer(
     new Document({

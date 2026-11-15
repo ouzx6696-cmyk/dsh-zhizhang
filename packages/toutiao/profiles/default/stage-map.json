@@ -1,0 +1,10 @@
+{
+  "toutiao.article.card": { "take": [{ "file": "s2-selection.md", "maxChars": 3000 }] },
+  "toutiao.article.title": { "take": [{ "file": "s3-headline.md", "maxChars": 3000 }] },
+  "toutiao.article.blueprint": { "take": [{ "file": "s4-common.md", "maxChars": 2500 }] },
+  "toutiao.article.draft": { "take": [{ "file": "s4-common.md", "maxChars": 2500 }, { "file": "s4-news.md", "maxChars": 2500 }, { "file": "s4-story.md", "maxChars": 2000 }, { "file": "s4-micro.md", "maxChars": 1500 }] },
+  "toutiao.article.review": { "take": [{ "file": "s5-editing.md", "maxChars": 3000 }] },
+  "toutiao.article.revise": { "take": [{ "file": "s5-editing.md", "maxChars": 3500 }] },
+  "toutiao.article.qa": { "take": [{ "file": "s6-qa.md", "maxChars": 3000 }] },
+  "toutiao.article.deliver": { "take": [{ "file": "s7-delivery.md", "maxChars": 2000 }, { "file": "template-delivery.md", "maxChars": 2000 }] }
+}

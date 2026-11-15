@@ -1,6 +1,6 @@
 import { useEffect } from "react";
-import { taskEndCopy } from "@writer/ui/copy";
-import { notify } from "@writer/ui/notify";
+import { taskEndCopy } from "../../shared/copy";
+import { notify } from "@zhizhang/ui/notify";
 import { scopeId, type Target } from "../../context";
 import { chatStore } from "../state/chatStore";
 import { desktopStore, useDesktopSelector, type ChatMessage } from "../state/store";
@@ -50,7 +50,7 @@ export function useDesktopEvents({
         ? "reduced"
         : "normal";
       document.documentElement.dataset.layout = appearance.layout ?? "fluid";
-      document.documentElement.style.setProperty("--ui-body-size", appearance.fontSize + "px");
+      document.documentElement.style.setProperty("--zz-text-body", appearance.fontSize + "px");
     };
     update();
     media.addEventListener("change", update);

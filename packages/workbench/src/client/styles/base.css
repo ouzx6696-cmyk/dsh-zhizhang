@@ -6,46 +6,46 @@
   list-style: none;
 }
 :where(.wb-scope) :focus-visible {
-  outline: 2px solid var(--wb-accent);
+  outline: 2px solid var(--zz-accent);
   outline-offset: 2px;
 }
 .wb-scope {
-  --wb-fg: canvastext;
-  --wb-fg-2: color-mix(in srgb, canvastext 72%, transparent);
-  --wb-fg-3: color-mix(in srgb, canvastext 56%, transparent);
-  --wb-line: color-mix(in srgb, canvastext 14%, transparent);
-  --wb-line-strong: color-mix(in srgb, canvastext 22%, transparent);
-  --wb-layer: transparent;
-  --wb-card: color-mix(in srgb, canvastext 3%, transparent);
-  --wb-hover: color-mix(in srgb, canvastext 6%, transparent);
-  --wb-active: color-mix(in srgb, canvastext 10%, transparent);
-  --wb-accent: linktext;
-  --wb-accent-soft: color-mix(in srgb, linktext 12%, transparent);
-  --wb-ok: color-mix(in srgb, linktext 30%, canvastext);
-  --wb-ok-soft: color-mix(in srgb, linktext 10%, transparent);
-  --wb-warn: color-mix(in srgb, mark 55%, canvastext);
-  --wb-warn-soft: color-mix(in srgb, mark 30%, transparent);
-  --wb-bad: color-mix(in srgb, canvastext 55%, linktext);
-  --wb-bad-soft: color-mix(in srgb, color-mix(in srgb, canvastext 55%, linktext) 12%, transparent);
-  --wb-skeleton: color-mix(in srgb, canvastext 6%, transparent);
-  --wb-r-xs: 4px;
-  --wb-r-sm: 8px;
-  --wb-r-md: 12px;
-  --wb-r-lg: 16px;
-  --wb-r-xl: 20px;
-  --wb-r-panel: 28px;
-  --wb-manuscript-font: var(--ui-font-body);
-  color: var(--wb-fg);
-  font: var(--ui-size-14)/var(--ui-size-22) var(--ui-font-ui);
+  --zz-fg: canvastext;
+  --zz-fg-2: color-mix(in srgb, canvastext 72%, transparent);
+  --zz-fg-3: color-mix(in srgb, canvastext 56%, transparent);
+  --zz-line: color-mix(in srgb, canvastext 14%, transparent);
+  --zz-line-strong: color-mix(in srgb, canvastext 22%, transparent);
+  --zz-layer: transparent;
+  --zz-card: color-mix(in srgb, canvastext 3%, transparent);
+  --zz-hover: color-mix(in srgb, canvastext 6%, transparent);
+  --zz-active: color-mix(in srgb, canvastext 10%, transparent);
+  --zz-accent: linktext;
+  --zz-accent-soft: color-mix(in srgb, linktext 12%, transparent);
+  --zz-ok: color-mix(in srgb, linktext 30%, canvastext);
+  --zz-ok-soft: color-mix(in srgb, linktext 10%, transparent);
+  --zz-warn: color-mix(in srgb, mark 55%, canvastext);
+  --zz-warn-soft: color-mix(in srgb, mark 30%, transparent);
+  --zz-bad: color-mix(in srgb, canvastext 55%, linktext);
+  --zz-bad-soft: color-mix(in srgb, color-mix(in srgb, canvastext 55%, linktext) 12%, transparent);
+  --zz-skeleton: color-mix(in srgb, canvastext 6%, transparent);
+  --zz-r-xs: 4px;
+  --zz-r-sm: 8px;
+  --zz-r-md: 12px;
+  --zz-r-lg: 16px;
+  --zz-r-xl: 20px;
+  --zz-r-panel: 28px;
+  --zz-manuscript-font: var(--zz-font-body);
+  color: var(--zz-fg);
+  font: var(--zz-size-14)/var(--zz-size-22) var(--zz-font-ui);
   display: contents;
 }
 .wb-scope * {
   box-sizing: border-box;
 }
 .wb-scope {
-  --wb-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --wb-shadow-1: 0 1px 2px color-mix(in srgb, canvastext 6%, transparent);
-  --wb-shadow-2:
+  --zz-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --zz-shadow-1: 0 1px 2px color-mix(in srgb, canvastext 6%, transparent);
+  --zz-shadow-2:
     0 8px 24px color-mix(in srgb, canvastext 12%, transparent),
     0 1px 3px color-mix(in srgb, canvastext 8%, transparent);
 }
@@ -68,8 +68,8 @@
   border: 0;
 }
 .wb-muted {
-  color: var(--wb-fg-3);
-  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
+  color: var(--zz-fg-3);
+  font: var(--zz-size-13)/var(--zz-size-20) var(--zz-font-ui);
 }
 .wb-prewrap {
   white-space: pre-wrap;

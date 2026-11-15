@@ -1,6 +1,6 @@
 import { createStore } from "./createStore";
 import { useSyncExternalStore } from "react";
-import type { TaskState } from "../../renderer-contracts";
+import type { TaskState } from "../../shared/types";
 import type { ChatMessage, ConversationItem } from "./store";
 
 export type ChatState = {

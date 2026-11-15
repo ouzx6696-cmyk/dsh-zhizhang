@@ -1,15 +1,8 @@
 import React, { useEffect, useId, useState } from "react";
 import { ArrowLeft, ChevronRight } from "lucide-react";
-import {
-  COPY as copy,
-  formatCost,
-  formatDateTime,
-  formatElapsed,
-  formatTokens,
-  WORKFLOW_COPY,
-} from "@writer/ui/copy";
-import { errorText } from "../../../../../../packages/core/src/errors.js";
-import type { WorkflowRecord } from "../../../../../../packages/core/src/workflow-config.js";
+import { DESKTOP_COPY as copy, formatCost, formatDateTime, formatElapsed, formatTokens, WORKFLOW_COPY } from "../../../shared/copy";
+import { errorText } from "@zhizhang/core";
+import type { WorkflowRecord } from "@zhizhang/core";
 import { desktop } from "../../state/desktop";
 import { scopeId, type Target } from "../../../context";
 import { DraftCompare } from "./DraftCompare";

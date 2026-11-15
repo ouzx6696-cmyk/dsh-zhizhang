@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Play } from "lucide-react";
-import { COPY as copy, WORKFLOW_COPY } from "@writer/ui/copy";
-import { statusLabel } from "@writer/ui/status";
-import { errorText } from "../../../../../../packages/core/src/errors.js";
-import { isRecord } from "../../../../../../packages/core/src/parse.js";
-import { COMMANDS } from "../../../../../../packages/workbench/src/commands.js";
-import type { WorkflowRequest } from "../../../../../../packages/core/src/workflow-config.js";
-import { CLASSICS } from "../../../../../../packages/toutiao/src/classics.js";
+import { DESKTOP_COPY as copy, WORKFLOW_COPY } from "../../../shared/copy";
+import { statusLabel } from "@zhizhang/ui/status";
+import { errorText } from "@zhizhang/core";
+import { isRecord } from "@zhizhang/core";
+import { COMMANDS } from "@zhizhang/workbench";
+import type { WorkflowRequest } from "@zhizhang/core";
+import { CLASSICS } from "@zhizhang/toutiao";
 import { scopeId, type Target } from "../../../context";
 import { desktop } from "../../state/desktop";
 

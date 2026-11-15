@@ -1,22 +1,22 @@
 .task-card {
-  margin: var(--ui-space-3) var(--ui-space-3) var(--ui-space-1);
-  border: 1px solid var(--ui-line);
-  border-radius: var(--ui-radius-md);
-  padding: var(--ui-space-2) var(--ui-space-3);
-  font-size: var(--ui-size-12);
-  background: var(--ui-paper);
-  box-shadow: var(--ui-shadow-1);
+  margin: var(--zz-space-3) var(--zz-space-3) var(--zz-space-1);
+  border: 1px solid var(--zz-border);
+  border-radius: var(--zz-radius-md);
+  padding: var(--zz-space-2) var(--zz-space-3);
+  font-size: var(--zz-text-caption);
+  background: var(--zz-paper);
+  box-shadow: var(--zz-shadow-1);
 }
 .task-card[data-state="running"] {
-  border-color: var(--ui-accent-soft);
+  border-color: var(--zz-decide-fill);
 }
 .task-card header {
   display: flex;
   align-items: center;
-  gap: var(--ui-space-2);
+  gap: var(--zz-space-2);
 }
 .task-card strong {
-  font-size: var(--ui-size-13);
+  font-size: var(--zz-text-meta);
   font-weight: 600;
   flex: 1;
   overflow: hidden;
@@ -26,50 +26,50 @@
   line-height: 1.5;
 }
 .task-card p {
-  font-size: var(--ui-size-12);
-  color: var(--ui-text-3);
+  font-size: var(--zz-text-caption);
+  color: var(--zz-text-3);
   margin: 0;
   line-height: 1.6;
 }
 .task-card .lamp-task-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px var(--ui-space-3);
+  gap: 2px var(--zz-space-3);
   margin-top: 2px;
-  color: var(--ui-text-3);
+  color: var(--zz-text-3);
   font-variant-numeric: tabular-nums;
 }
 .task-card-queued {
-  color: var(--ui-accent);
+  color: var(--zz-decide);
 }
 .stop-task {
   flex: 0 0 auto;
   min-height: 0;
-  padding: 2px var(--ui-space-2);
-  border-color: var(--ui-line);
+  padding: 2px var(--zz-space-2);
+  border-color: var(--zz-border);
   background: transparent;
-  font-size: var(--ui-size-12);
+  font-size: var(--zz-text-caption);
 }
 .stop-task:not(:disabled) {
-  border-color: var(--ui-danger);
-  color: var(--ui-danger);
+  border-color: var(--zz-bad);
+  color: var(--zz-bad);
 }
 .task-track {
   display: flex;
-  gap: var(--ui-space-1);
-  margin: var(--ui-space-2) 0;
+  gap: var(--zz-space-1);
+  margin: var(--zz-space-2) 0;
   padding: 0;
   list-style: none;
 }
 .task-track li {
   height: 3px;
   border-radius: 2px;
-  background: var(--ui-line-strong);
+  background: var(--zz-border-strong);
   flex: 1;
 }
 .task-track li[data-state="done"] {
-  background: var(--ui-success);
+  background: var(--zz-ok);
 }
 .task-track li[data-state="current"] {
-  background: var(--ui-accent);
+  background: var(--zz-decide);
 }

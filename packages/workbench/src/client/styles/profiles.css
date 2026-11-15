@@ -3,7 +3,7 @@
   min-height: 0;
   padding: 24px;
   overflow: auto;
-  font: var(--ui-size-16)/2 var(--ui-font-body);
+  font: var(--zz-size-16)/2 var(--zz-font-body);
   white-space: pre-wrap;
 }
 .wb-pf-reading .wb-manuscript {
@@ -14,16 +14,16 @@
 .wb-pf-reading h1,
 .wb-pf-reading h2,
 .wb-pf-reading h3 {
-  font-family: var(--ui-font-body);
+  font-family: var(--zz-font-body);
 }
 .wb-pf-reading .ui-markdown {
-  font-family: var(--ui-font-body);
-  font-size: var(--ui-size-16);
+  font-family: var(--zz-font-body);
+  font-size: var(--zz-size-16);
   line-height: 2;
 }
 .wb-pf-reading .ui-markdown h1,
 .wb-pf-reading .ui-markdown h2 {
-  font-family: var(--ui-font-body);
+  font-family: var(--zz-font-body);
 }
 .wb-pf-compare {
   display: grid;
@@ -36,7 +36,7 @@
   margin: 0;
   padding: 16px;
   white-space: pre-wrap;
-  font: var(--ui-size-13)/1.75 var(--ui-font-mono);
+  font: var(--zz-size-13)/1.75 var(--zz-font-mono);
 }
 .wb-pf-compare .wb-manuscript {
   padding: 0;
@@ -77,16 +77,16 @@
   text-align: left;
   border: 0;
   cursor: pointer;
-  color: var(--wb-fg);
+  color: var(--zz-fg);
   background: transparent;
-  border-radius: var(--wb-r-sm);
+  border-radius: var(--zz-r-sm);
   padding: 8px 10px;
   display: flex;
   flex-direction: column;
   gap: 2px;
   transition:
-    background-color 160ms var(--wb-ease, ease),
-    box-shadow 160ms var(--wb-ease, ease);
+    background-color 160ms var(--zz-ease, ease),
+    box-shadow 160ms var(--zz-ease, ease);
 }
 .wb-pf-profiles .wb-pf-item {
   align-items: stretch;
@@ -96,8 +96,8 @@
 }
 .wb-pf-item-on,
 .wb-pf-method-on {
-  background: var(--wb-accent-soft);
-  box-shadow: inset 2px 0 0 var(--wb-accent);
+  background: var(--zz-accent-soft);
+  box-shadow: inset 2px 0 0 var(--zz-accent);
 }
 .wb-pf-item-head {
   display: flex;
@@ -106,7 +106,7 @@
   gap: 6px;
 }
 .wb-pf-item-name {
-  font: 600 var(--ui-size-14)/var(--ui-size-22) var(--ui-font-ui);
+  font: 600 var(--zz-size-14)/var(--zz-size-22) var(--zz-font-ui);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -115,12 +115,12 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  color: var(--wb-fg-3);
-  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
+  color: var(--zz-fg-3);
+  font: var(--zz-size-12)/var(--zz-size-18) var(--zz-font-ui);
 }
 .wb-pf-item-note {
-  color: var(--wb-fg-2);
-  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
+  color: var(--zz-fg-2);
+  font: var(--zz-size-12)/var(--zz-size-18) var(--zz-font-ui);
   white-space: normal;
   overflow-wrap: anywhere;
   min-width: 0;
@@ -134,7 +134,7 @@
   gap: 6px;
 }
 .wb-pf-subhead {
-  font: 600 var(--ui-size-16)/var(--ui-size-24) var(--ui-font-ui);
+  font: 600 var(--zz-size-16)/var(--zz-size-24) var(--zz-font-ui);
 }
 .wb-pf-actions {
   display: flex;
@@ -150,11 +150,11 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  color: var(--wb-fg-3);
+  color: var(--zz-fg-3);
 }
 .wb-pf-methods {
-  border-left: 0.5px solid var(--wb-line);
-  border-right: 0.5px solid var(--wb-line);
+  border-left: 0.5px solid var(--zz-line);
+  border-right: 0.5px solid var(--zz-line);
   padding: 0 12px;
 }
 .wb-pf-methods-list {
@@ -175,12 +175,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
+  font: var(--zz-size-13)/var(--zz-size-20) var(--zz-font-ui);
 }
 .wb-pf-method-id {
   display: none;
-  color: var(--wb-fg-3);
-  font: var(--ui-size-12)/var(--ui-size-16) var(--ui-font-mono);
+  color: var(--zz-fg-3);
+  font: var(--zz-size-12)/var(--zz-size-16) var(--zz-font-mono);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -198,7 +198,7 @@
   gap: 8px;
 }
 .wb-pf-editor-id {
-  font: 600 var(--ui-size-13)/var(--ui-size-20) var(--ui-font-mono);
+  font: 600 var(--zz-size-13)/var(--zz-size-20) var(--zz-font-mono);
 }
 .wb-pf-textarea,
 .wb-pf-base {
@@ -208,25 +208,25 @@
   resize: none;
   margin: 0;
   padding: 12px 14px;
-  border-radius: var(--wb-r-md);
-  border: 0.5px solid var(--wb-line-strong);
-  background: var(--wb-layer);
-  color: var(--wb-fg);
-  font: var(--ui-size-13)/1.75 var(--ui-font-mono);
+  border-radius: var(--zz-r-md);
+  border: 0.5px solid var(--zz-line-strong);
+  background: var(--zz-layer);
+  color: var(--zz-fg);
+  font: var(--zz-size-13)/1.75 var(--zz-font-mono);
   white-space: pre-wrap;
   overflow: auto;
 }
 .wb-pf-textarea[readonly] {
-  background: var(--wb-hover);
+  background: var(--zz-hover);
 }
 .wb-pf-base {
   flex: 0 1 40%;
-  color: var(--wb-fg-2);
+  color: var(--zz-fg-2);
 }
 .wb-pf-placeholder {
   flex: 1 1 auto;
   justify-content: center;
-  color: var(--wb-fg-3);
+  color: var(--zz-fg-3);
 }
 .wb-pf-new {
   display: flex;
@@ -237,7 +237,7 @@
 @media (hover: hover) {
   .wb-pf-item:not(.wb-pf-item-on):hover,
   .wb-pf-method:not(.wb-pf-method-on):hover {
-    background: var(--wb-hover);
+    background: var(--zz-hover);
   }
 }
 @media (max-width: 900px) {

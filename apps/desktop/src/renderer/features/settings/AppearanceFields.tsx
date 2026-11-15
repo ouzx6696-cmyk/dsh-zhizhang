@@ -1,7 +1,7 @@
-import { COPY as viewCopy } from "@writer/ui/copy";
+import { DESKTOP_COPY as viewCopy } from "../../../shared/copy";
 import { FONT_SIZE, type Appearance } from "../../../appearance";
 import React from "react";
-import { Toggle } from "@writer/ui/primitives";
+import { Toggle } from "../../components/primitives";
 export function AppearanceFields({
   appearance,
   onChange,
@@ -80,7 +80,7 @@ export function AppearanceFields({
           className="lamp-preview-paper"
           style={{
             fontSize: appearance.fontSize,
-            fontFamily: appearance.font === "serif" ? "var(--ui-font-body)" : "var(--ui-font-ui)",
+            fontFamily: appearance.font === "serif" ? "var(--zz-font-paper)" : "var(--zz-font-ui)",
           }}
         >
           <h3>{viewCopy.appearanceFieldsText9}</h3>

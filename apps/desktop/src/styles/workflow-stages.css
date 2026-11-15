@@ -9,13 +9,13 @@
 }
 .wf-stage {
   position: relative;
-  border-radius: var(--ui-radius-sm);
+  border-radius: var(--zz-radius-sm);
 }
 .wf-stage[data-phase="running"] {
-  background: color-mix(in srgb, var(--ui-accent) 7%, transparent);
+  background: color-mix(in srgb, var(--zz-decide) 7%, transparent);
 }
 .wf-stage[data-phase="failed"] {
-  background: color-mix(in srgb, var(--ui-danger) 7%, transparent);
+  background: color-mix(in srgb, var(--zz-bad) 7%, transparent);
 }
 /* 竖线把相邻阶段的图标串起来。 */
 .wf-stage:not(:last-child)::after {
@@ -25,7 +25,7 @@
   top: 30px;
   bottom: -6px;
   width: 1px;
-  background: var(--ui-line);
+  background: var(--zz-border);
   pointer-events: none;
 }
 .wf-stage-head {
@@ -40,58 +40,58 @@
   row-gap: 2px;
   padding: 7px 10px;
   border: 0;
-  border-radius: var(--ui-radius-sm);
+  border-radius: var(--zz-radius-sm);
   background: transparent;
   text-align: left;
   white-space: normal;
   min-height: 0;
-  font-size: var(--ui-size-13);
+  font-size: var(--zz-text-meta);
 }
 button.wf-stage-head:hover {
-  background: var(--ui-hover);
+  background: var(--zz-surface-2);
 }
 .wf-stage-icon {
   grid-area: icon;
   position: relative;
-  z-index: var(--ui-z-base);
-  color: var(--ui-text-3);
-  background: var(--ui-panel);
+  z-index: var(--zz-z-base);
+  color: var(--zz-text-3);
+  background: var(--zz-surface-1);
   border-radius: 50%;
 }
 /* 图标颜色跟随自身状态，阶段行、投票分项与收起角标都一致。 */
 .wf-stage-icon[data-phase="running"] {
-  color: var(--ui-accent);
+  color: var(--zz-decide);
 }
 .wf-stage-icon[data-phase="complete"] {
-  color: var(--ui-success);
+  color: var(--zz-ok);
 }
 .wf-stage-icon[data-phase="failed"] {
-  color: var(--ui-danger);
+  color: var(--zz-bad);
 }
 .wf-stage-icon[data-phase="paused"] {
-  color: var(--ui-warning);
+  color: var(--zz-warn);
 }
 .wf-stage-title {
   grid-area: title;
   min-width: 0;
-  color: var(--ui-text);
+  color: var(--zz-text-1);
   overflow-wrap: anywhere;
 }
 .wf-stage[data-phase="waiting"] .wf-stage-title {
-  color: var(--ui-text-3);
+  color: var(--zz-text-3);
 }
 .wf-stage-time {
   grid-area: time;
-  color: var(--ui-text-3);
-  font-size: var(--ui-size-12);
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-caption);
   font-variant-numeric: tabular-nums;
 }
 .wf-stage[data-phase="running"] .wf-stage-time {
-  color: var(--ui-accent);
+  color: var(--zz-decide);
 }
 .wf-stage-chevron {
   grid-area: chevron;
-  color: var(--ui-text-3);
+  color: var(--zz-text-3);
   transition: transform 160ms ease;
 }
 .wf-stage-head[aria-expanded="true"] .wf-stage-chevron {
@@ -99,8 +99,8 @@ button.wf-stage-head:hover {
 }
 .wf-stage-meta {
   grid-area: meta;
-  color: var(--ui-text-3);
-  font-size: var(--ui-size-12);
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-caption);
   font-variant-numeric: tabular-nums;
 }
 .wf-stage-error {
@@ -109,8 +109,8 @@ button.wf-stage-head:hover {
   align-items: flex-start;
   gap: 6px;
   padding: 0 10px 8px 36px;
-  font-size: var(--ui-size-12);
-  color: var(--ui-danger);
+  font-size: var(--zz-text-caption);
+  color: var(--zz-bad);
 }
 .wf-stage-error p {
   margin: 0;
@@ -119,7 +119,7 @@ button.wf-stage-head:hover {
 .wf-stage-error button {
   min-height: 0;
   padding: 3px 10px;
-  font-size: var(--ui-size-12);
+  font-size: var(--zz-text-caption);
 }
 .wf-stage-body {
   padding: 4px 10px 12px 36px;
@@ -134,29 +134,29 @@ button.wf-stage-head:hover {
 .wf-stage-part + .wf-stage-part {
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 1px dashed var(--ui-line);
+  border-top: 1px dashed var(--zz-border);
 }
 .wf-stage-part h5 {
   display: flex;
   align-items: center;
   gap: 6px;
   margin: 0 0 6px;
-  font-size: var(--ui-size-12);
+  font-size: var(--zz-text-caption);
   font-weight: 600;
-  color: var(--ui-text-2);
+  color: var(--zz-text-2);
 }
 
 /* 多稿对照：窄面板上下排，加宽后左右排。 */
 .wf-compare {
   container-type: inline-size;
-  border: 1px solid var(--ui-line);
-  border-radius: var(--ui-radius-md);
+  border: 1px solid var(--zz-border);
+  border-radius: var(--zz-radius-md);
   padding: 8px 12px;
 }
 .wf-compare summary {
   cursor: pointer;
-  font-size: var(--ui-size-13);
-  color: var(--ui-text-2);
+  font-size: var(--zz-text-meta);
+  color: var(--zz-text-2);
 }
 .wf-compare-grid {
   display: grid;
@@ -174,9 +174,9 @@ button.wf-stage-head:hover {
   max-height: 420px;
   overflow: auto;
   padding: 10px 12px;
-  border-radius: var(--ui-radius-sm);
-  background: var(--ui-paper);
-  font-family: var(--ui-font-body);
+  border-radius: var(--zz-radius-sm);
+  background: var(--zz-paper);
+  font-family: var(--zz-font-paper);
   line-height: 1.8;
   white-space: pre-wrap;
   overflow-wrap: anywhere;

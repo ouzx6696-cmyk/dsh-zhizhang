@@ -1,8 +1,7 @@
-import { workflowTools } from "../workflow/tools";
 import { DEFAULT_CONTEXT, compactionSettings } from "../context-settings";
 import path from "node:path";
 import { mkdir } from "node:fs/promises";
-import { atomicWrite, exists, readText } from "../../../../packages/core/src/fsx";
+import { atomicWrite, exists, readText } from "@zhizhang/core";
 import type { Target } from "../context";
 import {
   createAgentSession,
@@ -14,18 +13,17 @@ import {
   type AgentSession,
   type ToolDefinition,
 } from "./pi-adapter";
-import { createToutiaoTools } from "../../../../packages/toutiao/src/tools";
-import { toutiaoGateRules } from "../../../../packages/toutiao/src/gates";
-import { createFanqieTools } from "../../../../packages/fanqie/src/tools";
-import { engineTools } from "../../../../packages/fanqie/src/engine/bootstrap";
-import { fanqieGateRules } from "../../../../packages/fanqie/src/gates";
-import { listProjects, projectIdOf } from "../../../../packages/fanqie/src/engine/work-store";
-import { createGateEngine } from "../../../../packages/core/src/gates";
-import type { ToolDefinition as WriterToolDefinition } from "../../../../packages/core/src/tool";
+import { createToutiaoTools } from "@zhizhang/toutiao";
+import { toutiaoGateRules } from "@zhizhang/toutiao";
+import { createFanqieTools } from "@zhizhang/fanqie";
+import { engineTools } from "@zhizhang/fanqie";
+import { fanqieGateRules } from "@zhizhang/fanqie";
+import { listProjects, projectIdOf } from "@zhizhang/fanqie";
+import { createGateEngine } from "@zhizhang/core";
+import type { ToolDefinition as WriterToolDefinition } from "@zhizhang/core";
 import { systemPrompt } from "./prompt";
 import { createBusinessTools, createRememberTool } from "./tools";
 import { createDelegateTools } from "./editor-task";
-import { createDrawTools } from "./draw-task";
 import { createLearnTools } from "./learn-task";
 import { createSourceTools } from "./sources";
 import { createTask, trackSession } from "./task-tracker";
@@ -50,16 +48,6 @@ export async function createSession(
   return startSession(host, targetInput, role, { primary: role === "writer" }, onCreated, onSaved);
 }
 
-/** 抽卡起草子会话：写手角色与工具面，但内存档、不注册主会话、不向作者界面转发事件，
- * 系统提示附“只起草不采纳”约束（writer_draw 的并发起草路，经 createDraft 注入 draw-task）。 */
-function createDraftSession(
-  host: Sessions,
-  targetInput: Target,
-  constraint: string,
-): Promise<AgentSession> {
-  return startSession(host, targetInput, "writer", { primary: false, constraint });
-}
-
 async function startSession(
   host: Sessions,
   targetInput: Target,
@@ -69,7 +57,6 @@ async function startSession(
   onSaved?: (tool: string, output: string) => void,
 ): Promise<AgentSession> {
   const primary = options.primary;
-  const guided = primary && host.extras.engine?.().guided === true;
   const target = { ...targetInput };
   const key = host.key(target);
   const dir = await host.directory(target);
@@ -116,20 +103,6 @@ async function startSession(
       config,
       definitions: definitions.filter((tool) => {
         if (
-          guided &&
-          ![
-            "fanqie_project_create",
-            "toutiao_article_create",
-            "fanqie_chapter_read",
-            "fanqie_chapter_list",
-            "fanqie_foundation_get",
-            "toutiao_article_get",
-            "toutiao_draft_get",
-            "toutiao_ledger_show",
-          ].includes(tool.name)
-        )
-          return false;
-        if (
           host.options.fanqie?.continuity?.enabled !== true &&
           [
             "fanqie_foreshadow_set",
@@ -140,10 +113,7 @@ async function startSession(
           ].includes(tool.name)
         )
           return false;
-        return (
-          host.options.fanqie?.multiDraft?.enabled === true ||
-          !["fanqie_candidate_unify_brief", "fanqie_candidate_unify_stage"].includes(tool.name)
-        );
+        return !["fanqie_candidate_unify_brief", "fanqie_candidate_unify_stage"].includes(tool.name);
       }),
       readUrls,
       getEntry,
@@ -151,20 +121,8 @@ async function startSession(
       onSaved,
     }),
   ];
-  if (primary && !guided) {
+  if (primary) {
     customTools.push(...createDelegateTools({ host, target, manager, getEntry, getSession }));
-    if (host.options[target.mode]?.draw?.enabled === true)
-      customTools.push(
-        ...createDrawTools({
-          host,
-          target,
-          getEntry,
-          getSession,
-          drawMax: host.options.fanqie?.draw?.max ?? 3,
-          toutiaoDrawMax: host.options.toutiao?.draw?.max,
-          createDraft: (constraint) => createDraftSession(host, target, constraint),
-        }),
-      );
   }
   if (primary) {
     if (host.options[target.mode]?.learn?.enabled === true)
@@ -180,10 +138,7 @@ async function startSession(
     if (preferences && savePreferences)
       customTools.push(createRememberTool({ read: preferences, save: savePreferences }));
   }
-  if (guided) customTools.push(...workflowTools(host, target, getSession));
-  if (!guided)
-    customTools.push(...createSourceTools({ host, target, readUrls, taskId: () => task.id }));
-  if (guided && customTools.length > 12) throw new Error("调度员工具面超过12项，拒绝启动");
+  customTools.push(...createSourceTools({ host, target, readUrls, taskId: () => task.id }));
   const models = host.settings();
   const settings = role === "planner" ? (models.planner ?? models.writer) : models[role];
   const settingsManager = SettingsManager.inMemory({
@@ -196,9 +151,7 @@ async function startSession(
     cacheWarming: "streaming",
   });
   const prompt =
-    (guided
-      ? "你是作者的对话入口和流水线调度员。尚无作品时先按作者提供的题名创建作品或文章，再启动流水线。理解作者要求；执行任务时使用 writer_pipeline_start，代码负责方法、上下文、起稿、择优与审读。先确认当前作品和任务范围，缺少关键事实时问作者。不要承诺工具尚未完成的保存；不替作者采纳或定稿；不循环轮询进度。普通交流直接回答，不为聊天启动模型流水线。"
-      : await systemPrompt(target, role, config)) +
+    (await systemPrompt(target, role, config)) +
     (options.constraint ? "\n" + options.constraint : "");
   const loader = new DefaultResourceLoader({
     settingsManager,
@@ -240,10 +193,6 @@ async function startSession(
       entry,
       role,
       onUserMessage: () => readUrls.clear(),
-    });
-  if (primary)
-    session.subscribe((event) => {
-      if (event.type === "agent_settled") void host.proactiveCompact(target);
     });
   if (primary) {
     host.sessions.set(key, entry);

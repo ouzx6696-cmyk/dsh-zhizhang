@@ -1,10 +1,10 @@
 import React, { useEffect, useId, useState } from "react";
-import { COPY as copy, WORKFLOW_COPY } from "@writer/ui/copy";
+import { DESKTOP_COPY as copy, WORKFLOW_COPY } from "../../../shared/copy";
 import { scopeId, type Target } from "../../../context";
 import type { ContinuityState, PendingFact } from "../../../workflow/continuity";
 import { desktop } from "../../state/desktop";
-import { errorText } from "../../../../../../packages/core/src/errors.js";
-import { TabList, tabPanelProps } from "@writer/ui/tabs";
+import { errorText } from "@zhizhang/core";
+import { TabList, tabPanelProps } from "@zhizhang/ui/tabs";
 import "../../../styles/workflow-facts.css";
 
 const KINDS = [

@@ -1,25 +1,25 @@
-import { errorText } from "../../../packages/core/src/errors.js";
+import { errorText } from "@zhizhang/core";
 /**
  * Desktop recovery reuses the existing journals. A write lock is cleared only when its owner
  * is provably gone, after the author confirmed, and always before the backup is taken.
  */
 import path from "node:path";
 import { readdir } from "node:fs/promises";
-import { workspaceAccess } from "../../../packages/core/src/workspace-lock";
+import { workspaceAccess } from "@zhizhang/core";
 import {
   inspectPendingChapterSave,
   resumePendingChapterSave,
-} from "../../../packages/fanqie/src/engine/storage/chapter-journal";
+} from "@zhizhang/fanqie";
 import {
   inspectPendingAccept,
   resumePendingAccept,
-} from "../../../packages/fanqie/src/engine/storage/accept-journal";
-import { snapshotFile } from "../../../packages/fanqie/src/engine/storage/journal";
+} from "@zhizhang/fanqie";
+import { snapshotFile } from "@zhizhang/fanqie";
 import {
   clearWriteLock,
   ensureRecoveryOwnerInactive,
   inspectWriteLock,
-} from "../../../packages/fanqie/src/engine/storage/process-lock";
+} from "@zhizhang/fanqie";
 
 const CHAPTER = ".writer-chapter-pending.json";
 const ACCEPT = ".writer-accept-pending.json";

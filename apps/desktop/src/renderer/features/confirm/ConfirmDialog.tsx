@@ -1,5 +1,5 @@
-import { COPY as viewCopy } from "@writer/ui/copy";
-import { Dialog } from "@writer/ui/primitives";
+import { DESKTOP_COPY as viewCopy } from "../../../shared/copy";
+import { Dialog } from "../../components/primitives";
 import React from "react";
 import { AlertCircle } from "lucide-react";
 import { settleConfirm, useConfirmRequest } from "../../state/confirm";

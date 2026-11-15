@@ -1,5 +1,5 @@
-import { COPY as viewCopy, t as viewText } from "@writer/ui/copy";
-import { Brand } from "@writer/ui/primitives";
+import { DESKTOP_COPY as viewCopy, tDesktop as viewText } from "../../../shared/copy";
+import { Brand } from "../../components/primitives";
 import React from "react";
 import { Download } from "lucide-react";
 import type { SystemState } from "../../state/store";

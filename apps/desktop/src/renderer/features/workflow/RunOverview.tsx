@@ -1,17 +1,10 @@
 import React from "react";
 import { Pause, Play, RotateCcw, Square, TriangleAlert } from "lucide-react";
-import {
-  COPY as copy,
-  formatCost,
-  formatCount,
-  formatElapsed,
-  formatTokens,
-  WORKFLOW_COPY,
-} from "@writer/ui/copy";
+import { DESKTOP_COPY as copy, formatCost, formatCount, formatElapsed, formatTokens, WORKFLOW_COPY } from "../../../shared/copy";
 import type {
   EngineSettings,
   WorkflowRecord,
-} from "../../../../../../packages/core/src/workflow-config.js";
+} from "@zhizhang/core";
 import {
   KIND_LABEL,
   STATE_LABEL,

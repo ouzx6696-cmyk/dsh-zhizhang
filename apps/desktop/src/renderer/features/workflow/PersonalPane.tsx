@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { COPY as copy } from "@writer/ui/copy";
-import { errorText } from "../../../../../../packages/core/src/errors.js";
+import { DESKTOP_COPY as copy } from "../../../shared/copy";
+import { errorText } from "@zhizhang/core";
 import { desktop } from "../../state/desktop";
 import type { Target } from "../../../context";
 import "../../../styles/workflow-facts.css";

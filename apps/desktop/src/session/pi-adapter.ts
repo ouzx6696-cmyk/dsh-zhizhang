@@ -66,7 +66,7 @@ async function configureSystemProxy() {
   proxyConfigured = true;
 }
 import type { ModelConnection } from "../models";
-import { asRecord } from "../main/ipc/validate.js";
+import { asRecord } from "../shared/types.js";
 /** Keep cancellation attached through context preparation and SDK prompt startup. */
 export async function promptWithSignal(
   session: AgentSession,

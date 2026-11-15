@@ -1,4 +1,4 @@
-import { COPY as viewCopy } from "@writer/ui/copy";
+import { DESKTOP_COPY as viewCopy } from "../../../shared/copy";
 import React, { useEffect, useRef, useState } from "react";
 import {
   BookOpen,
@@ -10,8 +10,8 @@ import {
   AlertCircle,
   LoaderCircle,
 } from "lucide-react";
-import { Brand } from "@writer/ui/primitives";
-import { shortcutLabel } from "@writer/ui/keys";
+import { Brand } from "../../components/primitives";
+import { shortcutLabel } from "@zhizhang/ui/keys";
 import { scopeId, focusLabel } from "../../../context";
 import { desktopStore, useDesktopSelector } from "../../state/store";
 import type { DesktopActions } from "../../app/useDesktopController";

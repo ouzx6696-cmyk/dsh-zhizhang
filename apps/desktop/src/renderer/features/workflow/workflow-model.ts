@@ -7,9 +7,9 @@ import {
   type WorkflowRecord,
   type WorkflowStep,
   type WorkflowUsage,
-} from "../../../../../../packages/core/src/workflow-config.js";
-import { isRecord } from "../../../../../../packages/core/src/parse.js";
-import { COPY, WORKFLOW_COPY } from "@writer/ui/copy";
+} from "@zhizhang/core";
+import { isRecord } from "@zhizhang/core";
+import { DESKTOP_COPY as COPY, WORKFLOW_COPY } from "../../../shared/copy";
 
 export const KIND_LABEL: Record<WorkflowKind, string> = {
   book: COPY.workflowBook,
@@ -149,7 +149,7 @@ export function selectedCandidate(record: WorkflowRecord) {
   return isRecord(chosen) && typeof chosen.id === "string" ? chosen.id : undefined;
 }
 
-export { canApply } from "../../../../../../packages/core/src/workflow-config.js";
+export { canApply } from "@zhizhang/core";
 
 /** Keep a newer event when an older status/action response arrives later. */
 export function acceptRecord(current: WorkflowRecord | null, next: WorkflowRecord | null) {

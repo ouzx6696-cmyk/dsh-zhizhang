@@ -1,7 +1,7 @@
-import { classifyProviderMessage } from "../../../packages/core/src/provider-error";
-import { errorText } from "../../../packages/core/src/errors.js";
-import { taskEndCopy } from "@writer/ui/copy";
-export { Diagnostics } from "../../../packages/core/src/diagnostics";
+import { classifyProviderMessage } from "@zhizhang/core";
+import { errorText } from "@zhizhang/core";
+import { taskEndCopy } from "./shared/copy";
+export { Diagnostics } from "@zhizhang/core";
 export function explainError(error: unknown) {
   const text = errorText(error);
   const category = classifyProviderMessage(text);

@@ -1,16 +1,16 @@
-import { COPY as viewCopy, formatDateTime, t as viewText, t } from "@writer/ui/copy";
-import { ARTICLE_STEPS, articleProgress } from "@writer/ui/status";
-import { Steps } from "@writer/ui/primitives";
+import { DESKTOP_COPY as viewCopy, formatDateTime, tDesktop as viewText, tDesktop as t } from "../../../shared/copy";
+import { ARTICLE_STEPS, articleProgress } from "@zhizhang/ui/status";
+import { Steps } from "../../components/primitives";
 import React, { useCallback, useEffect, useState } from "react";
-import { useToutiao } from "../../../../../../packages/workbench/src/client/toutiao/useToutiao.js";
+import { useToutiao } from "@zhizhang/workbench";
 import {
   ArticleList,
   Body,
   ToutiaoSide,
-} from "../../../../../../packages/workbench/src/client/toutiao/ToutiaoApp.jsx";
+} from "@zhizhang/workbench";
 import { Check } from "lucide-react";
-import { StatusBadge } from "@writer/ui/status-badge";
-import type { ArticleDetail, ArticleRow, WorkspaceProps } from "../../../renderer-contracts";
+import { StatusBadge } from "@zhizhang/ui/status-badge";
+import type { ArticleDetail, ArticleRow, WorkspaceProps } from "../../../shared/types";
 import { askConfirm } from "../../state/confirm";
 import { useWorkspaceNavigator } from "../../state/navigation";
 import type { Focus, Target } from "../../../context";

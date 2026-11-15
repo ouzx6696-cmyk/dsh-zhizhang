@@ -75,7 +75,7 @@ def cmd_rules(a):
 
 
 def cmd_limits(a):
-    emit("limits", True, title_max=TITLE_MAX, bands=R.BANDS, genres=list(R.GENRE_MODE.keys()),
+    emit("limits", True, title_max=TITLE_MAX, pass_score=R.PASS_SCORE, bands=R.BANDS, genres=list(R.GENRE_MODE.keys()),
          lines=list(R.LINES.keys()), drivers=list(R.DRIVERS.keys()), statuses=L.STATUSES,
          ledger_fields=R.LEDGER_FIELDS)
     return 0

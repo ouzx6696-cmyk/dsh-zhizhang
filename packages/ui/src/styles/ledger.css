@@ -8,34 +8,34 @@
   max-width: 72em;
   margin: 16px auto;
   padding: 24px 28px;
-  background: var(--ui-paper);
-  border: 1px solid var(--ui-line);
+  background: var(--zz-paper);
+  border: 1px solid var(--zz-line);
   border-radius: 10px;
-  box-shadow: var(--ui-shadow-1);
+  box-shadow: var(--zz-shadow-1);
   overflow-x: auto;
 }
 .paper-ledger h1 {
-  font-family: var(--ui-font-body);
-  font-size: var(--ui-size-22);
+  font-family: var(--zz-font-body);
+  font-size: var(--zz-size-22);
   font-weight: 400;
   margin: 0 0 16px;
 }
 .paper-ledger table {
   width: 100%;
   border-collapse: collapse;
-  font-size: var(--ui-size-12);
+  font-size: var(--zz-size-12);
 }
 .paper-ledger th {
   padding: 8px 6px;
-  border-bottom: 1px solid var(--ui-line);
-  color: var(--ui-text-3);
+  border-bottom: 1px solid var(--zz-line);
+  color: var(--zz-text-3);
   font-weight: 400;
   text-align: left;
   white-space: nowrap;
 }
 .paper-ledger td {
   padding: 10px 6px;
-  border-bottom: 1px solid color-mix(in srgb, var(--ui-line) 70%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--zz-line) 70%, transparent);
   text-align: left;
   vertical-align: middle;
 }
@@ -44,8 +44,8 @@
   font-weight: 500;
 }
 .paper-ledger td small {
-  font-size: var(--ui-size-12);
+  font-size: var(--zz-size-12);
 }
 .paper-ledger tbody tr:hover {
-  background: var(--ui-accent-soft);
+  background: var(--zz-accent-soft);
 }

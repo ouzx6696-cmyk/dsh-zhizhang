@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
-import type { DesktopEvent, TaskEndReason } from "../renderer-contracts";
+import type { DesktopEvent } from "../shared/events";
+import type { TaskEndReason } from "../shared/types";
 import { promptContext, toolLabel, toolStep, type Target } from "../context";
 import { explainError } from "../diagnostics";
-import { sha256 } from "../../../../packages/core/src/fsx";
-import { asRecord } from "../main/ipc/validate";
+import { sha256 } from "@zhizhang/core";
+import { asRecord } from "../shared/types";
 import type { Sessions } from "./manager";
 import type { SessionEntry, Task } from "./types";
 

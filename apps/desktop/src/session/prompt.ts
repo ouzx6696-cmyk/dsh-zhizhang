@@ -4,35 +4,43 @@ import {
   toutiaoFeedback,
   fanqieAttachments,
 } from "./handoff-context";
-import { resolveFanqiePaths, resolveFanqieWork } from "../main/storage";
-import { parseText } from "../main/ipc/validate";
+import { listProjects, projectIdOf, resolveWorkDir, storagePaths, type FanqieConfig } from "@zhizhang/fanqie";
+async function resolveFanqiePaths(config: { fanqie?: FanqieConfig }, target: Target) {
+  const project = (await listProjects()).find((row) => row.id === projectIdOf(target.root));
+  return storagePaths(null, { ...config.fanqie, storageRoot: target.root, ...(project?.worksRoot ? { worksRoot: project.worksRoot } : {}) });
+}
+async function resolveFanqieWork(config: { fanqie?: FanqieConfig }, target: Target) {
+  if (!target.work) throw new Error("请先选择小说");
+  return resolveWorkDir(await resolveFanqiePaths(config, target), target.work);
+}
+import { parseText } from "../shared/types";
 import type { Focus, Target } from "../context";
 import { focusLabel, promptText } from "../context";
-import type { ChapterMeta } from "../../../../packages/fanqie/src/engine/types";
-import { readChapter, readWorkMeta } from "../../../../packages/fanqie/src/engine/work-store";
-import { activeProfile } from "../../../../packages/core/src/profiles";
-import { ArticleStore } from "../../../../packages/toutiao/src/store";
-import { toutiaoLibrary } from "../../../../packages/toutiao/src/methods";
-import { fanqieLibrary } from "../../../../packages/fanqie/src/forge";
-import { chapterReviewInfo } from "../../../../packages/fanqie/src/review";
-import { assertWorkspaceWritable } from "../../../../packages/core/src/workspace-lock";
-import { engineTools } from "../../../../packages/fanqie/src/engine/bootstrap";
-import { validPassingQa } from "../../../../packages/toutiao/src/article-service";
-import { SYSTEM_BRIEF } from "../../../../packages/fanqie/src/engine/tools/brief";
+import type { ChapterMeta } from "@zhizhang/fanqie";
+import { readChapter, readWorkMeta } from "@zhizhang/fanqie";
+import { activeProfile } from "@zhizhang/core";
+import { ArticleStore } from "@zhizhang/toutiao";
+import { toutiaoLibrary } from "@zhizhang/toutiao";
+import { fanqieLibrary } from "@zhizhang/fanqie";
+import { chapterReviewInfo } from "@zhizhang/fanqie";
+import { assertWorkspaceWritable } from "@zhizhang/core";
+import { engineTools } from "@zhizhang/fanqie";
+import { validPassingQa } from "@zhizhang/toutiao";
+import { SYSTEM_BRIEF } from "@zhizhang/fanqie";
 import {
   buildToutiaoBrief,
   buildToutiaoEditorBrief,
   TOUTIAO_EDITOR_BRIEF,
-} from "../../../../packages/toutiao/src/brief";
+} from "@zhizhang/toutiao";
 import {
   buildFanqieBrief,
   buildFanqieEditorBrief,
   FANQIE_EDITOR_BRIEF,
-} from "../../../../packages/fanqie/src/brief";
+} from "@zhizhang/fanqie";
 import {
   buildMethodPack,
   type MethodAttachmentKind,
-} from "../../../../packages/core/src/method-pack";
+} from "@zhizhang/core";
 import { taskMethods, corpusMethods, packMethods, type TaskMethod } from "./task-methods";
 import { planMethodInjection } from "./method-injection";
 import { injectedMethods } from "./task-tracker";
@@ -44,7 +52,7 @@ const CLIENT_NOTICE =
 export async function systemPrompt(
   target: Target,
   role: "writer" | "editor" | "planner",
-  config: import("../../../../packages/toutiao/src/config").ToutiaoConfig,
+  config: import("@zhizhang/toutiao").ToutiaoConfig,
 ) {
   if (role === "planner")
     return `你是${target.mode === "fanqie" ? "长篇" : "头条"}规划角色。按作者目标读取必要材料，完成规划或指定原文拆解，使用当前工具保存结果并回报具体对象。正文交给写手。长篇任务交接已附当前方案的方法时直接使用，需要补充目录或专项时再用 fanqie_method_get overview 及相关方法；头条模式使用 toutiao_method_get。需要参考时检索已采纳卡、读卡全文，核对适用条件后把选定 card_ids 显式交给规划工具。没有合适参考直接按作者材料推进，不为填卡改写作者目标。`;
@@ -90,115 +98,8 @@ async function paths(host: Sessions, target: Target) {
 }
 
 export async function taskPrompt(host: Sessions, target: Target, text: string, focus: Focus) {
-  if (host.extras.engine?.().guided)
-    return promptText(text, { target, focus, preferences: await host.extras.preferences?.() });
-  if (host.options[target.mode]?.handoff?.v2 === true)
-    return taskPromptV2(host, target, text, focus);
-  return taskPromptV1(host, target, text, focus);
+  return taskPromptV2(host, target, text, focus);
 }
-
-async function taskPromptV1(host: Sessions, target: Target, text: string, focus: Focus) {
-  const profile = await activeProfile(target.mode, host.options[target.mode]?.profile);
-  const intentSource = focus.intent ? "focus" : "regex";
-  const intent =
-    focus.intent ||
-    (/审读|编辑|质检/.test(text)
-      ? "review"
-      : /章纲|规划|拆书|大纲/.test(text)
-        ? "plan"
-        : /续写|写|改|润色/.test(text)
-          ? "write"
-          : "inspect");
-  const methods =
-    target.mode === "fanqie"
-      ? await taskMethods(profile.id, text, intent, host.options.fanqie?.profile)
-      : [];
-  let saved: unknown;
-  let brief: string | undefined;
-  if (target.mode === "fanqie" && target.work) {
-    const storage = await paths(host, target);
-    const dir = await resolveFanqieWork(host.options, target);
-    const meta = await readWorkMeta(dir);
-    const chapters: ChapterMeta[] = meta.chapters;
-    const row = chapters.find((c) => c.id === focus.chapter);
-    const chapter = row ? await readChapter(dir, row.id) : undefined;
-    if (chapter && intent === "write") {
-      await assertWorkspaceWritable(dir);
-      const definition = engineTools({
-        ...host.options.fanqie,
-        storageRoot: target.root,
-        worksRoot: storage.works,
-      }).find((tool) => tool.name === "fanqie_chapter_brief");
-      if (!definition) throw new Error("引擎工具列表里没有 fanqie_chapter_brief，无法生成交接简报");
-      // handoff_only 分支固定返回 JSON 字符串；execute 类型是 unknown，在边界解析
-      brief = parseText(
-        await definition.execute(
-          {
-            work: target.work,
-            chapter: chapter.id,
-            brief_mode: "lean",
-            handoff_only: true,
-          },
-          {
-            name: definition.name,
-            arguments: {},
-            sessionId: "handoff-" + host.key(target),
-            cwd: target.root,
-          },
-        ),
-      );
-    }
-    const review =
-      chapter && intent === "review" ? await reviewResult(host, target, focus) : undefined;
-    saved = {
-      brief,
-      review,
-      title: meta.title,
-      chapters: meta.chapters.length,
-      chapter: chapter
-        ? {
-            id: chapter.id,
-            title: chapter.title,
-            status: chapter.status,
-            updatedAt: chapter.updatedAt,
-            revision: chapter.revision,
-            dependencies: chapter.dependencies || [],
-            review: chapter.review
-              ? { revision: chapter.review.revision, result: chapter.review.result }
-              : undefined,
-          }
-        : undefined,
-    };
-  } else if (target.mode === "toutiao" && focus.article) {
-    const article = await new ArticleStore(target.root).get(focus.article);
-    saved = {
-      article: article.id,
-      status: article.status,
-      revision: article.current_rev,
-      qa: article.qa.at(-1),
-      qaValid: await validPassingQa(new ArticleStore(target.root), article),
-    };
-  }
-  host.extras.log?.("handoff", {
-    mode: target.mode,
-    intentSource,
-    intent,
-    methodIds: methods.map((method) => method.id),
-    methodBytes: methods.reduce((sum, method) => sum + Buffer.byteLength(method.text), 0),
-    briefAttached: brief !== undefined,
-    briefBytes: brief === undefined ? 0 : Buffer.byteLength(brief),
-  });
-  return promptText(text, {
-    target,
-    focus,
-    profile: { id: profile.id, name: profile.name },
-    saved,
-    methods,
-    preferences: await host.extras.preferences?.(),
-  });
-}
-
-// —— handoff.v2：方法包决策表接线（writer.json 的 handoff.v2 开关，默认关） ——
 
 const DELEGATION_NOTE = "本任务是委派说明：用 writer_review 工具派编辑子会话审读，不改正文。";
 
@@ -296,7 +197,7 @@ async function taskPromptV2(host: Sessions, target: Target, text: string, focus:
           )
         : {}),
       title: meta.title,
-      chapters: meta.chapters.length,
+      chapters: fanqie.snapshot.chapters.length,
       chapter: chapter
         ? {
             id: chapter.id,

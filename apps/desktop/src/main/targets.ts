@@ -1,24 +1,24 @@
 import { resolveFanqieWork } from "./storage";
-import { storagePaths } from "../../../../packages/fanqie/src/engine/storage/paths";
-import { physicalRoot } from "../../../../packages/core/src/identity";
+import { storagePaths } from "@zhizhang/fanqie";
+import { physicalRoot } from "@zhizhang/core";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import type { Target } from "../context";
-import type { PluginConfig } from "../../../../packages/fanqie/src/engine/types";
-import { rememberRoot } from "../../../../packages/toutiao/src/env";
-import { atomicWrite, serialize } from "../../../../packages/core/src/fsx";
+import type { FanqieConfig } from "@zhizhang/fanqie";
+import { rememberRoot } from "@zhizhang/toutiao";
+import { atomicWrite, serialize } from "@zhizhang/core";
 import {
   ensureStorage,
   listProjects,
   projectIdOf,
   rememberProject,
   resolveWorkDir,
-} from "../../../../packages/fanqie/src/engine/work-store";
+} from "@zhizhang/fanqie";
 import {
   claimWorkspace,
   releaseWorkspace,
   takeOverWorkspace,
-} from "../../../../packages/core/src/workspace-lock";
+} from "@zhizhang/core";
 import type { Runtime } from "./runtime";
 
 export async function lockRoot(state: Runtime, value: Target) {
@@ -36,14 +36,14 @@ export async function selectTarget(state: Runtime, next: Target) {
       ...(next.article ? { article: next.article } : {}),
       ...(next.work ? { work: next.work } : {}),
     };
-    let storage: { config: PluginConfig; paths: ReturnType<typeof storagePaths> } | undefined;
+    let storage: { config: FanqieConfig; paths: ReturnType<typeof storagePaths> } | undefined;
     let newRoot = normalized.root;
     if (normalized.mode !== "toutiao") {
       const project = (await listProjects()).find((p) => p.id === projectIdOf(normalized.root));
       const unified =
         state.settings?.workspace &&
         normalized.root === path.join(state.settings.workspace, ".writer");
-      const config: PluginConfig = {
+      const config: FanqieConfig = {
         ...state.writerConfig.fanqie,
         storageRoot: normalized.root,
         ...(project?.worksRoot
@@ -144,4 +144,4 @@ async function reportReleaseFailure(state: Runtime, error: unknown) {
   await state.diagnostics.write("workspace_release_failed", { message: String(error) });
 }
 
-export { releaseWorkspaces } from "../../../../packages/core/src/workspace-lock";
+export { releaseWorkspaces } from "@zhizhang/core";

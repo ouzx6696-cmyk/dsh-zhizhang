@@ -1,7 +1,7 @@
 import { app, dialog, type BrowserWindow } from "electron";
-import { errorText } from "../../../../packages/core/src/errors";
-import { releaseWorkspaces } from "../../../../packages/core/src/workspace-lock";
-import { UNLOAD_COPY } from "@writer/ui/copy";
+import { errorText } from "@zhizhang/core";
+import { releaseWorkspaces } from "@zhizhang/core";
+import { UNLOAD_COPY } from "../shared/copy";
 import type { Runtime } from "./runtime";
 
 /**

@@ -1,4 +1,4 @@
-import { errorText } from "../../../../packages/core/src/errors.js";
+import { errorText } from "@zhizhang/core";
 import { createTask, settleTask } from "./task-tracker";
 import type { Focus, Target } from "../context";
 import { explainError } from "../diagnostics";
@@ -6,7 +6,7 @@ import { promptAccepted } from "./pi-adapter";
 import { taskPrompt } from "./prompt";
 import type { Sessions } from "./manager";
 import type { AuthorAction } from "./types";
-import { statusLabel } from "@writer/ui/status";
+import { statusLabel } from "@zhizhang/ui/status";
 
 export async function sendPrompt(
   host: Sessions,

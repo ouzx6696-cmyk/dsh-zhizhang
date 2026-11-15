@@ -1,4 +1,4 @@
-import { readText } from "../../../../packages/core/src/fsx";
+import { readText } from "@zhizhang/core";
 import path from "node:path";
 import { mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -13,18 +13,18 @@ import { initUpdates } from "./ipc/updates";
 import { Sessions } from "../session";
 import { Settings } from "../settings";
 import { Diagnostics } from "../diagnostics";
-import { parseToutiaoConfig } from "../../../../packages/toutiao/src/config";
-import { parseFanqieConfig } from "../../../../packages/fanqie/src/config";
-import { setStateRoot } from "../../../../packages/core/src/paths";
-import { setProfilesRoot } from "../../../../packages/core/src/profiles";
+import { parseToutiaoConfig } from "@zhizhang/toutiao";
+import { parseFanqieConfig } from "@zhizhang/fanqie";
+import { setStateRoot } from "@zhizhang/core";
+import { setProfilesRoot } from "@zhizhang/core";
 import {
   cleanStaleWorkspaceClaim,
   setWorkspaceHost,
-} from "../../../../packages/core/src/workspace-lock";
-import { VERSION } from "../../../../packages/core/src/version";
+} from "@zhizhang/core";
+import { VERSION } from "@zhizhang/core";
 
 export async function start() {
-  if (process.platform === "win32") app.setAppUserModelId("local.writer.agent");
+  if (process.platform === "win32") app.setAppUserModelId("app.zhizhang.desktop");
   const state = new Runtime();
   state.resources = app.isPackaged
     ? path.join(process.resourcesPath, "writer")

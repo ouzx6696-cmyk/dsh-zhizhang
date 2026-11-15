@@ -2,16 +2,17 @@ import {
   DEFAULT_ENGINE,
   parseEngine,
   type EngineSettings,
-} from "../../../packages/core/src/workflow-config";
+} from "@zhizhang/core";
 import type { SearchProvider, SearchMode } from "./network";
 import { DEFAULT_CONTEXT, parseContextSettings, type ContextSettings } from "./context-settings";
 import path from "node:path";
-import { atomicWrite, readText } from "../../../packages/core/src/fsx";
+import { atomicWrite, readText } from "@zhizhang/core";
 import { defaultModels, normalizeModels, publicModels } from "./models";
 import { FONT_SIZE, type Appearance } from "./appearance";
 export type { Appearance } from "./appearance";
-import { parseAppearance, asRecord, parseChoice } from "./main/ipc/validate";
-import { Diagnostics } from "../../../packages/core/src/diagnostics";
+import { asRecord, parseChoice } from "./shared/types";
+const parseAppearance = (v: unknown) => asRecord(v, "外观设置") as Partial<Appearance>;
+import { Diagnostics } from "@zhizhang/core";
 type Secrets = {
   available: () => boolean;
   encrypt: (text: string) => string;
@@ -60,10 +61,7 @@ export class Settings {
     return raw;
   }
   async saveEngine(value: EngineSettings) {
-    await atomicWrite(
-      path.join(this.home, "engine.json"),
-      JSON.stringify({ ...value, engineVersion: 2 }, null, 2),
-    );
+    await atomicWrite(path.join(this.home, "engine.json"), JSON.stringify(value, null, 2));
     this.engine = value;
   }
   async load() {
@@ -72,28 +70,7 @@ export class Settings {
       if (engine !== undefined) {
         const raw: unknown = JSON.parse(engine);
         if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("配置须为对象");
-        const legacy = !Object.hasOwn(raw, "engineVersion");
-        const migrated = legacy
-          ? {
-              ...(raw as Record<string, unknown>),
-              engineVersion: 2,
-              ...(Object.hasOwn(raw, "runBudget") &&
-              (raw as { runBudget?: unknown }).runBudget === 200000
-                ? { runBudget: DEFAULT_ENGINE.runBudget }
-                : {}),
-            }
-          : raw;
-        this.engine = parseEngine(migrated);
-        if (legacy) {
-          await atomicWrite(
-            path.join(this.home, "engine.json"),
-            JSON.stringify({ ...this.engine, engineVersion: 2 }, null, 2),
-          );
-          if (this.engine.runBudget !== (raw as { runBudget?: unknown }).runBudget)
-            this.notices.push(
-              "旧版 20 万 token 任务预算已升级为 120 万；如需更低预算请在设置中调整。",
-            );
-        }
+        this.engine = parseEngine(raw);
       }
     } catch (error) {
       // allow-catch: 保留损坏的配置并在启动提示，允许作者打开设置修复。

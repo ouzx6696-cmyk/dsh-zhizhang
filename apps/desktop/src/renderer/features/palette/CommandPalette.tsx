@@ -1,5 +1,5 @@
-import { COPY as viewCopy } from "@writer/ui/copy";
-import { Dialog } from "@writer/ui/primitives";
+import { DESKTOP_COPY as viewCopy } from "../../../shared/copy";
+import { Dialog } from "../../components/primitives";
 import React, { useState } from "react";
 import { Search, ArrowRight } from "lucide-react";
 import { COMMANDS } from "../../../commands";

@@ -485,7 +485,7 @@ def analyze(title, headings, paras, images, mode=None, driver=None, ext_start=No
     if title_too_long: hard_gates.append(f"标题超{TITLE_MAX}字")
     if leak: hard_gates.append("AI身份泄漏")
     if ext_gate: hard_gates.append("延伸节重复主稿")
-    passed = overall >= 84 and not any(i["status"] == "fail" for i in items) and not hard_gates
+    passed = overall >= R.PASS_SCORE and not any(i["status"] == "fail" for i in items) and not hard_gates
     bad = "；".join(f'{i["key"]}{i["score"]}分' for i in items if i["status"] != "pass")
     if passed:
         verdict = f"综合{overall}分，过线，转人工验收。" + (f"还有{hits}处机器腔，建议再顺一遍。" if hits else "")
@@ -895,7 +895,7 @@ def check_card(card, paras, title, ledger_rows, today=None, headings=None, hpos=
 def rules_markdown():
     L = [f"# toutiao-viral-writer 现行规则 v{VERSION}", "",
          "由 scripts/rules.py 生成，文档里的数字以这里为准。凡平台没公布的口径，都是本技能自定。", "",
-         "## 通过标准", f"- overall ≥ 84，六维零 fail（低于及格线 10 分以上），hard_gates 为空", "",
+         "## 通过标准", f"- overall ≥ {R.PASS_SCORE}，六维零 fail（低于及格线 10 分以上），hard_gates 为空", "",
          "| 维度 | 权重 | 及格线 |", "|---|---|---|"]
     for k, w in WEIGHTS.items():
         L.append(f"| {k} | {w * 104:.0f}/104 | {PASS_LINE[k]} |")

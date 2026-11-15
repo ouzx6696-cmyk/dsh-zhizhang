@@ -1,6 +1,6 @@
-import { canLeaveEdit } from "../../../../../packages/workbench/src/client/shared/useSourceGuard.js";
+import { canLeaveEdit } from "@zhizhang/workbench";
 import type { Focus } from "../../context";
-import type { SourceEditState } from "../../renderer-contracts";
+import type { SourceEditState } from "../../shared/types";
 import { askConfirm } from "../state/confirm";
 
 /** Shared leave decision for the existing paragraph, source and method editors. */

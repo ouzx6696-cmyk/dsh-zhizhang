@@ -22,14 +22,14 @@
 .conversation-tools {
   display: flex;
   align-items: center;
-  gap: var(--ui-space-1);
-  margin: var(--ui-space-1) var(--ui-space-3);
-  font-size: var(--ui-size-12);
+  gap: var(--zz-space-1);
+  margin: var(--zz-space-1) var(--zz-space-3);
+  font-size: var(--zz-text-caption);
 }
 .conversation-tools button,
 .conversation-tools select {
-  font-size: var(--ui-size-12);
-  padding: 2px var(--ui-space-1);
+  font-size: var(--zz-text-caption);
+  padding: 2px var(--zz-space-1);
   background: transparent;
   border: 0;
 }

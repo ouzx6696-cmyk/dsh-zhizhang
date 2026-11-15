@@ -1,17 +1,17 @@
-import { COPY as viewCopy } from "@writer/ui/copy";
-import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
+import { DESKTOP_COPY as viewCopy } from "../../shared/copy";
+import React, { Suspense, lazy, useCallback, useEffect, useMemo } from "react";
 import { createRoot } from "react-dom/client";
 import "@fontsource/noto-sans-sc/400.css";
 import "@fontsource/noto-sans-sc/600.css";
 import "@fontsource/noto-serif-sc/400.css";
 import "@fontsource/noto-serif-sc/600.css";
-import "@writer/ui/components.css";
-import "@writer/ui/tokens.css";
-import "../../../../../packages/workbench/src/client/styles.css";
+import "@zhizhang/ui/components.css";
+import "@zhizhang/ui/tokens.css";
+import "@zhizhang/workbench";
 import "../../desktop.css";
 import { LoaderCircle } from "lucide-react";
-import { NoticeStack } from "@writer/ui/notify";
-import { setConfirm } from "../../../../../packages/workbench/src/client/shared/confirm.js";
+import { NoticeStack } from "@zhizhang/ui/notify";
+import { setConfirm } from "@zhizhang/workbench";
 import { scopeId, type Focus, type Target } from "../../context";
 import { useDesktopController } from "./useDesktopController";
 import { desktopStore, useDesktopSelector } from "../state/store";
@@ -26,7 +26,6 @@ import { RootErrorBoundary, reportUnhandledRejection } from "./crash";
 
 const set = desktopStore.set;
 
-// 设置、首次引导与设计预览不在启动首屏，按需加载以缩小入口包。
 const Settings = lazy(() =>
   import("../features/settings/SettingsDialog").then((module) => ({ default: module.Settings })),
 );
@@ -38,7 +37,6 @@ const DesignPreview = lazy(() =>
     default: module.DesignPreview,
   })),
 );
-
 const WorkflowPanel = lazy(() =>
   import("../features/workflow/WorkflowPanel").then((module) => ({
     default: module.WorkflowPanel,
@@ -47,13 +45,13 @@ const WorkflowPanel = lazy(() =>
 
 function App() {
   const actions = useDesktopController();
-  const [workflowOpen, setWorkflowOpen] = useState(false);
-  // 工作台里的确认（放弃修改、删除等）统一走桌面确认框，不再弹原生 window.confirm。
   useEffect(() => setConfirm(askConfirm), []);
   const system = useDesktopSelector((state) => state.system);
   const view = useDesktopSelector((state) => state.view);
   const tab = useDesktopSelector((state) => state.tab);
   const drawer = useDesktopSelector((state) => state.drawer);
+  const rightDockSplit = useDesktopSelector((state) => state.rightDockSplit);
+  const focusMode = useDesktopSelector((state) => state.focusMode);
   const workspaceKey = useDesktopSelector((state) => state.workspaceKey);
   const settingsOpen = useDesktopSelector((state) => state.settingsOpen);
   const onboarding = useDesktopSelector((state) => state.onboarding);
@@ -63,6 +61,10 @@ function App() {
   const agent = useMemo(() => <AgentPanel actions={actions} />, [actions]);
   const setTab = useCallback((next: string) => set({ tab: next }), []);
   const setDrawer = useCallback((open: boolean) => set({ drawer: open }), []);
+  const toggleSplit = useCallback(
+    () => set((current) => ({ rightDockSplit: !current.rightDockSplit, drawer: true })),
+    [],
+  );
   const onView = useCallback(
     (next: string) => void actions.changeView(next).catch(fail),
     [actions, fail],
@@ -76,8 +78,8 @@ function App() {
     (next: Target & { focus?: Focus }) => void actions.selectSnapshot(next).catch(fail),
     [actions, fail],
   );
-  const openWorkflow = useCallback(() => setWorkflowOpen(true), []);
-  const closeWorkflow = useCallback(() => setWorkflowOpen(false), []);
+  const openWorkflow = useCallback(() => set({ tab: "pipeline", drawer: true, focusMode: false }), []);
+  const closeWorkflow = useCallback(() => set({ tab: "agent", rightDockSplit: false }), []);
   const closeSettings = useCallback(() => set({ settingsOpen: false }), []);
   const onSettingsSaved = useCallback(async () => {
     await actions.syncState();
@@ -85,6 +87,20 @@ function App() {
     if (selected) await actions.loadView(selected);
     actions.refreshWorkspace();
   }, [actions]);
+
+  const pipeline = system?.target ? (
+    <Suspense fallback={null}>
+      <WorkflowPanel
+        key={scopeId(system.target)}
+        target={system.target}
+        focus={focus}
+        engine={system.engine}
+        onClose={closeWorkflow}
+        onNavigate={actions.jump}
+      />
+    </Suspense>
+  ) : null;
+
   if (!system)
     return (
       <div className="startup">
@@ -93,7 +109,7 @@ function App() {
       </div>
     );
   return (
-    <div className="writer-desktop wb-scope">
+    <div className="writer-desktop wb-scope" data-focus-mode={focusMode ? "true" : "false"}>
       <TopBar actions={actions} onWorkflow={openWorkflow} />
       {system.target ? (
         <Workspace
@@ -101,6 +117,7 @@ function App() {
           target={system.target}
           view={view}
           agent={agent}
+          pipeline={pipeline}
           tab={tab}
           setTab={setTab}
           onView={onView}
@@ -108,6 +125,9 @@ function App() {
           onNewChapter={onNewChapter}
           drawer={drawer}
           setDrawer={setDrawer}
+          split={rightDockSplit}
+          onToggleSplit={toggleSplit}
+          focusMode={focusMode}
           readOnly={system.access?.readOnly}
           onContext={actions.setContext}
           onTarget={onTarget}
@@ -124,16 +144,6 @@ function App() {
         </div>
       )}
       <Suspense fallback={null}>
-        {workflowOpen && system.target && (
-          <WorkflowPanel
-            key={scopeId(system.target)}
-            target={system.target}
-            focus={focus}
-            engine={system.engine}
-            onClose={closeWorkflow}
-            onNavigate={actions.jump}
-          />
-        )}
         {settingsOpen && (
           <Settings
             state={system}
@@ -155,9 +165,8 @@ function App() {
 
 const search = new URLSearchParams(window.location.search);
 const preview = import.meta.env.DEV && search.has("ui-preview");
-// 主进程按已保存主题在地址里带上 theme：syncState 返回前的首帧就用对的配色。
 const initialTheme = search.get("theme");
-if (initialTheme === "dark" || initialTheme === "light")
+if (initialTheme === "dark" || initialTheme === "light" || initialTheme === "night" || initialTheme === "day")
   document.documentElement.dataset.theme = initialTheme;
 const root = document.getElementById("root");
 if (!root) throw new Error("找不到界面挂载点 #root，无法启动界面");

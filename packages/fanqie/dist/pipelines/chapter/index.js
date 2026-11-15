@@ -1,0 +1,491 @@
+import path from "node:path";
+import { systemClock } from "@zhizhang/core/clock";
+import { AppError } from "@zhizhang/core/errors";
+import { atomicWrite, readJson, readTextIfExists, sha256 } from "@zhizhang/core/fs";
+import { createLockService } from "@zhizhang/core/lock";
+import { buildDeliveryMarker, isAlreadyDelivered } from "@zhizhang/core/pipeline";
+import { arr, int, lit, num, obj, opt, parseJson, str } from "@zhizhang/core/schema";
+import { createBibleStore } from "../../bible/store.js";
+import { buildChapterContext } from "../../context/builder.js";
+import { parseChapterMarkdown } from "../../domain/chapter.js";
+import { MAX_EDITOR_REJECTIONS } from "../../domain/status.js";
+import { WorkMetaSchema } from "../../storage/work.js";
+export const ChapterPipelineReq = obj({
+    chapterId: str({ min: 1 }),
+    position: opt(str()),
+    grade: opt(lit("economy", "standard", "premium")),
+    golden: opt(lit("true", "false")),
+    note: opt(str()),
+    targetWords: opt(int({ min: 500, max: 20000 })),
+});
+const BeatsSchema = obj({
+    scenes: arr(obj({
+        title: str({ min: 1 }),
+        goal: str({ min: 1 }),
+        conflict: str({ min: 1 }),
+        hook: opt(str()),
+    }), { max: 20 }),
+});
+const ReviewIssueSchema = obj({
+    kind: lit("continuity", "reader"),
+    quote: str(),
+    issue: str({ min: 1 }),
+    fix: str({ min: 1 }),
+});
+const ReviewResultSchema = obj({
+    verdict: lit("pass", "revise", "reject"),
+    issues: arr(ReviewIssueSchema, { max: 50 }),
+    summary: str({ min: 1 }),
+});
+const ContinuityResultSchema = obj({
+    issues: arr(ReviewIssueSchema, { max: 50 }),
+});
+const ScoreResultSchema = obj({
+    score: num({ min: 0, max: 100 }),
+    strengths: arr(str(), { max: 10 }),
+    weaknesses: arr(str(), { max: 10 }),
+    summary: str({ min: 1 }),
+});
+const CompareResultSchema = obj({
+    winner: lit("A", "B", "tie"),
+    reason: str({ min: 1 }),
+});
+const DraftJsonSchema = obj({
+    title: str({ min: 1 }),
+    body: str({ min: 1 }),
+});
+const PLACEHOLDER_PATTERNS = [
+    { label: "TODO", pattern: /\bTODO\b/i },
+    { label: "TBD", pattern: /\bTBD\b/i },
+    { label: "XXX", pattern: /\bXXX\b/ },
+    { label: "待补占位", pattern: /【待[^】]{0,20}】|\[待[^\]]{0,20}\]/ },
+    { label: "待续占位", pattern: /（待补|待写|待完善|略写）/ },
+];
+const FORBIDDEN_HIT_PATTERNS = [
+    { label: "终止符泄漏", pattern: /<<<END>>>/ },
+    { label: "AI自述", pattern: /作为(?:一个)?(?:AI|人工智能|语言模型)/ },
+    { label: "元提示泄漏", pattern: /^(?:以下是(?:修改后的)?正文|好的，为您)/m },
+    { label: "未命名章号", pattern: /^第[X\?]+章/m },
+];
+export function draftCountForGrade(grade, golden) {
+    if (grade === "economy")
+        return 1;
+    if (grade === "standard")
+        return golden ? 5 : 2;
+    return golden ? 8 : 3;
+}
+export function countChineseWords(text) {
+    return text.replace(/\s+/g, "").length;
+}
+export function parsePlainDraft(raw) {
+    const trimmed = raw.trim();
+    if (trimmed.startsWith("{")) {
+        try {
+            return parseJson(trimmed, DraftJsonSchema, "draft");
+        }
+        catch {
+            // Fall through to plain text parsing
+        }
+    }
+    const endIdx = raw.indexOf("<<<END>>>");
+    if (endIdx === -1) {
+        throw new AppError("model.output_invalid", "起稿输出缺少 <<<END>>> 终止符");
+    }
+    const content = raw.slice(0, endIdx).trim();
+    const lines = content.split(/\r?\n/);
+    const first = lines[0]?.trim() ?? "";
+    if (!first.startsWith("#")) {
+        throw new AppError("model.output_invalid", "起稿输出首行缺少 # 章名");
+    }
+    const title = first.replace(/^#+\s*/, "").trim();
+    const body = lines.slice(1).join("\n").trim();
+    if (!title || !body) {
+        throw new AppError("model.output_invalid", "起稿输出标题或正文为空");
+    }
+    return { title, body };
+}
+export function gateDraft(draft, opts = {}) {
+    const target = opts.targetWords ?? 3000;
+    const minWords = Math.floor(target * (opts.minRatio ?? 0.5));
+    const maxWords = Math.ceil(target * (opts.maxRatio ?? 1.8));
+    const wordCount = countChineseWords(draft.body);
+    const reasons = [];
+    const hits = [];
+    if (wordCount < minWords) {
+        reasons.push(`篇幅不足：当前 ${wordCount} 字，低于下限 ${minWords} 字`);
+    }
+    else if (wordCount > maxWords) {
+        reasons.push(`篇幅过长：当前 ${wordCount} 字，高于上限 ${maxWords} 字`);
+    }
+    for (const rule of PLACEHOLDER_PATTERNS) {
+        if (rule.pattern.test(draft.body) || rule.pattern.test(draft.title)) {
+            hits.push(`占位符:${rule.label}`);
+            reasons.push(`存在未替换占位符（${rule.label}）`);
+        }
+    }
+    for (const rule of FORBIDDEN_HIT_PATTERNS) {
+        if (rule.pattern.test(draft.body)) {
+            hits.push(`命中项:${rule.label}`);
+            reasons.push(`命中禁区词条（${rule.label}）`);
+        }
+    }
+    return {
+        passed: reasons.length === 0,
+        wordCount,
+        reasons,
+        hits,
+    };
+}
+export function filterLocatedIssues(issues, body) {
+    if (issues.length === 0)
+        return { value: [], notes: [] };
+    const kept = [];
+    const notes = [];
+    for (const item of issues) {
+        if (item.quote && body.includes(item.quote)) {
+            kept.push(item);
+        }
+        else {
+            notes.push(`已剔除不可定位引文：${item.quote || "(空)"}`);
+        }
+    }
+    if (kept.length === 0 && notes.length > 0) {
+        throw new AppError("model.output_invalid", "审读引文全部不可定位，触发内容重试");
+    }
+    return { value: kept, notes };
+}
+function getCurrentDraftFromState(ctx) {
+    const candidate = ctx.state.currentDraft;
+    if (!candidate || !candidate.body) {
+        throw new AppError("internal", "流水线状态缺少当前待审稿件");
+    }
+    return candidate;
+}
+export const beatsStage = {
+    id: "beats",
+    title: "分场节拍",
+    role: "planner",
+    method: { stage: "fanqie.chapter.beats" },
+    input: (ctx) => {
+        const req = ctx.request;
+        return {
+            chapterId: req.chapterId,
+            outline: String(ctx.state.outlineText ?? ""),
+            note: req.note,
+        };
+    },
+    shape: 'JSON 格式：{"scenes":[{"title":"场景名","goal":"目标","conflict":"冲突","hook":"钩子"}]}',
+    format: "json",
+    parse: (raw) => parseJson(raw, BeatsSchema, "beats"),
+};
+export const draftStage = {
+    id: "draft",
+    title: "起稿",
+    role: "writer",
+    method: { stage: "fanqie.chapter.draft" },
+    input: (ctx) => {
+        const req = ctx.request;
+        return {
+            chapterId: req.chapterId,
+            beats: ctx.state.beats,
+            note: req.note,
+        };
+    },
+    shape: "纯文本输出：首行 `# 章名`，正文段落，末尾单独一行 `<<<END>>>`。",
+    format: "text",
+    parse: parsePlainDraft,
+    fanOut: {
+        count: (ctx) => {
+            const req = ctx.request;
+            return draftCountForGrade(req.grade ?? "standard", req.golden === "true");
+        },
+    },
+};
+export function makeScoreStage(index) {
+    return {
+        id: `select-score-${index}`,
+        title: `独立评分 #${index + 1}`,
+        role: "judge",
+        method: { stage: "fanqie.chapter.select" },
+        input: (ctx) => {
+            const candidates = ctx.state.passingDrafts ?? [];
+            const target = candidates[index];
+            if (!target) {
+                throw new AppError("internal", `缺少评分候选稿 #${index}`);
+            }
+            return target;
+        },
+        shape: 'JSON 格式：{"score":0-100,"strengths":["优点"],"weaknesses":["不足"],"summary":"一句话总评"}',
+        format: "json",
+        parse: (raw) => parseJson(raw, ScoreResultSchema, "select-score"),
+    };
+}
+export function makeCompareStage(label, aFirst) {
+    return {
+        id: `select-compare-${label}`,
+        title: `换位盲评 (${label})`,
+        role: "judge",
+        method: { stage: "fanqie.chapter.select" },
+        input: (ctx) => {
+            const topTwo = ctx.state.topTwo;
+            if (!topTwo) {
+                throw new AppError("internal", "缺少换位比较的前二候选稿");
+            }
+            return aFirst ? { A: topTwo[0], B: topTwo[1] } : { A: topTwo[1], B: topTwo[0] };
+        },
+        shape: 'JSON 格式：{"winner":"A|B|tie","reason":"比较结论"}',
+        format: "json",
+        parse: (raw) => parseJson(raw, CompareResultSchema, "select-compare"),
+    };
+}
+export const continuityStage = {
+    id: "continuity-check",
+    title: "连续性核查",
+    role: "editor",
+    method: { stage: "fanqie.chapter.review" },
+    input: (ctx) => {
+        const req = ctx.request;
+        const draft = getCurrentDraftFromState(ctx);
+        return { chapterId: req.chapterId, title: draft.title, body: draft.body };
+    },
+    shape: 'JSON 格式：{"issues":[{"kind":"continuity","quote":"原文精确引文","issue":"问题","fix":"修改建议"}]}',
+    format: "json",
+    parse: (raw) => parseJson(raw, ContinuityResultSchema, "continuity-check"),
+    accept: (o, ctx) => {
+        const draft = getCurrentDraftFromState(ctx);
+        const filtered = filterLocatedIssues(o.issues, draft.body);
+        return { value: { issues: filtered.value }, notes: filtered.notes };
+    },
+};
+export function makeReviewStage(round) {
+    return {
+        id: round === 1 ? "review" : `review-r${round}`,
+        title: `编辑审读（第 ${round} 轮）`,
+        role: "editor",
+        method: { stage: "fanqie.chapter.review" },
+        input: (ctx) => {
+            const req = ctx.request;
+            const draft = getCurrentDraftFromState(ctx);
+            return { chapterId: req.chapterId, round, title: draft.title, body: draft.body };
+        },
+        shape: 'JSON 格式：{"verdict":"pass|revise|reject","issues":[{"kind":"continuity|reader","quote":"原文精确引文","issue":"问题","fix":"修改建议"}],"summary":"审读总结"}',
+        format: "json",
+        parse: (raw) => parseJson(raw, ReviewResultSchema, "review"),
+        accept: (o, ctx) => {
+            const draft = getCurrentDraftFromState(ctx);
+            const filtered = filterLocatedIssues(o.issues, draft.body);
+            return {
+                value: { ...o, issues: filtered.value },
+                notes: filtered.notes,
+            };
+        },
+    };
+}
+export const reviewStage = makeReviewStage(1);
+export function makeReviseStage(round) {
+    return {
+        id: round === 1 ? "revise" : `revise-r${round}`,
+        title: `按回报修改（第 ${round} 轮）`,
+        role: "writer",
+        method: { stage: "fanqie.chapter.revise" },
+        input: (ctx) => {
+            const req = ctx.request;
+            const draft = getCurrentDraftFromState(ctx);
+            const issues = ctx.state.pendingIssues ?? [];
+            return { chapterId: req.chapterId, round, draft, issues, note: req.note };
+        },
+        shape: "纯文本输出：首行 `# 章名`，修改后的完整正文段落，末尾单独一行 `<<<END>>>`。",
+        format: "text",
+        parse: parsePlainDraft,
+    };
+}
+export const reviseStage = makeReviseStage(1);
+export const chapterPipeline = {
+    kind: "fanqie.chapter",
+    request: ChapterPipelineReq,
+    async context(target, req) {
+        return {
+            runId: `run-${Date.now()}`,
+            target,
+            request: req,
+            state: {},
+        };
+    },
+    async run(runner, ctx) {
+        const req = ctx.request;
+        const lock = createLockService(systemClock);
+        const bibleStore = createBibleStore(lock);
+        const prepared = await runner.local("prepare", async () => {
+            const workMeta = await readJson(path.join(ctx.target.path, "work.json"), WorkMetaSchema).catch(() => undefined);
+            const chapterRaw = await readTextIfExists(path.join(ctx.target.path, "chapters", `${req.chapterId}.md`));
+            const parsedChapter = chapterRaw ? parseChapterMarkdown(chapterRaw) : undefined;
+            const outlineText = parsedChapter?.meta.outline
+                ? Object.entries(parsedChapter.meta.outline)
+                    .map(([k, v]) => `${k}：${v}`)
+                    .join("\n")
+                : req.note ?? `章节 ${req.chapterId}`;
+            const bible = await bibleStore.read(ctx.target.path);
+            const parsedPos = req.position ? Number.parseInt(req.position, 10) : NaN;
+            const position = Number.isFinite(parsedPos) && parsedPos > 0 ? parsedPos : bible.chapters.length + 1;
+            const view = bibleStore.asOf(bible, position);
+            const prevRecord = bible.chapters
+                .filter((c) => c.position < position)
+                .sort((a, b) => b.position - a.position)[0];
+            const hits = bibleStore.match(view, [outlineText, prevRecord?.summary ?? ""]);
+            const targetWords = req.targetWords ?? workMeta?.settings.targetWords ?? 3000;
+            const prevModeSetting = workMeta?.settings.previousTextMode ?? "auto";
+            const packet = buildChapterContext({
+                chapterId: req.chapterId,
+                position,
+                outlineText,
+                authorNote: req.note,
+                previousSummary: prevRecord?.summary,
+                previousHandoff: prevRecord ? JSON.stringify(prevRecord.handoff) : undefined,
+                bible,
+                view,
+                hits,
+                recentSummaries: bible.chapters
+                    .filter((c) => c.position < position)
+                    .slice(-10)
+                    .map((c) => ({ position: c.position, summary: c.summary })),
+                budget: 12000,
+                previousTextMode: prevModeSetting === "full"
+                    ? { kind: "full", maxChars: 6000 }
+                    : { kind: "tail", chars: 1800 },
+            });
+            return { packet, targetWords, position, outlineText };
+        });
+        ctx.state.outlineText = prepared.outlineText;
+        const packet = prepared.packet;
+        // 1. beats
+        const beats = await runner.stage(beatsStage, packet);
+        ctx.state.beats = beats;
+        // 2. draft × N
+        const drafts = await runner.fanOut(draftStage, packet);
+        // 3. gate (篇幅 / 占位符 / 命中项)
+        const gateResults = await runner.local("gate", async () => {
+            const reports = drafts.map((draft, idx) => ({
+                idx,
+                draft,
+                report: gateDraft(draft, { targetWords: prepared.targetWords }),
+            }));
+            const passing = reports.filter((r) => r.report.passed);
+            if (passing.length === 0) {
+                const reasons = reports.flatMap((r) => r.report.reasons).slice(0, 6);
+                throw new AppError("model.output_invalid", `所有候选稿未通过基础门禁：${reasons.join("；")}`, {
+                    reasons,
+                });
+            }
+            return passing;
+        });
+        const passingDrafts = gateResults.map((g) => g.draft);
+        ctx.state.passingDrafts = passingDrafts;
+        // 4. select (逐稿独立打分 + 前二换位比较)
+        let chosen = passingDrafts[0];
+        let chosenGate = gateResults[0].report;
+        if (passingDrafts.length > 1) {
+            const scored = [];
+            for (let i = 0; i < passingDrafts.length; i++) {
+                const res = await runner.stage(makeScoreStage(i), packet);
+                scored.push({
+                    idx: i,
+                    draft: passingDrafts[i],
+                    gate: gateResults[i].report,
+                    score: res.score,
+                });
+            }
+            scored.sort((a, b) => b.score - a.score);
+            ctx.state.topTwo = [scored[0].draft, scored[1].draft];
+            const ab = await runner.stage(makeCompareStage("ab", true), packet);
+            const ba = await runner.stage(makeCompareStage("ba", false), packet);
+            if (ab.winner === "B" && ba.winner === "A") {
+                chosen = scored[1].draft;
+                chosenGate = scored[1].gate;
+            }
+            else {
+                chosen = scored[0].draft;
+                chosenGate = scored[0].gate;
+            }
+        }
+        ctx.state.currentDraft = chosen;
+        // 5. continuity-check
+        const continuity = await runner.stage(continuityStage, packet);
+        // 6. review & revise loop (<= MAX_EDITOR_REJECTIONS = 2)
+        let editorPass = false;
+        let editorRejections = 0;
+        let latestReview = {
+            verdict: "pass",
+            issues: [],
+            summary: "尚未审读",
+        };
+        for (let round = 1; round <= MAX_EDITOR_REJECTIONS + 1; round++) {
+            latestReview = await runner.stage(makeReviewStage(round), packet);
+            const combinedIssues = round === 1 ? [...continuity.issues, ...latestReview.issues] : latestReview.issues;
+            if (latestReview.verdict === "pass" && combinedIssues.length === 0) {
+                editorPass = true;
+                break;
+            }
+            if (round > MAX_EDITOR_REJECTIONS) {
+                editorRejections = MAX_EDITOR_REJECTIONS;
+                break;
+            }
+            editorRejections = round;
+            ctx.state.pendingIssues = combinedIssues;
+            const revised = await runner.stage(makeReviseStage(round), packet);
+            const revisedGate = await runner.local(`gate-revise-${round}`, async () => gateDraft(revised, { targetWords: prepared.targetWords }));
+            if (!revisedGate.passed) {
+                throw new AppError("model.output_invalid", `第 ${round} 轮修稿未通过门禁：${revisedGate.reasons.join("；")}`, { reasons: revisedGate.reasons });
+            }
+            chosen = revised;
+            chosenGate = revisedGate;
+            ctx.state.currentDraft = chosen;
+        }
+        return {
+            title: chosen.title,
+            body: chosen.body,
+            beats,
+            gate: chosenGate,
+            review: latestReview,
+            editorPass,
+            editorRejections,
+        };
+    },
+    async deliver(res, ctx) {
+        const req = ctx.request;
+        const candDir = path.join(ctx.target.path, "candidates", req.chapterId);
+        const marker = path.join(candDir, `${ctx.runId}.marker.json`);
+        if (await isAlreadyDelivered(marker, ctx.runId)) {
+            return {
+                runId: ctx.runId,
+                deliveredPaths: [],
+                contentHash: sha256(res.body),
+                summary: "已幂等交付",
+            };
+        }
+        const candFile = path.join(candDir, `${ctx.runId}.md`);
+        const metaFile = path.join(candDir, `${ctx.runId}.meta.json`);
+        await atomicWrite(candFile, `# ${res.title}\n\n${res.body}`);
+        await atomicWrite(metaFile, JSON.stringify({
+            runId: ctx.runId,
+            chapterId: req.chapterId,
+            title: res.title,
+            wordCount: res.gate.wordCount,
+            editorPass: res.editorPass,
+            editorRejections: res.editorRejections,
+            review: res.review,
+            beats: res.beats,
+        }, null, 2));
+        await atomicWrite(marker, buildDeliveryMarker(ctx.runId, res.body));
+        return {
+            runId: ctx.runId,
+            deliveredPaths: [candFile, metaFile],
+            contentHash: sha256(res.body),
+            summary: `已交付候选稿「${res.title}」（${res.gate.wordCount} 字，${res.editorPass ? "编辑通过" : `待作者裁决，打回 ${res.editorRejections} 轮`}）`,
+        };
+    },
+    async recover(record, ctx) {
+        const req = ctx.request;
+        const marker = path.join(ctx.target.path, "candidates", req.chapterId, `${record.id}.marker.json`);
+        return (await isAlreadyDelivered(marker, record.id)) ? "delivered" : "resume";
+    },
+};

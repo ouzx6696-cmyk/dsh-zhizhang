@@ -1,15 +1,22 @@
 * {
   box-sizing: border-box;
 }
-body {
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
   margin: 0;
-  background: radial-gradient(ellipse at 48% 20%, var(--ui-bg-glow), var(--ui-bg) 75%);
-  font: var(--ui-size-14)/1.6 var(--ui-font-ui);
-  color: var(--ui-text);
+}
+body {
+  overflow: hidden;
+  background: radial-gradient(ellipse at 48% 20%, var(--zz-bg-glow), var(--zz-bg) 75%);
+  font: var(--zz-text-body)/1.6 var(--zz-font-ui);
+  color: var(--zz-text-1);
   -webkit-font-smoothing: antialiased;
 }
 ::selection {
-  background: color-mix(in srgb, var(--ui-accent) 32%, transparent);
+  background: color-mix(in srgb, var(--zz-decide) 32%, transparent);
 }
 button,
 input,
@@ -18,77 +25,39 @@ select {
   font: inherit;
   color: inherit;
 }
-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--ui-space-2);
-  border: 1px solid var(--ui-line);
-  cursor: pointer;
-  white-space: nowrap;
-  border-radius: var(--ui-radius-sm);
-  background: var(--ui-fill);
-  padding: var(--ui-space-2) var(--ui-space-3);
-  min-height: var(--ui-control-height);
-  transition:
-    background-color var(--ui-duration-fast) var(--ui-ease),
-    border-color var(--ui-duration-fast) var(--ui-ease),
-    color var(--ui-duration-fast) var(--ui-ease),
-    box-shadow var(--ui-duration-fast) var(--ui-ease),
-    filter var(--ui-duration-fast) var(--ui-ease);
-}
-button:hover {
-  background: var(--ui-accent-soft);
-}
-button:disabled {
-  opacity: 0.42;
-  cursor: default;
-}
-button.primary {
-  background: var(--ui-primary-fill);
-  color: var(--ui-on-accent);
-  border-color: transparent;
-}
-button.primary:hover {
-  background: var(--ui-primary-fill);
-  filter: brightness(1.06);
-}
-button.primary:active {
-  filter: brightness(0.96);
-}
 input,
 textarea,
 select {
-  border: 1px solid var(--ui-line);
-  padding: var(--ui-space-2) var(--ui-space-3);
+  border: 1px solid var(--zz-border);
+  padding: var(--zz-space-2) var(--zz-space-3);
   min-width: 0;
-  border-radius: var(--ui-radius-sm);
-  background: var(--ui-fill);
-  min-height: var(--ui-control-height);
+  border-radius: var(--zz-radius-sm);
+  background: var(--zz-surface-2);
+  min-height: var(--zz-control-height);
   transition:
-    border-color var(--ui-duration-fast) var(--ui-ease),
-    box-shadow var(--ui-duration-fast) var(--ui-ease);
+    border-color var(--zz-dur-1) var(--zz-ease),
+    box-shadow var(--zz-dur-1) var(--zz-ease);
 }
 input:hover,
 textarea:hover,
 select:hover {
-  border-color: var(--ui-line-strong);
+  border-color: var(--zz-border-strong);
 }
 /* 输入框聚焦用描边加柔光；按钮只在键盘聚焦时显示外框。 */
 input:focus,
 textarea:focus,
 select:focus {
   outline: 0;
-  border-color: var(--ui-accent);
-  box-shadow: 0 0 0 3px var(--ui-accent-soft);
+  border-color: var(--zz-decide);
+  box-shadow: 0 0 0 3px var(--zz-decide-fill);
 }
 button:focus-visible,
 a:focus-visible {
-  outline: 2px solid var(--ui-accent);
+  outline: 2px solid var(--zz-decide);
   outline-offset: 2px;
 }
 a {
-  color: var(--ui-accent);
+  color: var(--zz-decide);
 }
 h1,
 h2,
@@ -97,31 +66,31 @@ p {
   margin-top: 0;
 }
 h2 {
-  font-size: var(--ui-size-16);
+  font-size: var(--zz-text-strong);
 }
 h3 {
-  font-size: var(--ui-size-14);
+  font-size: var(--zz-text-body);
 }
 small {
-  color: var(--ui-text-3);
+  color: var(--zz-text-3);
 }
 kbd {
   display: inline-flex;
   align-items: center;
   min-width: 20px;
-  padding: 0 var(--ui-space-1);
-  border: 1px solid var(--ui-line-strong);
+  padding: 0 var(--zz-space-1);
+  border: 1px solid var(--zz-border-strong);
   border-bottom-width: 2px;
-  border-radius: var(--ui-radius-xs);
-  background: var(--ui-fill);
-  color: var(--ui-text-3);
-  font: var(--ui-size-12) / 1.5 var(--ui-font-ui);
+  border-radius: var(--zz-radius-xs);
+  background: var(--zz-surface-2);
+  color: var(--zz-text-3);
+  font: var(--zz-text-caption) / 1.5 var(--zz-font-ui);
   white-space: nowrap;
 }
 /* 细滚动条：平时与界面同色，悬停才显出把手。 */
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--ui-line-strong) transparent;
+  scrollbar-color: var(--zz-border-strong) transparent;
 }
 ::-webkit-scrollbar {
   width: 10px;
@@ -129,11 +98,11 @@ kbd {
 }
 ::-webkit-scrollbar-thumb {
   border: 3px solid transparent;
-  border-radius: var(--ui-radius-pill);
-  background: var(--ui-line) padding-box;
+  border-radius: var(--zz-radius-pill);
+  background: var(--zz-border) padding-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--ui-line-strong) padding-box;
+  background: var(--zz-border-strong) padding-box;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
@@ -151,8 +120,8 @@ kbd {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--ui-space-3);
-  color: var(--ui-text-3);
+  gap: var(--zz-space-3);
+  color: var(--zz-text-3);
 }
 .checkbox input {
   width: auto;
@@ -166,38 +135,24 @@ kbd {
     scroll-behavior: auto;
   }
 }
-html[data-writer-desktop],
-html[data-writer-desktop] body,
-html[data-writer-desktop] #root {
-  width: 100%;
-  height: 100%;
-  margin: 0;
-}
-html[data-writer-desktop] body {
-  overflow: hidden;
-}
-/* 工作台组件只认 --wb-*：桌面主题在这里一次接管，避免语义色回落到系统色。
-   工作台对话框里嵌套的 .wb-scope 会重设 --wb-* 默认值，所以一并覆盖。 */
-.writer-desktop,
-.writer-desktop .wb-scope {
-  --wb-bg: var(--ui-bg);
-  --wb-fg: var(--ui-text);
-  --wb-fg-2: var(--ui-text-2);
-  --wb-fg-3: var(--ui-text-3);
-  --wb-line: var(--ui-line);
-  --wb-line-strong: var(--ui-line-strong);
-  --wb-card: var(--ui-fill);
-  --wb-hover: var(--ui-fill-strong);
-  --wb-active: var(--ui-accent-soft);
-  --wb-accent: var(--ui-accent);
-  --wb-accent-soft: var(--ui-accent-soft);
-  --wb-ok: var(--ui-success);
-  --wb-ok-soft: color-mix(in srgb, var(--ui-success) 14%, transparent);
-  --wb-warn: var(--ui-warning);
-  --wb-warn-soft: color-mix(in srgb, var(--ui-warning) 18%, transparent);
-  --wb-bad: var(--ui-danger);
-  --wb-bad-soft: color-mix(in srgb, var(--ui-danger) 14%, transparent);
-  --wb-skeleton: var(--ui-fill-strong);
+/* 桌面端补充令牌（基于 @zhizhang/ui --zz-* 语义令牌）。 */
+:root {
+  --zz-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --zz-z-base: 1;
+  --zz-z-sticky: 10;
+  --zz-z-drawer: 30;
+  --zz-z-popover: 50;
+  --zz-control-height: 32px;
+  --zz-blur: 10px;
+  --zz-bg-glow: color-mix(in srgb, var(--zz-decide) 6%, var(--zz-bg));
+  --zz-glow: 0 0 0 3px var(--zz-decide-fill);
+  --zz-overlay-1: rgba(0, 0, 0, 0.45);
+  --zz-shadow-1: 0 2px 8px rgba(0, 0, 0, 0.18);
+  --zz-shadow-2: 0 10px 28px rgba(0, 0, 0, 0.28);
+  --zz-paper-shadow: 0 6px 24px rgba(0, 0, 0, 0.16);
+  --zz-ok-soft: color-mix(in srgb, var(--zz-ok) 14%, transparent);
+  --zz-warn-soft: color-mix(in srgb, var(--zz-warn) 18%, transparent);
+  --zz-bad-soft: color-mix(in srgb, var(--zz-bad) 14%, transparent);
 }
 .writer-desktop {
   height: 100dvh;
@@ -207,15 +162,7 @@ html[data-writer-desktop] body {
 }
 .writer-desktop.wb-scope {
   display: flex;
-  font: var(--ui-size-13)/1.6 var(--ui-font-ui);
+  font: var(--zz-text-meta)/1.6 var(--zz-font-ui);
   width: 100%;
   min-width: 0;
-}
-.writer-desktop button.wb-button-primary {
-  background: var(--ui-primary-fill);
-  color: var(--ui-on-accent);
-  border-color: transparent;
-}
-.writer-desktop button.wb-button-ghost {
-  background: transparent;
 }

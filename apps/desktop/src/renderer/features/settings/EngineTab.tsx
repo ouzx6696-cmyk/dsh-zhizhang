@@ -1,27 +1,18 @@
 import React from "react";
-import { AGENT_COPY, COPY as copy } from "@writer/ui/copy";
-import { Toggle } from "@writer/ui/primitives";
-import {
-  BUDGET_LIMITS,
-  type EngineSettings,
-} from "../../../../../../packages/core/src/workflow-config.js";
-import type { SessionOptions } from "../../../session/types";
+import { BUDGET_LIMITS, type EngineSettings } from "@zhizhang/core";
+import { toggleClasses } from "@zhizhang/ui/primitives";
+import { AGENT_COPY, DESKTOP_COPY as copy } from "../../../shared/copy";
 import type { ContextSettings } from "../../../context-settings";
+import type { SessionOptions } from "../../../session/types";
 
 const FLAGS = [
   ["pursuit", "enabled", copy.workflowPursuit, "fanqie"],
   ["pursuit", "radar", copy.workflowReadingRadar, "fanqie"],
-  ["handoff", "v2", copy.workflowHandoff, "both"],
   ["continuity", "enabled", copy.workflowContinuity, "fanqie"],
-  ["multiDraft", "enabled", copy.workflowMultiDraft, "fanqie"],
-  ["draw", "enabled", copy.workflowDraw, "both"],
   ["learn", "enabled", copy.workflowLearn, "both"],
-  ["session", "perChapter", copy.workflowPerChapter, "fanqie"],
-  ["session", "proactiveCompact", copy.workflowCompact, "both"],
-  ["toolset", "narrowed", copy.workflowNarrow, "fanqie"],
   ["brief", "creationFirst", copy.workflowCreation, "both"],
-  ["qa", "judge", copy.workflowReader, "toutiao"],
 ] as const;
+
 function flag(options: SessionOptions, mode: "fanqie" | "toutiao", group: string, key: string) {
   const section = options[mode];
   if (!section || !(group in section)) return false;
@@ -30,6 +21,29 @@ function flag(options: SessionOptions, mode: "fanqie" | "toutiao", group: string
     typeof value === "object" && value !== null && key in value && Reflect.get(value, key) === true
   );
 }
+
+function ToggleRow({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className={toggleClasses()}>
+      <input
+        type="checkbox"
+        role="switch"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span>{label}</span>
+    </label>
+  );
+}
+
 export function EngineTab({
   value,
   onChange,
@@ -47,8 +61,8 @@ export function EngineTab({
 }) {
   const change = (mode: "fanqie" | "toutiao", group: string, key: string, enabled: boolean) => {
     if (!options) return;
-    const section = options[mode] ?? {},
-      existing = Reflect.get(section, group);
+    const section = options[mode] ?? {};
+    const existing = Reflect.get(section, group);
     onOptionsChange({
       ...options,
       [mode]: {
@@ -62,12 +76,6 @@ export function EngineTab({
   };
   return (
     <section>
-      <Toggle
-        label={copy.workflowGuided}
-        checked={value.guided}
-        onChange={(checked: boolean) => onChange({ ...value, guided: checked })}
-      />
-      <p className="form-note">{copy.workflowGuideNote}</p>
       <label>
         {copy.workflowGrade}
         <select
@@ -101,10 +109,10 @@ export function EngineTab({
       </label>
       <p className="form-note">{copy.workflowCostNote}</p>
       <h3>{AGENT_COPY.contextSettings}</h3>
-      <Toggle
+      <ToggleRow
         label={copy.contextPanelText16}
         checked={context.enabled}
-        onChange={(checked: boolean) => onContextChange({ ...context, enabled: checked })}
+        onChange={(checked) => onContextChange({ ...context, enabled: checked })}
       />
       <label>
         {copy.contextPanelText17}
@@ -143,11 +151,11 @@ export function EngineTab({
           <legend>{mode === "fanqie" ? copy.workflowChapter : copy.workflowArticle}</legend>
           {FLAGS.filter((row) => row[3] === "both" || row[3] === mode).map(
             ([group, key, label]) => (
-              <Toggle
+              <ToggleRow
                 key={group + key}
                 label={label}
                 checked={options ? flag(options, mode, group, key) : false}
-                onChange={(checked: boolean) => void change(mode, group, key, checked)}
+                onChange={(checked) => void change(mode, group, key, checked)}
               />
             ),
           )}

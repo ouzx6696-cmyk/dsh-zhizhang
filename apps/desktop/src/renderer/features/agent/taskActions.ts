@@ -1,5 +1,5 @@
-import { newRequestId } from "@writer/ui/request";
-import { fanqie, toutiao } from "../../../../../../packages/workbench/src/client/shared/api.js";
+import { newRequestId } from "@zhizhang/ui/request";
+import { fanqie, toutiao } from "@zhizhang/workbench";
 import type { Focus, Target } from "../../../context";
 import type { DesktopState } from "../../state/store";
 import { desktop } from "../../state/desktop";
@@ -13,7 +13,6 @@ type TaskActionDependencies = {
     persist?: boolean,
     reopen?: boolean,
   ) => Promise<void>;
-  sendText: (value: string, snapshot?: Focus) => Promise<void>;
   set: (patch: Partial<DesktopState> | ((state: DesktopState) => Partial<DesktopState>)) => void;
 };
 
@@ -31,29 +30,33 @@ export async function startNewWork(
     tab: "agent",
     drawer: true,
   }));
-  if (mode === "toutiao")
+  if (mode === "toutiao") {
     await toutiao.deliver({
       root: next.root,
       action: "new",
       note,
       requestId: newRequestId("desktop"),
     });
-  else
-    await deps.sendText(
-      "【写作台】创建一本新的长篇作品。" +
-        (note ? "书名、题材或想法：" + note : "先和我确定书名与一句话题材。") +
-        "作品创建后先完成开书规划，不自动写正文。",
-      { intent: "plan" },
-    );
+  } else {
+    await fanqie.deliver({
+      base: next.root,
+      work: next.work,
+      action: "new",
+      note,
+      confirm: true,
+      requestId: newRequestId("desktop"),
+    });
+  }
   deps.set({ picker: false, onboarding: false });
 }
 
 export async function deliverAction(deps: TaskActionDependencies, action: string, note = "") {
-  const target = deps.selected,
-    snapshot = { ...deps.focus };
+  const target = deps.selected;
+  const snapshot = { ...deps.focus };
   if (!target) throw new Error("请先选择作品");
-  if (target.mode === "toutiao" && action !== "new" && !snapshot.article && !target.article)
+  if (target.mode === "toutiao" && action !== "new" && !snapshot.article && !target.article) {
     throw new Error("请先选择一篇文章，再执行此操作");
+  }
   const body =
     target.mode === "fanqie"
       ? {
