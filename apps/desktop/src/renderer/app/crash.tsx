@@ -13,7 +13,10 @@ interface BoundaryState {
  * 根部兜底：任一组件渲染抛错时换成说明与“重新加载窗口”，不让整窗白屏。
  * 兜底画面只用文案与原生元素，不读任何 store，免得出错的状态把它也带倒。
  */
-export class RootErrorBoundary extends React.Component<{ children: React.ReactNode }, BoundaryState> {
+export class RootErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  BoundaryState
+> {
   state: BoundaryState = { failed: false, error: undefined };
 
   static getDerivedStateFromError(error: unknown): BoundaryState {
@@ -32,7 +35,10 @@ export class RootErrorBoundary extends React.Component<{ children: React.ReactNo
           <h1>{CRASH_COPY.title}</h1>
           <p>{messageOf(this.state.error)}</p>
           <p>{CRASH_COPY.hint}</p>
-          <button className="zz-btn zz-btn--primary zz-btn--md" onClick={() => window.location.reload()}>
+          <button
+            className="zz-btn zz-btn--primary zz-btn--md"
+            onClick={() => window.location.reload()}
+          >
             {CRASH_COPY.reload}
           </button>
         </div>

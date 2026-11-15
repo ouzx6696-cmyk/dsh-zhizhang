@@ -29,7 +29,12 @@ export function ToutiaoApp({ state, rows, selected, dispatch }: ToutiaoAppProps)
     <div className="wb-toutiao">
       <aside className="wb-toutiao-list" aria-label="文章列表">
         {rows.length ? (
-          <ul className="wb-chapter-list" role="listbox" aria-label="头条文章" data-testid="article-list">
+          <ul
+            className="wb-chapter-list"
+            role="listbox"
+            aria-label="头条文章"
+            data-testid="article-list"
+          >
             {rows.map((row) => {
               const active = row.id === state.selectedId;
               return (

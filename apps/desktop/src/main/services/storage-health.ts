@@ -8,12 +8,19 @@ import type { Clock } from "@zhizhang/core/clock";
 import { AppError } from "@zhizhang/core/errors";
 import { replayIntents } from "@zhizhang/core/journal";
 import type { LockService } from "@zhizhang/core/lock";
-import type { PendingIntentView, RecoverAction, StorageHealth, WorkspaceStatus } from "../../shared/views.js";
+import type {
+  PendingIntentView,
+  RecoverAction,
+  StorageHealth,
+  WorkspaceStatus,
+} from "../../shared/views.js";
 import { summarizeRun, type RunStore } from "./runs.js";
 
 async function childDirs(dir: string): Promise<string[]> {
   const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
-  return entries.filter((e) => e.isDirectory() && !e.name.startsWith(".")).map((e) => path.join(dir, e.name));
+  return entries
+    .filter((e) => e.isDirectory() && !e.name.startsWith("."))
+    .map((e) => path.join(dir, e.name));
 }
 
 async function pendingIntents(status: WorkspaceStatus): Promise<PendingIntentView[]> {
@@ -44,9 +51,15 @@ export function createStorageHealth(deps: {
   async function inspect(): Promise<StorageHealth> {
     const status = deps.workspace();
     const lockRoots = status.root ? [status.root, status.roots.fanqie, status.roots.toutiao] : [];
-    const staleLocks = (await Promise.all(lockRoots.map((dir) => deps.locks.inspectStale(dir)))).flat();
+    const staleLocks = (
+      await Promise.all(lockRoots.map((dir) => deps.locks.inspectStale(dir)))
+    ).flat();
     const interruptedRuns = (await deps.runs.listAll())
-      .filter((run) => run.state === "paused" && run.stateHistory[run.stateHistory.length - 1]?.reason === "interrupted")
+      .filter(
+        (run) =>
+          run.state === "paused" &&
+          run.stateHistory[run.stateHistory.length - 1]?.reason === "interrupted",
+      )
       .map(summarizeRun);
     return {
       root: status.root,
@@ -66,7 +79,8 @@ export function createStorageHealth(deps: {
       }
       if (action.kind === "clear-lock") {
         const lock = health.staleLocks.find((l) => l.lockDir === action.lockDir);
-        if (!lock) throw new AppError("input.not_found", "该写锁已不是遗留锁", { lockDir: action.lockDir });
+        if (!lock)
+          throw new AppError("input.not_found", "该写锁已不是遗留锁", { lockDir: action.lockDir });
         await deps.locks.clearStale(lock, { confirmedByAuthor: true, at: deps.clock.iso() });
       } else if (action.kind === "replay-intents") {
         if (!health.pendingIntents.some((i) => i.dir === action.dir)) {

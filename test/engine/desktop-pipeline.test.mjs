@@ -18,17 +18,30 @@ function fanqieAnswer(req) {
   const tail = req.user.slice(-400);
   if (tail.includes("<<<END>>>")) return { text: `# 第二章 夜码头\n\n${BODY}\n<<<END>>>` };
   if (tail.includes('"scenes"')) {
-    return { text: JSON.stringify({ scenes: [{ title: "码头", goal: "找人", conflict: "雨夜", hook: "来电" }] }) };
+    return {
+      text: JSON.stringify({
+        scenes: [{ title: "码头", goal: "找人", conflict: "雨夜", hook: "来电" }],
+      }),
+    };
   }
-  if (tail.includes('"verdict"')) return { text: JSON.stringify({ verdict: "pass", issues: [], summary: "可以交付" }) };
+  if (tail.includes('"verdict"'))
+    return { text: JSON.stringify({ verdict: "pass", issues: [], summary: "可以交付" }) };
   if (tail.includes('"issues"')) return { text: JSON.stringify({ issues: [] }) };
-  return { error: Object.assign(new Error(`unexpected stage prompt: ${req.user.slice(-80)}`), { status: 400 }) };
+  return {
+    error: Object.assign(new Error(`unexpected stage prompt: ${req.user.slice(-80)}`), {
+      status: 400,
+    }),
+  };
 }
 
 function services(base, port, clock, extra = {}) {
   const gateway = desk.createModelGateway(
     port,
-    { globalConcurrency: 4, perRunConcurrency: 3, roles: { writer: { connection: "fake", model: "fake-model" } } },
+    {
+      globalConcurrency: 4,
+      perRunConcurrency: 3,
+      roles: { writer: { connection: "fake", model: "fake-model" } },
+    },
     clock,
   );
   const events = [];
@@ -38,7 +51,10 @@ function services(base, port, clock, extra = {}) {
     runs,
     gateway: () => gateway,
     budget: () => ({ inputBudget: 200000, runBudget: 10000000, moneyCap: null }),
-    profileRoots: (mode) => ({ builtinDir: path.join(ROOT, "packages", mode, "profiles"), userDir: path.join(base, "state", "profiles") }),
+    profileRoots: (mode) => ({
+      builtinDir: path.join(ROOT, "packages", mode, "profiles"),
+      userDir: path.join(base, "state", "profiles"),
+    }),
     profileId: async () => "default",
     emit: (event) => events.push(event),
     ...extra,
@@ -51,8 +67,15 @@ function commandCtx(base, clock) {
     clock,
     locks: desk.createLockService(clock),
     inside: (p) => path.resolve(p),
-    roots: () => ({ fanqie: path.join(base, "长篇"), toutiao: path.join(base, "头条"), library: path.join(base, "拆书库") }),
-    profiles: { builtin: (m) => path.join(ROOT, "packages", m, "profiles"), userDir: path.join(base, "state", "profiles") },
+    roots: () => ({
+      fanqie: path.join(base, "长篇"),
+      toutiao: path.join(base, "头条"),
+      library: path.join(base, "拆书库"),
+    }),
+    profiles: {
+      builtin: (m) => path.join(ROOT, "packages", m, "profiles"),
+      userDir: path.join(base, "state", "profiles"),
+    },
     scriptsDir: REAL_SCRIPTS,
     workflow: { startAndWait: async () => assert.fail("not used") },
   };
@@ -64,7 +87,10 @@ test("番茄章节流水线经 ModelGateway + 假端口跑通：交付候选稿�
   const ctx = commandCtx(base, clock);
   await fs.mkdir(path.join(base, "长篇"), { recursive: true });
   const { workPath } = await desk.dispatchWorkbenchCommand(
-    { command: "fanqie.work.create", input: { root: path.join(base, "长篇"), title: "夜航", premise: "", grade: "economy" } },
+    {
+      command: "fanqie.work.create",
+      input: { root: path.join(base, "长篇"), title: "夜航", premise: "", grade: "economy" },
+    },
     ctx,
   );
   const port = createFakeModelPort([fanqieAnswer], { repeatLast: true });
@@ -82,9 +108,15 @@ test("番茄章节流水线经 ModelGateway + 假端口跑通：交付候选稿�
   assert.deepEqual(stepIds, ["prepare", "beats", "draft-0", "gate", "continuity-check", "review"]);
   assert.ok(detail.steps.find((s) => s.id === "draft-0").methodHash, "起稿阶段带方法指纹");
   assert.ok(port.calls.every((req) => req.connection === "fake" && req.model === "fake-model"));
-  assert.ok(port.calls.some((req) => req.system.length > 0), "方法方案进入系统提示");
+  assert.ok(
+    port.calls.some((req) => req.system.length > 0),
+    "方法方案进入系统提示",
+  );
 
-  const candidate = await fs.readFile(path.join(workPath, "candidates", "ch-002", `${detail.id}.md`), "utf8");
+  const candidate = await fs.readFile(
+    path.join(workPath, "candidates", "ch-002", `${detail.id}.md`),
+    "utf8",
+  );
   assert.match(candidate, /^# 第二章 夜码头/);
   await assert.rejects(fs.stat(path.join(workPath, "chapters", "ch-002.md")), { code: "ENOENT" });
 
@@ -104,8 +136,14 @@ test("番茄章节流水线经 ModelGateway + 假端口跑通：交付候选稿�
   const discarded = await restarted.decide({ runId: detail.id, target }, "discard");
   assert.equal(discarded.state, "discarded");
 
-  await assert.rejects(workflow.start(target, "fanqie.unknown", {}), (err) => err.code === "input.invalid");
-  await assert.rejects(workflow.start(target, "fanqie.chapter", { chapterId: "" }), (err) => err.code === "input.invalid");
+  await assert.rejects(
+    workflow.start(target, "fanqie.unknown", {}),
+    (err) => err.code === "input.invalid",
+  );
+  await assert.rejects(
+    workflow.start(target, "fanqie.chapter", { chapterId: "" }),
+    (err) => err.code === "input.invalid",
+  );
 });
 
 test("中断与失败：重启时遗留的 running 记录转为可恢复的 paused(interrupted)；模型鉴权失败记录错误码", async () => {
@@ -114,22 +152,40 @@ test("中断与失败：重启时遗留的 running 记录转为可恢复的 paus
   const ctx = commandCtx(base, clock);
   await fs.mkdir(path.join(base, "长篇"), { recursive: true });
   const { workPath } = await desk.dispatchWorkbenchCommand(
-    { command: "fanqie.work.create", input: { root: path.join(base, "长篇"), title: "断点", premise: "", grade: "economy" } },
+    {
+      command: "fanqie.work.create",
+      input: { root: path.join(base, "长篇"), title: "断点", premise: "", grade: "economy" },
+    },
     ctx,
   );
   const target = { mode: "fanqie", path: workPath };
   const authError = Object.assign(new Error("401 Unauthorized"), { status: 401 });
-  const failing = services(base, createFakeModelPort([{ error: authError }], { repeatLast: true }), clock);
-  const failed = await failing.workflow.startAndWait(target, "fanqie.chapter", { chapterId: "ch-001", grade: "economy", targetWords: 500 });
+  const failing = services(
+    base,
+    createFakeModelPort([{ error: authError }], { repeatLast: true }),
+    clock,
+  );
+  const failed = await failing.workflow.startAndWait(target, "fanqie.chapter", {
+    chapterId: "ch-001",
+    grade: "economy",
+    targetWords: 500,
+  });
   assert.equal(failed.state, "failed");
   assert.equal(failed.error.code, "model.auth");
 
   const stuck = { ...failed, id: "run-stuck", state: "running", error: undefined, steps: [] };
   delete stuck.error;
   await failing.runs.save(stuck);
-  const recovered = await services(base, createFakeModelPort([fanqieAnswer], { repeatLast: true }), clock).workflow;
+  const recovered = await services(
+    base,
+    createFakeModelPort([fanqieAnswer], { repeatLast: true }),
+    clock,
+  ).workflow;
   const interrupted = await recovered.recoverInterrupted();
-  assert.deepEqual(interrupted.map((r) => [r.id, r.state, r.reason]), [["run-stuck", "paused", "interrupted"]]);
+  assert.deepEqual(
+    interrupted.map((r) => [r.id, r.state, r.reason]),
+    [["run-stuck", "paused", "interrupted"]],
+  );
   const resumed = await recovered.control({ runId: "run-stuck", target }, "resume");
   assert.equal(resumed.state, "running");
   const all = await recovered.history(target);
@@ -152,48 +208,97 @@ test("头条文章流水线经 ModelGateway + 假端口跑通：立项卡→标�
   const toutiaoRoot = path.join(base, "头条");
   await fs.mkdir(toutiaoRoot, { recursive: true });
   const { articleDir } = await desk.dispatchWorkbenchCommand(
-    { command: "toutiao.article.create", input: { root: toutiaoRoot, genre: "短图文", driver: "账本型" } },
+    {
+      command: "toutiao.article.create",
+      input: { root: toutiaoRoot, genre: "短图文", driver: "账本型" },
+    },
     ctx,
   );
   await desk.dispatchWorkbenchCommand(
-    { command: "toutiao.source.register", input: { articleDir, sourceId: "s1", kind: "paste", content: "2026 年基本养老金上调 2%。" } },
+    {
+      command: "toutiao.source.register",
+      input: { articleDir, sourceId: "s1", kind: "paste", content: "2026 年基本养老金上调 2%。" },
+    },
     ctx,
   );
   const scriptsDir = await toutiaoScriptsWithCardShim(base);
   const profileDir = path.join(ROOT, "packages/toutiao/profiles/default");
   const motifs = ["数字反差", "身份点名", "时间坐标"];
-  const titles = ["养老金上调后每月到手多少", "退休金涨了这笔账怎么算", "上调2%落到你手里是多少", "今年养老金调整看这三点", "临近退休的人先看这笔账"].map(
-    (text, i) => ({ text, motif: motifs[i % 3] }),
-  );
+  const titles = [
+    "养老金上调后每月到手多少",
+    "退休金涨了这笔账怎么算",
+    "上调2%落到你手里是多少",
+    "今年养老金调整看这三点",
+    "临近退休的人先看这笔账",
+  ].map((text, i) => ({ text, motif: motifs[i % 3] }));
   const article = `# ${titles[0].text}\n\n## 先算账\n\n今年基本养老金上调 2%，按月领 3000 元算，每月多 60 元。\n\n## 再看细则\n\n各地方案陆续公布，到账时间以当地通知为准。`;
   const answer = (req) => {
     const tail = req.user.slice(-400);
     if (tail.includes("立项卡对象")) {
-      return { text: JSON.stringify({ 主问题: "上调后到手多少", 核心事实: ["基本养老金上调2%"], 读者: "临近退休职工", 内容线: "资讯线", 垂类: "民生社保" }) };
+      return {
+        text: JSON.stringify({
+          主问题: "上调后到手多少",
+          核心事实: ["基本养老金上调2%"],
+          读者: "临近退休职工",
+          内容线: "资讯线",
+          垂类: "民生社保",
+        }),
+      };
     }
-    if (tail.includes('"alternatives"')) return { text: JSON.stringify({ main: titles[0], alternatives: titles.slice(1) }) };
+    if (tail.includes('"alternatives"'))
+      return { text: JSON.stringify({ main: titles[0], alternatives: titles.slice(1) }) };
     if (tail.includes('"openingStyle"')) {
-      return { text: JSON.stringify({ openingStyle: "算账开头", endingStyle: "提醒结尾", sections: [{ heading: "先算账", question: "多多少", action: "举例" }] }) };
+      return {
+        text: JSON.stringify({
+          openingStyle: "算账开头",
+          endingStyle: "提醒结尾",
+          sections: [{ heading: "先算账", question: "多多少", action: "举例" }],
+        }),
+      };
     }
     if (tail.includes('"claims"')) return { text: JSON.stringify({ claims: [] }) };
-    if (tail.includes('"skeleton"')) return { text: JSON.stringify({ issues: [], summary: "结构清楚" }) };
+    if (tail.includes('"skeleton"'))
+      return { text: JSON.stringify({ issues: [], summary: "结构清楚" }) };
     if (tail.includes("Markdown 正文")) return { text: article };
-    return { error: Object.assign(new Error(`unexpected stage prompt: ${req.user.slice(-80)}`), { status: 400 }) };
+    return {
+      error: Object.assign(new Error(`unexpected stage prompt: ${req.user.slice(-80)}`), {
+        status: 400,
+      }),
+    };
   };
   const port = createFakeModelPort([answer], { repeatLast: true });
   const { workflow } = services(base, port, clock, {
-    prepareRequest: (kind, request) => ({ ...request, scriptsDir, profileDir, ledgerPath: path.join(toutiaoRoot, "ledger.csv") }),
+    prepareRequest: (kind, request) => ({
+      ...request,
+      scriptsDir,
+      profileDir,
+      ledgerPath: path.join(toutiaoRoot, "ledger.csv"),
+    }),
   });
   const meta = JSON.parse(await fs.readFile(path.join(articleDir, "meta.json"), "utf8"));
-  const detail = await workflow.startAndWait({ mode: "toutiao", path: articleDir }, "toutiao.article", {
-    articleId: meta.id,
-    genre: "短图文",
-    driver: "账本型",
-    draftCount: 1,
-  });
+  const detail = await workflow.startAndWait(
+    { mode: "toutiao", path: articleDir },
+    "toutiao.article",
+    {
+      articleId: meta.id,
+      genre: "短图文",
+      driver: "账本型",
+      draftCount: 1,
+    },
+  );
   assert.equal(detail.state, "awaiting-author", JSON.stringify(detail.error ?? {}));
   const stepIds = detail.steps.map((s) => s.id);
-  for (const id of ["source", "rules-limits", "card", "title", "blueprint", "draft-0", "review", "revise", "qa"]) {
+  for (const id of [
+    "source",
+    "rules-limits",
+    "card",
+    "title",
+    "blueprint",
+    "draft-0",
+    "review",
+    "revise",
+    "qa",
+  ]) {
     assert.ok(stepIds.includes(id), `missing step ${id}: ${stepIds.join(",")}`);
   }
   const qa = detail.steps.find((s) => s.id === "qa").output;

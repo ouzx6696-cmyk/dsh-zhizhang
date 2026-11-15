@@ -13,7 +13,9 @@ export interface EditorGuardSnapshot {
 export type LeaveState = "clean" | "dirty" | "saving";
 
 /** What leaving an editor takes: "saving" blocks it, "dirty" needs the author's word. */
-export function leaveState(current: Pick<EditorGuardSnapshot, "dirty" | "saving"> | null | undefined): LeaveState {
+export function leaveState(
+  current: Pick<EditorGuardSnapshot, "dirty" | "saving"> | null | undefined,
+): LeaveState {
   return current?.saving ? "saving" : current?.dirty ? "dirty" : "clean";
 }
 

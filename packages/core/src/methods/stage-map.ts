@@ -47,7 +47,7 @@ function extractSections(markdown: string, wanted?: string[]): { text: string; m
 
 export function methodFor(
   profile: Profile,
-  stage: string
+  stage: string,
 ): { text: string; hash: string; omitted: string[] } {
   const rule = profile.stageMap[stage];
   if (!rule) {

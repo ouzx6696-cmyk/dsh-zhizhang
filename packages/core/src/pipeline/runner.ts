@@ -11,8 +11,17 @@ export interface GatewayLike {
   run(
     role: string,
     req: { system: string; user: string; json?: boolean },
-    opts: { runId: string; stage: string; budget: ReturnType<typeof createBudgetGuard>; signal: AbortSignal }
-  ): Promise<{ text: string; usage: { input: number; cachedInput: number; output: number }; cost: number | null }>;
+    opts: {
+      runId: string;
+      stage: string;
+      budget: ReturnType<typeof createBudgetGuard>;
+      signal: AbortSignal;
+    },
+  ): Promise<{
+    text: string;
+    usage: { input: number; cachedInput: number; output: number };
+    cost: number | null;
+  }>;
 }
 
 export async function executePipeline<Req, Res>(
@@ -22,12 +31,12 @@ export async function executePipeline<Req, Res>(
   gateway: GatewayLike,
   clock: Clock,
   signal: AbortSignal,
-  onPersist?: (rec: RunRecord) => Promise<void>
+  onPersist?: (rec: RunRecord) => Promise<void>,
 ): Promise<RunRecord> {
   let current = record;
   const budget = createBudgetGuard(current.budget, current.usage);
   const completedMap = new Map<string, StepRecord>(
-    current.steps.filter((s) => s.status === "done").map((s) => [s.id, s])
+    current.steps.filter((s) => s.status === "done").map((s) => [s.id, s]),
   );
 
   let profilePromise: Promise<Profile | undefined> | undefined;
@@ -35,11 +44,7 @@ export async function executePipeline<Req, Res>(
     if (ctx.profile) return Promise.resolve(ctx.profile);
     if (!ctx.profileRoots) return Promise.resolve(undefined);
     if (!profilePromise) {
-      profilePromise = loadProfile(
-        ctx.target.mode,
-        ctx.profileId ?? "default",
-        ctx.profileRoots
-      );
+      profilePromise = loadProfile(ctx.target.mode, ctx.profileId ?? "default", ctx.profileRoots);
     }
     return profilePromise;
   }
@@ -51,11 +56,13 @@ export async function executePipeline<Req, Res>(
   async function runSingleStage<I, O>(
     stepId: string,
     spec: StageSpec<I, O>,
-    packet: ContextPacket
+    packet: ContextPacket,
   ): Promise<O> {
     const prev = completedMap.get(stepId);
     if (prev && prev.output !== undefined) {
-      return spec.parse(typeof prev.output === "string" ? prev.output : JSON.stringify(prev.output));
+      return spec.parse(
+        typeof prev.output === "string" ? prev.output : JSON.stringify(prev.output),
+      );
     }
 
     const startedAt = clock.iso();
@@ -87,7 +94,7 @@ export async function executePipeline<Req, Res>(
         const answer = await gateway.run(
           spec.role,
           { system: systemPrompt, user: userPrompt, json: spec.format === "json" },
-          { runId: current.id, stage: stepId, budget, signal }
+          { runId: current.id, stage: stepId, budget, signal },
         );
         const parsed = spec.parse(answer.text);
         let finalValue = parsed;
@@ -146,7 +153,7 @@ export async function executePipeline<Req, Res>(
     fanOut: async (spec, packet) => {
       const count = spec.fanOut ? spec.fanOut.count(ctx) : 1;
       const tasks = Array.from({ length: count }, (_, idx) =>
-        runSingleStage(`${spec.id}-${idx}`, spec, packet)
+        runSingleStage(`${spec.id}-${idx}`, spec, packet),
       );
       return Promise.all(tasks);
     },

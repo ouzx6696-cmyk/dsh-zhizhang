@@ -18,7 +18,8 @@ export function WorkspaceTab() {
     if (workspace?.configured) inspect().catch(notifyError);
   }, [workspace?.configured, workspace?.root, inspect]);
 
-  const recover = (action: RecoverAction) => run(async () => setHealth(await desktop.recover(action)));
+  const recover = (action: RecoverAction) =>
+    run(async () => setHealth(await desktop.recover(action)));
   const backup = async () => {
     setBackingUp(true);
     try {
@@ -30,7 +31,11 @@ export function WorkspaceTab() {
       setBackingUp(false);
     }
   };
-  const clean = health && !health.staleLocks.length && !health.pendingIntents.length && !health.interruptedRuns.length;
+  const clean =
+    health &&
+    !health.staleLocks.length &&
+    !health.pendingIntents.length &&
+    !health.interruptedRuns.length;
   return (
     <div className="zz-stack" data-testid="settings-workspace">
       <Section title={C.workspace.folder}>
@@ -51,7 +56,10 @@ export function WorkspaceTab() {
         {health?.staleLocks.map((lock) => (
           <div key={lock.lockDir} className="zz-row" data-testid="stale-lock">
             <span>{C.workspace.staleLock(lock.lockDir)}</span>
-            <Button size="sm" onClick={() => recover({ kind: "clear-lock", lockDir: lock.lockDir })}>
+            <Button
+              size="sm"
+              onClick={() => recover({ kind: "clear-lock", lockDir: lock.lockDir })}
+            >
               {C.workspace.clear}
             </Button>
           </div>
@@ -67,7 +75,10 @@ export function WorkspaceTab() {
         {health?.interruptedRuns.map((r) => (
           <div key={r.id} className="zz-row" data-testid="interrupted-run">
             <span>{C.workspace.interrupted(r.kind)}</span>
-            <Button size="sm" onClick={() => recover({ kind: "discard-run", runId: r.id, target: r.target })}>
+            <Button
+              size="sm"
+              onClick={() => recover({ kind: "discard-run", runId: r.id, target: r.target })}
+            >
               {C.workspace.discardRun}
             </Button>
           </div>
@@ -79,7 +90,12 @@ export function WorkspaceTab() {
       <Section title={C.workspace.backup}>
         <p className="zz-muted">{C.workspace.backupHint}</p>
         <div className="zz-row">
-          <Button data-testid="backup-start" loading={backingUp} disabled={!workspace?.configured} onClick={() => void backup()}>
+          <Button
+            data-testid="backup-start"
+            loading={backingUp}
+            disabled={!workspace?.configured}
+            onClick={() => void backup()}
+          >
             {C.workspace.backupStart}
           </Button>
           {backingUp ? (

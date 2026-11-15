@@ -9,12 +9,15 @@ import { createFakeClock } from "../support/clock.mjs";
 
 const ROOT = process.cwd();
 const desk = await importBundle("test/support/desktop-entry.ts");
-const WRITE_VERBS = /(save|write|accept|reject|finalize|deliver|transition|create|delete|decide|propose|apply|edit|update|register|set|bind|import)/i;
+const WRITE_VERBS =
+  /(save|write|accept|reject|finalize|deliver|transition|create|delete|decide|propose|apply|edit|update|register|set|bind|import)/i;
 
 async function treeHash(dir) {
   const hash = createHash("sha256");
   async function walk(current) {
-    for (const entry of (await fs.readdir(current, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
+    for (const entry of (await fs.readdir(current, { withFileTypes: true })).sort((a, b) =>
+      a.name.localeCompare(b.name),
+    )) {
       const full = path.join(current, entry.name);
       if (entry.isDirectory()) await walk(full);
       else hash.update(`${path.relative(dir, full)}\n`).update(await fs.readFile(full));
@@ -33,13 +36,30 @@ async function fanqieWork() {
     clock,
     locks: desk.createLockService(clock),
     inside: (p) => path.resolve(p),
-    roots: () => ({ fanqie: root, toutiao: path.join(base, "头条"), library: path.join(base, "拆书库") }),
-    profiles: { builtin: (m) => path.join(ROOT, "packages", m, "profiles"), userDir: path.join(base, "profiles") },
+    roots: () => ({
+      fanqie: root,
+      toutiao: path.join(base, "头条"),
+      library: path.join(base, "拆书库"),
+    }),
+    profiles: {
+      builtin: (m) => path.join(ROOT, "packages", m, "profiles"),
+      userDir: path.join(base, "profiles"),
+    },
     workflow: { startAndWait: async () => assert.fail("not used") },
   };
   const run = (command, input) => desk.dispatchWorkbenchCommand({ command, input }, ctx);
-  const { workPath } = await run("fanqie.work.create", { root, title: "夜航", premise: "", grade: "economy" });
-  await run("fanqie.chapter.save", { work: workPath, chapter: "ch-001", base: "", body: "林川推开门。" });
+  const { workPath } = await run("fanqie.work.create", {
+    root,
+    title: "夜航",
+    premise: "",
+    grade: "economy",
+  });
+  await run("fanqie.chapter.save", {
+    work: workPath,
+    chapter: "ch-001",
+    base: "",
+    body: "林川推开门。",
+  });
   const candDir = path.join(workPath, "candidates", "ch-001");
   await fs.mkdir(candDir, { recursive: true });
   await fs.writeFile(path.join(candDir, "c1.md"), "# 夜雨\n\n候选正文。");
@@ -99,15 +119,34 @@ test("助手工具只读或发起：番茄 10–14 个工具，没有任何写�
     const result = await desk.executeTool(tool, args, ctx);
     assert.equal(result.ok, true, `${name}: ${JSON.stringify(result)}`);
   }
-  const chapter = await desk.executeTool(tools.find((t) => t.name === "fanqie_read_chapter"), { chapterId: "ch-001" }, ctx);
+  const chapter = await desk.executeTool(
+    tools.find((t) => t.name === "fanqie_read_chapter"),
+    { chapterId: "ch-001" },
+    ctx,
+  );
   assert.equal(chapter.body, "林川推开门。");
-  const missing = await desk.executeTool(tools.find((t) => t.name === "fanqie_read_chapter"), { chapterId: "ch-404" }, ctx);
+  const missing = await desk.executeTool(
+    tools.find((t) => t.name === "fanqie_read_chapter"),
+    { chapterId: "ch-404" },
+    ctx,
+  );
   assert.deepEqual([missing.ok, missing.code], [false, "input.not_found"]);
 
-  const started = await desk.executeTool(tools.find((t) => t.name === "fanqie_start_revise"), { chapterId: "ch-001", note: "结尾改悬疑" }, ctx);
+  const started = await desk.executeTool(
+    tools.find((t) => t.name === "fanqie_start_revise"),
+    { chapterId: "ch-001", note: "结尾改悬疑" },
+    ctx,
+  );
   assert.equal(started.ok, true);
-  assert.deepEqual(calls.started[0], { kind: "fanqie.revise", request: { chapterId: "ch-001", note: "结尾改悬疑" } });
-  await desk.executeTool(tools.find((t) => t.name === "fanqie_open_compare"), { chapterId: "ch-001", candidateId: "c1" }, ctx);
+  assert.deepEqual(calls.started[0], {
+    kind: "fanqie.revise",
+    request: { chapterId: "ch-001", note: "结尾改悬疑" },
+  });
+  await desk.executeTool(
+    tools.find((t) => t.name === "fanqie_open_compare"),
+    { chapterId: "ch-001", candidateId: "c1" },
+    ctx,
+  );
   assert.deepEqual(calls.navigated[0], { chapter: "ch-001", candidate: "c1", source: "split" });
   assert.equal(await treeHash(workPath), before, "工具执行后作品目录逐字节不变");
 
@@ -128,11 +167,22 @@ test("头条助手工具：读状态/草稿/来源，发起文章流水线时带
   await fs.mkdir(path.join(articleDir, "sources"), { recursive: true });
   await fs.writeFile(
     path.join(articleDir, "meta.json"),
-    JSON.stringify({ format: "zhizhang/1.3", id: "tt-1", genre: "短图文", driver: "账本型", status: "初稿待改", rulesVersion: "4.0.0", history: [] }),
+    JSON.stringify({
+      format: "zhizhang/1.3",
+      id: "tt-1",
+      genre: "短图文",
+      driver: "账本型",
+      status: "初稿待改",
+      rulesVersion: "4.0.0",
+      history: [],
+    }),
   );
   await fs.writeFile(path.join(articleDir, "drafts", "rev-001.md"), "# 标题\n\n正文");
   await fs.writeFile(path.join(articleDir, "sources", "s1.txt"), "来源正文");
-  await fs.writeFile(path.join(articleDir, "sources", "s1.json"), JSON.stringify({ id: "s1", kind: "paste" }));
+  await fs.writeFile(
+    path.join(articleDir, "sources", "s1.json"),
+    JSON.stringify({ id: "s1", kind: "paste" }),
+  );
 
   const tools = desk.toutiaoModule.tools("assistant", { mode: "toutiao", path: articleDir });
   assert.ok(tools.length >= 10 && tools.length <= 14, `tool count ${tools.length}`);
@@ -141,14 +191,32 @@ test("头条助手工具：读状态/草稿/来源，发起文章流水线时带
   }
   const before = await treeHash(articleDir);
   const { host, calls } = hostRecorder();
-  const ctx = { workspaceRoot: base, readonly: false, profileRoots: { builtinDir: path.join(ROOT, "packages/toutiao/profiles") }, host };
+  const ctx = {
+    workspaceRoot: base,
+    readonly: false,
+    profileRoots: { builtinDir: path.join(ROOT, "packages/toutiao/profiles") },
+    host,
+  };
   const byName = (name) => tools.find((t) => t.name === name);
-  assert.equal((await desk.executeTool(byName("toutiao_article_status"), {}, ctx)).status, "初稿待改");
+  assert.equal(
+    (await desk.executeTool(byName("toutiao_article_status"), {}, ctx)).status,
+    "初稿待改",
+  );
   assert.equal((await desk.executeTool(byName("toutiao_read_draft"), {}, ctx)).file, "rev-001.md");
   assert.equal((await desk.executeTool(byName("toutiao_list_sources"), {}, ctx)).sources.length, 1);
-  assert.equal((await desk.executeTool(byName("toutiao_read_source"), { sourceId: "s1" }, ctx)).text, "来源正文");
-  assert.equal((await desk.executeTool(byName("toutiao_read_card"), {}, ctx)).code, "input.not_found");
-  assert.equal((await desk.executeTool(byName("toutiao_read_method"), { stage: "toutiao.article.draft" }, ctx)).ok, true);
+  assert.equal(
+    (await desk.executeTool(byName("toutiao_read_source"), { sourceId: "s1" }, ctx)).text,
+    "来源正文",
+  );
+  assert.equal(
+    (await desk.executeTool(byName("toutiao_read_card"), {}, ctx)).code,
+    "input.not_found",
+  );
+  assert.equal(
+    (await desk.executeTool(byName("toutiao_read_method"), { stage: "toutiao.article.draft" }, ctx))
+      .ok,
+    true,
+  );
   await desk.executeTool(byName("toutiao_start_article"), { note: "更口语" }, ctx);
   assert.deepEqual(calls.started[0], {
     kind: "toutiao.article",
@@ -163,9 +231,26 @@ test("助手会话：模型请求不存在的写正文工具时只得到错误�
   const chapterFile = path.join(workPath, "chapters", "ch-001.md");
   const before = await fs.readFile(chapterFile, "utf8");
   const turns = [
-    { text: "我先读一下。", toolCalls: [{ id: "t1", name: "fanqie_read_chapter", args: { chapterId: "ch-001" } }] },
-    { text: "", toolCalls: [{ id: "t2", name: "fanqie_save_chapter", args: { chapterId: "ch-001", body: "改写" } }] },
-    { text: "", toolCalls: [{ id: "t3", name: "fanqie_start_revise", args: { chapterId: "ch-001", note: "结尾改悬疑" } }] },
+    {
+      text: "我先读一下。",
+      toolCalls: [{ id: "t1", name: "fanqie_read_chapter", args: { chapterId: "ch-001" } }],
+    },
+    {
+      text: "",
+      toolCalls: [
+        { id: "t2", name: "fanqie_save_chapter", args: { chapterId: "ch-001", body: "改写" } },
+      ],
+    },
+    {
+      text: "",
+      toolCalls: [
+        {
+          id: "t3",
+          name: "fanqie_start_revise",
+          args: { chapterId: "ch-001", note: "结尾改悬疑" },
+        },
+      ],
+    },
     { text: "已发起修订流水线，请在流水线面板查看候选稿。", toolCalls: [] },
   ];
   const requests = [];
@@ -174,7 +259,12 @@ test("助手会话：模型请求不存在的写正文工具时只得到错误�
       requests.push(request);
       const next = turns.shift();
       if (next.text) on({ type: "text_delta", delta: next.text });
-      return { text: next.text, toolCalls: next.toolCalls, usage: { input: 10, cachedInput: 0, output: 5 }, cost: null };
+      return {
+        text: next.text,
+        toolCalls: next.toolCalls,
+        usage: { input: 10, cachedInput: 0, output: 5 },
+        cost: null,
+      };
     },
   };
   const gateway = desk.createModelGateway(
@@ -210,23 +300,35 @@ test("助手会话：模型请求不存在的写正文工具时只得到错误�
     emit: (event) => events.push(event),
   });
 
-  await sessions.send(target, { text: "把第 1 章结尾改悬疑", intent: "revise", focus: { chapter: "ch-001" } });
+  await sessions.send(target, {
+    text: "把第 1 章结尾改悬疑",
+    intent: "revise",
+    focus: { chapter: "ch-001" },
+  });
   await sessions.idle(target);
 
   assert.equal(await fs.readFile(chapterFile, "utf8"), before);
-  assert.deepEqual(started, [{ kind: "fanqie.revise", request: { chapterId: "ch-001", note: "结尾改悬疑" } }]);
+  assert.deepEqual(started, [
+    { kind: "fanqie.revise", request: { chapterId: "ch-001", note: "结尾改悬疑" } },
+  ]);
   assert.ok(requests[0].tools.every((t) => !/save|write/.test(t.name)));
   assert.match(requests[0].system, /对白少用“说道”/);
   assert.match(requests[0].messages[0].text, /【意图：修改】/);
-  const toolEnds = events.filter((e) => e.kind === "session" && e.event.type === "tool" && e.event.phase === "end");
-  assert.deepEqual(toolEnds.map((e) => [e.event.name, e.event.isError]), [
-    ["fanqie_read_chapter", false],
-    ["fanqie_save_chapter", true],
-    ["fanqie_start_revise", false],
-  ]);
+  const toolEnds = events.filter(
+    (e) => e.kind === "session" && e.event.type === "tool" && e.event.phase === "end",
+  );
+  assert.deepEqual(
+    toolEnds.map((e) => [e.event.name, e.event.isError]),
+    [
+      ["fanqie_read_chapter", false],
+      ["fanqie_save_chapter", true],
+      ["fanqie_start_revise", false],
+    ],
+  );
   const end = events.filter((e) => e.kind === "session" && e.event.type === "end").at(-1);
   assert.equal(end.event.reason, "done");
-  const task = events.filter((e) => e.kind === "session" && e.event.type === "task").at(-1).event.task;
+  const task = events.filter((e) => e.kind === "session" && e.event.type === "task").at(-1)
+    .event.task;
   assert.deepEqual(task.completed, ["fanqie_read_chapter", "fanqie_start_revise"]);
 
   const view = await sessions.view(target);
@@ -262,5 +364,8 @@ test("助手会话：模型请求不存在的写正文工具时只得到错误�
   const fresh = await restarted.newConversation(target);
   assert.notEqual(fresh.id, view.conversationId);
   assert.equal((await restarted.view(target)).messages.length, 0);
-  assert.equal((await restarted.view(target, { conversationId: view.conversationId })).messages.length, 2);
+  assert.equal(
+    (await restarted.view(target, { conversationId: view.conversationId })).messages.length,
+    2,
+  );
 });

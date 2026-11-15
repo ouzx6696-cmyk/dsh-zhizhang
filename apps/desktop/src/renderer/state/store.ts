@@ -1,6 +1,13 @@
 /** 应用外壳状态：一个 store，组件经 useDesktop 选择各自需要的字段。 */
 import type { PublicSettings } from "../../shared/settings";
-import type { AppStateView, Focus, RunningRow, Target, TargetItem, WorkspaceStatus } from "../../shared/views";
+import type {
+  AppStateView,
+  Focus,
+  RunningRow,
+  Target,
+  TargetItem,
+  WorkspaceStatus,
+} from "../../shared/views";
 import { createStore, useStoreSelector } from "./createStore";
 
 export type DockTab = "assistant" | "pipeline" | "chapter";
@@ -42,7 +49,14 @@ export interface DesktopState {
   chapters: { id: string; title: string }[];
 }
 
-export const initialRevisions: Revisions = { rows: 0, chapter: 0, bible: 0, article: 0, profiles: 0, library: 0 };
+export const initialRevisions: Revisions = {
+  rows: 0,
+  chapter: 0,
+  bible: 0,
+  article: 0,
+  profiles: 0,
+  library: 0,
+};
 
 export const desktopStore = createStore<DesktopState>({
   boot: "loading",

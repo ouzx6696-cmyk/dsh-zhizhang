@@ -12,7 +12,7 @@ import type {
 
 export async function readBible(
   workPath: string,
-  lock: LockService = createLockService(systemClock)
+  lock: LockService = createLockService(systemClock),
 ): Promise<Bible> {
   return createBibleStore(lock).read(workPath);
 }
@@ -20,7 +20,7 @@ export async function readBible(
 export async function viewBibleAt(
   workPath: string,
   position: number,
-  lock: LockService = createLockService(systemClock)
+  lock: LockService = createLockService(systemClock),
 ): Promise<BibleView> {
   const store = createBibleStore(lock);
   const bible = await store.read(workPath);
@@ -31,7 +31,7 @@ export async function proposeBibleOps(
   workPath: string,
   ops: BibleOp[],
   from: Provenance,
-  lock: LockService = createLockService(systemClock)
+  lock: LockService = createLockService(systemClock),
 ): Promise<PendingItem[]> {
   return createBibleStore(lock).propose(workPath, ops, from);
 }
@@ -40,7 +40,7 @@ export async function decideBiblePending(
   workPath: string,
   id: string,
   decision: "accept" | "reject" | { edit: BibleOp },
-  lock: LockService = createLockService(systemClock)
+  lock: LockService = createLockService(systemClock),
 ): Promise<void> {
   return createBibleStore(lock).decide(workPath, id, decision);
 }
@@ -48,7 +48,7 @@ export async function decideBiblePending(
 export async function auditBible(
   workPath: string,
   upTo: number,
-  lock: LockService = createLockService(systemClock)
+  lock: LockService = createLockService(systemClock),
 ): Promise<AuditFinding[]> {
   const store = createBibleStore(lock);
   const bible = await store.read(workPath);

@@ -105,12 +105,19 @@ export function toChatMessages(messages: AgentMessage[]): ChatMessage[] {
       if (!msg.isError) {
         try {
           const value: unknown = JSON.parse(msg.text);
-          if (typeof value === "object" && value !== null && "runId" in value && typeof value.runId === "string") {
+          if (
+            typeof value === "object" &&
+            value !== null &&
+            "runId" in value &&
+            typeof value.runId === "string"
+          ) {
             result = {
               kind: "run",
               target: { mode: "fanqie", path: "" },
               runId: value.runId,
-              ...("kind" in value && typeof value.kind === "string" ? { pipeline: value.kind } : {}),
+              ...("kind" in value && typeof value.kind === "string"
+                ? { pipeline: value.kind }
+                : {}),
             };
           }
         } catch {
@@ -143,13 +150,24 @@ export function createSessionManager(deps: SessionDeps) {
     const hit = states.get(key);
     if (hit) return hit;
     const conversation = await deps.store.current(target);
-    const state: TargetState = { target, conversation, busy: false, stream: "", since: deps.clock.iso() };
+    const state: TargetState = {
+      target,
+      conversation,
+      busy: false,
+      stream: "",
+      since: deps.clock.iso(),
+    };
     states.set(key, state);
     return state;
   }
 
   function emit(state: TargetState, event: SessionEvent): void {
-    deps.emit({ kind: "session", target: state.target, conversationId: state.conversation.id, event });
+    deps.emit({
+      kind: "session",
+      target: state.target,
+      conversationId: state.conversation.id,
+      event,
+    });
   }
 
   function setBusy(state: TargetState, busy: boolean): void {
@@ -178,7 +196,10 @@ export function createSessionManager(deps: SessionDeps) {
     });
   }
 
-  async function compactConversation(state: TargetState, instructions?: string): Promise<CompactResult> {
+  async function compactConversation(
+    state: TargetState,
+    instructions?: string,
+  ): Promise<CompactResult> {
     const binding = deps.binding();
     const system = await buildSystem(state);
     const messages = state.conversation.messages;
@@ -243,7 +264,11 @@ export function createSessionManager(deps: SessionDeps) {
     return { tokensBefore, tokensAfter, summary };
   }
 
-  async function runTurn(state: TargetState, send: SessionSend, signal: AbortSignal): Promise<void> {
+  async function runTurn(
+    state: TargetState,
+    send: SessionSend,
+    signal: AbortSignal,
+  ): Promise<void> {
     const conv = state.conversation;
     const tools = deps.tools(state.target);
     const specs = toolSpecs(tools);
@@ -262,7 +287,10 @@ export function createSessionManager(deps: SessionDeps) {
     try {
       const binding = deps.binding();
       const system = await buildSystem(state);
-      if (deps.context().enabled && contextTokens(system, conv.messages) > compactThreshold(binding.contextWindow)) {
+      if (
+        deps.context().enabled &&
+        contextTokens(system, conv.messages) > compactThreshold(binding.contextWindow)
+      ) {
         await compactConversation(state);
       }
       for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
@@ -329,7 +357,8 @@ export function createSessionManager(deps: SessionDeps) {
       await deps.store.save(conv);
       const view = toChatMessages(conv.messages);
       const last = view[view.length - 1];
-      if (last && last.role === "assistant") emit(state, { type: "message_end", message: decorate(state, last) });
+      if (last && last.role === "assistant")
+        emit(state, { type: "message_end", message: decorate(state, last) });
       emit(state, { type: "task", task: { ...task } });
       emit(state, { type: "end", reason: "done" });
     } catch (err) {
@@ -340,7 +369,11 @@ export function createSessionManager(deps: SessionDeps) {
       if (signal.aborted || appErr.code === "run.stopped") {
         emit(state, { type: "end", reason: "cancelled" });
       } else {
-        emit(state, { type: "end", reason: "failed", error: { code: appErr.code, message: appErr.message } });
+        emit(state, {
+          type: "end",
+          reason: "failed",
+          error: { code: appErr.code, message: appErr.message },
+        });
       }
     } finally {
       state.stream = "";
@@ -351,11 +384,16 @@ export function createSessionManager(deps: SessionDeps) {
 
   /** 结果卡带上真实目标（落盘消息里只存 runId）。 */
   function decorate(state: TargetState, message: ChatMessage): ChatMessage {
-    return message.result ? { ...message, result: { ...message.result, target: state.target } } : message;
+    return message.result
+      ? { ...message, result: { ...message.result, target: state.target } }
+      : message;
   }
 
   return {
-    async view(target: Target, options: { conversationId?: string; limit?: number } = {}): Promise<SessionView> {
+    async view(
+      target: Target,
+      options: { conversationId?: string; limit?: number } = {},
+    ): Promise<SessionView> {
       const state = await stateFor(target);
       if (options.conversationId && options.conversationId !== state.conversation.id) {
         if (state.busy) throw new AppError("gate.denied", "助手正在回复，稍后再切换对话");
@@ -377,7 +415,8 @@ export function createSessionManager(deps: SessionDeps) {
       const text = send.text.trim();
       if (!text) throw new AppError("input.invalid", "消息不能为空", { field: "text" });
       const state = await stateFor(target);
-      if (state.busy) throw new AppError("gate.denied", "助手正在回复，请稍候或先停止", { busy: true });
+      if (state.busy)
+        throw new AppError("gate.denied", "助手正在回复，请稍候或先停止", { busy: true });
       deps.binding();
       const conv = state.conversation;
       if (!conv.title) conv.title = text.slice(0, 24);

@@ -124,7 +124,6 @@ const ORAL_MARKER_WORDS = [
 
 const SENTENCE_PARTICLE_RE = /[吧呢啊呗嘛哦呀哈嘿嗯](?=[，。！？…””’\s,.!?]|$)/g;
 
-
 const DEFAULT_SCRIPTS_DIR = path.resolve(import.meta.dirname, "../../../skill/scripts");
 const DEFAULT_PROFILE_DIR = path.resolve(import.meta.dirname, "../../../profiles/default");
 
@@ -172,7 +171,7 @@ function refBlock(id: string, ref: string, text: string): ContextBlock {
 
 export function validateTitleMatrix(
   candidates: Array<{ text: string; motif: string }>,
-  titleMax: number
+  titleMax: number,
 ): { valid: Array<{ text: string; motif: string }>; dropped: string[] } {
   const valid: Array<{ text: string; motif: string }> = [];
   const dropped: string[] = [];
@@ -195,7 +194,7 @@ export function validateTitleMatrix(
 
 export function filterChangedParagraphClaims(
   nextDraft: string,
-  prevClaims: ClaimCandidate[]
+  prevClaims: ClaimCandidate[],
 ): { reused: ClaimCandidate[]; toVerify: ClaimCandidate[] } {
   const fresh = extractClaimCandidates(nextDraft);
   const prevByPara = new Map<string, ClaimCandidate[]>();
@@ -228,9 +227,7 @@ export function countOralMarkersAndHeadings(text: string): AntiGamingCounts {
   const particles = text.match(SENTENCE_PARTICLE_RE);
   if (particles) oralMarkers += particles.length;
 
-  const headings = text
-    .split(/\r?\n/)
-    .filter((line) => /^##\s+/.test(line.trim())).length;
+  const headings = text.split(/\r?\n/).filter((line) => /^##\s+/.test(line.trim())).length;
 
   return { oralMarkers, headings };
 }
@@ -254,20 +251,19 @@ export function pickRotatedStyles(
   recentOpenings: string[] = [],
   recentEndings: string[] = [],
   availableOpenings: readonly string[] = [],
-  availableEndings: readonly string[] = []
+  availableEndings: readonly string[] = [],
 ): { openingStyle: string; endingStyle: string } {
   const lastOpening = recentOpenings.at(-1);
   const lastEnding = recentEndings.at(-1);
   const openingStyle =
     availableOpenings.find((s) => s !== lastOpening) ?? availableOpenings[0] ?? "";
-  const endingStyle =
-    availableEndings.find((s) => s !== lastEnding) ?? availableEndings[0] ?? "";
+  const endingStyle = availableEndings.find((s) => s !== lastEnding) ?? availableEndings[0] ?? "";
   return { openingStyle, endingStyle };
 }
 
 function mergeFactResults(
   candidates: ClaimCandidate[],
-  factOut: FactCheckOutput
+  factOut: FactCheckOutput,
 ): { merged: ClaimCandidate[]; notes: string[] } {
   const byId = new Map(factOut.claims.map((c) => [c.id, c]));
   let unlocatedCount = 0;
@@ -322,7 +318,7 @@ export const articlePipeline: PipelineDefinition<ArticleReq, ArticlePipelineResu
           req.sourceKind ?? "paste",
           req.sourceText,
           systemClock.iso(),
-          lock
+          lock,
         );
       }
       const entries = await fs.readdir(sourcesDir).catch(() => []);
@@ -331,7 +327,7 @@ export const articlePipeline: PipelineDefinition<ArticleReq, ArticlePipelineResu
         txtFiles.map(async (file) => ({
           id: file.replace(/\.txt$/, ""),
           text: (await readTextIfExists(path.join(sourcesDir, file))) ?? "",
-        }))
+        })),
       );
       return {
         sources: contents,
@@ -345,7 +341,14 @@ export const articlePipeline: PipelineDefinition<ArticleReq, ArticlePipelineResu
     const s2Text = (await readTextIfExists(path.join(profileDir, "s2-selection.md"))) ?? "";
     const cardPath = path.join(articleDir, "card.json");
     const cardStage: StageSpec<
-      { articleId: string; genre: string; driver: string; line?: string; note?: string; source: string },
+      {
+        articleId: string;
+        genre: string;
+        driver: string;
+        line?: string;
+        note?: string;
+        source: string;
+      },
       Record<string, unknown>
     > = {
       id: "card",
@@ -374,9 +377,13 @@ export const articlePipeline: PipelineDefinition<ArticleReq, ArticlePipelineResu
         await atomicWrite(cardPath, JSON.stringify(enriched, null, 2));
         const check = await bridge.checkCard(cardPath);
         if (!check.ok) {
-          throw new AppError("model.output_invalid", `立项卡预检未通过：${check.errors.join("；")}`, {
-            errors: check.errors,
-          });
+          throw new AppError(
+            "model.output_invalid",
+            `立项卡预检未通过：${check.errors.join("；")}`,
+            {
+              errors: check.errors,
+            },
+          );
         }
         return enriched;
       },
@@ -384,7 +391,7 @@ export const articlePipeline: PipelineDefinition<ArticleReq, ArticlePipelineResu
     };
     const card = await runner.stage(
       cardStage,
-      makePacket(s2Text ? [refBlock("s2-selection", "s2-selection.md", s2Text)] : [])
+      makePacket(s2Text ? [refBlock("s2-selection", "s2-selection.md", s2Text)] : []),
     );
 
     // 3. title: parseMotifsFromS3 + validateTitleMatrix
@@ -411,7 +418,9 @@ export const articlePipeline: PipelineDefinition<ArticleReq, ArticlePipelineResu
           if (unknown.length > 0) {
             return {
               value: { main: validated.valid[0], alternatives: validated.valid.slice(1) },
-              notes: [`存在未在 s3-headline 列表中的母体名：${unknown.map((u) => u.motif).join("、")}`],
+              notes: [
+                `存在未在 s3-headline 列表中的母体名：${unknown.map((u) => u.motif).join("、")}`,
+              ],
             };
           }
         }
@@ -424,7 +433,7 @@ export const articlePipeline: PipelineDefinition<ArticleReq, ArticlePipelineResu
     };
     const titleMatrix = await runner.stage(
       titleStage,
-      makePacket(s3Text ? [refBlock("s3-headline", "s3-headline.md", s3Text)] : [])
+      makePacket(s3Text ? [refBlock("s3-headline", "s3-headline.md", s3Text)] : []),
     );
 
     // 4. blueprint: 开头/结尾轮换（从 rules/bridge 读取清单）
@@ -432,13 +441,15 @@ export const articlePipeline: PipelineDefinition<ArticleReq, ArticlePipelineResu
     const stylesCatalog = await runner.local("rules-styles", () => bridge.styles());
     const activeLine = req.line ?? (req.driver === "故事型" ? "故事线" : "资讯线");
     const lineStyles = stylesCatalog.byLine[activeLine];
-    const openingPool = lineStyles?.openings.length ? lineStyles.openings : stylesCatalog.allOpenings;
+    const openingPool = lineStyles?.openings.length
+      ? lineStyles.openings
+      : stylesCatalog.allOpenings;
     const endingPool = lineStyles?.endings.length ? lineStyles.endings : stylesCatalog.allEndings;
     const rotated = pickRotatedStyles(
       req.recentOpenings,
       req.recentEndings,
       openingPool,
-      endingPool
+      endingPool,
     );
     const blueprintStage: StageSpec<
       {
@@ -471,7 +482,7 @@ export const articlePipeline: PipelineDefinition<ArticleReq, ArticlePipelineResu
     };
     const blueprint = await runner.stage(
       blueprintStage,
-      makePacket(s4CommonText ? [refBlock("s4-common", "s4-common.md", s4CommonText)] : [])
+      makePacket(s4CommonText ? [refBlock("s4-common", "s4-common.md", s4CommonText)] : []),
     );
 
     // 5. draft×N
@@ -509,25 +520,22 @@ export const articlePipeline: PipelineDefinition<ArticleReq, ArticlePipelineResu
     };
     const draftCandidates = await runner.fanOut(
       draftStage,
-      makePacket(s4CommonText ? [refBlock("s4-common", "s4-common.md", s4CommonText)] : [])
+      makePacket(s4CommonText ? [refBlock("s4-common", "s4-common.md", s4CommonText)] : []),
     );
     const initialDraft = draftCandidates[0];
 
     // 6. claims: extractClaimCandidates
     const claimCandidates = await runner.local("claims", async () =>
-      extractClaimCandidates(initialDraft)
+      extractClaimCandidates(initialDraft),
     );
 
     // 7. facts: 逐条证据核验，unlocated 不整步失败
     const runFactsStage = async (
       stepId: string,
-      claimsToVerify: ClaimCandidate[]
+      claimsToVerify: ClaimCandidate[],
     ): Promise<ClaimCandidate[]> => {
       if (claimsToVerify.length === 0) return [];
-      const stageSpec: StageSpec<
-        { claims: ClaimCandidate[]; source: string },
-        FactCheckOutput
-      > = {
+      const stageSpec: StageSpec<{ claims: ClaimCandidate[]; source: string }, FactCheckOutput> = {
         id: stepId,
         title: "逐条事实证据核验",
         role: "extractor",
@@ -573,7 +581,7 @@ export const articlePipeline: PipelineDefinition<ArticleReq, ArticlePipelineResu
     };
     const review = await runner.stage(
       reviewStage,
-      makePacket(s5Text ? [refBlock("s5-editing", "s5-editing.md", s5Text)] : [])
+      makePacket(s5Text ? [refBlock("s5-editing", "s5-editing.md", s5Text)] : []),
     );
 
     // 9. revise: 明确使用 s5-editing
@@ -608,7 +616,7 @@ export const articlePipeline: PipelineDefinition<ArticleReq, ArticlePipelineResu
     };
     const revisedDraft = await runner.stage(
       reviseStage,
-      makePacket(s5Text ? [refBlock("s5-editing", "s5-editing.md", s5Text)] : [])
+      makePacket(s5Text ? [refBlock("s5-editing", "s5-editing.md", s5Text)] : []),
     );
 
     // 10. qa: Python qa_check ≥ pass_score (84)
@@ -636,43 +644,38 @@ export const articlePipeline: PipelineDefinition<ArticleReq, ArticlePipelineResu
       const passed = qaResult.overall >= passScore && qaResult.passed;
       if (passed) break;
 
-      const qaReviseStage: StageSpec<
-        { draft: string; qa: QaCheckResult; round: number },
-        string
-      > = {
-        id: `qa-revise-${round}`,
-        title: `质检回改第 ${round} 轮`,
-        role: "editor",
-        method: { stage: "toutiao.article.qa" },
-        input: () => ({
-          draft: currentDraft,
-          qa: qaResult,
-          round,
-        }),
-        shape:
-          "仅针对 fails 与 hard_gates 指出的位置修改，不靠堆砌口语词或拆小标题凑分，输出完整 Markdown 正文。",
-        format: "text",
-        parse: (raw) => {
-          const text = raw.trim();
-          if (!text) {
-            throw new AppError("model.output_invalid", `qa-revise 第 ${round} 轮输出为空`);
-          }
-          return text;
-        },
-      };
+      const qaReviseStage: StageSpec<{ draft: string; qa: QaCheckResult; round: number }, string> =
+        {
+          id: `qa-revise-${round}`,
+          title: `质检回改第 ${round} 轮`,
+          role: "editor",
+          method: { stage: "toutiao.article.qa" },
+          input: () => ({
+            draft: currentDraft,
+            qa: qaResult,
+            round,
+          }),
+          shape:
+            "仅针对 fails 与 hard_gates 指出的位置修改，不靠堆砌口语词或拆小标题凑分，输出完整 Markdown 正文。",
+          format: "text",
+          parse: (raw) => {
+            const text = raw.trim();
+            if (!text) {
+              throw new AppError("model.output_invalid", `qa-revise 第 ${round} 轮输出为空`);
+            }
+            return text;
+          },
+        };
       currentDraft = await runner.stage(
         qaReviseStage,
-        makePacket(s6Text ? [refBlock("s6-qa", "s6-qa.md", s6Text)] : [])
+        makePacket(s6Text ? [refBlock("s6-qa", "s6-qa.md", s6Text)] : []),
       );
 
       const incremental = await runner.local(`qa-revise-claims-${round}`, async () =>
-        filterChangedParagraphClaims(currentDraft, verifiedClaims)
+        filterChangedParagraphClaims(currentDraft, verifiedClaims),
       );
       if (incremental.toVerify.length > 0) {
-        const newlyVerified = await runFactsStage(
-          `facts-inc-${round}`,
-          incremental.toVerify
-        );
+        const newlyVerified = await runFactsStage(`facts-inc-${round}`, incremental.toVerify);
         verifiedClaims = [...incremental.reused, ...newlyVerified];
       } else {
         verifiedClaims = incremental.reused;
@@ -683,7 +686,7 @@ export const articlePipeline: PipelineDefinition<ArticleReq, ArticlePipelineResu
 
     // 12. antigaming: 统计口语标记/小标题增量提示
     const antigaming = await runner.local("antigaming", async () =>
-      evaluateAntiGaming(revisedDraft, currentDraft)
+      evaluateAntiGaming(revisedDraft, currentDraft),
     );
 
     ctx.state.finalStatus = "待验收" satisfies ArticleStatus;
@@ -718,7 +721,7 @@ export const articlePipeline: PipelineDefinition<ArticleReq, ArticlePipelineResu
         ctx.target.path,
         "待验收",
         systemClock.iso(),
-        createLockService(systemClock)
+        createLockService(systemClock),
       );
     }
 

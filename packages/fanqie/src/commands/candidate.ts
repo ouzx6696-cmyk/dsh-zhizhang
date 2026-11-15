@@ -19,7 +19,7 @@ export interface CandidateView {
 
 export async function listCandidates(
   workPath: string,
-  chapterId?: string
+  chapterId?: string,
 ): Promise<CandidateView[]> {
   const root = path.join(workPath, "candidates");
   const chapterDirs: string[] = [];
@@ -73,7 +73,7 @@ export async function listCandidates(
 export async function readCandidate(
   workPath: string,
   chapterId: string,
-  candidateId: string
+  candidateId: string,
 ): Promise<{ id: string; chapterId: string; title: string; body: string; wordCount: number }> {
   const filePath = path.join(workPath, "candidates", chapterId, `${candidateId}.md`);
   const raw = await readTextIfExists(filePath);
@@ -96,7 +96,7 @@ export async function readCandidate(
 export async function acceptCandidate(
   workPath: string,
   input: { chapterId: string; candidateId: string; mode?: "replace" | "append" },
-  lock: LockService = createLockService(systemClock)
+  lock: LockService = createLockService(systemClock),
 ): Promise<ChapterDocument> {
   return lock.write({ kind: "work", path: workPath }, async () => {
     const cand = await readCandidate(workPath, input.chapterId, input.candidateId);
@@ -106,15 +106,13 @@ export async function acceptCandidate(
       const historyFile = path.join(
         workPath,
         "history",
-        `${input.chapterId}-${prev.meta.revision}-${Date.now()}.md`
+        `${input.chapterId}-${prev.meta.revision}-${Date.now()}.md`,
       );
       await atomicWrite(historyFile, serializeChapterMarkdown(prev));
     }
 
     const nextBody =
-      input.mode === "append" && prev?.body
-        ? `${prev.body.trimEnd()}\n\n${cand.body}`
-        : cand.body;
+      input.mode === "append" && prev?.body ? `${prev.body.trimEnd()}\n\n${cand.body}` : cand.body;
 
     const doc: ChapterDocument = {
       meta: {
@@ -131,11 +129,11 @@ export async function acceptCandidate(
 
     await atomicWrite(
       path.join(workPath, "chapters", `${input.chapterId}.md`),
-      serializeChapterMarkdown(doc)
+      serializeChapterMarkdown(doc),
     );
     await atomicWrite(
       path.join(workPath, "candidates", input.chapterId, `${input.candidateId}.accepted.json`),
-      JSON.stringify({ acceptedAt: systemClock.iso(), revision: doc.meta.revision }, null, 2)
+      JSON.stringify({ acceptedAt: systemClock.iso(), revision: doc.meta.revision }, null, 2),
     );
     return doc;
   });
@@ -144,14 +142,14 @@ export async function acceptCandidate(
 export async function rejectCandidate(
   workPath: string,
   input: { chapterId: string; candidateId: string; reason?: string },
-  lock: LockService = createLockService(systemClock)
+  lock: LockService = createLockService(systemClock),
 ): Promise<{ candidateId: string; rejectedAt: string }> {
   return lock.write({ kind: "work", path: workPath }, async () => {
     await readCandidate(workPath, input.chapterId, input.candidateId);
     const rejectedAt = systemClock.iso();
     await atomicWrite(
       path.join(workPath, "candidates", input.chapterId, `${input.candidateId}.rejected.json`),
-      JSON.stringify({ rejectedAt, reason: input.reason ?? "" }, null, 2)
+      JSON.stringify({ rejectedAt, reason: input.reason ?? "" }, null, 2),
     );
     return { candidateId: input.candidateId, rejectedAt };
   });

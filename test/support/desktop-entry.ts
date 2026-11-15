@@ -1,5 +1,8 @@
 /** 桌面层测试入口：把被测模块打进同一个包，保证 AppError 等类在各模块间是同一个。 */
-export { dispatchWorkbenchCommand, isWorkbenchCommand } from "../../apps/desktop/src/main/commands.js";
+export {
+  dispatchWorkbenchCommand,
+  isWorkbenchCommand,
+} from "../../apps/desktop/src/main/commands.js";
 export { createWorkflowService } from "../../apps/desktop/src/main/workflow.js";
 export { createRunStore } from "../../apps/desktop/src/main/services/runs.js";
 export { createConfigService } from "../../apps/desktop/src/main/services/config.js";

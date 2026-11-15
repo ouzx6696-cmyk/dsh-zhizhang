@@ -4,7 +4,14 @@
  */
 import fs from "node:fs/promises";
 import path from "node:path";
-import { clipboard, dialog, ipcMain, shell, type BrowserWindow, type IpcMainInvokeEvent } from "electron";
+import {
+  clipboard,
+  dialog,
+  ipcMain,
+  shell,
+  type BrowserWindow,
+  type IpcMainInvokeEvent,
+} from "electron";
 import type { Clock } from "@zhizhang/core/clock";
 import { AppError, classify, serializeError } from "@zhizhang/core/errors";
 import { COMMAND_POLICY } from "@zhizhang/workbench/contract";
@@ -73,7 +80,10 @@ function toReply<T>(error: unknown): Reply<T> {
 
 function decodeText(bytes: Buffer): { content: string; encoding: OpenedText["encoding"] } {
   try {
-    return { content: new TextDecoder("utf-8", { fatal: true }).decode(bytes).replace(/^\uFEFF/, ""), encoding: "utf-8" };
+    return {
+      content: new TextDecoder("utf-8", { fatal: true }).decode(bytes).replace(/^\uFEFF/, ""),
+      encoding: "utf-8",
+    };
   } catch {
     return { content: new TextDecoder("gbk").decode(bytes), encoding: "gbk" };
   }
@@ -86,16 +96,21 @@ export function registerIpc(s: MainServices): void {
   ): void {
     const parse: (args: unknown[]) => IpcArgs<K> = IPC_PARSERS[channel];
     ipcMain.removeHandler(`zhizhang:${channel}`);
-    ipcMain.handle(`zhizhang:${channel}`, async (event, ...raw: unknown[]): Promise<Reply<IpcResult<K>>> => {
-      try {
-        if (!fromMainFrame(s.window(), event)) {
-          throw new AppError("ipc.invalid_args", `拒绝非主窗口发来的调用：${channel}`, { channel });
+    ipcMain.handle(
+      `zhizhang:${channel}`,
+      async (event, ...raw: unknown[]): Promise<Reply<IpcResult<K>>> => {
+        try {
+          if (!fromMainFrame(s.window(), event)) {
+            throw new AppError("ipc.invalid_args", `拒绝非主窗口发来的调用：${channel}`, {
+              channel,
+            });
+          }
+          return { ok: true, value: await listener(...parse(raw)) };
+        } catch (error) {
+          return toReply(error);
         }
-        return { ok: true, value: await listener(...parse(raw)) };
-      } catch (error) {
-        return toReply(error);
-      }
-    });
+      },
+    );
   }
 
   const parentWindow = () => {
@@ -106,7 +121,9 @@ export function registerIpc(s: MainServices): void {
   async function pickDirectory(title: string): Promise<string | null> {
     const win = parentWindow();
     const options = { title, properties: ["openDirectory" as const, "createDirectory" as const] };
-    const result = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
+    const result = win
+      ? await dialog.showOpenDialog(win, options)
+      : await dialog.showOpenDialog(options);
     return result.canceled ? null : (result.filePaths[0] ?? null);
   }
 
@@ -117,7 +134,9 @@ export function registerIpc(s: MainServices): void {
       defaultPath: `${defaultName}.${extension}`,
       filters: [{ name: extension.toUpperCase(), extensions: [extension] }],
     };
-    const result = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options);
+    const result = win
+      ? await dialog.showSaveDialog(win, options)
+      : await dialog.showSaveDialog(options);
     return result.canceled || !result.filePath ? null : result.filePath;
   }
 
@@ -145,7 +164,8 @@ export function registerIpc(s: MainServices): void {
         typeof input === "object" && input !== null && typeof Reflect.get(input, key) === "string"
           ? String(Reflect.get(input, key))
           : "";
-      const targetPath = pathOf("work") || pathOf("articleDir") || pathOf("root") || pathOf("libraryRoot");
+      const targetPath =
+        pathOf("work") || pathOf("articleDir") || pathOf("root") || pathOf("libraryRoot");
       const mode = call.command.startsWith("toutiao.") ? "toutiao" : "fanqie";
       s.emit({
         kind: "workspace.changed",
@@ -232,10 +252,14 @@ export function registerIpc(s: MainServices): void {
   });
 
   handle("export.save", (target, request) =>
-    exportTarget(target, request, s.commands, { pickSave, copy: (text) => clipboard.writeText(text) }),
+    exportTarget(target, request, s.commands, {
+      pickSave,
+      copy: (text) => clipboard.writeText(text),
+    }),
   );
   handle("backup.start", async () => {
-    if (!s.workspace.status().root) throw new AppError("input.invalid", "请先选择写作文件夹", { field: "workspaceRoot" });
+    if (!s.workspace.status().root)
+      throw new AppError("input.invalid", "请先选择写作文件夹", { field: "workspaceRoot" });
     const output = await pickDirectory("选择备份存放位置");
     if (!output) return null;
     const result = await s.backup.start(output);
@@ -260,11 +284,14 @@ export function registerIpc(s: MainServices): void {
       properties: ["openFile" as const],
       filters: [{ name: extensions.join("/").toUpperCase(), extensions }],
     };
-    const result = win ? await dialog.showOpenDialog(win, dialogOptions) : await dialog.showOpenDialog(dialogOptions);
+    const result = win
+      ? await dialog.showOpenDialog(win, dialogOptions)
+      : await dialog.showOpenDialog(dialogOptions);
     const file = result.canceled ? undefined : result.filePaths[0];
     if (!file) return null;
     const stat = await fs.stat(file);
-    if (stat.size > 20 * 1024 * 1024) throw new AppError("input.invalid", "文件超过 20 MB", { field: "file" });
+    if (stat.size > 20 * 1024 * 1024)
+      throw new AppError("input.invalid", "文件超过 20 MB", { field: "file" });
     const decoded = decodeText(await fs.readFile(file));
     return { path: file, name: path.basename(file), ...decoded };
   });

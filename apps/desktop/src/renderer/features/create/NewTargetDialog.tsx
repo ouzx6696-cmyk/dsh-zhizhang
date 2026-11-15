@@ -61,13 +61,30 @@ export function NewTargetDialog({ kind }: { kind: CreateKind }) {
             if (valid) void submit();
           }}
         >
-          <TextField label={C.create.title} value={title} onChange={setTitle} testId="new-work-title" required autoFocus />
-          <TextField label={C.create.premise} value={premise} onChange={setPremise} testId="new-work-premise" multiline placeholder={C.create.premiseHint} />
+          <TextField
+            label={C.create.title}
+            value={title}
+            onChange={setTitle}
+            testId="new-work-title"
+            required
+            autoFocus
+          />
+          <TextField
+            label={C.create.premise}
+            value={premise}
+            onChange={setPremise}
+            testId="new-work-premise"
+            multiline
+            placeholder={C.create.premiseHint}
+          />
           <Segmented<Grade>
             label={C.create.grade}
             testId="new-work-grade"
             value={grade}
-            options={(["economy", "standard", "premium"] as const).map((g) => ({ value: g, label: C.settings.grade[g] }))}
+            options={(["economy", "standard", "premium"] as const).map((g) => ({
+              value: g,
+              label: C.settings.grade[g],
+            }))}
             onChange={setGrade}
           />
         </form>
@@ -79,8 +96,20 @@ export function NewTargetDialog({ kind }: { kind: CreateKind }) {
             if (valid) void submit();
           }}
         >
-          <TextField label={C.create.genre} value={genre} onChange={setGenre} testId="new-article-genre" hint={C.create.genreHint} />
-          <TextField label={C.create.driver} value={driver} onChange={setDriver} testId="new-article-driver" hint={C.create.driverHint} />
+          <TextField
+            label={C.create.genre}
+            value={genre}
+            onChange={setGenre}
+            testId="new-article-genre"
+            hint={C.create.genreHint}
+          />
+          <TextField
+            label={C.create.driver}
+            value={driver}
+            onChange={setDriver}
+            testId="new-article-driver"
+            hint={C.create.driverHint}
+          />
         </form>
       )}
     </Dialog>

@@ -37,7 +37,10 @@ export interface StageSpec<I, O> {
   shape: string;
   format: "text" | "json";
   parse(raw: string): O;
-  accept?(o: O, ctx: RunCtx): O | { value: O; notes: string[] } | Promise<O | { value: O; notes: string[] }>;
+  accept?(
+    o: O,
+    ctx: RunCtx,
+  ): O | { value: O; notes: string[] } | Promise<O | { value: O; notes: string[] }>;
   retries?: number;
   fanOut?: { count(ctx: RunCtx): number };
 }

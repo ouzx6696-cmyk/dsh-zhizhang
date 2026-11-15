@@ -52,7 +52,10 @@ export interface PiPortOptions {
   authPath: string;
   resolve(connectionId: string): ResolvedConnection;
   /** 角色绑定上的思考档位与温度（阶段请求未指定时采用）。 */
-  defaults?(connectionId: string, model: string): { thinking?: ThinkingLevel; temperature?: number } | undefined;
+  defaults?(
+    connectionId: string,
+    model: string,
+  ): { thinking?: ThinkingLevel; temperature?: number } | undefined;
 }
 
 const catalogStore = new InMemoryModelsStore();
@@ -63,7 +66,10 @@ async function configureSystemProxy(): Promise<void> {
   if (proxyConfigured) return;
   proxyConfigured = true;
   const proxy =
-    process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy;
+    process.env.HTTPS_PROXY ||
+    process.env.https_proxy ||
+    process.env.HTTP_PROXY ||
+    process.env.http_proxy;
   if (!proxy) return;
   const { EnvHttpProxyAgent, setGlobalDispatcher } = await import("undici");
   const declared = process.env.NO_PROXY ?? process.env.no_proxy ?? "";
@@ -81,7 +87,11 @@ interface RuntimeEntry {
 const runtimes = new Map<string, Promise<RuntimeEntry>>();
 const RUNTIME_LIMIT = 12;
 
-async function buildRuntime(conn: ResolvedConnection, modelId: string, authPath: string): Promise<RuntimeEntry> {
+async function buildRuntime(
+  conn: ResolvedConnection,
+  modelId: string,
+  authPath: string,
+): Promise<RuntimeEntry> {
   await configureSystemProxy();
   const runtime = await ModelRuntime.create({
     authPath,
@@ -112,12 +122,19 @@ async function buildRuntime(conn: ResolvedConnection, modelId: string, authPath:
     ],
   });
   const model = runtime.getModel(providerId, modelId);
-  if (!model) throw new AppError("model.unavailable", `模型配置未生效：${modelId}`, { model: modelId });
+  if (!model)
+    throw new AppError("model.unavailable", `模型配置未生效：${modelId}`, { model: modelId });
   return { runtime, model };
 }
 
-function runtimeFor(conn: ResolvedConnection, modelId: string, authPath: string): Promise<RuntimeEntry> {
-  const key = createHash("sha256").update(JSON.stringify([authPath, conn, modelId])).digest("hex");
+function runtimeFor(
+  conn: ResolvedConnection,
+  modelId: string,
+  authPath: string,
+): Promise<RuntimeEntry> {
+  const key = createHash("sha256")
+    .update(JSON.stringify([authPath, conn, modelId]))
+    .digest("hex");
   const hit = runtimes.get(key);
   if (hit) return hit;
   if (runtimes.size >= RUNTIME_LIMIT) {
@@ -144,7 +161,8 @@ function answerError(message: AssistantMessage, contextWindow: number): AppError
     return new AppError("model.context_overflow", text || "上下文超出模型窗口");
   }
   const status = /\b(40[123]|429)\b/.exec(text)?.[1];
-  if (status === "401" || status === "403") return new AppError("model.auth", text, { status: Number(status) });
+  if (status === "401" || status === "403")
+    return new AppError("model.auth", text, { status: Number(status) });
   if (status === "402") return new AppError("model.balance", text, { status: 402 });
   if (status === "429") return new AppError("model.rate_limited", text, { status: 429 });
   if (isRetryableAssistantError(message)) return new AppError("model.unavailable", text);
@@ -219,14 +237,12 @@ function toPiMessages(
         role: "assistant",
         content: [
           ...(msg.text ? [{ type: "text" as const, text: msg.text }] : []),
-          ...msg.toolCalls.map(
-            (call): ToolCall => ({
-              type: "toolCall",
-              id: call.id,
-              name: call.name,
-              arguments: JSON.parse(JSON.stringify(call.args)),
-            }),
-          ),
+          ...msg.toolCalls.map((call): ToolCall => ({
+            type: "toolCall",
+            id: call.id,
+            name: call.name,
+            arguments: JSON.parse(JSON.stringify(call.args)),
+          })),
         ],
         api: model.api,
         provider: model.provider,
@@ -274,7 +290,8 @@ export function createPiPorts(options: PiPortOptions): ModelPort & AssistantPort
       });
       for await (const event of stream) {
         if (event.type === "text_delta") onDelta({ type: "text_delta", delta: event.delta });
-        else if (event.type === "toolcall_end") onDelta({ type: "tool_call", name: event.toolCall.name });
+        else if (event.type === "toolcall_end")
+          onDelta({ type: "tool_call", name: event.toolCall.name });
       }
       const message = await stream.result();
       if (message.stopReason === "error" || message.stopReason === "aborted") {
@@ -288,11 +305,18 @@ export function createPiPorts(options: PiPortOptions): ModelPort & AssistantPort
   }
 
   return {
-    async stream(req: ModelRequest, signal: AbortSignal, on: (e: StreamEvent) => void): Promise<ModelAnswer> {
+    async stream(
+      req: ModelRequest,
+      signal: AbortSignal,
+      on: (e: StreamEvent) => void,
+    ): Promise<ModelAnswer> {
       const { message, model } = await run(
         req.connection,
         req.model,
-        { systemPrompt: req.system, messages: [{ role: "user", content: req.user, timestamp: Date.now() }] },
+        {
+          systemPrompt: req.system,
+          messages: [{ role: "user", content: req.user, timestamp: Date.now() }],
+        },
         { maxOutput: req.maxOutput, thinking: req.thinking, temperature: req.temperature },
         signal,
         (event) => {
@@ -314,7 +338,11 @@ export function createPiPorts(options: PiPortOptions): ModelPort & AssistantPort
       const { message, model } = await run(
         request.connection,
         request.model,
-        { systemPrompt: request.system, messages: toPiMessages(request.messages, request, probe), tools },
+        {
+          systemPrompt: request.system,
+          messages: toPiMessages(request.messages, request, probe),
+          tools,
+        },
         { maxOutput: request.maxOutput },
         signal,
         on,

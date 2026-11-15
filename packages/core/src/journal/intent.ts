@@ -21,7 +21,7 @@ export async function commitIntent(
   journalDir: string,
   intent: Intent,
   lock: LockService,
-  resource: ResourceKey
+  resource: ResourceKey,
 ): Promise<void> {
   return lock.write(resource, async () => {
     await fs.mkdir(journalDir, { recursive: true });

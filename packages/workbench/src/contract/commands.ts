@@ -98,7 +98,12 @@ export interface WorkbenchCommandMap {
     access: "read";
   };
   "fanqie.work.create": {
-    input: { root: string; title: string; premise: string; grade: "economy" | "standard" | "premium" };
+    input: {
+      root: string;
+      title: string;
+      premise: string;
+      grade: "economy" | "standard" | "premium";
+    };
     result: { workPath: string };
     access: "write";
   };
@@ -170,7 +175,12 @@ export interface WorkbenchCommandMap {
     access: "write";
   };
   "toutiao.article.export": {
-    input: { articleDir: string; outPath: string; format?: "md" | "txt"; includeDelivery?: boolean };
+    input: {
+      articleDir: string;
+      outPath: string;
+      format?: "md" | "txt";
+      includeDelivery?: boolean;
+    };
     result: { outPath: string; articleId: string; chars: number };
     access: "read";
   };
@@ -186,7 +196,12 @@ export interface WorkbenchCommandMap {
     access: "write";
   };
   "toutiao.source.register": {
-    input: { articleDir: string; sourceId: string; kind: "paste" | "file" | "classic"; content: string };
+    input: {
+      articleDir: string;
+      sourceId: string;
+      kind: "paste" | "file" | "classic";
+      content: string;
+    };
     result: { sourceId: string };
     access: "write";
   };
@@ -196,7 +211,13 @@ export interface WorkbenchCommandMap {
     access: "read";
   };
   "toutiao.ledger.add": {
-    input: { cardPath: string; ledgerPath: string; articleId?: string; status?: string; date?: string };
+    input: {
+      cardPath: string;
+      ledgerPath: string;
+      articleId?: string;
+      status?: string;
+      date?: string;
+    };
     result: LedgerMutateResult;
     access: "write";
   };

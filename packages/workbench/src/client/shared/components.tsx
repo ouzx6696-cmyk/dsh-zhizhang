@@ -464,13 +464,7 @@ export function Foundation({
 
 const URGENT = /待采纳|硬拒|缺|修订待核对|不可读|未过/;
 
-export function Hints({
-  hints,
-  initial = 4,
-}: {
-  hints?: readonly string[];
-  initial?: number;
-}) {
+export function Hints({ hints, initial = 4 }: { hints?: readonly string[]; initial?: number }) {
   const [open, setOpen] = useState(false);
   const list = (hints ?? []).map((hint) => String(hint));
   if (!list.length) return <p className="wb-muted">暂无提示</p>;

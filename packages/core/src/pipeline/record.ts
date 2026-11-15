@@ -46,8 +46,7 @@ export function emptyUsage(): UsageTotals {
 }
 
 export function addUsage(a: UsageTotals, b: Partial<UsageTotals>): UsageTotals {
-  const cost =
-    a.cost === null || b.cost === null ? null : a.cost + (b.cost ?? 0);
+  const cost = a.cost === null || b.cost === null ? null : a.cost + (b.cost ?? 0);
   return {
     input: a.input + (b.input ?? 0),
     cachedInput: a.cachedInput + (b.cachedInput ?? 0),

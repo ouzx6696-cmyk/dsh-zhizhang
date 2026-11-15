@@ -29,7 +29,7 @@ export interface ModelGateway {
   run(
     role: Role,
     req: Omit<ModelRequest, "connection" | "model">,
-    opts: { runId: string; stage: string; budget: BudgetGuard; signal: AbortSignal }
+    opts: { runId: string; stage: string; budget: BudgetGuard; signal: AbortSignal },
   ): Promise<ModelAnswer>;
   session<T>(role: Role, fn: (port: ModelPort) => Promise<T>, opts: { scope: string }): Promise<T>;
   stats(): { active: number; queued: number };
@@ -38,7 +38,7 @@ export interface ModelGateway {
 export function createModelGateway(
   port: ModelPort,
   config: GatewayConfig,
-  clock: Clock
+  clock: Clock,
 ): ModelGateway {
   let active = 0;
   const activeByRun = new Map<string, number>();
@@ -92,10 +92,7 @@ export function createModelGateway(
   };
 
   const resolveBinding = (role: string): RoleBinding => {
-    return (
-      config.roles[role] ??
-      config.roles.writer ?? { connection: "default", model: "default" }
-    );
+    return config.roles[role] ?? config.roles.writer ?? { connection: "default", model: "default" };
   };
 
   const computeCost = (binding: RoleBinding, answer: ModelAnswer): number | null => {
@@ -123,14 +120,14 @@ export function createModelGateway(
               return await port.stream(
                 { ...req, connection: binding.connection, model: binding.model },
                 wd.signal,
-                () => wd.poke()
+                () => wd.poke(),
               );
             } finally {
               wd.dispose();
             }
           },
           clock,
-          opts.signal
+          opts.signal,
         );
         const cost = computeCost(binding, answer);
         estimator.calibrate(key, est, answer.usage.input);

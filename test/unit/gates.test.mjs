@@ -24,7 +24,14 @@ test("assertInsideWorkspace allows safe relative paths and rejects escapes/reser
     const okPath = assertInsideWorkspace(root, "chapters/ch01.md");
     assert.equal(okPath, path.resolve(root, "chapters/ch01.md"));
 
-    for (const bad of ["", "/etc/passwd", "../outside.txt", "sub/../../escape", "CON.txt", "dir/nul"]) {
+    for (const bad of [
+      "",
+      "/etc/passwd",
+      "../outside.txt",
+      "sub/../../escape",
+      "CON.txt",
+      "dir/nul",
+    ]) {
       assert.throws(
         () => assertInsideWorkspace(root, bad),
         (err) => isAppError(err, "input.invalid"),

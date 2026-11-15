@@ -22,17 +22,31 @@ import {
   stateTone,
 } from "./workflow-model";
 
-type StartKind = "fanqie.chapter" | "fanqie.review" | "fanqie.revise" | "fanqie.health" | "toutiao.article";
+type StartKind =
+  "fanqie.chapter" | "fanqie.review" | "fanqie.revise" | "fanqie.health" | "toutiao.article";
 
-const FANQIE_KINDS: StartKind[] = ["fanqie.chapter", "fanqie.review", "fanqie.revise", "fanqie.health"];
+const FANQIE_KINDS: StartKind[] = [
+  "fanqie.chapter",
+  "fanqie.review",
+  "fanqie.revise",
+  "fanqie.health",
+];
 
-function StartForm({ target, onStarted }: { target: Target; onStarted: (run: RunSummary) => void }) {
+function StartForm({
+  target,
+  onStarted,
+}: {
+  target: Target;
+  onStarted: (run: RunSummary) => void;
+}) {
   const chapters = useDesktop((s) => s.chapters);
   const preset = useDesktop((s) => s.pipelineChapter);
   const focusChapter = useDesktop((s) => s.focus.chapter);
   const readonly = useDesktop((s) => Boolean(s.workspace?.readonly));
   const root = useDesktop((s) => s.workspace?.roots.toutiao ?? "");
-  const [kind, setKind] = useState<StartKind>(target.mode === "toutiao" ? "toutiao.article" : "fanqie.chapter");
+  const [kind, setKind] = useState<StartKind>(
+    target.mode === "toutiao" ? "toutiao.article" : "fanqie.chapter",
+  );
   const [chapter, setChapter] = useState(preset || focusChapter || chapters[0]?.id || "");
   const [note, setNote] = useState("");
   const [article, setArticle] = useState<{ genre: string; driver: string } | null>(null);
@@ -64,7 +78,12 @@ function StartForm({ target, onStarted }: { target: Target; onStarted: (run: Run
     const extra = note.trim() ? { note: note.trim() } : {};
     switch (kind) {
       case "toutiao.article":
-        return { articleId: baseName(target.path), genre: article?.genre ?? "", driver: article?.driver ?? "", ...extra };
+        return {
+          articleId: baseName(target.path),
+          genre: article?.genre ?? "",
+          driver: article?.driver ?? "",
+          ...extra,
+        };
       case "fanqie.health":
         return { upToChapter: Math.max(1, chapters.length) };
       default:
@@ -73,7 +92,11 @@ function StartForm({ target, onStarted }: { target: Target; onStarted: (run: Run
   };
   const ready =
     !readonly &&
-    (kind === "toutiao.article" ? article !== null : kind === "fanqie.health" ? chapters.length > 0 : chapter.trim() !== "");
+    (kind === "toutiao.article"
+      ? article !== null
+      : kind === "fanqie.health"
+        ? chapters.length > 0
+        : chapter.trim() !== "");
 
   const start = async () => {
     setBusy(true);
@@ -98,7 +121,10 @@ function StartForm({ target, onStarted }: { target: Target; onStarted: (run: Run
     }
   };
 
-  const chapterOptions = chapters.map((c) => ({ value: c.id, label: c.title && c.title !== c.id ? `${c.id} · ${c.title}` : c.id }));
+  const chapterOptions = chapters.map((c) => ({
+    value: c.id,
+    label: c.title && c.title !== c.id ? `${c.id} · ${c.title}` : c.id,
+  }));
   return (
     <form
       className="zz-stack"
@@ -128,13 +154,32 @@ function StartForm({ target, onStarted }: { target: Target; onStarted: (run: Run
             onChange={setChapter}
           />
         ) : (
-          <TextField label={C.workflow.chapter} value={chapter} onChange={setChapter} testId="workflow-chapter" hint={C.fanqie.chapterIdHint} />
+          <TextField
+            label={C.workflow.chapter}
+            value={chapter}
+            onChange={setChapter}
+            testId="workflow-chapter"
+            hint={C.fanqie.chapterIdHint}
+          />
         )
       ) : null}
       {kind !== "fanqie.health" ? (
-        <TextField label={C.workflow.note} value={note} onChange={setNote} testId="workflow-note" multiline placeholder={C.workflow.notePlaceholder} />
+        <TextField
+          label={C.workflow.note}
+          value={note}
+          onChange={setNote}
+          testId="workflow-note"
+          multiline
+          placeholder={C.workflow.notePlaceholder}
+        />
       ) : null}
-      <Button type="submit" variant="primary" data-testid="workflow-start" loading={busy} disabled={!ready}>
+      <Button
+        type="submit"
+        variant="primary"
+        data-testid="workflow-start"
+        loading={busy}
+        disabled={!ready}
+      >
         {C.workflow.start}
       </Button>
     </form>
@@ -161,14 +206,24 @@ function RunView({
   const awaiting = run.state === "awaiting-author";
   const tokens = run.usage.input + run.usage.cachedInput + run.usage.output;
   return (
-    <section className="zz-run" data-testid="workflow-run" data-state={run.state} data-kind={run.kind} aria-live="polite">
+    <section
+      className="zz-run"
+      data-testid="workflow-run"
+      data-state={run.state}
+      data-kind={run.kind}
+      aria-live="polite"
+    >
       <header className="zz-run__head">
         <strong>{kindLabel(run.kind)}</strong>
         {chapter ? <span className="zz-muted">{chapter}</span> : null}
         <StatusChip tone={stateTone(run.state)} label={stateLabel(run.state)} dot />
       </header>
       {groups.length ? (
-        <div data-testid="workflow-progress" data-step={progressIndex(run)} data-total={groups.length}>
+        <div
+          data-testid="workflow-progress"
+          data-step={progressIndex(run)}
+          data-total={groups.length}
+        >
           <Steps steps={groups} current={progressIndex(run)} label={C.workflow.progress} />
         </div>
       ) : null}
@@ -179,7 +234,12 @@ function RunView({
           </li>
         ))}
         {run.state === "running" ? (
-          <li data-testid="workflow-stage" data-stage="" data-phase="running" className="zz-stages__live">
+          <li
+            data-testid="workflow-stage"
+            data-stage=""
+            data-phase="running"
+            className="zz-stages__live"
+          >
             {C.workflow.working}
           </li>
         ) : null}
@@ -187,11 +247,19 @@ function RunView({
       <p className="zz-muted" data-testid="workflow-usage">
         {C.workflow.usage(tokens, formatCost(run.usage.cost))}
       </p>
-      {run.error ? <Notice tone="bad" message={ERROR_COPY[run.error.code]} detail={run.error.message} /> : null}
+      {run.error ? (
+        <Notice tone="bad" message={ERROR_COPY[run.error.code]} detail={run.error.message} />
+      ) : null}
       {runActions(run.state).length ? (
         <div className="zz-row">
           {runActions(run.state).map((action) => (
-            <Button key={action} size="sm" data-testid={`workflow-${action}`} disabled={busy} onClick={() => onAction(action)}>
+            <Button
+              key={action}
+              size="sm"
+              data-testid={`workflow-${action}`}
+              disabled={busy}
+              onClick={() => onAction(action)}
+            >
               {COPY[`workflow.action.${action}`]}
             </Button>
           ))}
@@ -201,13 +269,27 @@ function RunView({
         <div className="zz-decide" data-testid="workflow-decide">
           <p className="zz-decide__title">{COPY["workflow.awaiting_author"]}</p>
           {hasCandidate(run.kind) && chapter && detail ? (
-            <DraftCompare work={run.target.path} chapter={chapter} candidateId={run.id} onLoaded={onLoaded} />
+            <DraftCompare
+              work={run.target.path}
+              chapter={chapter}
+              candidateId={run.id}
+              onLoaded={onLoaded}
+            />
           ) : null}
           <div className="zz-row">
-            <Button variant="primary" data-testid="workflow-adopt" disabled={busy} onClick={() => onDecide("apply", sides)}>
+            <Button
+              variant="primary"
+              data-testid="workflow-adopt"
+              disabled={busy}
+              onClick={() => onDecide("apply", sides)}
+            >
               {C.workflow.adopt}
             </Button>
-            <Button data-testid="workflow-discard" disabled={busy} onClick={() => onDecide("discard", sides)}>
+            <Button
+              data-testid="workflow-discard"
+              disabled={busy}
+              onClick={() => onDecide("discard", sides)}
+            >
               {C.workflow.discard}
             </Button>
           </div>
@@ -228,7 +310,9 @@ function History({ runs, currentId }: { runs: RunSummary[]; currentId: string })
           <li key={r.id} data-testid="workflow-history-item" data-state={r.state}>
             <span>{kindLabel(r.kind)}</span>
             <StatusChip tone={stateTone(r.state)} label={stateLabel(r.state)} />
-            <span className="zz-muted">{new Date(r.created).toLocaleString("zh-CN", { hour12: false })}</span>
+            <span className="zz-muted">
+              {new Date(r.created).toLocaleString("zh-CN", { hour12: false })}
+            </span>
           </li>
         ))}
       </ul>
@@ -314,7 +398,12 @@ export function WorkflowPanel({ target }: { target: Target }) {
             candidateId: current.id,
             base: sides.official.revision,
           });
-        else await desktop.workbench("fanqie.candidate.reject", { work: target.path, chapter, candidateId: current.id });
+        else
+          await desktop.workbench("fanqie.candidate.reject", {
+            work: target.path,
+            chapter,
+            candidateId: current.id,
+          });
       }
       return desktop.decideRun(ref, decision);
     });
@@ -323,9 +412,19 @@ export function WorkflowPanel({ target }: { target: Target }) {
   return (
     <div className="zz-workflow" data-testid="workflow-panel">
       {error ? <Notice tone="bad" message={error} /> : null}
-      {current ? <RunView run={current} detail={detail} busy={busy} onAction={onAction} onDecide={onDecide} /> : null}
+      {current ? (
+        <RunView
+          run={current}
+          detail={detail}
+          busy={busy}
+          onAction={onAction}
+          onDecide={onDecide}
+        />
+      ) : null}
       {!current ? <Empty title={C.workflow.empty} description={C.workflow.emptyHint} /> : null}
-      {!current || !isOpen(current.state) ? <StartForm target={target} onStarted={setCurrent} /> : null}
+      {!current || !isOpen(current.state) ? (
+        <StartForm target={target} onStarted={setCurrent} />
+      ) : null}
       <History runs={runs} currentId={currentId} />
     </div>
   );

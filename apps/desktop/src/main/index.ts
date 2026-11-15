@@ -47,7 +47,10 @@ const toutiaoProfile = path.join(resources, "profiles", "toutiao", "default");
 
 process.env.ZHIZHANG_TOUTIAO_SCRIPTS_DIR ??= toutiaoScripts;
 if (!process.env.ZHIZHANG_PYTHON && existsSync(path.join(pythonRoot, "zhizhang-runtime.json"))) {
-  process.env.ZHIZHANG_PYTHON = path.join(pythonRoot, process.platform === "win32" ? "python.exe" : "bin/python3");
+  process.env.ZHIZHANG_PYTHON = path.join(
+    pythonRoot,
+    process.platform === "win32" ? "python.exe" : "bin/python3",
+  );
 }
 
 const safeStorageCipher: SecretCipher = {
@@ -64,7 +67,9 @@ function focusOf(raw: Record<string, string>): Focus {
     ...(raw.chapter ? { chapter: raw.chapter } : {}),
     ...(raw.candidate ? { candidate: raw.candidate } : {}),
     ...(raw.article ? { article: raw.article } : {}),
-    ...(source === "chapter" || source === "candidate" || source === "article" || source === "split" ? { source } : {}),
+    ...(source === "chapter" || source === "candidate" || source === "article" || source === "split"
+      ? { source }
+      : {}),
   };
 }
 
@@ -90,14 +95,21 @@ async function bootstrap(): Promise<void> {
   const issue = config.issue();
   if (issue) diagnostics.write("settings_invalid", { code: issue.code, path: issue.path });
   const workspace = createWorkspaceService({ locks, clock });
-  const models = createModelServices({ config, clock, authPath: path.join(stateRoot, "pi", "auth.json") });
+  const models = createModelServices({
+    config,
+    clock,
+    authPath: path.join(stateRoot, "pi", "auth.json"),
+  });
   config.onChange(() => models.rebuild());
 
   const profileDirs = {
     builtin: (mode: Mode) => path.join(resources, "profiles", mode),
     userDir: resolveUserProfilesDir(),
   };
-  const profileRoots = (mode: Mode) => ({ builtinDir: profileDirs.builtin(mode), userDir: profileDirs.userDir });
+  const profileRoots = (mode: Mode) => ({
+    builtinDir: profileDirs.builtin(mode),
+    userDir: profileDirs.userDir,
+  });
 
   const runs = createRunStore(path.join(stateRoot, "runs"));
   const workflow = createWorkflowService({
@@ -106,7 +118,11 @@ async function bootstrap(): Promise<void> {
     gateway: () => models.gateway(),
     budget: () => {
       const engine = config.settings().engine;
-      return { inputBudget: engine.inputBudget, runBudget: engine.runBudget, moneyCap: engine.moneyCap ?? null };
+      return {
+        inputBudget: engine.inputBudget,
+        runBudget: engine.runBudget,
+        moneyCap: engine.moneyCap ?? null,
+      };
     },
     profileRoots,
     async profileId(target) {
@@ -122,7 +138,9 @@ async function bootstrap(): Promise<void> {
         scriptsDir: typeof request.scriptsDir === "string" ? request.scriptsDir : toutiaoScripts,
         profileDir: typeof request.profileDir === "string" ? request.profileDir : toutiaoProfile,
         ledgerPath:
-          typeof request.ledgerPath === "string" ? request.ledgerPath : path.join(workspace.status().roots.toutiao, "ledger.csv"),
+          typeof request.ledgerPath === "string"
+            ? request.ledgerPath
+            : path.join(workspace.status().roots.toutiao, "ledger.csv"),
       };
     },
   });
@@ -166,7 +184,8 @@ async function bootstrap(): Promise<void> {
       return (await fanqie.getWork(target.path).catch(() => undefined))?.title;
     },
     emit,
-    onBusyChange: () => emit({ kind: "running", rows: [...workflow.running(), ...sessions.running()] }),
+    onBusyChange: () =>
+      emit({ kind: "running", rows: [...workflow.running(), ...sessions.running()] }),
   });
 
   const storage = createStorageHealth({
@@ -191,7 +210,11 @@ async function bootstrap(): Promise<void> {
       const controller = new AbortController();
       backupController = controller;
       try {
-        await runBackup(path.join(resources, "scripts", "zhizhang-backup.mjs"), ["--source", root, "--output", dir], controller.signal);
+        await runBackup(
+          path.join(resources, "scripts", "zhizhang-backup.mjs"),
+          ["--source", root, "--output", dir],
+          controller.signal,
+        );
         diagnostics.write("backup_done", {});
         return { dir, sources: [root] };
       } catch (err) {
@@ -208,10 +231,15 @@ async function bootstrap(): Promise<void> {
 
   async function openWorkspace(root: string): Promise<WorkspaceStatus> {
     const status = await workspace.open(root);
-    if (!config.issue() && config.settings().workspaceRoot !== status.root) await config.setWorkspaceRoot(status.root);
+    if (!config.issue() && config.settings().workspaceRoot !== status.root)
+      await config.setWorkspaceRoot(status.root);
     emit({ kind: "workspace.status", status });
     if (status.readonly) {
-      emit({ kind: "notice", code: "storage.locked", data: { readonly: true, ...(status.owner ? { owner: status.owner } : {}) } });
+      emit({
+        kind: "notice",
+        code: "storage.locked",
+        data: { readonly: true, ...(status.owner ? { owner: status.owner } : {}) },
+      });
     }
     return status;
   }
@@ -270,9 +298,16 @@ async function bootstrap(): Promise<void> {
         platform: process.platform,
         arch: process.arch,
         electron: process.versions.electron,
-        workspace: { configured: workspace.status().configured, readonly: workspace.status().readonly },
+        workspace: {
+          configured: workspace.status().configured,
+          readonly: workspace.status().readonly,
+        },
         models: {
-          connections: settings.models.connections.map((c) => ({ provider: c.provider, api: c.api, configured: c.configured })),
+          connections: settings.models.connections.map((c) => ({
+            provider: c.provider,
+            api: c.api,
+            configured: c.configured,
+          })),
           roles: Object.entries(settings.models.roles)
             .filter(([, binding]) => binding !== undefined)
             .map(([role]) => role),
@@ -283,7 +318,8 @@ async function bootstrap(): Promise<void> {
     },
     updates,
     async learning(target: Target) {
-      if (target.mode !== "fanqie") throw new AppError("input.invalid", "个人规则学习只用于番茄作品", { mode: target.mode });
+      if (target.mode !== "fanqie")
+        throw new AppError("input.invalid", "个人规则学习只用于番茄作品", { mode: target.mode });
       const work = workspace.assertInside(target.path);
       const state = await createLearningStore(locks).read(work);
       const bible = await fanqie.readBible(work, locks);

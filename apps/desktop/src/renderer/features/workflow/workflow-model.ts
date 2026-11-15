@@ -35,7 +35,9 @@ const STAGE_PREFIXES: readonly (keyof typeof C.workflow.stage)[] = [
 ];
 
 function stagePrefix(id: string): keyof typeof C.workflow.stage | undefined {
-  return STAGE_PREFIXES.find((prefix) => id === prefix || id.startsWith(prefix + "-") || id.startsWith(prefix + "_"));
+  return STAGE_PREFIXES.find(
+    (prefix) => id === prefix || id.startsWith(prefix + "-") || id.startsWith(prefix + "_"),
+  );
 }
 
 export function stageLabel(id: string): string {
@@ -43,7 +45,9 @@ export function stageLabel(id: string): string {
   if (!prefix) return id;
   const round = /-(\d+)$/.exec(id);
   const label = C.workflow.stage[prefix];
-  return round && prefix !== "prepare" ? `${label} ${Number(round[1]) + (prefix === "score" ? 1 : 0)}` : label;
+  return round && prefix !== "prepare"
+    ? `${label} ${Number(round[1]) + (prefix === "score" ? 1 : 0)}`
+    : label;
 }
 
 /** 各流水线的粗分组（进度轨）：每组列出归属的阶段前缀。 */
@@ -124,7 +128,9 @@ export function runActions(state: RunState): WorkflowAction[] {
 
 /** 运行进行中（含暂停/失败可恢复）：同一目标不能再发起新的流水线。 */
 export function isOpen(state: RunState): boolean {
-  return state === "running" || state === "paused" || state === "failed" || state === "awaiting-author";
+  return (
+    state === "running" || state === "paused" || state === "failed" || state === "awaiting-author"
+  );
 }
 
 /** 新事件比手里的旧时才替换，防止迟到的响应盖掉推送。 */
@@ -134,7 +140,8 @@ export function newer(current: RunSummary | null, next: RunSummary): RunSummary 
 
 export function requestField(detail: Pick<RunDetail, "request"> | null, key: string): string {
   const request = detail?.request;
-  const value: unknown = typeof request === "object" && request !== null ? Reflect.get(request, key) : undefined;
+  const value: unknown =
+    typeof request === "object" && request !== null ? Reflect.get(request, key) : undefined;
   return typeof value === "string" ? value : "";
 }
 

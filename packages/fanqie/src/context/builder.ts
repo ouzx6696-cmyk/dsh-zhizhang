@@ -2,9 +2,7 @@ import { estimateTokensRaw } from "@zhizhang/core/model";
 import type { ContextBlock, ContextPacket } from "@zhizhang/core/pipeline";
 import type { Bible, BibleView, EntityHit } from "../bible/types.js";
 
-export type PreviousTextMode =
-  | { kind: "full"; maxChars: number }
-  | { kind: "tail"; chars: number };
+export type PreviousTextMode = { kind: "full"; maxChars: number } | { kind: "tail"; chars: number };
 
 export interface EarlyChapterDoc {
   chapter: string;
@@ -63,7 +61,7 @@ function makeBlock(
   text: string,
   required: boolean,
   reason: string,
-  source: ContextBlock["source"]
+  source: ContextBlock["source"],
 ): ContextBlock {
   return {
     id,
@@ -77,7 +75,10 @@ function makeBlock(
 }
 
 export function tokenize2Grams(text: string): string[] {
-  const cleaned = text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  const cleaned = text
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
   if (!cleaned) return [];
   const tokens: string[] = [];
   for (const seg of cleaned.split(/\s+/)) {
@@ -96,7 +97,7 @@ export function tokenize2Grams(text: string): string[] {
 export function retrieveEarlyChapters(
   query: string,
   docs: EarlyChapterDoc[],
-  topK = 3
+  topK = 3,
 ): RetrievedChapterHit[] {
   if (docs.length === 0 || topK <= 0) return [];
   const queryTerms = tokenize2Grams(query);
@@ -148,7 +149,12 @@ export function retrieveEarlyChapters(
   }
 
   return hits
-    .sort((a, bHit) => bHit.score - a.score || bHit.matchedTerms - a.matchedTerms || bHit.doc.position - a.doc.position)
+    .sort(
+      (a, bHit) =>
+        bHit.score - a.score ||
+        bHit.matchedTerms - a.matchedTerms ||
+        bHit.doc.position - a.doc.position,
+    )
     .slice(0, topK);
 }
 
@@ -175,7 +181,7 @@ export function buildChapterContext(input: ChapterContextInput): ContextPacket {
       makeBlock("l1-continuity", 1, l1Parts.join("\n\n"), true, "前章接续与前文", {
         kind: "chapter",
         ref: `pos:${Math.max(1, input.position - 1)}`,
-      })
+      }),
     );
   }
 
@@ -193,7 +199,7 @@ export function buildChapterContext(input: ChapterContextInput): ContextPacket {
       makeBlock("l2-entities", 2, `【在场与全局实体】\n${l2Text}`, false, "按章纲与前文命中纳入", {
         kind: "bible",
         ref: "entities",
-      })
+      }),
     );
   }
 
@@ -201,15 +207,18 @@ export function buildChapterContext(input: ChapterContextInput): ContextPacket {
   if (input.view.knowledge.length > 0) {
     l3Parts.push(
       "【知情边界】\n" +
-        input.view.knowledge.map((k) => `- ${k.holder} 对「${k.fact}」：${k.level}`).join("\n")
+        input.view.knowledge.map((k) => `- ${k.holder} 对「${k.fact}」：${k.level}`).join("\n"),
     );
   }
   if (input.view.threads.length > 0) {
     l3Parts.push(
       "【有效伏笔/线索】\n" +
         input.view.threads
-          .map((t) => `- ${t.title}（第${t.opened}章埋设${t.plannedPayoff ? `，计划第${t.plannedPayoff}章兑现` : ""}）`)
-          .join("\n")
+          .map(
+            (t) =>
+              `- ${t.title}（第${t.opened}章埋设${t.plannedPayoff ? `，计划第${t.plannedPayoff}章兑现` : ""}）`,
+          )
+          .join("\n"),
     );
   }
   if (l3Parts.length > 0) {
@@ -217,7 +226,7 @@ export function buildChapterContext(input: ChapterContextInput): ContextPacket {
       makeBlock("l3-constraints", 3, l3Parts.join("\n\n"), true, "知情与伏笔硬约束", {
         kind: "bible",
         ref: "constraints",
-      })
+      }),
     );
   }
 
@@ -232,16 +241,14 @@ export function buildChapterContext(input: ChapterContextInput): ContextPacket {
       `【本章章纲】\n${input.outlineText}${rulesBlock}${noteBlock}`,
       true,
       "本章任务目标",
-      { kind: "outline", ref: input.chapterId }
-    )
+      { kind: "outline", ref: input.chapterId },
+    ),
   );
 
   const usedTokens = [...prefix, ...suffix].reduce((sum, b) => sum + b.tokens, 0);
   let remaining = Math.max(0, input.budget - usedTokens);
 
-  const l4Text = input.recentSummaries
-    .map((s) => `第${s.position}章：${s.summary}`)
-    .join("\n");
+  const l4Text = input.recentSummaries.map((s) => `第${s.position}章：${s.summary}`).join("\n");
   if (l4Text) {
     const l4Block = makeBlock("l4-recent", 4, `【近期回顾】\n${l4Text}`, false, "近10章摘要", {
       kind: "bible",
@@ -281,7 +288,7 @@ export function buildChapterContext(input: ChapterContextInput): ContextPacket {
       `【早期章节检索】\n${l5Text}`,
       false,
       "早期章节 BM25 + 字符 2-gram 检索",
-      { kind: "retrieval", ref: "chapters" }
+      { kind: "retrieval", ref: "chapters" },
     );
     if (l5Block.tokens <= remaining) {
       suffix.push(l5Block);
@@ -306,7 +313,7 @@ export function buildChapterContext(input: ChapterContextInput): ContextPacket {
   }
   if (input.referenceCards && input.referenceCards.length > 0) {
     const cardLines = input.referenceCards.map(
-      (c) => `- [${c.category}] ${c.title}：${c.pattern}（用法：${c.usage}）`
+      (c) => `- [${c.category}] ${c.title}：${c.pattern}（用法：${c.usage}）`,
     );
     l6Parts.push(`【绑定参考卡（参考机制，不复制）】\n${cardLines.join("\n")}`);
   }
@@ -320,7 +327,7 @@ export function buildChapterContext(input: ChapterContextInput): ContextPacket {
       {
         kind: input.referenceCards && input.referenceCards.length > 0 ? "reference" : "plan",
         ref: "plan-and-cards",
-      }
+      },
     );
     if (l6Block.tokens <= remaining) {
       suffix.push(l6Block);

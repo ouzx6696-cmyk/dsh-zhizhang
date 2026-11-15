@@ -13,7 +13,11 @@ import { isWorkbenchCommand } from "../commands.js";
 
 const mode = lit("fanqie", "toutiao");
 
-const target: Parser<Target> = obj({ mode, path: str({ min: 1, max: 1000 }), subId: opt(str({ max: 200 })) });
+const target: Parser<Target> = obj({
+  mode,
+  path: str({ min: 1, max: 1000 }),
+  subId: opt(str({ max: 200 })),
+});
 
 const runRef: Parser<RunRef> = obj({ runId: str({ min: 1, max: 200 }), target });
 
@@ -36,16 +40,23 @@ const sessionSend: Parser<SessionSend> = obj({
 const draftConnection = ConnectionInputSchema;
 
 const recoverAction: Parser<RecoverAction> = (value, at = "$") => {
-  const head = obj({ kind: lit("clear-lock", "replay-intents", "discard-run") }, { strict: false })(value, at);
-  if (head.kind === "clear-lock") return obj({ kind: lit("clear-lock"), lockDir: str({ min: 1 }) })(value, at);
-  if (head.kind === "replay-intents") return obj({ kind: lit("replay-intents"), dir: str({ min: 1 }) })(value, at);
+  const head = obj({ kind: lit("clear-lock", "replay-intents", "discard-run") }, { strict: false })(
+    value,
+    at,
+  );
+  if (head.kind === "clear-lock")
+    return obj({ kind: lit("clear-lock"), lockDir: str({ min: 1 }) })(value, at);
+  if (head.kind === "replay-intents")
+    return obj({ kind: lit("replay-intents"), dir: str({ min: 1 }) })(value, at);
   return obj({ kind: lit("discard-run"), runId: str({ min: 1 }), target })(value, at);
 };
 
 const workbenchCall: Parser<WorkbenchCall> = (value, at = "$") => {
   const raw = obj({ command: str({ min: 1 }), input: (v: unknown) => v })(value, at);
   if (!isWorkbenchCommand(raw.command)) {
-    throw new AppError("input.invalid", `${at}.command: 未知命令 ${raw.command}`, { path: `${at}.command` });
+    throw new AppError("input.invalid", `${at}.command: 未知命令 ${raw.command}`, {
+      path: `${at}.command`,
+    });
   }
   // 命令输入的逐字段解析在 dispatchWorkbenchCommand 内按命令进行
   return { command: raw.command, input: raw.input } as WorkbenchCall;
@@ -66,13 +77,19 @@ const two =
 
 export const IPC_PARSERS: { [K in IpcChannel]: (args: unknown[]) => IpcArgs<K> } = {
   "workbench.call": one(workbenchCall),
-  "workflow.start": two(target, obj({ kind: str({ min: 1, max: 80 }), request: (v: unknown) => v })),
+  "workflow.start": two(
+    target,
+    obj({ kind: str({ min: 1, max: 80 }), request: (v: unknown) => v }),
+  ),
   "workflow.control": two(runRef, lit("pause", "resume", "stop", "retry")),
   "workflow.decide": two(runRef, lit("apply", "discard")),
   "workflow.get": one(runRef),
   "workflow.history": one(target),
   "workflow.running": none,
-  "session.view": two(target, obj({ conversationId: opt(str({ min: 1, max: 80 })), limit: opt(int({ min: 1, max: 2000 })) })),
+  "session.view": two(
+    target,
+    obj({ conversationId: opt(str({ min: 1, max: 80 })), limit: opt(int({ min: 1, max: 2000 })) }),
+  ),
   "session.send": two(target, sessionSend),
   "session.stop": one(target),
   "session.list": one(target),
@@ -92,7 +109,11 @@ export const IPC_PARSERS: { [K in IpcChannel]: (args: unknown[]) => IpcArgs<K> }
     }),
   ),
   "models.catalog": one(
-    obj({ connectionId: str({ min: 1, max: 40 }), draft: opt(draftConnection), source: lit("pi", "endpoint") }),
+    obj({
+      connectionId: str({ min: 1, max: 40 }),
+      draft: opt(draftConnection),
+      source: lit("pi", "endpoint"),
+    }),
   ),
   "app.state": none,
   "app.openExternal": one(str({ min: 1, max: 2000 })),
@@ -104,7 +125,11 @@ export const IPC_PARSERS: { [K in IpcChannel]: (args: unknown[]) => IpcArgs<K> }
   "targets.select": one(target),
   "export.save": two(
     target,
-    obj({ format: lit("txt", "docx", "md", "copy"), finalOnly: opt(bool), includeDelivery: opt(bool) }),
+    obj({
+      format: lit("txt", "docx", "md", "copy"),
+      finalOnly: opt(bool),
+      includeDelivery: opt(bool),
+    }),
   ),
   "backup.start": none,
   "backup.cancel": none,
@@ -112,7 +137,12 @@ export const IPC_PARSERS: { [K in IpcChannel]: (args: unknown[]) => IpcArgs<K> }
   "storage.health": none,
   "storage.recover": one(recoverAction),
   "updates.check": one(lit("status", "check")),
-  "dialog.openText": one(obj({ title: opt(str({ max: 100 })), extensions: opt(arr(str({ min: 1, max: 10 }), { max: 10 })) })),
+  "dialog.openText": one(
+    obj({
+      title: opt(str({ max: 100 })),
+      extensions: opt(arr(str({ min: 1, max: 10 }), { max: 10 })),
+    }),
+  ),
   "source.fetch": one(str({ min: 1, max: 2000 })),
   "learning.status": one(target),
 };

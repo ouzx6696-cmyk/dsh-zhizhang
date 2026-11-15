@@ -125,7 +125,7 @@ async function readStructureVolumes(workPath: string): Promise<StructureVolume[]
 
 function orderChaptersByStructure(
   rows: ChapterRowView[],
-  volumes: StructureVolume[]
+  volumes: StructureVolume[],
 ): Array<{ row: ChapterRowView; volume?: StructureVolume }> {
   const sortedRows = [...rows].sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
   if (volumes.length === 0) {
@@ -137,7 +137,7 @@ function orderChaptersByStructure(
 
   for (const vol of volumes) {
     const inVol = sortedRows.filter(
-      (r) => !used.has(r.id) && r.position >= vol.startChapter && r.position <= vol.endChapter
+      (r) => !used.has(r.id) && r.position >= vol.startChapter && r.position <= vol.endChapter,
     );
     for (const row of inVol) {
       used.add(row.id);
@@ -155,7 +155,7 @@ function orderChaptersByStructure(
 
 export async function assembleBookExport(
   workPath: string,
-  opts: ExportOptions = {}
+  opts: ExportOptions = {},
 ): Promise<ExportBookPayload> {
   const meta = await readWorkMeta(workPath);
   const rows = await listChapters(workPath);
@@ -227,7 +227,7 @@ export async function assembleBookExport(
 
 export async function exportWorkTxt(
   workPath: string,
-  opts: ExportTxtOptions = {}
+  opts: ExportTxtOptions = {},
 ): Promise<ExportTxtResult> {
   const payload = await assembleBookExport(workPath, opts);
   if (opts.outPath) {
@@ -246,7 +246,7 @@ export async function exportWorkTxt(
 
 export async function exportWorkDocx(
   workPath: string,
-  opts: ExportDocxOptions = {}
+  opts: ExportDocxOptions = {},
 ): Promise<ExportDocxResult> {
   const payload = await assembleBookExport(workPath, opts);
   if (opts.outPath && opts.pack) {

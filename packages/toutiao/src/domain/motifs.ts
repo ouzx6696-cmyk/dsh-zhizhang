@@ -22,7 +22,10 @@ export function parseMotifsFromS3(markdown: string): MotifSpec[] {
     const item = /^\s*(?:[-*]|\d+\.)\s+\*{0,2}([^：:*\n]+?)\*{0,2}(?:[：:]|$)/.exec(line)?.[1];
     const raw = cell ?? item;
     if (!raw || /^[-:\s]+$/.test(raw) || raw === "母体") continue;
-    const name = raw.replace(/\*/g, "").replace(/^\d+\s*/, "").trim();
+    const name = raw
+      .replace(/\*/g, "")
+      .replace(/^\d+\s*/, "")
+      .trim();
     const bucket = cell !== undefined ? fromTable : fromList;
     if (name && !bucket.includes(name)) bucket.push(name);
   }

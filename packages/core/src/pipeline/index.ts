@@ -1,9 +1,5 @@
 export { createBudgetGuard, type BudgetGuard } from "./budget.js";
-export {
-  renderContextPacket,
-  type ContextBlock,
-  type ContextPacket,
-} from "./context-packet.js";
+export { renderContextPacket, type ContextBlock, type ContextPacket } from "./context-packet.js";
 export { buildDeliveryMarker, isAlreadyDelivered } from "./delivery.js";
 export {
   addUsage,

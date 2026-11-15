@@ -91,23 +91,12 @@ export function Dialog({
   );
 }
 
-export function Tag({
-  label,
-  tone = "neutral",
-  removable = false,
-  className,
-  onRemove,
-}: TagProps) {
+export function Tag({ label, tone = "neutral", removable = false, className, onRemove }: TagProps) {
   return (
     <span className={tagClasses({ tone, className })}>
       <span>{label}</span>
       {removable ? (
-        <button
-          type="button"
-          className="zz-tag__remove"
-          aria-label="移除"
-          onClick={onRemove}
-        >
+        <button type="button" className="zz-tag__remove" aria-label="移除" onClick={onRemove}>
           ×
         </button>
       ) : null}
@@ -181,13 +170,7 @@ export function Empty({ title, description, icon, action, className }: EmptyProp
   );
 }
 
-export function Skeleton({
-  variant = "text",
-  width,
-  height,
-  lines = 1,
-  className,
-}: SkeletonProps) {
+export function Skeleton({ variant = "text", width, height, lines = 1, className }: SkeletonProps) {
   const style = {
     width: typeof width === "number" ? `${width}px` : width,
     height: typeof height === "number" ? `${height}px` : height,
@@ -210,17 +193,13 @@ export function Skeleton({
     );
   }
 
-  return <span className={skeletonClasses({ variant, className })} style={style} aria-hidden="true" />;
+  return (
+    <span className={skeletonClasses({ variant, className })} style={style} aria-hidden="true" />
+  );
 }
 
 export function Spinner({ size = "md", label = "加载中", className }: SpinnerProps) {
-  return (
-    <span
-      role="status"
-      aria-label={label}
-      className={spinnerClasses({ size, className })}
-    />
-  );
+  return <span role="status" aria-label={label} className={spinnerClasses({ size, className })} />;
 }
 
 export function ProgressRail({ steps, current, label, className }: ProgressRailProps) {

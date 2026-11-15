@@ -39,7 +39,8 @@ function createStreamBuffer() {
         frame = 0;
         const text = pending;
         pending = "";
-        if (chatStore.get().scope === scope) chatStore.set((chat) => ({ stream: chat.stream + text }));
+        if (chatStore.get().scope === scope)
+          chatStore.set((chat) => ({ stream: chat.stream + text }));
       });
     },
     clear() {
@@ -50,7 +51,12 @@ function createStreamBuffer() {
   };
 }
 
-function handleSession(event: SessionEvent, conversationId: string, scope: string, stream: ReturnType<typeof createStreamBuffer>) {
+function handleSession(
+  event: SessionEvent,
+  conversationId: string,
+  scope: string,
+  stream: ReturnType<typeof createStreamBuffer>,
+) {
   const chat = chatStore.get();
   if (chat.conversationId && chat.conversationId !== conversationId) return;
   switch (event.type) {
@@ -83,9 +89,13 @@ function handleSession(event: SessionEvent, conversationId: string, scope: strin
         busy: false,
         stream: "",
         tool: "",
-        ended: { reason: event.reason, ...(event.error ? { message: ERROR_COPY[event.error.code] } : {}) },
+        ended: {
+          reason: event.reason,
+          ...(event.error ? { message: ERROR_COPY[event.error.code] } : {}),
+        },
       });
-      if (event.error) notify({ tone: "danger", text: ERROR_COPY[event.error.code], detail: event.error.message });
+      if (event.error)
+        notify({ tone: "danger", text: ERROR_COPY[event.error.code], detail: event.error.message });
       return;
     default: {
       const never: never = event;
@@ -116,10 +126,14 @@ export function subscribeDesktopEvents(): () => void {
         const sameMode = selected?.mode === event.target.mode;
         const relevant =
           selected !== null &&
-          (scopeKey(selected) === scopeKey(event.target) || (sameMode && event.target.mode === "toutiao"));
+          (scopeKey(selected) === scopeKey(event.target) ||
+            (sameMode && event.target.mode === "toutiao"));
         if (relevant)
-          set((state) => ({ revisions: { ...state.revisions, [event.scope]: state.revisions[event.scope] + 1 } }));
-        if (event.scope === "rows" || event.scope === "article") refreshTargets().catch(notifyError);
+          set((state) => ({
+            revisions: { ...state.revisions, [event.scope]: state.revisions[event.scope] + 1 },
+          }));
+        if (event.scope === "rows" || event.scope === "article")
+          refreshTargets().catch(notifyError);
         return;
       }
       case "workspace.status":
@@ -136,7 +150,11 @@ export function subscribeDesktopEvents(): () => void {
         set((state) => ({ app: state.app ? { ...state.app, updates: event.status } : null }));
         return;
       case "notice":
-        notify({ tone: event.code === "backup.done" ? "success" : "info", text: noticeText(event.code), detail: event.message });
+        notify({
+          tone: event.code === "backup.done" ? "success" : "info",
+          text: noticeText(event.code),
+          detail: event.message,
+        });
         return;
       default: {
         const never: never = event;

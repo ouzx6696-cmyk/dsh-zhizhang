@@ -86,12 +86,7 @@ export function Menu({ label, items, open = true, className, onClose }: MenuProp
   if (!open) return null;
 
   return (
-    <div
-      ref={ref}
-      role="menu"
-      aria-label={label}
-      className={menuClasses({ open, className })}
-    >
+    <div ref={ref} role="menu" aria-label={label} className={menuClasses({ open, className })}>
       {items.map((item) =>
         item.separator ? (
           <div key={item.id} role="separator" className="zz-menu__separator" />

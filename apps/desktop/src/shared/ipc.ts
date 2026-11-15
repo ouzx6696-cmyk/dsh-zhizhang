@@ -167,7 +167,10 @@ export function unwrapReply<T>(reply: Reply<T>): T {
 /** 渲染层使用的类型化客户端：方法 → 通道一一对应（见文件头对照表）。 */
 export interface DesktopApi {
   subscribe(callback: (event: DesktopEvent) => void): () => void;
-  workbench<K extends WorkbenchCommand>(command: K, input: CommandInput<K>): Promise<CommandResult<K>>;
+  workbench<K extends WorkbenchCommand>(
+    command: K,
+    input: CommandInput<K>,
+  ): Promise<CommandResult<K>>;
 
   startRun(target: Target, start: WorkflowStart): Promise<RunRef>;
   controlRun(ref: RunRef, action: WorkflowAction): Promise<RunSummary>;
@@ -176,7 +179,10 @@ export interface DesktopApi {
   runHistory(target: Target): Promise<RunSummary[]>;
   running(): Promise<RunningRow[]>;
 
-  sessionView(target: Target, options?: { conversationId?: string; limit?: number }): Promise<SessionView>;
+  sessionView(
+    target: Target,
+    options?: { conversationId?: string; limit?: number },
+  ): Promise<SessionView>;
   send(target: Target, message: SessionSend): Promise<{ conversationId: string }>;
   stop(target: Target): Promise<void>;
   conversations(target: Target): Promise<ConversationItem[]>;
@@ -213,7 +219,10 @@ export interface DesktopApi {
 }
 
 export function createDesktopApi(bridge: () => DesktopBridge): DesktopApi {
-  async function call<K extends IpcChannel>(channel: K, ...args: IpcArgs<K>): Promise<IpcResult<K>> {
+  async function call<K extends IpcChannel>(
+    channel: K,
+    ...args: IpcArgs<K>
+  ): Promise<IpcResult<K>> {
     return unwrapReply(await bridge().invoke(channel, ...args));
   }
   return {

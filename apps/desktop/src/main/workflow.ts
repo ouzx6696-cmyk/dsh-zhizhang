@@ -68,10 +68,19 @@ const keyOf = (target: { path: string }) => target.path;
 export function createWorkflowService(deps: WorkflowDeps) {
   const active = new Map<string, ActiveRun>();
 
-  async function contextFor(def: PipelineDefinition<unknown, unknown>, target: Target, request: unknown, runId?: string): Promise<RunCtx> {
+  async function contextFor(
+    def: PipelineDefinition<unknown, unknown>,
+    target: Target,
+    request: unknown,
+    runId?: string,
+  ): Promise<RunCtx> {
     const profileId = await deps.profileId(target);
     const profileRoots = deps.profileRoots(target.mode);
-    const ctx = await def.context(target, request, { workspaceRoot: target.path, profileId, profileRoots });
+    const ctx = await def.context(target, request, {
+      workspaceRoot: target.path,
+      profileId,
+      profileRoots,
+    });
     return { ...ctx, ...(runId ? { runId } : {}), profileId, profileRoots };
   }
 
@@ -95,7 +104,12 @@ export function createWorkflowService(deps: WorkflowDeps) {
     }));
   }
 
-  function launch(def: PipelineDefinition<unknown, unknown>, record: RunRecord, ctx: RunCtx, target: Target): ActiveRun {
+  function launch(
+    def: PipelineDefinition<unknown, unknown>,
+    record: RunRecord,
+    ctx: RunCtx,
+    target: Target,
+  ): ActiveRun {
     const controller = new AbortController();
     const run: ActiveRun = {
       target,
@@ -108,13 +122,21 @@ export function createWorkflowService(deps: WorkflowDeps) {
     run.promise = (async (): Promise<RunDetail> => {
       let latest: RunRecord = record;
       try {
-        latest = await executePipeline(def, record, ctx, deps.gateway(), deps.clock, controller.signal, async (rec) => {
-          latest = rec;
-          run.stage = rec.steps[rec.steps.length - 1]?.id;
-          const detail = withError(rec);
-          await deps.runs.save(detail);
-          emitRun(detail);
-        });
+        latest = await executePipeline(
+          def,
+          record,
+          ctx,
+          deps.gateway(),
+          deps.clock,
+          controller.signal,
+          async (rec) => {
+            latest = rec;
+            run.stage = rec.steps[rec.steps.length - 1]?.id;
+            const detail = withError(rec);
+            await deps.runs.save(detail);
+            emitRun(detail);
+          },
+        );
         const detail = withError(latest);
         await deps.runs.save(detail);
         emitRun(detail);
@@ -129,7 +151,10 @@ export function createWorkflowService(deps: WorkflowDeps) {
         return detail;
       } catch (err) {
         const appErr = classify(err);
-        const failed = latest.state === "failed" ? latest : transition(latest, "failed", "error", deps.clock.iso());
+        const failed =
+          latest.state === "failed"
+            ? latest
+            : transition(latest, "failed", "error", deps.clock.iso());
         const detail = withError(failed, { code: appErr.code, message: appErr.message });
         await deps.runs.save(detail);
         emitRun(detail);
@@ -146,21 +171,28 @@ export function createWorkflowService(deps: WorkflowDeps) {
 
   async function load(ref: RunRef): Promise<RunDetail> {
     const detail = await deps.runs.get(ref.target, ref.runId);
-    if (!detail) throw new AppError("input.not_found", `未找到运行记录：${ref.runId}`, { runId: ref.runId });
+    if (!detail)
+      throw new AppError("input.not_found", `未找到运行记录：${ref.runId}`, { runId: ref.runId });
     return detail;
   }
 
   function assertIdle(target: Target): void {
     const busy = active.get(keyOf(target));
     if (busy) {
-      throw new AppError("gate.denied", "当前作品已有运行中的流水线", { runId: busy.runId, kind: busy.kind });
+      throw new AppError("gate.denied", "当前作品已有运行中的流水线", {
+        runId: busy.runId,
+        kind: busy.kind,
+      });
     }
   }
 
   async function startRun(target: Target, kind: string, rawRequest: unknown): Promise<ActiveRun> {
     const def = ModeRegistry.pipeline(target.mode, kind);
     assertIdle(target);
-    const request = def.request(deps.prepareRequest ? deps.prepareRequest(kind, rawRequest) : rawRequest, "$request");
+    const request = def.request(
+      deps.prepareRequest ? deps.prepareRequest(kind, rawRequest) : rawRequest,
+      "$request",
+    );
     const ctx = await contextFor(def, target, request);
     const now = deps.clock.iso();
     const record: RunRecord = {
@@ -206,14 +238,23 @@ export function createWorkflowService(deps: WorkflowDeps) {
       assertIdle(ref.target);
       const detail = await load(ref);
       if (detail.state !== "paused" && detail.state !== "failed") {
-        throw new AppError("run.invalid_transition", `运行处于 ${detail.state}，不能${action === "retry" ? "重试" : "恢复"}`, {
-          state: detail.state,
-        });
+        throw new AppError(
+          "run.invalid_transition",
+          `运行处于 ${detail.state}，不能${action === "retry" ? "重试" : "恢复"}`,
+          {
+            state: detail.state,
+          },
+        );
       }
       const def = ModeRegistry.pipeline(ref.target.mode, detail.kind);
       const ctx = await contextFor(def, ref.target, detail.request, detail.id);
       const { error: _error, ...record } = detail;
-      const resumed = transition(record, "running", action === "retry" ? "retry" : "resume", deps.clock.iso());
+      const resumed = transition(
+        record,
+        "running",
+        action === "retry" ? "retry" : "resume",
+        deps.clock.iso(),
+      );
       const next: RunRecord = { ...resumed, budget: deps.budget() };
       await deps.runs.save(withError(next));
       emitRun(withError(next));

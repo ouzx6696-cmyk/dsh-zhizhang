@@ -21,7 +21,14 @@ export function SettingsDialog() {
   const close = () => desktopStore.set({ settingsOpen: false });
   if (!settings) return null;
   return (
-    <Dialog title={COPY["settings.title"]} closeLabel={COPY.close} size="lg" testId="settings-dialog" className="zz-settings" onClose={close}>
+    <Dialog
+      title={COPY["settings.title"]}
+      closeLabel={COPY.close}
+      size="lg"
+      testId="settings-dialog"
+      className="zz-settings"
+      onClose={close}
+    >
       <div className="zz-settings__body">
         <Tabs
           id={base}
@@ -35,7 +42,9 @@ export function SettingsDialog() {
           }}
         />
         <div {...tabPanelProps(base, tab, tab)} className="zz-settings__panel">
-          {tab === "models" ? <ModelsTab key={settings.models.connections.length} settings={settings} /> : null}
+          {tab === "models" ? (
+            <ModelsTab key={settings.models.connections.length} settings={settings} />
+          ) : null}
           {tab === "engine" ? <EngineTab settings={settings} /> : null}
           {tab === "appearance" ? <AppearanceTab settings={settings} /> : null}
           {tab === "workspace" ? <WorkspaceTab /> : null}

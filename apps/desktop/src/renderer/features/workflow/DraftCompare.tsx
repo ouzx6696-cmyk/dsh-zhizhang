@@ -11,7 +11,11 @@ export interface CompareSides {
 }
 
 /** 读正式稿与候选稿；正式稿尚不存在（新章）时左侧为空。 */
-export async function loadCompare(work: string, chapter: string, candidateId: string): Promise<CompareSides> {
+export async function loadCompare(
+  work: string,
+  chapter: string,
+  candidateId: string,
+): Promise<CompareSides> {
   const [official, candidate] = await Promise.all([
     desktop.workbench("fanqie.chapter.get", { work, chapter }).catch((error: unknown) => {
       if (errorCode(error) === "input.not_found" || errorCode(error) === "storage.io") return null;
@@ -20,7 +24,9 @@ export async function loadCompare(work: string, chapter: string, candidateId: st
     desktop.workbench("fanqie.candidate.get", { work, chapter, candidateId }),
   ]);
   return {
-    official: official ? { title: official.title, body: official.body, revision: official.revision } : { title: "", body: "", revision: "" },
+    official: official
+      ? { title: official.title, body: official.body, revision: official.revision }
+      : { title: "", body: "", revision: "" },
     candidate: { title: candidate.title, body: candidate.body, wordCount: candidate.wordCount },
   };
 }
@@ -59,7 +65,12 @@ export function DraftCompare({
     };
   }, [work, chapter, candidateId, onLoaded]);
 
-  if (error) return <p role="alert" className="zz-muted" data-testid="workflow-compare-error">{error}</p>;
+  if (error)
+    return (
+      <p role="alert" className="zz-muted" data-testid="workflow-compare-error">
+        {error}
+      </p>
+    );
   if (!sides) return <Skeleton lines={5} />;
   return (
     <div className="zz-compare" data-testid="workflow-compare">

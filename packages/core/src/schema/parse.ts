@@ -59,7 +59,7 @@ export function arr<T>(item: Parser<T>, opts?: { max?: number }): Parser<T[]> {
 
 export function obj<S extends Record<string, Parser<unknown>>>(
   shape: S,
-  opts: { strict?: boolean } = { strict: true }
+  opts: { strict?: boolean } = { strict: true },
 ): Parser<{ [K in keyof S]: ReturnType<S[K]> }> {
   return (v, path = "$") => {
     if (typeof v !== "object" || v === null || Array.isArray(v)) {

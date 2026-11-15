@@ -43,7 +43,11 @@ export function createDiagnostics(logDir: string, clock: Clock) {
       const tail = ((await readTextIfExists(file)) ?? "").split("\n").filter(Boolean).slice(-400);
       await atomicWrite(
         target,
-        JSON.stringify({ format: "zhizhang/1.3", exportedAt: clock.iso(), ...summary, log: tail }, null, 2),
+        JSON.stringify(
+          { format: "zhizhang/1.3", exportedAt: clock.iso(), ...summary, log: tail },
+          null,
+          2,
+        ),
       );
     },
   };

@@ -7,7 +7,7 @@ export async function withRetry<T>(
   fn: () => Promise<T>,
   clock: Clock,
   signal: AbortSignal,
-  jitterFactor = 0.2
+  jitterFactor = 0.2,
 ): Promise<T> {
   let attempt = 0;
   while (true) {

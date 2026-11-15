@@ -56,9 +56,10 @@ export const revisePipeline: PipelineDefinition<ReviseReq, StandaloneReviseResul
   async run(runner, ctx) {
     const req = ctx.request as ReviseReq;
     const prepared = await runner.local("prepare", async () => {
-      const workMeta = await readJson(path.join(ctx.target.path, "work.json"), WorkMetaSchema).catch(
-        () => undefined
-      );
+      const workMeta = await readJson(
+        path.join(ctx.target.path, "work.json"),
+        WorkMetaSchema,
+      ).catch(() => undefined);
       const chapterPath = path.join(ctx.target.path, "chapters", `${req.chapterId}.md`);
       const raw = await readTextIfExists(chapterPath);
       if (!raw) {
@@ -119,13 +120,13 @@ export const revisePipeline: PipelineDefinition<ReviseReq, StandaloneReviseResul
       ctx.state.pendingIssues = pendingIssues;
       const revised = await runner.stage(makeReviseStage(round), packet);
       const revisedGate = await runner.local(`gate-revise-${round}`, async () =>
-        gateDraft(revised, { targetWords: prepared.targetWords })
+        gateDraft(revised, { targetWords: prepared.targetWords }),
       );
       if (!revisedGate.passed) {
         throw new AppError(
           "model.output_invalid",
           `修稿第 ${round} 轮未通过门禁：${revisedGate.reasons.join("；")}`,
-          { reasons: revisedGate.reasons }
+          { reasons: revisedGate.reasons },
         );
       }
       current = revised;
@@ -178,7 +179,7 @@ export const revisePipeline: PipelineDefinition<ReviseReq, StandaloneReviseResul
       ctx.target.path,
       "candidates",
       req.chapterId,
-      `${record.id}.marker.json`
+      `${record.id}.marker.json`,
     );
     return (await isAlreadyDelivered(marker, record.id)) ? "delivered" : "resume";
   },

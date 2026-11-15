@@ -46,7 +46,10 @@ function issueOf(err: unknown): SettingsIssue {
   };
 }
 
-export async function createConfigService(opts: { stateRoot: string; cipher: SecretCipher }): Promise<ConfigService> {
+export async function createConfigService(opts: {
+  stateRoot: string;
+  cipher: SecretCipher;
+}): Promise<ConfigService> {
   const settingsFile = path.join(opts.stateRoot, "settings.json");
   const secretsFile = path.join(opts.stateRoot, "secrets.bin");
   const listeners: Array<(settings: AppSettings) => void> = [];
@@ -61,7 +64,11 @@ export async function createConfigService(opts: { stateRoot: string; cipher: Sec
     } catch (err) {
       issue =
         err instanceof SyntaxError
-          ? { code: "input.invalid", message: `settings.json 不是合法 JSON：${err.message}`, path: "$settings" }
+          ? {
+              code: "input.invalid",
+              message: `settings.json 不是合法 JSON：${err.message}`,
+              path: "$settings",
+            }
           : issueOf(err);
     }
   }
@@ -71,17 +78,26 @@ export async function createConfigService(opts: { stateRoot: string; cipher: Sec
     if (secretsRaw !== undefined) {
       try {
         const data: unknown = JSON.parse(secretsRaw);
-        if (typeof data !== "object" || data === null || !("format" in data) || data.format !== FORMAT_VERSION) {
+        if (
+          typeof data !== "object" ||
+          data === null ||
+          !("format" in data) ||
+          data.format !== FORMAT_VERSION
+        ) {
           throw new AppError("storage.format_unsupported", "secrets.bin 格式不受支持");
         }
-        const stored = "keys" in data && typeof data.keys === "object" && data.keys !== null ? data.keys : {};
+        const stored =
+          "keys" in data && typeof data.keys === "object" && data.keys !== null ? data.keys : {};
         for (const [id, value] of Object.entries(stored)) {
           if (typeof value === "string") keys.set(id, opts.cipher.decrypt(value));
         }
       } catch (err) {
         issue ??= isAppError(err)
           ? issueOf(err)
-          : { code: "storage.format_unsupported", message: "密钥文件无法解密，需要重新填写 API Key" };
+          : {
+              code: "storage.format_unsupported",
+              message: "密钥文件无法解密，需要重新填写 API Key",
+            };
       }
     }
   }
@@ -143,7 +159,9 @@ export async function createConfigService(opts: { stateRoot: string; cipher: Sec
       for (const [role, binding] of Object.entries(input.roles)) {
         if (binding && !connections.some((c) => c.id === binding.connection)) {
           const keyPath = `$models.roles.${role}.connection`;
-          throw new AppError("input.invalid", `${keyPath}: 未知连接 ${binding.connection}`, { path: keyPath });
+          throw new AppError("input.invalid", `${keyPath}: 未知连接 ${binding.connection}`, {
+            path: keyPath,
+          });
         }
       }
       for (const conn of input.connections) {

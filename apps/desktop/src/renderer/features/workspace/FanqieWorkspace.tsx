@@ -40,7 +40,13 @@ function NewChapterDialog({
   const submit = async () => {
     setBusy(true);
     try {
-      await desktop.workbench("fanqie.chapter.save", { work, chapter: id.trim(), base: "", body: "", title: title.trim() || undefined });
+      await desktop.workbench("fanqie.chapter.save", {
+        work,
+        chapter: id.trim(),
+        base: "",
+        body: "",
+        title: title.trim() || undefined,
+      });
       onCreated(id.trim());
     } catch (error) {
       notifyError(error);
@@ -58,19 +64,43 @@ function NewChapterDialog({
       footer={
         <>
           <Button onClick={onClose}>{COPY.cancel}</Button>
-          <Button variant="primary" data-testid="new-chapter-submit" loading={busy} disabled={!/^[\w-]+$/.test(id.trim())} onClick={() => void submit()}>
+          <Button
+            variant="primary"
+            data-testid="new-chapter-submit"
+            loading={busy}
+            disabled={!/^[\w-]+$/.test(id.trim())}
+            onClick={() => void submit()}
+          >
             {C.fanqie.createChapter}
           </Button>
         </>
       }
     >
-      <TextField label={C.fanqie.chapterId} value={id} onChange={setId} testId="new-chapter-id" hint={C.fanqie.chapterIdHint} />
-      <TextField label={C.fanqie.chapterTitle} value={title} onChange={setTitle} testId="new-chapter-title" autoFocus />
+      <TextField
+        label={C.fanqie.chapterId}
+        value={id}
+        onChange={setId}
+        testId="new-chapter-id"
+        hint={C.fanqie.chapterIdHint}
+      />
+      <TextField
+        label={C.fanqie.chapterTitle}
+        value={title}
+        onChange={setTitle}
+        testId="new-chapter-title"
+        autoFocus
+      />
     </Dialog>
   );
 }
 
-function Board({ chapters, onOpen }: { chapters: readonly ChapterRowView[]; onOpen: (id: string) => void }) {
+function Board({
+  chapters,
+  onOpen,
+}: {
+  chapters: readonly ChapterRowView[];
+  onOpen: (id: string) => void;
+}) {
   const words = chapters.reduce((sum, c) => sum + c.wordCount, 0);
   const finals = chapters.filter((c) => c.status === "final").length;
   return (
@@ -99,7 +129,10 @@ function Board({ chapters, onOpen }: { chapters: readonly ChapterRowView[]; onOp
                 </td>
                 <td>{c.wordCount}</td>
                 <td>
-                  <StatusChip tone={c.status === "final" ? "ok" : c.status === "reviewed" ? "run" : "neutral"} label={statusLabel("fanqie", c.status)} />
+                  <StatusChip
+                    tone={c.status === "final" ? "ok" : c.status === "reviewed" ? "run" : "neutral"}
+                    label={statusLabel("fanqie", c.status)}
+                  />
                 </td>
               </tr>
             ))}
@@ -141,7 +174,14 @@ export function FanqieWorkspace({ target, readonly }: { target: Target; readonly
   }, [view.chapters, dispatch]);
 
   useEffect(() => {
-    set({ focus: { chapter: view.current?.id, title: view.current?.title, workTitle, source: "chapter" } });
+    set({
+      focus: {
+        chapter: view.current?.id,
+        title: view.current?.title,
+        workTitle,
+        source: "chapter",
+      },
+    });
   }, [view.current?.id, view.current?.title, workTitle]);
 
   useEffect(() => {
@@ -169,12 +209,21 @@ export function FanqieWorkspace({ target, readonly }: { target: Target; readonly
       <nav className="zz-workspace__nav" aria-label={C.fanqie.chapters}>
         <header className="zz-workspace__nav-head">
           <h2>{C.fanqie.chapters}</h2>
-          <Button size="sm" data-testid="new-chapter" disabled={readonly} onClick={() => setCreating(true)}>
+          <Button
+            size="sm"
+            data-testid="new-chapter"
+            disabled={readonly}
+            onClick={() => setCreating(true)}
+          >
             <Plus size={14} aria-hidden="true" />
             {C.fanqie.newChapter}
           </Button>
         </header>
-        <ChapterList chapters={view.chapters} selectedId={state.chapterId} onSelect={selectChapter} />
+        <ChapterList
+          chapters={view.chapters}
+          selectedId={state.chapterId}
+          onSelect={selectChapter}
+        />
       </nav>
       <section className="zz-workspace__center">
         {mainView === "board" ? (
@@ -183,7 +232,12 @@ export function FanqieWorkspace({ target, readonly }: { target: Target; readonly
           <>
             {current ? (
               <div className="zz-chapter-bar" data-testid="chapter-bar">
-                <Button size="sm" data-testid="chapter-start-pipeline" disabled={readonly} onClick={() => openPipeline(current.id)}>
+                <Button
+                  size="sm"
+                  data-testid="chapter-start-pipeline"
+                  disabled={readonly}
+                  onClick={() => openPipeline(current.id)}
+                >
                   <Workflow size={14} aria-hidden="true" />
                   {C.fanqie.startPipeline}
                 </Button>
@@ -193,7 +247,12 @@ export function FanqieWorkspace({ target, readonly }: { target: Target; readonly
                   data-testid="chapter-finalize"
                   disabled={readonly || current.status !== "reviewed" || Boolean(state.busyAction)}
                   title={current.status !== "reviewed" ? C.fanqie.finalizeHint : undefined}
-                  onClick={() => dispatch({ type: "openDialog", dialog: { kind: "finalize", chapterId: current.id } })}
+                  onClick={() =>
+                    dispatch({
+                      type: "openDialog",
+                      dialog: { kind: "finalize", chapterId: current.id },
+                    })
+                  }
                 >
                   <Check size={14} aria-hidden="true" />
                   {COPY["fanqie.action.finalize"]}
@@ -218,7 +277,9 @@ export function FanqieWorkspace({ target, readonly }: { target: Target; readonly
         state={state}
         dispatch={dispatch}
         onFinalize={(id) => fanqie.finalizeChapter(id).catch(notifyError)}
-        onAcceptCandidate={(chapter, candidate, base) => fanqie.acceptCandidate(chapter, candidate, base).catch(notifyError)}
+        onAcceptCandidate={(chapter, candidate, base) =>
+          fanqie.acceptCandidate(chapter, candidate, base).catch(notifyError)
+        }
       />
       {creating ? (
         <NewChapterDialog

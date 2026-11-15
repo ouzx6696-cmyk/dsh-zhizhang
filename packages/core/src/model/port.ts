@@ -28,6 +28,6 @@ export interface ModelPort {
   stream(
     req: ModelRequest,
     signal: AbortSignal,
-    on: (e: StreamEvent) => void
+    on: (e: StreamEvent) => void,
   ): Promise<ModelAnswer>;
 }

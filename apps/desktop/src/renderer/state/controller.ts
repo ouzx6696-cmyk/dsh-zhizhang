@@ -37,8 +37,10 @@ export function editorDirty(): boolean {
 }
 
 export async function canLeave(): Promise<boolean> {
-  const ok = await canLeaveEdit(editor, (message) => askConfirm(message), () =>
-    notify({ tone: "warning", text: C.shell.savingBlocked }),
+  const ok = await canLeaveEdit(
+    editor,
+    (message) => askConfirm(message),
+    () => notify({ tone: "warning", text: C.shell.savingBlocked }),
   );
   if (ok && editor) {
     const current = editor;
@@ -59,8 +61,12 @@ export async function boot(): Promise<void> {
     workspace: app.workspace,
     onboarding: !app.workspace.configured || !modelReady(app.settings),
   });
-  if (app.settingsIssue) notify({ tone: "warning", text: C.shell.settingsIssue, detail: app.settingsIssue.message });
-  const [running] = await Promise.all([desktop.running(), app.workspace.configured ? refreshTargets() : Promise.resolve()]);
+  if (app.settingsIssue)
+    notify({ tone: "warning", text: C.shell.settingsIssue, detail: app.settingsIssue.message });
+  const [running] = await Promise.all([
+    desktop.running(),
+    app.workspace.configured ? refreshTargets() : Promise.resolve(),
+  ]);
   set({ running, boot: "ready" });
   const last = app.recent[0];
   if (last && app.workspace.configured) await select(last.target).catch(() => undefined);
@@ -117,7 +123,11 @@ export async function select(target: Target, focus: Focus = {}, guard = true): P
   await loadChat(item.target);
 }
 
-export async function createWork(input: { title: string; premise: string; grade: "economy" | "standard" | "premium" }) {
+export async function createWork(input: {
+  title: string;
+  premise: string;
+  grade: "economy" | "standard" | "premium";
+}) {
   const root = desktopStore.get().workspace?.roots.fanqie;
   if (!root) return;
   const { workPath } = await desktop.workbench("fanqie.work.create", { root, ...input });
@@ -189,11 +199,18 @@ export async function sendMessage(text: string, intent?: SessionIntent): Promise
   chatStore.set((chat) => ({
     busy: true,
     ended: null,
-    messages: [...chat.messages, { id: `local-${++localId}`, role: "user", text: value, at: Date.now() }],
+    messages: [
+      ...chat.messages,
+      { id: `local-${++localId}`, role: "user", text: value, at: Date.now() },
+    ],
     total: chat.total + 1,
   }));
   try {
-    const { conversationId } = await desktop.send(target, { text: value, focus, ...(intent ? { intent } : {}) });
+    const { conversationId } = await desktop.send(target, {
+      text: value,
+      focus,
+      ...(intent ? { intent } : {}),
+    });
     chatStore.set({ conversationId });
     return true;
   } catch (error) {

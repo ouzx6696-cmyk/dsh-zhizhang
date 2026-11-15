@@ -72,10 +72,7 @@ for (const file of allTs) {
   }
 
   // G-app: session/renderer must not import main/
-  if (
-    rel.startsWith("apps/desktop/src/session/") ||
-    rel.startsWith("apps/desktop/src/renderer/")
-  ) {
+  if (rel.startsWith("apps/desktop/src/session/") || rel.startsWith("apps/desktop/src/renderer/")) {
     if (/(?:from|import\s*\()\s*["'][^"']*(?:^|\/)main(?:\/|["'])/.test(noComments)) {
       errors.push(`[G-app] session/renderer imports main/ in ${rel}`);
     }
@@ -86,7 +83,9 @@ for (const file of allTs) {
     /(?:from|import\s*\()\s*["']@earendil-works\/pi-/.test(noComments) &&
     rel !== "apps/desktop/src/session/pi-adapter.ts"
   ) {
-    errors.push(`[G-pi] @earendil-works/pi-* only allowed in session/pi-adapter.ts (found in ${rel})`);
+    errors.push(
+      `[G-pi] @earendil-works/pi-* only allowed in session/pi-adapter.ts (found in ${rel})`,
+    );
   }
 
   // G-copy: forbid Chinese text in JSX (strict for desktop/renderer and ui; hint for workbench/client)
@@ -94,16 +93,22 @@ for (const file of allTs) {
     const jsxChinese = noComments.match(/>[^<>{}]*[\u4e00-\u9fff][^<>{}]*</g) || [];
     if (jsxChinese.length > 0) {
       if (rel.startsWith("apps/desktop/src/renderer/") || rel.startsWith("packages/ui/src/")) {
-        errors.push(`[G-copy] Chinese literal in JSX in ${rel} (${jsxChinese.length} occurrence(s))`);
+        errors.push(
+          `[G-copy] Chinese literal in JSX in ${rel} (${jsxChinese.length} occurrence(s))`,
+        );
       } else {
-        warnings.push(`[G-copy] Chinese literal in JSX in ${rel} (${jsxChinese.length} occurrence(s))`);
+        warnings.push(
+          `[G-copy] Chinese literal in JSX in ${rel} (${jsxChinese.length} occurrence(s))`,
+        );
       }
     }
   }
 
   // G-copy: forbid duplicating PASS_SCORE = 84, TITLE_MAX = 34, or toutiao status constants in TS
   if (/(?:PASS_SCORE|passScore|TITLE_MAX|titleMax)\s*=\s*(?:84|34)\b/.test(noComments)) {
-    errors.push(`[G-copy] Hardcoded business constant (84/34) in ${rel}; read from rules.py bridge`);
+    errors.push(
+      `[G-copy] Hardcoded business constant (84/34) in ${rel}; read from rules.py bridge`,
+    );
   }
   if (
     rel !== "packages/toutiao/src/domain/status.ts" &&
@@ -182,13 +187,13 @@ for (const pkgDir of fs.readdirSync(path.join(ROOT, "packages"), { withFileTypes
           : (target?.default ?? target?.import ?? target?.types ?? "");
       if (!targetStr || targetStr.endsWith(".css")) {
         if (targetStr && !fs.existsSync(path.join(ROOT, "packages", pkgDir.name, targetStr))) {
-          errors.push(`[G-exports] Missing export target ${targetStr} for ${pkgJson.name} (${subpath})`);
+          errors.push(
+            `[G-exports] Missing export target ${targetStr} for ${pkgJson.name} (${subpath})`,
+          );
         }
         continue;
       }
-      const srcCandidate = targetStr
-        .replace(/^\.\/dist\//, "./src/")
-        .replace(/\.js$/, ".ts");
+      const srcCandidate = targetStr.replace(/^\.\/dist\//, "./src/").replace(/\.js$/, ".ts");
       const tsxCandidate = srcCandidate.replace(/\.ts$/, ".tsx");
       const fullBase = path.join(ROOT, "packages", pkgDir.name);
       if (
@@ -196,7 +201,9 @@ for (const pkgDir of fs.readdirSync(path.join(ROOT, "packages"), { withFileTypes
         !fs.existsSync(path.join(fullBase, tsxCandidate)) &&
         !fs.existsSync(path.join(fullBase, targetStr))
       ) {
-        errors.push(`[G-exports] Missing export source for ${pkgJson.name} (${subpath}): ${targetStr}`);
+        errors.push(
+          `[G-exports] Missing export source for ${pkgJson.name} (${subpath}): ${targetStr}`,
+        );
       }
     }
   }

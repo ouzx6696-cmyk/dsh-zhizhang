@@ -22,7 +22,9 @@ import { ArticleMetaSchema } from "../storage/articles.js";
 const DEFAULT_MAX_CHARS = 6000;
 
 function clip(text: string, max: number): { text: string; truncated: boolean } {
-  return text.length > max ? { text: text.slice(0, max), truncated: true } : { text, truncated: false };
+  return text.length > max
+    ? { text: text.slice(0, max), truncated: true }
+    : { text, truncated: false };
 }
 
 async function readMeta(articleDir: string) {
@@ -119,7 +121,8 @@ export function toutiaoAssistantTools(role: Role, target: ModeTarget): ToolDefin
         throw new AppError("input.not_found", "这篇文章还没有草稿");
       }
       const text = await readTextIfExists(path.join(articleDir, "drafts", file));
-      if (text === undefined) throw new AppError("input.not_found", `未找到草稿：${file}`, { file });
+      if (text === undefined)
+        throw new AppError("input.not_found", `未找到草稿：${file}`, { file });
       const body = clip(text, args.maxChars ?? DEFAULT_MAX_CHARS);
       return { file, text: body.text, truncated: body.truncated };
     },
@@ -133,7 +136,9 @@ export function toutiaoAssistantTools(role: Role, target: ModeTarget): ToolDefin
     roles: ["assistant"],
     async run() {
       const dir = path.join(articleDir, "sources");
-      const names = (await fs.readdir(dir).catch(() => [])).filter((n) => n.endsWith(".json")).sort();
+      const names = (await fs.readdir(dir).catch(() => []))
+        .filter((n) => n.endsWith(".json"))
+        .sort();
       const sources: unknown[] = [];
       for (const name of names) {
         const raw = await readTextIfExists(path.join(dir, name));
@@ -162,7 +167,9 @@ export function toutiaoAssistantTools(role: Role, target: ModeTarget): ToolDefin
       if (/[\\/]/.test(args.sourceId)) throw new AppError("input.invalid", "来源 id 无效");
       const text = await readTextIfExists(path.join(articleDir, "sources", `${args.sourceId}.txt`));
       if (text === undefined) {
-        throw new AppError("input.not_found", `未找到来源：${args.sourceId}`, { sourceId: args.sourceId });
+        throw new AppError("input.not_found", `未找到来源：${args.sourceId}`, {
+          sourceId: args.sourceId,
+        });
       }
       const body = clip(text, args.maxChars ?? DEFAULT_MAX_CHARS);
       return { sourceId: args.sourceId, text: body.text, truncated: body.truncated };
@@ -202,7 +209,8 @@ export function toutiaoAssistantTools(role: Role, target: ModeTarget): ToolDefin
 
   const methodTool = defineTool({
     name: "toutiao_read_method",
-    description: "查阅当前方法方案中某个阶段取用的方法原文（例如 card、title、draft、review、qa）。",
+    description:
+      "查阅当前方法方案中某个阶段取用的方法原文（例如 card、title、draft、review、qa）。",
     params: MethodArgs,
     jsonSchema: {
       type: "object",

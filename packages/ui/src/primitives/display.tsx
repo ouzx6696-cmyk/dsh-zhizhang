@@ -44,11 +44,7 @@ export function Steps({ steps, current, label, className }: StepsProps) {
         const itemLabel = typeof step === "string" ? step : step.label;
         const key = typeof step === "string" ? `${index}-${step}` : step.id;
         return (
-          <li
-            key={key}
-            data-state={state}
-            aria-current={state === "current" ? "step" : undefined}
-          >
+          <li key={key} data-state={state} aria-current={state === "current" ? "step" : undefined}>
             <span>{state === "done" ? "✓" : index + 1}</span>
             {itemLabel}
           </li>

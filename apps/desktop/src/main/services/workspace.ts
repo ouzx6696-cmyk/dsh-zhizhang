@@ -33,7 +33,10 @@ export interface WorkspaceService {
   release(): Promise<void>;
 }
 
-export function createWorkspaceService(deps: { locks: LockService; clock: Clock }): WorkspaceService {
+export function createWorkspaceService(deps: {
+  locks: LockService;
+  clock: Clock;
+}): WorkspaceService {
   let lease: Lease | undefined;
   let state: WorkspaceStatus = {
     root: "",
@@ -43,7 +46,12 @@ export function createWorkspaceService(deps: { locks: LockService; clock: Clock 
   };
 
   async function ensureLayout(root: string): Promise<void> {
-    for (const dir of [WORKSPACE_META_DIR, MODE_DIRS.fanqie, MODE_DIRS.toutiao, MODE_DIRS.library]) {
+    for (const dir of [
+      WORKSPACE_META_DIR,
+      MODE_DIRS.fanqie,
+      MODE_DIRS.toutiao,
+      MODE_DIRS.library,
+    ]) {
       await fs.mkdir(path.join(root, dir), { recursive: true });
     }
     const rootFile = path.join(root, WORKSPACE_META_DIR, "root.json");
@@ -51,7 +59,15 @@ export function createWorkspaceService(deps: { locks: LockService; clock: Clock 
     if (existing === undefined) {
       await atomicWrite(
         rootFile,
-        JSON.stringify({ format: FORMAT_VERSION, id: `ws-${deps.clock.now().toString(36)}`, created: deps.clock.iso() }, null, 2),
+        JSON.stringify(
+          {
+            format: FORMAT_VERSION,
+            id: `ws-${deps.clock.now().toString(36)}`,
+            created: deps.clock.iso(),
+          },
+          null,
+          2,
+        ),
       );
       return;
     }
@@ -62,7 +78,9 @@ export function createWorkspaceService(deps: { locks: LockService; clock: Clock 
       format = undefined;
     }
     if (format !== FORMAT_VERSION) {
-      throw new AppError("storage.format_unsupported", "写作文件夹的标记不是 zhizhang/1.3", { root });
+      throw new AppError("storage.format_unsupported", "写作文件夹的标记不是 zhizhang/1.3", {
+        root,
+      });
     }
   }
 
@@ -73,7 +91,13 @@ export function createWorkspaceService(deps: { locks: LockService; clock: Clock 
     } catch (err) {
       if (!isAppError(err, "storage.locked")) throw err;
       const owner = typeof err.data?.owner === "string" ? err.data.owner : undefined;
-      state = { root, configured: true, readonly: true, roots: workspaceRoots(root), ...(owner ? { owner } : {}) };
+      state = {
+        root,
+        configured: true,
+        readonly: true,
+        roots: workspaceRoots(root),
+        ...(owner ? { owner } : {}),
+      };
     }
     return state;
   }
@@ -96,7 +120,9 @@ export function createWorkspaceService(deps: { locks: LockService; clock: Clock 
         throw new AppError("gate.denied", "写作文件夹没有被其他实例占用");
       }
       if (state.owner !== owner) {
-        throw new AppError("storage.conflict", "占用者已变化，请刷新后再接管", { owner: state.owner ?? "" });
+        throw new AppError("storage.conflict", "占用者已变化，请刷新后再接管", {
+          owner: state.owner ?? "",
+        });
       }
       await fs.rm(path.join(state.root, WORKSPACE_META_DIR, "lease.json"), { force: true });
       return claim(state.root);
@@ -113,7 +139,8 @@ export function createWorkspaceService(deps: { locks: LockService; clock: Clock 
       }
     },
     assertInside(target) {
-      if (!state.root) throw new AppError("input.invalid", "请先选择写作文件夹", { field: "workspaceRoot" });
+      if (!state.root)
+        throw new AppError("input.invalid", "请先选择写作文件夹", { field: "workspaceRoot" });
       const resolved = path.resolve(target);
       const rel = path.relative(state.root, resolved);
       if (rel.startsWith("..") || path.isAbsolute(rel)) {

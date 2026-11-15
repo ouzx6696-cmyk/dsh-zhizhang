@@ -6,7 +6,14 @@
 import { AppError } from "@zhizhang/core/errors";
 import { arr, bool, int, lit, num, obj, opt, str, type Infer } from "@zhizhang/core/schema";
 
-export const MODEL_ROLES = ["writer", "editor", "planner", "judge", "extractor", "assistant"] as const;
+export const MODEL_ROLES = [
+  "writer",
+  "editor",
+  "planner",
+  "judge",
+  "extractor",
+  "assistant",
+] as const;
 export type ModelRole = (typeof MODEL_ROLES)[number];
 
 export const MODEL_APIS = [

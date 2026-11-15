@@ -35,8 +35,7 @@ export interface ToolSpec<A, V extends object> {
 export type ToolDefinition<A = unknown, V extends object = object> = ToolSpec<A, V>;
 
 export type ToolResult<V extends object = object> =
-  | ({ ok: true } & V)
-  | { ok: false; code: ErrorCode; message: string };
+  ({ ok: true } & V) | { ok: false; code: ErrorCode; message: string };
 
 export function defineTool<A, V extends object>(spec: ToolSpec<A, V>): ToolDefinition<A, V> {
   return spec;

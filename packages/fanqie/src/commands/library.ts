@@ -22,7 +22,7 @@ const TechniqueCardListSchema = arr(
     pattern: str({ min: 1 }),
     example: str({ min: 1 }),
     usage: str({ min: 1 }),
-  })
+  }),
 );
 
 export type LibrarySourceMeta = Infer<typeof LibrarySourceMetaSchema>;
@@ -38,7 +38,7 @@ export interface LibrarySourceSummary {
 export async function importLibrarySource(
   libraryRoot: string,
   input: { id: string; title: string; content: string },
-  lock: LockService = createLockService(systemClock)
+  lock: LockService = createLockService(systemClock),
 ): Promise<LibrarySourceMeta> {
   return lock.write({ kind: "library", path: libraryRoot }, async () => {
     const sourcesDir = path.join(libraryRoot, "sources");
@@ -50,7 +50,10 @@ export async function importLibrarySource(
       chars: String(input.content.length),
     };
     await atomicWrite(path.join(sourcesDir, `${input.id}.txt`), input.content);
-    await atomicWrite(path.join(sourcesDir, `${input.id}.meta.json`), JSON.stringify(meta, null, 2));
+    await atomicWrite(
+      path.join(sourcesDir, `${input.id}.meta.json`),
+      JSON.stringify(meta, null, 2),
+    );
     return meta;
   });
 }
@@ -69,14 +72,15 @@ export async function listLibrarySources(libraryRoot: string): Promise<LibrarySo
   for (const file of files) {
     if (!file.endsWith(".meta.json")) continue;
     const meta = await readJson(path.join(sourcesDir, file), LibrarySourceMetaSchema).catch(
-      () => undefined
+      () => undefined,
     );
     if (!meta) continue;
     const analysisDir = path.join(libraryRoot, "analyses", meta.id);
     const report = await readTextIfExists(path.join(analysisDir, "report.md"));
-    const cards = await readJson(path.join(analysisDir, "cards.json"), TechniqueCardListSchema).catch(
-      () => []
-    );
+    const cards = await readJson(
+      path.join(analysisDir, "cards.json"),
+      TechniqueCardListSchema,
+    ).catch(() => []);
     out.push({
       id: meta.id,
       title: meta.title,
@@ -90,12 +94,12 @@ export async function listLibrarySources(libraryRoot: string): Promise<LibrarySo
 
 export async function readLibraryCards(
   libraryRoot: string,
-  sourceId: string
+  sourceId: string,
 ): Promise<{ cards: TechniqueCard[]; report?: string }> {
   const analysisDir = path.join(libraryRoot, "analyses", sourceId);
   const cards =
     (await readJson(path.join(analysisDir, "cards.json"), TechniqueCardListSchema).catch(
-      () => undefined
+      () => undefined,
     )) ?? [];
   const report = await readTextIfExists(path.join(analysisDir, "report.md"));
   return { cards, report };

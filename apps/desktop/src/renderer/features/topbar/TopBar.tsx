@@ -1,10 +1,24 @@
 import React, { useState } from "react";
-import { BookOpen, ChevronDown, Download, PanelRight, Settings as SettingsIcon, Workflow } from "lucide-react";
+import {
+  BookOpen,
+  ChevronDown,
+  Download,
+  PanelRight,
+  Settings as SettingsIcon,
+  Workflow,
+} from "lucide-react";
 import { COPY, DESKTOP_COPY as C } from "@zhizhang/ui/copy";
 import { notify } from "@zhizhang/ui/notify";
 import { Brand, Button, IconButton, Menu, type MenuItem } from "@zhizhang/ui/primitives";
 import type { ExportFormat, TargetItem } from "../../../shared/views";
-import { modelReady, openPipeline, openSettings, select, startCreate, takeOverWorkspace } from "../../state/controller";
+import {
+  modelReady,
+  openPipeline,
+  openSettings,
+  select,
+  startCreate,
+  takeOverWorkspace,
+} from "../../state/controller";
 import { desktop } from "../../state/desktop";
 import { desktopStore, sameTarget, useDesktop, type MainView } from "../../state/store";
 import { notifyError, run } from "../../format";
@@ -17,7 +31,12 @@ function targetMenu(targets: TargetItem[], current: TargetItem | null): MenuItem
   const item = (t: TargetItem): MenuItem => ({
     id: t.target.mode + t.target.path,
     label: (
-      <span className="zz-target-item" data-testid="target-item" data-mode={t.target.mode} data-current={sameTarget(t.target, current?.target)}>
+      <span
+        className="zz-target-item"
+        data-testid="target-item"
+        data-mode={t.target.mode}
+        data-current={sameTarget(t.target, current?.target)}
+      >
         {t.label}
       </span>
     ),
@@ -40,7 +59,10 @@ async function exportAs(format: ExportFormat) {
   if (!target) return;
   const result = await desktop.exportFile(target, { format });
   if (!result) return;
-  notify({ tone: "success", text: "copied" in result ? C.topbar.copied(result.chars) : C.topbar.exported(result.file) });
+  notify({
+    tone: "success",
+    text: "copied" in result ? C.topbar.copied(result.chars) : C.topbar.exported(result.file),
+  });
 }
 
 export function TopBar() {
@@ -55,9 +77,13 @@ export function TopBar() {
   const close = () => setMenu("");
   const views: { id: MainView; label: string }[] = [
     { id: "writing", label: C.topbar.viewWriting },
-    { id: "board", label: selected?.target.mode === "toutiao" ? C.topbar.viewLedger : C.topbar.viewBoard },
+    {
+      id: "board",
+      label: selected?.target.mode === "toutiao" ? C.topbar.viewLedger : C.topbar.viewBoard,
+    },
   ];
-  const formats: ExportFormat[] = selected?.target.mode === "toutiao" ? ["md", "txt", "copy"] : ["txt", "docx", "copy"];
+  const formats: ExportFormat[] =
+    selected?.target.mode === "toutiao" ? ["md", "txt", "copy"] : ["txt", "docx", "copy"];
   const ready = modelReady(settings);
   return (
     <>
@@ -78,7 +104,11 @@ export function TopBar() {
           </Button>
           {menu === "targets" ? (
             <div data-testid="target-menu">
-              <Menu label={C.topbar.pickTarget} items={targetMenu(targets, selected)} onClose={close} />
+              <Menu
+                label={C.topbar.pickTarget}
+                items={targetMenu(targets, selected)}
+                onClose={close}
+              />
             </div>
           ) : null}
         </div>
@@ -100,7 +130,12 @@ export function TopBar() {
         ) : null}
         <span className="zz-topbar__spacer" />
         {running.length ? (
-          <Button variant="ghost" size="sm" data-testid="running-indicator" onClick={() => openPipeline()}>
+          <Button
+            variant="ghost"
+            size="sm"
+            data-testid="running-indicator"
+            onClick={() => openPipeline()}
+          >
             <Workflow size={14} aria-hidden="true" />
             {C.topbar.running(running.length)}
           </Button>

@@ -63,7 +63,7 @@ function inferPairedKind(before: string, after: string): Hunk["kind"] {
 export function alignSentences(
   beforePara: string,
   afterPara: string,
-  context: [string, string] = ["", ""]
+  context: [string, string] = ["", ""],
 ): Hunk[] {
   const before = splitSentences(beforePara);
   const after = splitSentences(afterPara);
@@ -74,9 +74,7 @@ export function alignSentences(
   for (let i = m - 1; i >= 0; i--) {
     for (let j = n - 1; j >= 0; j--) {
       dp[i][j] =
-        before[i] === after[j]
-          ? 1 + dp[i + 1][j + 1]
-          : Math.max(dp[i + 1][j], dp[i][j + 1]);
+        before[i] === after[j] ? 1 + dp[i + 1][j + 1] : Math.max(dp[i + 1][j], dp[i][j + 1]);
     }
   }
 
@@ -148,8 +146,14 @@ export function alignSentences(
 }
 
 export function alignParagraphs(beforeText: string, afterText: string): Hunk[] {
-  const before = beforeText.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
-  const after = afterText.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  const before = beforeText
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const after = afterText
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter(Boolean);
   const m = before.length;
   const n = after.length;
   const dp: number[][] = Array.from({ length: m + 1 }, () => Array<number>(n + 1).fill(0));
@@ -157,9 +161,7 @@ export function alignParagraphs(beforeText: string, afterText: string): Hunk[] {
   for (let i = m - 1; i >= 0; i--) {
     for (let j = n - 1; j >= 0; j--) {
       dp[i][j] =
-        before[i] === after[j]
-          ? 1 + dp[i + 1][j + 1]
-          : Math.max(dp[i + 1][j], dp[i][j + 1]);
+        before[i] === after[j] ? 1 + dp[i + 1][j + 1] : Math.max(dp[i + 1][j], dp[i][j + 1]);
     }
   }
 
@@ -196,8 +198,14 @@ export function alignParagraphs(beforeText: string, afterText: string): Hunk[] {
 }
 
 export function alignTwoLevel(beforeText: string, afterText: string): Hunk[] {
-  const before = beforeText.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
-  const after = afterText.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  const before = beforeText
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const after = afterText
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter(Boolean);
   const m = before.length;
   const n = after.length;
   const dp: number[][] = Array.from({ length: m + 1 }, () => Array<number>(n + 1).fill(0));
@@ -205,9 +213,7 @@ export function alignTwoLevel(beforeText: string, afterText: string): Hunk[] {
   for (let i = m - 1; i >= 0; i--) {
     for (let j = n - 1; j >= 0; j--) {
       dp[i][j] =
-        before[i] === after[j]
-          ? 1 + dp[i + 1][j + 1]
-          : Math.max(dp[i + 1][j], dp[i][j + 1]);
+        before[i] === after[j] ? 1 + dp[i + 1][j + 1] : Math.max(dp[i + 1][j], dp[i][j + 1]);
     }
   }
 

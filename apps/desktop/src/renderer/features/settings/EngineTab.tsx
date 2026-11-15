@@ -33,11 +33,24 @@ export function EngineTab({ settings }: { settings: PublicSettings }) {
           label={C.create.grade}
           testId="engine-grade"
           value={engine.grade}
-          options={(["economy", "standard", "premium"] as const).map((g) => ({ value: g, label: C.settings.grade[g] }))}
+          options={(["economy", "standard", "premium"] as const).map((g) => ({
+            value: g,
+            label: C.settings.grade[g],
+          }))}
           onChange={(grade) => setEngine({ ...engine, grade })}
         />
-        <NumberField label={C.engine.inputBudget} value={engine.inputBudget} testId="engine-input-budget" onChange={(inputBudget) => setEngine({ ...engine, inputBudget })} />
-        <NumberField label={C.engine.runBudget} value={engine.runBudget} testId="engine-run-budget" onChange={(runBudget) => setEngine({ ...engine, runBudget })} />
+        <NumberField
+          label={C.engine.inputBudget}
+          value={engine.inputBudget}
+          testId="engine-input-budget"
+          onChange={(inputBudget) => setEngine({ ...engine, inputBudget })}
+        />
+        <NumberField
+          label={C.engine.runBudget}
+          value={engine.runBudget}
+          testId="engine-run-budget"
+          onChange={(runBudget) => setEngine({ ...engine, runBudget })}
+        />
         <TextField
           label={C.engine.moneyCap}
           type="number"
@@ -46,7 +59,10 @@ export function EngineTab({ settings }: { settings: PublicSettings }) {
           testId="engine-money-cap"
           onChange={(raw) => {
             const value = Number(raw);
-            setEngine({ ...engine, moneyCap: raw.trim() === "" || !Number.isFinite(value) ? undefined : value });
+            setEngine({
+              ...engine,
+              moneyCap: raw.trim() === "" || !Number.isFinite(value) ? undefined : value,
+            });
           }}
         />
         <div className="zz-row">
@@ -54,23 +70,54 @@ export function EngineTab({ settings }: { settings: PublicSettings }) {
             label={C.engine.concurrencyGlobal}
             value={engine.concurrency.global}
             testId="engine-concurrency-global"
-            onChange={(global) => setEngine({ ...engine, concurrency: { ...engine.concurrency, global } })}
+            onChange={(global) =>
+              setEngine({ ...engine, concurrency: { ...engine.concurrency, global } })
+            }
           />
           <NumberField
             label={C.engine.concurrencyRun}
             value={engine.concurrency.perRun}
             testId="engine-concurrency-run"
-            onChange={(perRun) => setEngine({ ...engine, concurrency: { ...engine.concurrency, perRun } })}
+            onChange={(perRun) =>
+              setEngine({ ...engine, concurrency: { ...engine.concurrency, perRun } })
+            }
           />
         </div>
       </Section>
       <Section title={C.engine.assistant}>
-        <Toggle label={C.engine.autoCompact} checked={context.enabled} testId="context-enabled" onChange={(enabled) => setContext({ ...context, enabled })} />
-        <NumberField label={C.engine.triggerPercent} value={context.triggerPercent} testId="context-trigger" onChange={(triggerPercent) => setContext({ ...context, triggerPercent })} />
-        <NumberField label={C.engine.keepRecent} value={context.keepRecentTokens} testId="context-keep" onChange={(keepRecentTokens) => setContext({ ...context, keepRecentTokens })} />
-        <TextField label={C.engine.preferences} value={preferences} onChange={setPreferences} multiline testId="assistant-preferences" hint={C.engine.preferencesHint} />
+        <Toggle
+          label={C.engine.autoCompact}
+          checked={context.enabled}
+          testId="context-enabled"
+          onChange={(enabled) => setContext({ ...context, enabled })}
+        />
+        <NumberField
+          label={C.engine.triggerPercent}
+          value={context.triggerPercent}
+          testId="context-trigger"
+          onChange={(triggerPercent) => setContext({ ...context, triggerPercent })}
+        />
+        <NumberField
+          label={C.engine.keepRecent}
+          value={context.keepRecentTokens}
+          testId="context-keep"
+          onChange={(keepRecentTokens) => setContext({ ...context, keepRecentTokens })}
+        />
+        <TextField
+          label={C.engine.preferences}
+          value={preferences}
+          onChange={setPreferences}
+          multiline
+          testId="assistant-preferences"
+          hint={C.engine.preferencesHint}
+        />
       </Section>
-      <Button variant="primary" data-testid="engine-save" loading={busy} onClick={() => void save()}>
+      <Button
+        variant="primary"
+        data-testid="engine-save"
+        loading={busy}
+        onClick={() => void save()}
+      >
         {C.settings.save}
       </Button>
     </div>

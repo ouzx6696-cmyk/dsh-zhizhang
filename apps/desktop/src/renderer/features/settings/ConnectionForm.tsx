@@ -29,7 +29,11 @@ export interface ConnectionDraft {
   maxTokens: number;
 }
 
-export function draftFrom(settings: PublicSettings, connectionId?: string, role: ModelRole = "writer"): ConnectionDraft {
+export function draftFrom(
+  settings: PublicSettings,
+  connectionId?: string,
+  role: ModelRole = "writer",
+): ConnectionDraft {
   const binding = settings.models.roles[role];
   const id = connectionId ?? binding?.connection;
   const existing = settings.models.connections.find((c) => c.id === id);
@@ -47,7 +51,10 @@ export function draftFrom(settings: PublicSettings, connectionId?: string, role:
 }
 
 /** 草稿 → models.save 的连接：apiKey 留空表示沿用已存密钥（不随请求发送）。 */
-export function connectionInput(draft: ConnectionDraft, existing: PublicConnection | undefined): ConnectionInput {
+export function connectionInput(
+  draft: ConnectionDraft,
+  existing: PublicConnection | undefined,
+): ConnectionInput {
   return {
     id: draft.id,
     label: draft.label.trim() || draft.baseUrl.trim(),
@@ -63,7 +70,10 @@ export function connectionInput(draft: ConnectionDraft, existing: PublicConnecti
 }
 
 /** 已保存连接原样回写（不带密钥字段 = 沿用已存密钥）。 */
-export function keepConnection({ configured: _configured, ...rest }: PublicConnection): ConnectionInput {
+export function keepConnection({
+  configured: _configured,
+  ...rest
+}: PublicConnection): ConnectionInput {
   return { ...rest, apiKey: undefined };
 }
 
@@ -95,17 +105,26 @@ export function ConnectionForm({
   const existing = settings.models.connections.find((c) => c.id === draft.id);
   const configured = existing?.configured ?? false;
   const valid =
-    draft.baseUrl.trim() !== "" && draft.model.trim() !== "" && (draft.keyless || configured || draft.apiKey.trim() !== "");
+    draft.baseUrl.trim() !== "" &&
+    draft.model.trim() !== "" &&
+    (draft.keyless || configured || draft.apiKey.trim() !== "");
 
   const save = async () => {
     setBusy("save");
     setResult(null);
     try {
-      const others = settings.models.connections.filter((c) => c.id !== draft.id).map(keepConnection);
+      const others = settings.models.connections
+        .filter((c) => c.id !== draft.id)
+        .map(keepConnection);
       const roles: RoleBindings = bind
-        ? { ...settings.models.roles, [role]: binding(draft.id, draft.model.trim(), settings.models.roles[role]) }
+        ? {
+            ...settings.models.roles,
+            [role]: binding(draft.id, draft.model.trim(), settings.models.roles[role]),
+          }
         : settings.models.roles;
-      onSaved(await saveModels({ connections: [...others, connectionInput(draft, existing)], roles }));
+      onSaved(
+        await saveModels({ connections: [...others, connectionInput(draft, existing)], roles }),
+      );
     } catch (error) {
       setResult({ ok: false, text: errorText(error) });
     } finally {
@@ -139,7 +158,13 @@ export function ConnectionForm({
         if (valid) void save();
       }}
     >
-      <TextField label={C.models.label} value={draft.label} onChange={(label) => patch({ label })} testId="connection-label" placeholder={C.models.labelHint} />
+      <TextField
+        label={C.models.label}
+        value={draft.label}
+        onChange={(label) => patch({ label })}
+        testId="connection-label"
+        placeholder={C.models.labelHint}
+      />
       <Select<ModelApi>
         label={C.models.api}
         testId="connection-api"
@@ -147,8 +172,21 @@ export function ConnectionForm({
         options={MODEL_APIS.map((api) => ({ value: api, label: API_LABELS[api] ?? api }))}
         onChange={(api) => patch({ api })}
       />
-      <TextField label={C.models.baseUrl} type="url" value={draft.baseUrl} onChange={(baseUrl) => patch({ baseUrl })} testId="connection-base-url" placeholder={C.models.baseUrlHint} required />
-      <Toggle label={C.models.keyless} checked={draft.keyless} testId="connection-keyless" onChange={(keyless) => patch({ keyless })} />
+      <TextField
+        label={C.models.baseUrl}
+        type="url"
+        value={draft.baseUrl}
+        onChange={(baseUrl) => patch({ baseUrl })}
+        testId="connection-base-url"
+        placeholder={C.models.baseUrlHint}
+        required
+      />
+      <Toggle
+        label={C.models.keyless}
+        checked={draft.keyless}
+        testId="connection-keyless"
+        onChange={(keyless) => patch({ keyless })}
+      />
       {!draft.keyless ? (
         <TextField
           label={C.models.apiKey}
@@ -159,10 +197,27 @@ export function ConnectionForm({
           hint={configured ? C.models.apiKeyKept : C.models.apiKeyHint}
         />
       ) : null}
-      <TextField label={C.models.model} value={draft.model} onChange={(model) => patch({ model })} testId="connection-model" placeholder={C.models.modelHint} required />
+      <TextField
+        label={C.models.model}
+        value={draft.model}
+        onChange={(model) => patch({ model })}
+        testId="connection-model"
+        placeholder={C.models.modelHint}
+        required
+      />
       <div className="zz-row">
-        <NumberField label={C.models.contextWindow} value={draft.contextWindow} onChange={(contextWindow) => patch({ contextWindow })} testId="connection-context-window" />
-        <NumberField label={C.models.maxTokens} value={draft.maxTokens} onChange={(maxTokens) => patch({ maxTokens })} testId="connection-max-tokens" />
+        <NumberField
+          label={C.models.contextWindow}
+          value={draft.contextWindow}
+          onChange={(contextWindow) => patch({ contextWindow })}
+          testId="connection-context-window"
+        />
+        <NumberField
+          label={C.models.maxTokens}
+          value={draft.maxTokens}
+          onChange={(maxTokens) => patch({ maxTokens })}
+          testId="connection-max-tokens"
+        />
       </div>
       {result ? (
         <div data-testid="connection-result" data-ok={result.ok}>
@@ -170,10 +225,21 @@ export function ConnectionForm({
         </div>
       ) : null}
       <div className="zz-row">
-        <Button data-testid="connection-test" loading={busy === "test"} disabled={!valid || busy !== ""} onClick={() => void test()}>
+        <Button
+          data-testid="connection-test"
+          loading={busy === "test"}
+          disabled={!valid || busy !== ""}
+          onClick={() => void test()}
+        >
           {C.models.test}
         </Button>
-        <Button type="submit" variant="primary" data-testid="connection-save" loading={busy === "save"} disabled={!valid || busy !== ""}>
+        <Button
+          type="submit"
+          variant="primary"
+          data-testid="connection-save"
+          loading={busy === "save"}
+          disabled={!valid || busy !== ""}
+        >
           {submitLabel}
         </Button>
       </div>

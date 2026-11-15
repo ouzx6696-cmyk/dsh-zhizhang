@@ -28,8 +28,10 @@ export function isToutiaoCommand(operation: string): operation is ToutiaoWorkben
 
 export async function runToutiaoCommand<K extends ToutiaoWorkbenchCommand>(
   operation: K,
-  input: WorkbenchCommandMap[K]["input"]
-): Promise<{ ok: true; data: WorkbenchCommandMap[K]["result"] } | { ok: false; code: string; error: string }> {
+  input: WorkbenchCommandMap[K]["input"],
+): Promise<
+  { ok: true; data: WorkbenchCommandMap[K]["result"] } | { ok: false; code: string; error: string }
+> {
   try {
     if (operation === "toutiao.articles") {
       const req = input as WorkbenchCommandMap["toutiao.articles"]["input"];

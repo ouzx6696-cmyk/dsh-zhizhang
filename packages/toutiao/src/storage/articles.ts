@@ -27,7 +27,7 @@ export type ArticleMeta = Infer<typeof ArticleMetaSchema>;
 export async function createArticle(
   articleDir: string,
   input: { id: string; genre: string; driver: string; rulesVersion: string; nowIso: string },
-  lock: LockService
+  lock: LockService,
 ): Promise<ArticleMeta> {
   return lock.write({ kind: "article", path: articleDir }, async () => {
     await fs.mkdir(path.join(articleDir, "sources"), { recursive: true });
@@ -53,14 +53,14 @@ export async function registerSource(
   kind: "paste" | "file" | "classic",
   content: string,
   nowIso: string,
-  lock: LockService
+  lock: LockService,
 ): Promise<void> {
   await lock.write({ kind: "article", path: articleDir }, async () => {
     const dir = path.join(articleDir, "sources");
     await atomicWrite(path.join(dir, `${sourceId}.txt`), content);
     await atomicWrite(
       path.join(dir, `${sourceId}.json`),
-      JSON.stringify({ id: sourceId, kind, hash: sha256(content), at: nowIso }, null, 2)
+      JSON.stringify({ id: sourceId, kind, hash: sha256(content), at: nowIso }, null, 2),
     );
   });
 }
@@ -69,7 +69,7 @@ export async function transitionArticleStatus(
   articleDir: string,
   to: ArticleStatus,
   nowIso: string,
-  lock: LockService
+  lock: LockService,
 ): Promise<ArticleMeta> {
   return lock.write({ kind: "article", path: articleDir }, async () => {
     const metaFile = path.join(articleDir, "meta.json");
@@ -91,7 +91,7 @@ export async function writeDeliverySheet(
   title: string,
   body: string,
   nowIso: string,
-  lock: LockService
+  lock: LockService,
 ): Promise<string> {
   return lock.write({ kind: "article", path: articleDir }, async () => {
     const metaFile = path.join(articleDir, "meta.json");

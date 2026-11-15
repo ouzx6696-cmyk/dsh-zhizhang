@@ -33,7 +33,9 @@ async function readJsonOrFallback<T>(file: string, fallback: T): Promise<T> {
     return JSON.parse(raw) as T;
   } catch (err) {
     if ((err as { code?: string }).code === "ENOENT") return fallback;
-    throw new AppError("storage.format_unsupported", `Invalid learning/style file: ${file}`, { file });
+    throw new AppError("storage.format_unsupported", `Invalid learning/style file: ${file}`, {
+      file,
+    });
   }
 }
 
@@ -52,7 +54,7 @@ export function createLearningStore(lock: LockService) {
   async function record(
     workPath: string,
     edits: ClassifiedEdit[],
-    meta: { chapter?: string; nowIso?: string } = {}
+    meta: { chapter?: string; nowIso?: string } = {},
   ): Promise<{ state: LearningState; promotedRules: StyleContract["rules"] }> {
     return lock.write({ kind: "work", path: workPath }, async () => {
       const state = await read(workPath);

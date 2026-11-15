@@ -13,23 +13,19 @@ export async function listTargets(roots: WorkspaceRoots): Promise<TargetItem[]> 
   const works = await fanqie.listWorks(roots.fanqie);
   const { rows } = await toutiao.listArticleRowsCommand(roots.toutiao);
   return [
-    ...works.map(
-      (work): TargetItem => ({
-        target: { mode: "fanqie", path: work.workPath },
-        label: work.title,
-        kind: "work",
-        updated: work.created,
-      }),
-    ),
-    ...rows.map(
-      (row): TargetItem => ({
-        target: { mode: "toutiao", path: path.join(roots.toutiao, row.id) },
-        label: row.title,
-        kind: "article",
-        status: row.status,
-        updated: row.updatedAt,
-      }),
-    ),
+    ...works.map((work): TargetItem => ({
+      target: { mode: "fanqie", path: work.workPath },
+      label: work.title,
+      kind: "work",
+      updated: work.created,
+    })),
+    ...rows.map((row): TargetItem => ({
+      target: { mode: "toutiao", path: path.join(roots.toutiao, row.id) },
+      label: row.title,
+      kind: "article",
+      status: row.status,
+      updated: row.updatedAt,
+    })),
   ];
 }
 
@@ -43,7 +39,8 @@ export async function describeTarget(target: Target, roots: WorkspaceRoots): Pro
   }
   const { rows } = await toutiao.listArticleRowsCommand(path.dirname(target.path));
   const row = rows.find((r) => r.id === path.basename(target.path));
-  if (!row) throw new AppError("input.not_found", `未找到文章：${target.path}`, { path: target.path });
+  if (!row)
+    throw new AppError("input.not_found", `未找到文章：${target.path}`, { path: target.path });
   return { target, label: row.title, kind: "article", status: row.status, updated: row.updatedAt };
 }
 
@@ -51,12 +48,17 @@ export async function recentTargets(roots: WorkspaceRoots): Promise<TargetItem[]
   const items: TargetItem[] = [];
   for (const entry of await loadRecentTargets().catch(() => [])) {
     if (!isMode(entry.mode)) continue;
-    const item = await describeTarget({ mode: entry.mode, path: entry.path }, roots).catch(() => undefined);
+    const item = await describeTarget({ mode: entry.mode, path: entry.path }, roots).catch(
+      () => undefined,
+    );
     if (item) items.push(item);
   }
   return items;
 }
 
 export async function rememberTarget(item: TargetItem, clock: Clock): Promise<void> {
-  await recordRecentTarget({ mode: item.target.mode, path: item.target.path, title: item.label }, clock.iso());
+  await recordRecentTarget(
+    { mode: item.target.mode, path: item.target.path, title: item.label },
+    clock.iso(),
+  );
 }

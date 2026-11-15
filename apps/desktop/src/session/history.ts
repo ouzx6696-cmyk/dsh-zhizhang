@@ -25,7 +25,8 @@ function num(value: unknown): number {
 }
 
 function parseToolCall(value: unknown): AgentToolCall | undefined {
-  if (!isRecord(value) || typeof value.id !== "string" || typeof value.name !== "string") return undefined;
+  if (!isRecord(value) || typeof value.id !== "string" || typeof value.name !== "string")
+    return undefined;
   const args: JsonArgs = isRecord(value.args) ? value.args : {};
   return { id: value.id, name: value.name, args };
 }
@@ -83,7 +84,9 @@ function parseConversation(raw: string, file: string): ConversationFile {
     throw new AppError("storage.format_unsupported", `不支持的对话记录格式：${file}`, { file });
   }
   const mode = data.target.mode === "toutiao" ? "toutiao" : "fanqie";
-  const messages = data.messages.map(parseMessage).filter((m): m is AgentMessage => m !== undefined);
+  const messages = data.messages
+    .map(parseMessage)
+    .filter((m): m is AgentMessage => m !== undefined);
   return {
     format: FORMAT_VERSION,
     id: data.id,
@@ -106,7 +109,8 @@ export interface ConversationStore {
 }
 
 export function createConversationStore(root: string, clock: Clock): ConversationStore {
-  const dirOf = (target: Target) => path.join(root, `${target.mode}-${shortHash(path.resolve(target.path))}`);
+  const dirOf = (target: Target) =>
+    path.join(root, `${target.mode}-${shortHash(path.resolve(target.path))}`);
   const fileOf = (target: Target, id: string) => {
     if (!/^[\w-]+$/.test(id)) throw new AppError("input.invalid", `对话 id 无效：${id}`, { id });
     return path.join(dirOf(target), `${id}.json`);

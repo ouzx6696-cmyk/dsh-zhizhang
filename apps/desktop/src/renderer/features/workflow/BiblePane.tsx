@@ -62,7 +62,10 @@ export function BiblePane({ work, chapters }: { work: string; chapters: number }
   const audit = async () => {
     setBusy("audit");
     try {
-      const result = await desktop.workbench("fanqie.bible.audit", { work, upTo: Math.max(1, chapters) });
+      const result = await desktop.workbench("fanqie.bible.audit", {
+        work,
+        upTo: Math.max(1, chapters),
+      });
       setFindings(result.findings);
     } catch (err) {
       notifyError(err);
@@ -77,19 +80,36 @@ export function BiblePane({ work, chapters }: { work: string; chapters: number }
   return (
     <section className="zz-bible" data-testid="bible-pane" aria-label={C.bible.title}>
       <h3>{C.bible.title}</h3>
-      <p className="zz-muted">{C.bible.stats(bible.entities.length, openThreads, bible.knowledge.length)}</p>
+      <p className="zz-muted">
+        {C.bible.stats(bible.entities.length, openThreads, bible.knowledge.length)}
+      </p>
       <h4>{C.bible.pending(bible.pending.length)}</h4>
       {bible.pending.length ? (
         <ul className="zz-list">
           {bible.pending.map((item) => (
-            <li key={item.id} data-testid="bible-pending" data-conflict={Boolean(item.conflictsWith)}>
+            <li
+              key={item.id}
+              data-testid="bible-pending"
+              data-conflict={Boolean(item.conflictsWith)}
+            >
               <span>{opSummary(item.op)}</span>
               {item.evidence ? <q className="zz-muted">{item.evidence.quote}</q> : null}
               <span className="zz-row">
-                <Button size="sm" variant="primary" disabled={readonly || busy !== ""} data-testid="bible-accept" onClick={() => void decide(item.id, "accept")}>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  disabled={readonly || busy !== ""}
+                  data-testid="bible-accept"
+                  onClick={() => void decide(item.id, "accept")}
+                >
                   {C.bible.accept}
                 </Button>
-                <Button size="sm" disabled={readonly || busy !== ""} data-testid="bible-reject" onClick={() => void decide(item.id, "reject")}>
+                <Button
+                  size="sm"
+                  disabled={readonly || busy !== ""}
+                  data-testid="bible-reject"
+                  onClick={() => void decide(item.id, "reject")}
+                >
                   {C.bible.reject}
                 </Button>
               </span>
@@ -99,7 +119,13 @@ export function BiblePane({ work, chapters }: { work: string; chapters: number }
       ) : (
         <Empty title={C.bible.noPending} />
       )}
-      <Button size="sm" data-testid="bible-audit" loading={busy === "audit"} disabled={chapters === 0} onClick={() => void audit()}>
+      <Button
+        size="sm"
+        data-testid="bible-audit"
+        loading={busy === "audit"}
+        disabled={chapters === 0}
+        onClick={() => void audit()}
+      >
         {C.bible.audit}
       </Button>
       {findings ? (
@@ -113,7 +139,9 @@ export function BiblePane({ work, chapters }: { work: string; chapters: number }
             ))}
           </ul>
         ) : (
-          <p className="zz-muted" data-testid="bible-findings">{C.bible.clean}</p>
+          <p className="zz-muted" data-testid="bible-findings">
+            {C.bible.clean}
+          </p>
         )
       ) : null}
     </section>

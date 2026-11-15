@@ -1,12 +1,6 @@
 import { AppError } from "@zhizhang/core/errors";
 
-export const ARTICLE_STATUSES = [
-  "初稿待改",
-  "待验收",
-  "已验收",
-  "验收退回",
-  "已交稿",
-] as const;
+export const ARTICLE_STATUSES = ["初稿待改", "待验收", "已验收", "验收退回", "已交稿"] as const;
 
 export type ArticleStatus = (typeof ARTICLE_STATUSES)[number];
 

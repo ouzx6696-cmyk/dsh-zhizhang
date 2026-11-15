@@ -26,7 +26,7 @@ async function resolveLatestDraftText(articleDir: string): Promise<string> {
       const full = path.join(draftsDir, f);
       const stat = await fs.stat(full);
       return { full, mtimeMs: stat.mtimeMs };
-    })
+    }),
   );
   withStats.sort((a, b) => b.mtimeMs - a.mtimeMs || b.full.localeCompare(a.full));
   const content = await readTextIfExists(withStats[0].full);

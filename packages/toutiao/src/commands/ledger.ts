@@ -50,7 +50,7 @@ function assertBridgeOk<T extends { ok: boolean; code?: string; message?: string
     throw new AppError(
       res.code === "NOT_FOUND" ? "input.not_found" : "input.invalid",
       res.message || "台账操作失败",
-      { code: res.code }
+      { code: res.code },
     );
   }
   return res;

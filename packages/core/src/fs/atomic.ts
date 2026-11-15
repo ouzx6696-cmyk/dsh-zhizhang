@@ -10,7 +10,7 @@ export interface AtomicWriteOptions {
 export async function atomicWrite(
   file: string,
   data: string | Uint8Array,
-  opts?: AtomicWriteOptions
+  opts?: AtomicWriteOptions,
 ): Promise<void> {
   const dir = path.dirname(file);
   await fs.mkdir(dir, { recursive: true });

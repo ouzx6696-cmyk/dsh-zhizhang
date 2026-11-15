@@ -32,7 +32,9 @@ const MessageItem = React.memo(function MessageItem({ message }: { message: Chat
     <li className="zz-message" data-testid="agent-message" data-role={message.role}>
       {tools.length ? (
         <p className="zz-message__tools" data-testid="agent-tools">
-          {C.agent.usedTools(tools.map((t) => toolLabel(t.name) + (t.isError ? C.agent.toolFailed : "")).join("、"))}
+          {C.agent.usedTools(
+            tools.map((t) => toolLabel(t.name) + (t.isError ? C.agent.toolFailed : "")).join("、"),
+          )}
         </p>
       ) : null}
       {message.text ? (

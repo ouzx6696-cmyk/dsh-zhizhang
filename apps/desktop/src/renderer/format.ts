@@ -9,7 +9,8 @@ function isErrorCode(value: unknown): value is ErrorCode {
 
 export function errorCode(error: unknown): ErrorCode {
   if (isAppError(error)) return error.code;
-  const code: unknown = typeof error === "object" && error !== null ? Reflect.get(error, "code") : undefined;
+  const code: unknown =
+    typeof error === "object" && error !== null ? Reflect.get(error, "code") : undefined;
   return isErrorCode(code) ? code : "internal";
 }
 
@@ -20,13 +21,20 @@ export function errorText(error: unknown): string {
   return detail && detail !== title ? `${title}：${detail}` : title;
 }
 
-export function notifyError(error: unknown, retry?: () => Promise<unknown>, retryLabel?: string): void {
+export function notifyError(
+  error: unknown,
+  retry?: () => Promise<unknown>,
+  retryLabel?: string,
+): void {
   notify({
     tone: "danger",
     text: errorText(error),
     action:
       retry && retryLabel
-        ? { label: retryLabel, run: () => retry().catch((next: unknown) => notifyError(next, retry, retryLabel)) }
+        ? {
+            label: retryLabel,
+            run: () => retry().catch((next: unknown) => notifyError(next, retry, retryLabel)),
+          }
         : undefined,
   });
 }

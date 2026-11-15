@@ -123,9 +123,7 @@ export interface SegmentedProps<T extends string = string> {
   onChange: (value: T) => void;
 }
 
-export function segmentedClasses(
-  options: Pick<SegmentedProps, "size" | "className"> = {},
-): string {
+export function segmentedClasses(options: Pick<SegmentedProps, "size" | "className"> = {}): string {
   const { size = "md", className } = options;
   return cx("zz-segmented", `zz-segmented--${size}`, className);
 }
@@ -220,9 +218,7 @@ export interface StatusChipProps {
   className?: string;
 }
 
-export function statusChipClasses(
-  options: Pick<StatusChipProps, "tone" | "className">,
-): string {
+export function statusChipClasses(options: Pick<StatusChipProps, "tone" | "className">): string {
   return cx("zz-status-chip", toneClass(options.tone), options.className);
 }
 
@@ -310,9 +306,7 @@ export function progressStepState(index: number, current: number): ProgressStepS
   return "todo";
 }
 
-export function progressRailClasses(
-  options: Pick<ProgressRailProps, "className"> = {},
-): string {
+export function progressRailClasses(options: Pick<ProgressRailProps, "className"> = {}): string {
   return cx("zz-progress-rail", options.className);
 }
 

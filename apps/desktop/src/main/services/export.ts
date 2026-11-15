@@ -19,10 +19,15 @@ export interface ExportHost {
 }
 
 /** 头条正文：交稿单（若要求且存在）或最新一版草稿；标题取已选标题或首行标题。 */
-async function readArticleText(articleDir: string, includeDelivery: boolean): Promise<{ title: string; text: string }> {
+async function readArticleText(
+  articleDir: string,
+  includeDelivery: boolean,
+): Promise<{ title: string; text: string }> {
   const meta = await readJson(path.join(articleDir, "meta.json"), ArticleMetaSchema);
   if (!meta) throw new AppError("input.not_found", `未找到文章：${articleDir}`, { articleDir });
-  let raw = includeDelivery ? await readTextIfExists(path.join(articleDir, "交稿单.md")) : undefined;
+  let raw = includeDelivery
+    ? await readTextIfExists(path.join(articleDir, "交稿单.md"))
+    : undefined;
   if (raw === undefined) {
     const dir = path.join(articleDir, "drafts");
     const names = (await fs.readdir(dir).catch(() => [])).filter((n) => n.endsWith(".md"));
@@ -33,7 +38,8 @@ async function readArticleText(articleDir: string, includeDelivery: boolean): Pr
     }
     raw = newest ? await readTextIfExists(path.join(dir, newest.name)) : undefined;
   }
-  if (raw === undefined) throw new AppError("input.not_found", "这篇文章还没有可导出的稿件", { articleDir });
+  if (raw === undefined)
+    throw new AppError("input.not_found", "这篇文章还没有可导出的稿件", { articleDir });
   const lines = raw.replace(/\r\n?/g, "\n").split("\n");
   const heading = /^#\s+(.+)$/.exec(lines[0] ?? "")?.[1]?.trim();
   const title = meta.chosenTitle ?? heading ?? meta.id;
@@ -55,15 +61,25 @@ export async function exportTarget(
       host.copy(result.content);
       return { copied: true, chars: result.content.length };
     }
-    if (request.format === "md") throw new AppError("input.invalid", "长篇导出支持 TXT 与 DOCX", { field: "format" });
+    if (request.format === "md")
+      throw new AppError("input.invalid", "长篇导出支持 TXT 与 DOCX", { field: "format" });
     const meta = await fanqie.getWork(work);
     const outPath = await host.pickSave(meta.title, request.format);
     if (!outPath) return null;
     const result = await dispatchWorkbenchCommand(
-      { command: "fanqie.book.export", input: { work, format: request.format, finalOnly, outPath } },
+      {
+        command: "fanqie.book.export",
+        input: { work, format: request.format, finalOnly, outPath },
+      },
       ctx,
     );
-    return { file: outPath, count: "chapterCount" in result && typeof result.chapterCount === "number" ? result.chapterCount : 0 };
+    return {
+      file: outPath,
+      count:
+        "chapterCount" in result && typeof result.chapterCount === "number"
+          ? result.chapterCount
+          : 0,
+    };
   }
 
   const articleDir = ctx.inside(target.path);
@@ -82,7 +98,10 @@ export async function exportTarget(
     return { file: outPath, count: 1 };
   }
   await dispatchWorkbenchCommand(
-    { command: "toutiao.article.export", input: { articleDir, outPath, format: request.format, includeDelivery } },
+    {
+      command: "toutiao.article.export",
+      input: { articleDir, outPath, format: request.format, includeDelivery },
+    },
     ctx,
   );
   return { file: outPath, count: 1 };

@@ -1,10 +1,5 @@
 export { loadProfile, type ProfileRoots } from "./profiles.js";
-export {
-  methodFor,
-  type Profile,
-  type StageMap,
-  type StageTakeRule,
-} from "./stage-map.js";
+export { methodFor, type Profile, type StageMap, type StageTakeRule } from "./stage-map.js";
 export {
   deleteUserAssetFile,
   forkBuiltinProfile,

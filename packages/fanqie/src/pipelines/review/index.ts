@@ -122,7 +122,7 @@ export const reviewPipeline: PipelineDefinition<ReviewReq, StandaloneReviewResul
       ctx.target.path,
       "candidates",
       req.chapterId,
-      `${record.id}.marker.json`
+      `${record.id}.marker.json`,
     );
     return (await isAlreadyDelivered(marker, record.id)) ? "delivered" : "resume";
   },

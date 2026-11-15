@@ -13,25 +13,50 @@ const STEPS: Step[] = ["workspace", "model", "start"];
 export function Onboarding() {
   const workspace = useDesktop((s) => s.workspace);
   const settings = useDesktop((s) => s.settings);
-  const [step, setStep] = useState<Step>(() => (!workspace?.configured ? "workspace" : !modelReady(settings) ? "model" : "start"));
+  const [step, setStep] = useState<Step>(() =>
+    !workspace?.configured ? "workspace" : !modelReady(settings) ? "model" : "start",
+  );
   const finish = () => desktopStore.set({ onboarding: false });
   const index = STEPS.indexOf(step);
   return (
-    <Dialog title={C.onboarding.title} closeLabel={C.onboarding.later} size="lg" testId="onboarding" className="zz-onboarding" onClose={finish}>
+    <Dialog
+      title={C.onboarding.title}
+      closeLabel={C.onboarding.later}
+      size="lg"
+      testId="onboarding"
+      className="zz-onboarding"
+      onClose={finish}
+    >
       <p className="zz-muted">{C.onboarding.lead}</p>
-      <Steps steps={STEPS.map((s) => C.onboarding.steps[s])} current={index} label={C.onboarding.title} />
+      <Steps
+        steps={STEPS.map((s) => C.onboarding.steps[s])}
+        current={index}
+        label={C.onboarding.title}
+      />
       {step === "workspace" ? (
         <section className="zz-stack" data-testid="onboarding-step-workspace">
           <h3>{C.onboarding.workspaceTitle}</h3>
           <p>{C.onboarding.workspaceHint}</p>
-          <p data-testid="onboarding-workspace-path" data-configured={Boolean(workspace?.configured)}>
+          <p
+            data-testid="onboarding-workspace-path"
+            data-configured={Boolean(workspace?.configured)}
+          >
             {workspace?.configured ? workspace.root : C.workspace.notSet}
           </p>
           <div className="zz-row">
-            <Button data-testid="onboarding-choose-workspace" variant={workspace?.configured ? "secondary" : "primary"} onClick={() => run(chooseWorkspace)}>
+            <Button
+              data-testid="onboarding-choose-workspace"
+              variant={workspace?.configured ? "secondary" : "primary"}
+              onClick={() => run(chooseWorkspace)}
+            >
               {workspace?.configured ? C.workspace.change : C.workspace.choose}
             </Button>
-            <Button variant="primary" data-testid="onboarding-next" disabled={!workspace?.configured} onClick={() => setStep(modelReady(settings) ? "start" : "model")}>
+            <Button
+              variant="primary"
+              data-testid="onboarding-next"
+              disabled={!workspace?.configured}
+              onClick={() => setStep(modelReady(settings) ? "start" : "model")}
+            >
               {C.onboarding.next}
             </Button>
           </div>
@@ -41,8 +66,16 @@ export function Onboarding() {
         <section className="zz-stack" data-testid="onboarding-step-model">
           <h3>{C.onboarding.modelTitle}</h3>
           <p>{C.onboarding.modelHint}</p>
-          <ConnectionForm settings={settings} submitLabel={C.onboarding.saveModel} onSaved={() => setStep("start")} />
-          <Button variant="ghost" data-testid="onboarding-skip-model" onClick={() => setStep("start")}>
+          <ConnectionForm
+            settings={settings}
+            submitLabel={C.onboarding.saveModel}
+            onSaved={() => setStep("start")}
+          />
+          <Button
+            variant="ghost"
+            data-testid="onboarding-skip-model"
+            onClick={() => setStep("start")}
+          >
             {C.onboarding.later}
           </Button>
         </section>

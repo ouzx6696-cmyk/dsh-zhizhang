@@ -30,7 +30,15 @@ export function NumberField({
   );
 }
 
-export function Section({ title, children, testId }: { title: string; children: React.ReactNode; testId?: string }) {
+export function Section({
+  title,
+  children,
+  testId,
+}: {
+  title: string;
+  children: React.ReactNode;
+  testId?: string;
+}) {
   return (
     <section className="zz-settings__section" data-testid={testId}>
       <h3>{title}</h3>

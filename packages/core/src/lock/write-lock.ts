@@ -40,13 +40,16 @@ export async function withWriteLock<T>(
   resource: ResourceKey,
   clock: Clock,
   fn: () => Promise<T>,
-  waitMs = 10_000
+  waitMs = 10_000,
 ): Promise<T> {
   const held = activeLocks.getStore() ?? new Set<string>();
   const key = `${resource.kind}:${path.resolve(resource.path)}`;
   if (held.has(key)) return fn();
 
-  const lockDir = path.join(path.dirname(path.resolve(resource.path)), `${LOCK_DIR_NAME}-${path.basename(resource.path)}`);
+  const lockDir = path.join(
+    path.dirname(path.resolve(resource.path)),
+    `${LOCK_DIR_NAME}-${path.basename(resource.path)}`,
+  );
   const ownerFile = path.join(lockDir, "owner.json");
   const deadline = clock.now() + waitMs;
 
@@ -75,7 +78,7 @@ export async function withWriteLock<T>(
         pid: process.pid,
         host: os.hostname(),
         acquiredAt: clock.iso(),
-      })
+      }),
     );
     const next = new Set(held);
     next.add(key);
@@ -96,11 +99,7 @@ export async function inspectStaleLocks(root: string): Promise<StaleLock[]> {
     if (!raw) continue;
     try {
       const parsed = JSON.parse(raw) as Partial<StaleLock>;
-      if (
-        typeof parsed.pid === "number" &&
-        parsed.host === host &&
-        !isPidAlive(parsed.pid)
-      ) {
+      if (typeof parsed.pid === "number" && parsed.host === host && !isPidAlive(parsed.pid)) {
         results.push({
           lockDir,
           owner: parsed.owner ?? `${host}:${parsed.pid}`,
@@ -116,10 +115,7 @@ export async function inspectStaleLocks(root: string): Promise<StaleLock[]> {
   return results;
 }
 
-export async function clearStaleLock(
-  lock: StaleLock,
-  confirm: AuthorConfirmation
-): Promise<void> {
+export async function clearStaleLock(lock: StaleLock, confirm: AuthorConfirmation): Promise<void> {
   if (!confirm.confirmedByAuthor) {
     throw new AppError("gate.denied", "清理遗留写锁需要作者确认");
   }

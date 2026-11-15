@@ -29,7 +29,9 @@ function ChapterPane({ target }: { target: Target }) {
         {target.mode === "fanqie" ? (
           <div>
             <dt>{C.dock.chapter}</dt>
-            <dd data-testid="chapter-pane-current">{focus.title || focus.chapter || C.dock.none}</dd>
+            <dd data-testid="chapter-pane-current">
+              {focus.title || focus.chapter || C.dock.none}
+            </dd>
           </div>
         ) : (
           <div>
@@ -49,7 +51,10 @@ export function RightDock({ target }: { target: Target }) {
   const items = [
     { id: "assistant", label: COPY["shell.tab.assistant"] },
     { id: "pipeline", label: COPY["shell.tab.pipeline"] },
-    { id: "chapter", label: target.mode === "toutiao" ? C.dock.articleTab : COPY["shell.tab.chapter"] },
+    {
+      id: "chapter",
+      label: target.mode === "toutiao" ? C.dock.articleTab : COPY["shell.tab.chapter"],
+    },
   ];
   return (
     <aside className="zz-dock" data-testid="right-dock" aria-label={C.dock.label}>
@@ -64,7 +69,12 @@ export function RightDock({ target }: { target: Target }) {
             if (isDockTab(next)) set({ dockTab: next });
           }}
         />
-        <IconButton label={C.dock.close} size="sm" icon={<PanelRightClose size={15} />} onClick={() => set({ dockOpen: false })} />
+        <IconButton
+          label={C.dock.close}
+          size="sm"
+          icon={<PanelRightClose size={15} />}
+          onClick={() => set({ dockOpen: false })}
+        />
       </div>
       <div {...tabPanelProps(base, "assistant", tab)} className="zz-dock__panel">
         <AgentPanel target={target} />

@@ -138,10 +138,7 @@ export class TextareaSurface implements TextSurface {
       if (rangeRect.height > 0 && hostRect.height > 0) {
         const top = rangeRect.top - hostRect.top + this.el.scrollTop;
         const height = rangeRect.height;
-        if (
-          top < this.el.scrollTop ||
-          top + height > this.el.scrollTop + this.el.clientHeight
-        ) {
+        if (top < this.el.scrollTop || top + height > this.el.scrollTop + this.el.clientHeight) {
           this.el.scrollTop = Math.max(0, top - this.el.clientHeight / 3);
         }
         this.syncScroll();
@@ -152,10 +149,7 @@ export class TextareaSurface implements TextSurface {
     if (activeMark) {
       const top = activeMark.offsetTop;
       const height = activeMark.offsetHeight;
-      if (
-        top < this.el.scrollTop ||
-        top + height > this.el.scrollTop + this.el.clientHeight
-      ) {
+      if (top < this.el.scrollTop || top + height > this.el.scrollTop + this.el.clientHeight) {
         this.el.scrollTop = Math.max(0, top - this.el.clientHeight / 3);
       }
       this.syncScroll();

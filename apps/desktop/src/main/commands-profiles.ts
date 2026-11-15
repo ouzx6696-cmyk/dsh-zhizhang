@@ -14,11 +14,7 @@ import {
   saveUserAssetFile,
 } from "@zhizhang/core/methods";
 import { arr, bool, lit, obj, opt, str, type Parser } from "@zhizhang/core/schema";
-import type {
-  CommandInput,
-  CommandResult,
-  WorkbenchCommand,
-} from "@zhizhang/workbench/contract";
+import type { CommandInput, CommandResult, WorkbenchCommand } from "@zhizhang/workbench/contract";
 import type { Mode } from "../shared/views.js";
 
 export interface ProfileDirs {
@@ -50,7 +46,12 @@ export const PROFILE_INPUTS: { [K in ProfileCommand]: Parser<CommandInput<K>> } 
   }),
   "profiles.save": obj({ mode, profile: str({ min: 1 }), id: fileId, text: str({ max: 400_000 }) }),
   "profiles.reset": obj({ mode, profile: str({ min: 1 }), id: fileId }),
-  "profiles.rename": obj({ mode, profile: str({ min: 1 }), name: str({ min: 1, max: 60 }), note: opt(str({ max: 400 })) }),
+  "profiles.rename": obj({
+    mode,
+    profile: str({ min: 1 }),
+    name: str({ min: 1, max: 60 }),
+    note: opt(str({ max: 400 })),
+  }),
   "profiles.delete": obj({ mode, profile: str({ min: 1 }), confirm: bool }),
 };
 
@@ -89,7 +90,10 @@ async function readMeta(dir: string): Promise<ProfileMeta> {
 
 async function builtinIds(dirs: ProfileDirs, m: Mode): Promise<string[]> {
   const entries = await fs.readdir(dirs.builtin(m), { withFileTypes: true }).catch(() => []);
-  return entries.filter((e) => e.isDirectory()).map((e) => e.name).sort();
+  return entries
+    .filter((e) => e.isDirectory())
+    .map((e) => e.name)
+    .sort();
 }
 
 async function activeProfile(dirs: ProfileDirs, m: Mode): Promise<string> {
@@ -104,24 +108,40 @@ async function activeProfile(dirs: ProfileDirs, m: Mode): Promise<string> {
 }
 
 /** 解析方案所在目录：作者方案优先，其次内置。 */
-async function locate(dirs: ProfileDirs, m: Mode, id: string): Promise<{ dir: string; builtin: boolean }> {
+async function locate(
+  dirs: ProfileDirs,
+  m: Mode,
+  id: string,
+): Promise<{ dir: string; builtin: boolean }> {
   safeSegment(id, "profile");
   const user = path.join(dirs.userDir, m, id);
-  if ((await fs.stat(user).catch(() => undefined))?.isDirectory()) return { dir: user, builtin: false };
+  if ((await fs.stat(user).catch(() => undefined))?.isDirectory())
+    return { dir: user, builtin: false };
   const builtin = path.join(dirs.builtin(m), id);
-  if ((await fs.stat(builtin).catch(() => undefined))?.isDirectory()) return { dir: builtin, builtin: true };
+  if ((await fs.stat(builtin).catch(() => undefined))?.isDirectory())
+    return { dir: builtin, builtin: true };
   throw new AppError("input.not_found", `未找到方法方案：${id}`, { profile: id });
 }
 
 async function requireUserProfile(dirs: ProfileDirs, m: Mode, id: string): Promise<string> {
   const found = await locate(dirs, m, id);
-  if (found.builtin) throw new AppError("gate.denied", "内置方案不能直接修改，请先复制为自己的方案", { profile: id });
+  if (found.builtin)
+    throw new AppError("gate.denied", "内置方案不能直接修改，请先复制为自己的方案", {
+      profile: id,
+    });
   return found.dir;
 }
 
-async function baseText(dirs: ProfileDirs, m: Mode, dir: string, file: string): Promise<string | undefined> {
+async function baseText(
+  dirs: ProfileDirs,
+  m: Mode,
+  dir: string,
+  file: string,
+): Promise<string | undefined> {
   const meta = await readMeta(dir);
-  return readTextIfExists(path.join(dirs.builtin(m), safeSegment(meta.base ?? "default", "base"), file));
+  return readTextIfExists(
+    path.join(dirs.builtin(m), safeSegment(meta.base ?? "default", "base"), file),
+  );
 }
 
 async function writeMeta(dir: string, meta: ProfileMeta & { id: string }): Promise<void> {
@@ -133,7 +153,12 @@ export const PROFILE_HANDLERS: { [K in ProfileCommand]: Handler<K> } = {
     const profiles = [];
     for (const id of await builtinIds(dirs, input.mode)) {
       const meta = await readMeta(path.join(dirs.builtin(input.mode), id));
-      profiles.push({ id, name: meta.name ?? id, builtin: true, ...(meta.note ? { note: meta.note } : {}) });
+      profiles.push({
+        id,
+        name: meta.name ?? id,
+        builtin: true,
+        ...(meta.note ? { note: meta.note } : {}),
+      });
     }
     for (const info of await listUserProfiles(dirs.userDir, input.mode)) {
       const meta = await readMeta(info.dir);
@@ -155,10 +180,17 @@ export const PROFILE_HANDLERS: { [K in ProfileCommand]: Handler<K> } = {
     const entries = await fs.readdir(found.dir, { withFileTypes: true });
     const files = [];
     for (const entry of entries) {
-      if (!entry.isFile() || !/\.(md|json)$/.test(entry.name) || entry.name === "profile.json") continue;
+      if (!entry.isFile() || !/\.(md|json)$/.test(entry.name) || entry.name === "profile.json")
+        continue;
       const text = await fs.readFile(path.join(found.dir, entry.name), "utf8");
-      const original = found.builtin ? text : await baseText(dirs, input.mode, found.dir, entry.name);
-      files.push({ id: entry.name, size: text.length, ...(found.builtin ? {} : { modified: original !== text }) });
+      const original = found.builtin
+        ? text
+        : await baseText(dirs, input.mode, found.dir, entry.name);
+      files.push({
+        id: entry.name,
+        size: text.length,
+        ...(found.builtin ? {} : { modified: original !== text }),
+      });
     }
     files.sort((a, b) => a.id.localeCompare(b.id));
     return { id, name: meta.name ?? id, files };
@@ -171,7 +203,8 @@ export const PROFILE_HANDLERS: { [K in ProfileCommand]: Handler<K> } = {
     const text = found.builtin
       ? await readTextIfExists(path.join(found.dir, file))
       : await readUserAssetFile(dirs.userDir, input.mode, id, file);
-    if (text === undefined) throw new AppError("input.not_found", `方案中没有文件：${file}`, { id: file });
+    if (text === undefined)
+      throw new AppError("input.not_found", `方案中没有文件：${file}`, { id: file });
     if (found.builtin) return { method: { id: file, text, from: "builtin" } };
     const original = await baseText(dirs, input.mode, found.dir, file);
     return {
@@ -182,14 +215,18 @@ export const PROFILE_HANDLERS: { [K in ProfileCommand]: Handler<K> } = {
 
   async "profiles.use"(input, dirs) {
     await locate(dirs, input.mode, input.profile);
-    await atomicWrite(path.join(dirs.userDir, input.mode, "active.json"), JSON.stringify({ profile: input.profile }));
+    await atomicWrite(
+      path.join(dirs.userDir, input.mode, "active.json"),
+      JSON.stringify({ profile: input.profile }),
+    );
     return { profile: input.profile };
   },
 
   async "profiles.create"(input, dirs, now) {
     const base = input.base ?? "default";
     const builtin = await locate(dirs, input.mode, base);
-    if (!builtin.builtin) throw new AppError("input.invalid", "只能以内置方案为底复制", { field: "base" });
+    if (!builtin.builtin)
+      throw new AppError("input.invalid", "只能以内置方案为底复制", { field: "base" });
     const id = `p-${now().toString(36)}`;
     const name = input.name ?? `${base} 副本`;
     const info = await forkBuiltinProfile(
@@ -208,8 +245,15 @@ export const PROFILE_HANDLERS: { [K in ProfileCommand]: Handler<K> } = {
 
   async "profiles.save"(input, dirs) {
     await requireUserProfile(dirs, input.mode, input.profile);
-    if (input.id === "profile.json") throw new AppError("input.invalid", "方案描述请用重命名修改", { field: "id" });
-    await saveUserAssetFile(dirs.userDir, input.mode, input.profile, safeSegment(input.id, "id"), input.text);
+    if (input.id === "profile.json")
+      throw new AppError("input.invalid", "方案描述请用重命名修改", { field: "id" });
+    await saveUserAssetFile(
+      dirs.userDir,
+      input.mode,
+      input.profile,
+      safeSegment(input.id, "id"),
+      input.text,
+    );
     return { saved: true };
   },
 
@@ -227,16 +271,25 @@ export const PROFILE_HANDLERS: { [K in ProfileCommand]: Handler<K> } = {
   async "profiles.rename"(input, dirs) {
     const dir = await requireUserProfile(dirs, input.mode, input.profile);
     const meta = await readMeta(dir);
-    await writeMeta(dir, { ...meta, id: input.profile, name: input.name, ...(input.note !== undefined ? { note: input.note } : {}) });
+    await writeMeta(dir, {
+      ...meta,
+      id: input.profile,
+      name: input.name,
+      ...(input.note !== undefined ? { note: input.note } : {}),
+    });
     return { profile: input.profile };
   },
 
   async "profiles.delete"(input, dirs) {
-    if (!input.confirm) throw new AppError("gate.denied", "删除方案需要作者确认", { field: "confirm" });
+    if (!input.confirm)
+      throw new AppError("gate.denied", "删除方案需要作者确认", { field: "confirm" });
     const dir = await requireUserProfile(dirs, input.mode, input.profile);
     await fs.rm(dir, { recursive: true, force: true });
     if ((await activeProfile(dirs, input.mode)) === input.profile) {
-      await atomicWrite(path.join(dirs.userDir, input.mode, "active.json"), JSON.stringify({ profile: "default" }));
+      await atomicWrite(
+        path.join(dirs.userDir, input.mode, "active.json"),
+        JSON.stringify({ profile: "default" }),
+      );
     }
     return { deleted: true };
   },

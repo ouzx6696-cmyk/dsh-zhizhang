@@ -5,7 +5,7 @@ import { sha256 } from "../fs/hash.js";
 import type { Intent } from "./intent.js";
 
 export async function replayIntents(
-  journalDir: string
+  journalDir: string,
 ): Promise<{ resumed: string[]; conflicts: string[] }> {
   const resumed: string[] = [];
   const conflicts: string[] = [];

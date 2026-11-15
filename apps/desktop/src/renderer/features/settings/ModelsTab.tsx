@@ -2,7 +2,13 @@ import React, { useState } from "react";
 import { DESKTOP_COPY as C } from "@zhizhang/ui/copy";
 import { notify } from "@zhizhang/ui/notify";
 import { Button, Select } from "@zhizhang/ui/primitives";
-import { MODEL_ROLES, type ModelRole, type PublicSettings, type RoleBinding, type RoleBindings } from "../../../shared/settings";
+import {
+  MODEL_ROLES,
+  type ModelRole,
+  type PublicSettings,
+  type RoleBinding,
+  type RoleBindings,
+} from "../../../shared/settings";
 import { askConfirm } from "../../state/confirm";
 import { saveModels } from "../../state/controller";
 import { notifyError } from "../../format";
@@ -35,7 +41,9 @@ function RoleRow({
         testId={`model-role-${role}-connection`}
         value={binding?.connection ?? NONE}
         options={options}
-        onChange={(connection) => onChange(connection ? bindingOf(connection, binding?.model ?? "", binding) : undefined)}
+        onChange={(connection) =>
+          onChange(connection ? bindingOf(connection, binding?.model ?? "", binding) : undefined)
+        }
       />
       <TextField
         label={C.models.model}
@@ -69,7 +77,8 @@ export function ModelsTab({ settings }: { settings: PublicSettings }) {
   const remove = async (id: string) => {
     if (!(await askConfirm(C.models.removeConfirm))) return;
     const nextRoles: RoleBindings = { ...roles };
-    for (const role of MODEL_ROLES) if (nextRoles[role]?.connection === id) nextRoles[role] = undefined;
+    for (const role of MODEL_ROLES)
+      if (nextRoles[role]?.connection === id) nextRoles[role] = undefined;
     try {
       await saveModels({ connections: connections.filter((c) => c.id !== id), roles: nextRoles });
       setRoles(nextRoles);
@@ -80,7 +89,10 @@ export function ModelsTab({ settings }: { settings: PublicSettings }) {
 
   if (editing !== null)
     return (
-      <Section title={editing ? C.models.editConnection : C.models.addConnection} testId="models-edit">
+      <Section
+        title={editing ? C.models.editConnection : C.models.addConnection}
+        testId="models-edit"
+      >
         <ConnectionForm
           settings={settings}
           connectionId={editing || `c-${Date.now().toString(36)}`}
@@ -103,7 +115,11 @@ export function ModelsTab({ settings }: { settings: PublicSettings }) {
       <Section title={C.models.connections}>
         <ul className="zz-list">
           {settings.models.connections.map((c) => (
-            <li key={c.id} data-testid="model-connection" data-configured={c.configured || c.keyless}>
+            <li
+              key={c.id}
+              data-testid="model-connection"
+              data-configured={c.configured || c.keyless}
+            >
               <strong>{c.label}</strong>
               <span className="zz-muted">{c.baseUrl}</span>
               <span className="zz-row">
@@ -123,9 +139,20 @@ export function ModelsTab({ settings }: { settings: PublicSettings }) {
       </Section>
       <Section title={C.models.roles}>
         {MODEL_ROLES.map((role) => (
-          <RoleRow key={role} role={role} binding={roles[role]} settings={settings} onChange={(binding) => setRoles((r) => ({ ...r, [role]: binding }))} />
+          <RoleRow
+            key={role}
+            role={role}
+            binding={roles[role]}
+            settings={settings}
+            onChange={(binding) => setRoles((r) => ({ ...r, [role]: binding }))}
+          />
         ))}
-        <Button variant="primary" data-testid="model-roles-save" loading={busy} onClick={() => void saveRoles()}>
+        <Button
+          variant="primary"
+          data-testid="model-roles-save"
+          loading={busy}
+          onClick={() => void saveRoles()}
+        >
           {C.settings.save}
         </Button>
       </Section>

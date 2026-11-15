@@ -17,7 +17,9 @@ export function calculateCost(usage: TokenUsage, price?: ModelPrice | null): num
   if (!price) return null;
   const cached = Math.max(0, usage.cachedInput ?? 0);
   const uncachedInput =
-    price.cachedInputPer1M !== undefined ? Math.max(0, usage.input - cached) : Math.max(0, usage.input);
+    price.cachedInputPer1M !== undefined
+      ? Math.max(0, usage.input - cached)
+      : Math.max(0, usage.input);
   const inputCost = (uncachedInput / 1_000_000) * price.inputPer1M;
   const cachedCost =
     price.cachedInputPer1M !== undefined ? (cached / 1_000_000) * price.cachedInputPer1M : 0;
@@ -28,7 +30,7 @@ export function calculateCost(usage: TokenUsage, price?: ModelPrice | null): num
 export function resolveModelPrice(
   model: string,
   table: PriceTable,
-  override?: ModelPrice | null
+  override?: ModelPrice | null,
 ): ModelPrice | undefined {
   if (override) return override;
   const exact = table[model];

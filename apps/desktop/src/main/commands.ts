@@ -39,12 +39,21 @@ export interface CommandCtx {
   log?(event: string, data: Record<string, unknown>): void;
 }
 
-type Handler<K extends WorkbenchCommand> = (input: CommandInput<K>, ctx: CommandCtx) => Promise<CommandResult<K>>;
+type Handler<K extends WorkbenchCommand> = (
+  input: CommandInput<K>,
+  ctx: CommandCtx,
+) => Promise<CommandResult<K>>;
 type Group<P extends string> = Extract<WorkbenchCommand, `${P}.${string}`>;
 
 const id = str({ min: 1, max: 200 });
 const grade = lit("economy", "standard", "premium");
-const BIBLE_OP_TYPES = ["entity.upsert", "state.add", "thread.upsert", "knowledge.set", "chapter.record"] as const;
+const BIBLE_OP_TYPES = [
+  "entity.upsert",
+  "state.add",
+  "thread.upsert",
+  "knowledge.set",
+  "chapter.record",
+] as const;
 const BIBLE_OP_KEYS: Record<(typeof BIBLE_OP_TYPES)[number], string> = {
   "entity.upsert": "entity",
   "state.add": "entry",
@@ -57,7 +66,8 @@ const BIBLE_OP_KEYS: Record<(typeof BIBLE_OP_TYPES)[number], string> = {
 const bibleOp: Parser<BibleOp> = (value, at = "$") => {
   const shape = obj({ type: lit(...BIBLE_OP_TYPES) }, { strict: false })(value, at);
   const key = BIBLE_OP_KEYS[shape.type];
-  const payload: unknown = typeof value === "object" && value !== null ? Reflect.get(value, key) : undefined;
+  const payload: unknown =
+    typeof value === "object" && value !== null ? Reflect.get(value, key) : undefined;
   if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
     throw new AppError("input.invalid", `${at}.${key}: expected object`, { path: `${at}.${key}` });
   }
@@ -78,15 +88,31 @@ const INPUTS: { [K in WorkbenchCommand]: Parser<CommandInput<K>> } = {
   "fanqie.snapshot": obj({ work: id, since: opt(str()) }),
   "fanqie.chapter.list": obj({ work: id }),
   "fanqie.chapter.get": obj({ work: id, chapter: id }),
-  "fanqie.chapter.save": obj({ work: id, chapter: id, base: str(), body: str({ max: 2_000_000 }), title: opt(str({ max: 100, trim: true })) }),
+  "fanqie.chapter.save": obj({
+    work: id,
+    chapter: id,
+    base: str(),
+    body: str({ max: 2_000_000 }),
+    title: opt(str({ max: 100, trim: true })),
+  }),
   "fanqie.chapter.finalize": obj({ work: id, chapter: id }),
   "fanqie.candidate.list": obj({ work: id, chapter: opt(id) }),
   "fanqie.candidate.get": obj({ work: id, chapter: id, candidateId: id }),
   "fanqie.candidate.accept": obj({ work: id, chapter: id, candidateId: id, base: str() }),
-  "fanqie.candidate.reject": obj({ work: id, chapter: id, candidateId: id, reason: opt(str({ max: 2000 })) }),
+  "fanqie.candidate.reject": obj({
+    work: id,
+    chapter: id,
+    candidateId: id,
+    reason: opt(str({ max: 2000 })),
+  }),
   "fanqie.work.list": obj({ root: id }),
   "fanqie.work.get": obj({ work: id }),
-  "fanqie.work.create": obj({ root: id, title: str({ min: 1, max: 100, trim: true }), premise: str({ max: 20000 }), grade }),
+  "fanqie.work.create": obj({
+    root: id,
+    title: str({ min: 1, max: 100, trim: true }),
+    premise: str({ max: 20000 }),
+    grade,
+  }),
   "fanqie.work.settings": obj({
     work: id,
     grade: opt(grade),
@@ -105,32 +131,78 @@ const INPUTS: { [K in WorkbenchCommand]: Parser<CommandInput<K>> } = {
   "toutiao.articles": obj({ root: id }),
   "toutiao.article.create": obj({ root: id, genre: id, driver: id }),
   "toutiao.article.transition": obj({ articleDir: id, to: id }),
-  "toutiao.article.deliver": obj({ articleDir: id, title: str({ min: 1, max: 200 }), body: str({ min: 1, max: 400_000 }) }),
-  "toutiao.article.export": obj({ articleDir: id, outPath: id, format: opt(lit("md", "txt")), includeDelivery: opt(bool) }),
+  "toutiao.article.deliver": obj({
+    articleDir: id,
+    title: str({ min: 1, max: 200 }),
+    body: str({ min: 1, max: 400_000 }),
+  }),
+  "toutiao.article.export": obj({
+    articleDir: id,
+    outPath: id,
+    format: opt(lit("md", "txt")),
+    includeDelivery: opt(bool),
+  }),
   "toutiao.draft.get": obj({ articleDir: id }),
-  "toutiao.draft.save": obj({ articleDir: id, title: opt(str({ max: 200 })), body: str({ min: 1, max: 400_000 }), revision: opt(str()) }),
-  "toutiao.source.register": obj({ articleDir: id, sourceId: id, kind: lit("paste", "file", "classic"), content: str({ min: 1, max: 2_000_000 }) }),
+  "toutiao.draft.save": obj({
+    articleDir: id,
+    title: opt(str({ max: 200 })),
+    body: str({ min: 1, max: 400_000 }),
+    revision: opt(str()),
+  }),
+  "toutiao.source.register": obj({
+    articleDir: id,
+    sourceId: id,
+    kind: lit("paste", "file", "classic"),
+    content: str({ min: 1, max: 2_000_000 }),
+  }),
   "toutiao.ledger.show": obj({ ledgerPath: id, last: opt(int({ min: 1, max: 200 })) }),
-  "toutiao.ledger.add": obj({ cardPath: id, ledgerPath: id, articleId: opt(id), status: opt(id), date: opt(id) }),
+  "toutiao.ledger.add": obj({
+    cardPath: id,
+    ledgerPath: id,
+    articleId: opt(id),
+    status: opt(id),
+    date: opt(id),
+  }),
   "toutiao.ledger.status": obj({ title: id, to: id, ledgerPath: id, articleId: opt(id) }),
-  "toutiao.metrics.import": obj({ articleId: id, metricsJson: str({ min: 1, max: 400_000 }), ledgerPath: id, url: opt(str()) }),
+  "toutiao.metrics.import": obj({
+    articleId: id,
+    metricsJson: str({ min: 1, max: 400_000 }),
+    ledgerPath: id,
+    url: opt(str()),
+  }),
   ...PROFILE_INPUTS,
-  "library.import": obj({ libraryRoot: id, id: str({ min: 1, max: 80 }), title: str({ min: 1, max: 200 }), content: str({ min: 1, max: 20_000_000 }) }),
+  "library.import": obj({
+    libraryRoot: id,
+    id: str({ min: 1, max: 80 }),
+    title: str({ min: 1, max: 200 }),
+    content: str({ min: 1, max: 20_000_000 }),
+  }),
   "library.list": obj({ libraryRoot: id }),
   "library.cards": obj({ libraryRoot: id, sourceId: id }),
-  "library.dissect": obj({ libraryRoot: id, sourceId: id, title: str({ min: 1, max: 200 }), sourcePath: opt(id) }),
+  "library.dissect": obj({
+    libraryRoot: id,
+    sourceId: id,
+    title: str({ min: 1, max: 200 }),
+    sourcePath: opt(id),
+  }),
 };
 
 function safeId(value: string, field: string): string {
   if (!/^[\w\u4e00-\u9fff-]{1,80}$/.test(value)) {
-    throw new AppError("input.invalid", `${field} 只能包含字母、数字、汉字、下划线与连字符`, { field });
+    throw new AppError("input.invalid", `${field} 只能包含字母、数字、汉字、下划线与连字符`, {
+      field,
+    });
   }
   return value;
 }
 
 /** 书名转目录名：去掉文件系统保留字符，保留汉字。 */
 function workDirName(title: string): string {
-  const name = title.replace(/[\\/:*?"<>|\u0000-\u001f]/g, "").replace(/\s+/g, " ").trim().replace(/\.+$/, "");
+  const name = title
+    .replace(/[\\/:*?"<>|\u0000-\u001f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\.+$/, "");
   if (!name) throw new AppError("input.invalid", "书名不能只包含特殊字符", { field: "title" });
   return name;
 }
@@ -138,7 +210,9 @@ function workDirName(title: string): string {
 function assertOutPath(outPath: string, ext: string): string {
   const resolved = path.resolve(outPath);
   if (!path.isAbsolute(outPath) || path.extname(resolved).toLowerCase() !== `.${ext}`) {
-    throw new AppError("input.invalid", `导出路径须为 .${ext} 文件的绝对路径`, { field: "outPath" });
+    throw new AppError("input.invalid", `导出路径须为 .${ext} 文件的绝对路径`, {
+      field: "outPath",
+    });
   }
   return resolved;
 }
@@ -148,20 +222,33 @@ async function snapshotRevision(work: string, rows: unknown): Promise<string> {
   return sha256(JSON.stringify({ rows, structure }));
 }
 
-async function learnFromEdit(ctx: CommandCtx, work: string, chapter: string, before: string, after: string): Promise<void> {
+async function learnFromEdit(
+  ctx: CommandCtx,
+  work: string,
+  chapter: string,
+  before: string,
+  after: string,
+): Promise<void> {
   const edits = classifyHunks(alignTwoLevel(before, after));
   if (edits.length === 0) return;
   try {
     await createLearningStore(ctx.locks).record(work, edits, { chapter, nowIso: ctx.clock.iso() });
   } catch (err) {
     // 学习记账失败不回滚已保存的正文，只记诊断
-    ctx.log?.("learning_record_failed", { chapter, message: err instanceof Error ? err.message : String(err) });
+    ctx.log?.("learning_record_failed", {
+      chapter,
+      message: err instanceof Error ? err.message : String(err),
+    });
   }
 }
 
-async function latestDraft(articleDir: string): Promise<{ file: string; text: string } | undefined> {
+async function latestDraft(
+  articleDir: string,
+): Promise<{ file: string; text: string } | undefined> {
   const dir = path.join(articleDir, "drafts");
-  const names = (await fs.readdir(dir).catch(() => [])).filter((n) => /^rev-[\w-]+\.md$/.test(n)).sort();
+  const names = (await fs.readdir(dir).catch(() => []))
+    .filter((n) => /^rev-[\w-]+\.md$/.test(n))
+    .sort();
   let best: { file: string; mtime: number } | undefined;
   for (const name of names) {
     const stat = await fs.stat(path.join(dir, name));
@@ -185,7 +272,13 @@ const FANQIE: { [K in Group<"fanqie">]: Handler<K> } = {
   },
   async "fanqie.chapter.get"(input, ctx) {
     const doc = await fanqie.readChapter(ctx.inside(input.work), input.chapter);
-    return { id: doc.meta.id, title: doc.meta.title, body: doc.body, revision: doc.meta.revision, status: doc.meta.status };
+    return {
+      id: doc.meta.id,
+      title: doc.meta.title,
+      body: doc.body,
+      revision: doc.meta.revision,
+      status: doc.meta.status,
+    };
   },
   async "fanqie.chapter.save"(input, ctx) {
     const work = ctx.inside(input.work);
@@ -201,7 +294,8 @@ const FANQIE: { [K in Group<"fanqie">]: Handler<K> } = {
       },
       ctx.locks,
     );
-    if (before && before.body !== doc.body) await learnFromEdit(ctx, work, chapter, before.body, doc.body);
+    if (before && before.body !== doc.body)
+      await learnFromEdit(ctx, work, chapter, before.body, doc.body);
     const row = (await fanqie.listChapters(work)).find((r) => r.id === chapter);
     if (!row) throw new AppError("storage.io", `章节保存后未能读回：${chapter}`, { chapter });
     return { revision: doc.meta.revision, row };
@@ -225,13 +319,21 @@ const FANQIE: { [K in Group<"fanqie">]: Handler<K> } = {
         actual: current.meta.revision,
       });
     }
-    const doc = await fanqie.acceptCandidate(work, { chapterId: input.chapter, candidateId: input.candidateId }, ctx.locks);
+    const doc = await fanqie.acceptCandidate(
+      work,
+      { chapterId: input.chapter, candidateId: input.candidateId },
+      ctx.locks,
+    );
     return { revision: doc.meta.revision };
   },
   async "fanqie.candidate.reject"(input, ctx) {
     return fanqie.rejectCandidate(
       ctx.inside(input.work),
-      { chapterId: input.chapter, candidateId: input.candidateId, ...(input.reason ? { reason: input.reason } : {}) },
+      {
+        chapterId: input.chapter,
+        candidateId: input.candidateId,
+        ...(input.reason ? { reason: input.reason } : {}),
+      },
       ctx.locks,
     );
   },
@@ -249,7 +351,8 @@ const FANQIE: { [K in Group<"fanqie">]: Handler<K> } = {
       { id: `w-${ctx.clock.now().toString(36)}`, title: input.title, grade: input.grade },
       ctx.locks,
     );
-    if (input.premise.trim()) await atomicWrite(path.join(workPath, "plan", "premise.md"), `${input.premise.trim()}\n`);
+    if (input.premise.trim())
+      await atomicWrite(path.join(workPath, "plan", "premise.md"), `${input.premise.trim()}\n`);
     return { workPath };
   },
   async "fanqie.work.settings"(input, ctx) {
@@ -274,7 +377,9 @@ const FANQIE: { [K in Group<"fanqie">]: Handler<K> } = {
     return fanqie.viewBibleAt(ctx.inside(input.work), input.position, ctx.locks);
   },
   async "fanqie.bible.propose"(input, ctx) {
-    return { items: await fanqie.proposeBibleOps(ctx.inside(input.work), input.ops, input.from, ctx.locks) };
+    return {
+      items: await fanqie.proposeBibleOps(ctx.inside(input.work), input.ops, input.from, ctx.locks),
+    };
   },
   async "fanqie.bible.decide"(input, ctx) {
     await fanqie.decideBiblePending(ctx.inside(input.work), input.id, input.decision, ctx.locks);
@@ -291,7 +396,10 @@ const FANQIE: { [K in Group<"fanqie">]: Handler<K> } = {
     const wanted = input.cardIds ?? cards.map((c) => c.id);
     const missing = wanted.filter((cardId) => !cards.some((c) => c.id === cardId));
     if (missing.length > 0 || wanted.length === 0) {
-      throw new AppError("input.not_found", "拆书库里没有这些卡片", { sourceId: input.sourceId, missing });
+      throw new AppError("input.not_found", "拆书库里没有这些卡片", {
+        sourceId: input.sourceId,
+        missing,
+      });
     }
     const file = path.join(work, "plan", "references.json");
     await ctx.locks.write({ kind: "work", path: work }, async () => {
@@ -299,11 +407,16 @@ const FANQIE: { [K in Group<"fanqie">]: Handler<K> } = {
       let bindings: Array<{ sourceId: string; cardIds: string[]; boundAt: string }> = [];
       if (raw !== undefined) {
         const data: unknown = JSON.parse(raw);
-        const list = typeof data === "object" && data !== null ? Reflect.get(data, "bindings") : undefined;
-        if (!Array.isArray(list)) throw new AppError("storage.format_unsupported", "plan/references.json 格式不受支持");
+        const list =
+          typeof data === "object" && data !== null ? Reflect.get(data, "bindings") : undefined;
+        if (!Array.isArray(list))
+          throw new AppError("storage.format_unsupported", "plan/references.json 格式不受支持");
         bindings = list.filter(
           (b): b is { sourceId: string; cardIds: string[]; boundAt: string } =>
-            typeof b === "object" && b !== null && typeof b.sourceId === "string" && Array.isArray(b.cardIds),
+            typeof b === "object" &&
+            b !== null &&
+            typeof b.sourceId === "string" &&
+            Array.isArray(b.cardIds),
         );
       }
       const next = [
@@ -322,13 +435,21 @@ const TOUTIAO: { [K in Group<"toutiao">]: Handler<K> } = {
   },
   async "toutiao.article.create"(input, ctx) {
     const { articleDir } = await toutiao.createArticleCommand(
-      { root: ctx.inside(input.root), genre: input.genre, driver: input.driver, ...(ctx.scriptsDir ? { scriptsDir: ctx.scriptsDir } : {}) },
+      {
+        root: ctx.inside(input.root),
+        genre: input.genre,
+        driver: input.driver,
+        ...(ctx.scriptsDir ? { scriptsDir: ctx.scriptsDir } : {}),
+      },
       ctx.locks,
     );
     return { articleDir };
   },
   async "toutiao.article.transition"(input, ctx) {
-    const { status } = await toutiao.transitionArticleCommand({ articleDir: ctx.inside(input.articleDir), to: input.to }, ctx.locks);
+    const { status } = await toutiao.transitionArticleCommand(
+      { articleDir: ctx.inside(input.articleDir), to: input.to },
+      ctx.locks,
+    );
     return { status };
   },
   async "toutiao.article.deliver"(input, ctx) {
@@ -375,18 +496,28 @@ const TOUTIAO: { [K in Group<"toutiao">]: Handler<K> } = {
         });
       }
       const text = `${input.title?.trim() ? `# ${input.title.trim()}\n\n` : ""}${input.body.trim()}\n`;
-      const existing = (await fs.readdir(path.join(articleDir, "drafts")).catch(() => [])).filter((n) =>
-        /^rev-\d{3,}\.md$/.test(n),
+      const existing = (await fs.readdir(path.join(articleDir, "drafts")).catch(() => [])).filter(
+        (n) => /^rev-\d{3,}\.md$/.test(n),
       );
-      const next = existing.reduce((max, n) => Math.max(max, Number.parseInt(n.slice(4), 10)), 0) + 1;
+      const next =
+        existing.reduce((max, n) => Math.max(max, Number.parseInt(n.slice(4), 10)), 0) + 1;
       const draftPath = path.join(articleDir, "drafts", `rev-${String(next).padStart(3, "0")}.md`);
       await atomicWrite(draftPath, text);
-      return { draftPath, revision: sha256(text).slice(0, 12), chars: text.replace(/\s+/g, "").length };
+      return {
+        draftPath,
+        revision: sha256(text).slice(0, 12),
+        chars: text.replace(/\s+/g, "").length,
+      };
     });
   },
   async "toutiao.source.register"(input, ctx) {
     return toutiao.registerSourceCommand(
-      { articleDir: ctx.inside(input.articleDir), sourceId: safeId(input.sourceId, "sourceId"), kind: input.kind, content: input.content },
+      {
+        articleDir: ctx.inside(input.articleDir),
+        sourceId: safeId(input.sourceId, "sourceId"),
+        kind: input.kind,
+        content: input.content,
+      },
       ctx.locks,
     );
   },
@@ -422,15 +553,24 @@ const TOUTIAO: { [K in Group<"toutiao">]: Handler<K> } = {
 };
 
 const PROFILES: { [K in Group<"profiles">]: Handler<K> } = {
-  "profiles.list": (input, ctx) => PROFILE_HANDLERS["profiles.list"](input, ctx.profiles, ctx.clock.now),
-  "profiles.detail": (input, ctx) => PROFILE_HANDLERS["profiles.detail"](input, ctx.profiles, ctx.clock.now),
-  "profiles.method": (input, ctx) => PROFILE_HANDLERS["profiles.method"](input, ctx.profiles, ctx.clock.now),
-  "profiles.use": (input, ctx) => PROFILE_HANDLERS["profiles.use"](input, ctx.profiles, ctx.clock.now),
-  "profiles.create": (input, ctx) => PROFILE_HANDLERS["profiles.create"](input, ctx.profiles, ctx.clock.now),
-  "profiles.save": (input, ctx) => PROFILE_HANDLERS["profiles.save"](input, ctx.profiles, ctx.clock.now),
-  "profiles.reset": (input, ctx) => PROFILE_HANDLERS["profiles.reset"](input, ctx.profiles, ctx.clock.now),
-  "profiles.rename": (input, ctx) => PROFILE_HANDLERS["profiles.rename"](input, ctx.profiles, ctx.clock.now),
-  "profiles.delete": (input, ctx) => PROFILE_HANDLERS["profiles.delete"](input, ctx.profiles, ctx.clock.now),
+  "profiles.list": (input, ctx) =>
+    PROFILE_HANDLERS["profiles.list"](input, ctx.profiles, ctx.clock.now),
+  "profiles.detail": (input, ctx) =>
+    PROFILE_HANDLERS["profiles.detail"](input, ctx.profiles, ctx.clock.now),
+  "profiles.method": (input, ctx) =>
+    PROFILE_HANDLERS["profiles.method"](input, ctx.profiles, ctx.clock.now),
+  "profiles.use": (input, ctx) =>
+    PROFILE_HANDLERS["profiles.use"](input, ctx.profiles, ctx.clock.now),
+  "profiles.create": (input, ctx) =>
+    PROFILE_HANDLERS["profiles.create"](input, ctx.profiles, ctx.clock.now),
+  "profiles.save": (input, ctx) =>
+    PROFILE_HANDLERS["profiles.save"](input, ctx.profiles, ctx.clock.now),
+  "profiles.reset": (input, ctx) =>
+    PROFILE_HANDLERS["profiles.reset"](input, ctx.profiles, ctx.clock.now),
+  "profiles.rename": (input, ctx) =>
+    PROFILE_HANDLERS["profiles.rename"](input, ctx.profiles, ctx.clock.now),
+  "profiles.delete": (input, ctx) =>
+    PROFILE_HANDLERS["profiles.delete"](input, ctx.profiles, ctx.clock.now),
 };
 
 const LIBRARY: { [K in Group<"library">]: Handler<K> } = {
@@ -445,18 +585,28 @@ const LIBRARY: { [K in Group<"library">]: Handler<K> } = {
     return { sources: await fanqie.listLibrarySources(ctx.inside(input.libraryRoot)) };
   },
   async "library.cards"(input, ctx) {
-    const { cards, report } = await fanqie.readLibraryCards(ctx.inside(input.libraryRoot), input.sourceId);
+    const { cards, report } = await fanqie.readLibraryCards(
+      ctx.inside(input.libraryRoot),
+      input.sourceId,
+    );
     return { cards, ...(report !== undefined ? { report } : {}) };
   },
   async "library.dissect"(input, ctx) {
     const libraryRoot = ctx.inside(input.libraryRoot);
-    const detail = await ctx.workflow.startAndWait({ mode: "fanqie", path: libraryRoot }, "library.dissect", {
-      sourceId: input.sourceId,
-      title: input.title,
-      ...(input.sourcePath ? { sourcePath: ctx.inside(input.sourcePath) } : {}),
-    });
+    const detail = await ctx.workflow.startAndWait(
+      { mode: "fanqie", path: libraryRoot },
+      "library.dissect",
+      {
+        sourceId: input.sourceId,
+        title: input.title,
+        ...(input.sourcePath ? { sourcePath: ctx.inside(input.sourcePath) } : {}),
+      },
+    );
     if (detail.state !== "awaiting-author") {
-      const error = detail.error ?? { code: "run.interrupted" as const, message: `拆书未完成（${detail.state}）` };
+      const error = detail.error ?? {
+        code: "run.interrupted" as const,
+        message: `拆书未完成（${detail.state}）`,
+      };
       throw new AppError(error.code, error.message, { runId: detail.id, state: detail.state });
     }
     const { cards, report } = await fanqie.readLibraryCards(libraryRoot, input.sourceId);
@@ -469,22 +619,36 @@ const LIBRARY: { [K in Group<"library">]: Handler<K> } = {
   },
 };
 
-const HANDLERS: { [K in WorkbenchCommand]: Handler<K> } = { ...FANQIE, ...TOUTIAO, ...PROFILES, ...LIBRARY };
+const HANDLERS: { [K in WorkbenchCommand]: Handler<K> } = {
+  ...FANQIE,
+  ...TOUTIAO,
+  ...PROFILES,
+  ...LIBRARY,
+};
 
 /** 已知命令 id 的运行时判定（IPC 边界解析用）。 */
 export function isWorkbenchCommand(value: unknown): value is WorkbenchCommand {
   return typeof value === "string" && Object.hasOwn(HANDLERS, value);
 }
 
-async function run<K extends WorkbenchCommand>(command: K, raw: unknown, ctx: CommandCtx): Promise<CommandResult<K>> {
+async function run<K extends WorkbenchCommand>(
+  command: K,
+  raw: unknown,
+  ctx: CommandCtx,
+): Promise<CommandResult<K>> {
   const parse: Parser<CommandInput<K>> = INPUTS[command];
   const handler: Handler<K> = HANDLERS[command];
   return handler(parse(raw, "$input"), ctx);
 }
 
-export async function dispatchWorkbenchCommand(call: WorkbenchCall, ctx: CommandCtx): Promise<CommandResult<WorkbenchCommand>> {
+export async function dispatchWorkbenchCommand(
+  call: WorkbenchCall,
+  ctx: CommandCtx,
+): Promise<CommandResult<WorkbenchCommand>> {
   if (!isWorkbenchCommand(call.command)) {
-    throw new AppError("input.invalid", `未知命令：${String(call.command)}`, { command: String(call.command) });
+    throw new AppError("input.invalid", `未知命令：${String(call.command)}`, {
+      command: String(call.command),
+    });
   }
   return run(call.command, call.input, ctx);
 }

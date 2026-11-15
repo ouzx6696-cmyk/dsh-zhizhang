@@ -70,7 +70,7 @@ export async function saveChapter(
     status?: ChapterStatus;
     outline?: Record<string, string>;
   },
-  lock: LockService = createLockService(systemClock)
+  lock: LockService = createLockService(systemClock),
 ): Promise<ChapterDocument> {
   return lock.write({ kind: "work", path: workPath }, async () => {
     const filePath = path.join(workPath, "chapters", `${input.chapterId}.md`);
@@ -86,7 +86,8 @@ export async function saveChapter(
 
     const bodyChanged = !prev || prev.body !== input.body;
     const nextStatus: ChapterStatus =
-      input.status ?? (prev ? (bodyChanged ? downgradeOnEdit(prev.meta.status) : prev.meta.status) : "drafted");
+      input.status ??
+      (prev ? (bodyChanged ? downgradeOnEdit(prev.meta.status) : prev.meta.status) : "drafted");
     const nextRevision = `rev-${sha256(input.body).slice(0, 8)}`;
 
     const meta: ChapterFrontMatter = {
@@ -115,7 +116,7 @@ export async function reviewChapter(
     quotes?: string[];
     expectedRevision?: string;
   },
-  lock: LockService = createLockService(systemClock)
+  lock: LockService = createLockService(systemClock),
 ): Promise<ChapterDocument> {
   return lock.write({ kind: "work", path: workPath }, async () => {
     const doc = await readChapter(workPath, input.chapterId);
@@ -144,7 +145,7 @@ export async function reviewChapter(
 
     await atomicWrite(
       path.join(workPath, "chapters", `${input.chapterId}.md`),
-      serializeChapterMarkdown(updated)
+      serializeChapterMarkdown(updated),
     );
     return updated;
   });
@@ -153,7 +154,7 @@ export async function reviewChapter(
 export async function finalizeChapter(
   workPath: string,
   input: { chapterId: string; expectedRevision?: string },
-  lock: LockService = createLockService(systemClock)
+  lock: LockService = createLockService(systemClock),
 ): Promise<ChapterDocument> {
   return lock.write({ kind: "work", path: workPath }, async () => {
     const workMeta = await readWorkMeta(workPath);
@@ -183,7 +184,7 @@ export async function finalizeChapter(
 
     await atomicWrite(
       path.join(workPath, "chapters", `${input.chapterId}.md`),
-      serializeChapterMarkdown(updated)
+      serializeChapterMarkdown(updated),
     );
     return updated;
   });

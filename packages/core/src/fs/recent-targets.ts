@@ -27,7 +27,7 @@ export async function loadRecentTargets(env?: NodeJS.ProcessEnv): Promise<Recent
 export async function recordRecentTarget(
   entry: Omit<RecentEntry, "updatedAt">,
   nowIso: string,
-  env?: NodeJS.ProcessEnv
+  env?: NodeJS.ProcessEnv,
 ): Promise<RecentEntry[]> {
   const file = stateSubpath("recent.json", env);
   const existing = await loadRecentTargets(env).catch(() => []);

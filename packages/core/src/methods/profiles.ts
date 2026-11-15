@@ -9,11 +9,7 @@ export interface ProfileRoots {
   userDir?: string;
 }
 
-export async function loadProfile(
-  mode: string,
-  id: string,
-  roots: ProfileRoots
-): Promise<Profile> {
+export async function loadProfile(mode: string, id: string, roots: ProfileRoots): Promise<Profile> {
   const candidates = [
     roots.userDir ? path.join(roots.userDir, mode, id) : undefined,
     path.join(roots.builtinDir, id),

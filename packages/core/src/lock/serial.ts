@@ -5,7 +5,7 @@ export function createSerialRunner() {
     const next = prev.catch(() => undefined).then(fn);
     const tail = next.then(
       () => undefined,
-      () => undefined
+      () => undefined,
     );
     tails.set(key, tail);
     try {

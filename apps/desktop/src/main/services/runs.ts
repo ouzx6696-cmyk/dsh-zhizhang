@@ -18,7 +18,15 @@ export interface RunStore {
   listAll(): Promise<RunDetail[]>;
 }
 
-const RUN_STATES = new Set(["running", "paused", "failed", "awaiting-author", "applied", "discarded", "cancelled"]);
+const RUN_STATES = new Set([
+  "running",
+  "paused",
+  "failed",
+  "awaiting-author",
+  "applied",
+  "discarded",
+  "cancelled",
+]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -75,7 +83,10 @@ export function summarizeRun(detail: RunDetail): RunSummary {
   };
 }
 
-export function withError(record: RunRecord, error?: { code: ErrorCode; message: string }): RunDetail {
+export function withError(
+  record: RunRecord,
+  error?: { code: ErrorCode; message: string },
+): RunDetail {
   return error ? { ...record, error } : { ...record };
 }
 
@@ -97,8 +108,12 @@ export function createRunStore(root: string): RunStore {
 
   return {
     async save(detail) {
-      if (!/^[\w.-]+$/.test(detail.id)) throw new AppError("input.invalid", `运行 id 无效：${detail.id}`);
-      await atomicWrite(path.join(dirOf(detail.target), `${detail.id}.json`), JSON.stringify(detail, null, 2));
+      if (!/^[\w.-]+$/.test(detail.id))
+        throw new AppError("input.invalid", `运行 id 无效：${detail.id}`);
+      await atomicWrite(
+        path.join(dirOf(detail.target), `${detail.id}.json`),
+        JSON.stringify(detail, null, 2),
+      );
     },
     async get(target, runId) {
       if (!/^[\w.-]+$/.test(runId)) throw new AppError("input.invalid", `运行 id 无效：${runId}`);

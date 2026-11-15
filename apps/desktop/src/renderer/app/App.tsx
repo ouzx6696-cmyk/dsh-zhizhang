@@ -22,8 +22,12 @@ import { RootErrorBoundary, reportUnhandledRejection } from "./crash";
 import { useAppearance } from "./useAppearance";
 import { useShortcuts } from "./useShortcuts";
 
-const Settings = lazy(() => import("../features/settings/SettingsDialog").then((m) => ({ default: m.SettingsDialog })));
-const Onboarding = lazy(() => import("../features/onboarding/Onboarding").then((m) => ({ default: m.Onboarding })));
+const Settings = lazy(() =>
+  import("../features/settings/SettingsDialog").then((m) => ({ default: m.SettingsDialog })),
+);
+const Onboarding = lazy(() =>
+  import("../features/onboarding/Onboarding").then((m) => ({ default: m.Onboarding })),
+);
 
 function Welcome() {
   const configured = useDesktop((state) => Boolean(state.workspace?.configured));
@@ -33,7 +37,11 @@ function Welcome() {
       <p>{configured ? C.shell.welcomePick : C.shell.welcomeSetup}</p>
       {configured ? (
         <div className="zz-row">
-          <Button variant="primary" data-testid="welcome-new-work" onClick={() => startCreate("fanqie")}>
+          <Button
+            variant="primary"
+            data-testid="welcome-new-work"
+            onClick={() => startCreate("fanqie")}
+          >
             {C.create.newWork}
           </Button>
           <Button data-testid="welcome-new-article" onClick={() => startCreate("toutiao")}>

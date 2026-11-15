@@ -17,7 +17,7 @@ export interface WorkSummary {
 export async function createWork(
   workPath: string,
   input: { id: string; title: string; profile?: string; grade?: WorkMeta["grade"] },
-  lock: LockService = createLockService(systemClock)
+  lock: LockService = createLockService(systemClock),
 ): Promise<WorkMeta> {
   return createWorkLayout(
     workPath,
@@ -28,7 +28,7 @@ export async function createWork(
       grade: input.grade,
       nowIso: systemClock.iso(),
     },
-    lock
+    lock,
   );
 }
 
@@ -50,7 +50,7 @@ export async function listWorks(worksRoot: string): Promise<WorkSummary[]> {
     if (!entry.isDirectory()) continue;
     const workPath = path.join(worksRoot, entry.name);
     const meta = await readJson(path.join(workPath, "work.json"), WorkMetaSchema).catch(
-      () => undefined
+      () => undefined,
     );
     if (!meta) continue;
     works.push({
@@ -67,7 +67,7 @@ export async function listWorks(worksRoot: string): Promise<WorkSummary[]> {
 export async function updateWorkSettings(
   workPath: string,
   patch: Partial<WorkMeta["settings"]> & { grade?: WorkMeta["grade"]; profile?: string },
-  lock: LockService = createLockService(systemClock)
+  lock: LockService = createLockService(systemClock),
 ): Promise<WorkMeta> {
   return lock.write({ kind: "work", path: workPath }, async () => {
     const meta = await readWorkMeta(workPath);

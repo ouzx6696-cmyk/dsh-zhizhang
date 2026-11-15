@@ -18,7 +18,8 @@ export function runBackup(script: string, args: string[], signal: AbortSignal): 
     child.once("exit", (code) => {
       signal.removeEventListener("abort", stop);
       if (signal.aborted) reject(new AppError("run.stopped", "备份已取消"));
-      else if (code !== 0) reject(new AppError("storage.io", errorText.trim() || `备份进程退出：${code}`, { code }));
+      else if (code !== 0)
+        reject(new AppError("storage.io", errorText.trim() || `备份进程退出：${code}`, { code }));
       else resolve();
     });
   });

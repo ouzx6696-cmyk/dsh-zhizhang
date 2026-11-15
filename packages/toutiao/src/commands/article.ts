@@ -5,10 +5,7 @@ import { AppError } from "@zhizhang/core/errors";
 import { readJson, readTextIfExists, resolveInside } from "@zhizhang/core/fs";
 import { createLockService, type LockService } from "@zhizhang/core/lock";
 import { lit, obj, opt, str, type Infer } from "@zhizhang/core/schema";
-import {
-  ARTICLE_STATUSES,
-  type ArticleStatus,
-} from "../domain/status.js";
+import { ARTICLE_STATUSES, type ArticleStatus } from "../domain/status.js";
 import { createRulesBridge, type LedgerMutateResult } from "../rules/bridge.js";
 import {
   ArticleMetaSchema,
@@ -59,7 +56,7 @@ export type RegisterSourceInput = Infer<typeof RegisterSourceReq>;
 
 export async function createArticleCommand(
   rawInput: unknown,
-  lock: LockService = createLockService(systemClock)
+  lock: LockService = createLockService(systemClock),
 ): Promise<{ articleDir: string; meta: ArticleMeta }> {
   const input = CreateArticleReq(rawInput);
   const id = input.id ?? `tt-${systemClock.now()}`;
@@ -81,28 +78,23 @@ export async function createArticleCommand(
       rulesVersion: limits.rules_version,
       nowIso: systemClock.iso(),
     },
-    lock
+    lock,
   );
   return { articleDir, meta };
 }
 
 export async function transitionArticleCommand(
   rawInput: unknown,
-  lock: LockService = createLockService(systemClock)
+  lock: LockService = createLockService(systemClock),
 ): Promise<{ status: ArticleStatus; meta: ArticleMeta }> {
   const input = TransitionArticleReq(rawInput);
-  const meta = await transitionArticleStatus(
-    input.articleDir,
-    input.to,
-    systemClock.iso(),
-    lock
-  );
+  const meta = await transitionArticleStatus(input.articleDir, input.to, systemClock.iso(), lock);
   return { status: meta.status, meta };
 }
 
 export async function deliverArticleCommand(
   rawInput: unknown,
-  lock: LockService = createLockService(systemClock)
+  lock: LockService = createLockService(systemClock),
 ): Promise<{ deliveryPath: string; status: ArticleStatus; ledger?: LedgerMutateResult }> {
   const input = DeliverArticleReq(rawInput);
   const nowIso = systemClock.iso();
@@ -111,7 +103,7 @@ export async function deliverArticleCommand(
     input.title,
     input.body,
     nowIso,
-    lock
+    lock,
   );
 
   const cardPath = input.cardPath ?? path.join(input.articleDir, "card.json");
@@ -129,7 +121,7 @@ export async function deliverArticleCommand(
   }
 
   const meta = await readJson(path.join(input.articleDir, "meta.json"), ArticleMetaSchema).catch(
-    () => undefined
+    () => undefined,
   );
   const ledgerPath = input.ledgerPath ?? path.join(path.dirname(input.articleDir), "ledger.csv");
   const bridge = createRulesBridge(input.scriptsDir ?? DEFAULT_SCRIPTS_DIR);
@@ -144,7 +136,7 @@ export async function deliverArticleCommand(
     throw new AppError(
       ledger.code === "NOT_FOUND" ? "input.not_found" : "input.invalid",
       ledger.message || "交稿联动台账追加失败",
-      { code: ledger.code }
+      { code: ledger.code },
     );
   }
   return { deliveryPath, status: "已交稿", ledger };
@@ -152,7 +144,7 @@ export async function deliverArticleCommand(
 
 export async function registerSourceCommand(
   rawInput: unknown,
-  lock: LockService = createLockService(systemClock)
+  lock: LockService = createLockService(systemClock),
 ): Promise<{ sourceId: string }> {
   const input = RegisterSourceReq(rawInput);
   await registerSource(
@@ -161,7 +153,7 @@ export async function registerSourceCommand(
     input.kind,
     input.content,
     systemClock.iso(),
-    lock
+    lock,
   );
   return { sourceId: input.sourceId };
 }
@@ -173,7 +165,7 @@ export async function listArticleRowsCommand(root: string): Promise<{ rows: Arti
     if (!entry.isDirectory()) continue;
     const articleDir = path.join(root, entry.name);
     const meta = await readJson(path.join(articleDir, "meta.json"), ArticleMetaSchema).catch(
-      () => undefined
+      () => undefined,
     );
     if (!meta) continue;
     const cardRaw = await readTextIfExists(path.join(articleDir, "card.json"));
@@ -201,7 +193,7 @@ export async function listArticleRowsCommand(root: string): Promise<{ rows: Arti
   rows.sort(
     (a, b) =>
       ARTICLE_STATUSES.indexOf(a.status) - ARTICLE_STATUSES.indexOf(b.status) ||
-      b.updatedAt.localeCompare(a.updatedAt)
+      b.updatedAt.localeCompare(a.updatedAt),
   );
   return { rows };
 }

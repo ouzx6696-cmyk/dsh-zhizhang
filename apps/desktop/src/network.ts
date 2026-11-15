@@ -75,7 +75,9 @@ export async function readSource(
   let url = new URL(input);
   for (let redirects = 0; redirects < 6; redirects++) {
     if (!["https:", "http:"].includes(url.protocol) || url.username || url.password)
-      throw new AppError("input.invalid", "资料链接须为不含登录信息的 HTTP(S) 地址", { field: "url" });
+      throw new AppError("input.invalid", "资料链接须为不含登录信息的 HTTP(S) 地址", {
+        field: "url",
+      });
     const hostname = url.hostname.replace(/^\[|\]$/g, "");
     const addresses = isIP(hostname)
       ? [{ address: hostname, family: isIP(hostname) }]
@@ -131,7 +133,11 @@ export async function readSource(
           response.on("data", (chunk) => {
             length += chunk.length;
             if (length > 2 * 1024 * 1024) {
-              request.destroy(new AppError("input.invalid", "资料超过 2 MB，请提供较短页面或作者摘录", { field: "url" }));
+              request.destroy(
+                new AppError("input.invalid", "资料超过 2 MB，请提供较短页面或作者摘录", {
+                  field: "url",
+                }),
+              );
               return;
             }
             chunks.push(chunk);
@@ -148,7 +154,9 @@ export async function readSource(
           });
         },
       );
-      request.on("timeout", () => request.destroy(new AppError("network.proxy", "资料网站连接超时，请稍后重试")));
+      request.on("timeout", () =>
+        request.destroy(new AppError("network.proxy", "资料网站连接超时，请稍后重试")),
+      );
       request.on("error", reject);
     });
     if (result.location) {

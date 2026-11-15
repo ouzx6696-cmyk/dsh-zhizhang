@@ -195,7 +195,10 @@ test("bible audit detects overlapping state_conflict entries", () => {
   };
 
   const findings = store.audit(bible, 15);
-  assert.ok(findings.some((f) => f.kind === "state_conflict"), "Expected state_conflict finding");
+  assert.ok(
+    findings.some((f) => f.kind === "state_conflict"),
+    "Expected state_conflict finding",
+  );
 });
 
 test("toutiao extractClaimCandidates extracts numeric and quoted claims", () => {
@@ -206,7 +209,9 @@ test("toutiao extractClaimCandidates extracts numeric and quoted claims", () => 
 
   const claims = extractClaimCandidates(draft);
   assert.ok(claims.some((c) => c.kind === "number" && c.text === "1.2%"));
-  assert.ok(claims.some((c) => c.kind === "quote" && c.text.includes("这一政策将在年底前全面落地")));
+  assert.ok(
+    claims.some((c) => c.kind === "quote" && c.text.includes("这一政策将在年底前全面落地")),
+  );
 });
 
 test("toutiao extractClaimCandidates extracts date and organization entity claims", () => {

@@ -5,7 +5,13 @@ import {
   type CommandResult,
   type WorkbenchCommand,
 } from "../contract/commands.js";
-import type { FanqieData, RequestOptions, ToutiaoData, WorkbenchData, WorkbenchTransport } from "./types.js";
+import type {
+  FanqieData,
+  RequestOptions,
+  ToutiaoData,
+  WorkbenchData,
+  WorkbenchTransport,
+} from "./types.js";
 
 function aborted(command: WorkbenchCommand): AppError {
   // 写命令在途中被取消时，主进程可能已经落盘：标记 uncertain，界面据此提示作者刷新核对。

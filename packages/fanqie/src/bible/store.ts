@@ -62,7 +62,7 @@ function detectOpConflict(bible: Bible, op: BibleOp): string | undefined {
         s.field === op.entry.field &&
         s.value !== op.entry.value &&
         (s.mode === "replace" || op.entry.mode === "replace") &&
-        statesOverlap(s, op.entry)
+        statesOverlap(s, op.entry),
     );
     return conflict?.id;
   }
@@ -71,10 +71,18 @@ function detectOpConflict(bible: Bible, op: BibleOp): string | undefined {
     const conflict = bible.knowledge.find((k) => {
       if (k.holder !== op.row.holder || k.fact !== op.row.fact) return false;
       if (k.since === op.row.since && k.level !== op.row.level) return true;
-      if (k.since < op.row.since && (k.level === "知情" || k.level === "公开") && op.row.level === "不知") {
+      if (
+        k.since < op.row.since &&
+        (k.level === "知情" || k.level === "公开") &&
+        op.row.level === "不知"
+      ) {
         return true;
       }
-      if (op.row.since < k.since && (op.row.level === "知情" || op.row.level === "公开") && k.level === "不知") {
+      if (
+        op.row.since < k.since &&
+        (op.row.level === "知情" || op.row.level === "公开") &&
+        k.level === "不知"
+      ) {
         return true;
       }
       return false;
@@ -91,7 +99,7 @@ function detectOpConflict(bible: Bible, op: BibleOp): string | undefined {
         (lockedTerm) =>
           lockedTerm.trim().length > 0 &&
           prevText.includes(lockedTerm) &&
-          !nextText.includes(lockedTerm)
+          !nextText.includes(lockedTerm),
       );
       if (broken) return existing.id;
     }
@@ -100,7 +108,7 @@ function detectOpConflict(bible: Bible, op: BibleOp): string | undefined {
 
   if (op.type === "thread.upsert") {
     const existing = bible.threads.find(
-      (t) => t.id === op.thread.id && t.status === "paid" && op.thread.status === "open"
+      (t) => t.id === op.thread.id && t.status === "paid" && op.thread.status === "open",
     );
     return existing?.id;
   }
@@ -129,7 +137,9 @@ export function createBibleStore(lock: LockService) {
     return {
       position,
       entities: bible.entities,
-      states: bible.states.filter((s) => s.since <= position && (s.until === undefined || position < s.until)),
+      states: bible.states.filter(
+        (s) => s.since <= position && (s.until === undefined || position < s.until),
+      ),
       threads: bible.threads.filter((t) => t.opened <= position && t.status === "open"),
       knowledge: bible.knowledge.filter((k) => k.since <= position),
     };
@@ -181,14 +191,17 @@ export function createBibleStore(lock: LockService) {
       style: sha256(JSON.stringify(bible.style)),
       pending: sha256(JSON.stringify(bible.pending)),
     };
-    await atomicWrite(path.join(dir, "index.json"), JSON.stringify({ format: "zhizhang/1.3", hashes }, null, 2));
+    await atomicWrite(
+      path.join(dir, "index.json"),
+      JSON.stringify({ format: "zhizhang/1.3", hashes }, null, 2),
+    );
   }
 
   async function propose(
     workPath: string,
     ops: BibleOp[],
     from: Provenance,
-    metaList?: ProposeOpMeta[]
+    metaList?: ProposeOpMeta[],
   ): Promise<PendingItem[]> {
     return lock.write({ kind: "work", path: workPath }, async () => {
       const bible = await read(workPath);
@@ -219,7 +232,7 @@ export function createBibleStore(lock: LockService) {
   async function decide(
     workPath: string,
     id: string,
-    decision: "accept" | "reject" | { edit: BibleOp }
+    decision: "accept" | "reject" | { edit: BibleOp },
   ): Promise<void> {
     return lock.write({ kind: "work", path: workPath }, async () => {
       const bible = await read(workPath);
@@ -233,7 +246,10 @@ export function createBibleStore(lock: LockService) {
           const idx = bible.entities.findIndex((e) => e.id === op.entity.id);
           if (idx === -1) bible.entities.push(op.entity);
           else bible.entities[idx] = op.entity;
-          await atomicWrite(path.join(dir, "entities.json"), JSON.stringify(bible.entities, null, 2));
+          await atomicWrite(
+            path.join(dir, "entities.json"),
+            JSON.stringify(bible.entities, null, 2),
+          );
         } else if (op.type === "state.add") {
           bible.states.push(op.entry);
           await atomicWrite(path.join(dir, "states.json"), JSON.stringify(bible.states, null, 2));
@@ -246,12 +262,18 @@ export function createBibleStore(lock: LockService) {
           const idx = bible.knowledge.findIndex((k) => k.id === op.row.id);
           if (idx === -1) bible.knowledge.push(op.row);
           else bible.knowledge[idx] = op.row;
-          await atomicWrite(path.join(dir, "knowledge.json"), JSON.stringify(bible.knowledge, null, 2));
+          await atomicWrite(
+            path.join(dir, "knowledge.json"),
+            JSON.stringify(bible.knowledge, null, 2),
+          );
         } else if (op.type === "chapter.record") {
           const idx = bible.chapters.findIndex((c) => c.chapter === op.record.chapter);
           if (idx === -1) bible.chapters.push(op.record);
           else bible.chapters[idx] = op.record;
-          await atomicWrite(path.join(dir, "chapters.json"), JSON.stringify(bible.chapters, null, 2));
+          await atomicWrite(
+            path.join(dir, "chapters.json"),
+            JSON.stringify(bible.chapters, null, 2),
+          );
         }
       }
       bible.pending = bible.pending.filter((p) => p.id !== id);
@@ -332,8 +354,7 @@ export function createBibleStore(lock: LockService) {
           const a = sorted[i];
           const b = sorted[j];
           const sameChapterConflict = a.since === b.since && a.level !== b.level;
-          const regressed =
-            (a.level === "知情" || a.level === "公开") && b.level === "不知";
+          const regressed = (a.level === "知情" || a.level === "公开") && b.level === "不知";
           if (!sameChapterConflict && !regressed) continue;
           reportedLeaks.add(b.id);
           findings.push({
@@ -363,10 +384,15 @@ export function createBibleStore(lock: LockService) {
         if (latest.fact.trim().length < 2) continue;
 
         const entity = bible.entities.find(
-          (e) => e.id === latest.holder || e.name === latest.holder || e.aliases.includes(latest.holder)
+          (e) =>
+            e.id === latest.holder || e.name === latest.holder || e.aliases.includes(latest.holder),
         );
-        const holderNames = entity ? [latest.holder, entity.name, ...entity.aliases] : [latest.holder];
-        const mentionsHolder = holderNames.some((n) => n.trim().length > 0 && chapterText.includes(n));
+        const holderNames = entity
+          ? [latest.holder, entity.name, ...entity.aliases]
+          : [latest.holder];
+        const mentionsHolder = holderNames.some(
+          (n) => n.trim().length > 0 && chapterText.includes(n),
+        );
         if (mentionsHolder && chapterText.includes(latest.fact)) {
           const dedupKey = `${latest.id}:${ch.position}`;
           if (reportedLeaks.has(dedupKey)) continue;

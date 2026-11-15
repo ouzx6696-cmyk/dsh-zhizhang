@@ -93,7 +93,7 @@ const BeatsSchema = obj({
       conflict: str({ min: 1 }),
       hook: opt(str()),
     }),
-    { max: 20 }
+    { max: 20 },
   ),
 });
 
@@ -148,7 +148,7 @@ const FORBIDDEN_HIT_PATTERNS: ReadonlyArray<{ label: string; pattern: RegExp }> 
 
 export function draftCountForGrade(
   grade: "economy" | "standard" | "premium",
-  golden: boolean
+  golden: boolean,
 ): number {
   if (grade === "economy") return 1;
   if (grade === "standard") return golden ? 5 : 2;
@@ -188,7 +188,7 @@ export function parsePlainDraft(raw: string): DraftOutput {
 
 export function gateDraft(
   draft: DraftOutput,
-  opts: { targetWords?: number; minRatio?: number; maxRatio?: number } = {}
+  opts: { targetWords?: number; minRatio?: number; maxRatio?: number } = {},
 ): GateReport {
   const target = opts.targetWords ?? 3000;
   const minWords = Math.floor(target * (opts.minRatio ?? 0.5));
@@ -227,7 +227,7 @@ export function gateDraft(
 
 export function filterLocatedIssues(
   issues: ReviewIssue[],
-  body: string
+  body: string,
 ): { value: ReviewIssue[]; notes: string[] } {
   if (issues.length === 0) return { value: [], notes: [] };
   const kept: ReviewIssue[] = [];
@@ -253,7 +253,10 @@ function getCurrentDraftFromState(ctx: RunCtx): DraftOutput {
   return candidate;
 }
 
-export const beatsStage: StageSpec<{ chapterId: string; outline: string; note?: string }, BeatsOutput> = {
+export const beatsStage: StageSpec<
+  { chapterId: string; outline: string; note?: string },
+  BeatsOutput
+> = {
   id: "beats",
   title: "分场节拍",
   role: "planner",
@@ -266,8 +269,7 @@ export const beatsStage: StageSpec<{ chapterId: string; outline: string; note?: 
       note: req.note,
     };
   },
-  shape:
-    'JSON 格式：{"scenes":[{"title":"场景名","goal":"目标","conflict":"冲突","hook":"钩子"}]}',
+  shape: 'JSON 格式：{"scenes":[{"title":"场景名","goal":"目标","conflict":"冲突","hook":"钩子"}]}',
   format: "json",
   parse: (raw) => parseJson(raw, BeatsSchema, "beats"),
 };
@@ -300,7 +302,7 @@ export const draftStage: StageSpec<
 };
 
 export function makeScoreStage(
-  index: number
+  index: number,
 ): StageSpec<{ title: string; body: string }, ScoreResult> {
   return {
     id: `select-score-${index}`,
@@ -324,7 +326,7 @@ export function makeScoreStage(
 
 export function makeCompareStage(
   label: string,
-  aFirst: boolean
+  aFirst: boolean,
 ): StageSpec<{ A: DraftOutput; B: DraftOutput }, CompareResult> {
   return {
     id: `select-compare-${label}`,
@@ -344,7 +346,10 @@ export function makeCompareStage(
   };
 }
 
-export const continuityStage: StageSpec<{ chapterId: string; title: string; body: string }, { issues: ReviewIssue[] }> = {
+export const continuityStage: StageSpec<
+  { chapterId: string; title: string; body: string },
+  { issues: ReviewIssue[] }
+> = {
   id: "continuity-check",
   title: "连续性核查",
   role: "editor",
@@ -354,7 +359,8 @@ export const continuityStage: StageSpec<{ chapterId: string; title: string; body
     const draft = getCurrentDraftFromState(ctx);
     return { chapterId: req.chapterId, title: draft.title, body: draft.body };
   },
-  shape: 'JSON 格式：{"issues":[{"kind":"continuity","quote":"原文精确引文","issue":"问题","fix":"修改建议"}]}',
+  shape:
+    'JSON 格式：{"issues":[{"kind":"continuity","quote":"原文精确引文","issue":"问题","fix":"修改建议"}]}',
   format: "json",
   parse: (raw) => parseJson(raw, ContinuityResultSchema, "continuity-check"),
   accept: (o, ctx) => {
@@ -365,7 +371,7 @@ export const continuityStage: StageSpec<{ chapterId: string; title: string; body
 };
 
 export function makeReviewStage(
-  round: number
+  round: number,
 ): StageSpec<{ chapterId: string; round: number; title: string; body: string }, ReviewResult> {
   return {
     id: round === 1 ? "review" : `review-r${round}`,
@@ -395,8 +401,11 @@ export function makeReviewStage(
 export const reviewStage = makeReviewStage(1);
 
 export function makeReviseStage(
-  round: number
-): StageSpec<{ chapterId: string; round: number; draft: DraftOutput; issues: ReviewIssue[]; note?: string }, DraftOutput> {
+  round: number,
+): StageSpec<
+  { chapterId: string; round: number; draft: DraftOutput; issues: ReviewIssue[]; note?: string },
+  DraftOutput
+> {
   return {
     id: round === 1 ? "revise" : `revise-r${round}`,
     title: `按回报修改（第 ${round} 轮）`,
@@ -433,22 +442,24 @@ export const chapterPipeline: PipelineDefinition<ChapterReq, ChapterRunResult> =
     const bibleStore = createBibleStore(lock);
 
     const prepared = await runner.local("prepare", async () => {
-      const workMeta = await readJson(path.join(ctx.target.path, "work.json"), WorkMetaSchema).catch(
-        () => undefined
-      );
+      const workMeta = await readJson(
+        path.join(ctx.target.path, "work.json"),
+        WorkMetaSchema,
+      ).catch(() => undefined);
       const chapterRaw = await readTextIfExists(
-        path.join(ctx.target.path, "chapters", `${req.chapterId}.md`)
+        path.join(ctx.target.path, "chapters", `${req.chapterId}.md`),
       );
       const parsedChapter = chapterRaw ? parseChapterMarkdown(chapterRaw) : undefined;
       const outlineText = parsedChapter?.meta.outline
         ? Object.entries(parsedChapter.meta.outline)
             .map(([k, v]) => `${k}：${v}`)
             .join("\n")
-        : req.note ?? `章节 ${req.chapterId}`;
+        : (req.note ?? `章节 ${req.chapterId}`);
 
       const bible = await bibleStore.read(ctx.target.path);
       const parsedPos = req.position ? Number.parseInt(req.position, 10) : NaN;
-      const position = Number.isFinite(parsedPos) && parsedPos > 0 ? parsedPos : bible.chapters.length + 1;
+      const position =
+        Number.isFinite(parsedPos) && parsedPos > 0 ? parsedPos : bible.chapters.length + 1;
       const view = bibleStore.asOf(bible, position);
       const prevRecord = bible.chapters
         .filter((c) => c.position < position)
@@ -501,9 +512,13 @@ export const chapterPipeline: PipelineDefinition<ChapterReq, ChapterRunResult> =
       const passing = reports.filter((r) => r.report.passed);
       if (passing.length === 0) {
         const reasons = reports.flatMap((r) => r.report.reasons).slice(0, 6);
-        throw new AppError("model.output_invalid", `所有候选稿未通过基础门禁：${reasons.join("；")}`, {
-          reasons,
-        });
+        throw new AppError(
+          "model.output_invalid",
+          `所有候选稿未通过基础门禁：${reasons.join("；")}`,
+          {
+            reasons,
+          },
+        );
       }
       return passing;
     });
@@ -516,7 +531,8 @@ export const chapterPipeline: PipelineDefinition<ChapterReq, ChapterRunResult> =
     let chosenGate = gateResults[0].report;
 
     if (passingDrafts.length > 1) {
-      const scored: Array<{ idx: number; draft: DraftOutput; gate: GateReport; score: number }> = [];
+      const scored: Array<{ idx: number; draft: DraftOutput; gate: GateReport; score: number }> =
+        [];
       for (let i = 0; i < passingDrafts.length; i++) {
         const res = await runner.stage(makeScoreStage(i), packet);
         scored.push({
@@ -574,13 +590,13 @@ export const chapterPipeline: PipelineDefinition<ChapterReq, ChapterRunResult> =
       ctx.state.pendingIssues = combinedIssues;
       const revised = await runner.stage(makeReviseStage(round), packet);
       const revisedGate = await runner.local(`gate-revise-${round}`, async () =>
-        gateDraft(revised, { targetWords: prepared.targetWords })
+        gateDraft(revised, { targetWords: prepared.targetWords }),
       );
       if (!revisedGate.passed) {
         throw new AppError(
           "model.output_invalid",
           `第 ${round} 轮修稿未通过门禁：${revisedGate.reasons.join("；")}`,
-          { reasons: revisedGate.reasons }
+          { reasons: revisedGate.reasons },
         );
       }
       chosen = revised;
@@ -627,8 +643,8 @@ export const chapterPipeline: PipelineDefinition<ChapterReq, ChapterRunResult> =
           beats: res.beats,
         },
         null,
-        2
-      )
+        2,
+      ),
     );
     await atomicWrite(marker, buildDeliveryMarker(ctx.runId, res.body));
     return {
@@ -644,7 +660,7 @@ export const chapterPipeline: PipelineDefinition<ChapterReq, ChapterRunResult> =
       ctx.target.path,
       "candidates",
       req.chapterId,
-      `${record.id}.marker.json`
+      `${record.id}.marker.json`,
     );
     return (await isAlreadyDelivered(marker, record.id)) ? "delivered" : "resume";
   },

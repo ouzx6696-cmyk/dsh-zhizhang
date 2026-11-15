@@ -1,11 +1,5 @@
 export type ErrorKind = "author" | "transient" | "content" | "infra" | "bug";
-export type PauseReason =
-  | "budget"
-  | "balance"
-  | "context"
-  | "lock"
-  | "author-stop"
-  | "interrupted";
+export type PauseReason = "budget" | "balance" | "context" | "lock" | "author-stop" | "interrupted";
 
 export interface CodeSpec {
   readonly kind: ErrorKind;

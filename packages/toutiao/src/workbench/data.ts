@@ -51,7 +51,7 @@ function resolveArticleDir(root: string, id: string): string {
 }
 
 async function listLatestDraftFile(
-  articleDir: string
+  articleDir: string,
 ): Promise<{ path: string; name: string; text: string; sha256: string } | null> {
   const draftsDir = path.join(articleDir, "drafts");
   const entries = await fs.readdir(draftsDir).catch(() => []);
@@ -63,7 +63,7 @@ async function listLatestDraftFile(
       const full = path.join(draftsDir, name);
       const st = await fs.stat(full);
       return { name, full, mtimeMs: st.mtimeMs };
-    })
+    }),
   );
   stats.sort((a, b) => b.mtimeMs - a.mtimeMs);
   const latest = stats[0];
@@ -86,7 +86,7 @@ function titleOf(meta: ArticleMeta, card: Record<string, unknown>): string {
 
 export async function listArticles(
   roots: string[],
-  config: ToutiaoConfig = {}
+  config: ToutiaoConfig = {},
 ): Promise<{
   roots: string[];
   statuses: ArticleStatus[];
@@ -121,7 +121,7 @@ export async function listArticles(
             error: isAppError(err) ? err.message : String(err),
           });
           return undefined;
-        }
+        },
       );
       if (!meta) continue;
 
@@ -138,7 +138,7 @@ export async function listArticles(
       const draftsDir = path.join(articleDir, "drafts");
       const draftEntries = await fs.readdir(draftsDir).catch(() => []);
       const revCount = draftEntries.filter(
-        (name) => name.endsWith(".md") && !name.endsWith(".marker.json")
+        (name) => name.endsWith(".md") && !name.endsWith(".marker.json"),
       ).length;
       const delivered = (await readTextIfExists(path.join(articleDir, "交稿单.md"))) !== undefined;
       const updatedAt = meta.history.at(-1)?.at ?? "";
@@ -161,7 +161,7 @@ export async function listArticles(
   rows.sort(
     (a, b) =>
       ARTICLE_STATUSES.indexOf(a.status) - ARTICLE_STATUSES.indexOf(b.status) ||
-      b.updatedAt.localeCompare(a.updatedAt)
+      b.updatedAt.localeCompare(a.updatedAt),
   );
 
   return {
@@ -173,11 +173,7 @@ export async function listArticles(
   };
 }
 
-export async function articleDetail(
-  rootIn: string,
-  id: string,
-  config: ToutiaoConfig = {}
-) {
+export async function articleDetail(rootIn: string, id: string, config: ToutiaoConfig = {}) {
   const root = path.resolve(rootIn);
   const articleDir = resolveArticleDir(root, id);
   const meta = await readJson(path.join(articleDir, "meta.json"), ArticleMetaSchema);
@@ -265,7 +261,7 @@ export async function saveAuthorDraft(
   id: string,
   text: string,
   expected: { sha256?: string },
-  config: ToutiaoConfig = {}
+  config: ToutiaoConfig = {},
 ) {
   const clean = text.replace(/\r\n/g, "\n");
   if (!clean.trim()) {
@@ -345,7 +341,7 @@ export async function adopt(
   rootIn: string,
   id: string,
   expected: { sha256: string },
-  config: ToutiaoConfig = {}
+  config: ToutiaoConfig = {},
 ): Promise<{ meta: ArticleMeta; deliveryPath: string }> {
   if (!/^[a-f0-9]{64}$/.test(expected.sha256)) {
     throw new AppError("input.invalid", "须指明已经加载的正文指纹");
@@ -375,7 +371,7 @@ export async function adopt(
   if (!qa.ok || !qa.passed || qa.overall < limits.pass_score) {
     throw new AppError(
       "gate.denied",
-      `当前稿件质检未过线（${qa.overall}/${limits.pass_score}），不能标记已交稿`
+      `当前稿件质检未过线（${qa.overall}/${limits.pass_score}），不能标记已交稿`,
     );
   }
 
@@ -385,7 +381,7 @@ export async function adopt(
     title,
     `${latest.text}\n\n${FIXED_DELIVERY_ENDING}`,
     systemClock.iso(),
-    createLockService(systemClock)
+    createLockService(systemClock),
   );
 
   if (config.ledgerPath) {
@@ -406,7 +402,7 @@ export async function adopt(
 
 export async function buildToutiaoDelivery(
   rootIn: string,
-  input: { action: string; id?: string; note?: string }
+  input: { action: string; id?: string; note?: string },
 ) {
   if (!(TOUTIAO_ACTIONS as readonly string[]).includes(input.action)) {
     throw new AppError("input.invalid", `不支持的动作：${input.action}`);
@@ -420,7 +416,7 @@ export async function buildToutiaoDelivery(
     lines.push(
       note
         ? `【写作台】写一篇新的今日头条，题材/素材：${note}`
-        : "【写作台】写一篇新的今日头条：先读取台账与热榜，按 S1/S2 立项后再起稿。"
+        : "【写作台】写一篇新的今日头条：先读取台账与热榜，按 S1/S2 立项后再起稿。",
     );
     lines.push("按流水线走到质检过线并送待验收；不要跳过作者验收直接标记已交稿。");
   } else {
@@ -446,7 +442,7 @@ export async function buildToutiaoDelivery(
       lines.push(`【写作台】按 s5-editing 给${ref}做编辑红笔并重跑质检。`);
     } else {
       lines.push(
-        `【写作台】按最近质检意见修改${ref}，只改 fails 与硬闸指出的位置，不靠堆口语词或拆小标题凑分。`
+        `【写作台】按最近质检意见修改${ref}，只改 fails 与硬闸指出的位置，不靠堆口语词或拆小标题凑分。`,
       );
     }
   }

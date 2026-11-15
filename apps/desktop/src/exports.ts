@@ -9,7 +9,9 @@ export async function wordDocument(title: string, text: string): Promise<Buffer>
         {
           children: [
             new Paragraph({ text: title, heading: HeadingLevel.TITLE }),
-            ...body.split("\n").map((line) => new Paragraph({ text: line, spacing: { after: 160 } })),
+            ...body
+              .split("\n")
+              .map((line) => new Paragraph({ text: line, spacing: { after: 160 } })),
           ],
         },
       ],

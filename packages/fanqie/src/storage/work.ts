@@ -24,10 +24,19 @@ export type WorkMeta = Infer<typeof WorkMetaSchema>;
 
 export async function createWorkLayout(
   workPath: string,
-  input: { id: string; title: string; profile?: string; grade?: "economy" | "standard" | "premium"; nowIso: string },
-  lock: LockService
+  input: {
+    id: string;
+    title: string;
+    profile?: string;
+    grade?: "economy" | "standard" | "premium";
+    nowIso: string;
+  },
+  lock: LockService,
 ): Promise<WorkMeta> {
-  const exists = await fs.stat(workPath).then(() => true, () => false);
+  const exists = await fs.stat(workPath).then(
+    () => true,
+    () => false,
+  );
   if (exists) {
     throw new AppError("input.invalid", `作品已存在：${input.title}`, { field: "title" });
   }

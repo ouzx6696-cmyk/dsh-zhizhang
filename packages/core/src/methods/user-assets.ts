@@ -62,10 +62,7 @@ async function readProfileInfo(dir: string, mode: string, id: string): Promise<U
   return { mode, id, name, files, dir };
 }
 
-export async function listUserProfiles(
-  userDir: string,
-  mode?: string
-): Promise<UserAssetInfo[]> {
+export async function listUserProfiles(userDir: string, mode?: string): Promise<UserAssetInfo[]> {
   const modes: string[] = [];
   if (mode) {
     modes.push(assertSafeSegment(mode, "mode"));
@@ -93,7 +90,7 @@ export async function readUserAssetFile(
   userDir: string,
   mode: string,
   profileId: string,
-  fileName: string
+  fileName: string,
 ): Promise<string | undefined> {
   const safeMode = assertSafeSegment(mode, "mode");
   const safeId = assertSafeSegment(profileId, "profileId");
@@ -107,7 +104,7 @@ export async function saveUserAssetFile(
   mode: string,
   profileId: string,
   fileName: string,
-  content: string
+  content: string,
 ): Promise<string> {
   const safeMode = assertSafeSegment(mode, "mode");
   const safeId = assertSafeSegment(profileId, "profileId");
@@ -121,7 +118,7 @@ export async function deleteUserAssetFile(
   userDir: string,
   mode: string,
   profileId: string,
-  fileName: string
+  fileName: string,
 ): Promise<boolean> {
   const safeMode = assertSafeSegment(mode, "mode");
   const safeId = assertSafeSegment(profileId, "profileId");
@@ -142,10 +139,13 @@ export async function forkBuiltinProfile(
   mode: string,
   sourceId: string,
   targetId: string,
-  name?: string
+  name?: string,
 ): Promise<UserAssetInfo> {
   if (!roots.userDir) {
-    throw new AppError("input.invalid", "userDir is required to fork a profile", { mode, sourceId });
+    throw new AppError("input.invalid", "userDir is required to fork a profile", {
+      mode,
+      sourceId,
+    });
   }
   const safeMode = assertSafeSegment(mode, "mode");
   const safeSource = assertSafeSegment(sourceId, "sourceId");
@@ -181,7 +181,7 @@ export async function forkBuiltinProfile(
   if (!hasProfileJson && name) {
     await atomicWrite(
       path.join(destDir, "profile.json"),
-      `${JSON.stringify({ id: safeTarget, name }, null, 2)}\n`
+      `${JSON.stringify({ id: safeTarget, name }, null, 2)}\n`,
     );
   }
 

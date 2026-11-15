@@ -26,7 +26,9 @@ import { readWorkMeta } from "../storage/work.js";
 const DEFAULT_MAX_CHARS = 6000;
 
 function clip(text: string, max: number): { text: string; truncated: boolean } {
-  return text.length > max ? { text: text.slice(0, max), truncated: true } : { text, truncated: false };
+  return text.length > max
+    ? { text: text.slice(0, max), truncated: true }
+    : { text, truncated: false };
 }
 
 function requireHost(ctx: ToolCtx) {
@@ -36,7 +38,10 @@ function requireHost(ctx: ToolCtx) {
   return ctx.host;
 }
 
-const ChapterArgs = obj({ chapterId: str({ min: 1 }), maxChars: opt(int({ min: 200, max: 40000 })) });
+const ChapterArgs = obj({
+  chapterId: str({ min: 1 }),
+  maxChars: opt(int({ min: 200, max: 40000 })),
+});
 const PositionArgs = obj({ position: int({ min: 1 }) });
 const UpToArgs = obj({ upTo: int({ min: 1 }) });
 const ChapterOnlyArgs = obj({ chapterId: opt(str({ min: 1 })) });
@@ -261,7 +266,12 @@ export function fanqieAssistantTools(role: Role, target: ModeTarget): ToolDefini
           stages: Object.keys(profile.stageMap),
         });
       }
-      return { profile: profile.id, stage: args.stage, text: clip(method.text, 8000).text, omitted: method.omitted };
+      return {
+        profile: profile.id,
+        stage: args.stage,
+        text: clip(method.text, 8000).text,
+        omitted: method.omitted,
+      };
     },
   });
 

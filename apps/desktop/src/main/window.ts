@@ -12,7 +12,11 @@ const BACKGROUND = { dark: "#101419", light: "#f1ebe0" } as const;
 
 export async function createMainWindow(appearance: AppearanceSettings): Promise<BrowserWindow> {
   const resolved: "dark" | "light" =
-    appearance.theme === "system" ? (nativeTheme.shouldUseDarkColors ? "dark" : "light") : appearance.theme;
+    appearance.theme === "system"
+      ? nativeTheme.shouldUseDarkColors
+        ? "dark"
+        : "light"
+      : appearance.theme;
   const window = new BrowserWindow({
     width: 1380,
     height: 920,
@@ -48,7 +52,10 @@ export async function createMainWindow(appearance: AppearanceSettings): Promise<
   if (rendererOrigin) {
     window.webContents.session.webRequest.onHeadersReceived((details, callback) =>
       callback({
-        responseHeaders: { ...details.responseHeaders, "Content-Security-Policy": [DEV_CONTENT_SECURITY_POLICY] },
+        responseHeaders: {
+          ...details.responseHeaders,
+          "Content-Security-Policy": [DEV_CONTENT_SECURITY_POLICY],
+        },
       }),
     );
   }

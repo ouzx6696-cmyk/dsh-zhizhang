@@ -24,7 +24,15 @@ export type AgentMessage =
       origin?: { connection: string; model: string };
       raw?: unknown;
     }
-  | { role: "tool"; id: string; callId: string; name: string; text: string; isError: boolean; at: number }
+  | {
+      role: "tool";
+      id: string;
+      callId: string;
+      name: string;
+      text: string;
+      isError: boolean;
+      at: number;
+    }
   | { role: "summary"; id: string; text: string; at: number; replaced: number };
 
 export interface AssistantToolSpec {
@@ -42,7 +50,8 @@ export interface AssistantTurnRequest {
   maxOutput?: number;
 }
 
-export type AssistantTurnEvent = { type: "text_delta"; delta: string } | { type: "tool_call"; name: string };
+export type AssistantTurnEvent =
+  { type: "text_delta"; delta: string } | { type: "tool_call"; name: string };
 
 export interface AssistantTurnAnswer {
   text: string;

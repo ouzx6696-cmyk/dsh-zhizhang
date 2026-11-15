@@ -16,7 +16,9 @@ export function ToutiaoSide({ state, selected, onRefresh, onDeliver }: ToutiaoSi
   }
 
   const delivered = selected.status === TOUTIAO_DELIVERED;
-  const articleDir = state.root ? `${state.root.replace(/[\\/]+$/, "")}/${selected.id}` : selected.id;
+  const articleDir = state.root
+    ? `${state.root.replace(/[\\/]+$/, "")}/${selected.id}`
+    : selected.id;
 
   return (
     <aside className="wb-inspector">

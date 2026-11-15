@@ -28,8 +28,10 @@ const MODE_RULES: Record<Target["mode"], string[]> = {
 
 const INTENT_TEMPLATES: Record<SessionIntent, string> = {
   chat: "",
-  continue: "【意图：推进】按当前作品进度判断下一步（缺章纲先补章纲，有章纲则写下一章或推进文章），必要时发起流水线。",
-  revise: "【意图：修改】读取当前稿件与最近审读意见，归纳要改的点，发起定向修订流水线，不要直接给出整章改写。",
+  continue:
+    "【意图：推进】按当前作品进度判断下一步（缺章纲先补章纲，有章纲则写下一章或推进文章），必要时发起流水线。",
+  revise:
+    "【意图：修改】读取当前稿件与最近审读意见，归纳要改的点，发起定向修订流水线，不要直接给出整章改写。",
   review: "【意图：审读】派独立编辑审读当前稿件（发起审读流水线），并说明审读侧重点。",
   plan: "【意图：规划】读取已有规划与圣经，指出缺口并给出补齐建议；不要写正文。",
   check: "【意图：检查】检查当前稿件的表达、连续性与伏笔，列出值得核对的位置，不自动改稿或定稿。",
@@ -64,8 +66,14 @@ function focusLine(focus: Focus | undefined): string {
 }
 
 /** 作者消息在送给模型前的完整文本：意图模板 + 当前位置 + 原话。 */
-export function userPrompt(text: string, intent: SessionIntent | undefined, focus: Focus | undefined): string {
-  return [INTENT_TEMPLATES[intent ?? "chat"], focusLine(focus), text.trim()].filter(Boolean).join("\n\n");
+export function userPrompt(
+  text: string,
+  intent: SessionIntent | undefined,
+  focus: Focus | undefined,
+): string {
+  return [INTENT_TEMPLATES[intent ?? "chat"], focusLine(focus), text.trim()]
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 export const COMPACT_SYSTEM = [

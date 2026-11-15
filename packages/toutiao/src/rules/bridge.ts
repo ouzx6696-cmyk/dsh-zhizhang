@@ -157,7 +157,15 @@ export function createRulesBridge(scriptsDir: string) {
       ledger: string;
       articleId?: string;
     }): Promise<LedgerMutateResult> {
-      const cmd = ["ledger-status", "--title", args.title, "--to", args.to, "--ledger", args.ledger];
+      const cmd = [
+        "ledger-status",
+        "--title",
+        args.title,
+        "--to",
+        args.to,
+        "--ledger",
+        args.ledger,
+      ];
       if (args.articleId) cmd.push("--article-id", args.articleId);
       return runPythonJson<LedgerMutateResult>(bridgeScript, cmd);
     },

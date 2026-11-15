@@ -5,7 +5,13 @@ import { Button, Empty, Skeleton, StatusChip } from "@zhizhang/ui/primitives";
 import { TOUTIAO_DELIVERED, statusLabel } from "@zhizhang/ui/status";
 import { ARTICLE_TRANSITIONS, type ArticleStatus } from "@zhizhang/toutiao/status";
 import type { ArticleRowView } from "@zhizhang/toutiao/view";
-import { Manuscript, SourceEditor, ToutiaoApp, useToutiao, type ToutiaoAction } from "@zhizhang/workbench/client";
+import {
+  Manuscript,
+  SourceEditor,
+  ToutiaoApp,
+  useToutiao,
+  type ToutiaoAction,
+} from "@zhizhang/workbench/client";
 import { articleDraftKey } from "@zhizhang/workbench/editor";
 import type { Target } from "../../../shared/views";
 import { canLeave, select, trackEditor } from "../../state/controller";
@@ -25,7 +31,14 @@ interface DraftState {
   error: string;
 }
 
-const EMPTY_DRAFT: DraftState = { status: "loading", title: "", body: "", revision: "", file: "", error: "" };
+const EMPTY_DRAFT: DraftState = {
+  status: "loading",
+  title: "",
+  body: "",
+  revision: "",
+  file: "",
+  error: "",
+};
 
 /** 当前状态允许的下一步（不含交稿：交稿走“生成交稿单”，带固定末句与质检门禁）。 */
 export function nextStatuses(status: ArticleStatus): ArticleStatus[] {
@@ -59,7 +72,11 @@ function DraftPanel({
       const value = await desktop.workbench("toutiao.draft.get", { articleDir });
       setDraft({ status: "ready", error: "", ...value });
     } catch (error) {
-      setDraft({ ...EMPTY_DRAFT, status: "error", error: error instanceof Error ? error.message : String(error) });
+      setDraft({
+        ...EMPTY_DRAFT,
+        status: "error",
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }, [articleDir]);
 
@@ -76,7 +93,12 @@ function DraftPanel({
       body: text,
       ...(base ? { revision: base } : {}),
     });
-    setDraft((current) => ({ ...current, title: title.trim(), body: text.trim(), revision: saved.revision }));
+    setDraft((current) => ({
+      ...current,
+      title: title.trim(),
+      body: text.trim(),
+      revision: saved.revision,
+    }));
     setEditing(false);
   };
 
@@ -86,11 +108,23 @@ function DraftPanel({
   return (
     <section className="zz-draft" data-testid="draft-panel" aria-label={C.toutiao.draft}>
       <header className="zz-draft__head">
-        <StatusChip tone={status === TOUTIAO_DELIVERED ? "ok" : "neutral"} label={statusLabel("toutiao", status)} />
-        <span className="zz-hidden-value" data-testid="article-status">{status}</span>
+        <StatusChip
+          tone={status === TOUTIAO_DELIVERED ? "ok" : "neutral"}
+          label={statusLabel("toutiao", status)}
+        />
+        <span className="zz-hidden-value" data-testid="article-status">
+          {status}
+        </span>
         <span className="zz-draft__actions">
           {transitions.map((to) => (
-            <Button key={to} size="sm" data-testid="article-transition" data-to={to} disabled={readonly || busy} onClick={() => onTransition(to)}>
+            <Button
+              key={to}
+              size="sm"
+              data-testid="article-transition"
+              data-to={to}
+              disabled={readonly || busy}
+              onClick={() => onTransition(to)}
+            >
               {C.toutiao.moveTo(statusLabel("toutiao", to))}
             </Button>
           ))}
@@ -114,7 +148,12 @@ function DraftPanel({
         <Empty title={C.toutiao.draftFailed} description={draft.error} />
       ) : editing ? (
         <div className="zz-draft__editor" data-testid="draft-editor">
-          <TextField label={C.toutiao.draftTitle} value={title} onChange={setTitle} testId="draft-title" />
+          <TextField
+            label={C.toutiao.draftTitle}
+            value={title}
+            onChange={setTitle}
+            testId="draft-title"
+          />
           <SourceEditor
             initial={draft.body}
             title={C.toutiao.draft}
@@ -149,7 +188,13 @@ function DraftPanel({
   );
 }
 
-function Ledger({ rows, onOpen }: { rows: readonly ArticleRowView[]; onOpen: (id: string) => void }) {
+function Ledger({
+  rows,
+  onOpen,
+}: {
+  rows: readonly ArticleRowView[];
+  onOpen: (id: string) => void;
+}) {
   return (
     <section className="zz-board" data-testid="board" aria-label={C.topbar.viewLedger}>
       {rows.length ? (
@@ -164,7 +209,12 @@ function Ledger({ rows, onOpen }: { rows: readonly ArticleRowView[]; onOpen: (id
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.id} data-testid="board-row" data-article-id={row.id} data-status={row.status}>
+              <tr
+                key={row.id}
+                data-testid="board-row"
+                data-article-id={row.id}
+                data-status={row.status}
+              >
                 <td>
                   <button type="button" className="zz-link" onClick={() => onOpen(row.id)}>
                     {row.title || row.id}
@@ -240,7 +290,9 @@ export function ToutiaoWorkspace({ target, readonly }: { target: Target; readonl
               revision={revision}
               busy={Boolean(state.busyAction)}
               onTransition={(to) => run(() => toutiao.transitionArticle(target.path, to))}
-              onDeliver={(title, body) => toutiao.deliverArticle(target.path, title, body).catch(notifyError)}
+              onDeliver={(title, body) =>
+                toutiao.deliverArticle(target.path, title, body).catch(notifyError)
+              }
             />
           ) : null}
         </section>

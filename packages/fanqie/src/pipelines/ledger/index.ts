@@ -45,7 +45,7 @@ const ExtractedDeltaSchema = obj({
       value: opt(str()),
       level: opt(lit("不知", "怀疑", "误认", "知情", "公开")),
     }),
-    { max: 40 }
+    { max: 40 },
   ),
 });
 
@@ -86,7 +86,7 @@ function deltaToBibleOp(
   position: number,
   runId: string,
   nowIso: string,
-  isLocated: boolean
+  isLocated: boolean,
 ): { op: BibleOp; meta: ProposeOpMeta } {
   const provenance = { source: "ledger" as const, run: runId, chapter: position, at: nowIso };
   const evidence = { chapter: position, quote: delta.quote, located: isLocated };
@@ -118,7 +118,9 @@ function deltaToBibleOp(
           id: `st-${delta.targetId}-${position}`,
           entity: delta.targetId,
           field: delta.field ?? "状态",
-          value: isLocated ? (delta.value ?? delta.detail) : `${delta.value ?? delta.detail} ${UNLOCATED_TAG}`,
+          value: isLocated
+            ? (delta.value ?? delta.detail)
+            : `${delta.value ?? delta.detail} ${UNLOCATED_TAG}`,
           since: position,
           mode: "replace",
           status: "planned",
@@ -229,7 +231,7 @@ export const ledgerPipeline: PipelineDefinition<LedgerInput, LedgerResult> = {
     const pending = await runner.local("propose", async () => {
       const nowIso = systemClock.iso();
       const built = located.items.map(({ delta, isLocated }) =>
-        deltaToBibleOp(delta, prepared.position, ctx.runId, nowIso, isLocated)
+        deltaToBibleOp(delta, prepared.position, ctx.runId, nowIso, isLocated),
       );
       if (built.length === 0) return [] as PendingItem[];
       return bibleStore.propose(
@@ -241,7 +243,7 @@ export const ledgerPipeline: PipelineDefinition<LedgerInput, LedgerResult> = {
           chapter: prepared.position,
           at: nowIso,
         },
-        built.map((b) => b.meta)
+        built.map((b) => b.meta),
       );
     });
 

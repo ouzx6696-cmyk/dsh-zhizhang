@@ -4,9 +4,6 @@
     "rootDir": "src",
     "outDir": "dist"
   },
-  "references": [
-    { "path": "../core" },
-    { "path": "../ui" }
-  ],
+  "references": [{ "path": "../core" }, { "path": "../ui" }],
   "include": ["src/**/*.ts", "src/**/*.tsx"]
 }

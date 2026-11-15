@@ -64,7 +64,7 @@ const DissectAnalyzeSchema = obj({
       finding: str({ min: 1 }),
       evidence: str({ min: 1 }),
     }),
-    { max: 40 }
+    { max: 40 },
   ),
   pacingNotes: str({ min: 1 }),
 });
@@ -79,7 +79,7 @@ const DissectCardsSchema = obj({
       example: str({ min: 1 }),
       usage: str({ min: 1 }),
     }),
-    { max: 30 }
+    { max: 30 },
   ),
   summary: str({ min: 1 }),
 });
@@ -245,7 +245,10 @@ export const dissectPipeline: PipelineDefinition<DissectInput, DissectResult> = 
       res.analysis.pacingNotes,
       "",
       `## 技法卡（${res.cardCount} 张）`,
-      ...res.cards.map((c) => `### ${c.title}（${c.category}）\n- 模式：${c.pattern}\n- 例证：${c.example}\n- 用法：${c.usage}`),
+      ...res.cards.map(
+        (c) =>
+          `### ${c.title}（${c.category}）\n- 模式：${c.pattern}\n- 例证：${c.example}\n- 用法：${c.usage}`,
+      ),
       "",
     ].join("\n");
 

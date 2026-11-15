@@ -6,7 +6,8 @@ export interface ContextBlock {
   tokens: number;
   reason: string;
   source: {
-    kind: "outline" | "chapter" | "bible" | "plan" | "retrieval" | "reference" | "author" | "library";
+    kind:
+      "outline" | "chapter" | "bible" | "plan" | "retrieval" | "reference" | "author" | "library";
     ref: string;
   };
 }
@@ -19,7 +20,13 @@ export interface ContextPacket {
 }
 
 export function renderContextPacket(packet: ContextPacket): { system: string; user: string } {
-  const system = packet.prefix.map((b) => b.text).filter(Boolean).join("\n\n");
-  const user = packet.suffix.map((b) => b.text).filter(Boolean).join("\n\n");
+  const system = packet.prefix
+    .map((b) => b.text)
+    .filter(Boolean)
+    .join("\n\n");
+  const user = packet.suffix
+    .map((b) => b.text)
+    .filter(Boolean)
+    .join("\n\n");
   return { system, user };
 }

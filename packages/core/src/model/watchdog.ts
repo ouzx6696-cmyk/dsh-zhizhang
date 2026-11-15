@@ -6,7 +6,7 @@ export const DEFAULT_IDLE_MS = 150 * 1000;
 export function createWatchdog(
   parentSignal: AbortSignal,
   firstEventMs = DEFAULT_FIRST_EVENT_MS,
-  idleMs = DEFAULT_IDLE_MS
+  idleMs = DEFAULT_IDLE_MS,
 ) {
   const controller = new AbortController();
   let seenFirst = false;

@@ -14,7 +14,7 @@ export function resolvePythonBin(env: NodeJS.ProcessEnv = process.env): string {
 export async function runPythonScript(
   scriptPath: string,
   args: string[],
-  opts?: { cwd?: string; stdin?: string; pythonBin?: string; timeoutMs?: number }
+  opts?: { cwd?: string; stdin?: string; pythonBin?: string; timeoutMs?: number },
 ): Promise<PythonResult> {
   const bin = opts?.pythonBin ?? resolvePythonBin();
   return new Promise((resolve, reject) => {
@@ -43,7 +43,7 @@ export async function runPythonScript(
         new AppError("python.unavailable", `无法启动 Python: ${err.message}`, {
           bin,
           scriptPath,
-        })
+        }),
       );
     });
     child.on("close", (code) => {
@@ -61,7 +61,7 @@ export async function runPythonScript(
 export async function runPythonJson<T>(
   scriptPath: string,
   args: string[],
-  opts?: { cwd?: string; stdin?: string; pythonBin?: string; timeoutMs?: number }
+  opts?: { cwd?: string; stdin?: string; pythonBin?: string; timeoutMs?: number },
 ): Promise<T> {
   const res = await runPythonScript(scriptPath, args, opts);
   if (res.code !== 0) {

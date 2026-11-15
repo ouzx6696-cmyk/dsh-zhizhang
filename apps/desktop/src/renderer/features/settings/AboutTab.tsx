@@ -56,7 +56,12 @@ export function AboutTab() {
         <p className="zz-muted" data-testid="about-updates" data-state={app.updates.state}>
           {updateText(app.updates)}
         </p>
-        <Button size="sm" loading={checking} disabled={app.updates.state === "unavailable"} onClick={() => void check()}>
+        <Button
+          size="sm"
+          loading={checking}
+          disabled={app.updates.state === "unavailable"}
+          onClick={() => void check()}
+        >
           {C.about.check}
         </Button>
       </Section>

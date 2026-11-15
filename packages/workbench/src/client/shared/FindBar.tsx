@@ -96,8 +96,7 @@ export function FindBar({
     inputRef.current?.select();
   }, [find.focusTick]);
 
-  const countText =
-    status ?? (find.query ? (total > 0 ? `${index + 1} / ${total}` : "0 / 0") : "");
+  const countText = status ?? (find.query ? (total > 0 ? `${index + 1} / ${total}` : "0 / 0") : "");
 
   return (
     <div className="wb-find-bar" role="region" aria-label={label}>

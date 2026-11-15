@@ -32,7 +32,7 @@ const EditorHealthSchema = obj({
       detail: str({ min: 1 }),
       refId: str({ min: 1 }),
     }),
-    { max: 100 }
+    { max: 100 },
   ),
   summary: str({ min: 1 }),
   recommendations: arr(str({ min: 1 }), { max: 20 }),

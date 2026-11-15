@@ -32,12 +32,22 @@ interface QuickAction {
 function quickActions(mode: Target["mode"]): QuickAction[] {
   return mode === "fanqie"
     ? [
-        { id: "continue", label: C.agent.quick.continue, text: C.agent.quick.continueText, intent: "continue" },
+        {
+          id: "continue",
+          label: C.agent.quick.continue,
+          text: C.agent.quick.continueText,
+          intent: "continue",
+        },
         { id: "check", label: C.agent.quick.check, text: C.agent.quick.checkText, intent: "check" },
         { id: "plan", label: C.agent.quick.plan, text: C.agent.quick.planText, intent: "plan" },
       ]
     : [
-        { id: "review", label: C.agent.quick.review, text: C.agent.quick.reviewText, intent: "review" },
+        {
+          id: "review",
+          label: C.agent.quick.review,
+          text: C.agent.quick.reviewText,
+          intent: "review",
+        },
         { id: "check", label: C.agent.quick.check, text: C.agent.quick.checkText, intent: "check" },
       ];
 }
@@ -66,11 +76,24 @@ function ContextBar() {
   if (!usage) return null;
   return (
     <div className="zz-context" data-testid="agent-context" data-percent={usage.percent}>
-      <div className="zz-context__rail" role="meter" aria-label={C.agent.context} aria-valuemin={0} aria-valuemax={100} aria-valuenow={usage.percent}>
+      <div
+        className="zz-context__rail"
+        role="meter"
+        aria-label={C.agent.context}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={usage.percent}
+      >
         <span style={{ width: `${Math.min(100, usage.percent)}%` }} />
       </div>
       <span className="zz-muted">{C.agent.contextUsage(usage.percent)}</span>
-      <Button size="sm" variant="ghost" data-testid="agent-compact" disabled={busy || usage.messages === 0} onClick={() => run(compactConversation)}>
+      <Button
+        size="sm"
+        variant="ghost"
+        data-testid="agent-compact"
+        disabled={busy || usage.messages === 0}
+        onClick={() => run(compactConversation)}
+      >
         {C.agent.compact}
       </Button>
     </div>
@@ -113,7 +136,9 @@ export function AgentPanel({ target }: { target: Target }) {
     }
   };
 
-  const where = [focus.workTitle, focus.title || focus.chapter || focus.article].filter(Boolean).join(" · ");
+  const where = [focus.workTitle, focus.title || focus.chapter || focus.article]
+    .filter(Boolean)
+    .join(" · ");
   return (
     <div className="zz-agent" data-testid="agent-panel">
       <header className="zz-agent__head">
@@ -122,13 +147,22 @@ export function AgentPanel({ target }: { target: Target }) {
           testId="agent-conversations"
           value={conversationId}
           disabled={busy || conversations.length === 0}
-          options={(conversations.length ? conversations : [{ id: conversationId, title: "", updated: "", messages: 0, current: true }]).map((c) => ({
+          options={(conversations.length
+            ? conversations
+            : [{ id: conversationId, title: "", updated: "", messages: 0, current: true }]
+          ).map((c) => ({
             value: c.id,
             label: c.title || C.agent.untitled,
           }))}
           onChange={(id) => run(() => openConversation(id))}
         />
-        <IconButton label={C.agent.newConversation} data-testid="agent-new-conversation" disabled={busy} icon={<Plus size={15} />} onClick={() => run(newConversation)} />
+        <IconButton
+          label={C.agent.newConversation}
+          data-testid="agent-new-conversation"
+          disabled={busy}
+          icon={<Plus size={15} />}
+          onClick={() => run(newConversation)}
+        />
       </header>
       <ContextBar />
       <div className="zz-agent__list" ref={list}>
@@ -143,7 +177,12 @@ export function AgentPanel({ target }: { target: Target }) {
           {tool ? C.agent.usingTool(toolLabel(tool)) : C.agent.thinking}
         </p>
       ) : ended && ended.reason !== "done" ? (
-        <p className="zz-agent__status" role="status" data-testid="agent-ended" data-reason={ended.reason}>
+        <p
+          className="zz-agent__status"
+          role="status"
+          data-testid="agent-ended"
+          data-reason={ended.reason}
+        >
           {ended.reason === "cancelled" ? C.agent.stopped : (ended.message ?? C.agent.failed)}
         </p>
       ) : null}
@@ -157,7 +196,14 @@ export function AgentPanel({ target }: { target: Target }) {
       ) : null}
       <div className="zz-agent__quick">
         {quickActions(target.mode).map((q) => (
-          <Button key={q.id} size="sm" variant="ghost" data-testid={`agent-quick-${q.id}`} disabled={busy || !ready} onClick={() => void send(q.text, q.intent)}>
+          <Button
+            key={q.id}
+            size="sm"
+            variant="ghost"
+            data-testid={`agent-quick-${q.id}`}
+            disabled={busy || !ready}
+            onClick={() => void send(q.text, q.intent)}
+          >
             {q.label}
           </Button>
         ))}
@@ -169,7 +215,11 @@ export function AgentPanel({ target }: { target: Target }) {
           if (!busy) void send(draft);
         }}
       >
-        {where ? <span className="zz-composer__where" data-testid="agent-where">{where}</span> : null}
+        {where ? (
+          <span className="zz-composer__where" data-testid="agent-where">
+            {where}
+          </span>
+        ) : null}
         <textarea
           ref={input}
           className="zz-input zz-composer__input"
@@ -191,7 +241,12 @@ export function AgentPanel({ target }: { target: Target }) {
             {C.agent.stop}
           </Button>
         ) : (
-          <Button type="submit" variant="primary" data-testid="agent-send" disabled={!draft.trim() || !ready}>
+          <Button
+            type="submit"
+            variant="primary"
+            data-testid="agent-send"
+            disabled={!draft.trim() || !ready}
+          >
             <Send size={14} aria-hidden="true" />
             {C.agent.send}
           </Button>
@@ -200,4 +255,3 @@ export function AgentPanel({ target }: { target: Target }) {
     </div>
   );
 }
-

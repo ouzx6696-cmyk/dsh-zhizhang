@@ -16,8 +16,13 @@ export async function fakeModel(respond) {
       calls.push(body);
       const users = (body.messages ?? []).filter((m) => m.role === "user");
       const last = users.at(-1);
-      const lastUser = typeof last?.content === "string" ? last.content : (last?.content ?? []).map((p) => p.text ?? "").join("");
-      const next = lastUser.includes("请只回答 OK") ? { text: "OK" } : (respond(body, lastUser) ?? { text: "完成。" });
+      const lastUser =
+        typeof last?.content === "string"
+          ? last.content
+          : (last?.content ?? []).map((p) => p.text ?? "").join("");
+      const next = lastUser.includes("请只回答 OK")
+        ? { text: "OK" }
+        : (respond(body, lastUser) ?? { text: "完成。" });
       if (next.status) {
         response.writeHead(next.status, { "Content-Type": "application/json" });
         response.end(JSON.stringify({ error: { message: next.error ?? "error" } }));
@@ -32,7 +37,13 @@ export async function fakeModel(respond) {
             object: "chat.completion",
             created: 1,
             model: body.model,
-            choices: [{ index: 0, message: { role: "assistant", content: next.text ?? "" }, finish_reason: "stop" }],
+            choices: [
+              {
+                index: 0,
+                message: { role: "assistant", content: next.text ?? "" },
+                finish_reason: "stop",
+              },
+            ],
             usage,
           }),
         );

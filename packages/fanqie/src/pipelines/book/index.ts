@@ -104,7 +104,7 @@ const BookStructureSchema = obj({
       startChapter: int({ min: 1 }),
       endChapter: int({ min: 1 }),
     }),
-    { max: 30 }
+    { max: 30 },
   ),
 });
 
@@ -117,7 +117,7 @@ const BookOutlineSchema = obj({
       conflict: str({ min: 1 }),
       hook: str({ min: 1 }),
     }),
-    { max: 100 }
+    { max: 100 },
   ),
 });
 
@@ -206,7 +206,12 @@ function isRecord(val: unknown): val is Record<string, unknown> {
 
 function isBookPlanResult(val: unknown): val is BookPlanResult {
   if (!isRecord(val)) return false;
-  return isRecord(val.card) && isRecord(val.foundation) && isRecord(val.structure) && isRecord(val.outline);
+  return (
+    isRecord(val.card) &&
+    isRecord(val.foundation) &&
+    isRecord(val.structure) &&
+    isRecord(val.outline)
+  );
 }
 
 function resolveBookPlanChoice(choice: unknown, ctx: RunCtx): BookPlanResult | undefined {
@@ -239,7 +244,7 @@ export async function applyBookPlan(
   workPath: string,
   runId: string,
   plan: BookPlanResult,
-  lock: LockService = createLockService(systemClock)
+  lock: LockService = createLockService(systemClock),
 ): Promise<{ backupDir: string; backedUpFiles: string[]; writtenPlanFiles: string[] }> {
   const bibleStore = createBibleStore(lock);
   return lock.write({ kind: "work", path: workPath }, async () => {
@@ -359,7 +364,7 @@ export async function applyBookPlan(
     };
     await atomicWrite(
       path.join(bibleDir, "index.json"),
-      JSON.stringify({ format: "zhizhang/1.3", hashes }, null, 2)
+      JSON.stringify({ format: "zhizhang/1.3", hashes }, null, 2),
     );
 
     return {

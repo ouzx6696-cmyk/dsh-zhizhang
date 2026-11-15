@@ -35,7 +35,14 @@ export async function runTool(
 ): Promise<ToolOutcome> {
   const def = tools.find((tool) => tool.name === call.name);
   if (!def) {
-    return { text: JSON.stringify({ ok: false, code: "input.not_found", message: `没有工具 ${call.name}` }), isError: true };
+    return {
+      text: JSON.stringify({
+        ok: false,
+        code: "input.not_found",
+        message: `没有工具 ${call.name}`,
+      }),
+      isError: true,
+    };
   }
   try {
     const result = await executeTool(def, call.args, ctx);

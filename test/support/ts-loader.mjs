@@ -127,7 +127,13 @@ function stripParamTypes(inner) {
       i = end;
       continue;
     }
-    if (ch === "?" && inner.slice(i + 1).trimStart().startsWith(":")) {
+    if (
+      ch === "?" &&
+      inner
+        .slice(i + 1)
+        .trimStart()
+        .startsWith(":")
+    ) {
       i++;
       continue;
     }
@@ -214,7 +220,11 @@ function stripTypeScript(src) {
         continue;
       }
       const fieldMatch = slice.match(/^(\s+)(?:readonly\s+)?(\w+)\??\s*:\s*[^;\n]+;/);
-      if (fieldMatch && !slice.trimStart().startsWith("case ") && !slice.trimStart().startsWith("default:")) {
+      if (
+        fieldMatch &&
+        !slice.trimStart().startsWith("case ") &&
+        !slice.trimStart().startsWith("default:")
+      ) {
         res += `${fieldMatch[1]}${fieldMatch[2]};`;
         i += fieldMatch[0].length;
         continue;
@@ -246,13 +256,17 @@ function stripTypeScript(src) {
     if (out.startsWith(" as ", i)) {
       const afterAs = out.slice(i + 4);
       if (
-        /^(?:const|unknown|any|never|string|number|boolean|[A-Z]\w*)\b/.test(
-          afterAs,
-        ) ||
+        /^(?:const|unknown|any|never|string|number|boolean|[A-Z]\w*)\b/.test(afterAs) ||
         /^\{/.test(afterAs)
       ) {
         if (afterAs.startsWith("const satisfies ")) {
-          i = stripTypeExpression(out, i + 4 + "const satisfies ".length, [";", "\n", ",", ")", "]"]);
+          i = stripTypeExpression(out, i + 4 + "const satisfies ".length, [
+            ";",
+            "\n",
+            ",",
+            ")",
+            "]",
+          ]);
           continue;
         }
         if (afterAs.startsWith("const") && !/\w/.test(afterAs[5] ?? "")) {
@@ -277,7 +291,8 @@ function stripTypeScript(src) {
           continue;
         }
       }
-      const beforeKw = res.trimEnd().match(/\b(if|for|while|switch|catch|with)$/); if (!beforeKw && (after.startsWith("{") || after.startsWith("=>"))) {
+      const beforeKw = res.trimEnd().match(/\b(if|for|while|switch|catch|with)$/);
+      if (!beforeKw && (after.startsWith("{") || after.startsWith("=>"))) {
         const inner = out.slice(i + 1, endParen - 1);
         res += "(" + stripParamTypes(inner) + ")";
         i = endParen;
