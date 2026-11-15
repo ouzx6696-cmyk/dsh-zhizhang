@@ -8,7 +8,11 @@ export { createRunStore } from "../../apps/desktop/src/main/services/runs.js";
 export { createConfigService } from "../../apps/desktop/src/main/services/config.js";
 export { createSessionManager, toChatMessages } from "../../apps/desktop/src/session/manager.js";
 export { createConversationStore } from "../../apps/desktop/src/session/history.js";
-export { DEFAULT_SETTINGS } from "../../apps/desktop/src/shared/settings.js";
+export {
+  DEFAULT_SETTINGS,
+  mergeSettingsPatch,
+  parseSettingsPatch,
+} from "../../apps/desktop/src/shared/settings.js";
 export { AppError, isAppError } from "@zhizhang/core/errors";
 export { createLockService } from "@zhizhang/core/lock";
 export { createModelGateway } from "@zhizhang/core/model";

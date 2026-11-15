@@ -1,24 +1,119 @@
-import React from "react";
+import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
+import { DESKTOP_COPY as C } from "@zhizhang/ui/copy";
+import { Skeleton } from "@zhizhang/ui/primitives";
+import { PREF, readPref, writePref } from "@zhizhang/workbench/client";
 import type { TargetItem } from "../../../shared/views";
 import { useDesktop } from "../../state/store";
-import { FanqieWorkspace } from "./FanqieWorkspace";
 import { RightDock } from "./RightDock";
-import { ToutiaoWorkspace } from "./ToutiaoWorkspace";
+
+// 写作区按模式懒加载：番茄与头条各成一块，入口只带外壳。
+const FanqieWorkspace = lazy(() =>
+  import("./FanqieWorkspace").then((m) => ({ default: m.FanqieWorkspace })),
+);
+const ToutiaoWorkspace = lazy(() =>
+  import("./ToutiaoWorkspace").then((m) => ({ default: m.ToutiaoWorkspace })),
+);
+
+const DOCK_MIN = 320;
+const DOCK_MAX = 560;
+const DOCK_DEFAULT = 380;
+const DOCK_STEP = 16;
+
+function clampDock(value: number): number {
+  return Math.round(Math.min(DOCK_MAX, Math.max(DOCK_MIN, value)));
+}
+
+/** 右栏宽度：拖左缘或用方向键调整，限定 320–560，记在本机偏好里。 */
+function useDockWidth(): [number, (next: number) => void] {
+  const [width, setWidth] = useState(() => {
+    const saved = Number(readPref(PREF.dockWidth));
+    return Number.isFinite(saved) && saved > 0 ? clampDock(saved) : DOCK_DEFAULT;
+  });
+  const update = useCallback((next: number) => setWidth(clampDock(next)), []);
+  useEffect(() => {
+    const timer = setTimeout(() => writePref(PREF.dockWidth, String(width)), 200);
+    return () => clearTimeout(timer);
+  }, [width]);
+  return [width, update];
+}
+
+function DockHandle({ width, onResize }: { width: number; onResize: (next: number) => void }) {
+  const drag = useRef<{ x: number; width: number } | null>(null);
+  const [active, setActive] = useState(false);
+  return (
+    <div
+      className="zz-dock-handle"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={C.dock.resize}
+      aria-valuemin={DOCK_MIN}
+      aria-valuemax={DOCK_MAX}
+      aria-valuenow={width}
+      tabIndex={0}
+      data-active={active}
+      data-testid="dock-resize"
+      onPointerDown={(event) => {
+        event.preventDefault();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        drag.current = { x: event.clientX, width };
+        setActive(true);
+      }}
+      onPointerMove={(event) => {
+        if (!drag.current) return;
+        onResize(drag.current.width + (drag.current.x - event.clientX));
+      }}
+      onPointerUp={() => {
+        drag.current = null;
+        setActive(false);
+      }}
+      onPointerCancel={() => {
+        drag.current = null;
+        setActive(false);
+      }}
+      onDoubleClick={() => onResize(DOCK_DEFAULT)}
+      onKeyDown={(event) => {
+        if (event.key === "ArrowLeft") onResize(width + DOCK_STEP);
+        else if (event.key === "ArrowRight") onResize(width - DOCK_STEP);
+        else if (event.key === "Home") onResize(DOCK_MAX);
+        else if (event.key === "End") onResize(DOCK_MIN);
+        else return;
+        event.preventDefault();
+      }}
+    />
+  );
+}
+
+function WorkspaceFallback() {
+  return (
+    <div className="zz-workspace-fallback" aria-busy="true">
+      <Skeleton lines={8} />
+    </div>
+  );
+}
 
 /** 写作台：中栏写作区（番茄/头条按模式）+ 右栏停靠（助手 / 流水线 / 本章）。 */
 export function Studio({ item }: { item: TargetItem }) {
   const dockOpen = useDesktop((state) => state.dockOpen);
   const readonly = useDesktop((state) => Boolean(state.workspace?.readonly));
+  const [width, setWidth] = useDockWidth();
+  const style = { "--zz-dock-width": `${width}px` } as React.CSSProperties;
   return (
-    <div className="zz-studio" data-dock={dockOpen ? "open" : "closed"}>
+    <div className="zz-studio" data-dock={dockOpen ? "open" : "closed"} style={style}>
       <main className="zz-studio__main" data-testid="workspace" data-mode={item.target.mode}>
-        {item.target.mode === "fanqie" ? (
-          <FanqieWorkspace target={item.target} readonly={readonly} />
-        ) : (
-          <ToutiaoWorkspace target={item.target} readonly={readonly} />
-        )}
+        <Suspense fallback={<WorkspaceFallback />}>
+          {item.target.mode === "fanqie" ? (
+            <FanqieWorkspace target={item.target} readonly={readonly} />
+          ) : (
+            <ToutiaoWorkspace target={item.target} readonly={readonly} />
+          )}
+        </Suspense>
       </main>
-      {dockOpen ? <RightDock target={item.target} /> : null}
+      {dockOpen ? (
+        <div className="zz-studio__dock">
+          <DockHandle width={width} onResize={setWidth} />
+          <RightDock target={item.target} />
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { DESKTOP_COPY as C } from "@zhizhang/ui/copy";
 import { notify } from "@zhizhang/ui/notify";
 import { canLeaveEdit, type EditorGuardSnapshot } from "@zhizhang/workbench/client";
 import type { ModelsInput, PublicSettings, SettingsPatch } from "../../shared/settings";
-import { bindingFor } from "../../shared/settings";
+import { bindingFor } from "../../shared/roles";
 import type { Focus, SessionIntent, Target } from "../../shared/views";
 import { askConfirm } from "./confirm";
 import { chatStore, emptyChat } from "./chatStore";
@@ -119,7 +119,7 @@ export async function select(target: Target, focus: Focus = {}, guard = true): P
   }
   if (guard && !(await canLeave())) return;
   const item = await desktop.select(target);
-  set({ selected: item, focus, view: "writing" });
+  set({ selected: item, focus, view: "writing", compare: null });
   await loadChat(item.target);
 }
 

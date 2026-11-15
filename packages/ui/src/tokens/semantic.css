@@ -1,93 +1,165 @@
+/*
+ * 语义令牌：两套主题（夜灯 / 晨光）+ 字阶、间距、圆角、阴影、动效。
+ * 颜色语义：decide（琥珀）只给作者拍板；run（蓝）机器在跑；ok 绿；warn 黄（与琥珀分开）；bad 红。
+ */
 :root,
 [data-theme="night"] {
   color-scheme: dark;
   --zz-bg: var(--zz-raw-night-bg);
-  --zz-bg-glow: var(--zz-raw-night-bg-glow);
   --zz-surface-1: var(--zz-raw-night-s1);
   --zz-surface-2: var(--zz-raw-night-s2);
-  --zz-panel: var(--zz-raw-night-s1);
+  --zz-surface-3: var(--zz-raw-night-s3);
   --zz-paper: var(--zz-raw-night-paper);
-  --zz-paper-2: var(--zz-raw-night-paper-2);
-  --zz-border: rgba(255, 255, 255, 0.09);
-  --zz-border-strong: rgba(255, 255, 255, 0.18);
-  --zz-line: var(--zz-border);
-  --zz-line-strong: var(--zz-border-strong);
-  --zz-fill: rgba(255, 255, 255, 0.04);
-  --zz-fill-strong: rgba(255, 255, 255, 0.08);
-  --zz-hover: rgba(255, 255, 255, 0.06);
-  --zz-active: rgba(255, 255, 255, 0.1);
-  --zz-mask: rgba(7, 10, 13, 0.8);
-  --zz-overlay-1: var(--zz-raw-black);
+  --zz-desk: var(--zz-raw-night-desk);
+  --zz-sheet-shadow: var(--zz-raw-night-sheet-shadow);
+  --zz-sheet-edge: var(--zz-raw-night-sheet-edge);
+  --zz-border: var(--zz-raw-night-border);
+  --zz-border-strong: var(--zz-raw-night-border-strong);
+  --zz-hover: var(--zz-raw-night-hover);
+  --zz-active: var(--zz-raw-night-active);
+  --zz-mask: var(--zz-raw-night-mask);
+  --zz-ink: var(--zz-raw-night-ink);
 
   --zz-text-1: var(--zz-raw-night-text1);
   --zz-text-2: var(--zz-raw-night-text2);
   --zz-text-3: var(--zz-raw-night-text3);
-  --zz-text: var(--zz-text-1);
   --zz-title: var(--zz-raw-night-title);
 
-  --zz-decide: var(--zz-raw-amber-500);
-  --zz-decide-hover: var(--zz-raw-amber-400);
-  --zz-decide-fill: rgba(217, 130, 43, 0.16);
-  --zz-on-decide: #140e07;
-  --zz-primary-fill: linear-gradient(135deg, var(--zz-raw-amber-400), var(--zz-raw-amber-500));
+  --zz-decide: var(--zz-raw-amber-400);
+  --zz-decide-hover: var(--zz-raw-amber-300);
+  --zz-decide-fill: var(--zz-raw-amber-400);
+  --zz-on-decide: var(--zz-raw-amber-ink-night);
+  --zz-run: var(--zz-raw-blue-300);
+  --zz-ok: var(--zz-raw-green-300);
+  --zz-warn: var(--zz-raw-yellow-300);
+  --zz-bad: var(--zz-raw-red-300);
+  --zz-focus: var(--zz-raw-amber-focus);
+  --zz-soft-mix: 14%;
 
-  --zz-accent: var(--zz-decide);
-  --zz-accent-hover: var(--zz-decide-hover);
-  --zz-accent-soft: var(--zz-decide-fill);
-  --zz-on-accent: var(--zz-on-decide);
+  --zz-shadow-1: 0 1px 2px var(--zz-raw-night-shadow-1);
+  --zz-shadow-2: 0 8px 24px var(--zz-raw-night-shadow-2);
+  --zz-shadow-3: 0 24px 64px var(--zz-raw-night-shadow-3);
+}
 
-  --zz-run: var(--zz-raw-blue-500);
-  --zz-ok: var(--zz-raw-green-500);
-  --zz-warn: var(--zz-raw-yellow-500);
-  --zz-bad: var(--zz-raw-red-500);
-  --zz-info: var(--zz-run);
-  --zz-success: var(--zz-ok);
-  --zz-warning: var(--zz-warn);
-  --zz-danger: var(--zz-bad);
+[data-theme="day"] {
+  color-scheme: light;
+  --zz-bg: var(--zz-raw-day-bg);
+  --zz-surface-1: var(--zz-raw-day-s1);
+  --zz-surface-2: var(--zz-raw-day-s2);
+  --zz-surface-3: var(--zz-raw-day-s3);
+  --zz-paper: var(--zz-raw-day-paper);
+  --zz-desk: var(--zz-raw-day-desk);
+  --zz-sheet-shadow: var(--zz-raw-day-sheet-shadow);
+  --zz-sheet-edge: var(--zz-raw-day-sheet-edge);
+  --zz-border: var(--zz-raw-day-border);
+  --zz-border-strong: var(--zz-raw-day-border-strong);
+  --zz-hover: var(--zz-raw-day-hover);
+  --zz-active: var(--zz-raw-day-active);
+  --zz-mask: var(--zz-raw-day-mask);
+  --zz-ink: var(--zz-raw-day-ink);
 
-  --zz-font-ui: "Microsoft YaHei UI", "PingFang SC", system-ui, sans-serif;
-  --zz-font-paper: "Noto Serif SC", "Songti SC", Georgia, serif;
-  --zz-body-family: var(--zz-font-paper);
-  --zz-font-body: var(--zz-body-family);
-  --zz-font-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
+  --zz-text-1: var(--zz-raw-day-text1);
+  --zz-text-2: var(--zz-raw-day-text2);
+  --zz-text-3: var(--zz-raw-day-text3);
+  --zz-title: var(--zz-raw-day-title);
 
-  --zz-body-size: 18px;
-  --zz-font-step: 1px;
-  --zz-control-height: 36px;
+  --zz-decide: var(--zz-raw-amber-700);
+  --zz-decide-hover: var(--zz-raw-amber-800);
+  --zz-decide-fill: var(--zz-raw-amber-700);
+  --zz-on-decide: var(--zz-raw-amber-ink-day);
+  --zz-run: var(--zz-raw-blue-700);
+  --zz-ok: var(--zz-raw-green-700);
+  --zz-warn: var(--zz-raw-yellow-700);
+  --zz-bad: var(--zz-raw-red-700);
+  --zz-focus: var(--zz-raw-amber-700);
+  --zz-soft-mix: 12%;
 
+  --zz-shadow-1: 0 1px 2px var(--zz-raw-day-shadow-1);
+  --zz-shadow-2: 0 8px 24px var(--zz-raw-day-shadow-2);
+  --zz-shadow-3: 0 24px 64px var(--zz-raw-day-shadow-3);
+}
+
+:root {
+  /* 状态底色：统一公式 */
+  --zz-decide-soft: color-mix(in srgb, var(--zz-decide) var(--zz-soft-mix), transparent);
+  --zz-run-soft: color-mix(in srgb, var(--zz-run) var(--zz-soft-mix), transparent);
+  --zz-ok-soft: color-mix(in srgb, var(--zz-ok) var(--zz-soft-mix), transparent);
+  --zz-warn-soft: color-mix(in srgb, var(--zz-warn) var(--zz-soft-mix), transparent);
+  --zz-bad-soft: color-mix(in srgb, var(--zz-bad) var(--zz-soft-mix), transparent);
+
+  /* 字体 */
+  --zz-font-ui: "Microsoft YaHei UI", "PingFang SC", "Noto Sans CJK SC", system-ui, sans-serif;
+  --zz-font-paper: "Noto Serif SC", "Source Han Serif SC", "Songti SC", serif;
+  --zz-font-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --zz-font-body: var(--zz-font-paper);
+
+  /* 字阶（UI） */
   --zz-text-caption: 0.75rem;
   --zz-text-meta: 0.8125rem;
   --zz-text-body: 0.875rem;
   --zz-text-strong: 0.9375rem;
   --zz-text-title: 1.125rem;
   --zz-text-display: 1.5rem;
+  --zz-leading-caption: 1.125rem;
+  --zz-leading-meta: 1.25rem;
+  --zz-leading-body: 1.375rem;
+  --zz-leading-strong: 1.5rem;
+  --zz-leading-title: 1.625rem;
+  --zz-leading-display: 2rem;
+  --zz-weight-regular: 400;
+  --zz-weight-strong: 600;
 
-  --zz-size-12: 12px;
-  --zz-size-13: 13px;
-  --zz-size-14: 14px;
-  --zz-size-15: 15px;
-  --zz-size-16: 16px;
-  --zz-size-18: 18px;
-  --zz-size-20: 20px;
-  --zz-size-22: 22px;
-  --zz-size-24: 24px;
-  --zz-size-26: 26px;
-  --zz-size-32: 32px;
-  --zz-size-40: 40px;
+  /* 稿纸：字号（外观设置写入）、行长（字数，无单位）、行高、字距 */
+  --zz-body-size: 18px;
+  --zz-paper-measure: 36;
+  --zz-paper-leading: 1.85;
+  --zz-paper-track: 0.02em;
+  --zz-paper-indent: 2em;
+  --zz-paper-gap: 0;
+  --zz-paper-width: calc(var(--zz-paper-measure) * (1em + var(--zz-paper-track)));
+  /* 纸张：文字列 + 两侧页边；稿纸区在书桌色（--zz-desk）上铺一条带柔和边影的纸 */
+  --zz-sheet-font: var(--zz-body-size);
+  --zz-sheet-margin: var(--zz-space-12);
+  --zz-sheet-width: calc(
+    var(--zz-paper-measure) * var(--zz-sheet-font) * 1.02 + 2 * var(--zz-sheet-margin)
+  );
+  --zz-sheet-blur: var(--zz-space-4);
+  --zz-sheet-bg:
+    linear-gradient(var(--zz-paper), var(--zz-paper)) 50% 0 / min(100%, var(--zz-sheet-width)) 100%
+      no-repeat,
+    linear-gradient(var(--zz-sheet-edge), var(--zz-sheet-edge)) 50% 0 /
+      min(100%, calc(var(--zz-sheet-width) + 2px)) 100% no-repeat,
+    linear-gradient(
+        90deg,
+        transparent,
+        var(--zz-sheet-shadow) var(--zz-sheet-blur),
+        var(--zz-sheet-shadow) calc(100% - var(--zz-sheet-blur)),
+        transparent
+      )
+      50% 0 / min(100%, calc(var(--zz-sheet-width) + 2 * var(--zz-sheet-blur))) 100% no-repeat,
+    var(--zz-desk);
 
-  --zz-space-1: 0.25rem;
-  --zz-space-2: 0.5rem;
-  --zz-space-3: 0.75rem;
-  --zz-space-4: 1rem;
-  --zz-space-5: 1.25rem;
-  --zz-space-6: 1.5rem;
+  /* 间距（4 基数） */
+  --zz-space-half: 2px;
+  --zz-space-1: 4px;
+  --zz-space-2: 8px;
+  --zz-space-3: 12px;
+  --zz-space-4: 16px;
+  --zz-space-5: 20px;
+  --zz-space-6: 24px;
+  --zz-space-8: 32px;
+  --zz-space-10: 40px;
+  --zz-space-12: 48px;
+  --zz-space-16: 64px;
 
+  /* 圆角 */
   --zz-radius-xs: 4px;
   --zz-radius-sm: 6px;
   --zz-radius-md: 10px;
   --zz-radius-lg: 14px;
-  --zz-radius-pill: 9999px;
+  --zz-radius-pill: 999px;
 
+  /* 层级 */
   --zz-z-base: 1;
   --zz-z-sticky: 10;
   --zz-z-drawer: 40;
@@ -95,104 +167,67 @@
   --zz-z-modal: 80;
   --zz-z-toast: 100;
 
+  /* 动效 */
   --zz-dur-1: 120ms;
   --zz-dur-2: 180ms;
   --zz-dur-3: 240ms;
-  --zz-duration-fast: var(--zz-dur-1);
-  --zz-duration: var(--zz-dur-2);
+  --zz-dur-flow: 1600ms;
   --zz-ease: cubic-bezier(0.2, 0, 0, 1);
-
-  --zz-shadow-1: 0 12px 40px rgba(0, 0, 0, 0.14);
-  --zz-shadow-2: 0 24px 80px rgba(0, 0, 0, 0.44);
-  --zz-paper-shadow: 0 -12px 60px rgba(217, 130, 43, 0.04), 0 24px 60px rgba(0, 0, 0, 0.27);
-  --zz-glow: 0 0 20px rgba(217, 130, 43, 0.19);
-  --zz-blur: blur(16px);
-}
-
-[data-theme="day"] {
-  color-scheme: light;
-  --zz-bg: var(--zz-raw-day-bg);
-  --zz-bg-glow: var(--zz-raw-day-bg-glow);
-  --zz-surface-1: var(--zz-raw-day-s1);
-  --zz-surface-2: var(--zz-raw-day-s2);
-  --zz-panel: var(--zz-raw-day-s1);
-  --zz-paper: var(--zz-raw-day-paper);
-  --zz-paper-2: var(--zz-raw-day-paper-2);
-  --zz-border: rgba(31, 28, 24, 0.1);
-  --zz-border-strong: rgba(31, 28, 24, 0.22);
-  --zz-line: var(--zz-border);
-  --zz-line-strong: var(--zz-border-strong);
-  --zz-fill: rgba(42, 37, 32, 0.03);
-  --zz-fill-strong: rgba(42, 37, 32, 0.06);
-  --zz-hover: rgba(42, 37, 32, 0.05);
-  --zz-active: rgba(42, 37, 32, 0.09);
-  --zz-mask: rgba(29, 25, 20, 0.67);
-
-  --zz-text-1: var(--zz-raw-day-text1);
-  --zz-text-2: var(--zz-raw-day-text2);
-  --zz-text-3: var(--zz-raw-day-text3);
-  --zz-text: var(--zz-text-1);
-  --zz-title: var(--zz-raw-day-title);
-
-  --zz-decide: var(--zz-raw-amber-600);
-  --zz-decide-hover: var(--zz-raw-amber-800);
-  --zz-decide-fill: rgba(184, 103, 22, 0.12);
-  --zz-on-decide: var(--zz-raw-white);
-  --zz-primary-fill: linear-gradient(135deg, var(--zz-raw-amber-500), var(--zz-raw-amber-600));
-
-  --zz-accent: var(--zz-decide);
-  --zz-accent-hover: var(--zz-decide-hover);
-  --zz-accent-soft: var(--zz-decide-fill);
-  --zz-on-accent: var(--zz-on-decide);
-
-  --zz-run: var(--zz-raw-blue-600);
-  --zz-ok: var(--zz-raw-green-600);
-  --zz-warn: var(--zz-raw-amber-700);
-  --zz-bad: var(--zz-raw-red-600);
-  --zz-info: var(--zz-run);
-  --zz-success: var(--zz-ok);
-  --zz-warning: var(--zz-warn);
-  --zz-danger: var(--zz-bad);
-
-  --zz-shadow-1: 0 8px 24px rgba(83, 55, 22, 0.05);
-  --zz-shadow-2: 0 24px 80px rgba(83, 55, 22, 0.19);
-  --zz-paper-shadow: 0 -10px 60px rgba(217, 130, 43, 0.08), 0 16px 48px rgba(83, 55, 22, 0.07);
+  --zz-ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --zz-flow-play: running;
 }
 
 :root[data-font="sans"] {
-  --zz-body-family: var(--zz-font-ui);
+  --zz-font-body: var(--zz-font-ui);
 }
 
-:root[data-transparency="reduced"] {
-  --zz-blur: none;
+:root[data-paragraph="spaced"] {
+  --zz-paper-indent: 0;
+  --zz-paper-gap: 0.8em;
 }
 
 @media (forced-colors: active) {
-  :root {
+  :root,
+  [data-theme] {
     --zz-bg: Canvas;
     --zz-surface-1: Canvas;
     --zz-surface-2: Canvas;
-    --zz-panel: Canvas;
+    --zz-surface-3: Canvas;
     --zz-paper: Canvas;
+    --zz-desk: Canvas;
+    --zz-sheet-bg: Canvas;
     --zz-text-1: CanvasText;
     --zz-text-2: CanvasText;
     --zz-text-3: GrayText;
-    --zz-text: CanvasText;
+    --zz-title: CanvasText;
+    --zz-ink: CanvasText;
     --zz-border: ButtonBorder;
     --zz-border-strong: ButtonBorder;
-    --zz-line: ButtonBorder;
-    --zz-line-strong: ButtonBorder;
     --zz-decide: Highlight;
+    --zz-decide-fill: Highlight;
     --zz-on-decide: HighlightText;
-    --zz-accent: Highlight;
-    --zz-on-accent: HighlightText;
+    --zz-run: LinkText;
+    --zz-ok: CanvasText;
+    --zz-warn: CanvasText;
+    --zz-bad: CanvasText;
+    --zz-focus: Highlight;
   }
 }
 
+/* 全仓唯一一处 reduced-motion：时长归零，进度流光静止为斜纹。 */
 @media (prefers-reduced-motion: reduce) {
   :root {
     --zz-dur-1: 0ms;
     --zz-dur-2: 0ms;
     --zz-dur-3: 0ms;
+    --zz-flow-play: paused;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0ms;
+    animation-iteration-count: 1;
+    transition-duration: 0ms;
+    scroll-behavior: auto;
   }
 }

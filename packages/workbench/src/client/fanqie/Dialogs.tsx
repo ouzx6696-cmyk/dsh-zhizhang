@@ -1,5 +1,8 @@
 import React from "react";
+import { WORKBENCH_COPY } from "@zhizhang/ui/copy";
 import { Button, Dialog } from "@zhizhang/ui/primitives";
+
+const D = WORKBENCH_COPY.dialogs;
 import { Callout } from "../shared/components.js";
 import type { FanqieAction, FanqieState } from "./state.js";
 
@@ -23,26 +26,26 @@ export function Dialogs({ state, dispatch, onFinalize, onAcceptCandidate }: Dial
     return (
       <Dialog
         open
-        title="确认定稿"
-        closeLabel="关闭"
-        description={`确定将章节 ${dialog.chapterId} 标记为定稿吗？`}
+        title={D.finalizeTitle}
+        closeLabel={D.close}
+        description={D.finalizeAsk(dialog.chapterId)}
         onClose={close}
         footer={
           <>
             <Button variant="secondary" onClick={close} disabled={busy}>
-              取消
+              {D.cancel}
             </Button>
             <Button
               variant="primary"
               disabled={busy}
               onClick={() => void onFinalize(dialog.chapterId)}
             >
-              {busy ? "处理中…" : "确认定稿"}
+              {busy ? D.busy : D.finalizeOk}
             </Button>
           </>
         }
       >
-        <Callout tone="info">定稿后该章将作为后续章节一致性检查的稳定基线。</Callout>
+        <Callout tone="info">{D.finalizeNote}</Callout>
       </Dialog>
     );
   }
@@ -51,14 +54,14 @@ export function Dialogs({ state, dispatch, onFinalize, onAcceptCandidate }: Dial
   return (
     <Dialog
       open
-      title="采纳候选稿"
-      closeLabel="关闭"
-      description={`确定采纳候选稿 ${candidateId} 作为章节 ${dialog.chapterId} 的正文吗？`}
+      title={D.acceptTitle}
+      closeLabel={D.close}
+      description={D.acceptAsk(candidateId ?? "", dialog.chapterId)}
       onClose={close}
       footer={
         <>
           <Button variant="secondary" onClick={close} disabled={busy}>
-            取消
+            {D.cancel}
           </Button>
           <Button
             variant="primary"
@@ -67,12 +70,12 @@ export function Dialogs({ state, dispatch, onFinalize, onAcceptCandidate }: Dial
               void onAcceptCandidate(dialog.chapterId, candidateId, state.chapter.revision)
             }
           >
-            {busy ? "处理中…" : "确认采纳"}
+            {busy ? D.busy : D.acceptOk}
           </Button>
         </>
       }
     >
-      <Callout tone="warning">采纳操作会覆盖当前正文章节并更新版本基线。</Callout>
+      <Callout tone="warning">{D.acceptNote}</Callout>
     </Dialog>
   );
 }

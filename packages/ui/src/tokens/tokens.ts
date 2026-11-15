@@ -56,3 +56,9 @@ export function themeAttributes(options: {
   if (options.reducedTransparency) attrs["data-transparency"] = "reduced";
   return attrs;
 }
+
+/**
+ * 主进程窗口首帧底色（BrowserWindow 读不到 CSS 变量）。必须与 palette.css 的
+ * `--zz-raw-night-bg` / `--zz-raw-day-bg` 一致，test/unit/tokens.test.mjs 会核对。
+ */
+export const WINDOW_BACKGROUND = { dark: "#101315", light: "#f3eee4" } as const;

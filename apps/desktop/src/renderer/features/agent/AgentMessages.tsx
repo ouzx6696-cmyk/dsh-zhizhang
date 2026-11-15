@@ -1,12 +1,23 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import { DESKTOP_COPY as C } from "@zhizhang/ui/copy";
-import { Markdown } from "@zhizhang/ui/markdown";
+import { Wrench } from "lucide-react";
 import { Button } from "@zhizhang/ui/primitives";
 import type { ChatMessage, ResultCard } from "../../../shared/types";
 import { toolLabel } from "../../../context";
 import { openPipeline, select } from "../../state/controller";
 import { desktop } from "../../state/desktop";
 import { run } from "../../format";
+
+// Markdown 渲染（react-markdown + gfm + sanitize）按需加载，不进入口包。
+const Markdown = lazy(() => import("@zhizhang/ui/markdown").then((m) => ({ default: m.Markdown })));
+
+function Rich({ text, onLink }: { text: string; onLink?: (href: string) => void }) {
+  return (
+    <Suspense fallback={<p className="zz-message__text">{text}</p>}>
+      <Markdown text={text} onLink={onLink} />
+    </Suspense>
+  );
+}
 
 function openResult(card: ResultCard): void {
   run(async () => {
@@ -18,7 +29,7 @@ function openResult(card: ResultCard): void {
 function ResultButton({ card }: { card: ResultCard }) {
   return (
     <div className="zz-result-card" data-testid="agent-result" data-kind={card.kind}>
-      <span>{C.agent.result[card.kind]}</span>
+      <span className="zz-result-card__label">{C.agent.result[card.kind]}</span>
       <Button size="sm" data-testid="agent-result-open" onClick={() => openResult(card)}>
         {card.kind === "compare" ? C.agent.openCompare : C.agent.open}
       </Button>
@@ -32,6 +43,7 @@ const MessageItem = React.memo(function MessageItem({ message }: { message: Chat
     <li className="zz-message" data-testid="agent-message" data-role={message.role}>
       {tools.length ? (
         <p className="zz-message__tools" data-testid="agent-tools">
+          <Wrench size={12} aria-hidden="true" />
           {C.agent.usedTools(
             tools.map((t) => toolLabel(t.name) + (t.isError ? C.agent.toolFailed : "")).join("、"),
           )}
@@ -39,7 +51,7 @@ const MessageItem = React.memo(function MessageItem({ message }: { message: Chat
       ) : null}
       {message.text ? (
         message.role === "assistant" ? (
-          <Markdown text={message.text} onLink={(href) => run(() => desktop.openExternal(href))} />
+          <Rich text={message.text} onLink={(href) => run(() => desktop.openExternal(href))} />
         ) : (
           <p className="zz-message__text">{message.text}</p>
         )
@@ -57,7 +69,7 @@ export function AgentMessages({ messages, stream }: { messages: ChatMessage[]; s
       ))}
       {stream ? (
         <li className="zz-message" data-role="assistant" data-testid="agent-stream">
-          <Markdown text={stream} />
+          <Rich text={stream} />
         </li>
       ) : null}
     </ol>

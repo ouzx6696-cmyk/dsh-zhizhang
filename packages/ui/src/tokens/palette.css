@@ -1,39 +1,68 @@
+/*
+ * 原始色板：全仓唯一允许写颜色字面量的地方。
+ * 语义层（semantic.css）只引用这里的值；组件与页面只引用语义令牌。
+ */
 :root {
-  --zz-raw-amber-400: #f3c879;
-  --zz-raw-amber-500: #d9822b;
-  --zz-raw-amber-600: #b86716;
-  --zz-raw-amber-700: #8a5410;
-  --zz-raw-amber-800: #73430a;
-  --zz-raw-blue-400: #9cc0e0;
-  --zz-raw-blue-500: #3b82f6;
-  --zz-raw-blue-600: #2f5f86;
-  --zz-raw-green-400: #8fc29f;
-  --zz-raw-green-500: #22c55e;
-  --zz-raw-green-600: #265d3f;
-  --zz-raw-yellow-500: #eab308;
-  --zz-raw-red-400: #e8857a;
-  --zz-raw-red-500: #ef4444;
-  --zz-raw-red-600: #a3463c;
-  --zz-raw-night-bg: #161412;
-  --zz-raw-night-bg-glow: #1d2630;
-  --zz-raw-night-s1: #1e1b18;
-  --zz-raw-night-s2: #26221e;
-  --zz-raw-night-paper: #1c1916;
-  --zz-raw-night-paper-2: #222a32;
-  --zz-raw-night-text1: #ece6dc;
-  --zz-raw-night-text2: #b9b1a5;
-  --zz-raw-night-text3: #8f897d;
+  /* 夜灯：偏暖的墨色底，正文米白 */
+  --zz-raw-night-bg: #101315;
+  --zz-raw-night-desk: #101316;
+  --zz-raw-night-s1: #14181b;
+  --zz-raw-night-s2: #1f2428;
+  --zz-raw-night-s3: #272d32;
+  --zz-raw-night-paper: #1c2024;
+  --zz-raw-night-text1: #ece6da;
+  --zz-raw-night-text2: #b5aea1;
+  --zz-raw-night-text3: #968f83;
   --zz-raw-night-title: #f3e7cf;
-  --zz-raw-day-bg: #f6f3ed;
-  --zz-raw-day-bg-glow: #f9f4ea;
-  --zz-raw-day-s1: #ffffff;
-  --zz-raw-day-s2: #efeae0;
-  --zz-raw-day-paper: #fcfaf5;
-  --zz-raw-day-paper-2: #f8f3eb;
-  --zz-raw-day-text1: #1f1c18;
-  --zz-raw-day-text2: #524c44;
-  --zz-raw-day-text3: #756e64;
+  --zz-raw-night-ink: #ece6da;
+  --zz-raw-night-border: #ffffff14;
+  --zz-raw-night-border-strong: #ffffff26;
+  --zz-raw-night-hover: #ffffff0d;
+  --zz-raw-night-active: #ffffff17;
+  --zz-raw-night-mask: #070a0dcc;
+  --zz-raw-night-shadow-1: #0000004d;
+  --zz-raw-night-shadow-2: #00000059;
+  --zz-raw-night-shadow-3: #00000080;
+  --zz-raw-night-sheet-shadow: #00000066;
+  --zz-raw-night-sheet-edge: #ffffff0f;
+
+  /* 晨光：暖纸色 */
+  --zz-raw-day-bg: #f3eee4;
+  --zz-raw-day-s1: #f4efe7;
+  --zz-raw-day-desk: #eee8dd;
+  --zz-raw-day-s2: #ffffff;
+  --zz-raw-day-s3: #ebe5da;
+  --zz-raw-day-paper: #fffcf6;
+  --zz-raw-day-text1: #2a2520;
+  --zz-raw-day-text2: #575047;
+  --zz-raw-day-text3: #685f53;
   --zz-raw-day-title: #32291b;
-  --zz-raw-black: #000000;
-  --zz-raw-white: #ffffff;
+  --zz-raw-day-ink: #2a2520;
+  --zz-raw-day-border: #2a25201a;
+  --zz-raw-day-border-strong: #2a252033;
+  --zz-raw-day-hover: #2a25200d;
+  --zz-raw-day-active: #2a252017;
+  --zz-raw-day-mask: #1d1914aa;
+  --zz-raw-day-shadow-1: #5337160f;
+  --zz-raw-day-shadow-2: #5337161f;
+  --zz-raw-day-shadow-3: #53371633;
+  --zz-raw-day-sheet-shadow: #53371614;
+  --zz-raw-day-sheet-edge: #2a252012;
+
+  /* 语义色：琥珀（决定）、蓝（运行）、绿（完成）、黄（注意）、红（失败） */
+  --zz-raw-amber-300: #f3c879;
+  --zz-raw-amber-400: #e3a44f;
+  --zz-raw-amber-700: #8a5410;
+  --zz-raw-amber-800: #6f420a;
+  --zz-raw-amber-ink-night: #17120a;
+  --zz-raw-amber-ink-day: #fffdf8;
+  --zz-raw-amber-focus: #f0bc69;
+  --zz-raw-blue-300: #8fb8dd;
+  --zz-raw-blue-700: #2c5d87;
+  --zz-raw-green-300: #8cc49c;
+  --zz-raw-green-700: #2b6544;
+  --zz-raw-yellow-300: #d8c862;
+  --zz-raw-yellow-700: #6b5d00;
+  --zz-raw-red-300: #ef8a80;
+  --zz-raw-red-700: #a63f36;
 }

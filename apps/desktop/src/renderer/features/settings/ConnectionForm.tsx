@@ -151,7 +151,7 @@ export function ConnectionForm({
 
   return (
     <form
-      className="zz-stack"
+      className="zz-connection-form"
       data-testid="model-connection-form"
       onSubmit={(event) => {
         event.preventDefault();
@@ -165,13 +165,19 @@ export function ConnectionForm({
         testId="connection-label"
         placeholder={C.models.labelHint}
       />
-      <Select<ModelApi>
-        label={C.models.api}
-        testId="connection-api"
-        value={draft.api}
-        options={MODEL_APIS.map((api) => ({ value: api, label: API_LABELS[api] ?? api }))}
-        onChange={(api) => patch({ api })}
-      />
+      <div className="zz-field">
+        {/* 下拉框已有 aria-label；这里只补一个可见标签，与左侧“名称”对齐。 */}
+        <span className="zz-field__label" aria-hidden="true">
+          {C.models.api}
+        </span>
+        <Select<ModelApi>
+          label={C.models.api}
+          testId="connection-api"
+          value={draft.api}
+          options={MODEL_APIS.map((api) => ({ value: api, label: API_LABELS[api] ?? api }))}
+          onChange={(api) => patch({ api })}
+        />
+      </div>
       <TextField
         label={C.models.baseUrl}
         type="url"
@@ -205,7 +211,7 @@ export function ConnectionForm({
         placeholder={C.models.modelHint}
         required
       />
-      <div className="zz-row">
+      <div className="zz-row zz-connection-form__pair">
         <NumberField
           label={C.models.contextWindow}
           value={draft.contextWindow}
@@ -224,7 +230,7 @@ export function ConnectionForm({
           <Notice tone={result.ok ? "ok" : "bad"} message={result.text} />
         </div>
       ) : null}
-      <div className="zz-row">
+      <div className="zz-row zz-connection-form__actions">
         <Button
           data-testid="connection-test"
           loading={busy === "test"}
@@ -235,7 +241,7 @@ export function ConnectionForm({
         </Button>
         <Button
           type="submit"
-          variant="primary"
+          variant="strong"
           data-testid="connection-save"
           loading={busy === "save"}
           disabled={!valid || busy !== ""}

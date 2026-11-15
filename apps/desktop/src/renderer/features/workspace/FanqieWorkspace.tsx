@@ -1,18 +1,23 @@
-import React, { useEffect, useRef, useState } from "react";
-import { Check, Plus, Workflow } from "lucide-react";
+import React, { Suspense, lazy, useEffect, useRef, useState } from "react";
+import { Plus } from "lucide-react";
 import { COPY, DESKTOP_COPY as C } from "@zhizhang/ui/copy";
-import { Button, Dialog, Empty, StatusChip } from "@zhizhang/ui/primitives";
-import { statusLabel } from "@zhizhang/ui/status";
+import { Button, Dialog, Empty, IconButton, StatusChip } from "@zhizhang/ui/primitives";
+import { statusChipTone, statusLabel } from "@zhizhang/ui/status";
 import { ChapterList, Dialogs, Reader, useFanqie } from "@zhizhang/workbench/client";
 import type { ChapterRowView } from "@zhizhang/fanqie/view";
 import type { Target } from "../../../shared/views";
-import { canLeave, openPipeline, trackEditor } from "../../state/controller";
+import { canLeave, trackEditor } from "../../state/controller";
 import { desktop } from "../../state/desktop";
 import { desktopStore, useDesktop } from "../../state/store";
 import { notifyError, run } from "../../format";
+import { ChapterActions } from "./ChapterActions";
 import { TextField } from "./TextField";
 
 const set = desktopStore.set;
+
+const CompareView = lazy(() =>
+  import("../workflow/DraftCompare").then((m) => ({ default: m.CompareView })),
+);
 
 /** 下一个章节编号：ch-001 起按已有最大序号递增。 */
 export function nextChapterId(chapters: readonly ChapterRowView[]): string {
@@ -106,38 +111,59 @@ function Board({
   return (
     <section className="zz-board" data-testid="board" aria-label={C.topbar.viewBoard}>
       <header className="zz-board__stats">
-        <span data-testid="board-chapters">{C.fanqie.boardChapters(chapters.length)}</span>
-        <span data-testid="board-final">{C.fanqie.boardFinal(finals)}</span>
-        <span data-testid="board-words">{C.fanqie.boardWords(words)}</span>
+        <div className="zz-board__stat" data-testid="board-chapters">
+          <span>{C.fanqie.statChapters}</span>
+          <strong>{chapters.length}</strong>
+        </div>
+        <div className="zz-board__stat" data-testid="board-final">
+          <span>{C.fanqie.statFinal}</span>
+          <strong>{finals}</strong>
+        </div>
+        <div className="zz-board__stat" data-testid="board-words">
+          <span>{C.fanqie.statWords}</span>
+          <strong>{words.toLocaleString("zh-CN")}</strong>
+        </div>
       </header>
       {chapters.length ? (
-        <table className="zz-table">
-          <thead>
-            <tr>
-              <th>{C.fanqie.chapterTitle}</th>
-              <th>{C.fanqie.words}</th>
-              <th>{C.fanqie.status}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {chapters.map((c) => (
-              <tr key={c.id} data-testid="board-row" data-chapter-id={c.id} data-status={c.status}>
-                <td>
-                  <button type="button" className="zz-link" onClick={() => onOpen(c.id)}>
-                    {c.title || c.id}
-                  </button>
-                </td>
-                <td>{c.wordCount}</td>
-                <td>
-                  <StatusChip
-                    tone={c.status === "final" ? "ok" : c.status === "reviewed" ? "run" : "neutral"}
-                    label={statusLabel("fanqie", c.status)}
-                  />
-                </td>
+        <div className="zz-board__sheet">
+          <table className="zz-table">
+            <thead>
+              <tr>
+                <th className="zz-table__num">{C.fanqie.index}</th>
+                <th>{C.fanqie.chapterTitle}</th>
+                <th className="zz-table__num">{C.fanqie.words}</th>
+                <th>{C.fanqie.status}</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {chapters.map((c, index) => (
+                <tr
+                  key={c.id}
+                  data-testid="board-row"
+                  data-chapter-id={c.id}
+                  data-status={c.status}
+                >
+                  <td className="zz-table__num zz-table__muted">
+                    {String(index + 1).padStart(2, "0")}
+                  </td>
+                  <td>
+                    <button type="button" className="zz-link" onClick={() => onOpen(c.id)}>
+                      {c.title || c.id}
+                    </button>
+                  </td>
+                  <td className="zz-table__num">{c.wordCount.toLocaleString("zh-CN")}</td>
+                  <td>
+                    <StatusChip
+                      tone={statusChipTone("fanqie", c.status)}
+                      label={statusLabel("fanqie", c.status)}
+                      dot
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
         <Empty title={C.fanqie.emptyBoard} />
       )}
@@ -154,16 +180,16 @@ export function FanqieWorkspace({ target, readonly }: { target: Target; readonly
   const [creating, setCreating] = useState(false);
   const pendingSelect = useRef("");
 
-  // 主进程广播的写作区变化（流水线交付、采纳、助手发起的命令）→ 增量重读快照与正文。
+  // 主进程广播的写作区变化（流水线交付、采纳、助手发起的命令）→ 只增量重读快照。
+  // 正文是否重读由正文键决定：当前章 revision 变了且不在编辑态时才重读，编辑中不会被踢出（D3）。
   const firstRevision = useRef(true);
   useEffect(() => {
     if (firstRevision.current) {
       firstRevision.current = false;
       return;
     }
-    dispatch({ type: "reloadBodies" });
     void refresh();
-  }, [revisions.rows, revisions.chapter, dispatch, refresh]);
+  }, [revisions.rows, revisions.chapter, refresh]);
 
   useEffect(() => {
     const id = pendingSelect.current;
@@ -206,73 +232,75 @@ export function FanqieWorkspace({ target, readonly }: { target: Target; readonly
     });
 
   const current = view.current;
+  const compare = useDesktop((s) => s.compare);
+  const compareKind = useDesktop((s) => s.runs.find((r) => r.id === s.compare?.runId)?.kind);
+  const comparing = compare && compare.target.path === target.path ? compare : null;
+  const totalWords = view.chapters.reduce((sum, c) => sum + c.wordCount, 0);
   return (
-    <div className="zz-workspace zz-workspace--fanqie">
+    <div className="zz-workspace zz-workspace--fanqie" data-compare={comparing ? "on" : "off"}>
       <nav className="zz-workspace__nav" aria-label={C.fanqie.chapters}>
-        <header className="zz-workspace__nav-head">
-          <h2>{C.fanqie.chapters}</h2>
-          <Button
+        <header className="zz-nav-head">
+          <h2>
+            {C.fanqie.chapters}
+            <span className="zz-nav-head__count">{view.chapters.length}</span>
+          </h2>
+          <IconButton
             size="sm"
+            label={C.fanqie.newChapter}
             data-testid="new-chapter"
             disabled={readonly}
+            icon={<Plus size={16} />}
             onClick={() => setCreating(true)}
-          >
-            <Plus size={14} aria-hidden="true" />
-            {C.fanqie.newChapter}
-          </Button>
+          />
         </header>
-        <ChapterList
-          chapters={view.chapters}
-          selectedId={state.chapterId}
-          onSelect={selectChapter}
-        />
+        <div className="zz-nav-body">
+          <ChapterList
+            chapters={view.chapters}
+            selectedId={state.chapterId}
+            onSelect={selectChapter}
+          />
+        </div>
+        {view.chapters.length ? (
+          <footer className="zz-nav-foot">
+            {C.fanqie.navTotal(view.chapters.length, totalWords)}
+          </footer>
+        ) : null}
       </nav>
       <section className="zz-workspace__center">
-        {mainView === "board" ? (
-          <Board chapters={view.chapters} onOpen={selectChapter} />
+        {comparing ? (
+          <Suspense fallback={null}>
+            <CompareView request={comparing} kind={compareKind ?? "fanqie.chapter"} />
+          </Suspense>
+        ) : mainView === "board" ? (
+          <div className="zz-center-scroll">
+            <Board chapters={view.chapters} onOpen={selectChapter} />
+          </div>
+        ) : state.error && !view.chapters.length ? (
+          <Empty title={C.fanqie.loadFailed} description={state.error} />
         ) : (
-          <>
-            {current ? (
-              <div className="zz-chapter-bar" data-testid="chapter-bar">
-                <Button
-                  size="sm"
-                  data-testid="chapter-start-pipeline"
-                  disabled={readonly}
-                  onClick={() => openPipeline(current.id)}
-                >
-                  <Workflow size={14} aria-hidden="true" />
-                  {C.fanqie.startPipeline}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="primary"
-                  data-testid="chapter-finalize"
-                  disabled={readonly || current.status !== "reviewed" || Boolean(state.busyAction)}
-                  title={current.status !== "reviewed" ? C.fanqie.finalizeHint : undefined}
-                  onClick={() =>
+          <Reader
+            state={state}
+            view={view}
+            dispatch={dispatch}
+            onSaveChapter={(body, base) => fanqie.saveChapter(body, base)}
+            onEditState={trackEditor}
+            actions={
+              current ? (
+                <ChapterActions
+                  chapterId={current.id}
+                  reviewed={current.status === "reviewed"}
+                  readonly={readonly}
+                  busy={Boolean(state.busyAction)}
+                  onFinalize={() =>
                     dispatch({
                       type: "openDialog",
                       dialog: { kind: "finalize", chapterId: current.id },
                     })
                   }
-                >
-                  <Check size={14} aria-hidden="true" />
-                  {COPY["fanqie.action.finalize"]}
-                </Button>
-              </div>
-            ) : null}
-            {state.error && !view.chapters.length ? (
-              <Empty title={C.fanqie.loadFailed} description={state.error} />
-            ) : (
-              <Reader
-                state={state}
-                view={view}
-                dispatch={dispatch}
-                onSaveChapter={(body, base) => fanqie.saveChapter(body, base)}
-                onEditState={trackEditor}
-              />
-            )}
-          </>
+                />
+              ) : null
+            }
+          />
         )}
       </section>
       <Dialogs

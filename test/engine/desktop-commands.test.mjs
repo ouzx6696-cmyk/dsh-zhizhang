@@ -68,7 +68,7 @@ function mark(command) {
   return command;
 }
 
-test("番茄命令：建书 → 写章 → 候选 → 导出 → 圣经，读写结果与门禁错误码都正确", async () => {
+test("番茄命令：建书 → 写章 → 候选 → 导出 → 设定集，读写结果与门禁错误码都正确", async () => {
   const { roots, ctx, base } = await setup();
   const created = await run(ctx, mark("fanqie.work.create"), {
     root: roots.fanqie,

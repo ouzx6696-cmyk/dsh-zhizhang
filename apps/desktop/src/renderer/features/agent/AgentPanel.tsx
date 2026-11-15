@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Plus, Send, Square } from "lucide-react";
+import { ArrowUp, ChevronRight, Plus, Sparkles, Square } from "lucide-react";
 import { DESKTOP_COPY as C } from "@zhizhang/ui/copy";
-import { Button, Empty, IconButton, Select } from "@zhizhang/ui/primitives";
+import { Button, IconButton, Select, Spinner } from "@zhizhang/ui/primitives";
 import { readPref, writePref, PREF } from "@zhizhang/workbench/client";
 import type { SessionIntent, Target } from "../../../shared/views";
 import { toolLabel } from "../../../context";
@@ -73,7 +73,8 @@ function ContextBar() {
   useEffect(() => {
     if (!busy) refreshUsage().catch(() => undefined);
   }, [busy, conversationId]);
-  if (!usage) return null;
+  // 空对话不显示占用条：0% 与禁用的“整理”只是噪音。
+  if (!usage || usage.messages === 0) return null;
   return (
     <div className="zz-context" data-testid="agent-context" data-percent={usage.percent}>
       <div
@@ -86,10 +87,11 @@ function ContextBar() {
       >
         <span style={{ width: `${Math.min(100, usage.percent)}%` }} />
       </div>
-      <span className="zz-muted">{C.agent.contextUsage(usage.percent)}</span>
+      <span className="zz-context__label">{C.agent.contextUsage(usage.percent)}</span>
       <Button
         size="sm"
         variant="ghost"
+        className="zz-context__compact"
         data-testid="agent-compact"
         disabled={busy || usage.messages === 0}
         onClick={() => run(compactConversation)}
@@ -138,42 +140,77 @@ export function AgentPanel({ target }: { target: Target }) {
 
   const where = [focus.workTitle, focus.title || focus.chapter || focus.article]
     .filter(Boolean)
-    .join(" · ");
+    .join(" / ");
+  const quick = quickActions(target.mode);
+  const chatting = messages.length > 0 || Boolean(stream);
+  const submit = () => {
+    if (!busy && ready && draft.trim()) void send(draft);
+  };
   return (
     <div className="zz-agent" data-testid="agent-panel">
       <header className="zz-agent__head">
-        <Select
-          label={C.agent.conversations}
-          testId="agent-conversations"
-          value={conversationId}
-          disabled={busy || conversations.length === 0}
-          options={(conversations.length
-            ? conversations
-            : [{ id: conversationId, title: "", updated: "", messages: 0, current: true }]
-          ).map((c) => ({
-            value: c.id,
-            label: c.title || C.agent.untitled,
-          }))}
-          onChange={(id) => run(() => openConversation(id))}
-        />
-        <IconButton
-          label={C.agent.newConversation}
-          data-testid="agent-new-conversation"
-          disabled={busy}
-          icon={<Plus size={15} />}
-          onClick={() => run(newConversation)}
-        />
+        <div className="zz-agent__head-row">
+          <Select
+            label={C.agent.conversations}
+            testId="agent-conversations"
+            className="zz-agent__conversations"
+            value={conversationId}
+            disabled={busy || conversations.length === 0}
+            options={(conversations.length
+              ? conversations
+              : [{ id: conversationId, title: "", updated: "", messages: 0, current: true }]
+            ).map((c) => ({
+              value: c.id,
+              label: c.title || C.agent.untitled,
+            }))}
+            onChange={(id) => run(() => openConversation(id))}
+          />
+          <IconButton
+            label={C.agent.newConversation}
+            size="sm"
+            data-testid="agent-new-conversation"
+            disabled={busy}
+            icon={<Plus size={15} />}
+            onClick={() => run(newConversation)}
+          />
+        </div>
+        <ContextBar />
       </header>
-      <ContextBar />
       <div className="zz-agent__list" ref={list}>
         {messages.length || stream ? (
           <AgentMessages messages={messages} stream={stream} />
         ) : (
-          <Empty title={C.agent.emptyTitle} description={C.agent.emptyHint} />
+          <section className="zz-agent__welcome" data-testid="agent-welcome">
+            <span className="zz-agent__welcome-icon" aria-hidden="true">
+              <Sparkles size={16} />
+            </span>
+            <h3>{C.agent.emptyTitle}</h3>
+            <p>{C.agent.emptyHint}</p>
+            <ul className="zz-suggest" aria-label={C.agent.suggest}>
+              {quick.map((q) => (
+                <li key={q.id}>
+                  <button
+                    type="button"
+                    className="zz-suggest__item"
+                    data-testid={`agent-quick-${q.id}`}
+                    disabled={busy || !ready}
+                    onClick={() => void send(q.text, q.intent)}
+                  >
+                    <span className="zz-suggest__text">
+                      <strong>{q.label}</strong>
+                      <span>{q.text}</span>
+                    </span>
+                    <ChevronRight size={14} aria-hidden="true" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
       </div>
       {busy ? (
         <p className="zz-agent__status" role="status" data-testid="agent-busy">
+          <Spinner size="sm" label={C.agent.thinking} />
           {tool ? C.agent.usingTool(toolLabel(tool)) : C.agent.thinking}
         </p>
       ) : ended && ended.reason !== "done" ? (
@@ -182,75 +219,88 @@ export function AgentPanel({ target }: { target: Target }) {
           role="status"
           data-testid="agent-ended"
           data-reason={ended.reason}
+          data-tone={ended.reason === "cancelled" ? "neutral" : "bad"}
         >
           {ended.reason === "cancelled" ? C.agent.stopped : (ended.message ?? C.agent.failed)}
         </p>
       ) : null}
       {!ready ? (
-        <p className="zz-agent__status" role="status">
+        <p className="zz-agent__status" role="status" data-tone="warn">
           {C.agent.noModel}{" "}
           <button type="button" className="zz-link" onClick={() => openSettings("models")}>
             {C.agent.openModels}
           </button>
         </p>
       ) : null}
-      <div className="zz-agent__quick">
-        {quickActions(target.mode).map((q) => (
-          <Button
-            key={q.id}
-            size="sm"
-            variant="ghost"
-            data-testid={`agent-quick-${q.id}`}
-            disabled={busy || !ready}
-            onClick={() => void send(q.text, q.intent)}
-          >
-            {q.label}
-          </Button>
-        ))}
-      </div>
+      {chatting ? (
+        <div className="zz-agent__quick">
+          {quick.map((q) => (
+            <button
+              key={q.id}
+              type="button"
+              className="zz-chip"
+              data-testid={`agent-quick-${q.id}`}
+              disabled={busy || !ready}
+              onClick={() => void send(q.text, q.intent)}
+            >
+              {q.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
       <form
         className="zz-composer"
         onSubmit={(event) => {
           event.preventDefault();
-          if (!busy) void send(draft);
+          submit();
         }}
       >
         {where ? (
           <span className="zz-composer__where" data-testid="agent-where">
-            {where}
+            {C.agent.where(where)}
           </span>
         ) : null}
         <textarea
           ref={input}
-          className="zz-input zz-composer__input"
+          className="zz-composer__input"
           data-testid="agent-input"
           aria-label={C.agent.input}
           placeholder={C.agent.placeholder}
           value={draft}
+          rows={2}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
               event.preventDefault();
-              if (!busy) void send(draft);
+              submit();
             }
           }}
         />
-        {busy ? (
-          <Button data-testid="agent-stop" onClick={() => stopAssistant().catch(notifyError)}>
-            <Square size={14} aria-hidden="true" />
-            {C.agent.stop}
-          </Button>
-        ) : (
-          <Button
-            type="submit"
-            variant="primary"
-            data-testid="agent-send"
-            disabled={!draft.trim() || !ready}
-          >
-            <Send size={14} aria-hidden="true" />
-            {C.agent.send}
-          </Button>
-        )}
+        <div className="zz-composer__foot">
+          <span className="zz-composer__hint">{C.agent.sendHint}</span>
+          {busy ? (
+            <Button
+              size="sm"
+              variant="danger"
+              data-testid="agent-stop"
+              onClick={() => stopAssistant().catch(notifyError)}
+            >
+              <Square size={12} aria-hidden="true" fill="currentColor" />
+              {C.agent.stop}
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              type="submit"
+              variant="primary"
+              data-testid="agent-send"
+              disabled={!draft.trim() || !ready}
+            >
+              <ArrowUp size={14} aria-hidden="true" />
+              {C.agent.send}
+            </Button>
+          )}
+        </div>
       </form>
     </div>
   );

@@ -1,16 +1,15 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   BookOpen,
   ChevronDown,
   Download,
   PanelRight,
   Settings as SettingsIcon,
-  Workflow,
 } from "lucide-react";
 import { COPY, DESKTOP_COPY as C } from "@zhizhang/ui/copy";
 import { notify } from "@zhizhang/ui/notify";
 import { Brand, Button, IconButton, Menu, type MenuItem } from "@zhizhang/ui/primitives";
-import type { ExportFormat, TargetItem } from "../../../shared/views";
+import type { ExportFormat, RunSummary, TargetItem } from "../../../shared/views";
 import {
   modelReady,
   openPipeline,
@@ -22,6 +21,7 @@ import {
 import { desktop } from "../../state/desktop";
 import { desktopStore, sameTarget, useDesktop, type MainView } from "../../state/store";
 import { notifyError, run } from "../../format";
+import { kindLabel, progressGroups, progressIndex, stageLabel } from "../workflow/workflow-model";
 
 const set = desktopStore.set;
 
@@ -42,16 +42,15 @@ function targetMenu(targets: TargetItem[], current: TargetItem | null): MenuItem
     ),
     onSelect: () => run(() => select(t.target)),
   });
-  const items: MenuItem[] = [
-    { id: "h-works", label: C.topbar.works, disabled: true },
+  return [
+    { id: "h-works", label: C.topbar.works, heading: true },
     ...works.map(item),
     { id: "new-work", label: C.create.newWork, onSelect: () => startCreate("fanqie") },
     { id: "sep", label: "", separator: true },
-    { id: "h-articles", label: C.topbar.articles, disabled: true },
+    { id: "h-articles", label: C.topbar.articles, heading: true },
     ...articles.map(item),
     { id: "new-article", label: C.create.newArticle, onSelect: () => startCreate("toutiao") },
   ];
-  return items;
 }
 
 async function exportAs(format: ExportFormat) {
@@ -65,10 +64,69 @@ async function exportAs(format: ExportFormat) {
   });
 }
 
+/** 顶栏胶囊与全局进度轨看的那一条：等你决定 > 失败 > 运行中 > 暂停；同级取最近更新。 */
+export function headlineRun(runs: readonly RunSummary[]): RunSummary | null {
+  const rank = { "awaiting-author": 0, failed: 1, running: 2, paused: 3 } as const;
+  const scored = runs
+    .filter((r): r is RunSummary & { state: keyof typeof rank } => r.state in rank)
+    .sort((a, b) => rank[a.state] - rank[b.state] || b.updated.localeCompare(a.updated));
+  return scored[0] ?? null;
+}
+
+function RunPill({ head, extra }: { head: RunSummary; extra: number }) {
+  const total = progressGroups(head.kind).length;
+  const step = Math.min(total, progressIndex(head) + (head.state === "awaiting-author" ? 0 : 1));
+  const last = head.stages[head.stages.length - 1];
+  const detail =
+    head.state === "awaiting-author"
+      ? COPY["workflow.awaiting_author"]
+      : head.state === "running"
+        ? last
+          ? stageLabel(last)
+          : C.workflow.state.running
+        : C.workflow.state[head.state];
+  return (
+    <button
+      type="button"
+      className="zz-run-pill"
+      data-testid="running-indicator"
+      data-state={head.state}
+      title={C.topbar.openPipeline}
+      onClick={() => openPipeline()}
+    >
+      <i aria-hidden="true" />
+      <span className="zz-run-pill__kind">{kindLabel(head.kind)}</span>
+      <span className="zz-run-pill__detail">{detail}</span>
+      {total && head.state !== "awaiting-author" ? (
+        <span className="zz-run-pill__step">{C.topbar.runStep(step, total)}</span>
+      ) : null}
+      {extra > 0 ? <span className="zz-run-pill__more">{C.topbar.moreRuns(extra)}</span> : null}
+    </button>
+  );
+}
+
+/** 顶栏下 2px 进度轨：运行蓝色流光、等你决定琥珀、失败红；没有任务时不占位。 */
+export function GlobalRail() {
+  const runs = useDesktop((s) => s.runs);
+  const head = headlineRun(runs);
+  if (!head) return null;
+  const total = Math.max(1, progressGroups(head.kind).length);
+  const percent =
+    head.state === "awaiting-author"
+      ? 100
+      : Math.round(((progressIndex(head) + 0.5) / total) * 100);
+  return (
+    <div className="zz-global-rail" data-state={head.state} aria-hidden="true">
+      <span style={{ width: `${Math.min(100, percent)}%` }} />
+    </div>
+  );
+}
+
 export function TopBar() {
   const selected = useDesktop((state) => state.selected);
   const targets = useDesktop((state) => state.targets);
   const view = useDesktop((state) => state.view);
+  const runs = useDesktop((state) => state.runs);
   const running = useDesktop((state) => state.running);
   const workspace = useDesktop((state) => state.workspace);
   const settings = useDesktop((state) => state.settings);
@@ -85,13 +143,22 @@ export function TopBar() {
   const formats: ExportFormat[] =
     selected?.target.mode === "toutiao" ? ["md", "txt", "copy"] : ["txt", "docx", "copy"];
   const ready = modelReady(settings);
+  const head = headlineRun(runs);
+  const awaiting = runs.some((r) => r.state === "awaiting-author");
+
+  // “轮到作者”时窗口标题加前缀，切到别的窗口也能看见。
+  useEffect(() => {
+    document.title = awaiting ? `${C.topbar.awaitingPrefix}${COPY["app.name"]}` : COPY["app.name"];
+  }, [awaiting]);
+
   return (
     <>
       <header className="zz-topbar" data-testid="topbar">
         <Brand label={COPY["app.name"]} />
-        <div className="zz-topbar__menu">
+        <div className="zz-topbar__menu zz-menu-root">
           <Button
             variant="ghost"
+            className="zz-target-switch"
             data-testid="target-switch"
             aria-haspopup="menu"
             aria-expanded={menu === "targets"}
@@ -99,8 +166,10 @@ export function TopBar() {
             onClick={() => setMenu(menu === "targets" ? "" : "targets")}
           >
             <BookOpen size={15} aria-hidden="true" />
-            <span data-testid="target-label">{selected?.label ?? C.topbar.pickTarget}</span>
-            <ChevronDown size={13} aria-hidden="true" />
+            <span className="zz-target-switch__label" data-testid="target-label">
+              {selected?.label ?? C.topbar.pickTarget}
+            </span>
+            <ChevronDown size={14} aria-hidden="true" />
           </Button>
           {menu === "targets" ? (
             <div data-testid="target-menu">
@@ -113,81 +182,93 @@ export function TopBar() {
           ) : null}
         </div>
         {selected ? (
-          <nav className="zz-segmented zz-segmented--sm" aria-label={C.topbar.views}>
-            {views.map((v) => (
-              <button
-                key={v.id}
-                type="button"
-                className="zz-segmented__item"
-                aria-pressed={view === v.id}
-                data-testid={`view-${v.id}`}
-                onClick={() => set({ view: v.id })}
-              >
-                {v.label}
-              </button>
-            ))}
-          </nav>
+          <>
+            <span className="zz-topbar__divider" aria-hidden="true" />
+            <nav className="zz-segmented zz-segmented--sm" aria-label={C.topbar.views}>
+              {views.map((v) => (
+                <button
+                  key={v.id}
+                  type="button"
+                  className="zz-segmented__item"
+                  aria-pressed={view === v.id}
+                  data-testid={`view-${v.id}`}
+                  onClick={() => set({ view: v.id })}
+                >
+                  {v.label}
+                </button>
+              ))}
+            </nav>
+          </>
         ) : null}
         <span className="zz-topbar__spacer" />
-        {running.length ? (
-          <Button
-            variant="ghost"
-            size="sm"
+        {head ? (
+          <RunPill head={head} extra={Math.max(0, runs.length - 1)} />
+        ) : running.length ? (
+          <button
+            type="button"
+            className="zz-run-pill"
             data-testid="running-indicator"
+            data-state="running"
             onClick={() => openPipeline()}
           >
-            <Workflow size={14} aria-hidden="true" />
-            {C.topbar.running(running.length)}
-          </Button>
+            <i aria-hidden="true" />
+            <span className="zz-run-pill__detail">{C.topbar.running(running.length)}</span>
+          </button>
         ) : null}
         <button
           type="button"
           className="zz-model-status"
           data-testid="model-status"
           data-ready={ready}
+          title={ready ? C.topbar.modelReady : C.topbar.modelMissing}
           onClick={() => openSettings("models")}
         >
           <i aria-hidden="true" />
-          {ready ? C.topbar.modelReady : C.topbar.modelMissing}
+          <span>{ready ? C.topbar.modelReady : C.topbar.modelMissing}</span>
         </button>
-        {selected ? (
-          <div className="zz-topbar__menu">
-            <IconButton
-              label={C.topbar.export}
-              data-testid="export-menu"
-              icon={<Download size={16} />}
-              onClick={() => setMenu(menu === "export" ? "" : "export")}
-            />
-            {menu === "export" ? (
-              <Menu
+        <div className="zz-topbar__tools">
+          {selected ? (
+            <div className="zz-topbar__menu zz-menu-root">
+              <IconButton
                 label={C.topbar.export}
-                className="zz-menu--end"
-                items={formats.map((format) => ({
-                  id: format,
-                  label: C.topbar.exportFormat[format],
-                  onSelect: () => exportAs(format).catch(notifyError),
-                }))}
-                onClose={close}
+                data-testid="export-menu"
+                aria-haspopup="menu"
+                aria-expanded={menu === "export"}
+                icon={<Download size={16} />}
+                onClick={() => setMenu(menu === "export" ? "" : "export")}
               />
-            ) : null}
-          </div>
-        ) : null}
-        {selected ? (
+              {menu === "export" ? (
+                <Menu
+                  label={C.topbar.export}
+                  className="zz-menu--end"
+                  items={formats.map((format) => ({
+                    id: format,
+                    label: C.topbar.exportFormat[format],
+                    onSelect: () => exportAs(format).catch(notifyError),
+                  }))}
+                  onClose={close}
+                />
+              ) : null}
+            </div>
+          ) : null}
+          {selected ? (
+            <IconButton
+              label={C.topbar.toggleDock}
+              pressed={dockOpen}
+              data-testid="dock-toggle"
+              icon={<PanelRight size={16} />}
+              onClick={() => set({ dockOpen: !dockOpen })}
+            />
+          ) : null}
           <IconButton
-            label={C.topbar.toggleDock}
-            pressed={dockOpen}
-            data-testid="dock-toggle"
-            icon={<PanelRight size={16} />}
-            onClick={() => set({ dockOpen: !dockOpen })}
+            label={C.topbar.settings}
+            data-testid="open-settings"
+            icon={<SettingsIcon size={16} />}
+            onClick={() => openSettings()}
           />
-        ) : null}
-        <IconButton
-          label={C.topbar.settings}
-          data-testid="open-settings"
-          icon={<SettingsIcon size={16} />}
-          onClick={() => openSettings()}
-        />
+        </div>
       </header>
+      <GlobalRail />
       {workspace?.readonly ? (
         <div className="zz-banner" role="status" data-testid="readonly-banner">
           <span>{C.topbar.readonly(workspace.owner ?? "")}</span>

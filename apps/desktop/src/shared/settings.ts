@@ -154,22 +154,7 @@ function assertUniqueConnections(connections: readonly { id: string }[], base: s
   });
 }
 
-/** 按角色取绑定；judge / extractor / assistant 缺省时回落到 editor / planner / writer。 */
-export function bindingFor(roles: RoleBindings, role: ModelRole): RoleBinding | undefined {
-  const fallback: Record<ModelRole, ModelRole[]> = {
-    writer: ["writer"],
-    editor: ["editor", "writer"],
-    planner: ["planner", "writer"],
-    judge: ["judge", "editor", "writer"],
-    extractor: ["extractor", "planner", "writer"],
-    assistant: ["assistant", "writer"],
-  };
-  for (const candidate of fallback[role]) {
-    const hit = roles[candidate];
-    if (hit) return hit;
-  }
-  return undefined;
-}
+export { bindingFor } from "./roles.js";
 
 /** 连接对外视图：不含 API Key，只告诉渲染层是否已配置密钥。 */
 export type PublicConnection = ModelConnection & { configured: boolean };
@@ -188,12 +173,30 @@ export interface SettingsPatch {
 }
 
 export function parseSettingsPatch(raw: unknown): SettingsPatch {
-  return obj({
+  const parsed = obj({
     engine: opt(EngineSchema),
     appearance: opt(AppearanceSchema),
     context: opt(ContextSchema),
     assistant: opt(obj({ preferences: str({ max: 4000 }) })),
   })(raw, "$patch");
+  // obj() 会给缺省的可选分区写出 `key: undefined`；不剔除就会在合并时把现有分区覆盖掉。
+  const patch: SettingsPatch = {};
+  if (parsed.engine !== undefined) patch.engine = parsed.engine;
+  if (parsed.appearance !== undefined) patch.appearance = parsed.appearance;
+  if (parsed.context !== undefined) patch.context = parsed.context;
+  if (parsed.assistant !== undefined) patch.assistant = parsed.assistant;
+  return patch;
+}
+
+/** 把分区补丁合并进现有设置：值为 undefined 的分区一律视为“未提供”，保留原值。 */
+export function mergeSettingsPatch(current: AppSettings, patch: SettingsPatch): AppSettings {
+  return {
+    ...current,
+    ...(patch.engine !== undefined ? { engine: patch.engine } : {}),
+    ...(patch.appearance !== undefined ? { appearance: patch.appearance } : {}),
+    ...(patch.context !== undefined ? { context: patch.context } : {}),
+    ...(patch.assistant !== undefined ? { assistant: patch.assistant } : {}),
+  };
 }
 
 /** models.save 的输入：连接列表整体替换；apiKey 省略表示沿用已存密钥，空串表示清除。 */

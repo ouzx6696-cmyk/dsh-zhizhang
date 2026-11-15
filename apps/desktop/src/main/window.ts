@@ -4,13 +4,21 @@ import { BrowserWindow, nativeTheme, shell } from "electron";
 import type { AppearanceSettings } from "../shared/settings.js";
 import { DEV_CONTENT_SECURITY_POLICY } from "./csp.js";
 import { guardUnload } from "./exit.js";
+import { WINDOW_BACKGROUND } from "@zhizhang/ui/tokens";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
 // 与令牌文件两套主题的底色一致：首帧之前的窗口底色不露白。
-const BACKGROUND = { dark: "#101419", light: "#f1ebe0" } as const;
+const BACKGROUND = WINDOW_BACKGROUND;
 
-export async function createMainWindow(appearance: AppearanceSettings): Promise<BrowserWindow> {
+/**
+ * 创建主窗口。`onCreated` 在开始加载页面之前回调：渲染层一启动就会发 IPC，
+ * 主帧校验需要先拿到窗口引用，不能等页面加载完才赋值。
+ */
+export async function createMainWindow(
+  appearance: AppearanceSettings,
+  onCreated?: (window: BrowserWindow) => void,
+): Promise<BrowserWindow> {
   const resolved: "dark" | "light" =
     appearance.theme === "system"
       ? nativeTheme.shouldUseDarkColors
@@ -61,6 +69,7 @@ export async function createMainWindow(appearance: AppearanceSettings): Promise<
   }
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   const query = { theme: resolved };
+  onCreated?.(window);
   await (rendererOrigin
     ? window.loadURL(`${rendererOrigin}?${new URLSearchParams(query)}`)
     : window.loadFile(path.join(here, "../renderer/index.html"), { query }));

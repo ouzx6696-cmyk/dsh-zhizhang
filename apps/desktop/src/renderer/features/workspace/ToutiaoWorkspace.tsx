@@ -1,14 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Pen, Send } from "lucide-react";
-import { COPY, DESKTOP_COPY as C } from "@zhizhang/ui/copy";
+import { COPY, DESKTOP_COPY as C, WORKBENCH_COPY as W } from "@zhizhang/ui/copy";
 import { Button, Empty, Skeleton, StatusChip } from "@zhizhang/ui/primitives";
-import { TOUTIAO_DELIVERED, statusLabel } from "@zhizhang/ui/status";
+import { TOUTIAO_DELIVERED, statusChipTone, statusLabel } from "@zhizhang/ui/status";
 import { ARTICLE_TRANSITIONS, type ArticleStatus } from "@zhizhang/toutiao/status";
 import type { ArticleRowView } from "@zhizhang/toutiao/view";
 import {
+  ArticleList,
+  ArticleProgress,
   Manuscript,
   SourceEditor,
-  ToutiaoApp,
   useToutiao,
   type ToutiaoAction,
 } from "@zhizhang/workbench/client";
@@ -53,6 +54,7 @@ function DraftPanel({
   onTransition,
   onDeliver,
   busy,
+  progress,
 }: {
   articleDir: string;
   row: ArticleRowView;
@@ -61,6 +63,7 @@ function DraftPanel({
   onTransition: (to: ArticleStatus) => void;
   onDeliver: (title: string, body: string) => void;
   busy: boolean;
+  progress?: React.ReactNode;
 }) {
   const [draft, setDraft] = useState<DraftState>(EMPTY_DRAFT);
   const [editing, setEditing] = useState(false);
@@ -105,58 +108,75 @@ function DraftPanel({
   const status = row.status;
   const transitions = nextStatuses(status);
   const shownTitle = draft.title || row.title || row.id;
+  const words = draft.body.replace(/\s+/g, "").length;
+  const actions = (
+    <>
+      {transitions.map((to) => (
+        <Button
+          key={to}
+          size="sm"
+          variant="ghost"
+          data-testid="article-transition"
+          data-to={to}
+          disabled={readonly || busy}
+          onClick={() => onTransition(to)}
+        >
+          {C.toutiao.moveTo(statusLabel("toutiao", to))}
+        </Button>
+      ))}
+      {ARTICLE_TRANSITIONS[status].includes(TOUTIAO_DELIVERED) ? (
+        <Button
+          size="sm"
+          variant="primary"
+          data-testid="article-deliver"
+          disabled={readonly || busy || !draft.body}
+          onClick={() => onDeliver(shownTitle, draft.body)}
+        >
+          <Send size={14} aria-hidden="true" />
+          {COPY["toutiao.action.deliver"]}
+        </Button>
+      ) : null}
+    </>
+  );
+  const lead = (
+    <>
+      <span className="wb-bar-ordinal">{C.toutiao.draft}</span>
+      <StatusChip
+        tone={statusChipTone("toutiao", status)}
+        label={statusLabel("toutiao", status)}
+        dot
+      />
+      <span className="zz-hidden-value" data-testid="article-status">
+        {status}
+      </span>
+    </>
+  );
   return (
     <section className="zz-draft" data-testid="draft-panel" aria-label={C.toutiao.draft}>
-      <header className="zz-draft__head">
-        <StatusChip
-          tone={status === TOUTIAO_DELIVERED ? "ok" : "neutral"}
-          label={statusLabel("toutiao", status)}
-        />
-        <span className="zz-hidden-value" data-testid="article-status">
-          {status}
-        </span>
-        <span className="zz-draft__actions">
-          {transitions.map((to) => (
-            <Button
-              key={to}
-              size="sm"
-              data-testid="article-transition"
-              data-to={to}
-              disabled={readonly || busy}
-              onClick={() => onTransition(to)}
-            >
-              {C.toutiao.moveTo(statusLabel("toutiao", to))}
-            </Button>
-          ))}
-          {ARTICLE_TRANSITIONS[status].includes(TOUTIAO_DELIVERED) ? (
-            <Button
-              size="sm"
-              variant="primary"
-              data-testid="article-deliver"
-              disabled={readonly || busy || !draft.body}
-              onClick={() => onDeliver(shownTitle, draft.body)}
-            >
-              <Send size={14} aria-hidden="true" />
-              {COPY["toutiao.action.deliver"]}
-            </Button>
-          ) : null}
-        </span>
-      </header>
       {draft.status === "loading" ? (
-        <Skeleton lines={6} />
+        <div className="wb-reader-body">
+          <div className="wb-manuscript">
+            <Skeleton lines={8} />
+          </div>
+        </div>
       ) : draft.status === "error" ? (
         <Empty title={C.toutiao.draftFailed} description={draft.error} />
       ) : editing ? (
-        <div className="zz-draft__editor" data-testid="draft-editor">
-          <TextField
-            label={C.toutiao.draftTitle}
-            value={title}
-            onChange={setTitle}
-            testId="draft-title"
-          />
+        <div className="zz-draft__editor wb-sheet--article" data-testid="draft-editor">
           <SourceEditor
+            extra={
+              <div className="zz-draft__title-field">
+                <TextField
+                  label={C.toutiao.draftTitle}
+                  value={title}
+                  onChange={setTitle}
+                  testId="draft-title"
+                />
+              </div>
+            }
             initial={draft.body}
             title={C.toutiao.draft}
+            lead={lead}
             draftKey={articleDraftKey({ root: articleDir, id: row.id })}
             baseRevision={draft.revision}
             position={position}
@@ -166,22 +186,33 @@ function DraftPanel({
           />
         </div>
       ) : (
-        <div className="zz-draft__read">
-          <h2 data-testid="draft-heading">{shownTitle}</h2>
-          <div className="zz-paper" data-testid="draft-body">
-            <Manuscript text={draft.body} emptyText={C.toutiao.draftEmpty} />
+        <div className="wb-reader wb-sheet--article">
+          <header className="wb-bar">
+            <div className="wb-bar-lead">{lead}</div>
+            <div className="wb-bar-actions">
+              <Button
+                size="sm"
+                data-testid="draft-edit"
+                disabled={readonly}
+                onClick={() => {
+                  setTitle(draft.title || row.title);
+                  setEditing(true);
+                }}
+              >
+                <Pen size={14} aria-hidden="true" />
+                {draft.file ? C.toutiao.editDraft : C.toutiao.writeDraft}
+              </Button>
+              {actions ? <span className="zz-bar-divider" aria-hidden="true" /> : null}
+              {actions}
+            </div>
+          </header>
+          {progress}
+          <div className="wb-reader-body" data-testid="draft-body">
+            <Manuscript text={draft.body} title={shownTitle} emptyText={C.toutiao.draftEmpty} />
           </div>
-          <Button
-            data-testid="draft-edit"
-            disabled={readonly}
-            onClick={() => {
-              setTitle(draft.title || row.title);
-              setEditing(true);
-            }}
-          >
-            <Pen size={14} aria-hidden="true" />
-            {draft.file ? C.toutiao.editDraft : C.toutiao.writeDraft}
-          </Button>
+          <footer className="wb-statusbar">
+            <span className="wb-statusbar-item">{W.editor.words(words)}</span>
+          </footer>
         </div>
       )}
     </section>
@@ -275,28 +306,39 @@ export function ToutiaoWorkspace({ target, readonly }: { target: Target; readonl
 
   return (
     <div className="zz-workspace zz-workspace--toutiao">
-      {mainView === "board" ? (
-        <section className="zz-workspace__center">
-          <Ledger rows={rows} onOpen={open} />
-        </section>
-      ) : (
-        <section className="zz-workspace__center">
-          <ToutiaoApp state={state} rows={rows} selected={selected} dispatch={routed} />
-          {selected ? (
-            <DraftPanel
-              articleDir={target.path}
-              row={selected}
-              readonly={readonly}
-              revision={revision}
-              busy={Boolean(state.busyAction)}
-              onTransition={(to) => run(() => toutiao.transitionArticle(target.path, to))}
-              onDeliver={(title, body) =>
-                toutiao.deliverArticle(target.path, title, body).catch(notifyError)
-              }
-            />
-          ) : null}
-        </section>
-      )}
+      <nav className="zz-workspace__nav" aria-label={W.list.articleNav}>
+        <header className="zz-nav-head">
+          <h2>
+            {C.topbar.articles}
+            <span className="zz-nav-head__count">{rows.length}</span>
+          </h2>
+        </header>
+        <div className="zz-nav-body">
+          <ArticleList state={state} rows={rows} dispatch={routed} />
+        </div>
+      </nav>
+      <section className="zz-workspace__center">
+        {mainView === "board" ? (
+          <div className="zz-center-scroll">
+            <Ledger rows={rows} onOpen={open} />
+          </div>
+        ) : selected ? (
+          <DraftPanel
+            articleDir={target.path}
+            row={selected}
+            readonly={readonly}
+            revision={revision}
+            busy={Boolean(state.busyAction)}
+            progress={<ArticleProgress state={state} selected={selected} />}
+            onTransition={(to) => run(() => toutiao.transitionArticle(target.path, to))}
+            onDeliver={(title, body) =>
+              toutiao.deliverArticle(target.path, title, body).catch(notifyError)
+            }
+          />
+        ) : (
+          <Empty title={W.toutiao.pick} description={W.toutiao.pickHint} />
+        )}
+      </section>
     </div>
   );
 }

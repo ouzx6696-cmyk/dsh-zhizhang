@@ -7,17 +7,18 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { WORKBENCH_COPY } from "@zhizhang/ui/copy";
 import { Button } from "@zhizhang/ui/primitives";
 import { TextareaSurface } from "../../editor/TextareaSurface.js";
 import { findMatches, matchFrom, matchesToHighlights } from "../../editor/find.js";
 import { Icon } from "./components.js";
 import { confirmAction } from "./confirm.js";
-import { EDITOR_COPY as c } from "./copy.js";
 import { FindBar, isShortcut, typingElsewhere, useFind } from "./FindBar.js";
 import { applyScrollRatio, readScrollRatio } from "./reading-position.js";
 import { useDraftStash } from "./useDraftStash.js";
 import { canLeaveEdit, type EditorGuardSnapshot } from "./useSourceGuard.js";
 
+const c = WORKBENCH_COPY.editor;
 const WHITESPACE = /\s+/g;
 const SURROGATE_PAIR = /[\uD800-\uDBFF][\uDC00-\uDFFF]/g;
 
@@ -54,6 +55,10 @@ function statusOf({
 export interface SourceEditorProps {
   initial: string;
   title?: string;
+  /** 编辑条左侧的定位信息（例如“第 1 章”）；不传时显示 title。 */
+  lead?: React.ReactNode;
+  /** 编辑条下方的附加栏（例如头条的标题输入）。 */
+  extra?: React.ReactNode;
   note?: string;
   hint?: string;
   draftKey: string;
@@ -68,6 +73,8 @@ export interface SourceEditorProps {
 export function SourceEditor({
   initial,
   title,
+  lead,
+  extra,
   note,
   hint = "",
   draftKey,
@@ -272,32 +279,51 @@ export function SourceEditor({
   const offer = stash.offer;
 
   return (
-    <div className="wb-source-editor" data-testid="source-editor" ref={root} onKeyDown={escape}>
-      <div className="wb-source-editor-head">
-        <strong>{title || c.title}</strong>
-        <span
-          className="wb-source-status"
-          data-state={status.state}
-          title={status.title}
-          role="status"
-        >
-          {status.label}
-        </span>
-        <span className="wb-muted">{c.words(count)}</span>
-        <Button
-          variant="ghost"
-          className="wb-source-find"
-          title={c.shortcuts}
-          aria-keyshortcuts="Control+F Control+H"
-          onClick={() => find.open("replace", selectionSeed(surfaceRef.current))}
-        >
-          <Icon name="search" size={14} />
-          {c.findOpen}
-        </Button>
-      </div>
-      {note ? <p className="wb-muted wb-source-note">{note}</p> : null}
+    <div className="wb-editor" data-testid="source-editor" ref={root} onKeyDown={escape}>
+      <header className="wb-bar">
+        <div className="wb-bar-lead">
+          {lead ?? <strong className="wb-bar-title">{title || c.title}</strong>}
+        </div>
+        <div className="wb-bar-actions">
+          <Button
+            variant="ghost"
+            size="sm"
+            title={c.shortcuts}
+            aria-keyshortcuts="Control+F Control+H"
+            onClick={() => find.open("replace", selectionSeed(surfaceRef.current))}
+          >
+            <Icon name="search" size={14} />
+            {c.findOpen}
+          </Button>
+          <Button
+            size="sm"
+            data-testid="source-editor-cancel"
+            onClick={() => {
+              if (dirty && !discard) {
+                setDiscard(true);
+                return;
+              }
+              leaveRef.current();
+            }}
+            disabled={saving}
+          >
+            {discard ? c.discard : c.cancel}
+          </Button>
+          <Button
+            variant="strong"
+            size="sm"
+            data-testid="source-editor-save"
+            onClick={() => void save()}
+            disabled={saving}
+          >
+            {saving ? c.saving : c.save}
+          </Button>
+        </div>
+      </header>
+      {extra}
+      {note ? <p className="wb-editor-note">{note}</p> : null}
       {offer ? (
-        <div className="wb-source-offer" role="group" aria-label={c.draftOffer}>
+        <div className="wb-editor-offer" role="group" aria-label={c.draftOffer}>
           <span>
             {c.restoreLead(
               new Date(offer.savedAt).toLocaleString(undefined, {
@@ -311,7 +337,8 @@ export function SourceEditor({
             )}
           </span>
           <Button
-            variant="primary"
+            size="sm"
+            variant="strong"
             onClick={() => {
               setText(stash.restore());
               setDiscard(false);
@@ -319,7 +346,7 @@ export function SourceEditor({
           >
             {c.restore}
           </Button>
-          <Button variant="ghost" onClick={stash.drop}>
+          <Button size="sm" variant="ghost" onClick={stash.drop}>
             {c.discardDraft}
           </Button>
         </div>
@@ -340,6 +367,11 @@ export function SourceEditor({
           }}
           canReplace
         />
+      ) : null}
+      {error ? (
+        <p className="wb-editor-error" role="alert">
+          {error}
+        </p>
       ) : null}
       <div className="wb-source-field">
         <div ref={backdrop} className="wb-source-backdrop" aria-hidden="true" />
@@ -362,31 +394,19 @@ export function SourceEditor({
           }}
         />
       </div>
-      {error ? <p role="alert">{error}</p> : null}
-      <div className="wb-action-row">
-        <Button
-          variant="primary"
-          data-testid="source-editor-save"
-          onClick={() => void save()}
-          disabled={saving}
+      <footer className="wb-statusbar">
+        <span
+          className="wb-source-status"
+          data-state={status.state}
+          title={status.title}
+          role="status"
         >
-          {saving ? c.saving : c.save}
-        </Button>
-        <Button
-          data-testid="source-editor-cancel"
-          onClick={() => {
-            if (dirty && !discard) {
-              setDiscard(true);
-              return;
-            }
-            leaveRef.current();
-          }}
-          disabled={saving}
-        >
-          {discard ? c.discard : c.cancel}
-        </Button>
-        <span className="wb-muted">{hint || c.hint}</span>
-      </div>
+          {status.label}
+        </span>
+        <span className="wb-statusbar-item">{c.words(count)}</span>
+        <span className="wb-statusbar-spacer" />
+        <span className="wb-statusbar-item">{hint || c.hint}</span>
+      </footer>
     </div>
   );
 }

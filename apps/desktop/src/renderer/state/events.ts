@@ -110,8 +110,20 @@ export function subscribeDesktopEvents(): () => void {
   const unsubscribe = desktop.subscribe((event: DesktopEvent) => {
     const selected = desktopStore.get().selected?.target ?? null;
     switch (event.kind) {
-      case "run":
+      case "run": {
+        const open = ["running", "paused", "failed", "awaiting-author"].includes(event.run.state);
+        set((state) => {
+          const rest = state.runs.filter((r) => r.id !== event.run.id);
+          const stale = state.runs.find((r) => r.id === event.run.id);
+          if (stale && stale.updated > event.run.updated) return {};
+          const closeCompare = !open && state.compare?.runId === event.run.id;
+          return {
+            runs: open ? [event.run, ...rest] : rest,
+            ...(closeCompare ? { compare: null } : {}),
+          };
+        });
         return;
+      }
       case "running": {
         set({ running: event.rows });
         return;

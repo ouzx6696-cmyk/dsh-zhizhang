@@ -9,7 +9,8 @@ export function toneClass(tone: SemanticTone): string {
   return `zz-tone-${tone}`;
 }
 
-export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+/** primary = 琥珀（只给拍板）；strong = 墨色实底（编辑态保存等常用但非拍板的主操作）。 */
+export type ButtonVariant = "primary" | "strong" | "secondary" | "ghost" | "danger";
 export type ButtonSize = "sm" | "md" | "lg";
 
 export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> {
@@ -228,7 +229,7 @@ export type NoticeVariant = "inline" | "banner" | "toast";
 export interface NoticeProps {
   tone: NoticeTone;
   variant?: NoticeVariant;
-  message: string;
+  message: ReactNode;
   detail?: string;
   actionLabel?: string;
   onAction?: () => void;
@@ -326,6 +327,8 @@ export interface MenuItem {
   danger?: boolean;
   disabled?: boolean;
   separator?: boolean;
+  /** 分组标题：只作说明，不是可选项（不渲染为 menuitem）。 */
+  heading?: boolean;
   onSelect?: () => void;
 }
 

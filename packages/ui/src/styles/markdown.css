@@ -1,25 +1,86 @@
-.ui-markdown table {
-  border-collapse: collapse;
-  width: 100%;
-  font-family: var(--zz-font-ui);
-  font-size: var(--zz-size-13);
-}
-.ui-markdown th,
-.ui-markdown td {
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--zz-line);
-  text-align: left;
-  vertical-align: top;
-}
-.ui-markdown code {
-  font-family: var(--zz-font-mono);
-  font-size: var(--zz-size-13);
+/* 助手消息里的 Markdown：界面字号，克制的块级间距。 */
+.ui-markdown {
+  color: var(--zz-text-1);
+  font-size: var(--zz-text-body);
+  line-height: var(--zz-leading-body);
   overflow-wrap: anywhere;
 }
+
+.ui-markdown > * + * {
+  margin-top: var(--zz-space-2);
+}
+
+.ui-markdown p,
+.ui-markdown ul,
+.ui-markdown ol,
+.ui-markdown pre,
+.ui-markdown table,
+.ui-markdown blockquote {
+  margin-bottom: 0;
+}
+
+.ui-markdown ul,
+.ui-markdown ol {
+  padding-left: var(--zz-space-5);
+}
+
+.ui-markdown li + li {
+  margin-top: var(--zz-space-1);
+}
+
+.ui-markdown strong {
+  color: var(--zz-text-1);
+  font-weight: var(--zz-weight-strong);
+}
+
+.ui-markdown a {
+  color: var(--zz-run);
+}
+
+.ui-markdown h1,
+.ui-markdown h2,
+.ui-markdown h3 {
+  font-size: var(--zz-text-strong);
+  line-height: var(--zz-leading-strong);
+}
+
+.ui-markdown blockquote {
+  margin-left: 0;
+  padding-left: var(--zz-space-3);
+  border-left: 2px solid var(--zz-border-strong);
+  color: var(--zz-text-2);
+}
+
+.ui-markdown code {
+  padding: 0 var(--zz-space-1);
+  border-radius: var(--zz-radius-xs);
+  background: var(--zz-active);
+  font: var(--zz-text-meta) / var(--zz-leading-meta) var(--zz-font-mono);
+}
+
 .ui-markdown pre {
+  padding: var(--zz-space-3);
   overflow: auto;
-  white-space: pre-wrap;
-  padding: 12px;
   border-radius: var(--zz-radius-sm);
-  background: var(--zz-fill);
+  background: var(--zz-active);
+  white-space: pre-wrap;
+}
+
+.ui-markdown pre code {
+  padding: 0;
+  background: none;
+}
+
+.ui-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--zz-text-meta);
+}
+
+.ui-markdown th,
+.ui-markdown td {
+  padding: var(--zz-space-1) var(--zz-space-2);
+  border-bottom: 1px solid var(--zz-border);
+  text-align: left;
+  vertical-align: top;
 }

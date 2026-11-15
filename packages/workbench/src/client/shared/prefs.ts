@@ -16,6 +16,8 @@ export const PREF = {
   ttRoot: "toutiaoRoot",
   ttArticle: "toutiaoArticle",
   agentDraft: "agentDraft:",
+  dockWidth: "dockWidth",
+  dockSplit: "dockSplit",
 } as const;
 
 export function readPref(key: string, fallback = ""): string {
