@@ -213,6 +213,8 @@ export function reducer(state: FanqieState, action: FanqieAction): FanqieState {
       if (action.value.key !== bodyKey(state)) return state;
       return { ...state, chapter: { ...idleBody, ...action.value } };
     case "reloadBodies":
+      // 编辑中不重读（D3）：保存 / 取消会先退出编辑再触发重读。
+      if (state.edit && state.chapter.status === "ready") return state;
       return { ...state, bodyEpoch: state.bodyEpoch + 1, chapter: idleBody };
     case "openDialog":
       return { ...state, dialog: action.dialog };
@@ -243,6 +245,9 @@ export function derive(state: FanqieState): FanqieDerived {
 
 export function bodyKey(state: FanqieState): string {
   if (state.view !== "chapters" || !state.work || !state.chapterId) return "";
+  // 编辑中正文键冻结：后台刷新带来的当前章 revision 变化不重读正文、不把作者踢出编辑器；
+  // 退出编辑后键随最新 revision 重算，再按需重读（D3）。保存时的基线冲突由编辑器自己的 base 校验兜住。
+  if (state.edit && state.chapter.status === "ready" && state.chapter.key) return state.chapter.key;
   const current = state.rowSnapshot.byId[state.chapterId];
   return JSON.stringify([state.work, state.chapterId, current?.revision ?? "", state.bodyEpoch]);
 }

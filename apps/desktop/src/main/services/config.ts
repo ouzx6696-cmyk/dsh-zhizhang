@@ -8,6 +8,7 @@ import { atomicWrite, readTextIfExists } from "@zhizhang/core/fs";
 import { FORMAT_VERSION } from "@zhizhang/core/paths";
 import {
   DEFAULT_SETTINGS,
+  mergeSettingsPatch,
   parseSettings,
   type AppSettings,
   type ModelConnection,
@@ -149,7 +150,7 @@ export async function createConfigService(opts: {
     },
     async savePatch(patch) {
       assertEditable();
-      await persistSettings(parseSettings({ ...current, ...patch }));
+      await persistSettings(parseSettings(mergeSettingsPatch(current, patch)));
       return publicSettings();
     },
     async saveModels(input) {

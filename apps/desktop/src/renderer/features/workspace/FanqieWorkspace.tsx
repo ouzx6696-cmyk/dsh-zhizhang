@@ -172,16 +172,16 @@ export function FanqieWorkspace({ target, readonly }: { target: Target; readonly
   const [creating, setCreating] = useState(false);
   const pendingSelect = useRef("");
 
-  // 主进程广播的写作区变化（流水线交付、采纳、助手发起的命令）→ 增量重读快照与正文。
+  // 主进程广播的写作区变化（流水线交付、采纳、助手发起的命令）→ 只增量重读快照。
+  // 正文是否重读由正文键决定：当前章 revision 变了且不在编辑态时才重读，编辑中不会被踢出（D3）。
   const firstRevision = useRef(true);
   useEffect(() => {
     if (firstRevision.current) {
       firstRevision.current = false;
       return;
     }
-    dispatch({ type: "reloadBodies" });
     void refresh();
-  }, [revisions.rows, revisions.chapter, dispatch, refresh]);
+  }, [revisions.rows, revisions.chapter, refresh]);
 
   useEffect(() => {
     const id = pendingSelect.current;
