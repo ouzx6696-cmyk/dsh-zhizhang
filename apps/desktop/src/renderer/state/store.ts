@@ -4,6 +4,7 @@ import type {
   AppStateView,
   Focus,
   RunningRow,
+  RunSummary,
   Target,
   TargetItem,
   WorkspaceStatus,
@@ -47,6 +48,18 @@ export interface DesktopState {
   pipelineChapter: string;
   /** 当前番茄作品的章节（右栏流水线选章、圣经巡检范围用）。 */
   chapters: { id: string; title: string }[];
+  /** 仍在进行（运行 / 暂停 / 失败可重试 / 等你决定）的流水线，顶栏胶囊与全局进度轨共用。 */
+  runs: RunSummary[];
+  /** 中栏对照视图：正式稿 vs 候选稿；null 表示关闭。 */
+  compare: CompareRequest | null;
+  /** ≥1600px 时右栏是否把流水线与助手上下分屏。 */
+  dockSplit: boolean;
+}
+
+export interface CompareRequest {
+  target: Target;
+  runId: string;
+  chapter: string;
 }
 
 export const initialRevisions: Revisions = {
@@ -78,6 +91,9 @@ export const desktopStore = createStore<DesktopState>({
   creating: null,
   pipelineChapter: "",
   chapters: [],
+  runs: [],
+  compare: null,
+  dockSplit: true,
 });
 
 export function useDesktop<R>(selector: (state: DesktopState) => R): R {
