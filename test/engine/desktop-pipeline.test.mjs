@@ -139,28 +139,9 @@ test("中断与失败：重启时遗留的 running 记录转为可恢复的 paus
 async function toutiaoScriptsWithCardShim(base) {
   const dir = path.join(base, "scripts");
   await fs.mkdir(dir, { recursive: true });
-  for (const name of ["rules.py", "ledger.py", "writer_bridge.py", "fetch_hot.py"]) {
+  for (const name of ["rules.py", "ledger.py", "writer_bridge.py", "fetch_hot.py", "qa_check.py"]) {
     await fs.symlink(path.join(REAL_SCRIPTS, name), path.join(dir, name));
   }
-  // 规则桥 checkCard 以 `qa_check.py --card X --json` 调用（缺稿件路径，真实脚本会退出 2，见交付报告遗留问题）；
-  // 这里只替身这一种调用形态，其余调用全部交给真实 qa_check.py。
-  await fs.writeFile(
-    path.join(dir, "qa_check.py"),
-    [
-      "import importlib.util, json, sys",
-      `_spec = importlib.util.spec_from_file_location("_qa_real", ${JSON.stringify(path.join(REAL_SCRIPTS, "qa_check.py"))})`,
-      "_real = importlib.util.module_from_spec(_spec)",
-      "_spec.loader.exec_module(_real)",
-      "globals().update({k: v for k, v in vars(_real).items() if not k.startswith('__')})",
-      "if __name__ == '__main__':",
-      "    if sys.argv[1:2] == ['--card'] and sys.argv[3:] == ['--json']:",
-      "        json.load(open(sys.argv[2], encoding='utf-8'))",
-      "        print(json.dumps({'ok': True, 'errors': []}))",
-      "        sys.exit(0)",
-      "    _real.main()",
-      "",
-    ].join("\n"),
-  );
   return dir;
 }
 

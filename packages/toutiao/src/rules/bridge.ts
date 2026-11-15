@@ -83,6 +83,17 @@ function parseStyleCatalog(markdown: string): StyleCatalog {
   };
 }
 
+const CARD_CHECK_PY = [
+  "import json, sys",
+  "sys.path.insert(0, sys.argv[1])",
+  "import qa_check",
+  "try:",
+  "    qa_check.load_card(sys.argv[2])",
+  "    print(json.dumps({'ok': True, 'errors': []}, ensure_ascii=False))",
+  "except qa_check.QAInputError as exc:",
+  "    print(json.dumps({'ok': False, 'errors': [str(exc)]}, ensure_ascii=False))",
+].join("\n");
+
 export function createRulesBridge(scriptsDir: string) {
   const bridgeScript = path.join(scriptsDir, "writer_bridge.py");
   const qaScript = path.join(scriptsDir, "qa_check.py");
@@ -95,11 +106,12 @@ export function createRulesBridge(scriptsDir: string) {
       const res = await runPythonJson<{ ok: boolean; markdown?: string }>(bridgeScript, ["rules"]);
       return parseStyleCatalog(res.markdown ?? "");
     },
+    /** 立项卡结构预检：只调 qa_check 的 load_card（类型校验），不需要稿件；规则本身不在 TS 复刻。 */
     checkCard(cardPath: string): Promise<{ ok: boolean; errors: string[] }> {
-      return runPythonJson<{ ok: boolean; errors: string[] }>(qaScript, [
-        "--card",
+      return runPythonJson<{ ok: boolean; errors: string[] }>("-c", [
+        CARD_CHECK_PY,
+        path.dirname(qaScript),
         cardPath,
-        "--json",
       ]);
     },
     async qa(args: {
