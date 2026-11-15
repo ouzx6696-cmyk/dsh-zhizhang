@@ -4,7 +4,7 @@ import { CONTENT_SECURITY_POLICY } from "./src/main/csp";
 import path from "node:path";
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin({ exclude: ["@zhizhang/ui"] })],
+    plugins: [externalizeDepsPlugin({ exclude: ["@zhizhang/core", "@zhizhang/ui", "@zhizhang/fanqie", "@zhizhang/toutiao", "@zhizhang/workbench"] })],
     build: {
       rollupOptions: {
         input: path.resolve("src/main/index.ts"),

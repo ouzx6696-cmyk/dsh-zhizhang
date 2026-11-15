@@ -10,7 +10,7 @@
   "scripts": {
     "check": "tsc -b && eslint . && prettier --check . && node scripts/guard.mjs",
     "test": "python3 -m unittest discover -s packages/toutiao/skill/tests -p \"test_*.py\" && python3 -m unittest discover -s packages/fanqie/skill/tests -p \"test_*.py\" && node --test test/unit/*.test.mjs test/engine/*.test.mjs",
-    "test:e2e": "npm run build -w @zhizhang/desktop && npx playwright test",
+    "test:e2e": "npm run build -w @zhizhang/desktop && playwright test -c apps/desktop/playwright.config.mjs",
     "release:verify": "node scripts/verify-release.mjs",
     "build": "tsc -b",
     "assets": "node scripts/assets.mjs",

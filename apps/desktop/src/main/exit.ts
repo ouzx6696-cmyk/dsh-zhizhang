@@ -42,7 +42,8 @@ export function registerQuitCleanup(
       }
     })().finally(() => {
       cleaned = true;
-      app.quit();
+      // 窗口均已同意关闭、清理已完成；再走 app.quit() 时 Electron 不会再次结束进程（实测挂起），直接退出。
+      app.exit(0);
     });
   });
 }
