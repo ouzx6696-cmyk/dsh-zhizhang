@@ -1,5 +1,5 @@
 import { defineConfig, externalizeDepsPlugin } from "electron-vite";
-import { VERSION } from "../../packages/core/src/version";
+import { APP_VERSION as VERSION } from "../../packages/core/src/version";
 import { CONTENT_SECURITY_POLICY } from "./src/main/csp";
 import path from "node:path";
 export default defineConfig({

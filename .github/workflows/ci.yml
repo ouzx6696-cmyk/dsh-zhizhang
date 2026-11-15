@@ -118,7 +118,7 @@ jobs:
           $package = Get-ChildItem apps/desktop/release/*.zip | Select-Object -First 1
           $zip = [System.IO.Compression.ZipFile]::OpenRead($package.FullName)
           try {
-            foreach ($file in @('Zhizhang.exe', 'resources/app.asar', 'resources/python/python.exe', 'resources/writer/scripts/writer-backup.mjs')) {
+            foreach ($file in @('Zhizhang.exe', 'resources/app.asar', 'resources/python/python.exe', 'resources/zhizhang/scripts/zhizhang-backup.mjs')) {
               if ($zip.Entries.FullName -notcontains $file) { throw "免安装包缺少 $file" }
             }
           } finally { $zip.Dispose() }

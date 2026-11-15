@@ -8,8 +8,8 @@ files:
   - out/**/*
   - package.json
 extraResources:
-  - from: resources/writer
-    to: writer
+  - from: resources/zhizhang
+    to: zhizhang
   - from: resources/python
     to: python
 asar: true

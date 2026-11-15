@@ -25,7 +25,7 @@ async function readOptional(file) {
     throw error;
   }
 }
-const existing = (await readOptional(path.join(dir, "python", "writer-runtime.json")))?.toString(
+const existing = (await readOptional(path.join(dir, "python", "zhizhang-runtime.json")))?.toString(
   "utf8",
 );
 if (existing && JSON.parse(existing).sha256 === hash) {
@@ -51,7 +51,7 @@ execFileSync("tar", ["-xzf", "python.tar.gz", "-C", "."], {
   stdio: "inherit",
 });
 await writeFile(
-  path.join(dir, "python", "writer-runtime.json"),
+  path.join(dir, "python", "zhizhang-runtime.json"),
   JSON.stringify({ version: "3.13.18", target: "windows-x64", url, sha256: hash }, null, 2),
 );
 await trimRuntime();
