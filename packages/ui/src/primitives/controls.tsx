@@ -24,6 +24,7 @@ export function Checkbox({
   disabled = false,
   description,
   className,
+  testId,
   onChange,
 }: CheckboxProps) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -40,6 +41,7 @@ export function Checkbox({
         ref={inputRef}
         type="checkbox"
         className="zz-checkbox__box"
+        data-testid={testId}
         checked={checked}
         disabled={disabled}
         onChange={(event) => onChange(event.target.checked)}
@@ -58,6 +60,7 @@ export function Toggle({
   disabled = false,
   description,
   className,
+  testId,
   onChange,
 }: ToggleProps) {
   return (
@@ -69,6 +72,7 @@ export function Toggle({
       <input
         type="checkbox"
         role="switch"
+        data-testid={testId}
         checked={checked}
         disabled={disabled}
         onChange={(event) => onChange(event.target.checked)}
@@ -119,6 +123,7 @@ export function Select<T extends string = string>({
   placeholder,
   disabled = false,
   className,
+  testId,
   onChange,
 }: SelectProps<T>) {
   return (
@@ -126,6 +131,7 @@ export function Select<T extends string = string>({
       <select
         id={id}
         aria-label={label}
+        data-testid={testId}
         disabled={disabled}
         value={value}
         className="zz-select__control"
@@ -155,10 +161,16 @@ export function Segmented<T extends string = string>({
   value,
   size = "md",
   className,
+  testId,
   onChange,
 }: SegmentedProps<T>) {
   return (
-    <div role="radiogroup" aria-label={label} className={segmentedClasses({ size, className })}>
+    <div
+      role="radiogroup"
+      aria-label={label}
+      data-testid={testId}
+      className={segmentedClasses({ size, className })}
+    >
       {options.map((opt) => {
         const selected = opt.value === value;
         return (
@@ -167,6 +179,7 @@ export function Segmented<T extends string = string>({
             type="button"
             role="radio"
             aria-checked={selected}
+            data-testid={testId ? `${testId}-${opt.value}` : undefined}
             disabled={opt.disabled}
             className="zz-segmented__item"
             onClick={() => onChange(opt.value)}
@@ -186,10 +199,12 @@ export function Tabs({
   value,
   orientation = "horizontal",
   className,
+  testId,
   onChange,
 }: TabsProps) {
   return (
     <div
+      data-testid={testId}
       role="tablist"
       aria-label={label}
       aria-orientation={orientation}
@@ -205,6 +220,7 @@ export function Tabs({
             role="tab"
             aria-selected={selected}
             aria-controls={tabPanelId(id, item.id)}
+            data-testid={testId ? `${testId}-${item.id}` : undefined}
             disabled={item.disabled}
             tabIndex={selected ? 0 : -1}
             className="zz-tab"

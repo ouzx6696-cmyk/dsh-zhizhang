@@ -63,7 +63,7 @@ try {
   browser = await chromium.connectOverCDP(endpoint);
   const context = browser.contexts()[0];
   const page = context.pages()[0] ?? (await context.waitForEvent("page", { timeout: 30000 }));
-  await page.locator(".writer-desktop").waitFor({ timeout: 30000 });
+  await page.locator(".zz-desktop").waitFor({ timeout: 30000 });
   const settingsReply = await page.evaluate(() => window.zhizhangBridge.invoke("settings.get"));
   const url = new URL(page.url());
   if (
@@ -99,7 +99,7 @@ try {
     timeout: 30000,
   });
   const backupPage = await backupApp.firstWindow();
-  await backupPage.locator(".writer-desktop").waitFor({ timeout: 30000 });
+  await backupPage.locator(".zz-desktop").waitFor({ timeout: 30000 });
   await backupApp.close();
   backupApp = undefined;
   if ((await hash(executable)) !== originalHash) throw new Error("原始交付客户端发生变化");

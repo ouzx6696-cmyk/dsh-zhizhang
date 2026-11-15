@@ -28,7 +28,7 @@ async function resolveLatestDraftText(articleDir: string): Promise<string> {
       return { full, mtimeMs: stat.mtimeMs };
     })
   );
-  withStats.sort((a, b) => b.mtimeMs - a.mtimeMs);
+  withStats.sort((a, b) => b.mtimeMs - a.mtimeMs || b.full.localeCompare(a.full));
   const content = await readTextIfExists(withStats[0].full);
   if (!content) {
     throw new AppError("input.not_found", `草稿内容为空: ${withStats[0].full}`);

@@ -8,7 +8,8 @@
     "./domain": "./src/domain/index.ts",
     "./rules": "./src/rules/index.ts",
     "./storage": "./src/storage/index.ts",
-    "./view": "./src/view/index.ts"
+    "./view": "./src/view/index.ts",
+    "./status": "./src/domain/status.ts"
   },
   "dependencies": {
     "@zhizhang/core": "*"

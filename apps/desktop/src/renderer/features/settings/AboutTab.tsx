@@ -1,64 +1,75 @@
-import { DESKTOP_COPY as viewCopy, tDesktop as viewText } from "../../../shared/copy";
-import { Brand } from "../../components/primitives";
-import React from "react";
-import { Download } from "lucide-react";
-import type { SystemState } from "../../state/store";
+import React, { useState } from "react";
+import { COPY, DESKTOP_COPY as C } from "@zhizhang/ui/copy";
+import { notify } from "@zhizhang/ui/notify";
+import { Button } from "@zhizhang/ui/primitives";
+import type { UpdateStatus } from "../../../shared/views";
+import { resetSettings } from "../../state/controller";
 import { desktop } from "../../state/desktop";
-import { askConfirm } from "../../state/confirm";
+import { desktopStore, useDesktop } from "../../state/store";
+import { notifyError, run } from "../../format";
+import { Section } from "./fields";
 
-type Action = (operation: () => unknown) => Promise<unknown>;
-
-function updateText(updates: SystemState["updates"]) {
-  if (updates.state === "available")
-    return viewText("settingsDialogText34", { value0: updates.version });
-  if (updates.state === "downloaded") return viewCopy.settingsDialogText35;
-  if (updates.state === "downloading")
-    return viewText("settingsDialogText36", { value0: updates.percent });
-  return updates.message || viewCopy.settingsDialogText37;
+export function updateText(status: UpdateStatus): string {
+  switch (status.state) {
+    case "unavailable":
+      return C.about.updatesUnavailable;
+    case "idle":
+    case "checking":
+    case "latest":
+      return C.about.updates[status.state];
+    case "available":
+    case "downloading":
+    case "ready":
+      return C.about.updateNext(status.next);
+    case "error":
+      return status.message;
+    default: {
+      const never: never = status;
+      return never;
+    }
+  }
 }
 
-export function AboutTab({
-  version,
-  updates,
-  action,
-  canRestart,
-}: {
-  version: string;
-  updates: SystemState["updates"];
-  action: Action;
-  canRestart: () => boolean;
-}) {
+export function AboutTab() {
+  const app = useDesktop((s) => s.app);
+  const [checking, setChecking] = useState(false);
+  if (!app) return null;
+  const check = async () => {
+    setChecking(true);
+    try {
+      const updates = await desktop.updates("check");
+      desktopStore.set((s) => ({ app: s.app ? { ...s.app, updates } : null }));
+    } catch (error) {
+      notifyError(error);
+    } finally {
+      setChecking(false);
+    }
+  };
+  const diagnostics = async () => {
+    const result = await desktop.diagnostics();
+    if (result) notify({ tone: "success", text: C.about.diagnosticsDone(result.file) });
+  };
   return (
-    <div>
-      <Brand />
-      <h3>
-        {viewCopy.settingsDialogText31}
-        {version}
-      </h3>
-      <p>{viewCopy.settingsDialogText32}</p>
-      <h3>{viewCopy.settingsDialogText33}</h3>
-      <p>{updateText(updates)}</p>
-      <div className="button-row">
-        <button onClick={() => action(() => desktop.updates())}>
-          {viewCopy.settingsDialogText38}
-        </button>
-        {updates.state === "available" && (
-          <button onClick={() => action(() => desktop.updates("download"))}>
-            <Download size={16} />
-            {viewCopy.settingsDialogText39}
-          </button>
-        )}
-        {updates.state === "downloaded" && (
-          <button
-            onClick={async () => {
-              if (canRestart() && (await askConfirm(viewCopy.settingsDialogText40)))
-                void action(() => desktop.updates("install"));
-            }}
-          >
-            {viewCopy.settingsDialogText41}
-          </button>
-        )}
-      </div>
+    <div className="zz-stack" data-testid="settings-about">
+      <Section title={COPY["app.name"]}>
+        <p data-testid="about-version">{C.about.version(app.version, app.platform)}</p>
+        <p className="zz-muted" data-testid="about-updates" data-state={app.updates.state}>
+          {updateText(app.updates)}
+        </p>
+        <Button size="sm" loading={checking} disabled={app.updates.state === "unavailable"} onClick={() => void check()}>
+          {C.about.check}
+        </Button>
+      </Section>
+      <Section title={C.about.support}>
+        <div className="zz-row">
+          <Button data-testid="diagnostics-export" onClick={() => diagnostics().catch(notifyError)}>
+            {C.about.diagnostics}
+          </Button>
+          <Button variant="danger" data-testid="settings-reset" onClick={() => run(resetSettings)}>
+            {C.about.reset}
+          </Button>
+        </div>
+      </Section>
     </div>
   );
 }

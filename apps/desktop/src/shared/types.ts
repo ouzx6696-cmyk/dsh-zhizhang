@@ -41,14 +41,3 @@ export type ResultCard = {
   runId?: string;
   pipeline?: string;
 };
-
-export type SourceEditState = {
-  dirty: boolean;
-  saving: boolean;
-};
-
-export type WorkspaceContext = {
-  target: Target | null;
-  focus: Focus;
-  candidate?: { id: string; title?: string };
-};

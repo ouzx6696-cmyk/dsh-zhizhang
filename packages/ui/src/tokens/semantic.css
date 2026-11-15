@@ -45,11 +45,11 @@
   --zz-warning: var(--zz-warn);
   --zz-danger: var(--zz-bad);
 
-  --zz-font-ui: "Noto Sans SC", "Microsoft YaHei UI", "PingFang SC", system-ui, sans-serif;
+  --zz-font-ui: "Microsoft YaHei UI", "PingFang SC", system-ui, sans-serif;
   --zz-font-paper: "Noto Serif SC", "Songti SC", Georgia, serif;
   --zz-body-family: var(--zz-font-paper);
   --zz-font-body: var(--zz-body-family);
-  --zz-font-mono: "Noto Sans Mono CJK SC", ui-monospace, SFMono-Regular, Consolas, monospace;
+  --zz-font-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
 
   --zz-body-size: 18px;
   --zz-font-step: 1px;

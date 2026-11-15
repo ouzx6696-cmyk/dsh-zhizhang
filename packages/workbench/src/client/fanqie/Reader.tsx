@@ -55,7 +55,7 @@ export function Reader({ state, view, dispatch, onSaveChapter, onEditState }: Re
   const readerStyle = { "--zz-font-step": String(state.fontStep) } as React.CSSProperties;
 
   return (
-    <div className="wb-reader" style={readerStyle}>
+    <div className="wb-reader" style={readerStyle} data-testid="chapter-reader">
       <header className="wb-reader-head">
         <div className="wb-reader-title-group">
           <h2>{state.chapter.title || view.current.title}</h2>
@@ -64,6 +64,7 @@ export function Reader({ state, view, dispatch, onSaveChapter, onEditState }: Re
         <div className="wb-reader-actions">
           <Button
             variant="secondary"
+            data-testid="chapter-edit"
             disabled={state.chapter.status !== "ready"}
             onClick={() => {
               reading.enter();
@@ -81,7 +82,7 @@ export function Reader({ state, view, dispatch, onSaveChapter, onEditState }: Re
           {state.chapter.error || "章节加载失败"}
         </Callout>
       ) : null}
-      <div className="wb-reader-body" ref={reading.body}>
+      <div className="wb-reader-body" ref={reading.body} data-testid="chapter-body">
         {state.chapter.status === "loading" ? (
           <Skeleton lines={8} />
         ) : (

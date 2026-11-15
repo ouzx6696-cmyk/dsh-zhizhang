@@ -1,198 +1,80 @@
-import React, { useCallback, useEffect, useState } from "react";
-import type { ReactNode } from "react";
-import { COPY } from "@zhizhang/ui/copy";
-import { TabList, tabPanelProps } from "@zhizhang/ui/tabs";
-import { PanelRightClose, Rows2 } from "lucide-react";
-import { DESKTOP_COPY as viewCopy } from "../../../shared/copy";
+import React, { useId } from "react";
+import { PanelRightClose } from "lucide-react";
+import { COPY, DESKTOP_COPY as C } from "@zhizhang/ui/copy";
+import { IconButton, Tabs, tabPanelProps } from "@zhizhang/ui/primitives";
+import { statusLabel } from "@zhizhang/ui/status";
+import type { Target } from "../../../shared/views";
+import { AgentPanel } from "../agent/AgentPanel";
+import { BiblePane } from "../workflow/BiblePane";
+import { WorkflowPanel } from "../workflow/WorkflowPanel";
+import { desktopStore, useDesktop, type DockTab } from "../../state/store";
 
-const DOCK_WIDTH_MIN = 300;
-const DOCK_WIDTH_MAX = 720;
-const DOCK_WIDTH_DEFAULT = 392;
-const SPLIT_RATIO_MIN = 0.25;
-const SPLIT_RATIO_MAX = 0.75;
+const set = desktopStore.set;
 
-function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(() =>
-    typeof window !== "undefined" && typeof window.matchMedia === "function"
-      ? window.matchMedia(query).matches
-      : false,
-  );
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
-    const mql = window.matchMedia(query);
-    const onChange = (event: MediaQueryListEvent) => setMatches(event.matches);
-    setMatches(mql.matches);
-    mql.addEventListener("change", onChange);
-    return () => mql.removeEventListener("change", onChange);
-  }, [query]);
-  return matches;
+function isDockTab(value: string): value is DockTab {
+  return value === "assistant" || value === "pipeline" || value === "chapter";
 }
 
-export interface RightDockProps {
-  tab: string;
-  setTab: (tab: string) => void;
-  drawer: boolean;
-  setDrawer: (open: boolean) => void;
-  split: boolean;
-  onToggleSplit: () => void;
-  mode: "fanqie" | "toutiao";
-  agent: ReactNode;
-  pipeline?: ReactNode;
-  inspector: ReactNode;
-  methodsPane: ReactNode;
-}
-
-export function RightDock({
-  tab,
-  setTab,
-  drawer,
-  setDrawer,
-  split,
-  onToggleSplit,
-  mode,
-  agent,
-  pipeline,
-  inspector,
-  methodsPane,
-}: RightDockProps) {
-  const tabsId = React.useId();
-  const isFourCol = useMediaQuery("(min-width: 1600px)");
-  const [dockWidth, setDockWidth] = useState<number>(DOCK_WIDTH_DEFAULT);
-  const [splitRatio, setSplitRatio] = useState<number>(0.5);
-
-  const startWidthDrag = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    const startX = event.clientX;
-    const startWidth = dockWidth;
-    const onMove = (moveEvent: PointerEvent) => {
-      const next = Math.min(
-        DOCK_WIDTH_MAX,
-        Math.max(DOCK_WIDTH_MIN, startWidth + (startX - moveEvent.clientX)),
-      );
-      setDockWidth(next);
-    };
-    const onUp = () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-    };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-  }, [dockWidth]);
-
-  const startSplitDrag = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    const container = event.currentTarget.parentElement;
-    if (!container) return;
-    const rect = container.getBoundingClientRect();
-    const onMove = (moveEvent: PointerEvent) => {
-      if (rect.height <= 0) return;
-      const ratio = (moveEvent.clientY - rect.top) / rect.height;
-      setSplitRatio(Math.min(SPLIT_RATIO_MAX, Math.max(SPLIT_RATIO_MIN, ratio)));
-    };
-    const onUp = () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-    };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-  }, []);
-
-  const tabs = [
-    { id: "agent", label: COPY["shell.tab.assistant"] },
-    { id: "pipeline", label: COPY["shell.tab.pipeline"] },
-    {
-      id: "chapter",
-      label: mode === "toutiao" ? viewCopy.workspaceLayoutText4 : COPY["shell.tab.chapter"],
-    },
-    { id: "methods", label: viewCopy.pfButton },
-  ];
-
-  const dockStyle = {
-    "--right-dock-width": `${dockWidth}px`,
-    "--right-dock-split-top": `${Math.round(splitRatio * 100)}%`,
-  } as React.CSSProperties;
-
+function ChapterPane({ target }: { target: Target }) {
+  const focus = useDesktop((s) => s.focus);
+  const selected = useDesktop((s) => s.selected);
+  const chapters = useDesktop((s) => s.chapters.length);
   return (
-    <>
-      <aside
-        className={"studio-sidebar right-dock " + (drawer ? "open" : "")}
-        style={dockStyle}
-        data-four-col={isFourCol ? "true" : "false"}
-      >
-        <div
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="调整侧栏宽度"
-          className="right-dock-resizer"
-          onPointerDown={startWidthDrag}
-        />
-        <div className="studio-tabs">
-          <TabList
-            id={tabsId}
-            label={viewCopy.sidebarTabs}
-            items={tabs}
-            value={tab}
-            onChange={setTab}
-            className="studio-tablist"
-          />
-          <button
-            type="button"
-            className="icon-button"
-            aria-pressed={split}
-            aria-label={split ? viewCopy.rightDockTabs : viewCopy.rightDockSplit}
-            title={split ? viewCopy.rightDockTabs : viewCopy.rightDockSplit}
-            onClick={onToggleSplit}
-          >
-            <Rows2 size={15} />
-          </button>
-          <button
-            type="button"
-            className="drawer-close icon-button"
-            aria-label={viewCopy.workspaceLayoutText7}
-            onClick={() => setDrawer(false)}
-          >
-            <PanelRightClose size={16} />
-          </button>
+    <div className="zz-chapter-pane" data-testid="chapter-pane">
+      <dl className="zz-facts">
+        <div>
+          <dt>{target.mode === "fanqie" ? C.dock.work : C.dock.article}</dt>
+          <dd>{selected?.label}</dd>
         </div>
-        {split ? (
-          <div className="studio-side-body right-dock-split">
-            <div
-              className="right-dock-pane agent-slot"
-              style={{ flex: `0 0 var(--right-dock-split-top, 50%)` }}
-            >
-              {agent}
-            </div>
-            <div
-              role="separator"
-              aria-orientation="horizontal"
-              aria-label="调整分屏比例"
-              className="right-dock-split-resizer"
-              onPointerDown={startSplitDrag}
-            />
-            <div className="right-dock-pane">{pipeline}</div>
+        {target.mode === "fanqie" ? (
+          <div>
+            <dt>{C.dock.chapter}</dt>
+            <dd data-testid="chapter-pane-current">{focus.title || focus.chapter || C.dock.none}</dd>
           </div>
         ) : (
-          <div className="studio-side-body" data-tab={tab}>
-            <div {...tabPanelProps(tabsId, "agent", tab)} className="agent-slot">
-              {agent}
-            </div>
-            <div {...tabPanelProps(tabsId, "pipeline", tab)} className="agent-slot">
-              {tab === "pipeline" && pipeline}
-            </div>
-            <div {...tabPanelProps(tabsId, "chapter", tab)} className="decision-panel">
-              {tab === "chapter" && inspector}
-            </div>
-            <div {...tabPanelProps(tabsId, "methods", tab)} className="methods-slot">
-              {methodsPane}
-            </div>
+          <div>
+            <dt>{C.fanqie.status}</dt>
+            <dd>{statusLabel("toutiao", selected?.status)}</dd>
           </div>
         )}
-      </aside>
-      {isFourCol && (
-        <aside className="studio-sidebar studio-inspector-col" aria-label="章节审读与方法">
-          <div className="decision-panel">{inspector}</div>
-        </aside>
-      )}
-    </>
+      </dl>
+      {target.mode === "fanqie" ? <BiblePane work={target.path} chapters={chapters} /> : null}
+    </div>
+  );
+}
+
+export function RightDock({ target }: { target: Target }) {
+  const base = useId();
+  const tab = useDesktop((s) => s.dockTab);
+  const items = [
+    { id: "assistant", label: COPY["shell.tab.assistant"] },
+    { id: "pipeline", label: COPY["shell.tab.pipeline"] },
+    { id: "chapter", label: target.mode === "toutiao" ? C.dock.articleTab : COPY["shell.tab.chapter"] },
+  ];
+  return (
+    <aside className="zz-dock" data-testid="right-dock" aria-label={C.dock.label}>
+      <div className="zz-dock__tabs">
+        <Tabs
+          id={base}
+          label={C.dock.label}
+          items={items}
+          value={tab}
+          testId="dock-tab"
+          onChange={(next) => {
+            if (isDockTab(next)) set({ dockTab: next });
+          }}
+        />
+        <IconButton label={C.dock.close} size="sm" icon={<PanelRightClose size={15} />} onClick={() => set({ dockOpen: false })} />
+      </div>
+      <div {...tabPanelProps(base, "assistant", tab)} className="zz-dock__panel">
+        <AgentPanel target={target} />
+      </div>
+      <div {...tabPanelProps(base, "pipeline", tab)} className="zz-dock__panel">
+        {tab === "pipeline" ? <WorkflowPanel target={target} /> : null}
+      </div>
+      <div {...tabPanelProps(base, "chapter", tab)} className="zz-dock__panel">
+        {tab === "chapter" ? <ChapterPane target={target} /> : null}
+      </div>
+    </aside>
   );
 }

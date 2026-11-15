@@ -1,7 +1,6 @@
-import { DESKTOP_COPY as viewCopy } from "../../../shared/copy";
-import { Dialog } from "../../components/primitives";
 import React from "react";
-import { AlertCircle } from "lucide-react";
+import { Button, Dialog } from "@zhizhang/ui/primitives";
+import { COPY, DESKTOP_COPY as C } from "@zhizhang/ui/copy";
 import { settleConfirm, useConfirmRequest } from "../../state/confirm";
 
 export function ConfirmDialog() {
@@ -9,20 +8,23 @@ export function ConfirmDialog() {
   if (!request) return null;
   return (
     <Dialog
-      title={viewCopy.confirmDialogText1}
-      className="confirm-dialog"
+      title={C.confirm.title}
+      closeLabel={COPY.close}
+      size="sm"
+      className="zz-confirm"
       onClose={() => settleConfirm(false)}
+      footer={
+        <>
+          <Button autoFocus data-testid="confirm-cancel" onClick={() => settleConfirm(false)}>
+            {request.cancelLabel || COPY.cancel}
+          </Button>
+          <Button variant="primary" data-testid="confirm-ok" onClick={() => settleConfirm(true)}>
+            {request.confirmLabel || C.confirm.ok}
+          </Button>
+        </>
+      }
     >
-      <AlertCircle size={20} />
-      <p>{request.message}</p>
-      <div className="confirm-actions">
-        <button autoFocus onClick={() => settleConfirm(false)}>
-          {request.cancelLabel || viewCopy.cancel}
-        </button>
-        <button className="primary" onClick={() => settleConfirm(true)}>
-          {request.confirmLabel || viewCopy.confirmDialogText2}
-        </button>
-      </div>
+      <p data-testid="confirm-message">{request.message}</p>
     </Dialog>
   );
 }

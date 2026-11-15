@@ -8,7 +8,8 @@
     "./contract": "./src/contract/index.ts",
     "./client": "./src/client/index.ts",
     "./editor": "./src/editor/index.ts",
-    "./manuscript": "./src/manuscript/index.ts"
+    "./manuscript": "./src/manuscript/index.ts",
+    "./styles.css": "./src/client/styles.css"
   },
   "dependencies": {
     "@zhizhang/core": "*",

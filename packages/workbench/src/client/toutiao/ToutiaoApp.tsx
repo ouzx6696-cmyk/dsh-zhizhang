@@ -29,7 +29,7 @@ export function ToutiaoApp({ state, rows, selected, dispatch }: ToutiaoAppProps)
     <div className="wb-toutiao">
       <aside className="wb-toutiao-list" aria-label="文章列表">
         {rows.length ? (
-          <ul className="wb-chapter-list" role="listbox" aria-label="头条文章">
+          <ul className="wb-chapter-list" role="listbox" aria-label="头条文章" data-testid="article-list">
             {rows.map((row) => {
               const active = row.id === state.selectedId;
               return (
@@ -38,6 +38,9 @@ export function ToutiaoApp({ state, rows, selected, dispatch }: ToutiaoAppProps)
                     type="button"
                     role="option"
                     aria-selected={active}
+                    data-testid="article-item"
+                    data-article-id={row.id}
+                    data-status={row.status}
                     className={cx("wb-chapter-item", active && "wb-chapter-item-on")}
                     onClick={() => dispatch({ type: "select", id: row.id })}
                   >

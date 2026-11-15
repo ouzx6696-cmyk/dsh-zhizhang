@@ -12,7 +12,7 @@ export function ChapterList({ chapters, selectedId, onSelect }: ChapterListProps
     return <Empty title="暂无章节" hint="创建或导入章节后将在此显示" icon="book" />;
   }
   return (
-    <ul className="wb-chapter-list" role="listbox" aria-label="章节列表">
+    <ul className="wb-chapter-list" role="listbox" aria-label="章节列表" data-testid="chapter-list">
       {chapters.map((ch) => {
         const active = ch.id === selectedId;
         return (
@@ -21,6 +21,9 @@ export function ChapterList({ chapters, selectedId, onSelect }: ChapterListProps
               type="button"
               role="option"
               aria-selected={active}
+              data-testid="chapter-item"
+              data-chapter-id={ch.id}
+              data-status={ch.status}
               className={cx("wb-chapter-item", active && "wb-chapter-item-on")}
               onClick={() => onSelect(ch.id)}
             >

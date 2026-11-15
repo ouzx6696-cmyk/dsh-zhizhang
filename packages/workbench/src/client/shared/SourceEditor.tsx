@@ -265,7 +265,7 @@ export function SourceEditor({
   const offer = stash.offer;
 
   return (
-    <div className="wb-source-editor" ref={root} onKeyDown={escape}>
+    <div className="wb-source-editor" data-testid="source-editor" ref={root} onKeyDown={escape}>
       <div className="wb-source-editor-head">
         <strong>{title || c.title}</strong>
         <span
@@ -339,6 +339,7 @@ export function SourceEditor({
         <textarea
           ref={field}
           className="wb-source-text"
+          data-testid="source-editor-input"
           aria-label={title || c.title}
           aria-keyshortcuts="Control+S Control+F Control+H Escape"
           value={text}
@@ -356,10 +357,16 @@ export function SourceEditor({
       </div>
       {error ? <p role="alert">{error}</p> : null}
       <div className="wb-action-row">
-        <Button variant="primary" onClick={() => void save()} disabled={saving}>
+        <Button
+          variant="primary"
+          data-testid="source-editor-save"
+          onClick={() => void save()}
+          disabled={saving}
+        >
           {saving ? c.saving : c.save}
         </Button>
         <Button
+          data-testid="source-editor-cancel"
           onClick={() => {
             if (dirty && !discard) {
               setDiscard(true);

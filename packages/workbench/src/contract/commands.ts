@@ -58,7 +58,7 @@ export interface WorkbenchCommandMap {
     access: "read";
   };
   "fanqie.chapter.save": {
-    input: { work: string; chapter: string; base: string; body: string };
+    input: { work: string; chapter: string; base: string; body: string; title?: string };
     result: { revision: string; row: ChapterRowView };
     access: "write";
   };
@@ -172,6 +172,12 @@ export interface WorkbenchCommandMap {
   "toutiao.article.export": {
     input: { articleDir: string; outPath: string; format?: "md" | "txt"; includeDelivery?: boolean };
     result: { outPath: string; articleId: string; chars: number };
+    access: "read";
+  };
+  "toutiao.draft.get": {
+    input: { articleDir: string };
+    /** 最新草稿；尚无草稿时 file 为空串。revision 与 toutiao.draft.save 的版本口径一致。 */
+    result: { file: string; title: string; body: string; revision: string };
     access: "read";
   };
   "toutiao.draft.save": {
@@ -316,6 +322,7 @@ export const COMMAND_POLICY: { readonly [K in WorkbenchCommand]: CommandPolicy<K
   "toutiao.article.transition": { access: "write", refresh: "article" },
   "toutiao.article.deliver": { access: "write", refresh: "article" },
   "toutiao.article.export": { access: "read" },
+  "toutiao.draft.get": { access: "read" },
   "toutiao.draft.save": { access: "write", refresh: "article" },
   "toutiao.source.register": { access: "write", refresh: "article" },
   "toutiao.ledger.show": { access: "read" },

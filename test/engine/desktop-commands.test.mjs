@@ -76,8 +76,9 @@ test("番茄命令：建书 → 写章 → 候选 → 导出 → 圣经，读写
   assert.equal((await run(ctx, mark("fanqie.work.get"), { work })).title, "夜航");
   assert.equal((await run(ctx, mark("fanqie.work.settings"), { work, targetWords: 1000 })).settings.targetWords, 1000);
 
-  const saved = await run(ctx, mark("fanqie.chapter.save"), { work, chapter: "ch-001", base: "", body: "林川推开门。\n\n他说道：走吧。" });
+  const saved = await run(ctx, mark("fanqie.chapter.save"), { work, chapter: "ch-001", base: "", body: "林川推开门。\n\n他说道：走吧。", title: "雨夜" });
   assert.equal(saved.row.status, "drafted");
+  assert.equal(saved.row.title, "雨夜");
   await expectCode(run(ctx, "fanqie.chapter.save", { work, chapter: "ch-001", base: "rev-stale", body: "x" }), "storage.conflict");
   const resaved = await run(ctx, "fanqie.chapter.save", { work, chapter: "ch-001", base: saved.revision, body: "林川推开门。\n\n他攥紧拳头。" });
   assert.notEqual(resaved.revision, saved.revision);
@@ -166,8 +167,15 @@ test("头条命令：建文章 → 登记来源 → 存稿 → 导出 → 状态
   );
   await expectCode(run(ctx, "toutiao.source.register", { articleDir, sourceId: "../x", kind: "paste", content: "x" }), "input.invalid");
 
+  assert.deepEqual(await run(ctx, mark("toutiao.draft.get"), { articleDir }), { file: "", title: "", body: "", revision: "" });
   const draft1 = await run(ctx, mark("toutiao.draft.save"), { articleDir, title: "退休金到手多少", body: "第一版正文。" });
   assert.equal(path.basename(draft1.draftPath), "rev-001.md");
+  assert.deepEqual(await run(ctx, "toutiao.draft.get", { articleDir }), {
+    file: "rev-001.md",
+    title: "退休金到手多少",
+    body: "第一版正文。",
+    revision: draft1.revision,
+  });
   const draft2 = await run(ctx, "toutiao.draft.save", { articleDir, body: "第二版正文。", revision: draft1.revision });
   assert.equal(path.basename(draft2.draftPath), "rev-002.md");
   await expectCode(run(ctx, "toutiao.draft.save", { articleDir, body: "过期", revision: draft1.revision }), "storage.conflict");
@@ -247,9 +255,9 @@ test("拆书库命令：导入、列出、读卡；拆解经流水线发起，�
   assert.equal(dissectCalls[0].target.path, roots.library);
 });
 
-test("命令分派覆盖契约里的全部 44 条命令，读写策略齐全，未知命令被拒绝", async () => {
+test("命令分派覆盖契约里的全部 45 条命令，读写策略齐全，未知命令被拒绝", async () => {
   const all = Object.keys(desk.COMMAND_POLICY);
-  assert.equal(all.length, 44);
+  assert.equal(all.length, 45);
   for (const command of all) assert.equal(desk.isWorkbenchCommand(command), true, command);
   assert.deepEqual(all.filter((c) => !covered.has(c)), []);
   const { ctx } = await setup();

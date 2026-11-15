@@ -1,4 +1,8 @@
-export { createWorkbench, type WorkbenchBridge } from "./createWorkbench.js";
+export {
+  installWorkbenchTransport,
+  type RequestOptions,
+  type WorkbenchTransport,
+} from "../adapters/index.js";
 export { callCommand, fanqie, toutiao } from "./shared/api.js";
 export { confirmAction, setConfirm, type ConfirmHandler } from "./shared/confirm.js";
 export { PREF, oneOf, readPref, writePref } from "./shared/prefs.js";
@@ -27,3 +31,5 @@ export { Dialogs, type DialogsProps } from "./fanqie/Dialogs.js";
 export { useToutiao } from "./toutiao/useToutiao.js";
 export { ToutiaoApp, type ToutiaoAppProps } from "./toutiao/ToutiaoApp.js";
 export { ToutiaoSide, type ToutiaoSideProps } from "./toutiao/ToutiaoSide.js";
+export type { ToutiaoAction, ToutiaoState } from "./toutiao/state.js";
+export type { FanqieAction, FanqieDerived, FanqieState } from "./fanqie/state.js";

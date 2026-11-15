@@ -45,6 +45,8 @@ export function iconButtonClasses(
 export type DialogSize = "sm" | "md" | "lg" | "full";
 
 export interface DialogProps {
+  /** 端到端测试用的稳定选择器（渲染为 data-testid）。 */
+  testId?: string;
   open?: boolean;
   title: string;
   description?: ReactNode;
@@ -71,6 +73,8 @@ export interface TabItem {
 }
 
 export interface TabsProps {
+  /** 端到端测试用的稳定选择器（渲染为 data-testid）。 */
+  testId?: string;
   id: string;
   label: string;
   items: TabItem[];
@@ -109,6 +113,8 @@ export interface SegmentedOption<T extends string = string> {
 }
 
 export interface SegmentedProps<T extends string = string> {
+  /** 端到端测试用的稳定选择器（渲染为 data-testid）。 */
+  testId?: string;
   label?: string;
   options: SegmentedOption<T>[];
   value: T;
@@ -125,6 +131,8 @@ export function segmentedClasses(
 }
 
 export interface CheckboxProps {
+  /** 端到端测试用的稳定选择器（渲染为 data-testid）。 */
+  testId?: string;
   label: ReactNode;
   checked: boolean;
   indeterminate?: boolean;
@@ -141,6 +149,8 @@ export function checkboxClasses(
 }
 
 export interface ToggleProps {
+  /** 端到端测试用的稳定选择器（渲染为 data-testid）。 */
+  testId?: string;
   label: ReactNode;
   checked: boolean;
   disabled?: boolean;
@@ -174,6 +184,8 @@ export interface SelectOption<T extends string = string> {
 }
 
 export interface SelectProps<T extends string = string> {
+  /** 端到端测试用的稳定选择器（渲染为 data-testid）。 */
+  testId?: string;
   id?: string;
   label?: string;
   options: SelectOption<T>[];

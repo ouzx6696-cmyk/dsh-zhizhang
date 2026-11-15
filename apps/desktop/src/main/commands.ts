@@ -78,7 +78,7 @@ const INPUTS: { [K in WorkbenchCommand]: Parser<CommandInput<K>> } = {
   "fanqie.snapshot": obj({ work: id, since: opt(str()) }),
   "fanqie.chapter.list": obj({ work: id }),
   "fanqie.chapter.get": obj({ work: id, chapter: id }),
-  "fanqie.chapter.save": obj({ work: id, chapter: id, base: str(), body: str({ max: 2_000_000 }) }),
+  "fanqie.chapter.save": obj({ work: id, chapter: id, base: str(), body: str({ max: 2_000_000 }), title: opt(str({ max: 100, trim: true })) }),
   "fanqie.chapter.finalize": obj({ work: id, chapter: id }),
   "fanqie.candidate.list": obj({ work: id, chapter: opt(id) }),
   "fanqie.candidate.get": obj({ work: id, chapter: id, candidateId: id }),
@@ -107,6 +107,7 @@ const INPUTS: { [K in WorkbenchCommand]: Parser<CommandInput<K>> } = {
   "toutiao.article.transition": obj({ articleDir: id, to: id }),
   "toutiao.article.deliver": obj({ articleDir: id, title: str({ min: 1, max: 200 }), body: str({ min: 1, max: 400_000 }) }),
   "toutiao.article.export": obj({ articleDir: id, outPath: id, format: opt(lit("md", "txt")), includeDelivery: opt(bool) }),
+  "toutiao.draft.get": obj({ articleDir: id }),
   "toutiao.draft.save": obj({ articleDir: id, title: opt(str({ max: 200 })), body: str({ min: 1, max: 400_000 }), revision: opt(str()) }),
   "toutiao.source.register": obj({ articleDir: id, sourceId: id, kind: lit("paste", "file", "classic"), content: str({ min: 1, max: 2_000_000 }) }),
   "toutiao.ledger.show": obj({ ledgerPath: id, last: opt(int({ min: 1, max: 200 })) }),
@@ -192,7 +193,12 @@ const FANQIE: { [K in Group<"fanqie">]: Handler<K> } = {
     const before = await fanqie.readChapter(work, chapter).catch(() => undefined);
     const doc = await fanqie.saveChapter(
       work,
-      { chapterId: chapter, body: input.body, ...(input.base ? { expectedRevision: input.base } : {}) },
+      {
+        chapterId: chapter,
+        body: input.body,
+        ...(input.title ? { title: input.title } : {}),
+        ...(input.base ? { expectedRevision: input.base } : {}),
+      },
       ctx.locks,
     );
     if (before && before.body !== doc.body) await learnFromEdit(ctx, work, chapter, before.body, doc.body);
@@ -345,6 +351,17 @@ const TOUTIAO: { [K in Group<"toutiao">]: Handler<K> } = {
       format,
       ...(input.includeDelivery !== undefined ? { includeDelivery: input.includeDelivery } : {}),
     });
+  },
+  async "toutiao.draft.get"(input, ctx) {
+    const latest = await latestDraft(ctx.inside(input.articleDir));
+    if (!latest) return { file: "", title: "", body: "", revision: "" };
+    const heading = /^# (.+)\r?\n(?:\r?\n)?/.exec(latest.text);
+    return {
+      file: latest.file,
+      title: heading ? heading[1].trim() : "",
+      body: (heading ? latest.text.slice(heading[0].length) : latest.text).trimEnd(),
+      revision: sha256(latest.text).slice(0, 12),
+    };
   },
   async "toutiao.draft.save"(input, ctx) {
     const articleDir = ctx.inside(input.articleDir);

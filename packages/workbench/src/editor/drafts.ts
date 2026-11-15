@@ -4,7 +4,7 @@
  * - 浏览器后端：兼容 `localStorage` 暂存，防止意外关闭丢失
  */
 export const DRAFTS_DIR = ".zhizhang/drafts";
-const PREFIX = "dsh-writer-draft:";
+const PREFIX = "zhizhang:draft:";
 const WORK_PARTS = 3;
 
 export interface DraftEntry {

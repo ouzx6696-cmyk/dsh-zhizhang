@@ -29,6 +29,7 @@ export function Dialog({
   closeLabel,
   footer,
   className,
+  testId,
   onClose,
   children,
 }: DialogProps) {
@@ -58,6 +59,7 @@ export function Dialog({
     <dialog
       ref={ref}
       aria-label={title}
+      data-testid={testId}
       className={cx("ui-dialog", dialogClasses({ size, className }))}
       onCancel={(event) => {
         event.preventDefault();

@@ -1,166 +1,78 @@
-import React from "react";
-import { BUDGET_LIMITS, type EngineSettings } from "@zhizhang/core";
-import { toggleClasses } from "@zhizhang/ui/primitives";
-import { AGENT_COPY, DESKTOP_COPY as copy } from "../../../shared/copy";
-import type { ContextSettings } from "../../../context-settings";
-import type { SessionOptions } from "../../../session/types";
+import React, { useState } from "react";
+import { DESKTOP_COPY as C } from "@zhizhang/ui/copy";
+import { notify } from "@zhizhang/ui/notify";
+import { Button, Segmented, Toggle } from "@zhizhang/ui/primitives";
+import type { ContextSettings, EngineSettings, PublicSettings } from "../../../shared/settings";
+import { saveSettings } from "../../state/controller";
+import { notifyError } from "../../format";
+import { TextField } from "../workspace/TextField";
+import { NumberField, Section } from "./fields";
 
-const FLAGS = [
-  ["pursuit", "enabled", copy.workflowPursuit, "fanqie"],
-  ["pursuit", "radar", copy.workflowReadingRadar, "fanqie"],
-  ["continuity", "enabled", copy.workflowContinuity, "fanqie"],
-  ["learn", "enabled", copy.workflowLearn, "both"],
-  ["brief", "creationFirst", copy.workflowCreation, "both"],
-] as const;
+type Grade = EngineSettings["grade"];
 
-function flag(options: SessionOptions, mode: "fanqie" | "toutiao", group: string, key: string) {
-  const section = options[mode];
-  if (!section || !(group in section)) return false;
-  const value = section[group as keyof typeof section];
-  return (
-    typeof value === "object" && value !== null && key in value && Reflect.get(value, key) === true
-  );
-}
-
-function ToggleRow({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}) {
-  return (
-    <label className={toggleClasses()}>
-      <input
-        type="checkbox"
-        role="switch"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-      />
-      <span>{label}</span>
-    </label>
-  );
-}
-
-export function EngineTab({
-  value,
-  onChange,
-  options,
-  onOptionsChange,
-  context,
-  onContextChange,
-}: {
-  value: EngineSettings;
-  onChange: (value: EngineSettings) => void;
-  options: SessionOptions | null;
-  onOptionsChange: (value: SessionOptions) => void;
-  context: ContextSettings;
-  onContextChange: (value: ContextSettings) => void;
-}) {
-  const change = (mode: "fanqie" | "toutiao", group: string, key: string, enabled: boolean) => {
-    if (!options) return;
-    const section = options[mode] ?? {};
-    const existing = Reflect.get(section, group);
-    onOptionsChange({
-      ...options,
-      [mode]: {
-        ...section,
-        [group]: {
-          ...(typeof existing === "object" && existing !== null ? existing : {}),
-          [key]: enabled,
-        },
-      },
-    });
+export function EngineTab({ settings }: { settings: PublicSettings }) {
+  const [engine, setEngine] = useState<EngineSettings>(settings.engine);
+  const [context, setContext] = useState<ContextSettings>(settings.context);
+  const [preferences, setPreferences] = useState(settings.assistant.preferences);
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    setBusy(true);
+    try {
+      await saveSettings({ engine, context, assistant: { preferences } });
+      notify({ tone: "success", text: C.settings.saved });
+    } catch (error) {
+      notifyError(error);
+    } finally {
+      setBusy(false);
+    }
   };
   return (
-    <section>
-      <label>
-        {copy.workflowGrade}
-        <select
-          value={value.grade}
-          onChange={(e) => onChange({ ...value, grade: e.target.value as EngineSettings["grade"] })}
-        >
-          <option value="economy">{copy.workflowEconomy}</option>
-          <option value="standard">{copy.workflowStandard}</option>
-          <option value="premium">{copy.workflowPremium}</option>
-        </select>
-      </label>
-      <label>
-        {copy.workflowBudget}
-        <input
-          type="number"
-          min={BUDGET_LIMITS.min}
-          max={BUDGET_LIMITS.input}
-          value={value.inputBudget}
-          onChange={(e) => onChange({ ...value, inputBudget: Number(e.target.value) })}
+    <div className="zz-stack" data-testid="settings-engine">
+      <Section title={C.engine.title}>
+        <Segmented<Grade>
+          label={C.create.grade}
+          testId="engine-grade"
+          value={engine.grade}
+          options={(["economy", "standard", "premium"] as const).map((g) => ({ value: g, label: C.settings.grade[g] }))}
+          onChange={(grade) => setEngine({ ...engine, grade })}
         />
-      </label>
-      <label>
-        {copy.workflowRunBudget}
-        <input
+        <NumberField label={C.engine.inputBudget} value={engine.inputBudget} testId="engine-input-budget" onChange={(inputBudget) => setEngine({ ...engine, inputBudget })} />
+        <NumberField label={C.engine.runBudget} value={engine.runBudget} testId="engine-run-budget" onChange={(runBudget) => setEngine({ ...engine, runBudget })} />
+        <TextField
+          label={C.engine.moneyCap}
           type="number"
-          min={BUDGET_LIMITS.min}
-          max={BUDGET_LIMITS.run}
-          value={value.runBudget}
-          onChange={(e) => onChange({ ...value, runBudget: Number(e.target.value) })}
+          value={engine.moneyCap === undefined ? "" : String(engine.moneyCap)}
+          hint={C.engine.moneyCapHint}
+          testId="engine-money-cap"
+          onChange={(raw) => {
+            const value = Number(raw);
+            setEngine({ ...engine, moneyCap: raw.trim() === "" || !Number.isFinite(value) ? undefined : value });
+          }}
         />
-      </label>
-      <p className="form-note">{copy.workflowCostNote}</p>
-      <h3>{AGENT_COPY.contextSettings}</h3>
-      <ToggleRow
-        label={copy.contextPanelText16}
-        checked={context.enabled}
-        onChange={(checked) => onContextChange({ ...context, enabled: checked })}
-      />
-      <label>
-        {copy.contextPanelText17}
-        <input
-          type="number"
-          min="50"
-          max="95"
-          value={context.triggerPercent}
-          onChange={(e) => onContextChange({ ...context, triggerPercent: Number(e.target.value) })}
-        />
-      </label>
-      <label>
-        {copy.contextPanelText18}
-        <input
-          type="number"
-          min="0"
-          value={context.budget}
-          onChange={(e) => onContextChange({ ...context, budget: Number(e.target.value) })}
-        />
-      </label>
-      <label>
-        {copy.contextPanelText19}
-        <input
-          type="number"
-          min="0"
-          value={context.keepRecentTokens}
-          onChange={(e) =>
-            onContextChange({ ...context, keepRecentTokens: Number(e.target.value) })
-          }
-        />
-      </label>
-      <h3>{copy.workflowFeatures}</h3>
-      <p className="form-note">{copy.workflowExperimental}</p>
-      {(["fanqie", "toutiao"] as const).map((mode) => (
-        <fieldset key={mode} disabled={!options}>
-          <legend>{mode === "fanqie" ? copy.workflowChapter : copy.workflowArticle}</legend>
-          {FLAGS.filter((row) => row[3] === "both" || row[3] === mode).map(
-            ([group, key, label]) => (
-              <ToggleRow
-                key={group + key}
-                label={label}
-                checked={options ? flag(options, mode, group, key) : false}
-                onChange={(checked) => void change(mode, group, key, checked)}
-              />
-            ),
-          )}
-        </fieldset>
-      ))}
-    </section>
+        <div className="zz-row">
+          <NumberField
+            label={C.engine.concurrencyGlobal}
+            value={engine.concurrency.global}
+            testId="engine-concurrency-global"
+            onChange={(global) => setEngine({ ...engine, concurrency: { ...engine.concurrency, global } })}
+          />
+          <NumberField
+            label={C.engine.concurrencyRun}
+            value={engine.concurrency.perRun}
+            testId="engine-concurrency-run"
+            onChange={(perRun) => setEngine({ ...engine, concurrency: { ...engine.concurrency, perRun } })}
+          />
+        </div>
+      </Section>
+      <Section title={C.engine.assistant}>
+        <Toggle label={C.engine.autoCompact} checked={context.enabled} testId="context-enabled" onChange={(enabled) => setContext({ ...context, enabled })} />
+        <NumberField label={C.engine.triggerPercent} value={context.triggerPercent} testId="context-trigger" onChange={(triggerPercent) => setContext({ ...context, triggerPercent })} />
+        <NumberField label={C.engine.keepRecent} value={context.keepRecentTokens} testId="context-keep" onChange={(keepRecentTokens) => setContext({ ...context, keepRecentTokens })} />
+        <TextField label={C.engine.preferences} value={preferences} onChange={setPreferences} multiline testId="assistant-preferences" hint={C.engine.preferencesHint} />
+      </Section>
+      <Button variant="primary" data-testid="engine-save" loading={busy} onClick={() => void save()}>
+        {C.settings.save}
+      </Button>
+    </div>
   );
 }
