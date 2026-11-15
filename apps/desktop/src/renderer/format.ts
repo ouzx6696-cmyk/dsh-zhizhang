@@ -1,21 +1,45 @@
-import { formatDateTime } from "@writer/ui/copy";
+/** 错误与数值的界面呈现：错误按码取文案，主进程消息作为细节附在后面。 */
+import { CODES, isAppError, type ErrorCode } from "@zhizhang/core/errors";
+import { ERROR_COPY } from "@zhizhang/ui/copy";
+import { notify } from "@zhizhang/ui/notify";
 
-export function humanVersion(value: unknown, at?: string) {
-  // 版本标签只带时刻（HH:mm），日期从 formatDateTime 的固定宽度输出里截取。
-  return typeof value === "number"
-    ? `第 ${value} 版${at ? " · " + formatDateTime(at).slice(11) : ""}`
-    : at
-      ? `已保存 · ${formatDateTime(at).slice(11)}`
-      : "已保存版本";
+function isErrorCode(value: unknown): value is ErrorCode {
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(CODES, value);
 }
 
-export function actionTitle(text: string) {
-  const raw = text.replace(/^【写作台】\s*/, "");
-  let title = raw.split(/[。\n]/)[0] || raw;
-  title = title.split("：")[0] || title;
-  title = title
-    .replace(/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/gi, "")
-    .replace(/[，,、；;\s]+$/g, "")
-    .trim();
-  return title.length > 44 ? title.slice(0, 44) + "…" : title;
+export function errorCode(error: unknown): ErrorCode {
+  if (isAppError(error)) return error.code;
+  const code: unknown =
+    typeof error === "object" && error !== null ? Reflect.get(error, "code") : undefined;
+  return isErrorCode(code) ? code : "internal";
+}
+
+/** 一行给作者看的说明：码表文案 + 主进程给出的具体原因。 */
+export function errorText(error: unknown): string {
+  const title = ERROR_COPY[errorCode(error)];
+  const detail = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  return detail && detail !== title ? `${title}：${detail}` : title;
+}
+
+export function notifyError(
+  error: unknown,
+  retry?: () => Promise<unknown>,
+  retryLabel?: string,
+): void {
+  notify({
+    tone: "danger",
+    text: errorText(error),
+    action:
+      retry && retryLabel
+        ? {
+            label: retryLabel,
+            run: () => retry().catch((next: unknown) => notifyError(next, retry, retryLabel)),
+          }
+        : undefined,
+  });
+}
+
+/** 后台动作统一入口：失败转成通知，不抛给 React。 */
+export function run(task: () => Promise<unknown>): void {
+  task().catch((error: unknown) => notifyError(error));
 }

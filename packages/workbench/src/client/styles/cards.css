@@ -1,9 +1,9 @@
 /* 内容容器：卡片、空态、骨架屏、事实表与门禁。 */
 .wb-code {
-  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-mono);
+  font: var(--zz-size-12)/var(--zz-size-18) var(--zz-font-mono);
   padding: 1px 6px;
-  border-radius: var(--wb-r-xs);
-  background: var(--wb-hover);
+  border-radius: var(--zz-r-xs);
+  background: var(--zz-hover);
   overflow-wrap: anywhere;
 }
 
@@ -17,12 +17,12 @@
 }
 
 .wb-empty-title {
-  font: 600 var(--ui-size-16)/var(--ui-size-24) var(--ui-font-ui);
+  font: 600 var(--zz-size-16)/var(--zz-size-24) var(--zz-font-ui);
 }
 
 .wb-empty-hint {
-  color: var(--wb-fg-3);
-  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
+  color: var(--zz-fg-3);
+  font: var(--zz-size-13)/var(--zz-size-20) var(--zz-font-ui);
   max-width: 32rem;
 }
 
@@ -36,12 +36,12 @@
 .wb-skeleton {
   display: block;
   height: 12px;
-  border-radius: var(--wb-r-xs);
+  border-radius: var(--zz-r-xs);
   background: linear-gradient(
     90deg,
-    var(--wb-skeleton) 25%,
-    var(--wb-hover) 50%,
-    var(--wb-skeleton) 75%
+    var(--zz-skeleton) 25%,
+    var(--zz-hover) 50%,
+    var(--zz-skeleton) 75%
   );
   background-size: 300% 100%;
   animation: wb-shimmer 1.4s ease-in-out infinite;
@@ -71,8 +71,8 @@
   grid-template-columns: 8px 1fr;
   gap: 8px;
   align-items: baseline;
-  color: var(--wb-fg-2);
-  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
+  color: var(--zz-fg-2);
+  font: var(--zz-size-13)/var(--zz-size-20) var(--zz-font-ui);
 }
 
 .wb-gate::before {
@@ -81,16 +81,16 @@
   height: 6px;
   border-radius: 50%;
   corner-shape: round;
-  background: var(--wb-fg-3);
+  background: var(--zz-fg-3);
   transform: translateY(-1px);
 }
 
 .wb-gate[data-state="ok"]::before {
-  background: var(--wb-ok);
+  background: var(--zz-ok);
 }
 
 .wb-gate[data-state="todo"]::before {
-  background: var(--wb-warn);
+  background: var(--zz-warn);
 }
 
 .wb-facts {
@@ -100,12 +100,12 @@
 }
 
 .wb-fact dt {
-  color: var(--wb-fg-3);
-  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
+  color: var(--zz-fg-3);
+  font: var(--zz-size-12)/var(--zz-size-18) var(--zz-font-ui);
 }
 
 .wb-fact dd {
-  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
+  font: var(--zz-size-13)/var(--zz-size-20) var(--zz-font-ui);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -127,23 +127,23 @@
   flex-direction: column;
   gap: 4px;
   padding: 14px 16px;
-  border-radius: var(--wb-r-xl);
-  border: 0.5px solid var(--wb-line);
-  background: var(--wb-card);
+  border-radius: var(--zz-r-xl);
+  border: 0.5px solid var(--zz-line);
+  background: var(--zz-card);
 }
 
 .wb-card-kicker {
-  color: var(--wb-fg-3);
-  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
+  color: var(--zz-fg-3);
+  font: var(--zz-size-12)/var(--zz-size-18) var(--zz-font-ui);
 }
 
 .wb-card-title {
-  font: 600 var(--ui-size-14)/var(--ui-size-22) var(--ui-font-ui);
+  font: 600 var(--zz-size-14)/var(--zz-size-22) var(--zz-font-ui);
 }
 
 .wb-card-text {
-  color: var(--wb-fg-2);
-  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
+  color: var(--zz-fg-2);
+  font: var(--zz-size-13)/var(--zz-size-20) var(--zz-font-ui);
   overflow-wrap: anywhere;
 }
 
@@ -158,17 +158,17 @@
   overflow-wrap: anywhere;
   max-height: 260px;
   overflow: auto;
-  border: 0.5px solid var(--wb-line);
-  border-radius: var(--wb-r-sm);
+  border: 0.5px solid var(--zz-line);
+  border-radius: var(--zz-r-sm);
   padding: 10px;
-  background: var(--wb-card);
+  background: var(--zz-card);
 }
 
 .wb-edit-diff textarea {
   width: 100%;
   min-height: 120px;
-  color: var(--wb-fg);
-  background: var(--wb-layer);
+  color: var(--zz-fg);
+  background: var(--zz-layer);
   font: inherit;
 }
 
@@ -194,9 +194,9 @@
 .wb-writer-summary {
   flex-basis: 100%;
   margin: 2px 0 0;
-  font-size: var(--ui-size-12);
+  font-size: var(--zz-size-12);
   line-height: 1.5;
-  color: var(--wb-fg-2);
+  color: var(--zz-fg-2);
 }
 
 .wb-empty-icon {
@@ -207,19 +207,19 @@
   margin-bottom: 6px;
   border-radius: 50%;
   corner-shape: round;
-  background: var(--wb-hover);
-  color: var(--wb-fg-3);
+  background: var(--zz-hover);
+  color: var(--zz-fg-3);
 }
 
 .wb-card {
   transition:
-    box-shadow 160ms var(--wb-ease),
-    transform 160ms var(--wb-ease);
+    box-shadow 160ms var(--zz-ease),
+    transform 160ms var(--zz-ease);
 }
 
 @media (hover: hover) {
   .wb-card:hover {
-    box-shadow: var(--wb-shadow-2);
+    box-shadow: var(--zz-shadow-2);
     transform: translateY(-1px);
   }
 }

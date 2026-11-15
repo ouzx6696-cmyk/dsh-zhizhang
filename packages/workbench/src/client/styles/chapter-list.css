@@ -25,12 +25,12 @@
   color: inherit;
   text-align: left;
   cursor: pointer;
-  border-radius: var(--wb-r-md);
+  border-radius: var(--zz-r-md);
 }
 .wb-chapter-line {
   display: flex;
   align-items: center;
-  gap: var(--ui-space-1);
+  gap: var(--zz-space-1);
 }
 .wb-chapter-line .wb-chapter-row {
   flex: 1;
@@ -44,7 +44,7 @@
   padding: 8px 10px;
 }
 .wb-chapter-row-on {
-  background: var(--wb-active);
+  background: var(--zz-active);
 }
 .wb-chapter-text {
   min-width: 0;
@@ -52,14 +52,14 @@
   flex-direction: column;
 }
 .wb-chapter-title {
-  font: 500 var(--ui-size-14)/var(--ui-size-22) var(--ui-font-ui);
+  font: 500 var(--zz-size-14)/var(--zz-size-22) var(--zz-font-ui);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .wb-chapter-meta {
-  color: var(--wb-fg-3);
-  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
+  color: var(--zz-fg-3);
+  font: var(--zz-size-12)/var(--zz-size-18) var(--zz-font-ui);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -70,7 +70,7 @@
 }
 @media (hover: hover) {
   .wb-chapter-row:not(.wb-chapter-row-on):hover {
-    background: var(--wb-hover);
+    background: var(--zz-hover);
   }
 }
 @media (pointer: coarse) {
@@ -81,11 +81,11 @@
 .wb-chapter-row {
   position: relative;
   transition:
-    background-color 140ms var(--wb-ease),
-    transform 140ms var(--wb-ease);
+    background-color 140ms var(--zz-ease),
+    transform 140ms var(--zz-ease);
 }
 .wb-chapter-row-on {
-  background: var(--wb-accent-soft);
+  background: var(--zz-accent-soft);
 }
 .wb-chapter-row-on::before {
   content: "";
@@ -95,15 +95,15 @@
   bottom: 8px;
   width: 3px;
   border-radius: 3px;
-  background: var(--wb-accent);
-  animation: wb-grow 220ms var(--wb-ease);
+  background: var(--zz-accent);
+  animation: wb-grow 220ms var(--zz-ease);
 }
 .wb-chapter-row-on .wb-chapter-title {
-  color: var(--wb-fg);
+  color: var(--zz-fg);
   font-weight: 600;
 }
 @media (hover: hover) {
   .wb-chapter-row:not(.wb-chapter-row-on):hover {
-    background: var(--wb-hover);
+    background: var(--zz-hover);
   }
 }

@@ -1,0 +1,198 @@
+:root,
+[data-theme="night"] {
+  color-scheme: dark;
+  --zz-bg: var(--zz-raw-night-bg);
+  --zz-bg-glow: var(--zz-raw-night-bg-glow);
+  --zz-surface-1: var(--zz-raw-night-s1);
+  --zz-surface-2: var(--zz-raw-night-s2);
+  --zz-panel: var(--zz-raw-night-s1);
+  --zz-paper: var(--zz-raw-night-paper);
+  --zz-paper-2: var(--zz-raw-night-paper-2);
+  --zz-border: rgba(255, 255, 255, 0.09);
+  --zz-border-strong: rgba(255, 255, 255, 0.18);
+  --zz-line: var(--zz-border);
+  --zz-line-strong: var(--zz-border-strong);
+  --zz-fill: rgba(255, 255, 255, 0.04);
+  --zz-fill-strong: rgba(255, 255, 255, 0.08);
+  --zz-hover: rgba(255, 255, 255, 0.06);
+  --zz-active: rgba(255, 255, 255, 0.1);
+  --zz-mask: rgba(7, 10, 13, 0.8);
+  --zz-overlay-1: var(--zz-raw-black);
+
+  --zz-text-1: var(--zz-raw-night-text1);
+  --zz-text-2: var(--zz-raw-night-text2);
+  --zz-text-3: var(--zz-raw-night-text3);
+  --zz-text: var(--zz-text-1);
+  --zz-title: var(--zz-raw-night-title);
+
+  --zz-decide: var(--zz-raw-amber-500);
+  --zz-decide-hover: var(--zz-raw-amber-400);
+  --zz-decide-fill: rgba(217, 130, 43, 0.16);
+  --zz-on-decide: #140e07;
+  --zz-primary-fill: linear-gradient(135deg, var(--zz-raw-amber-400), var(--zz-raw-amber-500));
+
+  --zz-accent: var(--zz-decide);
+  --zz-accent-hover: var(--zz-decide-hover);
+  --zz-accent-soft: var(--zz-decide-fill);
+  --zz-on-accent: var(--zz-on-decide);
+
+  --zz-run: var(--zz-raw-blue-500);
+  --zz-ok: var(--zz-raw-green-500);
+  --zz-warn: var(--zz-raw-yellow-500);
+  --zz-bad: var(--zz-raw-red-500);
+  --zz-info: var(--zz-run);
+  --zz-success: var(--zz-ok);
+  --zz-warning: var(--zz-warn);
+  --zz-danger: var(--zz-bad);
+
+  --zz-font-ui: "Microsoft YaHei UI", "PingFang SC", system-ui, sans-serif;
+  --zz-font-paper: "Noto Serif SC", "Songti SC", Georgia, serif;
+  --zz-body-family: var(--zz-font-paper);
+  --zz-font-body: var(--zz-body-family);
+  --zz-font-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
+
+  --zz-body-size: 18px;
+  --zz-font-step: 1px;
+  --zz-control-height: 36px;
+
+  --zz-text-caption: 0.75rem;
+  --zz-text-meta: 0.8125rem;
+  --zz-text-body: 0.875rem;
+  --zz-text-strong: 0.9375rem;
+  --zz-text-title: 1.125rem;
+  --zz-text-display: 1.5rem;
+
+  --zz-size-12: 12px;
+  --zz-size-13: 13px;
+  --zz-size-14: 14px;
+  --zz-size-15: 15px;
+  --zz-size-16: 16px;
+  --zz-size-18: 18px;
+  --zz-size-20: 20px;
+  --zz-size-22: 22px;
+  --zz-size-24: 24px;
+  --zz-size-26: 26px;
+  --zz-size-32: 32px;
+  --zz-size-40: 40px;
+
+  --zz-space-1: 0.25rem;
+  --zz-space-2: 0.5rem;
+  --zz-space-3: 0.75rem;
+  --zz-space-4: 1rem;
+  --zz-space-5: 1.25rem;
+  --zz-space-6: 1.5rem;
+
+  --zz-radius-xs: 4px;
+  --zz-radius-sm: 6px;
+  --zz-radius-md: 10px;
+  --zz-radius-lg: 14px;
+  --zz-radius-pill: 9999px;
+
+  --zz-z-base: 1;
+  --zz-z-sticky: 10;
+  --zz-z-drawer: 40;
+  --zz-z-popover: 60;
+  --zz-z-modal: 80;
+  --zz-z-toast: 100;
+
+  --zz-dur-1: 120ms;
+  --zz-dur-2: 180ms;
+  --zz-dur-3: 240ms;
+  --zz-duration-fast: var(--zz-dur-1);
+  --zz-duration: var(--zz-dur-2);
+  --zz-ease: cubic-bezier(0.2, 0, 0, 1);
+
+  --zz-shadow-1: 0 12px 40px rgba(0, 0, 0, 0.14);
+  --zz-shadow-2: 0 24px 80px rgba(0, 0, 0, 0.44);
+  --zz-paper-shadow: 0 -12px 60px rgba(217, 130, 43, 0.04), 0 24px 60px rgba(0, 0, 0, 0.27);
+  --zz-glow: 0 0 20px rgba(217, 130, 43, 0.19);
+  --zz-blur: blur(16px);
+}
+
+[data-theme="day"] {
+  color-scheme: light;
+  --zz-bg: var(--zz-raw-day-bg);
+  --zz-bg-glow: var(--zz-raw-day-bg-glow);
+  --zz-surface-1: var(--zz-raw-day-s1);
+  --zz-surface-2: var(--zz-raw-day-s2);
+  --zz-panel: var(--zz-raw-day-s1);
+  --zz-paper: var(--zz-raw-day-paper);
+  --zz-paper-2: var(--zz-raw-day-paper-2);
+  --zz-border: rgba(31, 28, 24, 0.1);
+  --zz-border-strong: rgba(31, 28, 24, 0.22);
+  --zz-line: var(--zz-border);
+  --zz-line-strong: var(--zz-border-strong);
+  --zz-fill: rgba(42, 37, 32, 0.03);
+  --zz-fill-strong: rgba(42, 37, 32, 0.06);
+  --zz-hover: rgba(42, 37, 32, 0.05);
+  --zz-active: rgba(42, 37, 32, 0.09);
+  --zz-mask: rgba(29, 25, 20, 0.67);
+
+  --zz-text-1: var(--zz-raw-day-text1);
+  --zz-text-2: var(--zz-raw-day-text2);
+  --zz-text-3: var(--zz-raw-day-text3);
+  --zz-text: var(--zz-text-1);
+  --zz-title: var(--zz-raw-day-title);
+
+  --zz-decide: var(--zz-raw-amber-600);
+  --zz-decide-hover: var(--zz-raw-amber-800);
+  --zz-decide-fill: rgba(184, 103, 22, 0.12);
+  --zz-on-decide: var(--zz-raw-white);
+  --zz-primary-fill: linear-gradient(135deg, var(--zz-raw-amber-500), var(--zz-raw-amber-600));
+
+  --zz-accent: var(--zz-decide);
+  --zz-accent-hover: var(--zz-decide-hover);
+  --zz-accent-soft: var(--zz-decide-fill);
+  --zz-on-accent: var(--zz-on-decide);
+
+  --zz-run: var(--zz-raw-blue-600);
+  --zz-ok: var(--zz-raw-green-600);
+  --zz-warn: var(--zz-raw-amber-700);
+  --zz-bad: var(--zz-raw-red-600);
+  --zz-info: var(--zz-run);
+  --zz-success: var(--zz-ok);
+  --zz-warning: var(--zz-warn);
+  --zz-danger: var(--zz-bad);
+
+  --zz-shadow-1: 0 8px 24px rgba(83, 55, 22, 0.05);
+  --zz-shadow-2: 0 24px 80px rgba(83, 55, 22, 0.19);
+  --zz-paper-shadow: 0 -10px 60px rgba(217, 130, 43, 0.08), 0 16px 48px rgba(83, 55, 22, 0.07);
+}
+
+:root[data-font="sans"] {
+  --zz-body-family: var(--zz-font-ui);
+}
+
+:root[data-transparency="reduced"] {
+  --zz-blur: none;
+}
+
+@media (forced-colors: active) {
+  :root {
+    --zz-bg: Canvas;
+    --zz-surface-1: Canvas;
+    --zz-surface-2: Canvas;
+    --zz-panel: Canvas;
+    --zz-paper: Canvas;
+    --zz-text-1: CanvasText;
+    --zz-text-2: CanvasText;
+    --zz-text-3: GrayText;
+    --zz-text: CanvasText;
+    --zz-border: ButtonBorder;
+    --zz-border-strong: ButtonBorder;
+    --zz-line: ButtonBorder;
+    --zz-line-strong: ButtonBorder;
+    --zz-decide: Highlight;
+    --zz-on-decide: HighlightText;
+    --zz-accent: Highlight;
+    --zz-on-accent: HighlightText;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --zz-dur-1: 0ms;
+    --zz-dur-2: 0ms;
+    --zz-dur-3: 0ms;
+  }
+}

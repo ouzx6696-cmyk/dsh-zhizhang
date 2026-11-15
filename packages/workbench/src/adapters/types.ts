@@ -1,102 +1,45 @@
-/** 服务端回执体：调用方按路由形状收窄；这里只承诺它是 JSON 值。 */
-export type Json = unknown;
+import type { CommandInput, CommandResult, WorkbenchCommand } from "../contract/commands.js";
 
-export class ApiError extends Error {
-  uncertain: boolean;
-  code: string;
-  constructor(message: string, { uncertain = false, code = "" } = {}) {
-    super(message);
-    this.name = "ApiError";
-    this.uncertain = uncertain;
-    this.code = code;
-  }
+export interface RequestOptions {
+  signal?: AbortSignal;
 }
 
-export type RequestOptions = {
-  kind?: "read" | "write";
-  input?: unknown;
-  signal?: AbortSignal;
-};
+/**
+ * 写作区命令的传输：渲染层用 `createDesktopApi(() => window.zhizhangBridge).workbench`
+ * 注入（经 preload 的 "zhizhang:workbench.call" 通道），失败时抛 AppError（码 + 消息 + 数据）。
+ */
+export interface WorkbenchTransport {
+  call<K extends WorkbenchCommand>(command: K, input: CommandInput<K>): Promise<CommandResult<K>>;
+}
 
-export type DesktopBridge = {
-  request: (
-    operation: string,
-    options: { kind?: "read" | "write"; input?: unknown },
-  ) => Promise<{ data: Json }>;
-};
-
-type SaveChapterInput = {
-  base?: string;
-  work: string;
-  chapter: string;
-  body: string;
-  expectedRevision: string;
-  force?: boolean;
-  mode?: "candidate";
-  editOf?: string;
-  draftLabel?: string;
-};
-type SaveDraftInput = {
-  root: string;
-  id: string;
-  text: string;
-  expectedRev: number;
-  expectedSha256: string;
-};
+type Call<K extends WorkbenchCommand> = (
+  input: CommandInput<K>,
+  options?: RequestOptions,
+) => Promise<CommandResult<K>>;
 
 export interface FanqieData {
-  projects(refresh?: boolean, signal?: AbortSignal): Promise<Json>;
-  snapshot(base?: string, work?: string, signal?: AbortSignal, scope?: string): Promise<Json>;
-  chapter(
-    base: string | undefined,
-    work: string | undefined,
-    id: string,
-    signal?: AbortSignal,
-  ): Promise<Json>;
-  saveChapter(payload: SaveChapterInput): Promise<Json>;
-  candidate(
-    base: string | undefined,
-    work: string | undefined,
-    id: string,
-    signal?: AbortSignal,
-  ): Promise<Json>;
-  diagnose(payload: Json, signal?: AbortSignal): Promise<Json>;
-  stageRevision(payload: Json): Promise<Json>;
-  accept(payload: Json): Promise<Json>;
-  chapterAction(action: string, payload: Json): Promise<Json>;
-  unifyPrepare(payload: Json): Promise<Json>;
-  capabilities(base?: string, signal?: AbortSignal): Promise<Json>;
-  deliver(payload: Json): Promise<Json>;
+  snapshot: Call<"fanqie.snapshot">;
+  chapter: Call<"fanqie.chapter.get">;
+  saveChapter: Call<"fanqie.chapter.save">;
+  finalizeChapter: Call<"fanqie.chapter.finalize">;
+  acceptCandidate: Call<"fanqie.candidate.accept">;
+  createWork: Call<"fanqie.work.create">;
+  exportBook: Call<"fanqie.book.export">;
 }
 
 export interface ToutiaoData {
-  articles(signal?: AbortSignal): Promise<Json>;
-  article(root: string, id: string, signal?: AbortSignal): Promise<Json>;
-  /** article 为 articleDetail 台账行/详情：adopt 只读 root/id/rev/draft.sha256。 */
-  adopt(article: {
-    root: string;
-    id: string;
-    rev: number;
-    draft: { sha256: string };
-  }): Promise<Json>;
-  saveDraft(payload: SaveDraftInput): Promise<Json>;
-  deliver(payload: Record<string, unknown>): Promise<Json>;
-}
-
-export interface ProfilesData {
-  list(signal?: AbortSignal): Promise<Json>;
-  detail(profile: string, signal?: AbortSignal): Promise<Json>;
-  method(profile: string, id: string, signal?: AbortSignal): Promise<Json>;
-  use(profile: string): Promise<Json>;
-  create(payload: Json): Promise<Json>;
-  save(profile: string, id: string, text: string): Promise<Json>;
-  reset(profile: string, id: string): Promise<Json>;
-  rename(profile: string, name: string, note?: string): Promise<Json>;
-  remove(profile: string): Promise<Json>;
+  articles: Call<"toutiao.articles">;
+  createArticle: Call<"toutiao.article.create">;
+  transitionArticle: Call<"toutiao.article.transition">;
+  deliverArticle: Call<"toutiao.article.deliver">;
 }
 
 export interface WorkbenchData {
+  call<K extends WorkbenchCommand>(
+    command: K,
+    input: CommandInput<K>,
+    options?: RequestOptions,
+  ): Promise<CommandResult<K>>;
   fanqie: FanqieData;
   toutiao: ToutiaoData;
-  profiles(mode: "fanqie" | "toutiao" | string): ProfilesData;
 }

@@ -4,23 +4,23 @@
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: var(--ui-space-3);
+  gap: var(--zz-space-3);
 }
 .wb-source-editor-head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--ui-space-2) var(--ui-space-3);
+  gap: var(--zz-space-2) var(--zz-space-3);
 }
 .wb-source-editor-head strong {
-  font: 600 var(--ui-size-14)/var(--ui-size-22) var(--ui-font-ui);
+  font: 600 var(--zz-size-14)/var(--zz-size-22) var(--zz-font-ui);
 }
 .wb-source-status {
   display: inline-flex;
   align-items: center;
-  gap: var(--ui-space-1);
-  color: var(--wb-fg-3);
-  font: 500 var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
+  gap: var(--zz-space-1);
+  color: var(--zz-fg-3);
+  font: 500 var(--zz-size-12)/var(--zz-size-18) var(--zz-font-ui);
 }
 .wb-source-status::before {
   content: "";
@@ -31,16 +31,16 @@
 }
 .wb-source-status[data-state="dirty"],
 .wb-source-status[data-state="saving"] {
-  color: var(--wb-warn);
+  color: var(--zz-warn);
 }
 .wb-source-status[data-state="stashed"] {
-  color: var(--wb-fg-2);
+  color: var(--zz-fg-2);
 }
 .wb-source-status[data-state="saved"] {
-  color: var(--wb-ok);
+  color: var(--zz-ok);
 }
 .wb-source-status[data-state="failed"] {
-  color: var(--wb-bad);
+  color: var(--zz-bad);
 }
 .wb-source-find {
   margin-left: auto;
@@ -52,12 +52,12 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--ui-space-2) var(--ui-space-3);
-  padding: var(--ui-space-2) var(--ui-space-3);
-  border-radius: var(--wb-r-md);
-  background: var(--wb-accent-soft);
-  color: var(--wb-fg);
-  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
+  gap: var(--zz-space-2) var(--zz-space-3);
+  padding: var(--zz-space-2) var(--zz-space-3);
+  border-radius: var(--zz-r-md);
+  background: var(--zz-accent-soft);
+  color: var(--zz-fg);
+  font: var(--zz-size-13)/var(--zz-size-20) var(--zz-font-ui);
 }
 .wb-source-offer > span {
   flex: 1 1 16rem;
@@ -65,16 +65,16 @@
 /* The textarea is transparent over a backdrop that paints find matches; both share every metric. */
 .wb-source-field {
   position: relative;
-  border-radius: var(--wb-r-md);
-  background: var(--wb-card);
+  border-radius: var(--zz-r-md);
+  background: var(--zz-card);
 }
 .wb-source-text,
 .wb-source-backdrop {
   margin: 0;
   padding: 40px 48px;
   border: 1px solid transparent;
-  font-family: var(--wb-manuscript-font);
-  font-size: calc(var(--ui-body-size) + var(--wb-font-step, 0) * var(--ui-font-step));
+  font-family: var(--zz-manuscript-font);
+  font-size: calc(var(--zz-body-size) + var(--zz-font-step, 0) * var(--zz-font-step));
   line-height: 2;
   letter-spacing: 0.02em;
   white-space: pre-wrap;
@@ -88,13 +88,13 @@
   height: clamp(420px, calc(100vh - 260px), 1100px);
   resize: vertical;
   overflow-y: auto;
-  border-color: var(--wb-line-strong);
-  border-radius: var(--wb-r-md);
+  border-color: var(--zz-line-strong);
+  border-radius: var(--zz-r-md);
   background: transparent;
-  color: var(--wb-fg);
+  color: var(--zz-fg);
 }
 .wb-source-text:focus-visible {
-  outline: 2px solid var(--wb-accent);
+  outline: 2px solid var(--zz-accent);
   outline-offset: 1px;
 }
 .wb-source-backdrop {
@@ -106,34 +106,43 @@
 }
 .wb-source-backdrop mark {
   color: transparent;
-  border-radius: var(--wb-r-xs);
-  background: color-mix(in srgb, var(--wb-accent) 24%, transparent);
+  border-radius: var(--zz-r-xs);
+  background: color-mix(in srgb, var(--zz-accent) 24%, transparent);
 }
 .wb-source-backdrop mark[data-current] {
-  background: color-mix(in srgb, var(--wb-accent) 48%, transparent);
-  box-shadow: 0 0 0 1px var(--wb-accent);
+  background: color-mix(in srgb, var(--zz-accent) 48%, transparent);
+  box-shadow: 0 0 0 1px var(--zz-accent);
+}
+.wb-source-backdrop ::highlight(wb-editor-find) {
+  background-color: color-mix(in srgb, var(--zz-accent) 24%, transparent);
+}
+.wb-source-backdrop ::highlight(wb-editor-find-active) {
+  background-color: color-mix(in srgb, var(--zz-accent) 48%, transparent);
+}
+.wb-source-backdrop ::highlight(wb-editor-issue) {
+  background-color: var(--zz-warn-soft);
 }
 .wb-find {
   position: sticky;
   top: 0;
-  z-index: var(--ui-z-sticky);
+  z-index: var(--zz-z-sticky);
   display: flex;
   flex-direction: column;
-  gap: var(--ui-space-2);
-  padding: var(--ui-space-2) var(--ui-space-3);
-  border-bottom: 0.5px solid var(--wb-line);
-  background: var(--wb-bg);
-  box-shadow: var(--wb-shadow-1);
+  gap: var(--zz-space-2);
+  padding: var(--zz-space-2) var(--zz-space-3);
+  border-bottom: 0.5px solid var(--zz-line);
+  background: var(--zz-bg);
+  box-shadow: var(--zz-shadow-1);
 }
 .wb-source-editor .wb-find {
-  border: 0.5px solid var(--wb-line-strong);
-  border-radius: var(--wb-r-md);
+  border: 0.5px solid var(--zz-line-strong);
+  border-radius: var(--zz-r-md);
 }
 .wb-find-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--ui-space-1) var(--ui-space-2);
+  gap: var(--zz-space-1) var(--zz-space-2);
 }
 .wb-find-input {
   flex: 1 1 12rem;
@@ -141,14 +150,14 @@
 }
 .wb-find-count {
   min-width: 4.5em;
-  color: var(--wb-fg-3);
-  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
+  color: var(--zz-fg-3);
+  font: var(--zz-size-12)/var(--zz-size-18) var(--zz-font-ui);
   font-variant-numeric: tabular-nums;
 }
 .wb-find-case {
   align-items: center;
-  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
-  color: var(--wb-fg-2);
+  font: var(--zz-size-12)/var(--zz-size-18) var(--zz-font-ui);
+  color: var(--zz-fg-2);
 }
 .wb-find-case input {
   margin: 0;

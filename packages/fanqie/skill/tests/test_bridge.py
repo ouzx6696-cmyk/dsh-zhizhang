@@ -160,8 +160,16 @@ def t_style():
     assert outside['ok'] is False and outside['code'] == 'SCRIPT_FAILED', outside
 
 
-for n, f in list(globals().items()):
-    if n.startswith('t_'):
-        case(n[2:], f)
-print(f'{passed}/{passed + failed} 通过')
-sys.exit(1 if failed else 0)
+import unittest
+
+
+class FanqieBridgeTests(unittest.TestCase):
+    def test_all_cases(self):
+        for n, f in list(globals().items()):
+            if n.startswith("t_"):
+                with self.subTest(case=n[2:]):
+                    f()
+
+
+if __name__ == "__main__":
+    unittest.main()

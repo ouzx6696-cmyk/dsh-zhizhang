@@ -1,10 +1,10 @@
 /* 可交互控件：动作卡、按钮、分段控件与输入框。 */
 .wb-textarea {
-  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
-  color: var(--wb-fg);
-  background: var(--wb-layer);
-  border: 0.5px solid var(--wb-line-strong);
-  border-radius: var(--wb-r-md);
+  font: var(--zz-size-13)/var(--zz-size-20) var(--zz-font-ui);
+  color: var(--zz-fg);
+  background: var(--zz-layer);
+  border: 0.5px solid var(--zz-line-strong);
+  border-radius: var(--zz-r-md);
 }
 
 .wb-textarea {
@@ -35,8 +35,8 @@
 
 .wb-action-done .wb-button-icon,
 .wb-action-done .wb-icon {
-  color: var(--wb-ok);
-  animation: wb-pop 360ms var(--wb-ease);
+  color: var(--zz-ok);
+  animation: wb-pop 360ms var(--zz-ease);
 }
 
 @keyframes wb-pop {
@@ -68,16 +68,16 @@
   padding: 10px 10px 10px 10px;
   text-align: left;
   border: 0;
-  border-radius: var(--wb-r-md);
-  background: var(--wb-layer);
-  color: var(--wb-fg);
+  border-radius: var(--zz-r-md);
+  background: var(--zz-layer);
+  color: var(--zz-fg);
   cursor: pointer;
-  box-shadow: inset 0 0 0 0.5px var(--wb-line-strong);
+  box-shadow: inset 0 0 0 0.5px var(--zz-line-strong);
   font: inherit;
   transition:
-    box-shadow 160ms var(--wb-ease),
-    transform 160ms var(--wb-ease),
-    background-color 160ms var(--wb-ease);
+    box-shadow 160ms var(--zz-ease),
+    transform 160ms var(--zz-ease),
+    background-color 160ms var(--zz-ease);
 }
 
 .wb-action-card-icon {
@@ -85,12 +85,12 @@
   place-items: center;
   width: 32px;
   height: 32px;
-  border-radius: var(--wb-r-sm);
-  background: var(--wb-hover);
-  color: var(--wb-fg-2);
+  border-radius: var(--zz-r-sm);
+  background: var(--zz-hover);
+  color: var(--zz-fg-2);
   transition:
-    background-color 160ms var(--wb-ease),
-    color 160ms var(--wb-ease);
+    background-color 160ms var(--zz-ease),
+    color 160ms var(--zz-ease);
 }
 
 .wb-action-card-text {
@@ -100,33 +100,33 @@
 }
 
 .wb-action-card-title {
-  font: 600 var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
+  font: 600 var(--zz-size-13)/var(--zz-size-20) var(--zz-font-ui);
 }
 
 .wb-action-card-hint {
-  color: var(--wb-fg-3);
-  font: var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
+  color: var(--zz-fg-3);
+  font: var(--zz-size-12)/var(--zz-size-18) var(--zz-font-ui);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .wb-action-card-go {
-  color: var(--wb-fg-3);
+  color: var(--zz-fg-3);
   opacity: 0;
   transform: translateX(-4px);
   transition:
-    opacity 160ms var(--wb-ease),
-    transform 160ms var(--wb-ease);
+    opacity 160ms var(--zz-ease),
+    transform 160ms var(--zz-ease);
 }
 
 .wb-action-card-primary {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wb-accent) 45%, transparent);
-  background: color-mix(in srgb, var(--wb-accent) 6%, var(--wb-layer));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--zz-accent) 45%, transparent);
+  background: color-mix(in srgb, var(--zz-accent) 6%, var(--zz-layer));
 }
 
 .wb-action-card-primary .wb-action-card-icon {
-  background: var(--wb-accent);
+  background: var(--zz-accent);
   color: canvas;
 }
 
@@ -141,8 +141,8 @@
 }
 
 .wb-action-card-busy .wb-action-card-icon {
-  background: var(--wb-accent-soft);
-  color: var(--wb-accent);
+  background: var(--zz-accent-soft);
+  color: var(--zz-accent);
 }
 
 .wb-action-card:not(:disabled):active {
@@ -152,8 +152,8 @@
 @media (hover: hover) {
   .wb-action-card:not(:disabled):hover {
     box-shadow:
-      inset 0 0 0 1px var(--wb-accent),
-      var(--wb-shadow-1);
+      inset 0 0 0 1px var(--zz-accent),
+      var(--zz-shadow-1);
   }
 }
 
@@ -166,14 +166,14 @@
 
 @media (hover: hover) {
   .wb-action-card:not(:disabled):hover .wb-action-card-icon {
-    color: var(--wb-accent);
-    background: var(--wb-accent-soft);
+    color: var(--zz-accent);
+    background: var(--zz-accent-soft);
   }
 }
 
 @media (hover: hover) {
   .wb-action-card-primary:not(:disabled):hover .wb-action-card-icon {
-    background: var(--wb-accent);
+    background: var(--zz-accent);
     color: canvas;
   }
 }
@@ -196,9 +196,9 @@
   height: 28px;
   padding: 0 10px;
   cursor: pointer;
-  border-radius: var(--wb-r-sm);
-  box-shadow: inset 0 0 0 0.5px var(--wb-line-strong);
-  font: 500 var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
+  border-radius: var(--zz-r-sm);
+  box-shadow: inset 0 0 0 0.5px var(--zz-line-strong);
+  font: 500 var(--zz-size-13)/var(--zz-size-20) var(--zz-font-ui);
 }
 
 .wb-file-button input {
@@ -210,6 +210,6 @@
 
 @media (hover: hover) {
   .wb-file-button:hover {
-    background: var(--wb-hover);
+    background: var(--zz-hover);
   }
 }

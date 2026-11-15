@@ -19,9 +19,9 @@
   height: 28px;
   padding: 0;
   border: 0;
-  border-radius: var(--wb-r-sm);
+  border-radius: var(--zz-r-sm);
   background: transparent;
-  color: var(--wb-fg-3);
+  color: var(--zz-fg-3);
   cursor: pointer;
 }
 
@@ -29,27 +29,27 @@
   display: inline-block;
   border-radius: 50%;
   corner-shape: round;
-  background: var(--wb-fg-3);
+  background: var(--zz-fg-3);
 }
 
 .wb-state-dot[data-state="done"] {
-  background: var(--wb-ok);
+  background: var(--zz-ok);
 }
 
 .wb-state-dot[data-state="warning"] {
-  background: var(--wb-warn);
+  background: var(--zz-warn);
 }
 
 .wb-state-dot[data-state="error"] {
-  background: var(--wb-bad);
+  background: var(--zz-bad);
 }
 
 .wb-segmented {
   display: inline-flex;
   gap: 0;
   padding: 4px;
-  border-radius: var(--wb-r-md);
-  background: var(--wb-hover);
+  border-radius: var(--zz-r-md);
+  background: var(--zz-hover);
 }
 
 .wb-segment {
@@ -57,18 +57,18 @@
   height: 24px;
   padding: 0 12px;
   border: 0;
-  border-radius: var(--wb-r-sm);
+  border-radius: var(--zz-r-sm);
   background: transparent;
-  color: var(--wb-fg-2);
+  color: var(--zz-fg-2);
   cursor: pointer;
-  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
+  font: var(--zz-size-13)/var(--zz-size-20) var(--zz-font-ui);
   white-space: nowrap;
 }
 
 .wb-segment-on {
-  background: var(--wb-layer);
-  color: var(--wb-fg);
-  box-shadow: 0 0 0 0.5px var(--wb-line);
+  background: var(--zz-layer);
+  color: var(--zz-fg);
+  box-shadow: 0 0 0 0.5px var(--zz-line);
 }
 
 .wb-segment:disabled {
@@ -84,17 +84,17 @@
   padding: 0 6px;
   border-radius: 999px;
   corner-shape: round;
-  font: 600 var(--ui-size-12)/var(--ui-size-16) var(--ui-font-ui);
+  font: 600 var(--zz-size-12)/var(--zz-size-16) var(--zz-font-ui);
 }
 
 .wb-flag[data-tone="warning"] {
-  color: var(--wb-warn);
-  background: var(--wb-warn-soft);
+  color: var(--zz-warn);
+  background: var(--zz-warn-soft);
 }
 
 .wb-flag[data-tone="danger"] {
-  color: var(--wb-bad);
-  background: var(--wb-bad-soft);
+  color: var(--zz-bad);
+  background: var(--zz-bad-soft);
 }
 
 .wb-pane-loading {
@@ -113,7 +113,7 @@
 .wb-section + .wb-disclosure,
 .wb-disclosure + .wb-section,
 .wb-disclosure + .wb-disclosure {
-  border-top: 0.5px solid var(--wb-line);
+  border-top: 0.5px solid var(--zz-line);
 }
 
 .wb-section-head {
@@ -124,8 +124,8 @@
 }
 
 .wb-section-title {
-  color: var(--wb-fg-2);
-  font: 600 var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
+  color: var(--zz-fg-2);
+  font: 600 var(--zz-size-13)/var(--zz-size-20) var(--zz-font-ui);
 }
 
 .wb-disclosure {
@@ -138,8 +138,8 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  color: var(--wb-fg-2);
-  font: 600 var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
+  color: var(--zz-fg-2);
+  font: 600 var(--zz-size-13)/var(--zz-size-20) var(--zz-font-ui);
 }
 
 .wb-disclosure > summary::-webkit-details-marker {
@@ -170,26 +170,26 @@
   gap: 6px;
   list-style: decimal;
   padding-left: 1.2em;
-  color: var(--wb-fg-2);
-  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
+  color: var(--zz-fg-2);
+  font: var(--zz-size-13)/var(--zz-size-20) var(--zz-font-ui);
 }
 
 @media (hover: hover) {
   .wb-icon-button:hover,
   .wb-segment:not(.wb-segment-on):not(:disabled):hover {
-    background: var(--wb-hover);
+    background: var(--zz-hover);
   }
 }
 
 @media (hover: hover) {
   .wb-icon-button:hover {
-    color: var(--wb-fg);
+    color: var(--zz-fg);
   }
 }
 
 @media (hover: hover) {
   .wb-disclosure > summary:hover {
-    color: var(--wb-fg);
+    color: var(--zz-fg);
   }
 }
 
@@ -200,11 +200,11 @@
 }
 
 .wb-section + .wb-section {
-  border-top: 0.5px solid var(--wb-line);
+  border-top: 0.5px solid var(--zz-line);
 }
 
 .wb-enter {
-  animation: wb-enter 260ms var(--wb-ease);
+  animation: wb-enter 260ms var(--zz-ease);
 }
 
 @keyframes wb-enter {
@@ -220,15 +220,15 @@
 
 .wb-segment {
   transition:
-    background-color 160ms var(--wb-ease),
-    color 160ms var(--wb-ease),
-    box-shadow 160ms var(--wb-ease);
+    background-color 160ms var(--zz-ease),
+    color 160ms var(--zz-ease),
+    box-shadow 160ms var(--zz-ease);
 }
 
 .wb-more-chevron {
   display: inline-flex;
   transform: rotate(90deg);
-  transition: transform 180ms var(--wb-ease);
+  transition: transform 180ms var(--zz-ease);
 }
 
 .wb-more-open {

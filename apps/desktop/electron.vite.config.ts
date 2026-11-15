@@ -1,10 +1,20 @@
 import { defineConfig, externalizeDepsPlugin } from "electron-vite";
-import { VERSION } from "../../packages/core/src/version";
+import { APP_VERSION as VERSION } from "../../packages/core/src/version";
 import { CONTENT_SECURITY_POLICY } from "./src/main/csp";
 import path from "node:path";
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin({ exclude: ["@writer/ui"] })],
+    plugins: [
+      externalizeDepsPlugin({
+        exclude: [
+          "@zhizhang/core",
+          "@zhizhang/ui",
+          "@zhizhang/fanqie",
+          "@zhizhang/toutiao",
+          "@zhizhang/workbench",
+        ],
+      }),
+    ],
     build: {
       rollupOptions: {
         input: path.resolve("src/main/index.ts"),

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { COPY } from "./copy.js";
+import { COPY } from "./copy/index.js";
 import "./styles/notify.css";
 
 export type NoticeTone = "success" | "info" | "warning" | "danger";

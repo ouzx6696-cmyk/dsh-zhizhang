@@ -1,0 +1,228 @@
+/* 外壳：根布局、顶栏、通用排版辅助。颜色只用 --zz-* 语义令牌。 */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--zz-bg);
+  color: var(--zz-text-1);
+  font: var(--zz-size-14) / 1.6 var(--zz-font-ui);
+}
+
+.zz-desktop {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.zz-startup {
+  align-items: center;
+  justify-content: center;
+  gap: var(--zz-space-3);
+  color: var(--zz-text-2);
+}
+
+.zz-empty-page {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--zz-space-3);
+  padding: var(--zz-space-6);
+  text-align: center;
+}
+
+.zz-empty-page h1 {
+  margin: 0;
+  color: var(--zz-title);
+  font-size: var(--zz-text-display);
+}
+
+.zz-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--zz-space-2);
+}
+
+.zz-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zz-space-3);
+}
+
+.zz-muted {
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-meta);
+}
+
+.zz-hidden-value {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.zz-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--zz-accent);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.zz-link:hover {
+  text-decoration: underline;
+}
+
+.zz-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--zz-control-height);
+  padding: var(--zz-space-1) var(--zz-space-3);
+  border: 1px solid var(--zz-border);
+  border-radius: var(--zz-field-radius);
+  background: var(--zz-surface-2);
+  color: var(--zz-text-1);
+  font: inherit;
+}
+
+.zz-input:focus-visible {
+  outline: 2px solid var(--zz-accent);
+  outline-offset: 1px;
+}
+
+.zz-input--area {
+  min-height: 88px;
+  resize: vertical;
+}
+
+.zz-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zz-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.zz-list > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--zz-space-2);
+  padding: var(--zz-space-2) var(--zz-space-3);
+  border: 1px solid var(--zz-border);
+  border-radius: var(--zz-radius-sm);
+  background: var(--zz-surface-1);
+}
+
+.zz-facts {
+  display: grid;
+  gap: var(--zz-space-2);
+  margin: 0;
+}
+
+.zz-facts > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--zz-space-3);
+}
+
+.zz-facts dt {
+  color: var(--zz-text-3);
+}
+
+.zz-facts dd {
+  margin: 0;
+}
+
+/* 顶栏 */
+.zz-topbar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--zz-space-3);
+  min-height: 48px;
+  padding: 0 var(--zz-space-4);
+  border-bottom: 1px solid var(--zz-border);
+  background: var(--zz-surface-1);
+}
+
+.zz-topbar__menu {
+  position: relative;
+}
+
+.zz-topbar__menu .zz-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  max-height: 60dvh;
+  overflow: auto;
+}
+
+.zz-topbar__menu .zz-menu--end {
+  right: 0;
+  left: auto;
+}
+
+.zz-topbar__spacer {
+  flex: 1;
+}
+
+.zz-segmented__item[aria-pressed="true"] {
+  background: var(--zz-surface-2);
+  color: var(--zz-text-1);
+}
+
+.zz-model-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zz-space-2);
+  padding: var(--zz-space-1) var(--zz-space-2);
+  border: none;
+  border-radius: var(--zz-radius-pill);
+  background: transparent;
+  color: var(--zz-text-2);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--zz-text-meta);
+}
+
+.zz-model-status i {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--zz-radius-pill);
+  background: var(--zz-warn);
+}
+
+.zz-model-status[data-ready="true"] i {
+  background: var(--zz-ok);
+}
+
+.zz-banner {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--zz-space-3);
+  padding: var(--zz-space-2) var(--zz-space-4);
+  background: var(--zz-accent-soft);
+  color: var(--zz-text-1);
+}
+
+.zz-onboarding {
+  width: min(640px, calc(100vw - 32px));
+}
+
+.zz-confirm {
+  width: min(440px, calc(100vw - 32px));
+}

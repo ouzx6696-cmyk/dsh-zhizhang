@@ -1,94 +1,110 @@
-import { COPY as viewCopy } from "@writer/ui/copy";
-import React from "react";
-import { FolderOpen } from "lucide-react";
+import React, { useCallback, useEffect, useState } from "react";
+import { DESKTOP_COPY as C } from "@zhizhang/ui/copy";
+import { notify } from "@zhizhang/ui/notify";
+import { Button, Empty } from "@zhizhang/ui/primitives";
+import type { RecoverAction, StorageHealth } from "../../../shared/views";
+import { chooseWorkspace } from "../../state/controller";
 import { desktop } from "../../state/desktop";
+import { useDesktop } from "../../state/store";
+import { notifyError, run } from "../../format";
+import { Section } from "./fields";
 
-type Health = Awaited<ReturnType<typeof desktop.storageHealth>>;
-type Action = (operation: () => unknown) => Promise<unknown>;
+export function WorkspaceTab() {
+  const workspace = useDesktop((s) => s.workspace);
+  const [health, setHealth] = useState<StorageHealth | null>(null);
+  const [backingUp, setBackingUp] = useState(false);
+  const inspect = useCallback(async () => setHealth(await desktop.storageHealth()), []);
+  useEffect(() => {
+    if (workspace?.configured) inspect().catch(notifyError);
+  }, [workspace?.configured, workspace?.root, inspect]);
 
-export function WorkspaceTab({
-  workspace,
-  preferences,
-  setPreferences,
-  health,
-  setHealth,
-  busy,
-  action,
-  onWorkspace,
-  onImport,
-}: {
-  workspace: string;
-  preferences: string | null;
-  setPreferences: (value: string) => void;
-  health: Health | null;
-  setHealth: (value: Health) => void;
-  busy: boolean;
-  action: Action;
-  onWorkspace: () => void | Promise<void>;
-  onImport: (mode: "fanqie" | "toutiao") => void | Promise<void>;
-}) {
+  const recover = (action: RecoverAction) =>
+    run(async () => setHealth(await desktop.recover(action)));
+  const backup = async () => {
+    setBackingUp(true);
+    try {
+      const result = await desktop.backup();
+      if (result) notify({ tone: "success", text: C.workspace.backupDone(result.dir) });
+    } catch (error) {
+      notifyError(error);
+    } finally {
+      setBackingUp(false);
+    }
+  };
+  const clean =
+    health &&
+    !health.staleLocks.length &&
+    !health.pendingIntents.length &&
+    !health.interruptedRuns.length;
   return (
-    <>
-      <h3>{viewCopy.workspace}</h3>
-      <p className="path-label">{workspace || viewCopy.settingsDialogText15}</p>
-      <p className="form-note">{viewCopy.settingsDialogText16}</p>
-      <div className="button-row">
-        <button onClick={() => action(onWorkspace)}>
-          <FolderOpen size={16} />
-          {viewCopy.onboardingText4}
-        </button>
-        <button onClick={() => action(() => onImport("fanqie"))}>
-          {viewCopy.settingsDialogText17}
-        </button>
-        <button onClick={() => action(() => onImport("toutiao"))}>
-          {viewCopy.settingsDialogText18}
-        </button>
-      </div>
-      <h3>{viewCopy.settingsDialogText19}</h3>
-      <p className="form-note">{viewCopy.settingsDialogText20}</p>
-      <textarea
-        className="preferences-editor"
-        value={preferences ?? ""}
-        disabled={preferences === null}
-        onChange={(event) => setPreferences(event.target.value)}
-        placeholder={viewCopy.settingsDialogText21}
-      />
-      <h3>{viewCopy.settingsDialogText22}</h3>
-      <button
-        disabled={busy}
-        onClick={() => action(async () => setHealth(await desktop.storageHealth()))}
-      >
-        {viewCopy.settingsDialogText23}
-      </button>
-      {health && (
-        <div role="status">
-          <p>
-            {health.label}：{health.reason}
-          </p>
-          {health.files.map((item) => (
-            <p key={item.file}>
-              {item.file}：{item.state}
-            </p>
-          ))}
-          {health.canRecover && (
-            <button
-              disabled={busy}
-              onClick={() =>
-                action(async () => {
-                  const result = await desktop.recover({
-                    id: health.id,
-                    fingerprint: health.fingerprint,
-                  });
-                  setHealth(await desktop.storageHealth());
-                  return result;
-                })
-              }
-            >
-              {viewCopy.settingsDialogText24}
-            </button>
-          )}
+    <div className="zz-stack" data-testid="settings-workspace">
+      <Section title={C.workspace.folder}>
+        <p data-testid="settings-workspace-root">{workspace?.root || C.workspace.notSet}</p>
+        <div className="zz-row">
+          <Button data-testid="settings-choose-workspace" onClick={() => run(chooseWorkspace)}>
+            {workspace?.configured ? C.workspace.change : C.workspace.choose}
+          </Button>
+          {workspace?.root ? (
+            <Button variant="ghost" onClick={() => run(() => desktop.openPath(workspace.root))}>
+              {C.workspace.open}
+            </Button>
+          ) : null}
         </div>
-      )}
-    </>
+      </Section>
+      <Section title={C.workspace.health} testId="storage-health">
+        {clean ? <Empty title={C.workspace.healthy} /> : null}
+        {health?.staleLocks.map((lock) => (
+          <div key={lock.lockDir} className="zz-row" data-testid="stale-lock">
+            <span>{C.workspace.staleLock(lock.lockDir)}</span>
+            <Button
+              size="sm"
+              onClick={() => recover({ kind: "clear-lock", lockDir: lock.lockDir })}
+            >
+              {C.workspace.clear}
+            </Button>
+          </div>
+        ))}
+        {health?.pendingIntents.map((intent) => (
+          <div key={intent.dir + intent.id} className="zz-row" data-testid="pending-intent">
+            <span>{C.workspace.pendingIntent(intent.dir)}</span>
+            <Button size="sm" onClick={() => recover({ kind: "replay-intents", dir: intent.dir })}>
+              {C.workspace.replay}
+            </Button>
+          </div>
+        ))}
+        {health?.interruptedRuns.map((r) => (
+          <div key={r.id} className="zz-row" data-testid="interrupted-run">
+            <span>{C.workspace.interrupted(r.kind)}</span>
+            <Button
+              size="sm"
+              onClick={() => recover({ kind: "discard-run", runId: r.id, target: r.target })}
+            >
+              {C.workspace.discardRun}
+            </Button>
+          </div>
+        ))}
+        <Button size="sm" variant="ghost" onClick={() => inspect().catch(notifyError)}>
+          {C.workspace.recheck}
+        </Button>
+      </Section>
+      <Section title={C.workspace.backup}>
+        <p className="zz-muted">{C.workspace.backupHint}</p>
+        <div className="zz-row">
+          <Button
+            data-testid="backup-start"
+            loading={backingUp}
+            disabled={!workspace?.configured}
+            onClick={() => void backup()}
+          >
+            {C.workspace.backupStart}
+          </Button>
+          {backingUp ? (
+            <Button variant="ghost" onClick={() => run(() => desktop.cancelBackup())}>
+              {C.workspace.backupCancel}
+            </Button>
+          ) : null}
+        </div>
+      </Section>
+    </div>
   );
 }

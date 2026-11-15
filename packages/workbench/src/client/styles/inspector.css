@@ -5,22 +5,22 @@
   padding: 0 8px;
 }
 .wb-diagnostics {
-  border: 0.5px solid var(--wb-line);
-  border-radius: var(--wb-r-sm);
+  border: 0.5px solid var(--zz-line);
+  border-radius: var(--zz-r-sm);
   padding: 12px;
   margin: 8px;
   max-height: 50vh;
   overflow: auto;
 }
 .wb-diagnostics select {
-  color: var(--wb-fg);
-  background: var(--wb-layer);
+  color: var(--zz-fg);
+  background: var(--zz-layer);
   padding: 4px;
 }
 .wb-diagnostics li {
   margin: 8px 0;
   padding: 6px;
-  border-bottom: 0.5px solid var(--wb-line);
+  border-bottom: 0.5px solid var(--zz-line);
 }
 .wb-diagnostics .wb-toolbar,
 .wb-diagnostics .wb-action-row {
@@ -37,6 +37,6 @@
   margin: 8px 0;
 }
 .wb-diagnostics li:focus-visible {
-  outline: 2px solid var(--wb-accent);
+  outline: 2px solid var(--zz-accent);
   outline-offset: 2px;
 }

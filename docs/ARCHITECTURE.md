@@ -1,67 +1,53 @@
-# 架构
+# 系统架构（v1.3）
 
-Electron 是唯一客户端，PI SDK 1.5.0 管理模型会话。代码只能向下依赖；架构守卫检查依赖环、存储边界、浏览器边界、文案和组件样式归属。
+## 1. 分层与守卫规则
 
-| 包 | 可依赖的项目层 | 职责 |
-| --- | --- | --- |
-| `apps/desktop` | core、toutiao、fanqie、workbench、ui | Electron 主进程、IPC、PI 会话和桌面界面 |
-| `packages/workbench` | core、ui；正文组件使用番茄浏览器安全的 manuscript 领域模块 | 工作台契约、方法方案接口、共享写作区 |
-| `packages/fanqie` | core、workbench 路由契约 | 长篇工具、领域规则、存储和查询 |
-| `packages/toutiao` | core、workbench 路由契约 | 立项、逐版稿件、质检、采用、交稿和台账 |
-| `packages/core` | Node 标准库 | 工具执行、门禁、原子文件、路径沙箱、锁、方案、Python 运行器 |
-| `packages/ui` | React | 设计 token、原语、状态映射和共享文案 |
+```text
+L3  apps/desktop          组合根 · IPC · 窗口 · PI 适配 · 渲染层
+        │  仅经 package.json exports 门面导入
+L2  @zhizhang/fanqie      @zhizhang/toutiao      ← 各自实现 ModeModule，互不引用
+        │
+L1  @zhizhang/workbench   @zhizhang/ui           ← 命令契约、TextSurface、--zz-* 令牌与 CopyKey
+        │
+L0  @zhizhang/core        errors / schema / fs / lock / journal / tool / pipeline / model / methods / python
+```
 
-`apps/desktop/src/main` 在 IPC 边界解析参数。`session/pi-adapter.ts` 是唯一 PI SDK 导入边界，`session` 组织写手、编辑和规划任务；编辑与规划拥有明确工具白名单。渲染层使用单一 store，功能模块组合共享写作区，不直接访问 Node 存储。
+[scripts/guard.mjs](scripts/guard.mjs) 统一执行以下静态守卫：
 
-`core/execute.ts` 的 `executeTool` 统一执行门禁、作者确认和工具调用。`core/fsx.ts` 负责 fsync 原子替换、防符号链接、读盘、哈希、ID、UTC 时间和路径约束；领域层不复制这些能力。
+- **G-layer / G-facade**：层只能向下依赖；模式包互不引用；跨包禁止深入 `packages/*/src/`，只能使用 `package.json` `exports` 子路径。
+- **G-app / G-pi**：`session/` 与 `renderer/` 不得导入 `main/`；`@earendil-works/pi-*` 仅限 [pi-adapter.ts](apps/desktop/src/session/pi-adapter.ts)。
+- **G-core**：`core` 仅导入 `node:` 内置模块，严禁出现 `fanqie`/`toutiao` 等业务词。
+- **G-error**：禁止 `packages/` 新增 `throw new Error(`；`apps/desktop/src/main/` 受 `mainRawError` 基线约束只减不增。
+- **G-copy / G-rules**：`desktop/renderer` 与 `ui` 的 JSX 禁止写中文；业务常量 `84` / `34` 仅存于 [rules.py](packages/toutiao/skill/scripts/rules.py)，状态词与固定末句仅存于 [status.ts](packages/toutiao/src/domain/status.ts)。
+- **G-type / G-exports / G-css / G-size / G-docs**：`any` ≤1、`!` = 0、`!:` = 0、`as` 受基线约束；校验 `exports` 路径与零引用导出基线；非令牌 CSS 禁止十六进制色与 `--ui-/--wb-`；单文件 >400 行提示；文档总数 ≤8 份。
 
-头条工具的标题上限和规则版本来自 Python `rules.py`，启动时通过 bridge 加载并缓存。QA 的立项卡和六维评分在同一 Python 进程执行。方法根由桌面显式传入；方法原文不随任务动态重写。
+## 2. 进程边界与 IPC
 
-长篇 `engine/domain` 定义版本、证据和工作流，`services` 编排采纳与诊断，`storage` 管理持久化，`ports` 适配参考库与质量策略。通用 journal 执行八类多文件意图，恢复确认绑定日志 ID 和完整指纹。文风规则唯一源为 Python `manuscript_linter.py`，TS 校验返回的 UTF-16 坐标并展示。详见[长篇存储与恢复](engine/ARCHITECTURE.md)。
+- **主进程组合根**（[apps/desktop/src/main/index.ts](apps/desktop/src/main/index.ts)）：注册 `ModeModule`、管理 `WorkflowService`（单活任务、断点指针）、分派 `WorkbenchCommandMap`、托管离线备份 utility process。
+- **强类型契约**：渲染端经 [preload.ts](apps/desktop/src/preload.ts) 暴露的 `window.zhizhangBridge` 调用 [shared/ipc.ts](apps/desktop/src/shared/ipc.ts) 中定义的 `IpcMap`，并接收 [shared/events.ts](apps/desktop/src/shared/events.ts) 的判别联合 `DesktopEvent`。
+- **模型网关与 PI 隔离**：所有流水线阶段通过 `ModelGateway`（全局并发闸默认 4、token 与金额预算、2s/6s/15s 退避、流式看门狗）调用 `ModelPort`，不直接耦合 PI SDK。
 
-`workbench/src/commands.ts` 集中定义工作台操作名称、模式、读写范围和通知策略。桌面入口按该契约分派头条、番茄和方法方案操作，无合成 URL 与 HTTP 状态码。头条工具与写作台共用 `article-service.ts` 的采用决策。界面正文按需读取，迟到响应按作品和版本隔离。候选保存暂存时的章节版本；采纳时在锁内检查作者看到的版本，覆盖写还需核对暂存基线，并校验候选内容哈希。
+## 3. 流水线与状态机
 
-`ui` 集中用户文案、状态文字与色调、Dialog 和 Steps。CSS 按组件职责分组，一个组件前缀只在一处维护。
+- **流水线运行状态（`RunRecord.state`）**：`queued` → `running` → `paused`（预算/金额/取消/人工暂停）| `awaiting-author`（交付待确认）| `failed`；支持从 `paused` / `failed` 恢复断点继续。
+- **番茄章节状态**：`planned` → `drafting` → `drafted` → `reviewed` → `final`。
+- **头条文章状态**：`初稿待改` → `待验收` → `已验收` / `验收退回` → `已交稿`（终态不可逆，仅由作者确认触发）。
 
-## 数据流与事实归属
+## 4. 磁盘格式（`zhizhang/1.3`）
 
-作者操作 → preload/IPC 参数解析 → 会话任务或业务命令 → `executeTool`/共同业务服务 → 领域规则 → 合作锁、原子文件与 journal → 本地作品。读取结果通过 IPC 回到 store，工具进度和模型 usage 通过会话事件更新界面。
+- **应用状态目录**（`~/.zhizhang/` 或 `ZHIZHANG_STATE_ROOT`）：保存加密密钥、全局设置、运行指针与诊断日志（不随作品备份）。
+- **本地写作文件夹**：
+  - `.zhizhang/`：`lease.json`（跨进程租约）、`.zhizhang-lock/`（可重入资源写锁）、`drafts/`（草稿版本冲突保护）。
+  - `长篇/<bookId>/`：`work.json`、`bible/`（`entities.json`、`states.json`、`threads.json`、`knowledge.json`、`chapters.json`、`style.json`、`pending.json`、`index.json`）、`plan/`、`chapters/`、`candidates/`、`runs/`。
+  - `头条/<articleId>/`：`article.json`、`sources/`、`drafts/`、`qa/`、`delivery.md`、`runs/`。
+- **多文件提交**：所有跨文件写入通过 `LockService` 加锁，经 `atomicWrite` + `Intent` 意图日志原子落盘并在启动时重放未完成意图。
 
-作品文件是事实来源，聊天中的“完成”不等于落盘成功。写作根保存 `novels/`、`toutiao/` 和 `.writer/`；应用 userData 保存模型配置、会话入口、界面偏好、去敏日志，以及源稿编辑器未保存文字的明文草稿（渲染进程 localStorage，按章节槽位或文章为键并记录起草时的版本，保存或作者放弃后清除，不随写作根备份）。当前版本不迁移旧作品或旧会话。非法或损坏数据报错，不用空数据覆盖。
+## 5. 错误码与配置
 
-合作锁不能阻止外部编辑，原子替换也不是跨文件事务。多文件写入中断保留恢复意图，作者核对后继续；恢复不覆盖整本书或任意删除遗留文件。
+- **错误码原则**：统一使用 `AppError` 与 `CODES`（[codes.ts](packages/core/src/errors/codes.ts)），按 `input.*`、`gate.*`、`storage.*`、`model.*`、`budget.*`、`internal` 分类，并在边界由 `classify()` 映射 errno 与 HTTP 状态。
+- **配置模型**：全局设置由 [shared/settings.ts](apps/desktop/src/shared/settings.ts) 统一 schema 校验，包含五角色模型卡（写手/编辑/规划/评审/抽取）、引擎档位（经济/标准/精品）、token 与金额上限、全局并发数、外观（主题/字体/行长）与写作文件夹路径。
 
-## PI 上下文与缓存费用
+## 6. 测试体系规范
 
-主会话使用 PI 的持久化 SessionManager，按作品和角色恢复同一个会话；系统提示与工具定义保持稳定，任务变化追加到用户消息中。连续请求与重启后的请求保留历史消息前缀，避免每轮重建整份上下文。编辑、规划任务使用独立短会话，保留各自的任务边界。
-
-上下文窗口交给 PI 自动压缩管理，沿用 SDK 的窗口预算（预留 16,384 token、保留最近 20,000 token）。缓存命中不会缩短窗口占用；压缩、切换模型或改变提示前缀都可能导致一次新的缓存写入，不能靠永远保留全部历史来省钱。
-
-缓存保温显式采用 PI 默认的 `streaming` 策略，不启用空闲时持续付费保温。PI 根据模型目录的缓存寿命和预估节省费用决定是否保温；自定义服务没有这些信息时不猜测。服务商支持的缓存请求字段、读写 token 解析也由 PI 适配层负责，避免向未知兼容接口强塞参数。
-
-每条完成的助手消息记录 `model_usage` 诊断：角色、模型、服务商、普通输入、输出、缓存读取、缓存写入 token 及 SDK 估算费用；不记录提示正文或密钥。按相同模型和服务商汇总 `cacheRead / (input + cacheRead + cacheWrite)` 可观察实际缓存读取占比，并结合输出与压缩次数解释费用。没有价格元数据时 SDK 的零费用不能视为免费。本地运行时测试覆盖稳定前缀、会话恢复与服务商用量解析；真实命中率和实际账单仍需真实服务商请求验证。
-
-
-上下文面板通过受校验的 IPC 读取 PI `getContextUsage()` 和 `getSessionStats()`。当前上下文与累计用量分开；任务统计聚合委派角色，主会话累计不重复叠加子任务。方法读取记录实际方案、ID 和内容哈希，压缩或切换方案后清除当前加载凭据。
-
-压缩设置保存在 desktop.json：自动开关、触发比例、可选有效预算和近期保留量。会话创建时映射到 PI reserveTokens/keepRecentTokens；手动入口复用 `session.compact()`，会话级互斥保护覆盖准备阶段，取消沿用 SDK。压缩条目和原始历史由 PI 保存，面板可查看最近摘要及其请求用量；压缩后占用未知时不复用旧计数。
-
-搜索复用主进程 `writer_search`/`writer_read_url`，新配置默认 Exa lite，旧无 provider 的密文按 Tavily 解释。Key 不进入模型上下文；查询次数与网页摘录有任务预算。搜索连接测试是显式真实请求，费用与模型费用独立记录，服务商未返回费用则保持未知。
-
-## 阶段式写作
-
-`workflow/service.ts` 管理作品级互斥和暂停恢复。`core/workflow.ts` 将阶段输出、尝试次数、耗时、模型及用量原子落盘；恢复只复用已完成且重新通过结构解析的输出。调度会话仅保留读取、流水线与可选个人规则工具，最多 12 项。每个模型阶段使用独立、无工具、无历史的 PI 请求。
-
-`workflow/context.ts` 从当前作品组装事实依据，校验作品、章节标题与状态、节奏、前章、连续性、作者偏好和方法指纹；头条当前稿按登记哈希核对正文。必要材料超预算时暂停，禁止静默截断。前章只取尾段，连续性按出场主体和到期线索筛选。任务补全章纲后的中断交付须核对其原稿、计划和预期状态后才能恢复。稳定设定和规则在前，本阶段材料和要求在后；服务商决定缓存是否命中。任务依赖与本地测量见[流水线依据](engine/WORKFLOW-BASIS.md)。
-
-方法仍只来自当前 default/original/用户方案。阶段卡按源文件内容哈希缓存，每一节生成一个规则编号，校验编号覆盖与规则文字总长，不另维护可编辑副本。节编号覆盖只能检查结构完整性，不能证明模型摘要的语义无损。
-
-章节：章纲（完整作者章纲直接采用）→场景→单稿或差异化多稿→交换位置的读者比较→最多两轮定向精修→保存候选。硬伤必须引用当前正文并绑定哈希；章纲偏离仅列建议。正文采用与定稿仍走既有作者操作。
-
-文章：来源→立项卡→标题→结构→起稿→读者比较和硬伤审读→原有 Python 质检与最多两轮修改→事实引用核对→最终审读→工作稿。故事可使用安装包内公版原典，资讯链接复用现有安全读取。拟采用字段留在报告中，作者采用时备份并对实际稿件与卡片重跑原有质检，保留 84 分、标题上限及交稿状态规则。
-
-交付前持久化准备结果。交付回执使用任务编号，恢复识别本任务自己的章纲补全或文章新版本，校验其他依据与候选/正文哈希，不重复交付。任意作者改动会阻断旧进度套用。历史报告保留于应用数据目录 `workflows/`，工作稿与备份可追溯。
-
-作者定稿后可自动抽取有原文证据的结构化事实；状态冲突进入待确认队列。每十章以状态和摘要检查长线风险。作品已有的自由文本可备份并生成待确认的连续性候选。改稿学习复用原有作者修订记录，只生成候选；确认后写作品文风/反馈和个人规则层，并显示后续定稿章节数与同类候选复现次数，十章提醒复核。
-
-设置同时提供流水线与自由写作。开关编辑为对话框草稿，保存才落盘；阶段/任务输入预算可调整后恢复。未知价格显示未知，用量面板统计本次及本作品历史、本作品本月和缓存读取占比，不推算通用服务商余额或宣称已测得质量提升。
+- **分层**：L1 `test/unit/`（纯规则与契约）→ L2 `test/engine/`（持久化、锁、意图、圣经、流水线编排）→ L3 桌面会话与 IPC → L4 Playwright E2E；Python `unittest` 负责规则计算与质检，TS 仅测调用、错误映射与落盘。
+- **夹具与纪律**：L2 流水线测试使用 [test/support/fake-port.mjs](test/support/fake-port.mjs) 与 [test/support/clock.mjs](test/support/clock.mjs)，禁止真实 `sleep` 与跨用例共享队列；不写任何 1.x 旧格式兼容测试。

@@ -17,8 +17,8 @@ import {
 } from "node:fs/promises";
 import path from "node:path";
 
-const MANIFEST = "writer-novel-backup-manifest.json";
-const INCOMPLETE = ".writer-backup-incomplete";
+const MANIFEST = "zhizhang-backup-manifest.json";
+const INCOMPLETE = ".zhizhang-backup-incomplete";
 function fail(msg) {
   throw new Error(msg);
 }
@@ -36,15 +36,11 @@ async function scan(root) {
   async function visit(dir, rel) {
     const names = (await readdir(dir)).sort();
     for (const name of names) {
-      if (name === ".writer-workspace-lock.json") continue;
+      if (rel === ".zhizhang" && name === "lease.json") continue;
       const file = path.join(dir, name),
         item = rel ? path.join(rel, name) : name;
       const st = await lstat(file);
-      if (
-        [".writer-write-lock", ".writer-write-lock-gate", ".writer-workspace-claim-gate"].includes(
-          name,
-        )
-      )
+      if (name.startsWith(".zhizhang-lock-"))
         fail(`发现写入登记 ${file}；请停止所有写入进程并核对后再备份。`);
       if (st.isSymbolicLink())
         entries.push({ path: item, type: "symlink", target: await readlink(file) });

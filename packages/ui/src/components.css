@@ -1,3 +1,6 @@
+@import "./tokens/palette.css";
+@import "./tokens/semantic.css";
+@import "./tokens/component.css";
 @import "./styles/base.css";
 @import "./styles/primitives.css";
 @import "./styles/dialog.css";
@@ -5,3 +8,6 @@
 @import "./styles/agent.css";
 @import "./styles/settings.css";
 @import "./styles/ledger.css";
+@import "./styles/tabs.css";
+@import "./styles/notify.css";
+@import "./styles/zz-primitives.css";

@@ -5,7 +5,7 @@
  * 不大于 1.75（超宽、超高屏不至于字大得离谱）；按 0.05 取整，拖动窗口时不会每个像素都重排。
  */
 const ZOOM_BASE = { width: 1380, height: 760 } as const;
-export const ZOOM_MAX = 1.75;
+const ZOOM_MAX = 1.75;
 
 export function fitZoom(width: number, height: number): number {
   if (!(width > 0) || !(height > 0)) return 1;

@@ -4,12 +4,12 @@
   max-height: calc(100% - 32px);
   overflow: auto;
   border: 0;
-  border-radius: var(--wb-r-panel);
+  border-radius: var(--zz-r-panel);
   background: canvas;
-  color: var(--wb-fg);
-  box-shadow: var(--wb-shadow-2);
-  font: var(--ui-size-14)/var(--ui-size-22) var(--ui-font-ui);
-  animation: wb-modal-in 220ms var(--wb-ease);
+  color: var(--zz-fg);
+  box-shadow: var(--zz-shadow-2);
+  font: var(--zz-size-14)/var(--zz-size-22) var(--zz-font-ui);
+  animation: wb-modal-in 220ms var(--zz-ease);
 }
 .wb-modal-content {
   padding: 24px 24px 8px;
@@ -25,12 +25,12 @@
 }
 .wb-modal-title {
   margin: 0;
-  font: 600 var(--ui-size-18)/var(--ui-size-26) var(--ui-font-ui);
+  font: 600 var(--zz-size-18)/var(--zz-size-26) var(--zz-font-ui);
   font-weight: 600;
 }
 .wb-modal-description {
   margin: 0;
-  color: var(--wb-fg-2);
+  color: var(--zz-fg-2);
 }
 .wb-modal-footer {
   padding: 12px 24px 24px;
@@ -39,7 +39,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  font: var(--ui-size-13)/var(--ui-size-20) var(--ui-font-ui);
+  font: var(--zz-size-13)/var(--zz-size-20) var(--zz-font-ui);
 }
 .wb-dialog-actions {
   display: flex;

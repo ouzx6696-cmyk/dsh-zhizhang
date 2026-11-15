@@ -1,85 +1,62 @@
-import { COMMANDS, commandPolicy, sendError } from "../../../workbench/src/commands.js";
-import type { ToutiaoConfig } from "../env.js";
-import { str } from "../../../core/src/parse.js";
-import { adopt, articleDetail, listArticles, saveAuthorDraft, TOUTIAO_ACTIONS } from "./data.js";
+import { classify, isAppError } from "@zhizhang/core/errors";
+import type { WorkbenchCommand, WorkbenchCommandMap } from "@zhizhang/workbench/contract";
+import {
+  createArticleCommand,
+  deliverArticleCommand,
+  listArticleRowsCommand,
+  transitionArticleCommand,
+} from "../commands/article.js";
 
-export type ToutiaoCommand =
-  | typeof COMMANDS.articles
-  | typeof COMMANDS.article
-  | typeof COMMANDS.adoptArticle
-  | typeof COMMANDS.saveArticle;
+export type ToutiaoWorkbenchCommand = Extract<
+  WorkbenchCommand,
+  | "toutiao.articles"
+  | "toutiao.article.create"
+  | "toutiao.article.transition"
+  | "toutiao.article.deliver"
+>;
 
-export function isToutiaoCommand(operation: string): operation is ToutiaoCommand {
-  return commandPolicy(operation)?.handler === "toutiao";
+const TOUTIAO_WORKBENCH_COMMANDS: readonly ToutiaoWorkbenchCommand[] = [
+  "toutiao.articles",
+  "toutiao.article.create",
+  "toutiao.article.transition",
+  "toutiao.article.deliver",
+];
+
+export function isToutiaoCommand(operation: string): operation is ToutiaoWorkbenchCommand {
+  return (TOUTIAO_WORKBENCH_COMMANDS as readonly string[]).includes(operation);
 }
 
-/** Desktop commands share the same author actions as the writer tools. */
-export async function runToutiaoCommand(
-  operation: ToutiaoCommand,
-  input: Record<string, unknown>,
-  config: ToutiaoConfig,
-  canDeliver: boolean,
-): Promise<{ data: unknown }> {
+export async function runToutiaoCommand<K extends ToutiaoWorkbenchCommand>(
+  operation: K,
+  input: WorkbenchCommandMap[K]["input"],
+): Promise<
+  { ok: true; data: WorkbenchCommandMap[K]["result"] } | { ok: false; code: string; error: string }
+> {
   try {
-    if (operation === COMMANDS.articles) {
-      return {
-        data: {
-          ok: true,
-          ...(await listArticles()),
-          actions: [...TOUTIAO_ACTIONS],
-          deliver: canDeliver,
-          deliverReason: canDeliver ? undefined : "请先保存模型连接",
-        },
-      };
+    if (operation === "toutiao.articles") {
+      const req = input as WorkbenchCommandMap["toutiao.articles"]["input"];
+      const data = await listArticleRowsCommand(req.root);
+      return { ok: true, data };
     }
-    const root = str(input.root),
-      id = str(input.id);
-    if (operation === COMMANDS.article) {
-      if (!root || !id)
-        return {
-          data: { ok: false, code: "bad_request", error: "须指明 root 与 id" },
-        };
-      return { data: { ok: true, article: await articleDetail(root, id) } };
+    if (operation === "toutiao.article.create") {
+      const req = input as WorkbenchCommandMap["toutiao.article.create"]["input"];
+      const { articleDir } = await createArticleCommand(req);
+      return { ok: true, data: { articleDir } };
     }
-    const sha256 = typeof input.expectedSha256 === "string" ? input.expectedSha256 : "";
-    const valid =
-      root &&
-      id &&
-      Number.isInteger(input.expectedRev) &&
-      Number(input.expectedRev) >= 1 &&
-      /^[a-f0-9]{64}$/.test(sha256);
-    if (operation === COMMANDS.adoptArticle) {
-      if (!valid || input.confirm !== true)
-        return {
-          data: {
-            ok: false,
-            code: "bad_args",
-            error: "须明确确认、数据目录、文章及实际已读版本。",
-          },
-        };
-      const meta = await adopt(root, id, { rev: Number(input.expectedRev), sha256 }, config);
-      return { data: { ok: true, id: meta.id, status: meta.status } };
+    if (operation === "toutiao.article.transition") {
+      const req = input as WorkbenchCommandMap["toutiao.article.transition"]["input"];
+      const { status } = await transitionArticleCommand(req);
+      return { ok: true, data: { status } };
     }
-    const text = typeof input.text === "string" ? input.text : "";
-    if (!valid || !text.trim())
-      return {
-        data: {
-          ok: false,
-          code: "bad_args",
-          error: "须指明数据目录、文章、非空正文及实际已读版本。",
-        },
-      };
-    const saved = await saveAuthorDraft(
-      root,
-      id,
-      text,
-      { rev: Number(input.expectedRev), sha256 },
-      config,
-    );
-    return { data: { ok: true, id, ...saved } };
-  } catch (error) {
-    let result: { data: unknown } = { data: {} };
-    sendError({ reply: (data) => (result = { data }) }, error);
-    return result;
+    const req = input as WorkbenchCommandMap["toutiao.article.deliver"]["input"];
+    const { deliveryPath } = await deliverArticleCommand(req);
+    return { ok: true, data: { deliveryPath } };
+  } catch (err) {
+    const appErr = isAppError(err) ? err : classify(err);
+    return {
+      ok: false,
+      code: appErr.code,
+      error: appErr.message,
+    };
   }
 }

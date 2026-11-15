@@ -1,36 +1,23 @@
 {
-  "name": "writer-agent",
-  "version": "1.2.0",
+  "name": "zhizhang",
+  "version": "1.3.0",
   "private": true,
-  "description": "基于内置 PI 的独立写作客户端：今日头条与番茄长篇",
+  "description": "织章：本地优先的中文写作桌面工作台（番茄长篇与今日头条）",
   "type": "module",
   "engines": {
     "node": ">=24.11.0"
   },
   "scripts": {
-    "guard": "node scripts/architecture-guard.mjs",
-    "lint": "eslint .",
-    "format:check": "prettier --check .",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p apps/desktop/tsconfig.json --noEmit && tsc -p tsconfig.jsx.json",
-    "build": "tsc -p tsconfig.json",
-    "test:py": "node scripts/test-python.mjs",
-    "test:node": "node scripts/test.mjs node",
-    "test": "npm run verify",
+    "check": "tsc -b && eslint . && prettier --check . && node scripts/guard.mjs",
+    "test": "python3 -m unittest discover -s packages/toutiao/skill/tests -p \"test_*.py\" && python3 -m unittest discover -s packages/fanqie/skill/tests -p \"test_*.py\" && node --test test/unit/*.test.mjs test/engine/*.test.mjs",
+    "test:e2e": "npm run build -w @zhizhang/desktop && playwright test -c apps/desktop/playwright.config.mjs",
+    "release:verify": "node scripts/verify-release.mjs",
+    "build": "tsc -b",
     "assets": "node scripts/assets.mjs",
-    "corpus:fanqie": "node scripts/fanqie-corpus.mjs",
-    "desktop:dev": "npm run dev -w @writer/desktop",
-    "desktop:build": "npm run typecheck && npm run build -w @writer/desktop",
-    "desktop:pack": "npm run desktop:build && npm run pack -w @writer/desktop",
-    "desktop:portable": "npm run desktop:build && npm run pack:portable -w @writer/desktop",
-    "test:desktop": "node scripts/test.mjs runtime",
-    "test:desktop:ui": "node scripts/test.mjs ui",
-    "verify": "node scripts/test.mjs core",
-    "verify:desktop": "node scripts/test.mjs desktop",
-    "verify:release": "node scripts/verify-release.mjs",
-    "audit:exports": "node scripts/audit-fanqie-exports.mjs",
-    "test:all": "node scripts/test.mjs all",
-    "test:platform": "node scripts/test.mjs platform",
-    "test:quick": "node scripts/test.mjs quick"
+    "desktop:dev": "npm run dev -w @zhizhang/desktop",
+    "desktop:build": "npm run build -w @zhizhang/desktop",
+    "desktop:pack": "npm run desktop:build && npm run pack -w @zhizhang/desktop",
+    "desktop:portable": "npm run desktop:build && npm run pack:portable -w @zhizhang/desktop"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -46,8 +33,8 @@
     "typescript-eslint": "^8.72.1"
   },
   "workspaces": [
-    "apps/desktop",
-    "packages/ui"
+    "apps/*",
+    "packages/*"
   ],
   "overrides": {
     "undici": "8.12.3",

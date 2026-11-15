@@ -297,7 +297,7 @@ with zipfile.ZipFile(src) as z:
 `;
 
 async function extractZip(zip) {
-  const out = await mkdtemp(path.join(tmpdir(), "writer-assets-"));
+  const out = await mkdtemp(path.join(tmpdir(), "zhizhang-assets-"));
   for (const py of [process.env.WRITER_PYTHON, "python3", "python", "py"].filter(Boolean)) {
     try {
       execFileSync(py, [...(py === "py" ? ["-3"] : []), "-c", UNZIP_PY, zip, out], {

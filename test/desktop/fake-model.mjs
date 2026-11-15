@@ -1,122 +1,96 @@
 import { createServer } from "node:http";
-export async function fakeModel(scripts = {}, respond) {
-  const calls = [],
-    streamed = [],
-    queues = structuredClone(scripts);
+
+/**
+ * OpenAI 兼容的假模型服务（chat/completions，流式与非流式）。
+ * respond(body, lastUser) 返回 { text } / { tool: { name, input } } / { status, error } / { hold: true }。
+ * 只供 E2E 使用：不出网、不计费。
+ */
+export async function fakeModel(respond) {
+  const calls = [];
+  const holds = new Set();
   const server = createServer((request, response) => {
-    let text = "";
-    request.on("data", (chunk) => (text += chunk));
+    let raw = "";
+    request.on("data", (chunk) => (raw += chunk));
     request.on("end", () => {
-      const body = JSON.parse(text || "{}");
+      const body = JSON.parse(raw || "{}");
       calls.push(body);
-      const connection = body.messages?.some((message) => message.content === "请只回答 OK");
-      const queue = queues[body.model] || [];
-      const next = connection
+      const users = (body.messages ?? []).filter((m) => m.role === "user");
+      const last = users.at(-1);
+      const lastUser =
+        typeof last?.content === "string"
+          ? last.content
+          : (last?.content ?? []).map((p) => p.text ?? "").join("");
+      const next = lastUser.includes("请只回答 OK")
         ? { text: "OK" }
-        : queue.shift() || respond?.(body) || { text: "完成。" };
-      if (next.wait) {
-        request.on("close", () => response.destroy());
-        return;
-      }
-      if (next.status >= 400) {
+        : (respond(body, lastUser) ?? { text: "完成。" });
+      if (next.status) {
         response.writeHead(next.status, { "Content-Type": "application/json" });
-        response.end(
-          JSON.stringify({
-            error: { message: next.error, code: "invalid_api_key" },
-          }),
-        );
+        response.end(JSON.stringify({ error: { message: next.error ?? "error" } }));
         return;
       }
-      const tool = next.name
-        ? {
-            id: "call_" + calls.length,
-            type: "function",
-            function: {
-              name: next.name,
-              arguments: JSON.stringify(next.input || {}),
-            },
-          }
-        : null;
+      const usage = { prompt_tokens: 30, completion_tokens: 8, total_tokens: 38 };
       if (!body.stream) {
         response.writeHead(200, { "Content-Type": "application/json" });
         response.end(
           JSON.stringify({
-            id: "connection",
+            id: "fake",
             object: "chat.completion",
             created: 1,
             model: body.model,
             choices: [
               {
                 index: 0,
-                message: { role: "assistant", content: next.text || "OK" },
+                message: { role: "assistant", content: next.text ?? "" },
                 finish_reason: "stop",
               },
             ],
-            usage: {
-              prompt_tokens: 10,
-              completion_tokens: 1,
-              total_tokens: 11,
-            },
+            usage,
           }),
         );
         return;
       }
-      response.writeHead(200, {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-      });
-      const send = (delta, finish_reason = null, usage) =>
+      response.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" });
+      const send = (delta, finish_reason = null, withUsage) =>
         response.write(
           "data: " +
             JSON.stringify({
-              id: "fixture",
+              id: "fake",
               object: "chat.completion.chunk",
               created: 1,
               model: body.model,
               choices: [{ index: 0, delta, finish_reason }],
-              ...(usage ? { usage } : {}),
+              ...(withUsage ? { usage } : {}),
             }) +
             "\n\n",
         );
-      // Streams that stall after the response headers: "after-first" sends one text chunk (with
-      // usage when given) and goes silent; "keepalive" never sends content, only SSE comments.
-      if (next.hang) {
-        if (next.hang === "after-first")
-          send({ role: "assistant", content: next.text || "半" }, null, next.usage);
-        else send({ role: "assistant" });
-        const beat = setInterval(() => response.write(": keep-alive\n\n"), 20);
-        response.on("close", () => clearInterval(beat));
-        streamed.push(body.model);
-        return;
-      }
-      // A reasoning model that thinks for a while: one reasoning delta per tick, then the answer.
-      if (next.thinking) {
-        send({ role: "assistant" });
-        let sent = 0;
-        const beat = setInterval(() => {
-          if (sent++ < next.thinking.count) {
-            send({ reasoning_content: "想" });
-            return;
-          }
+      if (next.hold) {
+        // 先吐一段再挂住，供“停止”旅程使用；连接关闭即清理。
+        send({ role: "assistant", content: next.text ?? "思考中" });
+        const beat = setInterval(() => response.write(": keep-alive\n\n"), 50);
+        holds.add(beat);
+        response.on("close", () => {
           clearInterval(beat);
-          send({ content: next.text || "完成。" });
-          send({}, "stop", { prompt_tokens: 30, completion_tokens: 8, total_tokens: 38 });
-          response.end("data: [DONE]\n\n");
-        }, next.thinking.everyMs);
-        response.on("close", () => clearInterval(beat));
-        streamed.push(body.model);
+          holds.delete(beat);
+        });
         return;
       }
-      send({
-        role: "assistant",
-        ...(tool ? { tool_calls: [{ index: 0, ...tool }] } : { content: next.text || "完成。" }),
-      });
-      send({}, next.finish || (tool ? "tool_calls" : "stop"), {
-        prompt_tokens: next.usage?.prompt_tokens ?? 30,
-        completion_tokens: next.usage?.completion_tokens ?? 8,
-        ...(next.usage || {}),
-        total_tokens: (next.usage?.prompt_tokens ?? 30) + (next.usage?.completion_tokens ?? 8),
-      });
+      if (next.tool) {
+        send({
+          role: "assistant",
+          tool_calls: [
+            {
+              index: 0,
+              id: `call_${calls.length}`,
+              type: "function",
+              function: { name: next.tool.name, arguments: JSON.stringify(next.tool.input ?? {}) },
+            },
+          ],
+        });
+        send({}, "tool_calls", true);
+      } else {
+        send({ role: "assistant", content: next.text ?? "" });
+        send({}, "stop", true);
+      }
       response.end("data: [DONE]\n\n");
     });
   });
@@ -124,13 +98,9 @@ export async function fakeModel(scripts = {}, respond) {
   return {
     url: `http://127.0.0.1:${server.address().port}/v1`,
     calls,
-    /** Models whose hanging or thinking stream has sent its first chunk. */
-    streamed,
-    push: (model, ...items) => {
-      (queues[model] ||= []).push(...items);
-    },
     close: () =>
       new Promise((resolve) => {
+        for (const beat of holds) clearInterval(beat);
         server.closeAllConnections();
         server.close(resolve);
       }),

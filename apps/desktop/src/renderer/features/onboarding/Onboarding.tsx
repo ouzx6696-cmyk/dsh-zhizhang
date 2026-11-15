@@ -1,135 +1,116 @@
-import { COPY as viewCopy } from "@writer/ui/copy";
-import { useConnectionTest } from "../settings/useConnectionTest";
-import { Dialog, Brand } from "@writer/ui/primitives";
 import React, { useState } from "react";
-import { ArrowRight, BookOpen, Check, Feather } from "lucide-react";
-import { ModelFields } from "../settings/ModelFields";
-import type { DesktopActions } from "../../app/useDesktopController";
-import { desktopStore, useDesktopSelector } from "../../state/store";
-import { desktop } from "../../state/desktop";
+import { COPY, DESKTOP_COPY as C } from "@zhizhang/ui/copy";
+import { Button, Dialog, Steps } from "@zhizhang/ui/primitives";
+import { chooseWorkspace, modelReady, startCreate } from "../../state/controller";
+import { desktopStore, useDesktop } from "../../state/store";
+import { run } from "../../format";
+import { ConnectionForm } from "../settings/ConnectionForm";
 
-const set = desktopStore.set;
+type Step = "workspace" | "model" | "start";
+const STEPS: Step[] = ["workspace", "model", "start"];
 
-export function Onboarding({ actions }: { actions: DesktopActions }) {
-  const { fail } = actions;
-  const wizardStep = useDesktopSelector((state) => state.wizardStep);
-  const wizardModels = useDesktopSelector((state) => state.wizardModels);
-  const [followWriter, setFollowWriter] = useState(true);
-  const { results, run: testConnection } = useConnectionTest();
-  const writer = wizardModels?.writer;
-  if (!wizardModels || !writer) return null;
+/** 首启三步：写作文件夹 → 连接模型 → 第一部作品；每步都可“稍后再说”。 */
+export function Onboarding() {
+  const workspace = useDesktop((s) => s.workspace);
+  const settings = useDesktop((s) => s.settings);
+  const [step, setStep] = useState<Step>(() =>
+    !workspace?.configured ? "workspace" : !modelReady(settings) ? "model" : "start",
+  );
+  const finish = () => desktopStore.set({ onboarding: false });
+  const index = STEPS.indexOf(step);
   return (
     <Dialog
-      title={viewCopy.onboardingText1}
-      className="onboarding"
-      onClose={() => set({ onboarding: false })}
+      title={C.onboarding.title}
+      closeLabel={C.onboarding.later}
+      size="lg"
+      testId="onboarding"
+      className="zz-onboarding"
+      onClose={finish}
     >
-      <div className="onboarding-brand">
-        <Brand />
-        <h1>{viewCopy.ttAgent}</h1>
-        <p>{viewCopy.onboardingText2}</p>
-      </div>
-      <ol className="onboarding-steps">
-        {[viewCopy.onboardingText3, viewCopy.onboardingText4, viewCopy.onboardingText1].map(
-          (label, index) => (
-            <li
-              key={label}
-              data-state={index < wizardStep ? "done" : index === wizardStep ? "current" : "todo"}
-              aria-current={index === wizardStep ? "step" : undefined}
+      <p className="zz-muted">{C.onboarding.lead}</p>
+      <Steps
+        steps={STEPS.map((s) => C.onboarding.steps[s])}
+        current={index}
+        label={C.onboarding.title}
+      />
+      {step === "workspace" ? (
+        <section className="zz-stack" data-testid="onboarding-step-workspace">
+          <h3>{C.onboarding.workspaceTitle}</h3>
+          <p>{C.onboarding.workspaceHint}</p>
+          <p
+            data-testid="onboarding-workspace-path"
+            data-configured={Boolean(workspace?.configured)}
+          >
+            {workspace?.configured ? workspace.root : C.workspace.notSet}
+          </p>
+          <div className="zz-row">
+            <Button
+              data-testid="onboarding-choose-workspace"
+              variant={workspace?.configured ? "secondary" : "primary"}
+              onClick={() => run(chooseWorkspace)}
             >
-              {index < wizardStep ? <Check size={13} aria-hidden="true" /> : index + 1} {label}
-            </li>
-          ),
-        )}
-      </ol>
-      {wizardStep === 0 && (
-        <>
-          <ModelFields
-            role="writer"
-            model={writer}
-            onChange={(value) => set({ wizardModels: { ...wizardModels, writer: value } })}
-            onTest={() => void testConnection("writer", writer)}
-            result={results.writer}
+              {workspace?.configured ? C.workspace.change : C.workspace.choose}
+            </Button>
+            <Button
+              variant="primary"
+              data-testid="onboarding-next"
+              disabled={!workspace?.configured}
+              onClick={() => setStep(modelReady(settings) ? "start" : "model")}
+            >
+              {C.onboarding.next}
+            </Button>
+          </div>
+        </section>
+      ) : null}
+      {step === "model" && settings ? (
+        <section className="zz-stack" data-testid="onboarding-step-model">
+          <h3>{C.onboarding.modelTitle}</h3>
+          <p>{C.onboarding.modelHint}</p>
+          <ConnectionForm
+            settings={settings}
+            submitLabel={C.onboarding.saveModel}
+            onSaved={() => setStep("start")}
           />
-          <label className="checkbox">
-            <input
-              type="checkbox"
-              checked={followWriter}
-              onChange={(e) => setFollowWriter(e.target.checked)}
-            />
-            {viewCopy.onboardingText5}
-          </label>
-          {!followWriter && (
-            <ModelFields
-              role="editor"
-              model={wizardModels.editor}
-              onChange={(editor) => set({ wizardModels: { ...wizardModels, editor } })}
-              result={results.editor}
-              onTest={() => void testConnection("editor", wizardModels.editor)}
-            />
-          )}
-          <button
-            className="primary"
-            onClick={async () => {
-              try {
-                if (!writer.apiKey && !writer.configured && !writer.keyless)
-                  throw new Error(viewCopy.onboardingText6);
-                await desktop.model({
-                  ...wizardModels,
-                  editor: followWriter ? { ...writer } : wizardModels.editor,
-                });
-                await actions.syncState();
-                set({ wizardStep: 1 });
-              } catch (error) {
-                fail(error);
-              }
-            }}
+          <Button
+            variant="ghost"
+            data-testid="onboarding-skip-model"
+            onClick={() => setStep("start")}
           >
-            {viewCopy.onboardingText7}
-            <ArrowRight size={14} />
-          </button>
-        </>
-      )}
-      {wizardStep === 1 && (
-        <div className="wizard-root">
-          <h2>{viewCopy.onboardingText8}</h2>
-          <p>{viewCopy.onboardingText9}</p>
-          <button
-            className="primary"
-            onClick={async () => {
-              try {
-                // 选定后控制器已重读主进程状态；取消选择时状态不变，停在这一步。
-                await actions.chooseWorkspace();
-                if (desktopStore.get().system?.workspace) set({ wizardStep: 2 });
-              } catch (error) {
-                fail(error);
-              }
-            }}
-          >
-            {viewCopy.onboardingText10}
-            <ArrowRight size={14} />
-          </button>
-        </div>
-      )}
-      {wizardStep === 2 && (
-        <div className="start-options">
-          <button onClick={() => actions.newWork("fanqie").catch(fail)}>
-            <BookOpen />
-            {viewCopy.onboardingText11}
-          </button>
-          <button onClick={() => actions.newWork("toutiao").catch(fail)}>
-            <Feather />
-            {viewCopy.onboardingText12}
-          </button>
-          <button
-            onClick={() => {
-              set({ picker: true, onboarding: false });
-            }}
-          >
-            {viewCopy.onboardingText13}
-          </button>
-        </div>
-      )}
+            {C.onboarding.later}
+          </Button>
+        </section>
+      ) : null}
+      {step === "start" ? (
+        <section className="zz-stack" data-testid="onboarding-step-start">
+          <h3>{C.onboarding.startTitle}</h3>
+          <div className="zz-row">
+            <Button
+              variant="primary"
+              data-testid="onboarding-new-work"
+              disabled={!workspace?.configured}
+              onClick={() => {
+                finish();
+                startCreate("fanqie");
+              }}
+            >
+              {C.create.newWork}
+            </Button>
+            <Button
+              data-testid="onboarding-new-article"
+              disabled={!workspace?.configured}
+              onClick={() => {
+                finish();
+                startCreate("toutiao");
+              }}
+            >
+              {C.create.newArticle}
+            </Button>
+            <Button variant="ghost" data-testid="onboarding-finish" onClick={finish}>
+              {COPY.close}
+            </Button>
+          </div>
+        </section>
+      ) : null}
     </Dialog>
   );
 }

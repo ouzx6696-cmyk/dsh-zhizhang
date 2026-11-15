@@ -1,0 +1,176 @@
+:root {
+  --zz-btn-height-sm: 28px;
+  --zz-btn-height-md: 34px;
+  --zz-btn-height-lg: 40px;
+  --zz-btn-radius: var(--zz-radius-sm);
+  --zz-chip-radius: var(--zz-radius-pill);
+  --zz-tag-radius: var(--zz-radius-xs);
+  --zz-field-radius: var(--zz-radius-sm);
+  --zz-dialog-radius: var(--zz-radius-lg);
+  --zz-menu-radius: var(--zz-radius-md);
+  --zz-skeleton-bg: var(--zz-fill-strong);
+  --zz-rail-height: 6px;
+}
+
+.zz-btn,
+.zz-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--zz-space-2);
+  min-height: var(--zz-btn-height-md);
+  padding: 0 var(--zz-space-3);
+  border-radius: var(--zz-btn-radius);
+  font-family: var(--zz-font-ui);
+  font-size: var(--zz-text-body);
+  cursor: pointer;
+  border: 1px solid var(--zz-border);
+  background: var(--zz-surface-2);
+  color: var(--zz-text-1);
+  transition:
+    background-color var(--zz-dur-1) var(--zz-ease),
+    border-color var(--zz-dur-1) var(--zz-ease),
+    color var(--zz-dur-1) var(--zz-ease);
+}
+
+.zz-icon-btn {
+  width: var(--zz-btn-height-md);
+  padding: 0;
+}
+
+.zz-btn--sm,
+.zz-icon-btn--sm {
+  min-height: var(--zz-btn-height-sm);
+  font-size: var(--zz-text-caption);
+}
+
+.zz-icon-btn--sm {
+  width: var(--zz-btn-height-sm);
+}
+
+.zz-btn--lg,
+.zz-icon-btn--lg {
+  min-height: var(--zz-btn-height-lg);
+  font-size: var(--zz-text-strong);
+}
+
+.zz-icon-btn--lg {
+  width: var(--zz-btn-height-lg);
+}
+
+.zz-btn--primary {
+  background: var(--zz-decide);
+  color: var(--zz-on-decide);
+  border-color: transparent;
+}
+
+.zz-btn--secondary {
+  background: var(--zz-surface-2);
+  color: var(--zz-text-1);
+}
+
+.zz-btn--ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--zz-text-2);
+}
+
+.zz-btn--danger {
+  background: color-mix(in srgb, var(--zz-bad) 14%, transparent);
+  border-color: color-mix(in srgb, var(--zz-bad) 36%, transparent);
+  color: var(--zz-bad);
+}
+
+.zz-tone-decide {
+  --zz-tone-fg: var(--zz-decide);
+  --zz-tone-bg: var(--zz-decide-fill);
+}
+
+.zz-tone-run {
+  --zz-tone-fg: var(--zz-run);
+  --zz-tone-bg: color-mix(in srgb, var(--zz-run) 14%, transparent);
+}
+
+.zz-tone-ok {
+  --zz-tone-fg: var(--zz-ok);
+  --zz-tone-bg: color-mix(in srgb, var(--zz-ok) 14%, transparent);
+}
+
+.zz-tone-warn {
+  --zz-tone-fg: var(--zz-warn);
+  --zz-tone-bg: color-mix(in srgb, var(--zz-warn) 14%, transparent);
+}
+
+.zz-tone-bad {
+  --zz-tone-fg: var(--zz-bad);
+  --zz-tone-bg: color-mix(in srgb, var(--zz-bad) 14%, transparent);
+}
+
+.zz-tone-neutral {
+  --zz-tone-fg: var(--zz-text-2);
+  --zz-tone-bg: var(--zz-fill-strong);
+}
+
+.zz-tag,
+.zz-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zz-space-1);
+  padding: 2px var(--zz-space-2);
+  font-family: var(--zz-font-ui);
+  font-size: var(--zz-text-caption);
+  color: var(--zz-tone-fg, var(--zz-text-2));
+  background: var(--zz-tone-bg, var(--zz-fill-strong));
+}
+
+.zz-tag {
+  border-radius: var(--zz-tag-radius);
+}
+
+.zz-status-chip {
+  border-radius: var(--zz-chip-radius);
+  font-weight: 600;
+}
+
+.zz-kbd {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px var(--zz-space-1);
+  border: 1px solid var(--zz-border-strong);
+  border-radius: var(--zz-radius-xs);
+  background: var(--zz-surface-2);
+  color: var(--zz-text-2);
+  font-family: var(--zz-font-mono);
+  font-size: var(--zz-text-caption);
+}
+
+.zz-progress-rail {
+  width: 100%;
+  height: var(--zz-rail-height);
+  border-radius: var(--zz-radius-pill);
+  background: var(--zz-fill-strong);
+  overflow: hidden;
+}
+
+.zz-skeleton {
+  border-radius: var(--zz-radius-sm);
+  background: var(--zz-skeleton-bg);
+}
+
+.zz-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--zz-border-strong);
+  border-top-color: var(--zz-decide);
+  border-radius: var(--zz-radius-pill);
+}
+
+.zz-paper-body {
+  font-family: var(--zz-font-paper);
+  font-size: 1.125rem;
+  line-height: 1.85;
+  max-width: 36em;
+  margin-inline: auto;
+  color: var(--zz-text-1);
+}

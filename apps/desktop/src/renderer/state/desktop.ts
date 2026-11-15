@@ -1,24 +1,15 @@
-/** The single renderer boundary for the preload bridge. */
-import { createDesktopApi } from "../../desktop-api";
-export type { DesktopApi } from "../../desktop-api";
-import type { DesktopApi } from "../../desktop-api";
-export const desktop = createDesktopApi(window.writerBridge);
-window.writerDesktop = desktop;
+/** 渲染层唯一的主进程客户端：类型化 DesktopApi（经 preload 的 window.zhizhangBridge）。 */
+import { AppError } from "@zhizhang/core/errors";
+import { installWorkbenchTransport } from "@zhizhang/workbench/client";
+import { createDesktopApi, type DesktopBridge } from "../../shared/ipc";
 
-type DesktopEventListener = Parameters<DesktopApi["subscribe"]>[0];
-const listeners = new Set<DesktopEventListener>();
-let detach: (() => void) | undefined;
-
-/** 渲染层只挂一条 IPC 订阅再扇出：每条事件只跨 contextBridge 复制一次。 */
-export function onDesktopEvent(listener: DesktopEventListener) {
-  listeners.add(listener);
-  detach ??= desktop.subscribe((value) => {
-    for (const current of listeners) current(value);
-  });
-  return () => {
-    listeners.delete(listener);
-    if (listeners.size > 0 || !detach) return;
-    detach();
-    detach = undefined;
-  };
+function bridge(): DesktopBridge {
+  const value = window.zhizhangBridge;
+  if (!value) throw new AppError("internal", "desktop bridge is not initialized");
+  return value;
 }
+
+export const desktop = createDesktopApi(bridge);
+
+// 写作区（@zhizhang/workbench/client）的命令统一走 workbench.call 通道。
+installWorkbenchTransport({ call: desktop.workbench });

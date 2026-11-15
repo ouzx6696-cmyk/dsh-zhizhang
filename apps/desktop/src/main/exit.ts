@@ -1,14 +1,11 @@
 import { app, dialog, type BrowserWindow } from "electron";
-import { errorText } from "../../../../packages/core/src/errors";
-import { releaseWorkspaces } from "../../../../packages/core/src/workspace-lock";
-import { UNLOAD_COPY } from "@writer/ui/copy";
-import type { Runtime } from "./runtime";
+import { UNLOAD_COPY } from "../shared/copy.js";
 
 /**
- * The renderer vetoes unloading while text is unsaved; without this listener Electron cancels the
- * close silently and the author's × does nothing. The author decides here instead.
+ * 渲染层在有未保存内容时会否决卸载；没有这个监听，Electron 会静默取消关闭，作者点 × 毫无反应。
+ * 这里交给作者决定。
  */
-export function guardUnload(window: BrowserWindow) {
+export function guardUnload(window: BrowserWindow): void {
   window.webContents.on("will-prevent-unload", (event) => {
     const choice = dialog.showMessageBoxSync(window, {
       type: "question",
@@ -24,39 +21,29 @@ export function guardUnload(window: BrowserWindow) {
 }
 
 /**
- * Sessions and workspace claims are released only in will-quit: it fires after every window has
- * agreed to close, so a quit the author cancels leaves the app fully working.
+ * 退出清理只在 will-quit 里做：此时所有窗口都已同意关闭，作者取消退出时应用保持完整可用。
+ * 每一步失败只记诊断，下一步照常执行，任何一步都不会卡住退出。
  */
-export function registerQuitCleanup(state: Runtime) {
+export function registerQuitCleanup(
+  steps: Array<[string, () => Promise<void> | void]>,
+  onFailure: (step: string, error: unknown) => void,
+): void {
   let cleaned = false;
   app.on("will-quit", (event) => {
     if (cleaned) return;
     event.preventDefault();
-    void releaseOnQuit(state).finally(() => {
+    void (async () => {
+      for (const [step, run] of steps) {
+        try {
+          await run();
+        } catch (error) {
+          onFailure(step, error);
+        }
+      }
+    })().finally(() => {
       cleaned = true;
-      app.quit();
+      // 窗口均已同意关闭、清理已完成；再走 app.quit() 时 Electron 不会再次结束进程（实测挂起），直接退出。
+      app.exit(0);
     });
   });
-}
-
-const QUIT_STEPS: [string, (state: Runtime) => Promise<void>][] = [
-  [
-    "background",
-    async (state) => {
-      state.background.abort();
-    },
-  ],
-  ["sessions", (state) => state.sessions.dispose()],
-  ["workspaces", () => releaseWorkspaces()],
-];
-
-/** A failed step is logged and the next one still runs, so one failure never blocks quitting. */
-async function releaseOnQuit(state: Runtime) {
-  for (const [step, run] of QUIT_STEPS) {
-    try {
-      await run(state);
-    } catch (error) {
-      await state.diagnostics.write("quit_cleanup_failed", { step, error: errorText(error) });
-    }
-  }
 }

@@ -1,5 +1,5 @@
 .wb-tt-group-head {
-  color: var(--ui-text-3);
+  color: var(--zz-text-3);
 }
 .wb-tt-group {
   display: flex;
@@ -14,15 +14,15 @@
   align-items: center;
   gap: 6px;
   padding: 4px 8px;
-  color: var(--wb-fg-3);
-  font: 600 var(--ui-size-12)/var(--ui-size-18) var(--ui-font-ui);
+  color: var(--zz-fg-3);
+  font: 600 var(--zz-size-12)/var(--zz-size-18) var(--zz-font-ui);
 }
 /* The delivery sheet is read in full before submitting: body-sized, roomy, wrapping long URLs. */
 .wb-tt-delivery {
   max-width: 40em;
   margin: 0 auto;
-  font-family: var(--ui-font-ui);
-  font-size: calc(var(--ui-body-size) * 0.85 + var(--wb-font-step, 0) * var(--ui-font-step));
+  font-family: var(--zz-font-ui);
+  font-size: calc(var(--zz-body-size) * 0.85 + var(--zz-font-step, 0) * var(--zz-font-step));
   line-height: 1.8;
   overflow-wrap: anywhere;
 }
@@ -36,8 +36,8 @@
   resize: vertical;
   min-height: 52px;
   padding: 6px 8px;
-  border: 1px solid var(--wb-line-strong);
-  border-radius: var(--wb-r-sm);
+  border: 1px solid var(--zz-line-strong);
+  border-radius: var(--zz-r-sm);
   background: transparent;
   color: inherit;
   font: inherit;
@@ -46,18 +46,18 @@
   font-variant-numeric: tabular-nums;
 }
 .wb-tt-score[data-pass="true"] {
-  color: var(--wb-ok);
-  background: var(--wb-ok-soft);
+  color: var(--zz-ok);
+  background: var(--zz-ok-soft);
 }
 .wb-tt-score[data-pass="false"] {
-  color: var(--wb-bad);
-  background: var(--wb-bad-soft);
+  color: var(--zz-bad);
+  background: var(--zz-bad-soft);
 }
 .lamp-qa-score {
-  font: 600 var(--ui-size-40)/1.5 var(--ui-font-body);
-  color: var(--ui-accent);
+  font: 600 var(--zz-size-40)/1.5 var(--zz-font-body);
+  color: var(--zz-accent);
 }
 .lamp-qa-score small {
-  font-family: var(--ui-font-ui);
+  font-family: var(--zz-font-ui);
   font-weight: 400;
 }
