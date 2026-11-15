@@ -1,93 +1,74 @@
 import React from "react";
 import type { ArticleRowView } from "@zhizhang/toutiao/view";
+import { WORKBENCH_COPY as W } from "@zhizhang/ui/copy";
 import { ARTICLE_STEPS, articleProgress } from "@zhizhang/ui/status";
 import { Steps } from "@zhizhang/ui/primitives";
-import { Callout, Empty, Skeleton, StatusDot, StatusTag, cx } from "../shared/components.js";
+import { Callout, Empty, Skeleton, StatusDot, cx } from "../shared/components.js";
 import type { ToutiaoAction, ToutiaoState } from "./state.js";
 
-export interface ToutiaoAppProps {
+export interface ArticleListProps {
   state: ToutiaoState;
   rows: readonly ArticleRowView[];
-  selected: ArticleRowView | null;
   dispatch: React.Dispatch<ToutiaoAction>;
 }
 
-export function ToutiaoApp({ state, rows, selected, dispatch }: ToutiaoAppProps) {
-  if (state.phase === "boot" && state.loading) {
-    return <Skeleton lines={6} />;
-  }
-
-  if (state.error) {
-    return (
-      <Callout tone="danger" role="alert">
-        {state.error}
-      </Callout>
-    );
-  }
-
+/** 左栏：头条文章列表（与章节列表同一套列表样式）。 */
+export function ArticleList({ state, rows, dispatch }: ArticleListProps) {
+  if (state.phase === "boot" && state.loading) return <Skeleton lines={6} />;
+  if (state.error) return <Callout tone="danger">{state.error}</Callout>;
+  if (!rows.length)
+    return <Empty title={W.list.emptyArticles} hint={W.list.emptyArticlesHint} icon="news" />;
   return (
-    <div className="wb-toutiao">
-      <aside className="wb-toutiao-list" aria-label="文章列表">
-        {rows.length ? (
-          <ul
-            className="wb-chapter-list"
-            role="listbox"
-            aria-label="头条文章"
-            data-testid="article-list"
-          >
-            {rows.map((row) => {
-              const active = row.id === state.selectedId;
-              return (
-                <li key={row.id}>
-                  <button
-                    type="button"
-                    role="option"
-                    aria-selected={active}
-                    data-testid="article-item"
-                    data-article-id={row.id}
-                    data-status={row.status}
-                    className={cx("wb-chapter-item", active && "wb-chapter-item-on")}
-                    onClick={() => dispatch({ type: "select", id: row.id })}
-                  >
-                    <StatusDot status={row.status} mode="toutiao" />
-                    <span className="wb-chapter-title">{row.title || row.id}</span>
-                    <span className="wb-chapter-meta">
-                      {row.qaScore != null ? `${row.qaScore} 分` : row.genre}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <Empty title="暂无头条文章" hint="新建选题后将在此展示进度" icon="news" />
-        )}
-      </aside>
-      <main className="wb-toutiao-main">
-        {selected ? (
-          <div className="wb-toutiao-detail">
-            <header className="wb-reader-head">
-              <div className="wb-reader-title-group">
-                <h2>{selected.title || selected.id}</h2>
-                <StatusTag status={selected.status} mode="toutiao" />
-              </div>
-              <span className="wb-muted">
-                {selected.genre} · {selected.driver}
+    <ul className="wb-list" role="listbox" aria-label={W.list.articles} data-testid="article-list">
+      {rows.map((row, index) => {
+        const active = row.id === state.selectedId;
+        return (
+          <li key={row.id}>
+            <button
+              type="button"
+              role="option"
+              aria-selected={active}
+              data-testid="article-item"
+              data-article-id={row.id}
+              data-status={row.status}
+              className={cx("wb-list-item", active && "wb-list-item-on")}
+              onClick={() => dispatch({ type: "select", id: row.id })}
+            >
+              <StatusDot status={row.status} mode="toutiao" />
+              <span className="wb-list-index" aria-hidden="true">
+                {W.list.ordinal(index + 1)}
               </span>
-            </header>
-            <Steps
-              steps={[...ARTICLE_STEPS]}
-              current={articleProgress({ status: selected.status })}
-              label="头条写作阶段"
-            />
-            {state.lastDeliveryPath ? (
-              <Callout tone="success">交稿单已生成：{state.lastDeliveryPath}</Callout>
-            ) : null}
-          </div>
-        ) : (
-          <Empty title="请选择文章" hint="从左侧列表选择一篇头条文章查看详情" icon="news" />
-        )}
-      </main>
+              <span className="wb-list-title">{row.title || row.id}</span>
+              <span className="wb-list-meta">
+                {row.qaScore != null ? W.list.score(row.qaScore) : row.genre}
+              </span>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/** 文章进度：头条五步 + 交稿单提示。 */
+export function ArticleProgress({
+  state,
+  selected,
+}: {
+  state: ToutiaoState;
+  selected: ArticleRowView;
+}) {
+  return (
+    <div className="wb-article-progress">
+      <Steps
+        steps={[...ARTICLE_STEPS]}
+        current={articleProgress({ status: selected.status })}
+        label={W.toutiao.steps}
+      />
+      <span className="wb-article-meta">{W.toutiao.meta(selected.genre, selected.driver)}</span>
+      {state.lastDeliveryPath ? (
+        <Callout tone="success">{W.toutiao.delivered(state.lastDeliveryPath)}</Callout>
+      ) : null}
     </div>
   );
 }

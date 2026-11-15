@@ -1,63 +1,19 @@
-.wb-tt-group-head {
-  color: var(--zz-text-3);
-}
-.wb-tt-group {
+/* 头条：文章进度条（五步 + 体裁/驱动） */
+.wb-article-progress {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.wb-tt-group + .wb-tt-group {
-  margin-top: 8px;
-}
-.wb-tt-group-head {
-  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  color: var(--zz-fg-3);
-  font: 600 var(--zz-size-12)/var(--zz-size-18) var(--zz-font-ui);
+  gap: var(--zz-space-2) var(--zz-space-4);
+  padding: var(--zz-space-2) var(--zz-space-5);
+  border-bottom: 1px solid var(--zz-border);
 }
-/* The delivery sheet is read in full before submitting: body-sized, roomy, wrapping long URLs. */
-.wb-tt-delivery {
-  max-width: 40em;
-  margin: 0 auto;
-  font-family: var(--zz-font-ui);
-  font-size: calc(var(--zz-body-size) * 0.85 + var(--zz-font-step, 0) * var(--zz-font-step));
-  line-height: 1.8;
-  overflow-wrap: anywhere;
+
+.wb-article-meta {
+  margin-left: auto;
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-meta);
 }
-.wb-tt-note {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.wb-tt-note textarea {
-  width: 100%;
-  resize: vertical;
-  min-height: 52px;
-  padding: 6px 8px;
-  border: 1px solid var(--zz-line-strong);
-  border-radius: var(--zz-r-sm);
-  background: transparent;
-  color: inherit;
-  font: inherit;
-}
-.wb-tt-score {
-  font-variant-numeric: tabular-nums;
-}
-.wb-tt-score[data-pass="true"] {
-  color: var(--zz-ok);
-  background: var(--zz-ok-soft);
-}
-.wb-tt-score[data-pass="false"] {
-  color: var(--zz-bad);
-  background: var(--zz-bad-soft);
-}
-.lamp-qa-score {
-  font: 600 var(--zz-size-40)/1.5 var(--zz-font-body);
-  color: var(--zz-accent);
-}
-.lamp-qa-score small {
-  font-family: var(--zz-font-ui);
-  font-weight: 400;
+
+.wb-article-progress .wb-callout {
+  flex-basis: 100%;
 }
