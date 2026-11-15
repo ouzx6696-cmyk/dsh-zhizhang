@@ -1,13 +1,14 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
+import { Check, GitCompare, Hourglass } from "lucide-react";
 import { COPY, DESKTOP_COPY as C, ERROR_COPY, formatCost } from "@zhizhang/ui/copy";
-import { Button, Empty, Notice, Select, StatusChip, Steps } from "@zhizhang/ui/primitives";
+import { Button, Empty, Notice, Select, Spinner, StatusChip } from "@zhizhang/ui/primitives";
 import type { RunDetail, RunSummary, Target, WorkflowAction } from "../../../shared/views";
 import { askConfirm } from "../../state/confirm";
 import { desktop } from "../../state/desktop";
 import { baseName, desktopStore, sameTarget, useDesktop } from "../../state/store";
 import { errorText, notifyError } from "../../format";
 import { TextField } from "../workspace/TextField";
-import { DraftCompare, type CompareSides } from "./DraftCompare";
+import { decideRun } from "./decide";
 import {
   hasCandidate,
   isOpen,
@@ -17,9 +18,11 @@ import {
   progressIndex,
   requestField,
   runActions,
-  stageLabel,
+  stageGroup,
+  stageRows,
   stateLabel,
   stateTone,
+  type StageRow,
 } from "./workflow-model";
 
 type StartKind =
@@ -175,7 +178,7 @@ function StartForm({
       ) : null}
       <Button
         type="submit"
-        variant="primary"
+        variant="strong"
         data-testid="workflow-start"
         loading={busy}
         disabled={!ready}
@@ -183,6 +186,114 @@ function StartForm({
         {C.workflow.start}
       </Button>
     </form>
+  );
+}
+
+function StageList({ run }: { run: RunSummary }) {
+  const groups = progressGroups(run.kind);
+  const rows = stageRows(run.stages);
+  const live = run.state === "running";
+  const current = progressIndex(run);
+  if (!groups.length)
+    return (
+      <ol className="zz-stages" aria-label={C.workflow.stages}>
+        {rows.map((row) => (
+          <StageItem key={row.key} row={row} />
+        ))}
+        {live ? <LiveItem /> : null}
+      </ol>
+    );
+  return (
+    <div className="zz-stage-groups" aria-label={C.workflow.stages} role="group">
+      {groups.map((label, index) => {
+        const members = rows.filter((row) => stageGroup(run.kind, row.ids[0]) === index);
+        const state =
+          index < current || run.state === "awaiting-author" || run.state === "applied"
+            ? "done"
+            : index === current
+              ? run.state === "failed"
+                ? "failed"
+                : live
+                  ? "current"
+                  : "paused"
+              : "todo";
+        return (
+          <section key={label} className="zz-stage-group" data-state={state}>
+            <h4 className="zz-stage-group__head">
+              <span className="zz-stage-group__mark" aria-hidden="true" />
+              {label}
+            </h4>
+            {members.length || (state === "current" && live) ? (
+              <ol className="zz-stages">
+                {members.map((row) => (
+                  <StageItem key={row.key} row={row} />
+                ))}
+                {state === "current" && live ? <LiveItem /> : null}
+              </ol>
+            ) : null}
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+function StageItem({ row }: { row: StageRow }) {
+  return (
+    <li
+      className="zz-stage"
+      data-testid="workflow-stage"
+      data-stage={row.ids.join(" ")}
+      data-phase="done"
+    >
+      <Check size={13} aria-hidden="true" className="zz-stage__icon" />
+      <span className="zz-stage__label">{row.label}</span>
+      {row.marks.length ? <span className="zz-stage__marks">{row.marks.join(" · ")}</span> : null}
+    </li>
+  );
+}
+
+function LiveItem() {
+  return (
+    <li
+      className="zz-stage zz-stage--live"
+      data-testid="workflow-stage"
+      data-stage=""
+      data-phase="running"
+    >
+      <Spinner size="sm" label={C.workflow.live} className="zz-stage__icon" />
+      <span className="zz-stage__label">{C.workflow.live}</span>
+    </li>
+  );
+}
+
+function ProgressTrack({ run }: { run: RunSummary }) {
+  const groups = progressGroups(run.kind);
+  if (!groups.length) return null;
+  const current = progressIndex(run);
+  return (
+    <div
+      className="zz-track"
+      data-testid="workflow-progress"
+      data-step={current}
+      data-total={groups.length}
+      data-state={run.state}
+      role="progressbar"
+      aria-label={C.workflow.progress}
+      aria-valuemin={0}
+      aria-valuemax={groups.length}
+      aria-valuenow={Math.min(current, groups.length)}
+      aria-valuetext={groups[Math.min(current, groups.length - 1)]}
+    >
+      {groups.map((label, index) => (
+        <span
+          key={label}
+          className="zz-track__seg"
+          data-state={index < current ? "done" : index === current ? "current" : "todo"}
+          title={label}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -196,105 +307,125 @@ function RunView({
   run: RunSummary;
   detail: RunDetail | null;
   onAction: (action: WorkflowAction) => void;
-  onDecide: (decision: "apply" | "discard", sides: CompareSides | null) => void;
+  onDecide: (decision: "apply" | "discard") => void;
   busy: boolean;
 }) {
-  const [sides, setSides] = useState<CompareSides | null>(null);
-  const onLoaded = useCallback((value: CompareSides | null) => setSides(value), []);
-  const groups = progressGroups(run.kind);
   const chapter = requestField(detail, "chapterId");
+  const chapters = useDesktop((s) => s.chapters);
+  const compare = useDesktop((s) => s.compare);
   const awaiting = run.state === "awaiting-author";
   const tokens = run.usage.input + run.usage.cachedInput + run.usage.output;
+  const chapterTitle = chapters.find((c) => c.id === chapter)?.title;
+  const candidate = hasCandidate(run.kind) && Boolean(chapter);
+  const comparing = compare?.runId === run.id;
+  const actions = runActions(run.state);
+  const groups = progressGroups(run.kind);
+  const at = Math.min(progressIndex(run), groups.length - 1);
   return (
     <section
       className="zz-run"
       data-testid="workflow-run"
       data-state={run.state}
       data-kind={run.kind}
-      aria-live="polite"
     >
       <header className="zz-run__head">
-        <strong>{kindLabel(run.kind)}</strong>
-        {chapter ? <span className="zz-muted">{chapter}</span> : null}
+        <div className="zz-run__title">
+          <strong>{kindLabel(run.kind)}</strong>
+          {chapter ? (
+            <span className="zz-run__target">
+              {chapterTitle && chapterTitle !== chapter ? `${chapter} · ${chapterTitle}` : chapter}
+            </span>
+          ) : null}
+        </div>
         <StatusChip tone={stateTone(run.state)} label={stateLabel(run.state)} dot />
       </header>
-      {groups.length ? (
-        <div
-          data-testid="workflow-progress"
-          data-step={progressIndex(run)}
-          data-total={groups.length}
-        >
-          <Steps steps={groups} current={progressIndex(run)} label={C.workflow.progress} />
-        </div>
-      ) : null}
-      <ol className="zz-stages" aria-label={C.workflow.stages}>
-        {run.stages.map((id, index) => (
-          <li key={id + index} data-testid="workflow-stage" data-stage={id} data-phase="done">
-            {stageLabel(id)}
-          </li>
-        ))}
-        {run.state === "running" ? (
-          <li
-            data-testid="workflow-stage"
-            data-stage=""
-            data-phase="running"
-            className="zz-stages__live"
-          >
-            {C.workflow.working}
-          </li>
-        ) : null}
-      </ol>
-      <p className="zz-muted" data-testid="workflow-usage">
-        {C.workflow.usage(tokens, formatCost(run.usage.cost))}
+      <ProgressTrack run={run} />
+      {/* 读屏只宣告阶段级变化：当前分组与状态，不朗读用量数字。 */}
+      <p className="zz-hidden-value" aria-live="polite">
+        {groups.length && at >= 0
+          ? C.workflow.groupLabel(stateLabel(run.state), groups[at])
+          : stateLabel(run.state)}
       </p>
-      {run.error ? (
-        <Notice tone="bad" message={ERROR_COPY[run.error.code]} detail={run.error.message} />
-      ) : null}
-      {runActions(run.state).length ? (
-        <div className="zz-row">
-          {runActions(run.state).map((action) => (
-            <Button
-              key={action}
-              size="sm"
-              data-testid={`workflow-${action}`}
-              disabled={busy}
-              onClick={() => onAction(action)}
-            >
-              {COPY[`workflow.action.${action}`]}
-            </Button>
-          ))}
-        </div>
-      ) : null}
       {awaiting ? (
         <div className="zz-decide" data-testid="workflow-decide">
-          <p className="zz-decide__title">{COPY["workflow.awaiting_author"]}</p>
-          {hasCandidate(run.kind) && chapter && detail ? (
-            <DraftCompare
-              work={run.target.path}
-              chapter={chapter}
-              candidateId={run.id}
-              onLoaded={onLoaded}
-            />
-          ) : null}
+          <p className="zz-decide__title">
+            <Hourglass size={14} aria-hidden="true" />
+            {COPY["workflow.awaiting_author"]}
+          </p>
+          <p className="zz-decide__hint">
+            {candidate
+              ? comparing
+                ? C.workflow.compareOpened
+                : C.workflow.decideCandidate
+              : C.workflow.decideGeneric}
+          </p>
           <div className="zz-row">
-            <Button
-              variant="primary"
-              data-testid="workflow-adopt"
-              disabled={busy || (hasCandidate(run.kind) && !sides)}
-              onClick={() => onDecide("apply", sides)}
-            >
-              {C.workflow.adopt}
-            </Button>
-            <Button
-              data-testid="workflow-discard"
-              disabled={busy}
-              onClick={() => onDecide("discard", sides)}
-            >
-              {C.workflow.discard}
-            </Button>
+            {candidate ? (
+              <Button
+                variant="strong"
+                size="sm"
+                data-testid="workflow-compare"
+                disabled={comparing}
+                onClick={() =>
+                  desktopStore.set({
+                    compare: { target: run.target, runId: run.id, chapter },
+                    view: "writing",
+                  })
+                }
+              >
+                <GitCompare size={14} aria-hidden="true" />
+                {C.workflow.openCompare}
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  data-testid="workflow-adopt"
+                  disabled={busy}
+                  onClick={() => onDecide("apply")}
+                >
+                  {C.workflow.adopt}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  data-testid="workflow-discard"
+                  disabled={busy}
+                  onClick={() => onDecide("discard")}
+                >
+                  {C.workflow.discard}
+                </Button>
+              </>
+            )}
           </div>
         </div>
       ) : null}
+      {run.error ? (
+        <Notice tone="bad" message={ERROR_COPY[run.error.code]} detail={run.error.message} />
+      ) : null}
+      <StageList run={run} />
+      <footer className="zz-run__foot">
+        <span className="zz-run__usage" data-testid="workflow-usage">
+          {C.workflow.usage(tokens, formatCost(run.usage.cost))}
+        </span>
+        {actions.length ? (
+          <span className="zz-run__actions" role="group" aria-label={C.workflow.controls}>
+            {actions.map((action) => (
+              <Button
+                key={action}
+                size="sm"
+                variant={action === "stop" ? "ghost" : "secondary"}
+                data-testid={`workflow-${action}`}
+                disabled={busy}
+                onClick={() => onAction(action)}
+              >
+                {COPY[`workflow.action.${action}`]}
+              </Button>
+            ))}
+          </span>
+        ) : null}
+      </footer>
     </section>
   );
 }
@@ -305,13 +436,19 @@ function History({ runs, currentId }: { runs: RunSummary[]; currentId: string })
   return (
     <details className="zz-history" data-testid="workflow-history">
       <summary>{C.workflow.history(past.length)}</summary>
-      <ul className="zz-list">
+      <ul className="zz-history__list">
         {past.map((r) => (
           <li key={r.id} data-testid="workflow-history-item" data-state={r.state}>
-            <span>{kindLabel(r.kind)}</span>
+            <span className="zz-history__kind">{kindLabel(r.kind)}</span>
             <StatusChip tone={stateTone(r.state)} label={stateLabel(r.state)} />
-            <span className="zz-muted">
-              {new Date(r.created).toLocaleString("zh-CN", { hour12: false })}
+            <span className="zz-history__time">
+              {new Date(r.created).toLocaleString("zh-CN", {
+                hour12: false,
+                month: "numeric",
+                day: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
             </span>
           </li>
         ))}
@@ -384,29 +521,10 @@ export function WorkflowPanel({ target }: { target: Target }) {
     })();
   };
 
-  const onDecide = (decision: "apply" | "discard", sides: CompareSides | null) => {
+  const onDecide = (decision: "apply" | "discard") => {
     if (!current) return;
-    const ref = { runId: current.id, target };
     const chapter = requestField(detail, "chapterId");
-    void act(async () => {
-      // 章节候选稿：先经写作区命令落盘（采纳写正文 / 放弃记拒收），再结束这次运行。
-      if (hasCandidate(current.kind) && chapter && sides) {
-        if (decision === "apply")
-          await desktop.workbench("fanqie.candidate.accept", {
-            work: target.path,
-            chapter,
-            candidateId: current.id,
-            base: sides.official.revision,
-          });
-        else
-          await desktop.workbench("fanqie.candidate.reject", {
-            work: target.path,
-            chapter,
-            candidateId: current.id,
-          });
-      }
-      return desktop.decideRun(ref, decision);
-    });
+    void act(() => decideRun(target, current, chapter, decision, null));
   };
 
   return (
