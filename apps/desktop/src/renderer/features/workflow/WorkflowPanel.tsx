@@ -280,7 +280,7 @@ function RunView({
             <Button
               variant="primary"
               data-testid="workflow-adopt"
-              disabled={busy}
+              disabled={busy || (hasCandidate(run.kind) && !sides)}
               onClick={() => onDecide("apply", sides)}
             >
               {C.workflow.adopt}

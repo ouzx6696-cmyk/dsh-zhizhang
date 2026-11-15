@@ -125,6 +125,7 @@ async function bootstrap(): Promise<void> {
       };
     },
     profileRoots,
+    libraryRoot: () => workspace.status().roots.library,
     async profileId(target) {
       if (target.mode !== "fanqie") return "default";
       const meta = await fanqie.getWork(target.path).catch(() => undefined);
@@ -230,6 +231,8 @@ async function bootstrap(): Promise<void> {
   };
 
   async function openWorkspace(root: string): Promise<WorkspaceStatus> {
+    await workflow.stopAll();
+    await sessions.dispose();
     const status = await workspace.open(root);
     if (!config.issue() && config.settings().workspaceRoot !== status.root)
       await config.setWorkspaceRoot(status.root);

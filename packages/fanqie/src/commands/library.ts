@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { systemClock } from "@zhizhang/core/clock";
 import { AppError } from "@zhizhang/core/errors";
-import { atomicWrite, readJson, readTextIfExists } from "@zhizhang/core/fs";
+import { atomicWrite, resolveResourcePath, readJson, readTextIfExists } from "@zhizhang/core/fs";
 import { createLockService, type LockService } from "@zhizhang/core/lock";
 import { arr, obj, str, type Infer } from "@zhizhang/core/schema";
 import type { TechniqueCard } from "../pipelines/dissect/index.js";
@@ -49,9 +49,12 @@ export async function importLibrarySource(
       importedAt: systemClock.iso(),
       chars: String(input.content.length),
     };
-    await atomicWrite(path.join(sourcesDir, `${input.id}.txt`), input.content);
     await atomicWrite(
-      path.join(sourcesDir, `${input.id}.meta.json`),
+      resolveResourcePath(libraryRoot, "sources", `${input.id}.txt`),
+      input.content,
+    );
+    await atomicWrite(
+      resolveResourcePath(libraryRoot, "sources", `${input.id}.meta.json`),
       JSON.stringify(meta, null, 2),
     );
     return meta;
@@ -75,7 +78,7 @@ export async function listLibrarySources(libraryRoot: string): Promise<LibrarySo
       () => undefined,
     );
     if (!meta) continue;
-    const analysisDir = path.join(libraryRoot, "analyses", meta.id);
+    const analysisDir = resolveResourcePath(libraryRoot, "analyses", meta.id);
     const report = await readTextIfExists(path.join(analysisDir, "report.md"));
     const cards = await readJson(
       path.join(analysisDir, "cards.json"),
@@ -96,7 +99,7 @@ export async function readLibraryCards(
   libraryRoot: string,
   sourceId: string,
 ): Promise<{ cards: TechniqueCard[]; report?: string }> {
-  const analysisDir = path.join(libraryRoot, "analyses", sourceId);
+  const analysisDir = resolveResourcePath(libraryRoot, "analyses", sourceId);
   const cards =
     (await readJson(path.join(analysisDir, "cards.json"), TechniqueCardListSchema).catch(
       () => undefined,

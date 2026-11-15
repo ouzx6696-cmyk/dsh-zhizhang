@@ -2,10 +2,21 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { systemClock } from "@zhizhang/core/clock";
 import { AppError } from "@zhizhang/core/errors";
-import { atomicWrite, readTextIfExists, sha256 } from "@zhizhang/core/fs";
+import {
+  atomicWrite,
+  resolveResourcePath,
+  readJson,
+  readTextIfExists,
+  sha256,
+} from "@zhizhang/core/fs";
+import { bool, int, obj, str } from "@zhizhang/core/schema";
 import { createLockService, type LockService } from "@zhizhang/core/lock";
 import { serializeChapterMarkdown, type ChapterDocument } from "../domain/chapter.js";
-import { countChineseWords, parsePlainDraft } from "../pipelines/chapter/index.js";
+import {
+  countChineseWords,
+  parsePlainDraft,
+  ReviewResultSchema,
+} from "../pipelines/chapter/index.js";
 import { readChapter } from "./chapter.js";
 
 export interface CandidateView {
@@ -16,6 +27,16 @@ export interface CandidateView {
   accepted: boolean;
   rejected: boolean;
 }
+
+const CandidateReview = obj(
+  {
+    bodyHash: str(),
+    editorPass: bool,
+    editorRejections: int({ min: 0 }),
+    review: ReviewResultSchema,
+  },
+  { strict: false },
+);
 
 export async function listCandidates(
   workPath: string,
@@ -39,7 +60,7 @@ export async function listCandidates(
 
   const out: CandidateView[] = [];
   for (const cid of chapterDirs) {
-    const dir = path.join(root, cid);
+    const dir = resolveResourcePath(workPath, "candidates", cid);
     let files: string[];
     try {
       files = await fs.readdir(dir);
@@ -50,13 +71,17 @@ export async function listCandidates(
     for (const file of files) {
       if (!file.endsWith(".md")) continue;
       const candId = file.slice(0, -3);
-      const raw = await readTextIfExists(path.join(dir, file));
+      const raw = await readTextIfExists(resolveResourcePath(workPath, "candidates", cid, file));
       if (!raw) continue;
       const parsed = parsePlainDraft(`${raw.trim()}\n<<<END>>>`);
       const accepted =
-        (await readTextIfExists(path.join(dir, `${candId}.accepted.json`))) !== undefined;
+        (await readTextIfExists(
+          resolveResourcePath(workPath, "candidates", cid, `${candId}.accepted.json`),
+        )) !== undefined;
       const rejected =
-        (await readTextIfExists(path.join(dir, `${candId}.rejected.json`))) !== undefined;
+        (await readTextIfExists(
+          resolveResourcePath(workPath, "candidates", cid, `${candId}.rejected.json`),
+        )) !== undefined;
       out.push({
         id: candId,
         chapterId: cid,
@@ -75,7 +100,7 @@ export async function readCandidate(
   chapterId: string,
   candidateId: string,
 ): Promise<{ id: string; chapterId: string; title: string; body: string; wordCount: number }> {
-  const filePath = path.join(workPath, "candidates", chapterId, `${candidateId}.md`);
+  const filePath = resolveResourcePath(workPath, "candidates", chapterId, `${candidateId}.md`);
   const raw = await readTextIfExists(filePath);
   if (raw === undefined) {
     throw new AppError("input.not_found", `未找到候选稿：${chapterId}/${candidateId}`, {
@@ -95,12 +120,36 @@ export async function readCandidate(
 
 export async function acceptCandidate(
   workPath: string,
-  input: { chapterId: string; candidateId: string; mode?: "replace" | "append" },
+  input: {
+    chapterId: string;
+    candidateId: string;
+    mode?: "replace" | "append";
+    expectedRevision?: string;
+  },
   lock: LockService = createLockService(systemClock),
 ): Promise<ChapterDocument> {
   return lock.write({ kind: "work", path: workPath }, async () => {
     const cand = await readCandidate(workPath, input.chapterId, input.candidateId);
     const prev = await readChapter(workPath, input.chapterId).catch(() => undefined);
+    if (
+      input.expectedRevision !== undefined &&
+      (prev?.meta.revision ?? "") !== input.expectedRevision
+    ) {
+      throw new AppError("storage.conflict", "正文已在别处修改，请刷新后再采纳");
+    }
+    const reviewed = await readJson(
+      resolveResourcePath(
+        workPath,
+        "candidates",
+        input.chapterId,
+        `${input.candidateId}.meta.json`,
+      ),
+      CandidateReview,
+    );
+    if (reviewed && reviewed.bodyHash !== sha256(cand.body)) {
+      throw new AppError("storage.conflict", "候选稿已变更，请重新审读");
+    }
+    const review = input.mode === "append" ? undefined : reviewed;
 
     if (prev && prev.body.trim().length > 0) {
       const historyFile = path.join(
@@ -118,21 +167,35 @@ export async function acceptCandidate(
       meta: {
         id: input.chapterId,
         title: cand.title || prev?.meta.title || input.chapterId,
-        status: "drafted",
+        status: review ? "reviewed" : "drafted",
         revision: `rev-${sha256(nextBody).slice(0, 8)}`,
         outline: prev?.meta.outline,
         scenes: prev?.meta.scenes,
-        editorPass: false,
+        editorPass: review?.editorPass ?? false,
+        editorRejections: review?.editorRejections,
+        review: review
+          ? {
+              round: review.editorRejections + 1,
+              verdict: review.review.verdict,
+              quotes: review.review.issues.map((issue) => issue.quote),
+              at: systemClock.iso(),
+            }
+          : undefined,
       },
       body: nextBody,
     };
 
     await atomicWrite(
-      path.join(workPath, "chapters", `${input.chapterId}.md`),
+      resolveResourcePath(workPath, "chapters", `${input.chapterId}.md`),
       serializeChapterMarkdown(doc),
     );
     await atomicWrite(
-      path.join(workPath, "candidates", input.chapterId, `${input.candidateId}.accepted.json`),
+      resolveResourcePath(
+        workPath,
+        "candidates",
+        input.chapterId,
+        `${input.candidateId}.accepted.json`,
+      ),
       JSON.stringify({ acceptedAt: systemClock.iso(), revision: doc.meta.revision }, null, 2),
     );
     return doc;
@@ -148,7 +211,12 @@ export async function rejectCandidate(
     await readCandidate(workPath, input.chapterId, input.candidateId);
     const rejectedAt = systemClock.iso();
     await atomicWrite(
-      path.join(workPath, "candidates", input.chapterId, `${input.candidateId}.rejected.json`),
+      resolveResourcePath(
+        workPath,
+        "candidates",
+        input.chapterId,
+        `${input.candidateId}.rejected.json`,
+      ),
       JSON.stringify({ rejectedAt, reason: input.reason ?? "" }, null, 2),
     );
     return { candidateId: input.candidateId, rejectedAt };

@@ -12,11 +12,16 @@ test("budget guard tracks reserve and settle across stages", () => {
     moneyCap: 1.0,
   });
 
-  guard.reserve(600);
+  const request = guard.reserve(600);
   assert.deepEqual(guard.snapshot(), { usedTokens: 0, inflightTokens: 600, usedMoney: 0 });
 
-  guard.settle({ input: 500, cachedInput: 0, output: 300, cost: 0.25 });
-  assert.deepEqual(guard.snapshot(), { usedTokens: 800, inflightTokens: 100, usedMoney: 0.25 });
+  request.settle({ input: 500, cachedInput: 0, output: 300, cost: 0.25 });
+  assert.deepEqual(guard.snapshot(), { usedTokens: 800, inflightTokens: 0, usedMoney: 0.25 });
+  const pending = guard.reserve(200);
+  guard.reserve(100).settle({ input: 150, cachedInput: 20, output: 0, cost: 0 });
+  assert.equal(guard.snapshot().inflightTokens, 200);
+  pending.release();
+  assert.equal(guard.snapshot().inflightTokens, 0);
 });
 
 test("budget guard enforces inputBudget, runBudget, and moneyCap boundaries", () => {
@@ -31,8 +36,7 @@ test("budget guard enforces inputBudget, runBudget, and moneyCap boundaries", ()
     (err) => isAppError(err, "model.context_overflow"),
   );
 
-  guard.reserve(400);
-  guard.settle({ input: 400, cachedInput: 0, output: 300, cost: 0.3 });
+  guard.reserve(400).settle({ input: 400, cachedInput: 0, output: 300, cost: 0.3 });
 
   assert.throws(
     () => guard.reserve(400),
@@ -44,8 +48,7 @@ test("budget guard enforces inputBudget, runBudget, and moneyCap boundaries", ()
     runBudget: 5000,
     moneyCap: 0.5,
   });
-  moneyGuard.reserve(100);
-  moneyGuard.settle({ input: 100, cachedInput: 0, output: 50, cost: 0.5 });
+  moneyGuard.reserve(100).settle({ input: 100, cachedInput: 0, output: 50, cost: 0.5 });
   assert.throws(
     () => moneyGuard.reserve(100),
     (err) => isAppError(err, "budget.money"),
@@ -56,8 +59,7 @@ test("budget guard enforces inputBudget, runBudget, and moneyCap boundaries", ()
     runBudget: 5000,
     moneyCap: 1.0,
   });
-  unknownCostGuard.reserve(100);
-  unknownCostGuard.settle({ input: 100, cachedInput: 0, output: 50, cost: null });
+  unknownCostGuard.reserve(100).settle({ input: 100, cachedInput: 0, output: 50, cost: null });
   assert.throws(
     () => unknownCostGuard.reserve(100),
     (err) => isAppError(err, "budget.money"),

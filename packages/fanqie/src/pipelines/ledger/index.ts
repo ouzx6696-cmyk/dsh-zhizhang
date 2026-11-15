@@ -1,7 +1,7 @@
 import path from "node:path";
 import { systemClock } from "@zhizhang/core/clock";
 import { AppError } from "@zhizhang/core/errors";
-import { atomicWrite, readTextIfExists, sha256 } from "@zhizhang/core/fs";
+import { atomicWrite, resolveResourcePath, readTextIfExists, sha256 } from "@zhizhang/core/fs";
 import { createLockService } from "@zhizhang/core/lock";
 import type {
   ContextPacket,
@@ -175,7 +175,7 @@ export const ledgerPipeline: PipelineDefinition<LedgerInput, LedgerResult> = {
     const bibleStore = createBibleStore(lock);
 
     const prepared = await runner.local("prepare", async () => {
-      const chapterPath = path.join(ctx.target.path, "chapters", `${req.chapterId}.md`);
+      const chapterPath = resolveResourcePath(ctx.target.path, "chapters", `${req.chapterId}.md`);
       const raw = await readTextIfExists(chapterPath);
       if (!raw) {
         throw new AppError("input.not_found", `未找到章节文件：${req.chapterId}`, {

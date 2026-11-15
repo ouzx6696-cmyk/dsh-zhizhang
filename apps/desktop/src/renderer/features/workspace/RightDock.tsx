@@ -80,7 +80,7 @@ export function RightDock({ target }: { target: Target }) {
         <AgentPanel target={target} />
       </div>
       <div {...tabPanelProps(base, "pipeline", tab)} className="zz-dock__panel">
-        {tab === "pipeline" ? <WorkflowPanel target={target} /> : null}
+        {tab === "pipeline" ? <WorkflowPanel key={target.path} target={target} /> : null}
       </div>
       <div {...tabPanelProps(base, "chapter", tab)} className="zz-dock__panel">
         {tab === "chapter" ? <ChapterPane target={target} /> : null}

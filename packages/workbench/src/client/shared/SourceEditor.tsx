@@ -213,7 +213,7 @@ export function SourceEditor({
     if (!find.mode) return;
     setReplaced(null);
     const surface = surfaceRef.current;
-    const liveText = surface ? surface.value() : text;
+    const liveText = surface?.value() ?? "";
     const fresh = findMatches(liveText, find.query, find.matchCase);
     const caret = surface ? surface.selection().from : 0;
     reveal.current = true;

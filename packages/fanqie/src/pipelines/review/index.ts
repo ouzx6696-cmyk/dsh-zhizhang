@@ -1,10 +1,11 @@
 import path from "node:path";
 import { AppError } from "@zhizhang/core/errors";
-import { atomicWrite, readTextIfExists, sha256 } from "@zhizhang/core/fs";
+import { atomicWrite, resolveResourcePath, readTextIfExists, sha256 } from "@zhizhang/core/fs";
 import type { ContextPacket, DeliveryReceipt, PipelineDefinition } from "@zhizhang/core/pipeline";
 import { buildDeliveryMarker, isAlreadyDelivered } from "@zhizhang/core/pipeline";
 import { obj, opt, str, type Infer } from "@zhizhang/core/schema";
 import { parseChapterMarkdown } from "../../domain/chapter.js";
+import { reviewChapter } from "../../commands/chapter.js";
 import {
   continuityStage,
   makeReviewStage,
@@ -40,7 +41,7 @@ export const reviewPipeline: PipelineDefinition<ReviewReq, StandaloneReviewResul
   async run(runner, ctx) {
     const req = ctx.request as ReviewReq;
     const prepared = await runner.local("prepare", async () => {
-      const chapterPath = path.join(ctx.target.path, "chapters", `${req.chapterId}.md`);
+      const chapterPath = resolveResourcePath(ctx.target.path, "chapters", `${req.chapterId}.md`);
       const raw = await readTextIfExists(chapterPath);
       if (!raw) {
         throw new AppError("input.not_found", `未找到章节文件：${req.chapterId}`, {
@@ -51,6 +52,7 @@ export const reviewPipeline: PipelineDefinition<ReviewReq, StandaloneReviewResul
       return {
         title: doc.meta.title || req.chapterId,
         body: doc.body,
+        revision: doc.meta.revision,
       };
     });
 
@@ -95,7 +97,7 @@ export const reviewPipeline: PipelineDefinition<ReviewReq, StandaloneReviewResul
     };
   },
   async deliver(res, ctx): Promise<DeliveryReceipt> {
-    const outDir = path.join(ctx.target.path, "candidates", res.chapterId);
+    const outDir = resolveResourcePath(ctx.target.path, "candidates", res.chapterId);
     const marker = path.join(outDir, `${ctx.runId}.marker.json`);
     const payload = JSON.stringify(res, null, 2);
     if (await isAlreadyDelivered(marker, ctx.runId)) {
@@ -118,12 +120,25 @@ export const reviewPipeline: PipelineDefinition<ReviewReq, StandaloneReviewResul
   },
   async recover(record, ctx) {
     const req = ctx.request as ReviewReq;
-    const marker = path.join(
+    const marker = resolveResourcePath(
       ctx.target.path,
       "candidates",
       req.chapterId,
       `${record.id}.marker.json`,
     );
     return (await isAlreadyDelivered(marker, record.id)) ? "delivered" : "resume";
+  },
+  async apply(record, _choice, ctx) {
+    const req = ReviewPipelineReq(ctx.request);
+    const prepared = obj({ revision: str() }, { strict: false })(ctx.state.prepare);
+    const review = makeReviewStage(1).parse(JSON.stringify(ctx.state.review));
+    const continuity = continuityStage.parse(JSON.stringify(ctx.state["continuity-check"]));
+    const issues = [...continuity.issues, ...review.issues];
+    await reviewChapter(ctx.target.path, {
+      chapterId: req.chapterId,
+      expectedRevision: prepared.revision,
+      verdict: review.verdict === "pass" && issues.length > 0 ? "revise" : review.verdict,
+      quotes: issues.map((issue) => issue.quote),
+    });
   },
 };

@@ -4,6 +4,20 @@ import { AppError } from "../errors/app-error.js";
 
 const WIN_RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i;
 
+export function resolveResourcePath(root: string, ...segments: string[]): string {
+  for (const segment of segments) {
+    if (
+      !segment ||
+      segment === "." ||
+      segment === ".." ||
+      /[\\/:*?"<>|\u0000-\u001f]/.test(segment)
+    ) {
+      throw new AppError("input.invalid", `Invalid resource name: ${segment}`);
+    }
+  }
+  return resolveInside(root, segments.join("/"));
+}
+
 export function resolveInside(root: string, rel: string): string {
   if (!rel || path.isAbsolute(rel)) {
     throw new AppError("input.invalid", `Path must be relative: ${rel}`, { rel });

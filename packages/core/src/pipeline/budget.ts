@@ -2,14 +2,16 @@ import { AppError } from "../errors/app-error.js";
 import type { BudgetConfig, UsageTotals } from "./record.js";
 
 export interface BudgetGuard {
-  reserve(estimatedTokens: number): void;
-  settle(actual: UsageTotals): void;
+  reserve(estimatedTokens: number): {
+    settle(actual: UsageTotals): void;
+    release(): void;
+  };
   snapshot(): { usedTokens: number; inflightTokens: number; usedMoney: number | null };
 }
 
 export function createBudgetGuard(config: BudgetConfig, initial?: UsageTotals): BudgetGuard {
-  let usedTokens = (initial?.input ?? 0) + (initial?.output ?? 0);
-  let usedMoney: number | null = initial?.cost ?? 0;
+  let usedTokens = (initial?.input ?? 0) + (initial?.cachedInput ?? 0) + (initial?.output ?? 0);
+  let usedMoney: number | null = initial ? initial.cost : 0;
   let inflightTokens = 0;
 
   return {
@@ -40,16 +42,18 @@ export function createBudgetGuard(config: BudgetConfig, initial?: UsageTotals): 
         }
       }
       inflightTokens += estimatedTokens;
-    },
-
-    settle(actual: UsageTotals) {
-      usedTokens += actual.input + actual.output;
-      inflightTokens = Math.max(0, inflightTokens - actual.input);
-      if (usedMoney === null || actual.cost === null) {
-        usedMoney = null;
-      } else {
-        usedMoney += actual.cost;
-      }
+      const release = () => {
+        inflightTokens -= estimatedTokens;
+        estimatedTokens = 0;
+      };
+      return {
+        release,
+        settle(actual) {
+          release();
+          usedTokens += actual.input + actual.cachedInput + actual.output;
+          usedMoney = usedMoney === null || actual.cost === null ? null : usedMoney + actual.cost;
+        },
+      };
     },
 
     snapshot() {

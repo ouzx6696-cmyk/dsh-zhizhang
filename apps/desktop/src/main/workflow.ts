@@ -2,6 +2,8 @@
  * WorkflowService：每个目标单活、运行记录落盘、暂停/停止/恢复/重试、待作者决定、进度事件发布。
  * kind 从 ModeModule.pipelines 查表；模型调用全部经 ModelGateway（GatewayLike）。
  */
+import { randomUUID } from "node:crypto";
+import { createSerialRunner } from "@zhizhang/core/lock";
 import type { Clock } from "@zhizhang/core/clock";
 import { AppError, classify } from "@zhizhang/core/errors";
 import type { ProfileRoots } from "@zhizhang/core/methods";
@@ -36,6 +38,7 @@ export interface WorkflowDeps {
   budget(): BudgetConfig;
   profileRoots(mode: Mode): ProfileRoots;
   profileId(target: Target): Promise<string>;
+  libraryRoot?(): string;
   emit(event: DesktopEvent): void;
   onRunningChange?(): void;
   /** 组合根补齐运行环境相关的请求字段（例如随包脚本与方案目录）。 */
@@ -67,6 +70,7 @@ const keyOf = (target: { path: string }) => target.path;
 
 export function createWorkflowService(deps: WorkflowDeps) {
   const active = new Map<string, ActiveRun>();
+  const serial = createSerialRunner();
 
   async function contextFor(
     def: PipelineDefinition<unknown, unknown>,
@@ -81,7 +85,13 @@ export function createWorkflowService(deps: WorkflowDeps) {
       profileId,
       profileRoots,
     });
-    return { ...ctx, ...(runId ? { runId } : {}), profileId, profileRoots };
+    return {
+      ...ctx,
+      runId: runId ?? randomUUID(),
+      profileId,
+      profileRoots,
+      libraryRoot: deps.libraryRoot?.(),
+    };
   }
 
   function emitRun(detail: RunDetail): void {
@@ -187,31 +197,33 @@ export function createWorkflowService(deps: WorkflowDeps) {
   }
 
   async function startRun(target: Target, kind: string, rawRequest: unknown): Promise<ActiveRun> {
-    const def = ModeRegistry.pipeline(target.mode, kind);
-    assertIdle(target);
-    const request = def.request(
-      deps.prepareRequest ? deps.prepareRequest(kind, rawRequest) : rawRequest,
-      "$request",
-    );
-    const ctx = await contextFor(def, target, request);
-    const now = deps.clock.iso();
-    const record: RunRecord = {
-      format: FORMAT_VERSION,
-      id: ctx.runId,
-      kind,
-      target,
-      request,
-      state: "running",
-      stateHistory: [{ to: "running", reason: "start", at: now }],
-      steps: [],
-      usage: { input: 0, cachedInput: 0, output: 0, cost: 0 },
-      budget: deps.budget(),
-      created: now,
-      updated: now,
-    };
-    await deps.runs.save(withError(record));
-    emitRun(withError(record));
-    return launch(def, record, ctx, target);
+    return serial(keyOf(target), async () => {
+      const def = ModeRegistry.pipeline(target.mode, kind);
+      assertIdle(target);
+      const request = def.request(
+        deps.prepareRequest ? deps.prepareRequest(kind, rawRequest) : rawRequest,
+        "$request",
+      );
+      const ctx = await contextFor(def, target, request);
+      const now = deps.clock.iso();
+      const record: RunRecord = {
+        format: FORMAT_VERSION,
+        id: ctx.runId,
+        kind,
+        target,
+        request,
+        state: "running",
+        stateHistory: [{ to: "running", reason: "start", at: now }],
+        steps: [],
+        usage: { input: 0, cachedInput: 0, output: 0, cost: 0 },
+        budget: deps.budget(),
+        created: now,
+        updated: now,
+      };
+      await deps.runs.save(withError(record));
+      emitRun(withError(record));
+      return launch(def, record, ctx, target);
+    });
   }
 
   return {
@@ -235,57 +247,69 @@ export function createWorkflowService(deps: WorkflowDeps) {
         }
         return summarizeRun(await load(ref));
       }
-      assertIdle(ref.target);
-      const detail = await load(ref);
-      if (detail.state !== "paused" && detail.state !== "failed") {
-        throw new AppError(
-          "run.invalid_transition",
-          `运行处于 ${detail.state}，不能${action === "retry" ? "重试" : "恢复"}`,
-          {
-            state: detail.state,
-          },
+      return serial(keyOf(ref.target), async () => {
+        assertIdle(ref.target);
+        const detail = await load(ref);
+        if (detail.state !== "paused" && detail.state !== "failed") {
+          throw new AppError(
+            "run.invalid_transition",
+            `运行处于 ${detail.state}，不能${action === "retry" ? "重试" : "恢复"}`,
+            {
+              state: detail.state,
+            },
+          );
+        }
+        const def = ModeRegistry.pipeline(ref.target.mode, detail.kind);
+        const ctx = await contextFor(def, ref.target, detail.request, detail.id);
+        const { error: _error, ...record } = detail;
+        const resumed = transition(
+          record,
+          "running",
+          action === "retry" ? "retry" : "resume",
+          deps.clock.iso(),
         );
-      }
-      const def = ModeRegistry.pipeline(ref.target.mode, detail.kind);
-      const ctx = await contextFor(def, ref.target, detail.request, detail.id);
-      const { error: _error, ...record } = detail;
-      const resumed = transition(
-        record,
-        "running",
-        action === "retry" ? "retry" : "resume",
-        deps.clock.iso(),
-      );
-      const next: RunRecord = { ...resumed, budget: deps.budget() };
-      await deps.runs.save(withError(next));
-      emitRun(withError(next));
-      launch(def, next, ctx, ref.target);
-      return summarizeRun(withError(next));
+        const next: RunRecord = { ...resumed, budget: deps.budget() };
+        await deps.runs.save(withError(next));
+        emitRun(withError(next));
+        launch(def, next, ctx, ref.target);
+        return summarizeRun(withError(next));
+      });
     },
 
     async decide(ref: RunRef, decision: WorkflowDecision): Promise<RunSummary> {
-      const detail = await load(ref);
-      const { error: _error, ...record } = detail;
-      let next: RunRecord;
-      if (decision === "apply") {
-        const def = ModeRegistry.pipeline(ref.target.mode, detail.kind);
-        if (def.apply) {
-          const ctx = await contextFor(def, ref.target, detail.request, detail.id);
-          await def.apply(record, decision, ctx);
+      return serial(keyOf(ref.target), async () => {
+        assertIdle(ref.target);
+        const detail = await load(ref);
+        const { error: _error, ...record } = detail;
+        const next = transition(
+          record,
+          decision === "apply" ? "applied" : "discarded",
+          decision,
+          deps.clock.iso(),
+        );
+        if (decision === "apply") {
+          const def = ModeRegistry.pipeline(ref.target.mode, detail.kind);
+          if (def.apply) {
+            const ctx = await contextFor(def, ref.target, detail.request, detail.id);
+            ctx.state = Object.fromEntries(
+              record.steps
+                .filter((step) => step.status === "done")
+                .map((step) => [step.id, step.output]),
+            );
+            await def.apply(record, decision, ctx);
+          }
         }
-        next = transition(record, "applied", "apply", deps.clock.iso());
-      } else {
-        next = transition(record, "discarded", "discard", deps.clock.iso());
-      }
-      const saved = withError(next);
-      await deps.runs.save(saved);
-      emitRun(saved);
-      deps.emit({
-        kind: "workspace.changed",
-        target: ref.target,
-        revision: `${next.id}:${next.updated}`,
-        scope: SCOPE_BY_KIND[next.kind] ?? "rows",
+        const saved = withError(next);
+        await deps.runs.save(saved);
+        emitRun(saved);
+        deps.emit({
+          kind: "workspace.changed",
+          target: ref.target,
+          revision: `${next.id}:${next.updated}`,
+          scope: SCOPE_BY_KIND[next.kind] ?? "rows",
+        });
+        return summarizeRun(saved);
       });
-      return summarizeRun(saved);
     },
 
     async get(ref: RunRef): Promise<RunDetail | null> {

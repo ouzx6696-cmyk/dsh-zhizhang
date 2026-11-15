@@ -93,21 +93,38 @@ test("番茄章节流水线经 ModelGateway + 假端口跑通：交付候选稿�
     },
     ctx,
   );
+  const previousBody = "前章衔接唯一句，林川把信藏进雨衣。";
+  await desk.dispatchWorkbenchCommand(
+    {
+      command: "fanqie.chapter.save",
+      input: {
+        work: workPath,
+        chapter: "ch-001",
+        base: "",
+        body: previousBody,
+      },
+    },
+    ctx,
+  );
   const port = createFakeModelPort([fanqieAnswer], { repeatLast: true });
   const { workflow, events } = services(base, port, clock);
   const target = { mode: "fanqie", path: workPath };
 
-  const detail = await workflow.startAndWait(target, "fanqie.chapter", {
-    chapterId: "ch-002",
-    grade: "economy",
-    targetWords: 500,
-    note: "雨夜码头",
-  });
+  const request = { chapterId: "ch-002", grade: "economy", targetWords: 500, note: "雨夜码头" };
+  const [first, duplicate] = await Promise.allSettled([
+    workflow.startAndWait(target, "fanqie.chapter", request),
+    workflow.start(target, "fanqie.chapter", request),
+  ]);
+  assert.equal(first.status, "fulfilled");
+  assert.equal(duplicate.status, "rejected");
+  assert.equal(duplicate.reason.code, "gate.denied");
+  const detail = first.value;
   assert.equal(detail.state, "awaiting-author", JSON.stringify(detail.error ?? {}));
   const stepIds = detail.steps.map((s) => s.id);
   assert.deepEqual(stepIds, ["prepare", "beats", "draft-0", "gate", "continuity-check", "review"]);
   assert.ok(detail.steps.find((s) => s.id === "draft-0").methodHash, "起稿阶段带方法指纹");
   assert.ok(port.calls.every((req) => req.connection === "fake" && req.model === "fake-model"));
+  assert.ok(port.calls.some((req) => req.system.includes(previousBody)));
   assert.ok(
     port.calls.some((req) => req.system.length > 0),
     "方法方案进入系统提示",
@@ -128,6 +145,67 @@ test("番茄章节流水线经 ModelGateway + 假端口跑通：交付候选稿�
   const restarted = services(base, port, clock).workflow;
   const history = await restarted.history(target);
   assert.equal(history.length, 1);
+  await desk.dispatchWorkbenchCommand(
+    {
+      command: "fanqie.candidate.accept",
+      input: {
+        work: workPath,
+        chapter: "ch-002",
+        candidateId: detail.id,
+        base: "",
+      },
+    },
+    ctx,
+  );
+  await desk.dispatchWorkbenchCommand(
+    {
+      command: "fanqie.chapter.finalize",
+      input: {
+        work: workPath,
+        chapter: "ch-002",
+      },
+    },
+    ctx,
+  );
+  const finalized = await desk.dispatchWorkbenchCommand(
+    {
+      command: "fanqie.chapter.get",
+      input: {
+        work: workPath,
+        chapter: "ch-002",
+      },
+    },
+    ctx,
+  );
+  assert.equal(finalized.status, "final");
+  const edited = await desk.dispatchWorkbenchCommand(
+    {
+      command: "fanqie.chapter.save",
+      input: {
+        work: workPath,
+        chapter: "ch-002",
+        base: finalized.revision,
+        body: `${finalized.body}新段落。`,
+      },
+    },
+    ctx,
+  );
+  assert.equal(edited.row.status, "drafted");
+  const reviewed = await workflow.startAndWait(target, "fanqie.review", { chapterId: "ch-002" });
+  assert.equal(reviewed.state, "awaiting-author");
+  await workflow.decide({ target, runId: reviewed.id }, "apply");
+  const chapter = await desk.dispatchWorkbenchCommand(
+    {
+      command: "fanqie.chapter.get",
+      input: {
+        work: workPath,
+        chapter: "ch-002",
+      },
+    },
+    ctx,
+  );
+  assert.equal(chapter.status, "reviewed");
+
   assert.equal(history[0].id, detail.id);
   assert.deepEqual(history[0].stages, stepIds);
   const reloaded = await restarted.get({ runId: detail.id, target });

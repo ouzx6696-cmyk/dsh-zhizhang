@@ -60,9 +60,7 @@ export async function executePipeline<Req, Res>(
   ): Promise<O> {
     const prev = completedMap.get(stepId);
     if (prev && prev.output !== undefined) {
-      return spec.parse(
-        typeof prev.output === "string" ? prev.output : JSON.stringify(prev.output),
-      );
+      return prev.output as O;
     }
 
     const startedAt = clock.iso();
@@ -96,6 +94,22 @@ export async function executePipeline<Req, Res>(
           { system: systemPrompt, user: userPrompt, json: spec.format === "json" },
           { runId: current.id, stage: stepId, budget, signal },
         );
+        const step: StepRecord = {
+          id: stepId,
+          role: spec.role,
+          status: "failed",
+          ...(method ? { methodHash: method.hash, omitted: method.omitted } : {}),
+          usage: { ...answer.usage, cost: answer.cost },
+          startedAt,
+          finishedAt: clock.iso(),
+        };
+        current = {
+          ...current,
+          steps: [...current.steps, step],
+          usage: addUsage(current.usage, step.usage),
+          updated: clock.iso(),
+        };
+        await persist();
         const parsed = spec.parse(answer.text);
         let finalValue = parsed;
         let notes: string[] | undefined;
@@ -115,25 +129,19 @@ export async function executePipeline<Req, Res>(
           }
         }
 
-        const stepUsage = { ...answer.usage, cost: answer.cost };
-        const step: StepRecord = {
-          id: stepId,
-          role: spec.role,
+        const completed: StepRecord = {
+          ...step,
           status: "done",
-          ...(method ? { methodHash: method.hash, omitted: method.omitted } : {}),
           notes,
           output: finalValue,
-          usage: stepUsage,
-          startedAt,
           finishedAt: clock.iso(),
         };
         current = {
           ...current,
-          steps: [...current.steps, step],
-          usage: addUsage(current.usage, stepUsage),
+          steps: current.steps.map((entry) => (entry === step ? completed : entry)),
           updated: clock.iso(),
         };
-        completedMap.set(stepId, step);
+        completedMap.set(stepId, completed);
         await persist();
         return finalValue;
       } catch (err) {
@@ -155,7 +163,11 @@ export async function executePipeline<Req, Res>(
       const tasks = Array.from({ length: count }, (_, idx) =>
         runSingleStage(`${spec.id}-${idx}`, spec, packet),
       );
-      return Promise.all(tasks);
+      const results = await Promise.allSettled(tasks);
+      return results.map((result) => {
+        if (result.status === "rejected") throw result.reason;
+        return result.value;
+      });
     },
     local: async (id, fn) => {
       const prev = completedMap.get(id);

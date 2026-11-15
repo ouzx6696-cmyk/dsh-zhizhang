@@ -64,7 +64,12 @@ test("LockService lease, inspectStale, and clearStale enforce author confirmatio
 
     const lease = await lock.lease(dir);
     assert.equal(lease.root, dir);
+    await assert.rejects(lock.lease(dir), (err) => isAppError(err, "storage.locked"));
+    const replacement = await lock.lease(dir, lease.owner);
     await lease.release();
+    const owner = JSON.parse(await fs.readFile(path.join(dir, ".zhizhang", "lease.json"), "utf8"));
+    assert.equal(owner.owner, replacement.owner);
+    await replacement.release();
 
     const staleDir = path.join(dir, ".zhizhang-lock-work");
     await fs.mkdir(staleDir, { recursive: true });

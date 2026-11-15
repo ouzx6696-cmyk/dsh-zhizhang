@@ -12,6 +12,7 @@ export interface RunCtx {
   profileId?: string;
   profile?: Profile;
   profileRoots?: ProfileRoots;
+  libraryRoot?: string;
 }
 
 export interface PipelineEnv {

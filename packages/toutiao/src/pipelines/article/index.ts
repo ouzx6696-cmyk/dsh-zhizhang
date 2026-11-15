@@ -209,7 +209,7 @@ export function filterChangedParagraphClaims(
     const matched = prevByPara
       .get(c.paragraphHash)
       ?.find((p) => p.text === c.text && p.status === "supported");
-    if (matched) reused.push(matched);
+    if (matched) reused.push({ ...matched, id: c.id });
     else toVerify.push(c);
   }
   return { reused, toVerify };
@@ -634,6 +634,15 @@ export const articlePipeline: PipelineDefinition<ArticleReq, ArticlePipelineResu
       });
     };
 
+    const verifyRevision = async (text: string, stepId: string) => {
+      const incremental = await runner.local(`${stepId}-claims`, async () =>
+        filterChangedParagraphClaims(text, verifiedClaims),
+      );
+      const checked = await runFactsStage(`${stepId}-facts`, incremental.toVerify);
+      verifiedClaims = [...incremental.reused, ...checked];
+    };
+    await verifyRevision(revisedDraft, "revise");
+
     let currentDraft = revisedDraft;
     let qaResult = await runQaOnText("qa", currentDraft);
     const passScore = limits.pass_score;
@@ -671,15 +680,7 @@ export const articlePipeline: PipelineDefinition<ArticleReq, ArticlePipelineResu
         makePacket(s6Text ? [refBlock("s6-qa", "s6-qa.md", s6Text)] : []),
       );
 
-      const incremental = await runner.local(`qa-revise-claims-${round}`, async () =>
-        filterChangedParagraphClaims(currentDraft, verifiedClaims),
-      );
-      if (incremental.toVerify.length > 0) {
-        const newlyVerified = await runFactsStage(`facts-inc-${round}`, incremental.toVerify);
-        verifiedClaims = [...incremental.reused, ...newlyVerified];
-      } else {
-        verifiedClaims = incremental.reused;
-      }
+      await verifyRevision(currentDraft, `qa-revise-${round}`);
 
       qaResult = await runQaOnText(`qa-recheck-${round}`, currentDraft);
     }

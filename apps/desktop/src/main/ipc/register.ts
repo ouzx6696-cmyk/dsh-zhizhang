@@ -183,10 +183,12 @@ export function registerIpc(s: MainServices): void {
     return s.workflow.start(target, start.kind, start.request);
   });
   handle("workflow.control", async (ref, action) => {
+    s.workspace.assertInside(ref.target.path);
     if (action === "resume" || action === "retry") s.workspace.assertWritable();
     return s.workflow.control(ref, action);
   });
   handle("workflow.decide", async (ref, decision) => {
+    s.workspace.assertInside(ref.target.path);
     s.workspace.assertWritable();
     return s.workflow.decide(ref, decision);
   });

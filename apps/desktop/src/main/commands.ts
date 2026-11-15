@@ -312,16 +312,9 @@ const FANQIE: { [K in Group<"fanqie">]: Handler<K> } = {
   },
   async "fanqie.candidate.accept"(input, ctx) {
     const work = ctx.inside(input.work);
-    const current = await fanqie.readChapter(work, input.chapter).catch(() => undefined);
-    if (current && input.base && current.meta.revision !== input.base) {
-      throw new AppError("storage.conflict", "正文已在别处修改，请对照差异后再采纳", {
-        expected: input.base,
-        actual: current.meta.revision,
-      });
-    }
     const doc = await fanqie.acceptCandidate(
       work,
-      { chapterId: input.chapter, candidateId: input.candidateId },
+      { chapterId: input.chapter, candidateId: input.candidateId, expectedRevision: input.base },
       ctx.locks,
     );
     return { revision: doc.meta.revision };

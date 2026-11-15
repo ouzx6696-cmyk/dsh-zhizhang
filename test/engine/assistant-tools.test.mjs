@@ -125,6 +125,13 @@ test("助手工具只读或发起：番茄 10–14 个工具，没有任何写�
     ctx,
   );
   assert.equal(chapter.body, "林川推开门。");
+  const escaped = await desk.executeTool(
+    tools.find((tool) => tool.name === "fanqie_read_chapter"),
+    { chapterId: "../../outside" },
+    ctx,
+  );
+  assert.deepEqual([escaped.ok, escaped.code], [false, "input.invalid"]);
+
   const missing = await desk.executeTool(
     tools.find((t) => t.name === "fanqie_read_chapter"),
     { chapterId: "ch-404" },

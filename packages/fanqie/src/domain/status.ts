@@ -33,5 +33,5 @@ export function assertCanFinalize(opts: {
 }
 
 export function downgradeOnEdit(status: ChapterStatus): ChapterStatus {
-  return status === "reviewed" ? "drafted" : status;
+  return status === "reviewed" || status === "final" ? "drafted" : status;
 }

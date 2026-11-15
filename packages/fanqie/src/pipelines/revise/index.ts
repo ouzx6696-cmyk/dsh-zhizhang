@@ -1,6 +1,12 @@
 import path from "node:path";
 import { AppError } from "@zhizhang/core/errors";
-import { atomicWrite, readJson, readTextIfExists, sha256 } from "@zhizhang/core/fs";
+import {
+  atomicWrite,
+  resolveResourcePath,
+  readJson,
+  readTextIfExists,
+  sha256,
+} from "@zhizhang/core/fs";
 import type { ContextPacket, DeliveryReceipt, PipelineDefinition } from "@zhizhang/core/pipeline";
 import { buildDeliveryMarker, isAlreadyDelivered } from "@zhizhang/core/pipeline";
 import { arr, lit, obj, opt, str, type Infer } from "@zhizhang/core/schema";
@@ -60,7 +66,7 @@ export const revisePipeline: PipelineDefinition<ReviseReq, StandaloneReviseResul
         path.join(ctx.target.path, "work.json"),
         WorkMetaSchema,
       ).catch(() => undefined);
-      const chapterPath = path.join(ctx.target.path, "chapters", `${req.chapterId}.md`);
+      const chapterPath = resolveResourcePath(ctx.target.path, "chapters", `${req.chapterId}.md`);
       const raw = await readTextIfExists(chapterPath);
       if (!raw) {
         throw new AppError("input.not_found", `未找到章节文件：${req.chapterId}`, {
@@ -153,7 +159,7 @@ export const revisePipeline: PipelineDefinition<ReviseReq, StandaloneReviseResul
     };
   },
   async deliver(res, ctx): Promise<DeliveryReceipt> {
-    const outDir = path.join(ctx.target.path, "candidates", res.chapterId);
+    const outDir = resolveResourcePath(ctx.target.path, "candidates", res.chapterId);
     const marker = path.join(outDir, `${ctx.runId}.marker.json`);
     if (await isAlreadyDelivered(marker, ctx.runId)) {
       return {
@@ -165,6 +171,19 @@ export const revisePipeline: PipelineDefinition<ReviseReq, StandaloneReviseResul
     }
     const candFile = path.join(outDir, `${ctx.runId}.md`);
     await atomicWrite(candFile, `# ${res.title}\n\n${res.body}`);
+    await atomicWrite(
+      path.join(outDir, `${ctx.runId}.meta.json`),
+      JSON.stringify(
+        {
+          bodyHash: sha256(res.body),
+          editorPass: res.editorPass,
+          editorRejections: res.editorRejections,
+          review: res.review,
+        },
+        null,
+        2,
+      ),
+    );
     await atomicWrite(marker, buildDeliveryMarker(ctx.runId, res.body));
     return {
       runId: ctx.runId,
@@ -175,7 +194,7 @@ export const revisePipeline: PipelineDefinition<ReviseReq, StandaloneReviseResul
   },
   async recover(record, ctx) {
     const req = ctx.request as ReviseReq;
-    const marker = path.join(
+    const marker = resolveResourcePath(
       ctx.target.path,
       "candidates",
       req.chapterId,

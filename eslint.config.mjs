@@ -7,6 +7,7 @@ export default [
     ignores: [
       "node_modules/**",
       "build/**",
+      "**/dist/**",
       "apps/desktop/out/**",
       "apps/desktop/out-test/**",
       "apps/desktop/release/**",

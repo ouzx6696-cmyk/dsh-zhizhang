@@ -11,7 +11,7 @@ import {
 } from "./write-lock.js";
 
 export interface LockService {
-  lease(root: string): Promise<Lease>;
+  lease(root: string, expectedOwner?: string): Promise<Lease>;
   write<T>(resource: ResourceKey, fn: () => Promise<T>, opts?: { wait?: number }): Promise<T>;
   serial<T>(key: string, fn: () => Promise<T>): Promise<T>;
   inspectStale(root: string): Promise<StaleLock[]>;
@@ -21,7 +21,7 @@ export interface LockService {
 export function createLockService(clock: Clock): LockService {
   const serial = createSerialRunner();
   return {
-    lease: (root) => acquireLease(root, clock),
+    lease: (root, expectedOwner) => acquireLease(root, clock, expectedOwner),
     write: (resource, fn, opts) => withWriteLock(resource, clock, fn, opts?.wait),
     serial,
     inspectStale: inspectStaleLocks,

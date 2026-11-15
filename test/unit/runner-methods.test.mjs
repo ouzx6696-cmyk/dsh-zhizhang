@@ -9,6 +9,7 @@ import { importTs } from "../support/ts-loader.mjs";
 
 const { loadProfile, methodFor } = await importTs("packages/core/src/methods/index.ts");
 const { createModelGateway } = await importTs("packages/core/src/model/index.ts");
+const { AppError } = await importTs("packages/core/src/errors/index.ts");
 const { executePipeline, emptyUsage } = await importTs("packages/core/src/pipeline/index.ts");
 
 test("stage-map.json extracts configured sections and injects method text into pipeline via fake-port", async () => {
@@ -143,4 +144,67 @@ test("builtin fanqie and toutiao stage-map.json resolve non-empty methods via me
     assert.ok(res.text.length > 0, `Expected non-empty method text for ${profile.mode}:${stage}`);
     assert.ok(res.hash.length > 0);
   }
+});
+
+test("无效回答重试后用量完整保留，恢复直接复用已验收的输出", async () => {
+  const clock = createFakeClock();
+  const port = createFakeModelPort([
+    { text: "bad", usage: { input: 10, cachedInput: 0, output: 5 }, cost: 1 },
+    { text: '{"body":"正文"}', usage: { input: 10, cachedInput: 0, output: 5 }, cost: 1 },
+  ]);
+  const gateway = createModelGateway(
+    port,
+    {
+      globalConcurrency: 1,
+      perRunConcurrency: 1,
+      roles: {},
+    },
+    clock,
+  );
+  const def = {
+    async run(runner) {
+      return runner.stage(
+        {
+          id: "draft",
+          role: "writer",
+          input: () => "起稿",
+          parse(raw) {
+            if (raw === "bad") throw new AppError("model.output_invalid", "输出无效");
+            return JSON.parse(raw);
+          },
+        },
+        { prefix: [], suffix: [], omitted: [], estimate: 0 },
+      );
+    },
+    async deliver(value) {
+      assert.deepEqual(value, { body: "正文" });
+    },
+  };
+  const record = {
+    id: "retry",
+    kind: "probe",
+    state: "running",
+    stateHistory: [],
+    steps: [],
+    usage: emptyUsage(),
+    budget: { inputBudget: 1000, runBudget: 1000, moneyCap: null },
+  };
+  const result = await executePipeline(
+    def,
+    record,
+    {},
+    gateway,
+    clock,
+    new AbortController().signal,
+  );
+  assert.deepEqual(result.usage, { input: 20, cachedInput: 0, output: 10, cost: 2 });
+  await executePipeline(
+    def,
+    { ...result, state: "running" },
+    {},
+    gateway,
+    clock,
+    new AbortController().signal,
+  );
+  assert.equal(port.calls.length, 2);
 });

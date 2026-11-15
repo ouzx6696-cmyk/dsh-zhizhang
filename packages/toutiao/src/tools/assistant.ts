@@ -5,7 +5,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { AppError } from "@zhizhang/core/errors";
-import { readJson, readTextIfExists } from "@zhizhang/core/fs";
+import { resolveResourcePath, readJson, readTextIfExists } from "@zhizhang/core/fs";
 import { loadProfile, methodFor } from "@zhizhang/core/methods";
 import type { ModeTarget } from "@zhizhang/core/pipeline";
 import { int, lit, obj, opt, str, type Infer } from "@zhizhang/core/schema";
@@ -39,7 +39,7 @@ async function listDrafts(articleDir: string): Promise<Array<{ file: string; mti
   const out: Array<{ file: string; mtimeMs: number }> = [];
   for (const name of names) {
     if (!name.endsWith(".md")) continue;
-    const stat = await fs.stat(path.join(dir, name));
+    const stat = await fs.stat(resolveResourcePath(articleDir, "drafts", name));
     out.push({ file: name, mtimeMs: stat.mtimeMs });
   }
   return out.sort((a, b) => b.mtimeMs - a.mtimeMs || b.file.localeCompare(a.file));
@@ -117,10 +117,10 @@ export function toutiaoAssistantTools(role: Role, target: ModeTarget): ToolDefin
     async run(args: Infer<typeof DraftArgs>) {
       const drafts = await listDrafts(articleDir);
       const file = args.file ?? drafts[0]?.file;
-      if (!file || file.includes("/") || file.includes("\\")) {
+      if (!file) {
         throw new AppError("input.not_found", "这篇文章还没有草稿");
       }
-      const text = await readTextIfExists(path.join(articleDir, "drafts", file));
+      const text = await readTextIfExists(resolveResourcePath(articleDir, "drafts", file));
       if (text === undefined)
         throw new AppError("input.not_found", `未找到草稿：${file}`, { file });
       const body = clip(text, args.maxChars ?? DEFAULT_MAX_CHARS);
@@ -141,7 +141,7 @@ export function toutiaoAssistantTools(role: Role, target: ModeTarget): ToolDefin
         .sort();
       const sources: unknown[] = [];
       for (const name of names) {
-        const raw = await readTextIfExists(path.join(dir, name));
+        const raw = await readTextIfExists(resolveResourcePath(articleDir, "sources", name));
         if (raw === undefined) continue;
         try {
           sources.push(JSON.parse(raw));
@@ -164,8 +164,9 @@ export function toutiaoAssistantTools(role: Role, target: ModeTarget): ToolDefin
     },
     roles: ["assistant"],
     async run(args: Infer<typeof SourceArgs>) {
-      if (/[\\/]/.test(args.sourceId)) throw new AppError("input.invalid", "来源 id 无效");
-      const text = await readTextIfExists(path.join(articleDir, "sources", `${args.sourceId}.txt`));
+      const text = await readTextIfExists(
+        resolveResourcePath(articleDir, "sources", `${args.sourceId}.txt`),
+      );
       if (text === undefined) {
         throw new AppError("input.not_found", `未找到来源：${args.sourceId}`, {
           sourceId: args.sourceId,

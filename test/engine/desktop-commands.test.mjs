@@ -351,6 +351,20 @@ test("头条命令：建文章 → 登记来源 → 存稿 → 导出 → 状态
     "待验收",
   );
   await run(ctx, "toutiao.article.transition", { articleDir, to: "已验收" });
+  await fs.writeFile(path.join(articleDir, "card.json"), "{}");
+  await expectCode(
+    run(ctx, "toutiao.article.deliver", {
+      articleDir,
+      title: "退休金到手多少",
+      body: "终稿正文。",
+    }),
+    "input.invalid",
+  );
+  assert.equal(
+    JSON.parse(await fs.readFile(path.join(articleDir, "meta.json"), "utf8")).status,
+    "已验收",
+  );
+  await fs.rm(path.join(articleDir, "card.json"));
   const delivered = await run(ctx, mark("toutiao.article.deliver"), {
     articleDir,
     title: "退休金到手多少",

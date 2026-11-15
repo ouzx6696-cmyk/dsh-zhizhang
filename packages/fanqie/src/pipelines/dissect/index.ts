@@ -1,6 +1,12 @@
 import path from "node:path";
 import { AppError } from "@zhizhang/core/errors";
-import { atomicWrite, readTextIfExists, sha256 } from "@zhizhang/core/fs";
+import {
+  atomicWrite,
+  resolveInside,
+  resolveResourcePath,
+  readTextIfExists,
+  sha256,
+} from "@zhizhang/core/fs";
 import type {
   ContextPacket,
   DeliveryReceipt,
@@ -153,9 +159,14 @@ export const dissectPipeline: PipelineDefinition<DissectInput, DissectResult> = 
     // 1. import
     const imported = await runner.local("import", async () => {
       const candidates = [
-        req.sourcePath,
-        path.join(ctx.target.path, "sources", `${req.sourceId}.txt`),
-        path.join(ctx.target.path, "sources", `${req.sourceId}.md`),
+        req.sourcePath
+          ? resolveInside(
+              ctx.target.path,
+              path.relative(ctx.target.path, path.resolve(req.sourcePath)),
+            )
+          : undefined,
+        resolveResourcePath(ctx.target.path, "sources", `${req.sourceId}.txt`),
+        resolveResourcePath(ctx.target.path, "sources", `${req.sourceId}.md`),
       ].filter((p): p is string => Boolean(p));
 
       let text: string | undefined;
@@ -218,7 +229,7 @@ export const dissectPipeline: PipelineDefinition<DissectInput, DissectResult> = 
     };
   },
   async deliver(res, ctx): Promise<DeliveryReceipt> {
-    const outDir = path.join(ctx.target.path, "analyses", res.sourceId);
+    const outDir = resolveResourcePath(ctx.target.path, "analyses", res.sourceId);
     const marker = path.join(outDir, `${ctx.runId}.marker.json`);
     const cardsJson = JSON.stringify(res.cards, null, 2);
 
@@ -265,7 +276,12 @@ export const dissectPipeline: PipelineDefinition<DissectInput, DissectResult> = 
   },
   async recover(record, ctx) {
     const req = ctx.request as DissectInput;
-    const marker = path.join(ctx.target.path, "analyses", req.sourceId, `${record.id}.marker.json`);
+    const marker = resolveResourcePath(
+      ctx.target.path,
+      "analyses",
+      req.sourceId,
+      `${record.id}.marker.json`,
+    );
     return (await isAlreadyDelivered(marker, record.id)) ? "delivered" : "resume";
   },
 };

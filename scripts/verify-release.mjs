@@ -10,7 +10,9 @@ const npm = (args, cwd = root) =>
   });
 if (process.platform !== "win32")
   throw new Error("发行验证请在 Windows 执行，不能以 Linux 构建代替原生交付。");
-npm(["run", "test:all"]);
+npm(["run", "check"]);
+npm(["test"]);
+npm(["run", "test:e2e"]);
 execFileSync(process.execPath, ["scripts/prepare-desktop-python.mjs"], {
   cwd: root,
   stdio: "inherit",

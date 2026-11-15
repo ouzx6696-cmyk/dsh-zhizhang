@@ -1,7 +1,13 @@
 import path from "node:path";
 import { systemClock } from "@zhizhang/core/clock";
 import { AppError } from "@zhizhang/core/errors";
-import { atomicWrite, readJson, readTextIfExists, sha256 } from "@zhizhang/core/fs";
+import {
+  atomicWrite,
+  resolveResourcePath,
+  readJson,
+  readTextIfExists,
+  sha256,
+} from "@zhizhang/core/fs";
 import { createLockService } from "@zhizhang/core/lock";
 import type {
   ContextPacket,
@@ -13,6 +19,8 @@ import type {
 import { buildDeliveryMarker, isAlreadyDelivered } from "@zhizhang/core/pipeline";
 import { arr, int, lit, num, obj, opt, parseJson, str, type Infer } from "@zhizhang/core/schema";
 import { createBibleStore } from "../../bible/store.js";
+import { readChapter, listChapters } from "../../commands/chapter.js";
+import { readLibraryCards } from "../../commands/library.js";
 import { buildChapterContext } from "../../context/builder.js";
 import { parseChapterMarkdown } from "../../domain/chapter.js";
 import { MAX_EDITOR_REJECTIONS } from "../../domain/status.js";
@@ -104,7 +112,7 @@ const ReviewIssueSchema = obj({
   fix: str({ min: 1 }),
 });
 
-const ReviewResultSchema = obj({
+export const ReviewResultSchema = obj({
   verdict: lit("pass", "revise", "reject"),
   issues: arr(ReviewIssueSchema, { max: 50 }),
   summary: str({ min: 1 }),
@@ -296,7 +304,10 @@ export const draftStage: StageSpec<
   fanOut: {
     count: (ctx) => {
       const req = ctx.request as ChapterReq;
-      return draftCountForGrade(req.grade ?? "standard", req.golden === "true");
+      return draftCountForGrade(
+        req.grade ?? lit("economy", "standard", "premium")(ctx.state.grade ?? "standard"),
+        req.golden === "true",
+      );
     },
   },
 };
@@ -447,7 +458,7 @@ export const chapterPipeline: PipelineDefinition<ChapterReq, ChapterRunResult> =
         WorkMetaSchema,
       ).catch(() => undefined);
       const chapterRaw = await readTextIfExists(
-        path.join(ctx.target.path, "chapters", `${req.chapterId}.md`),
+        resolveResourcePath(ctx.target.path, "chapters", `${req.chapterId}.md`),
       );
       const parsedChapter = chapterRaw ? parseChapterMarkdown(chapterRaw) : undefined;
       const outlineText = parsedChapter?.meta.outline
@@ -459,13 +470,58 @@ export const chapterPipeline: PipelineDefinition<ChapterReq, ChapterRunResult> =
       const bible = await bibleStore.read(ctx.target.path);
       const parsedPos = req.position ? Number.parseInt(req.position, 10) : NaN;
       const position =
-        Number.isFinite(parsedPos) && parsedPos > 0 ? parsedPos : bible.chapters.length + 1;
+        Number.isFinite(parsedPos) && parsedPos > 0
+          ? parsedPos
+          : Number(/\d+/.exec(req.chapterId)?.[0]) || bible.chapters.length + 1;
       const view = bibleStore.asOf(bible, position);
       const prevRecord = bible.chapters
         .filter((c) => c.position < position)
         .sort((a, b) => b.position - a.position)[0];
       const hits = bibleStore.match(view, [outlineText, prevRecord?.summary ?? ""]);
 
+      const chapters = await listChapters(ctx.target.path);
+      const previous = chapters.filter((chapter) => chapter.position < position).at(-1);
+      const previousBody = previous
+        ? (await readChapter(ctx.target.path, previous.id)).body
+        : undefined;
+      const foundation = await readJson(
+        path.join(ctx.target.path, "plan/foundation.json"),
+        obj({ coreConflict: str() }, { strict: false }),
+      );
+      const volumes = await readJson(
+        path.join(ctx.target.path, "plan/structure.json"),
+        arr(
+          obj({
+            volume: int(),
+            title: str(),
+            summary: opt(str()),
+            startChapter: int(),
+            endChapter: int(),
+          }),
+        ),
+      );
+      const volume = volumes?.find(
+        (item) => item.startChapter <= position && item.endChapter >= position,
+      );
+      const references = await readJson(
+        path.join(ctx.target.path, "plan/references.json"),
+        obj({
+          format: lit("zhizhang/1.3"),
+          bindings: arr(obj({ sourceId: str(), cardIds: arr(str()), boundAt: str() })),
+        }),
+      );
+      const libraryRoot = ctx.libraryRoot;
+      const referenceCards =
+        libraryRoot && references
+          ? (
+              await Promise.all(
+                references.bindings.map(async (binding) => {
+                  const { cards } = await readLibraryCards(libraryRoot, binding.sourceId);
+                  return cards.filter((card) => binding.cardIds.includes(card.id));
+                }),
+              )
+            ).flat()
+          : [];
       const targetWords = req.targetWords ?? workMeta?.settings.targetWords ?? 3000;
       const prevModeSetting = workMeta?.settings.previousTextMode ?? "auto";
       const packet = buildChapterContext({
@@ -474,6 +530,13 @@ export const chapterPipeline: PipelineDefinition<ChapterReq, ChapterRunResult> =
         outlineText,
         authorNote: req.note,
         previousSummary: prevRecord?.summary,
+        previousBody,
+        bookPlan: {
+          title: workMeta?.title,
+          coreConflict: foundation?.coreConflict,
+          currentVolume: volume ? { ...volume, summary: volume.summary ?? "" } : undefined,
+        },
+        referenceCards,
         previousHandoff: prevRecord ? JSON.stringify(prevRecord.handoff) : undefined,
         bible,
         view,
@@ -489,10 +552,17 @@ export const chapterPipeline: PipelineDefinition<ChapterReq, ChapterRunResult> =
             : { kind: "tail", chars: 1800 },
       });
 
-      return { packet, targetWords, position, outlineText };
+      return {
+        packet,
+        targetWords,
+        position,
+        outlineText,
+        grade: req.grade ?? workMeta?.grade ?? "standard",
+      };
     });
 
     ctx.state.outlineText = prepared.outlineText;
+    ctx.state.grade = prepared.grade;
     const packet: ContextPacket = prepared.packet;
 
     // 1. beats
@@ -616,7 +686,7 @@ export const chapterPipeline: PipelineDefinition<ChapterReq, ChapterRunResult> =
   },
   async deliver(res, ctx): Promise<DeliveryReceipt> {
     const req = ctx.request as ChapterReq;
-    const candDir = path.join(ctx.target.path, "candidates", req.chapterId);
+    const candDir = resolveResourcePath(ctx.target.path, "candidates", req.chapterId);
     const marker = path.join(candDir, `${ctx.runId}.marker.json`);
     if (await isAlreadyDelivered(marker, ctx.runId)) {
       return {
@@ -639,6 +709,7 @@ export const chapterPipeline: PipelineDefinition<ChapterReq, ChapterRunResult> =
           wordCount: res.gate.wordCount,
           editorPass: res.editorPass,
           editorRejections: res.editorRejections,
+          bodyHash: sha256(res.body),
           review: res.review,
           beats: res.beats,
         },
@@ -656,7 +727,7 @@ export const chapterPipeline: PipelineDefinition<ChapterReq, ChapterRunResult> =
   },
   async recover(record, ctx) {
     const req = ctx.request as ChapterReq;
-    const marker = path.join(
+    const marker = resolveResourcePath(
       ctx.target.path,
       "candidates",
       req.chapterId,

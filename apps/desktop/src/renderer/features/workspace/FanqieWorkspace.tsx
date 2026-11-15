@@ -173,16 +173,18 @@ export function FanqieWorkspace({ target, readonly }: { target: Target; readonly
     }
   }, [view.chapters, dispatch]);
 
+  const currentChapterId = view.current?.id;
+  const currentChapterTitle = view.current?.title;
   useEffect(() => {
     set({
       focus: {
-        chapter: view.current?.id,
-        title: view.current?.title,
+        chapter: currentChapterId,
+        title: currentChapterTitle,
         workTitle,
         source: "chapter",
       },
     });
-  }, [view.current?.id, view.current?.title, workTitle]);
+  }, [currentChapterId, currentChapterTitle, workTitle]);
 
   useEffect(() => {
     set({ chapters: view.chapters.map((c) => ({ id: c.id, title: c.title })) });

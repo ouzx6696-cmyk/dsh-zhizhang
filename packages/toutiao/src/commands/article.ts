@@ -5,7 +5,7 @@ import { AppError } from "@zhizhang/core/errors";
 import { readJson, readTextIfExists, resolveInside } from "@zhizhang/core/fs";
 import { createLockService, type LockService } from "@zhizhang/core/lock";
 import { lit, obj, opt, str, type Infer } from "@zhizhang/core/schema";
-import { ARTICLE_STATUSES, type ArticleStatus } from "../domain/status.js";
+import { assertArticleTransition, ARTICLE_STATUSES, type ArticleStatus } from "../domain/status.js";
 import { createRulesBridge, type LedgerMutateResult } from "../rules/bridge.js";
 import {
   ArticleMetaSchema,
@@ -97,49 +97,57 @@ export async function deliverArticleCommand(
   lock: LockService = createLockService(systemClock),
 ): Promise<{ deliveryPath: string; status: ArticleStatus; ledger?: LedgerMutateResult }> {
   const input = DeliverArticleReq(rawInput);
-  const nowIso = systemClock.iso();
-  const deliveryPath = await writeDeliverySheet(
-    input.articleDir,
-    input.title,
-    input.body,
-    nowIso,
-    lock,
-  );
-
-  const cardPath = input.cardPath ?? path.join(input.articleDir, "card.json");
-  const hasExplicitLedgerTarget = Boolean(input.ledgerPath || input.cardPath);
-  const cardExists = await fs
-    .access(cardPath)
-    .then(() => true)
-    .catch(() => false);
-
-  if (!cardExists && !hasExplicitLedgerTarget) {
-    return { deliveryPath, status: "已交稿" };
-  }
-  if (!cardExists) {
-    throw new AppError("input.not_found", `未找到立项卡文件：${cardPath}`, { cardPath });
-  }
-
-  const meta = await readJson(path.join(input.articleDir, "meta.json"), ArticleMetaSchema).catch(
-    () => undefined,
-  );
-  const ledgerPath = input.ledgerPath ?? path.join(path.dirname(input.articleDir), "ledger.csv");
-  const bridge = createRulesBridge(input.scriptsDir ?? DEFAULT_SCRIPTS_DIR);
-  const ledger = await bridge.ledgerAdd({
-    card: cardPath,
-    ledger: ledgerPath,
-    articleId: meta?.id,
-    status: "已交稿",
-    date: input.date ?? nowIso.slice(0, 10),
-  });
-  if (!ledger.ok) {
-    throw new AppError(
-      ledger.code === "NOT_FOUND" ? "input.not_found" : "input.invalid",
-      ledger.message || "交稿联动台账追加失败",
-      { code: ledger.code },
+  return lock.write({ kind: "article", path: input.articleDir }, async () => {
+    const nowIso = systemClock.iso();
+    const meta = await readJson(path.join(input.articleDir, "meta.json"), ArticleMetaSchema);
+    if (!meta) throw new AppError("input.not_found", "未找到文章");
+    if (meta.status === "已交稿") {
+      return { deliveryPath: path.join(input.articleDir, "交稿单.md"), status: meta.status };
+    }
+    assertArticleTransition(meta.status, "已交稿");
+    const cardPath = input.cardPath ?? path.join(input.articleDir, "card.json");
+    const cardExists = await fs.access(cardPath).then(
+      () => true,
+      () => false,
     );
-  }
-  return { deliveryPath, status: "已交稿", ledger };
+    if (!cardExists && (input.ledgerPath || input.cardPath)) {
+      throw new AppError("input.not_found", `未找到立项卡文件：${cardPath}`, { cardPath });
+    }
+    let ledger: LedgerMutateResult | undefined;
+    if (cardExists) {
+      const ledgerPath =
+        input.ledgerPath ?? path.join(path.dirname(input.articleDir), "ledger.csv");
+      const bridge = createRulesBridge(input.scriptsDir ?? DEFAULT_SCRIPTS_DIR);
+      ledger = await bridge.ledgerAdd({
+        card: cardPath,
+        ledger: ledgerPath,
+        articleId: meta.id,
+        status: "已交稿",
+        date: input.date ?? nowIso.slice(0, 10),
+      });
+      if (ledger.ok && ledger.existing && ledger.row?.["状态"] !== "已交稿") {
+        ledger = await bridge.ledgerStatus({
+          title: ledger.row?.["主标题"] ?? input.title,
+          to: "已交稿",
+          ledger: ledgerPath,
+          articleId: meta.id,
+        });
+      }
+      if (!ledger.ok) {
+        throw new AppError("input.invalid", ledger.message || "交稿联动台账追加失败", {
+          code: ledger.code,
+        });
+      }
+    }
+    const deliveryPath = await writeDeliverySheet(
+      input.articleDir,
+      input.title,
+      input.body,
+      nowIso,
+      lock,
+    );
+    return { deliveryPath, status: "已交稿", ...(ledger ? { ledger } : {}) };
+  });
 }
 
 export async function registerSourceCommand(

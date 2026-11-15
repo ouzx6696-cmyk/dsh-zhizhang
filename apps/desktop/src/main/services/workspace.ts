@@ -6,7 +6,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { Clock } from "@zhizhang/core/clock";
 import { AppError, isAppError } from "@zhizhang/core/errors";
-import { atomicWrite, readTextIfExists } from "@zhizhang/core/fs";
+import { atomicWrite, readTextIfExists, resolveInside } from "@zhizhang/core/fs";
 import type { Lease, LockService } from "@zhizhang/core/lock";
 import { FORMAT_VERSION, WORKSPACE_META_DIR } from "@zhizhang/core/paths";
 import type { WorkspaceRoots, WorkspaceStatus } from "../../shared/views.js";
@@ -84,12 +84,13 @@ export function createWorkspaceService(deps: {
     }
   }
 
-  async function claim(root: string): Promise<WorkspaceStatus> {
+  async function claim(root: string, expectedOwner?: string): Promise<WorkspaceStatus> {
     try {
-      lease = await deps.locks.lease(root);
+      lease = await deps.locks.lease(root, expectedOwner);
       state = { root, configured: true, readonly: false, roots: workspaceRoots(root) };
     } catch (err) {
       if (!isAppError(err, "storage.locked")) throw err;
+      lease = undefined;
       const owner = typeof err.data?.owner === "string" ? err.data.owner : undefined;
       state = {
         root,
@@ -107,13 +108,12 @@ export function createWorkspaceService(deps: {
     async open(input) {
       const root = path.resolve(input);
       if (lease && lease.root === root) return state;
-      if (lease) {
-        await lease.release();
-        lease = undefined;
-      }
+      const previous = lease;
       await fs.mkdir(root, { recursive: true });
       await ensureLayout(root);
-      return claim(root);
+      const next = await claim(root);
+      await previous?.release();
+      return next;
     },
     async takeOver(owner) {
       if (!state.readonly || !state.root) {
@@ -124,8 +124,7 @@ export function createWorkspaceService(deps: {
           owner: state.owner ?? "",
         });
       }
-      await fs.rm(path.join(state.root, WORKSPACE_META_DIR, "lease.json"), { force: true });
-      return claim(state.root);
+      return claim(state.root, owner);
     },
     assertWritable() {
       if (!state.configured) {
@@ -146,7 +145,7 @@ export function createWorkspaceService(deps: {
       if (rel.startsWith("..") || path.isAbsolute(rel)) {
         throw new AppError("input.invalid", "目标不在写作文件夹内", { path: resolved });
       }
-      return resolved;
+      return rel ? resolveInside(state.root, rel) : resolved;
     },
     async release() {
       await lease?.release();

@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { systemClock } from "@zhizhang/core/clock";
 import { AppError } from "@zhizhang/core/errors";
-import { atomicWrite, readTextIfExists, sha256 } from "@zhizhang/core/fs";
+import { atomicWrite, resolveResourcePath, readTextIfExists, sha256 } from "@zhizhang/core/fs";
 import { createLockService, type LockService } from "@zhizhang/core/lock";
 import {
   parseChapterMarkdown,
@@ -50,7 +50,7 @@ export async function listChapters(workPath: string): Promise<ChapterRowView[]> 
 }
 
 export async function readChapter(workPath: string, chapterId: string): Promise<ChapterDocument> {
-  const filePath = path.join(workPath, "chapters", `${chapterId}.md`);
+  const filePath = resolveResourcePath(workPath, "chapters", `${chapterId}.md`);
   const raw = await readTextIfExists(filePath);
   if (raw === undefined) {
     throw new AppError("input.not_found", `未找到章节：${chapterId}`, { chapterId });
@@ -73,7 +73,7 @@ export async function saveChapter(
   lock: LockService = createLockService(systemClock),
 ): Promise<ChapterDocument> {
   return lock.write({ kind: "work", path: workPath }, async () => {
-    const filePath = path.join(workPath, "chapters", `${input.chapterId}.md`);
+    const filePath = resolveResourcePath(workPath, "chapters", `${input.chapterId}.md`);
     const existingRaw = await readTextIfExists(filePath);
     const prev = existingRaw ? parseChapterMarkdown(existingRaw) : undefined;
 
@@ -144,7 +144,7 @@ export async function reviewChapter(
     };
 
     await atomicWrite(
-      path.join(workPath, "chapters", `${input.chapterId}.md`),
+      resolveResourcePath(workPath, "chapters", `${input.chapterId}.md`),
       serializeChapterMarkdown(updated),
     );
     return updated;
@@ -183,7 +183,7 @@ export async function finalizeChapter(
     };
 
     await atomicWrite(
-      path.join(workPath, "chapters", `${input.chapterId}.md`),
+      resolveResourcePath(workPath, "chapters", `${input.chapterId}.md`),
       serializeChapterMarkdown(updated),
     );
     return updated;

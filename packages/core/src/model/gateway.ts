@@ -109,10 +109,10 @@ export function createModelGateway(
       const binding = resolveBinding(role);
       const key = `${binding.connection}:${binding.model}`;
       const est = estimator.estimate(key, `${req.system}\n${req.user}`);
-      opts.budget.reserve(est);
-
-      const release = await acquire(opts.runId, opts.signal);
+      const reservation = opts.budget.reserve(est);
+      let release: (() => void) | undefined;
       try {
+        release = await acquire(opts.runId, opts.signal);
         const answer = await withRetry(
           async () => {
             const wd = createWatchdog(opts.signal);
@@ -131,10 +131,11 @@ export function createModelGateway(
         );
         const cost = computeCost(binding, answer);
         estimator.calibrate(key, est, answer.usage.input);
-        opts.budget.settle({ ...answer.usage, cost });
+        reservation.settle({ ...answer.usage, cost });
         return { ...answer, cost };
       } finally {
-        release();
+        reservation.release();
+        release?.();
       }
     },
 

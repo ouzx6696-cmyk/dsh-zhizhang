@@ -1,7 +1,14 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { AppError } from "@zhizhang/core/errors";
-import { atomicWrite, readJson, sha256 } from "@zhizhang/core/fs";
+import {
+  atomicWrite,
+  resolveResourcePath,
+  readJson,
+  readTextIfExists,
+  sha256,
+} from "@zhizhang/core/fs";
+import { commitIntent } from "@zhizhang/core/journal";
 import type { LockService } from "@zhizhang/core/lock";
 import { FORMAT_VERSION } from "@zhizhang/core/paths";
 import { arr, lit, obj, opt, str, type Infer } from "@zhizhang/core/schema";
@@ -56,10 +63,9 @@ export async function registerSource(
   lock: LockService,
 ): Promise<void> {
   await lock.write({ kind: "article", path: articleDir }, async () => {
-    const dir = path.join(articleDir, "sources");
-    await atomicWrite(path.join(dir, `${sourceId}.txt`), content);
+    await atomicWrite(resolveResourcePath(articleDir, "sources", `${sourceId}.txt`), content);
     await atomicWrite(
-      path.join(dir, `${sourceId}.json`),
+      resolveResourcePath(articleDir, "sources", `${sourceId}.json`),
       JSON.stringify({ id: sourceId, kind, hash: sha256(content), at: nowIso }, null, 2),
     );
   });
@@ -101,14 +107,35 @@ export async function writeDeliverySheet(
 
     const outPath = path.join(articleDir, "交稿单.md");
     const content = `# ${title}\n\n${body.trim()}\n\n${FIXED_DELIVERY_ENDING}\n`;
-    await atomicWrite(outPath, content);
     const next: ArticleMeta = {
       ...meta,
       status: "已交稿",
       chosenTitle: title,
       history: [...meta.history, { to: "已交稿", at: nowIso }],
     };
-    await atomicWrite(metaFile, JSON.stringify(next, null, 2));
+    const previous = await readTextIfExists(outPath);
+    await commitIntent(
+      path.join(articleDir, ".journal"),
+      {
+        format: FORMAT_VERSION,
+        id: "delivery",
+        writes: [
+          {
+            path: outPath,
+            beforeHash: previous === undefined ? null : sha256(previous),
+            after: content,
+          },
+          {
+            path: metaFile,
+            beforeHash: sha256((await readTextIfExists(metaFile)) ?? ""),
+            after: JSON.stringify(next, null, 2),
+          },
+        ],
+        meta: { operation: "delivery" },
+      },
+      lock,
+      { kind: "article", path: articleDir },
+    );
     return outPath;
   });
 }
