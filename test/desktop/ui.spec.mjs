@@ -151,6 +151,11 @@ test("(c) 番茄：章节流水线 → 阶段进度 → 对照 → 采纳", asyn
   const files = await readdir(chapters);
   const bodies = await Promise.all(files.map((f) => readFile(path.join(chapters, f), "utf8")));
   expect(bodies.some((b) => b.includes("夜码头"))).toBe(true);
+
+  // 连续性真源对作者统一叫“设定集”（网文通用说法），界面里不再出现旧称。
+  await tid("dock-tab-chapter").click();
+  await expect(tid("bible-pane")).toContainText("设定集");
+  await expect(tid("right-dock")).not.toContainText("圣经");
 });
 
 test("写作助手：发送、流式回复、停止", async () => {

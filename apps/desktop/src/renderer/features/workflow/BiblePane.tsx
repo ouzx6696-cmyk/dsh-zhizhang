@@ -6,7 +6,7 @@ import { desktop } from "../../state/desktop";
 import { useDesktop } from "../../state/store";
 import { errorText, notifyError } from "../../format";
 
-/** 待确认条目的一行摘要（圣经是连续性的唯一真源，取代 1.x 的连续性面板）。 */
+/** 待确认条目的一行摘要（设定集是连续性的唯一真源，取代 1.x 的连续性面板）。 */
 export function opSummary(op: BibleOp): string {
   switch (op.type) {
     case "entity.upsert":

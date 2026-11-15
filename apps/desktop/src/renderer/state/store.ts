@@ -46,7 +46,7 @@ export interface DesktopState {
   creating: CreateKind | null;
   /** 流水线面板请求预填的章节（来自写作区“发起流水线”）。 */
   pipelineChapter: string;
-  /** 当前番茄作品的章节（右栏流水线选章、圣经巡检范围用）。 */
+  /** 当前番茄作品的章节（右栏流水线选章、设定集巡检范围用）。 */
   chapters: { id: string; title: string }[];
   /** 仍在进行（运行 / 暂停 / 失败可重试 / 等你决定）的流水线，顶栏胶囊与全局进度轨共用。 */
   runs: RunSummary[];

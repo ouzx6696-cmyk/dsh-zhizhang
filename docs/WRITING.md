@@ -15,14 +15,14 @@
 - 取消“模型压缩阶段卡”，改为由 [stage-map.ts](packages/core/src/methods/stage-map.ts) 按 `profiles/default/stage-map.json` 的 `file`、`sections`、`maxChars` 确定性直取方案 Markdown 原文。
 - `methodFor(profile, stage)` 返回拼接文本、内容哈希与缺失/截断记录 `omitted`，并在 `RunRecord` 中留痕，确保同一方案与版本下提示词输入可复现。
 
-## 3. 番茄长篇流水线与故事圣经
+## 3. 番茄长篇流水线与设定集
 
 ### 3.1 关键流水线
 - **`fanqie.book`**：立项卡 → 根基 → 卷结构 → 单元 → 章纲，作者采用后写入 `plan/` 与初始 `bible/`。
 - **`fanqie.chapter`**：`prepare`（零费用预检未知实体）→ `beats` → `draft×N`（经济 1；标准 2/黄金章 5；精品 3/黄金章 8，纯文本输出）→ `gate`（字数/规则代码闸）→ `select`（逐稿独立打分后取前两名换位比较）→ `continuity-check` → `review`（引文逐条容错定位）→ `revise` → `deliver`（幂等交付候选）。
 - **`fanqie.ledger` & `fanqie.health`**：定稿后抽取结构化增量写入 `pending.json` 待作者确认；每 10 章执行一次伏笔遗忘、知情越界与状态冲突体检。
 
-### 3.2 故事圣经 `bible/` 与分层上下文 `L0–L6`
+### 3.2 设定集 `bible/` 与分层上下文 `L0–L6`
 - **唯一连续性真源**（[store.ts](packages/fanqie/src/bible/store.ts)）：维护实体（含别名匹配）、状态时间序列（`asOf(N)` 按 `since/until` 窗口切片）、伏笔线索、知情矩阵、章节交接、文风与个人规则、待确认列表。
 - **上下文组装器**（[builder.ts](packages/fanqie/src/context/builder.ts)）：
   - `L1` 前章摘要、章末交接与前文（标准/精品给前章全文上限 4,000 字，经济给末尾 1,500 字 + 交接）。

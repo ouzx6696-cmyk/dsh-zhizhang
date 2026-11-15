@@ -49,5 +49,5 @@ L0  @zhizhang/core        errors / schema / fs / lock / journal / tool / pipelin
 
 ## 6. 测试体系规范
 
-- **分层**：L1 `test/unit/`（纯规则与契约）→ L2 `test/engine/`（持久化、锁、意图、圣经、流水线编排）→ L3 桌面会话与 IPC → L4 Playwright E2E；Python `unittest` 负责规则计算与质检，TS 仅测调用、错误映射与落盘。
+- **分层**：L1 `test/unit/`（纯规则与契约）→ L2 `test/engine/`（持久化、锁、意图、设定集、流水线编排）→ L3 桌面会话与 IPC → L4 Playwright E2E；Python `unittest` 负责规则计算与质检，TS 仅测调用、错误映射与落盘。
 - **夹具与纪律**：L2 流水线测试使用 [test/support/fake-port.mjs](test/support/fake-port.mjs) 与 [test/support/clock.mjs](test/support/clock.mjs)，禁止真实 `sleep` 与跨用例共享队列；不写任何 1.x 旧格式兼容测试。

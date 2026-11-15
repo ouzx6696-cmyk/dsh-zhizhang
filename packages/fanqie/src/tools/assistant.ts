@@ -1,6 +1,6 @@
 /**
  * 番茄写作助手工具：只读工具 + 发起流水线 / 打开对照。
- * 没有任何直接写正文、写候选或写圣经的工具（FR-40 / AC-50）；
+ * 没有任何直接写正文、写候选或写设定集的工具（FR-40 / AC-50）；
  * 需要改稿时只能发起流水线，流水线把结果交付为候选稿，由作者采纳。
  */
 import path from "node:path";
@@ -147,7 +147,7 @@ export function fanqieAssistantTools(role: Role, target: ModeTarget): ToolDefini
 
   const bibleViewTool = defineTool({
     name: "fanqie_bible_view",
-    description: "读取故事圣经截至第 N 章的视图：人物/物件/设定、状态、伏笔线与知情表。",
+    description: "读取设定集截至第 N 章的视图：人物/物件/设定、状态、伏笔线与知情表。",
     params: PositionArgs,
     jsonSchema: {
       type: "object",
@@ -196,7 +196,7 @@ export function fanqieAssistantTools(role: Role, target: ModeTarget): ToolDefini
 
   const bibleAuditTool = defineTool({
     name: "fanqie_bible_audit",
-    description: "按代码规则巡检故事圣经（遗忘线、到期未兑现、知情越界、状态冲突），截至第 N 章。",
+    description: "按代码规则巡检设定集（遗忘线、到期未兑现、知情越界、状态冲突），截至第 N 章。",
     params: UpToArgs,
     jsonSchema: {
       type: "object",

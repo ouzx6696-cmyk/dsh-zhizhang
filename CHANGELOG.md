@@ -13,7 +13,7 @@
 - **环境与构建**：租约获取/接管/释放共用写锁，切换工作区前停止旧任务；修复 Windows 构建顺序和发行验证命令；测试转换器收敛到已有 esbuild，仅增加一条必要回归用例。
 
 - **品牌与包结构统一**：全仓更名为 `zhizhang`（`app.zhizhang.desktop`、`Zhizhang.exe`、`~/.zhizhang`、`.zhizhang/`），所有内部包登记为 npm workspace `@zhizhang/{core,fanqie,toutiao,workbench,ui,desktop}`。因 `appId` 变更，1.1.1 用户需手动安装新版本。
-- **全新磁盘格式（`zhizhang/1.3`）**：移除 `meta.json` 单点热点与 1.x 旧数据/设置兼容分支；确立故事圣经 `bible/` 为唯一连续性真源；本地草稿迁移至写作文件夹 `.zhizhang/drafts/`。
+- **全新磁盘格式（`zhizhang/1.3`）**：移除 `meta.json` 单点热点与 1.x 旧数据/设置兼容分支；确立设定集 `bible/` 为唯一连续性真源；本地草稿迁移至写作文件夹 `.zhizhang/drafts/`。
 - **精简与架构收敛**：删除自由写手模式、7 个冗余实验开关及 23 份过期文档；`@zhizhang/core` 收敛为 errors / schema / fs / lock / journal / tool / pipeline / model / methods / python 模块；统一 `AppError` 码表、`ModelGateway` 全局并发/金额预算闸与 `LockService` 三锁合一机制。
 - **写作内核升级**：番茄长篇实现纯文本起稿、审读引文逐条容错、初选逐稿独立打分、确定性 `stage-map.json` 阶段取用与段落级 diff 个人规则学习；头条图文修正修订阶段使用 `s5-editing`、实现增量事实链复核并将 `PASS_SCORE = 84` 收口至 `rules.py`。
 - **界面与设计系统**：建立 `--zz-*` 三层设计令牌与四色语义分离；流水线面板改为右栏停靠并支持与助手分屏；新增专注模式与强类型 `WorkbenchCommandMap` / `DesktopEvent` 契约。

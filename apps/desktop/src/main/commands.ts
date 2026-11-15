@@ -62,7 +62,7 @@ const BIBLE_OP_KEYS: Record<(typeof BIBLE_OP_TYPES)[number], string> = {
   "chapter.record": "record",
 };
 
-/** 圣经增量只做结构校验（类型 + 载荷对象），字段语义由圣经存储在写入时裁定。 */
+/** 设定集增量只做结构校验（类型 + 载荷对象），字段语义由设定集存储在写入时裁定。 */
 const bibleOp: Parser<BibleOp> = (value, at = "$") => {
   const shape = obj({ type: lit(...BIBLE_OP_TYPES) }, { strict: false })(value, at);
   const key = BIBLE_OP_KEYS[shape.type];
