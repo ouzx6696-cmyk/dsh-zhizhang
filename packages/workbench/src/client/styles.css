@@ -1,13 +1,3 @@
-@import "./styles/base.css";
-@import "./styles/layout.css";
-@import "./styles/cards.css";
-@import "./styles/actions.css";
-@import "./styles/dashboard.css";
-@import "./styles/controls.css";
-@import "./styles/chapter-list.css";
-@import "./styles/reader.css";
-@import "./styles/editor.css";
-@import "./styles/inspector.css";
+@import "./styles/list.css";
+@import "./styles/sheet.css";
 @import "./styles/toutiao.css";
-@import "./styles/profiles.css";
-@import "./styles/overlay.css";

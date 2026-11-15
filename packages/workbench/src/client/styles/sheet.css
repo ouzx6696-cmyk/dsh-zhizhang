@@ -1,0 +1,374 @@
+/*
+ * 稿纸：章节条 + 稿纸滚动区 + 状态栏。阅读与编辑共用同一套度量：
+ * 文字列宽 = --zz-paper-width（行长 × 字宽），居中到同一 x；滚动条贴中栏右缘，只有一条。
+ */
+.wb-reader,
+.wb-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/* —— 章节条（单行） —— */
+.wb-bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--zz-space-3);
+  min-height: var(--zz-bar-height);
+  padding: 0 var(--zz-space-3) 0 var(--zz-space-5);
+  border-bottom: 1px solid var(--zz-border);
+}
+
+.wb-bar-lead {
+  display: flex;
+  align-items: center;
+  gap: var(--zz-space-2);
+  min-width: 0;
+}
+
+.wb-bar-ordinal,
+.wb-bar-title {
+  color: var(--zz-text-1);
+  font-size: var(--zz-text-strong);
+  font-weight: var(--zz-weight-strong);
+  line-height: var(--zz-leading-strong);
+  white-space: nowrap;
+}
+
+.wb-bar-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--zz-space-2);
+}
+
+/* —— 状态栏 —— */
+.wb-statusbar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--zz-space-4);
+  min-height: var(--zz-statusbar-height);
+  padding: 0 var(--zz-space-5);
+  border-top: 1px solid var(--zz-border);
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-meta);
+  line-height: var(--zz-leading-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.wb-statusbar-spacer {
+  flex: 1;
+}
+
+.wb-source-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zz-space-2);
+  color: var(--zz-text-2);
+}
+
+.wb-source-status::before {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--zz-radius-pill);
+  background: currentColor;
+  content: "";
+}
+
+.wb-source-status[data-state="saved"] {
+  color: var(--zz-ok);
+}
+
+.wb-source-status[data-state="dirty"],
+.wb-source-status[data-state="saving"] {
+  color: var(--zz-warn);
+}
+
+.wb-source-status[data-state="failed"] {
+  color: var(--zz-bad);
+}
+
+/* —— 阅读稿纸 —— */
+.wb-reader-body {
+  flex: 1;
+  min-height: 0;
+  padding: var(--zz-space-12) var(--zz-space-6) 40vh;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  scroll-padding-top: var(--zz-space-6);
+}
+
+.wb-reader-body:focus-visible {
+  outline-offset: -2px;
+}
+
+.wb-manuscript {
+  max-width: var(--zz-paper-width);
+  margin: 0 auto;
+  color: var(--zz-text-1);
+  font-family: var(--zz-font-body);
+  font-size: var(--zz-body-size);
+  line-height: var(--zz-paper-leading);
+  letter-spacing: var(--zz-paper-track);
+  text-align: justify;
+  text-justify: inter-character;
+  overflow-wrap: anywhere;
+}
+
+.wb-manuscript p {
+  margin: 0 0 var(--zz-paper-gap);
+  text-indent: var(--zz-paper-indent);
+}
+
+.wb-manuscript .wb-manuscript-gap {
+  display: none;
+}
+
+.wb-manuscript-title {
+  margin: 0 0 1.2em;
+  color: var(--zz-title);
+  font-size: 1.4em;
+  font-weight: var(--zz-weight-strong);
+  line-height: 1.45;
+  letter-spacing: 0.04em;
+  text-align: left;
+  text-indent: 0;
+}
+
+.wb-manuscript-h {
+  margin: 1.4em 0 0.6em;
+  color: var(--zz-title);
+  font-size: 1.1em;
+  font-weight: var(--zz-weight-strong);
+  line-height: 1.5;
+  text-indent: 0;
+}
+
+.wb-sheet--article .wb-manuscript p {
+  margin-bottom: 0.9em;
+  text-indent: 0;
+}
+
+.wb-manuscript mark {
+  border-radius: var(--zz-radius-xs);
+  background: var(--zz-warn-soft);
+  color: inherit;
+}
+
+.wb-manuscript mark[data-current] {
+  background: var(--zz-warn);
+  color: var(--zz-paper);
+}
+
+.wb-manuscript .wb-empty {
+  padding-top: var(--zz-space-6);
+  font-family: var(--zz-font-ui);
+  letter-spacing: normal;
+}
+
+.wb-reader-body::highlight(wb-find),
+.wb-reader-body ::highlight(wb-find) {
+  background-color: var(--zz-warn-soft);
+}
+
+.wb-reader-body ::highlight(wb-find-current) {
+  background-color: var(--zz-warn);
+  color: var(--zz-paper);
+}
+
+/* —— 编辑：同版式的源码框 —— */
+.wb-source-field {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.wb-source-text,
+.wb-source-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding-top: var(--zz-space-12);
+  padding-right: max(
+    var(--zz-space-6),
+    calc((100% - var(--zz-paper-width) - var(--zz-scrollbar)) / 2)
+  );
+  padding-bottom: 40vh;
+  padding-left: max(
+    var(--zz-space-6),
+    calc((100% - var(--zz-paper-width) - var(--zz-scrollbar)) / 2)
+  );
+  border: none;
+  font-family: var(--zz-font-body);
+  font-size: var(--zz-body-size);
+  line-height: var(--zz-paper-leading);
+  letter-spacing: var(--zz-paper-track);
+  text-align: justify;
+  /* Chromium 的 textarea 不支持 each-line（只缩进第一行，且与 div 背衬错位），编辑态统一不缩进。 */
+  text-indent: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  scrollbar-gutter: stable;
+}
+
+.wb-source-text {
+  display: block;
+  overflow-y: auto;
+  background: transparent;
+  color: var(--zz-text-1);
+  caret-color: var(--zz-decide);
+  resize: none;
+}
+
+.wb-source-text:focus,
+.wb-source-text:focus-visible {
+  outline: none;
+}
+
+.wb-source-backdrop {
+  overflow: hidden;
+  color: transparent;
+  pointer-events: none;
+}
+
+.wb-source-backdrop mark {
+  border-radius: var(--zz-radius-xs);
+  background: var(--zz-warn-soft);
+  color: transparent;
+}
+
+.wb-source-backdrop mark[data-current] {
+  background: color-mix(in srgb, var(--zz-warn) 45%, transparent);
+}
+
+.wb-source-backdrop ::highlight(wb-editor-find) {
+  background-color: var(--zz-warn-soft);
+}
+
+.wb-source-backdrop ::highlight(wb-editor-find-active) {
+  background-color: color-mix(in srgb, var(--zz-warn) 45%, transparent);
+}
+
+.wb-source-backdrop ::highlight(wb-editor-issue) {
+  background-color: var(--zz-bad-soft);
+}
+
+.wb-editor-note,
+.wb-editor-error,
+.wb-editor-offer {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--zz-space-2) var(--zz-space-3);
+  margin: 0;
+  padding: var(--zz-space-2) var(--zz-space-5);
+  border-bottom: 1px solid var(--zz-border);
+  font-size: var(--zz-text-meta);
+  line-height: var(--zz-leading-meta);
+}
+
+.wb-editor-note {
+  color: var(--zz-text-2);
+}
+
+.wb-editor-offer {
+  background: var(--zz-run-soft);
+  color: var(--zz-text-1);
+}
+
+.wb-editor-offer > span {
+  flex: 1 1 16rem;
+}
+
+.wb-editor-error {
+  background: var(--zz-bad-soft);
+  color: var(--zz-bad);
+}
+
+/* —— 查找栏 —— */
+.wb-find {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--zz-space-2);
+  padding: var(--zz-space-2) var(--zz-space-5);
+  border-bottom: 1px solid var(--zz-border);
+  background: var(--zz-surface-1);
+}
+
+.wb-find-row {
+  display: flex;
+  align-items: center;
+  gap: var(--zz-space-1);
+}
+
+.wb-find-field {
+  display: flex;
+  flex: 0 1 360px;
+  align-items: center;
+  gap: var(--zz-space-2);
+  min-height: var(--zz-btn-height-sm);
+  padding: 0 var(--zz-space-2);
+  border: 1px solid var(--zz-field-border);
+  border-radius: var(--zz-field-radius);
+  background: var(--zz-field-bg);
+  color: var(--zz-text-3);
+}
+
+.wb-find-field:focus-within {
+  border-color: var(--zz-focus);
+  box-shadow: var(--zz-ring);
+}
+
+.wb-find-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--zz-text-1);
+  font-size: var(--zz-text-body);
+  outline: none;
+}
+
+.wb-find-count {
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.wb-find-case {
+  min-width: var(--zz-btn-height-sm);
+  min-height: var(--zz-btn-height-sm);
+  border: none;
+  border-radius: var(--zz-radius-sm);
+  background: transparent;
+  color: var(--zz-text-2);
+  font: var(--zz-text-meta) / 1 var(--zz-font-mono);
+  cursor: pointer;
+}
+
+.wb-find-case:hover {
+  background: var(--zz-hover);
+}
+
+.wb-find-case-on {
+  background: var(--zz-active);
+  color: var(--zz-text-1);
+}
+
+.wb-skeleton {
+  padding-top: var(--zz-space-4);
+}
+
+.wb-icon {
+  flex: none;
+}

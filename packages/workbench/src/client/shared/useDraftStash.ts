@@ -12,7 +12,7 @@ import {
   type DraftEntry,
 } from "../../editor/drafts.js";
 import { confirmAction } from "./confirm.js";
-import { EDITOR_COPY as c } from "./copy.js";
+import { WORKBENCH_COPY } from "@zhizhang/ui/copy";
 
 const PAUSE_MS = 800;
 
@@ -33,12 +33,15 @@ function offerCleanup(key: string, retry: () => void): void {
   const others = otherDraftKeys(key);
   notify({
     tone: "danger",
-    text: c.stashFull,
+    text: WORKBENCH_COPY.editor.stashFull,
     action: others.length
       ? {
-          label: c.clearOtherDrafts,
+          label: WORKBENCH_COPY.editor.clearOtherDrafts,
           run: async () => {
-            if (!(await confirmAction(c.clearOtherDraftsConfirm(others.length)))) return;
+            if (
+              !(await confirmAction(WORKBENCH_COPY.editor.clearOtherDraftsConfirm(others.length)))
+            )
+              return;
             for (const other of otherDraftKeys(key)) clearDraft(other);
             retry();
           },

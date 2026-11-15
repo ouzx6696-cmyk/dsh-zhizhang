@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Button } from "@zhizhang/ui/primitives";
+import { WORKBENCH_COPY as W } from "@zhizhang/ui/copy";
+import { IconButton } from "@zhizhang/ui/primitives";
 import { Icon, cx } from "./components.js";
 
 export type FindMode = "" | "find" | "replace";
@@ -80,7 +81,7 @@ export interface FindBarProps {
 
 export function FindBar({
   find,
-  label = "查找与替换",
+  label = W.find.panel,
   index,
   total,
   status,
@@ -96,76 +97,103 @@ export function FindBar({
     inputRef.current?.select();
   }, [find.focusTick]);
 
-  const countText = status ?? (find.query ? (total > 0 ? `${index + 1} / ${total}` : "0 / 0") : "");
+  const countText = status ?? (find.query ? W.find.count(total > 0 ? index + 1 : 0, total) : "");
 
   return (
-    <div className="wb-find-bar" role="region" aria-label={label}>
+    <div className="wb-find" role="region" aria-label={label}>
       <div className="wb-find-row">
-        <input
-          ref={inputRef}
-          type="search"
-          className="wb-find-input"
-          value={find.query}
-          placeholder="查找…"
-          aria-label="查找文本"
-          onChange={(event) => find.setQuery(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              onStep(event.shiftKey ? -1 : 1);
-            } else if (event.key === "Escape") {
-              event.preventDefault();
-              onClose();
-            }
-          }}
-        />
-        <button
-          type="button"
-          className={cx("wb-icon-button", find.matchCase && "wb-icon-button-on")}
-          aria-pressed={find.matchCase}
-          title="区分大小写"
-          onClick={find.toggleMatchCase}
-        >
-          Aa
-        </button>
-        <span className="wb-find-count" aria-live="polite">
-          {countText}
-        </span>
-        <Button variant="secondary" onClick={() => onStep(-1)} disabled={!total} title="上一处">
-          <Icon name="up" size={14} />
-        </Button>
-        <Button variant="secondary" onClick={() => onStep(1)} disabled={!total} title="下一处">
-          <Icon name="down" size={14} />
-        </Button>
-        <Button variant="secondary" onClick={onClose} title="关闭">
-          <Icon name="close" size={14} />
-        </Button>
-      </div>
-      {canReplace && find.mode === "replace" ? (
-        <div className="wb-find-row">
+        <span className="wb-find-field">
+          <Icon name="search" size={14} />
           <input
-            type="text"
+            ref={inputRef}
+            type="search"
             className="wb-find-input"
-            value={find.replacement}
-            placeholder="替换为…"
-            aria-label="替换文本"
-            onChange={(event) => find.setReplacement(event.target.value)}
+            value={find.query}
+            placeholder={W.find.placeholder}
+            aria-label={W.find.label}
+            onChange={(event) => find.setQuery(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
                 event.preventDefault();
-                onReplace?.();
+                onStep(event.shiftKey ? -1 : 1);
               } else if (event.key === "Escape") {
                 event.preventDefault();
                 onClose();
               }
             }}
           />
-          <Button variant="secondary" onClick={onReplace} disabled={!total}>
-            替换
-          </Button>
-          <Button variant="secondary" onClick={onReplaceAll} disabled={!total}>
-            全部替换
-          </Button>
+          <span className="wb-find-count" aria-live="polite">
+            {countText}
+          </span>
+        </span>
+        <button
+          type="button"
+          className={cx("wb-find-case", find.matchCase && "wb-find-case-on")}
+          aria-pressed={find.matchCase}
+          title={W.find.matchCase}
+          aria-label={W.find.matchCase}
+          onClick={find.toggleMatchCase}
+        >
+          Aa
+        </button>
+        <IconButton
+          size="sm"
+          label={W.find.previous}
+          onClick={() => onStep(-1)}
+          disabled={!total}
+          icon={<Icon name="up" size={14} />}
+        />
+        <IconButton
+          size="sm"
+          label={W.find.next}
+          onClick={() => onStep(1)}
+          disabled={!total}
+          icon={<Icon name="down" size={14} />}
+        />
+        <IconButton
+          size="sm"
+          label={W.find.close}
+          onClick={onClose}
+          icon={<Icon name="close" size={14} />}
+        />
+      </div>
+      {canReplace && find.mode === "replace" ? (
+        <div className="wb-find-row">
+          <span className="wb-find-field">
+            <input
+              type="text"
+              className="wb-find-input"
+              value={find.replacement}
+              placeholder={W.find.replacePlaceholder}
+              aria-label={W.find.replaceLabel}
+              onChange={(event) => find.setReplacement(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  onReplace?.();
+                } else if (event.key === "Escape") {
+                  event.preventDefault();
+                  onClose();
+                }
+              }}
+            />
+          </span>
+          <button
+            type="button"
+            className="zz-btn zz-btn--sm zz-btn--secondary"
+            onClick={onReplace}
+            disabled={!total}
+          >
+            {W.find.replace}
+          </button>
+          <button
+            type="button"
+            className="zz-btn zz-btn--sm zz-btn--secondary"
+            onClick={onReplaceAll}
+            disabled={!total}
+          >
+            {W.find.replaceAll}
+          </button>
         </div>
       ) : null}
     </div>

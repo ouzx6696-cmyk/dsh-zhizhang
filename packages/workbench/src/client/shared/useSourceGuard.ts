@@ -1,8 +1,9 @@
 /** One mounted editor, using the same leave policy as the existing workbench. */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { WORKBENCH_COPY as W } from "@zhizhang/ui/copy";
 import { confirmAction } from "./confirm.js";
 
-const LEAVE_MESSAGE = "有未保存修改，离开将放弃这些修改。是否继续？";
+const LEAVE_MESSAGE = W.editor.leave;
 
 export interface EditorGuardSnapshot {
   dirty: boolean;
