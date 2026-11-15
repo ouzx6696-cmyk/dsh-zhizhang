@@ -2,6 +2,7 @@
  * 助手对话落盘：<状态目录>/sessions/<目标哈希>/<对话 id>.json + current.json 指针。
  * 只读写 zhizhang/1.3 格式；不认识的文件报 storage.format_unsupported。
  */
+import { randomBytes } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { Clock } from "@zhizhang/core/clock";
@@ -111,14 +112,11 @@ export function createConversationStore(root: string, clock: Clock): Conversatio
     return path.join(dirOf(target), `${id}.json`);
   };
   const pointerOf = (target: Target) => path.join(dirOf(target), "current.json");
-  let counter = 0;
-
   function fresh(target: Target): ConversationFile {
-    counter += 1;
     const now = clock.iso();
     return {
       format: FORMAT_VERSION,
-      id: `c${clock.now().toString(36)}${counter.toString(36)}`,
+      id: `c${clock.now().toString(36)}${randomBytes(3).toString("hex")}`,
       target: { mode: target.mode, path: path.resolve(target.path) },
       title: "",
       created: now,

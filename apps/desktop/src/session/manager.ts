@@ -2,6 +2,7 @@
  * 助手会话管理：每个目标一个当前对话；一轮回复经 gateway.session("assistant") 占并发位，
  * 工具来自 ModeModule.tools("assistant", target)，对话历史落盘到状态目录 sessions/。
  */
+import { randomBytes } from "node:crypto";
 import type { Clock } from "@zhizhang/core/clock";
 import { AppError, classify } from "@zhizhang/core/errors";
 import { estimateTokensRaw, type ModelGateway } from "@zhizhang/core/model";
@@ -134,7 +135,7 @@ export function createSessionManager(deps: SessionDeps) {
   let idCounter = 0;
   const nextId = (prefix: string) => {
     idCounter += 1;
-    return `${prefix}${deps.clock.now().toString(36)}${idCounter.toString(36)}`;
+    return `${prefix}${deps.clock.now().toString(36)}${idCounter.toString(36)}${randomBytes(2).toString("hex")}`;
   };
 
   async function stateFor(target: Target): Promise<TargetState> {
