@@ -1,1 +1,0 @@
-{"version":3,"file":"index.d.ts","sourceRoot":"","sources":["../../src/lock/index.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,YAAY,EAAE,KAAK,KAAK,EAAE,MAAM,YAAY,CAAC;AACtD,OAAO,EAAE,kBAAkB,EAAE,MAAM,aAAa,CAAC;AACjD,OAAO,EACL,cAAc,EACd,iBAAiB,EACjB,aAAa,EACb,KAAK,kBAAkB,EACvB,KAAK,WAAW,EAChB,KAAK,SAAS,GACf,MAAM,iBAAiB,CAAC;AACzB,OAAO,EAAE,iBAAiB,EAAE,KAAK,WAAW,EAAE,MAAM,cAAc,CAAC"}

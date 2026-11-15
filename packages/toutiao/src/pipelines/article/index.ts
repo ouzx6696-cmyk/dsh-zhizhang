@@ -9,7 +9,6 @@ import type {
   ContextPacket,
   DeliveryReceipt,
   PipelineDefinition,
-  RunCtx,
   StageSpec,
 } from "@zhizhang/core/pipeline";
 import { buildDeliveryMarker, isAlreadyDelivered } from "@zhizhang/core/pipeline";
@@ -310,7 +309,7 @@ export const articlePipeline: PipelineDefinition<ArticleReq, ArticlePipelineResu
     const scriptsDir = resolveScriptsDir(req);
     const profileDir = resolveProfileDir(req);
     const bridge = createRulesBridge(scriptsDir);
-    const lock = createLockService();
+    const lock = createLockService(systemClock);
 
     // 1. source: 登记/读取素材来源
     const sourceData = await runner.local("source", async () => {
@@ -719,7 +718,7 @@ export const articlePipeline: PipelineDefinition<ArticleReq, ArticlePipelineResu
         ctx.target.path,
         "待验收",
         systemClock.iso(),
-        createLockService()
+        createLockService(systemClock)
       );
     }
 

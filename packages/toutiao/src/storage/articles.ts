@@ -38,6 +38,7 @@ export async function createArticle(
       genre: input.genre,
       driver: input.driver,
       status: "初稿待改",
+      chosenTitle: undefined,
       rulesVersion: input.rulesVersion,
       history: [{ to: "初稿待改", at: input.nowIso }],
     };

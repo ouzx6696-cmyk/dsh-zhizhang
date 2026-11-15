@@ -14,3 +14,7 @@ acceptance-results/
 
 # 本地下载缓存（Electron 运行时等），可随时删除
 /.cache/
+
+# 构建产物
+dist/
+*.tsbuildinfo

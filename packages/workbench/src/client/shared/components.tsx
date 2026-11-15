@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ComponentProps, KeyboardEvent, ReactNode } from "react";
-import { Button } from "@zhizhang/ui/primitives";
+import { Button, type ButtonVariant } from "@zhizhang/ui/primitives";
 import { statusInfo, type StatusMode } from "@zhizhang/ui/status";
 
 export function cx(...parts: unknown[]): string {
@@ -254,7 +254,7 @@ export function ActionButton({
   className = "",
   ...rest
 }: ComponentProps<"button"> & {
-  variant?: string;
+  variant?: ButtonVariant;
   busy?: boolean;
   done?: number;
   icon?: ReactNode;

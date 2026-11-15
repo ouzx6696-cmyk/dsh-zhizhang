@@ -16,7 +16,7 @@ export interface ToolSpec<A, V extends object> {
   params: Parser<A>;
   jsonSchema: JsonSchema;
   roles: readonly Role[];
-  run(args: A, ctx: ToolCtx): Promise<V>;
+  run(args: NoInfer<A>, ctx: ToolCtx): Promise<V>;
   render?(value: V): string;
 }
 

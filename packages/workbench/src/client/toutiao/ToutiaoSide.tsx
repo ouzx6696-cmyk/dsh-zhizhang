@@ -1,4 +1,3 @@
-import React from "react";
 import type { ArticleRowView } from "@zhizhang/toutiao/view";
 import { TOUTIAO_DELIVERED } from "@zhizhang/ui/status";
 import { ActionCard, Empty, Section, StatusTag } from "../shared/components.js";

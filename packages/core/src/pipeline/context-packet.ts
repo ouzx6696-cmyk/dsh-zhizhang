@@ -6,7 +6,7 @@ export interface ContextBlock {
   tokens: number;
   reason: string;
   source: {
-    kind: "outline" | "chapter" | "bible" | "plan" | "retrieval" | "reference";
+    kind: "outline" | "chapter" | "bible" | "plan" | "retrieval" | "reference" | "author" | "library";
     ref: string;
   };
 }

@@ -59,7 +59,7 @@ export type RegisterSourceInput = Infer<typeof RegisterSourceReq>;
 
 export async function createArticleCommand(
   rawInput: unknown,
-  lock: LockService = createLockService()
+  lock: LockService = createLockService(systemClock)
 ): Promise<{ articleDir: string; meta: ArticleMeta }> {
   const input = CreateArticleReq(rawInput);
   const id = input.id ?? `tt-${systemClock.now()}`;
@@ -88,7 +88,7 @@ export async function createArticleCommand(
 
 export async function transitionArticleCommand(
   rawInput: unknown,
-  lock: LockService = createLockService()
+  lock: LockService = createLockService(systemClock)
 ): Promise<{ status: ArticleStatus; meta: ArticleMeta }> {
   const input = TransitionArticleReq(rawInput);
   const meta = await transitionArticleStatus(
@@ -102,7 +102,7 @@ export async function transitionArticleCommand(
 
 export async function deliverArticleCommand(
   rawInput: unknown,
-  lock: LockService = createLockService()
+  lock: LockService = createLockService(systemClock)
 ): Promise<{ deliveryPath: string; status: ArticleStatus; ledger?: LedgerMutateResult }> {
   const input = DeliverArticleReq(rawInput);
   const nowIso = systemClock.iso();
@@ -152,7 +152,7 @@ export async function deliverArticleCommand(
 
 export async function registerSourceCommand(
   rawInput: unknown,
-  lock: LockService = createLockService()
+  lock: LockService = createLockService(systemClock)
 ): Promise<{ sourceId: string }> {
   const input = RegisterSourceReq(rawInput);
   await registerSource(

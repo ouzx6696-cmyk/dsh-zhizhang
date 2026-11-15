@@ -1,4 +1,3 @@
-import React from "react";
 import type { ChapterRowView } from "@zhizhang/fanqie/view";
 import { Empty, StatusDot, cx } from "../shared/components.js";
 

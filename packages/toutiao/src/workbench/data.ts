@@ -273,7 +273,7 @@ export async function saveAuthorDraft(
   }
 
   const articleDir = resolveArticleDir(path.resolve(rootIn), id);
-  const lock = createLockService();
+  const lock = createLockService(systemClock);
   const meta = await readJson(path.join(articleDir, "meta.json"), ArticleMetaSchema);
   if (!meta) {
     throw new AppError("input.not_found", `未找到文章：${id}`);
@@ -385,7 +385,7 @@ export async function adopt(
     title,
     `${latest.text}\n\n${FIXED_DELIVERY_ENDING}`,
     systemClock.iso(),
-    createLockService()
+    createLockService(systemClock)
   );
 
   if (config.ledgerPath) {
