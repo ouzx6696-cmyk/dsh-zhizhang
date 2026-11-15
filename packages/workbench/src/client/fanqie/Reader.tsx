@@ -1,8 +1,9 @@
 import React, { useEffect } from "react";
 import { WORKBENCH_COPY as W } from "@zhizhang/ui/copy";
-import { Button } from "@zhizhang/ui/primitives";
+import { IconButton } from "@zhizhang/ui/primitives";
+import { statusLabel } from "@zhizhang/ui/status";
 import { chapterDraftKey } from "../../editor/drafts.js";
-import { Callout, Empty, Icon, Skeleton, StatusTag } from "../shared/components.js";
+import { Callout, Empty, Icon, Skeleton } from "../shared/components.js";
 import { Manuscript } from "../shared/Manuscript.js";
 import { useReadingPosition } from "../shared/reading-position.js";
 import { SourceEditor } from "../shared/SourceEditor.js";
@@ -45,12 +46,15 @@ export function Reader({
     return <Empty title={W.reader.pick} hint={W.reader.pickHint} icon="book" />;
   }
   const ordinal = view.chapters.findIndex((c) => c.id === current.id) + 1;
-  const lead = (
-    <span className="wb-bar-ordinal" data-testid="chapter-ordinal">
-      {W.reader.chapterOrdinal(ordinal || 1)}
-    </span>
-  );
   const title = state.chapter.title || current.title;
+  const lead = (
+    <>
+      <span className="wb-bar-ordinal" data-testid="chapter-ordinal">
+        {W.reader.chapterOrdinal(ordinal || 1)}
+      </span>
+      {current.title ? <span className="wb-bar-title">{current.title}</span> : null}
+    </>
+  );
 
   if (state.edit && state.chapter.status === "ready") {
     return (
@@ -78,35 +82,29 @@ export function Reader({
   return (
     <div className="wb-reader" data-testid="chapter-reader">
       <header className="wb-bar" data-testid="chapter-bar">
-        <div className="wb-bar-lead">
-          {lead}
-          <StatusTag status={current.status} mode="fanqie" />
-        </div>
+        <div className="wb-bar-lead">{lead}</div>
         <div className="wb-bar-actions">
-          <Button
-            variant="ghost"
+          <IconButton
             size="sm"
+            label={W.reader.find}
             title={W.reader.findHint}
             aria-keyshortcuts="Control+F"
+            data-testid="chapter-find"
             disabled={state.chapter.status !== "ready"}
+            icon={<Icon name="search" size={16} />}
             onClick={() => find.find.open("find")}
-          >
-            <Icon name="search" size={14} />
-            {W.reader.find}
-          </Button>
-          <Button
+          />
+          <IconButton
             size="sm"
+            label={W.reader.editLabel}
             data-testid="chapter-edit"
-            aria-label={W.reader.editLabel}
             disabled={state.chapter.status !== "ready"}
+            icon={<Icon name="pen" size={16} />}
             onClick={() => {
               reading.enter();
               dispatch({ type: "edit", value: true });
             }}
-          >
-            <Icon name="pen" size={14} />
-            {W.reader.edit}
-          </Button>
+          />
           {actions}
         </div>
       </header>
@@ -123,6 +121,7 @@ export function Reader({
           <Manuscript
             text={state.chapter.body}
             title={title}
+            meta={[statusLabel("fanqie", current.status), W.editor.words(current.wordCount)]}
             emptyText={W.reader.emptyBody}
             query={find.find.mode ? find.find.query : ""}
             matchCase={find.find.matchCase}

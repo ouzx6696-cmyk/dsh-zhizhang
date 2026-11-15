@@ -10,6 +10,9 @@
   --zz-surface-2: var(--zz-raw-night-s2);
   --zz-surface-3: var(--zz-raw-night-s3);
   --zz-paper: var(--zz-raw-night-paper);
+  --zz-desk: var(--zz-raw-night-desk);
+  --zz-sheet-shadow: var(--zz-raw-night-sheet-shadow);
+  --zz-sheet-edge: var(--zz-raw-night-sheet-edge);
   --zz-border: var(--zz-raw-night-border);
   --zz-border-strong: var(--zz-raw-night-border-strong);
   --zz-hover: var(--zz-raw-night-hover);
@@ -45,6 +48,9 @@
   --zz-surface-2: var(--zz-raw-day-s2);
   --zz-surface-3: var(--zz-raw-day-s3);
   --zz-paper: var(--zz-raw-day-paper);
+  --zz-desk: var(--zz-raw-day-desk);
+  --zz-sheet-shadow: var(--zz-raw-day-sheet-shadow);
+  --zz-sheet-edge: var(--zz-raw-day-sheet-edge);
   --zz-border: var(--zz-raw-day-border);
   --zz-border-strong: var(--zz-raw-day-border-strong);
   --zz-hover: var(--zz-raw-day-hover);
@@ -111,6 +117,27 @@
   --zz-paper-indent: 2em;
   --zz-paper-gap: 0;
   --zz-paper-width: calc(var(--zz-paper-measure) * (1em + var(--zz-paper-track)));
+  /* 纸张：文字列 + 两侧页边；稿纸区在书桌色（--zz-desk）上铺一条带柔和边影的纸 */
+  --zz-sheet-font: var(--zz-body-size);
+  --zz-sheet-margin: var(--zz-space-12);
+  --zz-sheet-width: calc(
+    var(--zz-paper-measure) * var(--zz-sheet-font) * 1.02 + 2 * var(--zz-sheet-margin)
+  );
+  --zz-sheet-blur: var(--zz-space-4);
+  --zz-sheet-bg:
+    linear-gradient(var(--zz-paper), var(--zz-paper)) 50% 0 / min(100%, var(--zz-sheet-width)) 100%
+      no-repeat,
+    linear-gradient(var(--zz-sheet-edge), var(--zz-sheet-edge)) 50% 0 /
+      min(100%, calc(var(--zz-sheet-width) + 2px)) 100% no-repeat,
+    linear-gradient(
+        90deg,
+        transparent,
+        var(--zz-sheet-shadow) var(--zz-sheet-blur),
+        var(--zz-sheet-shadow) calc(100% - var(--zz-sheet-blur)),
+        transparent
+      )
+      50% 0 / min(100%, calc(var(--zz-sheet-width) + 2 * var(--zz-sheet-blur))) 100% no-repeat,
+    var(--zz-desk);
 
   /* 间距（4 基数） */
   --zz-space-half: 2px;
@@ -167,6 +194,8 @@
     --zz-surface-2: Canvas;
     --zz-surface-3: Canvas;
     --zz-paper: Canvas;
+    --zz-desk: Canvas;
+    --zz-sheet-bg: Canvas;
     --zz-text-1: CanvasText;
     --zz-text-2: CanvasText;
     --zz-text-3: GrayText;

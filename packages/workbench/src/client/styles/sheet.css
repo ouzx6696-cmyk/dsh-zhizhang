@@ -20,6 +20,7 @@
   min-height: var(--zz-bar-height);
   padding: 0 var(--zz-space-3) 0 var(--zz-space-5);
   border-bottom: 1px solid var(--zz-border);
+  background: var(--zz-desk);
 }
 
 .wb-bar-lead {
@@ -32,17 +33,40 @@
 .wb-bar-ordinal,
 .wb-bar-title {
   color: var(--zz-text-1);
-  font-size: var(--zz-text-strong);
+  font-size: var(--zz-text-body);
   font-weight: var(--zz-weight-strong);
-  line-height: var(--zz-leading-strong);
+  line-height: var(--zz-leading-body);
   white-space: nowrap;
+}
+
+/* 章节条是面包屑：“第 1 章  雨夜”，章名弱化，状态与字数下沉到稿纸元信息行。 */
+.wb-bar-ordinal + .wb-bar-title {
+  overflow: hidden;
+  color: var(--zz-text-3);
+  font-weight: var(--zz-weight-regular);
+  text-overflow: ellipsis;
 }
 
 .wb-bar-actions {
   display: flex;
   flex: none;
   align-items: center;
-  gap: var(--zz-space-2);
+  gap: var(--zz-space-1);
+}
+
+.wb-bar-actions .zz-bar-divider {
+  margin: 0 var(--zz-space-1);
+}
+
+.wb-bar-more {
+  position: relative;
+}
+
+.wb-bar-more .zz-menu {
+  position: absolute;
+  top: calc(100% + var(--zz-space-1));
+  right: 0;
+  min-width: 232px;
 }
 
 /* —— 状态栏 —— */
@@ -96,7 +120,8 @@
 .wb-reader-body {
   flex: 1;
   min-height: 0;
-  padding: var(--zz-space-12) var(--zz-space-6) 40vh;
+  padding: var(--zz-space-16) var(--zz-space-8) 40vh;
+  background: var(--zz-sheet-bg);
   overflow-y: auto;
   scrollbar-gutter: stable;
   scroll-padding-top: var(--zz-space-6);
@@ -129,14 +154,37 @@
 }
 
 .wb-manuscript-title {
-  margin: 0 0 1.2em;
+  margin: 0 0 1.6em;
   color: var(--zz-title);
-  font-size: 1.4em;
+  font-size: 1.5em;
   font-weight: var(--zz-weight-strong);
-  line-height: 1.45;
-  letter-spacing: 0.04em;
+  line-height: 1.4;
+  letter-spacing: 0.06em;
   text-align: left;
   text-indent: 0;
+}
+
+/* 标题下的章节元信息：UI 黑体、弱色、不随稿纸字距；它出现时由它承担标题与正文的间距。 */
+.wb-manuscript .wb-manuscript-title:has(+ .wb-manuscript-meta) {
+  margin-bottom: 0.5em;
+}
+
+.wb-manuscript .wb-manuscript-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--zz-space-2);
+  margin: 0 0 var(--zz-space-10);
+  color: var(--zz-text-3);
+  font: var(--zz-text-meta) / var(--zz-leading-meta) var(--zz-font-ui);
+  letter-spacing: normal;
+  text-indent: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.wb-manuscript-meta > span + span::before {
+  margin-right: var(--zz-space-2);
+  color: var(--zz-border-strong);
+  content: "·";
 }
 
 .wb-manuscript-h {
@@ -194,14 +242,14 @@
   width: 100%;
   height: 100%;
   margin: 0;
-  padding-top: var(--zz-space-12);
+  padding-top: var(--zz-space-16);
   padding-right: max(
-    var(--zz-space-6),
+    var(--zz-space-8),
     calc((100% - var(--zz-paper-width) - var(--zz-scrollbar)) / 2)
   );
   padding-bottom: 40vh;
   padding-left: max(
-    var(--zz-space-6),
+    var(--zz-space-8),
     calc((100% - var(--zz-paper-width) - var(--zz-scrollbar)) / 2)
   );
   border: none;
@@ -233,6 +281,7 @@
 
 .wb-source-backdrop {
   overflow: hidden;
+  background: var(--zz-sheet-bg);
   color: transparent;
   pointer-events: none;
 }

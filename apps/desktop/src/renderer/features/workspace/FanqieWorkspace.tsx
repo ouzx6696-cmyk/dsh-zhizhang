@@ -1,15 +1,16 @@
 import React, { Suspense, lazy, useEffect, useRef, useState } from "react";
-import { Check, Plus, Workflow } from "lucide-react";
+import { Plus } from "lucide-react";
 import { COPY, DESKTOP_COPY as C } from "@zhizhang/ui/copy";
 import { Button, Dialog, Empty, IconButton, StatusChip } from "@zhizhang/ui/primitives";
 import { statusChipTone, statusLabel } from "@zhizhang/ui/status";
 import { ChapterList, Dialogs, Reader, useFanqie } from "@zhizhang/workbench/client";
 import type { ChapterRowView } from "@zhizhang/fanqie/view";
 import type { Target } from "../../../shared/views";
-import { canLeave, openPipeline, trackEditor } from "../../state/controller";
+import { canLeave, trackEditor } from "../../state/controller";
 import { desktop } from "../../state/desktop";
 import { desktopStore, useDesktop } from "../../state/store";
 import { notifyError, run } from "../../format";
+import { ChapterActions } from "./ChapterActions";
 import { TextField } from "./TextField";
 
 const set = desktopStore.set;
@@ -124,38 +125,45 @@ function Board({
         </div>
       </header>
       {chapters.length ? (
-        <table className="zz-table">
-          <thead>
-            <tr>
-              <th className="zz-table__num">{C.fanqie.index}</th>
-              <th>{C.fanqie.chapterTitle}</th>
-              <th className="zz-table__num">{C.fanqie.words}</th>
-              <th>{C.fanqie.status}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {chapters.map((c, index) => (
-              <tr key={c.id} data-testid="board-row" data-chapter-id={c.id} data-status={c.status}>
-                <td className="zz-table__num zz-table__muted">
-                  {String(index + 1).padStart(2, "0")}
-                </td>
-                <td>
-                  <button type="button" className="zz-link" onClick={() => onOpen(c.id)}>
-                    {c.title || c.id}
-                  </button>
-                </td>
-                <td className="zz-table__num">{c.wordCount.toLocaleString("zh-CN")}</td>
-                <td>
-                  <StatusChip
-                    tone={statusChipTone("fanqie", c.status)}
-                    label={statusLabel("fanqie", c.status)}
-                    dot
-                  />
-                </td>
+        <div className="zz-board__sheet">
+          <table className="zz-table">
+            <thead>
+              <tr>
+                <th className="zz-table__num">{C.fanqie.index}</th>
+                <th>{C.fanqie.chapterTitle}</th>
+                <th className="zz-table__num">{C.fanqie.words}</th>
+                <th>{C.fanqie.status}</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {chapters.map((c, index) => (
+                <tr
+                  key={c.id}
+                  data-testid="board-row"
+                  data-chapter-id={c.id}
+                  data-status={c.status}
+                >
+                  <td className="zz-table__num zz-table__muted">
+                    {String(index + 1).padStart(2, "0")}
+                  </td>
+                  <td>
+                    <button type="button" className="zz-link" onClick={() => onOpen(c.id)}>
+                      {c.title || c.id}
+                    </button>
+                  </td>
+                  <td className="zz-table__num">{c.wordCount.toLocaleString("zh-CN")}</td>
+                  <td>
+                    <StatusChip
+                      tone={statusChipTone("fanqie", c.status)}
+                      label={statusLabel("fanqie", c.status)}
+                      dot
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
         <Empty title={C.fanqie.emptyBoard} />
       )}
@@ -278,37 +286,18 @@ export function FanqieWorkspace({ target, readonly }: { target: Target; readonly
             onEditState={trackEditor}
             actions={
               current ? (
-                <>
-                  <span className="zz-bar-divider" aria-hidden="true" />
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    data-testid="chapter-start-pipeline"
-                    disabled={readonly}
-                    onClick={() => openPipeline(current.id)}
-                  >
-                    <Workflow size={14} aria-hidden="true" />
-                    {C.fanqie.startPipeline}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    data-testid="chapter-finalize"
-                    disabled={
-                      readonly || current.status !== "reviewed" || Boolean(state.busyAction)
-                    }
-                    title={current.status !== "reviewed" ? C.fanqie.finalizeHint : undefined}
-                    onClick={() =>
-                      dispatch({
-                        type: "openDialog",
-                        dialog: { kind: "finalize", chapterId: current.id },
-                      })
-                    }
-                  >
-                    <Check size={14} aria-hidden="true" />
-                    {COPY["fanqie.action.finalize"]}
-                  </Button>
-                </>
+                <ChapterActions
+                  chapterId={current.id}
+                  reviewed={current.status === "reviewed"}
+                  readonly={readonly}
+                  busy={Boolean(state.busyAction)}
+                  onFinalize={() =>
+                    dispatch({
+                      type: "openDialog",
+                      dialog: { kind: "finalize", chapterId: current.id },
+                    })
+                  }
+                />
               ) : null
             }
           />

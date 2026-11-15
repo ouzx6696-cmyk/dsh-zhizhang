@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ArrowUp, Plus, Sparkles, Square } from "lucide-react";
+import { ArrowUp, ChevronRight, Plus, Sparkles, Square } from "lucide-react";
 import { DESKTOP_COPY as C } from "@zhizhang/ui/copy";
-import { Button, Empty, IconButton, Select, Spinner } from "@zhizhang/ui/primitives";
+import { Button, IconButton, Select, Spinner } from "@zhizhang/ui/primitives";
 import { readPref, writePref, PREF } from "@zhizhang/workbench/client";
 import type { SessionIntent, Target } from "../../../shared/views";
 import { toolLabel } from "../../../context";
@@ -73,7 +73,8 @@ function ContextBar() {
   useEffect(() => {
     if (!busy) refreshUsage().catch(() => undefined);
   }, [busy, conversationId]);
-  if (!usage) return null;
+  // 空对话不显示占用条：0% 与禁用的“整理”只是噪音。
+  if (!usage || usage.messages === 0) return null;
   return (
     <div className="zz-context" data-testid="agent-context" data-percent={usage.percent}>
       <div
@@ -140,6 +141,8 @@ export function AgentPanel({ target }: { target: Target }) {
   const where = [focus.workTitle, focus.title || focus.chapter || focus.article]
     .filter(Boolean)
     .join(" / ");
+  const quick = quickActions(target.mode);
+  const chatting = messages.length > 0 || Boolean(stream);
   const submit = () => {
     if (!busy && ready && draft.trim()) void send(draft);
   };
@@ -177,11 +180,32 @@ export function AgentPanel({ target }: { target: Target }) {
         {messages.length || stream ? (
           <AgentMessages messages={messages} stream={stream} />
         ) : (
-          <Empty
-            icon={<Sparkles size={18} />}
-            title={C.agent.emptyTitle}
-            description={C.agent.emptyHint}
-          />
+          <section className="zz-agent__welcome" data-testid="agent-welcome">
+            <span className="zz-agent__welcome-icon" aria-hidden="true">
+              <Sparkles size={16} />
+            </span>
+            <h3>{C.agent.emptyTitle}</h3>
+            <p>{C.agent.emptyHint}</p>
+            <ul className="zz-suggest" aria-label={C.agent.suggest}>
+              {quick.map((q) => (
+                <li key={q.id}>
+                  <button
+                    type="button"
+                    className="zz-suggest__item"
+                    data-testid={`agent-quick-${q.id}`}
+                    disabled={busy || !ready}
+                    onClick={() => void send(q.text, q.intent)}
+                  >
+                    <span className="zz-suggest__text">
+                      <strong>{q.label}</strong>
+                      <span>{q.text}</span>
+                    </span>
+                    <ChevronRight size={14} aria-hidden="true" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
       </div>
       {busy ? (
@@ -208,20 +232,22 @@ export function AgentPanel({ target }: { target: Target }) {
           </button>
         </p>
       ) : null}
-      <div className="zz-agent__quick">
-        {quickActions(target.mode).map((q) => (
-          <button
-            key={q.id}
-            type="button"
-            className="zz-chip"
-            data-testid={`agent-quick-${q.id}`}
-            disabled={busy || !ready}
-            onClick={() => void send(q.text, q.intent)}
-          >
-            {q.label}
-          </button>
-        ))}
-      </div>
+      {chatting ? (
+        <div className="zz-agent__quick">
+          {quick.map((q) => (
+            <button
+              key={q.id}
+              type="button"
+              className="zz-chip"
+              data-testid={`agent-quick-${q.id}`}
+              disabled={busy || !ready}
+              onClick={() => void send(q.text, q.intent)}
+            >
+              {q.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
       <form
         className="zz-composer"
         onSubmit={(event) => {

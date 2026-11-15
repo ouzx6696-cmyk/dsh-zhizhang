@@ -16,8 +16,8 @@
   gap: var(--zz-space-2);
   width: 100%;
   min-height: 34px;
-  padding: 0 var(--zz-space-2) 0 var(--zz-space-3);
-  border: none;
+  padding: 0 var(--zz-space-3);
+  border: 1px solid transparent;
   border-radius: var(--zz-radius-sm);
   background: transparent;
   color: var(--zz-text-2);
@@ -34,27 +34,25 @@
   color: var(--zz-text-1);
 }
 
+/* 选中 = 这一页正摊在桌上：用稿纸色托起一层，细边 + 轻影，不用色条。 */
 .wb-list-item-on,
 .wb-list-item-on:hover {
-  background: var(--zz-select-bg);
+  border-color: var(--zz-sheet-edge);
+  background: var(--zz-nav-item-on);
   color: var(--zz-text-1);
+  box-shadow: var(--zz-shadow-1);
 }
 
-.wb-list-item-on::before {
-  position: absolute;
-  top: var(--zz-space-2);
-  bottom: var(--zz-space-2);
-  left: 0;
-  width: 2px;
-  border-radius: var(--zz-radius-pill);
-  background: var(--zz-ink);
-  content: "";
+.wb-list-item:focus-visible {
+  outline: none;
+  box-shadow: var(--zz-ring);
 }
 
 .wb-list-index {
   color: var(--zz-text-3);
   font-size: var(--zz-text-caption);
   font-variant-numeric: tabular-nums;
+  opacity: 0.85;
 }
 
 .wb-list-title {
@@ -75,16 +73,20 @@
 }
 
 .wb-dot {
-  width: var(--zz-dot-size);
-  height: var(--zz-dot-size);
+  justify-self: center;
+  width: var(--zz-status-dot);
+  height: var(--zz-status-dot);
   border-radius: var(--zz-radius-pill);
   background: var(--zz-text-3);
-  box-shadow: inset 0 0 0 1px var(--zz-border-strong);
 }
 
+/* 草稿：空心细环，比实心点轻一档 */
 .wb-dot[data-tone="neutral"] {
+  width: var(--zz-dot-size);
+  height: var(--zz-dot-size);
   background: transparent;
-  box-shadow: inset 0 0 0 1.5px var(--zz-text-3);
+  box-shadow: inset 0 0 0 1.25px var(--zz-text-3);
+  opacity: 0.8;
 }
 
 .wb-dot[data-tone="run"] {

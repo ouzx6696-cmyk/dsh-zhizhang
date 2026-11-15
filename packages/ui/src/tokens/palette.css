@@ -5,13 +5,14 @@
 :root {
   /* 夜灯：偏暖的墨色底，正文米白 */
   --zz-raw-night-bg: #101315;
-  --zz-raw-night-s1: #15191c;
-  --zz-raw-night-s2: #1c2125;
-  --zz-raw-night-s3: #232a2f;
-  --zz-raw-night-paper: #1b1e21;
+  --zz-raw-night-desk: #101316;
+  --zz-raw-night-s1: #14181b;
+  --zz-raw-night-s2: #1f2428;
+  --zz-raw-night-s3: #272d32;
+  --zz-raw-night-paper: #1c2024;
   --zz-raw-night-text1: #ece6da;
   --zz-raw-night-text2: #b5aea1;
-  --zz-raw-night-text3: #8f897d;
+  --zz-raw-night-text3: #968f83;
   --zz-raw-night-title: #f3e7cf;
   --zz-raw-night-ink: #ece6da;
   --zz-raw-night-border: #ffffff14;
@@ -22,16 +23,19 @@
   --zz-raw-night-shadow-1: #0000004d;
   --zz-raw-night-shadow-2: #00000059;
   --zz-raw-night-shadow-3: #00000080;
+  --zz-raw-night-sheet-shadow: #00000066;
+  --zz-raw-night-sheet-edge: #ffffff0f;
 
   /* 晨光：暖纸色 */
   --zz-raw-day-bg: #f3eee4;
-  --zz-raw-day-s1: #f8f4ec;
+  --zz-raw-day-s1: #f4efe7;
+  --zz-raw-day-desk: #eee8dd;
   --zz-raw-day-s2: #ffffff;
-  --zz-raw-day-s3: #efe9dd;
-  --zz-raw-day-paper: #fdfaf3;
+  --zz-raw-day-s3: #ebe5da;
+  --zz-raw-day-paper: #fffcf6;
   --zz-raw-day-text1: #2a2520;
   --zz-raw-day-text2: #575047;
-  --zz-raw-day-text3: #6e665a;
+  --zz-raw-day-text3: #685f53;
   --zz-raw-day-title: #32291b;
   --zz-raw-day-ink: #2a2520;
   --zz-raw-day-border: #2a25201a;
@@ -42,6 +46,8 @@
   --zz-raw-day-shadow-1: #5337160f;
   --zz-raw-day-shadow-2: #5337161f;
   --zz-raw-day-shadow-3: #53371633;
+  --zz-raw-day-sheet-shadow: #53371614;
+  --zz-raw-day-sheet-edge: #2a252012;
 
   /* 语义色：琥珀（决定）、蓝（运行）、绿（完成）、黄（注意）、红（失败） */
   --zz-raw-amber-300: #f3c879;

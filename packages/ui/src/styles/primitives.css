@@ -551,6 +551,29 @@
   background: var(--zz-border);
 }
 
+.zz-menu__icon-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zz-space-2);
+}
+
+.zz-menu__icon-label svg {
+  color: var(--zz-text-3);
+}
+
+.zz-menu__stack {
+  display: flex;
+  flex-direction: column;
+  padding: var(--zz-space-1) 0;
+}
+
+.zz-menu__stack small {
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-meta);
+  line-height: var(--zz-leading-meta);
+  white-space: normal;
+}
+
 .zz-menu__shortcut {
   color: var(--zz-text-3);
   font: var(--zz-text-caption) / var(--zz-leading-caption) var(--zz-font-mono);

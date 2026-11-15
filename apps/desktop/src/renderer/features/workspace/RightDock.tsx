@@ -134,7 +134,7 @@ export function RightDock({ target }: { target: Target }) {
           >
             <h2 className="zz-dock__pane-head">{C.dock.pipelineHead}</h2>
             <div className="zz-dock__pane-body">
-              <WorkflowPanel key={target.path} target={target} />
+              <WorkflowPanel key={target.path} target={target} compact />
             </div>
           </section>
           <section

@@ -42,10 +42,12 @@
   display: none;
 }
 
+/* 分屏：流水线按内容取高（最多约一半），助手拿走其余；流水线不再为一屏空白滚动。 */
 .zz-dock__split {
   display: grid;
   flex: 1;
-  grid-template-rows: minmax(0, 1fr) minmax(0, 1.15fr);
+  grid-template-rows: fit-content(52%) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   min-height: 0;
 }
 
@@ -61,11 +63,11 @@
 
 .zz-dock__pane-head {
   flex: none;
-  padding: var(--zz-space-3) var(--zz-space-4) 0;
+  padding: var(--zz-space-4) var(--zz-space-4) 0;
   color: var(--zz-text-3);
   font-size: var(--zz-text-meta);
-  font-weight: var(--zz-weight-strong);
-  letter-spacing: 0.04em;
+  font-weight: var(--zz-weight-regular);
+  letter-spacing: 0.08em;
 }
 
 .zz-dock__pane-body {
@@ -83,10 +85,49 @@
   gap: var(--zz-space-4);
 }
 
-.zz-bible h3,
+.zz-chapter-pane .zz-facts {
+  padding: var(--zz-space-3) var(--zz-space-4);
+  border: 1px solid var(--zz-border);
+  border-radius: var(--zz-card-radius);
+  background: var(--zz-surface-2);
+  font-size: var(--zz-text-meta);
+}
+
+.zz-bible {
+  gap: var(--zz-space-3);
+}
+
+.zz-bible h3 {
+  margin: var(--zz-space-2) 0 0;
+  color: var(--zz-title);
+  font: var(--zz-weight-strong) var(--zz-text-title) / var(--zz-leading-title) var(--zz-font-paper);
+}
+
+.zz-bible h3 + .zz-muted {
+  margin-top: calc(var(--zz-space-2) * -1);
+}
+
 .zz-bible h4 {
-  margin: 0;
-  font-size: var(--zz-text-strong);
+  margin: var(--zz-space-2) 0 0;
+  color: var(--zz-text-2);
+  font-size: var(--zz-text-meta);
+  font-weight: var(--zz-weight-strong);
+}
+
+.zz-bible .zz-empty {
+  padding: var(--zz-space-4);
+  border: 1px dashed var(--zz-border-strong);
+  border-radius: var(--zz-card-radius);
+}
+
+.zz-bible .zz-empty__title {
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-meta);
+  font-weight: var(--zz-weight-regular);
+}
+
+.zz-bible > .zz-btn {
+  align-self: flex-start;
 }
 
 /* —— 流水线 —— */
@@ -123,7 +164,10 @@
   white-space: nowrap;
 }
 
-/* 分段进度轨：完成绿、当前蓝（流光）、待你决定整轨琥珀、失败红 */
+/*
+ * 分段进度轨（五段各带名称）：完成 = 绿、进行中 = 蓝（流光）、未到 = 中性灰、失败 = 红、暂停 = 黄斜纹。
+ * 琥珀不进轨道：等你决定时五段全绿（机器的活干完了），决定本身由下面的琥珀卡承担。
+ */
 .zz-track {
   display: grid;
   grid-auto-columns: minmax(0, 1fr);
@@ -131,17 +175,43 @@
   gap: var(--zz-space-1);
 }
 
+.zz-track__step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zz-space-2);
+  min-width: 0;
+}
+
 .zz-track__seg {
+  display: block;
   height: var(--zz-rail-height);
   border-radius: var(--zz-radius-pill);
   background: var(--zz-active);
 }
 
-.zz-track__seg[data-state="done"] {
+.zz-track__label {
+  overflow: hidden;
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-meta);
+  line-height: var(--zz-leading-meta);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zz-track__step[data-state="done"] .zz-track__seg {
   background: var(--zz-ok);
 }
 
-.zz-track__seg[data-state="current"] {
+.zz-track__step[data-state="done"] .zz-track__label {
+  color: var(--zz-text-2);
+}
+
+.zz-track__step[data-state="current"] .zz-track__label {
+  color: var(--zz-run);
+  font-weight: var(--zz-weight-strong);
+}
+
+.zz-track__step[data-state="current"] .zz-track__seg {
   background:
     linear-gradient(
         90deg,
@@ -155,16 +225,20 @@
   animation-play-state: var(--zz-flow-play);
 }
 
-.zz-track[data-state="awaiting-author"] .zz-track__seg {
-  background: var(--zz-decide);
-}
-
-.zz-track[data-state="failed"] .zz-track__seg[data-state="current"] {
+.zz-track[data-state="failed"] .zz-track__step[data-state="current"] .zz-track__seg {
   background: var(--zz-bad);
   animation: none;
 }
 
-.zz-track[data-state="paused"] .zz-track__seg[data-state="current"] {
+.zz-track[data-state="failed"] .zz-track__step[data-state="current"] .zz-track__label {
+  color: var(--zz-bad);
+}
+
+.zz-track[data-state="paused"] .zz-track__step[data-state="current"] .zz-track__label {
+  color: var(--zz-warn);
+}
+
+.zz-track[data-state="paused"] .zz-track__step[data-state="current"] .zz-track__seg {
   background: repeating-linear-gradient(-45deg, var(--zz-warn) 0 4px, var(--zz-warn-soft) 4px 8px);
   animation: none;
 }
@@ -275,10 +349,9 @@
   display: flex;
   flex-direction: column;
   gap: var(--zz-space-2);
-  padding: var(--zz-space-3) var(--zz-space-4);
-  border: 1px solid color-mix(in srgb, var(--zz-decide) 35%, transparent);
-  border-left: 3px solid var(--zz-decide);
-  border-radius: var(--zz-radius-sm);
+  padding: var(--zz-space-4);
+  border: 1px solid color-mix(in srgb, var(--zz-decide) 30%, transparent);
+  border-radius: var(--zz-radius-md);
   background: var(--zz-decide-soft);
   animation: zz-pop-in var(--zz-dur-3) var(--zz-ease);
 }
@@ -299,6 +372,43 @@
 
 .zz-decide .zz-row {
   margin-top: var(--zz-space-1);
+}
+
+.zz-stage-details > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--zz-space-2);
+  min-height: 28px;
+  color: var(--zz-text-2);
+  font-size: var(--zz-text-meta);
+  cursor: pointer;
+}
+
+.zz-stage-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.zz-stage-details > summary::before {
+  width: var(--zz-space-1);
+  height: var(--zz-space-1);
+  margin: 0 var(--zz-space-1) 0 var(--zz-space-half);
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  content: "";
+  transform: rotate(-45deg);
+  transition: transform var(--zz-dur-1) var(--zz-ease);
+}
+
+.zz-stage-details[open] > summary::before {
+  transform: rotate(45deg);
+}
+
+.zz-stage-details > summary:hover {
+  color: var(--zz-text-1);
+}
+
+.zz-stage-details[open] > summary {
+  margin-bottom: var(--zz-space-2);
 }
 
 .zz-run__foot {
@@ -430,15 +540,139 @@
 
 .zz-agent__list {
   flex: 1;
+  container: agent-list / size;
   min-height: 120px;
   margin: 0 calc(var(--zz-space-4) * -1);
   padding: 0 var(--zz-space-4);
   overflow-y: auto;
 }
 
-.zz-agent__list > .zz-empty {
-  height: 100%;
-  align-content: center;
+/* 空对话：欢迎语 + 三条可直接点的起手式，整体落在面板中部偏上，不留一屏空白。 */
+.zz-agent__welcome {
+  display: flex;
+  flex-direction: column;
+  justify-content: safe center;
+  gap: var(--zz-space-2);
+  min-height: 100%;
+  padding: var(--zz-space-6) 0 var(--zz-space-10);
+}
+
+.zz-agent__welcome-icon {
+  display: grid;
+  width: var(--zz-btn-height-md);
+  height: var(--zz-btn-height-md);
+  margin-bottom: var(--zz-space-2);
+  place-items: center;
+  border: 1px solid var(--zz-border);
+  border-radius: var(--zz-radius-md);
+  background: var(--zz-surface-2);
+  color: var(--zz-text-2);
+}
+
+.zz-agent__welcome h3 {
+  margin: 0;
+  color: var(--zz-title);
+  font: var(--zz-weight-strong) var(--zz-text-title) / var(--zz-leading-title) var(--zz-font-paper);
+}
+
+.zz-agent__welcome > p {
+  margin: 0 0 var(--zz-space-4);
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-meta);
+  line-height: var(--zz-leading-meta);
+}
+
+/* 分屏时助手只有半栏高：欢迎区收成标题 + 三条起手式，避免被滚走半截。 */
+@container agent-list (max-height: 400px) {
+  .zz-agent__welcome {
+    padding: var(--zz-space-3) 0;
+  }
+
+  .zz-agent__welcome-icon,
+  .zz-agent__welcome > p,
+  .zz-suggest__text span {
+    display: none;
+  }
+
+  .zz-agent__welcome h3 {
+    margin-bottom: var(--zz-space-2);
+  }
+}
+
+.zz-suggest {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--zz-border);
+  border-radius: var(--zz-radius-md);
+  background: var(--zz-surface-2);
+  list-style: none;
+}
+
+.zz-suggest li + li {
+  border-top: 1px solid var(--zz-border);
+}
+
+.zz-suggest__item {
+  display: flex;
+  align-items: center;
+  gap: var(--zz-space-3);
+  width: 100%;
+  padding: var(--zz-space-3) var(--zz-space-3) var(--zz-space-3) var(--zz-space-4);
+  border: none;
+  background: transparent;
+  color: var(--zz-text-3);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--zz-dur-1) var(--zz-ease);
+}
+
+.zz-suggest li:first-child .zz-suggest__item {
+  border-radius: var(--zz-radius-md) var(--zz-radius-md) 0 0;
+}
+
+.zz-suggest li:last-child .zz-suggest__item {
+  border-radius: 0 0 var(--zz-radius-md) var(--zz-radius-md);
+}
+
+.zz-suggest__item:hover:not(:disabled) {
+  background: var(--zz-hover);
+  color: var(--zz-text-1);
+}
+
+.zz-suggest__item:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--zz-focus);
+}
+
+.zz-suggest__item:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.zz-suggest__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.zz-suggest__text strong {
+  color: var(--zz-text-1);
+  font-size: var(--zz-text-body);
+  font-weight: var(--zz-weight-strong);
+  line-height: var(--zz-leading-body);
+}
+
+.zz-suggest__text span {
+  overflow: hidden;
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-meta);
+  line-height: var(--zz-leading-meta);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .zz-agent__status {
@@ -466,7 +700,13 @@
   display: flex;
   flex: none;
   flex-wrap: wrap;
-  gap: var(--zz-space-2);
+  gap: var(--zz-space-1);
+}
+
+.zz-agent__quick .zz-chip {
+  min-height: var(--zz-btn-height-sm);
+  border-color: var(--zz-border);
+  color: var(--zz-text-3);
 }
 
 .zz-messages {
@@ -534,7 +774,7 @@
   flex: none;
   flex-direction: column;
   gap: var(--zz-space-1);
-  padding: var(--zz-space-2) var(--zz-space-3) var(--zz-space-2);
+  padding: var(--zz-space-3) var(--zz-space-3) var(--zz-space-2);
   border: 1px solid var(--zz-border-strong);
   border-radius: var(--zz-radius-lg);
   background: var(--zz-surface-2);

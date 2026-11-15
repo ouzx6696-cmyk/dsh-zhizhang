@@ -302,7 +302,8 @@
 
 .zz-onboarding.zz-dialog[open] {
   display: grid;
-  place-items: start center;
+  align-items: safe center;
+  justify-items: center;
   overflow-y: auto;
 }
 
@@ -312,7 +313,7 @@
   align-items: center;
   gap: var(--zz-space-8);
   width: min(600px, calc(100vw - var(--zz-space-12)));
-  padding: max(var(--zz-space-12), 10vh) 0 var(--zz-space-12);
+  padding: var(--zz-space-12) 0 var(--zz-space-16);
 }
 
 .zz-onboarding__brand {

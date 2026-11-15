@@ -72,6 +72,19 @@ export interface ManuscriptProps {
   query?: string;
   matchCase?: boolean;
   activeMatch?: number;
+  /** 标题下的一行弱色元信息（状态、字数）；每项一个片段，之间自动加间隔点。 */
+  meta?: readonly React.ReactNode[];
+}
+
+function MetaLine({ items }: { items?: readonly React.ReactNode[] }) {
+  if (!items?.length) return null;
+  return (
+    <p className="wb-manuscript-meta" data-testid="manuscript-meta">
+      {items.map((item, index) => (
+        <span key={index}>{item}</span>
+      ))}
+    </p>
+  );
 }
 
 function ManuscriptView({
@@ -81,6 +94,7 @@ function ManuscriptView({
   query = "",
   matchCase = false,
   activeMatch = 0,
+  meta,
 }: ManuscriptProps) {
   const articleRef = useRef<HTMLElement | null>(null);
   const raw = String(text ?? "");
@@ -139,6 +153,7 @@ function ManuscriptView({
     return (
       <article ref={articleRef} className="wb-manuscript">
         {title ? <h1 className="wb-manuscript-title">{title}</h1> : null}
+        <MetaLine items={meta} />
         <Empty title={emptyText} icon="book" />
       </article>
     );
@@ -150,14 +165,18 @@ function ManuscriptView({
   return (
     <article ref={articleRef} className="wb-manuscript">
       {leadHeading < 0 && title ? <h1 className="wb-manuscript-title">{title}</h1> : null}
+      {leadHeading < 0 ? <MetaLine items={meta} /> : null}
       {lines.map((line, index) => {
         if (line.kind === "gap")
           return <p key={index} className="wb-manuscript-gap" aria-hidden="true" />;
         if (index === leadHeading)
           return (
-            <h1 key={index} className="wb-manuscript-title" data-line={index}>
-              {content(line)}
-            </h1>
+            <React.Fragment key={index}>
+              <h1 className="wb-manuscript-title" data-line={index}>
+                {content(line)}
+              </h1>
+              <MetaLine items={meta} />
+            </React.Fragment>
           );
         if (line.kind !== "p") {
           const Tag = line.kind === "h1" ? "h2" : line.kind;

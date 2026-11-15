@@ -124,9 +124,9 @@ function StartForm({
     }
   };
 
-  const chapterOptions = chapters.map((c) => ({
+  const chapterOptions = chapters.map((c, index) => ({
     value: c.id,
-    label: c.title && c.title !== c.id ? `${c.id} · ${c.title}` : c.id,
+    label: C.workflow.chapterRef(index + 1, c.title && c.title !== c.id ? c.title : ""),
   }));
   return (
     <form
@@ -186,6 +186,17 @@ function StartForm({
         {C.workflow.start}
       </Button>
     </form>
+  );
+}
+
+/** 分屏（≥1600）时右栏上半只够放进度与决定：任务不在运行时，阶段明细折叠成一行。 */
+function StageSection({ run, compact }: { run: RunSummary; compact: boolean }) {
+  if (!compact || run.state === "running") return <StageList run={run} />;
+  return (
+    <details className="zz-stage-details" data-testid="workflow-stage-details">
+      <summary>{C.workflow.stagesSummary(stageRows(run.stages).length)}</summary>
+      <StageList run={run} />
+    </details>
   );
 }
 
@@ -288,10 +299,12 @@ function ProgressTrack({ run }: { run: RunSummary }) {
       {groups.map((label, index) => (
         <span
           key={label}
-          className="zz-track__seg"
+          className="zz-track__step"
           data-state={index < current ? "done" : index === current ? "current" : "todo"}
-          title={label}
-        />
+        >
+          <i className="zz-track__seg" aria-hidden="true" />
+          <span className="zz-track__label">{label}</span>
+        </span>
       ))}
     </div>
   );
@@ -303,19 +316,22 @@ function RunView({
   onAction,
   onDecide,
   busy,
+  compact,
 }: {
   run: RunSummary;
   detail: RunDetail | null;
   onAction: (action: WorkflowAction) => void;
   onDecide: (decision: "apply" | "discard") => void;
   busy: boolean;
+  compact: boolean;
 }) {
   const chapter = requestField(detail, "chapterId");
   const chapters = useDesktop((s) => s.chapters);
   const compare = useDesktop((s) => s.compare);
   const awaiting = run.state === "awaiting-author";
   const tokens = run.usage.input + run.usage.cachedInput + run.usage.output;
-  const chapterTitle = chapters.find((c) => c.id === chapter)?.title;
+  const chapterAt = chapters.findIndex((c) => c.id === chapter);
+  const chapterTitle = chapterAt >= 0 ? chapters[chapterAt].title : undefined;
   const candidate = hasCandidate(run.kind) && Boolean(chapter);
   const comparing = compare?.runId === run.id;
   const actions = runActions(run.state);
@@ -332,8 +348,13 @@ function RunView({
         <div className="zz-run__title">
           <strong>{kindLabel(run.kind)}</strong>
           {chapter ? (
-            <span className="zz-run__target">
-              {chapterTitle && chapterTitle !== chapter ? `${chapter} · ${chapterTitle}` : chapter}
+            <span className="zz-run__target" data-testid="workflow-target">
+              {chapterAt >= 0
+                ? C.workflow.chapterRef(
+                    chapterAt + 1,
+                    chapterTitle && chapterTitle !== chapter ? chapterTitle : "",
+                  )
+                : chapter}
             </span>
           ) : null}
         </div>
@@ -404,7 +425,7 @@ function RunView({
       {run.error ? (
         <Notice tone="bad" message={ERROR_COPY[run.error.code]} detail={run.error.message} />
       ) : null}
-      <StageList run={run} />
+      <StageSection run={run} compact={compact} />
       <footer className="zz-run__foot">
         <span className="zz-run__usage" data-testid="workflow-usage">
           {C.workflow.usage(tokens, formatCost(run.usage.cost))}
@@ -458,7 +479,7 @@ function History({ runs, currentId }: { runs: RunSummary[]; currentId: string })
 }
 
 /** 右栏“流水线”：发起 → 阶段进度 → 等你决定（候选稿对照 → 采纳/放弃）；历史折叠在底部。 */
-export function WorkflowPanel({ target }: { target: Target }) {
+export function WorkflowPanel({ target, compact = false }: { target: Target; compact?: boolean }) {
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [current, setCurrent] = useState<RunSummary | null>(null);
   const [detail, setDetail] = useState<RunDetail | null>(null);
@@ -537,6 +558,7 @@ export function WorkflowPanel({ target }: { target: Target }) {
           busy={busy}
           onAction={onAction}
           onDecide={onDecide}
+          compact={compact}
         />
       ) : null}
       {!current ? <Empty title={C.workflow.empty} description={C.workflow.emptyHint} /> : null}

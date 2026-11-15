@@ -30,6 +30,8 @@
   --zz-select-bg: var(--zz-active);
 
   --zz-dot-size: 8px;
+  --zz-status-dot: 6px;
+  --zz-nav-item-on: var(--zz-paper);
   --zz-icon-sm: 14px;
   --zz-icon-md: 16px;
   --zz-rail-height: 4px;
