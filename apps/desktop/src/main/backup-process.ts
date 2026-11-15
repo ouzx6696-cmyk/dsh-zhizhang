@@ -1,9 +1,9 @@
 import { utilityProcess } from "electron";
-import { WriterError } from "@zhizhang/core";
+import { AppError } from "@zhizhang/core/errors";
 
-/** A Node utility process works with the production RunAsNode fuse disabled. */
-export function runBackup(script: string, args: string[], signal: AbortSignal) {
-  if (signal.aborted) return Promise.reject(new WriterError("CANCELLED", "备份已取消"));
+/** 备份在 Node utility process 里运行（生产包关闭了 RunAsNode fuse，不能直接 spawn node）。 */
+export function runBackup(script: string, args: string[], signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return Promise.reject(new AppError("run.stopped", "备份已取消"));
   return new Promise<void>((resolve, reject) => {
     const child = utilityProcess.fork(script, args, { stdio: "pipe", serviceName: "作品备份" });
     let errorText = "";
@@ -17,8 +17,8 @@ export function runBackup(script: string, args: string[], signal: AbortSignal) {
     });
     child.once("exit", (code) => {
       signal.removeEventListener("abort", stop);
-      if (signal.aborted) reject(new WriterError("CANCELLED", "备份已取消"));
-      else if (code !== 0) reject(new Error(errorText.trim() || `备份进程退出：${code}`));
+      if (signal.aborted) reject(new AppError("run.stopped", "备份已取消"));
+      else if (code !== 0) reject(new AppError("storage.io", errorText.trim() || `备份进程退出：${code}`, { code }));
       else resolve();
     });
   });

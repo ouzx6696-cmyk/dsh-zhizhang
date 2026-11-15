@@ -1,149 +1,290 @@
-import type { Clock } from "@zhizhang/core";
-import { AppError } from "@zhizhang/core/errors";
-import { executePipeline, transition, type GatewayLike, type RunRecord } from "@zhizhang/core/pipeline";
+/**
+ * WorkflowService：每个目标单活、运行记录落盘、暂停/停止/恢复/重试、待作者决定、进度事件发布。
+ * kind 从 ModeModule.pipelines 查表；模型调用全部经 ModelGateway（GatewayLike）。
+ */
+import type { Clock } from "@zhizhang/core/clock";
+import { AppError, classify } from "@zhizhang/core/errors";
+import type { ProfileRoots } from "@zhizhang/core/methods";
+import {
+  executePipeline,
+  transition,
+  type BudgetConfig,
+  type GatewayLike,
+  type PipelineDefinition,
+  type RunCtx,
+  type RunRecord,
+} from "@zhizhang/core/pipeline";
+import { FORMAT_VERSION } from "@zhizhang/core/paths";
+import type { ChangeScope, DesktopEvent } from "../shared/events.js";
+import type {
+  Mode,
+  RunDetail,
+  RunRef,
+  RunSummary,
+  RunningRow,
+  Target,
+  WorkflowAction,
+  WorkflowDecision,
+} from "../shared/views.js";
 import { ModeRegistry } from "./modes.js";
-import type { DesktopEvent } from "../shared/events.js";
-import type { RunRef, Target } from "../shared/ipc.js";
+import { summarizeRun, targetOfRun, withError, type RunStore } from "./services/runs.js";
 
-export function createWorkflowService(deps: {
-  gateway: GatewayLike;
+export interface WorkflowDeps {
   clock: Clock;
-  onEvent?: (event: DesktopEvent) => void;
-}) {
-  const activeRuns = new Map<string, AbortController>();
-  const records = new Map<string, RunRecord>();
+  runs: RunStore;
+  gateway(): GatewayLike;
+  budget(): BudgetConfig;
+  profileRoots(mode: Mode): ProfileRoots;
+  profileId(target: Target): Promise<string>;
+  emit(event: DesktopEvent): void;
+  onRunningChange?(): void;
+  /** 组合根补齐运行环境相关的请求字段（例如随包脚本与方案目录）。 */
+  prepareRequest?(kind: string, request: unknown): unknown;
+}
 
-  function emitRun(target: Target, rec: RunRecord) {
-    deps.onEvent?.({
-      kind: "run",
-      target,
-      record: { id: rec.id, state: rec.state, kind: rec.kind },
-    });
+interface ActiveRun {
+  target: Target;
+  runId: string;
+  kind: string;
+  since: string;
+  stage?: string;
+  controller: AbortController;
+  promise: Promise<RunDetail>;
+}
+
+const SCOPE_BY_KIND: Record<string, ChangeScope> = {
+  "fanqie.book": "rows",
+  "fanqie.chapter": "chapter",
+  "fanqie.review": "chapter",
+  "fanqie.revise": "chapter",
+  "fanqie.ledger": "bible",
+  "fanqie.health": "bible",
+  "library.dissect": "library",
+  "toutiao.article": "article",
+};
+
+const keyOf = (target: { path: string }) => target.path;
+
+export function createWorkflowService(deps: WorkflowDeps) {
+  const active = new Map<string, ActiveRun>();
+
+  async function contextFor(def: PipelineDefinition<unknown, unknown>, target: Target, request: unknown, runId?: string): Promise<RunCtx> {
+    const profileId = await deps.profileId(target);
+    const profileRoots = deps.profileRoots(target.mode);
+    const ctx = await def.context(target, request, { workspaceRoot: target.path, profileId, profileRoots });
+    return { ...ctx, ...(runId ? { runId } : {}), profileId, profileRoots };
   }
 
-  async function runPipeline(
-    target: Target,
-    kind: string,
-    initial: RunRecord,
-    ctx: Awaited<ReturnType<ReturnType<typeof ModeRegistry.get>["pipelines"][never]["context"]>>,
-  ): Promise<RunRecord> {
-    const mod = ModeRegistry.get(target.mode);
-    const def = mod.pipelines[kind as keyof typeof mod.pipelines];
-    if (!def) {
-      throw new AppError("input.invalid", `Unknown pipeline kind: ${kind}`, { kind });
+  function emitRun(detail: RunDetail): void {
+    deps.emit({ kind: "run", target: targetOfRun(detail), run: summarizeRun(detail) });
+  }
+
+  function emitRunning(): void {
+    deps.emit({ kind: "running", rows: rows() });
+    deps.onRunningChange?.();
+  }
+
+  function rows(): RunningRow[] {
+    return [...active.values()].map((run) => ({
+      target: run.target,
+      source: "pipeline",
+      runId: run.runId,
+      kind: run.kind,
+      ...(run.stage ? { stage: run.stage } : {}),
+      since: run.since,
+    }));
+  }
+
+  function launch(def: PipelineDefinition<unknown, unknown>, record: RunRecord, ctx: RunCtx, target: Target): ActiveRun {
+    const controller = new AbortController();
+    const run: ActiveRun = {
+      target,
+      runId: record.id,
+      kind: record.kind,
+      since: deps.clock.iso(),
+      controller,
+      promise: Promise.resolve(withError(record)),
+    };
+    run.promise = (async (): Promise<RunDetail> => {
+      let latest: RunRecord = record;
+      try {
+        latest = await executePipeline(def, record, ctx, deps.gateway(), deps.clock, controller.signal, async (rec) => {
+          latest = rec;
+          run.stage = rec.steps[rec.steps.length - 1]?.id;
+          const detail = withError(rec);
+          await deps.runs.save(detail);
+          emitRun(detail);
+        });
+        const detail = withError(latest);
+        await deps.runs.save(detail);
+        emitRun(detail);
+        if (latest.state === "awaiting-author") {
+          deps.emit({
+            kind: "workspace.changed",
+            target,
+            revision: `${latest.id}:${latest.updated}`,
+            scope: SCOPE_BY_KIND[latest.kind] ?? "rows",
+          });
+        }
+        return detail;
+      } catch (err) {
+        const appErr = classify(err);
+        const failed = latest.state === "failed" ? latest : transition(latest, "failed", "error", deps.clock.iso());
+        const detail = withError(failed, { code: appErr.code, message: appErr.message });
+        await deps.runs.save(detail);
+        emitRun(detail);
+        return detail;
+      } finally {
+        if (active.get(keyOf(target)) === run) active.delete(keyOf(target));
+        emitRunning();
+      }
+    })();
+    active.set(keyOf(target), run);
+    emitRunning();
+    return run;
+  }
+
+  async function load(ref: RunRef): Promise<RunDetail> {
+    const detail = await deps.runs.get(ref.target, ref.runId);
+    if (!detail) throw new AppError("input.not_found", `未找到运行记录：${ref.runId}`, { runId: ref.runId });
+    return detail;
+  }
+
+  function assertIdle(target: Target): void {
+    const busy = active.get(keyOf(target));
+    if (busy) {
+      throw new AppError("gate.denied", "当前作品已有运行中的流水线", { runId: busy.runId, kind: busy.kind });
     }
-    const targetKey = `${target.mode}:${target.path}`;
-    const ac = new AbortController();
-    activeRuns.set(targetKey, ac);
-    records.set(initial.id, initial);
-    emitRun(target, initial);
-    try {
-      const finalRec = await executePipeline(
-        def,
-        initial,
-        ctx,
-        deps.gateway,
-        deps.clock,
-        ac.signal,
-        async (rec) => {
-          records.set(rec.id, rec);
-          emitRun(target, rec);
-        },
-      );
-      records.set(finalRec.id, finalRec);
-      emitRun(target, finalRec);
-      return finalRec;
-    } finally {
-      activeRuns.delete(targetKey);
-    }
+  }
+
+  async function startRun(target: Target, kind: string, rawRequest: unknown): Promise<ActiveRun> {
+    const def = ModeRegistry.pipeline(target.mode, kind);
+    assertIdle(target);
+    const request = def.request(deps.prepareRequest ? deps.prepareRequest(kind, rawRequest) : rawRequest, "$request");
+    const ctx = await contextFor(def, target, request);
+    const now = deps.clock.iso();
+    const record: RunRecord = {
+      format: FORMAT_VERSION,
+      id: ctx.runId,
+      kind,
+      target,
+      request,
+      state: "running",
+      stateHistory: [{ to: "running", reason: "start", at: now }],
+      steps: [],
+      usage: { input: 0, cachedInput: 0, output: 0, cost: 0 },
+      budget: deps.budget(),
+      created: now,
+      updated: now,
+    };
+    await deps.runs.save(withError(record));
+    emitRun(withError(record));
+    return launch(def, record, ctx, target);
   }
 
   return {
-    async start(target: Target, kind: string, request: unknown): Promise<RunRecord> {
-      const targetKey = `${target.mode}:${target.path}`;
-      if (activeRuns.has(targetKey)) {
-        throw new AppError("storage.locked", "当前目标已有运行中的流水线任务");
-      }
-      const mod = ModeRegistry.get(target.mode);
-      const def = mod.pipelines[kind as keyof typeof mod.pipelines];
-      if (!def) {
-        throw new AppError("input.invalid", `Unknown pipeline kind: ${kind}`, { kind });
-      }
-      const parsedReq = def.request(request, "$request");
-      const ctx = await def.context(target, parsedReq, {
-        workspaceRoot: target.path,
-        profileId: mod.profiles.defaultId,
-      });
-      const now = deps.clock.iso();
-      const initial: RunRecord = {
-        format: "zhizhang/1.3",
-        id: ctx.runId,
-        kind,
-        target,
-        request: parsedReq,
-        state: "running",
-        stateHistory: [{ to: "running", reason: "start", at: now }],
-        steps: [],
-        usage: { input: 0, cachedInput: 0, output: 0, cost: 0 },
-        budget: { inputBudget: 24000, runBudget: 1200000, moneyCap: null },
-        created: now,
-        updated: now,
-      };
-      return runPipeline(target, kind, initial, ctx);
+    async start(target: Target, kind: string, request: unknown): Promise<RunRef> {
+      const run = await startRun(target, kind, request);
+      return { runId: run.runId, target };
     },
 
-    async control(ref: RunRef, action: "pause" | "resume" | "stop" | "retry"): Promise<void> {
-      const rec = records.get(ref.runId);
-      if (!rec) throw new AppError("input.not_found", `Run not found: ${ref.runId}`);
-      const targetKey = `${rec.target.mode}:${rec.target.path}`;
+    /** 发起并等待结束（命令式调用与测试用）。 */
+    async startAndWait(target: Target, kind: string, request: unknown): Promise<RunDetail> {
+      const run = await startRun(target, kind, request);
+      return run.promise;
+    },
 
+    async control(ref: RunRef, action: WorkflowAction): Promise<RunSummary> {
+      const running = active.get(keyOf(ref.target));
       if (action === "pause" || action === "stop") {
-        activeRuns.get(targetKey)?.abort();
-        if (rec.state === "running") {
-          const next = transition(
-            rec,
-            "paused",
-            action === "stop" ? "author-stop" : "author-pause",
-            deps.clock.iso(),
-          );
-          records.set(ref.runId, next);
-          emitRun(ref.target, next);
+        if (running && running.runId === ref.runId) {
+          running.controller.abort();
+          return summarizeRun(await running.promise);
         }
-        return;
+        return summarizeRun(await load(ref));
       }
-
-      if (action === "resume" || action === "retry") {
-        if (activeRuns.has(targetKey)) {
-          throw new AppError("storage.locked", "当前目标已有运行中的流水线任务");
-        }
-        const mod = ModeRegistry.get(ref.target.mode);
-        const def = mod.pipelines[rec.kind as keyof typeof mod.pipelines];
-        if (!def) {
-          throw new AppError("input.invalid", `Unknown pipeline kind: ${rec.kind}`, { kind: rec.kind });
-        }
-        const ctx = await def.context(ref.target, rec.request, {
-          workspaceRoot: ref.target.path,
-          profileId: mod.profiles.defaultId,
+      assertIdle(ref.target);
+      const detail = await load(ref);
+      if (detail.state !== "paused" && detail.state !== "failed") {
+        throw new AppError("run.invalid_transition", `运行处于 ${detail.state}，不能${action === "retry" ? "重试" : "恢复"}`, {
+          state: detail.state,
         });
-        const next = transition(rec, "running", `author-${action}`, deps.clock.iso());
-        void runPipeline(ref.target, rec.kind, next, ctx);
       }
+      const def = ModeRegistry.pipeline(ref.target.mode, detail.kind);
+      const ctx = await contextFor(def, ref.target, detail.request, detail.id);
+      const { error: _error, ...record } = detail;
+      const resumed = transition(record, "running", action === "retry" ? "retry" : "resume", deps.clock.iso());
+      const next: RunRecord = { ...resumed, budget: deps.budget() };
+      await deps.runs.save(withError(next));
+      emitRun(withError(next));
+      launch(def, next, ctx, ref.target);
+      return summarizeRun(withError(next));
     },
 
-    stop(runId: string): void {
-      const rec = records.get(runId);
-      if (!rec) throw new AppError("input.not_found", `Run not found: ${runId}`);
-      const targetKey = `${rec.target.mode}:${rec.target.path}`;
-      activeRuns.get(targetKey)?.abort();
-      if (rec.state === "running") {
-        const next = transition(rec, "paused", "author-stop", deps.clock.iso());
-        records.set(runId, next);
-        emitRun(rec.target, next);
+    async decide(ref: RunRef, decision: WorkflowDecision): Promise<RunSummary> {
+      const detail = await load(ref);
+      const { error: _error, ...record } = detail;
+      let next: RunRecord;
+      if (decision === "apply") {
+        const def = ModeRegistry.pipeline(ref.target.mode, detail.kind);
+        if (def.apply) {
+          const ctx = await contextFor(def, ref.target, detail.request, detail.id);
+          await def.apply(record, decision, ctx);
+        }
+        next = transition(record, "applied", "apply", deps.clock.iso());
+      } else {
+        next = transition(record, "discarded", "discard", deps.clock.iso());
       }
+      const saved = withError(next);
+      await deps.runs.save(saved);
+      emitRun(saved);
+      deps.emit({
+        kind: "workspace.changed",
+        target: ref.target,
+        revision: `${next.id}:${next.updated}`,
+        scope: SCOPE_BY_KIND[next.kind] ?? "rows",
+      });
+      return summarizeRun(saved);
     },
 
-    get(runId: string): RunRecord | undefined {
-      return records.get(runId);
+    async get(ref: RunRef): Promise<RunDetail | null> {
+      return (await deps.runs.get(ref.target, ref.runId)) ?? null;
+    },
+
+    async history(target: Target): Promise<RunSummary[]> {
+      return (await deps.runs.list(target)).map(summarizeRun);
+    },
+
+    running: rows,
+
+    /** 启动时把上次进程遗留的 running 记录标记为中断（可恢复）。 */
+    async recoverInterrupted(): Promise<RunSummary[]> {
+      const out: RunSummary[] = [];
+      for (const detail of await deps.runs.listAll()) {
+        if (detail.state !== "running" || active.has(keyOf(detail.target))) continue;
+        const { error: _error, ...record } = detail;
+        const paused = withError(transition(record, "paused", "interrupted", deps.clock.iso()));
+        await deps.runs.save(paused);
+        out.push(summarizeRun(paused));
+      }
+      return out;
+    },
+
+    /** 中断的运行由作者放弃：标记为 cancelled。 */
+    async cancel(ref: RunRef): Promise<RunSummary> {
+      assertIdle(ref.target);
+      const detail = await load(ref);
+      const { error: _error, ...record } = detail;
+      const next = withError(transition(record, "cancelled", "cancel", deps.clock.iso()));
+      await deps.runs.save(next);
+      emitRun(next);
+      return summarizeRun(next);
+    },
+
+    async stopAll(): Promise<void> {
+      const runs = [...active.values()];
+      for (const run of runs) run.controller.abort();
+      await Promise.all(runs.map((run) => run.promise));
     },
   };
 }

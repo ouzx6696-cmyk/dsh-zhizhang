@@ -29,3 +29,4 @@ export {
   type StateHistoryEntry,
   type StatefulRunRecord,
 } from "./state.js";
+export type { ModeModule, ModeTarget } from "./mode.js";

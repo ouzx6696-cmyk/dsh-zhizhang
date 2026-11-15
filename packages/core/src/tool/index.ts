@@ -3,6 +3,7 @@ export {
   type JsonSchema,
   type ToolCtx,
   type ToolDefinition,
+  type ToolHost,
   type ToolResult,
   type ToolSpec,
 } from "./define.js";

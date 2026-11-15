@@ -1,4 +1,4 @@
-import type { PipelineDefinition } from "@zhizhang/core/pipeline";
+import type { ModeModule, PipelineDefinition } from "@zhizhang/core/pipeline";
 import { articlePipeline } from "./pipelines/article/index.js";
 import { toutiaoAssistantTools } from "./tools/assistant.js";
 
@@ -8,14 +8,14 @@ export * from "./storage/index.js";
 export * from "./view/index.js";
 export * as commands from "./commands/index.js";
 
-export const toutiaoModule = {
-  mode: "toutiao" as const,
+export const toutiaoModule: ModeModule<"toutiao"> = {
+  mode: "toutiao",
   pipelines: {
     "toutiao.article": articlePipeline as PipelineDefinition<unknown, unknown>,
   },
-  tools: () => toutiaoAssistantTools(),
+  tools: (role, target) => toutiaoAssistantTools(role, target),
   profiles: {
-    mode: "toutiao" as const,
+    mode: "toutiao",
     defaultId: "default",
   },
 };

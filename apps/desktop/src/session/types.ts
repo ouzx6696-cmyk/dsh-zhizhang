@@ -1,55 +1,72 @@
-import type { AgentSession, SessionManager } from "./pi-adapter";
-import type { Focus, Target } from "../context";
-import type { DiagnosticFields } from "@zhizhang/core";
-import type { FanqieConfig } from "@zhizhang/fanqie";
-import type { ToutiaoConfig } from "@zhizhang/toutiao";
+/**
+ * 会话层自己的类型：助手对话的持久化格式与“可调用工具的模型端口”。
+ * PI SDK 的类型不出 pi-adapter.ts；这里的接口由 pi-adapter 实现，测试用假端口实现。
+ */
+import type { ModelAnswer } from "@zhizhang/core/model";
 
-export type Task = import("../shared/types").TaskState & {
-  usage: import("../shared/types").TokenUsage;
-};
+export type JsonArgs = Record<string, unknown>;
 
-/** 最近一次 v2 交接的方法包摘要（tracker 从实际进入上下文的任务 prompt 解析），供方法包面板展示。 */
-type HandoffSummary = {
-  intentSource: "focus" | "state";
-  intent: string;
-  methods: { id: string; bytes: number; injected: boolean; trimmed: boolean }[];
-};
+export interface AgentToolCall {
+  id: string;
+  name: string;
+  args: JsonArgs;
+}
 
-export type SessionEntry = {
-  session: AgentSession;
-  target: Target;
-  focus: Focus;
-  phase: string;
-  methods: Map<string, { id: string; profile: string; hash: string }>;
-  handoff?: HandoffSummary;
-  profile?: string;
-  /** 章级会话判定用：该会话最近一次接受任务的章节（fanqie 且 focus.chapter 存在时更新）。 */
-  lastChapter?: string;
-  task: Task;
-};
+export type AgentMessage =
+  | { role: "user"; id: string; text: string; at: number }
+  | {
+      role: "assistant";
+      id: string;
+      text: string;
+      toolCalls: AgentToolCall[];
+      at: number;
+      /** 生成该回复的连接与模型；同一连接回放时可原样带回思考签名。 */
+      origin?: { connection: string; model: string };
+      raw?: unknown;
+    }
+  | { role: "tool"; id: string; callId: string; name: string; text: string; isError: boolean; at: number }
+  | { role: "summary"; id: string; text: string; at: number; replaced: number };
 
-export type SessionOptions = { toutiao?: ToutiaoConfig; fanqie?: FanqieConfig };
+export interface AssistantToolSpec {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+}
 
-export type SessionExtras = {
-  engine?: () => import("@zhizhang/core").EngineSettings;
-  context?: () => import("../context-settings").ContextSettings;
-  preferences?: () => Promise<string>;
-  /** 追加作者约束的写入口（writer_remember 用；与 save-preferences IPC 共用 Settings.savePreferences）。 */
-  savePreferences?: (text: string) => Promise<void>;
-  searchProvider?: () => import("../network").SearchProvider;
-  searchMode?: () => import("../network").SearchMode;
-  searchKey?: () => string;
-  log?: (event: string, fields: DiagnosticFields) => void;
-};
+export interface AssistantTurnRequest {
+  connection: string;
+  model: string;
+  system: string;
+  messages: AgentMessage[];
+  tools: AssistantToolSpec[];
+  maxOutput?: number;
+}
 
-export type HistoryCache = Map<string, { stamp: string; manager: SessionManager }>;
+export type AssistantTurnEvent = { type: "text_delta"; delta: string } | { type: "tool_call"; name: string };
 
-export type AuthorAction = {
-  operation: string;
-  article?: string;
-  chapter?: string;
-  candidate?: string;
-  revision?: string | number;
-  status?: string;
-  profile?: string;
-};
+export interface AssistantTurnAnswer {
+  text: string;
+  toolCalls: AgentToolCall[];
+  usage: ModelAnswer["usage"];
+  cost: number | null;
+  raw?: unknown;
+}
+
+/** 一轮“可调用工具”的模型请求；由 pi-adapter 用 PI streamSimple 实现。 */
+export interface AssistantPort {
+  turn(
+    request: AssistantTurnRequest,
+    signal: AbortSignal,
+    on: (event: AssistantTurnEvent) => void,
+  ): Promise<AssistantTurnAnswer>;
+}
+
+export interface ConversationFile {
+  format: "zhizhang/1.3";
+  id: string;
+  target: { mode: "fanqie" | "toutiao"; path: string };
+  title: string;
+  created: string;
+  updated: string;
+  messages: AgentMessage[];
+}

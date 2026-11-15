@@ -1,208 +1,27 @@
-import type { Api, ModelThinkingLevel } from "./session/pi-adapter";
-export type Thinking = ModelThinkingLevel;
-export const APIS = [
-  "openai-completions",
-  "openai-responses",
-  "anthropic-messages",
-  "google-generative-ai",
-] as const;
-export type ModelConnection = {
-  provider: string;
-  api: Api;
-  keyless?: boolean;
-  thinkingLevelMap?: Record<string, string | null>;
+/**
+ * 模型连接的预设与类型（渲染层设置页使用）。连接与角色绑定的 schema 在 shared/settings.ts，
+ * API Key 只经 models.save 写入主进程密钥库，不回传渲染层。
+ */
+import { MODEL_APIS, type ModelConnection, type ThinkingLevel } from "./shared/settings.js";
+
+export type { ModelConnection };
+export type Thinking = ThinkingLevel;
+export const APIS = MODEL_APIS;
+
+/** 常见服务商预设：新建连接时据此填充默认字段，作者可改。 */
+export const PROVIDERS = [
+  { id: "deepseek", name: "DeepSeek", baseUrl: "https://api.deepseek.com", model: "deepseek-chat", contextWindow: 128000, maxTokens: 8192, api: "openai-completions" },
+  { id: "kimi", name: "Kimi", baseUrl: "https://api.moonshot.cn/v1", model: "kimi-k2.5", contextWindow: 256000, maxTokens: 8192, api: "openai-completions" },
+  { id: "qwen", name: "通义千问", baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen-plus", contextWindow: 128000, maxTokens: 8192, api: "openai-completions" },
+  { id: "glm", name: "智谱", baseUrl: "https://open.bigmodel.cn/api/paas/v4", model: "glm-4.5", contextWindow: 128000, maxTokens: 8192, api: "openai-completions" },
+  { id: "openai", name: "OpenAI 兼容", baseUrl: "https://api.openai.com/v1", model: "gpt-4.1", contextWindow: 128000, maxTokens: 8192, api: "openai-completions" },
+  { id: "anthropic", name: "Anthropic 兼容", baseUrl: "https://api.anthropic.com", model: "claude-sonnet-4-5", contextWindow: 200000, maxTokens: 8192, api: "anthropic-messages" },
+] as const satisfies ReadonlyArray<{
+  id: string;
+  name: string;
   baseUrl: string;
-  apiKey: string;
   model: string;
   contextWindow: number;
   maxTokens: number;
-  reasoning: boolean;
-  thinkingLevel: Thinking;
-};
-export type ModelSettings = {
-  writer: ModelConnection;
-  editor: ModelConnection;
-  planner: ModelConnection | null;
-};
-export const PROVIDERS = [
-  {
-    id: "deepseek",
-    name: "DeepSeek",
-    baseUrl: "https://api.deepseek.com",
-    model: "deepseek-chat",
-    contextWindow: 128000,
-    api: "openai-completions",
-  },
-  {
-    id: "kimi",
-    name: "Kimi",
-    baseUrl: "https://api.moonshot.cn/v1",
-    model: "kimi-k2.5",
-    contextWindow: 256000,
-    api: "openai-completions",
-  },
-  {
-    id: "qwen",
-    name: "通义千问",
-    baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
-    model: "qwen-plus",
-    contextWindow: 128000,
-    api: "openai-completions",
-  },
-  {
-    id: "glm",
-    name: "智谱",
-    baseUrl: "https://open.bigmodel.cn/api/paas/v4",
-    model: "glm-4.5",
-    contextWindow: 128000,
-    api: "openai-completions",
-  },
-  {
-    id: "openai",
-    name: "OpenAI 兼容",
-    baseUrl: "https://api.openai.com/v1",
-    model: "gpt-4.1",
-    contextWindow: 128000,
-    api: "openai-completions",
-  },
-  {
-    id: "anthropic",
-    name: "Anthropic 兼容",
-    baseUrl: "https://api.anthropic.com",
-    model: "claude-sonnet-4-5",
-    contextWindow: 200000,
-    api: "anthropic-messages",
-  },
-] as const;
-export function defaultModels(): ModelSettings {
-  const writer: ModelConnection = {
-    ...PROVIDERS[0],
-    provider: "deepseek",
-    apiKey: "",
-    maxTokens: 8192,
-    reasoning: false,
-    thinkingLevel: "off",
-  };
-  return {
-    writer,
-    editor: {
-      ...writer,
-      model: "deepseek-reasoner",
-      reasoning: true,
-      thinkingLevel: "medium",
-    },
-    planner: null,
-  };
-}
-type ConnectionInput = Partial<ModelConnection>;
-export function parseConnectionInput(value: unknown): ConnectionInput {
-  if (!value || typeof value !== "object" || Array.isArray(value))
-    throw new Error("模型连接须为对象");
-  const row = value as Record<string, unknown>;
-  for (const key of ["provider", "api", "baseUrl", "apiKey", "model", "thinkingLevel"])
-    if (row[key] !== undefined && typeof row[key] !== "string")
-      throw new Error(`模型 ${key} 须为文本`);
-  for (const key of ["contextWindow", "maxTokens"])
-    if (row[key] !== undefined && (typeof row[key] !== "number" || !Number.isFinite(row[key])))
-      throw new Error(`模型 ${key} 须为数字`);
-  for (const key of ["reasoning", "keyless"])
-    if (row[key] !== undefined && typeof row[key] !== "boolean")
-      throw new Error(`模型 ${key} 须为布尔值`);
-  if (row.thinkingLevelMap !== undefined) {
-    const map = row.thinkingLevelMap;
-    if (
-      !map ||
-      typeof map !== "object" ||
-      Array.isArray(map) ||
-      Object.values(map).some((v) => v !== null && typeof v !== "string")
-    )
-      throw new Error("思考档位映射无效");
-  }
-  return row as ConnectionInput;
-}
-export function connection(value: unknown, previous: ModelConnection): ModelConnection {
-  const next = parseConnectionInput(value);
-  const url = new URL(String(next.baseUrl || previous.baseUrl));
-  if (!["http:", "https:"].includes(url.protocol)) throw new Error("模型接口须为 HTTP(S) 地址");
-  const baseUrl = url.href.replace(/\/$/, "");
-  const result: ModelConnection = {
-    provider: String(next.provider || previous.provider),
-    keyless: next.keyless ?? previous.keyless ?? false,
-    thinkingLevelMap: next.thinkingLevelMap ?? previous.thinkingLevelMap,
-    api: next.api || previous.api,
-    baseUrl,
-    model: String(next.model || previous.model).trim(),
-    apiKey: String(next.apiKey || (baseUrl === previous.baseUrl ? previous.apiKey : "")),
-    contextWindow: Number(next.contextWindow ?? previous.contextWindow),
-    maxTokens: Number(next.maxTokens ?? previous.maxTokens),
-    reasoning: next.reasoning ?? previous.reasoning,
-    thinkingLevel: next.thinkingLevel || previous.thinkingLevel,
-  };
-  if (!result.model) throw new Error("请填写模型 ID");
-  if (
-    ![
-      ...APIS,
-      "mistral-conversations",
-      "azure-openai-responses",
-      "google-vertex",
-      "bedrock-converse-stream",
-      "openai-codex-responses",
-      "pi-messages",
-    ].includes(result.api)
-  )
-    throw new Error("不支持的模型接口类型");
-  if (
-    !Number.isInteger(result.maxTokens) ||
-    result.maxTokens <= 0 ||
-    !Number.isInteger(result.contextWindow) ||
-    result.contextWindow < result.maxTokens
-  )
-    throw new Error("上下文窗口须不小于最大输出，且均为正整数");
-  if (!["off", "minimal", "low", "medium", "high", "xhigh", "max"].includes(result.thinkingLevel))
-    throw new Error("不支持的思考档位");
-  return result;
-}
-export type ModelsInput = {
-  writer?: ConnectionInput;
-  editor?: ConnectionInput;
-  planner?: ConnectionInput | null;
-};
-/** 模型设置的边界解析：各角色缺省沿用旧值，planner 为 null 表示关闭。 */
-export function parseModelsInput(next: unknown): ModelsInput {
-  if (!next || typeof next !== "object" || Array.isArray(next)) throw new Error("模型设置须为对象");
-  const source = next as Record<string, unknown>;
-  const role = (value: unknown) => (value ? parseConnectionInput(value) : undefined);
-  return {
-    writer: role(source.writer),
-    editor: role(source.editor),
-    planner: source.planner ? parseConnectionInput(source.planner) : null,
-  };
-}
-export function normalizeModels(next: unknown, previous = defaultModels()): ModelSettings {
-  const source = parseModelsInput(next);
-  const writer = connection(source.writer || previous.writer, previous.writer);
-  const editor = connection(source.editor || previous.editor, previous.editor);
-  if (!editor.apiKey && editor.baseUrl === writer.baseUrl) editor.apiKey = writer.apiKey;
-  const planner = source.planner ? connection(source.planner, previous.planner || writer) : null;
-  if (planner && !planner.apiKey && planner.baseUrl === writer.baseUrl)
-    planner.apiKey = writer.apiKey;
-  return { writer, editor, planner };
-}
-type PublicConnection = ModelConnection & { configured: boolean };
-type PublicModels = {
-  writer: PublicConnection;
-  editor: PublicConnection;
-  planner: PublicConnection | null;
-};
-export function publicModels(settings: ModelSettings): PublicModels {
-  const expose = (value: ModelConnection): PublicConnection => ({
-    ...value,
-    apiKey: "",
-    configured: !!value.apiKey || !!value.keyless,
-  });
-  return {
-    writer: expose(settings.writer),
-    editor: expose(settings.editor),
-    planner: settings.planner ? expose(settings.planner) : null,
-  };
-}
+  api: (typeof MODEL_APIS)[number];
+}>;

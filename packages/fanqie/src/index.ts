@@ -1,4 +1,4 @@
-import type { PipelineDefinition } from "@zhizhang/core/pipeline";
+import type { ModeModule, PipelineDefinition } from "@zhizhang/core/pipeline";
 import { bookPipeline } from "./pipelines/book/index.js";
 import { chapterPipeline } from "./pipelines/chapter/index.js";
 import { dissectPipeline } from "./pipelines/dissect/index.js";
@@ -26,8 +26,8 @@ export {
   revisePipeline,
 };
 
-export const fanqieModule = {
-  mode: "fanqie" as const,
+export const fanqieModule: ModeModule<"fanqie"> = {
+  mode: "fanqie",
   pipelines: {
     "fanqie.book": bookPipeline as PipelineDefinition<unknown, unknown>,
     "fanqie.chapter": chapterPipeline as PipelineDefinition<unknown, unknown>,
@@ -37,9 +37,9 @@ export const fanqieModule = {
     "fanqie.health": healthPipeline as PipelineDefinition<unknown, unknown>,
     "library.dissect": dissectPipeline as PipelineDefinition<unknown, unknown>,
   },
-  tools: () => fanqieAssistantTools(),
+  tools: (role, target) => fanqieAssistantTools(role, target),
   profiles: {
-    mode: "fanqie" as const,
+    mode: "fanqie",
     defaultId: "default",
   },
 };

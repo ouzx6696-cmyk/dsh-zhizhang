@@ -1,159 +1,205 @@
-import type { WriterMessage } from "../shared/types";
-import { DEFAULT_HISTORY_LIMIT } from "../history-options";
+/**
+ * 助手对话落盘：<状态目录>/sessions/<目标哈希>/<对话 id>.json + current.json 指针。
+ * 只读写 zhizhang/1.3 格式；不认识的文件报 storage.format_unsupported。
+ */
+import fs from "node:fs/promises";
 import path from "node:path";
-import { access, mkdir, rm, stat } from "node:fs/promises";
-import {
-  atomicWrite,
-  assertSafeAncestors,
-  isMissingFileError,
-  readText,
-} from "@zhizhang/core";
-import type { Target } from "../context";
-import { SessionManager } from "./pi-adapter";
-import type { Sessions } from "./manager";
+import type { Clock } from "@zhizhang/core/clock";
+import { AppError } from "@zhizhang/core/errors";
+import { atomicWrite, readTextIfExists, shortHash } from "@zhizhang/core/fs";
+import { FORMAT_VERSION } from "@zhizhang/core/paths";
+import type { ConversationItem, Target } from "../shared/views.js";
+import type { AgentMessage, AgentToolCall, ConversationFile, JsonArgs } from "./types.js";
 
-function parseHistory(text: string | undefined): string[] {
-  const rows: unknown = JSON.parse(text ?? "[]");
-  if (!Array.isArray(rows) || !rows.every((row: unknown) => typeof row === "string"))
-    throw new Error("会话历史索引损坏");
-  return rows;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export async function conversations(
-  host: Sessions,
-  target: Target,
-): Promise<{ id: number; name: string; file: string }[]> {
-  const dir = await host.directory(target);
-  const history: string[] = parseHistory(await readText(path.join(dir, "history.json")));
-  return history.map((file, index) => ({
-    id: index,
-    name: path.basename(file).replace(/\.jsonl$/, ""),
-    file,
-  }));
+function text(value: unknown): string {
+  return typeof value === "string" ? value : "";
 }
 
-export async function newConversation(host: Sessions, target: Target) {
-  const entry = host.sessions.get(host.key(target));
+function num(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function parseToolCall(value: unknown): AgentToolCall | undefined {
+  if (!isRecord(value) || typeof value.id !== "string" || typeof value.name !== "string") return undefined;
+  const args: JsonArgs = isRecord(value.args) ? value.args : {};
+  return { id: value.id, name: value.name, args };
+}
+
+function parseMessage(value: unknown): AgentMessage | undefined {
+  if (!isRecord(value) || typeof value.id !== "string") return undefined;
+  const base = { id: value.id, at: num(value.at) };
+  switch (value.role) {
+    case "user":
+      return { role: "user", ...base, text: text(value.text) };
+    case "summary":
+      return { role: "summary", ...base, text: text(value.text), replaced: num(value.replaced) };
+    case "tool":
+      return {
+        role: "tool",
+        ...base,
+        callId: text(value.callId),
+        name: text(value.name),
+        text: text(value.text),
+        isError: value.isError === true,
+      };
+    case "assistant": {
+      const calls = Array.isArray(value.toolCalls) ? value.toolCalls.map(parseToolCall) : [];
+      const origin = isRecord(value.origin)
+        ? { connection: text(value.origin.connection), model: text(value.origin.model) }
+        : undefined;
+      return {
+        role: "assistant",
+        ...base,
+        text: text(value.text),
+        toolCalls: calls.filter((c): c is AgentToolCall => c !== undefined),
+        ...(origin ? { origin } : {}),
+        ...(value.raw !== undefined ? { raw: value.raw } : {}),
+      };
+    }
+    default:
+      return undefined;
+  }
+}
+
+function parseConversation(raw: string, file: string): ConversationFile {
+  let data: unknown;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    throw new AppError("storage.format_unsupported", `对话记录无法解析：${file}`, { file });
+  }
   if (
-    host.preparing(target) ||
-    host.compactions.has(host.key(target)) ||
-    (entry && !entry.session.isIdle)
-  )
-    throw new Error("请先停止当前任务，再开始新对话");
-  const dir = await host.directory(target);
-  await mkdir(dir, { recursive: true });
-  const current = (await readText(path.join(dir, "current"))) ?? "";
-  if (current) {
-    const previous = await conversations(host, target);
-    await atomicWrite(
-      path.join(dir, "history.json"),
-      JSON.stringify([...previous.map((item) => item.file), current]),
-    );
+    !isRecord(data) ||
+    data.format !== FORMAT_VERSION ||
+    typeof data.id !== "string" ||
+    !isRecord(data.target) ||
+    !Array.isArray(data.messages)
+  ) {
+    throw new AppError("storage.format_unsupported", `不支持的对话记录格式：${file}`, { file });
   }
-  host.release(target);
-  await rm(path.join(dir, "current"), { force: true });
-}
-
-function history(host: Sessions, manager: SessionManager, limit: number) {
-  const leaf = manager.getLeafId();
-  const cap = limit;
-  const cached = host.projectedHistory.get(manager);
-  if (cached?.leaf === leaf && cached.limit >= cap)
-    return { messages: cached.messages.slice(-cap), total: cached.total };
-  const branch = manager.getBranch();
-  const messages: WriterMessage[] = [];
-  let total = 0;
-  for (let index = branch.length - 1; index >= 0; index--) {
-    const entry = branch[index];
-    if (entry.type === "message") {
-      total++;
-      if (messages.length < cap) messages.push({ ...entry.message, writerMessageId: entry.id });
-    } else if (entry.type === "custom_message" && entry.display) {
-      total++;
-      if (messages.length < cap)
-        messages.push({
-          role: "custom",
-          writerMessageId: entry.id,
-          customType: entry.customType,
-          content: entry.content,
-          display: true,
-          timestamp: Date.parse(entry.timestamp),
-        });
-    }
-  }
-  messages.reverse();
-  host.projectedHistory.set(manager, {
-    leaf,
-    limit: cap,
-    messages,
-    total,
-  });
-  return { messages: messages.slice(-cap), total };
-}
-
-export async function view(
-  host: Sessions,
-  target: Target,
-  limit = DEFAULT_HISTORY_LIMIT,
-  archive?: number,
-) {
-  const entry = archive === undefined ? host.sessions.get(host.key(target)) : undefined;
-  let manager = entry?.session.sessionManager;
-  if (!manager) {
-    const marker =
-      archive !== undefined
-        ? (await conversations(host, target)).find((item) => item.id === archive)?.file || ""
-        : ((await readText(path.join(await host.directory(target), "current"))) ?? "");
-    if (
-      marker &&
-      (await access(marker).then(
-        () => true,
-        async (error) => {
-          if (isMissingFileError(error)) {
-            // Windows also reports ENOENT when an ancestor is a file.
-            await assertSafeAncestors(marker);
-            return false;
-          }
-          throw error;
-        },
-      ))
-    ) {
-      const info = await stat(marker, { bigint: true });
-      const stamp = `${info.ino}:${info.size}:${info.mtimeNs}:${info.ctimeNs}`;
-      const cached = host.historyCache.get(marker);
-      manager = cached?.stamp === stamp ? cached.manager : SessionManager.open(marker);
-      host.historyCache.delete(marker);
-      host.historyCache.set(marker, { stamp, manager });
-      while (host.historyCache.size > 4) {
-        const oldest = host.historyCache.keys().next();
-        if (oldest.done) break;
-        host.historyCache.delete(oldest.value);
-      }
-    }
-  }
-  const projected = manager
-    ? history(host, manager, limit)
-    : { messages: [] as WriterMessage[], total: 0 };
-  const streaming = entry?.session.agent.state.streamingMessage;
-  const stream =
-    streaming?.role === "assistant"
-      ? streaming.content
-          .filter((c) => c.type === "text")
-          .map((c) => c.text)
-          .join("")
-      : "";
+  const mode = data.target.mode === "toutiao" ? "toutiao" : "fanqie";
+  const messages = data.messages.map(parseMessage).filter((m): m is AgentMessage => m !== undefined);
   return {
-    conversationId: manager?.getSessionId(),
-    messages: projected.messages,
-    total: projected.total,
-    busy: entry ? !entry.session.isIdle || host.preparing(target) : false,
-    stream,
-    phase:
-      entry?.phase ||
-      (!entry && ["user", "toolResult"].includes(projected.messages.at(-1)?.role ?? "")
-        ? "上次对话尚未完成；先核对已保存稿件，需要时在设置检查作品恢复，再继续发送要求。"
-        : ""),
-    focus: entry?.focus,
-    task: entry?.task,
+    format: FORMAT_VERSION,
+    id: data.id,
+    target: { mode, path: text(data.target.path) },
+    title: text(data.title),
+    created: text(data.created),
+    updated: text(data.updated),
+    messages,
+  };
+}
+
+export interface ConversationStore {
+  current(target: Target): Promise<ConversationFile>;
+  open(target: Target, id: string): Promise<ConversationFile>;
+  create(target: Target): Promise<ConversationFile>;
+  /** 把历史对话设为当前对话（继续该对话）。 */
+  select(target: Target, id: string): Promise<ConversationFile>;
+  save(conversation: ConversationFile): Promise<void>;
+  list(target: Target): Promise<ConversationItem[]>;
+}
+
+export function createConversationStore(root: string, clock: Clock): ConversationStore {
+  const dirOf = (target: Target) => path.join(root, `${target.mode}-${shortHash(path.resolve(target.path))}`);
+  const fileOf = (target: Target, id: string) => {
+    if (!/^[\w-]+$/.test(id)) throw new AppError("input.invalid", `对话 id 无效：${id}`, { id });
+    return path.join(dirOf(target), `${id}.json`);
+  };
+  const pointerOf = (target: Target) => path.join(dirOf(target), "current.json");
+  let counter = 0;
+
+  function fresh(target: Target): ConversationFile {
+    counter += 1;
+    const now = clock.iso();
+    return {
+      format: FORMAT_VERSION,
+      id: `c${clock.now().toString(36)}${counter.toString(36)}`,
+      target: { mode: target.mode, path: path.resolve(target.path) },
+      title: "",
+      created: now,
+      updated: now,
+      messages: [],
+    };
+  }
+
+  async function writePointer(target: Target, id: string): Promise<void> {
+    await atomicWrite(pointerOf(target), JSON.stringify({ format: FORMAT_VERSION, id }, null, 2));
+  }
+
+  async function open(target: Target, id: string): Promise<ConversationFile> {
+    const file = fileOf(target, id);
+    const raw = await readTextIfExists(file);
+    if (raw === undefined) throw new AppError("input.not_found", `未找到对话：${id}`, { id });
+    return parseConversation(raw, file);
+  }
+
+  return {
+    async current(target) {
+      const raw = await readTextIfExists(pointerOf(target));
+      if (raw !== undefined) {
+        let id: unknown;
+        try {
+          id = JSON.parse(raw).id;
+        } catch {
+          id = undefined;
+        }
+        if (typeof id === "string") {
+          const file = fileOf(target, id);
+          const body = await readTextIfExists(file);
+          if (body !== undefined) return parseConversation(body, file);
+          return { ...fresh(target), id };
+        }
+      }
+      const created = fresh(target);
+      await writePointer(target, created.id);
+      return created;
+    },
+    open,
+    async create(target) {
+      const created = fresh(target);
+      await writePointer(target, created.id);
+      return created;
+    },
+    async select(target, id) {
+      const conv = await open(target, id);
+      await writePointer(target, conv.id);
+      return conv;
+    },
+    async save(conversation) {
+      const target: Target = conversation.target;
+      await atomicWrite(fileOf(target, conversation.id), JSON.stringify(conversation, null, 2));
+    },
+    async list(target) {
+      const dir = dirOf(target);
+      const names = await fs.readdir(dir).catch(() => []);
+      const pointer = await readTextIfExists(pointerOf(target));
+      let currentId = "";
+      try {
+        currentId = pointer ? text(JSON.parse(pointer).id) : "";
+      } catch {
+        currentId = "";
+      }
+      const items: ConversationItem[] = [];
+      for (const name of names) {
+        if (!name.endsWith(".json") || name === "current.json") continue;
+        const file = path.join(dir, name);
+        const raw = await readTextIfExists(file);
+        if (raw === undefined) continue;
+        const conv = parseConversation(raw, file);
+        items.push({
+          id: conv.id,
+          title: conv.title,
+          updated: conv.updated,
+          messages: conv.messages.filter((m) => m.role === "user").length,
+          current: conv.id === currentId,
+        });
+      }
+      return items.sort((a, b) => b.updated.localeCompare(a.updated));
+    },
   };
 }

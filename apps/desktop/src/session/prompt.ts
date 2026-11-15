@@ -1,300 +1,75 @@
-import {
-  fanqieContext,
-  toutiaoContext,
-  toutiaoFeedback,
-  fanqieAttachments,
-} from "./handoff-context";
-import { listProjects, projectIdOf, resolveWorkDir, storagePaths, type FanqieConfig } from "@zhizhang/fanqie";
-async function resolveFanqiePaths(config: { fanqie?: FanqieConfig }, target: Target) {
-  const project = (await listProjects()).find((row) => row.id === projectIdOf(target.root));
-  return storagePaths(null, { ...config.fanqie, storageRoot: target.root, ...(project?.worksRoot ? { worksRoot: project.worksRoot } : {}) });
-}
-async function resolveFanqieWork(config: { fanqie?: FanqieConfig }, target: Target) {
-  if (!target.work) throw new Error("请先选择小说");
-  return resolveWorkDir(await resolveFanqiePaths(config, target), target.work);
-}
-import { parseText } from "../shared/types";
-import type { Focus, Target } from "../context";
-import { focusLabel, promptText } from "../context";
-import type { ChapterMeta } from "@zhizhang/fanqie";
-import { readChapter, readWorkMeta } from "@zhizhang/fanqie";
-import { activeProfile } from "@zhizhang/core";
-import { ArticleStore } from "@zhizhang/toutiao";
-import { toutiaoLibrary } from "@zhizhang/toutiao";
-import { fanqieLibrary } from "@zhizhang/fanqie";
-import { chapterReviewInfo } from "@zhizhang/fanqie";
-import { assertWorkspaceWritable } from "@zhizhang/core";
-import { engineTools } from "@zhizhang/fanqie";
-import { validPassingQa } from "@zhizhang/toutiao";
-import { SYSTEM_BRIEF } from "@zhizhang/fanqie";
-import {
-  buildToutiaoBrief,
-  buildToutiaoEditorBrief,
-  TOUTIAO_EDITOR_BRIEF,
-} from "@zhizhang/toutiao";
-import {
-  buildFanqieBrief,
-  buildFanqieEditorBrief,
-  FANQIE_EDITOR_BRIEF,
-} from "@zhizhang/fanqie";
-import {
-  buildMethodPack,
-  type MethodAttachmentKind,
-} from "@zhizhang/core";
-import { taskMethods, corpusMethods, packMethods, type TaskMethod } from "./task-methods";
-import { planMethodInjection } from "./method-injection";
-import { injectedMethods } from "./task-tracker";
-import type { Sessions } from "./manager";
+/**
+ * 助手提示词：系统提示按模式与作品构造；渲染层只发意图 {intent, text, focus}，
+ * 指令模板在这里拼，不在界面里拼。
+ */
+import type { Focus, SessionIntent, Target } from "../shared/views.js";
 
-const CLIENT_NOTICE =
-  "【独立客户端调用说明】当前模式与角色已启用，不调用 writer_enable。任务开头的 writer-context 是发送时的对象与已保存状态。它不是完整阅读凭据，版本变化时重读。主会话需要规划或拆书时使用 writer_plan。按任务用既有工具读取必要规划、前章和正文；压缩摘要不代替作品事实。作者切页不改变本次任务。作者明确限定素材时，立项卡、标题和正文都不得添加未提供的事实或合成人物；方法中的示范不是本次素材。局部修改必须保留范围外原文，字数和修改范围以实际保存结果核对，不满足时如实说明。工具报告过期依据或版本冲突时，重新读取当前版本并重建候选，不重复提交同一失败参数。";
+const COMMON = [
+  "你是织章写作台里的写作助手，服务于一位中文作者。",
+  "你的能力边界：可以读取作品材料（章节、候选稿、故事圣经、文章、来源、台账、方法），可以发起流水线或打开对照视图；",
+  "你没有、也不能直接改写正文、候选稿、圣经或文章状态。需要改稿时，发起相应流水线，产物会作为候选交给作者决定是否采纳。",
+  "先读后说：回答涉及具体章节或文章时，先用工具读取，再给出判断；不要编造材料里没有的内容。",
+  "发起流水线前，用一句话说明要发起什么、为什么；发起后告诉作者到流水线面板查看进度。",
+  "回答使用简体中文，简洁、具体，给出可操作的建议。",
+];
 
-export async function systemPrompt(
-  target: Target,
-  role: "writer" | "editor" | "planner",
-  config: import("@zhizhang/toutiao").ToutiaoConfig,
-) {
-  if (role === "planner")
-    return `你是${target.mode === "fanqie" ? "长篇" : "头条"}规划角色。按作者目标读取必要材料，完成规划或指定原文拆解，使用当前工具保存结果并回报具体对象。正文交给写手。长篇任务交接已附当前方案的方法时直接使用，需要补充目录或专项时再用 fanqie_method_get overview 及相关方法；头条模式使用 toutiao_method_get。需要参考时检索已采纳卡、读卡全文，核对适用条件后把选定 card_ids 显式交给规划工具。没有合适参考直接按作者材料推进，不为填卡改写作者目标。`;
-  const editor = role === "editor";
-  const creationFirst = config.brief?.creationFirst === true;
-  const base =
-    target.mode === "toutiao"
-      ? editor
-        ? creationFirst
-          ? buildToutiaoEditorBrief({ creationFirst: true })
-          : TOUTIAO_EDITOR_BRIEF
-        : await buildToutiaoBrief(
-            "S5 红笔与 S6 质检使用 writer_review 派独立编辑，传入 article 和完整任务；编辑交回回报后再推进验收。",
-            config,
-            { creationFirst },
-          )
-      : creationFirst
-        ? editor
-          ? buildFanqieEditorBrief({ creationFirst: true })
-          : buildFanqieBrief(
-              "使用 writer_review 派独立编辑，传入 work、chapter 和任务；按 fanqie_method_get edit 审读，用 fanqie_review_report 交回报。",
-              { creationFirst: true },
-            )
-        : [
-            SYSTEM_BRIEF,
-            editor
-              ? FANQIE_EDITOR_BRIEF
-              : buildFanqieBrief(
-                  "使用 writer_review 派独立编辑，传入 work、chapter 和任务；按 fanqie_method_get edit 审读，用 fanqie_review_report 交回报。",
-                ),
-          ].join("\n");
-  return (
-    base +
-    "\n" +
-    (role === "writer"
-      ? CLIENT_NOTICE
-      : "当前模式和角色已启用。读取实际稿件，按当前版本交回审读结果。")
-  );
-}
-
-async function paths(host: Sessions, target: Target) {
-  return resolveFanqiePaths(host.options, target);
-}
-
-export async function taskPrompt(host: Sessions, target: Target, text: string, focus: Focus) {
-  return taskPromptV2(host, target, text, focus);
-}
-
-const DELEGATION_NOTE = "本任务是委派说明：用 writer_review 工具派编辑子会话审读，不改正文。";
-
-/** 以方法全文落地的附件：节奏三档与病型表按 id 随方法注入，不另附文段。 */
-const ATTACHMENT_METHODS: Partial<Record<MethodAttachmentKind, string>> = {
-  "rhythm-excerpt": "rhythm",
-  "prose-table": "prose",
+const MODE_RULES: Record<Target["mode"], string[]> = {
+  fanqie: [
+    "当前模式：番茄长篇。连续性的唯一真源是故事圣经；判断人物状态、伏笔、知情关系时先查圣经视图。",
+    "写新章用 fanqie_start_chapter；改已有章节用 fanqie_start_revise；独立审读用 fanqie_start_review；全书体检用 fanqie_start_health。",
+    "定稿与采纳候选只能由作者在界面上完成。",
+  ],
+  toutiao: [
+    "当前模式：今日头条图文。标题、质检分数线与交稿末句等业务规则由规则脚本裁定，你不要自行改口径。",
+    "推进文章用 toutiao_start_article；验收、交稿与状态变更只能由作者在界面上完成。",
+    "避免与台账里同一内容线最近文章重复开头式和结尾式。",
+  ],
 };
 
-async function taskPromptV2(host: Sessions, target: Target, text: string, focus: Focus) {
-  const profile = await activeProfile(target.mode, host.options[target.mode]?.profile);
-  const fanqie = target.mode === "fanqie" ? await fanqieContext(host, target, focus) : undefined;
-  const toutiao = target.mode === "toutiao" ? await toutiaoContext(target, focus) : undefined;
-  const pack = buildMethodPack({
-    mode: target.mode,
-    text,
-    focus,
-    ...(fanqie ? { fanqie: fanqie.snapshot } : {}),
-    ...(toutiao ? { toutiao: toutiao.snapshot } : {}),
-  });
-  const kinds = pack.attachments.map((attachment) => attachment.kind);
-  const ids = [
-    ...new Set([
-      ...pack.methods.map((method) => method.id),
-      ...kinds.flatMap((kind) => (ATTACHMENT_METHODS[kind] ? [ATTACHMENT_METHODS[kind]] : [])),
-    ]),
-  ];
-  const pinned = host.options[target.mode]?.profile;
-  const methods = await packMethods(
-    target.mode === "fanqie" ? fanqieLibrary : toutiaoLibrary,
-    profile.id,
-    ids,
-    pinned,
-  );
-  const corpus =
-    toutiao?.snapshot.article && kinds.includes("corpus-excerpt")
-      ? await corpusMethods(
-          toutiaoLibrary,
-          profile.id,
-          toutiao.snapshot.article.contentLine,
-          pinned,
-        )
-      : [];
-  const injected: TaskMethod[] = [
-    ...methods,
-    ...corpus.filter((row) => !methods.some((method) => method.id === row.id)),
-  ];
-  let brief: string | undefined;
-  let saved: Record<string, unknown> | undefined;
-  if (fanqie?.storage) {
-    const { dir, meta, chapter } = fanqie.storage;
-    if (chapter && kinds.includes("lean-brief")) {
-      await assertWorkspaceWritable(dir);
-      const definition = engineTools({
-        ...host.options.fanqie,
-        storageRoot: target.root,
-        worksRoot: (await paths(host, target)).works,
-      }).find((tool) => tool.name === "fanqie_chapter_brief");
-      if (!definition) throw new Error("引擎工具列表里没有 fanqie_chapter_brief，无法生成交接简报");
-      // handoff_only 分支固定返回 JSON 字符串；execute 类型是 unknown，在边界解析
-      brief = parseText(
-        await definition.execute(
-          {
-            work: target.work,
-            chapter: chapter.id,
-            brief_mode: "lean",
-            handoff_only: true,
-          },
-          {
-            name: definition.name,
-            arguments: {},
-            sessionId: "handoff-" + host.key(target),
-            cwd: target.root,
-          },
-        ),
-      );
-    }
-    const review =
-      pack.intent === "review" ||
-      pack.intent === "revise" ||
-      focus.intent === "review" ||
-      focus.intent === "revise"
-        ? await reviewResult(host, target, focus)
-        : undefined;
-    saved = {
-      brief,
-      review,
-      ...(chapter
-        ? await fanqieAttachments(
-            dir,
-            meta,
-            chapter,
-            kinds,
-            host.options.fanqie?.pursuit?.enabled === true,
-          )
-        : {}),
-      title: meta.title,
-      chapters: fanqie.snapshot.chapters.length,
-      chapter: chapter
-        ? {
-            id: chapter.id,
-            title: chapter.title,
-            status: chapter.status,
-            updatedAt: chapter.updatedAt,
-            revision: chapter.revision,
-            dependencies: chapter.dependencies || [],
-            review: chapter.review
-              ? { revision: chapter.review.revision, result: chapter.review.result }
-              : undefined,
-          }
-        : undefined,
-    };
-  } else if (toutiao?.article) {
-    const article = toutiao.article;
-    saved = {
-      article: article.id,
-      status: article.status,
-      revision: article.current_rev,
-      qa: article.qa.at(-1),
-      qaValid: await validPassingQa(toutiao.store, article),
-      ...(kinds.includes("corpus-excerpt") && toutiao.snapshot.article
-        ? {
-            feedback: await toutiaoFeedback(toutiao.store, toutiao.snapshot.article.contentLine),
-          }
-        : {}),
-    };
+const INTENT_TEMPLATES: Record<SessionIntent, string> = {
+  chat: "",
+  continue: "【意图：推进】按当前作品进度判断下一步（缺章纲先补章纲，有章纲则写下一章或推进文章），必要时发起流水线。",
+  revise: "【意图：修改】读取当前稿件与最近审读意见，归纳要改的点，发起定向修订流水线，不要直接给出整章改写。",
+  review: "【意图：审读】派独立编辑审读当前稿件（发起审读流水线），并说明审读侧重点。",
+  plan: "【意图：规划】读取已有规划与圣经，指出缺口并给出补齐建议；不要写正文。",
+  check: "【意图：检查】检查当前稿件的表达、连续性与伏笔，列出值得核对的位置，不自动改稿或定稿。",
+};
+
+export function systemPrompt(input: {
+  target: Target;
+  title?: string;
+  preferences: string;
+  readonly: boolean;
+}): string {
+  const lines = [...COMMON, ...MODE_RULES[input.target.mode]];
+  if (input.title) lines.push(`当前作品：《${input.title}》。`);
+  if (input.readonly) {
+    lines.push("写作文件夹当前处于只读模式：不要发起任何流水线，只做阅读与建议。");
   }
-  // v2 注入：先按该会话已注入凭据去重，再做预算裁剪；方法全文不再进 writer-context JSON，
-  // 改为紧随其后的 writer-method 纯文本块（凭据区保留 id/profile/hash）。
-  const injection = planMethodInjection(injected, injectedMethods(host, target), target.mode);
-  host.extras.log?.("handoff", {
-    mode: target.mode,
-    intentSource: focus.intent ? "focus" : "state",
-    intent: pack.intent,
-    methodIds: injection.injectedIds,
-    methodBytes: injection.injectedBytes,
-    ...(injection.trimmedIds.length ? { trimmedIds: injection.trimmedIds } : {}),
-    briefAttached: brief !== undefined,
-    briefBytes: brief === undefined ? 0 : Buffer.byteLength(brief),
-  });
-  return promptText(
-    kinds.includes("delegation-note") ? `${text}\n\n${DELEGATION_NOTE}` : text,
-    {
-      target,
-      focus,
-      profile: { id: profile.id, name: profile.name },
-      saved,
-      intent: pack.intent,
-      methods: injection.credentials,
-      preferences: await host.extras.preferences?.(),
-    },
-    injection.blocks,
-  );
+  const preferences = input.preferences.trim();
+  if (preferences) lines.push("作者的长期偏好（始终遵守）：", preferences);
+  return lines.join("\n");
 }
 
-export async function reviewResult(
-  host: Sessions,
-  target: Target,
-  focus: Focus,
-  requireCurrent = false,
-) {
-  let summary = "尚无对应的审读结果，请核对稿件与回报。";
-  if (target.mode === "fanqie" && target.work && focus.chapter) {
-    const dir = await resolveFanqieWork(host.options, target);
-    const chapter = await readChapter(dir, focus.chapter);
-    const info = await chapterReviewInfo(
-      dir,
-      focus.chapter,
-      chapter.body,
-      !!host.options.fanqie?.requireEditorPass,
-    );
-    const review = info.editorReview;
-    if (requireCurrent && (!review || review.stale || review.by !== "editor"))
-      throw new Error("编辑没有交回当前正文的有效审读回报，请核对已保存结果");
-    summary = review
-      ? `当前审读回报${review.stale ? "（对应旧正文）" : ""}：${review.verdict}，硬伤 ${review.hardIssues} 处，L1–L3 ${review.levels} 处。`
-      : "尚无本章的审读回报。";
-  } else if (target.mode === "toutiao" && focus.article) {
-    const store = new ArticleStore(target.root),
-      meta = await store.get(focus.article),
-      qa = meta.qa.at(-1);
-    const valid = await validPassingQa(store, meta);
-    if (
-      requireCurrent &&
-      (!qa || qa.rev !== meta.current_rev || qa.card_sha256 !== (await store.cardSha(meta.id)))
-    )
-      throw new Error("编辑没有交回当前文章和立项卡版本的质检结果");
-    summary = qa
-      ? `质检 ${qa.score} 分，${valid.ok ? "当前有效" : valid.reason}；当前稿 rev ${meta.current_rev}。`
-      : "尚无质检结果。";
-  }
-  return {
-    target: { ...target },
-    focus,
-    label: focusLabel(target, focus),
-    summary,
-  };
+function focusLine(focus: Focus | undefined): string {
+  if (!focus) return "";
+  const parts: string[] = [];
+  if (focus.chapter) parts.push(`章节 ${focus.chapter}`);
+  if (focus.candidate) parts.push(`候选稿 ${focus.candidate}`);
+  if (focus.article) parts.push(`文章 ${focus.article}`);
+  if (focus.title) parts.push(`标题「${focus.title}」`);
+  if (focus.source === "split") parts.push("正在对照正文与候选稿");
+  if (focus.dirty) parts.push("作者有未保存的修改（以磁盘内容为准，提醒作者先保存）");
+  return parts.length ? `【作者当前位置】${parts.join("；")}` : "";
 }
+
+/** 作者消息在送给模型前的完整文本：意图模板 + 当前位置 + 原话。 */
+export function userPrompt(text: string, intent: SessionIntent | undefined, focus: Focus | undefined): string {
+  return [INTENT_TEMPLATES[intent ?? "chat"], focusLine(focus), text.trim()].filter(Boolean).join("\n\n");
+}
+
+export const COMPACT_SYSTEM = [
+  "把下面的写作助手对话压缩成一份交接摘要，供后续对话继续使用。",
+  "保留：作者的目标与偏好、已经读过的关键材料结论、已发起的流水线及其结果、尚未完成的事项。",
+  "删去：寒暄、重复内容与工具原始输出。用简体中文条目列出，不超过 600 字。",
+].join("\n");

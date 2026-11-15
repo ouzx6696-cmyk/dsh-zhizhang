@@ -1,10 +1,11 @@
 import React from "react";
 import { Markdown as MarkdownView } from "@zhizhang/ui/markdown";
-import { desktop } from "./renderer/state/desktop";
+import { desktopApi } from "./bridge";
+
 export const Markdown = React.memo(function Markdown({ text }: { text: string }) {
   return (
     <div className="studio-markdown">
-      <MarkdownView text={text} onLink={(href: string) => void desktop.openExternal(href)} />
+      <MarkdownView text={text} onLink={(href: string) => void desktopApi.openExternal(href)} />
     </div>
   );
 });

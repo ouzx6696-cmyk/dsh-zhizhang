@@ -1,303 +1,454 @@
-import { WorkflowService } from "../workflow/service";
-import { DEFAULT_HISTORY_LIMIT } from "../history-options";
-import path from "node:path";
-import { rootIdentity } from "@zhizhang/core";
-import { mkdir, rm } from "node:fs/promises";
-import { existsSync } from "node:fs";
-import { atomicWrite, exists, sha256 } from "@zhizhang/core";
-import { errorText } from "@zhizhang/core";
-import { WORKFLOW_COPY } from "../shared/copy";
-import type { Focus, Target } from "../context";
-import type { DesktopEvent } from "../shared/events";
-import type { WriterMessage } from "../shared/types";
-import type { ModelSettings } from "../models";
-import type { AgentSession, SessionManager } from "./pi-adapter";
-import { createSession, sessionFilePath } from "./create";
-import { notifyAuthor, sendPrompt } from "./delivery";
-import {
-  conversations as listConversations,
-  newConversation as startNewConversation,
-  view as viewHistory,
-} from "./history";
+/**
+ * 助手会话管理：每个目标一个当前对话；一轮回复经 gateway.session("assistant") 占并发位，
+ * 工具来自 ModeModule.tools("assistant", target)，对话历史落盘到状态目录 sessions/。
+ */
+import type { Clock } from "@zhizhang/core/clock";
+import { AppError, classify } from "@zhizhang/core/errors";
+import { estimateTokensRaw, type ModelGateway } from "@zhizhang/core/model";
+import type { ToolCtx, ToolDefinition } from "@zhizhang/core/tool";
+import type { DesktopEvent, SessionEvent } from "../shared/events.js";
+import type { ContextSettings } from "../shared/settings.js";
+import type { ChatMessage, ResultCard, TaskState, ToolCallView } from "../shared/types.js";
 import type {
-  AuthorAction,
-  HistoryCache,
-  SessionEntry,
-  SessionExtras,
-  SessionOptions,
-} from "./types";
+  CompactResult,
+  ContextUsageView,
+  ConversationItem,
+  RunningRow,
+  SessionSend,
+  SessionView,
+  Target,
+} from "../shared/views.js";
+import type { ConversationStore } from "./history.js";
+import { COMPACT_SYSTEM, systemPrompt, userPrompt } from "./prompt.js";
+import { runTool, toolSpecs } from "./tools.js";
+import type { AgentMessage, AssistantPort, ConversationFile } from "./types.js";
 
-export class Sessions {
-  projectedHistory = new WeakMap<
-    SessionManager,
-    { leaf: string | null; limit: number; messages: WriterMessage[]; total: number }
-  >();
-  readonly workflows: WorkflowService = new WorkflowService(this);
-  reconfiguring = false;
-  compactions = new Set<string>();
-  preparations = new Map<symbol, { target: Target; focus: Focus; generation: number }>();
-  generations = new Map<string, number>();
-  historyCache: HistoryCache = new Map();
-  sessions = new Map<string, SessionEntry>();
-  opening = new Map<string, Promise<AgentSession>>();
-  private children = new Map<AgentSession, Set<AgentSession>>();
+const MAX_TOOL_ROUNDS = 12;
+const DEFAULT_VIEW_LIMIT = 80;
 
-  registerChild(parent: AgentSession, child: AgentSession) {
-    const children = this.children.get(parent) ?? new Set<AgentSession>();
-    this.children.set(parent, children);
-    children.add(child);
-    return () => {
-      children.delete(child);
-      if (!children.size && this.children.get(parent) === children) this.children.delete(parent);
-    };
-  }
+export interface AssistantBinding {
+  connection: string;
+  model: string;
+  contextWindow: number;
+  maxTokens: number;
+}
 
-  constructor(
-    private setup: {
-      home: string;
-      python: string | undefined;
-      settings: () => ModelSettings;
-      emit: (event: DesktopEvent) => void;
-      confirm: (text: string, signal?: AbortSignal) => Promise<boolean>;
-      options: SessionOptions;
-      created: (previous: Target, next: Target) => Promise<void>;
-      extras: SessionExtras;
-    },
-  ) {}
-  get home() {
-    return this.setup.home;
-  }
-  get python() {
-    return this.setup.python;
-  }
-  get settings() {
-    return this.setup.settings;
-  }
-  get emit() {
-    return this.setup.emit;
-  }
-  get confirm() {
-    return this.setup.confirm;
-  }
-  get options() {
-    return this.setup.options;
-  }
-  get created() {
-    return this.setup.created;
-  }
-  get extras() {
-    return this.setup.extras;
-  }
-  same(a: Target, b: Target) {
-    return this.key(a) === this.key(b);
-  }
-  isRunning(target: Target): boolean {
-    const key = this.key(target);
-    return (
-      this.workflows.busy(target) ||
-      this.compactions.has(key) ||
-      this.preparing(target) ||
-      this.opening.has(key) ||
-      this.sessions.get(key)?.session.isIdle === false
-    );
-  }
-  hasPending() {
-    return this.preparations.size > 0 || this.opening.size > 0 || this.workflows.rows().length > 0;
-  }
+export interface SessionDeps {
+  clock: Clock;
+  store: ConversationStore;
+  gateway(): ModelGateway;
+  port(): AssistantPort;
+  /** 助手角色的连接绑定；未配置时抛 model.auth。 */
+  binding(): AssistantBinding;
+  tools(target: Target): ToolDefinition[];
+  toolCtx(target: Target): ToolCtx;
+  context(): ContextSettings;
+  preferences(): string;
+  readonly(): boolean;
+  title(target: Target): Promise<string | undefined>;
+  emit(event: DesktopEvent): void;
+  /** 助手忙碌状态变化（用于合并“运行中”列表）。 */
+  onBusyChange?(): void;
+}
 
-  /** key() runs on every publish; the realpath behind rootIdentity is resolved once per target. */
-  private keys = new Map<string, string>();
-  key(target: Target) {
-    const raw = [target.mode, target.root, target.article ?? "", target.work ?? ""].join("\0");
-    let value = this.keys.get(raw);
-    if (value === undefined) {
-      value = sha256(
-        JSON.stringify({
-          mode: target.mode,
-          root: rootIdentity(target.root),
-          ...(target.article ? { article: target.article } : {}),
-          ...(target.work ? { work: target.work } : {}),
-        }),
-      ).slice(0, 24);
-      // A missing root resolves without realpath; remember it only once it exists.
-      if (existsSync(target.root)) {
-        if (this.keys.size >= 256) this.keys.clear();
-        this.keys.set(raw, value);
+interface TargetState {
+  target: Target;
+  conversation: ConversationFile;
+  busy: boolean;
+  stream: string;
+  since: string;
+  task?: TaskState;
+  controller?: AbortController;
+  pending?: Promise<void>;
+}
+
+const keyOf = (target: Target) => `${target.mode}:${target.path}`;
+
+/** 把落盘消息折叠成界面消息：一轮里的工具调用并入该轮的助手回复。 */
+export function toChatMessages(messages: AgentMessage[]): ChatMessage[] {
+  const out: ChatMessage[] = [];
+  let texts: string[] = [];
+  let tools: ToolCallView[] = [];
+  let result: ResultCard | undefined;
+  let turnId = "";
+  let turnAt = 0;
+  const flush = () => {
+    if (texts.length === 0 && tools.length === 0) return;
+    out.push({
+      id: turnId,
+      role: "assistant",
+      text: texts.join("\n\n"),
+      at: turnAt,
+      ...(tools.length ? { tools } : {}),
+      ...(result ? { result } : {}),
+    });
+    texts = [];
+    tools = [];
+    result = undefined;
+  };
+  for (const msg of messages) {
+    if (msg.role === "user") {
+      flush();
+      out.push({ id: msg.id, role: "user", text: msg.text, at: msg.at });
+    } else if (msg.role === "summary") {
+      flush();
+      out.push({ id: msg.id, role: "system", text: msg.text, at: msg.at });
+    } else if (msg.role === "assistant") {
+      turnId = msg.id;
+      turnAt = msg.at;
+      if (msg.text.trim()) texts.push(msg.text);
+      for (const call of msg.toolCalls) tools.push({ name: call.name, isError: false });
+    } else {
+      const hit = [...tools].reverse().find((t) => t.name === msg.name);
+      if (hit) hit.isError = msg.isError;
+      if (!msg.isError) {
+        try {
+          const value: unknown = JSON.parse(msg.text);
+          if (typeof value === "object" && value !== null && "runId" in value && typeof value.runId === "string") {
+            result = {
+              kind: "run",
+              target: { mode: "fanqie", path: "" },
+              runId: value.runId,
+              ...("kind" in value && typeof value.kind === "string" ? { pipeline: value.kind } : {}),
+            };
+          }
+        } catch {
+          // 工具输出不是 JSON（自定义 render）时不生成结果卡
+        }
       }
     }
-    return value;
   }
-
-  async directory(target: Target) {
-    return path.join(this.home, "sessions", this.key(target));
-  }
-
-  async open(
-    target: Target,
-    editor = false,
-    planner = false,
-    onCreated?: (work: string) => Promise<void>,
-    onSaved?: (tool: string, output: string) => void,
-  ): Promise<AgentSession> {
-    if (this.reconfiguring) throw new Error("正在更新设置，请稍后打开会话");
-    if (editor || planner)
-      return createSession(this, target, editor ? "editor" : "planner", onCreated, onSaved);
-    const key = this.key(target);
-    const existing = this.sessions.get(key);
-    if (existing) return existing.session;
-    let opening = this.opening.get(key);
-    if (!opening) {
-      opening = createSession(this, target, "writer").finally(() => this.opening.delete(key));
-      this.opening.set(key, opening);
-    }
-    return opening;
-  }
-
-  async send(target: Target, text: string, focus: Focus = {}) {
-    if (this.workflows.busy(target)) throw new Error("流水线正在处理此作品，请先暂停后再调整要求");
-    return sendPrompt(this, target, text, focus);
-  }
-
-  async notify(target: Target, value: AuthorAction) {
-    await notifyAuthor(this, target, value);
-  }
-
-  async conversations(target: Target) {
-    return listConversations(this, target);
-  }
-
-  async newConversation(target: Target) {
-    return startNewConversation(this, target);
-  }
-
-  async view(target: Target, limit = DEFAULT_HISTORY_LIMIT, archive?: number) {
-    return viewHistory(this, target, limit, archive);
-  }
-
-  async attachCreated(entry: SessionEntry, work: string) {
-    const previous = { ...entry.target },
-      next = { ...previous, ...(previous.mode === "toutiao" ? { article: work } : { work }) };
-    const key = this.key(next),
-      dir = path.join(this.home, "sessions", key);
-    if (this.sessions.has(key)) return;
-    if (await exists(path.join(dir, "current"))) return;
-    await mkdir(dir, { recursive: true });
-    await atomicWrite(path.join(dir, "current"), sessionFilePath(entry.session.sessionManager));
-    await rm(path.join(this.home, "sessions", this.key(previous), "current"), {
-      force: true,
-    });
-    Object.assign(entry.target, next);
-    this.sessions.delete(this.key(previous));
-    this.sessions.set(key, entry);
-    await this.created(previous, next);
-  }
-
-  running(): NonNullable<DesktopEvent["running"]> {
-    return [
-      ...[...this.sessions.values()]
-        .filter(
-          (entry) =>
-            !entry.session.isIdle ||
-            this.preparing(entry.target) ||
-            this.compactions.has(this.key(entry.target)),
-        )
-        .map((entry) => ({
-          target: entry.target,
-          focus: entry.focus,
-          phase:
-            (entry.phase || "任务处理中…") +
-            (entry.session.pendingMessageCount
-              ? `（另有 ${entry.session.pendingMessageCount} 条排队，停止会一并取消）`
-              : ""),
-          task: entry.task,
-        })),
-      ...this.workflows.rows(),
-    ];
-  }
-
-  preparing(target: Target) {
-    return [...this.preparations.values()].some(
-      (p) =>
-        this.key(p.target) === this.key(target) &&
-        p.generation === (this.generations.get(this.key(target)) || 0),
-    );
-  }
-
-  release(target: Target) {
-    const key = this.key(target),
-      entry = this.sessions.get(key);
-    if (!entry || (entry.session.isIdle && !this.children.has(entry.session))) {
-      this.generations.set(key, (this.generations.get(key) || 0) + 1);
-      entry?.session.dispose();
-      this.sessions.delete(key);
-    }
-  }
-
-  async compact(target: Target, instructions: string) {
-    if (this.reconfiguring) throw new Error("正在更新设置，请稍后压缩上下文");
-    const key = this.key(target),
-      generation = this.generations.get(key) || 0;
-    if (this.isRunning(target)) throw new Error("请先等待当前任务结束或停止任务，再压缩上下文");
-    this.compactions.add(key);
-    try {
-      const history = await this.view(target);
-      if (history.total === 0) throw new Error("当前历史较短或没有对话，暂无可压缩内容");
-      const session = await this.open(target);
-      if ((this.generations.get(key) || 0) !== generation) throw new Error("压缩已取消");
-      if (!session.isIdle || session.pendingMessageCount) throw new Error("当前会话尚未空闲");
-      return await session.compact(
-        "保留作者限制、已确定事实、完成与待办事项、文件和章节标识、已读方法与来源。摘要不代替最新版本依据。\n" +
-          instructions,
-      );
-    } finally {
-      this.compactions.delete(key);
-      this.emit({ running: this.running() });
-    }
-  }
-
-  async stop(target: Target) {
-    const key = this.key(target);
-    // attachCreated 会把会话键从根迁到文章/作品键：精确键落空时按 mode+root 兜底，停止才不会落空
-    const entry =
-      this.sessions.get(key) ??
-      [...this.sessions.values()].find(
-        (item) =>
-          item.target.mode === target.mode &&
-          rootIdentity(item.target.root) === rootIdentity(target.root),
-      );
-    const actualKey = entry ? this.key(entry.target) : key;
-    this.generations.set(key, (this.generations.get(key) || 0) + 1);
-    if (actualKey !== key)
-      this.generations.set(actualKey, (this.generations.get(actualKey) || 0) + 1);
-    if (this.opening.has(key)) await this.opening.get(key);
-    const session = entry?.session;
-    const children = session ? this.children.get(session) : undefined;
-    session?.clearQueue();
-    await Promise.all([
-      this.workflows.stop(!target.work && !target.article && entry ? entry.target : target),
-      ...[...(children ?? [])].map((child) => child.abort()),
-      session?.abort(),
-    ]);
-  }
-
-  async dispose() {
-    await this.workflows.dispose();
-    for (const p of this.preparations.values()) {
-      const key = this.key(p.target);
-      this.generations.set(key, (this.generations.get(key) || 0) + 1);
-    }
-    await Promise.allSettled(this.opening.values());
-    for (const session of [
-      ...new Set([...this.children.values()].flatMap((children) => [...children])),
-      ...[...this.sessions.values()].map((entry) => entry.session),
-    ]) {
-      session.clearQueue();
-      await session.abort();
-      session.dispose();
-    }
-    this.sessions.clear();
-    this.children.clear();
-    this.historyCache.clear();
-    this.preparations.clear();
-  }
+  flush();
+  return out;
 }
+
+function messageTokens(msg: AgentMessage): number {
+  if (msg.role === "assistant") {
+    return estimateTokensRaw(msg.text) + estimateTokensRaw(JSON.stringify(msg.toolCalls));
+  }
+  return estimateTokensRaw(msg.text);
+}
+
+export function createSessionManager(deps: SessionDeps) {
+  const states = new Map<string, TargetState>();
+  let idCounter = 0;
+  const nextId = (prefix: string) => {
+    idCounter += 1;
+    return `${prefix}${deps.clock.now().toString(36)}${idCounter.toString(36)}`;
+  };
+
+  async function stateFor(target: Target): Promise<TargetState> {
+    const key = keyOf(target);
+    const hit = states.get(key);
+    if (hit) return hit;
+    const conversation = await deps.store.current(target);
+    const state: TargetState = { target, conversation, busy: false, stream: "", since: deps.clock.iso() };
+    states.set(key, state);
+    return state;
+  }
+
+  function emit(state: TargetState, event: SessionEvent): void {
+    deps.emit({ kind: "session", target: state.target, conversationId: state.conversation.id, event });
+  }
+
+  function setBusy(state: TargetState, busy: boolean): void {
+    state.busy = busy;
+    if (busy) state.since = deps.clock.iso();
+    emit(state, { type: "busy", busy });
+    deps.onBusyChange?.();
+  }
+
+  function contextTokens(system: string, messages: AgentMessage[]): number {
+    return messages.reduce((sum, msg) => sum + messageTokens(msg), estimateTokensRaw(system));
+  }
+
+  function compactThreshold(window: number): number {
+    const settings = deps.context();
+    const byPercent = Math.floor((window * settings.triggerPercent) / 100);
+    return settings.budget > 0 ? Math.min(byPercent, settings.budget) : byPercent;
+  }
+
+  async function buildSystem(state: TargetState): Promise<string> {
+    return systemPrompt({
+      target: state.target,
+      title: await deps.title(state.target),
+      preferences: deps.preferences(),
+      readonly: deps.readonly(),
+    });
+  }
+
+  async function compactConversation(state: TargetState, instructions?: string): Promise<CompactResult> {
+    const binding = deps.binding();
+    const system = await buildSystem(state);
+    const messages = state.conversation.messages;
+    const tokensBefore = contextTokens(system, messages);
+    const keepBudget = deps.context().keepRecentTokens;
+    let keepFrom = messages.length;
+    let kept = 0;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      kept += messageTokens(messages[i]);
+      if (kept > keepBudget) break;
+      if (messages[i].role === "user") keepFrom = i;
+    }
+    const older = messages.slice(0, keepFrom);
+    if (older.length === 0) {
+      return { tokensBefore, tokensAfter: tokensBefore, summary: "" };
+    }
+    const transcript = older
+      .map((msg) => {
+        if (msg.role === "user") return `作者：${msg.text}`;
+        if (msg.role === "assistant") return `助手：${msg.text}`;
+        if (msg.role === "summary") return `此前摘要：${msg.text}`;
+        return `工具 ${msg.name}：${msg.text.slice(0, 400)}`;
+      })
+      .join("\n");
+    const controller = new AbortController();
+    const answer = await deps.gateway().session(
+      "assistant",
+      () =>
+        deps.port().turn(
+          {
+            connection: binding.connection,
+            model: binding.model,
+            system: COMPACT_SYSTEM,
+            messages: [
+              {
+                role: "user",
+                id: nextId("u"),
+                at: deps.clock.now(),
+                text: [instructions?.trim() ? `压缩要求：${instructions.trim()}` : "", transcript]
+                  .filter(Boolean)
+                  .join("\n\n"),
+              },
+            ],
+            tools: [],
+            maxOutput: Math.min(2048, binding.maxTokens),
+          },
+          controller.signal,
+          () => undefined,
+        ),
+      { scope: keyOf(state.target) },
+    );
+    const summary = answer.text.trim();
+    const replaced = older.length;
+    state.conversation.messages = [
+      { role: "summary", id: nextId("s"), text: summary, at: deps.clock.now(), replaced },
+      ...messages.slice(keepFrom),
+    ];
+    state.conversation.updated = deps.clock.iso();
+    await deps.store.save(state.conversation);
+    const tokensAfter = contextTokens(system, state.conversation.messages);
+    emit(state, { type: "compacted", tokensBefore, tokensAfter });
+    return { tokensBefore, tokensAfter, summary };
+  }
+
+  async function runTurn(state: TargetState, send: SessionSend, signal: AbortSignal): Promise<void> {
+    const conv = state.conversation;
+    const tools = deps.tools(state.target);
+    const specs = toolSpecs(tools);
+    const ctx = { ...deps.toolCtx(state.target), signal };
+    const task: TaskState = {
+      id: nextId("t"),
+      name: send.intent ?? "chat",
+      completed: [],
+      current: "",
+      waiting: "",
+      tokens: 0,
+      cost: 0,
+      startedAt: deps.clock.now(),
+    };
+    state.task = task;
+    try {
+      const binding = deps.binding();
+      const system = await buildSystem(state);
+      if (deps.context().enabled && contextTokens(system, conv.messages) > compactThreshold(binding.contextWindow)) {
+        await compactConversation(state);
+      }
+      for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+        state.stream = "";
+        const answer = await deps.gateway().session(
+          "assistant",
+          () =>
+            deps.port().turn(
+              {
+                connection: binding.connection,
+                model: binding.model,
+                system,
+                messages: conv.messages,
+                tools: specs,
+                maxOutput: binding.maxTokens,
+              },
+              signal,
+              (event) => {
+                if (event.type === "text_delta") {
+                  state.stream += event.delta;
+                  emit(state, { type: "text_delta", delta: event.delta });
+                }
+              },
+            ),
+          { scope: keyOf(state.target) },
+        );
+        task.tokens += answer.usage.input + answer.usage.output;
+        task.cost = task.cost === null || answer.cost === null ? null : task.cost + answer.cost;
+        conv.messages.push({
+          role: "assistant",
+          id: nextId("a"),
+          text: answer.text,
+          toolCalls: answer.toolCalls,
+          at: deps.clock.now(),
+          origin: { connection: binding.connection, model: binding.model },
+          ...(answer.raw !== undefined ? { raw: answer.raw } : {}),
+        });
+        state.stream = "";
+        if (answer.toolCalls.length === 0) break;
+        for (const call of answer.toolCalls) {
+          task.current = call.name;
+          emit(state, { type: "task", task: { ...task } });
+          emit(state, { type: "tool", name: call.name, phase: "start" });
+          const outcome = await runTool(tools, call, ctx);
+          conv.messages.push({
+            role: "tool",
+            id: nextId("r"),
+            callId: call.id,
+            name: call.name,
+            text: outcome.text,
+            isError: outcome.isError,
+            at: deps.clock.now(),
+          });
+          if (!outcome.isError) task.completed.push(call.name);
+          emit(state, { type: "tool", name: call.name, phase: "end", isError: outcome.isError });
+        }
+        task.current = "";
+        conv.updated = deps.clock.iso();
+        await deps.store.save(conv);
+        signal.throwIfAborted();
+      }
+      task.endedAt = deps.clock.now();
+      conv.updated = deps.clock.iso();
+      await deps.store.save(conv);
+      const view = toChatMessages(conv.messages);
+      const last = view[view.length - 1];
+      if (last && last.role === "assistant") emit(state, { type: "message_end", message: decorate(state, last) });
+      emit(state, { type: "task", task: { ...task } });
+      emit(state, { type: "end", reason: "done" });
+    } catch (err) {
+      task.endedAt = deps.clock.now();
+      conv.updated = deps.clock.iso();
+      await deps.store.save(conv);
+      const appErr = classify(err);
+      if (signal.aborted || appErr.code === "run.stopped") {
+        emit(state, { type: "end", reason: "cancelled" });
+      } else {
+        emit(state, { type: "end", reason: "failed", error: { code: appErr.code, message: appErr.message } });
+      }
+    } finally {
+      state.stream = "";
+      state.controller = undefined;
+      setBusy(state, false);
+    }
+  }
+
+  /** 结果卡带上真实目标（落盘消息里只存 runId）。 */
+  function decorate(state: TargetState, message: ChatMessage): ChatMessage {
+    return message.result ? { ...message, result: { ...message.result, target: state.target } } : message;
+  }
+
+  return {
+    async view(target: Target, options: { conversationId?: string; limit?: number } = {}): Promise<SessionView> {
+      const state = await stateFor(target);
+      if (options.conversationId && options.conversationId !== state.conversation.id) {
+        if (state.busy) throw new AppError("gate.denied", "助手正在回复，稍后再切换对话");
+        state.conversation = await deps.store.select(target, options.conversationId);
+      }
+      const all = toChatMessages(state.conversation.messages).map((m) => decorate(state, m));
+      const limit = options.limit ?? DEFAULT_VIEW_LIMIT;
+      return {
+        conversationId: state.conversation.id,
+        messages: all.slice(-limit),
+        total: all.length,
+        busy: state.busy,
+        stream: state.stream,
+        ...(state.task ? { task: { ...state.task } } : {}),
+      };
+    },
+
+    async send(target: Target, send: SessionSend): Promise<{ conversationId: string }> {
+      const text = send.text.trim();
+      if (!text) throw new AppError("input.invalid", "消息不能为空", { field: "text" });
+      const state = await stateFor(target);
+      if (state.busy) throw new AppError("gate.denied", "助手正在回复，请稍候或先停止", { busy: true });
+      deps.binding();
+      const conv = state.conversation;
+      if (!conv.title) conv.title = text.slice(0, 24);
+      conv.messages.push({
+        role: "user",
+        id: nextId("u"),
+        text: userPrompt(text, send.intent, send.focus),
+        at: deps.clock.now(),
+      });
+      conv.updated = deps.clock.iso();
+      await deps.store.save(conv);
+      const controller = new AbortController();
+      state.controller = controller;
+      setBusy(state, true);
+      state.pending = runTurn(state, send, controller.signal);
+      return { conversationId: conv.id };
+    },
+
+    async stop(target: Target): Promise<void> {
+      const state = states.get(keyOf(target));
+      state?.controller?.abort();
+      await state?.pending;
+    },
+
+    async list(target: Target): Promise<ConversationItem[]> {
+      return deps.store.list(target);
+    },
+
+    async newConversation(target: Target): Promise<ConversationItem> {
+      const state = await stateFor(target);
+      if (state.busy) throw new AppError("gate.denied", "助手正在回复，稍后再开新对话");
+      state.conversation = await deps.store.create(target);
+      state.task = undefined;
+      const conv = state.conversation;
+      return { id: conv.id, title: conv.title, updated: conv.updated, messages: 0, current: true };
+    },
+
+    async usage(target: Target): Promise<ContextUsageView> {
+      const state = await stateFor(target);
+      const binding = deps.binding();
+      const tokens = contextTokens(await buildSystem(state), state.conversation.messages);
+      return {
+        tokens,
+        window: binding.contextWindow,
+        percent: Math.min(100, Math.round((tokens / binding.contextWindow) * 100)),
+        messages: state.conversation.messages.length,
+        compactAt: compactThreshold(binding.contextWindow),
+      };
+    },
+
+    async compact(target: Target, instructions?: string): Promise<CompactResult> {
+      const state = await stateFor(target);
+      if (state.busy) throw new AppError("gate.denied", "助手正在回复，稍后再压缩");
+      return compactConversation(state, instructions);
+    },
+
+    running(): RunningRow[] {
+      return [...states.values()]
+        .filter((s) => s.busy)
+        .map((s) => ({ target: s.target, source: "assistant" as const, since: s.since }));
+    },
+
+    /** 等待某个目标的当前回复结束（关闭与测试用）。 */
+    async idle(target: Target): Promise<void> {
+      await states.get(keyOf(target))?.pending;
+    },
+
+    async dispose(): Promise<void> {
+      for (const state of states.values()) state.controller?.abort();
+      await Promise.all([...states.values()].map((s) => s.pending));
+    },
+  };
+}
+
+export type SessionManager = ReturnType<typeof createSessionManager>;

@@ -1,8 +1,10 @@
+import { AppError } from "@zhizhang/core/errors";
+import { desktopApi } from "./bridge";
 import type { Focus, Target } from "./context";
 import type { WorkspaceContext } from "./shared/types";
+import type { SessionIntent } from "./shared/views";
 import type { DesktopState } from "./renderer/state/store";
 import type { ChatState } from "./renderer/state/chatStore";
-import { desktop } from "./renderer/state/desktop";
 
 type CommandDependencies = {
   name: string;
@@ -12,7 +14,8 @@ type CommandDependencies = {
   focus: Focus;
   set: (patch: Partial<DesktopState> | ((state: DesktopState) => Partial<DesktopState>)) => void;
   setChat: (patch: Partial<ChatState> | ((state: ChatState) => Partial<ChatState>)) => void;
-  sendText: (value: string, snapshot?: Focus) => Promise<void>;
+  /** 发给助手：只带作者原话与意图，指令模板由主进程 session/prompt.ts 拼装。 */
+  sendText: (value: string, intent?: SessionIntent) => Promise<void>;
   deliver: (action: string, note?: string) => Promise<void>;
   jump: (target: Target | null, focus?: Focus) => Promise<void>;
   newWork: (mode: "fanqie" | "toutiao", note?: string) => Promise<void>;
@@ -27,11 +30,7 @@ const HANDLERS: Record<string, (deps: CommandDependencies) => Promise<unknown>> 
     return deps.jump(selected, { ...focus, candidate: context.candidate?.id });
   },
   补全章纲: async (deps: CommandDependencies) => {
-    const { args, focus } = deps;
-    return deps.sendText("【写作台】读取本书已保存的规划，补齐当前章纲缺项；不要写正文。" + args, {
-      ...focus,
-      intent: "plan",
-    });
+    return deps.sendText(deps.args || "补齐当前章纲缺项", "plan");
   },
   新书: async (deps: CommandDependencies) => {
     const { args } = deps;
@@ -50,21 +49,10 @@ const HANDLERS: Record<string, (deps: CommandDependencies) => Promise<unknown>> 
     return deps.deliver("review", args);
   },
   拆书: async (deps: CommandDependencies) => {
-    const { args, focus } = deps;
-    return deps.sendText(
-      "【写作台】拆解以下指定原文或链接。只完成分析，不自动入库或改写本书。" +
-        (args || "先请我提供原文片段或链接。"),
-      { ...focus, intent: "plan" },
-    );
+    return deps.sendText(deps.args || "我想拆解一份原文，请告诉我如何导入拆书库", "plan");
   },
   质检: async (deps: CommandDependencies) => {
-    const { selected, focus } = deps;
-    return deps.sendText(
-      selected?.mode === "toutiao"
-        ? "【写作台】对当前文章做质检，回报实际分数、硬闸与未通过项，不自动采用。"
-        : "【写作台】对当前章节做表达与伏笔核对，回报值得核对的位置，不自动改稿或定稿。",
-      { ...focus, intent: "review" },
-    );
+    return deps.sendText(deps.args || "检查当前稿件", "check");
   },
   交稿: async (deps: CommandDependencies) => {
     const { args, selected } = deps;
@@ -76,13 +64,13 @@ const HANDLERS: Record<string, (deps: CommandDependencies) => Promise<unknown>> 
   },
   新对话: async (deps: CommandDependencies) => {
     const { selected } = deps;
-    if (!selected) throw new Error("请先打开作品");
+    if (!selected) throw new AppError("input.invalid", "请先打开作品", { field: "target" });
     if (!(await deps.canLeave())) return;
-    await desktop.newConversation(selected);
+    await desktopApi.newConversation(selected);
     deps.clearArchive();
     deps.setChat({
       archive: undefined,
-      archives: await desktop.conversations(selected),
+      archives: await desktopApi.conversations(selected),
       phase: "新对话已准备，作品保留；下一条指令会自动带入交接。",
     });
     await deps.loadView(selected);
@@ -154,7 +142,7 @@ export const COMMANDS = COMMAND_DESCRIPTIONS.map((command) => ({
 }));
 export function getCommand(id: string) {
   const command = COMMANDS.find((command) => command.id === id);
-  if (!command) throw new Error("未识别的命令，请从命令面板选择");
+  if (!command) throw new AppError("input.invalid", "未识别的命令，请从命令面板选择", { command: id });
   return command;
 }
 export async function runCommand(deps: CommandDependencies) {

@@ -1,102 +1,87 @@
-/** The only Pi SDK import boundary, including its accepted-prompt hook. */
-export {
-  createAgentSession,
-  DefaultResourceLoader,
-  SessionManager,
-  SettingsManager,
-  ModelRuntime,
-} from "@earendil-works/pi-coding-agent";
-export type { AgentSession, ToolDefinition } from "@earendil-works/pi-coding-agent";
-import { ModelRuntime, type AgentSession } from "@earendil-works/pi-coding-agent";
-export type { Api, ModelThinkingLevel } from "@earendil-works/pi-ai";
+/**
+ * 唯一的 PI SDK 边界：
+ *  - ModelPort（流水线阶段调用）：runtime.streamSimple，纯文本单轮；
+ *  - AssistantPort（助手会话）：同一 runtime 的 streamSimple，带工具声明的一轮；
+ *  - 连接测试与 PI 模型目录。
+ * PI 的类型不出本文件；SDK 自带重试一律关闭（maxRetries: 0），由 ModelGateway 统一退避。
+ *
+ * temperature：PI 1.5 的 streamSimple 经 buildBaseOptions 原样透传 temperature，
+ * openai-completions / openai-responses / google / mistral 写入请求体；anthropic-messages
+ * 在开启思考或模型声明不支持时丢弃；openai-responses 对推理模型省略。不支持时字段保留但被忽略。
+ */
+import { createHash } from "node:crypto";
+import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import {
   getSupportedThinkingLevels,
-  clampThinkingLevel,
   InMemoryModelsStore,
   isContextOverflow,
   isRetryableAssistantError,
+  type Api,
   type AssistantMessage,
+  type Context,
+  type Message,
+  type Model,
+  type Tool,
+  type ToolCall,
 } from "@earendil-works/pi-ai";
-import { createHash } from "node:crypto";
-export { clampThinkingLevel };
-/**
- * pi-ai's verdict on a provider error text: whether it reads as a context overflow and whether it
- * reads as transient. Both judge only the error text of a failed answer, so a thrown error's
- * message is wrapped as one.
- */
-export function providerErrorTraits(message: string) {
-  const answer: AssistantMessage = {
-    role: "assistant",
-    content: [],
-    api: "openai-completions",
-    provider: "",
-    model: "",
-    usage: {
-      input: 0,
-      output: 0,
-      cacheRead: 0,
-      cacheWrite: 0,
-      totalTokens: 0,
-      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-    },
-    stopReason: "error",
-    errorMessage: message,
-    timestamp: 0,
-  };
-  return { overflow: isContextOverflow(answer), retryable: isRetryableAssistantError(answer) };
+import { AppError, classify } from "@zhizhang/core/errors";
+import type { ModelAnswer, ModelPort, ModelRequest, StreamEvent } from "@zhizhang/core/model";
+import type { ModelApi, ThinkingLevel } from "../shared/settings.js";
+import type { ModelCatalogView, ModelTestResult } from "../shared/views.js";
+import type {
+  AgentMessage,
+  AgentToolCall,
+  AssistantPort,
+  AssistantTurnAnswer,
+  AssistantTurnEvent,
+  AssistantTurnRequest,
+} from "./types.js";
+
+export interface ResolvedConnection {
+  id: string;
+  provider: string;
+  api: ModelApi;
+  baseUrl: string;
+  apiKey: string;
+  keyless: boolean;
+  contextWindow: number;
+  maxTokens: number;
 }
+
+export interface PiPortOptions {
+  authPath: string;
+  resolve(connectionId: string): ResolvedConnection;
+  /** 角色绑定上的思考档位与温度（阶段请求未指定时采用）。 */
+  defaults?(connectionId: string, model: string): { thinking?: ThinkingLevel; temperature?: number } | undefined;
+}
+
 const catalogStore = new InMemoryModelsStore();
-let proxyConfigured = false;
 const LOOPBACK = ["localhost", "127.0.0.1", "::1"];
-async function configureSystemProxy() {
+let proxyConfigured = false;
+
+async function configureSystemProxy(): Promise<void> {
   if (proxyConfigured) return;
-  if (
-    process.env.HTTPS_PROXY ||
-    process.env.https_proxy ||
-    process.env.HTTP_PROXY ||
-    process.env.http_proxy
-  ) {
-    const { EnvHttpProxyAgent, setGlobalDispatcher } = await import("undici");
-    // Local model servers (Ollama, LM Studio, relays) are never sent through a system proxy,
-    // even when the author's NO_PROXY does not list loopback.
-    const declared = process.env.NO_PROXY ?? process.env.no_proxy ?? "";
-    const noProxy = [declared, ...LOOPBACK].filter((value) => value.trim()).join(",");
-    setGlobalDispatcher(new EnvHttpProxyAgent({ noProxy }));
-  }
   proxyConfigured = true;
+  const proxy =
+    process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy;
+  if (!proxy) return;
+  const { EnvHttpProxyAgent, setGlobalDispatcher } = await import("undici");
+  const declared = process.env.NO_PROXY ?? process.env.no_proxy ?? "";
+  const noProxy = [declared, ...LOOPBACK].filter((value) => value.trim()).join(",");
+  setGlobalDispatcher(new EnvHttpProxyAgent({ noProxy }));
 }
-import type { ModelConnection } from "../models";
-import { asRecord } from "../shared/types.js";
-/** Keep cancellation attached through context preparation and SDK prompt startup. */
-export async function promptWithSignal(
-  session: AgentSession,
-  prepare: () => Promise<string>,
-  signal?: AbortSignal,
-) {
-  const abort = () => {
-    void session.abort();
-  };
-  signal?.addEventListener("abort", abort, { once: true });
-  try {
-    signal?.throwIfAborted();
-    const text = await prepare();
-    signal?.throwIfAborted();
-    await session.prompt(text, {
-      expandPromptTemplates: false,
-      // prompt awaits input/auth before marking a run active. Reapply an abort
-      // received in that gap once the run exists, before its first request.
-      preflightResult: () => {
-        if (signal?.aborted) abort();
-      },
-    });
-    signal?.throwIfAborted();
-  } finally {
-    signal?.removeEventListener("abort", abort);
-  }
-}
+
 const PROVIDER_IDS: Record<string, string> = { kimi: "moonshotai-cn" };
-const providerId = (id: string) => PROVIDER_IDS[id] ?? id;
-export async function runtimeModel(settings: ModelConnection, authPath: string, role: string) {
+
+interface RuntimeEntry {
+  runtime: ModelRuntime;
+  model: Model<Api>;
+}
+
+const runtimes = new Map<string, Promise<RuntimeEntry>>();
+const RUNTIME_LIMIT = 12;
+
+async function buildRuntime(conn: ResolvedConnection, modelId: string, authPath: string): Promise<RuntimeEntry> {
   await configureSystemProxy();
   const runtime = await ModelRuntime.create({
     authPath,
@@ -105,156 +90,278 @@ export async function runtimeModel(settings: ModelConnection, authPath: string, 
     refreshOnCreate: true,
     allowModelNetwork: false,
   });
-  const catalog = runtime.getModel(providerId(settings.provider), settings.model);
-  runtime.registerProvider("writer-" + role, {
-    baseUrl: settings.baseUrl,
-    apiKey: settings.keyless ? "local" : settings.apiKey,
-    api: settings.api,
+  const catalog = runtime.getModel(PROVIDER_IDS[conn.provider] ?? conn.provider, modelId);
+  const providerId = `zhizhang-${conn.id}`;
+  runtime.registerProvider(providerId, {
+    baseUrl: conn.baseUrl,
+    apiKey: conn.keyless ? "local" : conn.apiKey,
+    api: conn.api,
     models: [
       {
         ...catalog,
-        ...(settings.thinkingLevelMap ? { thinkingLevelMap: settings.thinkingLevelMap } : {}),
-        baseUrl: settings.baseUrl,
-        api: settings.api,
-        id: settings.model,
-        name: settings.model,
-        reasoning: settings.reasoning,
+        id: modelId,
+        name: modelId,
+        api: conn.api,
+        baseUrl: conn.baseUrl,
+        reasoning: catalog?.reasoning ?? false,
         input: ["text"],
-        cost: catalog?.cost || { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-        contextWindow: settings.contextWindow,
-        maxTokens: settings.maxTokens,
+        cost: catalog?.cost ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: conn.contextWindow,
+        maxTokens: conn.maxTokens,
       },
     ],
   });
-  const model = runtime.getModel("writer-" + role, settings.model);
-  if (!model) throw new Error("模型配置未生效");
+  const model = runtime.getModel(providerId, modelId);
+  if (!model) throw new AppError("model.unavailable", `模型配置未生效：${modelId}`, { model: modelId });
   return { runtime, model };
 }
-/** Pipeline stages reuse one runtime per connection instead of rebuilding the provider catalog. */
-const stageRuntimes = new Map<string, ReturnType<typeof runtimeModel>>();
-const STAGE_RUNTIME_LIMIT = 8;
-export function stageRuntimeModel(settings: ModelConnection, authPath: string, role: string) {
-  // Hashed so the cache key holds no plain API key; any settings change is a different key.
-  const key = createHash("sha256")
-    .update(JSON.stringify([authPath, role, settings]))
-    .digest("hex");
-  let hit = stageRuntimes.get(key);
-  if (!hit) {
-    if (stageRuntimes.size >= STAGE_RUNTIME_LIMIT)
-      stageRuntimes.delete(stageRuntimes.keys().next().value as string);
-    hit = runtimeModel(settings, authPath, role);
-    stageRuntimes.set(key, hit);
-    const pending = hit;
-    pending.catch(() => {
-      // allow-catch: rejected cached runtime is evicted; the original promise remains the result.
-      if (stageRuntimes.get(key) === pending) stageRuntimes.delete(key);
-    });
+
+function runtimeFor(conn: ResolvedConnection, modelId: string, authPath: string): Promise<RuntimeEntry> {
+  const key = createHash("sha256").update(JSON.stringify([authPath, conn, modelId])).digest("hex");
+  const hit = runtimes.get(key);
+  if (hit) return hit;
+  if (runtimes.size >= RUNTIME_LIMIT) {
+    const oldest = runtimes.keys().next();
+    if (!oldest.done) runtimes.delete(oldest.value);
   }
-  return hit;
-}
-export async function promptAccepted(
-  session: AgentSession,
-  text: string,
-  onError: (error: unknown) => void,
-) {
-  await new Promise<void>((resolve, reject) => {
-    let accepted = false;
-    void session
-      .prompt(text, {
-        streamingBehavior: "followUp",
-        expandPromptTemplates: false,
-        preflightResult: () => {
-          accepted = true;
-          resolve();
-        },
-      })
-      .then(
-        () => resolve(),
-        (error) => (accepted ? onError(error) : reject(error)),
-      );
+  const pending = buildRuntime(conn, modelId, authPath);
+  runtimes.set(key, pending);
+  pending.catch(() => {
+    if (runtimes.get(key) === pending) runtimes.delete(key);
   });
-}
-export async function testConnection(settings: ModelConnection, authPath: string) {
-  if (!settings.apiKey && !settings.keyless) throw new Error("请先填写 API Key");
-  const start = Date.now(),
-    { runtime, model } = await runtimeModel(settings, authPath, "connection");
-  const answer = await runtime.completeSimple(
-    model,
-    {
-      messages: [{ role: "user", content: "请只回答 OK", timestamp: Date.now() }],
-    },
-    { maxTokens: 32 },
-  );
-  if (answer.stopReason === "error") throw new Error(answer.errorMessage || "模型连接失败");
-  return { latency: Date.now() - start, model: settings.model };
+  return pending;
 }
 
-export async function modelCatalog(authPath: string, settings: ModelConnection, refresh = false) {
-  const { runtime, model } = await runtimeModel(settings, authPath, "catalog");
-  const provider = providerId(settings.provider);
-  if (refresh) {
-    const result = await runtime.refresh({
-      providers: [provider],
-      signal: AbortSignal.timeout(10000),
-    });
-    const failure = result.errors.get(provider);
-    if (failure) throw failure;
+function reasoningOf(level: ThinkingLevel | undefined): Exclude<ThinkingLevel, "off"> | undefined {
+  return level === undefined || level === "off" ? undefined : level;
+}
+
+/** 把失败的回答映射成错误码；只看 PI 的判定与 HTTP 状态号，不匹配中文文案。 */
+function answerError(message: AssistantMessage, contextWindow: number): AppError {
+  const text = message.errorMessage ?? "";
+  if (message.stopReason === "aborted") return new AppError("run.stopped", "模型请求已取消");
+  if (isContextOverflow(message, contextWindow)) {
+    return new AppError("model.context_overflow", text || "上下文超出模型窗口");
   }
+  const status = /\b(40[123]|429)\b/.exec(text)?.[1];
+  if (status === "401" || status === "403") return new AppError("model.auth", text, { status: Number(status) });
+  if (status === "402") return new AppError("model.balance", text, { status: 402 });
+  if (status === "429") return new AppError("model.rate_limited", text, { status: 429 });
+  if (isRetryableAssistantError(message)) return new AppError("model.unavailable", text);
+  return new AppError("model.unavailable", text || "模型请求失败");
+}
+
+function usageOf(message: AssistantMessage): ModelAnswer["usage"] {
   return {
-    providers: runtime
-      .getProviders()
-      .map((p) => {
-        const m = runtime.getModels(p.id)[0];
-        return m
-          ? {
-              id: p.id,
-              name: p.name,
-              api: m.api,
-              baseUrl: m.baseUrl,
-              model: m.id,
-              contextWindow: m.contextWindow,
-              maxTokens: m.maxTokens,
-              reasoning: m.reasoning,
-              thinkingLevelMap: m.thinkingLevelMap,
-            }
-          : null;
-      })
-      .filter((value): value is NonNullable<typeof value> => value !== null),
-    source: "PI 模型目录",
-    models: runtime.getModels(provider).map((m) => ({
-      id: m.id,
-      name: m.name,
-      api: m.api,
-      contextWindow: m.contextWindow,
-      maxTokens: m.maxTokens,
-      reasoning: m.reasoning,
-      thinkingLevelMap: m.thinkingLevelMap,
-      levels: getSupportedThinkingLevels(m),
-    })),
-    levels: getSupportedThinkingLevels(model),
-    thinkingLevel: clampThinkingLevel(model, settings.thinkingLevel),
+    input: message.usage.input,
+    cachedInput: message.usage.cacheRead,
+    output: message.usage.output,
   };
 }
 
-export async function discoverModels(settings: ModelConnection) {
-  if (settings.api !== "openai-completions" && settings.api !== "openai-responses")
-    throw new Error("此自定义接口请使用 PI 目录或手填模型 ID");
-  const response = await fetch(settings.baseUrl + "/models", {
-    headers: settings.apiKey ? { Authorization: "Bearer " + settings.apiKey } : {},
-    signal: AbortSignal.timeout(10000),
-  });
-  if (!response.ok) throw new Error(`模型列表请求失败（${response.status}），可保留配置并手填模型`);
-  const body = asRecord(await response.json(), "模型列表响应");
-  if (!Array.isArray(body["data"]))
-    throw new Error("模型列表响应格式异常：data 应为列表，可保留配置并手填模型");
+function costOf(message: AssistantMessage, model: Model<Api>): number | null {
+  const priced = model.cost.input > 0 || model.cost.output > 0;
+  return priced ? message.usage.cost.total : null;
+}
+
+function textOf(message: AssistantMessage): string {
+  return message.content
+    .filter((part): part is { type: "text"; text: string } => part.type === "text")
+    .map((part) => part.text)
+    .join("");
+}
+
+function toolCallsOf(message: AssistantMessage): AgentToolCall[] {
+  return message.content
+    .filter((part): part is ToolCall => part.type === "toolCall")
+    .map((part) => ({ id: part.id, name: part.name, args: { ...part.arguments } }));
+}
+
+function isPiAssistant(value: unknown): value is AssistantMessage {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "role" in value &&
+    value.role === "assistant" &&
+    "content" in value &&
+    Array.isArray(value.content)
+  );
+}
+
+function toPiMessages(
+  messages: AgentMessage[],
+  request: AssistantTurnRequest,
+  model: Model<Api>,
+): Message[] {
+  const out: Message[] = [];
+  for (const msg of messages) {
+    if (msg.role === "user") {
+      out.push({ role: "user", content: msg.text, timestamp: msg.at });
+    } else if (msg.role === "summary") {
+      out.push({ role: "user", content: `【此前对话摘要】\n${msg.text}`, timestamp: msg.at });
+    } else if (msg.role === "tool") {
+      out.push({
+        role: "toolResult",
+        toolCallId: msg.callId,
+        toolName: msg.name,
+        content: [{ type: "text", text: msg.text }],
+        isError: msg.isError,
+        timestamp: msg.at,
+      });
+    } else {
+      const sameOrigin =
+        msg.origin?.connection === request.connection && msg.origin.model === request.model;
+      if (sameOrigin && isPiAssistant(msg.raw)) {
+        out.push(msg.raw);
+        continue;
+      }
+      out.push({
+        role: "assistant",
+        content: [
+          ...(msg.text ? [{ type: "text" as const, text: msg.text }] : []),
+          ...msg.toolCalls.map(
+            (call): ToolCall => ({
+              type: "toolCall",
+              id: call.id,
+              name: call.name,
+              arguments: JSON.parse(JSON.stringify(call.args)),
+            }),
+          ),
+        ],
+        api: model.api,
+        provider: model.provider,
+        model: model.id,
+        usage: {
+          input: 0,
+          output: 0,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 0,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        },
+        stopReason: msg.toolCalls.length > 0 ? "toolUse" : "stop",
+        timestamp: msg.at,
+      });
+    }
+  }
+  return out;
+}
+
+export function createPiPorts(options: PiPortOptions): ModelPort & AssistantPort {
+  async function run(
+    connectionId: string,
+    modelId: string,
+    context: Context,
+    params: { maxOutput?: number; thinking?: ThinkingLevel; temperature?: number },
+    signal: AbortSignal,
+    onDelta: (event: AssistantTurnEvent) => void,
+  ): Promise<{ message: AssistantMessage; model: Model<Api> }> {
+    const conn = options.resolve(connectionId);
+    if (!conn.keyless && !conn.apiKey) {
+      throw new AppError("model.auth", `连接 ${conn.id} 尚未填写 API Key`, { connection: conn.id });
+    }
+    const { runtime, model } = await runtimeFor(conn, modelId, options.authPath);
+    const preset = options.defaults?.(connectionId, modelId);
+    const temperature = params.temperature ?? preset?.temperature;
+    const reasoning = reasoningOf(params.thinking ?? preset?.thinking);
+    try {
+      const stream = runtime.streamSimple(model, context, {
+        signal,
+        maxRetries: 0,
+        ...(params.maxOutput ? { maxTokens: params.maxOutput } : {}),
+        ...(temperature !== undefined ? { temperature } : {}),
+        ...(reasoning ? { reasoning } : {}),
+      });
+      for await (const event of stream) {
+        if (event.type === "text_delta") onDelta({ type: "text_delta", delta: event.delta });
+        else if (event.type === "toolcall_end") onDelta({ type: "tool_call", name: event.toolCall.name });
+      }
+      const message = await stream.result();
+      if (message.stopReason === "error" || message.stopReason === "aborted") {
+        throw answerError(message, conn.contextWindow);
+      }
+      return { message, model };
+    } catch (err) {
+      if (signal.aborted) throw new AppError("run.stopped", "模型请求已取消");
+      throw classify(err, { provider: true });
+    }
+  }
+
   return {
-    source: "当前端点（仅模型 ID，容量与思考能力需确认）",
-    models: body["data"].map((m) => {
-      const item = asRecord(m, "模型条目");
-      const id = item["id"];
-      if (typeof id !== "string" || !id)
-        throw new Error("模型列表响应格式异常：模型条目缺字符串 id");
-      return { id, name: id };
-    }),
+    async stream(req: ModelRequest, signal: AbortSignal, on: (e: StreamEvent) => void): Promise<ModelAnswer> {
+      const { message, model } = await run(
+        req.connection,
+        req.model,
+        { systemPrompt: req.system, messages: [{ role: "user", content: req.user, timestamp: Date.now() }] },
+        { maxOutput: req.maxOutput, thinking: req.thinking, temperature: req.temperature },
+        signal,
+        (event) => {
+          if (event.type === "text_delta") on({ type: "delta", text: event.delta });
+        },
+      );
+      on({ type: "done" });
+      return { text: textOf(message), usage: usageOf(message), cost: costOf(message, model) };
+    },
+
+    async turn(request, signal, on): Promise<AssistantTurnAnswer> {
+      const conn = options.resolve(request.connection);
+      const { model: probe } = await runtimeFor(conn, request.model, options.authPath);
+      const tools: Tool[] = request.tools.map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        parameters: tool.parameters,
+      }));
+      const { message, model } = await run(
+        request.connection,
+        request.model,
+        { systemPrompt: request.system, messages: toPiMessages(request.messages, request, probe), tools },
+        { maxOutput: request.maxOutput },
+        signal,
+        on,
+      );
+      return {
+        text: textOf(message),
+        toolCalls: toolCallsOf(message),
+        usage: usageOf(message),
+        cost: costOf(message, model),
+        raw: message,
+      };
+    },
+  };
+}
+
+export async function testPiConnection(
+  conn: ResolvedConnection,
+  modelId: string,
+  authPath: string,
+  clock: { now(): number },
+): Promise<ModelTestResult> {
+  const ports = createPiPorts({ authPath, resolve: () => conn });
+  const started = clock.now();
+  const controller = new AbortController();
+  await ports.stream(
+    { connection: conn.id, model: modelId, system: "", user: "请只回答 OK", maxOutput: 32 },
+    controller.signal,
+    () => undefined,
+  );
+  return { latencyMs: clock.now() - started, model: modelId };
+}
+
+export async function piModelCatalog(
+  conn: ResolvedConnection,
+  modelId: string,
+  authPath: string,
+): Promise<ModelCatalogView> {
+  const { runtime } = await runtimeFor(conn, modelId, authPath);
+  const provider = PROVIDER_IDS[conn.provider] ?? conn.provider;
+  return {
+    source: "pi",
+    models: runtime.getModels(provider).map((m) => ({
+      id: m.id,
+      name: m.name,
+      contextWindow: m.contextWindow,
+      maxTokens: m.maxTokens,
+      reasoning: m.reasoning && getSupportedThinkingLevels(m).length > 1,
+    })),
   };
 }

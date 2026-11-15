@@ -1,16 +1,7 @@
 import { contextBridge, ipcRenderer, webFrame } from "electron";
 import type { DesktopEvent } from "./shared/events.js";
 import type { DesktopBridge } from "./shared/ipc.js";
-
-const ZOOM_BASE = { width: 1380, height: 760 } as const;
-const ZOOM_MAX = 1.75;
-
-function fitZoom(width: number, height: number): number {
-  if (!(width > 0) || !(height > 0)) return 1;
-  const ratio = Math.min(width / ZOOM_BASE.width, height / ZOOM_BASE.height);
-  const clamped = Math.min(ZOOM_MAX, Math.max(1, ratio));
-  return Math.round(clamped * 20) / 20;
-}
+import { fitZoom } from "./main/zoom.js";
 
 const fitWindowZoom = () => {
   const current = webFrame.getZoomFactor();
@@ -30,6 +21,7 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 });
 
+/** 只暴露类型化调用与事件订阅；通道名一律加 "zhizhang:" 前缀，与主进程注册一致。 */
 const bridge: DesktopBridge = {
   invoke: (channel, ...args) => ipcRenderer.invoke(`zhizhang:${channel}`, ...args),
   subscribe: (callback) => {
