@@ -341,7 +341,9 @@ async function bootstrap(): Promise<void> {
     },
   });
 
-  window = await createMainWindow(config.settings().appearance);
+  window = await createMainWindow(config.settings().appearance, (created) => {
+    window = created;
+  });
   if (startupNotice) emit(startupNotice);
 
   registerQuitCleanup(
