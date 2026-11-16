@@ -1,25 +1,35 @@
 import React, { useEffect, useState } from "react";
-import { Check, ChevronLeft, X } from "lucide-react";
-import { DESKTOP_COPY as C, formatCost } from "@zhizhang/ui/copy";
+import { Check, ChevronLeft, GitCompare, X } from "lucide-react";
+import { DESKTOP_COPY as C, ERROR_COPY, formatCost } from "@zhizhang/ui/copy";
 import { useRequestGuard } from "@zhizhang/ui/use-request-guard";
 import { Button, Empty, Notice, StatusChip } from "@zhizhang/ui/primitives";
 import type { RunDetail, RunSummary, Target } from "../../../shared/views";
 import { desktop } from "../../state/desktop";
 import { errorText } from "../../format";
-import { kindLabel, stageLabel, stateLabel, stateTone } from "./workflow-model";
+import {
+  hasCandidate,
+  kindLabel,
+  requestField,
+  stageLabel,
+  stateLabel,
+  stateTone,
+} from "./workflow-model";
 
 /**
- * 历史运行的只读详情（D13）：阶段时间线（含每阶段用量与备注）、上下文分区、交付回执。
+ * 历史运行的只读详情（D13）：阶段时间线（含每阶段用量与备注）、上下文分区、交付回执、
+ * 运行级错误，以及已交付候选稿的「打开对照」产物链接。
  * 详情经代号守卫拉取（use-request-guard）；不提供任何重跑或改写入口。
  */
 export function RunDetailView({
   run,
   target,
   onBack,
+  onOpenCompare,
 }: {
   run: RunSummary;
   target: Target;
   onBack: () => void;
+  onOpenCompare: (chapter: string) => void;
 }) {
   const [detail, setDetail] = useState<RunDetail | null>(null);
   const [error, setError] = useState("");
@@ -47,6 +57,14 @@ export function RunDetailView({
   });
   const deliver = [...steps].reverse().find((step) => step.id.startsWith("deliver"));
   const tokens = run.usage.input + run.usage.cachedInput + run.usage.output;
+  const chapter = requestField(detail, "chapterId");
+  const runError = run.error ?? detail?.error;
+  // 候选稿是运行产物：到达待裁决（或其后的采纳/放弃终态）即已落盘，历史里可回看对照；
+  // running/paused/failed 尚未交付（或交付被中断），不显示入口以免对照页报“未找到候选稿”。
+  const canCompare =
+    hasCandidate(run.kind) &&
+    Boolean(chapter) &&
+    (run.state === "awaiting-author" || run.state === "applied" || run.state === "discarded");
 
   return (
     <section
@@ -72,6 +90,25 @@ export function RunDetailView({
         <StatusChip tone={stateTone(run.state)} label={stateLabel(run.state)} dot />
       </header>
       {error ? <Notice tone="bad" message={error} /> : null}
+      {runError ? (
+        <Notice
+          tone="bad"
+          message={`${ERROR_COPY[runError.code] ?? runError.code}：${runError.message}`}
+        />
+      ) : null}
+      {canCompare && chapter ? (
+        <div className="zz-row">
+          <Button
+            variant="strong"
+            size="sm"
+            data-testid="run-detail-compare"
+            onClick={() => onOpenCompare(chapter)}
+          >
+            <GitCompare size={14} aria-hidden="true" />
+            {C.workflow.openCompare}
+          </Button>
+        </div>
+      ) : null}
       {detail ? (
         <>
           <section aria-label={C.workflow.stages} className="zz-stack">

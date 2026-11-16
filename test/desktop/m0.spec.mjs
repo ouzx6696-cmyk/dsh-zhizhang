@@ -486,17 +486,26 @@ test("M0-3：历史里点开上一条运行 → 显示阶段列表与交付回�
       timeout: 120_000,
     });
 
-    // 点开历史里的第一条 → 只读详情：阶段列表 + 交付回执
+    // 点开历史里的第一条（applied，候选稿已交付）→ 阶段列表 + 交付回执 → 返回当前运行
     await tid("workflow-history").locator("summary").click();
     await tid("workflow-history-item").first().click();
     await expect(tid("run-detail")).toBeVisible();
+    await expect(tid("run-detail")).toHaveAttribute("data-state", "applied");
     await expect(tid("run-detail-stage").first()).toBeVisible();
     expect(await tid("run-detail-stage").count()).toBeGreaterThan(1);
     await expect(tid("run-detail-receipt")).toBeVisible();
     await expect(tid("run-detail-context-empty")).toBeVisible();
-
-    // 返回按钮回到当前运行
     await tid("run-detail-back").click();
+    await expect(tid("workflow-run").first()).toBeVisible();
+
+    // 再进同一详情 → 「打开对照」产物链接 → 对照视图（候选稿落盘，采纳后仍可回看）→ 关闭回到当前运行
+    await tid("workflow-history").locator("summary").click();
+    await tid("workflow-history-item").first().click();
+    await expect(tid("run-detail")).toBeVisible();
+    await expect(tid("run-detail-compare")).toBeVisible();
+    await tid("run-detail-compare").click();
+    await expect(tid("compare-candidate")).toBeVisible({ timeout: 30_000 });
+    await tid("compare-close").click();
     await expect(tid("workflow-run").first()).toBeVisible();
   } finally {
     await app.close();

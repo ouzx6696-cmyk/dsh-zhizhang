@@ -4,7 +4,7 @@ import { Empty, Notice } from "@zhizhang/ui/primitives";
 import type { RunDetail, RunSummary, Target, WorkflowAction } from "../../../shared/views";
 import { askConfirm } from "../../state/confirm";
 import { desktop } from "../../state/desktop";
-import { sameTarget } from "../../state/store";
+import { desktopStore, sameTarget } from "../../state/store";
 import { errorText, notifyError } from "../../format";
 import { decideRun } from "./decide";
 import { RunCard } from "./RunCard";
@@ -87,11 +87,26 @@ export function WorkflowPanel({ target, compact = false }: { target: Target; com
   // 查看的运行被新事件更新时保持同步，避免详情页停留在旧状态。
   const viewed = viewing ? (runs.find((r) => r.id === viewing.id) ?? viewing) : null;
 
+  // 详情页的「打开对照」：已交付候选稿的历史运行进入工作区对照视图（D13 产物链接）。
+  const onOpenCompare = (chapter: string) => {
+    if (!viewed) return;
+    desktopStore.set({
+      compare: { target, runId: viewed.id, chapter },
+      view: "writing",
+    });
+    setViewing(null);
+  };
+
   return (
     <div className="zz-workflow" data-testid="workflow-panel">
       {error ? <Notice tone="bad" message={error} /> : null}
       {viewed ? (
-        <RunDetailView run={viewed} target={target} onBack={() => setViewing(null)} />
+        <RunDetailView
+          run={viewed}
+          target={target}
+          onBack={() => setViewing(null)}
+          onOpenCompare={onOpenCompare}
+        />
       ) : (
         <>
           {current ? (
