@@ -1,8 +1,16 @@
 import { test, expect, _electron as electron } from "@playwright/test";
-import { mkdtemp, readdir, readFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, mkdtemp, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fakeModel } from "./fake-model.mjs";
+
+// 临时目录放在仓库内而非 %TEMP%：安全软件（如腾讯电脑管家）会监控 %TEMP%，并在应用高频
+// “临时文件 + 重命名”写盘后长时间禁止其新建文件。仓库目录通常在信任范围内（与 m0.spec 同）。
+const TMP_BASE = path.resolve("test/.tmp");
+
+async function freshDir(prefix) {
+  await mkdir(TMP_BASE, { recursive: true });
+  return await mkdtemp(path.join(TMP_BASE, prefix));
+}
 
 /**
  * 桌面端四条核心旅程（串行共享一个应用实例，状态逐步累积）：
@@ -45,8 +53,8 @@ test.describe.configure({ mode: "serial" });
 
 test.beforeAll(async () => {
   model = await fakeModel(answer);
-  home = await mkdtemp(path.join(tmpdir(), "zz-e2e-state-"));
-  root = await mkdtemp(path.join(tmpdir(), "zz-e2e-root-"));
+  home = await freshDir("zz-e2e-state-");
+  root = await freshDir("zz-e2e-root-");
   app = await electron.launch({
     args: [path.resolve("apps/desktop"), ...(process.platform === "linux" ? ["--no-sandbox"] : [])],
     env: { ...process.env, ZHIZHANG_USER_DATA: home, NO_PROXY: "127.0.0.1,localhost" },

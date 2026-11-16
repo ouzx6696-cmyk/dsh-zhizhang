@@ -282,7 +282,7 @@ export function FanqieWorkspace({ target, readonly }: { target: Target; readonly
             state={state}
             view={view}
             dispatch={dispatch}
-            onSaveChapter={(body, base) => fanqie.saveChapter(body, base)}
+            onSaveChapter={(body, base, title) => fanqie.saveChapter(body, base, title)}
             onEditState={trackEditor}
             actions={
               current ? (

@@ -2,296 +2,46 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { systemClock } from "@zhizhang/core/clock";
 import { AppError } from "@zhizhang/core/errors";
-import { atomicWrite, readJson, readTextIfExists, sha256 } from "@zhizhang/core/fs";
+import { atomicWrite, readTextIfExists } from "@zhizhang/core/fs";
 import { createLockService } from "@zhizhang/core/lock";
-import type {
-  ContextBlock,
-  ContextPacket,
-  DeliveryReceipt,
-  PipelineDefinition,
-  StageSpec,
-} from "@zhizhang/core/pipeline";
-import { buildDeliveryMarker, isAlreadyDelivered } from "@zhizhang/core/pipeline";
-import { arr, int, lit, obj, opt, str, type Infer } from "@zhizhang/core/schema";
-import { extractClaimCandidates, type ClaimCandidate } from "../../domain/claims.js";
+import type { PipelineDefinition, StageSpec } from "@zhizhang/core/pipeline";
+import { extractClaimCandidates } from "../../domain/claims.js";
 import { parseMotifsFromS3, type MotifSpec } from "../../domain/motifs.js";
-import type { ArticleStatus } from "../../domain/status.js";
 import { createRulesBridge, type QaCheckResult } from "../../rules/bridge.js";
+import { registerSource } from "../../storage/articles.js";
+import { deliverArticle, recoverArticle } from "./deliver.js";
 import {
-  ArticleMetaSchema,
-  registerSource,
-  transitionArticleStatus,
-} from "../../storage/articles.js";
+  evaluateAntiGaming,
+  extractJsonBlock,
+  filterChangedParagraphClaims,
+  makePacket,
+  mergeFactResults,
+  pickRotatedStyles,
+  refBlock,
+  resolveProfileDir,
+  resolveScriptsDir,
+  validateTitleMatrix,
+} from "./helpers.js";
+import { resolveQaOutcome, runQaRevisionLoop } from "./qa.js";
+import {
+  ArticlePipelineReq,
+  type ArticlePipelineResult,
+  type ArticleReq,
+  type BlueprintOutput,
+  type FactCheckOutput,
+  type ReviewOutput,
+  type TitleCandidate,
+  type TitleMatrixOutput,
+} from "./types.js";
 
-export const ArticlePipelineReq = obj({
-  articleId: str({ min: 1 }),
-  genre: str({ min: 1 }),
-  driver: str({ min: 1 }),
-  line: opt(str()),
-  note: opt(str()),
-  sourceText: opt(str()),
-  sourceKind: opt(lit("paste", "file", "classic")),
-  draftCount: opt(int({ min: 1, max: 5 })),
-  scriptsDir: opt(str()),
-  profileDir: opt(str()),
-  ledgerPath: opt(str()),
-  recentOpenings: opt(arr(str())),
-  recentEndings: opt(arr(str())),
-});
-
-export type ArticleReq = Infer<typeof ArticlePipelineReq>;
-
-export interface TitleCandidate {
-  text: string;
-  motif: string;
-}
-
-export interface TitleMatrixOutput {
-  main: TitleCandidate;
-  alternatives: TitleCandidate[];
-}
-
-export interface BlueprintOutput {
-  openingStyle: string;
-  endingStyle: string;
-  sections: Array<{ heading: string; question: string; action: string }>;
-  extensionStart?: string;
-}
-
-export interface FactCheckOutput {
-  claims: Array<{
-    id: string;
-    status: "supported" | "unsupported" | "unlocated";
-    sourceId?: string;
-    evidence?: string;
-  }>;
-}
-
-export interface ReviewIssue {
-  kind: "skeleton" | "ai-taste" | "fact" | "pacing";
-  quote: string;
-  issue: string;
-  fix: string;
-}
-
-export interface ReviewOutput {
-  issues: ReviewIssue[];
-  summary: string;
-}
-
-export interface AntiGamingCounts {
-  oralMarkers: number;
-  headings: number;
-}
-
-export interface AntiGamingReport {
-  before: AntiGamingCounts;
-  after: AntiGamingCounts;
-  oralDelta: number;
-  headingDelta: number;
-  warnings: string[];
-}
-
-export interface ArticlePipelineResult {
-  articleId: string;
-  title: string;
-  draft: string;
-  qa: QaCheckResult;
-  claims: ClaimCandidate[];
-  antigaming: AntiGamingReport;
-  status: ArticleStatus;
-}
-
-const ORAL_MARKER_WORDS = [
-  "说白了",
-  "讲真",
-  "这事儿",
-  "怎么说呢",
-  "你别不信",
-  "我琢磨",
-  "反正",
-  "话说回来",
-  "得承认",
-  "说实话",
-  "其实",
-  "大概",
-  "可能",
-  "我也没",
-  "不敢瞎说",
-  "——",
-  "……",
-] as const;
-
-const SENTENCE_PARTICLE_RE = /[吧呢啊呗嘛哦呀哈嘿嗯](?=[，。！？…””’\s,.!?]|$)/g;
-
-const DEFAULT_SCRIPTS_DIR = path.resolve(import.meta.dirname, "../../../skill/scripts");
-const DEFAULT_PROFILE_DIR = path.resolve(import.meta.dirname, "../../../profiles/default");
-
-function resolveScriptsDir(req: ArticleReq): string {
-  return req.scriptsDir || process.env.ZHIZHANG_TOUTIAO_SCRIPTS_DIR || DEFAULT_SCRIPTS_DIR;
-}
-
-function resolveProfileDir(req: ArticleReq): string {
-  return req.profileDir || process.env.WRITER_TOUTIAO_DEFAULT_DIR || DEFAULT_PROFILE_DIR;
-}
-
-function extractJsonBlock<T>(raw: string): T {
-  const trimmed = raw.trim();
-  const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(trimmed);
-  const candidate = fenced ? fenced[1].trim() : trimmed;
-  try {
-    return JSON.parse(candidate) as T;
-  } catch (err) {
-    throw new AppError("model.output_invalid", "模型输出不是合法 JSON", {
-      cause: err instanceof Error ? err.message : String(err),
-    });
-  }
-}
-
-function makePacket(blocks: ContextBlock[], userBlocks: ContextBlock[] = []): ContextPacket {
-  return {
-    prefix: blocks,
-    suffix: userBlocks,
-    omitted: [],
-    estimate: blocks.reduce((acc, b) => acc + b.tokens, 0),
-  };
-}
-
-function refBlock(id: string, ref: string, text: string): ContextBlock {
-  return {
-    id,
-    layer: 2,
-    text,
-    required: true,
-    tokens: Math.ceil(text.length / 2),
-    reason: `stage reference: ${ref}`,
-    source: { kind: "reference", ref },
-  };
-}
-
-export function validateTitleMatrix(
-  candidates: Array<{ text: string; motif: string }>,
-  titleMax: number,
-): { valid: Array<{ text: string; motif: string }>; dropped: string[] } {
-  const valid: Array<{ text: string; motif: string }> = [];
-  const dropped: string[] = [];
-  for (const item of candidates) {
-    if (item.text.length <= titleMax) {
-      valid.push(item);
-    } else {
-      dropped.push(`${item.text}（超出 ${titleMax} 字）`);
-    }
-  }
-  const motifs = new Set(valid.map((v) => v.motif));
-  if (valid.length < 5 || motifs.size < 3) {
-    throw new AppError("model.output_invalid", "标题矩阵需 ≥5 个合规标题且覆盖 ≥3 个母体", {
-      validCount: valid.length,
-      motifCount: motifs.size,
-    });
-  }
-  return { valid, dropped };
-}
-
-export function filterChangedParagraphClaims(
-  nextDraft: string,
-  prevClaims: ClaimCandidate[],
-): { reused: ClaimCandidate[]; toVerify: ClaimCandidate[] } {
-  const fresh = extractClaimCandidates(nextDraft);
-  const prevByPara = new Map<string, ClaimCandidate[]>();
-  for (const c of prevClaims) {
-    const list = prevByPara.get(c.paragraphHash) ?? [];
-    list.push(c);
-    prevByPara.set(c.paragraphHash, list);
-  }
-  const reused: ClaimCandidate[] = [];
-  const toVerify: ClaimCandidate[] = [];
-  for (const c of fresh) {
-    const matched = prevByPara
-      .get(c.paragraphHash)
-      ?.find((p) => p.text === c.text && p.status === "supported");
-    if (matched) reused.push({ ...matched, id: c.id });
-    else toVerify.push(c);
-  }
-  return { reused, toVerify };
-}
-
-export function countOralMarkersAndHeadings(text: string): AntiGamingCounts {
-  let oralMarkers = 0;
-  for (const marker of ORAL_MARKER_WORDS) {
-    let idx = 0;
-    while ((idx = text.indexOf(marker, idx)) !== -1) {
-      oralMarkers++;
-      idx += marker.length;
-    }
-  }
-  const particles = text.match(SENTENCE_PARTICLE_RE);
-  if (particles) oralMarkers += particles.length;
-
-  const headings = text.split(/\r?\n/).filter((line) => /^##\s+/.test(line.trim())).length;
-
-  return { oralMarkers, headings };
-}
-
-export function evaluateAntiGaming(beforeText: string, afterText: string): AntiGamingReport {
-  const before = countOralMarkersAndHeadings(beforeText);
-  const after = countOralMarkersAndHeadings(afterText);
-  const oralDelta = after.oralMarkers - before.oralMarkers;
-  const headingDelta = after.headings - before.headings;
-  const warnings: string[] = [];
-  if (oralDelta > 0) {
-    warnings.push(`口语标记在质检改稿后增加 ${oralDelta} 处，请核对是否靠堆口语词凑分`);
-  }
-  if (headingDelta > 0) {
-    warnings.push(`小标题数量在质检改稿后增加 ${headingDelta} 处，请核对是否靠拆小标题凑结构分`);
-  }
-  return { before, after, oralDelta, headingDelta, warnings };
-}
-
-export function pickRotatedStyles(
-  recentOpenings: string[] = [],
-  recentEndings: string[] = [],
-  availableOpenings: readonly string[] = [],
-  availableEndings: readonly string[] = [],
-): { openingStyle: string; endingStyle: string } {
-  const lastOpening = recentOpenings.at(-1);
-  const lastEnding = recentEndings.at(-1);
-  const openingStyle =
-    availableOpenings.find((s) => s !== lastOpening) ?? availableOpenings[0] ?? "";
-  const endingStyle = availableEndings.find((s) => s !== lastEnding) ?? availableEndings[0] ?? "";
-  return { openingStyle, endingStyle };
-}
-
-function mergeFactResults(
-  candidates: ClaimCandidate[],
-  factOut: FactCheckOutput,
-): { merged: ClaimCandidate[]; notes: string[] } {
-  const byId = new Map(factOut.claims.map((c) => [c.id, c]));
-  let unlocatedCount = 0;
-  let unsupportedCount = 0;
-  const merged = candidates.map((cand) => {
-    const hit = byId.get(cand.id);
-    if (!hit) {
-      unlocatedCount++;
-      return { ...cand, status: "unlocated" as const };
-    }
-    if (hit.status === "unlocated") unlocatedCount++;
-    if (hit.status === "unsupported") unsupportedCount++;
-    return {
-      ...cand,
-      status: hit.status,
-      sourceId: hit.sourceId,
-      evidence: hit.evidence,
-    };
-  });
-  const notes: string[] = [];
-  if (unlocatedCount > 0) {
-    notes.push(`存在 ${unlocatedCount} 条 unlocated 事实待人工核对（不阻断流水线）`);
-  }
-  if (unsupportedCount > 0) {
-    notes.push(`存在 ${unsupportedCount} 条 unsupported 事实需在改稿阶段核实或删改`);
-  }
-  return { merged, notes };
-}
+export * from "./types.js";
+export {
+  evaluateAntiGaming,
+  filterChangedParagraphClaims,
+  pickRotatedStyles,
+  validateTitleMatrix,
+} from "./helpers.js";
+export { resolveQaOutcome } from "./qa.js";
 
 export const articlePipeline: PipelineDefinition<ArticleReq, ArticlePipelineResult> = {
   kind: "toutiao.article",
@@ -307,7 +57,6 @@ export const articlePipeline: PipelineDefinition<ArticleReq, ArticlePipelineResu
     const bridge = createRulesBridge(scriptsDir);
     const lock = createLockService(systemClock);
 
-    // 1. source: 登记/读取素材来源
     const sourceData = await runner.local("source", async () => {
       const sourcesDir = path.join(articleDir, "sources");
       await fs.mkdir(sourcesDir, { recursive: true });
@@ -336,8 +85,6 @@ export const articlePipeline: PipelineDefinition<ArticleReq, ArticlePipelineResu
     });
 
     const limits = await runner.local("rules-limits", () => bridge.limits());
-
-    // 2. card: 立项卡生成 + rules/bridge 预检
     const s2Text = (await readTextIfExists(path.join(profileDir, "s2-selection.md"))) ?? "";
     const cardPath = path.join(articleDir, "card.json");
     const cardStage: StageSpec<
@@ -380,9 +127,7 @@ export const articlePipeline: PipelineDefinition<ArticleReq, ArticlePipelineResu
           throw new AppError(
             "model.output_invalid",
             `立项卡预检未通过：${check.errors.join("；")}`,
-            {
-              errors: check.errors,
-            },
+            { errors: check.errors },
           );
         }
         return enriched;
@@ -394,7 +139,6 @@ export const articlePipeline: PipelineDefinition<ArticleReq, ArticlePipelineResu
       makePacket(s2Text ? [refBlock("s2-selection", "s2-selection.md", s2Text)] : []),
     );
 
-    // 3. title: parseMotifsFromS3 + validateTitleMatrix
     const s3Text = (await readTextIfExists(path.join(profileDir, "s3-headline.md"))) ?? "";
     const s3Motifs: MotifSpec[] = parseMotifsFromS3(s3Text);
     const titleStage: StageSpec<
@@ -436,7 +180,6 @@ export const articlePipeline: PipelineDefinition<ArticleReq, ArticlePipelineResu
       makePacket(s3Text ? [refBlock("s3-headline", "s3-headline.md", s3Text)] : []),
     );
 
-    // 4. blueprint: 开头/结尾轮换（从 rules/bridge 读取清单）
     const s4CommonText = (await readTextIfExists(path.join(profileDir, "s4-common.md"))) ?? "";
     const stylesCatalog = await runner.local("rules-styles", () => bridge.styles());
     const activeLine = req.line ?? (req.driver === "故事型" ? "故事线" : "资讯线");
@@ -485,7 +228,6 @@ export const articlePipeline: PipelineDefinition<ArticleReq, ArticlePipelineResu
       makePacket(s4CommonText ? [refBlock("s4-common", "s4-common.md", s4CommonText)] : []),
     );
 
-    // 5. draft×N
     const draftStage: StageSpec<
       {
         card: Record<string, unknown>;
@@ -509,71 +251,53 @@ export const articlePipeline: PipelineDefinition<ArticleReq, ArticlePipelineResu
       format: "text",
       parse: (raw) => {
         const text = raw.trim();
-        if (!text) {
-          throw new AppError("model.output_invalid", "起稿输出为空");
-        }
+        if (!text) throw new AppError("model.output_invalid", "起稿输出为空");
         return text;
       },
-      fanOut: {
-        count: (c) => (c.request as ArticleReq).draftCount ?? 2,
-      },
+      fanOut: { count: (c) => (c.request as ArticleReq).draftCount ?? 2 },
     };
     const draftCandidates = await runner.fanOut(
       draftStage,
       makePacket(s4CommonText ? [refBlock("s4-common", "s4-common.md", s4CommonText)] : []),
     );
     const initialDraft = draftCandidates[0];
-
-    // 6. claims: extractClaimCandidates
-    const claimCandidates = await runner.local("claims", async () =>
+    const initialClaims = await runner.local("claims", async () =>
       extractClaimCandidates(initialDraft),
     );
 
-    // 7. facts: 逐条证据核验，unlocated 不整步失败
     const runFactsStage = async (
       stepId: string,
-      claimsToVerify: ClaimCandidate[],
-    ): Promise<ClaimCandidate[]> => {
+      claimsToVerify: typeof initialClaims,
+    ): Promise<typeof initialClaims> => {
       if (claimsToVerify.length === 0) return [];
-      const stageSpec: StageSpec<{ claims: ClaimCandidate[]; source: string }, FactCheckOutput> = {
+      const stageSpec: StageSpec<
+        { claims: typeof initialClaims; source: string },
+        FactCheckOutput
+      > = {
         id: stepId,
         title: "逐条事实证据核验",
         role: "extractor",
-        input: () => ({
-          claims: claimsToVerify,
-          source: sourceData.combinedText,
-        }),
+        input: () => ({ claims: claimsToVerify, source: sourceData.combinedText }),
         shape:
           '输出 JSON：{ "claims": [{ "id": "...", "status": "supported"|"unsupported"|"unlocated", "sourceId": "...", "evidence": "..." }] }。找不到出处标为 unlocated，不要编造出处。',
         format: "json",
         parse: (raw) => extractJsonBlock<FactCheckOutput>(raw),
       };
       const out = await runner.stage(stageSpec, makePacket([]));
-      const { merged } = mergeFactResults(claimsToVerify, out);
-      return merged;
+      return mergeFactResults(claimsToVerify, out).merged;
     };
 
-    let verifiedClaims = await runFactsStage("facts", claimCandidates);
-
-    // 8. review: 编辑审读
+    let verifiedClaims = await runFactsStage("facts", initialClaims);
     const s5Text = (await readTextIfExists(path.join(profileDir, "s5-editing.md"))) ?? "";
     const reviewStage: StageSpec<
-      {
-        draft: string;
-        card: Record<string, unknown>;
-        claims: ClaimCandidate[];
-      },
+      { draft: string; card: Record<string, unknown>; claims: typeof initialClaims },
       ReviewOutput
     > = {
       id: "review",
       title: "编辑审读",
       role: "editor",
       method: { stage: "toutiao.article.review" },
-      input: () => ({
-        draft: initialDraft,
-        card,
-        claims: verifiedClaims,
-      }),
+      input: () => ({ draft: initialDraft, card, claims: verifiedClaims }),
       shape:
         '输出 JSON：{ "issues": [{ "kind": "skeleton"|"ai-taste"|"fact"|"pacing", "quote": "...", "issue": "...", "fix": "..." }], "summary": "..." }。',
       format: "json",
@@ -584,14 +308,8 @@ export const articlePipeline: PipelineDefinition<ArticleReq, ArticlePipelineResu
       makePacket(s5Text ? [refBlock("s5-editing", "s5-editing.md", s5Text)] : []),
     );
 
-    // 9. revise: 明确使用 s5-editing
     const reviseStage: StageSpec<
-      {
-        draft: string;
-        review: ReviewOutput;
-        claims: ClaimCandidate[];
-        guide: string;
-      },
+      { draft: string; review: ReviewOutput; claims: typeof initialClaims; guide: string },
       string
     > = {
       id: "revise",
@@ -608,9 +326,7 @@ export const articlePipeline: PipelineDefinition<ArticleReq, ArticlePipelineResu
       format: "text",
       parse: (raw) => {
         const text = raw.trim();
-        if (!text) {
-          throw new AppError("model.output_invalid", "s5-editing 修订输出为空");
-        }
+        if (!text) throw new AppError("model.output_invalid", "s5-editing 修订输出为空");
         return text;
       },
     };
@@ -619,7 +335,6 @@ export const articlePipeline: PipelineDefinition<ArticleReq, ArticlePipelineResu
       makePacket(s5Text ? [refBlock("s5-editing", "s5-editing.md", s5Text)] : []),
     );
 
-    // 10. qa: Python qa_check ≥ pass_score (84)
     const runQaOnText = async (stepId: string, text: string): Promise<QaCheckResult> => {
       return runner.local(stepId, async () => {
         const qaFile = path.join(articleDir, "drafts", `${ctx.runId}.${stepId}.md`);
@@ -633,7 +348,6 @@ export const articlePipeline: PipelineDefinition<ArticleReq, ArticlePipelineResu
         });
       });
     };
-
     const verifyRevision = async (text: string, stepId: string) => {
       const incremental = await runner.local(`${stepId}-claims`, async () =>
         filterChangedParagraphClaims(text, verifiedClaims),
@@ -643,98 +357,33 @@ export const articlePipeline: PipelineDefinition<ArticleReq, ArticlePipelineResu
     };
     await verifyRevision(revisedDraft, "revise");
 
-    let currentDraft = revisedDraft;
-    let qaResult = await runQaOnText("qa", currentDraft);
     const passScore = limits.pass_score;
-
-    // 11. qa-revise×≤2: filterChangedParagraphClaims 增量复核
     const s6Text = (await readTextIfExists(path.join(profileDir, "s6-qa.md"))) ?? "";
-    for (let round = 1; round <= 2; round++) {
-      const passed = qaResult.overall >= passScore && qaResult.passed;
-      if (passed) break;
-
-      const qaReviseStage: StageSpec<{ draft: string; qa: QaCheckResult; round: number }, string> =
-        {
-          id: `qa-revise-${round}`,
-          title: `质检回改第 ${round} 轮`,
-          role: "editor",
-          method: { stage: "toutiao.article.qa" },
-          input: () => ({
-            draft: currentDraft,
-            qa: qaResult,
-            round,
-          }),
-          shape:
-            "仅针对 fails 与 hard_gates 指出的位置修改，不靠堆砌口语词或拆小标题凑分，输出完整 Markdown 正文。",
-          format: "text",
-          parse: (raw) => {
-            const text = raw.trim();
-            if (!text) {
-              throw new AppError("model.output_invalid", `qa-revise 第 ${round} 轮输出为空`);
-            }
-            return text;
-          },
-        };
-      currentDraft = await runner.stage(
-        qaReviseStage,
-        makePacket(s6Text ? [refBlock("s6-qa", "s6-qa.md", s6Text)] : []),
-      );
-
-      await verifyRevision(currentDraft, `qa-revise-${round}`);
-
-      qaResult = await runQaOnText(`qa-recheck-${round}`, currentDraft);
-    }
-
-    // 12. antigaming: 统计口语标记/小标题增量提示
+    const qaRevision = await runQaRevisionLoop({
+      runner,
+      draft: revisedDraft,
+      qa: await runQaOnText("qa", revisedDraft),
+      passScore,
+      s6Text,
+      runQa: runQaOnText,
+      verifyRevision,
+    });
     const antigaming = await runner.local("antigaming", async () =>
-      evaluateAntiGaming(revisedDraft, currentDraft),
+      evaluateAntiGaming(revisedDraft, qaRevision.draft),
     );
-
-    ctx.state.finalStatus = "待验收" satisfies ArticleStatus;
+    const { status, qaGate } = resolveQaOutcome(qaRevision.qa, passScore);
+    ctx.state.finalStatus = status;
     return {
       articleId: req.articleId,
       title: titleMatrix.main.text,
-      draft: currentDraft,
-      qa: qaResult,
+      draft: qaRevision.draft,
+      qa: qaRevision.qa,
       claims: verifiedClaims,
       antigaming,
-      status: "待验收",
+      status,
+      qaGate,
     };
   },
-  async deliver(res, ctx): Promise<DeliveryReceipt> {
-    const draftPath = path.join(ctx.target.path, "drafts", `rev-${ctx.runId}.md`);
-    const marker = path.join(ctx.target.path, "drafts", `${ctx.runId}.marker.json`);
-    if (await isAlreadyDelivered(marker, ctx.runId)) {
-      return {
-        runId: ctx.runId,
-        deliveredPaths: [],
-        contentHash: sha256(res.draft),
-        summary: "已幂等交付",
-      };
-    }
-    const content = res.draft.startsWith("# ") ? res.draft : `# ${res.title}\n\n${res.draft}`;
-    await atomicWrite(draftPath, content);
-    await atomicWrite(marker, buildDeliveryMarker(ctx.runId, res.draft));
-
-    const meta = await readJson(path.join(ctx.target.path, "meta.json"), ArticleMetaSchema);
-    if (meta && (meta.status === "初稿待改" || meta.status === "验收退回")) {
-      await transitionArticleStatus(
-        ctx.target.path,
-        "待验收",
-        systemClock.iso(),
-        createLockService(systemClock),
-      );
-    }
-
-    return {
-      runId: ctx.runId,
-      deliveredPaths: [draftPath],
-      contentHash: sha256(res.draft),
-      summary: `已生成待验收草稿「${res.title}」（QA ${res.qa.overall} 分）`,
-    };
-  },
-  async recover(record, ctx) {
-    const marker = path.join(ctx.target.path, "drafts", `${record.id}.marker.json`);
-    return (await isAlreadyDelivered(marker, record.id)) ? "delivered" : "resume";
-  },
+  deliver: deliverArticle,
+  recover: recoverArticle,
 };

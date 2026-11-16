@@ -2,6 +2,13 @@ import { AppError } from "@zhizhang/core/errors";
 import { createDesktopAdapter } from "./desktop.js";
 import type { WorkbenchTransport } from "./types.js";
 
+export {
+  createFallbackDraftStore,
+  createMemoryDraftStore,
+  draftStore,
+  installDraftStore,
+  type DraftStore,
+} from "./drafts.js";
 export type { RequestOptions, WorkbenchData, WorkbenchTransport } from "./types.js";
 
 let installed: WorkbenchTransport | null = null;

@@ -38,18 +38,21 @@ export function useFanqie(workPath?: string) {
     const current = stateRef.current;
     const work = workPath ?? current.work;
     if (!work) return;
-    const selection = current.selection;
     dispatch({ type: "loading" });
     try {
       const delta = await fanqie.snapshot({
         work,
-        since: current.rowSnapshot.revision || undefined,
+        // 换作品后 rowSnapshot 还是上一个作品的游标；游标不属于当前作品时取全量。
+        since:
+          current.work === work && current.rowSnapshot.revision
+            ? current.rowSnapshot.revision
+            : undefined,
       });
-      dispatch({ type: "snapshot", selection, delta, work });
+      dispatch({ type: "snapshot", delta, work });
     } catch (error) {
       dispatch({
         type: "snapshotError",
-        selection,
+        work,
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -99,7 +102,7 @@ export function useFanqie(workPath?: string) {
   }, [chapterBodyKey, activeWork, state.chapterId]);
 
   const saveChapter = useCallback(
-    async (body: string, base: string) => {
+    async (body: string, base: string, title?: string) => {
       const current = stateRef.current;
       const work = workPath ?? current.work;
       if (!work || !current.chapterId) return;
@@ -110,6 +113,7 @@ export function useFanqie(workPath?: string) {
           chapter: current.chapterId,
           base,
           body,
+          ...(title ? { title } : {}),
         });
         dispatch({ type: "edit", value: false });
         dispatch({ type: "reloadBodies" });

@@ -1,11 +1,10 @@
 /**
  * 未保存源码草稿的持久化读写：
- * - 文件后端：读写工作目录下的 `.zhizhang/drafts/<key>.json`
- * - 浏览器后端：兼容 `localStorage` 暂存，防止意外关闭丢失
+ * 草稿一律落在写作文件夹 `.zhizhang/drafts/<key>.json`，经桌面 IPC 由主进程写盘（M0-2）；
+ * 渲染层不再使用 `localStorage` 暂存正文。
  */
 export const DRAFTS_DIR = ".zhizhang/drafts";
 const PREFIX = "zhizhang:draft:";
-const WORK_PARTS = 3;
 
 export interface DraftEntry {
   text: string;
@@ -166,55 +165,4 @@ export async function clearDraftFile(
   backend: DraftFileBackend = createNodeDraftBackend(),
 ): Promise<void> {
   await backend.removeFile(draftFilePath(workDir, key));
-}
-
-function keyParts(key: string): unknown[] | null {
-  try {
-    const parts: unknown = JSON.parse(key.slice(PREFIX.length));
-    return Array.isArray(parts) ? parts : null;
-  } catch (error) {
-    if (error instanceof SyntaxError) return null;
-    throw error;
-  }
-}
-
-/** The stored draft in browser localStorage, or null; an unreadable entry is removed. */
-export function readDraft(key: string): DraftEntry | null {
-  const raw = window.localStorage.getItem(key);
-  if (raw == null) return null;
-  const draft = parseStored(raw);
-  if (draft) return draft;
-  window.localStorage.removeItem(key);
-  return null;
-}
-
-/** Stores draft in browser localStorage and returns the saved timestamp. */
-export function writeDraft(key: string, text: string, baseRevision: string): number {
-  const savedAt = Date.now();
-  window.localStorage.setItem(key, JSON.stringify({ text, savedAt, baseRevision }));
-  return savedAt;
-}
-
-export function clearDraft(key: string): void {
-  window.localStorage.removeItem(key);
-}
-
-function storedDraftKeys(): string[] {
-  const storage = window.localStorage;
-  const keys: string[] = [];
-  for (let index = 0; index < storage.length; index += 1) {
-    const key = storage.key(index);
-    if (key?.startsWith(PREFIX)) keys.push(key);
-  }
-  return keys;
-}
-
-/** Drafts of every other work, offered for clearing when storage is full. */
-export function otherDraftKeys(key: string): string[] {
-  const current = keyParts(key);
-  const work = JSON.stringify((current ?? []).slice(0, WORK_PARTS));
-  return storedDraftKeys().filter((other) => {
-    const parts = keyParts(other);
-    return parts !== null && JSON.stringify(parts.slice(0, WORK_PARTS)) !== work;
-  });
 }

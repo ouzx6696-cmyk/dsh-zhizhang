@@ -274,12 +274,15 @@ async function toutiaoScriptsWithCardShim(base) {
   const dir = path.join(base, "scripts");
   await fs.mkdir(dir, { recursive: true });
   for (const name of ["rules.py", "ledger.py", "writer_bridge.py", "fetch_hot.py", "qa_check.py"]) {
-    await fs.symlink(path.join(REAL_SCRIPTS, name), path.join(dir, name));
+    const source = path.join(REAL_SCRIPTS, name);
+    const destination = path.join(dir, name);
+    if (process.platform === "win32") await fs.copyFile(source, destination);
+    else await fs.symlink(source, destination);
   }
   return dir;
 }
 
-test("头条文章流水线经 ModelGateway + 假端口跑通：立项卡→标题→蓝图→成稿→审读→修订→真实 Python 质检，草稿交付并转待验收", async () => {
+test("头条文章流水线经 ModelGateway + 假端口跑通：真实 Python 质检未过线，草稿交付并保持初稿待改", async () => {
   const base = await fs.mkdtemp(path.join(os.tmpdir(), "zz-pipe-tt-"));
   const clock = createFakeClock();
   const ctx = commandCtx(base, clock);
@@ -381,8 +384,9 @@ test("头条文章流水线经 ModelGateway + 假端口跑通：立项卡→标�
   }
   const qa = detail.steps.find((s) => s.id === "qa").output;
   assert.equal(typeof qa.overall, "number");
+  assert.equal(qa.passed, false);
   const draft = await fs.readFile(path.join(articleDir, "drafts", `rev-${detail.id}.md`), "utf8");
   assert.match(draft, /^# 养老金上调后每月到手多少/);
   const after = JSON.parse(await fs.readFile(path.join(articleDir, "meta.json"), "utf8"));
-  assert.equal(after.status, "待验收");
+  assert.equal(after.status, "初稿待改");
 });

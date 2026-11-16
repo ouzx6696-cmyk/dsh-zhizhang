@@ -145,4 +145,14 @@ export const IPC_PARSERS: { [K in IpcChannel]: (args: unknown[]) => IpcArgs<K> }
   ),
   "source.fetch": one(str({ min: 1, max: 2000 })),
   "learning.status": one(target),
+  "drafts.read": one(obj({ key: str({ min: 1, max: 2000 }) })),
+  "drafts.write": one(
+    obj({
+      key: str({ min: 1, max: 2000 }),
+      text: str({ max: 2_097_152 }),
+      baseRevision: str({ max: 200 }),
+    }),
+  ),
+  "drafts.clear": one(obj({ key: str({ min: 1, max: 2000 }) })),
+  "drafts.list": one(obj({ prefix: opt(str({ min: 1, max: 2000 })) })),
 };

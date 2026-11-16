@@ -9,6 +9,14 @@ import { desktopStore, useDesktop } from "../../state/store";
 import { notifyError, run } from "../../format";
 import { Section } from "./fields";
 
+/** 清掉“稍后再说”的记住标记（D11）；写作文件夹未配置时，下次启动仍会强制引导。 */
+export function clearOnboardingDismissed(): Promise<void> {
+  return desktop
+    .saveSettings({ shell: { onboardingDismissed: false } })
+    .then((settings) => desktopStore.set({ settings }))
+    .then(() => undefined);
+}
+
 export function updateText(status: UpdateStatus): string {
   switch (status.state) {
     case "unavailable":
@@ -69,6 +77,12 @@ export function AboutTab() {
         <div className="zz-row">
           <Button data-testid="diagnostics-export" onClick={() => diagnostics().catch(notifyError)}>
             {C.about.diagnostics}
+          </Button>
+          <Button
+            data-testid="onboarding-reshow"
+            onClick={() => clearOnboardingDismissed().catch(notifyError)}
+          >
+            {C.about.onboardingReshow}
           </Button>
           <Button variant="danger" data-testid="settings-reset" onClick={() => run(resetSettings)}>
             {C.about.reset}

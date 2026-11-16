@@ -36,6 +36,7 @@ import type { createStorageHealth } from "../services/storage-health.js";
 import { describeTarget, listTargets, recentTargets, rememberTarget } from "../services/targets.js";
 import type { WorkspaceService } from "../services/workspace.js";
 import type { WorkflowService } from "../workflow.js";
+import { createDraftService } from "./drafts.js";
 import { IPC_PARSERS } from "./parsers.js";
 
 export interface MainServices {
@@ -299,4 +300,11 @@ export function registerIpc(s: MainServices): void {
   });
   handle("source.fetch", (url) => readSource(url));
   handle("learning.status", (target) => s.learning(target));
+
+  // 草稿（M0-2 D4）：正文与助手输入暂存，唯一写者在主进程；只读实例下仍可写。
+  const drafts = createDraftService({ root: () => s.workspace.status().root, clock: s.clock });
+  handle("drafts.read", ({ key }) => drafts.read(key));
+  handle("drafts.write", (input) => drafts.write(input.key, input.text, input.baseRevision));
+  handle("drafts.clear", ({ key }) => drafts.clear(key));
+  handle("drafts.list", ({ prefix }) => drafts.list(prefix));
 }
