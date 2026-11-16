@@ -22,6 +22,8 @@ export const TOUTIAO_COPY = {
   ttQaNone: "未质检",
   ttQaPass: "{score} 分 · 过线",
   ttQaFail: "{score} 分 · 未过线",
+  ttQaBelowPass:
+    "草稿「{title}」已保存，QA {score} 分，未达到 {passScore} 分或仍有硬闸；文章保持初稿待改。未过项：{fails}",
   ttQaOld: "（第 {rev} 版的结果）",
   ttQaValid: "当前版本质检有效",
   ttHardGates: "硬闸：{list}",
