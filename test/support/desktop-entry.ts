@@ -4,6 +4,13 @@ export {
   isWorkbenchCommand,
 } from "../../apps/desktop/src/main/commands.js";
 export { createDraftService, DRAFT_MAX_BYTES } from "../../apps/desktop/src/main/ipc/drafts.js";
+export {
+  refreshUsage,
+  select as selectTarget,
+} from "../../apps/desktop/src/renderer/state/controller.js";
+export { desktop } from "../../apps/desktop/src/renderer/state/desktop.js";
+export { desktopStore, scopeKey } from "../../apps/desktop/src/renderer/state/store.js";
+export { chatStore } from "../../apps/desktop/src/renderer/state/chatStore.js";
 export { createWorkflowService } from "../../apps/desktop/src/main/workflow.js";
 export { createRunStore } from "../../apps/desktop/src/main/services/runs.js";
 export { createConfigService } from "../../apps/desktop/src/main/services/config.js";

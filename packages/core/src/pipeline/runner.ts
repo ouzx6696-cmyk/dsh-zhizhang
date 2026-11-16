@@ -49,8 +49,17 @@ export async function executePipeline<Req, Res>(
     return profilePromise;
   }
 
-  const persist = async () => {
-    if (onPersist) await onPersist(current);
+  // fanOut 的并行步骤会在同一毫秒各自落盘同一份运行记录；Windows 上并发重命名会瞬时
+  // EPERM（被归类为 storage.locked）而误停整条运行。这里把 persist 串成队列，读到的
+  // 始终是执行时刻的最新 current。
+  let persistTail: Promise<unknown> = Promise.resolve();
+  const persist = (): Promise<void> => {
+    const next = persistTail.then(
+      () => onPersist?.(current),
+      () => onPersist?.(current),
+    );
+    persistTail = next;
+    return next;
   };
 
   async function runSingleStage<I, O>(
