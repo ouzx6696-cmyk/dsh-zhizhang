@@ -8,7 +8,8 @@
     "node": ">=24.11.0"
   },
   "scripts": {
-    "check": "tsc -b && eslint . && prettier --check . && node scripts/guard.mjs",
+    "check": "tsc -b && node scripts/selftest.ts && eslint . && prettier --check . && node scripts/guard.mjs && node scripts/check-ratchet.mjs && node scripts/check-budget.mjs",
+    "selftest": "node scripts/selftest.ts",
     "test": "python3 -m unittest discover -s packages/toutiao/skill/tests -p \"test_*.py\" && python3 -m unittest discover -s packages/fanqie/skill/tests -p \"test_*.py\" && node --test test/unit/*.test.mjs test/engine/*.test.mjs",
     "test:e2e": "npm run build -w @zhizhang/desktop && playwright test -c apps/desktop/playwright.config.mjs",
     "release:verify": "node scripts/verify-release.mjs",
