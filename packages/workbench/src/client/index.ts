@@ -1,11 +1,15 @@
 export {
+  createFallbackDraftStore,
+  draftStore,
+  installDraftStore,
   installWorkbenchTransport,
+  type DraftStore,
   type RequestOptions,
   type WorkbenchTransport,
 } from "../adapters/index.js";
 export { callCommand, fanqie, toutiao } from "./shared/api.js";
 export { confirmAction, setConfirm, type ConfirmHandler } from "./shared/confirm.js";
-export { PREF, oneOf, readPref, writePref } from "./shared/prefs.js";
+export { PREF, clearLegacyDraftStorage, oneOf, readPref, writePref } from "./shared/prefs.js";
 export {
   applySnapshotDelta,
   createRowSnapshotState,

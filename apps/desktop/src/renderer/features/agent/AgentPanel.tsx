@@ -1,8 +1,8 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ArrowUp, ChevronRight, Plus, Sparkles, Square } from "lucide-react";
 import { DESKTOP_COPY as C } from "@zhizhang/ui/copy";
 import { Button, IconButton, Select, Spinner } from "@zhizhang/ui/primitives";
-import { readPref, writePref, PREF } from "@zhizhang/workbench/client";
+import { draftStore } from "@zhizhang/workbench/client";
 import type { SessionIntent, Target } from "../../../shared/views";
 import { toolLabel } from "../../../context";
 import { useChat } from "../../state/chatStore";
@@ -52,18 +52,49 @@ function quickActions(mode: Target["mode"]): QuickAction[] {
       ];
 }
 
-/** 输入草稿按作用目标暂存，切换作品后回来不丢。 */
+/** 输入草稿经 DraftStore 落盘（无写作文件夹时内存暂存），切换作品后回来不丢。 */
 function useDraft(scope: string): [string, (value: string) => void] {
-  const key = PREF.agentDraft + scope;
-  const [draft, setDraft] = useState(() => readPref(key));
-  useEffect(() => setDraft(readPref(key)), [key]);
-  return [
-    draft,
-    (value: string) => {
-      setDraft(value);
-      writePref(key, value);
-    },
-  ];
+  const key = `agent:${scope}`;
+  const [draft, setDraft] = useState("");
+  const storedKey = useRef(key);
+  const latestValue = useRef(draft);
+  latestValue.current = draft;
+  const timer = useRef<number | undefined>(undefined);
+
+  // 打开时异步读取；切换作用目标前把未落盘的输入立刻写进旧目标的草稿。
+  useEffect(() => {
+    let alive = true;
+    draftStore()
+      .read(key)
+      .then((entry) => {
+        if (alive) setDraft(entry && entry.text ? entry.text : "");
+      })
+      .catch(() => undefined);
+    storedKey.current = key;
+    return () => {
+      alive = false;
+      window.clearTimeout(timer.current);
+      const value = latestValue.current;
+      if (value)
+        void draftStore()
+          .write(storedKey.current, value, "")
+          .catch(() => undefined);
+    };
+  }, [key]);
+
+  const setDraftStored = useCallback((value: string) => {
+    setDraft(value);
+    latestValue.current = value;
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => {
+      const op = value
+        ? draftStore().write(storedKey.current, value, "")
+        : draftStore().clear(storedKey.current);
+      op.catch(() => undefined);
+    }, 500);
+  }, []);
+
+  return [draft, setDraftStored];
 }
 
 function ContextBar() {

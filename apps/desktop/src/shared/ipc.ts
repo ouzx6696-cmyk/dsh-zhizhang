@@ -47,6 +47,7 @@
  */
 import { AppError, type ErrorCode } from "@zhizhang/core/errors";
 import type { CommandInput, CommandResult, WorkbenchCommand } from "@zhizhang/workbench/contract";
+import type { DraftEntry } from "@zhizhang/workbench/editor";
 import type { DesktopEvent } from "./events.js";
 import type { ModelsInput, PublicSettings, SettingsPatch } from "./settings.js";
 import type {
@@ -92,6 +93,19 @@ export interface ModelCatalogRequest {
   connectionId: string;
   draft?: ModelTestInput["draft"];
   source: "pi" | "endpoint";
+}
+
+/** drafts.list 的条目：草稿键 + 保存时间 + 占用字节（清理入口用）。 */
+export interface DraftListItem {
+  key: string;
+  savedAt: number;
+  bytes: number;
+}
+
+export interface DraftWriteInput {
+  key: string;
+  text: string;
+  baseRevision: string;
 }
 
 export interface IpcMap {
@@ -147,6 +161,11 @@ export interface IpcMap {
   };
   "source.fetch": { args: [string]; result: FetchedSource };
   "learning.status": { args: [Target]; result: LearningView };
+
+  "drafts.read": { args: [{ key: string }]; result: DraftEntry | null };
+  "drafts.write": { args: [DraftWriteInput]; result: { savedAt: number } };
+  "drafts.clear": { args: [{ key: string }]; result: void };
+  "drafts.list": { args: [{ prefix?: string }]; result: DraftListItem[] };
 }
 
 export type IpcChannel = keyof IpcMap;
@@ -216,6 +235,11 @@ export interface DesktopApi {
   openText(options?: { title?: string; extensions?: string[] }): Promise<OpenedText | null>;
   fetchSource(url: string): Promise<FetchedSource>;
   learning(target: Target): Promise<LearningView>;
+
+  draftRead(key: string): Promise<DraftEntry | null>;
+  draftWrite(input: DraftWriteInput): Promise<{ savedAt: number }>;
+  draftClear(key: string): Promise<void>;
+  draftList(prefix?: string): Promise<DraftListItem[]>;
 }
 
 export function createDesktopApi(bridge: () => DesktopBridge): DesktopApi {
@@ -269,5 +293,9 @@ export function createDesktopApi(bridge: () => DesktopBridge): DesktopApi {
     openText: (options = {}) => call("dialog.openText", options),
     fetchSource: (url) => call("source.fetch", url),
     learning: (target) => call("learning.status", target),
+    draftRead: (key) => call("drafts.read", { key }),
+    draftWrite: (input) => call("drafts.write", input),
+    draftClear: (key) => call("drafts.clear", { key }),
+    draftList: (prefix) => call("drafts.list", prefix === undefined ? {} : { prefix }),
   };
 }

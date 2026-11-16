@@ -3,6 +3,7 @@ export {
   dispatchWorkbenchCommand,
   isWorkbenchCommand,
 } from "../../apps/desktop/src/main/commands.js";
+export { createDraftService, DRAFT_MAX_BYTES } from "../../apps/desktop/src/main/ipc/drafts.js";
 export { createWorkflowService } from "../../apps/desktop/src/main/workflow.js";
 export { createRunStore } from "../../apps/desktop/src/main/services/runs.js";
 export { createConfigService } from "../../apps/desktop/src/main/services/config.js";

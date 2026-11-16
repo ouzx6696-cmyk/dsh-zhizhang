@@ -36,6 +36,7 @@ export const WORKBENCH_COPY = {
     statusStashed: "草稿已暂存",
     statusDirty: "有未保存修改",
     statusStashFailed: "草稿暂存失败",
+    titleField: "标题",
     findOpen: "查找替换",
     findPanel: "文本查找与替换",
     shortcuts: "Ctrl+F 查找 · Ctrl+H 替换",

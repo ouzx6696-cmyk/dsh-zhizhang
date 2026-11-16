@@ -99,7 +99,7 @@ export function useFanqie(workPath?: string) {
   }, [chapterBodyKey, activeWork, state.chapterId]);
 
   const saveChapter = useCallback(
-    async (body: string, base: string) => {
+    async (body: string, base: string, title?: string) => {
       const current = stateRef.current;
       const work = workPath ?? current.work;
       if (!work || !current.chapterId) return;
@@ -110,6 +110,7 @@ export function useFanqie(workPath?: string) {
           chapter: current.chapterId,
           base,
           body,
+          ...(title ? { title } : {}),
         });
         dispatch({ type: "edit", value: false });
         dispatch({ type: "reloadBodies" });
