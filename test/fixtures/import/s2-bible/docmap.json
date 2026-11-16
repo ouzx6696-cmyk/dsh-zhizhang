@@ -1,0 +1,117 @@
+{
+  "mapping": {},
+  "sections": [
+    {
+      "id": "S1",
+      "kind": "setting-character",
+      "note": "# 人物"
+    },
+    {
+      "id": "S2",
+      "kind": "setting-character",
+      "note": "## 林砚：旧城拾信人"
+    },
+    {
+      "id": "S3",
+      "kind": "setting-character",
+      "note": "## 沈遥：灯塔见习守"
+    },
+    {
+      "id": "S4",
+      "kind": "setting-character",
+      "note": "## 顾青川：夜航船主"
+    },
+    {
+      "id": "S5",
+      "kind": "setting-character",
+      "note": "## 阿禾：仓城药徒"
+    },
+    {
+      "id": "S6",
+      "kind": "setting-character",
+      "note": "## 陆停舟：潮生会当家"
+    },
+    {
+      "id": "S7",
+      "kind": "setting-character",
+      "note": "## 贺兰书：铁锚帮账房"
+    },
+    {
+      "id": "S8",
+      "kind": "setting-character",
+      "note": "## 苏绾：修帆铺主人"
+    },
+    {
+      "id": "S9",
+      "kind": "setting-character",
+      "note": "## 唐小满：报童"
+    },
+    {
+      "id": "S10",
+      "kind": "setting-character",
+      "note": "## 白霁：前任守灯人"
+    },
+    {
+      "id": "S11",
+      "kind": "setting-character",
+      "note": "## 秦舟：仓城护队教头"
+    },
+    {
+      "id": "S12",
+      "kind": "setting-character",
+      "note": "## 阮青螺：潮声歌手"
+    },
+    {
+      "id": "S13",
+      "kind": "setting-character",
+      "note": "## 孟观澜：港务巡使"
+    },
+    {
+      "id": "S14",
+      "kind": "setting-faction",
+      "note": "势力"
+    },
+    {
+      "id": "S15",
+      "kind": "setting-place",
+      "note": "地点"
+    },
+    {
+      "id": "S16",
+      "kind": "setting-power",
+      "note": "## 力量体系"
+    },
+    {
+      "id": "S17",
+      "kind": "setting-item",
+      "note": "## 物品"
+    },
+    {
+      "id": "S18",
+      "kind": "setting-rule",
+      "note": "## 规则"
+    },
+    {
+      "id": "S19",
+      "kind": "timeline",
+      "note": "## 时间线"
+    },
+    {
+      "id": "S20",
+      "kind": "setting-character",
+      "note": "## 第30章起的动态状态"
+    },
+    {
+      "id": "S21",
+      "kind": "setting-character",
+      "note": "## 人物关系"
+    },
+    {
+      "id": "S22",
+      "kind": "setting-character",
+      "note": "## 知情边界"
+    }
+  ],
+  "naming": ["人物表一行一人", "Setext 标题用于势力与地点", "动态状态以第30章起为生效锚点"],
+  "editedByAuthor": false
+}
