@@ -311,3 +311,45 @@ if (errors.length > 0) {
 console.log(
   `Guard passed (${allTs.length} TS/TSX files, ${allCss.length} CSS files, ${docFiles.length} docs checked).`,
 );
+
+// [G-size] 新增文件不得超过 400 行；触碰指定遗留大文件时必须继续下探 20 行。
+// 未触碰的历史文件仍由上方提示清单跟踪，避免 INF-01 越权改动无关业务代码。
+const { evaluateSizePolicy, physicalLines } = await import("./check-budget.mjs");
+const { spawnSync } = await import("node:child_process");
+function sizeGit(args) {
+  const result = spawnSync("git", ["-C", ROOT, ...args], {
+    cwd: ROOT,
+    encoding: "utf8",
+    env: process.env,
+  });
+  if (result.status !== 0) {
+    throw new Error(`G-size 无法读取 Git 基线：${result.stderr || result.stdout}`);
+  }
+  return result.stdout.split(/\r?\n/).filter(Boolean);
+}
+const sizeBaseRef = process.env.GITHUB_BASE_REF
+  ? `origin/${process.env.GITHUB_BASE_REF}`
+  : process.env.GITHUB_ACTIONS === "true" && process.env.GITHUB_REF_NAME !== "master"
+    ? "origin/master"
+    : "master";
+const changedSizeFiles = new Set(sizeGit(["diff", "--name-only", sizeBaseRef, "--"]));
+const addedSizeFiles = new Set([
+  ...sizeGit(["diff", "--name-only", "--diff-filter=A", sizeBaseRef, "--"]),
+  ...sizeGit(["ls-files", "--others", "--exclude-standard"]),
+]);
+let sizeFailed = false;
+for (const file of allTs) {
+  const relative = toPosix(path.relative(ROOT, file));
+  const policy = evaluateSizePolicy({
+    file: relative,
+    current: physicalLines(fs.readFileSync(file, "utf8")),
+    isNew: addedSizeFiles.has(relative),
+    isChanged: changedSizeFiles.has(relative) || addedSizeFiles.has(relative),
+  });
+  for (const failure of policy.failures) {
+    console.error(`  - [G-size] ${failure}`);
+    sizeFailed = true;
+  }
+}
+if (sizeFailed) process.exitCode = 1;
+else console.log("[G-size] 新增文件与遗留文件下探线通过");

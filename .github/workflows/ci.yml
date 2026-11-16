@@ -21,7 +21,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with: { persist-credentials: false }
+        with: { persist-credentials: false, fetch-depth: 0 }
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with: { node-version: 24, cache: npm }
       - run: npm ci
@@ -75,11 +75,50 @@ jobs:
             if [ "$attempt" -lt 3 ]; then sleep $((attempt * 20)); fi
           done
           exit 1
+      - run: npm --prefix apps/desktop run build
       - run: npm run test:e2e
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: desktop-e2e-results
+          path: test-results/
+
+  e2e-linux:
+    needs: [check, test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      npm_config_registry: https://registry.npmmirror.com
+      npm_config_cache: ${{ github.workspace }}/.cache/npm
+      electron_config_cache: ${{ github.workspace }}/.cache/electron
+      ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.cache/ms-playwright
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false, fetch-depth: 0 }
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version: 24, cache: npm }
+      - run: npm ci --ignore-scripts
+      - name: 准备 Xvfb
+        run: |
+          if ! command -v xvfb-run; then
+            sudo apt-get update
+            sudo apt-get install -y xvfb
+          fi
+      - name: 安装 Electron 二进制
+        run: |
+          for attempt in 1 2 3; do
+            if node node_modules/electron/install.js; then exit 0; fi
+            echo "::warning::Electron 二进制下载失败（第 $attempt 次）"
+            if [ "$attempt" -lt 3 ]; then sleep $((attempt * 20)); fi
+          done
+          exit 1
+      - run: npm --prefix apps/desktop run build
+      - run: xvfb-run -a npm run test:e2e
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: desktop-e2e-results-linux
           path: test-results/
 
   package:

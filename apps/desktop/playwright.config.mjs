@@ -1,7 +1,7 @@
 import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: "../../test/desktop",
-  testMatch: "ui.spec.mjs",
+  testMatch: ["ui.spec.mjs", "m0.spec.mjs", "m1.spec.mjs", "u1.spec.mjs"],
   workers: 1,
   fullyParallel: false,
   timeout: 45000,
