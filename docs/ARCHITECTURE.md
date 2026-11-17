@@ -85,3 +85,9 @@ L0  @zhizhang/core        errors / schema / fs / lock / journal / tool / pipelin
 - **分层**：L1 `test/unit/`（纯规则与契约，23 文件、139 项中的大部分）→ L2 `test/engine/`（持久化、锁、意图、设定集、流水线编排，13 文件）→ L3 桌面会话与 IPC（`test/desktop/`）→ L4 Playwright E2E（13 条旅程）；Python `unittest`（227 项）负责规则计算与质检，TS 仅测调用、错误映射与落盘。
 - **夹具与纪律**：L2 流水线测试使用 [test/support/fake-port.mjs](../test/support/fake-port.mjs) 与 [test/support/clock.mjs](../test/support/clock.mjs)，禁止真实 `sleep` 与跨用例共享队列；不写任何 1.x 旧格式兼容测试。
 - **门禁目标**：`check` ≤60 s（实测约 25 s）、`test` ≤90 s、`test:e2e` ≤4 min；Windows 与 Linux（xvfb）CI 双跑 E2E。
+
+## 8. 文本机制（C-01a，待审核）
+
+`@zhizhang/core/text` 已实现 `detectEncoding`、`normalize` 与 `segment`，不新增运行时依赖。编码检测依次检查 BOM、无 BOM UTF-16 零字节分布、全文件严格 UTF-8，再对前 64 KB 的 GB18030 / Big5 按简繁高频字、中文标点和替换字符打分；低分报 `input.invalid`（`reason: encoding_unsupported`）并带候选预览。预览最多 400 个 UTF-16 单元，不截断代理对。
+
+规范化只清理约定不可见字符、换行和行尾空白，不做 NFKC；可选 `map` 按 UTF-16 单元回指输入偏移。分节返回相对于传入文本的半开区间及 SHA-256 前 12 位段落哈希；MD 支持 ATX / Setext / front matter / 表格与列表，TXT 按信号打分推断卷幕章。作者映射按标题样本文本精确匹配，`ignore` 优先。`matchKey`、`chunk`、`locateQuote` 仍为 C-01b 桩；导入 IPC 接线归 I-01。

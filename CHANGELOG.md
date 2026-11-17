@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **v1.4 C-01a 文本机制（待审核）**：实现 BOM / UTF-16 / 严格 UTF-8 / GB18030 与 Big5 候选打分、保留原文偏移的规范化、MD/TXT 分节与段落哈希；增加纯机制测试。Electron 45.2.3 主进程已实测三种非 UTF-8 解码器；不新增依赖，不改原文字形，导入 IPC 由 I-01 接线。
+
 - **桌面 E2E 隔离与重启校验**：每个测试状态目录配套独立 Chromium 用户目录，同一旅程重启复用，避免跨用例共享 localStorage 与缓存锁；草稿等待改为核对目标章节键与正文，引导重启校验等待设置落盘并确认应用启动完成后再断言不弹窗。
 
 - **v1.4 D-02 设定集扩展与变更集（2026-11-17）**：`bible/store.ts` 拆为 read/asof/interval/match/audit/state/ops/apply/invert/changeset/commit/pending/query 13 个文件；读取逐文件 schema 校验（坏文件报 `storage.format_unsupported` 且不覆盖），`asOf(N)` 按 `[since, until)` 切片并保留历史线索；状态区间支持开闭、截断、planned 兑现与冲突；`pending.propose/decide` 只写批次，`pending.commit` 在同一 `Intent` 写入真源、ledger、`index.json`、批次与 `changes/<YYYY-MM>.jsonl`；`bible.revert` 支持整批撤销、`rev_changed` 跳过与 force。9 条命令（query/entity/apply/changes/revert、pending.list/get/decide/commit）接入真实现。自审另修：V2 引用校验、`entity.merge` 改写 ledger 引用、同记录多次修改的可逆撤销、部分 `state/style` patch 不抹字段、批次自动 `dependsOn`、`effectiveFrom`、重复提交幂等、路径 id 校验与 index hash 取真实字节。`as` 断言 175 → 173，Node 139/139。待审核：逆操作使用内部 `entity.delete` 载体，确认页由 U-03 接入；v1.3.0 旧 `bible/index.json` 形状未迁移，首次提交会报 `storage.format_unsupported`。
