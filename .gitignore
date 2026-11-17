@@ -19,6 +19,8 @@ acceptance-results/
 dist/
 *.tsbuildinfo
 
-# 桌面 E2E 临时目录（安全软件会封锁 
 # 桌面 E2E 临时目录：安全软件会封锁 %TEMP% 内的高频临时写盘，故放仓库内
 test/.tmp/
+
+# 本地工作区数据（会话记忆与工具缓存），不入库
+.workbuddy/

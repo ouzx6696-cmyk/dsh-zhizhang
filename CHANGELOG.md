@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **文档口径校正**：移除 `README` / `docs/USER-GUIDE` 中「专注模式（Ctrl+. / F11）」「命令面板（Ctrl+K）」的描述——当前代码只保留 `commandPaletteText*` 文案键，未实现入口；实际快捷键为 `Ctrl+,` 设置、`Ctrl+.` 收起右栏、`Ctrl+1/2/3` 切右栏标签。
+- **文档与工程基线同步（2026-11-17）**：`README`、`AGENTS`、`docs/ARCHITECTURE`、`docs/WRITING`、`docs/USER-GUIDE`、`docs/STATUS` 全部按 `master@83bf7f7` 重写口径；校正头条文章目录为 `meta.json` / `交稿单.md`、工作台命令 90 条、静态守卫 14 条、前文模式 6,000 / 1,800 字；新增 `plans/v1.4/baseline/` 计划原件只读快照（含 SHA256）与 `.workbuddy/` 忽略规则。
 - **桌面外壳修复（v1.4 M0 线）**：切换作品时按作品实体比对快照代号，消除章节列表不出现与编辑区反复重挂载；引导「稍后再说」在未配置写作文件夹时不再阻止引导重现；历史运行改为可点开的只读详情（阶段时间线、上下文分区、交付回执、运行级错误），已交付候选稿提供「打开对照」入口。
 - **编辑器**：正文草稿经 IPC 落到写作文件夹 `.zhizhang/drafts/`（同 key 串行、最后一次生效），不再写 `localStorage`；编辑态标题拆为独立输入框，稿纸区不再显示 `# 章名` 原文，保存时与 front matter 同步。
 - **流水线持久化韧性**：并行阶段（`fanOut`）的运行记录持久化串行化，避免并发重命名瞬时 `EPERM` 被误判为 `storage.locked` 而暂停；`atomicWrite` 对 `storage.locked` 增加指数退避重试（约 10 秒）；两项均补回归测试。
