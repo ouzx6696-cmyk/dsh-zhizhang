@@ -120,6 +120,7 @@ export const AnyOpSchema: Parser<AnyOp> = (value, path = "$") => {
 };
 
 export const PendingItemSchema: Parser<PendingItem> = obj({
+  committed: opt(id),
   id,
   op: AnyOpSchema,
   change: lit("new", "update", "same", "conflict", "fulfill", "diverge"),
@@ -163,7 +164,11 @@ export const PendingBatchSchema: Parser<PendingBatch> = obj({
   commits: arr(id, { max: 100 }),
 });
 
+const nullableText: Parser<string | null> = (value, path) =>
+  value === null ? null : str()(value, path);
+
 export const ChangeSetSchema: Parser<ChangeSet> = obj({
+  snapshots: opt(arr(obj({ file: str({ max: 500 }), before: nullableText, after: nullableText }))),
   id,
   at: str({ min: 1, max: 80 }),
   kind: lit("apply", "revert"),
@@ -175,7 +180,7 @@ export const ChangeSetSchema: Parser<ChangeSet> = obj({
   ops: arr(AnyOpSchema),
   inverse: arr(AnyOpSchema),
   revs: record(int({ min: 0 })),
-  files: arr(str({ max: 500 }), { max: 100 }),
+  files: arr(str({ max: 500 }), { max: 10000 }),
 });
 
 export const CommitResultSchema: Parser<CommitResult> = obj({

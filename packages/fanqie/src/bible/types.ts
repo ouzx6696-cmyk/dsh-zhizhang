@@ -173,6 +173,8 @@ export type PendingSource = "import" | "ledger" | "plan" | "assistant";
 export type Decision = "undecided" | "accept" | "reject" | "edit";
 
 export interface PendingItem {
+  /** 首次提交的变更集回执，防止分批提交重复应用。 */
+  committed?: string;
   /** p-… */
   id: string;
   op: AnyOp;
@@ -206,6 +208,7 @@ export interface PendingBatch {
 }
 
 export interface ChangeSet {
+  snapshots?: Array<{ file: string; before: string | null; after: string | null }>;
   id: string;
   at: string;
   kind: "apply" | "revert";

@@ -163,6 +163,8 @@ export interface ImportEstimate {
 }
 
 export interface ImportBatchView {
+  duplicateOf?: string;
+  encodingCandidates?: import("@zhizhang/core/text").EncodingCandidate[];
   batch: string;
   status: "staged" | "running" | "reviewing" | "partial" | "closed" | "reverted";
   source: ImportSourceMeta;

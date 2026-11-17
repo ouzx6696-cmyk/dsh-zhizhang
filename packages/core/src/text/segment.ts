@@ -202,6 +202,7 @@ export function segment(text: string, options: SegmentOptions): SegmentResult {
     (indented / nonempty.length >= 0.6 ||
       (noBlank && nonempty.every((line) => line.text.length < 200)));
   const result: SegmentResult = {
+    text,
     format: options.format,
     segments: [],
     unassigned: [],
@@ -244,7 +245,11 @@ export function segment(text: string, options: SegmentOptions): SegmentResult {
       paras,
       titlePath: path.map((item) => item.title),
       ...(heading?.semantic ? { semantic: heading.semantic } : {}),
-      hint: heading?.meta ? "meta" : hintOf(`${title}\n${firstBody}`, heading?.semantic),
+      hint: heading?.meta
+        ? "meta"
+        : override(title, options)
+          ? `outline-${heading?.semantic}`
+          : hintOf(`${title}\n${firstBody}`, heading?.semantic),
     });
   };
   if (!headings.length) {

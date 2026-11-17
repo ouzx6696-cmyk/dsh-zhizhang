@@ -1,3 +1,7 @@
+import { prepareChapter } from "../chapter/prepare.js";
+import { createBibleStore } from "../../bible/store.js";
+import { createLockService } from "@zhizhang/core/lock";
+import { systemClock } from "@zhizhang/core/clock";
 import path from "node:path";
 import { AppError } from "@zhizhang/core/errors";
 import { atomicWrite, resolveResourcePath, readTextIfExists, sha256 } from "@zhizhang/core/fs";
@@ -85,6 +89,13 @@ export const reviewPipeline: PipelineDefinition<ReviewReq, StandaloneReviewResul
       omitted: [],
       estimate: Math.ceil(prepared.body.length / 2),
     };
+    const sharedContext = await prepareChapter(
+      ctx,
+      { chapterId: req.chapterId, note: req.note },
+      createBibleStore(createLockService(systemClock)),
+    );
+    packet.prefix.push(...sharedContext.packet.prefix);
+    packet.suffix.push(...sharedContext.packet.suffix);
 
     const continuity = await runner.stage(continuityStage, packet);
     const review = await runner.stage(makeReviewStage(1), packet);

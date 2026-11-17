@@ -1,3 +1,7 @@
+import { prepareChapter } from "../chapter/prepare.js";
+import { createBibleStore } from "../../bible/store.js";
+import { createLockService } from "@zhizhang/core/lock";
+import { systemClock } from "@zhizhang/core/clock";
 import path from "node:path";
 import { AppError } from "@zhizhang/core/errors";
 import {
@@ -121,6 +125,13 @@ export const revisePipeline: PipelineDefinition<ReviseReq, StandaloneReviseResul
       omitted: [],
       estimate: Math.ceil(current.body.length / 2),
     };
+    const sharedContext = await prepareChapter(
+      ctx,
+      { chapterId: req.chapterId, note: req.note },
+      createBibleStore(createLockService(systemClock)),
+    );
+    packet.prefix.push(...sharedContext.packet.prefix);
+    packet.suffix.push(...sharedContext.packet.suffix);
 
     for (let round = 1; round <= MAX_EDITOR_REJECTIONS; round++) {
       ctx.state.pendingIssues = pendingIssues;

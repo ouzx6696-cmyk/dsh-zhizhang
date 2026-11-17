@@ -187,3 +187,20 @@ export async function readLib(workPath: string): Promise<BibleLib> {
     ledgers: new Map(ledgerList.map((entry) => [entry.chapter, entry])),
   };
 }
+
+export async function readIndexOrEmpty(workPath: string): Promise<BibleIndex> {
+  return (
+    (await readIndex(workPath)) ?? {
+      format: "zhizhang/1.3",
+      files: {
+        entities: { rev: 0, hash: "" },
+        timeline: { rev: 0, hash: "" },
+        states: { rev: 0, hash: "" },
+        threads: { rev: 0, hash: "" },
+        knowledge: { rev: 0, hash: "" },
+        style: { rev: 0, hash: "" },
+        outline: { rev: 0, hash: "" },
+      },
+    }
+  );
+}

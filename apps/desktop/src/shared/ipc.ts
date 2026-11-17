@@ -236,6 +236,9 @@ export interface DesktopApi {
   storageHealth(): Promise<StorageHealth>;
   recover(action: RecoverAction): Promise<StorageHealth>;
   updates(action?: "status" | "check"): Promise<UpdateStatus>;
+  pickImport(options?: {
+    title?: string;
+  }): Promise<{ token: string; name: string; bytes: number } | null>;
   openText(options?: { title?: string; extensions?: string[] }): Promise<OpenedText | null>;
   fetchSource(url: string): Promise<FetchedSource>;
   learning(target: Target): Promise<LearningView>;
@@ -294,6 +297,7 @@ export function createDesktopApi(bridge: () => DesktopBridge): DesktopApi {
     storageHealth: () => call("storage.health"),
     recover: (action) => call("storage.recover", action),
     updates: (action = "status") => call("updates.check", action),
+    pickImport: (options = {}) => call("dialog.pickImport", options),
     openText: (options = {}) => call("dialog.openText", options),
     fetchSource: (url) => call("source.fetch", url),
     learning: (target) => call("learning.status", target),

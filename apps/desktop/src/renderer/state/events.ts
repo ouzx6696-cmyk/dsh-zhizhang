@@ -154,6 +154,21 @@ export function subscribeDesktopEvents(): () => void {
       case "navigate":
         select(event.target, event.focus ?? {})
           .then(() => {
+            if (event.focus?.view === "plan") {
+              const tab = event.focus.tab;
+              set({
+                view: "plan",
+                planFocus: event.focus.id,
+                planTab:
+                  tab === "library" ||
+                  tab === "pending" ||
+                  tab === "import" ||
+                  tab === "checks" ||
+                  tab === "history"
+                    ? tab
+                    : "outline",
+              });
+            }
             if (event.focus?.candidate) set({ dockTab: "pipeline", dockOpen: true });
           })
           .catch(notifyError);

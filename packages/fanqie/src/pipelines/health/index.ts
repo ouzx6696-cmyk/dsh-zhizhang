@@ -1,3 +1,4 @@
+import { auditWork } from "../../bible/audit-work.js";
 import path from "node:path";
 import { systemClock } from "@zhizhang/core/clock";
 import { atomicWrite, sha256 } from "@zhizhang/core/fs";
@@ -100,9 +101,8 @@ export const healthPipeline: PipelineDefinition<HealthInput, HealthResult> = {
 
     // 1. bible.audit
     const audited = await runner.local("bible-audit", async () => {
-      const bible = await bibleStore.read(ctx.target.path);
       const ledgers = await bibleStore.ledgers(ctx.target.path);
-      const localFindings = bibleStore.audit(bible, req.upToChapter, ledgers);
+      const localFindings = await auditWork(ctx.target.path, req.upToChapter);
       const chapterSummaries = ledgers
         .filter((c) => c.position <= req.upToChapter)
         .sort((a, b) => a.position - b.position)

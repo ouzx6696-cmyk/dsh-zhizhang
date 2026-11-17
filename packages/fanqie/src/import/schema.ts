@@ -1,5 +1,5 @@
 /** 导入契约的运行时解析器（F2 §5.2）。 */
-import { FORMAT_VERSION } from "@zhizhang/core/paths";
+import { FORMAT_VERSION } from "@zhizhang/core/version";
 import {
   arr,
   bool,
@@ -13,7 +13,7 @@ import {
   union,
   type Parser,
 } from "@zhizhang/core/schema";
-import { TextEncodingSchema } from "@zhizhang/core/text";
+import { TextEncodingSchema } from "@zhizhang/core/text/schema";
 import { PendingItemSchema } from "../bible/ops-schema.js";
 import { BibleIndexFilesSchema, EntityKindSchema, FacetSchema } from "../bible/schema.js";
 import { BeatSchema } from "../outline/schema.js";
@@ -208,6 +208,16 @@ export const ImportEstimateSchema: Parser<ImportEstimate> = obj({
 });
 
 export const ImportBatchViewSchema: Parser<ImportBatchView> = obj({
+  duplicateOf: opt(id),
+  encodingCandidates: opt(
+    arr(
+      obj({
+        encoding: TextEncodingSchema,
+        score: num({ min: 0, max: 1 }),
+        preview: str({ max: 500 }),
+      }),
+    ),
+  ),
   batch: id,
   status: lit("staged", "running", "reviewing", "partial", "closed", "reverted"),
   source: ImportSourceMetaSchema,

@@ -4,7 +4,7 @@ import { AppError } from "@zhizhang/core/errors";
 import { atomicWrite, readJson } from "@zhizhang/core/fs";
 import type { LockService } from "@zhizhang/core/lock";
 import { FORMAT_VERSION } from "@zhizhang/core/paths";
-import { bool, int, lit, obj, str, type Infer } from "@zhizhang/core/schema";
+import { arr, bool, int, lit, obj, opt, str, type Infer } from "@zhizhang/core/schema";
 
 export const WorkMetaSchema = obj({
   format: lit(FORMAT_VERSION),
@@ -17,6 +17,11 @@ export const WorkMetaSchema = obj({
     requireEditorPass: bool,
     targetWords: int({ min: 500, max: 20000 }),
     previousTextMode: lit("auto", "full", "tail"),
+    ledger: opt(lit("ask", "auto", "off")),
+    threadForgetAfter: opt(int({ min: 1, max: 100 })),
+    recentFactsWindow: opt(int({ min: 0, max: 20 })),
+    contextBudget: opt(int({ min: 4000, max: 200000 })),
+    terminalStates: opt(arr(str({ max: 60 }), { max: 20 })),
   }),
 });
 
@@ -51,17 +56,36 @@ export async function createWorkLayout(
       requireEditorPass: false,
       targetWords: 3000,
       previousTextMode: "auto",
+      contextBudget: undefined,
+      ledger: "auto",
+      threadForgetAfter: 10,
+      recentFactsWindow: 5,
+      terminalStates: ["死亡", "陨落", "封印", "失踪"],
     },
   };
   await lock.write({ kind: "work", path: workPath }, async () => {
-    await fs.mkdir(path.join(workPath, "plan"), { recursive: true });
+    for (const dir of [
+      "outline/volumes",
+      "bible/ledger",
+      "bible/pending",
+      "bible/changes",
+      "imports",
+    ])
+      await fs.mkdir(path.join(workPath, dir), { recursive: true });
     await fs.mkdir(path.join(workPath, "chapters"), { recursive: true });
     await fs.mkdir(path.join(workPath, "candidates"), { recursive: true });
     await fs.mkdir(path.join(workPath, "history"), { recursive: true });
     await fs.mkdir(path.join(workPath, "bible"), { recursive: true });
     await fs.mkdir(path.join(workPath, ".cache"), { recursive: true });
     await atomicWrite(path.join(workPath, "work.json"), JSON.stringify(meta, null, 2));
-    await atomicWrite(path.join(workPath, "plan", "structure.json"), JSON.stringify([], null, 2));
+    await atomicWrite(
+      path.join(workPath, "outline", "book.json"),
+      JSON.stringify(
+        { format: FORMAT_VERSION, title: input.title, volumeOrder: [], rev: 0 },
+        null,
+        2,
+      ),
+    );
   });
   return meta;
 }

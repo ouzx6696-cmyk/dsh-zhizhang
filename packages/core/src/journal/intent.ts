@@ -7,7 +7,7 @@ import type { LockService, ResourceKey } from "../lock/index.js";
 export interface IntentWrite {
   path: string;
   beforeHash: string | null;
-  after: string;
+  after: string | null;
 }
 
 export interface Intent {
@@ -28,7 +28,8 @@ export async function commitIntent(
     const intentFile = path.join(journalDir, `${intent.id}.json`);
     await atomicWrite(intentFile, JSON.stringify(intent, null, 2));
     for (const w of intent.writes) {
-      await atomicWrite(w.path, w.after);
+      if (w.after === null) await fs.rm(w.path, { force: true });
+      else await atomicWrite(w.path, w.after);
     }
     await fs.rm(intentFile, { force: true });
   });

@@ -58,8 +58,9 @@ export async function commitBibleBatch(
   batch: string,
   expectedRevs: BibleIndex["files"],
   lock: LockService = createLockService(systemClock),
+  remapToken?: string,
 ): Promise<CommitResult> {
-  return createBibleStore(lock).commit(workPath, batch, expectedRevs);
+  return createBibleStore(lock).commit(workPath, batch, expectedRevs, remapToken);
 }
 
 export async function applyBibleOps(

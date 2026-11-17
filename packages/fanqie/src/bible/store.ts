@@ -115,8 +115,9 @@ export function createBibleStore(lock: LockService, options: BibleStoreOptions =
       workPath: string,
       batch: string,
       expectedRevs: BibleIndex["files"],
+      remapToken?: string,
     ): Promise<CommitResult> {
-      return commitBatch(workPath, batch, expectedRevs, deps);
+      return commitBatch(workPath, batch, expectedRevs, deps, remapToken);
     },
     revert(workPath: string, changeId: string, force = false): Promise<RevertResult> {
       return revertChange(workPath, changeId, force, deps);

@@ -1,3 +1,4 @@
+import { ChapterPlanCard } from "../plan/ChapterPlanCard";
 import React, { useEffect, useId, useState } from "react";
 import { PanelRightClose, Rows2 } from "lucide-react";
 import { COPY, DESKTOP_COPY as C } from "@zhizhang/ui/copy";
@@ -53,6 +54,7 @@ function ChapterPane({ target }: { target: Target }) {
           </div>
         )}
       </dl>
+      {target.mode === "fanqie" ? <ChapterPlanCard work={target.path} /> : null}
       {target.mode === "fanqie" ? <BiblePane work={target.path} chapters={chapters} /> : null}
     </div>
   );

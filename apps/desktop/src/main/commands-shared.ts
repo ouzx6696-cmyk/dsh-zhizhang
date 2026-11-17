@@ -18,8 +18,3 @@ export const numberPair: Parser<[number, number]> = (value, path = "$") => {
   }
   return [list[0], list[1]];
 };
-
-/** 未实现命令的占位：错误码固定为 internal，消息带负责卡号。 */
-export function notImplemented(card: string): never {
-  throw new AppError("internal", `未实现：${card}`);
-}

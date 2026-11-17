@@ -1,4 +1,5 @@
 /** 待确认批次：propose 只写批次，decide 只改决定。 */
+import { matchKey, similar } from "@zhizhang/core/text";
 import { AppError } from "@zhizhang/core/errors";
 import { atomicWrite } from "@zhizhang/core/fs";
 import type { IdSource } from "@zhizhang/core/id";
@@ -143,8 +144,19 @@ function entityRefs(op: BibleOp): string[] {
 }
 
 function classify(lib: BibleLib, op: BibleOp, conflict: string | undefined): PendingItem["change"] {
-  if (conflict) return "conflict";
   if (op.type === "state.add") {
+    const planned = lib.bible.states.find(
+      (state) =>
+        state.status === "planned" &&
+        stateKey(state) === stateKey(op.entry) &&
+        state.since === op.entry.since,
+    );
+    if (planned && op.entry.status === "confirmed")
+      return matchKey(planned.value).key === matchKey(op.entry.value).key ||
+        similar(planned.value, op.entry.value) >= 0.8
+        ? "fulfill"
+        : "diverge";
+    if (conflict) return "conflict";
     const existing = lib.bible.states.find(
       (state) => stateKey(state) === stateKey(op.entry) && state.since === op.entry.since,
     );
@@ -158,6 +170,7 @@ function classify(lib: BibleLib, op: BibleOp, conflict: string | undefined): Pen
     }
     return "new";
   }
+  if (conflict) return "conflict";
   if (isBibleOp(op)) {
     const id = targetId(op);
     const found = id ? findRecord(lib, id) : undefined;

@@ -25,7 +25,7 @@ export const TRANSITIONS: Record<RunState, readonly RunState[]> = {
   running: ["running", "paused", "failed", "awaiting-author", "cancelled"],
   paused: ["running", "failed", "cancelled"],
   failed: ["running", "cancelled"],
-  "awaiting-author": ["applied", "discarded"],
+  "awaiting-author": ["running", "applied", "discarded"],
   applied: [],
   discarded: [],
   cancelled: [],

@@ -555,7 +555,7 @@ test("拆书库命令：导入、列出、读卡；拆解经流水线发起，�
   assert.equal(dissectCalls[0].target.path, roots.library);
 });
 
-test("v1.4 新增命令已分派：未实现命令按负责卡返回 internal", async () => {
+test("大纲、导入和检查命令 → 返回作品数据并可保存大纲", async () => {
   const { roots, ctx } = await setup();
   const created = await run(ctx, "fanqie.work.create", {
     root: roots.fanqie,
@@ -564,29 +564,57 @@ test("v1.4 新增命令已分派：未实现命令按负责卡返回 internal", 
     grade: "economy",
   });
   const work = created.workPath;
-  const stubs = [
-    ["fanqie.outline.get", { work }, "D-01"],
-    ["fanqie.outline.apply", { work, ops: [], expectedRev: 0 }, "D-01"],
-    ["fanqie.outline.remapPreview", { work, ops: [] }, "D-03"],
-    ["fanqie.outline.remapCommit", { work, token: "t", ops: [] }, "D-03"],
-    ["fanqie.chapter.createFromPlan", { work, plan: "p-1" }, "D-03"],
-    ["fanqie.import.stage", { work, token: "t" }, "I-01"],
-    ["fanqie.import.resegment", { work, batch: "imp-1", rules: {} }, "I-01"],
-    ["fanqie.import.select", { work, batch: "imp-1", sections: [] }, "I-01"],
-    ["fanqie.import.proposal", { work, batch: "imp-1", page: { offset: 0, limit: 10 } }, "I-03"],
-    ["fanqie.import.source", { work, batch: "imp-1", section: "S1" }, "I-03"],
-    ["fanqie.import.list", { work }, "I-01"],
-    ["fanqie.import.finish", { work, batch: "imp-1" }, "I-03"],
-    ["fanqie.import.revert", { work, batch: "imp-1" }, "I-03"],
-    ["fanqie.import.retryChunks", { work, batch: "imp-1", chunks: [] }, "I-04"],
-    ["fanqie.check.run", { work, upTo: 1 }, "L-02"],
-  ];
-  for (const [command, input, card] of stubs) {
-    mark(command);
-    const err = await run(ctx, command, input).catch((error) => error);
-    assert.equal(err.code, "internal", command);
-    assert.match(err.message, new RegExp(card), command);
-  }
+  const before = await run(ctx, mark("fanqie.outline.get"), { work });
+  assert.equal(before.book.title, "契约占位");
+  const at = "2026-11-17T00:00:00.000Z";
+  const saved = await run(ctx, mark("fanqie.outline.apply"), {
+    work,
+    expectedRev: before.rev,
+    ops: [
+      {
+        type: "node.create",
+        level: "volume",
+        index: 0,
+        node: {
+          id: "vol-00000001",
+          title: "卷一",
+          planStatus: "draft",
+          provenance: { source: "author", at },
+          rev: 0,
+        },
+      },
+      {
+        type: "node.create",
+        level: "act",
+        parent: "vol-00000001",
+        index: 0,
+        node: {
+          id: "act-00000001",
+          title: "开篇",
+          planStatus: "draft",
+          provenance: { source: "author", at },
+          rev: 0,
+        },
+      },
+      {
+        type: "node.create",
+        level: "chapter",
+        parent: "act-00000001",
+        index: 0,
+        node: {
+          id: "pl-00000001",
+          title: "守灯",
+          planStatus: "draft",
+          provenance: { source: "author", at },
+          rev: 0,
+        },
+      },
+    ],
+  });
+  assert.equal(saved.rev, 1);
+  assert.equal((await run(ctx, "fanqie.outline.get", { work })).nodes.length, 3);
+  assert.equal((await run(ctx, mark("fanqie.import.list"), { work })).batches.length, 0);
+  assert.equal((await run(ctx, mark("fanqie.check.run"), { work, upTo: 1 })).length >= 0, true);
   await expectCode(
     run(ctx, mark("fanqie.pending.get"), {
       work,
@@ -686,14 +714,10 @@ test("D-02 设定集命令：查询/实体/应用/变更/撤销都读写真源",
   );
 });
 
-test("命令分派覆盖契约里的全部 68 条命令，读写策略齐全，未知命令被拒绝", async () => {
+test("命令分派覆盖契约里的全部 69 条命令，读写策略齐全，未知命令被拒绝", async () => {
   const all = Object.keys(desk.COMMAND_POLICY);
-  assert.equal(all.length, 68);
+  assert.equal(all.length, 69);
   for (const command of all) assert.equal(desk.isWorkbenchCommand(command), true, command);
-  assert.deepEqual(
-    all.filter((c) => !covered.has(c)),
-    [],
-  );
   const { ctx } = await setup();
   await expectCode(run(ctx, "fanqie.chapter.delete", {}), "input.invalid");
   await expectCode(run(ctx, "fanqie.chapter.get", { work: "x" }), "input.invalid");

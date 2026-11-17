@@ -192,7 +192,7 @@ test("无效回答重试后用量完整保留，恢复直接复用已验收的�
   const result = await executePipeline(
     def,
     record,
-    {},
+    { state: {} },
     gateway,
     clock,
     new AbortController().signal,
@@ -201,7 +201,7 @@ test("无效回答重试后用量完整保留，恢复直接复用已验收的�
   await executePipeline(
     def,
     { ...result, state: "running" },
-    {},
+    { state: {} },
     gateway,
     clock,
     new AbortController().signal,

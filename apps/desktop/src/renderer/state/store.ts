@@ -41,6 +41,8 @@ export interface DesktopState {
   running: RunningRow[];
   revisions: Revisions;
   view: MainView;
+  planTab: "outline" | "library" | "pending" | "import" | "checks" | "history";
+  planFocus?: string;
   dockTab: DockTab;
   dockOpen: boolean;
   settingsOpen: boolean;
@@ -89,6 +91,7 @@ export const desktopStore = createStore<DesktopState>({
   running: [],
   revisions: initialRevisions,
   view: "writing",
+  planTab: "outline",
   dockTab: "assistant",
   dockOpen: true,
   settingsOpen: false,

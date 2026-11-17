@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { DESKTOP_COPY as C } from "@zhizhang/ui/copy";
+import { COPY, DESKTOP_COPY as C } from "@zhizhang/ui/copy";
 import { Button, Empty, Notice, Skeleton } from "@zhizhang/ui/primitives";
 import type { AnyOp, AuditFinding, BibleSnapshot, PendingItem } from "@zhizhang/fanqie/bible";
 import { desktop } from "../../state/desktop";
-import { useDesktop } from "../../state/store";
+import { desktopStore, useDesktop } from "../../state/store";
 import { errorText, notifyError } from "../../format";
 
 /** 待确认条目的一行摘要（设定集是连续性的唯一真源，取代 1.x 的连续性面板）。 */
@@ -113,6 +113,9 @@ export function BiblePane({ work, chapters }: { work: string; chapters: number }
         {C.bible.stats(bible.entities.length, openThreads, bible.knowledge.length)}
       </p>
       <h4>{C.bible.pending(pending.length)}</h4>
+      <Button onClick={() => desktopStore.set({ view: "plan", planTab: "pending" })}>
+        {COPY["plan.review.title"]}
+      </Button>
       {pending.length ? (
         <ul className="zz-list">
           {pending.map((row) => (

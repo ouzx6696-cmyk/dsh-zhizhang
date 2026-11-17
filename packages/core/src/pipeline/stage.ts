@@ -1,3 +1,4 @@
+import type { ErrorCode } from "../errors/codes.js";
 import type { Profile, ProfileRoots } from "../methods/index.js";
 import type { Parser } from "../schema/parse.js";
 import type { Role } from "../tool/roles.js";
@@ -34,7 +35,7 @@ export interface StageSpec<I, O> {
   title: string;
   role: Role;
   method?: { stage: string };
-  input(ctx: RunCtx): I | Promise<I>;
+  input(ctx: RunCtx, index?: number): I | Promise<I>;
   shape: string;
   format: "text" | "json";
   parse(raw: string): O;
@@ -43,12 +44,21 @@ export interface StageSpec<I, O> {
     ctx: RunCtx,
   ): O | { value: O; notes: string[] } | Promise<O | { value: O; notes: string[] }>;
   retries?: number;
-  fanOut?: { count(ctx: RunCtx): number };
+  fanOut?: { count(ctx: RunCtx): number; key?(index: number): string | number };
 }
 
 export interface StageRunner {
   stage<I, O>(spec: StageSpec<I, O>, packet: ContextPacket): Promise<O>;
   fanOut<I, O>(spec: StageSpec<I, O>, packet: ContextPacket): Promise<O[]>;
+  fanOutSettled<I, O>(
+    spec: StageSpec<I, O>,
+    packet: ContextPacket,
+  ): Promise<
+    (
+      | { ok: true; index: number; value: O }
+      | { ok: false; index: number; error: { code: ErrorCode; message: string } }
+    )[]
+  >;
   local<O>(id: string, fn: () => Promise<O>): Promise<O>;
   signal: AbortSignal;
 }

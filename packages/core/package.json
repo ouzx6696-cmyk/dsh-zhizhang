@@ -19,6 +19,7 @@
     "./paths": "./src/paths.ts",
     "./version": "./src/version.ts",
     "./id": "./src/id.ts",
-    "./text": "./src/text/index.ts"
+    "./text": "./src/text/index.ts",
+    "./text/schema": "./src/text/schema.ts"
   }
 }

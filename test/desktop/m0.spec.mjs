@@ -528,7 +528,8 @@ test("M0-3：历史里点开上一条运行 → 显示阶段列表与交付回�
     await expect(tid("run-detail-stage").first()).toBeVisible();
     expect(await tid("run-detail-stage").count()).toBeGreaterThan(1);
     await expect(tid("run-detail-receipt")).toBeVisible();
-    await expect(tid("run-detail-context-empty")).toBeVisible();
+    await expect(tid("run-detail-context")).toBeVisible();
+    await expect(tid("run-detail-context-empty")).toHaveCount(0);
     await tid("run-detail-back").click();
     await expect(tid("workflow-run").first()).toBeVisible();
 

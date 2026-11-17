@@ -35,6 +35,7 @@ export const SegmentSchema: Parser<Segment> = obj({
 });
 
 export const ChunkSchema: Parser<Chunk> = obj({
+  fragments: opt(arr(ParaSchema)),
   index: int({ min: 0 }),
   total: int({ min: 0 }),
   segmentIds: arr(str({ max: 60 })),
@@ -55,4 +56,11 @@ export const EncodingGuessSchema: Parser<EncodingGuess> = obj({
       preview: str({ max: 500 }),
     }),
   ),
+});
+
+export const SegmentRulesSchema = obj({
+  volume: opt(arr(str({ max: 200 }), { max: 50 })),
+  act: opt(arr(str({ max: 200 }), { max: 50 })),
+  chapter: opt(arr(str({ max: 200 }), { max: 50 })),
+  ignore: opt(arr(str({ max: 200 }), { max: 50 })),
 });
