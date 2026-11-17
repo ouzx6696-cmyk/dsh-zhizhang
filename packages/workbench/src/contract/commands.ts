@@ -1,13 +1,25 @@
 import type {
+  AnyOp,
   AuditFinding,
-  Bible,
+  BibleIndex,
   BibleOp,
+  BibleSnapshot,
   BibleView,
+  ChangeSet,
+  CommitResult,
+  Entity,
+  PendingBatch,
   PendingItem,
   Provenance,
+  RevertResult,
+  StateEntry,
+  Thread,
 } from "@zhizhang/fanqie/bible";
+import type { ImportBatchView, ImportProposal, SectionKind } from "@zhizhang/fanqie/import";
+import type { OutlineOp, OutlineView, RemapPreview } from "@zhizhang/fanqie/outline";
 import type { WorkMeta } from "@zhizhang/fanqie/storage";
 import type { ChapterRowView, FanqieSnapshotDelta } from "@zhizhang/fanqie/view";
+import type { Para, SegmentRules, TextEncoding } from "@zhizhang/core/text";
 import type { commands as fanqieCommands } from "@zhizhang/fanqie";
 import type { LedgerMutateResult, LedgerShowResult } from "@zhizhang/toutiao/rules";
 import type { ArticleRowView } from "@zhizhang/toutiao/view";
@@ -39,6 +51,34 @@ export interface TechniqueCardView {
   pattern: string;
   example: string;
   usage: string;
+}
+
+export interface BibleQueryItem {
+  entity: Entity;
+  states: StateEntry[];
+}
+
+export interface BibleEntityView {
+  entity: Entity;
+  states: StateEntry[];
+  relations: StateEntry[];
+  threads: Thread[];
+  appearances: number[];
+}
+
+export type ChangeSetSummary = Omit<ChangeSet, "ops" | "inverse">;
+
+export type PendingBatchSummary = Omit<PendingBatch, "items"> & { items: number };
+
+export interface ImportProposalPage {
+  items: PendingItem[];
+  stats: ImportProposal["stats"];
+  total: number;
+}
+
+export interface PageInput {
+  offset: number;
+  limit: number;
 }
 
 export interface WorkbenchCommandMap {
@@ -124,9 +164,58 @@ export interface WorkbenchCommandMap {
     result: { outPath: string; chapterCount: number };
     access: "read";
   };
+  "fanqie.outline.get": {
+    input: { work: string };
+    result: OutlineView;
+    access: "read";
+  };
+  "fanqie.outline.apply": {
+    input: { work: string; ops: OutlineOp[]; expectedRev: number };
+    result: { changeId: string; rev: number };
+    access: "write";
+  };
+  "fanqie.outline.remapPreview": {
+    input: { work: string; ops: OutlineOp[] };
+    result: RemapPreview;
+    access: "read";
+  };
+  "fanqie.outline.remapCommit": {
+    input: { work: string; token: string; ops: OutlineOp[] };
+    result: { changeId: string; rev: number; remapped: number };
+    access: "write";
+  };
+  "fanqie.chapter.createFromPlan": {
+    input: { work: string; plan: string };
+    result: { chapterId: string; row: ChapterRowView };
+    access: "write";
+  };
   "fanqie.bible.get": {
     input: { work: string };
-    result: Bible;
+    result: BibleSnapshot;
+    access: "read";
+  };
+  "fanqie.bible.query": {
+    input: {
+      work: string;
+      filter: {
+        kind?: Entity["kind"];
+        facet?: StateEntry["facet"];
+        source?: Provenance["source"];
+        status?: StateEntry["status"];
+        conflict?: boolean;
+        stale?: boolean;
+        appearIn?: [number, number];
+        q?: string;
+      };
+      position?: number;
+      page: PageInput;
+    };
+    result: { items: BibleQueryItem[]; total: number };
+    access: "read";
+  };
+  "fanqie.bible.entity": {
+    input: { work: string; id: string; position?: number };
+    result: BibleEntityView;
     access: "read";
   };
   "fanqie.bible.view": {
@@ -139,14 +228,117 @@ export interface WorkbenchCommandMap {
     result: { items: PendingItem[] };
     access: "write";
   };
-  "fanqie.bible.decide": {
-    input: { work: string; id: string; decision: "accept" | "reject" | { edit: BibleOp } };
-    result: { ok: true };
+  "fanqie.bible.apply": {
+    input: { work: string; ops: BibleOp[]; expectedRev: number };
+    result: { changeId: string };
+    access: "write";
+  };
+  "fanqie.bible.changes": {
+    input: { work: string; before?: string; limit?: number; source?: Provenance["source"] };
+    result: { changes: ChangeSetSummary[] };
+    access: "read";
+  };
+  "fanqie.bible.revert": {
+    input: { work: string; changeId: string; force?: boolean };
+    result: RevertResult;
     access: "write";
   };
   "fanqie.bible.audit": {
     input: { work: string; upTo: number };
     result: { findings: AuditFinding[] };
+    access: "read";
+  };
+  "fanqie.pending.list": {
+    input: { work: string; source?: PendingBatch["source"]; status?: PendingBatch["status"] };
+    result: { batches: PendingBatchSummary[] };
+    access: "read";
+  };
+  "fanqie.pending.get": {
+    input: {
+      work: string;
+      batch: string;
+      filter?: { change?: PendingItem["change"]; decision?: PendingItem["decision"] };
+      page: PageInput;
+    };
+    result: { items: PendingItem[]; total: number; stats: Record<string, number> };
+    access: "read";
+  };
+  "fanqie.pending.decide": {
+    input: {
+      work: string;
+      batch: string;
+      decisions: {
+        id: string;
+        decision: "accept" | "reject" | "edit";
+        edited?: AnyOp;
+        effectiveFrom?: number;
+      }[];
+    };
+    result: { decided: number };
+    access: "write";
+  };
+  "fanqie.pending.commit": {
+    input: { work: string; batch: string; expectedRevs: BibleIndex["files"] };
+    result: CommitResult;
+    access: "write";
+  };
+  "fanqie.import.stage": {
+    input: { work: string; token: string; rules?: SegmentRules };
+    result: ImportBatchView;
+    access: "write";
+  };
+  "fanqie.import.resegment": {
+    input: { work: string; batch: string; rules: SegmentRules; encoding?: TextEncoding };
+    result: ImportBatchView;
+    access: "write";
+  };
+  "fanqie.import.select": {
+    input: {
+      work: string;
+      batch: string;
+      sections: { id: string; selected: boolean; kind?: SectionKind }[];
+    };
+    result: ImportBatchView;
+    access: "write";
+  };
+  "fanqie.import.proposal": {
+    input: {
+      work: string;
+      batch: string;
+      filter?: { change?: PendingItem["change"]; decision?: PendingItem["decision"] };
+      page: PageInput;
+    };
+    result: ImportProposalPage;
+    access: "read";
+  };
+  "fanqie.import.source": {
+    input: { work: string; batch: string; section: string; around?: string };
+    result: { text: string; paras: Para[] };
+    access: "read";
+  };
+  "fanqie.import.list": {
+    input: { work: string };
+    result: { batches: ImportBatchView[] };
+    access: "read";
+  };
+  "fanqie.import.finish": {
+    input: { work: string; batch: string };
+    result: { status: string };
+    access: "write";
+  };
+  "fanqie.import.revert": {
+    input: { work: string; batch: string; force?: boolean };
+    result: RevertResult;
+    access: "write";
+  };
+  "fanqie.import.retryChunks": {
+    input: { work: string; batch: string; chunks: number[] };
+    result: { runId: string };
+    access: "write";
+  };
+  "fanqie.check.run": {
+    input: { work: string; upTo: number };
+    result: AuditFinding[];
     access: "read";
   };
   "fanqie.reference.bind": {
@@ -308,12 +500,21 @@ export type WorkbenchCommand = keyof WorkbenchCommandMap;
 export type CommandInput<K extends WorkbenchCommand> = WorkbenchCommandMap[K]["input"];
 export type CommandResult<K extends WorkbenchCommand> = WorkbenchCommandMap[K]["result"];
 
-export type CommandRefreshScope = "rows" | "chapter" | "bible" | "article" | "profiles" | "library";
+export type CommandRefreshScope =
+  | "rows"
+  | "chapter"
+  | "bible"
+  | "article"
+  | "profiles"
+  | "library"
+  | "outline"
+  | "imports"
+  | "pending";
 
 export interface CommandPolicy<K extends WorkbenchCommand> {
   access: WorkbenchCommandMap[K]["access"];
-  /** 写命令成功后广播给渲染层的刷新范围。 */
-  refresh?: CommandRefreshScope;
+  /** 写命令成功后广播给渲染层的刷新范围；多范围按顺序各发一条。 */
+  refresh?: CommandRefreshScope | CommandRefreshScope[];
 }
 
 /** 读写与广播策略的唯一来源：主进程据此做只读门禁与 workspace.changed 广播。 */
@@ -332,11 +533,40 @@ export const COMMAND_POLICY: { readonly [K in WorkbenchCommand]: CommandPolicy<K
   "fanqie.work.create": { access: "write", refresh: "rows" },
   "fanqie.work.settings": { access: "write", refresh: "rows" },
   "fanqie.book.export": { access: "read" },
+  "fanqie.outline.get": { access: "read" },
+  "fanqie.outline.apply": { access: "write", refresh: "outline" },
+  "fanqie.outline.remapPreview": { access: "read" },
+  "fanqie.outline.remapCommit": {
+    access: "write",
+    refresh: ["outline", "bible", "rows"],
+  },
+  "fanqie.chapter.createFromPlan": { access: "write", refresh: ["rows", "outline"] },
   "fanqie.bible.get": { access: "read" },
+  "fanqie.bible.query": { access: "read" },
+  "fanqie.bible.entity": { access: "read" },
   "fanqie.bible.view": { access: "read" },
-  "fanqie.bible.propose": { access: "write", refresh: "bible" },
-  "fanqie.bible.decide": { access: "write", refresh: "bible" },
+  "fanqie.bible.propose": { access: "write", refresh: "pending" },
+  "fanqie.bible.apply": { access: "write", refresh: "bible" },
+  "fanqie.bible.changes": { access: "read" },
+  "fanqie.bible.revert": { access: "write", refresh: ["bible", "outline"] },
   "fanqie.bible.audit": { access: "read" },
+  "fanqie.pending.list": { access: "read" },
+  "fanqie.pending.get": { access: "read" },
+  "fanqie.pending.decide": { access: "write", refresh: "pending" },
+  "fanqie.pending.commit": {
+    access: "write",
+    refresh: ["bible", "outline", "pending"],
+  },
+  "fanqie.import.stage": { access: "write", refresh: "imports" },
+  "fanqie.import.resegment": { access: "write", refresh: "imports" },
+  "fanqie.import.select": { access: "write", refresh: "imports" },
+  "fanqie.import.proposal": { access: "read" },
+  "fanqie.import.source": { access: "read" },
+  "fanqie.import.list": { access: "read" },
+  "fanqie.import.finish": { access: "write", refresh: "imports" },
+  "fanqie.import.revert": { access: "write", refresh: ["bible", "outline", "imports"] },
+  "fanqie.import.retryChunks": { access: "write", refresh: "imports" },
+  "fanqie.check.run": { access: "read" },
   "fanqie.reference.bind": { access: "write", refresh: "rows" },
   "toutiao.articles": { access: "read" },
   "toutiao.article.create": { access: "write", refresh: "article" },

@@ -1,0 +1,36 @@
+{
+  "format": "zhizhang/1.3",
+  "id": "imp-abc123",
+  "source": "import",
+  "run": "run-1",
+  "created": "2026-11-17T00:00:00.000Z",
+  "status": "open",
+  "items": [
+    {
+      "id": "p-1",
+      "op": {
+        "type": "entity.upsert",
+        "entity": {
+          "id": "ent-yu",
+          "kind": "item",
+          "name": "残玉",
+          "aliases": [],
+          "summary": "缺了一角的古玉。",
+          "locked": [],
+          "provenance": {
+            "source": "import",
+            "batch": "imp-abc123",
+            "at": "2026-11-17T00:00:00.000Z"
+          },
+          "rev": 0
+        }
+      },
+      "change": "new",
+      "group": "items",
+      "dependsOn": [],
+      "notes": ["import.new_entity"],
+      "decision": "undecided"
+    }
+  ],
+  "commits": []
+}

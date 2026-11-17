@@ -2,3 +2,7 @@
 @import "./workspace.css";
 @import "./dock.css";
 @import "./settings.css";
+@import "./plan-outline.css";
+@import "./plan-library.css";
+@import "./plan-import.css";
+@import "./plan-review.css";

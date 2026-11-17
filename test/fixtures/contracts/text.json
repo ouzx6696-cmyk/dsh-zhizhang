@@ -1,0 +1,27 @@
+{
+  "encodingGuess": {
+    "encoding": "utf-8",
+    "confidence": 0.98,
+    "bom": false,
+    "candidates": [{ "encoding": "utf-8", "score": 0.98, "preview": "第一卷 起航" }]
+  },
+  "segment": {
+    "id": "S1",
+    "level": 1,
+    "title": "第一卷 起航",
+    "semantic": "volume",
+    "start": 0,
+    "end": 120,
+    "paras": [{ "id": "P1.1", "start": 0, "end": 10, "hash": "abc123def456" }],
+    "titlePath": ["第一卷 起航"]
+  },
+  "chunk": {
+    "index": 0,
+    "total": 1,
+    "segmentIds": ["S1"],
+    "paras": ["P1.1"],
+    "contextOnly": [],
+    "tokens": 100,
+    "breadcrumb": "第一卷 起航"
+  }
+}

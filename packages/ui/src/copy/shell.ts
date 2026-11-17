@@ -32,8 +32,6 @@ export const SHELL_COPY = {
   onboardingText11: "开第一本书",
   onboardingText12: "写一篇头条",
   onboardingText13: "打开已有作品",
-  commandPaletteText1: "命令面板",
-  commandPaletteText2: "输入命令或任务附言…",
   topBarText1: "拆书库",
   topBarText2: "选择作品",
   topBarText3: " · 编辑 ",

@@ -19,6 +19,8 @@ const CompareView = lazy(() =>
   import("../workflow/DraftCompare").then((m) => ({ default: m.CompareView })),
 );
 
+const PlanView = lazy(() => import("../plan/PlanView").then((m) => ({ default: m.PlanView })));
+
 /** 下一个章节编号：ch-001 起按已有最大序号递增。 */
 export function nextChapterId(chapters: readonly ChapterRowView[]): string {
   const max = chapters.reduce((top, c) => {
@@ -270,6 +272,10 @@ export function FanqieWorkspace({ target, readonly }: { target: Target; readonly
         {comparing ? (
           <Suspense fallback={null}>
             <CompareView request={comparing} kind={compareKind ?? "fanqie.chapter"} />
+          </Suspense>
+        ) : mainView === "plan" ? (
+          <Suspense fallback={null}>
+            <PlanView work={target.path} />
           </Suspense>
         ) : mainView === "board" ? (
           <div className="zz-center-scroll">

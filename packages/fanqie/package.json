@@ -9,7 +9,9 @@
     "./context": "./src/context/index.ts",
     "./domain": "./src/domain/index.ts",
     "./storage": "./src/storage/index.ts",
-    "./view": "./src/view/index.ts"
+    "./view": "./src/view/index.ts",
+    "./outline": "./src/outline/index.ts",
+    "./import": "./src/import/index.ts"
   },
   "dependencies": {
     "@zhizhang/core": "*"

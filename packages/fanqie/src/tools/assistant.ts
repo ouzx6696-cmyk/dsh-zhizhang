@@ -189,7 +189,7 @@ export function fanqieAssistantTools(role: Role, target: ModeTarget): ToolDefini
           level: k.level,
           since: k.since,
         })),
-        pending: all.pending.length,
+        pending: await bible.pendingCount(work),
       };
     },
   });

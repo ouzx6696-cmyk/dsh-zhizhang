@@ -224,6 +224,7 @@ test("番茄命令：建书 → 写章 → 候选 → 导出 → 设定集，读
           summary: "主角",
           locked: [],
           provenance: { source: "author", at },
+          rev: 0,
         },
       },
     ],
@@ -238,14 +239,43 @@ test("番茄命令：建书 → 写章 → 候选 → 导出 → 设定集，读
     }),
     "input.invalid",
   );
+  const pendingBatches = await run(ctx, mark("fanqie.pending.list"), { work, status: "open" });
+  assert.equal(pendingBatches.batches.length, 1);
+  const batch = pendingBatches.batches[0].id;
+  const pendingPage = await run(ctx, mark("fanqie.pending.get"), {
+    work,
+    batch,
+    page: { offset: 0, limit: 10 },
+  });
+  assert.equal(pendingPage.total, 1);
   assert.deepEqual(
-    await run(ctx, mark("fanqie.bible.decide"), {
+    await run(ctx, mark("fanqie.pending.decide"), {
       work,
-      id: proposed.items[0].id,
-      decision: "accept",
+      batch,
+      decisions: [{ id: proposed.items[0].id, decision: "accept" }],
     }),
-    { ok: true },
+    { decided: 1 },
   );
+  assert.equal(
+    (await run(ctx, "fanqie.bible.get", { work })).entities.length,
+    0,
+    "决定只落批次，不写真源",
+  );
+  const zeroRevs = {
+    entities: { rev: 0, hash: "" },
+    timeline: { rev: 0, hash: "" },
+    states: { rev: 0, hash: "" },
+    threads: { rev: 0, hash: "" },
+    knowledge: { rev: 0, hash: "" },
+    style: { rev: 0, hash: "" },
+    outline: { rev: 0, hash: "" },
+  };
+  const committed = await run(ctx, mark("fanqie.pending.commit"), {
+    work,
+    batch,
+    expectedRevs: zeroRevs,
+  });
+  assert.equal(committed.committed, 1);
   assert.equal((await run(ctx, "fanqie.bible.get", { work })).entities.length, 1);
   assert.ok(
     Array.isArray((await run(ctx, mark("fanqie.bible.audit"), { work, upTo: 1 })).findings),
@@ -525,9 +555,140 @@ test("拆书库命令：导入、列出、读卡；拆解经流水线发起，�
   assert.equal(dissectCalls[0].target.path, roots.library);
 });
 
-test("命令分派覆盖契约里的全部 45 条命令，读写策略齐全，未知命令被拒绝", async () => {
+test("v1.4 新增命令已分派：未实现命令按负责卡返回 internal", async () => {
+  const { roots, ctx } = await setup();
+  const created = await run(ctx, "fanqie.work.create", {
+    root: roots.fanqie,
+    title: "契约占位",
+    premise: "",
+    grade: "economy",
+  });
+  const work = created.workPath;
+  const stubs = [
+    ["fanqie.outline.get", { work }, "D-01"],
+    ["fanqie.outline.apply", { work, ops: [], expectedRev: 0 }, "D-01"],
+    ["fanqie.outline.remapPreview", { work, ops: [] }, "D-03"],
+    ["fanqie.outline.remapCommit", { work, token: "t", ops: [] }, "D-03"],
+    ["fanqie.chapter.createFromPlan", { work, plan: "p-1" }, "D-03"],
+    ["fanqie.import.stage", { work, token: "t" }, "I-01"],
+    ["fanqie.import.resegment", { work, batch: "imp-1", rules: {} }, "I-01"],
+    ["fanqie.import.select", { work, batch: "imp-1", sections: [] }, "I-01"],
+    ["fanqie.import.proposal", { work, batch: "imp-1", page: { offset: 0, limit: 10 } }, "I-03"],
+    ["fanqie.import.source", { work, batch: "imp-1", section: "S1" }, "I-03"],
+    ["fanqie.import.list", { work }, "I-01"],
+    ["fanqie.import.finish", { work, batch: "imp-1" }, "I-03"],
+    ["fanqie.import.revert", { work, batch: "imp-1" }, "I-03"],
+    ["fanqie.import.retryChunks", { work, batch: "imp-1", chunks: [] }, "I-04"],
+    ["fanqie.check.run", { work, upTo: 1 }, "L-02"],
+  ];
+  for (const [command, input, card] of stubs) {
+    mark(command);
+    const err = await run(ctx, command, input).catch((error) => error);
+    assert.equal(err.code, "internal", command);
+    assert.match(err.message, new RegExp(card), command);
+  }
+  await expectCode(
+    run(ctx, mark("fanqie.pending.get"), {
+      work,
+      batch: "imp-missing",
+      page: { offset: 0, limit: 10 },
+    }),
+    "input.not_found",
+  );
+});
+
+test("D-02 设定集命令：查询/实体/应用/变更/撤销都读写真源", async () => {
+  const { roots, ctx } = await setup();
+  const created = await run(ctx, "fanqie.work.create", {
+    root: roots.fanqie,
+    title: "设定库",
+    premise: "",
+    grade: "economy",
+  });
+  const work = created.workPath;
+  const at = "2026-11-17T00:00:00.000Z";
+  const applied = await run(ctx, mark("fanqie.bible.apply"), {
+    work,
+    expectedRev: 0,
+    ops: [
+      {
+        type: "entity.upsert",
+        entity: {
+          id: "e-lin",
+          kind: "character",
+          name: "林川",
+          aliases: [],
+          summary: "主角",
+          locked: [],
+          provenance: { source: "author", at },
+          rev: 0,
+        },
+      },
+      {
+        type: "state.add",
+        entry: {
+          id: "st-lin",
+          entity: "e-lin",
+          facet: "condition",
+          field: "境界",
+          value: "炼气",
+          since: 1,
+          mode: "replace",
+          status: "confirmed",
+          provenance: { source: "author", at },
+          rev: 0,
+        },
+      },
+    ],
+  });
+  assert.ok(applied.changeId);
+
+  const queried = await run(ctx, mark("fanqie.bible.query"), {
+    work,
+    filter: { q: "林", facet: "condition" },
+    position: 1,
+    page: { offset: 0, limit: 10 },
+  });
+  assert.equal(queried.total, 1);
+  assert.equal(queried.items[0].entity.id, "e-lin");
+  assert.equal(queried.items[0].states.length, 1);
+
+  const view = await run(ctx, mark("fanqie.bible.entity"), {
+    work,
+    id: "e-lin",
+    position: 1,
+  });
+  assert.equal(view.entity.name, "林川");
+  assert.deepEqual(view.relations, []);
+  await expectCode(run(ctx, "fanqie.bible.entity", { work, id: "e-missing" }), "input.not_found");
+
+  const changes = await run(ctx, mark("fanqie.bible.changes"), { work, limit: 10 });
+  assert.equal(changes.changes[0].id, applied.changeId);
+  assert.equal("ops" in changes.changes[0], false);
+
+  const reverted = await run(ctx, mark("fanqie.bible.revert"), {
+    work,
+    changeId: applied.changeId,
+  });
+  assert.equal(reverted.changeIds.length, 1);
+  assert.deepEqual(reverted.skipped, []);
+  const bible = await run(ctx, "fanqie.bible.get", { work });
+  assert.deepEqual(bible.entities, []);
+  assert.deepEqual(bible.states, []);
+
+  await expectCode(
+    run(ctx, "fanqie.pending.get", {
+      work,
+      batch: "../escape",
+      page: { offset: 0, limit: 10 },
+    }),
+    "input.invalid",
+  );
+});
+
+test("命令分派覆盖契约里的全部 68 条命令，读写策略齐全，未知命令被拒绝", async () => {
   const all = Object.keys(desk.COMMAND_POLICY);
-  assert.equal(all.length, 45);
+  assert.equal(all.length, 68);
   for (const command of all) assert.equal(desk.isWorkbenchCommand(command), true, command);
   assert.deepEqual(
     all.filter((c) => !covered.has(c)),

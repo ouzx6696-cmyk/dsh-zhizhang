@@ -103,7 +103,7 @@ test("buildChapterContext natively assembles L5 retrieval and L6 reference block
   assert.ok(rendered.user.includes("参考机制，不复制"));
 });
 
-test("bible audit reports due_unpaid and forgotten_thread findings", () => {
+test("bible audit reports thread_overdue and thread_forgotten findings", () => {
   const store = createBibleStore(createLockService());
   const bible = {
     entities: [],
@@ -156,8 +156,8 @@ test("bible audit reports due_unpaid and forgotten_thread findings", () => {
   };
 
   const findings = store.audit(bible, 15);
-  assert.ok(findings.some((f) => f.kind === "due_unpaid" && f.refId === "th-due"));
-  assert.ok(findings.some((f) => f.kind === "forgotten_thread" && f.refId === "th-old"));
+  assert.ok(findings.some((f) => f.kind === "thread_overdue" && f.refId === "th-due"));
+  assert.ok(findings.some((f) => f.kind === "thread_forgotten" && f.refId === "th-old"));
 });
 
 test("bible audit detects overlapping state_conflict entries", () => {

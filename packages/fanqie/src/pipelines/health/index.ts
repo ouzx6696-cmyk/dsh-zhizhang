@@ -23,10 +23,24 @@ export interface HealthEditorReview {
   recommendations: string[];
 }
 
+interface RawFinding {
+  kind: "thread_forgotten" | "thread_overdue" | "knowledge_leak" | "state_conflict";
+  severity: "warn" | "bad";
+  title: string;
+  detail: string;
+  refId: string;
+}
+
+interface RawEditorReview {
+  findings: RawFinding[];
+  summary: string;
+  recommendations: string[];
+}
+
 const EditorHealthSchema = obj({
   findings: arr(
     obj({
-      kind: lit("forgotten_thread", "due_unpaid", "knowledge_leak", "state_conflict"),
+      kind: lit("thread_forgotten", "thread_overdue", "knowledge_leak", "state_conflict"),
       severity: lit("warn", "bad"),
       title: str({ min: 1 }),
       detail: str({ min: 1 }),
@@ -38,9 +52,18 @@ const EditorHealthSchema = obj({
   recommendations: arr(str({ min: 1 }), { max: 20 }),
 });
 
+function toAuditFinding(finding: RawFinding): AuditFinding {
+  return {
+    ...finding,
+    jump: finding.kind.startsWith("thread")
+      ? { view: "thread", id: finding.refId }
+      : { view: "entity", id: finding.refId },
+  };
+}
+
 export const healthEditorStage: StageSpec<
   { upToChapter: number; localFindings: AuditFinding[]; chapterSummaries: string[] },
-  HealthEditorReview
+  RawEditorReview
 > = {
   id: "editor-review",
   title: "编辑十章体检复核",
@@ -52,7 +75,7 @@ export const healthEditorStage: StageSpec<
     chapterSummaries: (ctx.state.chapterSummaries as string[] | undefined) ?? [],
   }),
   shape:
-    'JSON 格式：{"findings":[{"kind":"forgotten_thread|due_unpaid|knowledge_leak|state_conflict","severity":"warn|bad","title":"标题","detail":"详情","refId":"关联ID"}],"summary":"体检总结","recommendations":["建议"]}',
+    'JSON 格式：{"findings":[{"kind":"thread_forgotten|thread_overdue|knowledge_leak|state_conflict","severity":"warn|bad","title":"标题","detail":"详情","refId":"关联ID"}],"summary":"体检总结","recommendations":["建议"]}',
   format: "json",
   parse: (raw) => parseJson(raw, EditorHealthSchema, "health.editor"),
 };
@@ -78,8 +101,9 @@ export const healthPipeline: PipelineDefinition<HealthInput, HealthResult> = {
     // 1. bible.audit
     const audited = await runner.local("bible-audit", async () => {
       const bible = await bibleStore.read(ctx.target.path);
-      const localFindings = bibleStore.audit(bible, req.upToChapter);
-      const chapterSummaries = bible.chapters
+      const ledgers = await bibleStore.ledgers(ctx.target.path);
+      const localFindings = bibleStore.audit(bible, req.upToChapter, ledgers);
+      const chapterSummaries = ledgers
         .filter((c) => c.position <= req.upToChapter)
         .sort((a, b) => a.position - b.position)
         .map((c) => `第${c.position}章：${c.summary}`);
@@ -111,7 +135,11 @@ export const healthPipeline: PipelineDefinition<HealthInput, HealthResult> = {
     };
 
     // 2. editor 复核
-    const editorReview = await runner.stage(healthEditorStage, packet);
+    const rawReview = await runner.stage(healthEditorStage, packet);
+    const editorReview: HealthEditorReview = {
+      ...rawReview,
+      findings: rawReview.findings.map(toAuditFinding),
+    };
 
     const seen = new Set<string>();
     const merged: AuditFinding[] = [];

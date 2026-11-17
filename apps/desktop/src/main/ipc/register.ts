@@ -37,6 +37,7 @@ import { describeTarget, listTargets, recentTargets, rememberTarget } from "../s
 import type { WorkspaceService } from "../services/workspace.js";
 import type { WorkflowService } from "../workflow.js";
 import { createDraftService } from "./drafts.js";
+import { createImportPicker } from "./import.js";
 import { IPC_PARSERS } from "./parsers.js";
 
 export interface MainServices {
@@ -168,12 +169,15 @@ export function registerIpc(s: MainServices): void {
       const targetPath =
         pathOf("work") || pathOf("articleDir") || pathOf("root") || pathOf("libraryRoot");
       const mode = call.command.startsWith("toutiao.") ? "toutiao" : "fanqie";
-      s.emit({
-        kind: "workspace.changed",
-        target: { mode, path: targetPath },
-        revision: `${call.command}:${s.clock.now()}`,
-        scope: policy.refresh,
-      });
+      const scopes = Array.isArray(policy.refresh) ? policy.refresh : [policy.refresh];
+      for (const scope of scopes) {
+        s.emit({
+          kind: "workspace.changed",
+          target: { mode, path: targetPath },
+          revision: `${call.command}:${s.clock.now()}`,
+          scope,
+        });
+      }
     }
     return result;
   });
@@ -307,4 +311,8 @@ export function registerIpc(s: MainServices): void {
   handle("drafts.write", (input) => drafts.write(input.key, input.text, input.baseRevision));
   handle("drafts.clear", ({ key }) => drafts.clear(key));
   handle("drafts.list", ({ prefix }) => drafts.list(prefix));
+
+  // 导入选文件（A-02）：绝对路径不出主进程，渲染层只拿一次性令牌。
+  const imports = createImportPicker({ window: () => s.window(), clock: s.clock });
+  handle("dialog.pickImport", (options) => imports.pick(options));
 }

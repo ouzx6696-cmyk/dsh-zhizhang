@@ -143,6 +143,7 @@ export const IPC_PARSERS: { [K in IpcChannel]: (args: unknown[]) => IpcArgs<K> }
       extensions: opt(arr(str({ min: 1, max: 10 }), { max: 10 })),
     }),
   ),
+  "dialog.pickImport": one(obj({ title: opt(str({ max: 100 })) })),
   "source.fetch": one(str({ min: 1, max: 2000 })),
   "learning.status": one(target),
   "drafts.read": one(obj({ key: str({ min: 1, max: 2000 }) })),

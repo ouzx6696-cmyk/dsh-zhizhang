@@ -1,0 +1,28 @@
+{
+  "format": "zhizhang/1.3",
+  "chapter": "ch-001",
+  "revision": "rev-3",
+  "position": 1,
+  "summary": "林川在雨夜推开门，发现桌上多了一封没有署名的信。",
+  "handoff": {
+    "ending": "他攥紧了那封信。",
+    "openQuestions": ["信是谁放的"],
+    "positions": { "ent-lin": "旧城客栈" },
+    "carried": ["残玉"]
+  },
+  "hook": "门外传来第二声脚步。",
+  "emotion": "紧张",
+  "facts": [
+    {
+      "id": "f-1",
+      "text": "林川收到匿名信",
+      "entities": ["ent-lin"],
+      "kind": "event",
+      "quote": "桌上多了一封没有署名的信。",
+      "located": true
+    }
+  ],
+  "appearances": [{ "entity": "ent-lin", "count": 3 }],
+  "ledgerRun": "run-1",
+  "rev": 0
+}

@@ -286,6 +286,7 @@ export async function applyBookPlan(
       summary: `目标：${plan.foundation.protagonist.goal}；弱点：${plan.foundation.protagonist.flaw}；金手指：${plan.foundation.protagonist.goldenFinger}`,
       locked: [],
       provenance,
+      rev: 0,
     };
     const worldviewEntity: Entity = {
       id: "ent-worldview",
@@ -296,6 +297,7 @@ export async function applyBookPlan(
       locked: [],
       global: true,
       provenance,
+      rev: 0,
     };
     const powerEntity: Entity = {
       id: "ent-power-system",
@@ -306,6 +308,7 @@ export async function applyBookPlan(
       locked: [],
       global: true,
       provenance,
+      rev: 0,
     };
 
     let nextEntities = upsertById(bible.entities, protagonistEntity);
@@ -316,32 +319,38 @@ export async function applyBookPlan(
       {
         id: "st-plan-protagonist-goal",
         entity: "ent-protagonist",
+        facet: "other",
         field: "目标",
         value: plan.foundation.protagonist.goal,
         since: 1,
         mode: "replace",
         status: "planned",
         provenance,
+        rev: 0,
       },
       {
         id: "st-plan-protagonist-goldenfinger",
         entity: "ent-protagonist",
+        facet: "other",
         field: "金手指",
         value: plan.foundation.protagonist.goldenFinger,
         since: 1,
         mode: "replace",
         status: "planned",
         provenance,
+        rev: 0,
       },
       {
         id: "st-plan-core-conflict",
         entity: "ent-worldview",
+        facet: "other",
         field: "主线冲突",
         value: plan.foundation.coreConflict,
         since: 1,
         mode: "replace",
         status: "planned",
         provenance,
+        rev: 0,
       },
     ];
 
@@ -353,18 +362,28 @@ export async function applyBookPlan(
     const bibleDir = path.join(workPath, "bible");
     await atomicWrite(path.join(bibleDir, "entities.json"), JSON.stringify(nextEntities, null, 2));
     await atomicWrite(path.join(bibleDir, "states.json"), JSON.stringify(nextStates, null, 2));
-    const hashes = {
-      entities: sha256(JSON.stringify(nextEntities)),
-      states: sha256(JSON.stringify(nextStates)),
-      threads: sha256(JSON.stringify(bible.threads)),
-      knowledge: sha256(JSON.stringify(bible.knowledge)),
-      chapters: sha256(JSON.stringify(bible.chapters)),
-      style: sha256(JSON.stringify(bible.style)),
-      pending: sha256(JSON.stringify(bible.pending)),
+    const outlineRaw = (await readTextIfExists(path.join(workPath, "outline", "book.json"))) ?? "";
+    const files = {
+      entities: { rev: 0, hash: sha256(JSON.stringify(nextEntities)) },
+      timeline: { rev: 0, hash: sha256(JSON.stringify(bible.timeline)) },
+      states: { rev: 0, hash: sha256(JSON.stringify(nextStates)) },
+      threads: { rev: 0, hash: sha256(JSON.stringify(bible.threads)) },
+      knowledge: { rev: 0, hash: sha256(JSON.stringify(bible.knowledge)) },
+      style: { rev: 0, hash: sha256(JSON.stringify(bible.style)) },
+      outline: { rev: 0, hash: sha256(outlineRaw) },
     };
+    const latestLedger = (await bibleStore.ledgers(workPath)).at(-1);
     await atomicWrite(
       path.join(bibleDir, "index.json"),
-      JSON.stringify({ format: "zhizhang/1.3", hashes }, null, 2),
+      JSON.stringify(
+        {
+          format: FORMAT_VERSION,
+          files,
+          ...(latestLedger ? { lastLedgerChapter: latestLedger.chapter } : {}),
+        },
+        null,
+        2,
+      ),
     );
 
     return {

@@ -1,6 +1,6 @@
 # 写作内核与业务规则
 
-- **描述基线**：`83bf7f7`（其后为文档提交；未发布）；发布版本 `v1.3.0`
+- **描述基线**：master `83bf7f7`（未发布）；当前工作分支 `arch/freeze-stubs`（A-02 接口桩与契约测试 + 清洁提交 `0e0d5fc`，待审核）；发布版本 `v1.3.0`
 - 本文件只记录当前实现的规则与取值；改规则前先读 [AGENTS.md](../AGENTS.md) 的红线条款。
 
 ## 1. 受保护的业务规则（不可擅改）
@@ -28,12 +28,13 @@
 - **`fanqie.book`**：立项卡 → 根基 → 卷结构 → 单元 → 章纲，作者采用后写入 `plan/` 与初始 `bible/`。
 - **`fanqie.chapter`**：`prepare`（零费用预检未知实体）→ `beats` → `draft×N`（经济 1；标准 2 / 黄金章 5；精品 3 / 黄金章 8，纯文本）→ `gate`（字数与规则代码闸）→ `select-score`（逐稿独立打分）→ `select-compare`（前两名换位比较）→ `continuity-check` → `review`（引文逐条容错定位，≤2 轮）→ `revise` → `deliver`（幂等交付候选）。
 - **`fanqie.review` / `fanqie.revise`**：可单独对已写章节发起审读与定向修订；单独审读结果由作者确认后写回。
-- **`fanqie.ledger` / `fanqie.health`**：定稿后抽取结构化增量写入 `pending.json` 待作者确认；每 10 章执行伏笔遗忘、知情越界与状态冲突体检。
+- **`fanqie.ledger` / `fanqie.health`**：定稿后抽取结构化增量写入 `bible/pending/<batch>.json` 待作者确认；接受条目后经 `fanqie.pending.commit` 在同一 Intent 落 `bible/ledger/<chapter-id>.json` 与真源，并可整批撤销。每 10 章执行伏笔遗忘、知情越界与状态冲突体检。
+- **`fanqie.import`**：A-02 已注册的空流水线（`docmap → extract → locate → resolve → propose`），阶段实现、提示词与假模型分派归 I-02；当前运行返回 `internal`。
 - **`library.dissect`**：拆书入库，产出参考卡片供 L6 使用。
 
 ### 3.2 设定集 `bible/` 与分层上下文 `L0–L6`
 
-- **唯一连续性真源**（[store.ts](../packages/fanqie/src/bible/store.ts)）：实体（含别名匹配）、状态时间序列（`asOf(N)` 按 `since/until` 窗口切片）、伏笔线索、知情矩阵、章节交接、文风与个人规则、待确认列表，共 8 份 JSON。
+- **唯一连续性真源**（[store.ts](../packages/fanqie/src/bible/store.ts)）：实体（含别名匹配）、时间线、状态时间序列（`asOf(N)` 按 `since/until` 窗口切片）、伏笔线索、知情矩阵、文风与个人规则 6 份集合 JSON，加 `ledger/<chapter-id>.json` 章节交接、`pending/<batch>.json` 待确认批次、`changes/<YYYY-MM>.jsonl` 变更集与 `index.json` 索引。提交前真源不经内存直写：待确认批次先决定、再提交；每次提交/撤销都追加可逆变更集。
 - **上下文组装器**（[builder.ts](../packages/fanqie/src/context/builder.ts)）：
   - `L1` 前章摘要、章末交接与前文。前文模式由作品设置 `previousTextMode` 决定：`auto`（默认，末尾 1,800 字）或 `full`（最多 6,000 字）；不再按档位硬编码。
   - `L2` 按章纲与前文命中的在场及全局实体。

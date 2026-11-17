@@ -8,7 +8,8 @@ export {
   opt,
   record,
   str,
+  union,
   type Infer,
   type Parser,
 } from "./parse.js";
-export { parseJson } from "./json.js";
+export { dropUndefined, parseJson } from "./json.js";

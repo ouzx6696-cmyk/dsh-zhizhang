@@ -111,6 +111,8 @@ export type WorkflowDecision = "apply" | "discard";
 export interface WorkflowStart {
   kind: string;
   request: unknown;
+  /** 仅覆盖本次运行的 runBudget；moneyCap 不进入任何请求（ADR-010）。 */
+  budget?: { runBudget?: number };
 }
 
 export type SessionIntent = "chat" | "continue" | "revise" | "review" | "plan" | "check";

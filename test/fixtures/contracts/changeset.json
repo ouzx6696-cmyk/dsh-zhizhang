@@ -1,0 +1,25 @@
+{
+  "id": "chg-1",
+  "at": "2026-11-17T00:00:00.000Z",
+  "kind": "apply",
+  "source": "author",
+  "summary": "采用一条实体提案",
+  "ops": [{ "type": "entity.delete", "id": "ent-old", "expectedRev": 0 }],
+  "inverse": [
+    {
+      "type": "entity.upsert",
+      "entity": {
+        "id": "ent-old",
+        "kind": "term",
+        "name": "旧称",
+        "aliases": [],
+        "summary": "已废弃的旧称。",
+        "locked": [],
+        "provenance": { "source": "author", "at": "2026-11-17T00:00:00.000Z" },
+        "rev": 0
+      }
+    }
+  ],
+  "revs": { "entities": 1 },
+  "files": ["bible/entities.json"]
+}

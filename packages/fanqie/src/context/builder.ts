@@ -1,6 +1,6 @@
 import { estimateTokensRaw } from "@zhizhang/core/model";
 import type { ContextBlock, ContextPacket } from "@zhizhang/core/pipeline";
-import type { Bible, BibleView, EntityHit } from "../bible/types.js";
+import type { BibleSnapshot, BibleView, EntityHit, LedgerEntry } from "../bible/types.js";
 
 export type PreviousTextMode = { kind: "full"; maxChars: number } | { kind: "tail"; chars: number };
 
@@ -43,7 +43,9 @@ export interface ChapterContextInput {
   previousBody?: string;
   previousHandoff?: string;
   previousSummary?: string;
-  bible: Bible;
+  bible: BibleSnapshot;
+  /** 记账产物；缺省视为无历史。 */
+  ledgers?: LedgerEntry[];
   view: BibleView;
   hits: EntityHit[];
   recentSummaries: { position: number; summary: string }[];
@@ -264,7 +266,7 @@ export function buildChapterContext(input: ChapterContextInput): ContextPacket {
 
   const earlyCandidates: EarlyChapterDoc[] =
     input.earlyChapters ??
-    input.bible.chapters
+    (input.ledgers ?? [])
       .filter((c) => c.position < Math.max(1, input.position - 10))
       .map((c) => ({
         chapter: c.chapter,
