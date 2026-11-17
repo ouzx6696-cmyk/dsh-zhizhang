@@ -1,3 +1,4 @@
+import { toChatMessages, messageTokens } from "./messages.js";
 /**
  * 助手会话管理：每个目标一个当前对话；一轮回复经 gateway.session("assistant") 占并发位，
  * 工具来自 ModeModule.tools("assistant", target)，对话历史落盘到状态目录 sessions/。
@@ -9,7 +10,7 @@ import { estimateTokensRaw, type ModelGateway } from "@zhizhang/core/model";
 import type { ToolCtx, ToolDefinition } from "@zhizhang/core/tool";
 import type { DesktopEvent, SessionEvent } from "../shared/events.js";
 import type { ContextSettings } from "../shared/settings.js";
-import type { ChatMessage, ResultCard, TaskState, ToolCallView } from "../shared/types.js";
+import type { ChatMessage, TaskState } from "../shared/types.js";
 import type {
   CompactResult,
   ContextUsageView,
@@ -65,80 +66,11 @@ interface TargetState {
 
 const keyOf = (target: Target) => `${target.mode}:${target.path}`;
 
-/** 把落盘消息折叠成界面消息：一轮里的工具调用并入该轮的助手回复。 */
-export function toChatMessages(messages: AgentMessage[]): ChatMessage[] {
-  const out: ChatMessage[] = [];
-  let texts: string[] = [];
-  let tools: ToolCallView[] = [];
-  let result: ResultCard | undefined;
-  let turnId = "";
-  let turnAt = 0;
-  const flush = () => {
-    if (texts.length === 0 && tools.length === 0) return;
-    out.push({
-      id: turnId,
-      role: "assistant",
-      text: texts.join("\n\n"),
-      at: turnAt,
-      ...(tools.length ? { tools } : {}),
-      ...(result ? { result } : {}),
-    });
-    texts = [];
-    tools = [];
-    result = undefined;
-  };
-  for (const msg of messages) {
-    if (msg.role === "user") {
-      flush();
-      out.push({ id: msg.id, role: "user", text: msg.text, at: msg.at });
-    } else if (msg.role === "summary") {
-      flush();
-      out.push({ id: msg.id, role: "system", text: msg.text, at: msg.at });
-    } else if (msg.role === "assistant") {
-      turnId = msg.id;
-      turnAt = msg.at;
-      if (msg.text.trim()) texts.push(msg.text);
-      for (const call of msg.toolCalls) tools.push({ name: call.name, isError: false });
-    } else {
-      const hit = [...tools].reverse().find((t) => t.name === msg.name);
-      if (hit) hit.isError = msg.isError;
-      if (!msg.isError) {
-        try {
-          const value: unknown = JSON.parse(msg.text);
-          if (
-            typeof value === "object" &&
-            value !== null &&
-            "runId" in value &&
-            typeof value.runId === "string"
-          ) {
-            result = {
-              kind: "run",
-              target: { mode: "fanqie", path: "" },
-              runId: value.runId,
-              ...("kind" in value && typeof value.kind === "string"
-                ? { pipeline: value.kind }
-                : {}),
-            };
-          }
-        } catch {
-          // 工具输出不是 JSON（自定义 render）时不生成结果卡
-        }
-      }
-    }
-  }
-  flush();
-  return out;
-}
-
-function messageTokens(msg: AgentMessage): number {
-  if (msg.role === "assistant") {
-    return estimateTokensRaw(msg.text) + estimateTokensRaw(JSON.stringify(msg.toolCalls));
-  }
-  return estimateTokensRaw(msg.text);
-}
+export { toChatMessages } from "./messages.js";
 
 export function createSessionManager(deps: SessionDeps) {
   const states = new Map<string, TargetState>();
+  const sendControllers = new Map<string, AbortController>();
   let idCounter = 0;
   const nextId = (prefix: string) => {
     idCounter += 1;
@@ -414,28 +346,51 @@ export function createSessionManager(deps: SessionDeps) {
     async send(target: Target, send: SessionSend): Promise<{ conversationId: string }> {
       const text = send.text.trim();
       if (!text) throw new AppError("input.invalid", "消息不能为空", { field: "text" });
-      const state = await stateFor(target);
-      if (state.busy)
+      const key = keyOf(target);
+      if (sendControllers.has(key))
         throw new AppError("gate.denied", "助手正在回复，请稍候或先停止", { busy: true });
-      deps.binding();
-      const conv = state.conversation;
-      if (!conv.title) conv.title = text.slice(0, 24);
-      conv.messages.push({
-        role: "user",
-        id: nextId("u"),
-        text: userPrompt(text, send.intent, send.focus),
-        at: deps.clock.now(),
-      });
-      conv.updated = deps.clock.iso();
-      await deps.store.save(conv);
       const controller = new AbortController();
-      state.controller = controller;
-      setBusy(state, true);
-      state.pending = runTurn(state, send, controller.signal);
-      return { conversationId: conv.id };
+      sendControllers.set(key, controller);
+      let state: TargetState | undefined;
+      try {
+        state = await stateFor(target);
+        if (state.busy)
+          throw new AppError("gate.denied", "助手正在回复，请稍候或先停止", { busy: true });
+        deps.binding();
+        const conv = state.conversation;
+        if (!conv.title) conv.title = text.slice(0, 24);
+        conv.messages.push({
+          role: "user",
+          id: nextId("u"),
+          text: userPrompt(text, send.intent, send.focus),
+          at: deps.clock.now(),
+        });
+        conv.updated = deps.clock.iso();
+        state.controller = controller;
+        setBusy(state, true);
+        await deps.store.save(conv);
+        if (controller.signal.aborted) {
+          state.controller = undefined;
+          setBusy(state, false);
+          sendControllers.delete(key);
+          return { conversationId: conv.id };
+        }
+        state.pending = runTurn(state, send, controller.signal).finally(() => {
+          if (sendControllers.get(key) === controller) sendControllers.delete(key);
+        });
+        return { conversationId: conv.id };
+      } catch (error) {
+        if (sendControllers.get(key) === controller) sendControllers.delete(key);
+        if (state?.controller === controller) {
+          state.controller = undefined;
+          setBusy(state, false);
+        }
+        throw error;
+      }
     },
 
     async stop(target: Target): Promise<void> {
+      sendControllers.get(keyOf(target))?.abort();
       const state = states.get(keyOf(target));
       state?.controller?.abort();
       await state?.pending;
@@ -485,6 +440,7 @@ export function createSessionManager(deps: SessionDeps) {
     },
 
     async dispose(): Promise<void> {
+      for (const controller of sendControllers.values()) controller.abort();
       for (const state of states.values()) state.controller?.abort();
       await Promise.all([...states.values()].map((s) => s.pending));
     },

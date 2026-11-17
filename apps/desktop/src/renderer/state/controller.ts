@@ -2,7 +2,7 @@
  * 外壳动作：启动、选目标、写作文件夹、新建作品/文章、助手会话。
  * 动作只读写 store，不持有组件状态；组件经 useDesktop / useChat 订阅。
  */
-import { DESKTOP_COPY as C } from "@zhizhang/ui/copy";
+import { COPY, DESKTOP_COPY as C } from "@zhizhang/ui/copy";
 import { notify } from "@zhizhang/ui/notify";
 import { canLeaveEdit, type EditorGuardSnapshot } from "@zhizhang/workbench/client";
 import type { ModelsInput, PublicSettings, SettingsPatch } from "../../shared/settings";
@@ -27,16 +27,26 @@ export function modelReady(settings: PublicSettings | null): boolean {
 // ── 未保存修改守卫 ───────────────────────────────────────────────────────────
 
 let editor: EditorGuardSnapshot | null = null;
+const planEdits = new Map<string, () => void>();
+export function trackPlanEdit(id: string, discard?: () => void): void {
+  if (discard) planEdits.set(id, discard);
+  else planEdits.delete(id);
+}
 
 export function trackEditor(snapshot: EditorGuardSnapshot | null): void {
   editor = snapshot;
 }
 
 export function editorDirty(): boolean {
-  return Boolean(editor && (editor.dirty || editor.saving));
+  return planEdits.size > 0 || Boolean(editor && (editor.dirty || editor.saving));
 }
 
 export async function canLeave(): Promise<boolean> {
+  if (planEdits.size) {
+    if (!(await askConfirm(COPY["plan.leaveConfirm"]))) return false;
+    for (const discard of planEdits.values()) discard();
+    planEdits.clear();
+  }
   const ok = await canLeaveEdit(
     editor,
     (message) => askConfirm(message),

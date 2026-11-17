@@ -1,3 +1,6 @@
+import { remapBatchReferences, sortedBatch } from "./batch-refs.js";
+import { commitMixedBatch } from "./mixed.js";
+import { revertSnapshot } from "../outline/transaction.js";
 /** 变更集提交、待确认批次提交与撤销。 */
 import path from "node:path";
 import type { Clock } from "@zhizhang/core/clock";
@@ -31,7 +34,6 @@ import type {
   BibleOp,
   ChangeSet,
   CommitResult,
-  PendingBatch,
   PendingItem,
   RevertResult,
 } from "./types.js";
@@ -65,46 +67,6 @@ function withEffectiveFrom(op: BibleOp, effectiveFrom: number | undefined): Bibl
     return { ...op, patch: { ...op.patch, since: effectiveFrom } };
   }
   return op;
-}
-
-function sortedBatch(batch: PendingBatch): PendingBatch["items"] {
-  const accepted = new Map(
-    batch.items
-      .filter((item) => item.decision === "accept" || item.decision === "edit")
-      .map((item) => [item.id, item]),
-  );
-  const indegree = new Map<string, number>();
-  const followers = new Map<string, string[]>();
-  for (const item of accepted.values()) {
-    indegree.set(item.id, 0);
-    followers.set(item.id, []);
-  }
-  for (const item of accepted.values()) {
-    for (const dependency of item.dependsOn) {
-      if (!accepted.has(dependency)) continue;
-      indegree.set(item.id, (indegree.get(item.id) ?? 0) + 1);
-      followers.get(dependency)?.push(item.id);
-    }
-  }
-  const queue = [...accepted.values()]
-    .filter((item) => (indegree.get(item.id) ?? 0) === 0)
-    .map((item) => item.id);
-  const out: PendingItem[] = [];
-  while (queue.length > 0) {
-    const id = queue[0];
-    queue.shift();
-    const item = accepted.get(id);
-    if (!item) continue;
-    out.push(item);
-    for (const follower of followers.get(id) ?? []) {
-      indegree.set(follower, (indegree.get(follower) ?? 0) - 1);
-      if ((indegree.get(follower) ?? 0) === 0) queue.push(follower);
-    }
-  }
-  if (out.length !== accepted.size) {
-    throw new AppError("input.invalid", "待确认条目存在循环依赖", { rule: "dependency_cycle" });
-  }
-  return out;
 }
 
 async function writeChange(
@@ -208,16 +170,28 @@ export async function commitBatch(
   batchId: string,
   _expectedRevs: BibleIndex["files"],
   deps: CommitDeps,
+  remapToken?: string,
 ): Promise<CommitResult> {
   return deps.lock.write({ kind: "work", path: work }, async () => {
     const batch = await readPendingBatch(work, batchId);
     if (!batch) {
       throw new AppError("input.not_found", `未找到待确认批次：${batchId}`, { batch: batchId });
     }
+    remapBatchReferences(batch);
     const items = sortedBatch(batch);
     if (items.length === 0) {
       throw new AppError("input.invalid", "没有已采纳的条目", { batch: batchId });
     }
+    if (items.every((item) => item.committed)) {
+      const changeId = batch.commits.at(-1);
+      if (!changeId)
+        throw new AppError("storage.format_unsupported", "已提交批次缺少变更回执", {
+          batch: batchId,
+        });
+      return { changeId, committed: 0, stale: items.map((item) => item.id) };
+    }
+    if (items.some((item) => !isBibleOp(item.edited ?? item.op)))
+      return commitMixedBatch(work, batch, items, deps.lock, deps.clock.iso(), remapToken);
     const lib = await readLib(work);
     const touched = new Set<SnapshotKey>();
     const ledgerChapters = new Set<string>();
@@ -226,8 +200,23 @@ export async function commitBatch(
     const revs: Record<string, number> = {};
     const stale: string[] = [];
     const createdNow = new Set<string>();
+    const appliedItems: PendingItem[] = [];
+    const failed = new Set(
+      batch.items
+        .filter((item) => !item.committed && item.decision !== "accept" && item.decision !== "edit")
+        .map((item) => item.id),
+    );
 
     for (const item of items) {
+      if (item.committed) {
+        stale.push(item.id);
+        continue;
+      }
+      if (item.dependsOn.some((id) => failed.has(id))) {
+        stale.push(item.id);
+        failed.add(item.id);
+        continue;
+      }
       const raw = item.edited ?? item.op;
       if (!isBibleOp(raw)) {
         throw new AppError("internal", `未实现：D-01（${raw.type}）`);
@@ -237,6 +226,7 @@ export async function commitBatch(
       const current = currentRev(lib, op);
       if (item.baseRev !== undefined && current !== item.baseRev) {
         stale.push(item.id);
+        failed.add(item.id);
         continue;
       }
       // 无 baseRev 的 new 条目已存在时，说明此前已提交或被外部创建；同批次刚创建的记录除外。
@@ -248,6 +238,7 @@ export async function commitBatch(
         (target === undefined || !createdNow.has(target))
       ) {
         stale.push(item.id);
+        failed.add(item.id);
         continue;
       }
       const inv = invertOp(lib, op);
@@ -256,6 +247,7 @@ export async function commitBatch(
       for (const chapter of applied.ledgerChapters) ledgerChapters.add(chapter);
       mergeRevs(revs, applied.revs);
       if (target !== undefined && current === undefined) createdNow.add(target);
+      appliedItems.push(item);
       ops.push(op);
       inverse.unshift(...inv);
     }
@@ -275,6 +267,7 @@ export async function commitBatch(
       revs,
     );
 
+    for (const item of appliedItems) item.committed = change.id;
     batch.commits.push(change.id);
     batch.status = batch.items.every((item) => item.decision !== "undecided")
       ? "closed"
@@ -299,6 +292,7 @@ export async function revertChange(
     if (!source) {
       throw new AppError("input.not_found", `未找到变更集：${changeId}`, { changeId });
     }
+    if (source.snapshots) return revertSnapshot(work, source, force, deps.lock);
     const lib = await readLib(work);
     const touched = new Set<SnapshotKey>();
     const ledgerChapters = new Set<string>();

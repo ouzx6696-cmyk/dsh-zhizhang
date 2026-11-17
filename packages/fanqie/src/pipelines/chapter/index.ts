@@ -1,13 +1,8 @@
+import { prepareChapter } from "./prepare.js";
 import path from "node:path";
 import { systemClock } from "@zhizhang/core/clock";
 import { AppError } from "@zhizhang/core/errors";
-import {
-  atomicWrite,
-  resolveResourcePath,
-  readJson,
-  readTextIfExists,
-  sha256,
-} from "@zhizhang/core/fs";
+import { atomicWrite, resolveResourcePath, sha256 } from "@zhizhang/core/fs";
 import { createLockService } from "@zhizhang/core/lock";
 import type {
   ContextPacket,
@@ -19,12 +14,7 @@ import type {
 import { buildDeliveryMarker, isAlreadyDelivered } from "@zhizhang/core/pipeline";
 import { arr, int, lit, num, obj, opt, parseJson, str, type Infer } from "@zhizhang/core/schema";
 import { createBibleStore } from "../../bible/store.js";
-import { readChapter, listChapters } from "../../commands/chapter.js";
-import { readLibraryCards } from "../../commands/library.js";
-import { buildChapterContext } from "../../context/builder.js";
-import { parseChapterMarkdown } from "../../domain/chapter.js";
 import { MAX_EDITOR_REJECTIONS } from "../../domain/status.js";
-import { WorkMetaSchema } from "../../storage/work.js";
 
 export const ChapterPipelineReq = obj({
   chapterId: str({ min: 1 }),
@@ -452,116 +442,7 @@ export const chapterPipeline: PipelineDefinition<ChapterReq, ChapterRunResult> =
     const lock = createLockService(systemClock);
     const bibleStore = createBibleStore(lock);
 
-    const prepared = await runner.local("prepare", async () => {
-      const workMeta = await readJson(
-        path.join(ctx.target.path, "work.json"),
-        WorkMetaSchema,
-      ).catch(() => undefined);
-      const chapterRaw = await readTextIfExists(
-        resolveResourcePath(ctx.target.path, "chapters", `${req.chapterId}.md`),
-      );
-      const parsedChapter = chapterRaw ? parseChapterMarkdown(chapterRaw) : undefined;
-      const outlineText = parsedChapter?.meta.outline
-        ? Object.entries(parsedChapter.meta.outline)
-            .map(([k, v]) => `${k}：${v}`)
-            .join("\n")
-        : (req.note ?? `章节 ${req.chapterId}`);
-
-      const bible = await bibleStore.read(ctx.target.path);
-      const ledgers = await bibleStore.ledgers(ctx.target.path);
-      const parsedPos = req.position ? Number.parseInt(req.position, 10) : NaN;
-      const position =
-        Number.isFinite(parsedPos) && parsedPos > 0
-          ? parsedPos
-          : Number(/\d+/.exec(req.chapterId)?.[0]) || ledgers.length + 1;
-      const view = bibleStore.asOf(bible, position, ledgers);
-      const prevRecord = ledgers
-        .filter((c) => c.position < position)
-        .sort((a, b) => b.position - a.position)[0];
-      const hits = bibleStore.match(view, [outlineText, prevRecord?.summary ?? ""]);
-
-      const chapters = await listChapters(ctx.target.path);
-      const previous = chapters.filter((chapter) => chapter.position < position).at(-1);
-      const previousBody = previous
-        ? (await readChapter(ctx.target.path, previous.id)).body
-        : undefined;
-      const foundation = await readJson(
-        path.join(ctx.target.path, "plan/foundation.json"),
-        obj({ coreConflict: str() }, { strict: false }),
-      );
-      const volumes = await readJson(
-        path.join(ctx.target.path, "plan/structure.json"),
-        arr(
-          obj({
-            volume: int(),
-            title: str(),
-            summary: opt(str()),
-            startChapter: int(),
-            endChapter: int(),
-          }),
-        ),
-      );
-      const volume = volumes?.find(
-        (item) => item.startChapter <= position && item.endChapter >= position,
-      );
-      const references = await readJson(
-        path.join(ctx.target.path, "plan/references.json"),
-        obj({
-          format: lit("zhizhang/1.3"),
-          bindings: arr(obj({ sourceId: str(), cardIds: arr(str()), boundAt: str() })),
-        }),
-      );
-      const libraryRoot = ctx.libraryRoot;
-      const referenceCards =
-        libraryRoot && references
-          ? (
-              await Promise.all(
-                references.bindings.map(async (binding) => {
-                  const { cards } = await readLibraryCards(libraryRoot, binding.sourceId);
-                  return cards.filter((card) => binding.cardIds.includes(card.id));
-                }),
-              )
-            ).flat()
-          : [];
-      const targetWords = req.targetWords ?? workMeta?.settings.targetWords ?? 3000;
-      const prevModeSetting = workMeta?.settings.previousTextMode ?? "auto";
-      const packet = buildChapterContext({
-        chapterId: req.chapterId,
-        position,
-        outlineText,
-        authorNote: req.note,
-        previousSummary: prevRecord?.summary,
-        previousBody,
-        bookPlan: {
-          title: workMeta?.title,
-          coreConflict: foundation?.coreConflict,
-          currentVolume: volume ? { ...volume, summary: volume.summary ?? "" } : undefined,
-        },
-        referenceCards,
-        previousHandoff: prevRecord ? JSON.stringify(prevRecord.handoff) : undefined,
-        bible,
-        ledgers,
-        view,
-        hits,
-        recentSummaries: ledgers
-          .filter((c) => c.position < position)
-          .slice(-10)
-          .map((c) => ({ position: c.position, summary: c.summary })),
-        budget: 12000,
-        previousTextMode:
-          prevModeSetting === "full"
-            ? { kind: "full", maxChars: 6000 }
-            : { kind: "tail", chars: 1800 },
-      });
-
-      return {
-        packet,
-        targetWords,
-        position,
-        outlineText,
-        grade: req.grade ?? workMeta?.grade ?? "standard",
-      };
-    });
+    const prepared = await runner.local("prepare", () => prepareChapter(ctx, req, bibleStore));
 
     ctx.state.outlineText = prepared.outlineText;
     ctx.state.grade = prepared.grade;

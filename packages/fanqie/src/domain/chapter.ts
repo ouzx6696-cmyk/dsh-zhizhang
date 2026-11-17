@@ -5,6 +5,7 @@ export interface ChapterFrontMatter {
   title: string;
   status: ChapterStatus;
   revision: string;
+  outlineId?: string;
   outline?: Record<string, string>;
   scenes?: string[];
   review?: {

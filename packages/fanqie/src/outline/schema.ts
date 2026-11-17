@@ -1,6 +1,6 @@
 /** 大纲契约的运行时解析器（F2 §2；每个类型同名 XxxSchema）。 */
 import { AppError } from "@zhizhang/core/errors";
-import { FORMAT_VERSION } from "@zhizhang/core/paths";
+import { FORMAT_VERSION } from "@zhizhang/core/version";
 import { arr, int, lit, obj, opt, str, union, type Parser } from "@zhizhang/core/schema";
 import type {
   Act,
@@ -171,30 +171,30 @@ export const OutlineOpSchema: Parser<OutlineOp> = union("type", {
   "node.delete": obj({ type: lit("node.delete"), id, expectedRev: int({ min: 0 }) }),
   "node.move": obj({
     type: lit("node.move"),
-    ids: arr(id, { max: 50 }),
+    ids: arr(id, { min: 1, max: 50 }),
     parent: opt(id),
     index: int({ min: 0 }),
   }),
   "chapter.split": obj({
     type: lit("chapter.split"),
     id,
-    parts: arr(ChapterPlanSchema, { max: 400 }),
+    parts: arr(ChapterPlanSchema, { min: 2, max: 400 }),
   }),
   "chapter.merge": obj({
     type: lit("chapter.merge"),
-    ids: arr(id, { max: 50 }),
+    ids: arr(id, { min: 2, max: 50 }),
     into: ChapterPlanSchema,
   }),
   "act.split": obj({
     type: lit("act.split"),
     id,
-    at: int({ min: 0 }),
+    at: int({ min: 1 }),
     newNode: PlanNodeSchema,
   }),
   "volume.split": obj({
     type: lit("volume.split"),
     id,
-    at: int({ min: 0 }),
+    at: int({ min: 1 }),
     newNode: PlanNodeSchema,
   }),
   "act.merge": obj({ type: lit("act.merge"), ids: stringPair }),

@@ -71,11 +71,14 @@ export async function updateWorkSettings(
 ): Promise<WorkMeta> {
   return lock.write({ kind: "work", path: workPath }, async () => {
     const meta = await readWorkMeta(workPath);
+    const { grade, profile, ...settingsPatch } = patch;
     const updated: WorkMeta = {
       ...meta,
-      grade: patch.grade ?? meta.grade,
-      profile: patch.profile ?? meta.profile,
+      grade: grade ?? meta.grade,
+      profile: profile ?? meta.profile,
       settings: {
+        ...meta.settings,
+        ...settingsPatch,
         requireEditorPass: patch.requireEditorPass ?? meta.settings.requireEditorPass,
         targetWords: patch.targetWords ?? meta.settings.targetWords,
         previousTextMode: patch.previousTextMode ?? meta.settings.previousTextMode,

@@ -1,4 +1,6 @@
+import { fitContext } from "./context-fit.js";
 import type { Clock } from "../clock.js";
+import { classify } from "../errors/classify.js";
 import { AppError, isAppError } from "../errors/app-error.js";
 import { loadProfile, methodFor, type Profile } from "../methods/index.js";
 import { renderContextPacket, type ContextPacket } from "./context-packet.js";
@@ -66,6 +68,7 @@ export async function executePipeline<Req, Res>(
     stepId: string,
     spec: StageSpec<I, O>,
     packet: ContextPacket,
+    index?: number,
   ): Promise<O> {
     const prev = completedMap.get(stepId);
     if (prev && prev.output !== undefined) {
@@ -73,7 +76,6 @@ export async function executePipeline<Req, Res>(
     }
 
     const startedAt = clock.iso();
-    const rendered = renderContextPacket(packet);
 
     let method: { text: string; hash: string; omitted: string[] } | undefined;
     if (spec.method) {
@@ -83,16 +85,16 @@ export async function executePipeline<Req, Res>(
       }
     }
 
+    const inputVal = await spec.input(ctx, index);
+    const inputText = typeof inputVal === "string" ? inputVal : JSON.stringify(inputVal);
+    const inputBudget =
+      typeof ctx.state.inputBudget === "number"
+        ? ctx.state.inputBudget
+        : current.budget.inputBudget;
+    const fitted = fitContext(packet, inputBudget, method?.text ?? "", inputText, spec.shape);
+    const rendered = renderContextPacket(fitted);
     const systemPrompt = [rendered.system, method?.text].filter(Boolean).join("\n\n");
-    const inputVal = await spec.input(ctx);
-    const userPrompt = [
-      rendered.user,
-      typeof inputVal === "string" ? inputVal : JSON.stringify(inputVal),
-      spec.shape,
-    ]
-      .filter(Boolean)
-      .join("\n\n");
-
+    const userPrompt = [rendered.user, inputText, spec.shape].filter(Boolean).join("\n\n");
     const maxRetries = spec.retries ?? 1;
     let lastErr: unknown;
 
@@ -104,10 +106,21 @@ export async function executePipeline<Req, Res>(
           { runId: current.id, stage: stepId, budget, signal },
         );
         const step: StepRecord = {
+          context: [...fitted.prefix, ...fitted.suffix].map(
+            ({ id, layer, tokens, required, reason, source }) => ({
+              id,
+              layer,
+              tokens,
+              required,
+              reason,
+              source: { ...source },
+            }),
+          ),
           id: stepId,
           role: spec.role,
           status: "failed",
-          ...(method ? { methodHash: method.hash, omitted: method.omitted } : {}),
+          ...(method ? { methodHash: method.hash } : {}),
+          omitted: [...(method?.omitted ?? []), ...fitted.omitted.map((block) => block.id)],
           usage: { ...answer.usage, cost: answer.cost },
           startedAt,
           finishedAt: clock.iso(),
@@ -170,13 +183,35 @@ export async function executePipeline<Req, Res>(
     fanOut: async (spec, packet) => {
       const count = spec.fanOut ? spec.fanOut.count(ctx) : 1;
       const tasks = Array.from({ length: count }, (_, idx) =>
-        runSingleStage(`${spec.id}-${idx}`, spec, packet),
+        runSingleStage(`${spec.id}-${spec.fanOut?.key?.(idx) ?? idx}`, spec, packet, idx),
       );
       const results = await Promise.allSettled(tasks);
       return results.map((result) => {
         if (result.status === "rejected") throw result.reason;
         return result.value;
       });
+    },
+    fanOutSettled: async (spec, packet) => {
+      const count = spec.fanOut ? spec.fanOut.count(ctx) : 1;
+      const results = await Promise.allSettled(
+        Array.from({ length: count }, (_, index) =>
+          runSingleStage(`${spec.id}-${spec.fanOut?.key?.(index) ?? index}`, spec, packet, index),
+        ),
+      );
+      for (const result of results)
+        if (result.status === "rejected" && classify(result.reason).spec.pause) throw result.reason;
+      return results.map((result, index) =>
+        result.status === "fulfilled"
+          ? { ok: true, index, value: result.value }
+          : {
+              ok: false,
+              index,
+              error: {
+                code: classify(result.reason).code,
+                message: classify(result.reason).message,
+              },
+            },
+      );
     },
     local: async (id, fn) => {
       const prev = completedMap.get(id);

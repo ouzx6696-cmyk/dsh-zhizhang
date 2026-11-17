@@ -53,6 +53,8 @@ export interface SegmentPattern {
 }
 
 export interface SegmentResult {
+  /** 分块与重建偏移所需的源文本；落盘时可与 source.txt 分离保存。 */
+  text: string;
   format: "md" | "txt";
   segments: Segment[];
   unassigned: Para[];
@@ -60,6 +62,8 @@ export interface SegmentResult {
 }
 
 export interface Chunk {
+  /** 超长段的纯函数切片表；不修改原 SegmentResult。 */
+  fragments?: Para[];
   index: number;
   total: number;
   segmentIds: string[];

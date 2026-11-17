@@ -5,6 +5,7 @@ export {
   addUsage,
   emptyUsage,
   type BudgetConfig,
+  type ContextSummary,
   type RunRecord,
   type StepRecord,
   type UsageTotals,
@@ -26,3 +27,5 @@ export {
   type StatefulRunRecord,
 } from "./state.js";
 export type { ModeModule, ModeTarget } from "./mode.js";
+
+export { fitContext } from "./context-fit.js";

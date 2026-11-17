@@ -314,5 +314,7 @@ export function registerIpc(s: MainServices): void {
 
   // 导入选文件（A-02）：绝对路径不出主进程，渲染层只拿一次性令牌。
   const imports = createImportPicker({ window: () => s.window(), clock: s.clock });
+  s.commands.takeImportToken = (token) => imports.take(token);
+  s.commands.importBudget = () => s.config.settings().engine;
   handle("dialog.pickImport", (options) => imports.pick(options));
 }

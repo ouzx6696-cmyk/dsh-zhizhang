@@ -1,3 +1,5 @@
+import { AppError } from "@zhizhang/core/errors";
+import { retrieveEarlyChapters } from "./select.js";
 import { estimateTokensRaw } from "@zhizhang/core/model";
 import type { ContextBlock, ContextPacket } from "@zhizhang/core/pipeline";
 import type { BibleSnapshot, BibleView, EntityHit, LedgerEntry } from "../bible/types.js";
@@ -25,6 +27,7 @@ export interface BookPlanContext {
     title: string;
     summary: string;
   };
+  currentAct?: { title: string; summary: string };
 }
 
 export interface ReferenceCardContext {
@@ -40,6 +43,8 @@ export interface ChapterContextInput {
   position: number;
   outlineText: string;
   authorNote?: string;
+  requiredEntityIds?: string[];
+  requiredThreadIds?: string[];
   previousBody?: string;
   previousHandoff?: string;
   previousSummary?: string;
@@ -76,89 +81,7 @@ function makeBlock(
   };
 }
 
-export function tokenize2Grams(text: string): string[] {
-  const cleaned = text
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .trim();
-  if (!cleaned) return [];
-  const tokens: string[] = [];
-  for (const seg of cleaned.split(/\s+/)) {
-    if (seg.length === 0) continue;
-    if (seg.length === 1) {
-      tokens.push(seg);
-      continue;
-    }
-    for (let i = 0; i < seg.length - 1; i++) {
-      tokens.push(seg.slice(i, i + 2));
-    }
-  }
-  return tokens;
-}
-
-export function retrieveEarlyChapters(
-  query: string,
-  docs: EarlyChapterDoc[],
-  topK = 3,
-): RetrievedChapterHit[] {
-  if (docs.length === 0 || topK <= 0) return [];
-  const queryTerms = tokenize2Grams(query);
-  if (queryTerms.length === 0) return [];
-
-  const uniqueQueryTerms = Array.from(new Set(queryTerms));
-  const tokenizedDocs = docs.map((doc) => {
-    const terms = tokenize2Grams(`${doc.summary}\n${doc.body ?? ""}`);
-    const tf = new Map<string, number>();
-    for (const term of terms) {
-      tf.set(term, (tf.get(term) ?? 0) + 1);
-    }
-    return { doc, length: terms.length, tf };
-  });
-
-  const avgDl =
-    tokenizedDocs.reduce((sum, d) => sum + d.length, 0) / Math.max(1, tokenizedDocs.length);
-  if (avgDl === 0) return [];
-
-  const df = new Map<string, number>();
-  for (const term of uniqueQueryTerms) {
-    let count = 0;
-    for (const d of tokenizedDocs) {
-      if ((d.tf.get(term) ?? 0) > 0) count += 1;
-    }
-    df.set(term, count);
-  }
-
-  const k1 = 1.5;
-  const b = 0.75;
-  const N = tokenizedDocs.length;
-  const hits: RetrievedChapterHit[] = [];
-
-  for (const d of tokenizedDocs) {
-    let score = 0;
-    let matchedTerms = 0;
-    for (const term of uniqueQueryTerms) {
-      const freq = d.tf.get(term) ?? 0;
-      if (freq === 0) continue;
-      matchedTerms += 1;
-      const docFreq = df.get(term) ?? 0;
-      const idf = Math.log((N - docFreq + 0.5) / (docFreq + 0.5) + 1);
-      const tfNorm = (freq * (k1 + 1)) / (freq + k1 * (1 - b + (b * d.length) / avgDl));
-      score += idf * tfNorm;
-    }
-    if (score > 0) {
-      hits.push({ doc: d.doc, score, matchedTerms });
-    }
-  }
-
-  return hits
-    .sort(
-      (a, bHit) =>
-        bHit.score - a.score ||
-        bHit.matchedTerms - a.matchedTerms ||
-        bHit.doc.position - a.doc.position,
-    )
-    .slice(0, topK);
-}
+export { tokenize2Grams, retrieveEarlyChapters } from "./select.js";
 
 export function buildChapterContext(input: ChapterContextInput): ContextPacket {
   const prefix: ContextBlock[] = [];
@@ -187,7 +110,10 @@ export function buildChapterContext(input: ChapterContextInput): ContextPacket {
     );
   }
 
+  const requiredIds = new Set(input.requiredEntityIds ?? []);
+  const presentIds = new Set(input.hits.map((hit) => hit.entity.id));
   const l2Text = input.hits
+    .filter((hit) => !requiredIds.has(hit.entity.id))
     .map((h) => {
       const states = input.view.states
         .filter((s) => s.entity === h.entity.id)
@@ -205,20 +131,66 @@ export function buildChapterContext(input: ChapterContextInput): ContextPacket {
     );
   }
 
+  const requiredEntities = input.hits.filter((hit) => requiredIds.has(hit.entity.id));
+  if (requiredEntities.length)
+    prefix.push(
+      makeBlock(
+        "l2-required",
+        2,
+        requiredEntities
+          .map(
+            (hit) =>
+              `${hit.entity.id} ${hit.entity.name}: ${hit.entity.summary}; ${input.view.states
+                .filter((state) => state.entity === hit.entity.id)
+                .map((state) => `${state.field}=${state.value}`)
+                .join("；")}; locked=${hit.entity.locked.join("；")}`,
+          )
+          .join("\n"),
+        true,
+        "章纲点名",
+        { kind: "bible", ref: "required-entities" },
+      ),
+    );
+  const knowledge = input.view.knowledge.filter((row) => presentIds.has(row.holder));
+  const threads = input.view.threads.filter(
+    (thread) =>
+      thread.status === "open" &&
+      (input.requiredThreadIds?.includes(thread.id) ||
+        (thread.dueBy ?? thread.plannedPayoff ?? Infinity) <= input.position + 3 ||
+        input.hits.some((hit) => thread.title.includes(hit.entity.name))),
+  );
   const l3Parts: string[] = [];
-  if (input.view.knowledge.length > 0) {
+  if (knowledge.length > 0) {
     l3Parts.push(
       "【知情边界】\n" +
-        input.view.knowledge.map((k) => `- ${k.holder} 对「${k.fact}」：${k.level}`).join("\n"),
+        knowledge.map((k) => `- ${k.holder} 对「${k.fact}」：${k.level}`).join("\n"),
     );
   }
-  if (input.view.threads.length > 0) {
+  if (threads.length > 0) {
     l3Parts.push(
       "【有效伏笔/线索】\n" +
-        input.view.threads
+        threads
           .map(
             (t) =>
               `- ${t.title}（第${t.opened}章埋设${t.plannedPayoff ? `，计划第${t.plannedPayoff}章兑现` : ""}）`,
+          )
+          .join("\n"),
+    );
+  }
+  const relations = input.view.states.filter(
+    (state) =>
+      state.facet === "relation" &&
+      presentIds.has(state.entity) &&
+      Boolean(state.target && presentIds.has(state.target)),
+  );
+  if (relations.length > 0) {
+    const namesById = new Map(input.hits.map((hit) => [hit.entity.id, hit.entity.name]));
+    l3Parts.push(
+      "【在场人物关系】\n" +
+        relations
+          .map(
+            (state) =>
+              `- ${namesById.get(state.entity) ?? state.entity} ${state.field} ${namesById.get(state.target ?? "") ?? state.target}：${state.value}`,
           )
           .join("\n"),
     );
@@ -247,16 +219,46 @@ export function buildChapterContext(input: ChapterContextInput): ContextPacket {
     ),
   );
 
-  const usedTokens = [...prefix, ...suffix].reduce((sum, b) => sum + b.tokens, 0);
-  let remaining = Math.max(0, input.budget - usedTokens);
+  const avail = Math.max(0, input.budget - 1000);
+  const required = [...prefix, ...suffix]
+    .filter((block) => block.required)
+    .reduce((sum, block) => sum + block.tokens, 0);
+  if (required > avail)
+    throw new AppError("model.context_overflow", "必带上下文超出输入预算", {
+      required,
+      available: avail,
+    });
+  let remaining = avail - required;
+  for (let i = prefix.length - 1; i >= 0; i--) {
+    const block = prefix[i];
+    if (block.required) continue;
+    if (block.tokens > remaining || block.tokens > avail * 0.25) {
+      prefix.splice(i, 1);
+      omitted.push({ id: block.id, why: "budget:L2" });
+    } else remaining -= block.tokens;
+  }
 
-  const l4Text = input.recentSummaries.map((s) => `第${s.position}章：${s.summary}`).join("\n");
+  const recentFacts = (input.view.recentFacts ?? [])
+    .filter((fact) => fact.entities.some((id) => presentIds.has(id)))
+    .sort((a, b) => b.position - a.position)
+    .map((fact) => `- 第${fact.position}章：${fact.text.slice(0, 120)}`);
+  const l4Parts = [
+    ...input.recentSummaries.map((summary) => `第${summary.position}章：${summary.summary}`),
+    ...recentFacts,
+  ];
+  if (input.bookPlan?.currentVolume)
+    l4Parts.push(`本卷摘要：${input.bookPlan.currentVolume.summary}`);
+  if (input.bookPlan?.currentAct)
+    l4Parts.push(
+      `本幕「${input.bookPlan.currentAct.title}」摘要：${input.bookPlan.currentAct.summary}`,
+    );
+  const l4Text = l4Parts.join("\n");
   if (l4Text) {
     const l4Block = makeBlock("l4-recent", 4, `【近期回顾】\n${l4Text}`, false, "近10章摘要", {
       kind: "bible",
       ref: "chapters",
     });
-    if (l4Block.tokens <= remaining) {
+    if (l4Block.tokens <= remaining && l4Block.tokens <= avail * 0.15) {
       suffix.push(l4Block);
       remaining -= l4Block.tokens;
     } else {
@@ -273,7 +275,15 @@ export function buildChapterContext(input: ChapterContextInput): ContextPacket {
         position: c.position,
         summary: c.summary,
       }));
-  const retrievalQuery = [input.outlineText, input.authorNote ?? "", input.previousSummary ?? ""]
+  const retrievalQuery = [
+    input.outlineText,
+    input.authorNote ?? "",
+    input.previousSummary ?? "",
+    input.previousHandoff ?? "",
+    input.previousBody?.slice(-1500) ?? "",
+    ...input.hits.map((hit) => hit.entity.name),
+    ...threads.map((thread) => thread.title),
+  ]
     .filter(Boolean)
     .join("\n");
   const earlyHits = retrieveEarlyChapters(retrievalQuery, earlyCandidates, input.l5TopK ?? 3);
@@ -292,7 +302,7 @@ export function buildChapterContext(input: ChapterContextInput): ContextPacket {
       "早期章节 BM25 + 字符 2-gram 检索",
       { kind: "retrieval", ref: "chapters" },
     );
-    if (l5Block.tokens <= remaining) {
+    if (l5Block.tokens <= remaining && l5Block.tokens <= avail * 0.1) {
       suffix.push(l5Block);
       remaining -= l5Block.tokens;
     } else {
@@ -340,5 +350,5 @@ export function buildChapterContext(input: ChapterContextInput): ContextPacket {
   }
 
   const estimate = [...prefix, ...suffix].reduce((sum, b) => sum + b.tokens, 0);
-  return { prefix, suffix, omitted, estimate };
+  return { prefix, suffix, omitted, estimate, reserve: 1000 };
 }

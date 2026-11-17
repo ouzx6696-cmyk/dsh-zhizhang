@@ -94,3 +94,29 @@ test("replayIntents resumes safe intents and flags externally modified conflicts
     await fs.rm(dir, { recursive: true, force: true });
   }
 });
+
+test("含文件删除的 Intent 中途退出 → 重放补齐目录更新，已删除文件幂等", async (t) => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "zz-delete-"));
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  const journal = path.join(dir, "journal"),
+    old = path.join(dir, "old.json"),
+    book = path.join(dir, "book.json");
+  await fs.mkdir(journal);
+  await fs.writeFile(old, "old");
+  await fs.writeFile(book, "before");
+  const intent = {
+    format: "zhizhang/1.3",
+    id: "delete-volume",
+    meta: {},
+    writes: [
+      { path: old, beforeHash: sha256("old"), after: null },
+      { path: book, beforeHash: sha256("before"), after: "after" },
+    ],
+  };
+  await fs.writeFile(path.join(journal, "delete.json"), JSON.stringify(intent));
+  await fs.rm(old);
+  assert.deepEqual(await replayIntents(journal), { resumed: [intent.id], conflicts: [] });
+  await assert.rejects(fs.access(old));
+  assert.equal(await fs.readFile(book, "utf8"), "after");
+  assert.deepEqual(await replayIntents(journal), { resumed: [], conflicts: [] });
+});

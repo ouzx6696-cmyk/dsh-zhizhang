@@ -19,6 +19,9 @@ export interface Target {
 
 /** 作者当前关注的位置（随助手消息一起送达，不改变运行中的任务）。 */
 export interface Focus {
+  view?: string;
+  tab?: string;
+  id?: string;
   chapter?: string;
   candidate?: string;
   article?: string;

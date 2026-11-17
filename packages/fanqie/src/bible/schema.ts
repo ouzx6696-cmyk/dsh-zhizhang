@@ -1,5 +1,5 @@
 /** 设定集、待确认批次与变更集的运行时解析器（F2 §3–§4）。 */
-import { FORMAT_VERSION } from "@zhizhang/core/paths";
+import { FORMAT_VERSION } from "@zhizhang/core/version";
 import { arr, bool, int, lit, obj, opt, record, str, type Parser } from "@zhizhang/core/schema";
 import { ProvenanceSchema, SourceRefSchema } from "../outline/schema.js";
 import type {

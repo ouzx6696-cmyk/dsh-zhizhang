@@ -315,7 +315,7 @@ test("bible store: propose/decide 只写批次，commit 后 asOf 与巡检正确
     const findings = store.audit(bible, 12);
     assert.deepEqual(
       findings.map((finding) => `${finding.kind}:${finding.refId}`),
-      ["thread_overdue:th-due", "thread_forgotten:th-forgot"],
+      ["thread_overdue:th-due", "thread_forgotten:th-due", "thread_forgotten:th-forgot"],
     );
   } finally {
     await fs.rm(workDir, { recursive: true, force: true });

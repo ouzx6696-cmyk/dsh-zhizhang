@@ -121,7 +121,7 @@ async function bootstrap(): Promise<void> {
       return {
         inputBudget: engine.inputBudget,
         runBudget: engine.runBudget,
-        moneyCap: engine.moneyCap ?? null,
+        moneyCap: null,
       };
     },
     profileRoots,

@@ -31,7 +31,7 @@ export async function replayIntents(
     for (const w of intent.writes) {
       const cur = await fs.readFile(w.path, "utf8").catch(() => null);
       const curHash = cur === null ? null : sha256(cur);
-      const afterHash = sha256(w.after);
+      const afterHash = w.after === null ? null : sha256(w.after);
       if (curHash !== afterHash && curHash !== w.beforeHash) {
         conflict = true;
         break;
@@ -43,7 +43,8 @@ export async function replayIntents(
     }
 
     for (const w of intent.writes) {
-      await atomicWrite(w.path, w.after);
+      if (w.after === null) await fs.rm(w.path, { force: true });
+      else await atomicWrite(w.path, w.after);
     }
     await fs.rm(intentFile, { force: true });
     resumed.push(intent.id);

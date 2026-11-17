@@ -1,3 +1,4 @@
+import { readBibleIndex } from "@zhizhang/fanqie/bible";
 /** 设定集与待确认命令组。 */
 import { AppError } from "@zhizhang/core/errors";
 import { arr, bool, int, lit, obj, opt, str, type Parser } from "@zhizhang/core/schema";
@@ -84,7 +85,10 @@ export const BIBLE_INPUTS: { [K in Group<"fanqie.bible">]: Parser<CommandInput<K
 
 export const BIBLE_HANDLERS: { [K in Group<"fanqie.bible">]: Handler<K> } = {
   async "fanqie.bible.get"(input, ctx) {
-    return fanqie.readBible(ctx.inside(input.work), ctx.locks);
+    return {
+      ...(await fanqie.readBible(ctx.inside(input.work), ctx.locks)),
+      index: await readBibleIndex(ctx.inside(input.work)),
+    };
   },
   async "fanqie.bible.query"(input, ctx) {
     return fanqie.queryBible(
@@ -172,6 +176,7 @@ export const PENDING_INPUTS: {
     work: workPath,
     batch: commandId,
     expectedRevs: BibleIndexFilesSchema,
+    remapToken: opt(str({ min: 1, max: 200 })),
   }),
 };
 
@@ -224,11 +229,28 @@ export const PENDING_HANDLERS: {
     );
   },
   async "fanqie.pending.commit"(input, ctx) {
-    return fanqie.commitBibleBatch(
+    const result = await fanqie.commitBibleBatch(
       ctx.inside(input.work),
       input.batch,
       input.expectedRevs,
       ctx.locks,
+      input.remapToken,
     );
+    const batch = await fanqie.readPendingBatch(ctx.inside(input.work), input.batch, ctx.locks);
+    if (
+      batch?.run &&
+      batch.status === "closed" &&
+      !result.stale.length &&
+      ctx.workflow.get &&
+      ctx.workflow.decide
+    ) {
+      const ref: Parameters<NonNullable<typeof ctx.workflow.get>>[0] = {
+        runId: batch.run,
+        target: { mode: "fanqie", path: ctx.inside(input.work) },
+      };
+      if ((await ctx.workflow.get(ref))?.state === "awaiting-author")
+        await ctx.workflow.decide(ref, "apply");
+    }
+    return result;
   },
 };

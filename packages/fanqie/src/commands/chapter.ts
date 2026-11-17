@@ -1,3 +1,4 @@
+import { readOutline, derivePositions } from "../outline/index.js";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { systemClock } from "@zhizhang/core/clock";
@@ -14,11 +15,6 @@ import { assertCanFinalize, downgradeOnEdit, type ChapterStatus } from "../domai
 import { countChineseWords } from "../pipelines/chapter/index.js";
 import { readWorkMeta } from "../storage/work.js";
 import type { ChapterRowView } from "../view/snapshot.js";
-
-function parseChapterPosition(id: string): number {
-  const m = /(\d+)/.exec(id);
-  return m ? Number.parseInt(m[1], 10) : 0;
-}
 
 export async function listChapters(workPath: string): Promise<ChapterRowView[]> {
   const dir = path.join(workPath, "chapters");
@@ -40,12 +36,14 @@ export async function listChapters(workPath: string): Promise<ChapterRowView[]> 
     rows.push({
       id: doc.meta.id || id,
       title: doc.meta.title || id,
-      position: parseChapterPosition(doc.meta.id || id),
+      position: 0,
       status: doc.meta.status,
       wordCount: countChineseWords(doc.body),
       revision: doc.meta.revision,
     });
   }
+  const positions = derivePositions(await readOutline(workPath), rows);
+  for (const row of rows) row.position = positions.chapters.get(row.id) ?? 0;
   return rows.sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
 }
 
@@ -95,6 +93,7 @@ export async function saveChapter(
       title: input.title ?? prev?.meta.title ?? input.chapterId,
       status: nextStatus,
       revision: nextRevision,
+      outlineId: prev?.meta.outlineId,
       outline: input.outline ?? prev?.meta.outline,
       scenes: prev?.meta.scenes,
       review: prev?.meta.review,

@@ -1,10 +1,9 @@
-import fs from "node:fs/promises";
+import { proposeBookPlan } from "./proposal.js";
 import path from "node:path";
 import { systemClock } from "@zhizhang/core/clock";
 import { AppError } from "@zhizhang/core/errors";
-import { atomicWrite, readTextIfExists, sha256 } from "@zhizhang/core/fs";
+import { readTextIfExists, sha256 } from "@zhizhang/core/fs";
 import { createLockService, type LockService } from "@zhizhang/core/lock";
-import { FORMAT_VERSION } from "@zhizhang/core/paths";
 import type {
   ContextPacket,
   DeliveryReceipt,
@@ -13,10 +12,7 @@ import type {
   RunRecord,
   StageSpec,
 } from "@zhizhang/core/pipeline";
-import { buildDeliveryMarker, isAlreadyDelivered } from "@zhizhang/core/pipeline";
 import { arr, int, lit, obj, opt, parseJson, str, type Infer } from "@zhizhang/core/schema";
-import { createBibleStore } from "../../bible/store.js";
-import type { Entity, StateEntry } from "../../bible/types.js";
 
 export const BookPipelineReq = obj({
   title: str({ min: 1 }),
@@ -232,166 +228,13 @@ function resolveBookPlanChoice(choice: unknown, ctx: RunCtx): BookPlanResult | u
   return undefined;
 }
 
-function upsertById<T extends { id: string }>(list: T[], item: T): T[] {
-  const idx = list.findIndex((x) => x.id === item.id);
-  if (idx === -1) return [...list, item];
-  const next = [...list];
-  next[idx] = item;
-  return next;
-}
-
 export async function applyBookPlan(
   workPath: string,
   runId: string,
   plan: BookPlanResult,
   lock: LockService = createLockService(systemClock),
-): Promise<{ backupDir: string; backedUpFiles: string[]; writtenPlanFiles: string[] }> {
-  const bibleStore = createBibleStore(lock);
-  return lock.write({ kind: "work", path: workPath }, async () => {
-    const planDir = path.join(workPath, "plan");
-    const backupDir = path.join(workPath, ".zhizhang", "trash", `plan-${runId}`);
-    const planFiles = ["card.json", "foundation.json", "structure.json", "outline.json"];
-    const backedUpFiles: string[] = [];
-
-    await fs.mkdir(backupDir, { recursive: true });
-    for (const file of planFiles) {
-      const src = path.join(planDir, file);
-      const existing = await readTextIfExists(src);
-      if (existing !== undefined) {
-        const dst = path.join(backupDir, file);
-        await atomicWrite(dst, existing);
-        backedUpFiles.push(dst);
-      }
-    }
-
-    const cardFile = path.join(planDir, "card.json");
-    const foundationFile = path.join(planDir, "foundation.json");
-    const structureFile = path.join(planDir, "structure.json");
-    const outlineFile = path.join(planDir, "outline.json");
-
-    await atomicWrite(cardFile, JSON.stringify({ format: FORMAT_VERSION, ...plan.card }, null, 2));
-    await atomicWrite(foundationFile, JSON.stringify(plan.foundation, null, 2));
-    await atomicWrite(structureFile, JSON.stringify(plan.structure.volumes, null, 2));
-    await atomicWrite(outlineFile, JSON.stringify(plan.outline.chapters, null, 2));
-
-    const nowIso = systemClock.iso();
-    const provenance = { source: "plan" as const, run: runId, at: nowIso };
-    const bible = await bibleStore.read(workPath);
-
-    const protagonistEntity: Entity = {
-      id: "ent-protagonist",
-      kind: "character",
-      name: plan.foundation.protagonist.name,
-      aliases: [],
-      summary: `目标：${plan.foundation.protagonist.goal}；弱点：${plan.foundation.protagonist.flaw}；金手指：${plan.foundation.protagonist.goldenFinger}`,
-      locked: [],
-      provenance,
-      rev: 0,
-    };
-    const worldviewEntity: Entity = {
-      id: "ent-worldview",
-      kind: "rule",
-      name: "世界观与主线冲突",
-      aliases: [],
-      summary: `${plan.foundation.worldview}；主线冲突：${plan.foundation.coreConflict}`,
-      locked: [],
-      global: true,
-      provenance,
-      rev: 0,
-    };
-    const powerEntity: Entity = {
-      id: "ent-power-system",
-      kind: "rule",
-      name: "升级体系",
-      aliases: [],
-      summary: plan.foundation.powerSystem,
-      locked: [],
-      global: true,
-      provenance,
-      rev: 0,
-    };
-
-    let nextEntities = upsertById(bible.entities, protagonistEntity);
-    nextEntities = upsertById(nextEntities, worldviewEntity);
-    nextEntities = upsertById(nextEntities, powerEntity);
-
-    const plannedStates: StateEntry[] = [
-      {
-        id: "st-plan-protagonist-goal",
-        entity: "ent-protagonist",
-        facet: "other",
-        field: "目标",
-        value: plan.foundation.protagonist.goal,
-        since: 1,
-        mode: "replace",
-        status: "planned",
-        provenance,
-        rev: 0,
-      },
-      {
-        id: "st-plan-protagonist-goldenfinger",
-        entity: "ent-protagonist",
-        facet: "other",
-        field: "金手指",
-        value: plan.foundation.protagonist.goldenFinger,
-        since: 1,
-        mode: "replace",
-        status: "planned",
-        provenance,
-        rev: 0,
-      },
-      {
-        id: "st-plan-core-conflict",
-        entity: "ent-worldview",
-        facet: "other",
-        field: "主线冲突",
-        value: plan.foundation.coreConflict,
-        since: 1,
-        mode: "replace",
-        status: "planned",
-        provenance,
-        rev: 0,
-      },
-    ];
-
-    let nextStates = bible.states;
-    for (const entry of plannedStates) {
-      nextStates = upsertById(nextStates, entry);
-    }
-
-    const bibleDir = path.join(workPath, "bible");
-    await atomicWrite(path.join(bibleDir, "entities.json"), JSON.stringify(nextEntities, null, 2));
-    await atomicWrite(path.join(bibleDir, "states.json"), JSON.stringify(nextStates, null, 2));
-    const outlineRaw = (await readTextIfExists(path.join(workPath, "outline", "book.json"))) ?? "";
-    const files = {
-      entities: { rev: 0, hash: sha256(JSON.stringify(nextEntities)) },
-      timeline: { rev: 0, hash: sha256(JSON.stringify(bible.timeline)) },
-      states: { rev: 0, hash: sha256(JSON.stringify(nextStates)) },
-      threads: { rev: 0, hash: sha256(JSON.stringify(bible.threads)) },
-      knowledge: { rev: 0, hash: sha256(JSON.stringify(bible.knowledge)) },
-      style: { rev: 0, hash: sha256(JSON.stringify(bible.style)) },
-      outline: { rev: 0, hash: sha256(outlineRaw) },
-    };
-    const latestLedger = (await bibleStore.ledgers(workPath)).at(-1);
-    await atomicWrite(
-      path.join(bibleDir, "index.json"),
-      JSON.stringify(
-        {
-          format: FORMAT_VERSION,
-          files,
-          ...(latestLedger ? { lastLedgerChapter: latestLedger.chapter } : {}),
-        },
-        null,
-        2,
-      ),
-    );
-
-    return {
-      backupDir,
-      backedUpFiles,
-      writtenPlanFiles: [cardFile, foundationFile, structureFile, outlineFile],
-    };
-  });
+) {
+  return proposeBookPlan(workPath, runId, plan, lock);
 }
 
 export const bookPipeline: PipelineDefinition<BookReq, BookPlanResult> = {
@@ -442,39 +285,22 @@ export const bookPipeline: PipelineDefinition<BookReq, BookPlanResult> = {
     return result;
   },
   async deliver(res, ctx): Promise<DeliveryReceipt> {
-    const planDir = path.join(ctx.target.path, "plan");
-    const marker = path.join(planDir, `${ctx.runId}.marker.json`);
-    const cardPayload = JSON.stringify({ format: FORMAT_VERSION, ...res.card }, null, 2);
-    if (await isAlreadyDelivered(marker, ctx.runId)) {
-      return {
-        runId: ctx.runId,
-        deliveredPaths: [],
-        contentHash: sha256(cardPayload),
-        summary: "已幂等交付全书规划",
-      };
-    }
-
-    const cardFile = path.join(planDir, "card.json");
-    const foundationFile = path.join(planDir, "foundation.json");
-    const structureFile = path.join(planDir, "structure.json");
-    const outlineFile = path.join(planDir, "outline.json");
-
-    await atomicWrite(cardFile, cardPayload);
-    await atomicWrite(foundationFile, JSON.stringify(res.foundation, null, 2));
-    await atomicWrite(structureFile, JSON.stringify(res.structure.volumes, null, 2));
-    await atomicWrite(outlineFile, JSON.stringify(res.outline.chapters, null, 2));
-    await atomicWrite(marker, buildDeliveryMarker(ctx.runId, cardPayload));
-
+    const result = await proposeBookPlan(
+      ctx.target.path,
+      ctx.runId,
+      res,
+      createLockService(systemClock),
+    );
     return {
       runId: ctx.runId,
-      deliveredPaths: [cardFile, foundationFile, structureFile, outlineFile],
-      contentHash: sha256(cardPayload),
-      summary: `已生成全书规划（${res.structure.volumes.length} 卷，前 ${res.outlineCount} 章纲）`,
+      deliveredPaths: result.writtenPlanFiles,
+      contentHash: sha256(JSON.stringify(res)),
+      summary: `规划已生成待确认提案（${res.structure.volumes.length} 卷，${res.outlineCount} 章纲）`,
     };
   },
   async recover(record, ctx) {
-    const marker = path.join(ctx.target.path, "plan", `${record.id}.marker.json`);
-    return (await isAlreadyDelivered(marker, record.id)) ? "delivered" : "resume";
+    const marker = path.join(ctx.target.path, ".cache", "planning", `${record.id}.json`);
+    return (await readTextIfExists(marker)) ? "delivered" : "resume";
   },
   async apply(record: RunRecord, choice: unknown, ctx: RunCtx): Promise<void> {
     if (choice === "reject") return;

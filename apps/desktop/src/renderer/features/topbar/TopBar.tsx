@@ -11,6 +11,7 @@ import { notify } from "@zhizhang/ui/notify";
 import { Brand, Button, IconButton, Menu, type MenuItem } from "@zhizhang/ui/primitives";
 import type { ExportFormat, RunSummary, TargetItem } from "../../../shared/views";
 import {
+  canLeave,
   modelReady,
   openPipeline,
   openSettings,
@@ -135,6 +136,12 @@ export function TopBar() {
   const close = () => setMenu("");
   const views: { id: MainView; label: string }[] = [
     { id: "writing", label: C.topbar.viewWriting },
+    ...(selected?.target.mode === "fanqie"
+      ? ([{ id: "plan", label: COPY["plan.outline.title"] }] satisfies {
+          id: MainView;
+          label: string;
+        }[])
+      : []),
     {
       id: "board",
       label: selected?.target.mode === "toutiao" ? C.topbar.viewLedger : C.topbar.viewBoard,
@@ -192,7 +199,11 @@ export function TopBar() {
                   className="zz-segmented__item"
                   aria-pressed={view === v.id}
                   data-testid={`view-${v.id}`}
-                  onClick={() => set({ view: v.id })}
+                  onClick={() =>
+                    void canLeave().then((ok) => {
+                      if (ok) set({ view: v.id });
+                    })
+                  }
                 >
                   {v.label}
                 </button>

@@ -76,8 +76,13 @@ const DRAFT_TEXT = "雨夜正文第一段：林川把电压器调低，沿着湿
 
 async function launchDesktop(home, root) {
   const model = await fakeModel(() => ({ text: "好的。" }));
+  // 应用状态与 Chromium 的 localStorage / 缓存都隔离；同一 home 重启时保留两者。
   const app = await electron.launch({
-    args: [path.resolve("apps/desktop"), ...(process.platform === "linux" ? ["--no-sandbox"] : [])],
+    args: [
+      path.resolve("apps/desktop"),
+      `--user-data-dir=${path.join(home, "chromium")}`,
+      ...(process.platform === "linux" ? ["--no-sandbox"] : []),
+    ],
     env: { ...process.env, ZHIZHANG_USER_DATA: home, NO_PROXY: "127.0.0.1,localhost" },
   });
   // 关窗守卫统一“离开”：草稿已经由停顿写入落盘，关窗只为重开验证。
@@ -125,20 +130,31 @@ async function typeDraftAndWait(page, root, text) {
   const tid = (id) => page.getByTestId(id);
   await tid("chapter-edit").click();
   await tid("source-editor-input").fill(text);
+  const chapterId = await tid("chapter-item").first().getAttribute("data-chapter-id");
+  expect(chapterId).toBeTruthy();
   const draftsDir = path.join(root, ".zhizhang", "drafts");
   await expect
     .poll(
       async () => {
         try {
-          const names = await readdir(draftsDir);
-          return names.filter((n) => n.endsWith(".json")).length;
-        } catch {
-          return 0; // 停顿写入（约 800 ms）尚未建目录，继续等
+          const names = (await readdir(draftsDir)).filter((n) => n.endsWith(".json"));
+          return await Promise.all(
+            names.map(async (name) =>
+              JSON.parse(await readFile(path.join(draftsDir, name), "utf8")),
+            ),
+          );
+        } catch (error) {
+          if (error.code === "ENOENT") return []; // 首次停顿写入尚未建目录
+          throw error;
         }
       },
       { timeout: 15_000 },
     )
-    .toBeGreaterThan(0);
+    .toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ text, key: expect.stringContaining(chapterId) }),
+      ]),
+    );
   return draftsDir;
 }
 
@@ -297,7 +313,11 @@ test("M0-1：桌面文章流水线两轮未过质检，草稿落盘且状态保�
   const root = await freshDir("zz-m0-root-");
   const pageErrors = [];
   const app = await electron.launch({
-    args: [path.resolve("apps/desktop"), ...(process.platform === "linux" ? ["--no-sandbox"] : [])],
+    args: [
+      path.resolve("apps/desktop"),
+      `--user-data-dir=${path.join(home, "chromium")}`,
+      ...(process.platform === "linux" ? ["--no-sandbox"] : []),
+    ],
     env: { ...process.env, ZHIZHANG_USER_DATA: home, NO_PROXY: "127.0.0.1,localhost" },
   });
   try {
@@ -388,14 +408,20 @@ test("M0-3：点稍后再说并重启 → 不弹引导（模型未配置也不�
     await tid("onboarding-skip-model").click();
     await tid("onboarding-finish").click();
     await expect(tid("onboarding")).toHaveCount(0);
-    // 关键：本轮未配置任何模型，“稍后再说”要被记住。
+    // 等落盘后重启；仅等引导消失可能先于 settings.save 完成。
+    await expect
+      .poll(async () => JSON.parse(await readFile(path.join(home, "settings.json"), "utf8")))
+      .toMatchObject({ shell: { onboardingDismissed: true } });
     await app.close();
     await model.close();
 
     const relaunched = await launchDesktop(home, root);
     try {
       const page2 = await relaunched.app.firstWindow();
-      await expect(page2.getByTestId("onboarding")).toHaveCount(0, { timeout: 15_000 });
+      // 正向确认启动完成，避免尚未渲染的空页面让“不存在”断言提前通过。
+      await expect(page2.getByTestId("app")).toBeVisible();
+      await expect(page2.getByTestId("welcome")).toBeVisible();
+      await expect(page2.getByTestId("onboarding")).toHaveCount(0);
     } finally {
       await relaunched.app.close();
       await relaunched.model.close();
@@ -410,7 +436,11 @@ test("M0-3：写作文件夹未配置时，稍后再说不能阻止引导重现"
   const home = await freshDir("zz-m0-force-state-");
   const model = await fakeModel(() => ({ text: "好的。" }));
   const app = await electron.launch({
-    args: [path.resolve("apps/desktop"), ...(process.platform === "linux" ? ["--no-sandbox"] : [])],
+    args: [
+      path.resolve("apps/desktop"),
+      `--user-data-dir=${path.join(home, "chromium")}`,
+      ...(process.platform === "linux" ? ["--no-sandbox"] : []),
+    ],
     env: {
       ...process.env,
       ZHIZHANG_USER_DATA: home,
@@ -447,7 +477,11 @@ test("M0-3：历史里点开上一条运行 → 显示阶段列表与交付回�
   const root = await freshDir("zz-m0-hist-root-");
   const model = await fakeModel(chapterAnswer);
   const app = await electron.launch({
-    args: [path.resolve("apps/desktop"), ...(process.platform === "linux" ? ["--no-sandbox"] : [])],
+    args: [
+      path.resolve("apps/desktop"),
+      `--user-data-dir=${path.join(home, "chromium")}`,
+      ...(process.platform === "linux" ? ["--no-sandbox"] : []),
+    ],
     env: {
       ...process.env,
       ZHIZHANG_USER_DATA: home,
@@ -494,7 +528,8 @@ test("M0-3：历史里点开上一条运行 → 显示阶段列表与交付回�
     await expect(tid("run-detail-stage").first()).toBeVisible();
     expect(await tid("run-detail-stage").count()).toBeGreaterThan(1);
     await expect(tid("run-detail-receipt")).toBeVisible();
-    await expect(tid("run-detail-context-empty")).toBeVisible();
+    await expect(tid("run-detail-context")).toBeVisible();
+    await expect(tid("run-detail-context-empty")).toHaveCount(0);
     await tid("run-detail-back").click();
     await expect(tid("workflow-run").first()).toBeVisible();
 

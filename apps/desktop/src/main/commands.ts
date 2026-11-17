@@ -3,6 +3,7 @@
  * 输入先经 core/schema 解析；所有路径必须位于写作文件夹内；
  * 读写策略与刷新广播在 COMMAND_POLICY（workbench/contract）一处，由 IPC 层执行。
  */
+import type { Parser } from "@zhizhang/core/schema";
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { Clock } from "@zhizhang/core/clock";
@@ -10,7 +11,6 @@ import { AppError } from "@zhizhang/core/errors";
 import { atomicWrite, readTextIfExists, sha256 } from "@zhizhang/core/fs";
 import type { LockService } from "@zhizhang/core/lock";
 import { FORMAT_VERSION } from "@zhizhang/core/paths";
-import { arr, bool, int, lit, obj, opt, str, type Parser } from "@zhizhang/core/schema";
 import {
   alignTwoLevel,
   classifyHunks,
@@ -22,16 +22,11 @@ import type { CommandInput, CommandResult, WorkbenchCommand } from "@zhizhang/wo
 import { wordDocument } from "../exports.js";
 import type { WorkbenchCall } from "../shared/ipc.js";
 import type { WorkspaceRoots } from "../shared/views.js";
-import {
-  BIBLE_HANDLERS,
-  BIBLE_INPUTS,
-  PENDING_HANDLERS,
-  PENDING_INPUTS,
-} from "./commands-bible.js";
-import { IMPORT_HANDLERS, IMPORT_INPUTS } from "./commands-import.js";
-import { afterFinalize, CHECK_HANDLERS, CHECK_INPUTS } from "./commands-ledger.js";
-import { OUTLINE_HANDLERS, OUTLINE_INPUTS } from "./commands-outline.js";
-import { PROFILE_HANDLERS, PROFILE_INPUTS, type ProfileDirs } from "./commands-profiles.js";
+import { BIBLE_HANDLERS, PENDING_HANDLERS } from "./commands-bible.js";
+import { IMPORT_HANDLERS } from "./commands-import.js";
+import { afterFinalize, CHECK_HANDLERS } from "./commands-ledger.js";
+import { OUTLINE_HANDLERS } from "./commands-outline.js";
+import { PROFILE_HANDLERS, type ProfileDirs } from "./commands-profiles.js";
 import type { WorkflowService } from "./workflow.js";
 
 export interface CommandCtx {
@@ -42,7 +37,10 @@ export interface CommandCtx {
   roots(): WorkspaceRoots;
   profiles: ProfileDirs;
   scriptsDir?: string;
-  workflow: Pick<WorkflowService, "startAndWait">;
+  takeImportToken?(token: string): string;
+  importBudget?(): { inputBudget: number; runBudget: number; model?: string };
+  workflow: Pick<WorkflowService, "startAndWait"> &
+    Partial<Pick<WorkflowService, "get" | "decide" | "retryImport" | "enqueueAndWait">>;
   log?(event: string, data: Record<string, unknown>): void;
 }
 
@@ -61,111 +59,7 @@ type CoreFanqie = Exclude<
   | "fanqie.chapter.createFromPlan"
 >;
 
-const id = str({ min: 1, max: 200 });
-const grade = lit("economy", "standard", "premium");
-
-const INPUTS: { [K in WorkbenchCommand]: Parser<CommandInput<K>> } = {
-  "fanqie.snapshot": obj({ work: id, since: opt(str()) }),
-  "fanqie.chapter.list": obj({ work: id }),
-  "fanqie.chapter.get": obj({ work: id, chapter: id }),
-  "fanqie.chapter.save": obj({
-    work: id,
-    chapter: id,
-    base: str(),
-    body: str({ max: 2_000_000 }),
-    title: opt(str({ max: 100, trim: true })),
-  }),
-  "fanqie.chapter.finalize": obj({ work: id, chapter: id }),
-  "fanqie.candidate.list": obj({ work: id, chapter: opt(id) }),
-  "fanqie.candidate.get": obj({ work: id, chapter: id, candidateId: id }),
-  "fanqie.candidate.accept": obj({ work: id, chapter: id, candidateId: id, base: str() }),
-  "fanqie.candidate.reject": obj({
-    work: id,
-    chapter: id,
-    candidateId: id,
-    reason: opt(str({ max: 2000 })),
-  }),
-  "fanqie.work.list": obj({ root: id }),
-  "fanqie.work.get": obj({ work: id }),
-  "fanqie.work.create": obj({
-    root: id,
-    title: str({ min: 1, max: 100, trim: true }),
-    premise: str({ max: 20000 }),
-    grade,
-  }),
-  "fanqie.work.settings": obj({
-    work: id,
-    grade: opt(grade),
-    profile: opt(id),
-    requireEditorPass: opt(bool),
-    targetWords: opt(int({ min: 500, max: 20000 })),
-    previousTextMode: opt(lit("auto", "full", "tail")),
-  }),
-  "fanqie.book.export": obj({ work: id, format: lit("txt", "docx"), finalOnly: bool, outPath: id }),
-  "fanqie.reference.bind": obj({ work: id, sourceId: id, cardIds: opt(arr(id, { max: 200 })) }),
-  ...OUTLINE_INPUTS,
-  ...BIBLE_INPUTS,
-  ...PENDING_INPUTS,
-  ...IMPORT_INPUTS,
-  ...CHECK_INPUTS,
-  "toutiao.articles": obj({ root: id }),
-  "toutiao.article.create": obj({ root: id, genre: id, driver: id }),
-  "toutiao.article.transition": obj({ articleDir: id, to: id }),
-  "toutiao.article.deliver": obj({
-    articleDir: id,
-    title: str({ min: 1, max: 200 }),
-    body: str({ min: 1, max: 400_000 }),
-  }),
-  "toutiao.article.export": obj({
-    articleDir: id,
-    outPath: id,
-    format: opt(lit("md", "txt")),
-    includeDelivery: opt(bool),
-  }),
-  "toutiao.draft.get": obj({ articleDir: id }),
-  "toutiao.draft.save": obj({
-    articleDir: id,
-    title: opt(str({ max: 200 })),
-    body: str({ min: 1, max: 400_000 }),
-    revision: opt(str()),
-  }),
-  "toutiao.source.register": obj({
-    articleDir: id,
-    sourceId: id,
-    kind: lit("paste", "file", "classic"),
-    content: str({ min: 1, max: 2_000_000 }),
-  }),
-  "toutiao.ledger.show": obj({ ledgerPath: id, last: opt(int({ min: 1, max: 200 })) }),
-  "toutiao.ledger.add": obj({
-    cardPath: id,
-    ledgerPath: id,
-    articleId: opt(id),
-    status: opt(id),
-    date: opt(id),
-  }),
-  "toutiao.ledger.status": obj({ title: id, to: id, ledgerPath: id, articleId: opt(id) }),
-  "toutiao.metrics.import": obj({
-    articleId: id,
-    metricsJson: str({ min: 1, max: 400_000 }),
-    ledgerPath: id,
-    url: opt(str()),
-  }),
-  ...PROFILE_INPUTS,
-  "library.import": obj({
-    libraryRoot: id,
-    id: str({ min: 1, max: 80 }),
-    title: str({ min: 1, max: 200 }),
-    content: str({ min: 1, max: 20_000_000 }),
-  }),
-  "library.list": obj({ libraryRoot: id }),
-  "library.cards": obj({ libraryRoot: id, sourceId: id }),
-  "library.dissect": obj({
-    libraryRoot: id,
-    sourceId: id,
-    title: str({ min: 1, max: 200 }),
-    sourcePath: opt(id),
-  }),
-};
+import { INPUTS } from "./commands-inputs.js";
 
 function safeId(value: string, field: string): string {
   if (!/^[\w\u4e00-\u9fff-]{1,80}$/.test(value)) {

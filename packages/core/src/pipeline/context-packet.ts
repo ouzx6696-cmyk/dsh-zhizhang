@@ -13,6 +13,7 @@ export interface ContextBlock {
 }
 
 export interface ContextPacket {
+  reserve?: number;
   prefix: ContextBlock[];
   suffix: ContextBlock[];
   omitted: { id: string; why: string }[];

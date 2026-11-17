@@ -1,4 +1,18 @@
 export const PLAN_IMPORT_COPY = {
   "plan.import.title": "导入",
   "plan.import.placeholder": "导入向导正在建设中（U-02/I-02）。",
+  "plan.importKind.outline-volume": "卷纲",
+  "plan.importKind.outline-act": "幕纲",
+  "plan.importKind.outline-chapter": "章纲",
+  "plan.importKind.setting-character": "人物设定",
+  "plan.importKind.setting-faction": "势力设定",
+  "plan.importKind.setting-place": "地点设定",
+  "plan.importKind.setting-power": "力量体系",
+  "plan.importKind.setting-item": "物品设定",
+  "plan.importKind.setting-rule": "规则设定",
+  "plan.importKind.setting-term": "术语设定",
+  "plan.importKind.timeline": "时间线",
+  "plan.importKind.mixed": "混合内容",
+  "plan.importKind.ignore": "忽略",
+  "plan.importKind.unknown": "未分类",
 } as const;

@@ -146,7 +146,11 @@ export function RunDetailView({
               ))}
             </ol>
           </section>
-          <section aria-label={C.workflow.contextSection} className="zz-stack">
+          <section
+            aria-label={C.workflow.contextSection}
+            className="zz-stack"
+            data-testid="run-detail-context"
+          >
             <h4 className="zz-run__section">{C.workflow.contextSection}</h4>
             {hasContext ? (
               <ul className="zz-stages">

@@ -13,7 +13,17 @@ export interface BudgetConfig {
   moneyCap: number | null;
 }
 
+export interface ContextSummary {
+  id: string;
+  layer: number;
+  tokens: number;
+  required: boolean;
+  reason: string;
+  source: { kind: string; ref: string };
+}
+
 export interface StepRecord {
+  context?: ContextSummary[];
   id: string;
   role: string;
   status: "done" | "failed";

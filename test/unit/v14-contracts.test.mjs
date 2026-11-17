@@ -216,9 +216,9 @@ test("Segment / Chunk / EncodingGuess：合法 roundtrip，level 与 encoding �
   );
 });
 
-test("命令契约：68 条命令、decide 已删除、刷新范围合法", () => {
+test("命令契约：69 条命令、decide 已删除、刷新范围合法", () => {
   const all = Object.keys(contract.COMMAND_POLICY);
-  assert.equal(all.length, 68);
+  assert.equal(all.length, 69);
   assert.equal(all.includes("fanqie.bible.decide"), false);
   assert.equal(all.includes("fanqie.pending.decide"), true);
   const scopes = new Set([

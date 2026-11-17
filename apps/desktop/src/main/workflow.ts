@@ -1,3 +1,4 @@
+import { SCOPE_BY_KIND, budgetFor, importRetry, type ActiveRun } from "./workflow-policy.js";
 /**
  * WorkflowService：每个目标单活、运行记录落盘、暂停/停止/恢复/重试、待作者决定、进度事件发布。
  * kind 从 ModeModule.pipelines 查表；模型调用全部经 ModelGateway（GatewayLike）。
@@ -17,7 +18,7 @@ import {
   type RunRecord,
 } from "@zhizhang/core/pipeline";
 import { FORMAT_VERSION } from "@zhizhang/core/paths";
-import type { ChangeScope, DesktopEvent } from "../shared/events.js";
+import type { DesktopEvent } from "../shared/events.js";
 import type {
   Mode,
   RunDetail,
@@ -45,32 +46,11 @@ export interface WorkflowDeps {
   prepareRequest?(kind: string, request: unknown): unknown;
 }
 
-interface ActiveRun {
-  target: Target;
-  runId: string;
-  kind: string;
-  since: string;
-  stage?: string;
-  controller: AbortController;
-  promise: Promise<RunDetail>;
-}
-
-const SCOPE_BY_KIND: Record<string, ChangeScope> = {
-  "fanqie.book": "rows",
-  "fanqie.chapter": "chapter",
-  "fanqie.review": "chapter",
-  "fanqie.revise": "chapter",
-  "fanqie.ledger": "bible",
-  "fanqie.health": "bible",
-  "fanqie.import": "imports",
-  "library.dissect": "library",
-  "toutiao.article": "article",
-};
-
 const keyOf = (target: { path: string }) => target.path;
 
 export function createWorkflowService(deps: WorkflowDeps) {
   const active = new Map<string, ActiveRun>();
+  const queued = new Map<string, Promise<RunDetail>>();
   const serial = createSerialRunner();
 
   async function contextFor(
@@ -121,6 +101,7 @@ export function createWorkflowService(deps: WorkflowDeps) {
     ctx: RunCtx,
     target: Target,
   ): ActiveRun {
+    ctx.state.inputBudget = record.budget.inputBudget;
     const controller = new AbortController();
     const run: ActiveRun = {
       target,
@@ -217,7 +198,7 @@ export function createWorkflowService(deps: WorkflowDeps) {
         stateHistory: [{ to: "running", reason: "start", at: now }],
         steps: [],
         usage: { input: 0, cachedInput: 0, output: 0, cost: 0 },
-        budget: deps.budget(),
+        budget: budgetFor(kind, request, deps.budget()),
         created: now,
         updated: now,
       };
@@ -237,6 +218,51 @@ export function createWorkflowService(deps: WorkflowDeps) {
     async startAndWait(target: Target, kind: string, request: unknown): Promise<RunDetail> {
       const run = await startRun(target, kind, request);
       return run.promise;
+    },
+
+    /** 后台自动任务按作品排队，等当前流水线结束后顺序执行。 */
+    async enqueueAndWait(target: Target, kind: string, request: unknown): Promise<RunDetail> {
+      const key = keyOf(target),
+        previous = queued.get(key);
+      const task = (async () => {
+        if (previous) await previous.catch(() => undefined);
+        for (;;) {
+          const busy = active.get(key);
+          if (busy) {
+            await busy.promise;
+            continue;
+          }
+          try {
+            return await (
+              await startRun(target, kind, request)
+            ).promise;
+          } catch (error) {
+            const raced = active.get(key);
+            if (!raced || classify(error).code !== "gate.denied") throw error;
+            await raced.promise;
+          }
+        }
+      })();
+      queued.set(key, task);
+      try {
+        return await task;
+      } finally {
+        if (queued.get(key) === task) queued.delete(key);
+      }
+    },
+
+    async retryImport(ref: RunRef, chunks: number[]): Promise<RunRef> {
+      return serial(keyOf(ref.target), async () => {
+        assertIdle(ref.target);
+        const detail = await load(ref);
+        const next = importRetry(detail, chunks, deps.clock.iso(), deps.budget());
+        const def = ModeRegistry.pipeline(ref.target.mode, detail.kind);
+        const ctx = await contextFor(def, ref.target, next.request, detail.id);
+        await deps.runs.save(withError(next));
+        emitRun(withError(next));
+        launch(def, next, ctx, ref.target);
+        return ref;
+      });
     },
 
     async control(ref: RunRef, action: WorkflowAction): Promise<RunSummary> {
@@ -269,7 +295,10 @@ export function createWorkflowService(deps: WorkflowDeps) {
           action === "retry" ? "retry" : "resume",
           deps.clock.iso(),
         );
-        const next: RunRecord = { ...resumed, budget: deps.budget() };
+        const next: RunRecord = {
+          ...resumed,
+          budget: budgetFor(detail.kind, detail.request, deps.budget()),
+        };
         await deps.runs.save(withError(next));
         emitRun(withError(next));
         launch(def, next, ctx, ref.target);

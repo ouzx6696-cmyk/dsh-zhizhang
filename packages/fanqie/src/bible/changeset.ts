@@ -98,7 +98,7 @@ function snapshotJson(bible: BibleSnapshot, key: SnapshotKey): string {
   }
 }
 
-async function writeOf(file: string, after: string): Promise<IntentWrite> {
+async function writeOf(file: string, after: string | null): Promise<IntentWrite> {
   const before = await readTextIfExists(file);
   return { path: file, beforeHash: before === undefined ? null : sha256(before), after };
 }
@@ -142,7 +142,7 @@ export async function buildCommitWrites(input: CommitWritesInput): Promise<Commi
       writes.push(await writeOf(file, JSON.stringify(LedgerEntrySchema(entry), null, 2)));
       files.push(rel(work, file));
     } else {
-      removedLedgers.push(file);
+      writes.push(await writeOf(file, null));
       files.push(rel(work, file));
     }
   }
@@ -177,6 +177,20 @@ export async function buildCommitWrites(input: CommitWritesInput): Promise<Commi
   if (input.pendingFile && input.pendingAfter !== undefined) {
     writes.push(await writeOf(input.pendingFile, input.pendingAfter));
     files.push(rel(work, input.pendingFile));
+    const batch: unknown = JSON.parse(input.pendingAfter);
+    if (
+      batch &&
+      typeof batch === "object" &&
+      "source" in batch &&
+      batch.source === "import" &&
+      "id" in batch &&
+      typeof batch.id === "string" &&
+      "commits" in batch
+    ) {
+      const file = path.join(work, "imports", batch.id, "commits.json");
+      writes.push(await writeOf(file, JSON.stringify(batch.commits)));
+      files.push(rel(work, file));
+    }
   }
 
   const changesFile = changeSetPath(work, change.at);

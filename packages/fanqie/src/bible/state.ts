@@ -1,4 +1,5 @@
 /** state.add 的区间规划：开闭、截断、计划兑现与逆操作。 */
+import { matchKey, similar } from "@zhizhang/core/text";
 import { AppError } from "@zhizhang/core/errors";
 import { sameValue, stateKey } from "./interval.js";
 import type { AnyOp, StateEntry } from "./types.js";
@@ -52,7 +53,13 @@ export function planStateAdd(states: StateEntry[], incoming: StateEntry): StateP
       continue;
     }
     if (current.since === entry.since) {
-      if (sameValue(current.value, entry.value)) {
+      if (
+        sameValue(current.value, entry.value) ||
+        (current.status === "planned" &&
+          entry.status === "confirmed" &&
+          (matchKey(current.value).key === matchKey(entry.value).key ||
+            similar(current.value, entry.value) >= 0.8))
+      ) {
         if (current.status === "confirmed" && entry.status === "confirmed") {
           return { entry, added: false, changes };
         }

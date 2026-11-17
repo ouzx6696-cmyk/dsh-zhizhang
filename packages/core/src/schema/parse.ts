@@ -49,9 +49,10 @@ export function lit<const L extends readonly string[]>(...values: L): Parser<L[n
   };
 }
 
-export function arr<T>(item: Parser<T>, opts?: { max?: number }): Parser<T[]> {
+export function arr<T>(item: Parser<T>, opts?: { min?: number; max?: number }): Parser<T[]> {
   return (v, path = "$") => {
     if (!Array.isArray(v)) fail(path, "expected array");
+    if (opts?.min !== undefined && v.length < opts.min) fail(path, `min items ${opts.min}`);
     if (opts?.max !== undefined && v.length > opts.max) fail(path, `max items ${opts.max}`);
     return v.map((el, idx) => item(el, `${path}[${idx}]`));
   };

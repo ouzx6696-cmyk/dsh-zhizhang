@@ -1,8 +1,10 @@
-/** 体检与记账接线；A-02 只提供 finalize 后的空钩子与命令占位。 */
+/** 体检命令与定稿后的记账触发。 */
 import { int, obj, type Parser } from "@zhizhang/core/schema";
 import type { CommandInput, CommandResult, WorkbenchCommand } from "@zhizhang/workbench/contract";
 import type { CommandCtx } from "./commands.js";
-import { notImplemented, workPath } from "./commands-shared.js";
+import { auditWork } from "@zhizhang/fanqie/bible";
+import { commands as fanqie } from "@zhizhang/fanqie";
+import { workPath } from "./commands-shared.js";
 
 type Group<P extends string> = Extract<WorkbenchCommand, `${P}.${string}`>;
 type Handler<K extends WorkbenchCommand> = (
@@ -15,16 +17,29 @@ export const CHECK_INPUTS: { [K in Group<"fanqie.check">]: Parser<CommandInput<K
 };
 
 export const CHECK_HANDLERS: { [K in Group<"fanqie.check">]: Handler<K> } = {
-  async "fanqie.check.run"() {
-    return notImplemented("L-02");
+  async "fanqie.check.run"(input, ctx) {
+    return auditWork(ctx.inside(input.work), input.upTo);
   },
 };
 
-/** 定稿后的自动记账入口（F4 §2）：L-01 接管前保持无行为。 */
+/** 自动记账只生成提案，由作者统一提交。 */
 export async function afterFinalize(
-  _ctx: CommandCtx,
-  _work: string,
-  _chapterId: string,
+  ctx: CommandCtx,
+  work: string,
+  chapterId: string,
 ): Promise<void> {
-  // L-01：按 settings.ledger 决定 auto / ask / off。
+  const meta = await fanqie.getWork(work);
+  if ((meta.settings.ledger ?? "auto") !== "auto") return;
+  const enqueue = ctx.workflow.enqueueAndWait ?? ctx.workflow.startAndWait;
+  void enqueue
+    .call(ctx.workflow, { mode: "fanqie", path: work }, "fanqie.ledger", {
+      chapterId,
+      trigger: "auto",
+    })
+    .catch((error: unknown) =>
+      ctx.log?.("ledger_auto_failed", {
+        chapterId,
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    );
 }

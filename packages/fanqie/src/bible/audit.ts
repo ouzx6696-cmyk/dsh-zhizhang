@@ -12,27 +12,37 @@ export function auditBible(
   bible: BibleSnapshot,
   upTo: number,
   ledgerList: LedgerEntry[] = [],
+  threadForgetAfter = 10,
 ): AuditFinding[] {
   const findings: AuditFinding[] = [];
   const entityNames = new Map(bible.entities.map((entity) => [entity.id, entity.name]));
 
   for (const thread of bible.threads) {
     if (thread.status !== "open") continue;
-    if (thread.plannedPayoff !== undefined && upTo >= thread.plannedPayoff) {
+    const due = thread.dueBy ?? thread.plannedPayoff;
+    if (due !== undefined && upTo >= due) {
       findings.push({
         kind: "thread_overdue",
-        severity: "warn",
+        severity: upTo > due + 5 ? "bad" : "warn",
         title: `线索到期未兑现：${thread.title}`,
-        detail: `计划于第 ${thread.plannedPayoff} 章兑现，当前已到第 ${upTo} 章`,
+        detail: `计划于第 ${due} 章兑现，当前已到第 ${upTo} 章`,
         refId: thread.id,
         jump: { view: "thread", id: thread.id },
       });
-    } else if (upTo - thread.opened >= 10 && thread.beats.length <= 1) {
+    }
+    if (
+      upTo -
+        Math.max(
+          thread.opened,
+          ...thread.beats.filter((beat) => beat.chapter <= upTo).map((beat) => beat.chapter),
+        ) >=
+      threadForgetAfter
+    ) {
       findings.push({
         kind: "thread_forgotten",
         severity: "warn",
         title: `遗忘线索：${thread.title}`,
-        detail: `第 ${thread.opened} 章埋设后超过 10 章未推进`,
+        detail: `第 ${thread.opened} 章埋设后超过 ${threadForgetAfter} 章未推进`,
         refId: thread.id,
         jump: { view: "thread", id: thread.id },
       });
@@ -54,7 +64,7 @@ export function auditBible(
         const a = sorted[i];
         const b = sorted[j];
         if (a.value === b.value) continue;
-        if (a.mode !== "replace" && b.mode !== "replace") continue;
+        if (a.mode !== "replace" || b.mode !== "replace") continue;
         if (!statesOverlap(a, b)) continue;
         const entityName = entityNames.get(a.entity) ?? a.entity;
         findings.push({

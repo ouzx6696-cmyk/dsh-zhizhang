@@ -1,6 +1,6 @@
 # 写作内核与业务规则
 
-- **描述基线**：发布基线 master `83bf7f7`（未发布）；集成分支 `integration/v1.4` 的代码合并点为 `1d9518a`（A-02 接口桩与契约测试 + D-02 设定集变更集，已合入、待审核、未推送），其后有文档同步提交；发布版本 `v1.3.0`
+- **描述范围**：v1.4 功能实现与本轮集成验证；当前发布版本 `v1.3.0`，v1.4 尚未发布。
 - 本文件只记录当前实现的规则与取值；改规则前先读 [AGENTS.md](../AGENTS.md) 的红线条款。
 
 ## 1. 受保护的业务规则（不可擅改）
@@ -25,25 +25,26 @@
 
 ### 3.1 关键流水线
 
-- **`fanqie.book`**：立项卡 → 根基 → 卷结构 → 单元 → 章纲，作者采用后写入 `plan/` 与初始 `bible/`。
+- **`fanqie.book`**：立项卡 → 根基 → 卷结构 → 单元 → 章纲；产物进入待确认批次，作者提交后写入书级信息与大纲真源。
 - **`fanqie.chapter`**：`prepare`（零费用预检未知实体）→ `beats` → `draft×N`（经济 1；标准 2 / 黄金章 5；精品 3 / 黄金章 8，纯文本）→ `gate`（字数与规则代码闸）→ `select-score`（逐稿独立打分）→ `select-compare`（前两名换位比较）→ `continuity-check` → `review`（引文逐条容错定位，≤2 轮）→ `revise` → `deliver`（幂等交付候选）。
 - **`fanqie.review` / `fanqie.revise`**：可单独对已写章节发起审读与定向修订；单独审读结果由作者确认后写回。
-- **`fanqie.ledger` / `fanqie.health`**：定稿后抽取结构化增量写入 `bible/pending/<batch>.json` 待作者确认；接受条目后经 `fanqie.pending.commit` 在同一 Intent 落 `bible/ledger/<chapter-id>.json` 与真源，并可整批撤销。每 10 章执行伏笔遗忘、知情越界与状态冲突体检。
-- **`fanqie.import`**：A-02 已注册的空流水线（`docmap → extract → locate → resolve → propose`），阶段实现、提示词与假模型分派归 I-02；当前运行返回 `internal`。
+- **`fanqie.ledger` / `fanqie.health`**：定稿后抽取结构化增量并写入待确认批次；作者决定并提交后，在同一 Intent 写入 ledger 与设定真源，可整批撤销。十二类一致性检查覆盖伏笔、知情、状态、证据、出场与章纲偏差等问题。
+- **`fanqie.import`**：TXT/MD 预处理 → 可编辑分节映射 → 分块抽取 → 引文定位 → 名称消歧与关系补全 → 待确认提案。抽取结果只进入待确认批次；作者可修改映射、逐条审核、重试失败块、提交或撤销。
 - **`library.dissect`**：拆书入库，产出参考卡片供 L6 使用。
+
+规范化保留原文字形，只统一约定换行、不可见字符和空白；分节、分块、偏移映射与引文定位共用同一份规范正文。匹配时可对文本做兼容归一化，但返回位置仍映射到原文 UTF-16 偏移。无标题文本归入正文段，首个标题前内容单独保留；作者可编辑卷/幕/章映射或忽略标题。导入解析和来源预览为本地流程，AI 抽取通过已配置模型网关运行。
 
 ### 3.2 设定集 `bible/` 与分层上下文 `L0–L6`
 
-- **唯一连续性真源**（[store.ts](../packages/fanqie/src/bible/store.ts)）：实体（含别名匹配）、时间线、状态时间序列（`asOf(N)` 按 `since/until` 窗口切片）、伏笔线索、知情矩阵、文风与个人规则 6 份集合 JSON，加 `ledger/<chapter-id>.json` 章节交接、`pending/<batch>.json` 待确认批次、`changes/<YYYY-MM>.jsonl` 变更集与 `index.json` 索引。提交前真源不经内存直写：待确认批次先决定、再提交；每次提交/撤销都追加可逆变更集。
+- **唯一连续性真源**（[store.ts](../packages/fanqie/src/bible/store.ts)）：实体、时间线、状态区间、伏笔、知情表、文风与规则集合，加 `ledger/<chapter-id>.json`、`pending/<batch-id>.json`、`changes/<YYYY-MM>.jsonl` 与文件 rev/hash 索引。作者决定与真源提交分离；多文件提交和撤销由 Intent 原子写入。书级规划存于 `outline/book.json` 和 `outline/volumes/<id>.json`，与设定集分开管理。
 - **上下文组装器**（[builder.ts](../packages/fanqie/src/context/builder.ts)）：
-  - `L1` 前章摘要、章末交接与前文。前文模式由作品设置 `previousTextMode` 决定：`auto`（默认，末尾 1,800 字）或 `full`（最多 6,000 字）；不再按档位硬编码。
-  - `L2` 按章纲与前文命中的在场及全局实体。
-  - `L3` 知情边界与有效伏笔硬约束。
-  - `L0` 本章章纲、个人规则与作者要求。
-  - `L4` 近 10 章摘要（按剩余预算纳入或记 `omitted`）。
-  - `L5 / L6` 远期检索片段（BM25 + 字符 2-gram）与拆书参考卡（“参考机制，不复制”标注）。
-  - 总预算当前固定 **12,000 token**，超出部分逐项记 `omitted`；全局设置 `engine.inputBudget`（默认 24,000）尚未接入章节组装器。
-  - **v1.4 计划变更（X-01，尚未实现）**：前文改为按档位取值（标准/精品全文 ≤4,000 字、经济末尾 1,500 字），预算改为按 `engine.inputBudget` 推导并按层分配（L2 ≤25%、L4 ≤15%、L5 ≤10%、L6 余量）。
+-  - `L0` 当前章纲、个人规则与作者要求；章纲私记不进入模型上下文。
+  - `L1` 前章摘要、交接摘要和正文尾部；新章位置按大纲与现有 ledger 推导，避免首章遗漏在场上下文。
+  - `L2` 本章人物、地点、关系与前文命中实体。
+  - `L3` 知情边界、有效状态与伏笔硬约束。
+  - `L4` 近期章节摘要与记账事实。
+  - `L5 / L6` 早期章节检索片段与拆书参考卡，参考内容标注为机制参考。
+  - 上下文预算由阶段预算、输入内容与输出格式共同核算；必带块超限报错，可选块按层级裁减并记录 `omitted`。
 - **个人规则学习**（[diff.ts](../packages/fanqie/src/learning/diff.ts)）：段落级 diff 对齐删改、扩写与对话调整；同类改法累计达 **3 次**（`PROMOTE_THRESHOLD`）提示候选，由作者逐条采纳写入 `bible/style.json`。
 
 ## 4. 今日头条流水线与质检
@@ -52,7 +53,13 @@
 - **体裁与篇幅带**（`rules.py` `BANDS`）：长图文 2,600–3,400 字、短图文 1,100–2,200 字、微头条 300–1,000 字。
 - **防刷分提示**：精修前后统计口语标记与小标题增量，超过阈值仅提示作者复核，不直接扣分或篡改评分。
 
-## 5. 资产维护与来源
+## 5. 大纲、导入与作者确认
+
+- 大纲树按卷 / 幕 / 章纲组织；章纲可绑定正文，已写章节移动前必须查看位置预览并确认。键盘方向键浏览层级，`Alt+↑/↓` 调整同级顺序。
+- 设定库支持实体、状态、时间线、伏笔、知情关系及位置查询；待确认页显示来源、证据、变更差异与置信度，作者可接受、拒绝或编辑后接受。
+- 导入来源文本、分节映射和模型提案分开保存。提交前正文与设定真源不改变；提交生成可追溯变更集，历史页可按 rev 检查结果并撤销。
+
+## 6. 资产维护与来源
 
 - **运行时方法层**：[packages/fanqie/profiles/default/](../packages/fanqie/profiles/default/)（17 份 Markdown + `profile.json` + `stage-map.json`）与 [packages/toutiao/profiles/default/](../packages/toutiao/profiles/default/)（29 份 Markdown + 2 份 JSON）是 `stage-map` 的直接输入；流水线只按 `take.file/sections/maxChars` 取文本，不读取其他资产。
 - **独立技能层**：[packages/fanqie/skill/forge/](../packages/fanqie/skill/forge/) 含 `inspiration-forge`、`inspiration-forge-library`、`novel-writer` 三个 MIT 技能（111 份 Markdown，版本 1.3.0），[packages/toutiao/skill/](../packages/toutiao/skill/) 含 `SKILL.md`、`corpus/`、`references/` 与交稿模板（非测试文档 30 份）；这些是独立技能资产，不是应用运行时源码。
