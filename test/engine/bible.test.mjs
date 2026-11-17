@@ -104,7 +104,7 @@ test("bible store supports propose/decide, asOf windowing, alias matching, and t
     }
 
     const bible = await store.read(workDir);
-    assert.equal(bible.pending.length, 0);
+    assert.equal(await store.pendingCount(workDir), 0);
 
     const viewCh3 = store.asOf(bible, 3);
     assert.deepEqual(
@@ -127,7 +127,7 @@ test("bible store supports propose/decide, asOf windowing, alias matching, and t
     const findings = store.audit(bible, 12);
     assert.deepEqual(
       findings.map((f) => `${f.kind}:${f.refId}`),
-      ["due_unpaid:th-due", "forgotten_thread:th-forgot"],
+      ["thread_overdue:th-due", "thread_forgotten:th-forgot"],
     );
   } finally {
     await fs.rm(workDir, { recursive: true, force: true });

@@ -3,6 +3,7 @@ import { bookPipeline } from "./pipelines/book/index.js";
 import { chapterPipeline } from "./pipelines/chapter/index.js";
 import { dissectPipeline } from "./pipelines/dissect/index.js";
 import { healthPipeline } from "./pipelines/health/index.js";
+import { importPipeline } from "./pipelines/import/index.js";
 import { ledgerPipeline } from "./pipelines/ledger/index.js";
 import { reviewPipeline } from "./pipelines/review/index.js";
 import { revisePipeline } from "./pipelines/revise/index.js";
@@ -21,6 +22,7 @@ export {
   chapterPipeline,
   dissectPipeline,
   healthPipeline,
+  importPipeline,
   ledgerPipeline,
   reviewPipeline,
   revisePipeline,
@@ -35,6 +37,7 @@ export const fanqieModule: ModeModule<"fanqie"> = {
     "fanqie.revise": revisePipeline as PipelineDefinition<unknown, unknown>,
     "fanqie.ledger": ledgerPipeline as PipelineDefinition<unknown, unknown>,
     "fanqie.health": healthPipeline as PipelineDefinition<unknown, unknown>,
+    "fanqie.import": importPipeline as PipelineDefinition<unknown, unknown>,
     "library.dissect": dissectPipeline as PipelineDefinition<unknown, unknown>,
   },
   tools: (role, target) => fanqieAssistantTools(role, target),

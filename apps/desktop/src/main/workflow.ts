@@ -62,6 +62,7 @@ const SCOPE_BY_KIND: Record<string, ChangeScope> = {
   "fanqie.revise": "chapter",
   "fanqie.ledger": "bible",
   "fanqie.health": "bible",
+  "fanqie.import": "imports",
   "library.dissect": "library",
   "toutiao.article": "article",
 };

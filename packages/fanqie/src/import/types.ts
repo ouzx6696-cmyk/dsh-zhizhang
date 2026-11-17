@@ -1,10 +1,12 @@
-/**
- * 导入契约（arch-freeze-v1 / F2 §5.2）。
- *
- * 本批只落地不依赖待确认批次的部分；`ImportProposal` 与 `ImportBatchView`
- * 依赖 `PendingItem`/`BibleIndex` 的新结构，随 `bible/types.ts` 替换一并交付。
- */
-import type { EntityKind, Facet, KnowledgeRow, Thread } from "../bible/types.js";
+/** 导入契约（arch-freeze-v1 / F2 §5.2）。 */
+import type {
+  BibleIndex,
+  EntityKind,
+  Facet,
+  KnowledgeRow,
+  PendingItem,
+  Thread,
+} from "../bible/types.js";
 import type { Beat } from "../outline/types.js";
 import type { TextEncoding } from "@zhizhang/core/text";
 
@@ -158,6 +160,42 @@ export interface ImportEstimate {
   model: string;
   /** 本次运行实际兜底值 */
   runBudget: number;
+}
+
+export interface ImportBatchView {
+  batch: string;
+  status: "staged" | "running" | "reviewing" | "partial" | "closed" | "reverted";
+  source: ImportSourceMeta;
+  segments: {
+    id: string;
+    title: string;
+    level: number;
+    kind: SectionKind;
+    paras: number;
+    selected: boolean;
+  }[];
+  estimate?: ImportEstimate;
+  runId?: string;
+  failedChunks: number[];
+  counts?: Record<PendingItem["change"], number>;
+}
+
+export interface ImportProposal {
+  format: "zhizhang/1.3";
+  batch: string;
+  run: string;
+  libRevs: BibleIndex["files"];
+  items: PendingItem[];
+  unassigned: { src: string[]; reason: string }[];
+  failedChunks: number[];
+  stats: {
+    total: number;
+    byChange: Record<string, number>;
+    byBand: Record<string, number>;
+    located: number;
+    fuzzy: number;
+    unlocated: number;
+  };
 }
 
 /** AppError.data.reason（F5）。 */

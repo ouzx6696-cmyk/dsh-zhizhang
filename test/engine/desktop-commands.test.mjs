@@ -224,6 +224,7 @@ test("番茄命令：建书 → 写章 → 候选 → 导出 → 设定集，读
           summary: "主角",
           locked: [],
           provenance: { source: "author", at },
+          rev: 0,
         },
       },
     ],
@@ -238,13 +239,22 @@ test("番茄命令：建书 → 写章 → 候选 → 导出 → 设定集，读
     }),
     "input.invalid",
   );
+  const pendingBatches = await run(ctx, mark("fanqie.pending.list"), { work, status: "open" });
+  assert.equal(pendingBatches.batches.length, 1);
+  const batch = pendingBatches.batches[0].id;
+  const pendingPage = await run(ctx, mark("fanqie.pending.get"), {
+    work,
+    batch,
+    page: { offset: 0, limit: 10 },
+  });
+  assert.equal(pendingPage.total, 1);
   assert.deepEqual(
-    await run(ctx, mark("fanqie.bible.decide"), {
+    await run(ctx, mark("fanqie.pending.decide"), {
       work,
-      id: proposed.items[0].id,
-      decision: "accept",
+      batch,
+      decisions: [{ id: proposed.items[0].id, decision: "accept" }],
     }),
-    { ok: true },
+    { decided: 1 },
   );
   assert.equal((await run(ctx, "fanqie.bible.get", { work })).entities.length, 1);
   assert.ok(
@@ -525,9 +535,66 @@ test("拆书库命令：导入、列出、读卡；拆解经流水线发起，�
   assert.equal(dissectCalls[0].target.path, roots.library);
 });
 
-test("命令分派覆盖契约里的全部 45 条命令，读写策略齐全，未知命令被拒绝", async () => {
+test("v1.4 新增命令已分派：未实现命令按负责卡返回 internal", async () => {
+  const { roots, ctx } = await setup();
+  const created = await run(ctx, "fanqie.work.create", {
+    root: roots.fanqie,
+    title: "契约占位",
+    premise: "",
+    grade: "economy",
+  });
+  const work = created.workPath;
+  const files = {
+    entities: { rev: 0, hash: "" },
+    timeline: { rev: 0, hash: "" },
+    states: { rev: 0, hash: "" },
+    threads: { rev: 0, hash: "" },
+    knowledge: { rev: 0, hash: "" },
+    style: { rev: 0, hash: "" },
+    outline: { rev: 0, hash: "" },
+  };
+  const stubs = [
+    ["fanqie.outline.get", { work }, "D-01"],
+    ["fanqie.outline.apply", { work, ops: [], expectedRev: 0 }, "D-01"],
+    ["fanqie.outline.remapPreview", { work, ops: [] }, "D-03"],
+    ["fanqie.outline.remapCommit", { work, token: "t", ops: [] }, "D-03"],
+    ["fanqie.chapter.createFromPlan", { work, plan: "p-1" }, "D-03"],
+    ["fanqie.bible.query", { work, filter: {}, page: { offset: 0, limit: 10 } }, "D-02"],
+    ["fanqie.bible.entity", { work, id: "e-1" }, "D-02"],
+    ["fanqie.bible.apply", { work, ops: [], expectedRev: 0 }, "D-02"],
+    ["fanqie.bible.changes", { work }, "D-02"],
+    ["fanqie.bible.revert", { work, changeId: "c-1" }, "D-02"],
+    ["fanqie.pending.commit", { work, batch: "imp-1", expectedRevs: files }, "D-02"],
+    ["fanqie.import.stage", { work, token: "t" }, "I-01"],
+    ["fanqie.import.resegment", { work, batch: "imp-1", rules: {} }, "I-01"],
+    ["fanqie.import.select", { work, batch: "imp-1", sections: [] }, "I-01"],
+    ["fanqie.import.proposal", { work, batch: "imp-1", page: { offset: 0, limit: 10 } }, "I-03"],
+    ["fanqie.import.source", { work, batch: "imp-1", section: "S1" }, "I-03"],
+    ["fanqie.import.list", { work }, "I-01"],
+    ["fanqie.import.finish", { work, batch: "imp-1" }, "I-03"],
+    ["fanqie.import.revert", { work, batch: "imp-1" }, "I-03"],
+    ["fanqie.import.retryChunks", { work, batch: "imp-1", chunks: [] }, "I-04"],
+    ["fanqie.check.run", { work, upTo: 1 }, "L-02"],
+  ];
+  for (const [command, input, card] of stubs) {
+    mark(command);
+    const err = await run(ctx, command, input).catch((error) => error);
+    assert.equal(err.code, "internal", command);
+    assert.match(err.message, new RegExp(card), command);
+  }
+  await expectCode(
+    run(ctx, mark("fanqie.pending.get"), {
+      work,
+      batch: "imp-missing",
+      page: { offset: 0, limit: 10 },
+    }),
+    "input.not_found",
+  );
+});
+
+test("命令分派覆盖契约里的全部 68 条命令，读写策略齐全，未知命令被拒绝", async () => {
   const all = Object.keys(desk.COMMAND_POLICY);
-  assert.equal(all.length, 45);
+  assert.equal(all.length, 68);
   for (const command of all) assert.equal(desk.isWorkbenchCommand(command), true, command);
   assert.deepEqual(
     all.filter((c) => !covered.has(c)),

@@ -23,6 +23,7 @@ import { API_LABELS, SETTINGS_COPY } from "./settings.js";
 import { ERROR_COPY } from "./errors.js";
 import { DESKTOP_COPY } from "./desktop.js";
 import { WORKBENCH_COPY } from "./workbench.js";
+import { PLAN_COPY } from "./plan.js";
 
 export {
   COMMON_COPY,
@@ -41,6 +42,7 @@ export {
   ERROR_COPY,
   DESKTOP_COPY,
   WORKBENCH_COPY,
+  PLAN_COPY,
   UNLOAD_COPY,
   CRASH_COPY,
   PROJECT_INDEX_FAILED,
@@ -64,6 +66,7 @@ export const COPY = {
   ...FANQIE_COPY,
   ...TOUTIAO_COPY,
   ...SETTINGS_COPY,
+  ...PLAN_COPY,
 } as const;
 
 export type CopyKey = keyof typeof COPY;

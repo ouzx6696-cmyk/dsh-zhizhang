@@ -159,6 +159,10 @@ export interface IpcMap {
     args: [{ title?: string; extensions?: string[] }];
     result: OpenedText | null;
   };
+  "dialog.pickImport": {
+    args: [{ title?: string }];
+    result: { token: string; name: string; bytes: number } | null;
+  };
   "source.fetch": { args: [string]; result: FetchedSource };
   "learning.status": { args: [Target]; result: LearningView };
 

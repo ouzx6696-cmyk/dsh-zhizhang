@@ -1,0 +1,78 @@
+{
+  "entities": [
+    {
+      "id": "ent-lin",
+      "kind": "character",
+      "name": "林默",
+      "aliases": ["默哥", "林师兄"],
+      "summary": "主角，旧城长大的抄书人。",
+      "locked": [],
+      "provenance": { "source": "author", "at": "2026-11-17T00:00:00.000Z" },
+      "rev": 0
+    }
+  ],
+  "timeline": [
+    {
+      "id": "ev-1",
+      "title": "旧城陷落",
+      "when": "三百年前",
+      "order": 1,
+      "entities": ["ent-lin"],
+      "summary": "旧城在一夜之间沉入地下。",
+      "canon": "backstory",
+      "provenance": { "source": "plan", "at": "2026-11-17T00:00:00.000Z" },
+      "rev": 0
+    }
+  ],
+  "states": [
+    {
+      "id": "st-1",
+      "entity": "ent-lin",
+      "facet": "condition",
+      "field": "境界",
+      "value": "炼气三层",
+      "since": 1,
+      "mode": "replace",
+      "status": "confirmed",
+      "provenance": { "source": "author", "at": "2026-11-17T00:00:00.000Z" },
+      "rev": 0
+    }
+  ],
+  "threads": [
+    {
+      "id": "th-1",
+      "title": "玉佩秘纹",
+      "kind": "foreshadow",
+      "opened": 1,
+      "plannedPayoff": 10,
+      "importance": "major",
+      "beats": [{ "chapter": 1, "kind": "plant", "note": "初次发光" }],
+      "status": "open",
+      "provenance": { "source": "author", "at": "2026-11-17T00:00:00.000Z" },
+      "rev": 0
+    }
+  ],
+  "knowledge": [
+    {
+      "id": "kn-1",
+      "fact": "玉佩能开启旧城暗门",
+      "holder": "ent-lin",
+      "level": "不知",
+      "since": 1,
+      "provenance": { "source": "author", "at": "2026-11-17T00:00:00.000Z" },
+      "rev": 0
+    }
+  ],
+  "style": {
+    "contract": "冷静克制，短句为主。",
+    "rules": [
+      {
+        "id": "rule-1",
+        "condition": "战斗场面",
+        "change": "减少心理描写",
+        "why": "保持节奏"
+      }
+    ],
+    "voiceSamples": ["雨敲在瓦上，像有人在数数。"]
+  }
+}

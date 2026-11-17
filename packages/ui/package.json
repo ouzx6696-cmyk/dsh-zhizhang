@@ -25,6 +25,7 @@
     "./copy/settings": "./src/copy/settings.ts",
     "./copy/errors": "./src/copy/errors.ts",
     "./copy/workbench": "./src/copy/workbench.ts",
+    "./copy/plan": "./src/copy/plan.ts",
     "./status": "./src/status.ts",
     "./markdown": "./src/markdown.tsx",
     "./notify": "./src/notify.tsx",

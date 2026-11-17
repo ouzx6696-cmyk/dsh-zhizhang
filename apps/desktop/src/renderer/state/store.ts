@@ -12,7 +12,7 @@ import type {
 import { createStore, useStoreSelector } from "./createStore";
 
 export type DockTab = "assistant" | "pipeline" | "chapter";
-export type MainView = "writing" | "board";
+export type MainView = "writing" | "board" | "plan";
 export type SettingsTab = "models" | "engine" | "appearance" | "workspace" | "about";
 export type CreateKind = "fanqie" | "toutiao";
 
@@ -24,6 +24,9 @@ export interface Revisions {
   article: number;
   profiles: number;
   library: number;
+  outline: number;
+  imports: number;
+  pending: number;
 }
 
 export interface DesktopState {
@@ -69,6 +72,9 @@ export const initialRevisions: Revisions = {
   article: 0,
   profiles: 0,
   library: 0,
+  outline: 0,
+  imports: 0,
+  pending: 0,
 };
 
 export const desktopStore = createStore<DesktopState>({

@@ -16,14 +16,21 @@ import {
   classifyHunks,
   commands as fanqie,
   createLearningStore,
-  type BibleOp,
-  type Provenance,
 } from "@zhizhang/fanqie";
 import { commands as toutiao } from "@zhizhang/toutiao";
 import type { CommandInput, CommandResult, WorkbenchCommand } from "@zhizhang/workbench/contract";
 import { wordDocument } from "../exports.js";
 import type { WorkbenchCall } from "../shared/ipc.js";
 import type { WorkspaceRoots } from "../shared/views.js";
+import {
+  BIBLE_HANDLERS,
+  BIBLE_INPUTS,
+  PENDING_HANDLERS,
+  PENDING_INPUTS,
+} from "./commands-bible.js";
+import { IMPORT_HANDLERS, IMPORT_INPUTS } from "./commands-import.js";
+import { afterFinalize, CHECK_HANDLERS, CHECK_INPUTS } from "./commands-ledger.js";
+import { OUTLINE_HANDLERS, OUTLINE_INPUTS } from "./commands-outline.js";
 import { PROFILE_HANDLERS, PROFILE_INPUTS, type ProfileDirs } from "./commands-profiles.js";
 import type { WorkflowService } from "./workflow.js";
 
@@ -44,45 +51,18 @@ type Handler<K extends WorkbenchCommand> = (
   ctx: CommandCtx,
 ) => Promise<CommandResult<K>>;
 type Group<P extends string> = Extract<WorkbenchCommand, `${P}.${string}`>;
+type CoreFanqie = Exclude<
+  Group<"fanqie">,
+  | Group<"fanqie.outline">
+  | Group<"fanqie.bible">
+  | Group<"fanqie.pending">
+  | Group<"fanqie.import">
+  | Group<"fanqie.check">
+  | "fanqie.chapter.createFromPlan"
+>;
 
 const id = str({ min: 1, max: 200 });
 const grade = lit("economy", "standard", "premium");
-const BIBLE_OP_TYPES = [
-  "entity.upsert",
-  "state.add",
-  "thread.upsert",
-  "knowledge.set",
-  "chapter.record",
-] as const;
-const BIBLE_OP_KEYS: Record<(typeof BIBLE_OP_TYPES)[number], string> = {
-  "entity.upsert": "entity",
-  "state.add": "entry",
-  "thread.upsert": "thread",
-  "knowledge.set": "row",
-  "chapter.record": "record",
-};
-
-/** 设定集增量只做结构校验（类型 + 载荷对象），字段语义由设定集存储在写入时裁定。 */
-const bibleOp: Parser<BibleOp> = (value, at = "$") => {
-  const shape = obj({ type: lit(...BIBLE_OP_TYPES) }, { strict: false })(value, at);
-  const key = BIBLE_OP_KEYS[shape.type];
-  const payload: unknown =
-    typeof value === "object" && value !== null ? Reflect.get(value, key) : undefined;
-  if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
-    throw new AppError("input.invalid", `${at}.${key}: expected object`, { path: `${at}.${key}` });
-  }
-  return value as BibleOp;
-};
-
-const provenance: Parser<Provenance> = obj({
-  source: lit("plan", "ledger", "author"),
-  run: opt(str()),
-  chapter: opt(int({ min: 1 })),
-  at: str({ min: 1 }),
-});
-
-const decision: Parser<"accept" | "reject" | { edit: BibleOp }> = (value, at = "$") =>
-  value === "accept" || value === "reject" ? value : obj({ edit: bibleOp })(value, at);
 
 const INPUTS: { [K in WorkbenchCommand]: Parser<CommandInput<K>> } = {
   "fanqie.snapshot": obj({ work: id, since: opt(str()) }),
@@ -122,12 +102,12 @@ const INPUTS: { [K in WorkbenchCommand]: Parser<CommandInput<K>> } = {
     previousTextMode: opt(lit("auto", "full", "tail")),
   }),
   "fanqie.book.export": obj({ work: id, format: lit("txt", "docx"), finalOnly: bool, outPath: id }),
-  "fanqie.bible.get": obj({ work: id }),
-  "fanqie.bible.view": obj({ work: id, position: int({ min: 1 }) }),
-  "fanqie.bible.propose": obj({ work: id, ops: arr(bibleOp, { max: 200 }), from: provenance }),
-  "fanqie.bible.decide": obj({ work: id, id, decision }),
-  "fanqie.bible.audit": obj({ work: id, upTo: int({ min: 1 }) }),
   "fanqie.reference.bind": obj({ work: id, sourceId: id, cardIds: opt(arr(id, { max: 200 })) }),
+  ...OUTLINE_INPUTS,
+  ...BIBLE_INPUTS,
+  ...PENDING_INPUTS,
+  ...IMPORT_INPUTS,
+  ...CHECK_INPUTS,
   "toutiao.articles": obj({ root: id }),
   "toutiao.article.create": obj({ root: id, genre: id, driver: id }),
   "toutiao.article.transition": obj({ articleDir: id, to: id }),
@@ -258,7 +238,7 @@ async function latestDraft(
   return { file: best.file, text: (await readTextIfExists(path.join(dir, best.file))) ?? "" };
 }
 
-const FANQIE: { [K in Group<"fanqie">]: Handler<K> } = {
+const FANQIE: { [K in CoreFanqie]: Handler<K> } = {
   async "fanqie.snapshot"(input, ctx) {
     const work = ctx.inside(input.work);
     await fanqie.getWork(work);
@@ -301,7 +281,9 @@ const FANQIE: { [K in Group<"fanqie">]: Handler<K> } = {
     return { revision: doc.meta.revision, row };
   },
   async "fanqie.chapter.finalize"(input, ctx) {
-    await fanqie.finalizeChapter(ctx.inside(input.work), { chapterId: input.chapter }, ctx.locks);
+    const work = ctx.inside(input.work);
+    await fanqie.finalizeChapter(work, { chapterId: input.chapter }, ctx.locks);
+    await afterFinalize(ctx, work, input.chapter);
     return { status: "final" };
   },
   async "fanqie.candidate.list"(input, ctx) {
@@ -362,24 +344,6 @@ const FANQIE: { [K in Group<"fanqie">]: Handler<K> } = {
     const result = await fanqie.exportWorkTxt(work, { onlyFinal: input.finalOnly });
     await atomicWrite(outPath, await wordDocument(result.title, result.content));
     return { outPath, chapterCount: result.chapterCount };
-  },
-  async "fanqie.bible.get"(input, ctx) {
-    return fanqie.readBible(ctx.inside(input.work), ctx.locks);
-  },
-  async "fanqie.bible.view"(input, ctx) {
-    return fanqie.viewBibleAt(ctx.inside(input.work), input.position, ctx.locks);
-  },
-  async "fanqie.bible.propose"(input, ctx) {
-    return {
-      items: await fanqie.proposeBibleOps(ctx.inside(input.work), input.ops, input.from, ctx.locks),
-    };
-  },
-  async "fanqie.bible.decide"(input, ctx) {
-    await fanqie.decideBiblePending(ctx.inside(input.work), input.id, input.decision, ctx.locks);
-    return { ok: true };
-  },
-  async "fanqie.bible.audit"(input, ctx) {
-    return { findings: await fanqie.auditBible(ctx.inside(input.work), input.upTo, ctx.locks) };
   },
   async "fanqie.reference.bind"(input, ctx) {
     const work = ctx.inside(input.work);
@@ -617,6 +581,11 @@ const HANDLERS: { [K in WorkbenchCommand]: Handler<K> } = {
   ...TOUTIAO,
   ...PROFILES,
   ...LIBRARY,
+  ...OUTLINE_HANDLERS,
+  ...BIBLE_HANDLERS,
+  ...PENDING_HANDLERS,
+  ...IMPORT_HANDLERS,
+  ...CHECK_HANDLERS,
 };
 
 /** 已知命令 id 的运行时判定（IPC 边界解析用）。 */

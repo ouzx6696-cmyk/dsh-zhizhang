@@ -468,13 +468,14 @@ export const chapterPipeline: PipelineDefinition<ChapterReq, ChapterRunResult> =
         : (req.note ?? `章节 ${req.chapterId}`);
 
       const bible = await bibleStore.read(ctx.target.path);
+      const ledgers = await bibleStore.ledgers(ctx.target.path);
       const parsedPos = req.position ? Number.parseInt(req.position, 10) : NaN;
       const position =
         Number.isFinite(parsedPos) && parsedPos > 0
           ? parsedPos
-          : Number(/\d+/.exec(req.chapterId)?.[0]) || bible.chapters.length + 1;
-      const view = bibleStore.asOf(bible, position);
-      const prevRecord = bible.chapters
+          : Number(/\d+/.exec(req.chapterId)?.[0]) || ledgers.length + 1;
+      const view = bibleStore.asOf(bible, position, ledgers);
+      const prevRecord = ledgers
         .filter((c) => c.position < position)
         .sort((a, b) => b.position - a.position)[0];
       const hits = bibleStore.match(view, [outlineText, prevRecord?.summary ?? ""]);
@@ -539,9 +540,10 @@ export const chapterPipeline: PipelineDefinition<ChapterReq, ChapterRunResult> =
         referenceCards,
         previousHandoff: prevRecord ? JSON.stringify(prevRecord.handoff) : undefined,
         bible,
+        ledgers,
         view,
         hits,
-        recentSummaries: bible.chapters
+        recentSummaries: ledgers
           .filter((c) => c.position < position)
           .slice(-10)
           .map((c) => ({ position: c.position, summary: c.summary })),

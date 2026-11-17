@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **v1.4 A-02 接口桩与契约测试（2026-11-17）**：按 arch-freeze-v1 落地 `bible`/`outline`/`import` 最终类型与同名解析器（`union` 判别联合、落盘前 `dropUndefined`）；工作台命令 45 → **68**（新增大纲 5、设定集/待确认 9、导入 9、体检 1，删除 `fanqie.bible.decide`；原文档「90 条」为命令表与策略表重复计数，已校正）；`CommandRefreshScope` 增 `outline/imports/pending`；注册第 8 条番茄流水线 `fanqie.import`（阶段实现待 I-02）；新增 `dialog.pickImport` 一次性令牌（主进程持有绝对路径）；`WorkflowStart.budget?`、`MainView` 增 `plan`、PlanView 懒加载占位与 plan 文案域；F2 §9 五处最小适配（store 批次/ledger、book、ledger、context、BiblePane）。`npm run check` 全绿；Node 118/118、Python 226+1。
 - **决策：跳过 Windows 实机检查（2026-11-17）**：M0-4 的 W01–W20 与 1.3.0→1.4.0 覆盖升级全部不执行；检查单、记录模板与 1.3.0 基线包保留作参考，不产生验收证据。发版门移除实机项，安装器、输入法、高对比度、长跑与升级路径的残余风险由作者承担。
 - **文档口径校正**：移除 `README` / `docs/USER-GUIDE` 中「专注模式（Ctrl+. / F11）」「命令面板（Ctrl+K）」的描述——当前代码只保留 `commandPaletteText*` 文案键，未实现入口；实际快捷键为 `Ctrl+,` 设置、`Ctrl+.` 收起右栏、`Ctrl+1/2/3` 切右栏标签。
 - **文档与工程基线同步（2026-11-17）**：`README`、`AGENTS`、`docs/ARCHITECTURE`、`docs/WRITING`、`docs/USER-GUIDE`、`docs/STATUS` 全部按 `master@83bf7f7` 重写口径；校正头条文章目录为 `meta.json` / `交稿单.md`、工作台命令 90 条、静态守卫 14 条、前文模式 6,000 / 1,800 字；新增 `plans/v1.4/baseline/` 计划原件只读快照（含 SHA256）与 `.workbuddy/` 忽略规则。

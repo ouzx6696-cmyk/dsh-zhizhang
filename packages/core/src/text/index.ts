@@ -12,6 +12,7 @@ import type {
 } from "./types.js";
 
 export * from "./types.js";
+export * from "./schema.js";
 
 /** A-02 只冻结签名；实现归 C-01（文本机制）。 */
 function pending(): never {

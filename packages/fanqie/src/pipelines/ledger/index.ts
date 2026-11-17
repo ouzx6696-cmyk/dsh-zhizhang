@@ -12,7 +12,7 @@ import type {
 import { buildDeliveryMarker, isAlreadyDelivered } from "@zhizhang/core/pipeline";
 import { arr, int, lit, obj, opt, parseJson, str, type Infer } from "@zhizhang/core/schema";
 import { createBibleStore, type ProposeOpMeta } from "../../bible/store.js";
-import type { BibleOp, PendingItem } from "../../bible/types.js";
+import type { BibleOp, Fact, LedgerEntry, PendingItem } from "../../bible/types.js";
 import { parseChapterMarkdown } from "../../domain/chapter.js";
 
 export const LedgerReq = obj({
@@ -84,12 +84,13 @@ const UNLOCATED_TAG = "【待核对：原文未定位到引文】";
 function deltaToBibleOp(
   delta: ExtractedDelta,
   position: number,
+  revision: string,
   runId: string,
   nowIso: string,
   isLocated: boolean,
 ): { op: BibleOp; meta: ProposeOpMeta } {
   const provenance = { source: "ledger" as const, run: runId, chapter: position, at: nowIso };
-  const evidence = { chapter: position, quote: delta.quote, located: isLocated };
+  const evidence = { chapter: position, revision, quote: delta.quote, located: isLocated };
   const annotatedDetail = isLocated ? delta.detail : `${delta.detail} ${UNLOCATED_TAG}`;
   const meta: ProposeOpMeta = { evidence, located: isLocated };
 
@@ -105,6 +106,7 @@ function deltaToBibleOp(
           summary: annotatedDetail,
           locked: [],
           provenance,
+          rev: 0,
         },
       },
       meta,
@@ -117,6 +119,7 @@ function deltaToBibleOp(
         entry: {
           id: `st-${delta.targetId}-${position}`,
           entity: delta.targetId,
+          facet: "other",
           field: delta.field ?? "状态",
           value: isLocated
             ? (delta.value ?? delta.detail)
@@ -126,6 +129,7 @@ function deltaToBibleOp(
           status: "planned",
           evidence,
           provenance,
+          rev: 0,
         },
       },
       meta,
@@ -140,8 +144,11 @@ function deltaToBibleOp(
           title: delta.name,
           kind: "foreshadow",
           opened: position,
+          importance: "minor",
           beats: [{ chapter: position, kind: "plant", note: annotatedDetail, evidence }],
           status: "open",
+          provenance,
+          rev: 0,
         },
       },
       meta,
@@ -157,9 +164,63 @@ function deltaToBibleOp(
         level: delta.level ?? "知情",
         since: position,
         evidence,
+        provenance,
+        rev: 0,
       },
     },
     meta,
+  };
+}
+
+function factKind(kind: ExtractedDelta["kind"]): Fact["kind"] {
+  if (kind === "state") return "change";
+  if (kind === "thread") return "promise";
+  if (kind === "knowledge") return "reveal";
+  return "event";
+}
+
+function buildLedgerEntry(input: {
+  chapterId: string;
+  revision: string;
+  position: number;
+  body: string;
+  runId: string;
+  items: { delta: ExtractedDelta; isLocated: boolean }[];
+}): LedgerEntry {
+  const facts: Fact[] = input.items.slice(0, 60).map((item, index) => ({
+    id: `fact-${index + 1}`,
+    text: item.delta.detail.slice(0, 120),
+    entities: [item.delta.targetId],
+    kind: factKind(item.delta.kind),
+    quote: item.delta.quote,
+    located: item.isLocated,
+  }));
+  const positions: Record<string, string> = {};
+  for (const item of input.items) {
+    if (item.delta.kind === "state") {
+      positions[item.delta.targetId] = item.delta.value ?? item.delta.detail;
+    }
+  }
+  return {
+    format: "zhizhang/1.3",
+    chapter: input.chapterId,
+    revision: input.revision,
+    position: input.position,
+    summary: input.body.replace(/\s+/g, " ").trim().slice(0, 600),
+    handoff: {
+      ending: input.body.trim().slice(-200),
+      openQuestions: input.items
+        .filter((item) => item.delta.kind === "thread")
+        .map((item) => item.delta.detail),
+      positions,
+      carried: [],
+    },
+    hook: "",
+    emotion: "",
+    facts,
+    appearances: [],
+    ledgerRun: input.runId,
+    rev: 0,
   };
 }
 
@@ -183,10 +244,15 @@ export const ledgerPipeline: PipelineDefinition<LedgerInput, LedgerResult> = {
         });
       }
       const doc = parseChapterMarkdown(raw);
-      const bible = await bibleStore.read(ctx.target.path);
-      const existing = bible.chapters.find((c) => c.chapter === req.chapterId);
-      const position = req.position ?? existing?.position ?? bible.chapters.length + 1;
-      return { body: doc.body, title: doc.meta.title || req.chapterId, position };
+      const ledgers = await bibleStore.ledgers(ctx.target.path);
+      const existing = ledgers.find((c) => c.chapter === req.chapterId);
+      const position = req.position ?? existing?.position ?? ledgers.length + 1;
+      return {
+        body: doc.body,
+        title: doc.meta.title || req.chapterId,
+        revision: doc.meta.revision,
+        position,
+      };
     });
 
     ctx.state.chapterId = req.chapterId;
@@ -231,9 +297,22 @@ export const ledgerPipeline: PipelineDefinition<LedgerInput, LedgerResult> = {
     const pending = await runner.local("propose", async () => {
       const nowIso = systemClock.iso();
       const built = located.items.map(({ delta, isLocated }) =>
-        deltaToBibleOp(delta, prepared.position, ctx.runId, nowIso, isLocated),
+        deltaToBibleOp(delta, prepared.position, prepared.revision, ctx.runId, nowIso, isLocated),
       );
-      if (built.length === 0) return [] as PendingItem[];
+      built.push({
+        op: {
+          type: "ledger.write",
+          entry: buildLedgerEntry({
+            chapterId: req.chapterId,
+            revision: prepared.revision,
+            position: prepared.position,
+            body: prepared.body,
+            runId: ctx.runId,
+            items: located.items,
+          }),
+        },
+        meta: {},
+      });
       return bibleStore.propose(
         ctx.target.path,
         built.map((b) => b.op),
@@ -260,7 +339,7 @@ export const ledgerPipeline: PipelineDefinition<LedgerInput, LedgerResult> = {
   },
   async deliver(res, ctx): Promise<DeliveryReceipt> {
     const bibleDir = path.join(ctx.target.path, "bible");
-    const pendingFile = path.join(bibleDir, "pending.json");
+    const pendingFile = path.join(bibleDir, "pending");
     const marker = path.join(bibleDir, `${ctx.runId}.marker.json`);
     const summaryPayload = JSON.stringify(res, null, 2);
 

@@ -1,0 +1,37 @@
+{
+  "docmap": {
+    "mapping": { "volume": "第X卷", "act": "单元", "chapter": "第X章" },
+    "sections": [
+      { "id": "S1", "kind": "outline-volume" },
+      { "id": "S2", "kind": "setting-character", "note": "人物志" }
+    ],
+    "naming": ["第X章 标题"],
+    "editedByAuthor": false
+  },
+  "extract": {
+    "items": [
+      {
+        "tmp": "t-1",
+        "src": ["S1"],
+        "quote": "第一卷一、起航",
+        "confidence": 0.92,
+        "type": "volume",
+        "title": "起航",
+        "order": 1,
+        "summary": "主角离开旧城。"
+      },
+      {
+        "tmp": "t-2",
+        "src": ["S2"],
+        "quote": "林默，抄书人",
+        "confidence": 0.88,
+        "type": "entity",
+        "kind": "character",
+        "name": "林默",
+        "aliases": ["默哥"],
+        "summary": "主角"
+      }
+    ],
+    "unassigned": []
+  }
+}

@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { DESKTOP_COPY as C } from "@zhizhang/ui/copy";
 import { Button, Empty, Notice, Skeleton } from "@zhizhang/ui/primitives";
-import type { AuditFinding, Bible, BibleOp } from "@zhizhang/fanqie/bible";
+import type { AnyOp, AuditFinding, BibleSnapshot, PendingItem } from "@zhizhang/fanqie/bible";
 import { desktop } from "../../state/desktop";
 import { useDesktop } from "../../state/store";
 import { errorText, notifyError } from "../../format";
 
 /** 待确认条目的一行摘要（设定集是连续性的唯一真源，取代 1.x 的连续性面板）。 */
-export function opSummary(op: BibleOp): string {
+export function opSummary(op: AnyOp): string {
   switch (op.type) {
     case "entity.upsert":
       return `${C.bible.kind.entity} · ${op.entity.name}`;
@@ -17,26 +17,51 @@ export function opSummary(op: BibleOp): string {
       return `${C.bible.kind.thread} · ${op.thread.title}`;
     case "knowledge.set":
       return `${C.bible.kind.knowledge} · ${op.row.holder}（${op.row.level}）${op.row.fact}`;
-    case "chapter.record":
-      return `${C.bible.kind.chapter} · ${op.record.summary}`;
-    default: {
-      const never: never = op;
-      return never;
-    }
+    case "ledger.write":
+      return `${C.bible.kind.chapter} · ${op.entry.summary}`;
+    default:
+      return op.type;
   }
+}
+
+interface PendingRow {
+  batch: string;
+  item: PendingItem;
 }
 
 export function BiblePane({ work, chapters }: { work: string; chapters: number }) {
   const revision = useDesktop((s) => s.revisions.bible);
+  const pendingRevision = useDesktop((s) => s.revisions.pending);
   const readonly = useDesktop((s) => Boolean(s.workspace?.readonly));
-  const [bible, setBible] = useState<Bible | null>(null);
+  const [bible, setBible] = useState<BibleSnapshot | null>(null);
+  const [pending, setPending] = useState<PendingRow[]>([]);
   const [error, setError] = useState("");
   const [findings, setFindings] = useState<AuditFinding[] | null>(null);
   const [busy, setBusy] = useState("");
 
   const load = useCallback(async () => {
     try {
-      setBible(await desktop.workbench("fanqie.bible.get", { work }));
+      const snapshot = await desktop.workbench("fanqie.bible.get", { work });
+      const { batches } = await desktop.workbench("fanqie.pending.list", {
+        work,
+        status: "open",
+      });
+      const pages = await Promise.all(
+        batches.map((batch) =>
+          desktop.workbench("fanqie.pending.get", {
+            work,
+            batch: batch.id,
+            filter: { decision: "undecided" },
+            page: { offset: 0, limit: 100 },
+          }),
+        ),
+      );
+      setBible(snapshot);
+      setPending(
+        batches.flatMap((batch, index) =>
+          pages[index].items.map((item) => ({ batch: batch.id, item })),
+        ),
+      );
       setError("");
     } catch (err) {
       setError(errorText(err));
@@ -45,12 +70,16 @@ export function BiblePane({ work, chapters }: { work: string; chapters: number }
 
   useEffect(() => {
     void load();
-  }, [load, revision]);
+  }, [load, revision, pendingRevision]);
 
-  const decide = async (id: string, decision: "accept" | "reject") => {
-    setBusy(id);
+  const decide = async (row: PendingRow, decision: "accept" | "reject") => {
+    setBusy(row.item.id);
     try {
-      await desktop.workbench("fanqie.bible.decide", { work, id, decision });
+      await desktop.workbench("fanqie.pending.decide", {
+        work,
+        batch: row.batch,
+        decisions: [{ id: row.item.id, decision }],
+      });
       await load();
     } catch (err) {
       notifyError(err);
@@ -83,24 +112,24 @@ export function BiblePane({ work, chapters }: { work: string; chapters: number }
       <p className="zz-muted">
         {C.bible.stats(bible.entities.length, openThreads, bible.knowledge.length)}
       </p>
-      <h4>{C.bible.pending(bible.pending.length)}</h4>
-      {bible.pending.length ? (
+      <h4>{C.bible.pending(pending.length)}</h4>
+      {pending.length ? (
         <ul className="zz-list">
-          {bible.pending.map((item) => (
+          {pending.map((row) => (
             <li
-              key={item.id}
+              key={row.item.id}
               data-testid="bible-pending"
-              data-conflict={Boolean(item.conflictsWith)}
+              data-conflict={row.item.change === "conflict"}
             >
-              <span>{opSummary(item.op)}</span>
-              {item.evidence ? <q className="zz-muted">{item.evidence.quote}</q> : null}
+              <span>{opSummary(row.item.op)}</span>
+              {row.item.evidence ? <q className="zz-muted">{row.item.evidence.quote}</q> : null}
               <span className="zz-row">
                 <Button
                   size="sm"
                   variant="primary"
                   disabled={readonly || busy !== ""}
                   data-testid="bible-accept"
-                  onClick={() => void decide(item.id, "accept")}
+                  onClick={() => void decide(row, "accept")}
                 >
                   {C.bible.accept}
                 </Button>
@@ -108,7 +137,7 @@ export function BiblePane({ work, chapters }: { work: string; chapters: number }
                   size="sm"
                   disabled={readonly || busy !== ""}
                   data-testid="bible-reject"
-                  onClick={() => void decide(item.id, "reject")}
+                  onClick={() => void decide(row, "reject")}
                 >
                   {C.bible.reject}
                 </Button>
