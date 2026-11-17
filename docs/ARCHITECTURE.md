@@ -29,7 +29,7 @@ L0  @zhizhang/core        errors / schema / fs / lock / journal / tool / pipelin
 
 ## 3. 流水线与状态机
 
-- **流水线运行状态（`RunRecord.state`）**：`queued` → `running` → `paused`（预算/金额/取消/人工暂停）| `awaiting-author`（交付待确认）| `failed`；支持从 `paused` / `failed` 恢复断点继续。
+- **流水线运行状态（`RunRecord.state`）**：[state.ts](packages/core/src/pipeline/state.ts) 定义 `running` → `paused`（预算/金额/取消/人工暂停）| `failed` | `awaiting-author`（交付待确认）；`awaiting-author` 只能转 `applied` / `discarded`（作者裁决），`paused` / `failed` 可恢复为 `running`，`cancelled` 为终态。非法转移由 `transition()` 抛 `run.invalid_transition`。
 - **番茄章节状态**：`planned` → `drafting` → `drafted` → `reviewed` → `final`。
 - **头条文章状态**：`初稿待改` → `待验收` → `已验收` / `验收退回` → `已交稿`（终态不可逆，仅由作者确认触发）。
 
@@ -37,7 +37,7 @@ L0  @zhizhang/core        errors / schema / fs / lock / journal / tool / pipelin
 
 - **应用状态目录**（`~/.zhizhang/` 或 `ZHIZHANG_STATE_ROOT`）：保存加密密钥、全局设置、运行指针与诊断日志（不随作品备份）。
 - **本地写作文件夹**：
-  - `.zhizhang/`：`lease.json`（跨进程租约）、`.zhizhang-lock/`（可重入资源写锁）、`drafts/`（草稿版本冲突保护）。
+  - `.zhizhang/`：`lease.json`（跨进程租约）、`.zhizhang-lock/`（可重入资源写锁）、`drafts/`（编辑草稿经 `main/ipc/drafts.ts` 落盘，同 key 串行、最后一次生效；不再使用 `localStorage`）。
   - `长篇/<bookId>/`：`work.json`、`bible/`（`entities.json`、`states.json`、`threads.json`、`knowledge.json`、`chapters.json`、`style.json`、`pending.json`、`index.json`）、`plan/`、`chapters/`、`candidates/`、`runs/`。
   - `头条/<articleId>/`：`article.json`、`sources/`、`drafts/`、`qa/`、`delivery.md`、`runs/`。
 - **多文件提交**：所有跨文件写入通过 `LockService` 加锁，经 `atomicWrite` + `Intent` 意图日志原子落盘并在启动时重放未完成意图。
@@ -45,7 +45,7 @@ L0  @zhizhang/core        errors / schema / fs / lock / journal / tool / pipelin
 ## 5. 错误码与配置
 
 - **错误码原则**：统一使用 `AppError` 与 `CODES`（[codes.ts](packages/core/src/errors/codes.ts)），按 `input.*`、`gate.*`、`storage.*`、`model.*`、`budget.*`、`internal` 分类，并在边界由 `classify()` 映射 errno 与 HTTP 状态。
-- **配置模型**：全局设置由 [shared/settings.ts](apps/desktop/src/shared/settings.ts) 统一 schema 校验，包含五角色模型卡（写手/编辑/规划/评审/抽取）、引擎档位（经济/标准/精品）、token 与金额上限、全局并发数、外观（主题/字体/行长）与写作文件夹路径。
+- **配置模型**：全局设置由 [shared/settings.ts](apps/desktop/src/shared/settings.ts) 统一 schema 校验，包含六角色模型卡（写手/编辑/规划/评审/抽取/助手）、引擎档位（经济/标准/精品）、token 与金额上限、全局并发数、外观（主题/字体/行长）与写作文件夹路径。
 
 ## 6. 测试体系规范
 

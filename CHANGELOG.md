@@ -2,9 +2,14 @@
 
 ## Unreleased
 
-- 增强 `scripts/guard.mjs`：`G-exports` 导出校验、`G-copy` 文案与业务常量守卫、桌面 `main/` 裸错误基线检查与 `as` 断言上限控制；移除旧 `scripts/architecture-guard.mjs`。
-- 精简 `.github/workflows/ci.yml`：移除 `scope`/`ci-run.mjs`/`test:platform`，接入 `check`、`test`、`e2e` 与 `Zhizhang` 打包流程。
+- **桌面外壳修复（v1.4 M0 线）**：切换作品时按作品实体比对快照代号，消除章节列表不出现与编辑区反复重挂载；引导「稍后再说」在未配置写作文件夹时不再阻止引导重现；历史运行改为可点开的只读详情（阶段时间线、上下文分区、交付回执、运行级错误），已交付候选稿提供「打开对照」入口。
+- **编辑器**：正文草稿经 IPC 落到写作文件夹 `.zhizhang/drafts/`（同 key 串行、最后一次生效），不再写 `localStorage`；编辑态标题拆为独立输入框，稿纸区不再显示 `# 章名` 原文，保存时与 front matter 同步。
+- **流水线持久化韧性**：并行阶段（`fanOut`）的运行记录持久化串行化，避免并发重命名瞬时 `EPERM` 被误判为 `storage.locked` 而暂停；`atomicWrite` 对 `storage.locked` 增加指数退避重试（约 10 秒）；两项均补回归测试。
+- **头条质检收口**：`qa_check.py` 只输出六维 `items` 时，规则桥按非 `pass` 项合成 `fails`，修复质检未过线时交付步骤崩溃；两轮精修仍未过线保持「初稿待改」。
+- 增强 `scripts/guard.mjs`：`G-exports` 导出校验、`G-copy` 文案与业务常量守卫、桌面 `main/` 裸错误基线检查与 `as` 断言上限控制；新增棘轮（`check-ratchet.mjs`）与体积预算（`check-budget.mjs`）门；移除旧 `scripts/architecture-guard.mjs`。
+- 精简 `.github/workflows/ci.yml`：移除 `scope`/`ci-run.mjs`/`test:platform`，接入 `check`、`test`、Windows 与 Linux `e2e` 以及 `Zhizhang` 打包流程。
 - 统一 `scripts/check-desktop-package.mjs` 为 `Zhizhang.exe` 与 `zhizhangBridge` 契约，补充核心单元行为测试与 8 份核心文档。
+- 桌面 E2E 临时目录迁入仓库 `test/.tmp/`（已 gitignore）：本机安全软件会封锁 `%TEMP%` 内的高频临时写盘。
 
 ## 1.3.0
 
