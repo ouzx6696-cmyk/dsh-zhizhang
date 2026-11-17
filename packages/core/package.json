@@ -17,6 +17,8 @@
     "./python": "./src/python/index.ts",
     "./clock": "./src/clock.ts",
     "./paths": "./src/paths.ts",
-    "./version": "./src/version.ts"
+    "./version": "./src/version.ts",
+    "./id": "./src/id.ts",
+    "./text": "./src/text/index.ts"
   }
 }

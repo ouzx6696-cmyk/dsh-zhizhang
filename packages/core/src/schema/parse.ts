@@ -85,6 +85,28 @@ export function opt<T>(parser: Parser<T>): Parser<T | undefined> {
   return (v, path = "$") => (v === undefined ? undefined : parser(v, path));
 }
 
+/**
+ * 判别联合：按 tag 字段分派到对应变体解析器。
+ * 变体解析器自身负责其余字段与未知键校验（obj 默认 strict）。
+ */
+export function union<K extends string, S extends Record<string, Parser<unknown>>>(
+  tag: K,
+  variants: S,
+): Parser<{ [V in keyof S]: ReturnType<S[V]> }[keyof S]> {
+  return (v, path = "$") => {
+    if (typeof v !== "object" || v === null || Array.isArray(v)) {
+      fail(path, "expected object");
+    }
+    const raw = v as Record<string, unknown>;
+    const disc = raw[tag];
+    if (typeof disc !== "string" || !Object.prototype.hasOwnProperty.call(variants, disc)) {
+      fail(`${path}.${tag}`, `expected one of ${Object.keys(variants).join("|")}`);
+    }
+    const parser = variants[disc];
+    return parser(v, path) as { [V in keyof S]: ReturnType<S[V]> }[keyof S];
+  };
+}
+
 export function record<T>(valParser: Parser<T>): Parser<Record<string, T>> {
   return (v, path = "$") => {
     if (typeof v !== "object" || v === null || Array.isArray(v)) {
