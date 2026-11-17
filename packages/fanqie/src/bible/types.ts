@@ -1,9 +1,13 @@
-export interface Provenance {
-  source: "plan" | "ledger" | "author";
-  run?: string;
-  chapter?: number;
-  at: string;
-}
+import type { Provenance } from "../outline/types.js";
+
+export type { Provenance, ProvenanceSource, SourceRef } from "../outline/types.js";
+
+/** 实体类别；比 1.3.0 多 "power"，为 F2 目标形态。 */
+export type EntityKind = "character" | "faction" | "place" | "power" | "item" | "rule" | "term";
+
+/** 动态设定的面；随 D-02 的 StateEntry 改造启用。 */
+export type Facet =
+  "condition" | "location" | "relation" | "possession" | "ability" | "identity" | "other";
 
 export interface Evidence {
   chapter: number;
@@ -13,7 +17,7 @@ export interface Evidence {
 
 export interface Entity {
   id: string;
-  kind: "character" | "item" | "place" | "faction" | "rule" | "term";
+  kind: EntityKind;
   name: string;
   aliases: string[];
   matchCase?: boolean;
