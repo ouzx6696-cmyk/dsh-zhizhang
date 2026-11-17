@@ -55,8 +55,13 @@ test.beforeAll(async () => {
   model = await fakeModel(answer);
   home = await freshDir("zz-e2e-state-");
   root = await freshDir("zz-e2e-root-");
+  // 与应用状态一起隔离 Chromium 配置，避免跨旅程共享 localStorage 与缓存锁。
   app = await electron.launch({
-    args: [path.resolve("apps/desktop"), ...(process.platform === "linux" ? ["--no-sandbox"] : [])],
+    args: [
+      path.resolve("apps/desktop"),
+      `--user-data-dir=${path.join(home, "chromium")}`,
+      ...(process.platform === "linux" ? ["--no-sandbox"] : []),
+    ],
     env: { ...process.env, ZHIZHANG_USER_DATA: home, NO_PROXY: "127.0.0.1,localhost" },
   });
   await app.evaluate(({ dialog }, folder) => {
