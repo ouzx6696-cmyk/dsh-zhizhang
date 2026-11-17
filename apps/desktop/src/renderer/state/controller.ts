@@ -59,7 +59,10 @@ export async function boot(): Promise<void> {
     app,
     settings: app.settings,
     workspace: app.workspace,
-    onboarding: !app.workspace.configured || !modelReady(app.settings),
+    // 写作文件夹未配置时必须引导；模型未配置的提醒可被“稍后再说”记住（D11）。
+    onboarding:
+      !app.workspace.configured ||
+      (!modelReady(app.settings) && !app.settings.shell?.onboardingDismissed),
   });
   if (app.settingsIssue)
     notify({ tone: "warning", text: C.shell.settingsIssue, detail: app.settingsIssue.message });
@@ -111,14 +114,20 @@ export function startCreate(kind: CreateKind): void {
 
 // ── 目标选择 ─────────────────────────────────────────────────────────────────
 
+// 作品切换代号：连续快速切换时，只有最后一次的响应允许落库（D10）。
+let selectGen = 0;
+
 export async function select(target: Target, focus: Focus = {}, guard = true): Promise<void> {
+  const gen = ++selectGen;
   const current = desktopStore.get().selected;
   if (current && scopeKey(current.target) === scopeKey(target)) {
     set({ focus });
     return;
   }
   if (guard && !(await canLeave())) return;
+  if (gen !== selectGen) return; // 等待守卫确认期间又选了别的
   const item = await desktop.select(target);
+  if (gen !== selectGen) return; // 晚到的结果丢弃
   set({ selected: item, focus, view: "writing", compare: null });
   await loadChat(item.target);
 }
@@ -238,7 +247,10 @@ export async function openConversation(id: string): Promise<void> {
 
 export async function refreshUsage(): Promise<void> {
   const target = selectedTarget();
-  if (target) chatStore.set({ usage: await desktop.contextUsage(target) });
+  if (!target) return;
+  const usage = await desktop.contextUsage(target);
+  // 切换后晚到的用量不写入新目标（D10）。
+  if (scopeKey(selectedTarget()) === scopeKey(target)) chatStore.set({ usage });
 }
 
 export async function compactConversation(): Promise<void> {

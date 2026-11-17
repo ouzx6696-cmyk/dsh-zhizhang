@@ -1,26 +1,52 @@
 # 项目状态
 
-- **当前版本**：`1.3.0`
+- **当前发布版本**：`1.3.0`（`origin/master@20c150a`；本地 `master` 已领先，未发版、未推送）
+- **当前代码基线**：`83bf7f7`（v1.4 Wave 0 的 M0 线全部合入；其后提交为文档同步）
+- **最后核对**：2026-11-17 11:18（`npm run check` 复跑 exit 0；测试数字为同日实跑）
 
 ## 最新验证矩阵
 
 | 检查项 | 环境 / 范围 | 状态 | 说明 |
 | --- | --- | --- | --- |
-| `node scripts/guard.mjs` | 离线沙箱 | 通过 | 覆盖 `G-core`、`G-layer`、`G-facade`、`G-app`、`G-pi`、`G-error`、`G-copy`、`G-type`、`G-exports`、`G-brand`、`G-docs`、`G-rules`、`G-css` |
+| `npm run check` | Windows 11 本机 Node 24 + Linux CI | 通过 | 2026-11-17 10:48 复跑 exit 0（约 25 s）；`tsc -b`、`selftest`、ESLint、Prettier、`guard.mjs`、棘轮与体积预算全绿；实测 `any=0`、`!=0`、`!=:0`、`as=171`、`main` 裸错误 0、零引用导出 20 |
 | Python `unittest` | 头条 226 项 + 番茄 1 项 | 通过 | 覆盖 4.0.0 规则源、门禁、台账与桥接脚本 |
-| Node 单元测试 | `test/unit/*.test.mjs`、`test/engine/*.test.mjs` | 通过 | 覆盖原子写、意图重放、锁、预算、错误、状态机、方法注入与 P1 契约 |
-| `npm run check`（`tsc -b` + ESLint + Prettier + guard） | Linux 沙箱 Node 24 | 通过 | tsc 0 错误；ESLint 0 错误 0 警告；Prettier 全部合格 |
-| Playwright E2E（`test/desktop/ui.spec.mjs`） | Linux 沙箱 + Xorg dummy；Windows 由 CI `e2e` job 执行 | Linux 通过 | 4 条旅程 + 助手停止，假模型服务，不出网 |
-| 打包 / 安装升级 | 需 Windows | 未验证 | CI `package` job 与 W1–W20 真机检查单 |
+| Node 单元/引擎测试 | `test/unit/*.test.mjs`、`test/engine/*.test.mjs` | 通过 94/94 | 含原子写并发重试、fanOut 持久化串行化、标题拆分、草稿不落 localStorage、切换竞态守卫；A-02 新增 `union`/`dropUndefined`/`IdSource` 11 条 |
+| 桌面 E2E | `test/desktop/m0.spec.mjs` + `ui.spec.mjs`，13 条旅程 | 通过 13/13 | 本机需 `ELECTRON_DISABLE_SANDBOX=1`；临时目录在仓库 `test/.tmp/`（见已知问题） |
+| 桌面构建 | electron-vite（主进程/预加载/渲染） | 通过 | 渲染资源分块产出；体积预算门通过 |
+| 打包 / 安装升级 | 需 Windows 原生环境 | 已跳过 | 作者决定（2026-11-17）跳过全部实机检查：W01–W20 不执行，不产生安装/覆盖升级验收证据；CI `package` job 仍覆盖构建与冒烟 |
 | 真实模型 RM01/RM02 & A/B | 需联网与付费预算批准 | 待执行 | 需作者单独批准预算后运行 |
+
+## v1.4 进度（30 张卡）
+
+| 状态 | 数量 | 卡 |
+| --- | ---: | --- |
+| 已合入 `master` | 4 | M0-1（质检收口）、M0-2（草稿落盘与编辑态标题）、M0-3（竞态/引导/历史详情，含 DEF-01/02 修复）、INF-01（质量门增强） |
+| 待审核 | 2 | T-01（假模型夹具，`65b60bf` → `integration/v1.4@69374fa`）；A-01（架构冻结包 F1–F9 + 26 份 ADR，引用自检 42/42） |
+| 进行中 | 1 | A-02（第一批 core 机制已提交 `7e879e9`：`union`/`dropUndefined`/`core/text` 契约/`IdSource`；余接口桩与契约测试） |
+| 已跳过（作者决定） | 1 | M0-4（Windows 实机 W01–W20 与覆盖升级全部不执行；检查单与基线包仅作参考） |
+| 未开始 | 22 | 全部 M1–M5 功能卡 |
+
+已合入部分约 7.5 人天 / 88.5 人天（约 8.5%）；A-01（3 人天）、A-02（2 人天，进行中）与 T-01（2.5 人天）未计入；M0-4 按作者决定跳过，不计入完成。M0 线是 v1.3 遗留缺陷修复，不推进 v1.4 功能主链。
+
+**关键链**：`A-01 冻结包（已交付，待抽查）→ A-02 接口桩与契约测试（进行中）→ D-02 → I-02 → I-03 → M1 → … → T-02 → ACC-01 → ACC-02 → v1.4.0`。
 
 ## 已知问题与待完成事项
 
-- **写作内核接线**：L5 早期摘要检索、L6 规划与参考卡、前章正文、状态冲突巡检及日期/机构提取已实现；章节流水线现已加载前文、当前卷规划及绑定参考卡。
-- **收尾修复**：章节/候选/拆书资源路径统一约束；采纳保留审读结果，单独审读可由作者确认写回；修改定稿退回草稿；同目标启动与恢复串行登记；费用包含无效回答，预算按每次预占结算；头条每次修订复核事实，交稿在台账成功后提交并可重试。
-- **发行入口**：Windows CI 已补桌面构建和正确的 Python 准备路径；`release:verify` 使用现有 check/test/E2E 命令。仍需 Windows 原生验证。
-- **测试规模**：Python 227 项、Node 46 项、桌面 E2E 5 项；本轮只新增 1 个费用重试/恢复用例，其余复用现有旅程。手写 TypeScript 转换器改用已有 esbuild。
-- **自动化范围**：记账与十章体检目前由流水线显式发起，定稿动作本身只确认章节状态。
-- **依赖审计**：electron-builder/minimatch 构建依赖链有 6 条 moderate 记录，0 high/critical；未更换打包工具版本。
-- **基线清零**：`apps/desktop/src/main/` 裸 `throw new Error(` 已清零，TS `as` 断言受基线 258 约束，`packages/workbench/src/client/` 尚存 6 个含 JSX 中文的文件，后续按基线只减不增原则逐步清零。
-- **Windows 真机验收**：1.3.0 发版前需完成 W1–W20 真机缩放、高对比度、离线备份与安装升级检查单。
+- **A-01 已解除阻塞（2026-11-17）**：`plans/novel-manager/plan.md` 不存在，作者批准以计划 §2 替代详细设计冻结（`plans/v1.4/adr/ADR-000-freeze-basis.md`）。已交付 `plans/v1.4/arch/` F1–F9 与 `plans/v1.4/adr/` 26 份 ADR；`verify-refs.sh` 42/42 通过。残余风险：计划与真实设计细节冲突时会在 M1 暴露为返工。
+- **写作内核接线**：L5 早期摘要检索、L6 规划与参考卡、前章正文、状态冲突巡检及日期/机构提取已实现；章节流水线加载前文、当前卷规划及绑定参考卡。
+- **桌面外壳（v1.4 M0 线）**：切换作品竞态守卫、引导「稍后再说」、历史运行只读详情（含运行级错误与候选稿「打开对照」）已交付；编辑草稿经 IPC 落到 `.zhizhang/drafts/`，编辑态标题单独编辑，不再写 `localStorage` 正文。
+- **导入/记账产物链接待接**：历史详情里「导入 → 提案页」「记账 → 确认屏」两个入口依赖 v1.4 Wave 1 的 U-02 / U-06 界面。
+- **Windows 并发写盘韧性**：`atomicWrite` 对 `storage.locked` 指数退避（约 10 秒）；`fanOut` 并行阶段的运行记录在同一次运行内串行化；两项均有回归测试。
+- **E2E 环境限制（本机）**：Chromium 沙箱无法启动，需 `ELECTRON_DISABLE_SANDBOX=1`；本机安全软件在高频临时写盘后会拒绝进程在 `%TEMP%` 新建文件，故 E2E 状态目录放在仓库 `test/.tmp/`（已 gitignore）。CI 不受影响。
+- **发行入口**：Windows CI 已覆盖桌面构建、`e2e`、`e2e-linux`（xvfb）与 `package` job（tag / 手动触发）；Windows 实机验收已按作者决定跳过，发版不再以实机项为门。
+- **自动化范围**：记账与十章体检由流水线显式发起，定稿动作本身只确认章节状态。
+- **依赖审计**：electron-builder / minimatch 构建依赖链有 6 条 moderate，0 high/critical；未更换打包工具版本（2026-11-17 沿用，未重新联网复核）。
+- **Windows 实机检查（已跳过）**：作者决定（2026-11-17）不执行 W01–W20 与 1.3.0→1.4.0 覆盖升级；`plans/v1.4/windows/checklist.md`、`acceptance-v1.4.0.md` 与 1.3.0 基线包（SHA256 已记录）保留作参考，不产生验收证据。安装器、输入法、高对比度、长跑与升级路径的残余风险由作者承担，发版材料不得宣称已通过实机验收。
+- **文档口径**：`docs/plans/v1.3.md` 已随 `6d510cc` 清理；`docs/` 现有 4 份 + 根文档 3 份 = 7 份，距 `G-docs` 上限 8 份剩 1 份余量。
+- **本轮校正（2026-11-17）**：头条文章目录统一为 `meta.json` 与 `交稿单.md`（旧文档误写 `article.json` / `delivery.md`）；工作台命令实测 90 条（旧口径 45 条为 v1.3 早期数字）；移除「专注模式（Ctrl+. / F11）」「命令面板（Ctrl+K）」描述——代码中无对应实现，`commandPaletteText*` 仅剩未被引用的文案键，实际快捷键为 `Ctrl+,` / `Ctrl+.` / `Ctrl+1·2·3`。
+
+## 质量基线
+
+- `apps/desktop/src/main/` 裸 `throw new Error(` = 0；`any` = 0；非空断言 `!` = 0；确定赋值 `!:` = 0；`as` 断言 171（基线 258，只减不增）；零引用导出 20。
+- 13 个文件超过 400 行（8 个源码 + 5 个样式），最大 `packages/fanqie/src/pipelines/chapter/index.ts` 739 行、`packages/ui/src/styles/primitives.css` 934 行；由 `G-size` 提示、不阻断。
+- 契约规模：90 条命令、42 个 IPC 通道、23 个错误码、1,002 条文案键、8 条流水线、19 条 `stage-map`、14 条静态守卫。

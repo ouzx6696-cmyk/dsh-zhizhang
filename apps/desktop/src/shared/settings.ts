@@ -91,11 +91,19 @@ export const ContextSchema = obj({
 });
 export type ContextSettings = Infer<typeof ContextSchema>;
 
+export const ShellSchema = obj({
+  /** “稍后再说”记住后，模型未配置也不再每次启动弹引导（D11）；写作文件夹未配置时仍必须引导。 */
+  onboardingDismissed: opt(bool),
+});
+export type ShellSettings = Infer<typeof ShellSchema>;
+
 export const SettingsSchema = obj({
   workspaceRoot: opt(str()),
   engine: EngineSchema,
   appearance: AppearanceSchema,
   context: ContextSchema,
+  // v1.3.0 的 settings.json 没有 shell 分区：设为可选，缺省按未关闭引导处理。
+  shell: opt(ShellSchema),
   assistant: obj({ preferences: str({ max: 4000 }) }),
   models: obj({
     connections: arr(ConnectionSchema, { max: 20 }),
@@ -123,6 +131,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     reducedTransparency: false,
   },
   context: { enabled: true, triggerPercent: 80, budget: 0, keepRecentTokens: 20000 },
+  shell: { onboardingDismissed: undefined },
   assistant: { preferences: "" },
   models: {
     connections: [],
@@ -169,6 +178,7 @@ export interface SettingsPatch {
   engine?: EngineSettings;
   appearance?: AppearanceSettings;
   context?: ContextSettings;
+  shell?: ShellSettings;
   assistant?: { preferences: string };
 }
 
@@ -177,6 +187,7 @@ export function parseSettingsPatch(raw: unknown): SettingsPatch {
     engine: opt(EngineSchema),
     appearance: opt(AppearanceSchema),
     context: opt(ContextSchema),
+    shell: opt(ShellSchema),
     assistant: opt(obj({ preferences: str({ max: 4000 }) })),
   })(raw, "$patch");
   // obj() 会给缺省的可选分区写出 `key: undefined`；不剔除就会在合并时把现有分区覆盖掉。
@@ -184,6 +195,7 @@ export function parseSettingsPatch(raw: unknown): SettingsPatch {
   if (parsed.engine !== undefined) patch.engine = parsed.engine;
   if (parsed.appearance !== undefined) patch.appearance = parsed.appearance;
   if (parsed.context !== undefined) patch.context = parsed.context;
+  if (parsed.shell !== undefined) patch.shell = parsed.shell;
   if (parsed.assistant !== undefined) patch.assistant = parsed.assistant;
   return patch;
 }
@@ -195,6 +207,7 @@ export function mergeSettingsPatch(current: AppSettings, patch: SettingsPatch): 
     ...(patch.engine !== undefined ? { engine: patch.engine } : {}),
     ...(patch.appearance !== undefined ? { appearance: patch.appearance } : {}),
     ...(patch.context !== undefined ? { context: patch.context } : {}),
+    ...(patch.shell !== undefined ? { shell: patch.shell } : {}),
     ...(patch.assistant !== undefined ? { assistant: patch.assistant } : {}),
   };
 }

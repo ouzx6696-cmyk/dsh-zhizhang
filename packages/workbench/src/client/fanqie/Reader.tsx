@@ -15,7 +15,8 @@ export interface ReaderProps {
   state: FanqieState;
   view: FanqieDerived;
   dispatch: React.Dispatch<FanqieAction>;
-  onSaveChapter: (body: string, base: string) => Promise<void>;
+  /** 第三参 title：正文首行 `# 标题` 拆出的标题，保存时同步到 front matter。 */
+  onSaveChapter: (body: string, base: string, title?: string) => Promise<void>;
   onEditState?: (snapshot: EditorGuardSnapshot | null) => void;
   /** 章节条右侧的写作台动作（发起流水线、定稿）；编辑态不显示。 */
   actions?: React.ReactNode;
@@ -61,6 +62,7 @@ export function Reader({
       <SourceEditor
         initial={state.chapter.body}
         title={title}
+        headingField
         lead={lead}
         draftKey={chapterDraftKey({
           work: state.work,

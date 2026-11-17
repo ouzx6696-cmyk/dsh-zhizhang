@@ -28,6 +28,8 @@ export interface QaCheckResult {
   warnings?: string[];
   fails: Array<{ code: string; message: string; score?: number }>;
   hard_gates: string[];
+  /** qa_check.py 的六维明细（key/score/status/note）；TS 侧收拢为 fails。 */
+  items?: Array<{ key: string; score?: number; status?: string; note?: string }>;
   verdict?: string;
   title?: string;
   title_len?: number;
@@ -131,6 +133,17 @@ export function createRulesBridge(scriptsDir: string) {
         ...raw,
         overall: raw.overall ?? raw.score ?? 0,
         passed: raw.passed ?? raw.pass ?? false,
+        // qa_check.py 只输出六维 items（含 warn/fail），不给 fails 字段；
+        // 这里按 status != "pass" 收拢，供打回提示与质检改稿引用。
+        fails:
+          raw.fails ??
+          (raw.items ?? [])
+            .filter((item) => item.status !== "pass")
+            .map((item) => ({
+              code: item.key,
+              message: `${item.key}${item.score ?? ""}分：${item.note ?? ""}`,
+              score: item.score,
+            })),
       };
     },
     ledgerShow(args: { ledger: string; last?: number }): Promise<LedgerShowResult> {

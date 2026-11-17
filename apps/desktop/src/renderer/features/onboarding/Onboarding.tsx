@@ -3,6 +3,7 @@ import { BookOpen, Check, Newspaper } from "lucide-react";
 import { COPY, DESKTOP_COPY as C } from "@zhizhang/ui/copy";
 import { Brand, Button, Dialog } from "@zhizhang/ui/primitives";
 import { chooseWorkspace, modelReady, startCreate } from "../../state/controller";
+import { desktop } from "../../state/desktop";
 import { desktopStore, useDesktop } from "../../state/store";
 import { run } from "../../format";
 import { ConnectionForm } from "../settings/ConnectionForm";
@@ -36,7 +37,14 @@ export function Onboarding() {
   const [step, setStep] = useState<Step>(() =>
     !workspace?.configured ? "workspace" : !modelReady(settings) ? "model" : "start",
   );
-  const finish = () => desktopStore.set({ onboarding: false });
+  // 稍后再说要被记住（D11）：落盘后重启不再因模型未配置弹引导；写作文件夹未配置时仍会弹。
+  const finish = () => {
+    desktopStore.set({ onboarding: false });
+    void desktop
+      .saveSettings({ shell: { onboardingDismissed: true } })
+      .then((settings) => desktopStore.set({ settings }))
+      .catch(() => undefined);
+  };
   return (
     <Dialog
       title={C.onboarding.title}
@@ -73,7 +81,7 @@ export function Onboarding() {
                 </Button>
               </div>
               <footer className="zz-onboarding__foot">
-                <Button variant="ghost" onClick={finish}>
+                <Button variant="ghost" data-testid="onboarding-later" onClick={finish}>
                   {C.onboarding.later}
                 </Button>
                 <Button

@@ -1,3 +1,5 @@
+export { joinLeadHeading, splitLeadHeading, type LeadHeadingSplit } from "./heading.js";
+
 export interface ManuscriptAnnotation {
   from: number;
   to: number;

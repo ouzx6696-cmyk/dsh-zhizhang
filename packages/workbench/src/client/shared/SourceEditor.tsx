@@ -2,18 +2,20 @@
 import React, {
   useDeferredValue,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
 import { WORKBENCH_COPY } from "@zhizhang/ui/copy";
-import { Button } from "@zhizhang/ui/primitives";
+import { Button, Field } from "@zhizhang/ui/primitives";
 import { TextareaSurface } from "../../editor/TextareaSurface.js";
-import { findMatches, matchFrom, matchesToHighlights } from "../../editor/find.js";
+import { selectionSeed, useSourceFind } from "../../editor/useSourceFind.js";
+import { joinLeadHeading, splitLeadHeading } from "../../manuscript/heading.js";
 import { Icon } from "./components.js";
 import { confirmAction } from "./confirm.js";
-import { FindBar, isShortcut, typingElsewhere, useFind } from "./FindBar.js";
+import { isShortcut } from "./FindBar.js";
 import { applyScrollRatio, readScrollRatio } from "./reading-position.js";
 import { useDraftStash } from "./useDraftStash.js";
 import { canLeaveEdit, type EditorGuardSnapshot } from "./useSourceGuard.js";
@@ -25,13 +27,6 @@ const SURROGATE_PAIR = /[\uD800-\uDBFF][\uDC00-\uDFFF]/g;
 function countNonWhitespaceChars(text: string): number {
   const solid = text.replace(WHITESPACE, "");
   return solid.length - (solid.match(SURROGATE_PAIR)?.length ?? 0);
-}
-
-function selectionSeed(surface: TextareaSurface | null): string {
-  if (!surface) return "";
-  const { from, to } = surface.selection();
-  const value = surface.value().slice(from, to);
-  return value && value.length <= 80 && !value.includes("\n") ? value : "";
 }
 
 function statusOf({
@@ -55,6 +50,8 @@ function statusOf({
 export interface SourceEditorProps {
   initial: string;
   title?: string;
+  /** 开启后把正文首行 `# 标题` 拆为上方标题框，textarea 只编辑其余正文（章节编辑）。 */
+  headingField?: boolean;
   /** 编辑条左侧的定位信息（例如“第 1 章”）；不传时显示 title。 */
   lead?: React.ReactNode;
   /** 编辑条下方的附加栏（例如头条的标题输入）。 */
@@ -65,7 +62,8 @@ export interface SourceEditorProps {
   baseRevision: string;
   saveConfirm?: string;
   position: React.MutableRefObject<number>;
-  onSave: (text: string, baseRevision: string) => Promise<void>;
+  /** 第三参 title：开启 headingField 时随保存同步到 front matter。 */
+  onSave: (text: string, baseRevision: string, title?: string) => Promise<void>;
   onCancel: () => void;
   onStateChange?: (state: EditorGuardSnapshot | null) => void;
 }
@@ -73,6 +71,7 @@ export interface SourceEditorProps {
 export function SourceEditor({
   initial,
   title,
+  headingField = false,
   lead,
   extra,
   note,
@@ -85,30 +84,35 @@ export function SourceEditor({
   onCancel,
   onStateChange,
 }: SourceEditorProps) {
-  const [text, setText] = useState(initial);
+  // 首行标题拆分：拆分只移除标题行，其余逐字保留，因此原样打开时 joined === initial。
+  const pristine = useMemo(
+    () =>
+      headingField
+        ? splitLeadHeading(initial)
+        : { title: undefined, rest: initial, hadHeading: false },
+    [headingField, initial],
+  );
+  const [text, setText] = useState(pristine.rest);
+  const [heading, setHeading] = useState(pristine.title ?? title ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [discard, setDiscard] = useState(false);
-  const [current, setCurrent] = useState(0);
-  const [replaced, setReplaced] = useState<number | null>(null);
 
-  const stash = useDraftStash(draftKey, initial, text, baseRevision);
-  const find = useFind();
-  const { open: openFind, close: closeFind } = find;
-
-  const reveal = useRef(false);
-  const [revealTick, setRevealTick] = useState(0);
-  const requestReveal = () => {
-    reveal.current = true;
-    setRevealTick((tick) => tick + 1);
-  };
+  const joined = useMemo(
+    () => (headingField && pristine.hadHeading ? joinLeadHeading(heading, text) : text),
+    [headingField, pristine.hadHeading, heading, text],
+  );
 
   const root = useRef<HTMLDivElement | null>(null);
   const field = useRef<HTMLTextAreaElement | null>(null);
   const backdrop = useRef<HTMLDivElement | null>(null);
   const surfaceRef = useRef<TextareaSurface | null>(null);
+  const titleId = useId();
 
-  const dirty = text !== initial;
+  const stash = useDraftStash(draftKey, initial, joined, baseRevision);
+  const { find, bar } = useSourceFind({ text, surface: surfaceRef, root });
+
+  const dirty = joined !== initial;
   const confirming = useRef(false);
   const latest = useRef({ saving, dirty, discard, hasOffer: !!stash.offer, findOpen: !!find.mode });
   latest.current = { saving, dirty, discard, hasOffer: !!stash.offer, findOpen: !!find.mode };
@@ -155,7 +159,7 @@ export function SourceEditor({
     setSaving(true);
     setError("");
     try {
-      await onSave(text, stash.base);
+      await onSave(joined, stash.base, headingField ? heading.trim() || undefined : undefined);
       stash.settle();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -168,20 +172,14 @@ export function SourceEditor({
   useEffect(() => {
     const keyboard = (event: KeyboardEvent) => {
       if (document.querySelector("dialog[open]")) return;
-      if (isShortcut(event, "s")) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        void saveRef.current();
-        return;
-      }
-      const findMode = isShortcut(event, "f") ? "find" : isShortcut(event, "h") ? "replace" : "";
-      if (!findMode || typingElsewhere(event, root.current)) return;
+      if (!isShortcut(event, "s")) return;
       event.preventDefault();
-      openFind(findMode, selectionSeed(surfaceRef.current));
+      event.stopImmediatePropagation();
+      void saveRef.current();
     };
     window.addEventListener("keydown", keyboard, true);
     return () => window.removeEventListener("keydown", keyboard, true);
-  }, [openFind]);
+  }, []);
 
   const confirmDiscard = async () => {
     confirming.current = true;
@@ -198,7 +196,7 @@ export function SourceEditor({
     if (event.repeat || event.nativeEvent.isComposing || event.keyCode === 229) return;
     const state = latest.current;
     if (state.findOpen) {
-      closeFind();
+      find.close();
       surfaceRef.current?.focus();
       return;
     }
@@ -210,72 +208,8 @@ export function SourceEditor({
 
   const deferred = useDeferredValue(text);
   const count = useMemo(() => countNonWhitespaceChars(deferred), [deferred]);
-  const matches = useMemo(
-    () => (find.mode ? findMatches(text, find.query, find.matchCase) : []),
-    [text, find.mode, find.query, find.matchCase],
-  );
-  const active = matches.length ? Math.min(current, matches.length - 1) : -1;
 
-  useEffect(() => {
-    if (!find.mode) return;
-    setReplaced(null);
-    const surface = surfaceRef.current;
-    const liveText = surface?.value() ?? "";
-    const fresh = findMatches(liveText, find.query, find.matchCase);
-    const caret = surface ? surface.selection().from : 0;
-    reveal.current = true;
-    setRevealTick((tick) => tick + 1);
-    setCurrent(fresh.length ? matchFrom(fresh, caret) : 0);
-  }, [find.mode, find.query, find.matchCase]);
-
-  useLayoutEffect(() => {
-    const surface = surfaceRef.current;
-    if (!surface) return;
-    surface.highlight(matchesToHighlights(matches, active));
-    if (!reveal.current || active < 0 || !matches[active]) return;
-    reveal.current = false;
-    const [start, end] = matches[active];
-    surface.select(start, end);
-    surface.scrollTo(start);
-  }, [active, matches, revealTick]);
-
-  const step = (direction: 1 | -1) => {
-    if (!matches.length) return;
-    setReplaced(null);
-    requestReveal();
-    setCurrent((active + direction + matches.length) % matches.length);
-  };
-
-  const replaceCurrent = () => {
-    const surface = surfaceRef.current;
-    if (!surface) return;
-    const fresh = findMatches(surface.value(), find.query, find.matchCase);
-    if (!fresh.length) return;
-    const at = matchFrom(fresh, surface.selection().from);
-    const [start, end] = fresh[at];
-    surface.replaceRange(start, end, find.replacement);
-    const after = findMatches(surface.value(), find.query, find.matchCase);
-    requestReveal();
-    setCurrent(after.length ? matchFrom(after, start + find.replacement.length) : 0);
-  };
-
-  const replaceAll = () => {
-    const surface = surfaceRef.current;
-    if (!surface) return;
-    const currentText = surface.value();
-    const fresh = findMatches(currentText, find.query, find.matchCase);
-    if (!fresh.length) return;
-    let next = "";
-    let at = 0;
-    for (const [start, end] of fresh) {
-      next += currentText.slice(at, start) + find.replacement;
-      at = end;
-    }
-    surface.replaceRange(0, currentText.length, next + currentText.slice(at));
-    setReplaced(fresh.length);
-  };
-
-  const status = statusOf({ dirty, saving, stash, text });
+  const status = statusOf({ dirty, saving, stash, text: joined });
   const offer = stash.offer;
 
   return (
@@ -323,7 +257,12 @@ export function SourceEditor({
       {extra}
       {note ? <p className="wb-editor-note">{note}</p> : null}
       {offer ? (
-        <div className="wb-editor-offer" role="group" aria-label={c.draftOffer}>
+        <div
+          className="wb-editor-offer"
+          role="group"
+          aria-label={c.draftOffer}
+          data-testid="draft-offer"
+        >
           <span>
             {c.restoreLead(
               new Date(offer.savedAt).toLocaleString(undefined, {
@@ -340,7 +279,14 @@ export function SourceEditor({
             size="sm"
             variant="strong"
             onClick={() => {
-              setText(stash.restore());
+              const restored = stash.restore();
+              if (headingField) {
+                const split = splitLeadHeading(restored);
+                setHeading(split.title ?? "");
+                setText(split.rest);
+              } else {
+                setText(restored);
+              }
               setDiscard(false);
             }}
           >
@@ -351,27 +297,26 @@ export function SourceEditor({
           </Button>
         </div>
       ) : null}
-      {find.mode ? (
-        <FindBar
-          find={find}
-          label={c.findPanel}
-          index={active}
-          total={matches.length}
-          status={replaced == null ? undefined : c.replacedAll(replaced)}
-          onStep={step}
-          onReplace={replaceCurrent}
-          onReplaceAll={replaceAll}
-          onClose={() => {
-            find.close();
-            surfaceRef.current?.focus();
-          }}
-          canReplace
-        />
-      ) : null}
+      {bar}
       {error ? (
         <p className="wb-editor-error" role="alert">
           {error}
         </p>
+      ) : null}
+      {headingField ? (
+        <Field id={titleId} label={c.titleField}>
+          <input
+            id={titleId}
+            className="zz-input"
+            data-testid="source-editor-title"
+            aria-label={c.titleField}
+            value={heading}
+            onChange={(event) => {
+              setHeading(event.target.value);
+              setDiscard(false);
+            }}
+          />
+        </Field>
       ) : null}
       <div className="wb-source-field">
         <div ref={backdrop} className="wb-source-backdrop" aria-hidden="true" />

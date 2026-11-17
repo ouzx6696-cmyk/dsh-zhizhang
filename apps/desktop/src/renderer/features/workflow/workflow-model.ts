@@ -28,8 +28,13 @@ const STAGE_PREFIXES: readonly (keyof typeof C.workflow.stage)[] = [
   "qa",
   "antigaming",
   "import",
+  "docmap",
+  "extract",
   "locate",
+  "resolve",
   "propose",
+  "adjudicate",
+  "lookup",
   "bible",
   "deliver",
 ];

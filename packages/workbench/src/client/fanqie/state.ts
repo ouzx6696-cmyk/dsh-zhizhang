@@ -66,8 +66,8 @@ export const idleBody: BodySlotState = {
 
 export type FanqieAction =
   | { type: "loading" }
-  | { type: "snapshot"; selection: number; delta: FanqieSnapshotDelta; work: string }
-  | { type: "snapshotError"; selection: number; error: string }
+  | { type: "snapshot"; delta: FanqieSnapshotDelta; work: string }
+  | { type: "snapshotError"; work: string; error: string }
   | { type: "selectWork"; work: string }
   | { type: "view"; view: FanqieView }
   | { type: "tab"; tab: PipelineTab }
@@ -113,7 +113,9 @@ export function reducer(state: FanqieState, action: FanqieAction): FanqieState {
     case "loading":
       return { ...state, loading: true };
     case "snapshot": {
-      if (action.selection !== state.selection) return state;
+      // 守卫按作品判定：换作品后发出的请求带着旧 selection，按 selection 会把
+      // 新作品的快照误杀在 boot 态（DEF-01）；迟到的是旧作品响应时才丢弃。
+      if (action.work !== state.work) return state;
       const rowSnapshot = applySnapshotDelta(state.rowSnapshot, action.delta);
       const chapters = [...rowSnapshot.rows].sort((a, b) => a.position - b.position);
       let chapterId = state.chapterId;
@@ -139,7 +141,7 @@ export function reducer(state: FanqieState, action: FanqieAction): FanqieState {
       return next;
     }
     case "snapshotError":
-      if (action.selection !== state.selection) return state;
+      if (action.work !== state.work) return state;
       return {
         ...state,
         phase: state.rowSnapshot.rows.length ? "ready" : "error",

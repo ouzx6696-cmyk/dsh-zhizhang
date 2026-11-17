@@ -1,18 +1,11 @@
 /**
- * Keeps the source editor's unsaved text in local storage after a short pause in typing, and offers
- * a draft left behind by an earlier session. Saving stays with the author; this only prevents loss.
+ * 编辑中未保存正文经注入的 DraftStore 落盘（桌面端写进写作文件夹 `.zhizhang/drafts/`）：
+ * 打字停顿后写入，重开时提示恢复；保存动作仍归作者，这里只防丢失。
+ * 没有写作文件夹时由注入方退化为内存暂存，绝不写 localStorage。
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { notify } from "@zhizhang/ui/notify";
-import {
-  clearDraft,
-  otherDraftKeys,
-  readDraft,
-  writeDraft,
-  type DraftEntry,
-} from "../../editor/drafts.js";
-import { confirmAction } from "./confirm.js";
-import { WORKBENCH_COPY } from "@zhizhang/ui/copy";
+import { draftStore } from "../../adapters/index.js";
+import type { DraftEntry } from "../../editor/drafts.js";
 
 const PAUSE_MS = 800;
 
@@ -20,64 +13,49 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function openDraft(key: string, initial: string): { offer: DraftEntry | null; failure: string } {
-  try {
-    const draft = readDraft(key);
-    return { offer: draft && draft.text !== initial ? draft : null, failure: "" };
-  } catch (error) {
-    return { offer: null, failure: messageOf(error) };
-  }
-}
-
-function offerCleanup(key: string, retry: () => void): void {
-  const others = otherDraftKeys(key);
-  notify({
-    tone: "danger",
-    text: WORKBENCH_COPY.editor.stashFull,
-    action: others.length
-      ? {
-          label: WORKBENCH_COPY.editor.clearOtherDrafts,
-          run: async () => {
-            if (
-              !(await confirmAction(WORKBENCH_COPY.editor.clearOtherDraftsConfirm(others.length)))
-            )
-              return;
-            for (const other of otherDraftKeys(key)) clearDraft(other);
-            retry();
-          },
-        }
-      : undefined,
-  });
-}
-
-function isQuotaError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === "QuotaExceededError";
-}
-
 export function useDraftStash(key: string, initial: string, text: string, baseRevision: string) {
-  const [opened] = useState(() => openDraft(key, initial));
-  const [offer, setOffer] = useState<DraftEntry | null>(opened.offer);
-  const [failure, setFailure] = useState(opened.failure);
+  const [offer, setOffer] = useState<DraftEntry | null>(null);
+  const [failure, setFailure] = useState("");
   const [base, setBase] = useState(baseRevision);
   const [stashed, setStashed] = useState(initial);
   const settled = useRef(false);
+  const writeSeq = useRef(0);
   const latest = useRef({ text, offer, stashed, base });
   latest.current = { text, offer, stashed, base };
+
+  // 打开时异步读草稿；结果到达前编辑器照常可用，“恢复”提示等结果再出现。
+  useEffect(() => {
+    let alive = true;
+    draftStore()
+      .read(key)
+      .then((draft) => {
+        if (alive && draft && draft.text !== initial) setOffer(draft);
+      })
+      .catch((error: unknown) => {
+        if (alive) setFailure(messageOf(error));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [key, initial]);
 
   const store = useCallback(
     (value: string) => {
       if (settled.current) return;
-      try {
-        if (value === initial) clearDraft(key);
-        else writeDraft(key, value, latest.current.base);
-        setStashed(value);
-        setFailure("");
-      } catch (error) {
-        setFailure(messageOf(error));
-        if (isQuotaError(error)) offerCleanup(key, () => store(latest.current.text));
-      }
+      const seq = ++writeSeq.current;
+      draftStore()
+        .write(key, value, latest.current.base)
+        .then(() => {
+          if (seq !== writeSeq.current) return;
+          setStashed(value);
+          setFailure("");
+        })
+        .catch((error: unknown) => {
+          if (seq !== writeSeq.current) return;
+          setFailure(messageOf(error));
+        });
     },
-    [key, initial],
+    [key],
   );
 
   useEffect(() => {
@@ -91,6 +69,7 @@ export function useDraftStash(key: string, initial: string, text: string, baseRe
       const current = latest.current;
       if (!current.offer && current.text !== current.stashed) store(current.text);
     };
+    // 关窗前主进程会先处理已发出的 invoke，pagehide 的同步发起足以把最后一次文本写出去。
     window.addEventListener("pagehide", flush);
     return () => {
       window.removeEventListener("pagehide", flush);
@@ -100,11 +79,11 @@ export function useDraftStash(key: string, initial: string, text: string, baseRe
 
   const settle = useCallback(() => {
     settled.current = true;
-    try {
-      clearDraft(key);
-    } catch (error) {
-      setFailure(messageOf(error));
-    }
+    draftStore()
+      .clear(key)
+      .catch((error: unknown) => {
+        setFailure(messageOf(error));
+      });
   }, [key]);
 
   return {
