@@ -1,7 +1,7 @@
 # 项目状态
 
 - **当前发布版本**：`1.3.0`（`origin/master@20c150a`；本地 `master` 已领先，未发版、未推送）
-- **当前代码基线**：`83bf7f7`（master）；A-02 落在 `arch/freeze-stubs`（未合入、未推送）
+- **当前代码基线**：master `83bf7f7`；A-02 落在 `arch/freeze-stubs@2857b16`（代码 `9f9dfa7` + 文档，未合入、未推送）
 - **最后核对**：2026-11-17（`npm run check` exit 0；Node 118/118、Python 226+1 同日实跑）
 
 ## 最新验证矩阵
@@ -11,7 +11,7 @@
 | `npm run check` | Windows 11 本机 Node 24 + Linux CI | 通过 | 2026-11-17 A-02 后 exit 0；`tsc -b`、`selftest`、ESLint、Prettier、`guard.mjs`、棘轮与体积预算全绿；实测 `any=0`、`!=0`、`!=:0`、`as=175/258`、`main` 裸错误 0、零引用导出 21/36 |
 | Python `unittest` | 头条 226 项 + 番茄 1 项 | 通过 | 覆盖 4.0.0 规则源、门禁、台账与桥接脚本 |
 | Node 单元/引擎测试 | `test/unit/*.test.mjs`、`test/engine/*.test.mjs` | 通过 118/118 | 含 A-02 的 `union`/`dropUndefined`/`IdSource` 11 条与 `v14-contracts` 8 条（13 种 OutlineOp、12 种 BibleOp、7 个夹具、68 条命令） |
-| 桌面 E2E | `test/desktop/m0.spec.mjs` + `ui.spec.mjs`，13 条旅程 | 通过 13/13 | 本机需 `ELECTRON_DISABLE_SANDBOX=1`；临时目录在仓库 `test/.tmp/`（见已知问题） |
+| 桌面 E2E | `test/desktop/m0.spec.mjs` + `ui.spec.mjs`，13 条旅程 | 通过 13/13 | 结果沿用 master `4820d4e`；A-02 未改 UI 行为，未重跑。本机需 `ELECTRON_DISABLE_SANDBOX=1`；临时目录在仓库 `test/.tmp/`（见已知问题） |
 | 桌面构建 | electron-vite（主进程/预加载/渲染） | 通过 | 渲染资源分块产出；体积预算门通过 |
 | 打包 / 安装升级 | 需 Windows 原生环境 | 已跳过 | 作者决定（2026-11-17）跳过全部实机检查：W01–W20 不执行，不产生安装/覆盖升级验收证据；CI `package` job 仍覆盖构建与冒烟 |
 | 真实模型 RM01/RM02 & A/B | 需联网与付费预算批准 | 待执行 | 需作者单独批准预算后运行 |
@@ -21,7 +21,7 @@
 | 状态 | 数量 | 卡 |
 | --- | ---: | --- |
 | 已合入 `master` | 4 | M0-1（质检收口）、M0-2（草稿落盘与编辑态标题）、M0-3（竞态/引导/历史详情，含 DEF-01/02 修复）、INF-01（质量门增强） |
-| 待审核 | 3 | T-01（假模型夹具，`65b60bf` → `integration/v1.4@69374fa`）；A-01（架构冻结包 F1–F9 + 26 份 ADR，引用自检 42/42）；A-02（`arch/freeze-stubs@9f9dfa7`：类型/解析器、24 条命令、导入流水线注册、IPC 令牌、契约测试 118/118） |
+| 待审核 | 3 | T-01（假模型夹具，`65b60bf` → `integration/v1.4@69374fa`）；A-01（架构冻结包 F1–F9 + 26 份 ADR，引用自检 42/42）；A-02（`arch/freeze-stubs@2857b16`，代码 `9f9dfa7`：类型/解析器、24 条命令、导入流水线注册、IPC 令牌、契约测试 118/118） |
 | 已跳过（作者决定） | 1 | M0-4（Windows 实机 W01–W20 与覆盖升级全部不执行；检查单与基线包仅作参考） |
 | 未开始 | 22 | 全部 M1–M5 功能卡 |
 
@@ -44,10 +44,10 @@
 - **文档口径**：`docs/plans/v1.3.md` 已随 `6d510cc` 清理；`docs/` 现有 4 份 + 根文档 3 份 = 7 份，距 `G-docs` 上限 8 份剩 1 份余量。
 - **命令契约计数校正（A-02，2026-11-17）**：原「90 条」为 `WorkbenchCommandMap`（45）与 `COMMAND_POLICY`（45）两表重复计数；A-02 后以运行时键集合为准为 **68 条**。`COMMAND_POLICY` 键 = `WorkbenchCommandMap` 键 = 主进程 `INPUTS`/`HANDLERS` 键，由命令分派测试与 `v14-contracts` 双重断言。
 - **A-02 过渡桥（待 D-02 替换）**：`fanqie.pending.decide` 暂按旧语义直接应用条目（保持 BiblePane 行为），`fanqie.pending.commit` 仍为占位；D-02 改为「决定落盘 → 提交应用」两段式，并接入变更集与撤销。`fanqie.book` / `fanqie.ledger` 的刷新范围仍在各自卡片切换为 `pending`。
-- **本轮校正（2026-11-17）**：头条文章目录统一为 `meta.json` 与 `交稿单.md`（旧文档误写 `article.json` / `delivery.md`）；移除「专注模式（Ctrl+. / F11）」「命令面板（Ctrl+K）」描述——代码中无对应实现，`commandPaletteText*` 仅剩未被引用的文案键，实际快捷键为 `Ctrl+,` / `Ctrl+.` / `Ctrl+1·2·3`。
+- **本轮校正（2026-11-17）**：头条文章目录统一为 `meta.json` 与 `交稿单.md`（旧文档误写 `article.json` / `delivery.md`）；移除「专注模式（Ctrl+. / F11）」「命令面板（Ctrl+K）」描述——代码中无对应实现，未使用的 `commandPaletteText*` 文案键已删除；实际快捷键为 `Ctrl+,` / `Ctrl+.` / `Ctrl+1·2·3`。
 
 ## 质量基线
 
 - `apps/desktop/src/main/` 裸 `throw new Error(` = 0；`any` = 0；非空断言 `!` = 0；确定赋值 `!:` = 0；`as` 断言 175（基线 258，只减不增）；零引用导出 21（基线 36）。
 - 14 个文件超过 400 行（9 个源码 + 5 个样式），最大 `packages/fanqie/src/pipelines/chapter/index.ts` 741 行、`packages/ui/src/styles/primitives.css` 934 行；由 `G-size` 提示、不阻断（新增文件仍受 400 行硬限）。
-- 契约规模：68 条命令（fanqie 43 / toutiao 12 / profiles 9 / library 4）、43 个 IPC 通道、23 个错误码、998 条文案键（15 个文案模块合计）、9 条注册流水线（番茄 8 + 头条 1）、19 条 `stage-map`、14 条静态守卫。
+- 契约规模：68 条命令（fanqie 43 / toutiao 12 / profiles 9 / library 4）、43 个 IPC 通道、23 个错误码、969 条文案键（15 个模块去重合计；`COPY` 聚合 810）、9 条注册流水线（番茄 8 + 头条 1）、19 条 `stage-map`、14 条静态守卫。

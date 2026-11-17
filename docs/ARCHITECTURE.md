@@ -1,6 +1,6 @@
 # 系统架构
 
-- **描述基线**：`83bf7f7`（v1.4 M0 修复线已合入；其后提交为文档同步；未发布、未推送）
+- **描述基线**：master `83bf7f7`（v1.4 M0 修复线已合入；未发布、未推送）；当前工作分支 `arch/freeze-stubs@2857b16`（A-02 接口桩与契约测试，待审核）
 - **发布版本**：`v1.3.0`（`origin/master@20c150a`）
 - 文档随代码基线更新；版本号只在发版时提升。
 
@@ -13,7 +13,7 @@ L2  @zhizhang/fanqie      @zhizhang/toutiao      ← 各自实现 ModeModule，�
         │
 L1  @zhizhang/workbench   @zhizhang/ui           ← 命令契约、TextSurface、--zz-* 令牌与 CopyKey
         │
-L0  @zhizhang/core        errors / schema / fs / lock / journal / tool / pipeline / model / methods / python
+L0  @zhizhang/core        errors / schema / fs / lock / journal / tool / pipeline / model / methods / python / id / text
 ```
 
 [scripts/guard.mjs](../scripts/guard.mjs) 统一执行 **14 条**静态守卫：
@@ -75,7 +75,7 @@ L0  @zhizhang/core        errors / schema / fs / lock / journal / tool / pipelin
 | 工作台命令 `WorkbenchCommandMap` | 68 | `packages/workbench/src/contract/commands.ts`（fanqie 43 / toutiao 12 / profiles 9 / library 4） |
 | IPC 通道 `IpcMap` | 43 | `apps/desktop/src/shared/ipc.ts` |
 | 错误码 `CODES` | 23 | `packages/core/src/errors/codes.ts` |
-| 文案键 | 998 | `packages/ui/src/copy/*.ts`（15 个文案模块合计） |
+| 文案键 | 969 | `packages/ui/src/copy/*.ts`（15 个模块去重合计；`COPY` 聚合 810） |
 | 注册流水线 | 9（番茄 8 + 头条 1） | 两个 `ModeModule` |
 | `stage-map` 条目 | 19（番茄 11 + 头条 8） | `packages/*/profiles/default/stage-map.json` |
 | 静态守卫 | 14 | `scripts/guard.mjs` |

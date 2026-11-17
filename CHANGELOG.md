@@ -2,9 +2,10 @@
 
 ## Unreleased
 
+- **全量梳理与清洁（2026-11-17）**：删除未被引用的 `commandPaletteText1/2` 文案键（命令面板未实现），文案键口径校正为 969 条唯一键（15 个模块去重；`COPY` 聚合 810）；清理 `.cache/` 测试转译缓存、`test/.tmp/` 与 Python `__pycache__`；同步 `AGENTS.md`、`README`、`docs/ARCHITECTURE`、`docs/WRITING`、`docs/STATUS` 的分支与测试口径；更新 `plans/v1.4/项目全量梳理.md` 与 tracker 的过期工作区说明。无业务行为变更。
 - **v1.4 A-02 接口桩与契约测试（2026-11-17）**：按 arch-freeze-v1 落地 `bible`/`outline`/`import` 最终类型与同名解析器（`union` 判别联合、落盘前 `dropUndefined`）；工作台命令 45 → **68**（新增大纲 5、设定集/待确认 9、导入 9、体检 1，删除 `fanqie.bible.decide`；原文档「90 条」为命令表与策略表重复计数，已校正）；`CommandRefreshScope` 增 `outline/imports/pending`；注册第 8 条番茄流水线 `fanqie.import`（阶段实现待 I-02）；新增 `dialog.pickImport` 一次性令牌（主进程持有绝对路径）；`WorkflowStart.budget?`、`MainView` 增 `plan`、PlanView 懒加载占位与 plan 文案域；F2 §9 五处最小适配（store 批次/ledger、book、ledger、context、BiblePane）。`npm run check` 全绿；Node 118/118、Python 226+1。
 - **决策：跳过 Windows 实机检查（2026-11-17）**：M0-4 的 W01–W20 与 1.3.0→1.4.0 覆盖升级全部不执行；检查单、记录模板与 1.3.0 基线包保留作参考，不产生验收证据。发版门移除实机项，安装器、输入法、高对比度、长跑与升级路径的残余风险由作者承担。
-- **文档口径校正**：移除 `README` / `docs/USER-GUIDE` 中「专注模式（Ctrl+. / F11）」「命令面板（Ctrl+K）」的描述——当前代码只保留 `commandPaletteText*` 文案键，未实现入口；实际快捷键为 `Ctrl+,` 设置、`Ctrl+.` 收起右栏、`Ctrl+1/2/3` 切右栏标签。
+- **文档口径校正**：移除 `README` / `docs/USER-GUIDE` 中「专注模式（Ctrl+. / F11）」「命令面板（Ctrl+K）」的描述——当前未实现入口，遗留的 `commandPaletteText*` 文案键已在本轮清理中删除；实际快捷键为 `Ctrl+,` 设置、`Ctrl+.` 收起右栏、`Ctrl+1/2/3` 切右栏标签。
 - **文档与工程基线同步（2026-11-17）**：`README`、`AGENTS`、`docs/ARCHITECTURE`、`docs/WRITING`、`docs/USER-GUIDE`、`docs/STATUS` 全部按 `master@83bf7f7` 重写口径；校正头条文章目录为 `meta.json` / `交稿单.md`、工作台命令 90 条、静态守卫 14 条、前文模式 6,000 / 1,800 字；新增 `plans/v1.4/baseline/` 计划原件只读快照（含 SHA256）与 `.workbuddy/` 忽略规则。
 - **桌面外壳修复（v1.4 M0 线）**：切换作品时按作品实体比对快照代号，消除章节列表不出现与编辑区反复重挂载；引导「稍后再说」在未配置写作文件夹时不再阻止引导重现；历史运行改为可点开的只读详情（阶段时间线、上下文分区、交付回执、运行级错误），已交付候选稿提供「打开对照」入口。
 - **编辑器**：正文草稿经 IPC 落到写作文件夹 `.zhizhang/drafts/`（同 key 串行、最后一次生效），不再写 `localStorage`；编辑态标题拆为独立输入框，稿纸区不再显示 `# 章名` 原文，保存时与 front matter 同步。
