@@ -14,7 +14,7 @@
 ## 交付流程与命令
 
 - `npm run check`：依次执行 `tsc -b`、`node scripts/selftest.ts`、`eslint .`、`prettier --check .`、`node scripts/guard.mjs`、`node scripts/check-ratchet.mjs`、`node scripts/check-budget.mjs`（目标 ≤60 s；2026-11-17 实测约 25 s）。
-- `npm test`：运行 `packages/toutiao/skill/tests` 与 `packages/fanqie/skill/tests` 的 Python `unittest`（226 + 1 项），以及 `test/unit/*.test.mjs`、`test/engine/*.test.mjs`（当前分支 118 项，master 基线 83 项；目标 ≤90 s）。
+- `npm test`：运行 `packages/toutiao/skill/tests` 与 `packages/fanqie/skill/tests` 的 Python `unittest`（226 + 1 项），以及 `test/unit/*.test.mjs`、`test/engine/*.test.mjs`（当前 D-02 分支 139 项，master 基线 83 项；目标 ≤90 s）。
 - `npm run test:e2e`：构建桌面端并执行 Playwright 端到端旅程测试（13 条；目标 ≤4 min）；本机 Windows 需 `ELECTRON_DISABLE_SANDBOX=1`。
 - `npm run release:verify`：仅限 Windows，准备随包 Python、执行 `electron-builder` 打包并运行 `scripts/check-desktop-package.mjs`。
 - 其他：`npm run assets`（资产清单）、`npm run desktop:dev`、`npm run desktop:build`、`npm run desktop:pack` / `desktop:portable`。
@@ -22,7 +22,7 @@
 ## 代码与测试约定
 
 - **错误模型**：全仓统一使用 `AppError` + `CODES`（23 个码）；禁止在 `packages/` 与 `apps/desktop/src/main/` 新增裸 `throw new Error(`；禁止通过正则匹配中文错误文案判断错误码。
-- **类型安全**：全仓 TS strict 零错误；`any` ≤1；非空断言 `!` 与确定赋值断言 `!:` 为 0；`as` 类型断言受 [any-baseline.json](scripts/any-baseline.json) 约束只减不增（当前 175，基线 258）。
+- **类型安全**：全仓 TS strict 零错误；`any` ≤1；非空断言 `!` 与确定赋值断言 `!:` 为 0；`as` 类型断言受 [any-baseline.json](scripts/any-baseline.json) 约束只减不增（当前 173，基线 258）。
 - **测试规范**：
   - 归层：纯规则与计算入 `test/unit/`；存储/锁/门禁/流水线入 `test/engine/`；会话与桌面集成在桌面层；界面交互入 E2E。
   - 分工：Python 测规则与 JSON 契约，TS 只测调用、错误映射与落盘，不重复断言评分细节。

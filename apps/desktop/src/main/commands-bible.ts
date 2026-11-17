@@ -1,4 +1,4 @@
-/** 设定集与待确认命令组；A-02 保留既有读写，新命令为 D-02 占位。 */
+/** 设定集与待确认命令组。 */
 import { AppError } from "@zhizhang/core/errors";
 import { arr, bool, int, lit, obj, opt, str, type Parser } from "@zhizhang/core/schema";
 import { commands as fanqie } from "@zhizhang/fanqie";
@@ -14,7 +14,7 @@ import type { Entity, PendingItem, StateEntry } from "@zhizhang/fanqie/bible";
 import type { Provenance } from "@zhizhang/fanqie/outline";
 import type { CommandInput, CommandResult, WorkbenchCommand } from "@zhizhang/workbench/contract";
 import type { CommandCtx } from "./commands.js";
-import { commandId, notImplemented, numberPair, page, workPath } from "./commands-shared.js";
+import { commandId, numberPair, page, workPath } from "./commands-shared.js";
 
 type Group<P extends string> = Extract<WorkbenchCommand, `${P}.${string}`>;
 type Handler<K extends WorkbenchCommand> = (
@@ -86,11 +86,17 @@ export const BIBLE_HANDLERS: { [K in Group<"fanqie.bible">]: Handler<K> } = {
   async "fanqie.bible.get"(input, ctx) {
     return fanqie.readBible(ctx.inside(input.work), ctx.locks);
   },
-  async "fanqie.bible.query"() {
-    return notImplemented("D-02");
+  async "fanqie.bible.query"(input, ctx) {
+    return fanqie.queryBible(
+      ctx.inside(input.work),
+      input.filter,
+      input.position,
+      input.page,
+      ctx.locks,
+    );
   },
-  async "fanqie.bible.entity"() {
-    return notImplemented("D-02");
+  async "fanqie.bible.entity"(input, ctx) {
+    return fanqie.entityBible(ctx.inside(input.work), input.id, input.position, ctx.locks);
   },
   async "fanqie.bible.view"(input, ctx) {
     return fanqie.viewBibleAt(ctx.inside(input.work), input.position, ctx.locks);
@@ -100,14 +106,27 @@ export const BIBLE_HANDLERS: { [K in Group<"fanqie.bible">]: Handler<K> } = {
       items: await fanqie.proposeBibleOps(ctx.inside(input.work), input.ops, input.from, ctx.locks),
     };
   },
-  async "fanqie.bible.apply"() {
-    return notImplemented("D-02");
+  async "fanqie.bible.apply"(input, ctx) {
+    return fanqie.applyBibleOps(ctx.inside(input.work), input.ops, input.expectedRev, ctx.locks);
   },
-  async "fanqie.bible.changes"() {
-    return notImplemented("D-02");
+  async "fanqie.bible.changes"(input, ctx) {
+    return {
+      changes: await fanqie.listBibleChanges(
+        ctx.inside(input.work),
+        input.before,
+        input.limit ?? 50,
+        input.source,
+        ctx.locks,
+      ),
+    };
   },
-  async "fanqie.bible.revert"() {
-    return notImplemented("D-02");
+  async "fanqie.bible.revert"(input, ctx) {
+    return fanqie.revertBibleChange(
+      ctx.inside(input.work),
+      input.changeId,
+      input.force ?? false,
+      ctx.locks,
+    );
   },
   async "fanqie.bible.audit"(input, ctx) {
     return { findings: await fanqie.auditBible(ctx.inside(input.work), input.upTo, ctx.locks) };
@@ -146,6 +165,7 @@ export const PENDING_INPUTS: {
         edited: opt(AnyOpSchema),
         effectiveFrom: opt(int({ min: 0 })),
       }),
+      { max: 500 },
     ),
   }),
   "fanqie.pending.commit": obj({
@@ -191,27 +211,24 @@ export const PENDING_HANDLERS: {
     };
   },
   async "fanqie.pending.decide"(input, ctx) {
-    const work = ctx.inside(input.work);
-    let decided = 0;
-    for (const decision of input.decisions) {
-      if (decision.decision === "edit") {
-        if (!decision.edited) {
-          throw new AppError("input.invalid", "edit 必须提供 edited", { path: "decisions.edited" });
-        }
-        await fanqie.decideBiblePending(
-          work,
-          decision.id,
-          { edit: BibleOpSchema(decision.edited, "$.decisions.edited") },
-          ctx.locks,
-        );
-      } else {
-        await fanqie.decideBiblePending(work, decision.id, decision.decision, ctx.locks);
-      }
-      decided += 1;
-    }
-    return { decided };
+    return fanqie.decideBibleBatch(
+      ctx.inside(input.work),
+      input.batch,
+      input.decisions.map((decision) => ({
+        id: decision.id,
+        decision: decision.decision,
+        ...(decision.edited ? { edited: decision.edited } : {}),
+        ...(decision.effectiveFrom !== undefined ? { effectiveFrom: decision.effectiveFrom } : {}),
+      })),
+      ctx.locks,
+    );
   },
-  async "fanqie.pending.commit"() {
-    return notImplemented("D-02");
+  async "fanqie.pending.commit"(input, ctx) {
+    return fanqie.commitBibleBatch(
+      ctx.inside(input.work),
+      input.batch,
+      input.expectedRevs,
+      ctx.locks,
+    );
   },
 };

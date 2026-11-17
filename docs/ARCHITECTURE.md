@@ -58,10 +58,10 @@ L0  @zhizhang/core        errors / schema / fs / lock / journal / tool / pipelin
 - **应用状态目录**（`~/.zhizhang/` 或 `ZHIZHANG_STATE_ROOT`）：`settings.json`、`secrets.bin`（加密密钥）、`logs/`、`sessions/`、`pi/auth.json`，以及 `runs/<mode>-<目标哈希>/<run-id>.json`（运行记录与断点恢复依据；不随作品备份）。
 - **本地写作文件夹**：
   - `.zhizhang/`：`lease.json`（跨进程租约）、`.zhizhang-lock/`（可重入资源写锁）、`drafts/`（编辑草稿经 [main/ipc/drafts.ts](../apps/desktop/src/main/ipc/drafts.ts) 落盘，同 key 串行、最后一次生效；不再使用 `localStorage`）。
-  - `长篇/<bookId>/`：`work.json`、`bible/`（`entities.json`、`timeline.json`、`states.json`、`threads.json`、`knowledge.json`、`style.json`、`ledger/<chapter-id>.json`、`pending/<batch-id>.json`、`index.json`（`files.<name>.{rev,hash}` + `lastLedgerChapter`））、`plan/`、`chapters/`、`candidates/`。旧 `chapters.json` / `pending.json` 不再读写。
+  - `长篇/<bookId>/`：`work.json`、`bible/`（`entities.json`、`timeline.json`、`states.json`、`threads.json`、`knowledge.json`、`style.json`、`ledger/<chapter-id>.json`、`pending/<batch-id>.json`、`changes/<YYYY-MM>.jsonl`、`index.json`（`files.<name>.{rev,hash}` + `lastLedgerChapter`））、`plan/`、`chapters/`、`candidates/`。旧 `chapters.json` / `pending.json` 不再读写。
   - `头条/<articleId>/`：`meta.json`（元数据与状态历史）、`sources/`、`drafts/`、`qa/`、`交稿单.md`。
   - `拆书库/`：拆书来源与参考卡片。
-- **多文件提交**：所有跨文件写入通过 `LockService` 加锁，经 `atomicWrite` + `Intent` 意图日志原子落盘，并在启动时重放未完成意图；`atomicWrite` 对 `storage.locked` 做指数退避重试（约 10 秒）。
+- **多文件提交**：所有跨文件写入通过 `LockService` 加锁，经 `atomicWrite` + `Intent` 意图日志原子落盘，并在启动时重放未完成意图；`atomicWrite` 对 `storage.locked` 做指数退避重试（约 10 秒）。设定集变更把真源全文、ledger、索引、待确认批次与 `changes/` 变更集行放进同一 Intent；撤销以变更集逆操作生成新的 `revert` 变更集。
 
 ## 5. 错误码与配置
 
@@ -82,6 +82,6 @@ L0  @zhizhang/core        errors / schema / fs / lock / journal / tool / pipelin
 
 ## 7. 测试体系规范
 
-- **分层**：L1 `test/unit/`（纯规则与契约，21 文件、118 项中的大部分）→ L2 `test/engine/`（持久化、锁、意图、设定集、流水线编排，12 文件）→ L3 桌面会话与 IPC（`test/desktop/`）→ L4 Playwright E2E（13 条旅程）；Python `unittest`（227 项）负责规则计算与质检，TS 仅测调用、错误映射与落盘。
+- **分层**：L1 `test/unit/`（纯规则与契约，23 文件、139 项中的大部分）→ L2 `test/engine/`（持久化、锁、意图、设定集、流水线编排，13 文件）→ L3 桌面会话与 IPC（`test/desktop/`）→ L4 Playwright E2E（13 条旅程）；Python `unittest`（227 项）负责规则计算与质检，TS 仅测调用、错误映射与落盘。
 - **夹具与纪律**：L2 流水线测试使用 [test/support/fake-port.mjs](../test/support/fake-port.mjs) 与 [test/support/clock.mjs](../test/support/clock.mjs)，禁止真实 `sleep` 与跨用例共享队列；不写任何 1.x 旧格式兼容测试。
 - **门禁目标**：`check` ≤60 s（实测约 25 s）、`test` ≤90 s、`test:e2e` ≤4 min；Windows 与 Linux（xvfb）CI 双跑 E2E。
