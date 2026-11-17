@@ -1,6 +1,6 @@
 # 织章协作与开发规范
 
-- 适用代码基线：master `83bf7f7`（v1.4 M0 修复线已合入，未发布）；当前工作分支 `arch/freeze-stubs`（A-02 接口桩与契约测试 + 清洁提交 `0e0d5fc`，待审核）；发布版本 `v1.3.0`
+- 适用代码基线：发布基线 master `83bf7f7`（v1.4 M0 修复线已合入，未发布）；当前工作分支 `integration/v1.4`（代码合并点 `1d9518a`，其后有文档同步提交；A-02 接口桩与契约测试 + D-02 设定集变更集已合入，待审核、未推送）；发布版本 `v1.3.0`
 - 本文件是协作与交付的硬约束；与 `docs/` 冲突时以本文件为准。
 
 ## 禁止事项
@@ -14,8 +14,8 @@
 ## 交付流程与命令
 
 - `npm run check`：依次执行 `tsc -b`、`node scripts/selftest.ts`、`eslint .`、`prettier --check .`、`node scripts/guard.mjs`、`node scripts/check-ratchet.mjs`、`node scripts/check-budget.mjs`（目标 ≤60 s；2026-11-17 实测约 25 s）。
-- `npm test`：运行 `packages/toutiao/skill/tests` 与 `packages/fanqie/skill/tests` 的 Python `unittest`（226 + 1 项），以及 `test/unit/*.test.mjs`、`test/engine/*.test.mjs`（当前 D-02 分支 139 项，master 基线 83 项；目标 ≤90 s）。
-- `npm run test:e2e`：构建桌面端并执行 Playwright 端到端旅程测试（13 条；目标 ≤4 min）；本机 Windows 需 `ELECTRON_DISABLE_SANDBOX=1`。
+- `npm test`：运行 `packages/toutiao/skill/tests` 与 `packages/fanqie/skill/tests` 的 Python `unittest`（226 + 1 项），以及 `test/unit/*.test.mjs`、`test/engine/*.test.mjs`（当前集成分支 139 项，master 基线 83 项；目标 ≤90 s）。Windows 下设置 `PYTHONUTF8=1` 与 `PYTHONIOENCODING=utf-8`，避免规则桥中文按 GBK 乱码。
+- `npm run test:e2e`：构建桌面端并执行 Playwright 端到端旅程测试（13 条；目标 ≤4 min）；本机 Windows 需 `ELECTRON_DISABLE_SANDBOX=1`，并设置 `PYTHONUTF8=1` 与 `PYTHONIOENCODING=utf-8`。
 - `npm run release:verify`：仅限 Windows，准备随包 Python、执行 `electron-builder` 打包并运行 `scripts/check-desktop-package.mjs`。
 - 其他：`npm run assets`（资产清单）、`npm run desktop:dev`、`npm run desktop:build`、`npm run desktop:pack` / `desktop:portable`。
 
@@ -33,7 +33,9 @@
 ## 文档维护
 
 - 文档总量受 `G-docs` 约束：`docs/` + `README.md` + `AGENTS.md` + `CHANGELOG.md` ≤8 份（当前 7 份）。
-- `docs/` 描述**当前代码基线**（master `83bf7f7`；A-02 分支内容标注“待审核”），并在开头标注发布版本；版本号只在发版时提升，发版时统一升版。
+- `G-docs` 只约束工程文档；`plans/` 与 `packages/*/profiles`、`packages/*/skill` 属计划/资产层，不纳入该上限，但各自必须保持单一真源。
+- `docs/` 描述**当前代码基线**：发布基线 master `83bf7f7`；集成分支代码合并点 `1d9518a`，A-02/D-02 内容标注“待审核”。每份文档在开头标注适用范围与发布版本；版本号只在发版时提升，发版时统一升版。
+- 精确进度只写 `plans/v1.4/tracker.md`；`docs/STATUS.md` 只在波次门与发版门更新，`README.md` 只写阶段概览，不重复卡数。
 - 数字以实跑为准：验证数字、契约规模、文件行数更新前必须重新执行对应命令，不引用旧口径。
 - 契约或磁盘格式变更时，同步更新 `docs/ARCHITECTURE.md`（结构）与 `docs/WRITING.md`（规则），并在 `CHANGELOG.md` 的 `Unreleased` 记录。
 - `plans/` 不进版本库（`.git/info/exclude` 排除）；`plans/v1.4/` 是 v1.4 的计划、进度与盘点工作区。
@@ -41,8 +43,9 @@
 ## 仓库目录
 
 - `packages/core`：纯机制层（errors / schema / fs / lock / journal / tool / pipeline / model / methods / python / id / text）
-- `packages/fanqie`：番茄长篇模式（domain / bible / context / storage / learning / pipelines / commands / tools / view）
-- `packages/toutiao`：头条图文模式（domain / rules / storage / pipelines / commands / tools / view / workbench / skill）
+- `packages/fanqie`：番茄长篇模式（domain / bible / outline / import / context / storage / learning / pipelines / commands / tools / view / profiles / skill）
+- `packages/toutiao`：头条图文模式（domain / rules / storage / pipelines / commands / tools / view / workbench / profiles / skill）
+- `packages/*/profiles`：stage-map 直接取用的方法 Markdown；`packages/*/skill`：独立技能资产，不是应用运行时源码。
 - `packages/workbench` & `packages/ui`：写作区视图、命令契约、`TextSurface`、`--zz-*` 令牌与 `CopyKey` 文案
 - `apps/desktop`：Electron 组合根、IPC、PI 适配、会话管理与渲染层
 - `scripts/` & `test/`：架构守卫、棘轮与体积预算、打包冒烟、离线备份与自动化测试

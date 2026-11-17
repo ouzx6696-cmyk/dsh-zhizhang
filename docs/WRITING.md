@@ -1,6 +1,6 @@
 # 写作内核与业务规则
 
-- **描述基线**：master `83bf7f7`（未发布）；当前工作分支 `arch/freeze-stubs`（A-02 接口桩与契约测试 + 清洁提交 `0e0d5fc`，待审核）；发布版本 `v1.3.0`
+- **描述基线**：发布基线 master `83bf7f7`（未发布）；集成分支 `integration/v1.4` 的代码合并点为 `1d9518a`（A-02 接口桩与契约测试 + D-02 设定集变更集，已合入、待审核、未推送），其后有文档同步提交；发布版本 `v1.3.0`
 - 本文件只记录当前实现的规则与取值；改规则前先读 [AGENTS.md](../AGENTS.md) 的红线条款。
 
 ## 1. 受保护的业务规则（不可擅改）
@@ -54,6 +54,7 @@
 
 ## 5. 资产维护与来源
 
-- 默认方法文档位于 [packages/fanqie/profiles/default/](../packages/fanqie/profiles/default/)（18 份 Markdown + `profile.json` + `stage-map.json`）与 [packages/toutiao/profiles/default/](../packages/toutiao/profiles/default/)（31 份 Markdown + 2 份 JSON）。
-- 头条质检脚本与语料位于 [packages/toutiao/skill/](../packages/toutiao/skill/)：`rules.py`、`qa_check.py`、`writer_bridge.py`、`ledger.py`、`fetch_hot.py`。
-- 变更资产文件后须同步核对 `stage-map.json` 引用的章节标题与 `scripts/assets.mjs` 清单；`profiles/` 与 `skill/` 受 `.prettierignore` 保护，不参与格式化。
+- **运行时方法层**：[packages/fanqie/profiles/default/](../packages/fanqie/profiles/default/)（17 份 Markdown + `profile.json` + `stage-map.json`）与 [packages/toutiao/profiles/default/](../packages/toutiao/profiles/default/)（29 份 Markdown + 2 份 JSON）是 `stage-map` 的直接输入；流水线只按 `take.file/sections/maxChars` 取文本，不读取其他资产。
+- **独立技能层**：[packages/fanqie/skill/forge/](../packages/fanqie/skill/forge/) 含 `inspiration-forge`、`inspiration-forge-library`、`novel-writer` 三个 MIT 技能（111 份 Markdown，版本 1.3.0），[packages/toutiao/skill/](../packages/toutiao/skill/) 含 `SKILL.md`、`corpus/`、`references/` 与交稿模板（非测试文档 30 份）；这些是独立技能资产，不是应用运行时源码。
+- **单一真源**：`profiles/default` 是产品阶段提示词的唯一来源；`skill/references` 与 `skill/corpus` 是技能参考，不参与 `stage-map`；`fanqie/skill/forge` 的共享模板在多个技能中保留副本，修改时须同步所有副本。方法文本可能提到 `toutiao_headline_set` 等 skill 工具名，应用流水线不注册这些工具，修改时不得把技能工具调用写成产品命令。
+- 头条质检脚本与语料位于 [packages/toutiao/skill/](../packages/toutiao/skill/)：`rules.py`、`qa_check.py`、`writer_bridge.py`、`ledger.py`、`fetch_hot.py`。变更资产后须同步核对 `stage-map.json` 引用的章节标题与 [scripts/assets.mjs](../scripts/assets.mjs) 清单；`profiles/` 与 `skill/` 受 `.prettierignore` 保护，不参与格式化。

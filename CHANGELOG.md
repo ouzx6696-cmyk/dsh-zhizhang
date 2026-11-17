@@ -14,7 +14,7 @@
 - **头条质检收口**：`qa_check.py` 只输出六维 `items` 时，规则桥按非 `pass` 项合成 `fails`，修复质检未过线时交付步骤崩溃；两轮精修仍未过线保持「初稿待改」。
 - 增强 `scripts/guard.mjs`：`G-exports` 导出校验、`G-copy` 文案与业务常量守卫、桌面 `main/` 裸错误基线检查与 `as` 断言上限控制；新增棘轮（`check-ratchet.mjs`）与体积预算（`check-budget.mjs`）门；移除旧 `scripts/architecture-guard.mjs`。
 - 精简 `.github/workflows/ci.yml`：移除 `scope`/`ci-run.mjs`/`test:platform`，接入 `check`、`test`、Windows 与 Linux `e2e` 以及 `Zhizhang` 打包流程。
-- 统一 `scripts/check-desktop-package.mjs` 为 `Zhizhang.exe` 与 `zhizhangBridge` 契约，补充核心单元行为测试与 8 份核心文档。
+- 统一 `scripts/check-desktop-package.mjs` 为 `Zhizhang.exe` 与 `zhizhangBridge` 契约，补充核心单元行为测试并统一核心文档口径。
 - 桌面 E2E 临时目录迁入仓库 `test/.tmp/`（已 gitignore）：本机安全软件会封锁 `%TEMP%` 内的高频临时写盘。
 
 ## 1.3.0
