@@ -4,7 +4,7 @@ import { PREF, writePref } from "../shared/prefs.js";
 import { bodyKey, derive, initialState, reducer } from "./state.js";
 
 export function useFanqie(workPath?: string) {
-  const [state, dispatch] = useReducer(reducer, undefined, initialState);
+  const [state, dispatch] = useReducer(reducer, workPath, initialState);
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -56,8 +56,9 @@ export function useFanqie(workPath?: string) {
   }, [workPath]);
 
   useEffect(() => {
+    if (workPath && workPath !== state.work) return;
     void refresh();
-  }, [refresh, activeWork]);
+  }, [refresh, activeWork, state.work, state.selection, workPath]);
 
   const chapterBodyKey = bodyKey(state);
   useEffect(() => {

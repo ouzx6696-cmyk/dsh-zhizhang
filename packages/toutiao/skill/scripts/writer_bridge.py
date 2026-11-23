@@ -74,10 +74,35 @@ def cmd_rules(a):
     return 0
 
 
+def _styles_payload():
+    by_line = {
+        line: {
+            "openings": list(R.OPENINGS.get(line, [])),
+            "endings": list(R.ENDINGS.get(line, [])),
+        }
+        for line in R.LINES.keys()
+    }
+    return {
+        "byLine": by_line,
+        "allOpenings": R.all_openings(),
+        "allEndings": R.all_endings(),
+    }
+
+
 def cmd_limits(a):
     emit("limits", True, title_max=TITLE_MAX, pass_score=R.PASS_SCORE, bands=R.BANDS, genres=list(R.GENRE_MODE.keys()),
          lines=list(R.LINES.keys()), drivers=list(R.DRIVERS.keys()), statuses=L.STATUSES,
-         ledger_fields=R.LEDGER_FIELDS)
+         ledger_fields=R.LEDGER_FIELDS, styles=_styles_payload())
+    return 0
+
+
+def cmd_check_card(a):
+    try:
+        Q.load_card(a.card)
+    except Q.QAInputError as exc:
+        emit("check-card", True, valid=False, errors=[str(exc)])
+        return 0
+    emit("check-card", True, valid=True, errors=[])
     return 0
 
 
@@ -201,12 +226,13 @@ def cmd_metrics_import(a):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="writer-agent 头条规则桥")
+    ap = argparse.ArgumentParser(description="织章头条规则桥")
     sub = ap.add_subparsers(dest="cmd", required=True)
     q = sub.add_parser("qa"); q.add_argument("--file", required=True); q.add_argument("--card")
     q.add_argument("--ledger"); q.add_argument("--mode"); q.add_argument("--title")
     q.add_argument("--article-id", default="")
     sub.add_parser("rules"); sub.add_parser("limits")
+    cc = sub.add_parser("check-card"); cc.add_argument("--card", required=True)
     h = sub.add_parser("hot"); h.add_argument("--top", type=int, default=30)
     h.add_argument("--vertical", default="综合"); h.add_argument("--relevant", action="store_true")
     la = sub.add_parser("ledger-add"); la.add_argument("--card", required=True); la.add_argument("--ledger", required=True)
@@ -221,7 +247,7 @@ def main():
     mi.add_argument("--url", default=""); mi.add_argument("--metrics-json", required=True)
     mi.add_argument("--ledger", required=True)
     a = ap.parse_args()
-    fn = {"qa": cmd_qa, "rules": cmd_rules, "limits": cmd_limits, "hot": cmd_hot,
+    fn = {"qa": cmd_qa, "rules": cmd_rules, "limits": cmd_limits, "check-card": cmd_check_card, "hot": cmd_hot,
           "ledger-add": cmd_ledger_add, "ledger-status": cmd_ledger_status, "ledger-show": cmd_ledger_show,
           "metrics-import": cmd_metrics_import}[a.cmd]
     try:

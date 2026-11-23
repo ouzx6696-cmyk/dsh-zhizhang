@@ -21,6 +21,18 @@ const target: Parser<Target> = obj({
 
 const runRef: Parser<RunRef> = obj({ runId: str({ min: 1, max: 200 }), target });
 
+const focusSelection = obj({
+  text: str({ min: 1, max: 8000 }),
+  paragraphStart: opt(int({ min: 0, max: 10000 })),
+  paragraphEnd: opt(int({ min: 0, max: 10000 })),
+});
+
+const contextMention = obj({
+  kind: lit("chapter", "entity", "card", "source"),
+  id: str({ min: 1, max: 200 }),
+  label: str({ min: 1, max: 200 }),
+});
+
 const focus: Parser<Focus> = obj({
   chapter: opt(str({ max: 200 })),
   candidate: opt(str({ max: 200 })),
@@ -29,12 +41,16 @@ const focus: Parser<Focus> = obj({
   workTitle: opt(str({ max: 200 })),
   source: opt(lit("chapter", "candidate", "article", "split")),
   dirty: opt(bool),
+  selection: opt(focusSelection),
+  mentions: opt(arr(contextMention, { max: 12 })),
 });
 
 const sessionSend: Parser<SessionSend> = obj({
   text: str({ min: 1, max: 40000 }),
   focus: opt(focus),
-  intent: opt(lit("chat", "continue", "revise", "review", "plan", "check")),
+  intent: opt(
+    lit("chat", "continue", "revise", "review", "plan", "check", "beats", "diagnose", "polish"),
+  ),
 });
 
 const draftConnection = ConnectionInputSchema;

@@ -17,6 +17,18 @@ export interface Target {
   subId?: string;
 }
 
+export interface FocusSelection {
+  text: string;
+  paragraphStart?: number;
+  paragraphEnd?: number;
+}
+
+export interface ContextMention {
+  kind: "chapter" | "entity" | "card" | "source";
+  id: string;
+  label: string;
+}
+
 /** 作者当前关注的位置（随助手消息一起送达，不改变运行中的任务）。 */
 export interface Focus {
   chapter?: string;
@@ -26,6 +38,8 @@ export interface Focus {
   workTitle?: string;
   source?: "chapter" | "candidate" | "article" | "split";
   dirty?: boolean;
+  selection?: FocusSelection;
+  mentions?: ContextMention[];
 }
 
 export interface RunRef {
@@ -54,6 +68,17 @@ export interface TargetItem {
   kind: "work" | "article" | "library";
   status?: string;
   updated?: string;
+  wordCount?: number;
+  chapterCount?: number;
+  finalCount?: number;
+  pendingBible?: number;
+  qaScore?: number;
+  genre?: string;
+  driver?: string;
+  profile?: string;
+  tags?: string[];
+  pinned?: boolean;
+  archived?: boolean;
 }
 
 export type UpdateStatus =
@@ -113,7 +138,8 @@ export interface WorkflowStart {
   request: unknown;
 }
 
-export type SessionIntent = "chat" | "continue" | "revise" | "review" | "plan" | "check";
+export type SessionIntent =
+  "chat" | "continue" | "revise" | "review" | "plan" | "check" | "beats" | "diagnose" | "polish";
 
 export interface SessionSend {
   text: string;
@@ -235,6 +261,7 @@ export interface LearningView {
     change: string;
     count: number;
     promoted: boolean;
+    status?: string;
     examples: Array<{ before: string; after: string; chapter?: string }>;
   }>;
   rules: Array<{ id: string; condition: string; change: string; why: string }>;

@@ -3,6 +3,7 @@
  * PI SDK 的类型不出 pi-adapter.ts；这里的接口由 pi-adapter 实现，测试用假端口实现。
  */
 import type { ModelAnswer } from "@zhizhang/core/model";
+import type { FormatVersion } from "@zhizhang/core/paths";
 
 export type JsonArgs = Record<string, unknown>;
 
@@ -71,7 +72,7 @@ export interface AssistantPort {
 }
 
 export interface ConversationFile {
-  format: "zhizhang/1.3";
+  format: FormatVersion;
   id: string;
   target: { mode: "fanqie" | "toutiao"; path: string };
   title: string;

@@ -3,9 +3,9 @@
   "references": [
     { "path": "packages/core" },
     { "path": "packages/ui" },
-    { "path": "packages/workbench" },
     { "path": "packages/fanqie" },
     { "path": "packages/toutiao" },
+    { "path": "packages/workbench" },
     { "path": "apps/desktop" }
   ]
 }

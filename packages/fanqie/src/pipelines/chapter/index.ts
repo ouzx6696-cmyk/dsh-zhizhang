@@ -3,460 +3,85 @@ import { systemClock } from "@zhizhang/core/clock";
 import { AppError } from "@zhizhang/core/errors";
 import {
   atomicWrite,
-  resolveResourcePath,
   readJson,
   readTextIfExists,
+  resolveResourcePath,
   sha256,
 } from "@zhizhang/core/fs";
 import { createLockService } from "@zhizhang/core/lock";
-import type {
-  ContextPacket,
-  DeliveryReceipt,
-  PipelineDefinition,
-  RunCtx,
-  StageSpec,
+import {
+  buildDeliveryMarker,
+  definePipeline,
+  isAlreadyDelivered,
+  type ContextPacket,
+  type DeliveryReceipt,
+  type PipelineDefinition,
 } from "@zhizhang/core/pipeline";
-import { buildDeliveryMarker, isAlreadyDelivered } from "@zhizhang/core/pipeline";
-import { arr, int, lit, num, obj, opt, parseJson, str, type Infer } from "@zhizhang/core/schema";
+import { arr, int, obj, opt, str } from "@zhizhang/core/schema";
 import { createBibleStore } from "../../bible/store.js";
-import { readChapter, listChapters } from "../../commands/chapter.js";
-import { readLibraryCards } from "../../commands/library.js";
+import { listChapters, readChapter } from "../../commands/chapter.js";
+import { readLibraryCards, readWorkReferenceBindings } from "../../commands/library.js";
 import { buildChapterContext } from "../../context/builder.js";
 import { parseChapterMarkdown } from "../../domain/chapter.js";
 import { MAX_EDITOR_REJECTIONS } from "../../domain/status.js";
 import { WorkMetaSchema } from "../../storage/work.js";
+import { gateDraft, resolvePreviousTextMode } from "./rules.js";
+import {
+  ChapterPipelineReq,
+  type ChapterPipelineState,
+  type ChapterReq,
+  type ChapterRunResult,
+  type DraftOutput,
+  type GateReport,
+  type ReviewResult,
+} from "./schemas.js";
+import {
+  beatsStage,
+  continuityStage,
+  draftStage,
+  makeCompareStage,
+  makeReviewStage,
+  makeReviseStage,
+  makeScoreStage,
+} from "./stages.js";
 
-export const ChapterPipelineReq = obj({
-  chapterId: str({ min: 1 }),
-  position: opt(str()),
-  grade: opt(lit("economy", "standard", "premium")),
-  golden: opt(lit("true", "false")),
-  note: opt(str()),
-  targetWords: opt(int({ min: 500, max: 20000 })),
-});
+export * from "./schemas.js";
+export * from "./rules.js";
+export * from "./stages.js";
 
-export type ChapterReq = Infer<typeof ChapterPipelineReq>;
+const DEFAULT_INPUT_BUDGET = 12000;
 
-export interface DraftOutput {
-  title: string;
-  body: string;
-}
-
-export interface BeatsOutput {
-  scenes: Array<{
-    title: string;
-    goal: string;
-    conflict: string;
-    hook?: string;
-  }>;
-}
-
-export interface ReviewIssue {
-  kind: "continuity" | "reader";
-  quote: string;
-  issue: string;
-  fix: string;
-}
-
-export interface ReviewResult {
-  verdict: "pass" | "revise" | "reject";
-  issues: ReviewIssue[];
-  summary: string;
-}
-
-export interface ScoreResult {
-  score: number;
-  strengths: string[];
-  weaknesses: string[];
-  summary: string;
-}
-
-export interface CompareResult {
-  winner: "A" | "B" | "tie";
-  reason: string;
-}
-
-export interface GateReport {
-  passed: boolean;
-  wordCount: number;
-  reasons: string[];
-  hits: string[];
-}
-
-export interface ChapterRunResult {
-  title: string;
-  body: string;
-  beats: BeatsOutput;
-  gate: GateReport;
-  review: ReviewResult;
-  editorPass: boolean;
-  editorRejections: number;
-}
-
-const BeatsSchema = obj({
-  scenes: arr(
-    obj({
-      title: str({ min: 1 }),
-      goal: str({ min: 1 }),
-      conflict: str({ min: 1 }),
-      hook: opt(str()),
-    }),
-    { max: 20 },
-  ),
-});
-
-const ReviewIssueSchema = obj({
-  kind: lit("continuity", "reader"),
-  quote: str(),
-  issue: str({ min: 1 }),
-  fix: str({ min: 1 }),
-});
-
-export const ReviewResultSchema = obj({
-  verdict: lit("pass", "revise", "reject"),
-  issues: arr(ReviewIssueSchema, { max: 50 }),
-  summary: str({ min: 1 }),
-});
-
-const ContinuityResultSchema = obj({
-  issues: arr(ReviewIssueSchema, { max: 50 }),
-});
-
-const ScoreResultSchema = obj({
-  score: num({ min: 0, max: 100 }),
-  strengths: arr(str(), { max: 10 }),
-  weaknesses: arr(str(), { max: 10 }),
-  summary: str({ min: 1 }),
-});
-
-const CompareResultSchema = obj({
-  winner: lit("A", "B", "tie"),
-  reason: str({ min: 1 }),
-});
-
-const DraftJsonSchema = obj({
-  title: str({ min: 1 }),
-  body: str({ min: 1 }),
-});
-
-const PLACEHOLDER_PATTERNS: ReadonlyArray<{ label: string; pattern: RegExp }> = [
-  { label: "TODO", pattern: /\bTODO\b/i },
-  { label: "TBD", pattern: /\bTBD\b/i },
-  { label: "XXX", pattern: /\bXXX\b/ },
-  { label: "待补占位", pattern: /【待[^】]{0,20}】|\[待[^\]]{0,20}\]/ },
-  { label: "待续占位", pattern: /（待补|待写|待完善|略写）/ },
-];
-
-const FORBIDDEN_HIT_PATTERNS: ReadonlyArray<{ label: string; pattern: RegExp }> = [
-  { label: "终止符泄漏", pattern: /<<<END>>>/ },
-  { label: "AI自述", pattern: /作为(?:一个)?(?:AI|人工智能|语言模型)/ },
-  { label: "元提示泄漏", pattern: /^(?:以下是(?:修改后的)?正文|好的，为您)/m },
-  { label: "未命名章号", pattern: /^第[X\?]+章/m },
-];
-
-export function draftCountForGrade(
-  grade: "economy" | "standard" | "premium",
-  golden: boolean,
-): number {
-  if (grade === "economy") return 1;
-  if (grade === "standard") return golden ? 5 : 2;
-  return golden ? 8 : 3;
-}
-
-export function countChineseWords(text: string): number {
-  return text.replace(/\s+/g, "").length;
-}
-
-export function parsePlainDraft(raw: string): DraftOutput {
-  const trimmed = raw.trim();
-  if (trimmed.startsWith("{")) {
-    try {
-      return parseJson(trimmed, DraftJsonSchema, "draft");
-    } catch {
-      // Fall through to plain text parsing
-    }
-  }
-  const endIdx = raw.indexOf("<<<END>>>");
-  if (endIdx === -1) {
-    throw new AppError("model.output_invalid", "起稿输出缺少 <<<END>>> 终止符");
-  }
-  const content = raw.slice(0, endIdx).trim();
-  const lines = content.split(/\r?\n/);
-  const first = lines[0]?.trim() ?? "";
-  if (!first.startsWith("#")) {
-    throw new AppError("model.output_invalid", "起稿输出首行缺少 # 章名");
-  }
-  const title = first.replace(/^#+\s*/, "").trim();
-  const body = lines.slice(1).join("\n").trim();
-  if (!title || !body) {
-    throw new AppError("model.output_invalid", "起稿输出标题或正文为空");
-  }
-  return { title, body };
-}
-
-export function gateDraft(
-  draft: DraftOutput,
-  opts: { targetWords?: number; minRatio?: number; maxRatio?: number } = {},
-): GateReport {
-  const target = opts.targetWords ?? 3000;
-  const minWords = Math.floor(target * (opts.minRatio ?? 0.5));
-  const maxWords = Math.ceil(target * (opts.maxRatio ?? 1.8));
-  const wordCount = countChineseWords(draft.body);
-  const reasons: string[] = [];
-  const hits: string[] = [];
-
-  if (wordCount < minWords) {
-    reasons.push(`篇幅不足：当前 ${wordCount} 字，低于下限 ${minWords} 字`);
-  } else if (wordCount > maxWords) {
-    reasons.push(`篇幅过长：当前 ${wordCount} 字，高于上限 ${maxWords} 字`);
-  }
-
-  for (const rule of PLACEHOLDER_PATTERNS) {
-    if (rule.pattern.test(draft.body) || rule.pattern.test(draft.title)) {
-      hits.push(`占位符:${rule.label}`);
-      reasons.push(`存在未替换占位符（${rule.label}）`);
-    }
-  }
-
-  for (const rule of FORBIDDEN_HIT_PATTERNS) {
-    if (rule.pattern.test(draft.body)) {
-      hits.push(`命中项:${rule.label}`);
-      reasons.push(`命中禁区词条（${rule.label}）`);
-    }
-  }
-
-  return {
-    passed: reasons.length === 0,
-    wordCount,
-    reasons,
-    hits,
-  };
-}
-
-export function filterLocatedIssues(
-  issues: ReviewIssue[],
-  body: string,
-): { value: ReviewIssue[]; notes: string[] } {
-  if (issues.length === 0) return { value: [], notes: [] };
-  const kept: ReviewIssue[] = [];
-  const notes: string[] = [];
-  for (const item of issues) {
-    if (item.quote && body.includes(item.quote)) {
-      kept.push(item);
-    } else {
-      notes.push(`已剔除不可定位引文：${item.quote || "(空)"}`);
-    }
-  }
-  if (kept.length === 0 && notes.length > 0) {
-    throw new AppError("model.output_invalid", "审读引文全部不可定位，触发内容重试");
-  }
-  return { value: kept, notes };
-}
-
-function getCurrentDraftFromState(ctx: RunCtx): DraftOutput {
-  const candidate = ctx.state.currentDraft as DraftOutput | undefined;
-  if (!candidate || !candidate.body) {
-    throw new AppError("internal", "流水线状态缺少当前待审稿件");
-  }
-  return candidate;
-}
-
-export const beatsStage: StageSpec<
-  { chapterId: string; outline: string; note?: string },
-  BeatsOutput
-> = {
-  id: "beats",
-  title: "分场节拍",
-  role: "planner",
-  method: { stage: "fanqie.chapter.beats" },
-  input: (ctx) => {
-    const req = ctx.request as ChapterReq;
-    return {
-      chapterId: req.chapterId,
-      outline: String(ctx.state.outlineText ?? ""),
-      note: req.note,
-    };
-  },
-  shape: 'JSON 格式：{"scenes":[{"title":"场景名","goal":"目标","conflict":"冲突","hook":"钩子"}]}',
-  format: "json",
-  parse: (raw) => parseJson(raw, BeatsSchema, "beats"),
-};
-
-export const draftStage: StageSpec<
-  { chapterId: string; beats?: BeatsOutput; note?: string },
-  DraftOutput
-> = {
-  id: "draft",
-  title: "起稿",
-  role: "writer",
-  method: { stage: "fanqie.chapter.draft" },
-  input: (ctx) => {
-    const req = ctx.request as ChapterReq;
-    return {
-      chapterId: req.chapterId,
-      beats: ctx.state.beats as BeatsOutput | undefined,
-      note: req.note,
-    };
-  },
-  shape: "纯文本输出：首行 `# 章名`，正文段落，末尾单独一行 `<<<END>>>`。",
-  format: "text",
-  parse: parsePlainDraft,
-  fanOut: {
-    count: (ctx) => {
-      const req = ctx.request as ChapterReq;
-      return draftCountForGrade(
-        req.grade ?? lit("economy", "standard", "premium")(ctx.state.grade ?? "standard"),
-        req.golden === "true",
-      );
-    },
-  },
-};
-
-export function makeScoreStage(
-  index: number,
-): StageSpec<{ title: string; body: string }, ScoreResult> {
-  return {
-    id: `select-score-${index}`,
-    title: `独立评分 #${index + 1}`,
-    role: "judge",
-    method: { stage: "fanqie.chapter.select" },
-    input: (ctx) => {
-      const candidates = (ctx.state.passingDrafts as DraftOutput[] | undefined) ?? [];
-      const target = candidates[index];
-      if (!target) {
-        throw new AppError("internal", `缺少评分候选稿 #${index}`);
-      }
-      return target;
-    },
-    shape:
-      'JSON 格式：{"score":0-100,"strengths":["优点"],"weaknesses":["不足"],"summary":"一句话总评"}',
-    format: "json",
-    parse: (raw) => parseJson(raw, ScoreResultSchema, "select-score"),
-  };
-}
-
-export function makeCompareStage(
-  label: string,
-  aFirst: boolean,
-): StageSpec<{ A: DraftOutput; B: DraftOutput }, CompareResult> {
-  return {
-    id: `select-compare-${label}`,
-    title: `换位盲评 (${label})`,
-    role: "judge",
-    method: { stage: "fanqie.chapter.select" },
-    input: (ctx) => {
-      const topTwo = ctx.state.topTwo as [DraftOutput, DraftOutput] | undefined;
-      if (!topTwo) {
-        throw new AppError("internal", "缺少换位比较的前二候选稿");
-      }
-      return aFirst ? { A: topTwo[0], B: topTwo[1] } : { A: topTwo[1], B: topTwo[0] };
-    },
-    shape: 'JSON 格式：{"winner":"A|B|tie","reason":"比较结论"}',
-    format: "json",
-    parse: (raw) => parseJson(raw, CompareResultSchema, "select-compare"),
-  };
-}
-
-export const continuityStage: StageSpec<
-  { chapterId: string; title: string; body: string },
-  { issues: ReviewIssue[] }
-> = {
-  id: "continuity-check",
-  title: "连续性核查",
-  role: "editor",
-  method: { stage: "fanqie.chapter.review" },
-  input: (ctx) => {
-    const req = ctx.request as { chapterId: string };
-    const draft = getCurrentDraftFromState(ctx);
-    return { chapterId: req.chapterId, title: draft.title, body: draft.body };
-  },
-  shape:
-    'JSON 格式：{"issues":[{"kind":"continuity","quote":"原文精确引文","issue":"问题","fix":"修改建议"}]}',
-  format: "json",
-  parse: (raw) => parseJson(raw, ContinuityResultSchema, "continuity-check"),
-  accept: (o, ctx) => {
-    const draft = getCurrentDraftFromState(ctx);
-    const filtered = filterLocatedIssues(o.issues, draft.body);
-    return { value: { issues: filtered.value }, notes: filtered.notes };
-  },
-};
-
-export function makeReviewStage(
-  round: number,
-): StageSpec<{ chapterId: string; round: number; title: string; body: string }, ReviewResult> {
-  return {
-    id: round === 1 ? "review" : `review-r${round}`,
-    title: `编辑审读（第 ${round} 轮）`,
-    role: "editor",
-    method: { stage: "fanqie.chapter.review" },
-    input: (ctx) => {
-      const req = ctx.request as { chapterId: string };
-      const draft = getCurrentDraftFromState(ctx);
-      return { chapterId: req.chapterId, round, title: draft.title, body: draft.body };
-    },
-    shape:
-      'JSON 格式：{"verdict":"pass|revise|reject","issues":[{"kind":"continuity|reader","quote":"原文精确引文","issue":"问题","fix":"修改建议"}],"summary":"审读总结"}',
-    format: "json",
-    parse: (raw) => parseJson(raw, ReviewResultSchema, "review"),
-    accept: (o, ctx) => {
-      const draft = getCurrentDraftFromState(ctx);
-      const filtered = filterLocatedIssues(o.issues, draft.body);
-      return {
-        value: { ...o, issues: filtered.value },
-        notes: filtered.notes,
-      };
-    },
-  };
-}
-
-export const reviewStage = makeReviewStage(1);
-
-export function makeReviseStage(
-  round: number,
-): StageSpec<
-  { chapterId: string; round: number; draft: DraftOutput; issues: ReviewIssue[]; note?: string },
-  DraftOutput
-> {
-  return {
-    id: round === 1 ? "revise" : `revise-r${round}`,
-    title: `按回报修改（第 ${round} 轮）`,
-    role: "writer",
-    method: { stage: "fanqie.chapter.revise" },
-    input: (ctx) => {
-      const req = ctx.request as { chapterId: string; note?: string };
-      const draft = getCurrentDraftFromState(ctx);
-      const issues = (ctx.state.pendingIssues as ReviewIssue[] | undefined) ?? [];
-      return { chapterId: req.chapterId, round, draft, issues, note: req.note };
-    },
-    shape: "纯文本输出：首行 `# 章名`，修改后的完整正文段落，末尾单独一行 `<<<END>>>`。",
-    format: "text",
-    parse: parsePlainDraft,
-  };
-}
-
-export const reviseStage = makeReviseStage(1);
-
-export const chapterPipeline: PipelineDefinition<ChapterReq, ChapterRunResult> = {
+export const chapterPipeline: PipelineDefinition<
+  ChapterReq,
+  ChapterRunResult,
+  ChapterPipelineState
+> = definePipeline<ChapterReq, ChapterRunResult, ChapterPipelineState>({
   kind: "fanqie.chapter",
   request: ChapterPipelineReq,
-  async context(target, req) {
+  async context(target, req, env) {
+    const clock = env.clock ?? systemClock;
+    const lock = env.lock ?? createLockService(clock);
     return {
-      runId: `run-${Date.now()}`,
+      runId: `run-${clock.now()}`,
       target,
       request: req,
       state: {},
+      clock,
+      lock,
+      budget: env.budget,
+      profileId: env.profileId,
+      profile: env.profile,
+      profileRoots: env.profileRoots,
     };
   },
   async run(runner, ctx) {
-    const req = ctx.request as ChapterReq;
-    const lock = createLockService(systemClock);
-    const bibleStore = createBibleStore(lock);
+    const req = ctx.request;
+    const clock = ctx.clock ?? systemClock;
+    const lock = ctx.lock ?? createLockService(clock);
+    const bibleStore = createBibleStore(lock, clock);
 
     const prepared = await runner.local("prepare", async () => {
-      const workMeta = await readJson(
-        path.join(ctx.target.path, "work.json"),
-        WorkMetaSchema,
-      ).catch(() => undefined);
+      const workMeta = await readJson(path.join(ctx.target.path, "work.json"), WorkMetaSchema);
       const chapterRaw = await readTextIfExists(
         resolveResourcePath(ctx.target.path, "chapters", `${req.chapterId}.md`),
       );
@@ -503,32 +128,43 @@ export const chapterPipeline: PipelineDefinition<ChapterReq, ChapterRunResult> =
       const volume = volumes?.find(
         (item) => item.startChapter <= position && item.endChapter >= position,
       );
-      const references = await readJson(
-        path.join(ctx.target.path, "plan/references.json"),
-        obj({
-          format: lit("zhizhang/1.3"),
-          bindings: arr(obj({ sourceId: str(), cardIds: arr(str()), boundAt: str() })),
-        }),
-      );
+      const allBindings = await readWorkReferenceBindings(ctx.target.path);
+      const activeBindings = allBindings
+        .filter((b) => (b.scope ?? "work") === "work" || b.chapterId === req.chapterId)
+        .sort((a, b) =>
+          (a.scope ?? "work") === "chapter" ? -1 : (b.scope ?? "work") === "chapter" ? 1 : 0,
+        );
       const libraryRoot = ctx.libraryRoot;
-      const referenceCards =
-        libraryRoot && references
+      const loadedCards =
+        libraryRoot && activeBindings.length > 0
           ? (
               await Promise.all(
-                references.bindings.map(async (binding) => {
+                activeBindings.map(async (binding) => {
                   const { cards } = await readLibraryCards(libraryRoot, binding.sourceId);
                   return cards.filter((card) => binding.cardIds.includes(card.id));
                 }),
               )
             ).flat()
           : [];
+      const briefCardSet = req.brief?.boundCardIds ? new Set(req.brief.boundCardIds) : null;
+      const seenCard = new Set<string>();
+      const referenceCards = loadedCards.filter((card) => {
+        if (seenCard.has(card.id)) return false;
+        if (briefCardSet && briefCardSet.size > 0 && !briefCardSet.has(card.id)) return false;
+        seenCard.add(card.id);
+        return true;
+      });
       const targetWords = req.targetWords ?? workMeta?.settings.targetWords ?? 3000;
+      const grade = req.grade ?? workMeta?.grade ?? "standard";
       const prevModeSetting = workMeta?.settings.previousTextMode ?? "auto";
+      const inputBudget = ctx.budget?.inputBudget ?? DEFAULT_INPUT_BUDGET;
+
       const packet = buildChapterContext({
         chapterId: req.chapterId,
         position,
         outlineText,
         authorNote: req.note,
+        brief: req.brief,
         previousSummary: prevRecord?.summary,
         previousBody,
         bookPlan: {
@@ -545,11 +181,8 @@ export const chapterPipeline: PipelineDefinition<ChapterReq, ChapterRunResult> =
           .filter((c) => c.position < position)
           .slice(-10)
           .map((c) => ({ position: c.position, summary: c.summary })),
-        budget: 12000,
-        previousTextMode:
-          prevModeSetting === "full"
-            ? { kind: "full", maxChars: 6000 }
-            : { kind: "tail", chars: 1800 },
+        budget: inputBudget,
+        previousTextMode: resolvePreviousTextMode(prevModeSetting, grade),
       });
 
       return {
@@ -557,12 +190,14 @@ export const chapterPipeline: PipelineDefinition<ChapterReq, ChapterRunResult> =
         targetWords,
         position,
         outlineText,
-        grade: req.grade ?? workMeta?.grade ?? "standard",
+        grade,
+        appliedCardIds: referenceCards.map((c) => c.id),
       };
     });
 
     ctx.state.outlineText = prepared.outlineText;
     ctx.state.grade = prepared.grade;
+    ctx.state.appliedCardIds = prepared.appliedCardIds;
     const packet: ContextPacket = prepared.packet;
 
     // 1. beats
@@ -585,9 +220,7 @@ export const chapterPipeline: PipelineDefinition<ChapterReq, ChapterRunResult> =
         throw new AppError(
           "model.output_invalid",
           `所有候选稿未通过基础门禁：${reasons.join("；")}`,
-          {
-            reasons,
-          },
+          { reasons },
         );
       }
       return passing;
@@ -602,21 +235,24 @@ export const chapterPipeline: PipelineDefinition<ChapterReq, ChapterRunResult> =
 
     if (passingDrafts.length > 1) {
       const scored: Array<{ idx: number; draft: DraftOutput; gate: GateReport; score: number }> =
-        [];
-      for (let i = 0; i < passingDrafts.length; i++) {
-        const res = await runner.stage(makeScoreStage(i), packet);
-        scored.push({
-          idx: i,
-          draft: passingDrafts[i],
-          gate: gateResults[i].report,
-          score: res.score,
-        });
-      }
-      scored.sort((a, b) => b.score - a.score);
+        await Promise.all(
+          passingDrafts.map(async (draft, i) => {
+            const res = await runner.stage(makeScoreStage(i), packet);
+            return {
+              idx: i,
+              draft,
+              gate: gateResults[i].report,
+              score: res.score,
+            };
+          }),
+        );
+      scored.sort((a, b) => b.score - a.score || a.idx - b.idx);
 
-      ctx.state.topTwo = [scored[0].draft, scored[1].draft] as [DraftOutput, DraftOutput];
-      const ab = await runner.stage(makeCompareStage("ab", true), packet);
-      const ba = await runner.stage(makeCompareStage("ba", false), packet);
+      ctx.state.topTwo = [scored[0].draft, scored[1].draft];
+      const [ab, ba] = await Promise.all([
+        runner.stage(makeCompareStage("ab", true), packet),
+        runner.stage(makeCompareStage("ba", false), packet),
+      ]);
 
       if (ab.winner === "B" && ba.winner === "A") {
         chosen = scored[1].draft;
@@ -663,11 +299,21 @@ export const chapterPipeline: PipelineDefinition<ChapterReq, ChapterRunResult> =
         gateDraft(revised, { targetWords: prepared.targetWords }),
       );
       if (!revisedGate.passed) {
-        throw new AppError(
-          "model.output_invalid",
-          `第 ${round} 轮修稿未通过门禁：${revisedGate.reasons.join("；")}`,
-          { reasons: revisedGate.reasons },
-        );
+        latestReview = {
+          verdict: "reject",
+          issues: [
+            ...combinedIssues,
+            {
+              kind: "reader",
+              quote: "",
+              issue: `第 ${round} 轮修稿未通过门禁：${revisedGate.reasons.join("；")}`,
+              fix: "已保留上一版通过门禁的候选稿，请作者审阅并决定是否手工调整",
+            },
+          ],
+          summary: `${latestReview.summary}（第 ${round} 轮修稿未通过门禁，已回退保留上一版候选稿）`,
+        };
+        editorPass = false;
+        break;
       }
       chosen = revised;
       chosenGate = revisedGate;
@@ -685,7 +331,7 @@ export const chapterPipeline: PipelineDefinition<ChapterReq, ChapterRunResult> =
     };
   },
   async deliver(res, ctx): Promise<DeliveryReceipt> {
-    const req = ctx.request as ChapterReq;
+    const req = ctx.request;
     const candDir = resolveResourcePath(ctx.target.path, "candidates", req.chapterId);
     const marker = path.join(candDir, `${ctx.runId}.marker.json`);
     if (await isAlreadyDelivered(marker, ctx.runId)) {
@@ -712,6 +358,11 @@ export const chapterPipeline: PipelineDefinition<ChapterReq, ChapterRunResult> =
           bodyHash: sha256(res.body),
           review: res.review,
           beats: res.beats,
+          ...(req.brief ? { brief: req.brief } : {}),
+          ...(Array.isArray(ctx.state.appliedCardIds)
+            ? { appliedCardIds: ctx.state.appliedCardIds }
+            : {}),
+          ...(ctx.profileId ? { profileId: ctx.profileId } : {}),
         },
         null,
         2,
@@ -726,7 +377,7 @@ export const chapterPipeline: PipelineDefinition<ChapterReq, ChapterRunResult> =
     };
   },
   async recover(record, ctx) {
-    const req = ctx.request as ChapterReq;
+    const req = ctx.request;
     const marker = resolveResourcePath(
       ctx.target.path,
       "candidates",
@@ -735,4 +386,4 @@ export const chapterPipeline: PipelineDefinition<ChapterReq, ChapterRunResult> =
     );
     return (await isAlreadyDelivered(marker, record.id)) ? "delivered" : "resume";
   },
-};
+});

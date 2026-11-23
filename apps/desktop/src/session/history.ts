@@ -1,6 +1,6 @@
 /**
  * 助手对话落盘：<状态目录>/sessions/<目标哈希>/<对话 id>.json + current.json 指针。
- * 只读写 zhizhang/1.3 格式；不认识的文件报 storage.format_unsupported。
+ * 只读写 zhizhang/2.0 格式；不认识的文件报 storage.format_unsupported。
  */
 import { randomBytes } from "node:crypto";
 import fs from "node:fs/promises";

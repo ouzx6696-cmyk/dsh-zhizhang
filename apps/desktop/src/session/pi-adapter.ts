@@ -50,6 +50,7 @@ export interface ResolvedConnection {
 
 export interface PiPortOptions {
   authPath: string;
+  clock?: { now(): number };
   resolve(connectionId: string): ResolvedConnection;
   /** 角色绑定上的思考档位与温度（阶段请求未指定时采用）。 */
   defaults?(
@@ -136,7 +137,11 @@ function runtimeFor(
     .update(JSON.stringify([authPath, conn, modelId]))
     .digest("hex");
   const hit = runtimes.get(key);
-  if (hit) return hit;
+  if (hit) {
+    runtimes.delete(key);
+    runtimes.set(key, hit);
+    return hit;
+  }
   if (runtimes.size >= RUNTIME_LIMIT) {
     const oldest = runtimes.keys().next();
     if (!oldest.done) runtimes.delete(oldest.value);
@@ -153,18 +158,30 @@ function reasoningOf(level: ThinkingLevel | undefined): Exclude<ThinkingLevel, "
   return level === undefined || level === "off" ? undefined : level;
 }
 
-/** 把失败的回答映射成错误码；只看 PI 的判定与 HTTP 状态号，不匹配中文文案。 */
+/** 把失败的回答映射成错误码；优先看结构化 HTTP 状态码与 PI 判定，不匹配中文文案。 */
+function extractStatusCode(message: AssistantMessage, text: string): number | undefined {
+  const raw = message as unknown as Record<string, unknown>;
+  const direct =
+    typeof raw.status === "number"
+      ? raw.status
+      : typeof raw.statusCode === "number"
+        ? raw.statusCode
+        : undefined;
+  if (direct !== undefined) return direct;
+  const matched = /\b(40[123]|429|50[0234])\b/.exec(text)?.[1];
+  return matched ? Number(matched) : undefined;
+}
+
 function answerError(message: AssistantMessage, contextWindow: number): AppError {
   const text = message.errorMessage ?? "";
   if (message.stopReason === "aborted") return new AppError("run.stopped", "模型请求已取消");
   if (isContextOverflow(message, contextWindow)) {
     return new AppError("model.context_overflow", text || "上下文超出模型窗口");
   }
-  const status = /\b(40[123]|429)\b/.exec(text)?.[1];
-  if (status === "401" || status === "403")
-    return new AppError("model.auth", text, { status: Number(status) });
-  if (status === "402") return new AppError("model.balance", text, { status: 402 });
-  if (status === "429") return new AppError("model.rate_limited", text, { status: 429 });
+  const status = extractStatusCode(message, text);
+  if (status === 401 || status === 403) return new AppError("model.auth", text, { status });
+  if (status === 402) return new AppError("model.balance", text, { status: 402 });
+  if (status === 429) return new AppError("model.rate_limited", text, { status: 429 });
   if (isRetryableAssistantError(message)) return new AppError("model.unavailable", text);
   return new AppError("model.unavailable", text || "模型请求失败");
 }
@@ -206,6 +223,26 @@ function isPiAssistant(value: unknown): value is AssistantMessage {
   );
 }
 
+type PiJsonValue =
+  string | number | boolean | null | PiJsonValue[] | { [key: string]: PiJsonValue };
+type PiJsonObject = { [key: string]: PiJsonValue };
+
+function toJsonValue(value: unknown): PiJsonValue {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return value;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (Array.isArray(value)) return value.map((item) => toJsonValue(item));
+  if (typeof value === "object") return toJsonObject(value);
+  return null;
+}
+
+function toJsonObject(value: object): PiJsonObject {
+  const out: PiJsonObject = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (entry !== undefined) out[key] = toJsonValue(entry);
+  }
+  return out;
+}
+
 function toPiMessages(
   messages: AgentMessage[],
   request: AssistantTurnRequest,
@@ -241,7 +278,7 @@ function toPiMessages(
             type: "toolCall",
             id: call.id,
             name: call.name,
-            arguments: JSON.parse(JSON.stringify(call.args)),
+            arguments: toJsonObject(call.args),
           })),
         ],
         api: model.api,
@@ -264,10 +301,12 @@ function toPiMessages(
 }
 
 export function createPiPorts(options: PiPortOptions): ModelPort & AssistantPort {
+  const now = () => options.clock?.now() ?? Date.now();
+
   async function run(
     connectionId: string,
     modelId: string,
-    context: Context,
+    buildContext: (model: Model<Api>) => Context,
     params: { maxOutput?: number; thinking?: ThinkingLevel; temperature?: number },
     signal: AbortSignal,
     onDelta: (event: AssistantTurnEvent) => void,
@@ -277,6 +316,7 @@ export function createPiPorts(options: PiPortOptions): ModelPort & AssistantPort
       throw new AppError("model.auth", `连接 ${conn.id} 尚未填写 API Key`, { connection: conn.id });
     }
     const { runtime, model } = await runtimeFor(conn, modelId, options.authPath);
+    const context = buildContext(model);
     const preset = options.defaults?.(connectionId, modelId);
     const temperature = params.temperature ?? preset?.temperature;
     const reasoning = reasoningOf(params.thinking ?? preset?.thinking);
@@ -313,10 +353,10 @@ export function createPiPorts(options: PiPortOptions): ModelPort & AssistantPort
       const { message, model } = await run(
         req.connection,
         req.model,
-        {
+        () => ({
           systemPrompt: req.system,
-          messages: [{ role: "user", content: req.user, timestamp: Date.now() }],
-        },
+          messages: [{ role: "user", content: req.user, timestamp: now() }],
+        }),
         { maxOutput: req.maxOutput, thinking: req.thinking, temperature: req.temperature },
         signal,
         (event) => {
@@ -328,8 +368,6 @@ export function createPiPorts(options: PiPortOptions): ModelPort & AssistantPort
     },
 
     async turn(request, signal, on): Promise<AssistantTurnAnswer> {
-      const conn = options.resolve(request.connection);
-      const { model: probe } = await runtimeFor(conn, request.model, options.authPath);
       const tools: Tool[] = request.tools.map((tool) => ({
         name: tool.name,
         description: tool.description,
@@ -338,11 +376,11 @@ export function createPiPorts(options: PiPortOptions): ModelPort & AssistantPort
       const { message, model } = await run(
         request.connection,
         request.model,
-        {
+        (resolvedModel) => ({
           systemPrompt: request.system,
-          messages: toPiMessages(request.messages, request, probe),
+          messages: toPiMessages(request.messages, request, resolvedModel),
           tools,
-        },
+        }),
         { maxOutput: request.maxOutput },
         signal,
         on,
@@ -358,20 +396,29 @@ export function createPiPorts(options: PiPortOptions): ModelPort & AssistantPort
   };
 }
 
+const TEST_CONNECTION_TIMEOUT_MS = 15_000;
+
 export async function testPiConnection(
   conn: ResolvedConnection,
   modelId: string,
   authPath: string,
   clock: { now(): number },
 ): Promise<ModelTestResult> {
-  const ports = createPiPorts({ authPath, resolve: () => conn });
+  const ports = createPiPorts({ authPath, clock, resolve: () => conn });
   const started = clock.now();
-  const controller = new AbortController();
-  await ports.stream(
-    { connection: conn.id, model: modelId, system: "", user: "请只回答 OK", maxOutput: 32 },
-    controller.signal,
-    () => undefined,
-  );
+  const timeoutSignal = AbortSignal.timeout(TEST_CONNECTION_TIMEOUT_MS);
+  try {
+    await ports.stream(
+      { connection: conn.id, model: modelId, system: "", user: "请只回答 OK", maxOutput: 32 },
+      timeoutSignal,
+      () => undefined,
+    );
+  } catch (err) {
+    if (timeoutSignal.aborted) {
+      throw new AppError("network.proxy", "模型连接测试超时（15 秒），请检查网络或接口地址");
+    }
+    throw err;
+  }
   return { latencyMs: clock.now() - started, model: modelId };
 }
 

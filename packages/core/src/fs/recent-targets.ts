@@ -1,6 +1,6 @@
 import path from "node:path";
 import { arr, lit, obj, opt, str, type Infer } from "../schema/parse.js";
-import { stateSubpath } from "../paths.js";
+import { FORMAT_VERSION, stateSubpath } from "../paths.js";
 import { atomicWrite } from "./atomic.js";
 import { readJson } from "./read.js";
 
@@ -12,7 +12,7 @@ const RecentEntrySchema = obj({
 });
 
 const RecentFileSchema = obj({
-  format: lit("zhizhang/1.3"),
+  format: lit(FORMAT_VERSION),
   items: arr(RecentEntrySchema, { max: 50 }),
 });
 
@@ -36,6 +36,6 @@ export async function recordRecentTarget(
     { ...entry, path: norm, updatedAt: nowIso },
     ...existing.filter((item) => path.resolve(item.path) !== norm),
   ].slice(0, 30);
-  await atomicWrite(file, JSON.stringify({ format: "zhizhang/1.3", items: next }, null, 2));
+  await atomicWrite(file, JSON.stringify({ format: FORMAT_VERSION, items: next }, null, 2));
   return next;
 }

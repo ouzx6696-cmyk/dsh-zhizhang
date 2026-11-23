@@ -8,7 +8,7 @@ import { atomicWrite } from "../fs/atomic.js";
 import { readJson } from "../fs/read.js";
 import { obj, lit, str, int } from "../schema/index.js";
 import { withWriteLock, type ResourceKey } from "./write-lock.js";
-import { WORKSPACE_META_DIR } from "../paths.js";
+import { FORMAT_VERSION, WORKSPACE_META_DIR } from "../paths.js";
 
 export interface Lease {
   readonly root: string;
@@ -17,7 +17,7 @@ export interface Lease {
 }
 
 const LeaseSchema = obj({
-  format: lit("zhizhang/1.3"),
+  format: lit(FORMAT_VERSION),
   owner: str(),
   pid: int(),
   host: str(),
@@ -59,7 +59,7 @@ export async function acquireLease(
       file,
       JSON.stringify(
         {
-          format: "zhizhang/1.3",
+          format: FORMAT_VERSION,
           owner,
           pid: process.pid,
           host,

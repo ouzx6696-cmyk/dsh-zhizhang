@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useEffect, useRef, useState } from "react";
-import { Plus } from "lucide-react";
+import { Columns2, Plus } from "lucide-react";
 import { COPY, DESKTOP_COPY as C } from "@zhizhang/ui/copy";
 import { Button, Dialog, Empty, IconButton, StatusChip } from "@zhizhang/ui/primitives";
 import { statusChipTone, statusLabel } from "@zhizhang/ui/status";
@@ -11,6 +11,8 @@ import { desktop } from "../../state/desktop";
 import { desktopStore, useDesktop } from "../../state/store";
 import { notifyError, run } from "../../format";
 import { ChapterActions } from "./ChapterActions";
+import { SelectionToolbar } from "./SelectionToolbar";
+import { FanqieSplitReference } from "./SplitReferencePane";
 import { TextField } from "./TextField";
 
 const set = desktopStore.set;
@@ -156,7 +158,6 @@ function Board({
                     <StatusChip
                       tone={statusChipTone("fanqie", c.status)}
                       label={statusLabel("fanqie", c.status)}
-                      dot
                     />
                   </td>
                 </tr>
@@ -177,11 +178,13 @@ export function FanqieWorkspace({ target, readonly }: { target: Target; readonly
   const mainView = useDesktop((s) => s.view);
   const revisions = useDesktop((s) => s.revisions);
   const workTitle = useDesktop((s) => s.selected?.label ?? "");
+  const zenMode = useDesktop((s) => s.zenMode);
+  const splitRefOpen = useDesktop((s) => s.splitRefOpen);
+  const jumpChapterId = useDesktop((s) => s.jumpChapterId);
   const [creating, setCreating] = useState(false);
   const pendingSelect = useRef("");
+  const centerRef = useRef<HTMLElement | null>(null);
 
-  // 主进程广播的写作区变化（流水线交付、采纳、助手发起的命令）→ 只增量重读快照。
-  // 正文是否重读由正文键决定：当前章 revision 变了且不在编辑态时才重读，编辑中不会被踢出（D3）。
   const firstRevision = useRef(true);
   useEffect(() => {
     if (firstRevision.current) {
@@ -199,15 +202,26 @@ export function FanqieWorkspace({ target, readonly }: { target: Target; readonly
     }
   }, [view.chapters, dispatch]);
 
+  useEffect(() => {
+    if (!jumpChapterId) return;
+    if (view.chapters.some((c) => c.id === jumpChapterId)) {
+      dispatch({ type: "selectChapter", id: jumpChapterId });
+    }
+    set({ jumpChapterId: "" });
+  }, [jumpChapterId, view.chapters, dispatch]);
+
   const currentChapterId = view.current?.id;
   const currentChapterTitle = view.current?.title;
   useEffect(() => {
+    const prev = desktopStore.get().focus;
     set({
       focus: {
+        ...prev,
         chapter: currentChapterId,
         title: currentChapterTitle,
         workTitle,
         source: "chapter",
+        selection: undefined,
       },
     });
   }, [currentChapterId, currentChapterTitle, workTitle]);
@@ -236,8 +250,14 @@ export function FanqieWorkspace({ target, readonly }: { target: Target; readonly
   const compareKind = useDesktop((s) => s.runs.find((r) => r.id === s.compare?.runId)?.kind);
   const comparing = compare && compare.target.path === target.path ? compare : null;
   const totalWords = view.chapters.reduce((sum, c) => sum + c.wordCount, 0);
+  const hideNav = Boolean(comparing) || zenMode;
+
   return (
-    <div className="zz-workspace zz-workspace--fanqie" data-compare={comparing ? "on" : "off"}>
+    <div
+      className="zz-workspace zz-workspace--fanqie"
+      data-compare={hideNav ? "on" : "off"}
+      data-zen={zenMode ? "on" : "off"}
+    >
       <nav className="zz-workspace__nav" aria-label={C.fanqie.chapters}>
         <header className="zz-nav-head">
           <h2>
@@ -266,7 +286,7 @@ export function FanqieWorkspace({ target, readonly }: { target: Target; readonly
           </footer>
         ) : null}
       </nav>
-      <section className="zz-workspace__center">
+      <section className="zz-workspace__center" ref={centerRef}>
         {comparing ? (
           <Suspense fallback={null}>
             <CompareView request={comparing} kind={compareKind ?? "fanqie.chapter"} />
@@ -278,29 +298,47 @@ export function FanqieWorkspace({ target, readonly }: { target: Target; readonly
         ) : state.error && !view.chapters.length ? (
           <Empty title={C.fanqie.loadFailed} description={state.error} />
         ) : (
-          <Reader
-            state={state}
-            view={view}
-            dispatch={dispatch}
-            onSaveChapter={(body, base) => fanqie.saveChapter(body, base)}
-            onEditState={trackEditor}
-            actions={
-              current ? (
-                <ChapterActions
-                  chapterId={current.id}
-                  reviewed={current.status === "reviewed"}
-                  readonly={readonly}
-                  busy={Boolean(state.busyAction)}
-                  onFinalize={() =>
-                    dispatch({
-                      type: "openDialog",
-                      dialog: { kind: "finalize", chapterId: current.id },
-                    })
-                  }
-                />
-              ) : null
-            }
-          />
+          <div className="zz-writing-split" data-split={splitRefOpen ? "on" : "off"}>
+            <div className="zz-writing-split__main">
+              <Reader
+                state={state}
+                view={view}
+                dispatch={dispatch}
+                onSaveChapter={(body, base) => fanqie.saveChapter(body, base)}
+                onEditState={trackEditor}
+                actions={
+                  current ? (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        data-testid="toggle-split-ref"
+                        aria-pressed={splitRefOpen}
+                        onClick={() => set({ splitRefOpen: !splitRefOpen })}
+                      >
+                        <Columns2 size={14} aria-hidden="true" />
+                        {C.split.toggle}
+                      </Button>
+                      <ChapterActions
+                        chapterId={current.id}
+                        reviewed={current.status === "reviewed"}
+                        readonly={readonly}
+                        busy={Boolean(state.busyAction)}
+                        onFinalize={() =>
+                          dispatch({
+                            type: "openDialog",
+                            dialog: { kind: "finalize", chapterId: current.id },
+                          })
+                        }
+                      />
+                    </>
+                  ) : null
+                }
+              />
+            </div>
+            {splitRefOpen ? <FanqieSplitReference work={target.path} /> : null}
+            <SelectionToolbar containerRef={centerRef} />
+          </div>
         )}
       </section>
       <Dialogs

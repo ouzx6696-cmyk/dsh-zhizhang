@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 1,
-  "note": "插件自带资产的来源登记与更新预设。改这里之后运行 npm run assets -- manifest；导入上游新版见 docs/guides/ASSETS.md。",
+  "schemaVersion": 2,
+  "note": "织章内置写作方法与规则资产的来源登记。修改后请运行 npm run assets -- manifest，并用 npm run assets -- check 校验。",
   "sources": [
     {
       "id": "toutiao-viral-writer",
@@ -16,19 +16,6 @@
         "pattern": "全链路写作（(\\d+\\.\\d+\\.\\d+)）"
       },
       "versionRefs": [],
-      "registry": {
-        "type": "toutiao-methods",
-        "file": "packages/toutiao/src/methods.ts",
-        "dirs": [
-          "references",
-          "corpus",
-          "templates"
-        ],
-        "files": [
-          "SKILL.md"
-        ]
-      },
-      "tool": "toutiao_method_get",
       "local": [
         "scripts/writer_bridge.py"
       ],
@@ -53,16 +40,10 @@
         "file": "novel-writer/SKILL.md",
         "pattern": "version: \"(\\d+\\.\\d+\\.\\d+)\""
       },
-      "versionRefs": [
-        {
-          "file": "packages/fanqie/src/forge.ts",
-          "pattern": "inspiration-forge-suite (\\d+\\.\\d+\\.\\d+)"
-        }
-      ],
+      "versionRefs": [],
       "registry": {
         "type": "forge-tree"
       },
-      "tool": "fanqie_method_get",
       "local": [],
       "patched": [
         "inspiration-forge-library/scripts/quote_check.py",
@@ -72,42 +53,33 @@
     },
     {
       "id": "toutiao-default-profile",
-      "title": "今日头条默认方案（从原版提炼重写的精炼版）",
+      "title": "今日头条默认方法方案（含 stage-map.json 阶段映射）",
       "mode": "toutiao",
       "kind": "profile",
       "dest": "packages/toutiao/profiles/default",
-      "tool": "toutiao_method_get"
+      "tool": "toutiao_read_method"
     },
     {
       "id": "fanqie-default-profile",
-      "title": "番茄长篇默认方案（从原版提炼重写的精炼版）",
+      "title": "番茄长篇默认方法方案（含 stage-map.json 阶段映射）",
       "mode": "fanqie",
       "kind": "profile",
       "dest": "packages/fanqie/profiles/default",
-      "tool": "fanqie_method_get"
+      "tool": "fanqie_read_method"
     },
     {
-      "id": "writer-fanqie-rules",
-      "title": "长篇规则桥接脚本（本项目自写）",
+      "id": "zhizhang-fanqie-rules",
+      "title": "番茄长篇本地规则与测试脚本",
       "mode": "fanqie",
       "kind": "local",
       "dest": "packages/fanqie/skill",
       "exclude": [
         "forge/"
       ]
-    },
-    {
-      "id": "engine-method-assets",
-      "title": "长篇引擎内置方法资产（本项目自写）",
-      "mode": "fanqie",
-      "kind": "builtin",
-      "module": "build/fanqie/src/engine/method-assets.js",
-      "source": "packages/fanqie/src/engine/method-assets.ts",
-      "tool": "fanqie_method_get"
     }
   ],
   "user": {
-    "note": "作者自备资产不进清单：放在配置 toutiao.assets.dirs / fanqie.assets.dirs 指定的目录里，id 为 user:相对路径。",
+    "note": "作者自定义方法方案放在状态目录 profiles/<mode>/<id>/，运行时覆盖内置默认方案，不进入仓库清单。",
     "prefix": "user:",
     "exts": [
       ".md",

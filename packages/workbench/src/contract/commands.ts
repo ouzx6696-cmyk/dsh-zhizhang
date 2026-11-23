@@ -150,7 +150,13 @@ export interface WorkbenchCommandMap {
     access: "read";
   };
   "fanqie.reference.bind": {
-    input: { work: string; sourceId: string; cardIds?: string[] };
+    input: {
+      work: string;
+      sourceId: string;
+      cardIds?: string[];
+      scope?: "work" | "chapter";
+      chapterId?: string;
+    };
     result: { work: string; sourceId: string; boundCount: number };
     access: "write";
   };

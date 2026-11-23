@@ -12,7 +12,7 @@ import type {
 import { createStore, useStoreSelector } from "./createStore";
 
 export type DockTab = "assistant" | "pipeline" | "chapter";
-export type MainView = "writing" | "board";
+export type MainView = "hub" | "writing" | "board" | "bible" | "warehouse";
 export type SettingsTab = "models" | "engine" | "appearance" | "workspace" | "about";
 export type CreateKind = "fanqie" | "toutiao";
 
@@ -44,6 +44,14 @@ export interface DesktopState {
   settingsTab: SettingsTab;
   onboarding: boolean;
   creating: CreateKind | null;
+  /** 全局命令面板（Ctrl/Cmd+K）开关。 */
+  paletteOpen: boolean;
+  /** 专注写作模式（隐藏左栏与右栏，稿纸居中）。 */
+  zenMode: boolean;
+  /** 写作区双栏参考开关（番茄：大纲/设定/卡片；头条：立项/来源/质检）。 */
+  splitRefOpen: boolean;
+  /** 跨视图请求跳转的章节 id（由 FanqieWorkspace 消费后清空）。 */
+  jumpChapterId: string;
   /** 流水线面板请求预填的章节（来自写作区“发起流水线”）。 */
   pipelineChapter: string;
   /** 当前番茄作品的章节（右栏流水线选章、设定集巡检范围用）。 */
@@ -82,13 +90,17 @@ export const desktopStore = createStore<DesktopState>({
   focus: {},
   running: [],
   revisions: initialRevisions,
-  view: "writing",
+  view: "hub",
   dockTab: "assistant",
   dockOpen: true,
   settingsOpen: false,
   settingsTab: "models",
   onboarding: false,
   creating: null,
+  paletteOpen: false,
+  zenMode: false,
+  splitRefOpen: false,
+  jumpChapterId: "",
   pipelineChapter: "",
   chapters: [],
   runs: [],

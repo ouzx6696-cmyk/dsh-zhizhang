@@ -11,6 +11,11 @@ export interface WorkSummary {
   title: string;
   workPath: string;
   grade: WorkMeta["grade"];
+  profile: string;
+  tags?: string[];
+  pinned?: boolean;
+  archived?: boolean;
+  targetTotalWords?: number;
   created: string;
 }
 
@@ -58,6 +63,11 @@ export async function listWorks(worksRoot: string): Promise<WorkSummary[]> {
       title: meta.title,
       workPath,
       grade: meta.grade,
+      profile: meta.profile,
+      ...(meta.tags ? { tags: meta.tags } : {}),
+      ...(meta.pinned !== undefined ? { pinned: meta.pinned } : {}),
+      ...(meta.archived !== undefined ? { archived: meta.archived } : {}),
+      ...(meta.targetTotalWords !== undefined ? { targetTotalWords: meta.targetTotalWords } : {}),
       created: meta.created,
     });
   }
@@ -66,7 +76,15 @@ export async function listWorks(worksRoot: string): Promise<WorkSummary[]> {
 
 export async function updateWorkSettings(
   workPath: string,
-  patch: Partial<WorkMeta["settings"]> & { grade?: WorkMeta["grade"]; profile?: string },
+  patch: Partial<WorkMeta["settings"]> & {
+    grade?: WorkMeta["grade"];
+    profile?: string;
+    tags?: string[];
+    pinned?: boolean;
+    archived?: boolean;
+    targetTotalWords?: number;
+    synopsis?: string;
+  },
   lock: LockService = createLockService(systemClock),
 ): Promise<WorkMeta> {
   return lock.write({ kind: "work", path: workPath }, async () => {
@@ -75,6 +93,12 @@ export async function updateWorkSettings(
       ...meta,
       grade: patch.grade ?? meta.grade,
       profile: patch.profile ?? meta.profile,
+      ...(patch.tags !== undefined ? { tags: patch.tags } : {}),
+      ...(patch.pinned !== undefined ? { pinned: patch.pinned } : {}),
+      ...(patch.archived !== undefined ? { archived: patch.archived } : {}),
+      ...(patch.targetTotalWords !== undefined ? { targetTotalWords: patch.targetTotalWords } : {}),
+      ...(patch.synopsis !== undefined ? { synopsis: patch.synopsis } : {}),
+      updatedAt: systemClock.iso(),
       settings: {
         requireEditorPass: patch.requireEditorPass ?? meta.settings.requireEditorPass,
         targetWords: patch.targetWords ?? meta.settings.targetWords,

@@ -4,8 +4,9 @@ import { AppError } from "../errors/app-error.js";
 import { classify } from "../errors/classify.js";
 import { atomicWrite } from "../fs/atomic.js";
 import { readTextIfExists } from "../fs/read.js";
-import { resolveInside } from "../fs/sandbox.js";
+import { resolveInsideAsync } from "../fs/sandbox.js";
 import { stateSubpath } from "../paths.js";
+import { obj, opt, record, str } from "../schema/parse.js";
 import type { ProfileRoots } from "./profiles.js";
 
 export interface UserAssetInfo {
@@ -17,6 +18,8 @@ export interface UserAssetInfo {
 }
 
 const ALLOWED_ASSET_EXT = [".md", ".json"] as const;
+const ProfileMetaSchema = obj({ name: opt(str()) }, { strict: false });
+const ProfileRecordSchema = record((v: unknown) => v);
 
 function assertSafeSegment(value: string, label: string): string {
   const trimmed = value.trim();
@@ -50,10 +53,17 @@ async function readProfileInfo(dir: string, mode: string, id: string): Promise<U
     if (!ALLOWED_ASSET_EXT.some((ext) => entry.name.endsWith(ext))) continue;
     files.push(entry.name);
     if (entry.name === "profile.json") {
-      const raw = await readTextIfExists(path.join(dir, entry.name));
+      const full = path.join(dir, entry.name);
+      const raw = await readTextIfExists(full);
       if (raw) {
-        const meta = JSON.parse(raw) as { name?: string };
-        if (meta.name) name = meta.name;
+        try {
+          const meta = ProfileMetaSchema(JSON.parse(raw), full);
+          if (meta.name) name = meta.name;
+        } catch {
+          throw new AppError("storage.format_unsupported", `无法解析方案元数据：${full}`, {
+            file: full,
+          });
+        }
       }
     }
   }
@@ -75,11 +85,11 @@ export async function listUserProfiles(userDir: string, mode?: string): Promise<
 
   const results: UserAssetInfo[] = [];
   for (const m of modes.sort()) {
-    const modeDir = resolveInside(userDir, m);
+    const modeDir = await resolveInsideAsync(userDir, m);
     const entries = await fs.readdir(modeDir, { withFileTypes: true }).catch(() => []);
     for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
       if (!entry.isDirectory()) continue;
-      const profileDir = resolveInside(modeDir, entry.name);
+      const profileDir = await resolveInsideAsync(modeDir, entry.name);
       results.push(await readProfileInfo(profileDir, m, entry.name));
     }
   }
@@ -95,7 +105,7 @@ export async function readUserAssetFile(
   const safeMode = assertSafeSegment(mode, "mode");
   const safeId = assertSafeSegment(profileId, "profileId");
   const safeFile = assertAllowedAssetFile(fileName);
-  const target = resolveInside(userDir, path.join(safeMode, safeId, safeFile));
+  const target = await resolveInsideAsync(userDir, path.join(safeMode, safeId, safeFile));
   return readTextIfExists(target);
 }
 
@@ -109,7 +119,7 @@ export async function saveUserAssetFile(
   const safeMode = assertSafeSegment(mode, "mode");
   const safeId = assertSafeSegment(profileId, "profileId");
   const safeFile = assertAllowedAssetFile(fileName);
-  const target = resolveInside(userDir, path.join(safeMode, safeId, safeFile));
+  const target = await resolveInsideAsync(userDir, path.join(safeMode, safeId, safeFile));
   await atomicWrite(target, content);
   return target;
 }
@@ -123,7 +133,7 @@ export async function deleteUserAssetFile(
   const safeMode = assertSafeSegment(mode, "mode");
   const safeId = assertSafeSegment(profileId, "profileId");
   const safeFile = assertAllowedAssetFile(fileName);
-  const target = resolveInside(userDir, path.join(safeMode, safeId, safeFile));
+  const target = await resolveInsideAsync(userDir, path.join(safeMode, safeId, safeFile));
   try {
     await fs.rm(target);
     return true;
@@ -151,7 +161,7 @@ export async function forkBuiltinProfile(
   const safeSource = assertSafeSegment(sourceId, "sourceId");
   const safeTarget = assertSafeSegment(targetId, "targetId");
 
-  const srcDir = resolveInside(roots.builtinDir, safeSource);
+  const srcDir = await resolveInsideAsync(roots.builtinDir, safeSource);
   const stat = await fs.stat(srcDir).catch(() => undefined);
   if (!stat?.isDirectory()) {
     throw new AppError("input.not_found", `Builtin profile not found: ${safeSource}`, {
@@ -160,18 +170,26 @@ export async function forkBuiltinProfile(
     });
   }
 
-  const destDir = resolveInside(roots.userDir, path.join(safeMode, safeTarget));
+  const destDir = await resolveInsideAsync(roots.userDir, path.join(safeMode, safeTarget));
   const entries = await fs.readdir(srcDir, { withFileTypes: true });
   let hasProfileJson = false;
 
   for (const entry of entries) {
     if (!entry.isFile()) continue;
     if (!ALLOWED_ASSET_EXT.some((ext) => entry.name.endsWith(ext))) continue;
-    let content = await fs.readFile(path.join(srcDir, entry.name), "utf8");
+    const srcFile = path.join(srcDir, entry.name);
+    let content = await fs.readFile(srcFile, "utf8");
     if (entry.name === "profile.json") {
       hasProfileJson = true;
       if (name) {
-        const meta = JSON.parse(content) as Record<string, unknown>;
+        let meta: Record<string, unknown>;
+        try {
+          meta = ProfileRecordSchema(JSON.parse(content), srcFile);
+        } catch {
+          throw new AppError("storage.format_unsupported", `无法解析方案元数据：${srcFile}`, {
+            file: srcFile,
+          });
+        }
         content = `${JSON.stringify({ ...meta, id: safeTarget, name }, null, 2)}\n`;
       }
     }

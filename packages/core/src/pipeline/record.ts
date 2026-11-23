@@ -1,3 +1,4 @@
+import type { FormatVersion } from "../paths.js";
 import type { RunState, StateHistoryEntry } from "./state.js";
 
 export interface UsageTotals {
@@ -27,7 +28,7 @@ export interface StepRecord {
 }
 
 export interface RunRecord {
-  format: "zhizhang/1.3";
+  format: FormatVersion;
   id: string;
   kind: string;
   target: { mode: string; path: string; subId?: string };

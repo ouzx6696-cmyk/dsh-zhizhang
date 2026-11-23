@@ -68,11 +68,14 @@ function handleSession(
       return;
     case "message_end":
       stream.clear();
-      chatStore.set((current) => ({
-        messages: [...current.messages.filter((m) => m.id !== event.message.id), event.message],
-        total: current.total + 1,
-        stream: "",
-      }));
+      chatStore.set((current) => {
+        const exists = current.messages.some((m) => m.id === event.message.id);
+        return {
+          messages: [...current.messages.filter((m) => m.id !== event.message.id), event.message],
+          total: exists ? current.total : current.total + 1,
+          stream: "",
+        };
+      });
       return;
     case "tool":
       chatStore.set({ tool: event.phase === "start" ? event.name : "" });
@@ -107,6 +110,14 @@ function handleSession(
 /** 订阅主进程事件；返回取消函数。 */
 export function subscribeDesktopEvents(): () => void {
   const stream = createStreamBuffer();
+  let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+  const scheduleRefreshTargets = () => {
+    if (refreshTimer !== undefined) clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(() => {
+      refreshTimer = undefined;
+      refreshTargets().catch(notifyError);
+    }, 150);
+  };
   const unsubscribe = desktop.subscribe((event: DesktopEvent) => {
     const selected = desktopStore.get().selected?.target ?? null;
     switch (event.kind) {
@@ -144,8 +155,7 @@ export function subscribeDesktopEvents(): () => void {
           set((state) => ({
             revisions: { ...state.revisions, [event.scope]: state.revisions[event.scope] + 1 },
           }));
-        if (event.scope === "rows" || event.scope === "article")
-          refreshTargets().catch(notifyError);
+        if (event.scope === "rows" || event.scope === "article") scheduleRefreshTargets();
         return;
       }
       case "workspace.status":
@@ -175,6 +185,7 @@ export function subscribeDesktopEvents(): () => void {
     }
   });
   return () => {
+    if (refreshTimer !== undefined) clearTimeout(refreshTimer);
     stream.clear();
     unsubscribe();
   };

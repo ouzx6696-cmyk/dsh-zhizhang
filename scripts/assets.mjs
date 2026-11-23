@@ -1,18 +1,17 @@
 #!/usr/bin/env node
-// 应用自带资产的清单与更新（说明见 docs/guides/ASSETS.md）
+// 织章内置方法与规则资产的清单生成、校验与上游更新脚本：
 //   node scripts/assets.mjs manifest                 重新生成 assets/manifest.json
-//   node scripts/assets.mjs check                    清单、登记、版本号是否和磁盘一致（npm test 会跑）
-//   node scripts/assets.mjs import <来源> <目录|zip>  比对上游新版，只出报告
-//   node scripts/assets.mjs import <来源> <目录|zip> --apply   覆盖上游文件、改版本号、重建清单，报告存 assets/updates/
-// 通用参数：--root <目录>  在另一份仓库副本上操作（测试用）
-import ts from "typescript";
+//   node scripts/assets.mjs check                    校验清单、profile stage-map 与版本号一致性
+//   node scripts/assets.mjs import <来源> <目录|zip>  比对上游新版并输出报告
+//   node scripts/assets.mjs import <来源> <目录|zip> --apply  应用上游更新并重建清单
+// 通用参数：--root <目录>  在指定仓库副本上执行
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { cp, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 const SCRIPT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const argv = process.argv.slice(2);
@@ -30,8 +29,6 @@ const has = (name) => {
   return true;
 };
 const ROOT = path.resolve(flag("--root") ?? SCRIPT_ROOT);
-process.env.WRITER_TOUTIAO_SKILL_DIR = path.join(ROOT, "packages/toutiao/skill");
-process.env.WRITER_TOUTIAO_DEFAULT_DIR = path.join(ROOT, "packages/toutiao/profiles/default");
 const APPLY = has("--apply");
 const [cmd, ...rest] = argv;
 
@@ -69,47 +66,16 @@ function kindOf(rel) {
   return "meta";
 }
 
-/** 头条方法登记表：从 methods.ts 读 METHOD_FILES（不依赖构建） */
-async function toutiaoRegistry(src) {
-  const text = await readFile(path.join(ROOT, src.registry.file), "utf8");
-  const source = ts.createSourceFile(src.registry.file, text, ts.ScriptTarget.Latest, true);
-  const map = {};
-  function visit(node) {
-    if (
-      ts.isVariableDeclaration(node) &&
-      ts.isIdentifier(node.name) &&
-      node.name.text === "METHOD_FILES"
-    ) {
-      if (!node.initializer || !ts.isObjectLiteralExpression(node.initializer))
-        throw new Error("METHOD_FILES 必须是静态登记表");
-      for (const property of node.initializer.properties) {
-        if (
-          !ts.isPropertyAssignment(property) ||
-          !(ts.isIdentifier(property.name) || ts.isStringLiteral(property.name)) ||
-          !ts.isStringLiteral(property.initializer)
-        )
-          throw new Error("METHOD_FILES 登记项必须是静态字符串");
-        map[property.name.text] = property.initializer.text;
-      }
-    }
-    ts.forEachChild(node, visit);
-  }
-  visit(source);
-  if (!Object.keys(map).length) throw new Error("未找到 METHOD_FILES 登记表");
-  return map;
-}
-
-function idFor(src, rel, registry) {
+function idFor(src, rel) {
   if (src.kind === "profile") return rel.endsWith(".md") ? rel.replace(/\.md$/, "") : undefined;
-  if (src.registry?.type === "toutiao-methods")
-    return Object.entries(registry).find(([, f]) => f === rel)?.[0];
   if (src.registry?.type === "forge-tree") {
     if (
       !rel.endsWith(".md") ||
       /(^|\/)(scripts|tests)\//.test(rel) ||
       path.posix.basename(rel) === "LICENSE"
-    )
+    ) {
       return undefined;
+    }
     return rel.replace(/\.md$/, "");
   }
   return undefined;
@@ -130,37 +96,11 @@ async function buildManifest() {
       loadable: 0,
       byKind: {},
     });
-    if (src.kind === "builtin") {
-      const modPath = path.join(SCRIPT_ROOT, src.module);
-      if (!existsSync(modPath)) throw new Error(`缺少 ${src.module}：先运行 npm run build`);
-      const mod = await import(pathToFileURL(modPath).href);
-      for (const a of mod.listMethodAssets()) {
-        const body = mod.getMethodAsset(a.id).body;
-        const bytes = Buffer.byteLength(body);
-        entries.push({
-          source: src.id,
-          id: a.id,
-          title: a.title,
-          kind: "builtin",
-          origin: "local",
-          tool: src.tool,
-          path: src.source,
-          bytes,
-          sha256: sha(body),
-        });
-        sum.files++;
-        sum.bytes += bytes;
-        sum.loadable++;
-        sum.byKind.builtin = (sum.byKind.builtin ?? 0) + 1;
-      }
-      continue;
-    }
-    const registry = src.registry?.type === "toutiao-methods" ? await toutiaoRegistry(src) : {};
     const dest = path.join(ROOT, src.dest);
     for (const rel of await walk(dest)) {
       if (excluded(src, rel)) continue;
       const buf = await readFile(path.join(dest, rel));
-      const id = idFor(src, rel, registry);
+      const id = idFor(src, rel);
       const origin =
         src.kind === "local" || src.kind === "profile" || (src.local ?? []).includes(rel)
           ? "local"
@@ -169,7 +109,7 @@ async function buildManifest() {
             : "upstream";
       const kind =
         src.kind === "profile"
-          ? rel === "profile.json"
+          ? rel === "profile.json" || rel === "stage-map.json"
             ? "meta"
             : rel.startsWith("corpus-")
               ? "corpus"
@@ -181,7 +121,7 @@ async function buildManifest() {
           : kindOf(rel);
       entries.push({
         source: src.id,
-        ...(id ? { id, tool: src.tool } : {}),
+        ...(id ? { id, ...(src.tool ? { tool: src.tool } : {}) } : {}),
         kind,
         origin,
         path: `${src.dest}/${rel}`,
@@ -195,8 +135,8 @@ async function buildManifest() {
     }
   }
   return {
-    schemaVersion: 1,
-    note: "由 scripts/assets.mjs manifest 生成，勿手改",
+    schemaVersion: 2,
+    note: "由 scripts/assets.mjs manifest 自动生成，勿手改",
     sources: summary,
     entries,
   };
@@ -217,53 +157,63 @@ async function check() {
   const saved = JSON.parse(await readFile(file, "utf8"));
   const now = await buildManifest();
   const key = (e) => `${e.source}|${e.path}|${e.id ?? ""}`;
-  const a = new Map(saved.entries.map((e) => [key(e), e])),
-    b = new Map(now.entries.map((e) => [key(e), e]));
+  const a = new Map(saved.entries.map((e) => [key(e), e]));
+  const b = new Map(now.entries.map((e) => [key(e), e]));
   for (const [k, e] of b) {
     const old = a.get(k);
     if (!old) problems.push(`清单里没有：${e.path}${e.id ? `（${e.id}）` : ""}`);
-    else if (old.sha256 !== e.sha256)
+    else if (old.sha256 !== e.sha256) {
       problems.push(
-        `${e.origin === "upstream" ? "上游原件被改动" : "内容变了"}：${e.path}${e.origin === "upstream" ? "（有意修改请登记到 sources.json 的 patched，再重建清单）" : "（重建清单）"}`,
+        `${e.origin === "upstream" ? "上游原件被改动" : "内容变了"}：${e.path}${e.origin === "upstream" ? "（有意修改请登记到 sources.json 的 patched，再重建清单）" : "（运行 npm run assets -- manifest 重建清单）"}`,
       );
-    else if (old.origin !== e.origin || old.kind !== e.kind) problems.push(`分类变了：${e.path}`);
+    } else if (old.origin !== e.origin || old.kind !== e.kind) {
+      problems.push(`分类变了：${e.path}`);
+    }
   }
-  for (const [k, e] of a)
+  for (const [k, e] of a) {
     if (!b.has(k)) problems.push(`磁盘上已没有：${e.path}${e.id ? `（${e.id}）` : ""}`);
+  }
   for (const src of sources.sources) {
-    if (src.kind !== "upstream") continue;
     const dest = path.join(ROOT, src.dest);
-    for (const f of [...(src.local ?? []), ...(src.patched ?? [])])
+    if (src.kind === "profile") {
+      const stageMapPath = path.join(dest, "stage-map.json");
+      if (!existsSync(stageMapPath)) {
+        problems.push(`${src.id} 缺少 stage-map.json`);
+      } else {
+        const stageMap = JSON.parse(await readFile(stageMapPath, "utf8"));
+        const stages = stageMap.stages ?? stageMap;
+        for (const [stage, refs] of Object.entries(stages)) {
+          if (!Array.isArray(refs)) continue;
+          for (const entry of refs) {
+            const rel = typeof entry === "string" ? entry : entry?.file;
+            if (typeof rel !== "string") continue;
+            const fileName = rel.endsWith(".md") ? rel : `${rel}.md`;
+            if (!existsSync(path.join(dest, fileName))) {
+              problems.push(`${src.id} stage-map.json 阶段 ${stage} 引用的 ${fileName} 不存在`);
+            }
+          }
+        }
+      }
+      continue;
+    }
+    if (src.kind !== "upstream") continue;
+    for (const f of [...(src.local ?? []), ...(src.patched ?? [])]) {
       if (!existsSync(path.join(dest, f))) problems.push(`${src.id} 登记的 ${f} 不存在`);
+    }
     if (src.versionFrom) {
       const txt = await readFile(path.join(dest, src.versionFrom.file), "utf8");
       const v = txt.match(new RegExp(src.versionFrom.pattern))?.[1];
-      if (v !== src.version)
+      if (v !== src.version) {
         problems.push(`${src.id}：sources.json 写 ${src.version}，原件里是 ${v ?? "（读不到）"}`);
+      }
     }
     for (const ref of src.versionRefs ?? []) {
       const txt = await readFile(path.join(ROOT, ref.file), "utf8");
       const vs = [...txt.matchAll(new RegExp(ref.pattern, "g"))].map((m) => m[1]);
       if (!vs.length) problems.push(`${ref.file} 里找不到版本号（${ref.pattern}）`);
-      for (const v of vs)
+      for (const v of vs) {
         if (v !== src.version)
           problems.push(`${ref.file} 写的是 ${src.id} ${v}，应为 ${src.version}`);
-    }
-    if (src.registry?.type === "toutiao-methods") {
-      const reg = await toutiaoRegistry(src);
-      const files = new Set(Object.values(reg));
-      for (const [id, f] of Object.entries(reg))
-        if (!existsSync(path.join(dest, f)))
-          problems.push(`${src.registry.file} 登记的 ${id} → ${f} 不存在`);
-      const all = await walk(dest);
-      for (const rel of all) {
-        const want =
-          src.registry.files.includes(rel) ||
-          src.registry.dirs.some((d) => rel.startsWith(d + "/"));
-        if (want && !files.has(rel))
-          problems.push(
-            `未登记（模型取不到）：${src.dest}/${rel} → 在 ${src.registry.file} 的 METHOD_FILES 加一行`,
-          );
       }
     }
   }
@@ -272,7 +222,6 @@ async function check() {
 
 /* ---------------- 导入上游新版 ---------------- */
 
-// 没标 UTF-8 的 zip（Windows 常见）文件名按 cp437 读出来是乱码：还原成 UTF-8，不行再按 GBK
 const UNZIP_PY = `
 import sys, os, zipfile
 src, out = sys.argv[1], sys.argv[2]
@@ -298,7 +247,7 @@ with zipfile.ZipFile(src) as z:
 
 async function extractZip(zip) {
   const out = await mkdtemp(path.join(tmpdir(), "zhizhang-assets-"));
-  for (const py of [process.env.WRITER_PYTHON, "python3", "python", "py"].filter(Boolean)) {
+  for (const py of [process.env.ZHIZHANG_PYTHON, "python3", "python", "py"].filter(Boolean)) {
     try {
       execFileSync(py, [...(py === "py" ? ["-3"] : []), "-c", UNZIP_PY, zip, out], {
         stdio: "ignore",
@@ -308,17 +257,16 @@ async function extractZip(zip) {
       if (error.code !== "ENOENT") throw error;
     }
   }
-  throw new Error(
-    "解不开 zip：需要 Python 3（配置的 python、python3、python 或 py -3）；也可以先手动解压，再传目录",
-  );
+  throw new Error("解不开 zip：需要 Python 3（ZHIZHANG_PYTHON、python3、python 或 py -3）");
 }
 
 async function locate(base, src, depth = 0) {
   if (
     existsSync(path.join(base, src.marker)) &&
     (path.basename(base) === src.upstreamRoot || depth === 0)
-  )
+  ) {
     return base;
+  }
   if (depth > 3) return undefined;
   for (const e of await readdir(base, { withFileTypes: true })) {
     if (!e.isDirectory() || SKIP.has(e.name)) continue;
@@ -331,13 +279,14 @@ async function locate(base, src, depth = 0) {
 async function importSource(id, from) {
   const sources = await loadSources();
   const src = sources.sources.find((s) => s.id === id);
-  if (!src)
+  if (!src) {
     throw new Error(
       `没有这个来源：${id}。可选：${sources.sources
         .filter((s) => s.kind === "upstream")
         .map((s) => s.id)
         .join("、")}`,
     );
+  }
   if (src.kind !== "upstream") throw new Error(`${id} 是本项目自写资产，不从上游导入`);
   if (!from) throw new Error("缺少新版目录或 zip");
   let base = path.resolve(from);
@@ -357,11 +306,11 @@ async function importSource(id, from) {
     const patched = new Set(src.patched ?? []);
     const mine = (await walk(dest)).filter((r) => !keep.has(r) && !excluded(src, r));
     const theirs = (await walk(up)).filter((r) => !excluded(src, r));
-    const added = [],
-      changed = [],
-      removed = [],
-      conflicts = [],
-      same = [];
+    const added = [];
+    const changed = [];
+    const removed = [];
+    const conflicts = [];
+    const same = [];
     for (const r of theirs) {
       if (keep.has(r)) {
         conflicts.push(`${r}（本项目文件，上游也有同名，保留本项目的）`);
@@ -376,9 +325,12 @@ async function importSource(id, from) {
       else if (patched.has(r)) conflicts.push(`${r}（本地有修改，上游也改了：需手工合并）`);
       else changed.push(r);
     }
-    for (const r of mine)
-      if (!theirs.includes(r))
-        patched.has(r) ? conflicts.push(`${r}（本地有修改，上游已删除）`) : removed.push(r);
+    for (const r of mine) {
+      if (!theirs.includes(r)) {
+        if (patched.has(r)) conflicts.push(`${r}（本地有修改，上游已删除）`);
+        else removed.push(r);
+      }
+    }
     const report = [
       `# 资产更新：${src.id} ${src.version} → ${newVersion}`,
       "",
@@ -418,7 +370,7 @@ async function importSource(id, from) {
         "## 应用后检查",
         ...(left.length ? left.map((x) => `- ${x}`) : ["- 通过"]),
         "",
-        "下一步：npm test（方法加载测试会逐份核对），再更新 CHANGELOG。",
+        "下一步：npm test，再更新 CHANGELOG.md。",
       );
       await mkdir(path.join(ROOT, "assets/updates"), { recursive: true });
       await writeFile(
@@ -436,17 +388,18 @@ async function importSource(id, from) {
 try {
   if (cmd === "manifest") {
     const m = await writeManifest();
-    for (const [id, s] of Object.entries(m.sources))
+    for (const [id, s] of Object.entries(m.sources)) {
       console.log(
         `${id}${s.version ? " " + s.version : ""}：${s.files} 份，可加载 ${s.loadable}，${Math.round(s.bytes / 1024)}KB`,
       );
+    }
   } else if (cmd === "check") {
     const p = await check();
     if (p.length) {
       console.error(`资产检查未通过（${p.length} 项）：\n` + p.map((x) => "  - " + x).join("\n"));
       process.exit(1);
     }
-    console.log("资产检查通过：清单、登记、版本号与磁盘一致");
+    console.log("资产检查通过：清单、方案阶段映射与版本号与磁盘一致");
   } else if (cmd === "import") {
     await importSource(rest[0], rest[1]);
   } else {

@@ -55,6 +55,7 @@ export function createModelServices(deps: {
   const { config } = deps;
   const ports = createPiPorts({
     authPath: deps.authPath,
+    clock: deps.clock,
     resolve(id) {
       if (!config.settings().models.connections.some((c) => c.id === id)) {
         throw new AppError("model.auth", NOT_CONFIGURED, { connection: id });

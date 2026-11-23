@@ -1,4 +1,5 @@
 import path from "node:path";
+import { systemClock } from "@zhizhang/core/clock";
 import { AppError } from "@zhizhang/core/errors";
 import { atomicWrite, resolveResourcePath, readTextIfExists, sha256 } from "@zhizhang/core/fs";
 import type { ContextPacket, DeliveryReceipt, PipelineDefinition } from "@zhizhang/core/pipeline";
@@ -30,16 +31,20 @@ export interface StandaloneReviewResult {
 export const reviewPipeline: PipelineDefinition<ReviewReq, StandaloneReviewResult> = {
   kind: "fanqie.review",
   request: ReviewPipelineReq,
-  async context(target, req) {
+  async context(target, req, env) {
+    const clock = env?.clock ?? systemClock;
     return {
-      runId: `review-${Date.now()}`,
+      runId: `review-${clock.now()}`,
       target,
       request: req,
       state: {},
+      clock,
+      lock: env?.lock,
+      budget: env?.budget,
     };
   },
   async run(runner, ctx) {
-    const req = ctx.request as ReviewReq;
+    const req = ctx.request;
     const prepared = await runner.local("prepare", async () => {
       const chapterPath = resolveResourcePath(ctx.target.path, "chapters", `${req.chapterId}.md`);
       const raw = await readTextIfExists(chapterPath);
@@ -119,7 +124,7 @@ export const reviewPipeline: PipelineDefinition<ReviewReq, StandaloneReviewResul
     };
   },
   async recover(record, ctx) {
-    const req = ctx.request as ReviewReq;
+    const req = ctx.request;
     const marker = resolveResourcePath(
       ctx.target.path,
       "candidates",
@@ -128,17 +133,21 @@ export const reviewPipeline: PipelineDefinition<ReviewReq, StandaloneReviewResul
     );
     return (await isAlreadyDelivered(marker, record.id)) ? "delivered" : "resume";
   },
-  async apply(record, _choice, ctx) {
+  async apply(_record, _choice, ctx) {
     const req = ReviewPipelineReq(ctx.request);
     const prepared = obj({ revision: str() }, { strict: false })(ctx.state.prepare);
     const review = makeReviewStage(1).parse(JSON.stringify(ctx.state.review));
     const continuity = continuityStage.parse(JSON.stringify(ctx.state["continuity-check"]));
     const issues = [...continuity.issues, ...review.issues];
-    await reviewChapter(ctx.target.path, {
-      chapterId: req.chapterId,
-      expectedRevision: prepared.revision,
-      verdict: review.verdict === "pass" && issues.length > 0 ? "revise" : review.verdict,
-      quotes: issues.map((issue) => issue.quote),
-    });
+    await reviewChapter(
+      ctx.target.path,
+      {
+        chapterId: req.chapterId,
+        expectedRevision: prepared.revision,
+        verdict: review.verdict === "pass" && issues.length > 0 ? "revise" : review.verdict,
+        quotes: issues.map((issue) => issue.quote),
+      },
+      ctx.lock,
+    );
   },
 };

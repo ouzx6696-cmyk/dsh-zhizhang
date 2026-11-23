@@ -5,6 +5,7 @@ import { classify } from "../errors/classify.js";
 
 export interface AtomicWriteOptions {
   onEinval?: (dir: string) => void;
+  mode?: number;
 }
 
 export async function atomicWrite(
@@ -17,11 +18,14 @@ export async function atomicWrite(
   const tmp = path.join(dir, `.${path.basename(file)}.${process.pid}.${crypto.randomUUID()}.tmp`);
   let fh: fs.FileHandle | undefined;
   try {
-    fh = await fs.open(tmp, "wx");
+    fh = await fs.open(tmp, "wx", opts?.mode);
     await fh.writeFile(data);
     await fh.sync();
     await fh.close();
     fh = undefined;
+    if (opts?.mode !== undefined && process.platform !== "win32") {
+      await fs.chmod(tmp, opts.mode).catch(() => undefined);
+    }
     await fs.rename(tmp, file);
     try {
       const dfd = await fs.open(dir, "r");

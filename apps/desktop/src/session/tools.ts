@@ -28,6 +28,14 @@ function runInfo(value: object): { runId?: string; pipeline?: string } {
   return runId ? { runId, ...(pipeline ? { pipeline } : {}) } : {};
 }
 
+const MAX_TOOL_OUTPUT_CHARS = 24_000;
+
+function clipToolOutput(text: string): string {
+  if (text.length <= MAX_TOOL_OUTPUT_CHARS) return text;
+  const omitted = text.length - MAX_TOOL_OUTPUT_CHARS;
+  return `${text.slice(0, MAX_TOOL_OUTPUT_CHARS)}\n…（工具返回已截断，省略 ${omitted} 字符）`;
+}
+
 export async function runTool(
   tools: ToolDefinition[],
   call: AgentToolCall,
@@ -47,11 +55,11 @@ export async function runTool(
   try {
     const result = await executeTool(def, call.args, ctx);
     if (!result.ok) {
-      return { text: JSON.stringify(result), isError: true };
+      return { text: clipToolOutput(JSON.stringify(result)), isError: true };
     }
     const { ok: _ok, ...value } = result;
-    const text = def.render ? def.render(value) : JSON.stringify(value);
-    return { text, isError: false, ...runInfo(value) };
+    const raw = def.render ? def.render(value) : JSON.stringify(value);
+    return { text: clipToolOutput(raw), isError: false, ...runInfo(value) };
   } catch (err) {
     const appErr = classify(err);
     return {

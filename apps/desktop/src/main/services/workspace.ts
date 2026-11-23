@@ -78,7 +78,7 @@ export function createWorkspaceService(deps: {
       format = undefined;
     }
     if (format !== FORMAT_VERSION) {
-      throw new AppError("storage.format_unsupported", "写作文件夹的标记不是 zhizhang/1.3", {
+      throw new AppError("storage.format_unsupported", `写作文件夹的标记不是 ${FORMAT_VERSION}`, {
         root,
       });
     }

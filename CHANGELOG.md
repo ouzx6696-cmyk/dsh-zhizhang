@@ -1,27 +1,38 @@
 # 更新日志
 
-## Unreleased
+## 2.1.0（全链路加固、性能优化与文档体系重构）
 
-- 增强 `scripts/guard.mjs`：`G-exports` 导出校验、`G-copy` 文案与业务常量守卫、桌面 `main/` 裸错误基线检查与 `as` 断言上限控制；移除旧 `scripts/architecture-guard.mjs`。
-- 精简 `.github/workflows/ci.yml`：移除 `scope`/`ci-run.mjs`/`test:platform`，接入 `check`、`test`、`e2e` 与 `Zhizhang` 打包流程。
-- 统一 `scripts/check-desktop-package.mjs` 为 `Zhizhang.exe` 与 `zhizhangBridge` 契约，补充核心单元行为测试与 8 份核心文档。
+### L0 核心引擎（`@zhizhang/core`）
+- **Python 桥接 UTF-8 与跨平台加固**：`runPython` 改为 `Buffer[]` 合并后统一解码 UTF-8，彻底消除多字节中文跨 chunk 截断乱码；子进程默认注入 `PYTHONUTF8=1` 与 `PYTHONIOENCODING=utf-8`；Windows 解释器探测补齐 `python` 回退。
+- **存储、锁与权限安全**：`atomicWrite` 支持 POSIX 权限位（`mode`）；`sandbox` 新增非阻塞 `resolveInsideAsync` / `resolveResourcePathAsync`；`write-lock` 锁目录按 `resource.kind` 命名空间隔离，修复 Unix `EPERM` 存活误判，并全面接入 Schema 校验（覆盖 `lock`、`journal`、`methods`、`usage`、`delivery`）。
+- **网关与流水线控制**：`ModelGateway` 接入可选 `UsageTracker`、`requireExplicitBinding` 及流式 `onDelta` 透传；`executePipeline` 精确区分 `signal.reason === "cancelled"`（取消）与暂停（`paused`）；`ToolSpec` 新增 `readonly` 声明与 `ToolCtx` 锁/时钟注入。
+
+### L2 业务模式（`@zhizhang/fanqie` & `@zhizhang/toutiao`）
+- **头条原生卡片校验与工作区洁净**：`writer_bridge.py` 新增 `check-card` 子命令并在 `limits` 中结构化返回 `styles`（直接读取 `rules.py`），TS 侧彻底移除内联 `python -c` 并缓存 `limits`/`styles`；头条流水线替换空上下文包为真实预算 `ContextPacket`，临时质检文件移至 `.tmp/` 并在结束后清理。
+- **番茄设定集与上下文性能优化**：将 655 行 `bible/store.ts` 拆分为 `schemas.ts` / `audit.ts` / `store.ts`；`audit()` 改用实体索引表与二分查找，消除 $O(C \times K \times E)$ 退化；`read()` 引入基于文件签名缓存；`buildChapterContext` 引入 2-gram LRU 缓存并严格执行 `input.budget` 分级裁剪。
+- **番茄流水线并行与容错**：`chapterPipeline` 并行执行候选逐稿评分与前二换位比较；修稿轮次未通过门禁时自动回退保留上一版合规候选稿并记录审读说明，不再整次报废；`work.json` 损坏快速报错不再静默吞没；将 580 行 `pipelines/book/index.ts` 拆分为 `schemas.ts` / `stages.ts` / `index.ts`。
+
+### L1 & L3 双宿主、会话、网络与前端（`@zhizhang/ui` / `@zhizhang/workbench` / `apps/desktop`）
+- **Web 预览安全与可靠性**：静态文件与 `/api/exports/:file` 全面改用 `resolveInsideAsync` 沙箱；`POST /api/rpc/*` 强制校验同源 `Origin` 与 `application/json`；新增安全响应头与静态资源分层 `Cache-Control`；SSE 广播包裹 `safeWriteSse` 自动清理失效连接，前端 `web-bridge.ts` 增加重连状态同步与 RPC 超时。
+- **运行时与会话并发加固**：`SessionManager` 按目标串行化 `send`/`compact`/`newConversation`/`view`，`states` 缓存改为 16 槽 LRU（不淘汰忙碌会话），连续 `readonly: true` 工具自动并发执行，工具返回超 24KB 自动截断；`pi-adapter.ts` 增加 15s 连接测试超时、结构化状态码解析、`structuredClone` 与单次 runtime 查询；`RunStore` 隔离损坏记录并按 200 条终态上限自动裁剪；`ConfigService` 以 `0600` 权限落盘 `secrets.bin` 并支持 `onChange` 退订；`network.ts` 支持 gzip/deflate/br 解压、GB18030 回退与保留段落结构的正文提取。
+- **模块拆分、前端竞态修复与死代码清理**：拆分 `packages/ui/src/copy/desktop.ts` 与 `apps/desktop/src/main/commands.ts`（全仓零超 400 行告警）；`ToutiaoWorkspace` 接入 `useRequestGuard` 防过期响应覆盖且编辑中不被外部刷新打断；修复 `events.ts` 消息计数漂移并防抖刷新目标列表；清除全部死导出（`unusedExports = 0`）并现代化改造 `assets/sources.json` 与 `scripts/assets.mjs`。
+- **文档体系全量重构**：重写 `AGENTS.md`、`README.md`、`docs/ARCHITECTURE.md`、`docs/WRITING.md`、`docs/USER-GUIDE.md`、`docs/STATUS.md`、`docs/plans/v2.md`（替代 `v1.3.md`）与 `CHANGELOG.md`。
+
+## 2.0.0（双宿主重构与 `zhizhang/2.0` 架构升级）
+
+- **统一版本与磁盘格式**：升级至 `APP_VERSION = "2.0.0"` 与 `FORMAT_VERSION = "zhizhang/2.0"`，彻底移除 1.x 旧格式兼容分支。
+- **双宿主共享组合根**：抽离无 Electron 依赖的 `HostPlatform`、`createAppRuntime` 与传输无关 `createRpcHandlers`，新增 Web 本地预览服务器（`0.0.0.0:3000` HTTP RPC + SSE）与示例数据初始化，渲染层按运行环境自动切换 IPC 或 HTTP/SSE 桥。
+- **内核与流水线升级**：`@zhizhang/core/schema` 支持 `desc` / `nullable` / `toJsonSchema`，`defineTool` 自动推导 JSON Schema；`StageRunner` 串行化 `fanOut` 状态落盘并推送 `PipelineEvent`；`PythonRunner` 加固超时、输出上限与强制 JSON Schema 校验；头条支持基于 `stage-map.json` `when` 条件的赛道动态路由与多路起稿择优；番茄设定集升级为 `commitIntent` 原子落盘，全书规划升级为 `plan/proposals/<runId>/` 提案隔离。
+- **前端与守卫收敛**：全面拆解超长 TSX 组件与 CSS 样式表，严格执行全 `.tsx` 零 JSX 中文硬编码与 `scripts/guard.mjs` 静态架构守卫。
 
 ## 1.3.0
 
-- **交付收尾**：修复助手路径越界、候选采纳与定稿状态、同目标运行竞争、失败回答费用漏记和预算预占释放；恢复阶段直接复用已验收输出。
-- **正文与资料一致性**：章节加载前文、卷规划及绑定参考卡；头条编辑修订后重核事实，台账失败时保留可重试的文章状态，交稿文件与元数据经写入意图提交。
-- **环境与构建**：租约获取/接管/释放共用写锁，切换工作区前停止旧任务；修复 Windows 构建顺序和发行验证命令；测试转换器收敛到已有 esbuild，仅增加一条必要回归用例。
-
-- **品牌与包结构统一**：全仓更名为 `zhizhang`（`app.zhizhang.desktop`、`Zhizhang.exe`、`~/.zhizhang`、`.zhizhang/`），所有内部包登记为 npm workspace `@zhizhang/{core,fanqie,toutiao,workbench,ui,desktop}`。因 `appId` 变更，1.1.1 用户需手动安装新版本。
-- **全新磁盘格式（`zhizhang/1.3`）**：移除 `meta.json` 单点热点与 1.x 旧数据/设置兼容分支；确立设定集 `bible/` 为唯一连续性真源；本地草稿迁移至写作文件夹 `.zhizhang/drafts/`。
-- **精简与架构收敛**：删除自由写手模式、7 个冗余实验开关及 23 份过期文档；`@zhizhang/core` 收敛为 errors / schema / fs / lock / journal / tool / pipeline / model / methods / python 模块；统一 `AppError` 码表、`ModelGateway` 全局并发/金额预算闸与 `LockService` 三锁合一机制。
-- **写作内核升级**：番茄长篇实现纯文本起稿、审读引文逐条容错、初选逐稿独立打分、确定性 `stage-map.json` 阶段取用与段落级 diff 个人规则学习；头条图文修正修订阶段使用 `s5-editing`、实现增量事实链复核并将 `PASS_SCORE = 84` 收口至 `rules.py`。
-- **界面与设计系统**：建立 `--zz-*` 三层设计令牌与四色语义分离；流水线面板改为右栏停靠并支持与助手分屏；新增专注模式与强类型 `WorkbenchCommandMap` / `DesktopEvent` 契约。
+- **品牌与包结构统一**：全仓更名为 `zhizhang`（`app.zhizhang.desktop`、`Zhizhang.exe`、`~/.zhizhang`、`.zhizhang/`），内部包统一为 `@zhizhang/{core,fanqie,toutiao,workbench,ui,desktop}`。
+- **设定集与精简收敛**：删除自由写手模式与冗余实验开关；确立 `bible/` 为唯一连续性真源；落地 `stage-map.json` 确定性直取原文、纯文本起稿、逐稿独立打分与段落级 diff 个人规则学习；建立 `--zz-*` 三层设计令牌与右栏分屏工作台。
 
 ## 1.1.1
 
-- 确立阶段隔离流水线、可恢复 journal、引文逐字定位、换位读者比较与头条 4.0.0 规则门禁基础能力。
-- 完善桌面端离线备份（utility process）、Electron Fuse 安全加固与 Windows 安装包冒烟验证链路。
+- 确立阶段隔离流水线、可恢复 `journal`、引文逐字定位、换位读者比较与头条 4.0.0 规则门禁基础能力；完善独立进程离线备份与 Electron 安全配置。
 
 ## 0.x（早期原型）
 

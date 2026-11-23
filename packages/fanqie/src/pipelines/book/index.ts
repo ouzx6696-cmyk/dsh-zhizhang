@@ -1,204 +1,38 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { systemClock } from "@zhizhang/core/clock";
+import { systemClock, type Clock } from "@zhizhang/core/clock";
 import { AppError } from "@zhizhang/core/errors";
-import { atomicWrite, readTextIfExists, sha256 } from "@zhizhang/core/fs";
+import { atomicWrite, readJson, readTextIfExists, sha256 } from "@zhizhang/core/fs";
+import { commitIntent, type IntentWrite } from "@zhizhang/core/journal";
 import { createLockService, type LockService } from "@zhizhang/core/lock";
 import { FORMAT_VERSION } from "@zhizhang/core/paths";
-import type {
-  ContextPacket,
-  DeliveryReceipt,
-  PipelineDefinition,
-  RunCtx,
-  RunRecord,
-  StageSpec,
+import {
+  buildDeliveryMarker,
+  definePipeline,
+  isAlreadyDelivered,
+  type ContextPacket,
+  type DeliveryReceipt,
+  type PipelineDefinition,
+  type RunCtx,
+  type RunRecord,
 } from "@zhizhang/core/pipeline";
-import { buildDeliveryMarker, isAlreadyDelivered } from "@zhizhang/core/pipeline";
-import { arr, int, lit, obj, opt, parseJson, str, type Infer } from "@zhizhang/core/schema";
+import { arr } from "@zhizhang/core/schema";
 import { createBibleStore } from "../../bible/store.js";
 import type { Entity, StateEntry } from "../../bible/types.js";
+import {
+  BookCardFileSchema,
+  BookFoundationSchema,
+  BookPipelineReq,
+  BookVolumeSchema,
+  ChapterOutlineSchema,
+  type BookPipelineState,
+  type BookPlanResult,
+  type BookReq,
+} from "./schemas.js";
+import { cardStage, foundationStage, outlineStage, structureStage } from "./stages.js";
 
-export const BookPipelineReq = obj({
-  title: str({ min: 1 }),
-  premise: str({ min: 1 }),
-  genre: opt(str()),
-  grade: opt(lit("economy", "standard", "premium")),
-  outlineCount: opt(int({ min: 1, max: 100 })),
-});
-
-export type BookReq = Infer<typeof BookPipelineReq>;
-
-export interface BookCardOutput {
-  title: string;
-  genre: string;
-  hook: string;
-  sellingPoints: string[];
-  targetAudience: string;
-}
-
-export interface BookFoundationOutput {
-  protagonist: { name: string; goal: string; flaw: string; goldenFinger: string };
-  worldview: string;
-  powerSystem: string;
-  coreConflict: string;
-}
-
-export interface BookVolume {
-  volume: number;
-  title: string;
-  summary: string;
-  startChapter: number;
-  endChapter: number;
-}
-
-export interface BookStructureOutput {
-  volumes: BookVolume[];
-}
-
-export interface ChapterOutlineItem {
-  position: number;
-  title: string;
-  synopsis: string;
-  conflict: string;
-  hook: string;
-}
-
-export interface BookOutlineOutput {
-  chapters: ChapterOutlineItem[];
-}
-
-export interface BookPlanResult {
-  card: BookCardOutput;
-  foundation: BookFoundationOutput;
-  structure: BookStructureOutput;
-  outline: BookOutlineOutput;
-  outlineCount: number;
-}
-
-const BookCardSchema = obj({
-  title: str({ min: 1 }),
-  genre: str({ min: 1 }),
-  hook: str({ min: 1 }),
-  sellingPoints: arr(str({ min: 1 }), { max: 10 }),
-  targetAudience: str({ min: 1 }),
-});
-
-const BookFoundationSchema = obj({
-  protagonist: obj({
-    name: str({ min: 1 }),
-    goal: str({ min: 1 }),
-    flaw: str({ min: 1 }),
-    goldenFinger: str({ min: 1 }),
-  }),
-  worldview: str({ min: 1 }),
-  powerSystem: str({ min: 1 }),
-  coreConflict: str({ min: 1 }),
-});
-
-const BookStructureSchema = obj({
-  volumes: arr(
-    obj({
-      volume: int({ min: 1 }),
-      title: str({ min: 1 }),
-      summary: str({ min: 1 }),
-      startChapter: int({ min: 1 }),
-      endChapter: int({ min: 1 }),
-    }),
-    { max: 30 },
-  ),
-});
-
-const BookOutlineSchema = obj({
-  chapters: arr(
-    obj({
-      position: int({ min: 1 }),
-      title: str({ min: 1 }),
-      synopsis: str({ min: 1 }),
-      conflict: str({ min: 1 }),
-      hook: str({ min: 1 }),
-    }),
-    { max: 100 },
-  ),
-});
-
-export const cardStage: StageSpec<BookReq, BookCardOutput> = {
-  id: "card",
-  title: "书卡定位",
-  role: "planner",
-  method: { stage: "fanqie.book.card" },
-  input: (ctx) => ctx.request as BookReq,
-  shape:
-    'JSON 格式：{"title":"书名","genre":"题材","hook":"核心看点","sellingPoints":["卖点"],"targetAudience":"目标读者"}',
-  format: "json",
-  parse: (raw) => parseJson(raw, BookCardSchema, "book.card"),
-};
-
-export const foundationStage: StageSpec<
-  { req: BookReq; card: BookCardOutput },
-  BookFoundationOutput
-> = {
-  id: "foundation",
-  title: "世界与人物基石",
-  role: "planner",
-  method: { stage: "fanqie.book.foundation" },
-  input: (ctx) => ({
-    req: ctx.request as BookReq,
-    card: ctx.state.card as BookCardOutput,
-  }),
-  shape:
-    'JSON 格式：{"protagonist":{"name":"主角名","goal":"目标","flaw":"弱点","goldenFinger":"金手指"},"worldview":"世界观","powerSystem":"升级体系","coreConflict":"主线冲突"}',
-  format: "json",
-  parse: (raw) => parseJson(raw, BookFoundationSchema, "book.foundation"),
-};
-
-export const structureStage: StageSpec<
-  { req: BookReq; card: BookCardOutput; foundation: BookFoundationOutput },
-  BookStructureOutput
-> = {
-  id: "structure",
-  title: "分卷结构",
-  role: "planner",
-  method: { stage: "fanqie.book.structure" },
-  input: (ctx) => ({
-    req: ctx.request as BookReq,
-    card: ctx.state.card as BookCardOutput,
-    foundation: ctx.state.foundation as BookFoundationOutput,
-  }),
-  shape:
-    'JSON 格式：{"volumes":[{"volume":1,"title":"卷名","summary":"卷梗概","startChapter":1,"endChapter":50}]}',
-  format: "json",
-  parse: (raw) => parseJson(raw, BookStructureSchema, "book.structure"),
-};
-
-export const outlineStage: StageSpec<
-  {
-    req: BookReq;
-    card: BookCardOutput;
-    foundation: BookFoundationOutput;
-    structure: BookStructureOutput;
-    outlineCount: number;
-  },
-  BookOutlineOutput
-> = {
-  id: "outline",
-  title: "前序章纲",
-  role: "planner",
-  method: { stage: "fanqie.book.outline" },
-  input: (ctx) => {
-    const req = ctx.request as BookReq;
-    return {
-      req,
-      card: ctx.state.card as BookCardOutput,
-      foundation: ctx.state.foundation as BookFoundationOutput,
-      structure: ctx.state.structure as BookStructureOutput,
-      outlineCount: req.outlineCount ?? 10,
-    };
-  },
-  shape:
-    'JSON 格式：{"chapters":[{"position":1,"title":"章名","synopsis":"梗概","conflict":"冲突","hook":"章末钩子"}]}',
-  format: "json",
-  parse: (raw) => parseJson(raw, BookOutlineSchema, "book.outline"),
-};
+export * from "./schemas.js";
+export * from "./stages.js";
 
 function isRecord(val: unknown): val is Record<string, unknown> {
   return typeof val === "object" && val !== null;
@@ -214,13 +48,46 @@ function isBookPlanResult(val: unknown): val is BookPlanResult {
   );
 }
 
-function resolveBookPlanChoice(choice: unknown, ctx: RunCtx): BookPlanResult | undefined {
+function proposalDirOf(workPath: string, runId: string): string {
+  return path.join(workPath, "plan", "proposals", runId);
+}
+
+async function readBookProposal(
+  workPath: string,
+  runId: string,
+): Promise<BookPlanResult | undefined> {
+  const dir = proposalDirOf(workPath, runId);
+  const [card, foundation, volumes, chapters] = await Promise.all([
+    readJson(path.join(dir, "card.json"), BookCardFileSchema).catch(() => undefined),
+    readJson(path.join(dir, "foundation.json"), BookFoundationSchema).catch(() => undefined),
+    readJson(path.join(dir, "structure.json"), arr(BookVolumeSchema)).catch(() => undefined),
+    readJson(path.join(dir, "outline.json"), arr(ChapterOutlineSchema)).catch(() => undefined),
+  ]);
+  if (!card || !foundation || !volumes || !chapters) return undefined;
+  return {
+    card: {
+      title: card.title,
+      genre: card.genre,
+      hook: card.hook,
+      sellingPoints: card.sellingPoints,
+      targetAudience: card.targetAudience,
+    },
+    foundation,
+    structure: { volumes },
+    outline: { chapters },
+    outlineCount: chapters.length,
+  };
+}
+
+async function resolveBookPlanChoice(
+  choice: unknown,
+  ctx: RunCtx<BookReq, BookPipelineState>,
+  runId: string,
+): Promise<BookPlanResult | undefined> {
   if (isBookPlanResult(choice)) return choice;
-  if (isRecord(choice) && isBookPlanResult(choice.plan)) {
-    return choice.plan;
-  }
-  if (isBookPlanResult(ctx.state.result)) return ctx.state.result;
-  if (isBookPlanResult(ctx.state)) {
+  if (isRecord(choice) && isBookPlanResult(choice.plan)) return choice.plan;
+  if (ctx.state.result) return ctx.state.result;
+  if (ctx.state.card && ctx.state.foundation && ctx.state.structure && ctx.state.outline) {
     return {
       card: ctx.state.card,
       foundation: ctx.state.foundation,
@@ -229,7 +96,7 @@ function resolveBookPlanChoice(choice: unknown, ctx: RunCtx): BookPlanResult | u
       outlineCount: ctx.state.outline.chapters.length,
     };
   }
-  return undefined;
+  return readBookProposal(ctx.target.path, runId);
 }
 
 function upsertById<T extends { id: string }>(list: T[], item: T): T[] {
@@ -240,13 +107,23 @@ function upsertById<T extends { id: string }>(list: T[], item: T): T[] {
   return next;
 }
 
+async function intentWrite(file: string, after: string): Promise<IntentWrite> {
+  const prev = await readTextIfExists(file);
+  return {
+    path: file,
+    beforeHash: prev === undefined ? null : sha256(prev),
+    after,
+  };
+}
+
 export async function applyBookPlan(
   workPath: string,
   runId: string,
   plan: BookPlanResult,
   lock: LockService = createLockService(systemClock),
+  clock: Clock = systemClock,
 ): Promise<{ backupDir: string; backedUpFiles: string[]; writtenPlanFiles: string[] }> {
-  const bibleStore = createBibleStore(lock);
+  const bibleStore = createBibleStore(lock, clock);
   return lock.write({ kind: "work", path: workPath }, async () => {
     const planDir = path.join(workPath, "plan");
     const backupDir = path.join(workPath, ".zhizhang", "trash", `plan-${runId}`);
@@ -269,12 +146,7 @@ export async function applyBookPlan(
     const structureFile = path.join(planDir, "structure.json");
     const outlineFile = path.join(planDir, "outline.json");
 
-    await atomicWrite(cardFile, JSON.stringify({ format: FORMAT_VERSION, ...plan.card }, null, 2));
-    await atomicWrite(foundationFile, JSON.stringify(plan.foundation, null, 2));
-    await atomicWrite(structureFile, JSON.stringify(plan.structure.volumes, null, 2));
-    await atomicWrite(outlineFile, JSON.stringify(plan.outline.chapters, null, 2));
-
-    const nowIso = systemClock.iso();
+    const nowIso = clock.iso();
     const provenance = { source: "plan" as const, run: runId, at: nowIso };
     const bible = await bibleStore.read(workPath);
 
@@ -351,8 +223,6 @@ export async function applyBookPlan(
     }
 
     const bibleDir = path.join(workPath, "bible");
-    await atomicWrite(path.join(bibleDir, "entities.json"), JSON.stringify(nextEntities, null, 2));
-    await atomicWrite(path.join(bibleDir, "states.json"), JSON.stringify(nextStates, null, 2));
     const hashes = {
       entities: sha256(JSON.stringify(nextEntities)),
       states: sha256(JSON.stringify(nextStates)),
@@ -362,9 +232,30 @@ export async function applyBookPlan(
       style: sha256(JSON.stringify(bible.style)),
       pending: sha256(JSON.stringify(bible.pending)),
     };
-    await atomicWrite(
-      path.join(bibleDir, "index.json"),
-      JSON.stringify({ format: "zhizhang/1.3", hashes }, null, 2),
+
+    const writes = await Promise.all([
+      intentWrite(cardFile, JSON.stringify({ format: FORMAT_VERSION, ...plan.card }, null, 2)),
+      intentWrite(foundationFile, JSON.stringify(plan.foundation, null, 2)),
+      intentWrite(structureFile, JSON.stringify(plan.structure.volumes, null, 2)),
+      intentWrite(outlineFile, JSON.stringify(plan.outline.chapters, null, 2)),
+      intentWrite(path.join(bibleDir, "entities.json"), JSON.stringify(nextEntities, null, 2)),
+      intentWrite(path.join(bibleDir, "states.json"), JSON.stringify(nextStates, null, 2)),
+      intentWrite(
+        path.join(bibleDir, "index.json"),
+        JSON.stringify({ format: FORMAT_VERSION, hashes }, null, 2),
+      ),
+    ]);
+
+    await commitIntent(
+      path.join(workPath, ".journal"),
+      {
+        format: FORMAT_VERSION,
+        id: `book-apply-${runId}`,
+        writes,
+        meta: { operation: "book.apply", runId },
+      },
+      lock,
+      { kind: "work", path: workPath },
     );
 
     return {
@@ -375,97 +266,116 @@ export async function applyBookPlan(
   });
 }
 
-export const bookPipeline: PipelineDefinition<BookReq, BookPlanResult> = {
-  kind: "fanqie.book",
-  request: BookPipelineReq,
-  async context(target, req) {
-    return { runId: `book-${Date.now()}`, target, request: req, state: {} };
-  },
-  async run(runner, ctx) {
-    const req = ctx.request as BookReq;
-    const packet: ContextPacket = {
-      prefix: [
-        {
-          id: "book-premise",
-          layer: 0,
-          text: `书名：${req.title}\n题材：${req.genre ?? "未指定"}\n核心设定：${req.premise}`,
-          required: true,
-          tokens: Math.ceil((req.title.length + req.premise.length) / 2),
-          reason: "全书立项输入",
-          source: { kind: "author", ref: "premise" },
-        },
-      ],
-      suffix: [],
-      omitted: [],
-      estimate: Math.ceil((req.title.length + req.premise.length) / 2),
-    };
+export const bookPipeline: PipelineDefinition<BookReq, BookPlanResult, BookPipelineState> =
+  definePipeline<BookReq, BookPlanResult, BookPipelineState>({
+    kind: "fanqie.book",
+    request: BookPipelineReq,
+    async context(target, req, env) {
+      const clock = env.clock ?? systemClock;
+      const lock = env.lock ?? createLockService(clock);
+      return {
+        runId: `book-${clock.now()}`,
+        target,
+        request: req,
+        state: {},
+        clock,
+        lock,
+        budget: env.budget,
+        profileId: env.profileId,
+        profile: env.profile,
+        profileRoots: env.profileRoots,
+      };
+    },
+    async run(runner, ctx) {
+      const req = ctx.request;
+      const packet: ContextPacket = {
+        prefix: [
+          {
+            id: "book-premise",
+            layer: 0,
+            text: `书名：${req.title}\n题材：${req.genre ?? "未指定"}\n核心设定：${req.premise}`,
+            required: true,
+            tokens: Math.ceil((req.title.length + req.premise.length) / 2),
+            reason: "全书立项输入",
+            source: { kind: "author", ref: "premise" },
+          },
+        ],
+        suffix: [],
+        omitted: [],
+        estimate: Math.ceil((req.title.length + req.premise.length) / 2),
+      };
 
-    const card = await runner.stage(cardStage, packet);
-    ctx.state.card = card;
+      const card = await runner.stage(cardStage, packet);
+      ctx.state.card = card;
 
-    const foundation = await runner.stage(foundationStage, packet);
-    ctx.state.foundation = foundation;
+      const foundation = await runner.stage(foundationStage, packet);
+      ctx.state.foundation = foundation;
 
-    const structure = await runner.stage(structureStage, packet);
-    ctx.state.structure = structure;
+      const structure = await runner.stage(structureStage, packet);
+      ctx.state.structure = structure;
 
-    const outline = await runner.stage(outlineStage, packet);
-    ctx.state.outline = outline;
+      const outline = await runner.stage(outlineStage, packet);
+      ctx.state.outline = outline;
 
-    const result: BookPlanResult = {
-      card,
-      foundation,
-      structure,
-      outline,
-      outlineCount: outline.chapters.length,
-    };
-    ctx.state.result = result;
-    return result;
-  },
-  async deliver(res, ctx): Promise<DeliveryReceipt> {
-    const planDir = path.join(ctx.target.path, "plan");
-    const marker = path.join(planDir, `${ctx.runId}.marker.json`);
-    const cardPayload = JSON.stringify({ format: FORMAT_VERSION, ...res.card }, null, 2);
-    if (await isAlreadyDelivered(marker, ctx.runId)) {
+      const result: BookPlanResult = {
+        card,
+        foundation,
+        structure,
+        outline,
+        outlineCount: outline.chapters.length,
+      };
+      ctx.state.result = result;
+      return result;
+    },
+    async deliver(res, ctx): Promise<DeliveryReceipt> {
+      const proposalDir = proposalDirOf(ctx.target.path, ctx.runId);
+      const marker = path.join(proposalDir, "marker.json");
+      const cardPayload = JSON.stringify({ format: FORMAT_VERSION, ...res.card }, null, 2);
+      if (await isAlreadyDelivered(marker, ctx.runId)) {
+        return {
+          runId: ctx.runId,
+          deliveredPaths: [],
+          contentHash: sha256(cardPayload),
+          summary: "已幂等交付全书规划提案",
+        };
+      }
+
+      const cardFile = path.join(proposalDir, "card.json");
+      const foundationFile = path.join(proposalDir, "foundation.json");
+      const structureFile = path.join(proposalDir, "structure.json");
+      const outlineFile = path.join(proposalDir, "outline.json");
+
+      await atomicWrite(cardFile, cardPayload);
+      await atomicWrite(foundationFile, JSON.stringify(res.foundation, null, 2));
+      await atomicWrite(structureFile, JSON.stringify(res.structure.volumes, null, 2));
+      await atomicWrite(outlineFile, JSON.stringify(res.outline.chapters, null, 2));
+      await atomicWrite(marker, buildDeliveryMarker(ctx.runId, cardPayload));
+
       return {
         runId: ctx.runId,
-        deliveredPaths: [],
+        deliveredPaths: [cardFile, foundationFile, structureFile, outlineFile],
         contentHash: sha256(cardPayload),
-        summary: "已幂等交付全书规划",
+        summary: `已生成全书规划提案（${res.structure.volumes.length} 卷，前 ${res.outlineCount} 章纲，待作者确认应用）`,
       };
-    }
-
-    const cardFile = path.join(planDir, "card.json");
-    const foundationFile = path.join(planDir, "foundation.json");
-    const structureFile = path.join(planDir, "structure.json");
-    const outlineFile = path.join(planDir, "outline.json");
-
-    await atomicWrite(cardFile, cardPayload);
-    await atomicWrite(foundationFile, JSON.stringify(res.foundation, null, 2));
-    await atomicWrite(structureFile, JSON.stringify(res.structure.volumes, null, 2));
-    await atomicWrite(outlineFile, JSON.stringify(res.outline.chapters, null, 2));
-    await atomicWrite(marker, buildDeliveryMarker(ctx.runId, cardPayload));
-
-    return {
-      runId: ctx.runId,
-      deliveredPaths: [cardFile, foundationFile, structureFile, outlineFile],
-      contentHash: sha256(cardPayload),
-      summary: `已生成全书规划（${res.structure.volumes.length} 卷，前 ${res.outlineCount} 章纲）`,
-    };
-  },
-  async recover(record, ctx) {
-    const marker = path.join(ctx.target.path, "plan", `${record.id}.marker.json`);
-    return (await isAlreadyDelivered(marker, record.id)) ? "delivered" : "resume";
-  },
-  async apply(record: RunRecord, choice: unknown, ctx: RunCtx): Promise<void> {
-    if (choice === "reject") return;
-    if (isRecord(choice) && choice.adopt === false) {
-      return;
-    }
-    const plan = resolveBookPlanChoice(choice, ctx);
-    if (!plan) {
-      throw new AppError("input.invalid", "缺少可应用的全书规划结果", { runId: record.id });
-    }
-    await applyBookPlan(ctx.target.path, record.id || ctx.runId, plan);
-  },
-};
+    },
+    async recover(record, ctx) {
+      const marker = path.join(proposalDirOf(ctx.target.path, record.id), "marker.json");
+      return (await isAlreadyDelivered(marker, record.id)) ? "delivered" : "resume";
+    },
+    async apply(
+      record: RunRecord,
+      choice: unknown,
+      ctx: RunCtx<BookReq, BookPipelineState>,
+    ): Promise<void> {
+      if (choice === "reject") return;
+      if (isRecord(choice) && choice.adopt === false) return;
+      const runId = record.id || ctx.runId;
+      const plan = await resolveBookPlanChoice(choice, ctx, runId);
+      if (!plan) {
+        throw new AppError("input.invalid", "缺少可应用的全书规划提案", { runId });
+      }
+      const clock = ctx.clock ?? systemClock;
+      const lock = ctx.lock ?? createLockService(clock);
+      await applyBookPlan(ctx.target.path, runId, plan, lock, clock);
+    },
+  });

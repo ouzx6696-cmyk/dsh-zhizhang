@@ -4,6 +4,7 @@ export interface StageTakeRule {
   file: string;
   sections?: string[];
   maxChars?: number;
+  when?: Record<string, string | readonly string[]>;
 }
 
 export type StageMap = Record<string, { take: StageTakeRule[] }>;
@@ -15,6 +16,24 @@ export interface Profile {
   files: Record<string, string>;
   stageMap: StageMap;
   hash: string;
+}
+
+function matchesWhen(
+  when: Record<string, string | readonly string[]> | undefined,
+  vars?: Record<string, string | undefined>,
+): boolean {
+  if (!when) return true;
+  if (!vars) return false;
+  for (const [key, expected] of Object.entries(when)) {
+    const actual = vars[key];
+    if (actual === undefined) return false;
+    if (Array.isArray(expected)) {
+      if (!expected.includes(actual)) return false;
+    } else if (actual !== expected) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function extractSections(markdown: string, wanted?: string[]): { text: string; missing: string[] } {
@@ -48,6 +67,7 @@ function extractSections(markdown: string, wanted?: string[]): { text: string; m
 export function methodFor(
   profile: Profile,
   stage: string,
+  vars?: Record<string, string | undefined>,
 ): { text: string; hash: string; omitted: string[] } {
   const rule = profile.stageMap[stage];
   if (!rule) {
@@ -57,6 +77,7 @@ export function methodFor(
   const omitted: string[] = [];
 
   for (const take of rule.take) {
+    if (!matchesWhen(take.when, vars)) continue;
     const raw = profile.files[take.file];
     if (raw === undefined) {
       omitted.push(take.file);

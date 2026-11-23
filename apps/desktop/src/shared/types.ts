@@ -20,6 +20,7 @@ export type TaskState = {
 export type ToolCallView = {
   name: string;
   isError: boolean;
+  summary?: string;
 };
 
 export type ChatMessage = {

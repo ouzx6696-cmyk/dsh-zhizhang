@@ -55,11 +55,22 @@ export async function canLeave(): Promise<boolean> {
 export async function boot(): Promise<void> {
   set({ boot: "loading", bootError: "" });
   const app = await desktop.state();
+  const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+  const forceOnboarding = params?.get("onboarding") === "1";
+  const skipOnboarding = params?.get("autostart") === "1";
+  const isElectron = typeof window !== "undefined" && Boolean(window.zhizhangBridge);
+  const needsOnboarding = forceOnboarding
+    ? true
+    : skipOnboarding
+      ? !app.workspace.configured
+      : isElectron
+        ? !app.workspace.configured || !modelReady(app.settings)
+        : !app.workspace.configured;
   set({
     app,
     settings: app.settings,
     workspace: app.workspace,
-    onboarding: !app.workspace.configured || !modelReady(app.settings),
+    onboarding: needsOnboarding,
   });
   if (app.settingsIssue)
     notify({ tone: "warning", text: C.shell.settingsIssue, detail: app.settingsIssue.message });

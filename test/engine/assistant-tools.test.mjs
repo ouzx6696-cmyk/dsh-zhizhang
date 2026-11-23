@@ -175,7 +175,7 @@ test("头条助手工具：读状态/草稿/来源，发起文章流水线时带
   await fs.writeFile(
     path.join(articleDir, "meta.json"),
     JSON.stringify({
-      format: "zhizhang/1.3",
+      format: "zhizhang/2.0",
       id: "tt-1",
       genre: "短图文",
       driver: "账本型",

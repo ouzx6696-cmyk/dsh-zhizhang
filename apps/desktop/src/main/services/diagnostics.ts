@@ -6,6 +6,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { Clock } from "@zhizhang/core/clock";
 import { atomicWrite, readTextIfExists } from "@zhizhang/core/fs";
+import { FORMAT_VERSION } from "@zhizhang/core/paths";
 
 const MAX_LOG_BYTES = 1024 * 1024;
 const SECRET_KEYS = /key|token|secret|password|authorization/i;
@@ -44,7 +45,7 @@ export function createDiagnostics(logDir: string, clock: Clock) {
       await atomicWrite(
         target,
         JSON.stringify(
-          { format: "zhizhang/1.3", exportedAt: clock.iso(), ...summary, log: tail },
+          { format: FORMAT_VERSION, exportedAt: clock.iso(), ...summary, log: tail },
           null,
           2,
         ),
@@ -52,5 +53,3 @@ export function createDiagnostics(logDir: string, clock: Clock) {
     },
   };
 }
-
-export type Diagnostics = ReturnType<typeof createDiagnostics>;

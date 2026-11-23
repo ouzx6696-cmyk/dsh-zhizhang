@@ -1,5 +1,7 @@
+import fs from "node:fs/promises";
 import path from "node:path";
-import { runPythonJson } from "@zhizhang/core/python";
+import { runPythonJson, type PythonExecutor } from "@zhizhang/core/python";
+import { arr, bool, int, num, obj, opt, record, str, type Parser } from "@zhizhang/core/schema";
 
 export interface RulesLimits {
   rules_version: string;
@@ -11,6 +13,7 @@ export interface RulesLimits {
   lines: string[];
   drivers: string[];
   statuses: string[];
+  styles?: StyleCatalog;
 }
 
 export interface StyleCatalog {
@@ -48,11 +51,130 @@ export interface LedgerMutateResult {
   rules_version: string;
   row?: Record<string, string>;
   existing?: boolean;
-  kept?: number;
+  kept?: boolean;
   snapshot_date?: string;
   code?: string;
   message?: string;
 }
+
+export interface RulesBridgeOptions {
+  signal?: AbortSignal;
+  timeoutMs?: number;
+  executor?: PythonExecutor;
+}
+
+const bandTuple: Parser<[number, number]> = (v, p = "$") => {
+  const nums = arr(num())(v, p);
+  if (nums.length !== 2) {
+    return [nums[0] ?? 0, nums[1] ?? 0];
+  }
+  return [nums[0], nums[1]];
+};
+
+const LineStylesSchema = obj(
+  {
+    openings: arr(str()),
+    endings: arr(str()),
+  },
+  { strict: false },
+);
+
+const StyleCatalogSchema: Parser<StyleCatalog> = obj(
+  {
+    byLine: record(LineStylesSchema),
+    allOpenings: arr(str()),
+    allEndings: arr(str()),
+  },
+  { strict: false },
+);
+
+export const RulesLimitsSchema = obj(
+  {
+    rules_version: str({ min: 1 }),
+    ok: bool,
+    title_max: int({ min: 1 }),
+    pass_score: num({ min: 0 }),
+    bands: record(bandTuple),
+    genres: arr(str()),
+    lines: arr(str()),
+    drivers: arr(str()),
+    statuses: arr(str()),
+    styles: opt(StyleCatalogSchema),
+  },
+  { strict: false },
+);
+
+const RulesMarkdownSchema = obj(
+  {
+    ok: bool,
+    markdown: opt(str()),
+  },
+  { strict: false },
+);
+
+export const CardCheckSchema = obj(
+  {
+    ok: bool,
+    valid: opt(bool),
+    errors: arr(str()),
+  },
+  { strict: false },
+);
+
+const QaFailSchema = obj(
+  {
+    code: str(),
+    message: str(),
+    score: opt(num()),
+  },
+  { strict: false },
+);
+
+export const QaCheckRawSchema = obj(
+  {
+    ok: bool,
+    overall: opt(num()),
+    passed: opt(bool),
+    score: opt(num()),
+    pass: opt(bool),
+    warnings: opt(arr(str())),
+    fails: opt(arr(QaFailSchema)),
+    hard_gates: opt(arr(str())),
+    verdict: opt(str()),
+    title: opt(str()),
+    title_len: opt(int()),
+    chars: opt(int()),
+    code: opt(str()),
+    message: opt(str()),
+  },
+  { strict: false },
+);
+
+export const LedgerShowRawSchema = obj(
+  {
+    ok: bool,
+    rules_version: str(),
+    rows: opt(arr(record(str()))),
+    total: opt(int()),
+    code: opt(str()),
+    message: opt(str()),
+  },
+  { strict: false },
+);
+
+export const LedgerMutateSchema = obj(
+  {
+    ok: bool,
+    rules_version: str(),
+    row: opt(record(str())),
+    existing: opt(bool),
+    kept: opt(bool),
+    snapshot_date: opt(str()),
+    code: opt(str()),
+    message: opt(str()),
+  },
+  { strict: false },
+);
 
 function parseStyleCatalog(markdown: string): StyleCatalog {
   const byLine: Record<string, { openings: string[]; endings: string[] }> = {};
@@ -83,80 +205,125 @@ function parseStyleCatalog(markdown: string): StyleCatalog {
   };
 }
 
-const CARD_CHECK_PY = [
-  "import json, sys",
-  "sys.path.insert(0, sys.argv[1])",
-  "import qa_check",
-  "try:",
-  "    qa_check.load_card(sys.argv[2])",
-  "    print(json.dumps({'ok': True, 'errors': []}, ensure_ascii=False))",
-  "except qa_check.QAInputError as exc:",
-  "    print(json.dumps({'ok': False, 'errors': [str(exc)]}, ensure_ascii=False))",
-].join("\n");
+interface CachedLimits {
+  mtimeMs: number;
+  value: RulesLimits;
+}
 
-export function createRulesBridge(scriptsDir: string) {
+const limitsCache = new Map<string, CachedLimits>();
+
+async function rulesMtimeMs(scriptsDir: string): Promise<number> {
+  const st = await fs.stat(path.join(scriptsDir, "rules.py")).catch(() => undefined);
+  return st?.mtimeMs ?? 0;
+}
+
+export function createRulesBridge(scriptsDir: string, defaultOpts?: RulesBridgeOptions) {
   const bridgeScript = path.join(scriptsDir, "writer_bridge.py");
-  const qaScript = path.join(scriptsDir, "qa_check.py");
+  const callOpts = (override?: RulesBridgeOptions) => ({
+    ...defaultOpts,
+    ...override,
+  });
+
+  const fetchLimits = async (opts?: RulesBridgeOptions): Promise<RulesLimits> => {
+    const merged = callOpts(opts);
+    if (!merged.executor) {
+      const mtimeMs = await rulesMtimeMs(scriptsDir);
+      const cached = limitsCache.get(scriptsDir);
+      if (cached && cached.mtimeMs === mtimeMs && mtimeMs > 0) {
+        return cached.value;
+      }
+      const fresh = await runPythonJson(bridgeScript, ["limits"], RulesLimitsSchema, merged);
+      if (mtimeMs > 0) limitsCache.set(scriptsDir, { mtimeMs, value: fresh });
+      return fresh;
+    }
+    return runPythonJson(bridgeScript, ["limits"], RulesLimitsSchema, merged);
+  };
 
   return {
-    limits(): Promise<RulesLimits> {
-      return runPythonJson<RulesLimits>(bridgeScript, ["limits"]);
+    limits(opts?: RulesBridgeOptions): Promise<RulesLimits> {
+      return fetchLimits(opts);
     },
-    async styles(): Promise<StyleCatalog> {
-      const res = await runPythonJson<{ ok: boolean; markdown?: string }>(bridgeScript, ["rules"]);
+    async styles(opts?: RulesBridgeOptions): Promise<StyleCatalog> {
+      const lim = await fetchLimits(opts);
+      if (lim.styles) return lim.styles;
+      const res = await runPythonJson(bridgeScript, ["rules"], RulesMarkdownSchema, callOpts(opts));
       return parseStyleCatalog(res.markdown ?? "");
     },
-    /** 立项卡结构预检：只调 qa_check 的 load_card（类型校验），不需要稿件；规则本身不在 TS 复刻。 */
-    checkCard(cardPath: string): Promise<{ ok: boolean; errors: string[] }> {
-      return runPythonJson<{ ok: boolean; errors: string[] }>("-c", [
-        CARD_CHECK_PY,
-        path.dirname(qaScript),
-        cardPath,
-      ]);
+    /** 立项卡结构预检：经 writer_bridge.py check-card 调 qa_check.load_card，规则不在 TS 复刻。 */
+    async checkCard(
+      cardPath: string,
+      opts?: RulesBridgeOptions,
+    ): Promise<{ ok: boolean; errors: string[] }> {
+      const res = await runPythonJson(
+        bridgeScript,
+        ["check-card", "--card", cardPath],
+        CardCheckSchema,
+        callOpts(opts),
+      );
+      return { ok: res.ok && (res.valid ?? true), errors: res.errors };
     },
-    async qa(args: {
-      file: string;
-      card?: string;
-      ledger?: string;
-      mode?: string;
-      articleId?: string;
-    }): Promise<QaCheckResult> {
+    async qa(
+      args: {
+        file: string;
+        card?: string;
+        ledger?: string;
+        mode?: string;
+        articleId?: string;
+      },
+      opts?: RulesBridgeOptions,
+    ): Promise<QaCheckResult> {
       const cmd = ["qa", "--file", args.file];
       if (args.card) cmd.push("--card", args.card);
       if (args.ledger) cmd.push("--ledger", args.ledger);
       if (args.mode) cmd.push("--mode", args.mode);
       if (args.articleId) cmd.push("--article-id", args.articleId);
-      const raw = await runPythonJson<QaCheckResult>(bridgeScript, cmd);
+      const raw = await runPythonJson(bridgeScript, cmd, QaCheckRawSchema, callOpts(opts));
       return {
         ...raw,
+        fails: raw.fails ?? [],
+        hard_gates: raw.hard_gates ?? [],
         overall: raw.overall ?? raw.score ?? 0,
         passed: raw.passed ?? raw.pass ?? false,
       };
     },
-    ledgerShow(args: { ledger: string; last?: number }): Promise<LedgerShowResult> {
+    async ledgerShow(
+      args: { ledger: string; last?: number },
+      opts?: RulesBridgeOptions,
+    ): Promise<LedgerShowResult> {
       const cmd = ["ledger-show", "--ledger", args.ledger];
       if (args.last !== undefined) cmd.push("--last", String(args.last));
-      return runPythonJson<LedgerShowResult>(bridgeScript, cmd);
+      const raw = await runPythonJson(bridgeScript, cmd, LedgerShowRawSchema, callOpts(opts));
+      return {
+        ...raw,
+        rows: raw.rows ?? [],
+        total: raw.total ?? 0,
+      };
     },
-    ledgerAdd(args: {
-      card: string;
-      ledger: string;
-      articleId?: string;
-      status?: string;
-      date?: string;
-    }): Promise<LedgerMutateResult> {
+    ledgerAdd(
+      args: {
+        card: string;
+        ledger: string;
+        articleId?: string;
+        status?: string;
+        date?: string;
+      },
+      opts?: RulesBridgeOptions,
+    ): Promise<LedgerMutateResult> {
       const cmd = ["ledger-add", "--card", args.card, "--ledger", args.ledger];
       if (args.articleId) cmd.push("--article-id", args.articleId);
       if (args.status) cmd.push("--status", args.status);
       if (args.date) cmd.push("--date", args.date);
-      return runPythonJson<LedgerMutateResult>(bridgeScript, cmd);
+      return runPythonJson(bridgeScript, cmd, LedgerMutateSchema, callOpts(opts));
     },
-    ledgerStatus(args: {
-      title: string;
-      to: string;
-      ledger: string;
-      articleId?: string;
-    }): Promise<LedgerMutateResult> {
+    ledgerStatus(
+      args: {
+        title: string;
+        to: string;
+        ledger: string;
+        articleId?: string;
+      },
+      opts?: RulesBridgeOptions,
+    ): Promise<LedgerMutateResult> {
       const cmd = [
         "ledger-status",
         "--title",
@@ -167,14 +334,17 @@ export function createRulesBridge(scriptsDir: string) {
         args.ledger,
       ];
       if (args.articleId) cmd.push("--article-id", args.articleId);
-      return runPythonJson<LedgerMutateResult>(bridgeScript, cmd);
+      return runPythonJson(bridgeScript, cmd, LedgerMutateSchema, callOpts(opts));
     },
-    metricsImport(args: {
-      articleId: string;
-      metricsJson: string;
-      ledger: string;
-      url?: string;
-    }): Promise<LedgerMutateResult> {
+    metricsImport(
+      args: {
+        articleId: string;
+        metricsJson: string;
+        ledger: string;
+        url?: string;
+      },
+      opts?: RulesBridgeOptions,
+    ): Promise<LedgerMutateResult> {
       const cmd = [
         "metrics-import",
         "--article-id",
@@ -185,7 +355,7 @@ export function createRulesBridge(scriptsDir: string) {
         args.ledger,
       ];
       if (args.url) cmd.push("--url", args.url);
-      return runPythonJson<LedgerMutateResult>(bridgeScript, cmd);
+      return runPythonJson(bridgeScript, cmd, LedgerMutateSchema, callOpts(opts));
     },
   };
 }

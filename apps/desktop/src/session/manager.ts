@@ -5,11 +5,12 @@
 import { randomBytes } from "node:crypto";
 import type { Clock } from "@zhizhang/core/clock";
 import { AppError, classify } from "@zhizhang/core/errors";
-import { estimateTokensRaw, type ModelGateway } from "@zhizhang/core/model";
+import { createSerialRunner } from "@zhizhang/core/lock";
+import type { ModelGateway } from "@zhizhang/core/model";
 import type { ToolCtx, ToolDefinition } from "@zhizhang/core/tool";
 import type { DesktopEvent, SessionEvent } from "../shared/events.js";
 import type { ContextSettings } from "../shared/settings.js";
-import type { ChatMessage, ResultCard, TaskState, ToolCallView } from "../shared/types.js";
+import type { TaskState } from "../shared/types.js";
 import type {
   CompactResult,
   ContextUsageView,
@@ -19,13 +20,18 @@ import type {
   SessionView,
   Target,
 } from "../shared/views.js";
+import { compactConversation } from "./compact.js";
 import type { ConversationStore } from "./history.js";
-import { COMPACT_SYSTEM, systemPrompt, userPrompt } from "./prompt.js";
+import { contextTokens, decorateMessage, toChatMessages } from "./projection.js";
+import { systemPrompt, userPrompt } from "./prompt.js";
 import { runTool, toolSpecs } from "./tools.js";
-import type { AgentMessage, AssistantPort, ConversationFile } from "./types.js";
+import type { AssistantPort, ConversationFile } from "./types.js";
+
+export { toChatMessages } from "./projection.js";
 
 const MAX_TOOL_ROUNDS = 12;
 const DEFAULT_VIEW_LIMIT = 80;
+const MAX_CACHED_STATES = 16;
 
 export interface AssistantBinding {
   connection: string;
@@ -65,90 +71,31 @@ interface TargetState {
 
 const keyOf = (target: Target) => `${target.mode}:${target.path}`;
 
-/** 把落盘消息折叠成界面消息：一轮里的工具调用并入该轮的助手回复。 */
-export function toChatMessages(messages: AgentMessage[]): ChatMessage[] {
-  const out: ChatMessage[] = [];
-  let texts: string[] = [];
-  let tools: ToolCallView[] = [];
-  let result: ResultCard | undefined;
-  let turnId = "";
-  let turnAt = 0;
-  const flush = () => {
-    if (texts.length === 0 && tools.length === 0) return;
-    out.push({
-      id: turnId,
-      role: "assistant",
-      text: texts.join("\n\n"),
-      at: turnAt,
-      ...(tools.length ? { tools } : {}),
-      ...(result ? { result } : {}),
-    });
-    texts = [];
-    tools = [];
-    result = undefined;
-  };
-  for (const msg of messages) {
-    if (msg.role === "user") {
-      flush();
-      out.push({ id: msg.id, role: "user", text: msg.text, at: msg.at });
-    } else if (msg.role === "summary") {
-      flush();
-      out.push({ id: msg.id, role: "system", text: msg.text, at: msg.at });
-    } else if (msg.role === "assistant") {
-      turnId = msg.id;
-      turnAt = msg.at;
-      if (msg.text.trim()) texts.push(msg.text);
-      for (const call of msg.toolCalls) tools.push({ name: call.name, isError: false });
-    } else {
-      const hit = [...tools].reverse().find((t) => t.name === msg.name);
-      if (hit) hit.isError = msg.isError;
-      if (!msg.isError) {
-        try {
-          const value: unknown = JSON.parse(msg.text);
-          if (
-            typeof value === "object" &&
-            value !== null &&
-            "runId" in value &&
-            typeof value.runId === "string"
-          ) {
-            result = {
-              kind: "run",
-              target: { mode: "fanqie", path: "" },
-              runId: value.runId,
-              ...("kind" in value && typeof value.kind === "string"
-                ? { pipeline: value.kind }
-                : {}),
-            };
-          }
-        } catch {
-          // 工具输出不是 JSON（自定义 render）时不生成结果卡
-        }
-      }
-    }
-  }
-  flush();
-  return out;
-}
-
-function messageTokens(msg: AgentMessage): number {
-  if (msg.role === "assistant") {
-    return estimateTokensRaw(msg.text) + estimateTokensRaw(JSON.stringify(msg.toolCalls));
-  }
-  return estimateTokensRaw(msg.text);
-}
-
 export function createSessionManager(deps: SessionDeps) {
   const states = new Map<string, TargetState>();
+  const serial = createSerialRunner();
   let idCounter = 0;
   const nextId = (prefix: string) => {
     idCounter += 1;
     return `${prefix}${deps.clock.now().toString(36)}${idCounter.toString(36)}${randomBytes(2).toString("hex")}`;
   };
 
+  function evictIdleStates(): void {
+    if (states.size <= MAX_CACHED_STATES) return;
+    for (const [k, s] of states) {
+      if (states.size <= MAX_CACHED_STATES) break;
+      if (!s.busy) states.delete(k);
+    }
+  }
+
   async function stateFor(target: Target): Promise<TargetState> {
     const key = keyOf(target);
     const hit = states.get(key);
-    if (hit) return hit;
+    if (hit) {
+      states.delete(key);
+      states.set(key, hit);
+      return hit;
+    }
     const conversation = await deps.store.current(target);
     const state: TargetState = {
       target,
@@ -158,6 +105,7 @@ export function createSessionManager(deps: SessionDeps) {
       since: deps.clock.iso(),
     };
     states.set(key, state);
+    evictIdleStates();
     return state;
   }
 
@@ -177,10 +125,6 @@ export function createSessionManager(deps: SessionDeps) {
     deps.onBusyChange?.();
   }
 
-  function contextTokens(system: string, messages: AgentMessage[]): number {
-    return messages.reduce((sum, msg) => sum + messageTokens(msg), estimateTokensRaw(system));
-  }
-
   function compactThreshold(window: number): number {
     const settings = deps.context();
     const byPercent = Math.floor((window * settings.triggerPercent) / 100);
@@ -196,72 +140,29 @@ export function createSessionManager(deps: SessionDeps) {
     });
   }
 
-  async function compactConversation(
+  async function runCompact(
     state: TargetState,
+    system: string,
     instructions?: string,
+    signal?: AbortSignal,
   ): Promise<CompactResult> {
-    const binding = deps.binding();
-    const system = await buildSystem(state);
-    const messages = state.conversation.messages;
-    const tokensBefore = contextTokens(system, messages);
-    const keepBudget = deps.context().keepRecentTokens;
-    let keepFrom = messages.length;
-    let kept = 0;
-    for (let i = messages.length - 1; i >= 0; i--) {
-      kept += messageTokens(messages[i]);
-      if (kept > keepBudget) break;
-      if (messages[i].role === "user") keepFrom = i;
-    }
-    const older = messages.slice(0, keepFrom);
-    if (older.length === 0) {
-      return { tokensBefore, tokensAfter: tokensBefore, summary: "" };
-    }
-    const transcript = older
-      .map((msg) => {
-        if (msg.role === "user") return `作者：${msg.text}`;
-        if (msg.role === "assistant") return `助手：${msg.text}`;
-        if (msg.role === "summary") return `此前摘要：${msg.text}`;
-        return `工具 ${msg.name}：${msg.text.slice(0, 400)}`;
-      })
-      .join("\n");
-    const controller = new AbortController();
-    const answer = await deps.gateway().session(
-      "assistant",
-      () =>
-        deps.port().turn(
-          {
-            connection: binding.connection,
-            model: binding.model,
-            system: COMPACT_SYSTEM,
-            messages: [
-              {
-                role: "user",
-                id: nextId("u"),
-                at: deps.clock.now(),
-                text: [instructions?.trim() ? `压缩要求：${instructions.trim()}` : "", transcript]
-                  .filter(Boolean)
-                  .join("\n\n"),
-              },
-            ],
-            tools: [],
-            maxOutput: Math.min(2048, binding.maxTokens),
-          },
-          controller.signal,
-          () => undefined,
-        ),
-      { scope: keyOf(state.target) },
+    return compactConversation(
+      {
+        clock: deps.clock,
+        store: deps.store,
+        gateway: deps.gateway,
+        port: deps.port,
+        binding: deps.binding,
+        context: deps.context,
+        nextId,
+        emit: (event) => emit(state, event),
+      },
+      state.conversation,
+      keyOf(state.target),
+      system,
+      instructions,
+      signal,
     );
-    const summary = answer.text.trim();
-    const replaced = older.length;
-    state.conversation.messages = [
-      { role: "summary", id: nextId("s"), text: summary, at: deps.clock.now(), replaced },
-      ...messages.slice(keepFrom),
-    ];
-    state.conversation.updated = deps.clock.iso();
-    await deps.store.save(state.conversation);
-    const tokensAfter = contextTokens(system, state.conversation.messages);
-    emit(state, { type: "compacted", tokensBefore, tokensAfter });
-    return { tokensBefore, tokensAfter, summary };
   }
 
   async function runTurn(
@@ -291,7 +192,7 @@ export function createSessionManager(deps: SessionDeps) {
         deps.context().enabled &&
         contextTokens(system, conv.messages) > compactThreshold(binding.contextWindow)
       ) {
-        await compactConversation(state);
+        await runCompact(state, system, undefined, signal);
       }
       for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
         state.stream = "";
@@ -315,7 +216,7 @@ export function createSessionManager(deps: SessionDeps) {
                 }
               },
             ),
-          { scope: keyOf(state.target) },
+          { scope: keyOf(state.target), signal },
         );
         task.tokens += answer.usage.input + answer.usage.output;
         task.cost = task.cost === null || answer.cost === null ? null : task.cost + answer.cost;
@@ -330,22 +231,69 @@ export function createSessionManager(deps: SessionDeps) {
         });
         state.stream = "";
         if (answer.toolCalls.length === 0) break;
-        for (const call of answer.toolCalls) {
-          task.current = call.name;
-          emit(state, { type: "task", task: { ...task } });
-          emit(state, { type: "tool", name: call.name, phase: "start" });
-          const outcome = await runTool(tools, call, ctx);
-          conv.messages.push({
-            role: "tool",
-            id: nextId("r"),
-            callId: call.id,
-            name: call.name,
-            text: outcome.text,
-            isError: outcome.isError,
-            at: deps.clock.now(),
-          });
-          if (!outcome.isError) task.completed.push(call.name);
-          emit(state, { type: "tool", name: call.name, phase: "end", isError: outcome.isError });
+        const toolMap = new Map(tools.map((t) => [t.name, t]));
+        const isReadonlyCall = (name: string) => toolMap.get(name)?.readonly === true;
+        let idx = 0;
+        while (idx < answer.toolCalls.length) {
+          const first = answer.toolCalls[idx];
+          if (isReadonlyCall(first.name)) {
+            const batch = [first];
+            while (
+              idx + batch.length < answer.toolCalls.length &&
+              isReadonlyCall(answer.toolCalls[idx + batch.length].name)
+            ) {
+              batch.push(answer.toolCalls[idx + batch.length]);
+            }
+            idx += batch.length;
+            task.current = batch.map((c) => c.name).join(" / ");
+            emit(state, { type: "task", task: { ...task } });
+            for (const call of batch) {
+              emit(state, { type: "tool", name: call.name, phase: "start" });
+            }
+            const outcomes = await Promise.all(
+              batch.map(async (call) => ({ call, outcome: await runTool(tools, call, ctx) })),
+            );
+            for (const { call, outcome } of outcomes) {
+              conv.messages.push({
+                role: "tool",
+                id: nextId("r"),
+                callId: call.id,
+                name: call.name,
+                text: outcome.text,
+                isError: outcome.isError,
+                at: deps.clock.now(),
+              });
+              if (!outcome.isError) task.completed.push(call.name);
+              emit(state, {
+                type: "tool",
+                name: call.name,
+                phase: "end",
+                isError: outcome.isError,
+              });
+            }
+          } else {
+            idx += 1;
+            task.current = first.name;
+            emit(state, { type: "task", task: { ...task } });
+            emit(state, { type: "tool", name: first.name, phase: "start" });
+            const outcome = await runTool(tools, first, ctx);
+            conv.messages.push({
+              role: "tool",
+              id: nextId("r"),
+              callId: first.id,
+              name: first.name,
+              text: outcome.text,
+              isError: outcome.isError,
+              at: deps.clock.now(),
+            });
+            if (!outcome.isError) task.completed.push(first.name);
+            emit(state, {
+              type: "tool",
+              name: first.name,
+              phase: "end",
+              isError: outcome.isError,
+            });
+          }
         }
         task.current = "";
         conv.updated = deps.clock.iso();
@@ -358,7 +306,7 @@ export function createSessionManager(deps: SessionDeps) {
       const view = toChatMessages(conv.messages);
       const last = view[view.length - 1];
       if (last && last.role === "assistant")
-        emit(state, { type: "message_end", message: decorate(state, last) });
+        emit(state, { type: "message_end", message: decorateMessage(state.target, last) });
       emit(state, { type: "task", task: { ...task } });
       emit(state, { type: "end", reason: "done" });
     } catch (err) {
@@ -382,57 +330,56 @@ export function createSessionManager(deps: SessionDeps) {
     }
   }
 
-  /** 结果卡带上真实目标（落盘消息里只存 runId）。 */
-  function decorate(state: TargetState, message: ChatMessage): ChatMessage {
-    return message.result
-      ? { ...message, result: { ...message.result, target: state.target } }
-      : message;
-  }
-
   return {
     async view(
       target: Target,
       options: { conversationId?: string; limit?: number } = {},
     ): Promise<SessionView> {
-      const state = await stateFor(target);
-      if (options.conversationId && options.conversationId !== state.conversation.id) {
-        if (state.busy) throw new AppError("gate.denied", "助手正在回复，稍后再切换对话");
-        state.conversation = await deps.store.select(target, options.conversationId);
-      }
-      const all = toChatMessages(state.conversation.messages).map((m) => decorate(state, m));
-      const limit = options.limit ?? DEFAULT_VIEW_LIMIT;
-      return {
-        conversationId: state.conversation.id,
-        messages: all.slice(-limit),
-        total: all.length,
-        busy: state.busy,
-        stream: state.stream,
-        ...(state.task ? { task: { ...state.task } } : {}),
-      };
+      return serial(keyOf(target), async () => {
+        const state = await stateFor(target);
+        if (options.conversationId && options.conversationId !== state.conversation.id) {
+          if (state.busy) throw new AppError("gate.denied", "助手正在回复，稍后再切换对话");
+          state.conversation = await deps.store.select(target, options.conversationId);
+        }
+        const all = toChatMessages(state.conversation.messages).map((m) =>
+          decorateMessage(state.target, m),
+        );
+        const limit = options.limit ?? DEFAULT_VIEW_LIMIT;
+        return {
+          conversationId: state.conversation.id,
+          messages: all.slice(-limit),
+          total: all.length,
+          busy: state.busy,
+          stream: state.stream,
+          ...(state.task ? { task: { ...state.task } } : {}),
+        };
+      });
     },
 
     async send(target: Target, send: SessionSend): Promise<{ conversationId: string }> {
-      const text = send.text.trim();
-      if (!text) throw new AppError("input.invalid", "消息不能为空", { field: "text" });
-      const state = await stateFor(target);
-      if (state.busy)
-        throw new AppError("gate.denied", "助手正在回复，请稍候或先停止", { busy: true });
-      deps.binding();
-      const conv = state.conversation;
-      if (!conv.title) conv.title = text.slice(0, 24);
-      conv.messages.push({
-        role: "user",
-        id: nextId("u"),
-        text: userPrompt(text, send.intent, send.focus),
-        at: deps.clock.now(),
+      return serial(keyOf(target), async () => {
+        const text = send.text.trim();
+        if (!text) throw new AppError("input.invalid", "消息不能为空", { field: "text" });
+        const state = await stateFor(target);
+        if (state.busy)
+          throw new AppError("gate.denied", "助手正在回复，请稍候或先停止", { busy: true });
+        deps.binding();
+        const conv = state.conversation;
+        if (!conv.title) conv.title = text.slice(0, 24);
+        conv.messages.push({
+          role: "user",
+          id: nextId("u"),
+          text: userPrompt(text, send.intent, send.focus),
+          at: deps.clock.now(),
+        });
+        conv.updated = deps.clock.iso();
+        await deps.store.save(conv);
+        const controller = new AbortController();
+        state.controller = controller;
+        setBusy(state, true);
+        state.pending = runTurn(state, send, controller.signal);
+        return { conversationId: conv.id };
       });
-      conv.updated = deps.clock.iso();
-      await deps.store.save(conv);
-      const controller = new AbortController();
-      state.controller = controller;
-      setBusy(state, true);
-      state.pending = runTurn(state, send, controller.signal);
-      return { conversationId: conv.id };
     },
 
     async stop(target: Target): Promise<void> {
@@ -446,12 +393,20 @@ export function createSessionManager(deps: SessionDeps) {
     },
 
     async newConversation(target: Target): Promise<ConversationItem> {
-      const state = await stateFor(target);
-      if (state.busy) throw new AppError("gate.denied", "助手正在回复，稍后再开新对话");
-      state.conversation = await deps.store.create(target);
-      state.task = undefined;
-      const conv = state.conversation;
-      return { id: conv.id, title: conv.title, updated: conv.updated, messages: 0, current: true };
+      return serial(keyOf(target), async () => {
+        const state = await stateFor(target);
+        if (state.busy) throw new AppError("gate.denied", "助手正在回复，稍后再开新对话");
+        state.conversation = await deps.store.create(target);
+        state.task = undefined;
+        const conv = state.conversation;
+        return {
+          id: conv.id,
+          title: conv.title,
+          updated: conv.updated,
+          messages: 0,
+          current: true,
+        };
+      });
     },
 
     async usage(target: Target): Promise<ContextUsageView> {
@@ -468,15 +423,40 @@ export function createSessionManager(deps: SessionDeps) {
     },
 
     async compact(target: Target, instructions?: string): Promise<CompactResult> {
-      const state = await stateFor(target);
-      if (state.busy) throw new AppError("gate.denied", "助手正在回复，稍后再压缩");
-      return compactConversation(state, instructions);
+      return serial(keyOf(target), async () => {
+        const state = await stateFor(target);
+        if (state.busy) throw new AppError("gate.denied", "助手正在回复，稍后再压缩");
+        return runCompact(state, await buildSystem(state), instructions);
+      });
     },
 
     running(): RunningRow[] {
       return [...states.values()]
         .filter((s) => s.busy)
         .map((s) => ({ target: s.target, source: "assistant" as const, since: s.since }));
+    },
+
+    /** 将流水线交付或异常简报注入当前会话（不消耗模型调用）。 */
+    async injectDebrief(target: Target, text: string): Promise<void> {
+      const body = text.trim();
+      if (!body) return;
+      return serial(keyOf(target), async () => {
+        const state = await stateFor(target);
+        const msg = {
+          role: "summary" as const,
+          id: nextId("d"),
+          text: body,
+          at: deps.clock.now(),
+          replaced: 0,
+        };
+        state.conversation.messages.push(msg);
+        state.conversation.updated = deps.clock.iso();
+        await deps.store.save(state.conversation);
+        emit(state, {
+          type: "message_end",
+          message: { id: msg.id, role: "system", text: msg.text, at: msg.at },
+        });
+      });
     },
 
     /** 等待某个目标的当前回复结束（关闭与测试用）。 */

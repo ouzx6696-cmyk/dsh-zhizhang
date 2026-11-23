@@ -88,19 +88,11 @@ for (const file of allTs) {
     );
   }
 
-  // G-copy: forbid Chinese text in JSX (strict for desktop/renderer and ui; hint for workbench/client)
+  // G-copy: forbid Chinese text in JSX across all .tsx files (renderer, ui, and workbench/client)
   if (file.endsWith(".tsx")) {
     const jsxChinese = noComments.match(/>[^<>{}]*[\u4e00-\u9fff][^<>{}]*</g) || [];
     if (jsxChinese.length > 0) {
-      if (rel.startsWith("apps/desktop/src/renderer/") || rel.startsWith("packages/ui/src/")) {
-        errors.push(
-          `[G-copy] Chinese literal in JSX in ${rel} (${jsxChinese.length} occurrence(s))`,
-        );
-      } else {
-        warnings.push(
-          `[G-copy] Chinese literal in JSX in ${rel} (${jsxChinese.length} occurrence(s))`,
-        );
-      }
+      errors.push(`[G-copy] Chinese literal in JSX in ${rel} (${jsxChinese.length} occurrence(s))`);
     }
   }
 
@@ -158,7 +150,10 @@ for (const file of walk(path.join(ROOT, "packages"), [".ts", ".tsx"])) {
 }
 
 let mainRawErrorCount = 0;
-for (const file of walk(path.join(ROOT, "apps/desktop/src/main"), [".ts", ".tsx"])) {
+for (const file of [
+  ...walk(path.join(ROOT, "apps/desktop/src/main"), [".ts", ".tsx"]),
+  ...walk(path.join(ROOT, "apps/desktop/src/server"), [".ts", ".tsx"]),
+]) {
   const txt = fs.readFileSync(file, "utf8");
   const rel = toPosix(path.relative(ROOT, file));
   const matches = txt.match(/throw\s+new\s+Error\(/g) || [];
@@ -169,7 +164,7 @@ for (const file of walk(path.join(ROOT, "apps/desktop/src/main"), [".ts", ".tsx"
 }
 if (typeof baseline.mainRawError === "number" && mainRawErrorCount > baseline.mainRawError) {
   errors.push(
-    `[G-error] main/ raw throw new Error() count ${mainRawErrorCount} exceeds baseline ${baseline.mainRawError}`,
+    `[G-error] main/server raw throw new Error() count ${mainRawErrorCount} exceeds baseline ${baseline.mainRawError}`,
   );
 }
 
@@ -215,9 +210,11 @@ const reexportedFiles = new Set();
 for (const file of allTs) {
   const txt = fs.readFileSync(file, "utf8");
   for (const m of txt.matchAll(/export\s+\*\s+from\s+["']([^"']+)["']/g)) {
-    const resolved = path.normalize(path.join(path.dirname(file), m[1].replace(/\.js$/, ".ts")));
-    reexportedFiles.add(resolved);
-    reexportedFiles.add(resolved.replace(/\.ts$/, `${path.sep}index.ts`));
+    const base = path.normalize(path.join(path.dirname(file), m[1].replace(/\.js$/, "")));
+    reexportedFiles.add(`${base}.ts`);
+    reexportedFiles.add(`${base}.tsx`);
+    reexportedFiles.add(path.join(base, "index.ts"));
+    reexportedFiles.add(path.join(base, "index.tsx"));
   }
 }
 const unusedExports = [];

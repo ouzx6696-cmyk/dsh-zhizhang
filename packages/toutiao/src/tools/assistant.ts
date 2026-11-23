@@ -5,10 +5,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { AppError } from "@zhizhang/core/errors";
-import { resolveResourcePath, readJson, readTextIfExists } from "@zhizhang/core/fs";
+import { resolveResourcePathAsync, readJson, readTextIfExists } from "@zhizhang/core/fs";
 import { loadProfile, methodFor } from "@zhizhang/core/methods";
 import type { ModeTarget } from "@zhizhang/core/pipeline";
-import { int, lit, obj, opt, str, type Infer } from "@zhizhang/core/schema";
+import { desc, int, lit, obj, opt, str, type Infer } from "@zhizhang/core/schema";
 import {
   assertWorkspaceWritable,
   defineTool,
@@ -17,7 +17,7 @@ import {
   type ToolDefinition,
 } from "@zhizhang/core/tool";
 import { ledgerShowCommand } from "../commands/ledger.js";
-import { ArticleMetaSchema } from "../storage/articles.js";
+import { ArticleMetaSchema, SourceRecordSchema } from "../storage/articles.js";
 
 const DEFAULT_MAX_CHARS = 6000;
 
@@ -38,27 +38,40 @@ async function listDrafts(articleDir: string): Promise<Array<{ file: string; mti
   const names = await fs.readdir(dir).catch(() => []);
   const out: Array<{ file: string; mtimeMs: number }> = [];
   for (const name of names) {
-    if (!name.endsWith(".md")) continue;
-    const stat = await fs.stat(resolveResourcePath(articleDir, "drafts", name));
+    if (!name.endsWith(".md") || name.startsWith(".")) continue;
+    const stat = await fs.stat(await resolveResourcePathAsync(articleDir, "drafts", name));
     out.push({ file: name, mtimeMs: stat.mtimeMs });
   }
   return out.sort((a, b) => b.mtimeMs - a.mtimeMs || b.file.localeCompare(a.file));
 }
 
 const NoArgs = obj({});
-const DraftArgs = obj({ file: opt(str({ min: 1 })), maxChars: opt(int({ min: 200, max: 40000 })) });
-const SourceArgs = obj({ sourceId: str({ min: 1 }), maxChars: opt(int({ min: 200, max: 40000 })) });
-const LedgerArgs = obj({ last: opt(int({ min: 1, max: 50 })) });
-const MethodArgs = obj({ stage: str({ min: 1 }) });
-const StartArgs = obj({
-  note: opt(str({ max: 2000 })),
-  line: opt(str({ max: 200 })),
-  draftCount: opt(int({ min: 1, max: 5 })),
+const DraftArgs = obj({
+  file: desc(opt(str({ min: 1 })), "草稿文件名，例如 rev-001.md；省略取最新一版"),
+  maxChars: desc(opt(int({ min: 200, max: 40000 })), "最多返回的字数，缺省 6000"),
 });
-const OpenArgs = obj({ view: lit("draft", "card", "delivery", "sources") });
-
-const stringProp = (description: string) => ({ type: "string", description });
-const intProp = (description: string) => ({ type: "integer", description });
+const SourceArgs = obj({
+  sourceId: desc(str({ min: 1 }), "来源 id"),
+  maxChars: desc(opt(int({ min: 200, max: 40000 })), "最多返回的字数"),
+});
+const LedgerArgs = obj({
+  last: desc(opt(int({ min: 1, max: 50 })), "最近几行，缺省 10"),
+});
+const MethodArgs = obj({
+  stage: desc(str({ min: 1 }), "阶段 id"),
+});
+const StartArgs = obj({
+  note: desc(opt(str({ max: 2000 })), "作者要求"),
+  line: desc(opt(str({ max: 200 })), "内容线"),
+  draftCount: desc(opt(int({ min: 1, max: 5 })), "起稿份数 1–5"),
+});
+const DiffDraftsArgs = obj({
+  fromFile: desc(opt(str({ min: 1 })), "较早草稿文件名；省略取次新版"),
+  toFile: desc(opt(str({ min: 1 })), "较新草稿文件名；省略取最新版"),
+});
+const OpenArgs = obj({
+  view: desc(lit("draft", "card", "delivery", "sources"), "打开的视图"),
+});
 
 export function toutiaoAssistantTools(role: Role, target: ModeTarget): ToolDefinition[] {
   if (role !== "assistant") return [];
@@ -69,8 +82,8 @@ export function toutiaoAssistantTools(role: Role, target: ModeTarget): ToolDefin
     name: "toutiao_article_status",
     description: "读取文章元数据：状态、体裁、主驱动、选定标题、状态历史与已有草稿列表。",
     params: NoArgs,
-    jsonSchema: { type: "object", properties: {} },
     roles: ["assistant"],
+    readonly: true,
     async run() {
       const meta = await readMeta(articleDir);
       const drafts = await listDrafts(articleDir);
@@ -93,8 +106,8 @@ export function toutiaoAssistantTools(role: Role, target: ModeTarget): ToolDefin
     name: "toutiao_read_card",
     description: "读取文章立项卡（主问题、核心事实、读者、体裁、内容线、主驱动等）。",
     params: NoArgs,
-    jsonSchema: { type: "object", properties: {} },
     roles: ["assistant"],
+    readonly: true,
     async run() {
       const raw = await readTextIfExists(path.join(articleDir, "card.json"));
       if (raw === undefined) throw new AppError("input.not_found", "这篇文章还没有立项卡");
@@ -106,21 +119,17 @@ export function toutiaoAssistantTools(role: Role, target: ModeTarget): ToolDefin
     name: "toutiao_read_draft",
     description: "只读读取文章草稿（缺省为最新一版），或指定草稿文件名。",
     params: DraftArgs,
-    jsonSchema: {
-      type: "object",
-      properties: {
-        file: stringProp("草稿文件名，例如 rev-001.md；省略取最新一版"),
-        maxChars: intProp("最多返回的字数，缺省 6000"),
-      },
-    },
     roles: ["assistant"],
+    readonly: true,
     async run(args: Infer<typeof DraftArgs>) {
       const drafts = await listDrafts(articleDir);
       const file = args.file ?? drafts[0]?.file;
       if (!file) {
         throw new AppError("input.not_found", "这篇文章还没有草稿");
       }
-      const text = await readTextIfExists(resolveResourcePath(articleDir, "drafts", file));
+      const text = await readTextIfExists(
+        await resolveResourcePathAsync(articleDir, "drafts", file),
+      );
       if (text === undefined)
         throw new AppError("input.not_found", `未找到草稿：${file}`, { file });
       const body = clip(text, args.maxChars ?? DEFAULT_MAX_CHARS);
@@ -132,22 +141,18 @@ export function toutiaoAssistantTools(role: Role, target: ModeTarget): ToolDefin
     name: "toutiao_list_sources",
     description: "列出文章已登记的来源（id、类型、哈希、登记时间）。",
     params: NoArgs,
-    jsonSchema: { type: "object", properties: {} },
     roles: ["assistant"],
+    readonly: true,
     async run() {
       const dir = path.join(articleDir, "sources");
       const names = (await fs.readdir(dir).catch(() => []))
         .filter((n) => n.endsWith(".json"))
         .sort();
-      const sources: unknown[] = [];
+      const sources = [];
       for (const name of names) {
-        const raw = await readTextIfExists(resolveResourcePath(articleDir, "sources", name));
-        if (raw === undefined) continue;
-        try {
-          sources.push(JSON.parse(raw));
-        } catch {
-          throw new AppError("storage.format_unsupported", `来源登记无法解析：${name}`, { name });
-        }
+        const filePath = await resolveResourcePathAsync(articleDir, "sources", name);
+        const parsed = await readJson(filePath, SourceRecordSchema);
+        if (parsed) sources.push(parsed);
       }
       return { sources };
     },
@@ -157,15 +162,11 @@ export function toutiaoAssistantTools(role: Role, target: ModeTarget): ToolDefin
     name: "toutiao_read_source",
     description: "只读读取一条来源的正文快照。",
     params: SourceArgs,
-    jsonSchema: {
-      type: "object",
-      properties: { sourceId: stringProp("来源 id"), maxChars: intProp("最多返回的字数") },
-      required: ["sourceId"],
-    },
     roles: ["assistant"],
+    readonly: true,
     async run(args: Infer<typeof SourceArgs>) {
       const text = await readTextIfExists(
-        resolveResourcePath(articleDir, "sources", `${args.sourceId}.txt`),
+        await resolveResourcePathAsync(articleDir, "sources", `${args.sourceId}.txt`),
       );
       if (text === undefined) {
         throw new AppError("input.not_found", `未找到来源：${args.sourceId}`, {
@@ -181,11 +182,8 @@ export function toutiaoAssistantTools(role: Role, target: ModeTarget): ToolDefin
     name: "toutiao_read_ledger",
     description: "读取发稿台账最近若干行（标题、母体、开头式、结尾式、状态），用于避免重复。",
     params: LedgerArgs,
-    jsonSchema: {
-      type: "object",
-      properties: { last: intProp("最近几行，缺省 10") },
-    },
     roles: ["assistant"],
+    readonly: true,
     async run(args: Infer<typeof LedgerArgs>) {
       const scriptsDir = process.env.ZHIZHANG_TOUTIAO_SCRIPTS_DIR?.trim();
       return ledgerShowCommand({
@@ -200,8 +198,8 @@ export function toutiaoAssistantTools(role: Role, target: ModeTarget): ToolDefin
     name: "toutiao_read_feedback",
     description: "读取作者积累的改稿反馈（头条/feedback.md）。",
     params: NoArgs,
-    jsonSchema: { type: "object", properties: {} },
     roles: ["assistant"],
+    readonly: true,
     async run() {
       const text = (await readTextIfExists(path.join(toutiaoRoot, "feedback.md"))) ?? "";
       return { text: clip(text, 6000).text };
@@ -213,15 +211,12 @@ export function toutiaoAssistantTools(role: Role, target: ModeTarget): ToolDefin
     description:
       "查阅当前方法方案中某个阶段取用的方法原文（例如 card、title、draft、review、qa）。",
     params: MethodArgs,
-    jsonSchema: {
-      type: "object",
-      properties: { stage: stringProp("阶段 id") },
-      required: ["stage"],
-    },
     roles: ["assistant"],
+    readonly: true,
     async run(args: Infer<typeof MethodArgs>, ctx: ToolCtx) {
       if (!ctx.profileRoots) throw new AppError("input.not_found", "未配置方法方案目录");
-      const profile = await loadProfile("toutiao", "default", ctx.profileRoots);
+      const profileId = process.env.ZHIZHANG_TOUTIAO_PROFILE_ID?.trim() || "default";
+      const profile = await loadProfile("toutiao", profileId, ctx.profileRoots);
       const method = methodFor(profile, args.stage);
       if (!method.text) {
         throw new AppError("input.not_found", `方案中没有阶段 ${args.stage} 的方法`, {
@@ -238,14 +233,6 @@ export function toutiaoAssistantTools(role: Role, target: ModeTarget): ToolDefin
     description:
       "发起头条文章流水线（来源→立项卡→标题→蓝图→成稿→事实链→红笔→精修→质检），草稿只增不改，交稿须作者验收。",
     params: StartArgs,
-    jsonSchema: {
-      type: "object",
-      properties: {
-        note: stringProp("作者要求"),
-        line: stringProp("内容线"),
-        draftCount: intProp("起稿份数 1–5"),
-      },
-    },
     roles: ["assistant"],
     async run(args: Infer<typeof StartArgs>, ctx: ToolCtx) {
       assertWorkspaceWritable(ctx.readonly);
@@ -266,17 +253,71 @@ export function toutiaoAssistantTools(role: Role, target: ModeTarget): ToolDefin
     name: "toutiao_open_article",
     description: "在中栏打开文章的草稿、立项卡、交稿单或来源视图。",
     params: OpenArgs,
-    jsonSchema: {
-      type: "object",
-      properties: { view: { type: "string", enum: ["draft", "card", "delivery", "sources"] } },
-      required: ["view"],
-    },
     roles: ["assistant"],
     async run(args: Infer<typeof OpenArgs>, ctx: ToolCtx) {
       if (!ctx.host) throw new AppError("gate.denied", "当前会话不能切换视图");
       const meta = await readMeta(articleDir);
       ctx.host.navigate({ article: meta.id, view: args.view });
       return { opened: true };
+    },
+  });
+
+  const qaReportTool = defineTool({
+    name: "toutiao_read_qa_report",
+    description: "只读读取文章最近一次质检报告明细（总分、各维度扣分与硬闸项）。",
+    params: NoArgs,
+    roles: ["assistant"],
+    readonly: true,
+    async run() {
+      const qaRaw =
+        (await readTextIfExists(path.join(articleDir, "qa.json"))) ??
+        (await readTextIfExists(path.join(articleDir, "qa-report.json")));
+      if (qaRaw === undefined) {
+        return { available: false, summary: "尚未生成质检报告" };
+      }
+      return { available: true, report: clip(qaRaw, 6000).text };
+    },
+  });
+
+  const diffDraftsTool = defineTool({
+    name: "toutiao_diff_drafts",
+    description: "对比两版草稿的段落级改动概览，便于定位精修变化。",
+    params: DiffDraftsArgs,
+    roles: ["assistant"],
+    readonly: true,
+    async run(args: Infer<typeof DiffDraftsArgs>) {
+      const drafts = await listDrafts(articleDir);
+      const toFile = args.toFile ?? drafts[0]?.file;
+      const fromFile = args.fromFile ?? drafts[1]?.file;
+      if (!toFile) throw new AppError("input.not_found", "这篇文章还没有草稿");
+      const toText =
+        (await readTextIfExists(await resolveResourcePathAsync(articleDir, "drafts", toFile))) ??
+        "";
+      const fromText = fromFile
+        ? ((await readTextIfExists(
+            await resolveResourcePathAsync(articleDir, "drafts", fromFile),
+          )) ?? "")
+        : "";
+      const fromParas = fromText
+        .split(/\r?\n/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const toParas = toText
+        .split(/\r?\n/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const fromSet = new Set(fromParas);
+      const toSet = new Set(toParas);
+      const added = toParas.filter((p) => !fromSet.has(p));
+      const removed = fromParas.filter((p) => !toSet.has(p));
+      return {
+        fromFile: fromFile ?? null,
+        toFile,
+        addedCount: added.length,
+        removedCount: removed.length,
+        addedSamples: added.slice(0, 5).map((p) => p.slice(0, 120)),
+        removedSamples: removed.slice(0, 5).map((p) => p.slice(0, 120)),
+      };
     },
   });
 
@@ -289,6 +330,8 @@ export function toutiaoAssistantTools(role: Role, target: ModeTarget): ToolDefin
     ledgerTool,
     feedbackTool,
     methodTool,
+    qaReportTool,
+    diffDraftsTool,
     startTool,
     openTool,
   ];

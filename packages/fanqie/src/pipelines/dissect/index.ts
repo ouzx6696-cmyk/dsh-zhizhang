@@ -1,4 +1,5 @@
 import path from "node:path";
+import { systemClock } from "@zhizhang/core/clock";
 import { AppError } from "@zhizhang/core/errors";
 import {
   atomicWrite,
@@ -150,11 +151,20 @@ export const dissectCardsStage: StageSpec<
 export const dissectPipeline: PipelineDefinition<DissectInput, DissectResult> = {
   kind: "library.dissect",
   request: DissectReq,
-  async context(target, req) {
-    return { runId: `dissect-${Date.now()}`, target, request: req, state: {} };
+  async context(target, req, env) {
+    const clock = env?.clock ?? systemClock;
+    return {
+      runId: `dissect-${clock.now()}`,
+      target,
+      request: req,
+      state: {},
+      clock,
+      lock: env?.lock,
+      budget: env?.budget,
+    };
   },
   async run(runner, ctx) {
-    const req = ctx.request as DissectInput;
+    const req = ctx.request;
 
     // 1. import
     const imported = await runner.local("import", async () => {
@@ -275,7 +285,7 @@ export const dissectPipeline: PipelineDefinition<DissectInput, DissectResult> = 
     };
   },
   async recover(record, ctx) {
-    const req = ctx.request as DissectInput;
+    const req = ctx.request;
     const marker = resolveResourcePath(
       ctx.target.path,
       "analyses",

@@ -1,4 +1,9 @@
 @import "./shell.css";
+@import "./shell-topbar.css";
 @import "./workspace.css";
 @import "./dock.css";
+@import "./dock-workflow.css";
+@import "./dock-agent.css";
 @import "./settings.css";
+@import "./settings-onboarding.css";
+@import "./studio-next.css";

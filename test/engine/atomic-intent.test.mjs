@@ -39,7 +39,7 @@ test("commitIntent writes targets and cleans up intent journal", async () => {
     await commitIntent(
       journalDir,
       {
-        format: "zhizhang/1.3",
+        format: "zhizhang/2.0",
         id: "intent-1",
         writes: [{ path: target, beforeHash, after: "v2" }],
         meta: { op: "save" },
@@ -66,7 +66,7 @@ test("replayIntents resumes safe intents and flags externally modified conflicts
     await atomicWrite(
       path.join(journalDir, "ok.json"),
       JSON.stringify({
-        format: "zhizhang/1.3",
+        format: "zhizhang/2.0",
         id: "ok",
         writes: [{ path: safeFile, beforeHash: sha256("old"), after: "new" }],
         meta: {},
@@ -78,7 +78,7 @@ test("replayIntents resumes safe intents and flags externally modified conflicts
     await atomicWrite(
       path.join(journalDir, "bad.json"),
       JSON.stringify({
-        format: "zhizhang/1.3",
+        format: "zhizhang/2.0",
         id: "bad",
         writes: [{ path: conflictFile, beforeHash: sha256("original"), after: "new" }],
         meta: {},

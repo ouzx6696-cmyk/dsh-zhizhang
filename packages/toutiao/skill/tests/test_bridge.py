@@ -33,5 +33,56 @@ class BridgeTests(unittest.TestCase):
                 self.assertIn('UTF-8', report['message'])
                 self.assertEqual(path.read_bytes(), raw)
 
+    def test_limits_exposes_structured_styles(self):
+        result = subprocess.run(
+            [sys.executable, str(ROOT / 'scripts/writer_bridge.py'), 'limits'],
+            capture_output=True,
+            encoding='utf-8',
+        )
+        self.assertEqual(result.returncode, 0)
+        report = json.loads(result.stdout)
+        self.assertTrue(report['ok'])
+        self.assertEqual(report['title_max'], 34)
+        self.assertEqual(report['pass_score'], 84)
+        styles = report['styles']
+        self.assertIsInstance(styles['byLine'], dict)
+        self.assertTrue(len(styles['byLine']) > 0)
+        self.assertIsInstance(styles['allOpenings'], list)
+        self.assertTrue(len(styles['allOpenings']) > 0)
+        self.assertIsInstance(styles['allEndings'], list)
+        self.assertTrue(len(styles['allEndings']) > 0)
+
+    def test_check_card_valid_and_invalid(self):
+        ok_res = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / 'scripts/writer_bridge.py'),
+                'check-card',
+                '--card',
+                str(ROOT / 'tests/fixtures/story_long_card.json'),
+            ],
+            capture_output=True,
+            encoding='utf-8',
+        )
+        self.assertEqual(ok_res.returncode, 0)
+        ok_report = json.loads(ok_res.stdout)
+        self.assertTrue(ok_report['ok'])
+        self.assertTrue(ok_report['valid'])
+        self.assertEqual(ok_report['errors'], [])
+
+        with tempfile.TemporaryDirectory() as folder:
+            bad_path = Path(folder) / 'bad.json'
+            bad_path.write_text('{ broken json', encoding='utf-8')
+            bad_res = subprocess.run(
+                [sys.executable, str(ROOT / 'scripts/writer_bridge.py'), 'check-card', '--card', str(bad_path)],
+                capture_output=True,
+                encoding='utf-8',
+            )
+            self.assertEqual(bad_res.returncode, 0)
+            bad_report = json.loads(bad_res.stdout)
+            self.assertTrue(bad_report['ok'])
+            self.assertFalse(bad_report['valid'])
+            self.assertTrue(len(bad_report['errors']) >= 1)
+
 if __name__ == '__main__':
     unittest.main()

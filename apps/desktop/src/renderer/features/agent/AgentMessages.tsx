@@ -2,7 +2,7 @@ import React, { Suspense, lazy } from "react";
 import { DESKTOP_COPY as C } from "@zhizhang/ui/copy";
 import { Wrench } from "lucide-react";
 import { Button } from "@zhizhang/ui/primitives";
-import type { ChatMessage, ResultCard } from "../../../shared/types";
+import type { ChatMessage, ResultCard, ToolCallView } from "../../../shared/types";
 import { toolLabel } from "../../../context";
 import { openPipeline, select } from "../../state/controller";
 import { desktop } from "../../state/desktop";
@@ -37,20 +37,35 @@ function ResultButton({ card }: { card: ResultCard }) {
   );
 }
 
+function ToolEvidence({ tools }: { tools: readonly ToolCallView[] }) {
+  return (
+    <details className="zz-tool-evidence" data-testid="agent-tools">
+      <summary className="zz-message__tools">
+        <Wrench size={12} aria-hidden="true" />
+        <span>{C.cowriter.toolEvidence(tools.length)}</span>
+      </summary>
+      <ul className="zz-tool-evidence__list">
+        {tools.map((t, index) => (
+          <li key={`${t.name}-${index}`} data-error={Boolean(t.isError)}>
+            <strong>
+              {toolLabel(t.name)}
+              {t.isError ? C.agent.toolFailed : ""}
+            </strong>
+            {t.summary ? <span className="zz-muted">{t.summary}</span> : null}
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
 const MessageItem = React.memo(function MessageItem({ message }: { message: ChatMessage }) {
   const tools = message.tools ?? [];
   return (
     <li className="zz-message" data-testid="agent-message" data-role={message.role}>
-      {tools.length ? (
-        <p className="zz-message__tools" data-testid="agent-tools">
-          <Wrench size={12} aria-hidden="true" />
-          {C.agent.usedTools(
-            tools.map((t) => toolLabel(t.name) + (t.isError ? C.agent.toolFailed : "")).join("、"),
-          )}
-        </p>
-      ) : null}
+      {tools.length ? <ToolEvidence tools={tools} /> : null}
       {message.text ? (
-        message.role === "assistant" ? (
+        message.role === "assistant" || message.role === "system" ? (
           <Rich text={message.text} onLink={(href) => run(() => desktop.openExternal(href))} />
         ) : (
           <p className="zz-message__text">{message.text}</p>

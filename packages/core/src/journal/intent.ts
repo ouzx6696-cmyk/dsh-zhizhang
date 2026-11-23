@@ -3,6 +3,7 @@ import path from "node:path";
 import { atomicWrite } from "../fs/atomic.js";
 import { sha256 } from "../fs/hash.js";
 import type { LockService, ResourceKey } from "../lock/index.js";
+import type { FormatVersion } from "../paths.js";
 
 export interface IntentWrite {
   path: string;
@@ -11,7 +12,7 @@ export interface IntentWrite {
 }
 
 export interface Intent {
-  format: "zhizhang/1.3";
+  format: FormatVersion;
   id: string;
   writes: IntentWrite[];
   meta: Record<string, string>;

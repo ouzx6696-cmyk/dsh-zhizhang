@@ -1,0 +1,195 @@
+/* 编辑态稿纸：源码框、高亮背衬、提示条与查找栏。 */
+
+/* —— 编辑：同版式的源码框 —— */
+.wb-source-field {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.wb-source-text,
+.wb-source-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding-top: var(--zz-space-16);
+  padding-right: max(
+    var(--zz-space-8),
+    calc((100% - var(--zz-paper-width) - var(--zz-scrollbar)) / 2)
+  );
+  padding-bottom: 40vh;
+  padding-left: max(
+    var(--zz-space-8),
+    calc((100% - var(--zz-paper-width) - var(--zz-scrollbar)) / 2)
+  );
+  border: none;
+  font-family: var(--zz-font-body);
+  font-size: var(--zz-body-size);
+  line-height: var(--zz-paper-leading);
+  letter-spacing: var(--zz-paper-track);
+  text-align: justify;
+  /* Chromium 的 textarea 不支持 each-line（只缩进第一行，且与 div 背衬错位），编辑态统一不缩进。 */
+  text-indent: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  scrollbar-gutter: stable;
+}
+
+.wb-source-text {
+  display: block;
+  overflow-y: auto;
+  background: transparent;
+  color: var(--zz-text-1);
+  caret-color: var(--zz-decide);
+  resize: none;
+}
+
+.wb-source-text:focus,
+.wb-source-text:focus-visible {
+  outline: none;
+}
+
+.wb-source-backdrop {
+  overflow: hidden;
+  background: var(--zz-sheet-bg);
+  color: transparent;
+  pointer-events: none;
+}
+
+.wb-source-backdrop mark {
+  border-radius: var(--zz-radius-xs);
+  background: var(--zz-warn-soft);
+  color: transparent;
+}
+
+.wb-source-backdrop mark[data-current] {
+  background: color-mix(in srgb, var(--zz-warn) 45%, transparent);
+}
+
+.wb-source-backdrop ::highlight(wb-editor-find) {
+  background-color: var(--zz-warn-soft);
+}
+
+.wb-source-backdrop ::highlight(wb-editor-find-active) {
+  background-color: color-mix(in srgb, var(--zz-warn) 45%, transparent);
+}
+
+.wb-source-backdrop ::highlight(wb-editor-issue) {
+  background-color: var(--zz-bad-soft);
+}
+
+.wb-editor-note,
+.wb-editor-error,
+.wb-editor-offer {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--zz-space-2) var(--zz-space-3);
+  margin: 0;
+  padding: var(--zz-space-2) var(--zz-space-5);
+  border-bottom: 1px solid var(--zz-border);
+  font-size: var(--zz-text-meta);
+  line-height: var(--zz-leading-meta);
+}
+
+.wb-editor-note {
+  color: var(--zz-text-2);
+}
+
+.wb-editor-offer {
+  background: var(--zz-run-soft);
+  color: var(--zz-text-1);
+}
+
+.wb-editor-offer > span {
+  flex: 1 1 16rem;
+}
+
+.wb-editor-error {
+  background: var(--zz-bad-soft);
+  color: var(--zz-bad);
+}
+
+/* —— 查找栏 —— */
+.wb-find {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--zz-space-2);
+  padding: var(--zz-space-2) var(--zz-space-5);
+  border-bottom: 1px solid var(--zz-border);
+  background: var(--zz-surface-1);
+}
+
+.wb-find-row {
+  display: flex;
+  align-items: center;
+  gap: var(--zz-space-1);
+}
+
+.wb-find-field {
+  display: flex;
+  flex: 0 1 360px;
+  align-items: center;
+  gap: var(--zz-space-2);
+  min-height: var(--zz-btn-height-sm);
+  padding: 0 var(--zz-space-2);
+  border: 1px solid var(--zz-field-border);
+  border-radius: var(--zz-field-radius);
+  background: var(--zz-field-bg);
+  color: var(--zz-text-3);
+}
+
+.wb-find-field:focus-within {
+  border-color: var(--zz-focus);
+  box-shadow: var(--zz-ring);
+}
+
+.wb-find-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--zz-text-1);
+  font-size: var(--zz-text-body);
+  outline: none;
+}
+
+.wb-find-count {
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.wb-find-case {
+  min-width: var(--zz-btn-height-sm);
+  min-height: var(--zz-btn-height-sm);
+  border: none;
+  border-radius: var(--zz-radius-sm);
+  background: transparent;
+  color: var(--zz-text-2);
+  font: var(--zz-text-meta) / 1 var(--zz-font-mono);
+  cursor: pointer;
+}
+
+.wb-find-case:hover {
+  background: var(--zz-hover);
+}
+
+.wb-find-case-on {
+  background: var(--zz-active);
+  color: var(--zz-text-1);
+}
+
+.wb-skeleton {
+  padding-top: var(--zz-space-4);
+}
+
+.wb-icon {
+  flex: none;
+}

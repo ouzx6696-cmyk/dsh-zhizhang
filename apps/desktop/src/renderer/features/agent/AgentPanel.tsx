@@ -1,9 +1,18 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ArrowUp, ChevronRight, Plus, Sparkles, Square } from "lucide-react";
+import {
+  ArrowUp,
+  AtSign,
+  ChevronRight,
+  ClipboardList,
+  PenTool,
+  Plus,
+  Square,
+  X,
+} from "lucide-react";
 import { DESKTOP_COPY as C } from "@zhizhang/ui/copy";
 import { Button, IconButton, Select, Spinner } from "@zhizhang/ui/primitives";
 import { readPref, writePref, PREF } from "@zhizhang/workbench/client";
-import type { SessionIntent, Target } from "../../../shared/views";
+import type { ContextMention, SessionIntent, Target } from "../../../shared/views";
 import { toolLabel } from "../../../context";
 import { useChat } from "../../state/chatStore";
 import {
@@ -11,14 +20,16 @@ import {
   modelReady,
   newConversation,
   openConversation,
+  openPipeline,
   openSettings,
   refreshUsage,
   sendMessage,
   stopAssistant,
 } from "../../state/controller";
-import { scopeKey, useDesktop } from "../../state/store";
+import { desktopStore, sameTarget, scopeKey, useDesktop } from "../../state/store";
 import { notifyError, run } from "../../format";
 import { AgentMessages } from "./AgentMessages";
+import { BriefDrawer } from "./BriefDrawer";
 
 const INPUT_MAX_HEIGHT = 200;
 
@@ -33,12 +44,23 @@ function quickActions(mode: Target["mode"]): QuickAction[] {
   return mode === "fanqie"
     ? [
         {
+          id: "beats",
+          label: C.cowriter.quickBeats,
+          text: C.cowriter.quickBeatsText,
+          intent: "beats",
+        },
+        {
           id: "continue",
           label: C.agent.quick.continue,
           text: C.agent.quick.continueText,
           intent: "continue",
         },
-        { id: "check", label: C.agent.quick.check, text: C.agent.quick.checkText, intent: "check" },
+        {
+          id: "diagnose",
+          label: C.cowriter.quickDiagnose,
+          text: C.cowriter.quickDiagnoseText,
+          intent: "diagnose",
+        },
         { id: "plan", label: C.agent.quick.plan, text: C.agent.quick.planText, intent: "plan" },
       ]
     : [
@@ -47,6 +69,12 @@ function quickActions(mode: Target["mode"]): QuickAction[] {
           label: C.agent.quick.review,
           text: C.agent.quick.reviewText,
           intent: "review",
+        },
+        {
+          id: "diagnose",
+          label: C.cowriter.quickDiagnose,
+          text: C.cowriter.quickDiagnoseText,
+          intent: "diagnose",
         },
         { id: "check", label: C.agent.quick.check, text: C.agent.quick.checkText, intent: "check" },
       ];
@@ -73,7 +101,6 @@ function ContextBar() {
   useEffect(() => {
     if (!busy) refreshUsage().catch(() => undefined);
   }, [busy, conversationId]);
-  // 空对话不显示占用条：0% 与禁用的“整理”只是噪音。
   if (!usage || usage.messages === 0) return null;
   return (
     <div className="zz-context" data-testid="agent-context" data-percent={usage.percent}>
@@ -102,7 +129,7 @@ function ContextBar() {
   );
 }
 
-/** 右栏“助手”：只读工具 + 发起流水线；不能直接写正文。 */
+/** 右栏“共创写作助手”：嵌入进行中流水线速览、划词选区挂载、@ 引用与结构化任务单。 */
 export function AgentPanel({ target }: { target: Target }) {
   const messages = useChat((c) => c.messages);
   const stream = useChat((c) => c.stream);
@@ -113,7 +140,12 @@ export function AgentPanel({ target }: { target: Target }) {
   const conversationId = useChat((c) => c.conversationId);
   const settings = useDesktop((s) => s.settings);
   const focus = useDesktop((s) => s.focus);
+  const chapters = useDesktop((s) => s.chapters);
+  const runs = useDesktop((s) => s.runs);
+  const readonly = useDesktop((s) => Boolean(s.workspace?.readonly));
   const [draft, setDraft] = useDraft(scopeKey(target));
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [briefOpen, setBriefOpen] = useState(false);
   const input = useRef<HTMLTextAreaElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const ready = modelReady(settings);
@@ -138,6 +170,33 @@ export function AgentPanel({ target }: { target: Target }) {
     }
   };
 
+  const addMention = (mention: ContextMention) => {
+    const prev = desktopStore.get().focus;
+    const existing = prev.mentions ?? [];
+    if (existing.some((m) => m.kind === mention.kind && m.id === mention.id)) {
+      setMentionOpen(false);
+      return;
+    }
+    desktopStore.set({
+      focus: { ...prev, mentions: [...existing.slice(-7), mention] },
+    });
+    setMentionOpen(false);
+  };
+
+  const removeMention = (mention: ContextMention) => {
+    const prev = desktopStore.get().focus;
+    const next = (prev.mentions ?? []).filter(
+      (m) => !(m.kind === mention.kind && m.id === mention.id),
+    );
+    desktopStore.set({ focus: { ...prev, mentions: next.length ? next : undefined } });
+  };
+
+  const clearSelection = () => {
+    const prev = desktopStore.get().focus;
+    desktopStore.set({ focus: { ...prev, selection: undefined } });
+  };
+
+  const activeRun = runs.find((r) => sameTarget(r.target, target));
   const where = [focus.workTitle, focus.title || focus.chapter || focus.article]
     .filter(Boolean)
     .join(" / ");
@@ -146,6 +205,7 @@ export function AgentPanel({ target }: { target: Target }) {
   const submit = () => {
     if (!busy && ready && draft.trim()) void send(draft);
   };
+
   return (
     <div className="zz-agent" data-testid="agent-panel">
       <header className="zz-agent__head">
@@ -175,6 +235,18 @@ export function AgentPanel({ target }: { target: Target }) {
           />
         </div>
         <ContextBar />
+        {activeRun ? (
+          <div className="zz-live-strip" data-testid="agent-live-run" data-state={activeRun.state}>
+            <span>
+              <strong>{C.cowriter.livePipeline}</strong> ·{" "}
+              {C.workflow.kind[activeRun.kind] ?? activeRun.kind}
+              {activeRun.stages.length ? ` (${activeRun.stages.length})` : ""}
+            </span>
+            <Button size="sm" variant="ghost" onClick={() => openPipeline()}>
+              {C.cowriter.openPipelineDetail}
+            </Button>
+          </div>
+        ) : null}
       </header>
       <div className="zz-agent__list" ref={list}>
         {messages.length || stream ? (
@@ -182,7 +254,7 @@ export function AgentPanel({ target }: { target: Target }) {
         ) : (
           <section className="zz-agent__welcome" data-testid="agent-welcome">
             <span className="zz-agent__welcome-icon" aria-hidden="true">
-              <Sparkles size={16} />
+              <PenTool size={16} />
             </span>
             <h3>{C.agent.emptyTitle}</h3>
             <p>{C.agent.emptyHint}</p>
@@ -248,6 +320,15 @@ export function AgentPanel({ target }: { target: Target }) {
           ))}
         </div>
       ) : null}
+      {briefOpen && target.mode === "fanqie" ? (
+        <BriefDrawer
+          target={target}
+          chapterId={focus.chapter || chapters[0]?.id || "ch-001"}
+          initialKeep={focus.selection?.text}
+          disabled={readonly || !ready}
+          onClose={() => setBriefOpen(false)}
+        />
+      ) : null}
       <form
         className="zz-composer"
         onSubmit={(event) => {
@@ -259,6 +340,49 @@ export function AgentPanel({ target }: { target: Target }) {
           <span className="zz-composer__where" data-testid="agent-where">
             {C.agent.where(where)}
           </span>
+        ) : null}
+        {focus.selection || (focus.mentions && focus.mentions.length > 0) ? (
+          <div className="zz-composer__attachments">
+            {focus.selection ? (
+              <span className="zz-attach-tag" data-testid="agent-selection-chip">
+                {C.selection.attached(focus.selection.text.length)}
+                <button type="button" aria-label={C.selection.clear} onClick={clearSelection}>
+                  <X size={11} />
+                </button>
+              </span>
+            ) : null}
+            {(focus.mentions ?? []).map((m) => (
+              <span key={`${m.kind}:${m.id}`} className="zz-attach-tag">
+                @{m.label || m.id}
+                <button type="button" onClick={() => removeMention(m)}>
+                  <X size={11} />
+                </button>
+              </span>
+            ))}
+          </div>
+        ) : null}
+        {mentionOpen ? (
+          <div className="zz-mention-popover" data-testid="agent-mention-popover">
+            <strong>{C.cowriter.mentionTitle}</strong>
+            {chapters.length ? (
+              <ul>
+                {chapters.slice(0, 12).map((ch) => (
+                  <li key={ch.id}>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        addMention({ kind: "chapter", id: ch.id, label: ch.title || ch.id })
+                      }
+                    >
+                      {ch.id} {ch.title}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="zz-muted">{C.cowriter.mentionEmpty}</p>
+            )}
+          </div>
         ) : null}
         <textarea
           ref={input}
@@ -277,7 +401,32 @@ export function AgentPanel({ target }: { target: Target }) {
           }}
         />
         <div className="zz-composer__foot">
-          <span className="zz-composer__hint">{C.agent.sendHint}</span>
+          <div className="zz-row">
+            {target.mode === "fanqie" ? (
+              <>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  data-testid="agent-mention-btn"
+                  onClick={() => setMentionOpen((v) => !v)}
+                >
+                  <AtSign size={13} aria-hidden="true" />
+                  {C.cowriter.mentionBtn}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  data-testid="agent-brief-btn"
+                  onClick={() => setBriefOpen((v) => !v)}
+                >
+                  <ClipboardList size={13} aria-hidden="true" />
+                  {C.cowriter.briefBtn}
+                </Button>
+              </>
+            ) : (
+              <span className="zz-composer__hint">{C.agent.sendHint}</span>
+            )}
+          </div>
           {busy ? (
             <Button
               size="sm"

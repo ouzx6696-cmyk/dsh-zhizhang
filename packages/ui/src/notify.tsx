@@ -55,12 +55,6 @@ export function dismissNotice(id: number) {
   if (queue.some((notice) => notice.id === id)) publish(queue.filter((notice) => notice.id !== id));
 }
 
-/** 收起某一类提示，例如作者重新发起任务时旧的错误已不再适用。 */
-export function dismissNotices(tone: NoticeTone) {
-  if (queue.some((notice) => notice.tone === tone))
-    publish(queue.filter((notice) => notice.tone !== tone));
-}
-
 function useNoticeQueue() {
   return useSyncExternalStore(
     (listener) => {

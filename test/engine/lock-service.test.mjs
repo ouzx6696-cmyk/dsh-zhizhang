@@ -21,12 +21,18 @@ test("LockService write lock supports re-entrancy and times out on contention", 
     });
     assert.equal(result, "reentrant-ok");
 
-    const lockDir = path.join(dir, ".zhizhang-lock-novel");
+    const lockDir = path.join(dir, ".zhizhang-lock-work-novel");
     await fs.mkdir(lockDir, { recursive: true });
     await assert.rejects(
       () => lock.write(resource, async () => "never", { wait: 150 }),
       (err) => isAppError(err, "storage.locked"),
     );
+
+    const otherKind = await lock.write(
+      { kind: "article", path: path.join(dir, "novel") },
+      async () => "isolated-ok",
+    );
+    assert.equal(otherKind, "isolated-ok");
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
   }

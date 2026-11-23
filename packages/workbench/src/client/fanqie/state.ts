@@ -83,12 +83,12 @@ export type FanqieAction =
   | { type: "closeDialog" }
   | { type: "busy"; action: string };
 
-export function initialState(): FanqieState {
+export function initialState(initialWork?: string): FanqieState {
   const fontStep = Number(readPref(PREF.fontStep, "0"));
   return {
     phase: "boot",
     selection: 0,
-    work: readPref(PREF.work, ""),
+    work: initialWork || readPref(PREF.work, ""),
     rowSnapshot: createRowSnapshotState<ChapterRowView>(),
     loading: false,
     error: null,

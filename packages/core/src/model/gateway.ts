@@ -1,9 +1,11 @@
 import type { Clock } from "../clock.js";
+import { AppError } from "../errors/app-error.js";
 import type { BudgetGuard } from "../pipeline/budget.js";
 import type { Role } from "../tool/roles.js";
 import { createEstimator } from "./estimate.js";
 import type { ModelAnswer, ModelPort, ModelRequest } from "./port.js";
 import { withRetry } from "./retry.js";
+import type { UsageTracker } from "./usage.js";
 import { createWatchdog } from "./watchdog.js";
 
 export interface RoleBinding {
@@ -16,6 +18,8 @@ export interface GatewayConfig {
   globalConcurrency: number;
   perRunConcurrency: number;
   roles: Record<string, RoleBinding>;
+  usage?: UsageTracker;
+  requireExplicitBinding?: boolean;
 }
 
 interface Waiter {
@@ -29,9 +33,19 @@ export interface ModelGateway {
   run(
     role: Role,
     req: Omit<ModelRequest, "connection" | "model">,
-    opts: { runId: string; stage: string; budget: BudgetGuard; signal: AbortSignal },
+    opts: {
+      runId: string;
+      stage: string;
+      budget: BudgetGuard;
+      signal: AbortSignal;
+      onDelta?: (delta: string) => void;
+    },
   ): Promise<ModelAnswer>;
-  session<T>(role: Role, fn: (port: ModelPort) => Promise<T>, opts: { scope: string }): Promise<T>;
+  session<T>(
+    role: Role,
+    fn: (port: ModelPort) => Promise<T>,
+    opts: { scope: string; signal?: AbortSignal },
+  ): Promise<T>;
   stats(): { active: number; queued: number };
 }
 
@@ -62,7 +76,7 @@ export function createModelGateway(
 
   const acquire = (runId: string, signal: AbortSignal): Promise<() => void> => {
     if (signal.aborted) {
-      return Promise.reject(Object.assign(new Error("Aborted"), { name: "AbortError" }));
+      return Promise.reject(new AppError("run.stopped", "请求已中止"));
     }
     return new Promise((resolve, reject) => {
       const waiter: Waiter = {
@@ -83,7 +97,7 @@ export function createModelGateway(
       const onAbort = () => {
         const i = queue.indexOf(waiter);
         if (i !== -1) queue.splice(i, 1);
-        reject(Object.assign(new Error("Aborted"), { name: "AbortError" }));
+        reject(new AppError("run.stopped", "请求已中止"));
       };
       signal.addEventListener("abort", onAbort, { once: true });
       queue.push(waiter);
@@ -92,7 +106,12 @@ export function createModelGateway(
   };
 
   const resolveBinding = (role: string): RoleBinding => {
-    return config.roles[role] ?? config.roles.writer ?? { connection: "default", model: "default" };
+    const found = config.roles[role] ?? config.roles.writer;
+    if (found) return found;
+    if (config.requireExplicitBinding) {
+      throw new AppError("model.auth", `角色 ${role} 尚未配置模型连接`, { role });
+    }
+    return { connection: "default", model: "default" };
   };
 
   const computeCost = (binding: RoleBinding, answer: ModelAnswer): number | null => {
@@ -120,7 +139,12 @@ export function createModelGateway(
               return await port.stream(
                 { ...req, connection: binding.connection, model: binding.model },
                 wd.signal,
-                () => wd.poke(),
+                (event) => {
+                  wd.poke();
+                  if (event.type === "delta" && event.text) {
+                    opts.onDelta?.(event.text);
+                  }
+                },
               );
             } finally {
               wd.dispose();
@@ -132,6 +156,18 @@ export function createModelGateway(
         const cost = computeCost(binding, answer);
         estimator.calibrate(key, est, answer.usage.input);
         reservation.settle({ ...answer.usage, cost });
+        config.usage?.record({
+          at: clock.iso(),
+          runId: opts.runId,
+          stage: opts.stage,
+          role,
+          connection: binding.connection,
+          model: binding.model,
+          input: answer.usage.input,
+          cachedInput: answer.usage.cachedInput,
+          output: answer.usage.output,
+          cost,
+        });
         return { ...answer, cost };
       } finally {
         reservation.release();
@@ -140,10 +176,35 @@ export function createModelGateway(
     },
 
     async session(role, fn, opts) {
-      const controller = new AbortController();
-      const release = await acquire(`session:${opts.scope}`, controller.signal);
+      const signal = opts.signal ?? new AbortController().signal;
+      const release = await acquire(`session:${opts.scope}`, signal);
       try {
-        return await fn(port);
+        const watchedPort: ModelPort = {
+          stream: (req, portSignal, onDelta) => {
+            const wd = createWatchdog(portSignal);
+            return port
+              .stream(req, wd.signal, (delta) => {
+                wd.poke();
+                onDelta?.(delta);
+              })
+              .then((answer) => {
+                config.usage?.record({
+                  at: clock.iso(),
+                  stage: `session:${opts.scope}`,
+                  role,
+                  connection: req.connection,
+                  model: req.model,
+                  input: answer.usage.input,
+                  cachedInput: answer.usage.cachedInput,
+                  output: answer.usage.output,
+                  cost: answer.cost,
+                });
+                return answer;
+              })
+              .finally(() => wd.dispose());
+          },
+        };
+        return await fn(watchedPort);
       } finally {
         release();
       }

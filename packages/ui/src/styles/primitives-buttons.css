@@ -1,0 +1,231 @@
+/* @zhizhang/ui 基础控件：按钮、色调、标签、状态胶囊与键帽。只用 --zz-* 令牌。 */
+
+/* —— 按钮 —— */
+.zz-btn,
+.zz-icon-btn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: var(--zz-space-2);
+  box-sizing: border-box;
+  min-height: var(--zz-btn-height-md);
+  padding: 0 var(--zz-space-3);
+  border: 1px solid var(--zz-border-strong);
+  border-radius: var(--zz-btn-radius);
+  background: var(--zz-surface-2);
+  color: var(--zz-text-1);
+  font: var(--zz-weight-regular) var(--zz-text-body) / var(--zz-leading-body) var(--zz-font-ui);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--zz-dur-1) var(--zz-ease),
+    border-color var(--zz-dur-1) var(--zz-ease),
+    color var(--zz-dur-1) var(--zz-ease),
+    box-shadow var(--zz-dur-1) var(--zz-ease);
+}
+
+.zz-btn svg,
+.zz-icon-btn svg {
+  flex: none;
+}
+
+.zz-icon-btn {
+  width: var(--zz-btn-height-md);
+  padding: 0;
+}
+
+.zz-btn--sm,
+.zz-icon-btn--sm {
+  min-height: var(--zz-btn-height-sm);
+  gap: var(--zz-space-1);
+  padding: 0 var(--zz-space-2);
+  font-size: var(--zz-text-meta);
+}
+
+.zz-icon-btn--sm {
+  width: var(--zz-btn-height-sm);
+  padding: 0;
+}
+
+.zz-btn--lg,
+.zz-icon-btn--lg {
+  min-height: var(--zz-btn-height-lg);
+  padding: 0 var(--zz-space-4);
+  font-size: var(--zz-text-strong);
+}
+
+.zz-icon-btn--lg {
+  width: var(--zz-btn-height-lg);
+  padding: 0;
+}
+
+.zz-btn:hover:not(:disabled),
+.zz-icon-btn:hover:not(:disabled) {
+  background: var(--zz-surface-3);
+}
+
+.zz-btn:active:not(:disabled),
+.zz-icon-btn:active:not(:disabled) {
+  background: var(--zz-active);
+}
+
+/* 琥珀：只给作者拍板（定稿、采纳、发送） */
+.zz-btn--primary {
+  border-color: transparent;
+  background: var(--zz-decide-fill);
+  color: var(--zz-on-decide);
+  font-weight: var(--zz-weight-strong);
+  box-shadow: var(--zz-shadow-1);
+}
+
+.zz-btn--primary:hover:not(:disabled) {
+  background: var(--zz-decide-hover);
+}
+
+.zz-btn--primary:active:not(:disabled) {
+  background: var(--zz-decide);
+}
+
+/* 墨色实底：非拍板的主操作（编辑态“保存”、发起任务） */
+.zz-btn--strong {
+  border-color: transparent;
+  background: var(--zz-ink);
+  color: var(--zz-paper);
+  font-weight: var(--zz-weight-strong);
+}
+
+.zz-btn--strong:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--zz-ink) 86%, var(--zz-paper));
+}
+
+.zz-btn--ghost,
+.zz-icon-btn.zz-btn--ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--zz-text-2);
+}
+
+.zz-btn--ghost:hover:not(:disabled),
+.zz-icon-btn.zz-btn--ghost:hover:not(:disabled) {
+  background: var(--zz-hover);
+  color: var(--zz-text-1);
+}
+
+.zz-icon-btn[aria-pressed="true"] {
+  background: var(--zz-active);
+  color: var(--zz-text-1);
+}
+
+.zz-btn--danger {
+  border-color: color-mix(in srgb, var(--zz-bad) 40%, transparent);
+  background: var(--zz-bad-soft);
+  color: var(--zz-bad);
+}
+
+.zz-btn--danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--zz-bad) 22%, transparent);
+}
+
+/* 禁用态一律中性：不保留琥珀，避免“可拍板”与“不可用”混淆 */
+.zz-btn:disabled,
+.zz-icon-btn:disabled {
+  border-color: transparent;
+  background: var(--zz-disabled-bg);
+  color: var(--zz-disabled-fg);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.zz-btn--ghost:disabled,
+.zz-icon-btn.zz-btn--ghost:disabled {
+  background: transparent;
+}
+
+/* —— 色调 —— */
+.zz-tone-decide {
+  --zz-tone-fg: var(--zz-decide);
+  --zz-tone-bg: var(--zz-decide-soft);
+}
+
+.zz-tone-run {
+  --zz-tone-fg: var(--zz-run);
+  --zz-tone-bg: var(--zz-run-soft);
+}
+
+.zz-tone-ok {
+  --zz-tone-fg: var(--zz-ok);
+  --zz-tone-bg: var(--zz-ok-soft);
+}
+
+.zz-tone-warn {
+  --zz-tone-fg: var(--zz-warn);
+  --zz-tone-bg: var(--zz-warn-soft);
+}
+
+.zz-tone-bad {
+  --zz-tone-fg: var(--zz-bad);
+  --zz-tone-bg: var(--zz-bad-soft);
+}
+
+.zz-tone-neutral {
+  --zz-tone-fg: var(--zz-text-2);
+  --zz-tone-bg: var(--zz-active);
+}
+
+/* —— 标签 / 状态胶囊 / 键帽 —— */
+.zz-tag,
+.zz-status-chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--zz-space-1);
+  padding: 0 var(--zz-space-2);
+  background: var(--zz-tone-bg, var(--zz-active));
+  color: var(--zz-tone-fg, var(--zz-text-2));
+  font: var(--zz-weight-regular) var(--zz-text-caption) / var(--zz-leading-caption)
+    var(--zz-font-ui);
+  white-space: nowrap;
+}
+
+.zz-tag {
+  border-radius: var(--zz-tag-radius);
+}
+
+.zz-status-chip {
+  min-height: 22px;
+  border-radius: var(--zz-chip-radius);
+  font-weight: var(--zz-weight-strong);
+}
+
+.zz-status-chip__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--zz-radius-pill);
+  background: currentColor;
+}
+
+.zz-tag__remove {
+  padding: 0 var(--zz-space-half);
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.zz-kbd-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zz-space-1);
+}
+
+.zz-kbd {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--zz-space-1);
+  border: 1px solid var(--zz-border-strong);
+  border-radius: var(--zz-radius-xs);
+  background: var(--zz-surface-2);
+  color: var(--zz-text-2);
+  font: var(--zz-text-caption) / var(--zz-leading-caption) var(--zz-font-mono);
+}

@@ -3,7 +3,7 @@
  * kind 从 ModeModule.pipelines 查表；模型调用全部经 ModelGateway（GatewayLike）。
  */
 import { randomUUID } from "node:crypto";
-import { createSerialRunner } from "@zhizhang/core/lock";
+import { createSerialRunner, type LockService } from "@zhizhang/core/lock";
 import type { Clock } from "@zhizhang/core/clock";
 import { AppError, classify } from "@zhizhang/core/errors";
 import type { ProfileRoots } from "@zhizhang/core/methods";
@@ -33,6 +33,7 @@ import { summarizeRun, targetOfRun, withError, type RunStore } from "./services/
 
 export interface WorkflowDeps {
   clock: Clock;
+  locks?: LockService;
   runs: RunStore;
   gateway(): GatewayLike;
   budget(): BudgetConfig;
@@ -80,10 +81,14 @@ export function createWorkflowService(deps: WorkflowDeps) {
   ): Promise<RunCtx> {
     const profileId = await deps.profileId(target);
     const profileRoots = deps.profileRoots(target.mode);
+    const budget = deps.budget();
     const ctx = await def.context(target, request, {
       workspaceRoot: target.path,
       profileId,
       profileRoots,
+      clock: deps.clock,
+      lock: deps.locks,
+      budget,
     });
     return {
       ...ctx,
@@ -91,6 +96,9 @@ export function createWorkflowService(deps: WorkflowDeps) {
       profileId,
       profileRoots,
       libraryRoot: deps.libraryRoot?.(),
+      clock: ctx.clock ?? deps.clock,
+      lock: ctx.lock ?? deps.locks,
+      budget: ctx.budget ?? budget,
     };
   }
 
@@ -139,12 +147,20 @@ export function createWorkflowService(deps: WorkflowDeps) {
           deps.gateway(),
           deps.clock,
           controller.signal,
-          async (rec) => {
-            latest = rec;
-            run.stage = rec.steps[rec.steps.length - 1]?.id;
-            const detail = withError(rec);
-            await deps.runs.save(detail);
-            emitRun(detail);
+          {
+            onPersist: async (rec) => {
+              latest = rec;
+              run.stage = rec.steps[rec.steps.length - 1]?.id;
+              const detail = withError(rec);
+              await deps.runs.save(detail);
+              emitRun(detail);
+            },
+            onEvent: (event) => {
+              if (event.type === "stage.start") {
+                run.stage = event.stageId;
+                emitRunning();
+              }
+            },
           },
         );
         const detail = withError(latest);
@@ -242,7 +258,7 @@ export function createWorkflowService(deps: WorkflowDeps) {
       const running = active.get(keyOf(ref.target));
       if (action === "pause" || action === "stop") {
         if (running && running.runId === ref.runId) {
-          running.controller.abort();
+          running.controller.abort(action === "stop" ? "cancelled" : "paused");
           return summarizeRun(await running.promise);
         }
         return summarizeRun(await load(ref));
@@ -337,13 +353,15 @@ export function createWorkflowService(deps: WorkflowDeps) {
 
     /** 中断的运行由作者放弃：标记为 cancelled。 */
     async cancel(ref: RunRef): Promise<RunSummary> {
-      assertIdle(ref.target);
-      const detail = await load(ref);
-      const { error: _error, ...record } = detail;
-      const next = withError(transition(record, "cancelled", "cancel", deps.clock.iso()));
-      await deps.runs.save(next);
-      emitRun(next);
-      return summarizeRun(next);
+      return serial(keyOf(ref.target), async () => {
+        assertIdle(ref.target);
+        const detail = await load(ref);
+        const { error: _error, ...record } = detail;
+        const next = withError(transition(record, "cancelled", "cancel", deps.clock.iso()));
+        await deps.runs.save(next);
+        emitRun(next);
+        return summarizeRun(next);
+      });
     },
 
     async stopAll(): Promise<void> {

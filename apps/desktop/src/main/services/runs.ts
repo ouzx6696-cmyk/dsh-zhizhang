@@ -4,8 +4,9 @@
  */
 import fs from "node:fs/promises";
 import path from "node:path";
-import { AppError, type ErrorCode } from "@zhizhang/core/errors";
+import { AppError, classify, type ErrorCode } from "@zhizhang/core/errors";
 import { atomicWrite, readTextIfExists, shortHash } from "@zhizhang/core/fs";
+import { createSerialRunner } from "@zhizhang/core/lock";
 import { FORMAT_VERSION } from "@zhizhang/core/paths";
 import type { RunRecord } from "@zhizhang/core/pipeline";
 import type { RunDetail, RunSummary, Target } from "../../shared/views.js";
@@ -90,7 +91,17 @@ export function withError(
   return error ? { ...record, error } : { ...record };
 }
 
-export function createRunStore(root: string): RunStore {
+const TERMINAL_STATES = new Set(["applied", "discarded", "cancelled", "failed"]);
+const DEFAULT_MAX_TERMINAL_RUNS = 200;
+
+export interface RunStoreOptions {
+  maxTerminalRuns?: number;
+  onCorrupt?(file: string, err: AppError): void;
+}
+
+export function createRunStore(root: string, options: RunStoreOptions = {}): RunStore {
+  const maxTerminalRuns = options.maxTerminalRuns ?? DEFAULT_MAX_TERMINAL_RUNS;
+  const serial = createSerialRunner();
   const dirOf = (target: { mode: string; path: string }) =>
     path.join(root, `${target.mode}-${shortHash(path.resolve(target.path))}`);
 
@@ -101,19 +112,38 @@ export function createRunStore(root: string): RunStore {
       if (!name.endsWith(".json")) continue;
       const file = path.join(dir, name);
       const raw = await readTextIfExists(file);
-      if (raw !== undefined) out.push(parseRun(raw, file));
+      if (raw === undefined) continue;
+      try {
+        out.push(parseRun(raw, file));
+      } catch (err) {
+        options.onCorrupt?.(file, classify(err));
+      }
     }
     return out.sort((a, b) => b.created.localeCompare(a.created) || b.id.localeCompare(a.id));
+  }
+
+  async function pruneTerminal(dir: string): Promise<void> {
+    if (maxTerminalRuns <= 0) return;
+    const all = await readDir(dir);
+    const terminal = all.filter((run) => TERMINAL_STATES.has(run.state));
+    if (terminal.length <= maxTerminalRuns) return;
+    const stale = terminal.slice(maxTerminalRuns);
+    await Promise.all(
+      stale.map((run) => fs.unlink(path.join(dir, `${run.id}.json`)).catch(() => undefined)),
+    );
   }
 
   return {
     async save(detail) {
       if (!/^[\w.-]+$/.test(detail.id))
         throw new AppError("input.invalid", `运行 id 无效：${detail.id}`);
-      await atomicWrite(
-        path.join(dirOf(detail.target), `${detail.id}.json`),
-        JSON.stringify(detail, null, 2),
-      );
+      const dir = dirOf(detail.target);
+      await serial(dir, async () => {
+        await atomicWrite(path.join(dir, `${detail.id}.json`), JSON.stringify(detail, null, 2));
+        if (TERMINAL_STATES.has(detail.state)) {
+          await pruneTerminal(dir);
+        }
+      });
     },
     async get(target, runId) {
       if (!/^[\w.-]+$/.test(runId)) throw new AppError("input.invalid", `运行 id 无效：${runId}`);

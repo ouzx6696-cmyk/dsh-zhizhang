@@ -7,7 +7,15 @@ export interface ContextBlock {
   reason: string;
   source: {
     kind:
-      "outline" | "chapter" | "bible" | "plan" | "retrieval" | "reference" | "author" | "library";
+      | "outline"
+      | "chapter"
+      | "bible"
+      | "plan"
+      | "retrieval"
+      | "reference"
+      | "author"
+      | "library"
+      | "source";
     ref: string;
   };
 }

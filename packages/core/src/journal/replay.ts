@@ -2,7 +2,25 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { atomicWrite } from "../fs/atomic.js";
 import { sha256 } from "../fs/hash.js";
+import { FORMAT_VERSION } from "../paths.js";
+import { arr, lit, nullable, obj, record, str, type Parser } from "../schema/parse.js";
 import type { Intent } from "./intent.js";
+
+const IntentSchema: Parser<Intent> = obj(
+  {
+    format: lit(FORMAT_VERSION),
+    id: str({ min: 1 }),
+    writes: arr(
+      obj({
+        path: str({ min: 1 }),
+        beforeHash: nullable(str()),
+        after: str(),
+      }),
+    ),
+    meta: record(str()),
+  },
+  { strict: false },
+);
 
 export async function replayIntents(
   journalDir: string,
@@ -17,11 +35,7 @@ export async function replayIntents(
     if (!raw) continue;
     let intent: Intent;
     try {
-      intent = JSON.parse(raw) as Intent;
-      if (intent.format !== "zhizhang/1.3" || !Array.isArray(intent.writes)) {
-        conflicts.push(entry.name);
-        continue;
-      }
+      intent = IntentSchema(JSON.parse(raw), intentFile);
     } catch {
       conflicts.push(entry.name);
       continue;

@@ -5,6 +5,7 @@ import path from "node:path";
 import type { Clock } from "../clock.js";
 import { AppError } from "../errors/app-error.js";
 import { atomicWrite } from "../fs/atomic.js";
+import { int, obj, opt, str } from "../schema/parse.js";
 
 export interface ResourceKey {
   kind: "work" | "article" | "library" | "ledger";
@@ -27,12 +28,22 @@ export interface AuthorConfirmation {
 const activeLocks = new AsyncLocalStorage<Set<string>>();
 const LOCK_DIR_NAME = ".zhizhang-lock";
 
+const LockOwnerSchema = obj(
+  {
+    owner: opt(str()),
+    pid: int({ min: 1 }),
+    host: str({ min: 1 }),
+    acquiredAt: opt(str()),
+  },
+  { strict: false },
+);
+
 function isPidAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
-  } catch {
-    return false;
+  } catch (err) {
+    return (err as NodeJS.ErrnoException)?.code === "EPERM";
   }
 }
 
@@ -48,7 +59,7 @@ export async function withWriteLock<T>(
 
   const lockDir = path.join(
     path.dirname(path.resolve(resource.path)),
-    `${LOCK_DIR_NAME}-${path.basename(resource.path)}`,
+    `${LOCK_DIR_NAME}-${resource.kind}-${path.basename(resource.path)}`,
   );
   const ownerFile = path.join(lockDir, "owner.json");
   const deadline = clock.now() + waitMs;
@@ -98,8 +109,8 @@ export async function inspectStaleLocks(root: string): Promise<StaleLock[]> {
     const raw = await fs.readFile(path.join(lockDir, "owner.json"), "utf8").catch(() => undefined);
     if (!raw) continue;
     try {
-      const parsed = JSON.parse(raw) as Partial<StaleLock>;
-      if (typeof parsed.pid === "number" && parsed.host === host && !isPidAlive(parsed.pid)) {
+      const parsed = LockOwnerSchema(JSON.parse(raw), ownerFileLabel(lockDir));
+      if (parsed.host === host && !isPidAlive(parsed.pid)) {
         results.push({
           lockDir,
           owner: parsed.owner ?? `${host}:${parsed.pid}`,
@@ -113,6 +124,10 @@ export async function inspectStaleLocks(root: string): Promise<StaleLock[]> {
     }
   }
   return results;
+}
+
+function ownerFileLabel(lockDir: string): string {
+  return path.join(lockDir, "owner.json");
 }
 
 export async function clearStaleLock(lock: StaleLock, confirm: AuthorConfirmation): Promise<void> {

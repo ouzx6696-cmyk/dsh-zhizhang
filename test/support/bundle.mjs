@@ -10,7 +10,7 @@ import { pathToFileURL } from "node:url";
 import { build } from "esbuild";
 
 const ROOT = process.cwd();
-const OUT_DIR = path.join(ROOT, "node_modules", ".cache", "zhizhang-test");
+const OUT_DIR = path.join(ROOT, "apps", "desktop", "node_modules", ".cache", "zhizhang-test");
 const EXTERNAL = ["electron", "@earendil-works/*", "docx", "undici"];
 
 export async function importBundle(relEntry) {
@@ -26,6 +26,7 @@ export async function importBundle(relEntry) {
     format: "esm",
     target: "node24",
     external: EXTERNAL,
+    nodePaths: [path.join(ROOT, "apps", "desktop", "node_modules")],
     logLevel: "silent",
     sourcemap: false,
   });

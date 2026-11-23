@@ -6,12 +6,15 @@ import type { TargetItem } from "../../../shared/views";
 import { useDesktop } from "../../state/store";
 import { RightDock } from "./RightDock";
 
-// 写作区按模式懒加载：番茄与头条各成一块，入口只带外壳。
+// 写作区与设定集中心按需懒加载：入口只带外壳。
 const FanqieWorkspace = lazy(() =>
   import("./FanqieWorkspace").then((m) => ({ default: m.FanqieWorkspace })),
 );
 const ToutiaoWorkspace = lazy(() =>
   import("./ToutiaoWorkspace").then((m) => ({ default: m.ToutiaoWorkspace })),
+);
+const BibleCenter = lazy(() =>
+  import("../bible/BibleCenter").then((m) => ({ default: m.BibleCenter })),
 );
 
 const DOCK_MIN = 320;
@@ -91,24 +94,34 @@ function WorkspaceFallback() {
   );
 }
 
-/** 写作台：中栏写作区（番茄/头条按模式）+ 右栏停靠（助手 / 流水线 / 本章）。 */
+/** 写作台：中栏写作区（番茄/头条按模式，支持设定集中心与专注模式）+ 右栏停靠。 */
 export function Studio({ item }: { item: TargetItem }) {
   const dockOpen = useDesktop((state) => state.dockOpen);
+  const zenMode = useDesktop((state) => state.zenMode);
+  const view = useDesktop((state) => state.view);
   const readonly = useDesktop((state) => Boolean(state.workspace?.readonly));
   const [width, setWidth] = useDockWidth();
+  const showDock = dockOpen && !zenMode;
   const style = { "--zz-dock-width": `${width}px` } as React.CSSProperties;
   return (
-    <div className="zz-studio" data-dock={dockOpen ? "open" : "closed"} style={style}>
+    <div
+      className="zz-studio"
+      data-dock={showDock ? "open" : "closed"}
+      data-zen={zenMode ? "on" : "off"}
+      style={style}
+    >
       <main className="zz-studio__main" data-testid="workspace" data-mode={item.target.mode}>
         <Suspense fallback={<WorkspaceFallback />}>
-          {item.target.mode === "fanqie" ? (
+          {view === "bible" && item.target.mode === "fanqie" ? (
+            <BibleCenter target={item.target} />
+          ) : item.target.mode === "fanqie" ? (
             <FanqieWorkspace target={item.target} readonly={readonly} />
           ) : (
             <ToutiaoWorkspace target={item.target} readonly={readonly} />
           )}
         </Suspense>
       </main>
-      {dockOpen ? (
+      {showDock ? (
         <div className="zz-studio__dock">
           <DockHandle width={width} onResize={setWidth} />
           <RightDock target={item.target} />

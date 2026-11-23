@@ -5,6 +5,7 @@
 import path from "node:path";
 import { AppError, classify, isAppError } from "@zhizhang/core/errors";
 import { atomicWrite, readTextIfExists } from "@zhizhang/core/fs";
+import { createSerialRunner } from "@zhizhang/core/lock";
 import { FORMAT_VERSION } from "@zhizhang/core/paths";
 import {
   DEFAULT_SETTINGS,
@@ -34,7 +35,7 @@ export interface ConfigService {
   saveModels(input: ModelsInput): Promise<PublicSettings>;
   setWorkspaceRoot(root: string): Promise<void>;
   reset(): Promise<PublicSettings>;
-  onChange(listener: (settings: AppSettings) => void): void;
+  onChange(listener: (settings: AppSettings) => void): () => void;
 }
 
 function issueOf(err: unknown): SettingsIssue {
@@ -53,7 +54,8 @@ export async function createConfigService(opts: {
 }): Promise<ConfigService> {
   const settingsFile = path.join(opts.stateRoot, "settings.json");
   const secretsFile = path.join(opts.stateRoot, "secrets.bin");
-  const listeners: Array<(settings: AppSettings) => void> = [];
+  const listeners = new Set<(settings: AppSettings) => void>();
+  const serial = createSerialRunner();
   let current: AppSettings = DEFAULT_SETTINGS;
   let issue: SettingsIssue | undefined;
   const keys = new Map<string, string>();
@@ -113,7 +115,9 @@ export async function createConfigService(opts: {
     if (!opts.cipher.available()) return;
     const out: Record<string, string> = {};
     for (const [id, key] of keys) out[id] = opts.cipher.encrypt(key);
-    await atomicWrite(secretsFile, JSON.stringify({ format: FORMAT_VERSION, keys: out }, null, 2));
+    await atomicWrite(secretsFile, JSON.stringify({ format: FORMAT_VERSION, keys: out }, null, 2), {
+      mode: 0o600,
+    });
   }
 
   function assertEditable(): void {
@@ -149,47 +153,58 @@ export async function createConfigService(opts: {
       return hit;
     },
     async savePatch(patch) {
-      assertEditable();
-      await persistSettings(parseSettings(mergeSettingsPatch(current, patch)));
-      return publicSettings();
+      return serial("config", async () => {
+        assertEditable();
+        await persistSettings(parseSettings(mergeSettingsPatch(current, patch)));
+        return publicSettings();
+      });
     },
     async saveModels(input) {
-      assertEditable();
-      const connections = input.connections.map(({ apiKey: _apiKey, ...rest }) => rest);
-      const next = parseSettings({ ...current, models: { connections, roles: input.roles } });
-      for (const [role, binding] of Object.entries(input.roles)) {
-        if (binding && !connections.some((c) => c.id === binding.connection)) {
-          const keyPath = `$models.roles.${role}.connection`;
-          throw new AppError("input.invalid", `${keyPath}: 未知连接 ${binding.connection}`, {
-            path: keyPath,
-          });
+      return serial("config", async () => {
+        assertEditable();
+        const connections = input.connections.map(({ apiKey: _apiKey, ...rest }) => rest);
+        const next = parseSettings({ ...current, models: { connections, roles: input.roles } });
+        for (const [role, binding] of Object.entries(input.roles)) {
+          if (binding && !connections.some((c) => c.id === binding.connection)) {
+            const keyPath = `$models.roles.${role}.connection`;
+            throw new AppError("input.invalid", `${keyPath}: 未知连接 ${binding.connection}`, {
+              path: keyPath,
+            });
+          }
         }
-      }
-      for (const conn of input.connections) {
-        if (conn.apiKey === undefined) continue;
-        if (conn.apiKey === "") keys.delete(conn.id);
-        else keys.set(conn.id, conn.apiKey.trim());
-      }
-      for (const id of [...keys.keys()]) {
-        if (!connections.some((c) => c.id === id)) keys.delete(id);
-      }
-      await persistSecrets();
-      await persistSettings(next);
-      return publicSettings();
+        for (const conn of input.connections) {
+          if (conn.apiKey === undefined) continue;
+          if (conn.apiKey === "") keys.delete(conn.id);
+          else keys.set(conn.id, conn.apiKey.trim());
+        }
+        for (const id of [...keys.keys()]) {
+          if (!connections.some((c) => c.id === id)) keys.delete(id);
+        }
+        await persistSecrets();
+        await persistSettings(next);
+        return publicSettings();
+      });
     },
     async setWorkspaceRoot(root) {
-      assertEditable();
-      await persistSettings({ ...current, workspaceRoot: root });
+      await serial("config", async () => {
+        assertEditable();
+        await persistSettings({ ...current, workspaceRoot: root });
+      });
     },
     async reset() {
-      issue = undefined;
-      keys.clear();
-      await persistSecrets();
-      await persistSettings({ ...DEFAULT_SETTINGS, workspaceRoot: current.workspaceRoot });
-      return publicSettings();
+      return serial("config", async () => {
+        issue = undefined;
+        keys.clear();
+        await persistSecrets();
+        await persistSettings({ ...DEFAULT_SETTINGS, workspaceRoot: current.workspaceRoot });
+        return publicSettings();
+      });
     },
     onChange(listener) {
-      listeners.push(listener);
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
     },
   };
 }

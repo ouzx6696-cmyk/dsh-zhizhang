@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { systemClock } from "@zhizhang/core/clock";
 import { AppError } from "@zhizhang/core/errors";
-import { readJson, readTextIfExists, resolveInside } from "@zhizhang/core/fs";
+import { atomicWrite, readJson, readTextIfExists, resolveInside, sha256 } from "@zhizhang/core/fs";
 import { createLockService, type LockService } from "@zhizhang/core/lock";
 import { lit, obj, opt, str, type Infer } from "@zhizhang/core/schema";
 import { assertArticleTransition, ARTICLE_STATUSES, type ArticleStatus } from "../domain/status.js";
@@ -204,4 +204,74 @@ export async function listArticleRowsCommand(root: string): Promise<{ rows: Arti
       b.updatedAt.localeCompare(a.updatedAt),
   );
   return { rows };
+}
+
+async function readLatestDraftFile(
+  articleDir: string,
+): Promise<{ file: string; text: string } | undefined> {
+  const dir = path.join(articleDir, "drafts");
+  const names = (await fs.readdir(dir).catch(() => []))
+    .filter((n) => /^rev-[\w-]+\.md$/.test(n))
+    .sort();
+  let best: { file: string; mtime: number } | undefined;
+  for (const name of names) {
+    const stat = await fs.stat(path.join(dir, name));
+    if (!best || stat.mtimeMs >= best.mtime) best = { file: name, mtime: stat.mtimeMs };
+  }
+  if (!best) return undefined;
+  return { file: best.file, text: (await readTextIfExists(path.join(dir, best.file))) ?? "" };
+}
+
+export async function readDraftCommand(
+  articleDir: string,
+): Promise<{ file: string; title: string; body: string; revision: string }> {
+  const latest = await readLatestDraftFile(articleDir);
+  if (!latest) return { file: "", title: "", body: "", revision: "" };
+  const heading = /^# (.+)\r?\n(?:\r?\n)?/.exec(latest.text);
+  return {
+    file: latest.file,
+    title: heading ? heading[1].trim() : "",
+    body: (heading ? latest.text.slice(heading[0].length) : latest.text).trimEnd(),
+    revision: sha256(latest.text).slice(0, 12),
+  };
+}
+
+export const SaveDraftReq = obj({
+  articleDir: str({ min: 1 }),
+  title: opt(str({ max: 200 })),
+  body: str({ min: 1, max: 400_000 }),
+  revision: opt(str()),
+});
+
+export async function saveDraftCommand(
+  rawInput: unknown,
+  lock: LockService = createLockService(systemClock),
+): Promise<{ draftPath: string; revision: string; chars: number }> {
+  const input = SaveDraftReq(rawInput);
+  return lock.write({ kind: "article", path: input.articleDir }, async () => {
+    const latest = await readLatestDraftFile(input.articleDir);
+    const latestRevision = latest ? sha256(latest.text).slice(0, 12) : "";
+    if (input.revision !== undefined && input.revision !== latestRevision) {
+      throw new AppError("storage.conflict", "草稿已有更新的版本，请刷新后再保存", {
+        expected: input.revision,
+        actual: latestRevision,
+      });
+    }
+    const text = `${input.title?.trim() ? `# ${input.title.trim()}\n\n` : ""}${input.body.trim()}\n`;
+    const existing = (
+      await fs.readdir(path.join(input.articleDir, "drafts")).catch(() => [])
+    ).filter((n) => /^rev-\d{3,}\.md$/.test(n));
+    const next = existing.reduce((max, n) => Math.max(max, Number.parseInt(n.slice(4), 10)), 0) + 1;
+    const draftPath = path.join(
+      input.articleDir,
+      "drafts",
+      `rev-${String(next).padStart(3, "0")}.md`,
+    );
+    await atomicWrite(draftPath, text);
+    return {
+      draftPath,
+      revision: sha256(text).slice(0, 12),
+      chars: text.replace(/\s+/g, "").length,
+    };
+  });
 }

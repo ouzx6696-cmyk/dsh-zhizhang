@@ -2,7 +2,10 @@ import React, { useEffect, useState } from "react";
 import {
   BookOpen,
   ChevronDown,
+  Command,
   Download,
+  Maximize2,
+  Minimize2,
   PanelRight,
   Settings as SettingsIcon,
 } from "lucide-react";
@@ -131,22 +134,33 @@ export function TopBar() {
   const workspace = useDesktop((state) => state.workspace);
   const settings = useDesktop((state) => state.settings);
   const dockOpen = useDesktop((state) => state.dockOpen);
+  const zenMode = useDesktop((state) => state.zenMode);
   const [menu, setMenu] = useState<"" | "targets" | "export">("");
   const close = () => setMenu("");
+
   const views: { id: MainView; label: string }[] = [
-    { id: "writing", label: C.topbar.viewWriting },
-    {
-      id: "board",
-      label: selected?.target.mode === "toutiao" ? C.topbar.viewLedger : C.topbar.viewBoard,
-    },
+    { id: "hub", label: C.topbar.viewHub },
+    ...(selected
+      ? [
+          { id: "writing" as const, label: C.topbar.viewWriting },
+          {
+            id: "board" as const,
+            label: selected.target.mode === "toutiao" ? C.topbar.viewLedger : C.topbar.viewBoard,
+          },
+          ...(selected.target.mode === "fanqie"
+            ? [{ id: "bible" as const, label: C.topbar.viewBible }]
+            : []),
+        ]
+      : []),
+    ...(workspace?.configured ? [{ id: "warehouse" as const, label: C.topbar.viewWarehouse }] : []),
   ];
+
   const formats: ExportFormat[] =
     selected?.target.mode === "toutiao" ? ["md", "txt", "copy"] : ["txt", "docx", "copy"];
   const ready = modelReady(settings);
   const head = headlineRun(runs);
   const awaiting = runs.some((r) => r.state === "awaiting-author");
 
-  // “轮到作者”时窗口标题加前缀，切到别的窗口也能看见。
   useEffect(() => {
     document.title = awaiting ? `${C.topbar.awaitingPrefix}${COPY["app.name"]}` : COPY["app.name"];
   }, [awaiting]);
@@ -181,7 +195,7 @@ export function TopBar() {
             </div>
           ) : null}
         </div>
-        {selected ? (
+        {views.length > 1 ? (
           <>
             <span className="zz-topbar__divider" aria-hidden="true" />
             <nav className="zz-segmented zz-segmented--sm" aria-label={C.topbar.views}>
@@ -227,6 +241,21 @@ export function TopBar() {
           <span>{ready ? C.topbar.modelReady : C.topbar.modelMissing}</span>
         </button>
         <div className="zz-topbar__tools">
+          <IconButton
+            label={C.topbar.commandPalette}
+            data-testid="open-palette"
+            icon={<Command size={15} />}
+            onClick={() => set({ paletteOpen: true })}
+          />
+          {selected && view === "writing" ? (
+            <IconButton
+              label={zenMode ? C.topbar.zenExit : C.topbar.zenMode}
+              pressed={zenMode}
+              data-testid="zen-toggle"
+              icon={zenMode ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+              onClick={() => set({ zenMode: !zenMode })}
+            />
+          ) : null}
           {selected ? (
             <div className="zz-topbar__menu zz-menu-root">
               <IconButton
@@ -251,7 +280,7 @@ export function TopBar() {
               ) : null}
             </div>
           ) : null}
-          {selected ? (
+          {selected && view !== "hub" && view !== "warehouse" ? (
             <IconButton
               label={C.topbar.toggleDock}
               pressed={dockOpen}

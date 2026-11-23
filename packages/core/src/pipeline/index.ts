@@ -10,13 +10,17 @@ export {
   type UsageTotals,
 } from "./record.js";
 export { executePipeline, type GatewayLike } from "./runner.js";
-export type {
-  DeliveryReceipt,
-  PipelineDefinition,
-  PipelineEnv,
-  RunCtx,
-  StageRunner,
-  StageSpec,
+export {
+  definePipeline,
+  type AnyPipelineDefinition,
+  type DeliveryReceipt,
+  type ExecutePipelineOptions,
+  type PipelineDefinition,
+  type PipelineEnv,
+  type PipelineEvent,
+  type RunCtx,
+  type StageRunner,
+  type StageSpec,
 } from "./stage.js";
 export {
   TRANSITIONS,

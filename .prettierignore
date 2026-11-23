@@ -21,3 +21,6 @@ docs/
 
 # 本地可删除缓存（真实模型驱动与下载运行时）
 .cache/
+.aistudio/
+.playwright-cli/
+.zhizhang-web/

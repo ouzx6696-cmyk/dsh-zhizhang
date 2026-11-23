@@ -1,26 +1,32 @@
 # 项目状态
 
-- **当前版本**：`1.3.0`
+- **当前版本**：`2.0.0`（v2.1 全链路架构优化与文档体系重构）
+- **磁盘格式**：`zhizhang/2.0`
+- **运行形态**：Electron 桌面主应用 + Node HTTP/SSE 本地 Web 预览（共享 `createAppRuntime`）
 
-## 最新验证矩阵
+## 验证矩阵
 
-| 检查项 | 环境 / 范围 | 状态 | 说明 |
+| 检查项 | 范围 / 环境 | 状态 | 说明 |
 | --- | --- | --- | --- |
-| `node scripts/guard.mjs` | 离线沙箱 | 通过 | 覆盖 `G-core`、`G-layer`、`G-facade`、`G-app`、`G-pi`、`G-error`、`G-copy`、`G-type`、`G-exports`、`G-brand`、`G-docs`、`G-rules`、`G-css` |
-| Python `unittest` | 头条 226 项 + 番茄 1 项 | 通过 | 覆盖 4.0.0 规则源、门禁、台账与桥接脚本 |
-| Node 单元测试 | `test/unit/*.test.mjs`、`test/engine/*.test.mjs` | 通过 | 覆盖原子写、意图重放、锁、预算、错误、状态机、方法注入与 P1 契约 |
-| `npm run check`（`tsc -b` + ESLint + Prettier + guard） | Linux 沙箱 Node 24 | 通过 | tsc 0 错误；ESLint 0 错误 0 警告；Prettier 全部合格 |
-| Playwright E2E（`test/desktop/ui.spec.mjs`） | Linux 沙箱 + Xorg dummy；Windows 由 CI `e2e` job 执行 | Linux 通过 | 4 条旅程 + 助手停止，假模型服务，不出网 |
-| 打包 / 安装升级 | 需 Windows | 未验证 | CI `package` job 与 W1–W20 真机检查单 |
-| 真实模型 RM01/RM02 & A/B | 需联网与付费预算批准 | 待执行 | 需作者单独批准预算后运行 |
+| `npm run check` | `tsc -b` + ESLint + Prettier + `guard.mjs` | 通过 | strict 0 错误、ESLint 0 告警、`any = 0`、`! = 0`、`as = 122`、`unusedExports = 0`、`docs = 8` |
+| `npm test` | Python `unittest`（头条 228 项 + 番茄）+ Node 76 项（`test/unit` & `test/engine`） | 通过 | 覆盖 Python 规则桥、UTF-8 流式分块、设定集索引与缓存、预算裁剪、会话并发、RunStore 损坏隔离、Web 预览安全边界与核心状态机 |
+| `npm run assets -- check` | `assets/sources.json` + `assets/manifest.json` + `stage-map.json` | 通过 | 清单 497 条哈希、上游版本号及双模式默认方案阶段引用全部一致 |
+| `npm run build` | 全仓 workspace + Web 预览构建 | 通过 | 无错误生成 `packages/*/dist` 与 `apps/desktop/out/web` |
+| Web 预览实机浏览器验收 | `http://localhost:3000` + Headless Chromium（1440×900） | 通过 | 验证双模式切换、番茄稿纸编辑与持久化、头条草稿编辑与台账、设置与深色主题切换、零控制台与网络错误 |
+| Windows 桌面打包与 E2E | 需 Windows 宿主（CI `e2e` / `package` job） | 待宿主运行 | 包含 Playwright Electron E2E、`electron-builder` NSIS/ZIP 与 W1–W20 检查单 |
+| 真实模型评测（RM01/RM02） | 需联网与作者书面批准预算 | 待批准 | 严格遵守未批准不调付费模型红线 |
 
-## 已知问题与待完成事项
+## 模块健康概览
 
-- **写作内核接线**：L5 早期摘要检索、L6 规划与参考卡、前章正文、状态冲突巡检及日期/机构提取已实现；章节流水线现已加载前文、当前卷规划及绑定参考卡。
-- **收尾修复**：章节/候选/拆书资源路径统一约束；采纳保留审读结果，单独审读可由作者确认写回；修改定稿退回草稿；同目标启动与恢复串行登记；费用包含无效回答，预算按每次预占结算；头条每次修订复核事实，交稿在台账成功后提交并可重试。
-- **发行入口**：Windows CI 已补桌面构建和正确的 Python 准备路径；`release:verify` 使用现有 check/test/E2E 命令。仍需 Windows 原生验证。
-- **测试规模**：Python 227 项、Node 46 项、桌面 E2E 5 项；本轮只新增 1 个费用重试/恢复用例，其余复用现有旅程。手写 TypeScript 转换器改用已有 esbuild。
-- **自动化范围**：记账与十章体检目前由流水线显式发起，定稿动作本身只确认章节状态。
-- **依赖审计**：electron-builder/minimatch 构建依赖链有 6 条 moderate 记录，0 high/critical；未更换打包工具版本。
-- **基线清零**：`apps/desktop/src/main/` 裸 `throw new Error(` 已清零，TS `as` 断言受基线 258 约束，`packages/workbench/src/client/` 尚存 6 个含 JSX 中文的文件，后续按基线只减不增原则逐步清零。
-- **Windows 真机验收**：1.3.0 发版前需完成 W1–W20 真机缩放、高对比度、离线备份与安装升级检查单。
+| 层级 | 包 / 目录 | 状态 | v2.1 关键加固 |
+| --- | --- | --- | --- |
+| L0 | `@zhizhang/core` | 健康 | UTF-8 `Buffer` 合并、`PYTHONUTF8=1`、锁命名空间与 `EPERM` 修复、非阻塞沙箱、全量 Schema 校验、网关记账与取消语义区分 |
+| L1 | `@zhizhang/ui` / `@zhizhang/workbench` | 健康 | `desktop.ts` 文案分治、草稿原子写与可注入时钟、零死导出、`.tsx` 零中文硬编码 |
+| L2 | `@zhizhang/fanqie` | 健康 | `bible/` 三文件拆解与索引巡检、2-gram LRU + 严格预算裁剪、章节评分/比较并行、修稿门禁失败安全回退、`book` 流水线拆解 |
+| L2 | `@zhizhang/toutiao` | 健康 | `writer_bridge.py` 原生 `check-card` 与 `limits.styles`、消除内联 Python、真实 `ContextPacket`、质检 `.tmp/` 隔离 |
+| L3 | `apps/desktop` | 健康 | `commands.ts` 分治、Web 预览沙箱/同源/导出下载加固、SSE 容错重连、会话串行+LRU+只读工具并发、PI 15s 超时、`RunStore` 损坏隔离与裁剪 |
+
+## 后续待办
+
+1. **Windows 交付验证**：在 Windows 宿主或 GitHub Actions `windows-latest` 上完成 `npm run test:e2e` 与 `npm run release:verify`。
+2. **付费模型试点评测**：在获得作者书面预算批准后执行 RM01/RM02 与 A/B 质量评测。

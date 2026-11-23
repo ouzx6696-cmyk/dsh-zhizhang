@@ -1,3 +1,4 @@
+import { systemClock, type Clock } from "@zhizhang/core/clock";
 import { AppError } from "@zhizhang/core/errors";
 import { APP_VERSION } from "@zhizhang/core/version";
 import { lookup } from "node:dns/promises";
@@ -5,7 +6,13 @@ import type { LookupAddress, LookupOptions } from "node:dns";
 import http from "node:http";
 import https from "node:https";
 import { isIP } from "node:net";
-function publicAddress(address: string) {
+import type { Readable } from "node:stream";
+import zlib from "node:zlib";
+
+const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
+const MAX_TEXT_CHARS = 80_000;
+
+function publicAddress(address: string): boolean {
   const ip = address.toLowerCase().replace(/^::ffff:/, "");
   if (isIP(ip) === 4) {
     const [a, b, c] = ip.split(".").map(Number);
@@ -30,14 +37,32 @@ function publicAddress(address: string) {
     !ip.startsWith("2002:")
   );
 }
-function decodeSource(bytes: Buffer, contentType: string) {
-  const head = bytes.subarray(0, 2048).toString("latin1");
-  const charset =
-    /charset\s*=\s*["']?([^\s;"'>]+)/i.exec(contentType)?.[1] ??
-    /<meta\b[^>]*charset\s*=\s*["']?([^\s;"'>]+)/i.exec(head)?.[1] ??
-    "utf-8";
-  return new TextDecoder(charset, { fatal: true }).decode(bytes);
+
+function normalizeCharset(raw: string): string {
+  const lower = raw.trim().toLowerCase();
+  if (lower === "gb2312" || lower === "gbk" || lower === "gb_2312") return "gb18030";
+  return lower;
 }
+
+export function decodeSourceBytes(bytes: Buffer, contentType: string): string {
+  const head = bytes.subarray(0, 2048).toString("latin1");
+  const declared =
+    /charset\s*=\s*["']?([^\s;"'>]+)/i.exec(contentType)?.[1] ??
+    /<meta\b[^>]*charset\s*=\s*["']?([^\s;"'>]+)/i.exec(head)?.[1];
+  const candidates = [...(declared ? [normalizeCharset(declared)] : []), "utf-8", "gb18030"];
+  const seen = new Set<string>();
+  for (const label of candidates) {
+    if (seen.has(label)) continue;
+    seen.add(label);
+    try {
+      return new TextDecoder(label, { fatal: true }).decode(bytes);
+    } catch {
+      // 尝试下一个编码候选
+    }
+  }
+  return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+}
+
 const ENTITIES: Record<string, string> = {
   nbsp: " ",
   amp: "&",
@@ -54,7 +79,8 @@ const ENTITIES: Record<string, string> = {
   hellip: "…",
   middot: "·",
 };
-function decodeEntities(value: string) {
+
+function decodeEntities(value: string): string {
   return value.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (match, entity: string) => {
     if (entity.startsWith("#")) {
       const point =
@@ -68,22 +94,48 @@ function decodeEntities(value: string) {
     return ENTITIES[entity.toLowerCase()] ?? match;
   });
 }
+
+export function extractReadableText(html: string): string {
+  const stripped = html
+    .replace(/<(script|style|noscript|nav|header|footer|aside)\b[\s\S]*?<\/\1>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|li|h[1-6]|section|article|blockquote|tr)>/gi, "\n")
+    .replace(/<[^>]*>/g, " ");
+  return decodeEntities(stripped)
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((line) => line.replace(/[ \t\f\v]+/g, " ").trim())
+    .filter((line) => line.length > 0)
+    .join("\n");
+}
+
+function decodedStream(response: http.IncomingMessage): Readable {
+  const enc = (response.headers["content-encoding"] || "").trim().toLowerCase();
+  if (enc === "gzip" || enc === "x-gzip") return response.pipe(zlib.createGunzip());
+  if (enc === "deflate") return response.pipe(zlib.createInflate());
+  if (enc === "br") return response.pipe(zlib.createBrotliDecompress());
+  return response;
+}
+
 export async function readSource(
   input: string,
   signal?: AbortSignal,
+  clock: Clock = systemClock,
 ): Promise<{ url: string; date: string; text: string }> {
   let url = new URL(input);
   for (let redirects = 0; redirects < 6; redirects++) {
-    if (!["https:", "http:"].includes(url.protocol) || url.username || url.password)
+    if (!["https:", "http:"].includes(url.protocol) || url.username || url.password) {
       throw new AppError("input.invalid", "资料链接须为不含登录信息的 HTTP(S) 地址", {
         field: "url",
       });
+    }
     const hostname = url.hostname.replace(/^\[|\]$/g, "");
     const addresses = isIP(hostname)
       ? [{ address: hostname, family: isIP(hostname) }]
       : await lookup(hostname, { all: true });
-    if (!addresses.length || addresses.some((item) => !publicAddress(item.address)))
+    if (!addresses.length || addresses.some((item) => !publicAddress(item.address))) {
       throw new AppError("input.invalid", "资料读取不支持本机、内网或保留地址", { field: "url" });
+    }
     const chosen = addresses[0];
     const result = await new Promise<{ location?: string; text?: string }>((resolve, reject) => {
       const request = (url.protocol === "https:" ? https : http).get(
@@ -94,7 +146,7 @@ export async function readSource(
           agent: false,
           headers: {
             Accept: "text/html,text/plain,application/xhtml+xml",
-            "Accept-Encoding": "identity",
+            "Accept-Encoding": "gzip, deflate, br, identity",
             "User-Agent": `Zhizhang/${APP_VERSION}`,
           },
           lookup: (
@@ -113,9 +165,7 @@ export async function readSource(
           const location = status >= 300 && status < 400 ? response.headers.location : undefined;
           if (location !== undefined) {
             response.destroy();
-            resolve({
-              location: new URL(location, url).href,
-            });
+            resolve({ location: new URL(location, url).href });
             return;
           }
           if (status < 200 || status >= 300) {
@@ -128,25 +178,29 @@ export async function readSource(
             reject(new AppError("input.invalid", "该链接不是可读取的文本页面", { field: "url" }));
             return;
           }
+          const stream = decodedStream(response);
           const chunks: Buffer[] = [];
           let length = 0;
-          response.on("data", (chunk) => {
+          stream.on("data", (chunk: Buffer) => {
             length += chunk.length;
-            if (length > 2 * 1024 * 1024) {
-              request.destroy(
-                new AppError("input.invalid", "资料超过 2 MB，请提供较短页面或作者摘录", {
-                  field: "url",
-                }),
-              );
+            if (length > MAX_RESPONSE_BYTES) {
+              const err = new AppError("input.invalid", "资料超过 2 MB，请提供较短页面或作者摘录", {
+                field: "url",
+              });
+              stream.destroy(err);
+              request.destroy(err);
               return;
             }
             chunks.push(chunk);
           });
-          response.on("error", reject);
-          response.on("end", () => {
+          stream.on("error", reject);
+          stream.on("end", () => {
             try {
               resolve({
-                text: decodeSource(Buffer.concat(chunks), response.headers["content-type"] || ""),
+                text: decodeSourceBytes(
+                  Buffer.concat(chunks),
+                  response.headers["content-type"] || "",
+                ),
               });
             } catch (error) {
               reject(error);
@@ -163,17 +217,12 @@ export async function readSource(
       url = new URL(result.location);
       continue;
     }
-    const text = decodeEntities(
-      (result.text || "")
-        .replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, "")
-        .replace(/<[^>]*>/g, " "),
-    )
-      .replace(/\s+/g, " ")
-      .trim();
+    const text = extractReadableText(result.text || "");
     return {
       url: url.href,
-      date: new Date().toISOString(),
-      text: text.slice(0, 80000) + (text.length > 80000 ? "\n（文本已截断）" : ""),
+      date: clock.iso(),
+      text:
+        text.slice(0, MAX_TEXT_CHARS) + (text.length > MAX_TEXT_CHARS ? "\n（文本已截断）" : ""),
     };
   }
   throw new AppError("input.invalid", "资料网站重定向次数过多", { field: "url" });

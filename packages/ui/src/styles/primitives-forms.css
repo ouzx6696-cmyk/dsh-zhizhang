@@ -1,0 +1,176 @@
+/* @zhizhang/ui 表单与分段控件。只用 --zz-* 令牌。 */
+
+/* —— 表单 —— */
+.zz-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zz-space-1);
+  min-width: 0;
+}
+
+.zz-field__label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zz-space-1);
+  color: var(--zz-text-2);
+  font-size: var(--zz-text-meta);
+  line-height: var(--zz-leading-meta);
+}
+
+.zz-field__required,
+.zz-field__error {
+  margin: 0;
+  color: var(--zz-bad);
+  font-size: var(--zz-text-meta);
+}
+
+.zz-field__hint,
+.zz-checkbox__desc,
+.zz-toggle__desc {
+  display: block;
+  margin: 0;
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-meta);
+  line-height: var(--zz-leading-meta);
+}
+
+.zz-input,
+.zz-select__control {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--zz-control-height);
+  padding: 0 var(--zz-space-3);
+  border: 1px solid var(--zz-field-border);
+  border-radius: var(--zz-field-radius);
+  background: var(--zz-field-bg);
+  color: var(--zz-text-1);
+  font: var(--zz-text-body) / var(--zz-leading-body) var(--zz-font-ui);
+  transition:
+    border-color var(--zz-dur-1) var(--zz-ease),
+    box-shadow var(--zz-dur-1) var(--zz-ease);
+}
+
+.zz-input--area {
+  min-height: 88px;
+  padding: var(--zz-space-2) var(--zz-space-3);
+  resize: vertical;
+}
+
+.zz-input::placeholder {
+  color: var(--zz-text-3);
+}
+
+.zz-input:hover,
+.zz-select__control:hover {
+  border-color: var(--zz-text-3);
+}
+
+.zz-input:focus-visible,
+.zz-select__control:focus-visible {
+  border-color: var(--zz-focus);
+  outline: none;
+  box-shadow: var(--zz-ring);
+}
+
+.zz-checkbox,
+.zz-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--zz-space-2);
+  color: var(--zz-text-1);
+  font-size: var(--zz-text-body);
+  cursor: pointer;
+}
+
+.zz-checkbox__box {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--zz-ink);
+}
+
+.zz-toggle {
+  justify-content: space-between;
+  gap: var(--zz-space-4);
+}
+
+.zz-toggle input {
+  position: relative;
+  flex: none;
+  width: 36px;
+  height: 20px;
+  margin: 0;
+  border-radius: var(--zz-radius-pill);
+  background: var(--zz-active);
+  box-shadow: inset 0 0 0 1px var(--zz-border-strong);
+  appearance: none;
+  cursor: pointer;
+  transition: background-color var(--zz-dur-2) var(--zz-ease);
+}
+
+.zz-toggle input::before {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--zz-radius-pill);
+  background: var(--zz-text-2);
+  content: "";
+  transition: transform var(--zz-dur-2) var(--zz-ease);
+}
+
+.zz-toggle input:checked {
+  background: var(--zz-ink);
+}
+
+.zz-toggle input:checked::before {
+  background: var(--zz-paper);
+  transform: translateX(16px);
+}
+
+.zz-is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* —— 分段控件 —— */
+.zz-segmented {
+  display: inline-flex;
+  flex: none;
+  gap: var(--zz-space-half);
+  padding: var(--zz-space-half);
+  border-radius: var(--zz-radius-sm);
+  background: var(--zz-active);
+}
+
+.zz-segmented__item {
+  min-height: 26px;
+  padding: 0 var(--zz-space-3);
+  border: none;
+  border-radius: var(--zz-radius-xs);
+  background: transparent;
+  color: var(--zz-text-2);
+  font: var(--zz-text-body) / var(--zz-leading-body) var(--zz-font-ui);
+  cursor: pointer;
+  transition:
+    background-color var(--zz-dur-1) var(--zz-ease),
+    color var(--zz-dur-1) var(--zz-ease);
+}
+
+.zz-segmented__item:hover:not(:disabled) {
+  color: var(--zz-text-1);
+}
+
+.zz-segmented__item[aria-checked="true"],
+.zz-segmented__item[aria-pressed="true"] {
+  background: var(--zz-surface-2);
+  color: var(--zz-text-1);
+  box-shadow: var(--zz-shadow-1);
+}
+
+.zz-segmented--sm .zz-segmented__item {
+  min-height: 24px;
+  padding: 0 var(--zz-space-3);
+  font-size: var(--zz-text-meta);
+}

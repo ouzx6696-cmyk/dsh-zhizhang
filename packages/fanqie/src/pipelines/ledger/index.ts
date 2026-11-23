@@ -166,13 +166,23 @@ function deltaToBibleOp(
 export const ledgerPipeline: PipelineDefinition<LedgerInput, LedgerResult> = {
   kind: "fanqie.ledger",
   request: LedgerReq,
-  async context(target, req) {
-    return { runId: `ledger-${Date.now()}`, target, request: req, state: {} };
+  async context(target, req, env) {
+    const clock = env?.clock ?? systemClock;
+    return {
+      runId: `ledger-${clock.now()}`,
+      target,
+      request: req,
+      state: {},
+      clock,
+      lock: env?.lock,
+      budget: env?.budget,
+    };
   },
   async run(runner, ctx) {
-    const req = ctx.request as LedgerInput;
-    const lock = createLockService(systemClock);
-    const bibleStore = createBibleStore(lock);
+    const req = ctx.request;
+    const clock = ctx.clock ?? systemClock;
+    const lock = ctx.lock ?? createLockService(clock);
+    const bibleStore = createBibleStore(lock, clock);
 
     const prepared = await runner.local("prepare", async () => {
       const chapterPath = resolveResourcePath(ctx.target.path, "chapters", `${req.chapterId}.md`);
@@ -229,7 +239,7 @@ export const ledgerPipeline: PipelineDefinition<LedgerInput, LedgerResult> = {
 
     // 3. bible.propose
     const pending = await runner.local("propose", async () => {
-      const nowIso = systemClock.iso();
+      const nowIso = clock.iso();
       const built = located.items.map(({ delta, isLocated }) =>
         deltaToBibleOp(delta, prepared.position, ctx.runId, nowIso, isLocated),
       );

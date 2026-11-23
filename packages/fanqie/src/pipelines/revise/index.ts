@@ -1,4 +1,5 @@
 import path from "node:path";
+import { systemClock } from "@zhizhang/core/clock";
 import { AppError } from "@zhizhang/core/errors";
 import {
   atomicWrite,
@@ -48,19 +49,30 @@ export interface StandaloneReviseResult {
   editorRejections: number;
 }
 
-export const revisePipeline: PipelineDefinition<ReviseReq, StandaloneReviseResult> = {
+export const revisePipeline: PipelineDefinition<
+  ReviseReq,
+  StandaloneReviseResult,
+  Record<string, unknown> & {
+    currentDraft?: { title: string; body: string };
+    pendingIssues?: ReviewIssue[];
+  }
+> = {
   kind: "fanqie.revise",
   request: RevisePipelineReq,
-  async context(target, req) {
+  async context(target, req, env) {
+    const clock = env?.clock ?? systemClock;
     return {
-      runId: `revise-${Date.now()}`,
+      runId: `revise-${clock.now()}`,
       target,
       request: req,
       state: {},
+      clock,
+      lock: env?.lock,
+      budget: env?.budget,
     };
   },
   async run(runner, ctx) {
-    const req = ctx.request as ReviseReq;
+    const req = ctx.request;
     const prepared = await runner.local("prepare", async () => {
       const workMeta = await readJson(
         path.join(ctx.target.path, "work.json"),
@@ -193,7 +205,7 @@ export const revisePipeline: PipelineDefinition<ReviseReq, StandaloneReviseResul
     };
   },
   async recover(record, ctx) {
-    const req = ctx.request as ReviseReq;
+    const req = ctx.request;
     const marker = resolveResourcePath(
       ctx.target.path,
       "candidates",

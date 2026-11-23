@@ -1,0 +1,259 @@
+/* @zhizhang/ui 标签页、菜单与对话框。只用 --zz-* 令牌。 */
+
+/* —— 标签页（中性下划线；纵向为左侧墨条） —— */
+.zz-tabs {
+  display: flex;
+  gap: var(--zz-space-1);
+  min-width: 0;
+}
+
+.zz-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zz-space-2);
+  min-height: var(--zz-btn-height-md);
+  padding: 0 var(--zz-space-2);
+  border: none;
+  border-radius: var(--zz-radius-xs);
+  background: transparent;
+  color: var(--zz-text-2);
+  font: var(--zz-text-body) / var(--zz-leading-body) var(--zz-font-ui);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color var(--zz-dur-1) var(--zz-ease),
+    background-color var(--zz-dur-1) var(--zz-ease);
+}
+
+.zz-tab:hover:not(:disabled) {
+  color: var(--zz-text-1);
+}
+
+.zz-tab::after {
+  position: absolute;
+  right: var(--zz-space-2);
+  bottom: 0;
+  left: var(--zz-space-2);
+  height: 2px;
+  border-radius: var(--zz-radius-pill);
+  background: var(--zz-ink);
+  content: "";
+  transform: scaleX(0);
+  transition: transform var(--zz-dur-2) var(--zz-ease);
+}
+
+.zz-tab[aria-selected="true"] {
+  color: var(--zz-text-1);
+  font-weight: var(--zz-weight-strong);
+}
+
+.zz-tab[aria-selected="true"]::after {
+  transform: scaleX(1);
+}
+
+.zz-tab__badge {
+  min-width: 18px;
+  padding: 0 var(--zz-space-1);
+  border-radius: var(--zz-radius-pill);
+  background: var(--zz-active);
+  color: var(--zz-text-2);
+  font-size: var(--zz-text-caption);
+  line-height: var(--zz-leading-caption);
+  text-align: center;
+}
+
+.zz-tabs--vertical {
+  flex-direction: column;
+  gap: var(--zz-space-half);
+}
+
+.zz-tabs--vertical .zz-tab {
+  justify-content: flex-start;
+  min-height: 34px;
+  padding: 0 var(--zz-space-3);
+}
+
+.zz-tabs--vertical .zz-tab::after {
+  top: var(--zz-space-2);
+  right: auto;
+  bottom: var(--zz-space-2);
+  left: 0;
+  width: 2px;
+  height: auto;
+  transform: scaleY(0);
+}
+
+.zz-tabs--vertical .zz-tab[aria-selected="true"] {
+  background: var(--zz-select-bg);
+}
+
+.zz-tabs--vertical .zz-tab[aria-selected="true"]::after {
+  transform: scaleY(1);
+}
+
+/* —— 菜单 —— */
+.zz-menu {
+  display: none;
+  flex-direction: column;
+  min-width: 200px;
+  padding: var(--zz-space-1);
+  border: 1px solid var(--zz-border-strong);
+  border-radius: var(--zz-menu-radius);
+  background: var(--zz-surface-2);
+  box-shadow: var(--zz-shadow-2);
+  z-index: var(--zz-z-popover);
+  animation: zz-pop-in var(--zz-dur-2) var(--zz-ease);
+}
+
+.zz-menu--open {
+  display: flex;
+}
+
+.zz-menu__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--zz-space-3);
+  min-height: 32px;
+  padding: 0 var(--zz-space-3);
+  border: none;
+  border-radius: var(--zz-radius-sm);
+  background: transparent;
+  color: var(--zz-text-1);
+  font: var(--zz-text-body) / var(--zz-leading-body) var(--zz-font-ui);
+  text-align: left;
+  cursor: pointer;
+}
+
+.zz-menu__item:hover:not(:disabled),
+.zz-menu__item:focus-visible {
+  outline: none;
+  background: var(--zz-hover);
+}
+
+.zz-menu__item:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--zz-focus);
+}
+
+.zz-menu__item:disabled {
+  color: var(--zz-text-3);
+  cursor: default;
+}
+
+.zz-menu__item--danger {
+  color: var(--zz-bad);
+}
+
+.zz-menu__heading {
+  padding: var(--zz-space-2) var(--zz-space-3) var(--zz-space-1);
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-meta);
+  line-height: var(--zz-leading-meta);
+}
+
+.zz-menu__separator {
+  height: 1px;
+  margin: var(--zz-space-1) var(--zz-space-2);
+  background: var(--zz-border);
+}
+
+.zz-menu__icon-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zz-space-2);
+}
+
+.zz-menu__icon-label svg {
+  color: var(--zz-text-3);
+}
+
+.zz-menu__stack {
+  display: flex;
+  flex-direction: column;
+  padding: var(--zz-space-1) 0;
+}
+
+.zz-menu__stack small {
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-meta);
+  line-height: var(--zz-leading-meta);
+  white-space: normal;
+}
+
+.zz-menu__shortcut {
+  color: var(--zz-text-3);
+  font: var(--zz-text-caption) / var(--zz-leading-caption) var(--zz-font-mono);
+}
+
+/* —— 对话框 —— */
+.zz-dialog {
+  box-sizing: border-box;
+  max-width: calc(100vw - var(--zz-space-8));
+  max-height: calc(100dvh - var(--zz-space-12));
+  margin: auto;
+  padding: var(--zz-space-6);
+  overflow: auto;
+  border: 1px solid var(--zz-border-strong);
+  border-radius: var(--zz-dialog-radius);
+  background: var(--zz-surface-2);
+  color: var(--zz-text-1);
+  box-shadow: var(--zz-shadow-3);
+  font: var(--zz-text-body) / var(--zz-leading-body) var(--zz-font-ui);
+}
+
+.zz-dialog[open] {
+  animation: zz-pop-in var(--zz-dur-3) var(--zz-ease);
+}
+
+.zz-dialog:not([open]) {
+  display: none;
+}
+
+.zz-dialog::backdrop {
+  background: var(--zz-mask);
+}
+
+.zz-dialog--sm {
+  width: min(440px, calc(100vw - var(--zz-space-8)));
+}
+
+.zz-dialog--md {
+  width: min(560px, calc(100vw - var(--zz-space-8)));
+}
+
+.zz-dialog--lg {
+  width: min(760px, calc(100vw - var(--zz-space-8)));
+}
+
+.zz-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--zz-space-3);
+  margin-bottom: var(--zz-space-4);
+}
+
+.zz-dialog__title {
+  margin: 0;
+  color: var(--zz-title);
+  font-size: var(--zz-text-title);
+  font-weight: var(--zz-weight-strong);
+  line-height: var(--zz-leading-title);
+}
+
+.zz-dialog__desc {
+  margin: 0 0 var(--zz-space-4);
+  color: var(--zz-text-2);
+}
+
+.zz-dialog__close {
+  color: var(--zz-text-3);
+}
+
+.zz-dialog__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--zz-space-2);
+  margin-top: var(--zz-space-6);
+}

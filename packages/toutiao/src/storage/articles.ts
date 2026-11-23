@@ -3,7 +3,7 @@ import path from "node:path";
 import { AppError } from "@zhizhang/core/errors";
 import {
   atomicWrite,
-  resolveResourcePath,
+  resolveResourcePathAsync,
   readJson,
   readTextIfExists,
   sha256,
@@ -11,7 +11,7 @@ import {
 import { commitIntent } from "@zhizhang/core/journal";
 import type { LockService } from "@zhizhang/core/lock";
 import { FORMAT_VERSION } from "@zhizhang/core/paths";
-import { arr, lit, obj, opt, str, type Infer } from "@zhizhang/core/schema";
+import { arr, bool, lit, obj, opt, str, type Infer } from "@zhizhang/core/schema";
 import {
   assertArticleTransition,
   FIXED_DELIVERY_ENDING,
@@ -23,6 +23,10 @@ export const ArticleMetaSchema = obj({
   id: str({ min: 1 }),
   genre: str({ min: 1 }),
   driver: str({ min: 1 }),
+  line: opt(str({ max: 120 })),
+  tags: opt(arr(str({ min: 1, max: 40 }), { max: 20 })),
+  pinned: opt(bool),
+  archived: opt(bool),
   status: lit("初稿待改", "待验收", "已验收", "验收退回", "已交稿"),
   chosenTitle: opt(str()),
   rulesVersion: str({ min: 1 }),
@@ -30,6 +34,16 @@ export const ArticleMetaSchema = obj({
 });
 
 export type ArticleMeta = Infer<typeof ArticleMetaSchema>;
+
+export const SourceRecordSchema = obj(
+  {
+    id: str({ min: 1 }),
+    kind: lit("paste", "file", "classic"),
+    hash: opt(str()),
+    at: opt(str()),
+  },
+  { strict: false },
+);
 
 export async function createArticle(
   articleDir: string,
@@ -44,6 +58,10 @@ export async function createArticle(
       id: input.id,
       genre: input.genre,
       driver: input.driver,
+      line: undefined,
+      tags: undefined,
+      pinned: undefined,
+      archived: undefined,
       status: "初稿待改",
       chosenTitle: undefined,
       rulesVersion: input.rulesVersion,
@@ -63,9 +81,12 @@ export async function registerSource(
   lock: LockService,
 ): Promise<void> {
   await lock.write({ kind: "article", path: articleDir }, async () => {
-    await atomicWrite(resolveResourcePath(articleDir, "sources", `${sourceId}.txt`), content);
     await atomicWrite(
-      resolveResourcePath(articleDir, "sources", `${sourceId}.json`),
+      await resolveResourcePathAsync(articleDir, "sources", `${sourceId}.txt`),
+      content,
+    );
+    await atomicWrite(
+      await resolveResourcePathAsync(articleDir, "sources", `${sourceId}.json`),
       JSON.stringify({ id: sourceId, kind, hash: sha256(content), at: nowIso }, null, 2),
     );
   });
@@ -106,7 +127,11 @@ export async function writeDeliverySheet(
     assertArticleTransition(meta.status, "已交稿");
 
     const outPath = path.join(articleDir, "交稿单.md");
-    const content = `# ${title}\n\n${body.trim()}\n\n${FIXED_DELIVERY_ENDING}\n`;
+    const trimmedBody = body.trim();
+    const withEnding = trimmedBody.endsWith(FIXED_DELIVERY_ENDING)
+      ? trimmedBody
+      : `${trimmedBody}\n\n${FIXED_DELIVERY_ENDING}`;
+    const content = `# ${title}\n\n${withEnding}\n`;
     const next: ArticleMeta = {
       ...meta,
       status: "已交稿",

@@ -1,0 +1,270 @@
+/* @zhizhang/ui 卡片、数字、步骤、品牌章印与反馈。只用 --zz-* 令牌。 */
+
+/* —— 卡片 / 数字 / 步骤 —— */
+.zz-card {
+  padding: var(--zz-space-5);
+  border: 1px solid var(--zz-border);
+  border-radius: var(--zz-card-radius);
+  background: var(--zz-surface-2);
+}
+
+.zz-card > footer {
+  display: flex;
+  gap: var(--zz-space-2);
+  margin-top: var(--zz-space-4);
+}
+
+.zz-card__title {
+  margin: 0 0 var(--zz-space-2);
+  color: var(--zz-text-1);
+  font-size: var(--zz-text-strong);
+  line-height: var(--zz-leading-strong);
+}
+
+.zz-card__desc {
+  margin: 0 0 var(--zz-space-3);
+  color: var(--zz-text-2);
+  font-size: var(--zz-text-meta);
+}
+
+.zz-stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zz-space-1);
+  min-width: 0;
+}
+
+.zz-stat > span,
+.zz-stat small {
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-meta);
+}
+
+.zz-stat strong {
+  color: var(--zz-title);
+  font: var(--zz-weight-strong) var(--zz-text-display) / var(--zz-leading-display)
+    var(--zz-font-paper);
+  font-variant-numeric: tabular-nums;
+}
+
+.zz-steps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--zz-space-1) var(--zz-space-3);
+  margin: 0;
+  padding: 0;
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-meta);
+  line-height: var(--zz-leading-meta);
+  list-style: none;
+}
+
+.zz-steps li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zz-space-2);
+}
+
+.zz-steps li + li::before {
+  width: var(--zz-space-4);
+  height: 1px;
+  margin-right: var(--zz-space-1);
+  background: var(--zz-border-strong);
+  content: "";
+}
+
+.zz-steps li > span {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 1px solid var(--zz-border-strong);
+  border-radius: var(--zz-radius-pill);
+  font-size: var(--zz-text-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+.zz-steps [data-state="done"] {
+  color: var(--zz-text-2);
+}
+
+.zz-steps [data-state="done"] > span {
+  border-color: transparent;
+  background: var(--zz-ok-soft);
+  color: var(--zz-ok);
+}
+
+.zz-steps [data-state="current"] {
+  color: var(--zz-text-1);
+  font-weight: var(--zz-weight-strong);
+}
+
+.zz-steps [data-state="current"] > span {
+  border-color: transparent;
+  background: var(--zz-ink);
+  color: var(--zz-paper);
+}
+
+/* —— 品牌章印 —— */
+.zz-brand {
+  display: inline-grid;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: var(--zz-radius-sm);
+  background: var(--zz-ink);
+  color: var(--zz-paper);
+  font: var(--zz-weight-strong) var(--zz-text-strong) / 1 var(--zz-font-paper);
+}
+
+/* —— 反馈 —— */
+.zz-notice {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--zz-space-3);
+  padding: var(--zz-space-3) var(--zz-space-4);
+  border: 1px solid color-mix(in srgb, var(--zz-tone-fg, var(--zz-border)) 30%, transparent);
+  border-left: 3px solid var(--zz-tone-fg, var(--zz-border-strong));
+  border-radius: var(--zz-radius-sm);
+  background: var(--zz-tone-bg, var(--zz-surface-2));
+  color: var(--zz-text-1);
+}
+
+.zz-notice__message,
+.zz-notice__detail {
+  margin: 0;
+}
+
+.zz-notice__message {
+  font-weight: var(--zz-weight-strong);
+}
+
+.zz-notice__detail {
+  margin-top: var(--zz-space-1);
+  color: var(--zz-text-2);
+  font-size: var(--zz-text-meta);
+  overflow-wrap: anywhere;
+}
+
+.zz-notice__actions {
+  display: flex;
+  gap: var(--zz-space-1);
+}
+
+.zz-empty {
+  display: grid;
+  justify-items: center;
+  gap: var(--zz-space-2);
+  padding: var(--zz-space-8) var(--zz-space-6);
+  color: var(--zz-text-2);
+  text-align: center;
+}
+
+.zz-empty__icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: var(--zz-radius-pill);
+  background: var(--zz-active);
+  color: var(--zz-text-2);
+}
+
+.zz-empty__title {
+  color: var(--zz-text-1);
+  font-size: var(--zz-text-strong);
+  font-weight: var(--zz-weight-strong);
+}
+
+.zz-empty__desc {
+  max-width: 30em;
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-meta);
+  line-height: var(--zz-leading-meta);
+}
+
+.zz-empty__action {
+  margin-top: var(--zz-space-2);
+}
+
+.zz-skeleton {
+  border-radius: var(--zz-radius-xs);
+  background: var(--zz-skeleton-bg);
+}
+
+.zz-skeleton-group {
+  display: grid;
+  gap: var(--zz-space-3);
+}
+
+.zz-skeleton--text {
+  display: block;
+  height: 12px;
+}
+
+.zz-skeleton--circle {
+  display: inline-block;
+  border-radius: var(--zz-radius-pill);
+}
+
+.zz-spinner {
+  display: inline-block;
+  flex: none;
+  box-sizing: border-box;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--zz-border-strong);
+  border-top-color: currentColor;
+  border-radius: var(--zz-radius-pill);
+  animation: zz-spin 0.8s linear infinite;
+}
+
+.zz-spinner--sm {
+  width: 12px;
+  height: 12px;
+}
+
+.zz-spinner--lg {
+  width: 24px;
+  height: 24px;
+}
+
+.zz-progress-rail {
+  width: 100%;
+  height: var(--zz-rail-height);
+  overflow: hidden;
+  border-radius: var(--zz-radius-pill);
+  background: var(--zz-active);
+}
+
+.zz-progress-rail__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--zz-run);
+  transition: width var(--zz-dur-3) var(--zz-ease);
+}
+
+@keyframes zz-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes zz-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.99);
+  }
+}
+
+@keyframes zz-flow {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}

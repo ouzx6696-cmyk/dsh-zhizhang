@@ -4,7 +4,7 @@ import { AppError } from "@zhizhang/core/errors";
 import { atomicWrite, readJson } from "@zhizhang/core/fs";
 import type { LockService } from "@zhizhang/core/lock";
 import { FORMAT_VERSION } from "@zhizhang/core/paths";
-import { bool, int, lit, obj, str, type Infer } from "@zhizhang/core/schema";
+import { arr, bool, int, lit, obj, opt, str, type Infer } from "@zhizhang/core/schema";
 
 export const WorkMetaSchema = obj({
   format: lit(FORMAT_VERSION),
@@ -13,6 +13,12 @@ export const WorkMetaSchema = obj({
   created: str({ min: 1 }),
   profile: str({ min: 1 }),
   grade: lit("economy", "standard", "premium"),
+  tags: opt(arr(str({ min: 1, max: 40 }), { max: 20 })),
+  pinned: opt(bool),
+  archived: opt(bool),
+  targetTotalWords: opt(int({ min: 1000, max: 20_000_000 })),
+  synopsis: opt(str({ max: 1000 })),
+  updatedAt: opt(str()),
   settings: obj({
     requireEditorPass: bool,
     targetWords: int({ min: 500, max: 20000 }),
@@ -47,6 +53,12 @@ export async function createWorkLayout(
     created: input.nowIso,
     profile: input.profile ?? "default",
     grade: input.grade ?? "standard",
+    tags: undefined,
+    pinned: undefined,
+    archived: undefined,
+    targetTotalWords: undefined,
+    synopsis: undefined,
+    updatedAt: input.nowIso,
     settings: {
       requireEditorPass: false,
       targetWords: 3000,

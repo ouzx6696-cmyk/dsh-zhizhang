@@ -11,6 +11,7 @@ import {
   type ChapterFrontMatter,
 } from "../domain/chapter.js";
 import { assertCanFinalize, downgradeOnEdit, type ChapterStatus } from "../domain/status.js";
+import { alignTwoLevel, classifyHunks, createLearningStore } from "../learning/index.js";
 import { countChineseWords } from "../pipelines/chapter/index.js";
 import { readWorkMeta } from "../storage/work.js";
 import type { ChapterRowView } from "../view/snapshot.js";
@@ -188,4 +189,18 @@ export async function finalizeChapter(
     );
     return updated;
   });
+}
+
+export async function recordChapterEditLearning(
+  workPath: string,
+  input: { chapterId: string; beforeBody: string; afterBody: string; nowIso?: string },
+  lock: LockService = createLockService(systemClock),
+): Promise<{ recorded: number }> {
+  const edits = classifyHunks(alignTwoLevel(input.beforeBody, input.afterBody));
+  if (edits.length === 0) return { recorded: 0 };
+  await createLearningStore(lock).record(workPath, edits, {
+    chapter: input.chapterId,
+    nowIso: input.nowIso ?? systemClock.iso(),
+  });
+  return { recorded: edits.length };
 }

@@ -1,7 +1,9 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { AppError } from "../errors/app-error.js";
 import { classify } from "../errors/classify.js";
 import { readTextIfExists } from "../fs/read.js";
+import { nullable, num, obj, opt, str, type Parser } from "../schema/parse.js";
 
 export interface UsageEntry {
   at: string;
@@ -15,6 +17,22 @@ export interface UsageEntry {
   output: number;
   cost: number | null;
 }
+
+const UsageEntrySchema: Parser<UsageEntry> = obj(
+  {
+    at: str(),
+    runId: opt(str()),
+    stage: opt(str()),
+    role: str(),
+    connection: str(),
+    model: str(),
+    input: num({ min: 0 }),
+    cachedInput: num({ min: 0 }),
+    output: num({ min: 0 }),
+    cost: nullable(num({ min: 0 })),
+  },
+  { strict: false },
+);
 
 export interface UsageSummary {
   input: number;
@@ -108,10 +126,18 @@ export async function readUsageEntries(filePath: string): Promise<UsageEntry[]> 
   const raw = await readTextIfExists(filePath);
   if (!raw) return [];
   const entries: UsageEntry[] = [];
-  for (const line of raw.split(/\r?\n/)) {
-    const trimmed = line.trim();
+  const lines = raw.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i += 1) {
+    const trimmed = lines[i].trim();
     if (!trimmed) continue;
-    entries.push(JSON.parse(trimmed) as UsageEntry);
+    try {
+      entries.push(UsageEntrySchema(JSON.parse(trimmed), `${filePath}:${i + 1}`));
+    } catch {
+      throw new AppError("storage.format_unsupported", `无法解析用量日志第 ${i + 1} 行`, {
+        filePath,
+        line: i + 1,
+      });
+    }
   }
   return entries;
 }

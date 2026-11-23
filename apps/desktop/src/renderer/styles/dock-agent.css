@@ -1,0 +1,367 @@
+/* 右栏助手面板：会话切换、上下文轨、欢迎起手式、消息流与输入区。 */
+
+/* —— 助手 —— */
+.zz-agent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zz-space-3);
+  height: 100%;
+  min-height: 0;
+}
+
+.zz-agent__head {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--zz-space-2);
+}
+
+.zz-agent__head-row {
+  display: flex;
+  align-items: center;
+  gap: var(--zz-space-1);
+}
+
+.zz-agent__conversations {
+  flex: 1;
+  min-width: 0;
+}
+
+.zz-agent__conversations .zz-select__control {
+  min-height: var(--zz-btn-height-sm);
+  border-color: transparent;
+  background: transparent;
+  color: var(--zz-text-1);
+  font-weight: var(--zz-weight-strong);
+}
+
+.zz-agent__conversations .zz-select__control:hover {
+  border-color: var(--zz-border-strong);
+}
+
+.zz-context {
+  display: flex;
+  align-items: center;
+  gap: var(--zz-space-2);
+  padding-left: var(--zz-space-3);
+}
+
+.zz-context__rail {
+  flex: 1;
+  height: 3px;
+  overflow: hidden;
+  border-radius: var(--zz-radius-pill);
+  background: var(--zz-active);
+}
+
+.zz-context__rail > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--zz-text-3);
+}
+
+.zz-context[data-percent] .zz-context__label {
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.zz-context__compact.zz-btn--sm {
+  min-height: 22px;
+  font-size: var(--zz-text-caption);
+}
+
+.zz-agent__list {
+  flex: 1;
+  container: agent-list / size;
+  min-height: 120px;
+  margin: 0 calc(var(--zz-space-4) * -1);
+  padding: 0 var(--zz-space-4);
+  overflow-y: auto;
+}
+
+/* 空对话：欢迎语 + 三条可直接点的起手式，整体落在面板中部偏上，不留一屏空白。 */
+.zz-agent__welcome {
+  display: flex;
+  flex-direction: column;
+  justify-content: safe center;
+  gap: var(--zz-space-2);
+  min-height: 100%;
+  padding: var(--zz-space-6) 0 var(--zz-space-10);
+}
+
+.zz-agent__welcome-icon {
+  display: grid;
+  width: var(--zz-btn-height-md);
+  height: var(--zz-btn-height-md);
+  margin-bottom: var(--zz-space-2);
+  place-items: center;
+  border: 1px solid var(--zz-border);
+  border-radius: var(--zz-radius-md);
+  background: var(--zz-surface-2);
+  color: var(--zz-text-2);
+}
+
+.zz-agent__welcome h3 {
+  margin: 0;
+  color: var(--zz-title);
+  font: var(--zz-weight-strong) var(--zz-text-title) / var(--zz-leading-title) var(--zz-font-paper);
+}
+
+.zz-agent__welcome > p {
+  margin: 0 0 var(--zz-space-4);
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-meta);
+  line-height: var(--zz-leading-meta);
+}
+
+/* 分屏时助手只有半栏高：欢迎区收成标题 + 三条起手式，避免被滚走半截。 */
+@container agent-list (max-height: 400px) {
+  .zz-agent__welcome {
+    padding: var(--zz-space-3) 0;
+  }
+
+  .zz-agent__welcome-icon,
+  .zz-agent__welcome > p,
+  .zz-suggest__text span {
+    display: none;
+  }
+
+  .zz-agent__welcome h3 {
+    margin-bottom: var(--zz-space-2);
+  }
+}
+
+.zz-suggest {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--zz-border);
+  border-radius: var(--zz-radius-md);
+  background: var(--zz-surface-2);
+  list-style: none;
+}
+
+.zz-suggest li + li {
+  border-top: 1px solid var(--zz-border);
+}
+
+.zz-suggest__item {
+  display: flex;
+  align-items: center;
+  gap: var(--zz-space-3);
+  width: 100%;
+  padding: var(--zz-space-3) var(--zz-space-3) var(--zz-space-3) var(--zz-space-4);
+  border: none;
+  background: transparent;
+  color: var(--zz-text-3);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--zz-dur-1) var(--zz-ease);
+}
+
+.zz-suggest li:first-child .zz-suggest__item {
+  border-radius: var(--zz-radius-md) var(--zz-radius-md) 0 0;
+}
+
+.zz-suggest li:last-child .zz-suggest__item {
+  border-radius: 0 0 var(--zz-radius-md) var(--zz-radius-md);
+}
+
+.zz-suggest__item:hover:not(:disabled) {
+  background: var(--zz-hover);
+  color: var(--zz-text-1);
+}
+
+.zz-suggest__item:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--zz-focus);
+}
+
+.zz-suggest__item:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.zz-suggest__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.zz-suggest__text strong {
+  color: var(--zz-text-1);
+  font-size: var(--zz-text-body);
+  font-weight: var(--zz-weight-strong);
+  line-height: var(--zz-leading-body);
+}
+
+.zz-suggest__text span {
+  overflow: hidden;
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-meta);
+  line-height: var(--zz-leading-meta);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zz-agent__status {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--zz-space-2);
+  color: var(--zz-run);
+  font-size: var(--zz-text-meta);
+}
+
+.zz-agent__status[data-tone="neutral"] {
+  color: var(--zz-text-3);
+}
+
+.zz-agent__status[data-tone="bad"] {
+  color: var(--zz-bad);
+}
+
+.zz-agent__status[data-tone="warn"] {
+  color: var(--zz-warn);
+}
+
+.zz-agent__quick {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: var(--zz-space-1);
+}
+
+.zz-agent__quick .zz-chip {
+  min-height: var(--zz-btn-height-sm);
+  border-color: var(--zz-border);
+  color: var(--zz-text-3);
+}
+
+.zz-messages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zz-space-4);
+  margin: 0;
+  padding: var(--zz-space-1) 0 var(--zz-space-2);
+  list-style: none;
+}
+
+.zz-message {
+  max-width: 100%;
+  font-size: var(--zz-text-body);
+  line-height: var(--zz-leading-body);
+}
+
+.zz-message[data-role="user"] {
+  align-self: flex-end;
+  max-width: 86%;
+  padding: var(--zz-space-2) var(--zz-space-3);
+  border-radius: var(--zz-radius-lg) var(--zz-radius-lg) var(--zz-radius-xs) var(--zz-radius-lg);
+  background: var(--zz-surface-3);
+  color: var(--zz-text-1);
+}
+
+.zz-message[data-role="assistant"] {
+  padding-left: var(--zz-space-3);
+  border-left: 2px solid var(--zz-border-strong);
+}
+
+.zz-message__tools {
+  display: flex;
+  align-items: center;
+  gap: var(--zz-space-1);
+  margin-bottom: var(--zz-space-1);
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-meta);
+}
+
+.zz-message__text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.zz-result-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--zz-space-2);
+  margin-top: var(--zz-space-2);
+  padding: var(--zz-space-2) var(--zz-space-2) var(--zz-space-2) var(--zz-space-3);
+  border: 1px solid var(--zz-border-strong);
+  border-radius: var(--zz-radius-md);
+  background: var(--zz-surface-2);
+}
+
+.zz-result-card__label {
+  color: var(--zz-text-1);
+  font-size: var(--zz-text-meta);
+}
+
+.zz-composer {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--zz-space-1);
+  padding: var(--zz-space-3) var(--zz-space-3) var(--zz-space-2);
+  border: 1px solid var(--zz-border-strong);
+  border-radius: var(--zz-radius-lg);
+  background: var(--zz-surface-2);
+  box-shadow: var(--zz-shadow-1);
+  transition:
+    border-color var(--zz-dur-1) var(--zz-ease),
+    box-shadow var(--zz-dur-1) var(--zz-ease);
+}
+
+.zz-composer:focus-within {
+  border-color: var(--zz-focus);
+  box-shadow:
+    var(--zz-shadow-1),
+    0 0 0 1px var(--zz-focus);
+}
+
+.zz-composer__where {
+  overflow: hidden;
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-caption);
+  line-height: var(--zz-leading-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zz-composer__input {
+  min-height: 44px;
+  max-height: 200px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--zz-text-1);
+  font: var(--zz-text-body) / var(--zz-leading-body) var(--zz-font-ui);
+  resize: none;
+}
+
+.zz-composer__input:focus-visible {
+  outline: none;
+}
+
+.zz-composer__input::placeholder {
+  color: var(--zz-text-3);
+}
+
+.zz-composer__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--zz-space-2);
+}
+
+.zz-composer__hint {
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-caption);
+}

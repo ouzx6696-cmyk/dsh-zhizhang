@@ -67,13 +67,23 @@ export interface HealthResult {
 export const healthPipeline: PipelineDefinition<HealthInput, HealthResult> = {
   kind: "fanqie.health",
   request: HealthReq,
-  async context(target, req) {
-    return { runId: `health-${Date.now()}`, target, request: req, state: {} };
+  async context(target, req, env) {
+    const clock = env?.clock ?? systemClock;
+    return {
+      runId: `health-${clock.now()}`,
+      target,
+      request: req,
+      state: {},
+      clock,
+      lock: env?.lock,
+      budget: env?.budget,
+    };
   },
   async run(runner, ctx) {
-    const req = ctx.request as HealthInput;
-    const lock = createLockService(systemClock);
-    const bibleStore = createBibleStore(lock);
+    const req = ctx.request;
+    const clock = ctx.clock ?? systemClock;
+    const lock = ctx.lock ?? createLockService(clock);
+    const bibleStore = createBibleStore(lock, clock);
 
     // 1. bible.audit
     const audited = await runner.local("bible-audit", async () => {

@@ -67,6 +67,15 @@ export function draftFilePath(workDir: string, key: string): string {
   return `${base}/${DRAFTS_DIR}/${draftFileName(key)}`;
 }
 
+function isErrno(error: unknown, code: string): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === code
+  );
+}
+
 function parseStored(raw: string): DraftEntry | null {
   let value: unknown;
   try {
@@ -76,17 +85,19 @@ function parseStored(raw: string): DraftEntry | null {
     throw error;
   }
   if (!value || typeof value !== "object") return null;
-  const record = value as Record<string, unknown>;
+  const text = "text" in value ? value.text : undefined;
+  const savedAt = "savedAt" in value ? value.savedAt : undefined;
+  const baseRevision = "baseRevision" in value ? value.baseRevision : undefined;
   if (
-    typeof record.text === "string" &&
-    typeof record.savedAt === "number" &&
-    Number.isFinite(record.savedAt) &&
-    "baseRevision" in record
+    typeof text === "string" &&
+    typeof savedAt === "number" &&
+    Number.isFinite(savedAt) &&
+    "baseRevision" in value
   ) {
     return {
-      text: record.text,
-      savedAt: record.savedAt,
-      baseRevision: typeof record.baseRevision === "string" ? record.baseRevision : "",
+      text,
+      savedAt,
+      baseRevision: typeof baseRevision === "string" ? baseRevision : "",
     };
   }
   return null;
@@ -100,22 +111,31 @@ export function createNodeDraftBackend(): DraftFileBackend {
       try {
         return await fs.readFile(filePath, "utf8");
       } catch (error) {
-        if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return null;
+        if (isErrno(error, "ENOENT")) return null;
         throw error;
       }
     },
     async writeFile(filePath: string, content: string): Promise<void> {
       const fs = await import("node:fs/promises");
       const path = await import("node:path");
-      await fs.mkdir(path.dirname(filePath), { recursive: true });
-      await fs.writeFile(filePath, content, "utf8");
+      const crypto = await import("node:crypto");
+      const dir = path.dirname(filePath);
+      await fs.mkdir(dir, { recursive: true });
+      const tmp = path.join(dir, `.${path.basename(filePath)}.${crypto.randomUUID()}.tmp`);
+      try {
+        await fs.writeFile(tmp, content, "utf8");
+        await fs.rename(tmp, filePath);
+      } catch (error) {
+        await fs.unlink(tmp).catch(() => undefined);
+        throw error;
+      }
     },
     async removeFile(filePath: string): Promise<void> {
       const fs = await import("node:fs/promises");
       try {
         await fs.unlink(filePath);
       } catch (error) {
-        if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") throw error;
+        if (!isErrno(error, "ENOENT")) throw error;
       }
     },
     async listFiles(dirPath: string): Promise<string[]> {
@@ -123,7 +143,7 @@ export function createNodeDraftBackend(): DraftFileBackend {
       try {
         return await fs.readdir(dirPath);
       } catch (error) {
-        if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return [];
+        if (isErrno(error, "ENOENT")) return [];
         throw error;
       }
     },
@@ -152,8 +172,9 @@ export async function writeDraftFile(
   text: string,
   baseRevision: string,
   backend: DraftFileBackend = createNodeDraftBackend(),
+  now: () => number = Date.now,
 ): Promise<number> {
-  const savedAt = Date.now();
+  const savedAt = now();
   const payload: DraftEntry = { text, savedAt, baseRevision };
   await backend.writeFile(draftFilePath(workDir, key), JSON.stringify(payload));
   return savedAt;
@@ -189,8 +210,13 @@ export function readDraft(key: string): DraftEntry | null {
 }
 
 /** Stores draft in browser localStorage and returns the saved timestamp. */
-export function writeDraft(key: string, text: string, baseRevision: string): number {
-  const savedAt = Date.now();
+export function writeDraft(
+  key: string,
+  text: string,
+  baseRevision: string,
+  now: () => number = Date.now,
+): number {
+  const savedAt = now();
   window.localStorage.setItem(key, JSON.stringify({ text, savedAt, baseRevision }));
   return savedAt;
 }

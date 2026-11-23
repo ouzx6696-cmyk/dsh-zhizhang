@@ -1,10 +1,5 @@
 import type { ReactNode } from "react";
-import {
-  Notice,
-  StatusChip,
-  Empty as UiEmpty,
-  Skeleton as UiSkeleton,
-} from "@zhizhang/ui/primitives";
+import { Notice, Empty as UiEmpty, Skeleton as UiSkeleton } from "@zhizhang/ui/primitives";
 import { statusChipTone, statusLabel, type StatusMode } from "@zhizhang/ui/status";
 
 export function cx(...parts: unknown[]): string {
@@ -52,11 +47,6 @@ export function Icon({ name, size = 16, label }: { name: string; size?: number; 
       ))}
     </svg>
   );
-}
-
-/** 状态胶囊：状态词逐字取自 @zhizhang/ui/status，色调走语义（运行蓝 / 通过绿 / 注意黄 / 失败红）。 */
-export function StatusTag({ status, mode = "fanqie" }: { status?: string; mode?: StatusMode }) {
-  return <StatusChip tone={statusChipTone(mode, status)} label={statusLabel(mode, status)} dot />;
 }
 
 /** 列表里的状态点：颜色之外，读屏读出状态词。 */
