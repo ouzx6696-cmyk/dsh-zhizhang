@@ -10,14 +10,22 @@ const { FIXED_DELIVERY_ENDING, ARTICLE_STATUSES, assertArticleTransition } = awa
   "packages/toutiao/src/domain/status.ts",
 );
 const { isAppError } = await importTs("packages/core/src/errors/index.ts");
+const { resolvePythonBin } = await importTs("packages/core/src/python/index.ts");
 
 const ROOT = process.cwd();
+const PYTHON_BIN = resolvePythonBin();
+const PYTHON_ENV = { ...process.env, PYTHONUTF8: "1", PYTHONIOENCODING: "utf-8" };
 const BRIDGE_PY = path.join(ROOT, "packages/toutiao/skill/scripts/writer_bridge.py");
 const QA_PY = path.join(ROOT, "packages/toutiao/skill/scripts/qa_check.py");
 
 function runQa(filePath) {
   try {
-    return JSON.parse(execFileSync("python3", [QA_PY, filePath, "--json"], { encoding: "utf8" }));
+    return JSON.parse(
+      execFileSync(PYTHON_BIN, [QA_PY, filePath, "--json"], {
+        encoding: "utf8",
+        env: PYTHON_ENV,
+      }),
+    );
   } catch (err) {
     if (err.stdout) return JSON.parse(err.stdout.toString());
     throw err;
@@ -43,7 +51,9 @@ test("toutiao fixed ending sentence and status state machine enforce transitions
 });
 
 test("toutiao writer_bridge limits and qa_check enforce 34-char title max", async () => {
-  const limits = JSON.parse(execFileSync("python3", [BRIDGE_PY, "limits"], { encoding: "utf8" }));
+  const limits = JSON.parse(
+    execFileSync(PYTHON_BIN, [BRIDGE_PY, "limits"], { encoding: "utf8", env: PYTHON_ENV }),
+  );
   assert.equal(limits.ok, true);
   assert.equal(limits.title_max, 34);
   assert.equal(limits.pass_score, 84);
