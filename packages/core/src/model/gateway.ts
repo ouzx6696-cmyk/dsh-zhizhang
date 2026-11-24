@@ -11,6 +11,8 @@ import { createWatchdog } from "./watchdog.js";
 export interface RoleBinding {
   connection: string;
   model: string;
+  thinking?: "off" | "low" | "high";
+  temperature?: number;
   price?: { inputPer1M: number; outputPer1M: number };
 }
 
@@ -137,7 +139,15 @@ export function createModelGateway(
             const wd = createWatchdog(opts.signal);
             try {
               return await port.stream(
-                { ...req, connection: binding.connection, model: binding.model },
+                {
+                  ...req,
+                  connection: binding.connection,
+                  model: binding.model,
+                  thinking: req.thinking ?? binding.thinking,
+                  temperature: req.temperature ?? binding.temperature,
+                  sessionId: req.sessionId ?? opts.runId,
+                  cacheRetention: req.cacheRetention ?? "short",
+                },
                 wd.signal,
                 (event) => {
                   wd.poke();

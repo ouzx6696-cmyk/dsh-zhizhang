@@ -1,15 +1,15 @@
 /**
  * 助手会话管理：每个目标一个当前对话；一轮回复经 gateway.session("assistant") 占并发位，
- * 工具来自 ModeModule.tools("assistant", target)，对话历史落盘到状态目录 sessions/。
+ * 具备看门狗 + 瞬态重试 + 溢出自动压缩恢复 + 思考链流式推送 + 提示词缓存统计。
  */
 import { randomBytes } from "node:crypto";
 import type { Clock } from "@zhizhang/core/clock";
-import { AppError, classify } from "@zhizhang/core/errors";
+import { AppError, classify, isAppError } from "@zhizhang/core/errors";
 import { createSerialRunner } from "@zhizhang/core/lock";
-import type { ModelGateway } from "@zhizhang/core/model";
+import { createWatchdog, withRetry, type ModelGateway } from "@zhizhang/core/model";
 import type { ToolCtx, ToolDefinition } from "@zhizhang/core/tool";
 import type { DesktopEvent, SessionEvent } from "../shared/events.js";
-import type { ContextSettings } from "../shared/settings.js";
+import type { ContextSettings, ThinkingLevel } from "../shared/settings.js";
 import type { TaskState } from "../shared/types.js";
 import type {
   CompactResult,
@@ -24,8 +24,8 @@ import { compactConversation } from "./compact.js";
 import type { ConversationStore } from "./history.js";
 import { contextTokens, decorateMessage, toChatMessages } from "./projection.js";
 import { systemPrompt, userPrompt } from "./prompt.js";
-import { runTool, toolSpecs } from "./tools.js";
-import type { AssistantPort, ConversationFile } from "./types.js";
+import { executeToolBatch, toolSpecs } from "./tools.js";
+import type { AssistantPort, AssistantTurnAnswer, ConversationFile } from "./types.js";
 
 export { toChatMessages } from "./projection.js";
 
@@ -38,6 +38,8 @@ export interface AssistantBinding {
   model: string;
   contextWindow: number;
   maxTokens: number;
+  thinking?: ThinkingLevel;
+  temperature?: number;
 }
 
 export interface SessionDeps {
@@ -63,6 +65,7 @@ interface TargetState {
   conversation: ConversationFile;
   busy: boolean;
   stream: string;
+  thinkingStream: string;
   since: string;
   task?: TaskState;
   controller?: AbortController;
@@ -102,6 +105,7 @@ export function createSessionManager(deps: SessionDeps) {
       conversation,
       busy: false,
       stream: "",
+      thinkingStream: "",
       since: deps.clock.iso(),
     };
     states.set(key, state);
@@ -165,6 +169,84 @@ export function createSessionManager(deps: SessionDeps) {
     );
   }
 
+  async function invokeRound(
+    state: TargetState,
+    binding: AssistantBinding,
+    system: string,
+    specs: ReturnType<typeof toolSpecs>,
+    signal: AbortSignal,
+  ): Promise<AssistantTurnAnswer> {
+    const scope = keyOf(state.target);
+    const callOnce = () =>
+      withRetry(
+        async () => {
+          state.stream = "";
+          state.thinkingStream = "";
+          const watchdog = createWatchdog(signal);
+          try {
+            return await deps.gateway().session(
+              "assistant",
+              () =>
+                deps.port().turn(
+                  {
+                    connection: binding.connection,
+                    model: binding.model,
+                    system,
+                    messages: state.conversation.messages,
+                    tools: specs,
+                    maxOutput: binding.maxTokens,
+                    ...(binding.thinking ? { thinking: binding.thinking } : {}),
+                    ...(binding.temperature !== undefined
+                      ? { temperature: binding.temperature }
+                      : {}),
+                    sessionId: state.conversation.id,
+                    cacheRetention: "short",
+                  },
+                  watchdog.signal,
+                  (event) => {
+                    watchdog.poke();
+                    if (event.type === "text_delta") {
+                      state.stream += event.delta;
+                      emit(state, { type: "text_delta", delta: event.delta });
+                    } else if (event.type === "thinking_delta") {
+                      state.thinkingStream += event.delta;
+                      emit(state, { type: "thinking_delta", delta: event.delta });
+                    }
+                  },
+                ),
+              { scope, signal: watchdog.signal },
+            );
+          } catch (err) {
+            if (watchdog.signal.aborted && !signal.aborted) {
+              const reason: unknown = watchdog.signal.reason;
+              throw reason instanceof AppError
+                ? reason
+                : new AppError("model.stalled", "模型流式响应超时");
+            }
+            throw err;
+          } finally {
+            watchdog.dispose();
+          }
+        },
+        deps.clock,
+        signal,
+      );
+
+    try {
+      return await callOnce();
+    } catch (err) {
+      if (
+        isAppError(err, "model.context_overflow") &&
+        deps.context().enabled &&
+        state.conversation.messages.length > 2
+      ) {
+        await runCompact(state, system, undefined, signal);
+        return await callOnce();
+      }
+      throw err;
+    }
+  }
+
   async function runTurn(
     state: TargetState,
     send: SessionSend,
@@ -181,6 +263,7 @@ export function createSessionManager(deps: SessionDeps) {
       current: "",
       waiting: "",
       tokens: 0,
+      cachedTokens: 0,
       cost: 0,
       startedAt: deps.clock.now(),
     };
@@ -195,106 +278,50 @@ export function createSessionManager(deps: SessionDeps) {
         await runCompact(state, system, undefined, signal);
       }
       for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-        state.stream = "";
-        const answer = await deps.gateway().session(
-          "assistant",
-          () =>
-            deps.port().turn(
-              {
-                connection: binding.connection,
-                model: binding.model,
-                system,
-                messages: conv.messages,
-                tools: specs,
-                maxOutput: binding.maxTokens,
-              },
-              signal,
-              (event) => {
-                if (event.type === "text_delta") {
-                  state.stream += event.delta;
-                  emit(state, { type: "text_delta", delta: event.delta });
-                }
-              },
-            ),
-          { scope: keyOf(state.target), signal },
-        );
+        const answer = await invokeRound(state, binding, system, specs, signal);
         task.tokens += answer.usage.input + answer.usage.output;
+        task.cachedTokens = (task.cachedTokens ?? 0) + answer.usage.cachedInput;
         task.cost = task.cost === null || answer.cost === null ? null : task.cost + answer.cost;
         conv.messages.push({
           role: "assistant",
           id: nextId("a"),
           text: answer.text,
+          ...(answer.thinking ? { thinking: answer.thinking } : {}),
           toolCalls: answer.toolCalls,
           at: deps.clock.now(),
           origin: { connection: binding.connection, model: binding.model },
           ...(answer.raw !== undefined ? { raw: answer.raw } : {}),
         });
         state.stream = "";
+        state.thinkingStream = "";
         if (answer.toolCalls.length === 0) break;
-        const toolMap = new Map(tools.map((t) => [t.name, t]));
-        const isReadonlyCall = (name: string) => toolMap.get(name)?.readonly === true;
-        let idx = 0;
-        while (idx < answer.toolCalls.length) {
-          const first = answer.toolCalls[idx];
-          if (isReadonlyCall(first.name)) {
-            const batch = [first];
-            while (
-              idx + batch.length < answer.toolCalls.length &&
-              isReadonlyCall(answer.toolCalls[idx + batch.length].name)
-            ) {
-              batch.push(answer.toolCalls[idx + batch.length]);
-            }
-            idx += batch.length;
-            task.current = batch.map((c) => c.name).join(" / ");
+        await executeToolBatch(tools, answer.toolCalls, ctx, {
+          onBatchStart(names) {
+            task.current = names.join(" / ");
             emit(state, { type: "task", task: { ...task } });
-            for (const call of batch) {
-              emit(state, { type: "tool", name: call.name, phase: "start" });
-            }
-            const outcomes = await Promise.all(
-              batch.map(async (call) => ({ call, outcome: await runTool(tools, call, ctx) })),
-            );
-            for (const { call, outcome } of outcomes) {
-              conv.messages.push({
-                role: "tool",
-                id: nextId("r"),
-                callId: call.id,
-                name: call.name,
-                text: outcome.text,
-                isError: outcome.isError,
-                at: deps.clock.now(),
-              });
-              if (!outcome.isError) task.completed.push(call.name);
-              emit(state, {
-                type: "tool",
-                name: call.name,
-                phase: "end",
-                isError: outcome.isError,
-              });
-            }
-          } else {
-            idx += 1;
-            task.current = first.name;
-            emit(state, { type: "task", task: { ...task } });
-            emit(state, { type: "tool", name: first.name, phase: "start" });
-            const outcome = await runTool(tools, first, ctx);
+          },
+          onToolStart(call) {
+            emit(state, { type: "tool", name: call.name, phase: "start" });
+          },
+          onToolEnd(call, outcome) {
             conv.messages.push({
               role: "tool",
               id: nextId("r"),
-              callId: first.id,
-              name: first.name,
+              callId: call.id,
+              name: call.name,
               text: outcome.text,
               isError: outcome.isError,
               at: deps.clock.now(),
             });
-            if (!outcome.isError) task.completed.push(first.name);
+            if (!outcome.isError) task.completed.push(call.name);
             emit(state, {
               type: "tool",
-              name: first.name,
+              name: call.name,
               phase: "end",
               isError: outcome.isError,
             });
-          }
-        }
+          },
+        });
         task.current = "";
         conv.updated = deps.clock.iso();
         await deps.store.save(conv);
@@ -325,6 +352,7 @@ export function createSessionManager(deps: SessionDeps) {
       }
     } finally {
       state.stream = "";
+      state.thinkingStream = "";
       state.controller = undefined;
       setBusy(state, false);
     }
@@ -351,6 +379,7 @@ export function createSessionManager(deps: SessionDeps) {
           total: all.length,
           busy: state.busy,
           stream: state.stream,
+          ...(state.thinkingStream ? { thinkingStream: state.thinkingStream } : {}),
           ...(state.task ? { task: { ...state.task } } : {}),
         };
       });
@@ -436,7 +465,6 @@ export function createSessionManager(deps: SessionDeps) {
         .map((s) => ({ target: s.target, source: "assistant" as const, since: s.since }));
     },
 
-    /** 将流水线交付或异常简报注入当前会话（不消耗模型调用）。 */
     async injectDebrief(target: Target, text: string): Promise<void> {
       const body = text.trim();
       if (!body) return;
@@ -459,7 +487,6 @@ export function createSessionManager(deps: SessionDeps) {
       });
     },
 
-    /** 等待某个目标的当前回复结束（关闭与测试用）。 */
     async idle(target: Target): Promise<void> {
       await states.get(keyOf(target))?.pending;
     },

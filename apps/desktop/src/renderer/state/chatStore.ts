@@ -10,6 +10,7 @@ export interface ChatState {
   total: number;
   busy: boolean;
   stream: string;
+  thinkingStream: string;
   task: TaskState | null;
   /** 正在调用的工具名（界面显示中文标签）。 */
   tool: string;
@@ -26,6 +27,7 @@ export const emptyChat: ChatState = {
   total: 0,
   busy: false,
   stream: "",
+  thinkingStream: "",
   task: null,
   tool: "",
   conversations: [],

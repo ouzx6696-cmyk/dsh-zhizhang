@@ -162,6 +162,8 @@ export interface SessionView {
   busy: boolean;
   /** 进行中的助手回复（尚未收尾的增量文本）。 */
   stream: string;
+  /** 进行中的助手思考链增量。 */
+  thinkingStream?: string;
   task?: TaskState;
 }
 

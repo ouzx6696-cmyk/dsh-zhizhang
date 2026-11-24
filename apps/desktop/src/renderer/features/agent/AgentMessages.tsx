@@ -1,6 +1,6 @@
 import React, { Suspense, lazy } from "react";
 import { DESKTOP_COPY as C } from "@zhizhang/ui/copy";
-import { Wrench } from "lucide-react";
+import { Sparkles, Wrench } from "lucide-react";
 import { Button } from "@zhizhang/ui/primitives";
 import type { ChatMessage, ResultCard, ToolCallView } from "../../../shared/types";
 import { toolLabel } from "../../../context";
@@ -37,6 +37,18 @@ function ResultButton({ card }: { card: ResultCard }) {
   );
 }
 
+function ThinkingBlock({ text, live = false }: { text: string; live?: boolean }) {
+  return (
+    <details className="zz-thinking" open={live} data-testid="agent-thinking" data-live={live}>
+      <summary className="zz-thinking__summary">
+        <Sparkles size={12} aria-hidden="true" />
+        <span>{live ? C.agent.thinkingLive : C.agent.thinkingProcess}</span>
+      </summary>
+      <p className="zz-thinking__body">{text}</p>
+    </details>
+  );
+}
+
 function ToolEvidence({ tools }: { tools: readonly ToolCallView[] }) {
   return (
     <details className="zz-tool-evidence" data-testid="agent-tools">
@@ -63,6 +75,7 @@ const MessageItem = React.memo(function MessageItem({ message }: { message: Chat
   const tools = message.tools ?? [];
   return (
     <li className="zz-message" data-testid="agent-message" data-role={message.role}>
+      {message.thinking ? <ThinkingBlock text={message.thinking} /> : null}
       {tools.length ? <ToolEvidence tools={tools} /> : null}
       {message.text ? (
         message.role === "assistant" || message.role === "system" ? (
@@ -76,15 +89,24 @@ const MessageItem = React.memo(function MessageItem({ message }: { message: Chat
   );
 });
 
-export function AgentMessages({ messages, stream }: { messages: ChatMessage[]; stream: string }) {
+export function AgentMessages({
+  messages,
+  stream,
+  thinkingStream = "",
+}: {
+  messages: ChatMessage[];
+  stream: string;
+  thinkingStream?: string;
+}) {
   return (
     <ol className="zz-messages" data-testid="agent-messages" aria-label={C.agent.log}>
       {messages.map((message) => (
         <MessageItem key={message.id} message={message} />
       ))}
-      {stream ? (
+      {stream || thinkingStream ? (
         <li className="zz-message" data-role="assistant" data-testid="agent-stream">
-          <Rich text={stream} />
+          {thinkingStream ? <ThinkingBlock text={thinkingStream} live /> : null}
+          {stream ? <Rich text={stream} /> : null}
         </li>
       ) : null}
     </ol>

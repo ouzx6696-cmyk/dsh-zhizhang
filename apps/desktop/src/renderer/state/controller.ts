@@ -195,6 +195,7 @@ export async function loadChat(target: Target, conversationId?: string): Promise
     total: view.total,
     busy: view.busy,
     stream: view.stream,
+    thinkingStream: view.thinkingStream ?? "",
     task: view.task ?? null,
     conversations,
   });

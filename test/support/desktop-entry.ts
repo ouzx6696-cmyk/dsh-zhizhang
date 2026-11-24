@@ -9,6 +9,10 @@ export { createRunStore } from "../../apps/desktop/src/main/services/runs.js";
 export { createConfigService } from "../../apps/desktop/src/main/services/config.js";
 export { createSessionManager, toChatMessages } from "../../apps/desktop/src/session/manager.js";
 export { createConversationStore } from "../../apps/desktop/src/session/history.js";
+export {
+  repairOrphanedToolCalls,
+  resolvePiProviderId,
+} from "../../apps/desktop/src/session/transcript.js";
 export { runTool } from "../../apps/desktop/src/session/tools.js";
 export { decodeSourceBytes, extractReadableText } from "../../apps/desktop/src/network.js";
 export { startWebPreviewServer } from "../../apps/desktop/src/server/web-server.js";

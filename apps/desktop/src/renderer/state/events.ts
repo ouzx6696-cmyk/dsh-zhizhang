@@ -25,28 +25,44 @@ function noticeText(code: NoticeCode): string {
 
 function createStreamBuffer() {
   let frame = 0;
-  let pending = "";
+  let pendingText = "";
+  let pendingThinking = "";
   let scope = "";
-  return {
-    push(nextScope: string, delta: string) {
-      if (nextScope !== scope) {
-        pending = "";
-        scope = nextScope;
+  const schedule = (nextScope: string) => {
+    if (nextScope !== scope) {
+      pendingText = "";
+      pendingThinking = "";
+      scope = nextScope;
+    }
+    if (frame) return;
+    frame = requestAnimationFrame(() => {
+      frame = 0;
+      const text = pendingText;
+      const thinking = pendingThinking;
+      pendingText = "";
+      pendingThinking = "";
+      if (chatStore.get().scope === scope) {
+        chatStore.set((chat) => ({
+          ...(text ? { stream: chat.stream + text } : {}),
+          ...(thinking ? { thinkingStream: chat.thinkingStream + thinking } : {}),
+        }));
       }
-      pending += delta;
-      if (frame) return;
-      frame = requestAnimationFrame(() => {
-        frame = 0;
-        const text = pending;
-        pending = "";
-        if (chatStore.get().scope === scope)
-          chatStore.set((chat) => ({ stream: chat.stream + text }));
-      });
+    });
+  };
+  return {
+    pushText(nextScope: string, delta: string) {
+      schedule(nextScope);
+      pendingText += delta;
+    },
+    pushThinking(nextScope: string, delta: string) {
+      schedule(nextScope);
+      pendingThinking += delta;
     },
     clear() {
       if (frame) cancelAnimationFrame(frame);
       frame = 0;
-      pending = "";
+      pendingText = "";
+      pendingThinking = "";
     },
   };
 }
@@ -64,7 +80,10 @@ function handleSession(
       chatStore.set({ busy: event.busy, ...(event.busy ? { ended: null } : {}) });
       return;
     case "text_delta":
-      stream.push(scope, event.delta);
+      stream.pushText(scope, event.delta);
+      return;
+    case "thinking_delta":
+      stream.pushThinking(scope, event.delta);
       return;
     case "message_end":
       stream.clear();
@@ -74,6 +93,7 @@ function handleSession(
           messages: [...current.messages.filter((m) => m.id !== event.message.id), event.message],
           total: exists ? current.total : current.total + 1,
           stream: "",
+          thinkingStream: "",
         };
       });
       return;
@@ -91,6 +111,7 @@ function handleSession(
       chatStore.set({
         busy: false,
         stream: "",
+        thinkingStream: "",
         tool: "",
         ended: {
           reason: event.reason,

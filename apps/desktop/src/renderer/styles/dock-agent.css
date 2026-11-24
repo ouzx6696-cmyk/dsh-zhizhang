@@ -361,3 +361,37 @@
   color: var(--zz-text-3);
   font-size: var(--zz-text-caption);
 }
+
+.zz-context__cache {
+  color: var(--zz-ok);
+  font-size: var(--zz-text-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.zz-thinking {
+  margin-bottom: var(--zz-space-2);
+  padding: var(--zz-space-2) var(--zz-space-3);
+  border-left: 2px solid var(--zz-border-strong);
+  border-radius: 0 var(--zz-radius-sm) var(--zz-radius-sm) 0;
+  background: var(--zz-surface-2);
+}
+
+.zz-thinking__summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zz-space-1);
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-caption);
+  cursor: pointer;
+  user-select: none;
+}
+
+.zz-thinking__body {
+  margin: var(--zz-space-1) 0 0;
+  color: var(--zz-text-2);
+  font-size: var(--zz-text-meta);
+  line-height: var(--zz-leading-meta);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

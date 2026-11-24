@@ -17,6 +17,7 @@ import type {
 export type SessionEvent =
   | { type: "busy"; busy: boolean }
   | { type: "text_delta"; delta: string }
+  | { type: "thinking_delta"; delta: string }
   | { type: "message_end"; message: ChatMessage }
   | { type: "tool"; name: string; phase: "start" | "end"; isError?: boolean }
   | { type: "task"; task: TaskState }

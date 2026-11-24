@@ -19,6 +19,8 @@ export type AgentMessage =
       role: "assistant";
       id: string;
       text: string;
+      /** 推理模型的思考过程文本（仅供界面折叠展示，跨供应商回放时不作为正文发送）。 */
+      thinking?: string;
       toolCalls: AgentToolCall[];
       at: number;
       /** 生成该回复的连接与模型；同一连接回放时可原样带回思考签名。 */
@@ -49,13 +51,21 @@ export interface AssistantTurnRequest {
   messages: AgentMessage[];
   tools: AssistantToolSpec[];
   maxOutput?: number;
+  thinking?: "off" | "low" | "high";
+  temperature?: number;
+  /** 稳定会话标识，供 PI 开启供应商侧提示词缓存与路由亲和。 */
+  sessionId?: string;
+  cacheRetention?: "none" | "short" | "long";
 }
 
 export type AssistantTurnEvent =
-  { type: "text_delta"; delta: string } | { type: "tool_call"; name: string };
+  | { type: "text_delta"; delta: string }
+  | { type: "thinking_delta"; delta: string }
+  | { type: "tool_call"; name: string };
 
 export interface AssistantTurnAnswer {
   text: string;
+  thinking?: string;
   toolCalls: AgentToolCall[];
   usage: ModelAnswer["usage"];
   cost: number | null;

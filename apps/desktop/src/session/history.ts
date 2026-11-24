@@ -53,10 +53,13 @@ function parseMessage(value: unknown): AgentMessage | undefined {
       const origin = isRecord(value.origin)
         ? { connection: text(value.origin.connection), model: text(value.origin.model) }
         : undefined;
+      const thinking =
+        typeof value.thinking === "string" && value.thinking ? value.thinking : undefined;
       return {
         role: "assistant",
         ...base,
         text: text(value.text),
+        ...(thinking ? { thinking } : {}),
         toolCalls: calls.filter((c): c is AgentToolCall => c !== undefined),
         ...(origin ? { origin } : {}),
         ...(value.raw !== undefined ? { raw: value.raw } : {}),

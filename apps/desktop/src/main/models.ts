@@ -15,6 +15,7 @@ import type { ModelCatalogRequest } from "../shared/ipc.js";
 import type { AssistantBinding } from "../session/manager.js";
 import {
   createPiPorts,
+  invalidatePiRuntime,
   piModelCatalog,
   testPiConnection,
   type ResolvedConnection,
@@ -81,6 +82,8 @@ export function createModelServices(deps: {
       roles[role] = {
         connection: binding.connection,
         model: binding.model,
+        ...(binding.thinking ? { thinking: binding.thinking } : {}),
+        ...(binding.temperature !== undefined ? { temperature: binding.temperature } : {}),
         ...(conn?.price ? { price: conn.price } : {}),
       };
     }
@@ -101,6 +104,7 @@ export function createModelServices(deps: {
     gateway: () => gateway,
     port: () => ports,
     rebuild() {
+      invalidatePiRuntime(deps.authPath);
       gateway = build();
     },
     assistantBinding() {
@@ -113,6 +117,8 @@ export function createModelServices(deps: {
         model: binding.model,
         contextWindow: conn.contextWindow,
         maxTokens: conn.maxTokens,
+        ...(binding.thinking ? { thinking: binding.thinking } : {}),
+        ...(binding.temperature !== undefined ? { temperature: binding.temperature } : {}),
       };
     },
     async test(input) {

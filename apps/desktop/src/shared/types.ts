@@ -11,6 +11,7 @@ export type TaskState = {
   current: string;
   waiting: string;
   tokens: number;
+  cachedTokens?: number;
   cost: number | null;
   startedAt: number;
   endedAt?: number;
@@ -28,6 +29,8 @@ export type ChatMessage = {
   role: "user" | "assistant" | "system";
   text: string;
   at: number;
+  /** 推理模型的思考链（界面默认折叠展示）。 */
+  thinking?: string;
   /** 本条助手回复里调用过的工具（界面折叠成单行）。 */
   tools?: ToolCallView[];
   /** 发起流水线等可打开的结果卡。 */

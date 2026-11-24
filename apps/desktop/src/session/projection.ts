@@ -43,21 +43,24 @@ function summarizeToolOutput(raw: string): string {
 export function toChatMessages(messages: AgentMessage[]): ChatMessage[] {
   const out: ChatMessage[] = [];
   let texts: string[] = [];
+  let thinkings: string[] = [];
   let tools: ToolCallView[] = [];
   let result: ResultCard | undefined;
   let turnId = "";
   let turnAt = 0;
   const flush = () => {
-    if (texts.length === 0 && tools.length === 0) return;
+    if (texts.length === 0 && tools.length === 0 && thinkings.length === 0) return;
     out.push({
       id: turnId,
       role: "assistant",
       text: texts.join("\n\n"),
       at: turnAt,
+      ...(thinkings.length ? { thinking: thinkings.join("\n\n") } : {}),
       ...(tools.length ? { tools } : {}),
       ...(result ? { result } : {}),
     });
     texts = [];
+    thinkings = [];
     tools = [];
     result = undefined;
   };
@@ -72,6 +75,7 @@ export function toChatMessages(messages: AgentMessage[]): ChatMessage[] {
       turnId = msg.id;
       turnAt = msg.at;
       if (msg.text.trim()) texts.push(msg.text);
+      if (msg.thinking?.trim()) thinkings.push(msg.thinking.trim());
       for (const call of msg.toolCalls) tools.push({ name: call.name, isError: false });
     } else {
       const hit = [...tools].reverse().find((t) => t.name === msg.name);

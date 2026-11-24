@@ -68,3 +68,46 @@ export async function runTool(
     };
   }
 }
+
+export interface ToolBatchCallbacks {
+  onBatchStart(names: string[]): void;
+  onToolStart(call: AgentToolCall): void;
+  onToolEnd(call: AgentToolCall, outcome: ToolOutcome): void;
+}
+
+/** 连续无副作用只读工具并发批处理，其余工具严格串行执行。 */
+export async function executeToolBatch(
+  tools: ToolDefinition[],
+  toolCalls: readonly AgentToolCall[],
+  ctx: ToolCtx,
+  cb: ToolBatchCallbacks,
+): Promise<void> {
+  const toolMap = new Map(tools.map((tool) => [tool.name, tool]));
+  const isReadonly = (name: string) => toolMap.get(name)?.readonly === true;
+  let idx = 0;
+  while (idx < toolCalls.length) {
+    const first = toolCalls[idx];
+    if (isReadonly(first.name)) {
+      const batch = [first];
+      while (
+        idx + batch.length < toolCalls.length &&
+        isReadonly(toolCalls[idx + batch.length].name)
+      ) {
+        batch.push(toolCalls[idx + batch.length]);
+      }
+      idx += batch.length;
+      cb.onBatchStart(batch.map((c) => c.name));
+      for (const call of batch) cb.onToolStart(call);
+      const outcomes = await Promise.all(
+        batch.map(async (call) => ({ call, outcome: await runTool(tools, call, ctx) })),
+      );
+      for (const { call, outcome } of outcomes) cb.onToolEnd(call, outcome);
+    } else {
+      idx += 1;
+      cb.onBatchStart([first.name]);
+      cb.onToolStart(first);
+      const outcome = await runTool(tools, first, ctx);
+      cb.onToolEnd(first, outcome);
+    }
+  }
+}
