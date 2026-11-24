@@ -12,26 +12,26 @@
     "pack:portable": "node ../../scripts/prepare-desktop-python.mjs && electron-builder --win zip --x64 --publish never"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "1.5.0",
-    "@earendil-works/pi-coding-agent": "1.5.0",
+    "@earendil-works/pi-ai": "1.6.0",
+    "@earendil-works/pi-coding-agent": "1.6.0",
     "@zhizhang/core": "*",
     "@zhizhang/fanqie": "*",
     "@zhizhang/toutiao": "*",
     "@zhizhang/ui": "*",
     "@zhizhang/workbench": "*",
-    "docx": "^9.15.3",
+    "docx": "^9.16.0",
     "electron-updater": "^6.8.11",
-    "typebox": "^1.4.6",
-    "undici": "8.12.3"
+    "typebox": "^1.4.7",
+    "undici": "8.13.1"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",
     "@fontsource/noto-serif-sc": "^5.3.1",
-    "@playwright/test": "^1.65.0",
+    "@playwright/test": "^1.65.1",
     "electron": "45.2.3",
     "electron-builder": "^26.0.0",
     "electron-vite": "^6.0.0",
-    "lucide-react": "^1.72.0",
+    "lucide-react": "^1.77.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-markdown": "^10.1.0",
