@@ -139,9 +139,9 @@
   flex-direction: column;
   margin: 0;
   padding: 0;
-  border: 1px solid var(--zz-border);
-  border-radius: var(--zz-radius-md);
-  background: var(--zz-surface-2);
+  border-top: 1px solid var(--zz-border);
+  border-bottom: 1px solid var(--zz-border);
+  background: transparent;
   list-style: none;
 }
 
@@ -154,22 +154,17 @@
   align-items: center;
   gap: var(--zz-space-3);
   width: 100%;
-  padding: var(--zz-space-3) var(--zz-space-3) var(--zz-space-3) var(--zz-space-4);
+  padding: var(--zz-space-3) var(--zz-space-2);
   border: none;
+  border-radius: var(--zz-radius-sm);
   background: transparent;
   color: var(--zz-text-3);
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background-color var(--zz-dur-1) var(--zz-ease);
-}
-
-.zz-suggest li:first-child .zz-suggest__item {
-  border-radius: var(--zz-radius-md) var(--zz-radius-md) 0 0;
-}
-
-.zz-suggest li:last-child .zz-suggest__item {
-  border-radius: 0 0 var(--zz-radius-md) var(--zz-radius-md);
+  transition:
+    background-color var(--zz-dur-1) var(--zz-ease),
+    color var(--zz-dur-1) var(--zz-ease);
 }
 
 .zz-suggest__item:hover:not(:disabled) {
@@ -263,14 +258,15 @@
   align-self: flex-end;
   max-width: 86%;
   padding: var(--zz-space-2) var(--zz-space-3);
+  border: 1px solid var(--zz-border);
   border-radius: var(--zz-radius-lg) var(--zz-radius-lg) var(--zz-radius-xs) var(--zz-radius-lg);
-  background: var(--zz-surface-3);
+  background: var(--zz-surface-2);
   color: var(--zz-text-1);
 }
 
 .zz-message[data-role="assistant"] {
-  padding-left: var(--zz-space-3);
-  border-left: 2px solid var(--zz-border-strong);
+  padding: var(--zz-space-1) 0;
+  color: var(--zz-text-1);
 }
 
 .zz-message__tools {
@@ -312,7 +308,7 @@
   padding: var(--zz-space-3) var(--zz-space-3) var(--zz-space-2);
   border: 1px solid var(--zz-border-strong);
   border-radius: var(--zz-radius-lg);
-  background: var(--zz-surface-2);
+  background: var(--zz-paper);
   box-shadow: var(--zz-shadow-1);
   transition:
     border-color var(--zz-dur-1) var(--zz-ease),
@@ -320,10 +316,10 @@
 }
 
 .zz-composer:focus-within {
-  border-color: var(--zz-focus);
+  border-color: var(--zz-decide);
   box-shadow:
     var(--zz-shadow-1),
-    0 0 0 1px var(--zz-focus);
+    0 0 0 1px color-mix(in srgb, var(--zz-decide) 35%, transparent);
 }
 
 .zz-composer__where {

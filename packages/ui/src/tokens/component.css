@@ -1,10 +1,10 @@
 /* 组件令牌：只引用语义令牌；组件样式见 styles/。 */
 :root {
-  --zz-topbar-height: 48px;
-  --zz-bar-height: 44px;
-  --zz-statusbar-height: 30px;
-  --zz-nav-width: 248px;
-  --zz-dock-width: 380px;
+  --zz-topbar-height: 52px;
+  --zz-bar-height: 46px;
+  --zz-statusbar-height: 32px;
+  --zz-nav-width: 256px;
+  --zz-dock-width: 392px;
   --zz-dock-min: 320px;
   --zz-dock-max: 560px;
   --zz-dock-handle: 6px;
@@ -13,8 +13,8 @@
 
   --zz-btn-height-sm: 28px;
   --zz-btn-height-md: 32px;
-  --zz-btn-height-lg: 36px;
-  --zz-control-height: 32px;
+  --zz-btn-height-lg: 38px;
+  --zz-control-height: 34px;
   --zz-btn-radius: var(--zz-radius-sm);
   --zz-field-radius: var(--zz-radius-sm);
   --zz-chip-radius: var(--zz-radius-pill);

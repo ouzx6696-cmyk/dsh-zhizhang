@@ -198,12 +198,12 @@ export function TopBar() {
         {views.length > 1 ? (
           <>
             <span className="zz-topbar__divider" aria-hidden="true" />
-            <nav className="zz-segmented zz-segmented--sm" aria-label={C.topbar.views}>
+            <nav className="zz-topbar-nav" aria-label={C.topbar.views}>
               {views.map((v) => (
                 <button
                   key={v.id}
                   type="button"
-                  className="zz-segmented__item"
+                  className="zz-topbar-nav__item"
                   aria-pressed={view === v.id}
                   data-testid={`view-${v.id}`}
                   onClick={() => set({ view: v.id })}
@@ -237,7 +237,6 @@ export function TopBar() {
           title={ready ? C.topbar.modelReady : C.topbar.modelMissing}
           onClick={() => openSettings("models")}
         >
-          <i aria-hidden="true" />
           <span>{ready ? C.topbar.modelReady : C.topbar.modelMissing}</span>
         </button>
         <div className="zz-topbar__tools">

@@ -1,7 +1,13 @@
 import type { ModeModule, PipelineDefinition } from "@zhizhang/core/pipeline";
 import { bookPipeline } from "./pipelines/book/index.js";
 import { chapterPipeline } from "./pipelines/chapter/index.js";
-import { dissectPipeline } from "./pipelines/dissect/index.js";
+import {
+  auditTechniqueCards,
+  dissectPipeline,
+  scanSourceChapters,
+  stratifiedSampleSource,
+  verifyQuoteAgainstSource,
+} from "./pipelines/dissect/index.js";
 import { healthPipeline } from "./pipelines/health/index.js";
 import { ledgerPipeline } from "./pipelines/ledger/index.js";
 import { reviewPipeline } from "./pipelines/review/index.js";
@@ -17,6 +23,7 @@ export * from "./view/index.js";
 export * as commands from "./commands/index.js";
 
 export {
+  auditTechniqueCards,
   bookPipeline,
   chapterPipeline,
   dissectPipeline,
@@ -24,6 +31,9 @@ export {
   ledgerPipeline,
   reviewPipeline,
   revisePipeline,
+  scanSourceChapters,
+  stratifiedSampleSource,
+  verifyQuoteAgainstSource,
 };
 
 export const fanqieModule: ModeModule<"fanqie"> = {

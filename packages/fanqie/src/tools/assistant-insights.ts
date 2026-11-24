@@ -53,6 +53,14 @@ export function fanqieInsightTools(work: string): ToolDefinition[] {
                 chapterId: b.chapterId ?? null,
                 title: c.title,
                 category: c.category,
+                layer: c.layer ?? null,
+                dimension: c.dimension ?? null,
+                pattern: c.pattern,
+                steps: c.steps ?? [],
+                transfer: c.transfer ?? null,
+                mustNotCopy: c.mustNotCopy ?? [],
+                failWhen: c.failWhen ?? null,
+                quoteStatus: c.quoteStatus ?? null,
                 usage: c.usage,
               });
             }

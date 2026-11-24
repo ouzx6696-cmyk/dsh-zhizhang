@@ -19,6 +19,7 @@ import {
 import { arr } from "@zhizhang/core/schema";
 import { createBibleStore } from "../../bible/store.js";
 import type { Entity, StateEntry } from "../../bible/types.js";
+import { readLibraryCards, readWorkReferenceBindings } from "../../commands/library.js";
 import {
   BookCardFileSchema,
   BookFoundationSchema,
@@ -288,21 +289,66 @@ export const bookPipeline: PipelineDefinition<BookReq, BookPlanResult, BookPipel
     },
     async run(runner, ctx) {
       const req = ctx.request;
+      const macroCardsText = await runner.local("load-references", async () => {
+        if (!ctx.libraryRoot) return "";
+        const bindings = (await readWorkReferenceBindings(ctx.target.path)).filter(
+          (b) => (b.scope ?? "work") === "work",
+        );
+        if (bindings.length === 0) return "";
+        const loaded = (
+          await Promise.all(
+            bindings.map(async (binding) => {
+              const { cards } = await readLibraryCards(ctx.libraryRoot ?? "", binding.sourceId);
+              return cards.filter((c) => binding.cardIds.includes(c.id));
+            }),
+          )
+        ).flat();
+        const macro = loaded.filter(
+          (c) => !c.layer || c.layer === "book" || c.layer === "arc" || c.layer === "unit",
+        );
+        const picked = macro.length > 0 ? macro : loaded.slice(0, 6);
+        if (picked.length === 0) return "";
+        return [
+          "【全书绑定参考技法卡（只迁机制，严禁洗稿）】",
+          ...picked.map((c) => {
+            const parts = [`- [${c.layer ?? c.category}] ${c.title}：${c.pattern}`];
+            if (c.transfer) parts.push(`  迁移重造：${c.transfer}`);
+            if (c.mustNotCopy?.length) parts.push(`  严禁照搬：${c.mustNotCopy.join("；")}`);
+            if (c.failWhen) parts.push(`  失效边界：${c.failWhen}`);
+            return parts.join("\n");
+          }),
+        ].join("\n");
+      });
+
+      const prefix = [
+        {
+          id: "book-premise",
+          layer: 0 as const,
+          text: `书名：${req.title}\n题材：${req.genre ?? "未指定"}\n核心设定：${req.premise}`,
+          required: true,
+          tokens: Math.ceil((req.title.length + req.premise.length) / 2),
+          reason: "全书立项输入",
+          source: { kind: "author" as const, ref: "premise" },
+        },
+        ...(macroCardsText
+          ? [
+              {
+                id: "book-reference-cards",
+                layer: 2 as const,
+                text: macroCardsText,
+                required: false,
+                tokens: Math.ceil(macroCardsText.length / 2),
+                reason: "作品绑定的宏观技法参考卡",
+                source: { kind: "reference" as const, ref: "work-cards" },
+              },
+            ]
+          : []),
+      ];
       const packet: ContextPacket = {
-        prefix: [
-          {
-            id: "book-premise",
-            layer: 0,
-            text: `书名：${req.title}\n题材：${req.genre ?? "未指定"}\n核心设定：${req.premise}`,
-            required: true,
-            tokens: Math.ceil((req.title.length + req.premise.length) / 2),
-            reason: "全书立项输入",
-            source: { kind: "author", ref: "premise" },
-          },
-        ],
+        prefix,
         suffix: [],
         omitted: [],
-        estimate: Math.ceil((req.title.length + req.premise.length) / 2),
+        estimate: prefix.reduce((sum, b) => sum + b.tokens, 0),
       };
 
       const card = await runner.stage(cardStage, packet);

@@ -1,0 +1,271 @@
+/* 交互式技法编辑器与 Markdown 逻辑结构预览样式。仅使用 --zz-* 令牌。 */
+
+.zz-tech-editor {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--zz-space-4);
+  min-height: 0;
+}
+
+.zz-tech-editor__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--zz-space-3);
+}
+
+.zz-tech-editor__pickers,
+.zz-tech-editor__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--zz-space-2);
+}
+
+.zz-tech-editor__picker {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zz-space-2);
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-caption);
+}
+
+.zz-tech-editor__select {
+  width: auto;
+  min-width: 148px;
+  min-height: 32px;
+  padding: 2px var(--zz-space-2);
+  font-size: var(--zz-text-meta);
+}
+
+.zz-tech-editor__tier {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--zz-space-3);
+  padding: var(--zz-space-2) var(--zz-space-4);
+  border: 1px solid var(--zz-border);
+  border-radius: var(--zz-radius-sm);
+  background: var(--zz-surface-1);
+  color: var(--zz-text-2);
+  font-size: var(--zz-text-meta);
+}
+
+.zz-tech-editor__tier[data-tier="l2-craft"] {
+  border-color: color-mix(in srgb, var(--zz-decide) 38%, transparent);
+  background: var(--zz-decide-soft);
+  color: var(--zz-decide);
+}
+
+.zz-tech-editor__dirty {
+  color: var(--zz-warn);
+  font-size: var(--zz-text-caption);
+  font-weight: var(--zz-weight-strong);
+}
+
+.zz-tech-editor__panes {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--zz-space-5);
+  min-height: 420px;
+  max-height: calc(100vh - 280px);
+}
+
+.zz-tech-editor__panes[data-mode="edit"],
+.zz-tech-editor__panes[data-mode="preview"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.zz-tech-editor__form,
+.zz-tech-editor__preview {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid var(--zz-sheet-edge);
+  border-radius: var(--zz-card-radius);
+  background: var(--zz-paper);
+  box-shadow: var(--zz-shadow-1);
+}
+
+.zz-tech-editor__form {
+  gap: var(--zz-space-5);
+  padding: var(--zz-space-5) var(--zz-space-5) var(--zz-space-6);
+  overflow-y: auto;
+}
+
+.zz-tech-editor__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zz-space-3);
+}
+
+.zz-tech-editor__section + .zz-tech-editor__section {
+  padding-top: var(--zz-space-4);
+  border-top: 1px solid var(--zz-border);
+}
+
+.zz-tech-editor__section h3 {
+  margin: 0;
+  color: var(--zz-title);
+  font: var(--zz-weight-strong) var(--zz-text-strong) / var(--zz-leading-strong)
+    var(--zz-font-paper);
+}
+
+.zz-tech-editor__row-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--zz-space-3);
+}
+
+.zz-tech-editor__steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zz-space-2);
+}
+
+.zz-tech-editor__steps-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--zz-text-2);
+  font-size: var(--zz-text-caption);
+}
+
+.zz-tech-editor__step-row {
+  display: flex;
+  align-items: center;
+  gap: var(--zz-space-1);
+}
+
+.zz-tech-editor__step-num {
+  width: 20px;
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-caption);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.zz-tech-editor__preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--zz-space-2);
+  padding: var(--zz-space-3) var(--zz-space-5);
+  border-bottom: 1px solid var(--zz-border);
+  background: var(--zz-surface-1);
+  border-radius: var(--zz-card-radius) var(--zz-card-radius) 0 0;
+  font-size: var(--zz-text-meta);
+}
+
+.zz-tech-editor__preview-body {
+  flex: 1;
+  padding: var(--zz-space-5) var(--zz-space-6);
+  overflow-y: auto;
+}
+
+/* —— Markdown 逻辑结构预览（书卷排版） —— */
+.zz-md-preview {
+  color: var(--zz-text-1);
+  font: var(--zz-text-body) / 1.75 var(--zz-font-ui);
+}
+
+.zz-md-preview h1 {
+  margin: 0 0 var(--zz-space-4);
+  color: var(--zz-title);
+  font: var(--zz-weight-strong) var(--zz-text-title) / 1.35 var(--zz-font-paper);
+}
+
+.zz-md-preview h2 {
+  margin: var(--zz-space-5) 0 var(--zz-space-2);
+  padding-bottom: var(--zz-space-1);
+  border-bottom: 1px solid var(--zz-border);
+  color: var(--zz-title);
+  font: var(--zz-weight-strong) var(--zz-text-strong) / 1.4 var(--zz-font-paper);
+}
+
+.zz-md-preview h3 {
+  margin: var(--zz-space-4) 0 var(--zz-space-2);
+  color: var(--zz-title);
+  font-size: var(--zz-text-body);
+}
+
+.zz-md-preview p {
+  margin: 0 0 var(--zz-space-3);
+}
+
+.zz-md-preview ul,
+.zz-md-preview ol {
+  margin: 0 0 var(--zz-space-3);
+  padding-left: var(--zz-space-5);
+}
+
+.zz-md-preview li + li {
+  margin-top: var(--zz-space-1);
+}
+
+.zz-md-preview blockquote {
+  margin: var(--zz-space-3) 0;
+  padding: var(--zz-space-2) var(--zz-space-4);
+  border-left: 1px solid var(--zz-decide);
+  background: var(--zz-surface-1);
+  color: var(--zz-text-2);
+  font-family: var(--zz-font-paper);
+}
+
+.zz-md-preview table {
+  width: 100%;
+  margin: 0 0 var(--zz-space-4);
+  border-collapse: collapse;
+  font-size: var(--zz-text-meta);
+}
+
+.zz-md-preview th,
+.zz-md-preview td {
+  padding: var(--zz-space-2) var(--zz-space-3);
+  border: 1px solid var(--zz-border);
+  text-align: left;
+}
+
+.zz-md-preview th {
+  background: var(--zz-surface-1);
+  color: var(--zz-text-2);
+  font-weight: var(--zz-weight-strong);
+}
+
+.zz-md-preview code {
+  padding: 1px var(--zz-space-1);
+  border-radius: var(--zz-radius-xs);
+  background: var(--zz-surface-1);
+  font-family: var(--zz-font-mono);
+  font-size: 0.9em;
+}
+
+/* —— 方法文档双栏预览 —— */
+.zz-method-editor__body {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.zz-method-editor__body[data-mode="split"] {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.zz-method-editor__preview {
+  min-height: 0;
+  padding: var(--zz-space-4) var(--zz-space-5);
+  overflow-y: auto;
+  border-left: 1px solid var(--zz-border);
+  background: var(--zz-surface-1);
+}
+
+.zz-method-editor__body[data-mode="preview"] .zz-method-editor__preview {
+  border-left: none;
+  background: var(--zz-paper);
+}

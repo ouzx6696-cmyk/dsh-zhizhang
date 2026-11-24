@@ -141,19 +141,26 @@ export const chapterPipeline: PipelineDefinition<
               await Promise.all(
                 activeBindings.map(async (binding) => {
                   const { cards } = await readLibraryCards(libraryRoot, binding.sourceId);
-                  return cards.filter((card) => binding.cardIds.includes(card.id));
+                  const scope = binding.scope ?? "work";
+                  return cards
+                    .filter((card) => binding.cardIds.includes(card.id))
+                    .map((card) => ({ ...card, scope }));
                 }),
               )
             ).flat()
           : [];
       const briefCardSet = req.brief?.boundCardIds ? new Set(req.brief.boundCardIds) : null;
       const seenCard = new Set<string>();
-      const referenceCards = loadedCards.filter((card) => {
-        if (seenCard.has(card.id)) return false;
-        if (briefCardSet && briefCardSet.size > 0 && !briefCardSet.has(card.id)) return false;
-        seenCard.add(card.id);
-        return true;
-      });
+      const referenceCards = loadedCards
+        .filter((card) => {
+          if (seenCard.has(card.id)) return false;
+          if (briefCardSet && briefCardSet.size > 0 && !briefCardSet.has(card.id)) return false;
+          seenCard.add(card.id);
+          return true;
+        })
+        .map((card) =>
+          briefCardSet && briefCardSet.has(card.id) ? { ...card, scope: "chapter" as const } : card,
+        );
       const targetWords = req.targetWords ?? workMeta?.settings.targetWords ?? 3000;
       const grade = req.grade ?? workMeta?.grade ?? "standard";
       const prevModeSetting = workMeta?.settings.previousTextMode ?? "auto";

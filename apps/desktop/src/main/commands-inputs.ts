@@ -46,6 +46,28 @@ const provenance: Parser<Provenance> = obj({
 const decision: Parser<"accept" | "reject" | { edit: BibleOp }> = (value, at = "$") =>
   value === "accept" || value === "reject" ? value : obj({ edit: bibleOp })(value, at);
 
+const techniqueCardInput = obj({
+  id: str({ min: 1, max: 120 }),
+  title: str({ min: 1, max: 200 }),
+  category: str({ min: 1, max: 80 }),
+  pattern: str({ min: 1, max: 4000 }),
+  example: str({ max: 4000 }),
+  usage: str({ max: 2000 }),
+  layer: opt(lit("book", "arc", "unit", "chapter", "scene", "line")),
+  dimension: opt(lit("structure", "character", "rhythm", "hook", "prose", "commercial")),
+  readerWant: opt(str({ max: 1000 })),
+  emotionArc: opt(str({ max: 1000 })),
+  dramaticUnit: opt(str({ max: 1000 })),
+  replaceables: opt(arr(str({ max: 400 }), { max: 40 })),
+  mustNotCopy: opt(arr(str({ max: 400 }), { max: 40 })),
+  transfer: opt(str({ max: 2000 })),
+  failWhen: opt(str({ max: 2000 })),
+  steps: opt(arr(str({ max: 600 }), { max: 30 })),
+  bannedDiction: opt(arr(str({ max: 200 }), { max: 40 })),
+  quoteStatus: opt(lit("verified", "partial", "unverified")),
+  quoteLine: opt(int({ min: 1 })),
+});
+
 export const COMMAND_INPUTS: { [K in WorkbenchCommand]: Parser<CommandInput<K>> } = {
   "fanqie.snapshot": obj({ work: id, since: opt(str()) }),
   "fanqie.chapter.list": obj({ work: id }),
@@ -96,6 +118,7 @@ export const COMMAND_INPUTS: { [K in WorkbenchCommand]: Parser<CommandInput<K>> 
     scope: opt(lit("work", "chapter")),
     chapterId: opt(id),
   }),
+  "fanqie.reference.list": obj({ work: id }),
   "toutiao.articles": obj({ root: id }),
   "toutiao.article.create": obj({ root: id, genre: id, driver: id }),
   "toutiao.article.transition": obj({ articleDir: id, to: id }),
@@ -147,6 +170,11 @@ export const COMMAND_INPUTS: { [K in WorkbenchCommand]: Parser<CommandInput<K>> 
   }),
   "library.list": obj({ libraryRoot: id }),
   "library.cards": obj({ libraryRoot: id, sourceId: id }),
+  "library.cards.save": obj({
+    libraryRoot: id,
+    sourceId: id,
+    cards: arr(techniqueCardInput, { max: 100 }),
+  }),
   "library.dissect": obj({
     libraryRoot: id,
     sourceId: id,

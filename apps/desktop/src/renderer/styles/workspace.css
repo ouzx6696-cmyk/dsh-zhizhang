@@ -11,6 +11,8 @@
 }
 
 .zz-studio__main {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -162,22 +164,29 @@
 .zz-board__stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--zz-space-3);
+  padding: var(--zz-space-4) 0;
+  border-top: 1px solid var(--zz-border-strong);
+  border-bottom: 1px solid var(--zz-border);
+  background: transparent;
 }
 
 .zz-board__stat {
   display: flex;
   flex-direction: column;
-  gap: var(--zz-space-2);
-  padding: var(--zz-space-4) var(--zz-space-5) var(--zz-space-5);
-  border: 1px solid var(--zz-sheet-edge);
-  border-radius: var(--zz-card-radius);
-  background: var(--zz-paper);
-  box-shadow: var(--zz-shadow-1);
+  gap: var(--zz-space-1);
+  padding: var(--zz-space-1) var(--zz-space-5);
+}
+
+.zz-board__stat:first-child {
+  padding-left: 0;
+}
+
+.zz-board__stat + .zz-board__stat {
+  border-left: 1px solid var(--zz-border);
 }
 
 .zz-board__sheet {
-  padding: var(--zz-space-2) var(--zz-space-2) var(--zz-space-3);
+  padding: var(--zz-space-2) var(--zz-space-3) var(--zz-space-3);
   border: 1px solid var(--zz-sheet-edge);
   border-radius: var(--zz-card-radius);
   background: var(--zz-paper);
@@ -191,6 +200,7 @@
 .zz-board__stat span {
   color: var(--zz-text-3);
   font-size: var(--zz-text-meta);
+  letter-spacing: 0.04em;
 }
 
 .zz-board__stat strong {

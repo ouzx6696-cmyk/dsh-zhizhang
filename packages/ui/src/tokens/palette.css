@@ -1,68 +1,74 @@
 /*
  * 原始色板：全仓唯一允许写颜色字面量的地方。
+ * 主题体系：「天青素笺」(Day · 宋瓷天青与纯棉宣纸) / 「松烟夜砚」(Night · 松烟墨砚与青玉流光)。
  * 语义层（semantic.css）只引用这里的值；组件与页面只引用语义令牌。
  */
 :root {
-  /* 夜灯：偏暖的墨色底，正文米白 */
-  --zz-raw-night-bg: #101315;
-  --zz-raw-night-desk: #101316;
-  --zz-raw-night-s1: #14181b;
-  --zz-raw-night-s2: #1f2428;
-  --zz-raw-night-s3: #272d32;
-  --zz-raw-night-paper: #1c2024;
-  --zz-raw-night-text1: #ece6da;
-  --zz-raw-night-text2: #b5aea1;
-  --zz-raw-night-text3: #968f83;
-  --zz-raw-night-title: #f3e7cf;
-  --zz-raw-night-ink: #ece6da;
-  --zz-raw-night-border: #ffffff14;
-  --zz-raw-night-border-strong: #ffffff26;
-  --zz-raw-night-hover: #ffffff0d;
-  --zz-raw-night-active: #ffffff17;
-  --zz-raw-night-mask: #070a0dcc;
-  --zz-raw-night-shadow-1: #0000004d;
-  --zz-raw-night-shadow-2: #00000059;
-  --zz-raw-night-shadow-3: #00000080;
-  --zz-raw-night-sheet-shadow: #00000066;
-  --zz-raw-night-sheet-edge: #ffffff0f;
+  /* 松烟夜砚（Night）：冷润墨砚底 + 微抬升稿纸 + 珍珠宣纸字 */
+  --zz-raw-night-bg: #0c1012;
+  --zz-raw-night-desk: #090c0e;
+  --zz-raw-night-s1: #101518;
+  --zz-raw-night-s2: #171e22;
+  --zz-raw-night-s3: #1e272c;
+  --zz-raw-night-paper: #141a1d;
+  --zz-raw-night-text1: #ebf0ed;
+  --zz-raw-night-text2: #9fabaa;
+  --zz-raw-night-text3: #72807e;
+  --zz-raw-night-title: #f5f8f6;
+  --zz-raw-night-ink: #e5ece8;
+  --zz-raw-night-border: #e6f2ee14;
+  --zz-raw-night-border-strong: #e6f2ee24;
+  --zz-raw-night-hover: #e6f2ee0a;
+  --zz-raw-night-active: #e6f2ee14;
+  --zz-raw-night-mask: #050809cc;
+  --zz-raw-night-shadow-1: #00000059;
+  --zz-raw-night-shadow-2: #00000073;
+  --zz-raw-night-shadow-3: #00000099;
+  --zz-raw-night-sheet-shadow: #0000007a;
+  --zz-raw-night-sheet-edge: #e6f2ee14;
 
-  /* 晨光：暖纸色 */
-  --zz-raw-day-bg: #f3eee4;
-  --zz-raw-day-s1: #f4efe7;
-  --zz-raw-day-desk: #eee8dd;
+  /* 天青素笺（Day）：清雅矿石白外框 + 石案书桌 + 纯棉宣纸稿纸 + 松烟深墨字 */
+  --zz-raw-day-bg: #f4f6f4;
+  --zz-raw-day-s1: #f6f8f6;
+  --zz-raw-day-desk: #e9eeec;
   --zz-raw-day-s2: #ffffff;
-  --zz-raw-day-s3: #ebe5da;
-  --zz-raw-day-paper: #fffcf6;
-  --zz-raw-day-text1: #2a2520;
-  --zz-raw-day-text2: #575047;
-  --zz-raw-day-text3: #685f53;
-  --zz-raw-day-title: #32291b;
-  --zz-raw-day-ink: #2a2520;
-  --zz-raw-day-border: #2a25201a;
-  --zz-raw-day-border-strong: #2a252033;
-  --zz-raw-day-hover: #2a25200d;
-  --zz-raw-day-active: #2a252017;
-  --zz-raw-day-mask: #1d1914aa;
-  --zz-raw-day-shadow-1: #5337160f;
-  --zz-raw-day-shadow-2: #5337161f;
-  --zz-raw-day-shadow-3: #53371633;
-  --zz-raw-day-sheet-shadow: #53371614;
-  --zz-raw-day-sheet-edge: #2a252012;
+  --zz-raw-day-s3: #eef2ef;
+  --zz-raw-day-paper: #ffffff;
+  --zz-raw-day-text1: #141a1c;
+  --zz-raw-day-text2: #485458;
+  --zz-raw-day-text3: #748085;
+  --zz-raw-day-title: #0d1315;
+  --zz-raw-day-ink: #172024;
+  --zz-raw-day-border: #14222014;
+  --zz-raw-day-border-strong: #14222026;
+  --zz-raw-day-hover: #1422200a;
+  --zz-raw-day-active: #14222012;
+  --zz-raw-day-mask: #0d151499;
+  --zz-raw-day-shadow-1: #0f1f1c0d;
+  --zz-raw-day-shadow-2: #0f1f1c18;
+  --zz-raw-day-shadow-3: #0f1f1c2e;
+  --zz-raw-day-sheet-shadow: #12211e10;
+  --zz-raw-day-sheet-edge: #14222016;
 
-  /* 语义色：琥珀（决定）、蓝（运行）、绿（完成）、黄（注意）、红（失败） */
-  --zz-raw-amber-300: #f3c879;
-  --zz-raw-amber-400: #e3a44f;
-  --zz-raw-amber-700: #8a5410;
-  --zz-raw-amber-800: #6f420a;
-  --zz-raw-amber-ink-night: #17120a;
-  --zz-raw-amber-ink-day: #fffdf8;
-  --zz-raw-amber-focus: #f0bc69;
-  --zz-raw-blue-300: #8fb8dd;
-  --zz-raw-blue-700: #2c5d87;
-  --zz-raw-green-300: #8cc49c;
-  --zz-raw-green-700: #2b6544;
-  --zz-raw-yellow-300: #d8c862;
-  --zz-raw-yellow-700: #6b5d00;
-  --zz-raw-red-300: #ef8a80;
-  --zz-raw-red-700: #a63f36;
+  /* 印章朱砂（专用于品牌「章」篆印） */
+  --zz-raw-seal-day: #b83b2e;
+  --zz-raw-seal-night: #c94e40;
+  --zz-raw-seal-ink: #fdfbf7;
+
+  /* 语义色：黛青松绿（作者拍板）、靛蓝（运行）、松叶绿（完成）、藤黄（注意）、朱红（失败） */
+  --zz-raw-jade-300: #52c9b7;
+  --zz-raw-jade-400: #38b5a2;
+  --zz-raw-jade-700: #0f5c52;
+  --zz-raw-jade-800: #0a463e;
+  --zz-raw-jade-ink-night: #061a17;
+  --zz-raw-jade-ink-day: #f7fbfa;
+  --zz-raw-jade-focus: #38b5a2;
+  --zz-raw-blue-300: #78a9e6;
+  --zz-raw-blue-700: #1e4fa3;
+  --zz-raw-green-300: #6ec494;
+  --zz-raw-green-700: #1e6b43;
+  --zz-raw-yellow-300: #e0b956;
+  --zz-raw-yellow-700: #8c5a0b;
+  --zz-raw-red-300: #eb7e78;
+  --zz-raw-red-700: #b32d2d;
 }

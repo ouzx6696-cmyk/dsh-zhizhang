@@ -5,6 +5,7 @@ import { PREF, readPref, writePref } from "@zhizhang/workbench/client";
 import type { TargetItem } from "../../../shared/views";
 import { useDesktop } from "../../state/store";
 import { RightDock } from "./RightDock";
+import { StudioDashboard } from "./StudioDashboard";
 
 // 写作区与设定集中心按需懒加载：入口只带外壳。
 const FanqieWorkspace = lazy(() =>
@@ -104,29 +105,32 @@ export function Studio({ item }: { item: TargetItem }) {
   const showDock = dockOpen && !zenMode;
   const style = { "--zz-dock-width": `${width}px` } as React.CSSProperties;
   return (
-    <div
-      className="zz-studio"
-      data-dock={showDock ? "open" : "closed"}
-      data-zen={zenMode ? "on" : "off"}
-      style={style}
-    >
-      <main className="zz-studio__main" data-testid="workspace" data-mode={item.target.mode}>
-        <Suspense fallback={<WorkspaceFallback />}>
-          {view === "bible" && item.target.mode === "fanqie" ? (
-            <BibleCenter target={item.target} />
-          ) : item.target.mode === "fanqie" ? (
-            <FanqieWorkspace target={item.target} readonly={readonly} />
-          ) : (
-            <ToutiaoWorkspace target={item.target} readonly={readonly} />
-          )}
-        </Suspense>
-      </main>
-      {showDock ? (
-        <div className="zz-studio__dock">
-          <DockHandle width={width} onResize={setWidth} />
-          <RightDock target={item.target} />
-        </div>
-      ) : null}
+    <div className="zz-studio-shell">
+      {!zenMode ? <StudioDashboard item={item} /> : null}
+      <div
+        className="zz-studio"
+        data-dock={showDock ? "open" : "closed"}
+        data-zen={zenMode ? "on" : "off"}
+        style={style}
+      >
+        <main className="zz-studio__main" data-testid="workspace" data-mode={item.target.mode}>
+          <Suspense fallback={<WorkspaceFallback />}>
+            {view === "bible" && item.target.mode === "fanqie" ? (
+              <BibleCenter target={item.target} />
+            ) : item.target.mode === "fanqie" ? (
+              <FanqieWorkspace target={item.target} readonly={readonly} />
+            ) : (
+              <ToutiaoWorkspace target={item.target} readonly={readonly} />
+            )}
+          </Suspense>
+        </main>
+        {showDock ? (
+          <div className="zz-studio__dock">
+            <DockHandle width={width} onResize={setWidth} />
+            <RightDock target={item.target} />
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

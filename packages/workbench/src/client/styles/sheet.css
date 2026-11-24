@@ -95,14 +95,6 @@
   color: var(--zz-text-2);
 }
 
-.wb-source-status::before {
-  width: 6px;
-  height: 6px;
-  border-radius: var(--zz-radius-pill);
-  background: currentColor;
-  content: "";
-}
-
 .wb-source-status[data-state="saved"] {
   color: var(--zz-ok);
 }
@@ -154,31 +146,44 @@
 }
 
 .wb-manuscript-title {
-  margin: 0 0 1.6em;
+  margin: 0 0 1.4em;
   color: var(--zz-title);
-  font-size: 1.5em;
+  font-size: 1.68em;
   font-weight: var(--zz-weight-strong);
-  line-height: 1.4;
-  letter-spacing: 0.06em;
+  line-height: 1.35;
+  letter-spacing: 0.04em;
   text-align: left;
   text-indent: 0;
+  text-wrap: balance;
 }
 
-/* 标题下的章节元信息：UI 黑体、弱色、不随稿纸字距；它出现时由它承担标题与正文的间距。 */
+/* 标题下的章节元信息：UI 黑体、弱色、不随稿纸字距；下方以 48px 细墨线收束进入正文。 */
 .wb-manuscript .wb-manuscript-title:has(+ .wb-manuscript-meta) {
-  margin-bottom: 0.5em;
+  margin-bottom: 0.45em;
 }
 
 .wb-manuscript .wb-manuscript-meta {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--zz-space-2);
   margin: 0 0 var(--zz-space-10);
+  padding-bottom: var(--zz-space-6);
   color: var(--zz-text-3);
   font: var(--zz-text-meta) / var(--zz-leading-meta) var(--zz-font-ui);
   letter-spacing: normal;
   text-indent: 0;
   font-variant-numeric: tabular-nums;
+}
+
+.wb-manuscript .wb-manuscript-meta::after {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 48px;
+  height: 1px;
+  background: var(--zz-border-strong);
+  content: "";
 }
 
 .wb-manuscript-meta > span + span::before {

@@ -33,6 +33,37 @@ export interface ReferenceCardContext {
   category: string;
   pattern: string;
   usage: string;
+  scope?: "work" | "chapter";
+  layer?: "book" | "arc" | "unit" | "chapter" | "scene" | "line";
+  dimension?: "structure" | "character" | "rhythm" | "hook" | "prose" | "commercial";
+  emotionArc?: string;
+  steps?: string[];
+  transfer?: string;
+  mustNotCopy?: string[];
+  failWhen?: string;
+  bannedDiction?: string[];
+}
+
+function formatReferenceCard(c: ReferenceCardContext): string {
+  const tags = [c.layer, c.dimension, c.category].filter(Boolean).join("/");
+  const lines = [`- [${tags}] ${c.title}：${c.pattern}`];
+  if (c.emotionArc) lines.push(`  情绪曲线：${c.emotionArc}`);
+  if (c.steps && c.steps.length > 0) lines.push(`  实操步骤：${c.steps.join(" → ")}`);
+  if (c.transfer) lines.push(`  迁移重造：${c.transfer}`);
+  if (c.mustNotCopy && c.mustNotCopy.length > 0) {
+    lines.push(`  严禁照搬：${c.mustNotCopy.join("；")}`);
+  }
+  if (c.bannedDiction && c.bannedDiction.length > 0) {
+    lines.push(`  避坑套话：${c.bannedDiction.join("；")}`);
+  }
+  if (c.failWhen) lines.push(`  失效边界：${c.failWhen}`);
+  lines.push(`  用法：${c.usage}`);
+  return lines.join("\n");
+}
+
+function isCraftCard(card: ReferenceCardContext): boolean {
+  if (card.scope === "chapter") return true;
+  return card.layer === "scene" || card.layer === "chapter" || card.layer === "line";
 }
 
 export interface ChapterContextInput {
@@ -319,6 +350,29 @@ export function buildChapterContext(input: ChapterContextInput): ContextPacket {
 
   if (l3Block) prefix.push(l3Block);
 
+  const craftCards = (input.referenceCards ?? []).filter(isCraftCard);
+  const macroCards = (input.referenceCards ?? []).filter((c) => !isCraftCard(c));
+  if (craftCards.length > 0) {
+    const craftText = `【本章实操技法卡（只迁机制，严禁洗稿）】\n${craftCards.map(formatReferenceCard).join("\n")}`;
+    const craftBlock = makeBlock(
+      "l2-craft",
+      2,
+      craftText,
+      false,
+      "本章绑定实操技法卡与防抄袭红线",
+      {
+        kind: "reference",
+        ref: "craft-cards",
+      },
+    );
+    if (craftBlock.tokens <= remaining) {
+      suffix.push(craftBlock);
+      remaining -= craftBlock.tokens;
+    } else {
+      omitted.push({ id: craftBlock.id, why: "超出剩余预算" });
+    }
+  }
+
   const l4Text = input.recentSummaries.map((s) => `第${s.position}章：${s.summary}`).join("\n");
   if (l4Text) {
     const l4Block = makeBlock("l4-recent", 4, `【近期回顾】\n${l4Text}`, false, "近10章摘要", {
@@ -382,11 +436,9 @@ export function buildChapterContext(input: ChapterContextInput): ContextPacket {
       l6Parts.push(`【卷/全书规划】\n${planLines.join("\n")}`);
     }
   }
-  if (input.referenceCards && input.referenceCards.length > 0) {
-    const cardLines = input.referenceCards.map(
-      (c) => `- [${c.category}] ${c.title}：${c.pattern}（用法：${c.usage}）`,
-    );
-    l6Parts.push(`【绑定参考卡（参考机制，不复制）】\n${cardLines.join("\n")}`);
+  if (macroCards.length > 0) {
+    const cardLines = macroCards.map(formatReferenceCard);
+    l6Parts.push(`【全书参考技法卡（参考机制，不复制）】\n${cardLines.join("\n")}`);
   }
   if (l6Parts.length > 0) {
     const l6Block = makeBlock(
@@ -394,9 +446,9 @@ export function buildChapterContext(input: ChapterContextInput): ContextPacket {
       6,
       l6Parts.join("\n\n"),
       false,
-      "卷/全书规划与绑定参考卡（参考机制，不复制）",
+      "卷/全书规划与全书参考卡（参考机制，不复制）",
       {
-        kind: input.referenceCards && input.referenceCards.length > 0 ? "reference" : "plan",
+        kind: macroCards.length > 0 ? "reference" : "plan",
         ref: "plan-and-cards",
       },
     );

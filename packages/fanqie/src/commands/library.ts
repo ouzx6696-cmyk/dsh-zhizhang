@@ -6,7 +6,11 @@ import { atomicWrite, resolveResourcePath, readJson, readTextIfExists } from "@z
 import { createLockService, type LockService } from "@zhizhang/core/lock";
 import { FORMAT_VERSION } from "@zhizhang/core/paths";
 import { arr, lit, obj, opt, str, type Infer } from "@zhizhang/core/schema";
-import type { TechniqueCard } from "../pipelines/dissect/index.js";
+import {
+  auditTechniqueCards,
+  TechniqueCardSchema,
+  type TechniqueCard,
+} from "../pipelines/dissect/index.js";
 
 const ReferenceBindingItemSchema = obj({
   sourceId: str({ min: 1 }),
@@ -21,7 +25,7 @@ const ReferenceBindingsSchema = obj({
   bindings: arr(ReferenceBindingItemSchema),
 });
 
-type ReferenceBinding = Infer<typeof ReferenceBindingItemSchema>;
+export type ReferenceBinding = Infer<typeof ReferenceBindingItemSchema>;
 
 const LibrarySourceMetaSchema = obj({
   id: str({ min: 1 }),
@@ -30,16 +34,7 @@ const LibrarySourceMetaSchema = obj({
   chars: str({ min: 1 }),
 });
 
-const TechniqueCardListSchema = arr(
-  obj({
-    id: str({ min: 1 }),
-    title: str({ min: 1 }),
-    category: str({ min: 1 }),
-    pattern: str({ min: 1 }),
-    example: str({ min: 1 }),
-    usage: str({ min: 1 }),
-  }),
-);
+const TechniqueCardListSchema = arr(TechniqueCardSchema);
 
 export type LibrarySourceMeta = Infer<typeof LibrarySourceMetaSchema>;
 
@@ -122,6 +117,26 @@ export async function readLibraryCards(
     )) ?? [];
   const report = await readTextIfExists(path.join(analysisDir, "report.md"));
   return { cards, report };
+}
+
+/** 原子保存编辑后的技法卡，若对应原文存在则自动重做引文核验。 */
+export async function saveLibraryCards(
+  libraryRoot: string,
+  sourceId: string,
+  cards: unknown,
+  lock: LockService = createLockService(systemClock),
+): Promise<{ cards: TechniqueCard[] }> {
+  const validated = TechniqueCardListSchema(cards, "cards");
+  return lock.write({ kind: "library", path: libraryRoot }, async () => {
+    const analysisDir = resolveResourcePath(libraryRoot, "analyses", sourceId);
+    await fs.mkdir(analysisDir, { recursive: true });
+    const sourceText = await readTextIfExists(
+      resolveResourcePath(libraryRoot, "sources", `${sourceId}.txt`),
+    );
+    const nextCards = sourceText ? auditTechniqueCards(sourceText, validated).cards : validated;
+    await atomicWrite(path.join(analysisDir, "cards.json"), JSON.stringify(nextCards, null, 2));
+    return { cards: nextCards };
+  });
 }
 
 export async function readWorkReferenceBindings(workPath: string): Promise<ReferenceBinding[]> {

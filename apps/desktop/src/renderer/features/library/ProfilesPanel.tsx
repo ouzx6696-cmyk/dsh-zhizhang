@@ -8,8 +8,10 @@ import { askConfirm } from "../../state/confirm";
 import { desktop } from "../../state/desktop";
 import { useDesktop } from "../../state/store";
 import { notifyError } from "../../format";
+import { MarkdownPreview } from "./MarkdownPreview";
 
 const C = DESKTOP_COPY;
+type MethodViewMode = "edit" | "split" | "preview";
 
 export function ProfilesPanel() {
   const readonly = useDesktop((s) => Boolean(s.workspace?.readonly));
@@ -24,6 +26,7 @@ export function ProfilesPanel() {
   const [text, setText] = useState("");
   const [baseText, setBaseText] = useState<string | undefined>(undefined);
   const [forkName, setForkName] = useState("");
+  const [viewMode, setViewMode] = useState<MethodViewMode>("split");
   const [busy, setBusy] = useState("");
 
   const loadList = useCallback(async () => {
@@ -171,11 +174,12 @@ export function ProfilesPanel() {
   return (
     <div className="zz-warehouse-grid" data-testid="warehouse-profiles">
       <aside className="zz-warehouse-side">
-        <div className="zz-segmented zz-segmented--sm" role="tablist">
+        <div className="zz-filter-bar" role="tablist">
           <button
             type="button"
             role="tab"
-            className="zz-segmented__item"
+            className="zz-filter-btn"
+            aria-pressed={mode === "fanqie"}
             aria-selected={mode === "fanqie"}
             onClick={() => setMode("fanqie")}
           >
@@ -184,7 +188,8 @@ export function ProfilesPanel() {
           <button
             type="button"
             role="tab"
-            className="zz-segmented__item"
+            className="zz-filter-btn"
+            aria-pressed={mode === "toutiao"}
             aria-selected={mode === "toutiao"}
             onClick={() => setMode("toutiao")}
           >
@@ -305,37 +310,71 @@ export function ProfilesPanel() {
                   {isDiffFromBase ? (
                     <span className="zz-muted">{C.warehouse.baseDiffHint}</span>
                   ) : null}
-                  {!isBuiltin ? (
-                    <div className="zz-row">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        loading={busy === "reset"}
-                        disabled={readonly}
-                        onClick={() => void resetMethod()}
-                      >
-                        <RotateCcw size={13} aria-hidden="true" />
-                        {C.warehouse.resetMethod}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        loading={busy === "save"}
-                        disabled={readonly}
-                        onClick={() => void saveMethod()}
-                      >
-                        <Save size={13} aria-hidden="true" />
-                        {C.warehouse.saveMethod}
-                      </Button>
+                  <div className="zz-row">
+                    <div className="zz-filter-bar" role="group">
+                      {(
+                        [
+                          ["edit", C.warehouse.modeEdit],
+                          ["split", C.warehouse.modeSplit],
+                          ["preview", C.warehouse.modePreview],
+                        ] as const
+                      ).map(([modeId, label]) => (
+                        <button
+                          key={modeId}
+                          type="button"
+                          className="zz-filter-btn"
+                          aria-pressed={viewMode === modeId}
+                          onClick={() => setViewMode(modeId)}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    {!isBuiltin ? (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          loading={busy === "reset"}
+                          disabled={readonly}
+                          onClick={() => void resetMethod()}
+                        >
+                          <RotateCcw size={13} aria-hidden="true" />
+                          {C.warehouse.resetMethod}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          loading={busy === "save"}
+                          disabled={readonly}
+                          onClick={() => void saveMethod()}
+                        >
+                          <Save size={13} aria-hidden="true" />
+                          {C.warehouse.saveMethod}
+                        </Button>
+                      </>
+                    ) : null}
+                  </div>
+                </header>
+                <div className="zz-method-editor__body" data-mode={viewMode}>
+                  {viewMode !== "preview" ? (
+                    <textarea
+                      className="zz-method-textarea"
+                      value={text}
+                      readOnly={isBuiltin || readonly}
+                      onChange={(e) => setText(e.target.value)}
+                    />
+                  ) : null}
+                  {viewMode !== "edit" ? (
+                    <div className="zz-method-editor__preview">
+                      <MarkdownPreview
+                        content={
+                          selectedFile.endsWith(".json") ? `\`\`\`json\n${text}\n\`\`\`` : text
+                        }
+                      />
                     </div>
                   ) : null}
-                </header>
-                <textarea
-                  className="zz-method-textarea"
-                  value={text}
-                  readOnly={isBuiltin || readonly}
-                  onChange={(e) => setText(e.target.value)}
-                />
+                </div>
               </div>
             </div>
           </>

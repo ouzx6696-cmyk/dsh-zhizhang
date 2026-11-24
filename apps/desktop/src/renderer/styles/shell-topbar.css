@@ -7,7 +7,7 @@
   align-items: center;
   gap: var(--zz-space-2);
   height: var(--zz-topbar-height);
-  padding: 0 var(--zz-space-3) 0 var(--zz-space-4);
+  padding: 0 var(--zz-space-4) 0 var(--zz-space-5);
   border-bottom: 1px solid var(--zz-border);
   background: var(--zz-surface-1);
 }
@@ -61,6 +61,54 @@
   height: var(--zz-space-4);
   margin: 0 var(--zz-space-2);
   background: var(--zz-border-strong);
+}
+
+/* 顶栏主视图导航：去灰底胶囊，改用无框书卷下划线导航 */
+.zz-topbar-nav {
+  display: flex;
+  align-items: stretch;
+  gap: var(--zz-space-1);
+  height: var(--zz-topbar-height);
+}
+
+.zz-topbar-nav__item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--zz-space-3);
+  border: none;
+  background: transparent;
+  color: var(--zz-text-3);
+  font: var(--zz-weight-regular) var(--zz-text-body) / var(--zz-leading-body) var(--zz-font-ui);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--zz-dur-1) var(--zz-ease);
+}
+
+.zz-topbar-nav__item::after {
+  position: absolute;
+  right: var(--zz-space-3);
+  bottom: 0;
+  left: var(--zz-space-3);
+  height: 2px;
+  border-radius: var(--zz-radius-pill);
+  background: var(--zz-decide);
+  content: "";
+  transform: scaleX(0);
+  transition: transform var(--zz-dur-2) var(--zz-ease);
+}
+
+.zz-topbar-nav__item:hover {
+  color: var(--zz-text-1);
+}
+
+.zz-topbar-nav__item[aria-pressed="true"] {
+  color: var(--zz-title);
+  font-weight: var(--zz-weight-strong);
+}
+
+.zz-topbar-nav__item[aria-pressed="true"]::after {
+  transform: scaleX(1);
 }
 
 .zz-topbar__spacer {
@@ -171,15 +219,18 @@
 .zz-model-status {
   display: inline-flex;
   align-items: center;
-  gap: var(--zz-space-2);
   min-height: 28px;
   padding: 0 var(--zz-space-2);
   border: none;
-  border-radius: var(--zz-radius-pill);
+  border-radius: var(--zz-radius-sm);
   background: transparent;
   color: var(--zz-text-3);
   font: var(--zz-text-meta) / var(--zz-leading-meta) var(--zz-font-ui);
+  white-space: nowrap;
   cursor: pointer;
+  transition:
+    color var(--zz-dur-1) var(--zz-ease),
+    background-color var(--zz-dur-1) var(--zz-ease);
 }
 
 .zz-model-status:hover {
@@ -187,19 +238,9 @@
   color: var(--zz-text-1);
 }
 
-.zz-model-status i {
-  width: 6px;
-  height: 6px;
-  border-radius: var(--zz-radius-pill);
-  background: var(--zz-warn);
-}
-
 .zz-model-status[data-ready="false"] {
   color: var(--zz-warn);
-}
-
-.zz-model-status[data-ready="true"] i {
-  background: var(--zz-ok);
+  font-weight: var(--zz-weight-strong);
 }
 
 /* 全局进度轨（顶栏下 2px） */

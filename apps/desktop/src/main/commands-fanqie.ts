@@ -173,6 +173,11 @@ export const FANQIE_HANDLERS: { [K in CommandGroup<"fanqie">]: CommandHandler<K>
       ctx.locks,
     );
   },
+  async "fanqie.reference.list"(input, ctx) {
+    const work = ctx.inside(input.work);
+    await fanqie.getWork(work);
+    return { bindings: await fanqie.readWorkReferenceBindings(work) };
+  },
 };
 
 export const LIBRARY_HANDLERS: { [K in CommandGroup<"library">]: CommandHandler<K> } = {
@@ -192,6 +197,14 @@ export const LIBRARY_HANDLERS: { [K in CommandGroup<"library">]: CommandHandler<
       input.sourceId,
     );
     return { cards, ...(report !== undefined ? { report } : {}) };
+  },
+  async "library.cards.save"(input, ctx) {
+    return fanqie.saveLibraryCards(
+      ctx.inside(input.libraryRoot),
+      safeId(input.sourceId, "sourceId"),
+      input.cards,
+      ctx.locks,
+    );
   },
   async "library.dissect"(input, ctx) {
     const libraryRoot = ctx.inside(input.libraryRoot);

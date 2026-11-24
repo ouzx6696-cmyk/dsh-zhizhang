@@ -194,15 +194,14 @@
 
 .zz-status-chip {
   min-height: 22px;
+  padding: 0 var(--zz-space-2);
   border-radius: var(--zz-chip-radius);
   font-weight: var(--zz-weight-strong);
+  letter-spacing: 0.02em;
 }
 
 .zz-status-chip__dot {
-  width: 6px;
-  height: 6px;
-  border-radius: var(--zz-radius-pill);
-  background: currentColor;
+  display: none;
 }
 
 .zz-tag__remove {

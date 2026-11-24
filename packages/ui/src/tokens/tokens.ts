@@ -61,4 +61,4 @@ export function themeAttributes(options: {
  * 主进程窗口首帧底色（BrowserWindow 读不到 CSS 变量）。必须与 palette.css 的
  * `--zz-raw-night-bg` / `--zz-raw-day-bg` 一致，test/unit/tokens.test.mjs 会核对。
  */
-export const WINDOW_BACKGROUND = { dark: "#101315", light: "#f3eee4" } as const;
+export const WINDOW_BACKGROUND = { dark: "#0c1012", light: "#f4f6f4" } as const;

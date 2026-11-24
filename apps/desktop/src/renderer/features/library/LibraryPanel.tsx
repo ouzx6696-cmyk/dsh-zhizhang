@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { BookMarked, Link2, Sparkles, Upload } from "lucide-react";
+import { BookMarked, Link2, Plus, Sparkles, Upload } from "lucide-react";
 import { DESKTOP_COPY } from "@zhizhang/ui/copy";
 import { notify } from "@zhizhang/ui/notify";
 import { Button, Empty, Skeleton } from "@zhizhang/ui/primitives";
@@ -7,6 +7,7 @@ import type { TechniqueCardView } from "@zhizhang/workbench/contract";
 import { desktop } from "../../state/desktop";
 import { useDesktop } from "../../state/store";
 import { notifyError } from "../../format";
+import { TechniqueCardTile } from "./TechniqueCardTile";
 
 const C = DESKTOP_COPY;
 
@@ -18,7 +19,11 @@ interface SourceRow {
   cardCount: number;
 }
 
-export function LibraryPanel() {
+export function LibraryPanel({
+  onOpenEditor,
+}: {
+  onOpenEditor?: (sourceId: string, cardId?: string) => void;
+}) {
   const libraryRoot = useDesktop((s) => s.workspace?.roots.library ?? "");
   const readonly = useDesktop((s) => Boolean(s.workspace?.readonly));
   const selected = useDesktop((s) => s.selected);
@@ -222,6 +227,17 @@ export function LibraryPanel() {
                   <Sparkles size={13} aria-hidden="true" />
                   {C.warehouse.dissectAction}
                 </Button>
+                {onOpenEditor ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={readonly}
+                    onClick={() => onOpenEditor(activeSource.id)}
+                  >
+                    <Plus size={13} aria-hidden="true" />
+                    {C.warehouse.newCard}
+                  </Button>
+                ) : null}
                 {cards.length > 0 ? (
                   <>
                     <Button
@@ -276,25 +292,16 @@ export function LibraryPanel() {
             {visibleCards.length ? (
               <div className="zz-card-grid">
                 {visibleCards.map((card) => (
-                  <article key={card.id} className="zz-entity-card">
-                    <header className="zz-entity-card__head">
-                      <strong>{card.title}</strong>
-                      <span className="zz-meta-tag">{card.category}</span>
-                    </header>
-                    <p>{card.pattern}</p>
-                    {card.example ? <q className="zz-muted">{card.example}</q> : null}
-                    <p className="zz-muted">{card.usage}</p>
-                    <div className="zz-row">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={readonly || busy !== ""}
-                        onClick={() => void bindCards("work", [card.id])}
-                      >
-                        {C.warehouse.bindToWork}
-                      </Button>
-                    </div>
-                  </article>
+                  <TechniqueCardTile
+                    key={card.id}
+                    card={card}
+                    sourceId={activeSource.id}
+                    readonly={readonly}
+                    busy={busy !== ""}
+                    hasChapter={Boolean(focusChapter)}
+                    onEdit={onOpenEditor}
+                    onBind={(scope, ids) => void bindCards(scope, ids)}
+                  />
                 ))}
               </div>
             ) : (

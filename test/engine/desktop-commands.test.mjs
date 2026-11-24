@@ -513,6 +513,38 @@ test("拆书库命令：导入、列出、读卡；拆解经流水线发起，�
     (await run(ctx, mark("library.cards"), { libraryRoot: roots.library, sourceId: "s1" })).cards,
     [],
   );
+  const saved = await run(ctx, mark("library.cards.save"), {
+    libraryRoot: roots.library,
+    sourceId: "s1",
+    cards: [
+      {
+        id: "card-1",
+        title: "开篇亮钩",
+        category: "开篇",
+        layer: "scene",
+        dimension: "hook",
+        pattern: "首段抛出反常事件并留下明确悬念",
+        example: "第一章 开端",
+        usage: "前300字内落地",
+      },
+    ],
+  });
+  assert.equal(saved.cards.length, 1);
+  assert.equal(saved.cards[0].quoteStatus, "verified");
+  const createdWork = await run(ctx, "fanqie.work.create", {
+    root: roots.fanqie,
+    title: "技法绑定验证书",
+    premise: "测试",
+    grade: "economy",
+  });
+  await run(ctx, "fanqie.reference.bind", {
+    work: createdWork.workPath,
+    sourceId: "s1",
+    cardIds: ["card-1"],
+  });
+  const refList = await run(ctx, mark("fanqie.reference.list"), { work: createdWork.workPath });
+  assert.equal(refList.bindings.length, 1);
+  assert.deepEqual(refList.bindings[0].cardIds, ["card-1"]);
   await expectCode(
     run(ctx, mark("library.dissect"), {
       libraryRoot: roots.library,
@@ -525,9 +557,9 @@ test("拆书库命令：导入、列出、读卡；拆解经流水线发起，�
   assert.equal(dissectCalls[0].target.path, roots.library);
 });
 
-test("命令分派覆盖契约里的全部 45 条命令，读写策略齐全，未知命令被拒绝", async () => {
+test("命令分派覆盖契约里的全部 47 条命令，读写策略齐全，未知命令被拒绝", async () => {
   const all = Object.keys(desk.COMMAND_POLICY);
-  assert.equal(all.length, 45);
+  assert.equal(all.length, 47);
   for (const command of all) assert.equal(desk.isWorkbenchCommand(command), true, command);
   assert.deepEqual(
     all.filter((c) => !covered.has(c)),

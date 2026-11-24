@@ -37,7 +37,7 @@
   left: var(--zz-space-2);
   height: 2px;
   border-radius: var(--zz-radius-pill);
-  background: var(--zz-ink);
+  background: var(--zz-decide);
   content: "";
   transform: scaleX(0);
   transition: transform var(--zz-dur-2) var(--zz-ease);

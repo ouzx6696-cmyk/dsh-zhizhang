@@ -196,7 +196,7 @@ export function ProjectHub() {
                 onChange={(event) => setQuery(event.target.value)}
               />
             </div>
-            <div className="zz-segmented zz-segmented--sm" role="group" aria-label={C.topbar.views}>
+            <div className="zz-filter-bar" role="group" aria-label={C.topbar.views}>
               {(
                 [
                   ["all", C.hub.filterAll],
@@ -207,7 +207,7 @@ export function ProjectHub() {
                 <button
                   key={id}
                   type="button"
-                  className="zz-segmented__item"
+                  className="zz-filter-btn"
                   aria-pressed={filter === id}
                   data-testid={`hub-filter-${id}`}
                   onClick={() => setFilter(id)}

@@ -15,7 +15,7 @@
   align-items: center;
   gap: var(--zz-space-2);
   width: 100%;
-  min-height: 34px;
+  min-height: 36px;
   padding: 0 var(--zz-space-3);
   border: 1px solid transparent;
   border-radius: var(--zz-radius-sm);
@@ -26,6 +26,7 @@
   cursor: pointer;
   transition:
     background-color var(--zz-dur-1) var(--zz-ease),
+    border-color var(--zz-dur-1) var(--zz-ease),
     color var(--zz-dur-1) var(--zz-ease);
 }
 
@@ -34,12 +35,12 @@
   color: var(--zz-text-1);
 }
 
-/* 选中 = 这一页正摊在桌上：用稿纸色托起一层，细边 + 轻影，不用色条。 */
+/* 选中 = 这一页正摊在桌上：素笺底色 + 细墨边 + 轻投影 */
 .wb-list-item-on,
 .wb-list-item-on:hover {
   border-color: var(--zz-sheet-edge);
   background: var(--zz-nav-item-on);
-  color: var(--zz-text-1);
+  color: var(--zz-title);
   box-shadow: var(--zz-shadow-1);
 }
 

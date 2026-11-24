@@ -277,7 +277,7 @@
   gap: 4px;
   margin: var(--zz-space-1) 0 0;
   padding: var(--zz-space-2) var(--zz-space-3);
-  border-left: 2px solid var(--zz-border);
+  border-left: 1px solid var(--zz-border-strong);
   list-style: none;
   font-size: var(--zz-text-caption);
 }

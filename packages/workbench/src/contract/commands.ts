@@ -39,6 +39,27 @@ export interface TechniqueCardView {
   pattern: string;
   example: string;
   usage: string;
+  layer?: "book" | "arc" | "unit" | "chapter" | "scene" | "line";
+  dimension?: "structure" | "character" | "rhythm" | "hook" | "prose" | "commercial";
+  readerWant?: string;
+  emotionArc?: string;
+  dramaticUnit?: string;
+  replaceables?: string[];
+  mustNotCopy?: string[];
+  transfer?: string;
+  failWhen?: string;
+  steps?: string[];
+  bannedDiction?: string[];
+  quoteStatus?: "verified" | "partial" | "unverified";
+  quoteLine?: number;
+}
+
+export interface ReferenceBindingView {
+  sourceId: string;
+  cardIds: string[];
+  scope?: "work" | "chapter";
+  chapterId?: string;
+  boundAt: string;
 }
 
 export interface WorkbenchCommandMap {
@@ -159,6 +180,11 @@ export interface WorkbenchCommandMap {
     };
     result: { work: string; sourceId: string; boundCount: number };
     access: "write";
+  };
+  "fanqie.reference.list": {
+    input: { work: string };
+    result: { bindings: ReferenceBindingView[] };
+    access: "read";
   };
   "toutiao.articles": {
     input: { root: string };
@@ -303,6 +329,11 @@ export interface WorkbenchCommandMap {
     result: { cards: TechniqueCardView[]; report?: string };
     access: "read";
   };
+  "library.cards.save": {
+    input: { libraryRoot: string; sourceId: string; cards: TechniqueCardView[] };
+    result: { cards: TechniqueCardView[] };
+    access: "write";
+  };
   "library.dissect": {
     input: { libraryRoot: string; sourceId: string; title: string; sourcePath?: string };
     result: { sourceId: string; title: string; cardCount: number; summary: string };
@@ -344,6 +375,7 @@ export const COMMAND_POLICY: { readonly [K in WorkbenchCommand]: CommandPolicy<K
   "fanqie.bible.decide": { access: "write", refresh: "bible" },
   "fanqie.bible.audit": { access: "read" },
   "fanqie.reference.bind": { access: "write", refresh: "rows" },
+  "fanqie.reference.list": { access: "read" },
   "toutiao.articles": { access: "read" },
   "toutiao.article.create": { access: "write", refresh: "article" },
   "toutiao.article.transition": { access: "write", refresh: "article" },
@@ -368,5 +400,6 @@ export const COMMAND_POLICY: { readonly [K in WorkbenchCommand]: CommandPolicy<K
   "library.import": { access: "write", refresh: "library" },
   "library.list": { access: "read" },
   "library.cards": { access: "read" },
+  "library.cards.save": { access: "write", refresh: "library" },
   "library.dissect": { access: "write", refresh: "library" },
 };
