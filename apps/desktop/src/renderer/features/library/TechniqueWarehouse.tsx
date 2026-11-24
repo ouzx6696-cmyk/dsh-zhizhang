@@ -1,8 +1,9 @@
 import React, { useState } from "react";
-import { DESKTOP_COPY as C } from "@zhizhang/ui/copy";
+import { DESKTOP_COPY } from "@zhizhang/ui/copy";
 import { LibraryPanel } from "./LibraryPanel";
 import { ProfilesPanel } from "./ProfilesPanel";
 
+const C = DESKTOP_COPY;
 type WarehouseTab = "library" | "profiles";
 
 /** 写作技法仓库：拆书参考卡管理与番茄/头条写作方法方案管理。 */
@@ -20,10 +21,11 @@ export function TechniqueWarehouse() {
           <h1>{C.warehouse.title}</h1>
           <p className="zz-muted">{C.warehouse.subtitle}</p>
         </div>
-        <nav className="zz-seg" role="tablist">
+        <nav className="zz-segmented zz-segmented--sm" role="tablist">
           <button
             type="button"
             role="tab"
+            className="zz-segmented__item"
             aria-selected={tab === "library"}
             data-testid="warehouse-tab-library"
             onClick={() => setTab("library")}
@@ -33,6 +35,7 @@ export function TechniqueWarehouse() {
           <button
             type="button"
             role="tab"
+            className="zz-segmented__item"
             aria-selected={tab === "profiles"}
             data-testid="warehouse-tab-profiles"
             onClick={() => setTab("profiles")}

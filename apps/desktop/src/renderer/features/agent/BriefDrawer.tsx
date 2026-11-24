@@ -1,12 +1,14 @@
 import React, { useState } from "react";
 import { Play, X } from "lucide-react";
-import { DESKTOP_COPY as C } from "@zhizhang/ui/copy";
+import { DESKTOP_COPY } from "@zhizhang/ui/copy";
 import { notify } from "@zhizhang/ui/notify";
 import { Button, IconButton } from "@zhizhang/ui/primitives";
 import type { Target } from "../../../shared/views";
 import { openPipeline } from "../../state/controller";
 import { desktop } from "../../state/desktop";
 import { notifyError } from "../../format";
+
+const C = DESKTOP_COPY;
 
 function linesOf(text: string): string[] {
   return text

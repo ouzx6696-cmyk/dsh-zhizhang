@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { BookMarked, Link2, Sparkles, Upload } from "lucide-react";
-import { DESKTOP_COPY as C } from "@zhizhang/ui/copy";
+import { DESKTOP_COPY } from "@zhizhang/ui/copy";
 import { notify } from "@zhizhang/ui/notify";
 import { Button, Empty, Skeleton } from "@zhizhang/ui/primitives";
 import type { TechniqueCardView } from "@zhizhang/workbench/contract";
 import { desktop } from "../../state/desktop";
 import { useDesktop } from "../../state/store";
 import { notifyError } from "../../format";
+
+const C = DESKTOP_COPY;
 
 interface SourceRow {
   id: string;

@@ -91,12 +91,15 @@ const READ_ARGS = {
   fanqie_list_candidates: { chapterId: "ch-001" },
   fanqie_read_candidate: { chapterId: "ch-001", candidateId: "c1" },
   fanqie_read_method: { stage: "fanqie.chapter.draft" },
+  fanqie_list_library_cards: {},
+  fanqie_read_learning: {},
+  fanqie_diff_candidate: { chapterId: "ch-001", candidateId: "c1" },
 };
 
-test("助手工具只读或发起：番茄 10–14 个工具，没有任何写正文/写候选/写设定集的工具（AC-50）", async () => {
+test("助手工具只读或发起：番茄 10–18 个工具，没有任何写正文/写候选/写设定集的工具（AC-50）", async () => {
   const { workPath } = await fanqieWork();
   const tools = desk.fanqieModule.tools("assistant", { mode: "fanqie", path: workPath });
-  assert.ok(tools.length >= 10 && tools.length <= 14, `tool count ${tools.length}`);
+  assert.ok(tools.length >= 10 && tools.length <= 18, `tool count ${tools.length}`);
   const startOrOpen = tools.filter((t) => /_(start|open)_/.test(t.name));
   for (const tool of tools) {
     assert.deepEqual(tool.roles, ["assistant"]);

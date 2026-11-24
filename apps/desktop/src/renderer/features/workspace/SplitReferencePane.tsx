@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { BookOpen, Layers } from "lucide-react";
-import { DESKTOP_COPY as C } from "@zhizhang/ui/copy";
+import { DESKTOP_COPY } from "@zhizhang/ui/copy";
 import { notify } from "@zhizhang/ui/notify";
 import { Button, Skeleton } from "@zhizhang/ui/primitives";
 import { statusLabel } from "@zhizhang/ui/status";
@@ -9,6 +9,8 @@ import type { ArticleRowView } from "@zhizhang/toutiao/view";
 import { desktop } from "../../state/desktop";
 import { desktopStore, useDesktop } from "../../state/store";
 import { notifyError } from "../../format";
+
+const C = DESKTOP_COPY;
 
 export function FanqieSplitReference({ work }: { work: string }) {
   const revision = useDesktop((s) => s.revisions.bible);

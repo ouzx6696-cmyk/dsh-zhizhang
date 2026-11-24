@@ -258,10 +258,11 @@ export function CompareView({ request, kind }: { request: CompareRequest; kind: 
           ) : null}
         </div>
         <div className="wb-bar-actions">
-          <div className="zz-seg" role="tablist">
+          <div className="zz-segmented zz-segmented--sm" role="tablist">
             <button
               type="button"
               role="tab"
+              className="zz-segmented__item"
               aria-selected={mode === "diff"}
               data-testid="compare-mode-diff"
               onClick={() => setMode("diff")}
@@ -271,6 +272,7 @@ export function CompareView({ request, kind }: { request: CompareRequest; kind: 
             <button
               type="button"
               role="tab"
+              className="zz-segmented__item"
               aria-selected={mode === "side"}
               data-testid="compare-mode-side"
               onClick={() => setMode("side")}

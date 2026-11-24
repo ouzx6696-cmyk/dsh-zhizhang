@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowUpRight, Search, ShieldAlert } from "lucide-react";
-import { DESKTOP_COPY as C } from "@zhizhang/ui/copy";
+import { DESKTOP_COPY } from "@zhizhang/ui/copy";
 import { Button, Empty, Notice, Skeleton } from "@zhizhang/ui/primitives";
 import type { AuditFinding, Bible, BibleView } from "@zhizhang/fanqie/bible";
 import type { LearningView, Target } from "../../../shared/views";
@@ -10,6 +10,7 @@ import { desktopStore, useDesktop } from "../../state/store";
 import { errorText, notifyError } from "../../format";
 import { opSummary } from "../workflow/BiblePane";
 
+const C = DESKTOP_COPY;
 type BibleTab = "entities" | "threads" | "knowledge" | "pending" | "learning";
 
 export function BibleCenter({ target }: { target: Target }) {
@@ -109,7 +110,10 @@ export function BibleCenter({ target }: { target: Target }) {
     }
   };
 
-  const activeEntities = snapshot ? snapshot.entities : (bible?.entities ?? []);
+  const activeEntities = useMemo(
+    () => (snapshot ? snapshot.entities : (bible?.entities ?? [])),
+    [snapshot, bible],
+  );
   const activeStates = snapshot ? snapshot.states : (bible?.states ?? []);
   const activeThreads = snapshot ? snapshot.threads : (bible?.threads ?? []);
   const activeKnowledge = snapshot ? snapshot.knowledge : (bible?.knowledge ?? []);

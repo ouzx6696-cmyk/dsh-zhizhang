@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Check, Copy, RotateCcw, Save, Trash2 } from "lucide-react";
-import { DESKTOP_COPY as C } from "@zhizhang/ui/copy";
+import { DESKTOP_COPY } from "@zhizhang/ui/copy";
 import { notify } from "@zhizhang/ui/notify";
 import { Button, Skeleton } from "@zhizhang/ui/primitives";
 import type { ProfileFileView, ProfileSummaryView } from "@zhizhang/workbench/contract";
@@ -8,6 +8,8 @@ import { askConfirm } from "../../state/confirm";
 import { desktop } from "../../state/desktop";
 import { useDesktop } from "../../state/store";
 import { notifyError } from "../../format";
+
+const C = DESKTOP_COPY;
 
 export function ProfilesPanel() {
   const readonly = useDesktop((s) => Boolean(s.workspace?.readonly));
@@ -169,10 +171,11 @@ export function ProfilesPanel() {
   return (
     <div className="zz-warehouse-grid" data-testid="warehouse-profiles">
       <aside className="zz-warehouse-side">
-        <div className="zz-seg" role="tablist">
+        <div className="zz-segmented zz-segmented--sm" role="tablist">
           <button
             type="button"
             role="tab"
+            className="zz-segmented__item"
             aria-selected={mode === "fanqie"}
             onClick={() => setMode("fanqie")}
           >
@@ -181,6 +184,7 @@ export function ProfilesPanel() {
           <button
             type="button"
             role="tab"
+            className="zz-segmented__item"
             aria-selected={mode === "toutiao"}
             onClick={() => setMode("toutiao")}
           >

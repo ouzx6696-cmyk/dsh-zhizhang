@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { BookOpen, FileText, Library, Plus, Search, Settings2 } from "lucide-react";
-import { COPY, DESKTOP_COPY as C } from "@zhizhang/ui/copy";
+import { COPY, DESKTOP_COPY } from "@zhizhang/ui/copy";
 import { Brand, Button, Empty } from "@zhizhang/ui/primitives";
 import { statusLabel } from "@zhizhang/ui/status";
 import type { TargetItem } from "../../../shared/views";
@@ -8,6 +8,7 @@ import { openSettings, select, startCreate } from "../../state/controller";
 import { desktopStore, sameTarget, useDesktop } from "../../state/store";
 import { run } from "../../format";
 
+const C = DESKTOP_COPY;
 type ModeFilter = "all" | "work" | "article";
 
 function openTarget(item: TargetItem) {

@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Search } from "lucide-react";
-import { DESKTOP_COPY as C } from "@zhizhang/ui/copy";
+import { DESKTOP_COPY } from "@zhizhang/ui/copy";
 import { openSettings, select, startCreate } from "../../state/controller";
 import { desktopStore, useDesktop } from "../../state/store";
 import { run } from "../../format";
+
+const C = DESKTOP_COPY;
 
 interface PaletteItem {
   id: string;

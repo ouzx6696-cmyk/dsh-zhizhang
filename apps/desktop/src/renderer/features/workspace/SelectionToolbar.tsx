@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { Bookmark, PenLine, Search, Wrench } from "lucide-react";
-import { DESKTOP_COPY as C } from "@zhizhang/ui/copy";
+import { DESKTOP_COPY } from "@zhizhang/ui/copy";
 import { notify } from "@zhizhang/ui/notify";
 import type { SessionIntent } from "../../../shared/views";
 import { modelReady, openDock, sendMessage } from "../../state/controller";
 import { desktopStore, useDesktop } from "../../state/store";
 import { notifyError } from "../../format";
+
+const C = DESKTOP_COPY;
 
 interface SelectionBox {
   text: string;

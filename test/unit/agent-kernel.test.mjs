@@ -9,30 +9,19 @@ import { importTs } from "../support/ts-loader.mjs";
 const { createLockService } = await importTs("packages/core/src/lock/index.ts");
 const { buildChapterContext } = await importTs("packages/fanqie/src/context/index.ts");
 const { createLearningStore } = await importTs("packages/fanqie/src/learning/store.ts");
-const { composeUserMessage, formatRunDebrief } = await importTs(
-  "apps/desktop/src/session/prompt.ts",
-);
+const { userPrompt, formatRunDebrief } = await importTs("apps/desktop/src/session/prompt.ts");
 
-test("composeUserMessage 注入划词选区、@引用上下文与新增协作意图", () => {
-  const msg = composeUserMessage(
-    "看看这段节奏",
-    {
-      workTitle: "云海闻铃",
-      chapter: "ch-003",
-      title: "夜探青崖",
-      selection: {
-        text: "风灯熄灭的那一刻，铜铃忽然无风自鸣。",
-        paragraphStart: 4,
-        paragraphEnd: 5,
-      },
-      mentions: [{ kind: "chapter", id: "ch-001", label: "雨夜开篇" }],
-    },
-    "diagnose",
-  );
-  assert.ok(msg.includes("云海闻铃"), "应包含作品名");
+test("userPrompt 注入划词选区、@引用上下文与新增协作意图", () => {
+  const msg = userPrompt("看看这段节奏", "diagnose", {
+    workTitle: "云海闻铃",
+    chapter: "ch-003",
+    title: "夜探青崖",
+    selection: { text: "风灯熄灭的那一刻，铜铃忽然无风自鸣。", paragraphStart: 4, paragraphEnd: 5 },
+    mentions: [{ kind: "chapter", id: "ch-001", label: "雨夜开篇" }],
+  });
   assert.ok(msg.includes("ch-003"), "应包含章节号");
   assert.ok(msg.includes("风灯熄灭的那一刻"), "应包含划词选区内容");
-  assert.ok(msg.includes("@雨夜开篇"), "应包含 @ 引用标签");
+  assert.ok(msg.includes("@章节:雨夜开篇(ch-001)"), "应包含 @ 引用标签");
   assert.ok(msg.includes("深度诊断"), "应包含 diagnose 意图指导");
 });
 
@@ -42,28 +31,24 @@ test("formatRunDebrief 为等待作者决定与失败流水线生成零额外模
     kind: "fanqie.chapter",
     state: "awaiting-author",
     target: { mode: "fanqie", path: "/tmp/work" },
-    chapter: "ch-004",
-    step: 4,
-    totalSteps: 4,
-    stage: "review",
-    startedAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:01:00.000Z",
+    stages: ["prepare", "draft", "review"],
+    usage: { input: 1200, output: 800, cached: 0, calls: 2, costUsd: 0 },
+    created: "2026-01-01T00:00:00.000Z",
+    updated: "2026-01-01T00:01:00.000Z",
   });
-  assert.ok(awaiting.includes("ch-004"));
-  assert.ok(
-    awaiting.includes("待作者确认") || awaiting.includes("待你决定") || awaiting.includes("对照"),
-  );
+  assert.ok(awaiting.includes("run-1"));
+  assert.ok(awaiting.includes("prepare → draft → review"));
+  assert.ok(awaiting.includes("段落对照"));
 
   const failed = formatRunDebrief({
     id: "run-2",
     kind: "toutiao.article",
     state: "failed",
     target: { mode: "toutiao", path: "/tmp/art" },
-    step: 2,
-    totalSteps: 5,
-    stage: "draft",
-    startedAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:01:00.000Z",
+    stages: ["prepare"],
+    usage: { input: 500, output: 100, cached: 0, calls: 1, costUsd: 0 },
+    created: "2026-01-01T00:00:00.000Z",
+    updated: "2026-01-01T00:01:00.000Z",
     error: { code: "model.timeout", message: "模型响应超时" },
   });
   assert.ok(failed.includes("模型响应超时"));
@@ -89,6 +74,7 @@ test("buildChapterContext 将结构化 WritingBrief 注入任务块", () => {
     hits: [],
     recentSummaries: [],
     budget: 2000,
+    previousTextMode: { kind: "full", maxChars: 2000 },
     brief: {
       goal: "让主角当众亮出账簿反杀",
       agreedBeats: ["先示弱引对手露底", "当堂摊开旧账簿"],
