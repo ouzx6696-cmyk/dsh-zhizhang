@@ -2,16 +2,21 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowUpRight, Search } from "lucide-react";
 import { DESKTOP_COPY } from "@zhizhang/ui/copy";
 import { Button, Empty, Notice, Skeleton } from "@zhizhang/ui/primitives";
-import type { AuditFinding, Bible, BibleView } from "@zhizhang/fanqie/bible";
+import type { AuditFinding, Bible, BibleView, EntityTimelineResult } from "@zhizhang/fanqie/bible";
 import type { LearningView, Target } from "../../../shared/views";
 import { modelReady, openDock, sendMessage } from "../../state/controller";
 import { desktop } from "../../state/desktop";
 import { desktopStore, useDesktop } from "../../state/store";
 import { errorText, notifyError } from "../../format";
-import { BibleKnowledgeTab, BibleLearningTab, BiblePendingTab } from "./BibleCenterTabs";
+import {
+  BibleKnowledgeTab,
+  BibleLearningTab,
+  BiblePendingTab,
+  BibleTraceTab,
+} from "./BibleCenterTabs";
 
 const C = DESKTOP_COPY;
-type BibleTab = "entities" | "threads" | "knowledge" | "pending" | "learning";
+type BibleTab = "entities" | "threads" | "knowledge" | "pending" | "learning" | "trace";
 
 export function BibleCenter({ target }: { target: Target }) {
   const work = target.path;
@@ -26,6 +31,7 @@ export function BibleCenter({ target }: { target: Target }) {
   const [asOf, setAsOf] = useState(0);
   const [query, setQuery] = useState("");
   const [findings, setFindings] = useState<AuditFinding[] | null>(null);
+  const [traceResult, setTraceResult] = useState<EntityTimelineResult | null>(null);
   const [learning, setLearning] = useState<LearningView | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
@@ -92,8 +98,24 @@ export function BibleCenter({ target }: { target: Target }) {
     }
   };
 
-  const jumpChapter = (chapterIndex: number) => {
-    const ch = chapters[chapterIndex - 1];
+  const runTrace = async (traceQuery: string, includeBody: boolean) => {
+    setBusy("trace");
+    try {
+      const res = await desktop.workbench("fanqie.bible.trace", {
+        work,
+        query: traceQuery,
+        includeBody,
+      });
+      setTraceResult(res);
+    } catch (err) {
+      notifyError(err);
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const jumpChapter = (chapterIndex: number, chapterId?: string) => {
+    const ch = chapterId ? chapters.find((c) => c.id === chapterId) : chapters[chapterIndex - 1];
     desktopStore.set({
       view: "writing",
       ...(ch ? { jumpChapterId: ch.id } : {}),
@@ -151,6 +173,7 @@ export function BibleCenter({ target }: { target: Target }) {
     { id: "knowledge", label: C.bibleCenter.tabKnowledge, count: activeKnowledge.length },
     { id: "pending", label: C.bibleCenter.tabPending, count: bible.pending.length },
     { id: "learning", label: C.bibleCenter.tabLearning, count: learning?.rules.length ?? 0 },
+    { id: "trace", label: C.bibleCenter.tabTrace, count: traceResult?.events.length },
   ];
 
   return (
@@ -295,6 +318,15 @@ export function BibleCenter({ target }: { target: Target }) {
       ) : null}
 
       {tab === "learning" ? <BibleLearningTab learning={learning} /> : null}
+
+      {tab === "trace" ? (
+        <BibleTraceTab
+          result={traceResult}
+          busy={busy === "trace"}
+          onTrace={(q, body) => void runTrace(q, body)}
+          onJumpChapter={(pos, cid) => jumpChapter(pos, cid)}
+        />
+      ) : null}
     </section>
   );
 }

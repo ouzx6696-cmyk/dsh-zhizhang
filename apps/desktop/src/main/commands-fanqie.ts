@@ -2,6 +2,7 @@ import path from "node:path";
 import { AppError } from "@zhizhang/core/errors";
 import { atomicWrite, readTextIfExists, sha256 } from "@zhizhang/core/fs";
 import { commands as fanqie } from "@zhizhang/fanqie";
+import { computeSerialBuffer } from "@zhizhang/fanqie/view";
 import { wordDocument } from "../exports.js";
 import {
   assertOutPath,
@@ -11,19 +12,28 @@ import {
   type CommandHandler,
 } from "./commands-shared.js";
 
-async function snapshotRevision(work: string, rows: unknown): Promise<string> {
+async function snapshotRevision(
+  work: string,
+  rows: unknown,
+  bufferConfig: { publishedThrough?: string; dailyTargetChars?: number },
+): Promise<string> {
   const structure = (await readTextIfExists(path.join(work, "plan", "structure.json"))) ?? "[]";
-  return sha256(JSON.stringify({ rows, structure }));
+  return sha256(JSON.stringify({ rows, structure, bufferConfig }));
 }
 
 export const FANQIE_HANDLERS: { [K in CommandGroup<"fanqie">]: CommandHandler<K> } = {
   async "fanqie.snapshot"(input, ctx) {
     const work = ctx.inside(input.work);
-    await fanqie.getWork(work);
+    const meta = await fanqie.getWork(work);
     const rows = await fanqie.listChapters(work);
-    const revision = await snapshotRevision(work, rows);
+    const bufferConfig = {
+      publishedThrough: meta.publishedThrough,
+      dailyTargetChars: meta.dailyTargetChars,
+    };
+    const revision = await snapshotRevision(work, rows, bufferConfig);
     if (input.since === revision) return { revision, full: false, rows: [], removedIds: [] };
-    return { revision, full: true, rows, removedIds: [] };
+    const buffer = computeSerialBuffer(rows, bufferConfig);
+    return { revision, full: true, rows, removedIds: [], buffer };
   },
   async "fanqie.chapter.list"(input, ctx) {
     return { rows: await fanqie.listChapters(ctx.inside(input.work)) };
@@ -92,7 +102,10 @@ export const FANQIE_HANDLERS: { [K in CommandGroup<"fanqie">]: CommandHandler<K>
       { chapterId: input.chapter, candidateId: input.candidateId, expectedRevision: input.base },
       ctx.locks,
     );
-    return { revision: doc.meta.revision };
+    return {
+      revision: doc.meta.revision,
+      staleDownstreamCandidates: doc.staleDownstreamCandidates,
+    };
   },
   async "fanqie.candidate.reject"(input, ctx) {
     return fanqie.rejectCandidate(
@@ -123,6 +136,28 @@ export const FANQIE_HANDLERS: { [K in CommandGroup<"fanqie">]: CommandHandler<K>
       await atomicWrite(path.join(workPath, "plan", "premise.md"), `${input.premise.trim()}\n`);
     }
     return { workPath };
+  },
+  async "fanqie.work.importLegacy"(input, ctx) {
+    const worksRoot = ctx.inside(input.root);
+    const sourcePath = ctx.inside(input.sourcePath);
+    const result = await fanqie.importLegacyWork(
+      {
+        worksRoot,
+        workId: workDirName(input.title),
+        title: input.title,
+        sourcePath,
+        sourceKind: input.sourceKind,
+        grade: input.grade,
+      },
+      ctx.locks,
+      ctx.clock,
+    );
+    return {
+      workPath: result.workPath,
+      chapterCount: result.chapterCount,
+      totalWords: result.totalWords,
+      backupDir: result.backupDir,
+    };
   },
   async "fanqie.work.settings"(input, ctx) {
     const { work, ...patch } = input;
@@ -156,6 +191,14 @@ export const FANQIE_HANDLERS: { [K in CommandGroup<"fanqie">]: CommandHandler<K>
   },
   async "fanqie.bible.audit"(input, ctx) {
     return { findings: await fanqie.auditBible(ctx.inside(input.work), input.upTo, ctx.locks) };
+  },
+  async "fanqie.bible.trace"(input, ctx) {
+    return fanqie.traceBibleEntity(
+      ctx.inside(input.work),
+      input.query,
+      { includeBody: input.includeBody, maxBodyHits: input.maxBodyHits },
+      ctx.locks,
+    );
   },
   async "fanqie.reference.bind"(input, ctx) {
     const work = ctx.inside(input.work);

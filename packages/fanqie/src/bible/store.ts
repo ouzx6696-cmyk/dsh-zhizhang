@@ -25,6 +25,7 @@ import type {
   Evidence,
   PendingItem,
   Provenance,
+  SettlementKind,
 } from "./types.js";
 
 const EMPTY_BIBLE: Bible = {
@@ -40,6 +41,7 @@ const EMPTY_BIBLE: Bible = {
 export interface ProposeOpMeta {
   evidence?: Evidence;
   located?: boolean;
+  settlement?: SettlementKind;
 }
 
 interface CachedBible {
@@ -102,6 +104,10 @@ async function makeIntentWrite(file: string, after: string): Promise<IntentWrite
     beforeHash: prev === undefined ? null : sha256(prev),
     after,
   };
+}
+
+function mergeUniqueStrings(base: string[], extra: string[]): string[] {
+  return [...new Set([...base, ...extra].map((item) => item.trim()).filter(Boolean))];
 }
 
 export function createBibleStore(lock: LockService, clock: Clock = systemClock) {
@@ -200,6 +206,7 @@ export function createBibleStore(lock: LockService, clock: Clock = systemClock) 
         };
         if (evidence) item.evidence = evidence;
         if (conflictsWith) item.conflictsWith = conflictsWith;
+        if (meta?.settlement) item.settlement = meta.settlement;
         return item;
       });
       bible.pending = [...bible.pending, ...added];
@@ -239,10 +246,23 @@ export function createBibleStore(lock: LockService, clock: Clock = systemClock) 
 
       if (decision !== "reject") {
         const op = typeof decision === "object" ? decision.edit : item.op;
+        const settlement = item.settlement;
         if (op.type === "entity.upsert") {
           const idx = bible.entities.findIndex((e) => e.id === op.entity.id);
-          if (idx === -1) bible.entities.push(op.entity);
-          else bible.entities[idx] = op.entity;
+          if (idx === -1) {
+            bible.entities.push(op.entity);
+          } else if (settlement === "update_profile") {
+            const prev = bible.entities[idx];
+            bible.entities[idx] = {
+              ...prev,
+              ...op.entity,
+              aliases: mergeUniqueStrings(prev.aliases, op.entity.aliases),
+              locked: mergeUniqueStrings(prev.locked, op.entity.locked),
+              summary: op.entity.summary || prev.summary,
+            };
+          } else {
+            bible.entities[idx] = op.entity;
+          }
           writes.push(
             await makeIntentWrite(
               path.join(dir, "entities.json"),
@@ -250,7 +270,26 @@ export function createBibleStore(lock: LockService, clock: Clock = systemClock) 
             ),
           );
         } else if (op.type === "state.add") {
-          bible.states.push(op.entry);
+          const confirmedStatus: "confirmed" = "confirmed";
+          const nextEntry =
+            settlement === "settle_long_term" ||
+            settlement === "resolve_short_term" ||
+            settlement === "update_profile"
+              ? { ...op.entry, status: confirmedStatus }
+              : op.entry;
+          if (settlement === "resolve_short_term" || settlement === "update_profile") {
+            for (const existing of bible.states) {
+              if (
+                existing.entity === nextEntry.entity &&
+                existing.field === nextEntry.field &&
+                existing.until === undefined &&
+                existing.since <= nextEntry.since
+              ) {
+                existing.until = nextEntry.since;
+              }
+            }
+          }
+          bible.states.push(nextEntry);
           writes.push(
             await makeIntentWrite(
               path.join(dir, "states.json"),
@@ -259,8 +298,23 @@ export function createBibleStore(lock: LockService, clock: Clock = systemClock) 
           );
         } else if (op.type === "thread.upsert") {
           const idx = bible.threads.findIndex((t) => t.id === op.thread.id);
-          if (idx === -1) bible.threads.push(op.thread);
-          else bible.threads[idx] = op.thread;
+          const resolvedStatus =
+            settlement === "resolve_short_term"
+              ? "paid"
+              : settlement === "settle_long_term" && op.thread.status !== "dropped"
+                ? "open"
+                : op.thread.status;
+          const nextThread = { ...op.thread, status: resolvedStatus };
+          if (idx === -1) {
+            bible.threads.push(nextThread);
+          } else {
+            const prev = bible.threads[idx];
+            bible.threads[idx] = {
+              ...prev,
+              ...nextThread,
+              beats: [...prev.beats, ...nextThread.beats],
+            };
+          }
           writes.push(
             await makeIntentWrite(
               path.join(dir, "threads.json"),

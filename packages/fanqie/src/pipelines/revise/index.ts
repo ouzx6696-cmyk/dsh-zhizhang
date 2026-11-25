@@ -31,8 +31,11 @@ const IssueInputSchema = obj({
   fix: str({ min: 1 }),
 });
 
+export type ReviseMode = "revise" | "deai" | "polish";
+
 export const RevisePipelineReq = obj({
   chapterId: str({ min: 1 }),
+  mode: opt(lit("revise", "deai", "polish")),
   issues: opt(arr(IssueInputSchema, { max: 50 })),
   note: opt(str()),
 });
@@ -41,6 +44,7 @@ export type ReviseReq = Infer<typeof RevisePipelineReq>;
 
 export interface StandaloneReviseResult {
   chapterId: string;
+  mode: ReviseMode;
   title: string;
   body: string;
   gate: GateReport;
@@ -48,6 +52,30 @@ export interface StandaloneReviseResult {
   editorPass: boolean;
   editorRejections: number;
 }
+
+const MODE_DIRECTIVES: Record<
+  Exclude<ReviseMode, "revise">,
+  { text: string; issue: ReviewIssue }
+> = {
+  deai: {
+    text: "【专项模式：去 AI 腔精修】\n聚焦消除一阶与二阶 AI 腔（翻译腔、书面腔、情绪复述、工整排比、安全结句），不改动任何已锁定的事实、人名、地名、时间线、设定数值与剧情主干。",
+    issue: {
+      kind: "reader",
+      quote: "",
+      issue: "存在一阶或二阶 AI 腔痕迹",
+      fix: "按去 AI 腔清单逐句改写为自然口语与动作细节，严格保持剧情推进与设定事实不变",
+    },
+  },
+  polish: {
+    text: "【专项模式：轻润色精修】\n仅做句式流畅度、对话口语化与移动端段落呼吸感微调，严格保持原有情节推进、设定事实、人物口吻与章末钩子不变。",
+    issue: {
+      kind: "reader",
+      quote: "",
+      issue: "需做句子流畅度与移动端段落呼吸感轻润色",
+      fix: "压缩冗长修饰语、拆分超长段、增强对白自然感，不改任何情节与设定事实",
+    },
+  },
+};
 
 export const revisePipeline: PipelineDefinition<
   ReviseReq,
@@ -73,6 +101,7 @@ export const revisePipeline: PipelineDefinition<
   },
   async run(runner, ctx) {
     const req = ctx.request;
+    const mode: ReviseMode = req.mode ?? "revise";
     const prepared = await runner.local("prepare", async () => {
       const workMeta = await readJson(
         path.join(ctx.target.path, "work.json"),
@@ -94,7 +123,9 @@ export const revisePipeline: PipelineDefinition<
 
     let current: DraftOutput = prepared.draft;
     let currentGate = gateDraft(current, { targetWords: prepared.targetWords });
-    let pendingIssues: ReviewIssue[] = req.issues ?? [];
+    const specialist = mode === "revise" ? undefined : MODE_DIRECTIVES[mode];
+    let pendingIssues: ReviewIssue[] =
+      req.issues && req.issues.length > 0 ? req.issues : specialist ? [specialist.issue] : [];
     let latestReview: ReviewResult = {
       verdict: "revise",
       issues: pendingIssues,
@@ -104,6 +135,30 @@ export const revisePipeline: PipelineDefinition<
     let editorRejections = 0;
 
     ctx.state.currentDraft = current;
+
+    const suffix: ContextPacket["suffix"] = [];
+    if (specialist) {
+      suffix.push({
+        id: `revise-mode-${mode}`,
+        layer: 0,
+        text: specialist.text,
+        required: true,
+        tokens: Math.ceil(specialist.text.length / 2),
+        reason: mode === "deai" ? "去 AI 腔专项指令" : "轻润色专项指令",
+        source: { kind: "author", ref: `mode:${mode}` },
+      });
+    }
+    if (req.note) {
+      suffix.push({
+        id: "revise-note",
+        layer: 0,
+        text: `【修改说明】\n${req.note}`,
+        required: true,
+        tokens: Math.ceil(req.note.length / 2),
+        reason: "作者修改说明",
+        source: { kind: "author", ref: "note" },
+      });
+    }
 
     const packet: ContextPacket = {
       prefix: [
@@ -117,24 +172,13 @@ export const revisePipeline: PipelineDefinition<
           source: { kind: "chapter", ref: req.chapterId },
         },
       ],
-      suffix: req.note
-        ? [
-            {
-              id: "revise-note",
-              layer: 0,
-              text: `【修改说明】\n${req.note}`,
-              required: true,
-              tokens: Math.ceil(req.note.length / 2),
-              reason: "作者修改说明",
-              source: { kind: "author", ref: "note" },
-            },
-          ]
-        : [],
+      suffix,
       omitted: [],
       estimate: Math.ceil(current.body.length / 2),
     };
 
-    for (let round = 1; round <= MAX_EDITOR_REJECTIONS; round++) {
+    const maxRounds = specialist ? 1 : MAX_EDITOR_REJECTIONS;
+    for (let round = 1; round <= maxRounds; round++) {
       ctx.state.pendingIssues = pendingIssues;
       const revised = await runner.stage(makeReviseStage(round), packet);
       const revisedGate = await runner.local(`gate-revise-${round}`, async () =>
@@ -151,6 +195,19 @@ export const revisePipeline: PipelineDefinition<
       currentGate = revisedGate;
       ctx.state.currentDraft = current;
 
+      if (specialist) {
+        editorPass = true;
+        latestReview = {
+          verdict: "pass",
+          issues: [],
+          summary:
+            mode === "deai"
+              ? "去 AI 腔专项精修完成（已通过门禁，待作者对照裁决）"
+              : "轻润色专项精修完成（已通过门禁，待作者对照裁决）",
+        };
+        break;
+      }
+
       latestReview = await runner.stage(makeReviewStage(round), packet);
       if (latestReview.verdict === "pass" && latestReview.issues.length === 0) {
         editorPass = true;
@@ -162,6 +219,7 @@ export const revisePipeline: PipelineDefinition<
 
     return {
       chapterId: req.chapterId,
+      mode,
       title: current.title,
       body: current.body,
       gate: currentGate,
@@ -187,6 +245,7 @@ export const revisePipeline: PipelineDefinition<
       path.join(outDir, `${ctx.runId}.meta.json`),
       JSON.stringify(
         {
+          mode: res.mode,
           bodyHash: sha256(res.body),
           editorPass: res.editorPass,
           editorRejections: res.editorRejections,
@@ -197,11 +256,13 @@ export const revisePipeline: PipelineDefinition<
       ),
     );
     await atomicWrite(marker, buildDeliveryMarker(ctx.runId, res.body));
+    const modeLabel =
+      res.mode === "deai" ? "去 AI 腔精修" : res.mode === "polish" ? "轻润色精修" : "修稿";
     return {
       runId: ctx.runId,
       deliveredPaths: [candFile],
       contentHash: sha256(res.body),
-      summary: `修稿完成「${res.title}」（${res.gate.wordCount} 字，${res.editorPass ? "复审通过" : `打回 ${res.editorRejections} 轮待作者裁决`}）`,
+      summary: `${modeLabel}完成「${res.title}」（${res.gate.wordCount} 字，${res.editorPass ? "复审通过" : `打回 ${res.editorRejections} 轮待作者裁决`}）`,
     };
   },
   async recover(record, ctx) {

@@ -1,6 +1,11 @@
 import { systemClock } from "@zhizhang/core/clock";
 import { createLockService, type LockService } from "@zhizhang/core/lock";
 import { createBibleStore } from "../bible/store.js";
+import {
+  traceEntityTimeline,
+  type EntityTimelineResult,
+  type TraceEntityOptions,
+} from "../bible/trace.js";
 import type {
   AuditFinding,
   Bible,
@@ -53,4 +58,13 @@ export async function auditBible(
   const store = createBibleStore(lock);
   const bible = await store.read(workPath);
   return store.audit(bible, upTo);
+}
+
+export async function traceBibleEntity(
+  workPath: string,
+  query: string,
+  options?: TraceEntityOptions,
+  lock: LockService = createLockService(systemClock),
+): Promise<EntityTimelineResult> {
+  return traceEntityTimeline(workPath, query, options, lock);
 }

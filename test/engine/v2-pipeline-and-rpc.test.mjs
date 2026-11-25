@@ -405,7 +405,7 @@ test("createRpcHandlers 提供传输无关 RPC 分发并校验只读模式写命
     const rpc = desk.createRpcHandlers(fakeServices);
     const stateReply = await rpc.invoke("app.state", []);
     assert.equal(stateReply.ok, true);
-    assert.equal(stateReply.value.version, "2.0.0");
+    assert.equal(stateReply.value.version, "2.3.0");
     assert.equal(stateReply.value.platform, "web");
     assert.equal(stateReply.value.workspace.readonly, true);
 

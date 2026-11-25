@@ -147,6 +147,21 @@ export async function createWork(input: {
   await select({ mode: "fanqie", path: workPath });
 }
 
+export async function importLegacyWork(input: {
+  title: string;
+  sourcePath: string;
+  sourceKind: "single_txt" | "folder";
+  grade: "economy" | "standard" | "premium";
+}) {
+  const root = desktopStore.get().workspace?.roots.fanqie;
+  if (!root) return;
+  const res = await desktop.workbench("fanqie.work.importLegacy", { root, ...input });
+  await refreshTargets();
+  set({ creating: null });
+  notify({ tone: "success", text: C.create.importDone(res.chapterCount, res.totalWords) });
+  await select({ mode: "fanqie", path: res.workPath });
+}
+
 export async function createArticle(input: { genre: string; driver: string }) {
   const root = desktopStore.get().workspace?.roots.toutiao;
   if (!root) return;

@@ -1,13 +1,68 @@
 {
-  "fanqie.book.card": { "take": [{ "file": "overview.md", "maxChars": 2000 }, { "file": "platform.md", "maxChars": 2000 }] },
+  "fanqie.book.card": {
+    "take": [
+      { "file": "overview.md", "maxChars": 2000 },
+      { "file": "platform.md", "maxChars": 2000 },
+      { "file": "genres.md", "maxChars": 2800 }
+    ]
+  },
   "fanqie.book.foundation": { "take": [{ "file": "plan-foundation.md", "maxChars": 3000 }] },
   "fanqie.book.structure": { "take": [{ "file": "plan-structure.md", "maxChars": 3000 }] },
   "fanqie.book.outline": { "take": [{ "file": "plan-outline.md", "maxChars": 3000 }] },
-  "fanqie.chapter.beats": { "take": [{ "file": "scene.md", "maxChars": 2500 }, { "file": "rhythm.md", "maxChars": 1500 }] },
-  "fanqie.chapter.draft": { "take": [{ "file": "write-chapter.md", "maxChars": 3500 }, { "file": "prose.md", "maxChars": 2500 }] },
-  "fanqie.chapter.select": { "take": [{ "file": "edit.md", "maxChars": 2500 }] },
-  "fanqie.chapter.review": { "take": [{ "file": "edit.md", "maxChars": 3000 }, { "file": "continuity.md", "maxChars": 1500 }] },
-  "fanqie.chapter.revise": { "take": [{ "file": "revise.md", "maxChars": 2500 }, { "file": "prose.md", "maxChars": 1500 }] },
+  "fanqie.chapter.beats": {
+    "take": [
+      { "file": "scene.md", "maxChars": 2500 },
+      { "file": "rhythm.md", "maxChars": 1500 }
+    ]
+  },
+  "fanqie.chapter.draft": {
+    "take": [
+      { "file": "write-chapter.md", "maxChars": 3500 },
+      {
+        "file": "prose.md",
+        "sections": ["一、写前：三条习惯", "六、一阶与二阶 AI 腔双层诊断对照"],
+        "maxChars": 2500
+      },
+      {
+        "file": "examples-write.md",
+        "sections": ["附：番茄快爽核心手艺片段走读与移动端自检"],
+        "maxChars": 1200
+      }
+    ]
+  },
+  "fanqie.chapter.select": {
+    "take": [
+      {
+        "file": "edit.md",
+        "sections": ["八、双稿盲评裁决口径", "二、四类硬伤", "三、L1–L3：按阅读损失定位"],
+        "maxChars": 2500
+      }
+    ]
+  },
+  "fanqie.chapter.review": {
+    "take": [
+      {
+        "file": "edit.md",
+        "sections": [
+          "二、四类硬伤",
+          "三、L1–L3：按阅读损失定位",
+          "七、番茄快爽与打脸文五项专属审改"
+        ],
+        "maxChars": 3000
+      },
+      { "file": "continuity.md", "maxChars": 1500 }
+    ]
+  },
+  "fanqie.chapter.revise": {
+    "take": [
+      { "file": "revise.md", "maxChars": 2500 },
+      {
+        "file": "prose.md",
+        "sections": ["六、一阶与二阶 AI 腔双层诊断对照", "三、误杀防护：这些不改"],
+        "maxChars": 2000
+      }
+    ]
+  },
   "fanqie.ledger.extract": { "take": [{ "file": "continuity.md", "maxChars": 2500 }] },
   "library.dissect": { "take": [{ "file": "library.md", "maxChars": 4000 }] }
 }

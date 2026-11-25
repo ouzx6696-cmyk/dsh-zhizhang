@@ -3,6 +3,7 @@ import type {
   Bible,
   BibleOp,
   BibleView,
+  EntityTimelineResult,
   PendingItem,
   Provenance,
 } from "@zhizhang/fanqie/bible";
@@ -66,7 +67,12 @@ export interface WorkbenchCommandMap {
   };
   "fanqie.candidate.accept": {
     input: { work: string; chapter: string; candidateId: string; base: string };
-    result: { revision: string };
+    result: {
+      revision: string;
+      staleDownstreamCandidates?: Awaited<
+        ReturnType<typeof fanqieCommands.acceptCandidate>
+      >["staleDownstreamCandidates"];
+    };
     access: "write";
   };
   "fanqie.candidate.reject": {
@@ -94,6 +100,22 @@ export interface WorkbenchCommandMap {
     result: { workPath: string };
     access: "write";
   };
+  "fanqie.work.importLegacy": {
+    input: {
+      root: string;
+      title: string;
+      sourcePath: string;
+      sourceKind: "single_txt" | "folder";
+      grade?: "economy" | "standard" | "premium";
+    };
+    result: {
+      workPath: string;
+      chapterCount: number;
+      totalWords: number;
+      backupDir: string;
+    };
+    access: "write";
+  };
   "fanqie.work.settings": {
     input: {
       work: string;
@@ -102,6 +124,8 @@ export interface WorkbenchCommandMap {
       requireEditorPass?: boolean;
       targetWords?: number;
       previousTextMode?: "auto" | "full" | "tail";
+      publishedThrough?: string;
+      dailyTargetChars?: number;
     };
     result: WorkMeta;
     access: "write";
@@ -134,6 +158,11 @@ export interface WorkbenchCommandMap {
   "fanqie.bible.audit": {
     input: { work: string; upTo: number };
     result: { findings: AuditFinding[] };
+    access: "read";
+  };
+  "fanqie.bible.trace": {
+    input: { work: string; query: string; includeBody?: boolean; maxBodyHits?: number };
+    result: EntityTimelineResult;
     access: "read";
   };
   "fanqie.reference.bind": {
@@ -311,61 +340,4 @@ export type WorkbenchCommand = keyof WorkbenchCommandMap;
 export type CommandInput<K extends WorkbenchCommand> = WorkbenchCommandMap[K]["input"];
 export type CommandResult<K extends WorkbenchCommand> = WorkbenchCommandMap[K]["result"];
 
-export type CommandRefreshScope = "rows" | "chapter" | "bible" | "article" | "profiles" | "library";
-
-export interface CommandPolicy<K extends WorkbenchCommand> {
-  access: WorkbenchCommandMap[K]["access"];
-  /** 写命令成功后广播给渲染层的刷新范围。 */
-  refresh?: CommandRefreshScope;
-}
-
-/** 读写与广播策略的唯一来源：主进程据此做只读门禁与 workspace.changed 广播。 */
-export const COMMAND_POLICY: { readonly [K in WorkbenchCommand]: CommandPolicy<K> } = {
-  "fanqie.snapshot": { access: "read" },
-  "fanqie.chapter.list": { access: "read" },
-  "fanqie.chapter.get": { access: "read" },
-  "fanqie.chapter.save": { access: "write", refresh: "chapter" },
-  "fanqie.chapter.finalize": { access: "write", refresh: "chapter" },
-  "fanqie.candidate.list": { access: "read" },
-  "fanqie.candidate.get": { access: "read" },
-  "fanqie.candidate.accept": { access: "write", refresh: "chapter" },
-  "fanqie.candidate.reject": { access: "write", refresh: "chapter" },
-  "fanqie.work.list": { access: "read" },
-  "fanqie.work.get": { access: "read" },
-  "fanqie.work.create": { access: "write", refresh: "rows" },
-  "fanqie.work.settings": { access: "write", refresh: "rows" },
-  "fanqie.book.export": { access: "read" },
-  "fanqie.bible.get": { access: "read" },
-  "fanqie.bible.view": { access: "read" },
-  "fanqie.bible.propose": { access: "write", refresh: "bible" },
-  "fanqie.bible.decide": { access: "write", refresh: "bible" },
-  "fanqie.bible.audit": { access: "read" },
-  "fanqie.reference.bind": { access: "write", refresh: "rows" },
-  "fanqie.reference.list": { access: "read" },
-  "toutiao.articles": { access: "read" },
-  "toutiao.article.create": { access: "write", refresh: "article" },
-  "toutiao.article.transition": { access: "write", refresh: "article" },
-  "toutiao.article.deliver": { access: "write", refresh: "article" },
-  "toutiao.article.export": { access: "read" },
-  "toutiao.draft.get": { access: "read" },
-  "toutiao.draft.save": { access: "write", refresh: "article" },
-  "toutiao.source.register": { access: "write", refresh: "article" },
-  "toutiao.ledger.show": { access: "read" },
-  "toutiao.ledger.add": { access: "write", refresh: "article" },
-  "toutiao.ledger.status": { access: "write", refresh: "article" },
-  "toutiao.metrics.import": { access: "write", refresh: "article" },
-  "profiles.list": { access: "read" },
-  "profiles.detail": { access: "read" },
-  "profiles.method": { access: "read" },
-  "profiles.use": { access: "write", refresh: "profiles" },
-  "profiles.create": { access: "write", refresh: "profiles" },
-  "profiles.save": { access: "write", refresh: "profiles" },
-  "profiles.reset": { access: "write", refresh: "profiles" },
-  "profiles.rename": { access: "write", refresh: "profiles" },
-  "profiles.delete": { access: "write", refresh: "profiles" },
-  "library.import": { access: "write", refresh: "library" },
-  "library.list": { access: "read" },
-  "library.cards": { access: "read" },
-  "library.cards.save": { access: "write", refresh: "library" },
-  "library.dissect": { access: "write", refresh: "library" },
-};
+export { COMMAND_POLICY, type CommandPolicy, type CommandRefreshScope } from "./policy.js";

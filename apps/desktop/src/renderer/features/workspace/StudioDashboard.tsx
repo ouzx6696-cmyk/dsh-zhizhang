@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import type { SerialBufferMetrics } from "@zhizhang/fanqie/view";
 import { DESKTOP_COPY } from "@zhizhang/ui/copy";
 import type { TargetItem } from "../../../shared/views";
 import { openPipeline } from "../../state/controller";
@@ -37,6 +38,7 @@ export function StudioDashboard({ item }: { item: TargetItem }) {
   const [collapsed, setCollapsed] = useState(false);
   const [libraryStats, setLibraryStats] = useState<LibraryStats>(EMPTY_LIBRARY);
   const [boundCardCount, setBoundCardCount] = useState(0);
+  const [buffer, setBuffer] = useState<SerialBufferMetrics | null>(null);
 
   const progressSvgRef = useRef<SVGSVGElement | null>(null);
   const pipelineSvgRef = useRef<SVGSVGElement | null>(null);
@@ -68,6 +70,7 @@ export function StudioDashboard({ item }: { item: TargetItem }) {
   useEffect(() => {
     if (item.target.mode !== "fanqie") {
       setBoundCardCount(0);
+      setBuffer(null);
       return;
     }
     let alive = true;
@@ -80,6 +83,12 @@ export function StudioDashboard({ item }: { item: TargetItem }) {
           for (const cid of binding.cardIds) unique.add(`${binding.sourceId}:${cid}`);
         }
         setBoundCardCount(unique.size);
+      })
+      .catch(() => undefined);
+    desktop
+      .workbench("fanqie.snapshot", { work: item.target.path })
+      .then((res) => {
+        if (alive && res.buffer) setBuffer(res.buffer);
       })
       .catch(() => undefined);
     return () => {
@@ -195,6 +204,23 @@ export function StudioDashboard({ item }: { item: TargetItem }) {
           )}
         </button>
       </div>
+
+      {item.target.mode === "fanqie" && buffer ? (
+        <div className="zz-studio-dash__buffer" data-testid="serial-buffer-bar">
+          <span className="zz-studio-dash__buffer-metric zz-tabular">
+            {C.dashboard.bufferSummary(
+              buffer.continuousFinalCount,
+              buffer.continuousFinalChars,
+              buffer.publishableDays,
+            )}
+          </span>
+          {buffer.postGapFinalChapters.length > 0 ? (
+            <span className="zz-studio-dash__buffer-warn" data-testid="serial-buffer-warn">
+              {C.dashboard.bufferPostGapWarn(buffer.postGapFinalChapters)}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
 
       {!collapsed ? (
         <div className="zz-studio-dash__grid">

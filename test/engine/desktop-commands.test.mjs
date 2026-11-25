@@ -250,6 +250,24 @@ test("番茄命令：建书 → 写章 → 候选 → 导出 → 设定集，读
   assert.ok(
     Array.isArray((await run(ctx, mark("fanqie.bible.audit"), { work, upTo: 1 })).findings),
   );
+  const traced = await run(ctx, mark("fanqie.bible.trace"), {
+    work,
+    query: "川哥",
+    includeBody: true,
+  });
+  assert.equal(traced.matchedEntity?.id, "e-linchuan");
+  assert.ok(traced.events.length >= 1);
+
+  const legacyTxt = path.join(roots.fanqie, "old-sample.txt");
+  await fs.writeFile(legacyTxt, "第一章 旧书开局\n\n这是导入的第一章正文内容。", "utf8");
+  const imported = await run(ctx, mark("fanqie.work.importLegacy"), {
+    root: roots.fanqie,
+    title: "旧书导入样本",
+    sourcePath: legacyTxt,
+    sourceKind: "single_txt",
+    grade: "standard",
+  });
+  assert.equal(imported.chapterCount, 1);
 
   await expectCode(
     run(ctx, mark("fanqie.reference.bind"), { work, sourceId: "s1" }),
@@ -557,9 +575,9 @@ test("拆书库命令：导入、列出、读卡；拆解经流水线发起，�
   assert.equal(dissectCalls[0].target.path, roots.library);
 });
 
-test("命令分派覆盖契约里的全部 47 条命令，读写策略齐全，未知命令被拒绝", async () => {
+test("命令分派覆盖契约里的全部 49 条命令，读写策略齐全，未知命令被拒绝", async () => {
   const all = Object.keys(desk.COMMAND_POLICY);
-  assert.equal(all.length, 47);
+  assert.equal(all.length, 49);
   for (const command of all) assert.equal(desk.isWorkbenchCommand(command), true, command);
   assert.deepEqual(
     all.filter((c) => !covered.has(c)),

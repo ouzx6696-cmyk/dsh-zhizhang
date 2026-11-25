@@ -91,6 +91,8 @@ export type BibleOp =
   | { type: "knowledge.set"; row: KnowledgeRow }
   | { type: "chapter.record"; record: ChapterRecord };
 
+export type SettlementKind = "resolve_short_term" | "settle_long_term" | "update_profile";
+
 export interface PendingItem {
   id: string;
   op: BibleOp;
@@ -98,6 +100,7 @@ export interface PendingItem {
   located: boolean;
   run?: string;
   conflictsWith?: string;
+  settlement?: SettlementKind;
 }
 
 export interface Bible {

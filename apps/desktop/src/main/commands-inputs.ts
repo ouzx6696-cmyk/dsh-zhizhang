@@ -2,7 +2,7 @@
  * WorkbenchCommand 输入边界校验表（44 条命令与 WorkbenchCommand 编译期一一对应）。
  */
 import { AppError } from "@zhizhang/core/errors";
-import { arr, bool, int, lit, obj, opt, str, type Parser } from "@zhizhang/core/schema";
+import { arr, bool, int, lit, num, obj, opt, str, type Parser } from "@zhizhang/core/schema";
 import type { BibleOp, Provenance } from "@zhizhang/fanqie";
 import type { CommandInput, WorkbenchCommand } from "@zhizhang/workbench/contract";
 import { PROFILE_INPUTS } from "./commands-profiles.js";
@@ -97,6 +97,13 @@ export const COMMAND_INPUTS: { [K in WorkbenchCommand]: Parser<CommandInput<K>> 
     premise: str({ max: 20000 }),
     grade,
   }),
+  "fanqie.work.importLegacy": obj({
+    root: id,
+    title: str({ min: 1, max: 100, trim: true }),
+    sourcePath: id,
+    sourceKind: lit("single_txt", "folder"),
+    grade: opt(grade),
+  }),
   "fanqie.work.settings": obj({
     work: id,
     grade: opt(grade),
@@ -104,6 +111,8 @@ export const COMMAND_INPUTS: { [K in WorkbenchCommand]: Parser<CommandInput<K>> 
     requireEditorPass: opt(bool),
     targetWords: opt(int({ min: 500, max: 20000 })),
     previousTextMode: opt(lit("auto", "full", "tail")),
+    publishedThrough: opt(str({ max: 60 })),
+    dailyTargetChars: opt(num({ min: 500, max: 50000 })),
   }),
   "fanqie.book.export": obj({ work: id, format: lit("txt", "docx"), finalOnly: bool, outPath: id }),
   "fanqie.bible.get": obj({ work: id }),
@@ -111,6 +120,12 @@ export const COMMAND_INPUTS: { [K in WorkbenchCommand]: Parser<CommandInput<K>> 
   "fanqie.bible.propose": obj({ work: id, ops: arr(bibleOp, { max: 200 }), from: provenance }),
   "fanqie.bible.decide": obj({ work: id, id, decision }),
   "fanqie.bible.audit": obj({ work: id, upTo: int({ min: 1 }) }),
+  "fanqie.bible.trace": obj({
+    work: id,
+    query: str({ min: 1, max: 120 }),
+    includeBody: opt(bool),
+    maxBodyHits: opt(int({ min: 1, max: 100 })),
+  }),
   "fanqie.reference.bind": obj({
     work: id,
     sourceId: id,

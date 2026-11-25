@@ -152,6 +152,30 @@
   animation: zz-breathe 2.2s var(--zz-ease) infinite;
 }
 
+.zz-studio-dash__buffer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--zz-space-2);
+  margin-top: var(--zz-space-2);
+  padding-top: var(--zz-space-2);
+  border-top: 1px solid var(--zz-border);
+  font-size: var(--zz-text-caption);
+}
+
+.zz-studio-dash__buffer-metric {
+  color: var(--zz-text-2);
+  font-weight: var(--zz-weight-strong);
+}
+
+.zz-studio-dash__buffer-warn {
+  padding: 2px var(--zz-space-2);
+  border-radius: var(--zz-radius-sm);
+  background: color-mix(in srgb, var(--zz-warn) 12%, transparent);
+  color: var(--zz-warn);
+  font-weight: var(--zz-weight-strong);
+}
+
 @media (max-width: 960px) {
   .zz-studio-dash__grid {
     grid-template-columns: minmax(0, 1fr);

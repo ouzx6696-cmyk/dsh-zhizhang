@@ -83,6 +83,8 @@ export async function updateWorkSettings(
     pinned?: boolean;
     archived?: boolean;
     targetTotalWords?: number;
+    publishedThrough?: string;
+    dailyTargetChars?: number;
     synopsis?: string;
   },
   lock: LockService = createLockService(systemClock),
@@ -97,6 +99,8 @@ export async function updateWorkSettings(
       ...(patch.pinned !== undefined ? { pinned: patch.pinned } : {}),
       ...(patch.archived !== undefined ? { archived: patch.archived } : {}),
       ...(patch.targetTotalWords !== undefined ? { targetTotalWords: patch.targetTotalWords } : {}),
+      ...(patch.publishedThrough !== undefined ? { publishedThrough: patch.publishedThrough } : {}),
+      ...(patch.dailyTargetChars !== undefined ? { dailyTargetChars: patch.dailyTargetChars } : {}),
       ...(patch.synopsis !== undefined ? { synopsis: patch.synopsis } : {}),
       updatedAt: systemClock.iso(),
       settings: {

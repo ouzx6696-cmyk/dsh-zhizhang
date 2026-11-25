@@ -96,6 +96,24 @@ export const DESKTOP_STUDIO_COPY = {
     learningPromoted: "已晋升规则",
     learningObserving: "观察中",
     askAssistantAudit: "让助手分析巡检问题",
+    tabTrace: "实体时间线",
+    tracePlaceholder: "输入人物、物件、地点或别名，串联全书轨迹…",
+    traceIncludeBody: "含正文回查",
+    traceSubmit: "串联追踪",
+    traceEmpty: "输入关键词后点击串联追踪，即可按章节顺序回溯实体轨迹。",
+    traceNoHits: "未找到与该检索词匹配的设定或章节记录。",
+    traceGlobal: "全局设定",
+    traceChapter: (n: number) => `第 ${n} 章`,
+    traceTruncated: "正文命中较多，仅展示前 30 处摘录。",
+    traceMatchedTerms: (terms: string[]) => `扩展检索词：${terms.join(" / ")}`,
+    traceSource: {
+      entity: "实体建档",
+      chapter: "章节记录",
+      state: "状态变化",
+      knowledge: "知情变化",
+      thread: "伏笔推进",
+      body: "正文摘录",
+    },
   },
   warehouse: {
     title: "写作技法仓库",
@@ -205,6 +223,12 @@ export const DESKTOP_STUDIO_COPY = {
       failed: "需处理",
       pending: "待执行",
     },
+    bufferSummary: (count: number, chars: number, days: number | null) =>
+      days !== null
+        ? `连续可发存稿：${count} 章 / ${chars.toLocaleString("zh-CN")} 字（约 ${days} 天）`
+        : `连续可发存稿：${count} 章 / ${chars.toLocaleString("zh-CN")} 字`,
+    bufferPostGapWarn: (chapters: string[]) =>
+      `断档后另有 ${chapters.length} 章已定稿（${chapters.slice(0, 4).join("、")}${chapters.length > 4 ? "…" : ""}），请先补齐中间章节`,
   },
   techniqueEditor: {
     title: "交互式技法逻辑编辑器",

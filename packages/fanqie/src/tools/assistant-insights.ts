@@ -5,9 +5,10 @@
 import path from "node:path";
 import { systemClock } from "@zhizhang/core/clock";
 import { createLockService } from "@zhizhang/core/lock";
-import { desc, obj, str, type Infer } from "@zhizhang/core/schema";
+import { bool, desc, int, obj, opt, str, type Infer } from "@zhizhang/core/schema";
 import { defineTool, type ToolCtx, type ToolDefinition } from "@zhizhang/core/tool";
 import { createBibleStore } from "../bible/store.js";
+import { traceEntityTimeline } from "../bible/trace.js";
 import { readCandidate } from "../commands/candidate.js";
 import { readChapter } from "../commands/chapter.js";
 import {
@@ -21,6 +22,11 @@ const NoArgs = obj({});
 const DiffCandidateArgs = obj({
   chapterId: desc(str({ min: 1 }), "章节 id"),
   candidateId: desc(str({ min: 1 }), "候选 id"),
+});
+const TraceEntityArgs = obj({
+  query: desc(str({ min: 1 }), "人物、物件、地点、势力或关键词"),
+  includeBody: desc(opt(bool), "是否回查已写章节正文片段，缺省 false"),
+  maxBodyHits: desc(opt(int({ min: 1, max: 100 })), "正文回查最大命中条数，缺省 30"),
 });
 
 export function fanqieInsightTools(work: string): ToolDefinition[] {
@@ -125,5 +131,25 @@ export function fanqieInsightTools(work: string): ToolDefinition[] {
     },
   });
 
-  return [listLibraryCardsTool, readLearningTool, diffCandidateTool];
+  const traceEntityTool = defineTool({
+    name: "fanqie_trace_entity",
+    description:
+      "按人物、物件、地点或关键词跨全书串联时间线（实体、状态、知情、伏笔、章节记录与可选正文摘录）。",
+    params: TraceEntityArgs,
+    roles: ["assistant"],
+    readonly: true,
+    async run(args: Infer<typeof TraceEntityArgs>, ctx: ToolCtx) {
+      return traceEntityTimeline(
+        work,
+        args.query,
+        {
+          includeBody: args.includeBody,
+          maxBodyHits: args.maxBodyHits,
+        },
+        lockFor(ctx),
+      );
+    },
+  });
+
+  return [listLibraryCardsTool, readLearningTool, diffCandidateTool, traceEntityTool];
 }

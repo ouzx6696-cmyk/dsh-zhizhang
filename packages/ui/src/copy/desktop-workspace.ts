@@ -62,6 +62,13 @@ export const DESKTOP_WORKSPACE_COPY = {
     pickChapter: "选择章节",
     note: "附言",
     notePlaceholder: "给本次任务的要求（可选）",
+    reviseModeLabel: "修稿模式",
+    reviseModes: {
+      revise: "问题修订",
+      deai: "去 AI 腔",
+      polish: "轻润色",
+    },
+    continueFromExisting: "接当前半章断点续写（保留已有前缀）",
     start: "发起流水线",
     progress: "阶段进度",
     stages: "已完成阶段",

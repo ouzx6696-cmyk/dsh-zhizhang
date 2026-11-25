@@ -1,5 +1,20 @@
 # 更新日志
 
+## 2.3.0（番茄长篇方法论升级、轻量单点入口、跨书回查、存稿 KPI、旧书接管与多分支演进）
+
+### 番茄长篇方法论与单点轻量创作（T1 / T2）
+- **默认方法论深度升级**：升级 `packages/fanqie/profiles/default/` 下的 `prose.md`、`edit.md`、`examples-write.md`、`profile.json`、`stage-map.json` 并新增 `genres.md`（六大热门题材节奏基准表）；补齐一阶/二阶 AI 腔诊断规范、番茄快爽与打脸文五项专属审改、双稿 A/B 盲评口径与移动端实操示范，同步刷新 `assets/manifest.json` 校验哈希。
+- **专项去 AI 腔 / 轻润色与半章断点续写**：`fanqie.revise` 流水线新增 `mode: "revise" | "deai" | "polish"`，专项模式无需手填 `issues` 即可单轮精修并过门禁、产物继续落入候选稿待作者对照裁决（绝不直改正文）；`fanqie.chapter` 新增 `continueFromExisting` 半章断点续写，提取已写正文末 500 字锚点并保留原前缀无缝续写；同步透传至助手工具与 `WorkflowStartForm`。
+
+### 跨书回查、连载存稿 KPI 与旧书接管（T3 / T4 / T5）
+- **跨全书单实体时间线回查**：新增 `traceEntityTimeline`、`fanqie.bible.trace` 命令与 `readonly: true` 助手工具 `fanqie_trace_entity`，支持按实体别名自动展开，按“全局优先 + 章节升序”串联实体/章节/状态/知情/伏笔与可选正文摘录（含 `maxBodyHits` 截断保护），并在设定中心新增「时间线回查」页签与点击直跳章节。
+- **连载存稿缓冲 KPI**：`WorkMetaSchema` 新增可选 `publishedThrough` 与 `dailyTargetChars`，`computeSerialBuffer` 实时计算连续已定稿章数、连续存稿字数、按日更字数折算可撑天数与缺口后孤立定稿提醒；通过 `fanqie.snapshot` 透传至 `StudioDashboard`，缺口提醒严格使用 `--zz-warn` 琥珀色，不侵占 `--zz-decide`。
+- **旧书大稿零模型批量导入**：新增 `importLegacyWork` 与 `fanqie.work.importLegacy`，支持单 TXT 按中文章号/阿拉伯数字自动切章与多文件目录自然序导入，内置 UTF-8 + GB18030 回退解码、`resolveInsideAsync` 路径沙箱、`LockService` + `commitIntent` 原子落盘与 `sources/legacy-import/` 原稿备份；在 `NewTargetDialog` 新增「导入旧书接管」入口。
+
+### 多分支衍生谱系与设定集三分类沉淀（T6）
+- **多分支候选谱系追踪**：`fanqie.chapter` 支持 `previousCandidateId` 承接前章未定稿候选，自动在 `.meta.json` 写入 `derivedFrom`；`acceptCandidate` 时自动将匹配分支升级为 `final` 并检测返回未匹配下游过时候选清单（`staleDownstreamCandidates`），绝不静默删改作者草稿。
+- **设定集三分类沉淀**：`bible/pending.json` 与 `ledger` 流水线支持 `settlement` 三分类标注（`resolve_short_term` 短期已解决自动为旧状态封口、`settle_long_term` 长期事实确认沉淀、`update_profile` 人物设定更新合并别名与锁定项）；全仓包版本与 `APP_VERSION` 统一升至 `2.3.0`（保持 `FORMAT_VERSION = "zhizhang/2.0"` 不变）。
+
 ## 2.2.0（灵感源全量对齐、柔和纸面 C2 整合、零超行清理与 CI 加固）
 
 ### 柔和纸面 C2 视觉体系与交互重构

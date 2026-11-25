@@ -10,7 +10,7 @@ import { readTextIfExists } from "@zhizhang/core/fs";
 import { createLockService } from "@zhizhang/core/lock";
 import { loadProfile, methodFor } from "@zhizhang/core/methods";
 import type { ModeTarget } from "@zhizhang/core/pipeline";
-import { arr, desc, int, lit, obj, opt, str, type Infer } from "@zhizhang/core/schema";
+import { arr, bool, desc, int, lit, obj, opt, str, type Infer } from "@zhizhang/core/schema";
 import {
   assertWorkspaceWritable,
   defineTool,
@@ -59,6 +59,8 @@ const StartChapterArgs = obj({
   chapterId: desc(str({ min: 1 }), "要写的章节 id"),
   note: desc(opt(str({ max: 2000 })), "作者的写作要求"),
   grade: desc(opt(lit("economy", "standard", "premium")), "写作档位"),
+  continueFromExisting: desc(opt(bool), "基于本章已有正文从断点续写后半段"),
+  previousCandidateId: desc(opt(str({ min: 1 })), "指定上一章某份候选稿作为续写上下文"),
   brief: desc(
     opt(WritingBriefSchema),
     "结构化写作任务单（目标/确认节拍/必须保留句/规避项/参考卡）",
@@ -70,7 +72,11 @@ const StartReviewArgs = obj({
 });
 const StartReviseArgs = obj({
   chapterId: desc(str({ min: 1 }), "章节 id"),
-  note: desc(str({ min: 1, max: 2000 }), "修改要求"),
+  mode: desc(
+    opt(lit("revise", "deai", "polish")),
+    "修稿模式：revise(问题修订) / deai(去AI腔) / polish(轻润色)",
+  ),
+  note: desc(opt(str({ max: 2000 })), "修改要求（deai/polish 模式可省略）"),
   issues: opt(
     arr(
       obj({
@@ -265,7 +271,7 @@ export function fanqieAssistantTools(role: Role, target: ModeTarget): ToolDefini
 
   const startChapterTool = defineTool({
     name: "fanqie_start_chapter",
-    description: "发起章节流水线（起稿→择优→连续性检查→审读→修订），结果交付为候选稿，不改正文。",
+    description: "发起章节流水线（支持全新起稿或半章断点续写），结果交付为候选稿，不改正文。",
     params: StartChapterArgs,
     roles: ["assistant"],
     async run(args: Infer<typeof StartChapterArgs>, ctx: ToolCtx) {
@@ -274,6 +280,8 @@ export function fanqieAssistantTools(role: Role, target: ModeTarget): ToolDefini
         chapterId: args.chapterId,
         ...(args.note ? { note: args.note } : {}),
         ...(args.grade ? { grade: args.grade } : {}),
+        ...(args.continueFromExisting ? { continueFromExisting: true } : {}),
+        ...(args.previousCandidateId ? { previousCandidateId: args.previousCandidateId } : {}),
         ...(args.brief ? { brief: args.brief } : {}),
       };
       return requireHost(ctx).startPipeline("fanqie.chapter", request);
@@ -296,14 +304,21 @@ export function fanqieAssistantTools(role: Role, target: ModeTarget): ToolDefini
 
   const startReviseTool = defineTool({
     name: "fanqie_start_revise",
-    description: "按作者意见发起定向修订流水线；修订稿交付为候选稿，由作者对照采纳。",
+    description: "发起定向修订、去 AI 腔或轻润色流水线；结果交付为候选稿，由作者对照采纳。",
     params: StartReviseArgs,
     roles: ["assistant"],
     async run(args: Infer<typeof StartReviseArgs>, ctx: ToolCtx) {
       assertWorkspaceWritable(ctx.readonly);
+      const mode = args.mode ?? "revise";
+      if (mode === "revise" && !args.note?.trim() && !(args.issues && args.issues.length > 0)) {
+        throw new AppError("input.invalid", "问题修订模式需提供修改要求或问题列表", {
+          field: "note",
+        });
+      }
       return requireHost(ctx).startPipeline("fanqie.revise", {
         chapterId: args.chapterId,
-        note: args.note,
+        ...(args.mode ? { mode: args.mode } : {}),
+        ...(args.note ? { note: args.note } : {}),
         ...(args.issues ? { issues: args.issues } : {}),
       });
     },

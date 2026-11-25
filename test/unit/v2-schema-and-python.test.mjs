@@ -17,8 +17,8 @@ const { resolvePreviousTextMode } = await importTs(
   "packages/fanqie/src/pipelines/chapter/rules.ts",
 );
 
-test("v2.0 版本与磁盘格式常量一致", () => {
-  assert.equal(APP_VERSION, "2.0.0");
+test("v2.3 版本与 zhizhang/2.0 磁盘格式常量一致", () => {
+  assert.equal(APP_VERSION, "2.3.0");
   assert.equal(FORMAT_VERSION, "zhizhang/2.0");
 });
 

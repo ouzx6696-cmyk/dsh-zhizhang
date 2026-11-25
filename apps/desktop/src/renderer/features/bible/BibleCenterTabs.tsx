@@ -1,8 +1,13 @@
-import React from "react";
-import { ShieldAlert } from "lucide-react";
+import React, { useState } from "react";
+import { ArrowUpRight, Search, ShieldAlert } from "lucide-react";
 import { DESKTOP_COPY } from "@zhizhang/ui/copy";
 import { Button, Empty } from "@zhizhang/ui/primitives";
-import type { AuditFinding, Bible, KnowledgeRow } from "@zhizhang/fanqie/bible";
+import type {
+  AuditFinding,
+  Bible,
+  EntityTimelineResult,
+  KnowledgeRow,
+} from "@zhizhang/fanqie/bible";
 import type { LearningView } from "../../../shared/views";
 import { opSummary } from "../workflow/BiblePane";
 
@@ -165,6 +170,106 @@ export function BibleLearningTab({ learning }: { learning: LearningView | null }
         </>
       ) : (
         <Empty title={C.bibleCenter.emptyLearning} />
+      )}
+    </div>
+  );
+}
+
+export function BibleTraceTab({
+  result,
+  busy,
+  onTrace,
+  onJumpChapter,
+}: {
+  result: EntityTimelineResult | null;
+  busy: boolean;
+  onTrace: (query: string, includeBody: boolean) => void;
+  onJumpChapter: (chapter: number, chapterId?: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [includeBody, setIncludeBody] = useState(false);
+
+  return (
+    <div className="zz-bible-center__body" data-testid="bible-trace-panel">
+      <form
+        className="zz-hub__toolbar"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (query.trim()) onTrace(query.trim(), includeBody);
+        }}
+      >
+        <div className="zz-hub__search">
+          <Search size={14} aria-hidden="true" />
+          <input
+            type="search"
+            data-testid="bible-trace-input"
+            value={query}
+            placeholder={C.bibleCenter.tracePlaceholder}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
+        <label className="zz-row">
+          <input
+            type="checkbox"
+            data-testid="bible-trace-body"
+            checked={includeBody}
+            onChange={(e) => setIncludeBody(e.target.checked)}
+          />
+          <span>{C.bibleCenter.traceIncludeBody}</span>
+        </label>
+        <Button
+          type="submit"
+          size="sm"
+          variant="primary"
+          data-testid="bible-trace-submit"
+          loading={busy}
+          disabled={!query.trim()}
+        >
+          {C.bibleCenter.traceSubmit}
+        </Button>
+      </form>
+
+      {result ? (
+        result.events.length ? (
+          <>
+            <p className="zz-muted">
+              {C.bibleCenter.traceMatchedTerms(result.terms)}
+              {result.bodyHitsTruncated ? ` · ${C.bibleCenter.traceTruncated}` : ""}
+            </p>
+            <ul className="zz-list" data-testid="bible-trace-results">
+              {result.events.map((ev, idx) => (
+                <li key={`${ev.source}-${ev.chapter ?? "global"}-${idx}`}>
+                  <span className="zz-row">
+                    <span className="zz-meta-tag">
+                      {ev.chapter === null
+                        ? C.bibleCenter.traceGlobal
+                        : C.bibleCenter.traceChapter(ev.chapter)}
+                    </span>
+                    <span className="zz-meta-tag">{C.bibleCenter.traceSource[ev.source]}</span>
+                    {ev.chapter !== null ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          if (ev.chapter !== null) onJumpChapter(ev.chapter, ev.chapterId);
+                        }}
+                      >
+                        {C.bibleCenter.jumpChapter}
+                        <ArrowUpRight size={13} aria-hidden="true" />
+                      </Button>
+                    ) : null}
+                  </span>
+                  <span>{ev.summary}</span>
+                  {ev.quote ? <q className="zz-muted">{ev.quote}</q> : null}
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <Empty title={C.bibleCenter.traceNoHits} />
+        )
+      ) : (
+        <Empty title={C.bibleCenter.traceEmpty} />
       )}
     </div>
   );

@@ -2,30 +2,51 @@ import React, { useState } from "react";
 import { COPY, DESKTOP_COPY as C } from "@zhizhang/ui/copy";
 import { Button, Dialog, Segmented } from "@zhizhang/ui/primitives";
 import type { EngineSettings } from "../../../shared/settings";
-import { createArticle, createWork } from "../../state/controller";
+import { createArticle, createWork, importLegacyWork } from "../../state/controller";
 import { desktopStore, useDesktop, type CreateKind } from "../../state/store";
 import { notifyError } from "../../format";
 import { TextField } from "../workspace/TextField";
 
 type Grade = EngineSettings["grade"];
+type FanqieCreateMode = "new" | "import";
+type LegacySourceKind = "single_txt" | "folder";
 
-/** 新作品 / 新文章：本地建目录（fanqie.work.create / toutiao.article.create），不经模型。 */
+const GRADES: readonly Grade[] = ["economy", "standard", "premium"];
+
+/** 新作品 / 导入旧书接管 / 新文章：本地建目录，不经模型。 */
 export function NewTargetDialog({ kind }: { kind: CreateKind }) {
   const defaultGrade = useDesktop((s) => s.settings?.engine.grade ?? "standard");
+  const [mode, setMode] = useState<FanqieCreateMode>("new");
   const [title, setTitle] = useState("");
   const [premise, setPremise] = useState("");
+  const [sourceKind, setSourceKind] = useState<LegacySourceKind>("single_txt");
+  const [sourcePath, setSourcePath] = useState("");
   const [grade, setGrade] = useState<Grade>(defaultGrade);
   const [genre, setGenre] = useState<string>(C.create.genreDefault);
   const [driver, setDriver] = useState<string>(C.create.driverDefault);
   const [busy, setBusy] = useState(false);
   const close = () => desktopStore.set({ creating: null });
   const fanqie = kind === "fanqie";
-  const valid = fanqie ? title.trim() !== "" : genre.trim() !== "" && driver.trim() !== "";
+  const valid = fanqie
+    ? mode === "import"
+      ? title.trim() !== "" && sourcePath.trim() !== ""
+      : title.trim() !== ""
+    : genre.trim() !== "" && driver.trim() !== "";
   const submit = async () => {
     setBusy(true);
     try {
-      if (fanqie) await createWork({ title: title.trim(), premise, grade });
-      else await createArticle({ genre: genre.trim(), driver: driver.trim() });
+      if (fanqie && mode === "import") {
+        await importLegacyWork({
+          title: title.trim(),
+          sourcePath: sourcePath.trim(),
+          sourceKind,
+          grade,
+        });
+      } else if (fanqie) {
+        await createWork({ title: title.trim(), premise, grade });
+      } else {
+        await createArticle({ genre: genre.trim(), driver: driver.trim() });
+      }
     } catch (error) {
       notifyError(error);
     } finally {
@@ -34,7 +55,9 @@ export function NewTargetDialog({ kind }: { kind: CreateKind }) {
   };
   return (
     <Dialog
-      title={fanqie ? C.create.newWork : C.create.newArticle}
+      title={
+        fanqie ? (mode === "import" ? C.create.modeImport : C.create.newWork) : C.create.newArticle
+      }
       closeLabel={COPY.close}
       testId={fanqie ? "new-work-dialog" : "new-article-dialog"}
       onClose={close}
@@ -48,7 +71,7 @@ export function NewTargetDialog({ kind }: { kind: CreateKind }) {
             data-testid={fanqie ? "new-work-submit" : "new-article-submit"}
             onClick={() => void submit()}
           >
-            {C.create.submit}
+            {fanqie && mode === "import" ? C.create.importSubmit : C.create.submit}
           </Button>
         </>
       }
@@ -61,6 +84,16 @@ export function NewTargetDialog({ kind }: { kind: CreateKind }) {
             if (valid) void submit();
           }}
         >
+          <Segmented<FanqieCreateMode>
+            label={C.create.newWork}
+            testId="new-work-mode"
+            value={mode}
+            options={[
+              { value: "new", label: C.create.modeNew },
+              { value: "import", label: C.create.modeImport },
+            ]}
+            onChange={setMode}
+          />
           <TextField
             label={C.create.title}
             value={title}
@@ -69,19 +102,42 @@ export function NewTargetDialog({ kind }: { kind: CreateKind }) {
             required
             autoFocus
           />
-          <TextField
-            label={C.create.premise}
-            value={premise}
-            onChange={setPremise}
-            testId="new-work-premise"
-            multiline
-            placeholder={C.create.premiseHint}
-          />
+          {mode === "import" ? (
+            <>
+              <Segmented<LegacySourceKind>
+                label={C.create.importSourceKind}
+                testId="import-source-kind"
+                value={sourceKind}
+                options={[
+                  { value: "single_txt", label: C.create.importSingleTxt },
+                  { value: "folder", label: C.create.importFolder },
+                ]}
+                onChange={setSourceKind}
+              />
+              <TextField
+                label={C.create.importSourcePath}
+                value={sourcePath}
+                onChange={setSourcePath}
+                testId="import-source-path"
+                required
+                placeholder={C.create.importSourcePlaceholder}
+              />
+            </>
+          ) : (
+            <TextField
+              label={C.create.premise}
+              value={premise}
+              onChange={setPremise}
+              testId="new-work-premise"
+              multiline
+              placeholder={C.create.premiseHint}
+            />
+          )}
           <Segmented<Grade>
             label={C.create.grade}
             testId="new-work-grade"
             value={grade}
-            options={(["economy", "standard", "premium"] as const).map((g) => ({
+            options={GRADES.map((g) => ({
               value: g,
               label: C.settings.grade[g],
             }))}

@@ -57,11 +57,11 @@
       "mode": "fanqie",
       "kind": "profile",
       "version": null,
-      "files": 19,
-      "bytes": 119092,
-      "loadable": 17,
+      "files": 20,
+      "bytes": 140044,
+      "loadable": 18,
       "byKind": {
-        "method": 13,
+        "method": 14,
         "example": 2,
         "meta": 2,
         "template": 2
@@ -1868,8 +1868,8 @@
       "kind": "method",
       "origin": "local",
       "path": "packages/fanqie/profiles/default/edit.md",
-      "bytes": 5657,
-      "sha256": "a81a2a82aad6af770d15361439b8831f944a01c2600bba28eae0c81b642bd97e"
+      "bytes": 7414,
+      "sha256": "9b357b8d88d4f9832318c47c2174041249dbac1fe41d32a0155eff2d4a375de8"
     },
     {
       "source": "fanqie-default-profile",
@@ -1888,8 +1888,18 @@
       "kind": "example",
       "origin": "local",
       "path": "packages/fanqie/profiles/default/examples-write.md",
-      "bytes": 6301,
-      "sha256": "3945a12b12575b62f3af346c37c1e1e3a7dfb38a0573c7a07a7a5b17e70906f4"
+      "bytes": 9760,
+      "sha256": "cfb3597b0cc2ba197a333b9ce2ef42eddef6efc4ad5e5a950c51c5929ce44c9a"
+    },
+    {
+      "source": "fanqie-default-profile",
+      "id": "genres",
+      "tool": "fanqie_read_method",
+      "kind": "method",
+      "origin": "local",
+      "path": "packages/fanqie/profiles/default/genres.md",
+      "bytes": 11038,
+      "sha256": "db7f7081ee90b77a7b5a614806016950567a32cc709359de09beff78da4811b0"
     },
     {
       "source": "fanqie-default-profile",
@@ -1956,8 +1966,8 @@
       "kind": "meta",
       "origin": "local",
       "path": "packages/fanqie/profiles/default/profile.json",
-      "bytes": 9259,
-      "sha256": "fdb3eab7e8aacc25c094df268cb4bfa6b7aa69da3138cd9e6a3aeb71fc505c31"
+      "bytes": 9357,
+      "sha256": "2a4ec89832c16afb3a4ea251c1cd9d67befd3f27bd948c8047b7e312ba657b0f"
     },
     {
       "source": "fanqie-default-profile",
@@ -1966,8 +1976,8 @@
       "kind": "method",
       "origin": "local",
       "path": "packages/fanqie/profiles/default/prose.md",
-      "bytes": 6357,
-      "sha256": "1aa4078a51e535d30cf92d7a14afaa522139426bc4afd9372e4e1ca2572861f7"
+      "bytes": 10009,
+      "sha256": "afbd0514c5a5dd59d0c878d5fcdf9e901028cf75a5407c7d3469af13e44dd960"
     },
     {
       "source": "fanqie-default-profile",
@@ -2004,8 +2014,8 @@
       "kind": "meta",
       "origin": "local",
       "path": "packages/fanqie/profiles/default/stage-map.json",
-      "bytes": 1164,
-      "sha256": "db14086b8adb039e2695f6adbcebf809e58663d22c26837b599d0ff61f986503"
+      "bytes": 2112,
+      "sha256": "9ee88f66016999a3fd07891e8adb0cfa1ce87c0563d3748d4a80d19e914599e3"
     },
     {
       "source": "fanqie-default-profile",

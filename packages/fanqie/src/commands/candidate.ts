@@ -9,14 +9,15 @@ import {
   readTextIfExists,
   sha256,
 } from "@zhizhang/core/fs";
-import { bool, int, obj, str } from "@zhizhang/core/schema";
+import { bool, int, obj, opt, str } from "@zhizhang/core/schema";
 import { createLockService, type LockService } from "@zhizhang/core/lock";
 import { serializeChapterMarkdown, type ChapterDocument } from "../domain/chapter.js";
+import { countChineseWords, parsePlainDraft } from "../pipelines/chapter/rules.js";
 import {
-  countChineseWords,
-  parsePlainDraft,
+  DerivedFromSchema,
   ReviewResultSchema,
-} from "../pipelines/chapter/index.js";
+  type DerivedFrom,
+} from "../pipelines/chapter/schemas.js";
 import { readChapter } from "./chapter.js";
 
 export interface CandidateView {
@@ -26,7 +27,19 @@ export interface CandidateView {
   wordCount: number;
   accepted: boolean;
   rejected: boolean;
+  derivedFrom?: DerivedFrom;
 }
+
+export interface StaleDownstreamCandidate {
+  chapterId: string;
+  candidateId: string;
+  derivedFromChapterId: string;
+  derivedFromCandidateId: string;
+}
+
+export type AcceptCandidateResult = ChapterDocument & {
+  staleDownstreamCandidates: StaleDownstreamCandidate[];
+};
 
 const CandidateReview = obj(
   {
@@ -34,9 +47,83 @@ const CandidateReview = obj(
     editorPass: bool,
     editorRejections: int({ min: 0 }),
     review: ReviewResultSchema,
+    derivedFrom: opt(DerivedFromSchema),
   },
   { strict: false },
 );
+
+const DerivedFromMetaSchema = obj({ derivedFrom: opt(DerivedFromSchema) }, { strict: false });
+
+function isEnoent(err: unknown): boolean {
+  return typeof err === "object" && err !== null && "code" in err && err.code === "ENOENT";
+}
+
+async function reconcileDownstreamCandidates(
+  workPath: string,
+  acceptedChapterId: string,
+  acceptedCandidateId: string,
+): Promise<StaleDownstreamCandidate[]> {
+  const root = path.join(workPath, "candidates");
+  let entries: Array<{ name: string; isDirectory(): boolean }>;
+  try {
+    entries = await fs.readdir(root, { withFileTypes: true });
+  } catch (err) {
+    if (isEnoent(err)) return [];
+    throw new AppError("storage.io", `无法读取候选目录：${root}`, { root });
+  }
+
+  const emptyFiles: string[] = [];
+  const stale: StaleDownstreamCandidate[] = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory() || entry.name === acceptedChapterId) continue;
+    const cid = entry.name;
+    const dir = resolveResourcePath(workPath, "candidates", cid);
+    const files = await fs.readdir(dir).catch(() => emptyFiles);
+    for (const file of files) {
+      if (!file.endsWith(".meta.json")) continue;
+      const candidateId = file.slice(0, -".meta.json".length);
+      const metaPath = resolveResourcePath(workPath, "candidates", cid, file);
+      const raw = await readTextIfExists(metaPath);
+      if (!raw) continue;
+      let parsedUnknown: unknown;
+      try {
+        parsedUnknown = JSON.parse(raw);
+      } catch {
+        continue;
+      }
+      if (
+        typeof parsedUnknown !== "object" ||
+        parsedUnknown === null ||
+        Array.isArray(parsedUnknown)
+      )
+        continue;
+      let parsedMeta: { derivedFrom?: DerivedFrom };
+      try {
+        parsedMeta = DerivedFromMetaSchema(parsedUnknown, metaPath);
+      } catch {
+        continue;
+      }
+      const derived = parsedMeta.derivedFrom;
+      if (!derived || derived.kind !== "candidate" || derived.chapterId !== acceptedChapterId) {
+        continue;
+      }
+      if (derived.candidateId === acceptedCandidateId) {
+        const nextMeta = Object.assign({}, parsedUnknown, {
+          derivedFrom: { kind: "final", chapterId: acceptedChapterId },
+        });
+        await atomicWrite(metaPath, JSON.stringify(nextMeta, null, 2));
+      } else if (derived.candidateId) {
+        stale.push({
+          chapterId: cid,
+          candidateId,
+          derivedFromChapterId: acceptedChapterId,
+          derivedFromCandidateId: derived.candidateId,
+        });
+      }
+    }
+  }
+  return stale;
+}
 
 export async function listCandidates(
   workPath: string,
@@ -82,6 +169,17 @@ export async function listCandidates(
         (await readTextIfExists(
           resolveResourcePath(workPath, "candidates", cid, `${candId}.rejected.json`),
         )) !== undefined;
+      const meta = await readJson(
+        resolveResourcePath(workPath, "candidates", cid, `${candId}.meta.json`),
+        DerivedFromMetaSchema,
+      ).catch(() => undefined);
+      const normalizedDerived = meta?.derivedFrom
+        ? {
+            kind: meta.derivedFrom.kind,
+            chapterId: meta.derivedFrom.chapterId,
+            ...(meta.derivedFrom.candidateId ? { candidateId: meta.derivedFrom.candidateId } : {}),
+          }
+        : undefined;
       out.push({
         id: candId,
         chapterId: cid,
@@ -89,6 +187,7 @@ export async function listCandidates(
         wordCount: countChineseWords(parsed.body),
         accepted,
         rejected,
+        ...(normalizedDerived ? { derivedFrom: normalizedDerived } : {}),
       });
     }
   }
@@ -127,7 +226,7 @@ export async function acceptCandidate(
     expectedRevision?: string;
   },
   lock: LockService = createLockService(systemClock),
-): Promise<ChapterDocument> {
+): Promise<AcceptCandidateResult> {
   return lock.write({ kind: "work", path: workPath }, async () => {
     const cand = await readCandidate(workPath, input.chapterId, input.candidateId);
     const prev = await readChapter(workPath, input.chapterId).catch(() => undefined);
@@ -198,7 +297,12 @@ export async function acceptCandidate(
       ),
       JSON.stringify({ acceptedAt: systemClock.iso(), revision: doc.meta.revision }, null, 2),
     );
-    return doc;
+    const staleDownstreamCandidates = await reconcileDownstreamCandidates(
+      workPath,
+      input.chapterId,
+      input.candidateId,
+    );
+    return { ...doc, staleDownstreamCandidates };
   });
 }
 

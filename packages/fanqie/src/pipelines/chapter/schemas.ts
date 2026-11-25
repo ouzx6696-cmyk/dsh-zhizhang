@@ -1,4 +1,4 @@
-import { arr, int, lit, num, obj, opt, str, type Infer } from "@zhizhang/core/schema";
+import { arr, bool, int, lit, num, obj, opt, str, type Infer } from "@zhizhang/core/schema";
 
 export const WritingBriefSchema = obj({
   goal: opt(str({ max: 600 })),
@@ -10,6 +10,21 @@ export const WritingBriefSchema = obj({
 
 export type WritingBrief = Infer<typeof WritingBriefSchema>;
 
+export const DerivedFromSchema = obj(
+  {
+    kind: lit("final", "candidate"),
+    chapterId: str({ min: 1 }),
+    candidateId: opt(str({ min: 1 })),
+  },
+  { strict: false },
+);
+
+export interface DerivedFrom {
+  kind: "final" | "candidate";
+  chapterId: string;
+  candidateId?: string;
+}
+
 export const ChapterPipelineReq = obj({
   chapterId: str({ min: 1 }),
   position: opt(str()),
@@ -18,6 +33,8 @@ export const ChapterPipelineReq = obj({
   note: opt(str()),
   brief: opt(WritingBriefSchema),
   targetWords: opt(int({ min: 500, max: 20000 })),
+  continueFromExisting: opt(bool),
+  previousCandidateId: opt(str({ min: 1 })),
 });
 
 export type ChapterReq = Infer<typeof ChapterPipelineReq>;
@@ -76,6 +93,7 @@ export interface ChapterRunResult {
   review: ReviewResult;
   editorPass: boolean;
   editorRejections: number;
+  derivedFrom?: DerivedFrom;
 }
 
 export interface ChapterPipelineState extends Record<string, unknown> {
@@ -86,6 +104,8 @@ export interface ChapterPipelineState extends Record<string, unknown> {
   topTwo?: [DraftOutput, DraftOutput];
   currentDraft?: DraftOutput;
   pendingIssues?: ReviewIssue[];
+  appliedCardIds?: string[];
+  derivedFrom?: DerivedFrom;
 }
 
 export const BeatsSchema = obj({

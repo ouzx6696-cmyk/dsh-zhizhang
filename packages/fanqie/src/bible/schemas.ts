@@ -172,6 +172,8 @@ const BibleOpSchema: Parser<BibleOp> = (value, at = "$") => {
   );
 };
 
+const SettlementKindSchema = lit("resolve_short_term", "settle_long_term", "update_profile");
+
 export const PendingFileSchema: Parser<PendingItem[]> = arr(
   obj(
     {
@@ -181,6 +183,7 @@ export const PendingFileSchema: Parser<PendingItem[]> = arr(
       located: bool,
       run: opt(str()),
       conflictsWith: opt(str()),
+      settlement: opt(SettlementKindSchema),
     },
     { strict: false },
   ),

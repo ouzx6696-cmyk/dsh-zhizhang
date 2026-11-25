@@ -10,6 +10,8 @@ import { kindLabel } from "./workflow-model";
 
 type StartKind =
   "fanqie.chapter" | "fanqie.review" | "fanqie.revise" | "fanqie.health" | "toutiao.article";
+type ReviseMode = "revise" | "deai" | "polish";
+const REVISE_MODES: ReviseMode[] = ["revise", "deai", "polish"];
 
 const FANQIE_KINDS: StartKind[] = [
   "fanqie.chapter",
@@ -35,6 +37,8 @@ export function WorkflowStartForm({
   );
   const [chapter, setChapter] = useState(preset || focusChapter || chapters[0]?.id || "");
   const [note, setNote] = useState("");
+  const [reviseMode, setReviseMode] = useState<ReviseMode>("revise");
+  const [continueFromExisting, setContinueFromExisting] = useState(false);
   const [article, setArticle] = useState<{ genre: string; driver: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -72,6 +76,14 @@ export function WorkflowStartForm({
         };
       case "fanqie.health":
         return { upToChapter: Math.max(1, chapters.length) };
+      case "fanqie.revise":
+        return { chapterId: chapter, mode: reviseMode, ...extra };
+      case "fanqie.chapter":
+        return {
+          chapterId: chapter,
+          ...(continueFromExisting ? { continueFromExisting: true } : {}),
+          ...extra,
+        };
       default:
         return { chapterId: chapter, ...extra };
     }
@@ -151,6 +163,26 @@ export function WorkflowStartForm({
             hint={C.fanqie.chapterIdHint}
           />
         )
+      ) : null}
+      {target.mode === "fanqie" && kind === "fanqie.revise" ? (
+        <Select<ReviseMode>
+          label={C.workflow.reviseModeLabel}
+          testId="workflow-revise-mode"
+          value={reviseMode}
+          options={REVISE_MODES.map((m) => ({ value: m, label: C.workflow.reviseModes[m] }))}
+          onChange={setReviseMode}
+        />
+      ) : null}
+      {target.mode === "fanqie" && kind === "fanqie.chapter" ? (
+        <label className="zz-row">
+          <input
+            type="checkbox"
+            data-testid="workflow-continue-existing"
+            checked={continueFromExisting}
+            onChange={(event) => setContinueFromExisting(event.target.checked)}
+          />
+          <span>{C.workflow.continueFromExisting}</span>
+        </label>
       ) : null}
       {kind !== "fanqie.health" ? (
         <TextField

@@ -12,7 +12,7 @@ import type {
 import { buildDeliveryMarker, isAlreadyDelivered } from "@zhizhang/core/pipeline";
 import { arr, int, lit, obj, opt, parseJson, str, type Infer } from "@zhizhang/core/schema";
 import { createBibleStore, type ProposeOpMeta } from "../../bible/store.js";
-import type { BibleOp, PendingItem } from "../../bible/types.js";
+import type { BibleOp, PendingItem, SettlementKind } from "../../bible/types.js";
 import { parseChapterMarkdown } from "../../domain/chapter.js";
 
 export const LedgerReq = obj({
@@ -31,6 +31,7 @@ interface ExtractedDelta {
   field?: string;
   value?: string;
   level?: "不知" | "怀疑" | "误认" | "知情" | "公开";
+  settlement?: SettlementKind;
 }
 
 const ExtractedDeltaSchema = obj({
@@ -44,6 +45,7 @@ const ExtractedDeltaSchema = obj({
       field: opt(str()),
       value: opt(str()),
       level: opt(lit("不知", "怀疑", "误认", "知情", "公开")),
+      settlement: opt(lit("resolve_short_term", "settle_long_term", "update_profile")),
     }),
     { max: 40 },
   ),
@@ -74,7 +76,7 @@ export const ledgerExtractStage: StageSpec<
     body: String(ctx.state.chapterBody ?? ""),
   }),
   shape:
-    'JSON 格式：{"deltas":[{"quote":"原文精确引文","kind":"entity|state|thread|knowledge","targetId":"实体ID","name":"名称或事实","detail":"说明","field":"状态字段","value":"状态值","level":"知情"}]}',
+    'JSON 格式：{"deltas":[{"quote":"原文精确引文","kind":"entity|state|thread|knowledge","targetId":"实体ID","name":"名称或事实","detail":"说明","field":"状态字段","value":"状态值","level":"知情","settlement":"resolve_short_term|settle_long_term|update_profile"}]}',
   format: "json",
   parse: (raw) => parseJson(raw, ExtractedDeltaSchema, "ledger.extract"),
 };
@@ -91,7 +93,11 @@ function deltaToBibleOp(
   const provenance = { source: "ledger" as const, run: runId, chapter: position, at: nowIso };
   const evidence = { chapter: position, quote: delta.quote, located: isLocated };
   const annotatedDetail = isLocated ? delta.detail : `${delta.detail} ${UNLOCATED_TAG}`;
-  const meta: ProposeOpMeta = { evidence, located: isLocated };
+  const meta: ProposeOpMeta = {
+    evidence,
+    located: isLocated,
+    ...(delta.settlement ? { settlement: delta.settlement } : {}),
+  };
 
   if (delta.kind === "entity") {
     return {
@@ -132,6 +138,7 @@ function deltaToBibleOp(
     };
   }
   if (delta.kind === "thread") {
+    const resolved = delta.settlement === "resolve_short_term";
     return {
       op: {
         type: "thread.upsert",
@@ -140,8 +147,15 @@ function deltaToBibleOp(
           title: delta.name,
           kind: "foreshadow",
           opened: position,
-          beats: [{ chapter: position, kind: "plant", note: annotatedDetail, evidence }],
-          status: "open",
+          beats: [
+            {
+              chapter: position,
+              kind: resolved ? "pay" : "plant",
+              note: annotatedDetail,
+              evidence,
+            },
+          ],
+          status: resolved ? "paid" : "open",
         },
       },
       meta,

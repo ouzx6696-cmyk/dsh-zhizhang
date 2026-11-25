@@ -5,10 +5,10 @@ import test from "node:test";
 
 const ROOT = process.cwd();
 
-test("workspaces and @zhizhang/* package versions are aligned at 2.0.0", () => {
+test("workspaces and @zhizhang/* package versions are aligned at 2.3.0", () => {
   const rootPkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
   assert.equal(rootPkg.name, "zhizhang");
-  assert.equal(rootPkg.version, "2.0.0");
+  assert.equal(rootPkg.version, "2.3.0");
   assert.deepEqual(rootPkg.workspaces, ["apps/*", "packages/*"]);
 
   for (const pkgDir of [
@@ -20,7 +20,7 @@ test("workspaces and @zhizhang/* package versions are aligned at 2.0.0", () => {
     "apps/desktop",
   ]) {
     const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, pkgDir, "package.json"), "utf8"));
-    assert.equal(pkg.version, "2.0.0", `${pkgDir} version mismatch`);
+    assert.equal(pkg.version, "2.3.0", `${pkgDir} version mismatch`);
     assert.ok(pkg.name.startsWith("@zhizhang/"), `${pkgDir} name must start with @zhizhang/`);
   }
 });

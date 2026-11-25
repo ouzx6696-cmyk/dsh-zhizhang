@@ -12,7 +12,7 @@ import {
 } from "../domain/chapter.js";
 import { assertCanFinalize, downgradeOnEdit, type ChapterStatus } from "../domain/status.js";
 import { alignTwoLevel, classifyHunks, createLearningStore } from "../learning/index.js";
-import { countChineseWords } from "../pipelines/chapter/index.js";
+import { countChineseWords } from "../pipelines/chapter/rules.js";
 import { readWorkMeta } from "../storage/work.js";
 import type { ChapterRowView } from "../view/snapshot.js";
 
