@@ -1,76 +1,78 @@
 # 织章（Zhizhang）
 
-织章是面向中文长篇小说与资讯图文作者的**本地优先写作工作台**。规划、起稿、审读、修订、连续性核对与质检等高重复劳动交给可暂停、可恢复、预算可控的分阶段流水线；**采纳、定稿、设定落盘与交稿始终留在作者手中**。
+织章是面向中文长篇小说与资讯图文作者的**本地优先写作工作台**，核心产品理念是**「AI 起草，作者裁决」**。拆书提炼、全书立项、多路起稿、审读精修、连续性核对与规则质检交给可暂停、可恢复、预算可控的流水线；**正文采纳、逐段合并、定稿、设定落盘与交稿始终留在作者手中**。
 
-## 核心模式
+## 五大灵感来源与模块映射
 
-- **番茄长篇（`@zhizhang/fanqie`）**
-  - **全书规划**：表单立项 → 立项卡、世界观根基、分卷结构、前序章纲（写入隔离提案目录 `plan/proposals/<runId>/`，作者确认后原子晋升至 `plan/` 与 `bible/`）。
-  - **章节写作流水线**：零费用预检 → 分场节拍 → 多路并行起稿 → 代码硬闸 → 逐稿并行评分与前二换位比较 → 连续性检查 → 独立编辑审读与定向修订（≤2 轮，门禁失败自动保留上一版合规候选）→ 幂等交付候选稿。
-  - **连续性与学习**：`bible/` 设定集（按章号 `asOf(N)` 切片与 O(N) 索引巡检）、L0–L6 严格预算分层上下文与 BM25 远期检索、段落级 diff 个人文风学习、全书十章体检、拆书库与 `.txt` / `.docx` 汇编导出。
-- **今日头条图文（`@zhizhang/toutiao`）**
-  - 支持资讯、故事线、微头条、长图文等体裁，登记多个本地来源，基于 `stage-map.json` 动态路由。
-  - 依次执行立项卡预检（`writer_bridge.py check-card`）、标题矩阵（≥5 条、每条 ≤34 字、覆盖 ≥3 个母体）、蓝图轮换、起稿、代码抽词与证据核对（事实链）、`s5-editing` 审读修订、Python 质检（≥84 分且零硬闸，临时文件隔离在 `.tmp/`）与幂等交稿单生成。
-- **写作台与只读助手**
-  - 稿纸阅读与轻量源码编辑、中栏正文/候选左右对照、右栏“流水线 · 助手”分屏协同。
-  - 助手仅具备只读查阅与发起流水线权限，**不可直接改写正文或设定集**；连续只读工具自动并发执行，输出自动裁剪防上下文溢出。
-  - 专注模式（`Ctrl+.` / `F11`）、命令面板（`Ctrl+K`）、崩溃断点恢复、离线校验备份与系统密钥库加密存储。
+织章将五大上游方法论与界面设计宪法完整映射为确定性的代码模块与资产体系：
 
-## 作者是裁判
+| 灵感来源 | 上游资产 / 参考 | 对应核心模块 | 核心能力 |
+| --- | --- | --- | --- |
+| **拆书技法库** (`inspiration-forge-library` v1.3.0) | `packages/fanqie/skill/forge/inspiration-forge-library/` | `@zhizhang/fanqie` `pipelines/dissect/`、`commands/library.ts`、`TechniqueWarehouse` | 作品结构测绘、分层抽样、逐字引文核验、五层拆解、技法卡三步做法与交互式 Markdown 编辑器 |
+| **全书立项规划** (`inspiration-forge` v1.3.0) | `packages/fanqie/skill/forge/inspiration-forge/` | `@zhizhang/fanqie` `pipelines/book/`、`commands/work.ts` | 故事根基、卷纲/幕纲/前序章纲提案隔离（`plan/proposals/<runId>/`）、技法卡绑定与大纲校验 |
+| **番茄长篇写作** (`novel-writer` v1.3.0) | `packages/fanqie/skill/forge/novel-writer/` | `@zhizhang/fanqie` `pipelines/chapter/`、`bible/`、`context/`、`learning/`、`FanqieWorkspace`、`BibleCenter`、`DraftCompare` | L0–L6 分层预算上下文、BM25 远期检索、L2/L6 技法注入、多路起稿与换位择优、≤2 轮审读精修、设定集 `asOf(N)` 与双稿纸逐处采纳 |
+| **头条图文写作** (`toutiao-viral-writer` v4.0.0) | `packages/toutiao/skill/` | `@zhizhang/toutiao` `domain/`、`rules/`、`pipelines/`、`commands/`、`ToutiaoWorkspace`、`ToutiaoLedger` | 资讯/故事双线 × 长图文/短图文/微头条、唯一规则源 `rules.py`（标题 ≤34 字、质检 ≥84 分）、立项卡校验、事实链核对、固定末句交稿与发稿台账 |
+| **柔和纸面 C2 桌面美学** (`zhizhang-c2-calm.html`) | `packages/ui/src/tokens/`、`apps/desktop/src/renderer/` | `palette.css` → `semantic.css` → `component.css`、`LeftRail`、`CenterBar`、`RightDock`、`DraftCompare` | 去掉顶栏与 Toast 的三栏布局、稿纸衬线大字浮起纸面、一色一意（赭橙仅用于作者裁决）、日夜双主题（`day` / `night`） |
 
-- 所有正文采纳、章节定稿、设定集待确认条目应用、全书规划晋升与头条交稿确认，均由作者显式拍板。
-- 头条交稿单固定以“`——AI 到此止步。是否采用、何时发布由你决定。`”收尾，织章不替作者自动发布。
+## 界面与协作亮点
 
-## 运行形态与快速开始
+- **稿纸是主角**：去掉冗余顶栏与浮层 Toast，以 240px 平铺左栏 + 浮起衬线稿纸中栏 + 344px 双卡右栏构建安静写作空间；底部静默展示「已保存到本地 · 时间」。
+- **一色一意**：赭橙（`--zz-decide`）严格仅用于「需要作者裁决」的提示、圆点与主按钮；蓝（`--zz-run`）表示机器运行；绿/红（`--zz-ok` / `--zz-bad`）表示增删与通过/失败；琥珀（`--zz-warn`）表示需要留意。
+- **创作内核仪表盘与技法仓**：Studio 顶部内置基于 D3 的拆解/整理/填充进度与流水线节点状态图；技法仓库内置交互式编辑器与 Markdown 逻辑结构实时预览。
+- **候选稿决策卡与逐处采纳**：并排双稿纸行内展示红删/绿增与编号，支持「丢弃 / 部分采纳 / 采纳候选稿」与采纳后撤回。
+- **只读写作助手**：基于 PI 内核的独立会话引擎，仅提供只读查阅、原文引用定位与发起流水线能力，**禁止直接改写正文或设定集**。
 
-织章基于无 Electron 依赖的共享组合根（`createAppRuntime`），同时支持 **Electron 桌面主应用** 与 **Web 本地预览服务**。
+## 快速开始
 
 ### 环境要求
-- Node.js `≥ 24.11.0`（开发与构建）
+- Node.js `≥ 24.11.0`
 - Python `3.13`（头条质检与番茄脚本唯一规则源；Windows 发行包内置随包 Python）
 
-### 常用开发命令
+### 常用命令
 
 ```bash
 # 安装依赖
 npm install
 
-# 启动 Web 本地预览（http://0.0.0.0:3000，自动初始化示例写作文件夹）
+# 启动 Web 本地预览（http://0.0.0.0:3000，自动初始化示例作品与头条）
 npm run dev
 
 # 启动 Electron 桌面开发环境
 npm run desktop:dev
 
-# 全量静态检查（TypeScript + ESLint + Prettier + 架构守卫）
+# 全量静态检查（tsc -b + ESLint + Prettier + 架构守卫 guard.mjs）
 npm run check
 
-# 全量自动化测试（Python unittest + Node unit/engine 测试）
+# 全量自动化测试（头条/番茄 Python unittest + Node unit/engine 测试）
 npm test
 
-# 内置资产清单与 stage-map 完整性校验
+# 内置资产清单、上游版本与 stage-map.json 完整性校验
 npm run assets -- check
 
-# 构建全部 workspace 与 Web 预览产物
+# 构建全仓 workspace 与 Web 预览前端产物
 npm run build
+
+# 构建并暂存 Electron 桌面端产物（主进程 + 预加载 + 渲染层 + 离线字体许可）
+npm run desktop:build
 ```
 
 ## 数据目录与隐私边界
 
-- **应用状态目录**：`~/.zhizhang/`（可用 `ZHIZHANG_STATE_ROOT` 覆盖），存放全局设置、系统密钥库加密的 `secrets.bin`（`0600` 权限）、运行记录、会话历史与去敏诊断日志；不随作品目录同步或备份。
-- **本地写作文件夹**：由作者在首次引导或设置中选定，结构清晰透明：
-  - `.zhizhang/`：跨进程租约（`lease.json`）、可重入资源写锁（`.zhizhang-lock/`）与未保存草稿保护（`drafts/`）。
+- **应用状态目录**：`~/.zhizhang/`（可用 `ZHIZHANG_STATE_ROOT` 覆盖），保存全局设置、系统密钥库加密的 `secrets.bin`（`0600` 权限）、运行记录、会话历史与去敏日志；不随作品目录同步或备份。
+- **本地写作文件夹**：统一采用 `zhizhang/2.0` 磁盘格式：
+  - `.zhizhang/`：跨进程租约（`lease.json`）、写锁目录（`.zhizhang-lock/`）、工作台未保存草稿暂存（`drafts/`）与回收站（`trash/`）。
   - `长篇/`：番茄长篇作品目录（`work.json`、`bible/`、`plan/`、`chapters/`、`candidates/`）。
   - `头条/`：头条文章目录（`meta.json`、`sources/`、`drafts/`、`qa/`、`delivery.md`）与发稿台账 `ledger.csv`。
-  - `拆书库/`：拆书原文来源与参考卡片。
+  - `拆书库/`：拆书原文来源与结构化技法参考卡。
 
 ## 文档导航
 
-仓库严格维护 8 份核心文档（受 `[G-docs]` 门禁约束）：
+仓库严格维护 8 份核心文档（受 `scripts/guard.mjs` `[G-docs]` 门禁约束）：
 
-- [开发协作规范](AGENTS.md)：核心红线、分层守卫、代码/测试纪律与仓库目录地图
-- [系统架构](docs/ARCHITECTURE.md)：L0–L3 分层、双宿主传输与安全边界、引擎内核与 `zhizhang/2.0` 磁盘格式
-- [写作内核与业务规则](docs/WRITING.md)：受保护规则、确定性 `stage-map.json`、设定集索引与双模式流水线
-- [使用指南](docs/USER-GUIDE.md)：桌面端与 Web 预览上手、日常写作流程、备份与故障排查
-- [项目状态](docs/STATUS.md)：最新验证矩阵、守卫指标与待办清单
-- [更新日志](CHANGELOG.md)：各版本重构与优化记录
-- [v2 演进规划](docs/plans/v2.md)：v1.3 → v2.0 → v2.1 架构决策台账与后续路线图
+- [开发协作宪法](AGENTS.md)：核心业务红线、分层与样式守卫、代码/测试纪律与目录地图
+- [系统架构](docs/ARCHITECTURE.md)：五大灵感源映射、L0–L3 分层、双宿主传输、PI 会话内核与柔和纸面 C2 令牌体系
+- [写作内核与业务规则](docs/WRITING.md)：受保护规则、拆书→规划→写作→头条四大方法论实现与资产清单校验
+- [使用指南](docs/USER-GUIDE.md)：柔和纸面 C2 三栏工作台操作、技法仓编辑、设定集中心、备份与故障排查
+- [项目状态](docs/STATUS.md)：最新实测验证矩阵、架构守卫指标与远端 CI 清单
+- [更新日志](CHANGELOG.md)：v0.x → v2.2.0 演进与重构记录
+- [v2 演进规划](docs/plans/v2.md)：关键架构与设计决策台账（D1–D25）与后续路线图

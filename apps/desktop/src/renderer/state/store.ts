@@ -60,8 +60,19 @@ export interface DesktopState {
   runs: RunSummary[];
   /** 中栏对照视图：正式稿 vs 候选稿；null 表示关闭。 */
   compare: CompareRequest | null;
-  /** ≥1600px 时右栏是否把流水线与助手上下分屏。 */
+  /** ≥1280px 时右栏是否把流水线与助手上下双卡同屏显示。 */
   dockSplit: boolean;
+  /** 最近一次本地保存时间（HH:mm），供左栏底部静默展示。 */
+  lastSavedAt: string;
+  /** 采纳候选稿后的可撤销快照：点击“撤销采纳”即可恢复采纳前正文。 */
+  adoptedUndo: AdoptedUndo | null;
+}
+
+export interface AdoptedUndo {
+  target: Target;
+  chapter: string;
+  title: string;
+  body: string;
 }
 
 export interface CompareRequest {
@@ -106,6 +117,8 @@ export const desktopStore = createStore<DesktopState>({
   runs: [],
   compare: null,
   dockSplit: true,
+  lastSavedAt: "",
+  adoptedUndo: null,
 });
 
 export function useDesktop<R>(selector: (state: DesktopState) => R): R {

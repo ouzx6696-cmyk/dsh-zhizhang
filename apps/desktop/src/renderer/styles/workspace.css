@@ -1,9 +1,10 @@
-/* 写作台：左栏列表 + 中栏整屏稿纸 + 右栏停靠（宽度 --zz-dock-width，可拖）。 */
+/* 柔和纸面 C2 写作台：中栏浮动稿纸 + 决策卡 + 并排差异对照 + 右栏停靠。只用 --zz-* 令牌。 */
 .zz-studio {
   display: grid;
   flex: 1;
   grid-template-columns: minmax(0, 1fr) var(--zz-dock-width);
   min-height: 0;
+  background: var(--zz-bg);
 }
 
 .zz-studio[data-dock="closed"] {
@@ -16,6 +17,16 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+  background: var(--zz-bg);
+}
+
+.zz-studio__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .zz-studio__dock {
@@ -23,6 +34,7 @@
   display: flex;
   min-width: 0;
   min-height: 0;
+  background: var(--zz-bg);
 }
 
 .zz-dock-handle {
@@ -38,10 +50,11 @@
 
 .zz-dock-handle::after {
   position: absolute;
-  top: 0;
-  bottom: 0;
+  top: var(--zz-space-3);
+  bottom: var(--zz-space-3);
   left: calc(var(--zz-dock-handle) / 2 - 1px);
   width: 2px;
+  border-radius: var(--zz-radius-pill);
   background: transparent;
   content: "";
   transition: background-color var(--zz-dur-1) var(--zz-ease);
@@ -57,34 +70,21 @@
   outline: none;
 }
 
-.zz-workspace-fallback {
+.zz-workspace-fallback,
+.zz-studio-fallback {
+  flex: 1;
   height: 100%;
-  padding: var(--zz-space-12) var(--zz-space-10);
-  background: var(--zz-paper);
+  padding: var(--zz-space-10);
+  background: var(--zz-bg);
 }
 
+/* —— 写作工作区（章节列表已 Portal 至 LeftRail，中栏独享空间） —— */
 .zz-workspace {
-  display: grid;
-  grid-template-columns: var(--zz-nav-width) minmax(0, 1fr);
-  height: 100%;
-  min-height: 0;
-}
-
-.zz-workspace[data-compare="on"] {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.zz-workspace[data-compare="on"] .zz-workspace__nav {
-  display: none;
-}
-
-/* —— 左栏 —— */
-.zz-workspace__nav {
   display: flex;
+  flex: 1;
   flex-direction: column;
+  min-width: 0;
   min-height: 0;
-  border-right: 1px solid var(--zz-border);
-  background: var(--zz-surface-1);
 }
 
 .zz-nav-head {
@@ -92,56 +92,47 @@
   flex: none;
   align-items: center;
   justify-content: space-between;
-  gap: var(--zz-space-2);
-  min-height: var(--zz-bar-height);
-  padding: 0 var(--zz-space-2) 0 var(--zz-space-4);
+  gap: var(--zz-space-1);
+  padding: var(--zz-space-1) var(--zz-space-1) var(--zz-space-2);
 }
 
 .zz-nav-head h2 {
   display: flex;
   align-items: baseline;
-  gap: var(--zz-space-2);
-  color: var(--zz-text-1);
-  font-size: var(--zz-text-body);
-  font-weight: var(--zz-weight-strong);
+  gap: var(--zz-space-1);
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-caption);
+  font-weight: var(--zz-weight-medium);
+  letter-spacing: 0.04em;
 }
 
 .zz-nav-head__count {
   color: var(--zz-text-3);
-  font-size: var(--zz-text-meta);
-  font-weight: var(--zz-weight-regular);
-  font-variant-numeric: tabular-nums;
+  font: var(--zz-text-mono) / 1 var(--zz-font-mono);
 }
 
 .zz-nav-body {
   flex: 1;
   min-height: 0;
-  padding: 0 var(--zz-space-2) var(--zz-space-3);
+  padding: 0 2px var(--zz-space-2) 0;
   overflow-y: auto;
 }
 
 .zz-nav-foot {
-  /* 与中栏状态栏同高同线：两条底边分隔线连成一条。 */
-  display: flex;
   flex: none;
-  align-items: center;
-  min-height: var(--zz-statusbar-height);
-  padding: 0 var(--zz-space-4);
-  border-top: 1px solid var(--zz-border);
+  padding: 4px 10px 6px;
   color: var(--zz-text-3);
-  font-size: var(--zz-text-meta);
-  line-height: var(--zz-leading-meta);
-  font-variant-numeric: tabular-nums;
+  font: 11px / 1.4 var(--zz-font-mono);
 }
 
-/* —— 中栏：整屏暖纸 —— */
 .zz-workspace__center {
   display: flex;
+  flex: 1;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  background: var(--zz-desk);
+  background: var(--zz-bg);
 }
 
 .zz-center-scroll {
@@ -155,19 +146,17 @@
 .zz-board {
   display: flex;
   flex-direction: column;
-  gap: var(--zz-space-6);
+  gap: var(--zz-space-5);
   max-width: 880px;
   margin: 0 auto;
-  padding: var(--zz-space-10) var(--zz-space-6);
+  padding: var(--zz-space-6) var(--zz-space-6) var(--zz-space-10);
 }
 
 .zz-board__stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  padding: var(--zz-space-4) 0;
-  border-top: 1px solid var(--zz-border-strong);
+  padding: var(--zz-space-3) 0;
   border-bottom: 1px solid var(--zz-border);
-  background: transparent;
 }
 
 .zz-board__stat {
@@ -185,22 +174,9 @@
   border-left: 1px solid var(--zz-border);
 }
 
-.zz-board__sheet {
-  padding: var(--zz-space-2) var(--zz-space-3) var(--zz-space-3);
-  border: 1px solid var(--zz-sheet-edge);
-  border-radius: var(--zz-card-radius);
-  background: var(--zz-paper);
-  box-shadow: var(--zz-shadow-1);
-}
-
-.zz-board__sheet .zz-table tbody tr:last-child td {
-  border-bottom: none;
-}
-
 .zz-board__stat span {
   color: var(--zz-text-3);
   font-size: var(--zz-text-meta);
-  letter-spacing: 0.04em;
 }
 
 .zz-board__stat strong {
@@ -208,6 +184,14 @@
   font: var(--zz-weight-strong) var(--zz-text-display) / var(--zz-leading-display)
     var(--zz-font-paper);
   font-variant-numeric: tabular-nums;
+}
+
+.zz-board__sheet {
+  padding: var(--zz-space-3) var(--zz-space-4);
+  border: 1px solid var(--zz-border);
+  border-radius: var(--zz-radius-lg);
+  background: var(--zz-paper);
+  box-shadow: var(--zz-paper-shadow);
 }
 
 .zz-table {
@@ -231,8 +215,8 @@
   font-weight: var(--zz-weight-regular);
 }
 
-.zz-table tbody tr {
-  transition: background-color var(--zz-dur-1) var(--zz-ease);
+.zz-table tbody tr:last-child td {
+  border-bottom: none;
 }
 
 .zz-table tbody tr:hover {
@@ -241,115 +225,11 @@
 
 .zz-table__num {
   text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-.zz-table th.zz-table__num,
-.zz-table td.zz-table__num {
-  width: 96px;
-  text-align: right;
-}
-
-.zz-table td.zz-table__num:first-child,
-.zz-table th.zz-table__num:first-child {
-  width: 56px;
-  text-align: left;
+  font: var(--zz-text-mono) / 1 var(--zz-font-mono);
 }
 
 .zz-table__muted {
   color: var(--zz-text-3);
-}
-
-.zz-table .zz-link {
-  text-decoration: none;
-}
-
-.zz-table .zz-link:hover {
-  text-decoration: underline;
-}
-
-/* —— 中栏对照视图 —— */
-.zz-compare {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-}
-
-.zz-compare__hint,
-.zz-compare__delta {
-  color: var(--zz-text-3);
-  font-size: var(--zz-text-meta);
-  white-space: nowrap;
-}
-
-.zz-compare__delta {
-  padding: 0 var(--zz-space-2);
-  border-radius: var(--zz-radius-pill);
-  background: var(--zz-active);
-  color: var(--zz-text-2);
-}
-
-.zz-compare__error {
-  padding: var(--zz-space-6);
-}
-
-.zz-compare__cols {
-  display: grid;
-  flex: 1;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  min-height: 0;
-}
-
-.zz-compare__col {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-}
-
-.zz-compare__col + .zz-compare__col {
-  border-left: 1px solid var(--zz-border);
-}
-
-.zz-compare__col:last-child .zz-compare__head {
-  color: var(--zz-run);
-}
-
-.zz-compare__head {
-  display: flex;
-  flex: none;
-  align-items: baseline;
-  gap: var(--zz-space-2);
-  padding: var(--zz-space-3) var(--zz-space-6);
-  border-bottom: 1px solid var(--zz-border);
-  color: var(--zz-text-1);
-  font-size: var(--zz-text-body);
-  font-weight: var(--zz-weight-strong);
-}
-
-.zz-compare__head span {
-  color: var(--zz-text-3);
-  font-size: var(--zz-text-meta);
-  font-weight: var(--zz-weight-regular);
-  font-variant-numeric: tabular-nums;
-}
-
-.zz-compare__body {
-  flex: 1;
-  min-height: 0;
-  padding: var(--zz-space-10) var(--zz-space-8) 30vh;
-  overflow-y: auto;
-  background: var(--zz-sheet-bg);
-  scrollbar-gutter: stable;
-}
-
-.zz-compare__col .zz-skeleton-group {
-  padding: var(--zz-space-8) var(--zz-space-6);
-}
-
-.zz-compare .wb-manuscript {
-  font-size: var(--zz-paper-size-compact);
 }
 
 /* —— 头条草稿 —— */
@@ -369,10 +249,4 @@
 
 .zz-draft__title-field .zz-field {
   max-width: 560px;
-}
-
-.zz-studio-fallback {
-  flex: 1;
-  padding: var(--zz-space-12) var(--zz-space-10);
-  background: var(--zz-paper);
 }

@@ -16,13 +16,13 @@ export function useShortcuts(): void {
       }
       if (document.querySelector("dialog[open]")) return;
       const tabs = { "1": "assistant", "2": "pipeline", "3": "chapter" } as const;
-      if (event.key === "\\") {
+      if (event.key === "\\" || (event.key === "." && !event.shiftKey)) {
         event.preventDefault();
         desktopStore.set((state) => ({ zenMode: !state.zenMode }));
-      } else if (event.key === ",") {
+      } else if (event.key === "," && !event.shiftKey) {
         event.preventDefault();
         openSettings();
-      } else if (event.key === ".") {
+      } else if (event.key === "." && event.shiftKey) {
         event.preventDefault();
         desktopStore.set((state) => ({ dockOpen: !state.dockOpen }));
       } else if (event.key === "1" || event.key === "2" || event.key === "3") {

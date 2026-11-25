@@ -1,0 +1,360 @@
+/* 设定集中心 & 技法仓库：书卷下划线标签栏、样章列表、技法卡与写作规范编辑器。仅使用 --zz-* 令牌。 */
+
+.zz-page-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--zz-space-1);
+  border-bottom: 1px solid var(--zz-border);
+}
+
+.zz-page-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zz-space-2);
+  padding: var(--zz-space-2) var(--zz-space-3) var(--zz-space-3);
+  border: none;
+  background: transparent;
+  color: var(--zz-text-3);
+  font: var(--zz-weight-regular) var(--zz-text-body) / var(--zz-leading-body) var(--zz-font-ui);
+  cursor: pointer;
+  transition: color var(--zz-dur-1) var(--zz-ease);
+}
+
+.zz-page-tab::after {
+  position: absolute;
+  right: var(--zz-space-3);
+  bottom: -1px;
+  left: var(--zz-space-3);
+  height: 2px;
+  border-radius: var(--zz-radius-pill);
+  background: var(--zz-text-1);
+  content: "";
+  transform: scaleX(0);
+  transition: transform var(--zz-dur-2) var(--zz-ease);
+}
+
+.zz-page-tab:hover {
+  color: var(--zz-text-1);
+}
+
+.zz-page-tab[aria-selected="true"] {
+  color: var(--zz-title);
+  font-weight: var(--zz-weight-strong);
+}
+
+.zz-page-tab[aria-selected="true"]::after {
+  transform: scaleX(1);
+}
+
+.zz-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--zz-space-1);
+}
+
+.zz-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zz-space-1);
+  min-height: 30px;
+  padding: 0 var(--zz-space-3);
+  border: 1px solid transparent;
+  border-radius: var(--zz-radius-sm);
+  background: transparent;
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-meta);
+  cursor: pointer;
+  transition:
+    color var(--zz-dur-1) var(--zz-ease),
+    background-color var(--zz-dur-1) var(--zz-ease),
+    border-color var(--zz-dur-1) var(--zz-ease);
+}
+
+.zz-filter-btn:hover {
+  background: var(--zz-hover);
+  color: var(--zz-text-1);
+}
+
+.zz-filter-btn[aria-pressed="true"] {
+  border-color: var(--zz-sheet-edge);
+  background: var(--zz-paper);
+  color: var(--zz-title);
+  font-weight: var(--zz-weight-strong);
+  box-shadow: var(--zz-shadow-1);
+}
+
+.zz-timeline-scrub {
+  display: flex;
+  align-items: center;
+  gap: var(--zz-space-3);
+  color: var(--zz-text-2);
+  font-size: var(--zz-text-meta);
+}
+
+.zz-bible-center__body,
+.zz-warehouse-side,
+.zz-warehouse-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zz-space-4);
+  min-width: 0;
+}
+
+.zz-warehouse-grid {
+  display: grid;
+  flex: 1;
+  grid-template-columns: 296px minmax(0, 1fr);
+  gap: var(--zz-space-6);
+  min-height: 0;
+}
+
+.zz-warehouse-main > .zz-empty {
+  flex: 1;
+  align-content: center;
+}
+
+.zz-panel-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zz-space-2);
+  padding: var(--zz-space-4);
+  border: 1px solid var(--zz-sheet-edge);
+  border-radius: var(--zz-card-radius);
+  background: var(--zz-paper);
+}
+
+.zz-panel-box h3,
+.zz-warehouse-bar h2 {
+  margin: 0;
+}
+
+.zz-source-list,
+.zz-method-list,
+.zz-state-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.zz-state-list {
+  padding-top: var(--zz-space-2);
+  border-top: 1px solid var(--zz-border);
+  font-size: var(--zz-text-meta);
+}
+
+.zz-state-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--zz-space-2);
+}
+
+.zz-source-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--zz-space-2);
+  width: 100%;
+  padding: var(--zz-space-2) var(--zz-space-3);
+  border: none;
+  border-radius: var(--zz-radius-sm);
+  background: transparent;
+  color: var(--zz-text-1);
+  font-size: var(--zz-text-meta);
+  text-align: left;
+  cursor: pointer;
+}
+
+.zz-source-row[data-active="true"],
+.zz-source-row:hover {
+  background: var(--zz-hover);
+}
+
+.zz-warehouse-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--zz-space-3);
+}
+
+.zz-segmented__item[aria-selected="true"] {
+  background: var(--zz-paper);
+  color: var(--zz-text-1);
+  font-weight: var(--zz-weight-strong);
+  box-shadow: var(--zz-shadow-1);
+}
+
+.zz-profile-workspace {
+  display: grid;
+  flex: 1;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: var(--zz-space-4);
+  height: calc(100dvh - 260px);
+  min-height: 360px;
+}
+
+.zz-method-list {
+  overflow-y: auto;
+  padding-right: var(--zz-space-1);
+}
+
+.zz-method-editor {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--zz-sheet-edge);
+  border-radius: var(--zz-card-radius);
+  background: var(--zz-paper);
+}
+
+.zz-method-editor__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--zz-space-2);
+  padding: var(--zz-space-2) var(--zz-space-4);
+  border-bottom: 1px solid var(--zz-border);
+  background: var(--zz-surface-1);
+}
+
+.zz-method-textarea {
+  flex: 1;
+  min-height: 0;
+  padding: var(--zz-space-4);
+  border: none;
+  overflow-y: auto;
+  background: var(--zz-paper);
+  color: var(--zz-text-1);
+  font: var(--zz-text-body) / 1.65 var(--zz-font-ui);
+  resize: none;
+}
+
+.zz-method-textarea:focus {
+  outline: none;
+}
+
+.zz-report-box {
+  padding: var(--zz-space-3) var(--zz-space-4);
+  border: 1px solid var(--zz-border);
+  border-radius: var(--zz-radius-md);
+  background: var(--zz-paper);
+}
+
+.zz-report-pre {
+  margin: var(--zz-space-2) 0 0;
+  font: var(--zz-text-meta) / 1.6 var(--zz-font-ui);
+  white-space: pre-wrap;
+}
+
+/* —— 拆书技法卡（高信息密度书卷排版） —— */
+.zz-tech-card {
+  gap: var(--zz-space-3);
+}
+
+.zz-tech-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--zz-space-2);
+}
+
+.zz-tech-card__kicker {
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-caption);
+  letter-spacing: 0.04em;
+}
+
+.zz-tech-card__quote-status {
+  font-size: var(--zz-text-caption);
+  font-weight: var(--zz-weight-strong);
+  white-space: nowrap;
+}
+
+.zz-tech-card__quote-status[data-status="verified"] {
+  color: var(--zz-ok);
+}
+
+.zz-tech-card__quote-status[data-status="partial"] {
+  color: var(--zz-warn);
+}
+
+.zz-tech-card__quote-status[data-status="unverified"] {
+  color: var(--zz-text-3);
+}
+
+.zz-tech-card__title {
+  margin: 0;
+  color: var(--zz-title);
+  font: var(--zz-weight-strong) var(--zz-text-strong) / var(--zz-leading-strong)
+    var(--zz-font-paper);
+}
+
+.zz-tech-card__pattern {
+  margin: 0;
+  color: var(--zz-text-1);
+  font-size: var(--zz-text-body);
+  line-height: 1.65;
+}
+
+.zz-tech-card__block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zz-space-1);
+}
+
+.zz-tech-card__row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  color: var(--zz-text-2);
+  font-size: var(--zz-text-meta);
+  line-height: 1.55;
+}
+
+.zz-tech-card__label {
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-caption);
+  font-weight: var(--zz-weight-strong);
+  letter-spacing: 0.04em;
+}
+
+.zz-tech-card__steps {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding-left: var(--zz-space-4);
+  color: var(--zz-text-2);
+  font-size: var(--zz-text-meta);
+  line-height: 1.55;
+}
+
+.zz-tech-card__quote {
+  margin: 0;
+  padding: var(--zz-space-2) var(--zz-space-3);
+  border-left: 1px solid var(--zz-border-strong);
+  background: var(--zz-surface-1);
+  color: var(--zz-text-2);
+  font: var(--zz-text-meta) / 1.7 var(--zz-font-paper);
+}
+
+.zz-tech-card__guard .zz-tech-card__label {
+  color: var(--zz-bad);
+}
+
+.zz-tech-card__foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--zz-space-1);
+  margin-top: auto;
+  padding-top: var(--zz-space-2);
+  border-top: 1px solid var(--zz-border);
+}

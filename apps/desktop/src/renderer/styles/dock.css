@@ -1,40 +1,40 @@
-/* 右栏：助手 / 流水线 / 本章；≥1600px 可上下分屏。 */
+/* 柔和纸面 C2 右栏（344px）：两张静谧 --zz-surface 浮卡（流水线卡 + 只读助手卡）。只用 --zz-* 令牌。 */
 .zz-dock {
   display: flex;
   flex: 1;
   flex-direction: column;
+  gap: var(--zz-space-2);
   min-width: 0;
   min-height: 0;
-  border-left: 1px solid var(--zz-border);
-  background: var(--zz-surface-1);
+  padding: var(--zz-space-2) var(--zz-space-3) var(--zz-space-3) 0;
+  background: var(--zz-bg);
 }
 
 .zz-dock__tabs {
   display: flex;
   flex: none;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: var(--zz-space-2);
-  min-height: var(--zz-bar-height);
-  padding: 0 var(--zz-space-2) 0 var(--zz-space-3);
-  border-bottom: 1px solid var(--zz-border);
+  padding: 0 var(--zz-space-1);
 }
 
 .zz-dock__tabs .zz-tab {
-  min-height: calc(var(--zz-bar-height) - 1px);
+  min-height: 30px;
+  font-size: var(--zz-text-meta);
 }
 
 .zz-dock__tools {
   display: flex;
-  align-self: center;
-  gap: var(--zz-space-half);
+  align-items: center;
+  gap: 2px;
 }
 
 .zz-dock__panel {
+  display: flex;
   flex: 1;
+  flex-direction: column;
   min-height: 0;
-  padding: var(--zz-space-4);
-  overflow-y: auto;
 }
 
 .zz-dock__panel[hidden],
@@ -42,39 +42,43 @@
   display: none;
 }
 
-/* 分屏：流水线按内容取高（最多约一半），助手拿走其余；流水线不再为一屏空白滚动。 */
+/* 双卡同屏：上方流水线卡按内容自适应（最多 46%），下方只读助手卡占满剩余高度。 */
 .zz-dock__split {
   display: grid;
   flex: 1;
-  grid-template-rows: fit-content(52%) minmax(0, 1fr);
+  grid-template-rows: fit-content(46%) minmax(0, 1fr);
   grid-template-columns: minmax(0, 1fr);
+  gap: var(--zz-space-3);
   min-height: 0;
 }
 
-.zz-dock__pane {
+.zz-dock__card {
   display: flex;
   flex-direction: column;
+  min-width: 0;
   min-height: 0;
+  border-radius: var(--zz-radius-lg);
+  background: var(--zz-surface);
+  box-shadow: var(--zz-card-shadow);
+  overflow: hidden;
 }
 
-.zz-dock__pane + .zz-dock__pane {
-  border-top: 1px solid var(--zz-border-strong);
+.zz-dock__card--fill,
+.zz-dock__card--assistant {
+  flex: 1;
 }
 
-.zz-dock__pane-head {
-  flex: none;
-  padding: var(--zz-space-4) var(--zz-space-4) 0;
-  color: var(--zz-text-3);
-  font-size: var(--zz-text-meta);
-  font-weight: var(--zz-weight-regular);
-  letter-spacing: 0.08em;
-}
-
-.zz-dock__pane-body {
+.zz-dock__card-body {
   flex: 1;
   min-height: 0;
-  padding: var(--zz-space-3) var(--zz-space-4) var(--zz-space-4);
+  padding: var(--zz-space-4);
   overflow-y: auto;
+}
+
+.zz-dock__card-body--fill {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .zz-chapter-pane,
@@ -82,14 +86,27 @@
 .zz-workflow {
   display: flex;
   flex-direction: column;
-  gap: var(--zz-space-4);
+  gap: var(--zz-space-3);
+}
+
+.zz-workflow .zz-empty {
+  padding: var(--zz-space-2) var(--zz-space-1) var(--zz-space-1);
+}
+
+.zz-workflow .zz-input--area {
+  min-height: 52px;
+}
+
+.zz-workflow .zz-select__control {
+  min-height: 32px;
+  font-size: var(--zz-text-meta);
 }
 
 .zz-chapter-pane .zz-facts {
   padding: var(--zz-space-3) var(--zz-space-4);
   border: 1px solid var(--zz-border);
-  border-radius: var(--zz-card-radius);
-  background: var(--zz-surface-2);
+  border-radius: var(--zz-radius-sm);
+  background: var(--zz-paper);
   font-size: var(--zz-text-meta);
 }
 
@@ -117,7 +134,7 @@
 .zz-bible .zz-empty {
   padding: var(--zz-space-4);
   border: 1px dashed var(--zz-border-strong);
-  border-radius: var(--zz-card-radius);
+  border-radius: var(--zz-radius-md);
 }
 
 .zz-bible .zz-empty__title {

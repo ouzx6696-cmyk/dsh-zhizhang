@@ -1,6 +1,6 @@
 /*
- * 稿纸：章节条 + 稿纸滚动区 + 状态栏。阅读与编辑共用同一套度量：
- * 文字列宽 = --zz-paper-width（行长 × 字宽），居中到同一 x；滚动条贴中栏右缘，只有一条。
+ * 稿纸（柔和纸面 C2）：静谧面包屑条 + 浮起圆角纸面 + 衬线正文。
+ * 稿纸是绝对主角：17px Noto Serif SC，行高 2.0，首行缩进 2em，两端对齐，浮于 --zz-bg 之上。
  */
 .wb-reader,
 .wb-editor {
@@ -8,9 +8,10 @@
   flex-direction: column;
   height: 100%;
   min-height: 0;
+  background: var(--zz-bg);
 }
 
-/* —— 章节条（单行） —— */
+/* —— 静谧面包屑操作条 —— */
 .wb-bar {
   display: flex;
   flex: none;
@@ -18,9 +19,9 @@
   justify-content: space-between;
   gap: var(--zz-space-3);
   min-height: var(--zz-bar-height);
-  padding: 0 var(--zz-space-3) 0 var(--zz-space-5);
+  padding: 6px var(--zz-space-5);
   border-bottom: 1px solid var(--zz-border);
-  background: var(--zz-desk);
+  background: var(--zz-bg);
 }
 
 .wb-bar-lead {
@@ -33,16 +34,15 @@
 .wb-bar-ordinal,
 .wb-bar-title {
   color: var(--zz-text-1);
-  font-size: var(--zz-text-body);
-  font-weight: var(--zz-weight-strong);
-  line-height: var(--zz-leading-body);
+  font-size: var(--zz-text-meta);
+  font-weight: var(--zz-weight-medium);
+  line-height: var(--zz-leading-meta);
   white-space: nowrap;
 }
 
-/* 章节条是面包屑：“第 1 章  雨夜”，章名弱化，状态与字数下沉到稿纸元信息行。 */
 .wb-bar-ordinal + .wb-bar-title {
   overflow: hidden;
-  color: var(--zz-text-3);
+  color: var(--zz-text-2);
   font-weight: var(--zz-weight-regular);
   text-overflow: ellipsis;
 }
@@ -55,7 +55,10 @@
 }
 
 .wb-bar-actions .zz-bar-divider {
+  width: 1px;
+  height: 14px;
   margin: 0 var(--zz-space-1);
+  background: var(--zz-border-strong);
 }
 
 .wb-bar-more {
@@ -66,10 +69,10 @@
   position: absolute;
   top: calc(100% + var(--zz-space-1));
   right: 0;
-  min-width: 232px;
+  min-width: 224px;
 }
 
-/* —— 状态栏 —— */
+/* —— 底部弱状态栏 —— */
 .wb-statusbar {
   display: flex;
   flex: none;
@@ -78,9 +81,9 @@
   min-height: var(--zz-statusbar-height);
   padding: 0 var(--zz-space-5);
   border-top: 1px solid var(--zz-border);
+  background: var(--zz-bg);
   color: var(--zz-text-3);
-  font-size: var(--zz-text-meta);
-  line-height: var(--zz-leading-meta);
+  font: var(--zz-text-mono) / 1 var(--zz-font-mono);
   font-variant-numeric: tabular-nums;
 }
 
@@ -93,6 +96,7 @@
   align-items: center;
   gap: var(--zz-space-2);
   color: var(--zz-text-2);
+  font-family: var(--zz-font-ui);
 }
 
 .wb-source-status[data-state="saved"] {
@@ -108,12 +112,12 @@
   color: var(--zz-bad);
 }
 
-/* —— 阅读稿纸 —— */
+/* —— 阅读稿纸：浮起纸面卡片（圆角 18px + 柔和纸影） —— */
 .wb-reader-body {
   flex: 1;
   min-height: 0;
-  padding: var(--zz-space-16) var(--zz-space-8) 40vh;
-  background: var(--zz-sheet-bg);
+  padding: var(--zz-space-6) var(--zz-space-6) 28vh;
+  background: var(--zz-bg);
   overflow-y: auto;
   scrollbar-gutter: stable;
   scroll-padding-top: var(--zz-space-6);
@@ -124,9 +128,15 @@
 }
 
 .wb-manuscript {
-  max-width: var(--zz-paper-width);
+  max-width: min(100%, 740px);
+  min-height: 62vh;
   margin: 0 auto;
-  color: var(--zz-text-1);
+  padding: 52px 60px 64px;
+  border: 1px solid var(--zz-sheet-edge);
+  border-radius: var(--zz-radius-lg);
+  background: var(--zz-paper);
+  box-shadow: var(--zz-paper-shadow);
+  color: var(--zz-ink);
   font-family: var(--zz-font-body);
   font-size: var(--zz-body-size);
   line-height: var(--zz-paper-leading);
@@ -145,21 +155,29 @@
   display: none;
 }
 
+/* 章眉小字：「第 十 二 章」，11px，字距 .3em */
+.wb-manuscript .wb-manuscript-kicker {
+  margin: 0 0 10px;
+  color: var(--zz-text-3);
+  font: var(--zz-weight-medium) 11px / 1.4 var(--zz-font-ui);
+  letter-spacing: 0.3em;
+  text-align: left;
+  text-indent: 0;
+}
+
+/* 章标题：28px 衬线、字距 .12em */
 .wb-manuscript-title {
-  margin: 0 0 1.4em;
+  margin: 0 0 24px;
   color: var(--zz-title);
-  font-size: 1.68em;
-  font-weight: var(--zz-weight-strong);
-  line-height: 1.35;
-  letter-spacing: 0.04em;
+  font: var(--zz-weight-strong) 28px / 1.35 var(--zz-font-paper);
+  letter-spacing: 0.12em;
   text-align: left;
   text-indent: 0;
   text-wrap: balance;
 }
 
-/* 标题下的章节元信息：UI 黑体、弱色、不随稿纸字距；下方以 48px 细墨线收束进入正文。 */
 .wb-manuscript .wb-manuscript-title:has(+ .wb-manuscript-meta) {
-  margin-bottom: 0.45em;
+  margin-bottom: 12px;
 }
 
 .wb-manuscript .wb-manuscript-meta {
@@ -167,11 +185,11 @@
   display: flex;
   align-items: center;
   gap: var(--zz-space-2);
-  margin: 0 0 var(--zz-space-10);
-  padding-bottom: var(--zz-space-6);
+  margin: 0 0 36px;
+  padding-bottom: 18px;
   color: var(--zz-text-3);
-  font: var(--zz-text-meta) / var(--zz-leading-meta) var(--zz-font-ui);
-  letter-spacing: normal;
+  font: var(--zz-text-mono) / 1.4 var(--zz-font-mono);
+  letter-spacing: 0.02em;
   text-indent: 0;
   font-variant-numeric: tabular-nums;
 }
@@ -180,7 +198,7 @@
   position: absolute;
   bottom: 0;
   left: 0;
-  width: 48px;
+  width: 40px;
   height: 1px;
   background: var(--zz-border-strong);
   content: "";
@@ -193,9 +211,9 @@
 }
 
 .wb-manuscript-h {
-  margin: 1.4em 0 0.6em;
+  margin: 1.5em 0 0.65em;
   color: var(--zz-title);
-  font-size: 1.1em;
+  font-size: 1.12em;
   font-weight: var(--zz-weight-strong);
   line-height: 1.5;
   text-indent: 0;

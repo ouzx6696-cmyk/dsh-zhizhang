@@ -2,9 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { importTs } from "../support/ts-loader.mjs";
 
-const { buildParagraphDiff, mergeParagraphChoices } = await importTs(
-  "apps/desktop/src/renderer/features/workflow/compare-diff.ts",
-);
+const { buildInlineDiff, buildParagraphDiff, computeDiffStats, mergeParagraphChoices } =
+  await importTs("apps/desktop/src/renderer/features/workflow/compare-diff.ts");
 
 test("buildParagraphDiff 在正文一致时返回零改动", () => {
   const text = "第一段雨夜敲门。\n\n第二段铜铃轻响。";
@@ -54,4 +53,36 @@ test("mergeParagraphChoices 按逐段选择合成最终正文", () => {
   assert.ok(mixed.includes("第一段不变。"));
   assert.ok(mixed.includes("第二段旧写法，节奏较慢。"));
   assert.ok(mixed.includes("第三段新钩子结尾。"));
+});
+
+test("buildInlineDiff 生成可无损还原原文与候选稿的行内增删片段", () => {
+  const official = "风灯摇晃，他推开旧木门走了进去。";
+  const candidate = "风灯骤暗，他推开沉重的铁门走了进去，反手落锁。";
+  const segs = buildInlineDiff(official, candidate);
+
+  const reconstructedOfficial = segs
+    .filter((s) => s.kind !== "add")
+    .map((s) => s.text)
+    .join("");
+  const reconstructedCandidate = segs
+    .filter((s) => s.kind !== "del")
+    .map((s) => s.text)
+    .join("");
+
+  assert.equal(reconstructedOfficial, official);
+  assert.equal(reconstructedCandidate, candidate);
+  assert.ok(segs.some((s) => s.kind === "del"));
+  assert.ok(segs.some((s) => s.kind === "add"));
+  assert.ok(segs.some((s) => s.kind === "same"));
+});
+
+test("computeDiffStats 正确累计改动处数、新增字数与删除字数", () => {
+  const official = "甲段。\n\n乙段旧文字。\n\n丙段要删除。";
+  const candidate = "甲段。\n\n乙段新扩写文字。\n\n丁段新增。";
+  const diff = buildParagraphDiff(official, candidate);
+  const stats = computeDiffStats(diff);
+
+  assert.equal(stats.changes, diff.changeIndices.length);
+  assert.ok(stats.addedChars > 0);
+  assert.ok(stats.removedChars > 0);
 });

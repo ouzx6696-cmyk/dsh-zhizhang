@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Columns2, Pen, Send } from "lucide-react";
 import { COPY, DESKTOP_COPY as C, WORKBENCH_COPY as W } from "@zhizhang/ui/copy";
 import { Button, Empty, Skeleton, StatusChip } from "@zhizhang/ui/primitives";
@@ -20,9 +21,11 @@ import { canLeave, select, trackEditor } from "../../state/controller";
 import { desktop } from "../../state/desktop";
 import { baseName, desktopStore, joinPath, useDesktop } from "../../state/store";
 import { notifyError, run } from "../../format";
+import { RAIL_LIST_SLOT_ID } from "../topbar/LeftRail";
 import { SelectionToolbar } from "./SelectionToolbar";
 import { ToutiaoSplitReference } from "./SplitReferencePane";
 import { TextField } from "./TextField";
+import { ToutiaoLedger } from "./ToutiaoLedger";
 
 const set = desktopStore.set;
 
@@ -49,6 +52,17 @@ export function nextStatuses(status: ArticleStatus): ArticleStatus[] {
   return ARTICLE_TRANSITIONS[status].filter((to) => to !== TOUTIAO_DELIVERED);
 }
 
+interface DraftPanelProps {
+  articleDir: string;
+  row: ArticleRowView;
+  readonly: boolean;
+  revision: number;
+  onTransition: (to: ArticleStatus) => void;
+  onDeliver: (title: string, body: string) => void;
+  busy: boolean;
+  progress?: React.ReactNode;
+}
+
 function DraftPanel({
   articleDir,
   row,
@@ -58,16 +72,7 @@ function DraftPanel({
   onDeliver,
   busy,
   progress,
-}: {
-  articleDir: string;
-  row: ArticleRowView;
-  readonly: boolean;
-  revision: number;
-  onTransition: (to: ArticleStatus) => void;
-  onDeliver: (title: string, body: string) => void;
-  busy: boolean;
-  progress?: React.ReactNode;
-}) {
+}: DraftPanelProps) {
   const splitRefOpen = useDesktop((s) => s.splitRefOpen);
   const [draft, setDraft] = useState<DraftState>(EMPTY_DRAFT);
   const [editing, setEditing] = useState(false);
@@ -82,15 +87,15 @@ function DraftPanel({
     const isCurrent = guard();
     try {
       const value = await desktop.workbench("toutiao.draft.get", { articleDir });
-      if (!isCurrent()) return;
-      setDraft({ status: "ready", error: "", ...value });
+      if (isCurrent()) setDraft({ status: "ready", error: "", ...value });
     } catch (error) {
-      if (!isCurrent()) return;
-      setDraft({
-        ...EMPTY_DRAFT,
-        status: "error",
-        error: error instanceof Error ? error.message : String(error),
-      });
+      if (isCurrent()) {
+        setDraft({
+          ...EMPTY_DRAFT,
+          status: "error",
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
   }, [articleDir, guard]);
 
@@ -106,8 +111,7 @@ function DraftPanel({
       firstRev.current = false;
       return;
     }
-    if (editingRef.current) return;
-    void load();
+    if (!editingRef.current) void load();
   }, [revision, load]);
 
   const save = async (text: string, base: string) => {
@@ -117,8 +121,8 @@ function DraftPanel({
       body: text,
       ...(base ? { revision: base } : {}),
     });
-    setDraft((current) => ({
-      ...current,
+    setDraft((cur) => ({
+      ...cur,
       title: title.trim(),
       body: text.trim(),
       revision: saved.revision,
@@ -158,7 +162,7 @@ function DraftPanel({
       {ARTICLE_TRANSITIONS[status].includes(TOUTIAO_DELIVERED) ? (
         <Button
           size="sm"
-          variant="primary"
+          variant="decide"
           data-testid="article-deliver"
           disabled={readonly || busy || !draft.body}
           onClick={() => onDeliver(shownTitle, draft.body)}
@@ -263,54 +267,6 @@ function DraftPanel({
   );
 }
 
-function Ledger({
-  rows,
-  onOpen,
-}: {
-  rows: readonly ArticleRowView[];
-  onOpen: (id: string) => void;
-}) {
-  return (
-    <section className="zz-board" data-testid="board" aria-label={C.topbar.viewLedger}>
-      {rows.length ? (
-        <div className="zz-board__sheet">
-          <table className="zz-table">
-            <thead>
-              <tr>
-                <th>{C.toutiao.title}</th>
-                <th>{C.toutiao.genre}</th>
-                <th className="zz-table__num">{C.toutiao.qa}</th>
-                <th>{C.fanqie.status}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr
-                  key={row.id}
-                  data-testid="board-row"
-                  data-article-id={row.id}
-                  data-status={row.status}
-                >
-                  <td>
-                    <button type="button" className="zz-link" onClick={() => onOpen(row.id)}>
-                      {row.title || row.id}
-                    </button>
-                  </td>
-                  <td>{row.genre}</td>
-                  <td className="zz-table__num">{row.qaScore ?? "—"}</td>
-                  <td>{statusLabel("toutiao", row.status)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <Empty title={C.toutiao.emptyLedger} />
-      )}
-    </section>
-  );
-}
-
 export function ToutiaoWorkspace({ target, readonly }: { target: Target; readonly: boolean }) {
   const root = useDesktop((s) => s.workspace?.roots.toutiao ?? "");
   const mainView = useDesktop((s) => s.view);
@@ -360,27 +316,36 @@ export function ToutiaoWorkspace({ target, readonly }: { target: Target; readonl
     else dispatch(action);
   };
 
+  const [slotEl, setSlotEl] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setSlotEl(document.getElementById(RAIL_LIST_SLOT_ID));
+  }, [zenMode, mainView]);
+
+  const articleNav = (
+    <nav className="zz-rail-chapters" aria-label={W.list.articleNav}>
+      <header className="zz-nav-head">
+        <h2>
+          {C.topbar.articles}
+          <span className="zz-nav-head__count">{rows.length}</span>
+        </h2>
+      </header>
+      <div className="zz-nav-body">
+        <ArticleList state={state} rows={rows} dispatch={routed} />
+      </div>
+    </nav>
+  );
+
   return (
     <div
       className="zz-workspace zz-workspace--toutiao"
       data-compare={zenMode ? "on" : "off"}
       data-zen={zenMode ? "on" : "off"}
     >
-      <nav className="zz-workspace__nav" aria-label={W.list.articleNav}>
-        <header className="zz-nav-head">
-          <h2>
-            {C.topbar.articles}
-            <span className="zz-nav-head__count">{rows.length}</span>
-          </h2>
-        </header>
-        <div className="zz-nav-body">
-          <ArticleList state={state} rows={rows} dispatch={routed} />
-        </div>
-      </nav>
+      {slotEl ? createPortal(articleNav, slotEl) : null}
       <section className="zz-workspace__center">
         {mainView === "board" ? (
           <div className="zz-center-scroll">
-            <Ledger rows={rows} onOpen={open} />
+            <ToutiaoLedger rows={rows} onOpen={open} />
           </div>
         ) : selected ? (
           <DraftPanel

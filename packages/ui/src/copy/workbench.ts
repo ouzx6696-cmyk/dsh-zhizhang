@@ -16,6 +16,15 @@ export const WORKBENCH_COPY = {
     pick: "请选择章节",
     pickHint: "从左侧章节列表中选择一章阅读或编辑。",
     chapterOrdinal: (n: number) => `第 ${n} 章`,
+    chapterKicker: (n: number) => {
+      const digits = ["零", "一", "二", "三", "四", "五", "六", "七", "八", "九"];
+      let cn = String(n);
+      if (n > 0 && n < 10) cn = digits[n];
+      else if (n >= 10 && n < 20) cn = `十${n % 10 === 0 ? "" : digits[n % 10]}`;
+      else if (n >= 20 && n < 100)
+        cn = `${digits[Math.floor(n / 10)]}十${n % 10 === 0 ? "" : digits[n % 10]}`;
+      return `第 ${cn.split("").join(" ")} 章`;
+    },
     edit: "编辑",
     editLabel: "编辑正文",
     find: "查找",

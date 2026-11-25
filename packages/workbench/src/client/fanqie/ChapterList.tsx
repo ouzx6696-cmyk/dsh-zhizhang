@@ -6,6 +6,8 @@ import { Empty, StatusDot, cx } from "../shared/components.js";
 export interface ChapterListProps {
   chapters: readonly ChapterRowView[];
   selectedId: string;
+  /** 正等待作者拍板候选稿的章节 ID 集合：状态点显赭橙。 */
+  awaitingIds?: ReadonlySet<string>;
   onSelect: (id: string) => void;
 }
 
@@ -13,11 +15,13 @@ const ChapterRow = React.memo(function ChapterRow({
   chapter,
   index,
   active,
+  awaiting,
   onSelect,
 }: {
   chapter: ChapterRowView;
   index: number;
   active: boolean;
+  awaiting: boolean;
   onSelect: (id: string) => void;
 }) {
   return (
@@ -29,10 +33,15 @@ const ChapterRow = React.memo(function ChapterRow({
         data-testid="chapter-item"
         data-chapter-id={chapter.id}
         data-status={chapter.status}
+        data-awaiting={awaiting ? "true" : undefined}
         className={cx("wb-list-item", active && "wb-list-item-on")}
         onClick={() => onSelect(chapter.id)}
       >
-        <StatusDot status={chapter.status} mode="fanqie" />
+        {awaiting ? (
+          <span className="wb-dot" data-tone="decide" aria-hidden="true" />
+        ) : (
+          <StatusDot status={chapter.status} mode="fanqie" />
+        )}
         <span className="wb-list-index" aria-hidden="true">
           {W.list.ordinal(index + 1)}
         </span>
@@ -43,7 +52,7 @@ const ChapterRow = React.memo(function ChapterRow({
   );
 });
 
-export function ChapterList({ chapters, selectedId, onSelect }: ChapterListProps) {
+export function ChapterList({ chapters, selectedId, awaitingIds, onSelect }: ChapterListProps) {
   if (!chapters.length) {
     return <Empty title={W.list.empty} hint={W.list.emptyHint} icon="book" />;
   }
@@ -55,6 +64,7 @@ export function ChapterList({ chapters, selectedId, onSelect }: ChapterListProps
           chapter={ch}
           index={index}
           active={ch.id === selectedId}
+          awaiting={Boolean(awaitingIds?.has(ch.id))}
           onSelect={onSelect}
         />
       ))}

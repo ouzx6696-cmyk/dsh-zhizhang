@@ -7,7 +7,7 @@ import {
   type StepsProps,
 } from "./types.js";
 
-export function Brand({ label = "织章", className, children = "章" }: BrandProps) {
+export function Brand({ label = "织章", className, children = "织" }: BrandProps) {
   return (
     <span className={cx("zz-brand", className)} aria-label={label}>
       {children}

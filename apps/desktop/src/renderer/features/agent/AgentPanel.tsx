@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ChevronRight, PenTool, Plus } from "lucide-react";
+import { ChevronRight, Eye, PenTool, Plus } from "lucide-react";
 import { DESKTOP_COPY as C } from "@zhizhang/ui/copy";
 import { Button, IconButton, Select, Spinner } from "@zhizhang/ui/primitives";
 import { readPref, writePref, PREF } from "@zhizhang/workbench/client";
@@ -82,7 +82,7 @@ function useDraft(scope: string): [string, (value: string) => void] {
   ];
 }
 
-/** 右栏“共创写作助手”：嵌入进行中流水线速览、思考链流式视图、划词选区挂载与结构化任务单。 */
+/** 柔和纸面 C2 右栏“只读助手”卡：只查阅，不改正文；支持原文引用卡与快速发起连续性复查。 */
 export function AgentPanel({ target }: { target: Target }) {
   const messages = useChat((c) => c.messages);
   const stream = useChat((c) => c.stream);
@@ -96,6 +96,7 @@ export function AgentPanel({ target }: { target: Target }) {
   const focus = useDesktop((s) => s.focus);
   const chapters = useDesktop((s) => s.chapters);
   const runs = useDesktop((s) => s.runs);
+  const dockSplit = useDesktop((s) => s.dockSplit);
   const readonly = useDesktop((s) => Boolean(s.workspace?.readonly));
   const [draft, setDraft] = useDraft(scopeKey(target));
   const [briefOpen, setBriefOpen] = useState(false);
@@ -128,6 +129,16 @@ export function AgentPanel({ target }: { target: Target }) {
   return (
     <div className="zz-agent" data-testid="agent-panel">
       <header className="zz-agent__head">
+        <div className="zz-agent__title-bar">
+          <div className="zz-agent__title-group">
+            <strong className="zz-agent__heading">{C.dock.assistantHead}</strong>
+            <span className="zz-readonly-pill" data-testid="agent-readonly-tag">
+              <Eye size={11} aria-hidden="true" />
+              {C.rail.readonlyTag}
+            </span>
+          </div>
+          <span className="zz-agent__readonly-hint">{C.rail.readonlyHint}</span>
+        </div>
         <div className="zz-agent__head-row">
           <Select
             label={C.agent.conversations}
@@ -146,22 +157,22 @@ export function AgentPanel({ target }: { target: Target }) {
           />
           <IconButton
             label={C.agent.newConversation}
-            size="sm"
+            size="xs"
             data-testid="agent-new-conversation"
             disabled={busy}
-            icon={<Plus size={15} />}
+            icon={<Plus size={14} />}
             onClick={() => run(newConversation)}
           />
         </div>
         <AgentContextBar />
-        {activeRun ? (
+        {activeRun && !dockSplit ? (
           <div className="zz-live-strip" data-testid="agent-live-run" data-state={activeRun.state}>
             <span>
               <strong>{C.cowriter.livePipeline}</strong> ·{" "}
               {C.workflow.kind[activeRun.kind] ?? activeRun.kind}
               {activeRun.stages.length ? ` (${activeRun.stages.length})` : ""}
             </span>
-            <Button size="sm" variant="ghost" onClick={() => openPipeline()}>
+            <Button size="xs" variant="ghost" onClick={() => openPipeline()}>
               {C.cowriter.openPipelineDetail}
             </Button>
           </div>
@@ -169,11 +180,18 @@ export function AgentPanel({ target }: { target: Target }) {
       </header>
       <div className="zz-agent__list" ref={list}>
         {chatting ? (
-          <AgentMessages messages={messages} stream={stream} thinkingStream={thinkingStream} />
+          <AgentMessages
+            messages={messages}
+            stream={stream}
+            thinkingStream={thinkingStream}
+            onContinuityAudit={
+              ready && !busy ? () => void send(C.cowriter.quickDiagnoseText, "diagnose") : undefined
+            }
+          />
         ) : (
           <section className="zz-agent__welcome" data-testid="agent-welcome">
             <span className="zz-agent__welcome-icon" aria-hidden="true">
-              <PenTool size={16} />
+              <PenTool size={15} />
             </span>
             <h3>{C.agent.emptyTitle}</h3>
             <p>{C.agent.emptyHint}</p>

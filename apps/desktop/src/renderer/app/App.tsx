@@ -4,7 +4,6 @@ import "@zhizhang/ui/components.css";
 import "@zhizhang/workbench/styles.css";
 import "../styles/index.css";
 import { COPY, DESKTOP_COPY as C } from "@zhizhang/ui/copy";
-import { NoticeStack } from "@zhizhang/ui/notify";
 import { Brand, Skeleton, Spinner } from "@zhizhang/ui/primitives";
 import { setConfirm } from "@zhizhang/workbench/client";
 import { askConfirm } from "../state/confirm";
@@ -15,7 +14,7 @@ import { errorText, notifyError } from "../format";
 import { ConfirmDialog } from "../features/confirm/ConfirmDialog";
 import { ProjectHub } from "../features/hub/ProjectHub";
 import { CommandPalette } from "../features/topbar/CommandPalette";
-import { TopBar } from "../features/topbar/TopBar";
+import { LeftRail } from "../features/topbar/LeftRail";
 import { RootErrorBoundary, reportUnhandledRejection } from "./crash";
 import { useAppearance } from "./useAppearance";
 import { useShortcuts } from "./useShortcuts";
@@ -91,23 +90,25 @@ function App() {
       data-mode={selected?.target.mode ?? "none"}
       data-zen={zenMode ? "on" : "off"}
     >
-      <TopBar />
-      {bootState === "error" ? (
-        <div className="zz-empty-page" role="alert" data-testid="boot-error">
-          <h1>{C.shell.bootFailed}</h1>
-          <p>{bootError}</p>
-        </div>
-      ) : showWarehouse ? (
-        <Suspense fallback={<StudioFallback />}>
-          <TechniqueWarehouse />
-        </Suspense>
-      ) : showHub ? (
-        <ProjectHub />
-      ) : (
-        <Suspense fallback={<StudioFallback />}>
-          <Studio key={selected.target.mode + selected.target.path} item={selected} />
-        </Suspense>
-      )}
+      {!zenMode ? <LeftRail /> : null}
+      <div className="zz-desktop__stage">
+        {bootState === "error" ? (
+          <div className="zz-empty-page" role="alert" data-testid="boot-error">
+            <h1>{C.shell.bootFailed}</h1>
+            <p>{bootError}</p>
+          </div>
+        ) : showWarehouse ? (
+          <Suspense fallback={<StudioFallback />}>
+            <TechniqueWarehouse />
+          </Suspense>
+        ) : showHub ? (
+          <ProjectHub />
+        ) : (
+          <Suspense fallback={<StudioFallback />}>
+            <Studio key={selected.target.mode + selected.target.path} item={selected} />
+          </Suspense>
+        )}
+      </div>
       <Suspense fallback={null}>
         {settingsOpen ? <Settings /> : null}
         {onboarding ? <Onboarding /> : null}
@@ -115,7 +116,6 @@ function App() {
       <Suspense fallback={null}>{creating ? <NewTargetDialog kind={creating} /> : null}</Suspense>
       <CommandPalette />
       <ConfirmDialog />
-      <NoticeStack label={C.shell.notices} />
     </div>
   );
 }

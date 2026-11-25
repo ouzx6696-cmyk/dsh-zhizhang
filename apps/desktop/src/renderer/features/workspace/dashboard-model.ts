@@ -4,7 +4,7 @@
  */
 
 export type KernelStageId = "dissect" | "organize" | "fill";
-export type KernelTone = "ok" | "run" | "decide" | "neutral";
+export type KernelTone = "ok" | "run" | "active" | "neutral";
 export type PipelineNodeStatus = "done" | "running" | "awaiting" | "paused" | "failed" | "pending";
 
 export interface KernelStageMetric {
@@ -193,7 +193,7 @@ export function buildStudioDashboardModel(
       percent: organizePercent,
       hint: text.organizeHint(library.totalCards, library.sourcesWithCards),
       countText: `${organizePercent}%`,
-      tone: organizePercent >= 100 ? "ok" : organizePercent > 0 ? "decide" : "neutral",
+      tone: organizePercent >= 100 ? "ok" : organizePercent > 0 ? "active" : "neutral",
     },
     {
       id: "fill",
@@ -201,7 +201,7 @@ export function buildStudioDashboardModel(
       percent: fillPercent,
       hint: fillHint,
       countText: fillCount,
-      tone: fillPercent >= 100 ? "ok" : fillPercent > 0 ? "decide" : "neutral",
+      tone: fillPercent >= 100 ? "ok" : fillPercent > 0 ? "active" : "neutral",
     },
   ];
 

@@ -1,17 +1,18 @@
 /*
- * 语义令牌：两套主题（「松烟夜砚」/「天青素笺」）+ 字阶、间距、圆角、阴影、动效。
- * 颜色语义：decide（黛青松绿）只给作者拍板；run（靛蓝）机器在跑；ok 松叶绿；warn 藤黄；bad 朱红。
+ * 语义令牌：「柔和纸面 C2」(Calm Paper) 浅色 / 深色 + 字阶、间距、圆角、阴影、动效。
+ * 一种颜色一种意思：decide 赭橙（只给作者裁决）；run 蓝（机器在跑）；ok 绿（完成/新增）；bad 红（错误/删除）；warn 琥珀（留意）。
  */
 :root,
 [data-theme="night"] {
   color-scheme: dark;
   --zz-bg: var(--zz-raw-night-bg);
+  --zz-surface: var(--zz-raw-night-surface);
   --zz-surface-1: var(--zz-raw-night-s1);
   --zz-surface-2: var(--zz-raw-night-s2);
   --zz-surface-3: var(--zz-raw-night-s3);
   --zz-paper: var(--zz-raw-night-paper);
   --zz-desk: var(--zz-raw-night-desk);
-  --zz-sheet-shadow: var(--zz-raw-night-sheet-shadow);
+  --zz-sheet-shadow: var(--zz-raw-night-paper-shadow-b);
   --zz-sheet-edge: var(--zz-raw-night-sheet-edge);
   --zz-border: var(--zz-raw-night-border);
   --zz-border-strong: var(--zz-raw-night-border-strong);
@@ -25,34 +26,38 @@
   --zz-text-3: var(--zz-raw-night-text3);
   --zz-title: var(--zz-raw-night-title);
 
-  --zz-seal-bg: var(--zz-raw-seal-night);
-  --zz-seal-ink: var(--zz-raw-seal-ink);
-
-  --zz-decide: var(--zz-raw-jade-400);
-  --zz-decide-hover: var(--zz-raw-jade-300);
-  --zz-decide-fill: var(--zz-raw-jade-400);
-  --zz-on-decide: var(--zz-raw-jade-ink-night);
-  --zz-run: var(--zz-raw-blue-300);
-  --zz-ok: var(--zz-raw-green-300);
-  --zz-warn: var(--zz-raw-yellow-300);
-  --zz-bad: var(--zz-raw-red-300);
-  --zz-focus: var(--zz-raw-jade-focus);
+  --zz-decide: var(--zz-raw-decide-night);
+  --zz-decide-hover: var(--zz-raw-decide-night-hover);
+  --zz-decide-fill: var(--zz-raw-decide-night);
+  --zz-on-decide: var(--zz-raw-decide-night-ink);
+  --zz-run: var(--zz-raw-run-night);
+  --zz-ok: var(--zz-raw-ok-night);
+  --zz-warn: var(--zz-raw-warn-night);
+  --zz-bad: var(--zz-raw-bad-night);
+  --zz-focus: var(--zz-text-1);
   --zz-soft-mix: 14%;
 
   --zz-shadow-1: 0 1px 2px var(--zz-raw-night-shadow-1);
-  --zz-shadow-2: 0 10px 28px var(--zz-raw-night-shadow-2);
-  --zz-shadow-3: 0 28px 72px var(--zz-raw-night-shadow-3);
+  --zz-shadow-2: 0 8px 24px -6px var(--zz-raw-night-shadow-2);
+  --zz-shadow-3: 0 24px 64px -12px var(--zz-raw-night-shadow-3);
+  --zz-paper-shadow:
+    0 1px 2px var(--zz-raw-night-paper-shadow-a),
+    0 16px 40px -10px var(--zz-raw-night-paper-shadow-b);
+  --zz-card-shadow:
+    0 1px 2px var(--zz-raw-night-shadow-1), 0 8px 24px -8px var(--zz-raw-night-shadow-2);
+  --zz-decide-inset: var(--zz-raw-decide-inset-night);
 }
 
 [data-theme="day"] {
   color-scheme: light;
   --zz-bg: var(--zz-raw-day-bg);
+  --zz-surface: var(--zz-raw-day-surface);
   --zz-surface-1: var(--zz-raw-day-s1);
   --zz-surface-2: var(--zz-raw-day-s2);
   --zz-surface-3: var(--zz-raw-day-s3);
   --zz-paper: var(--zz-raw-day-paper);
   --zz-desk: var(--zz-raw-day-desk);
-  --zz-sheet-shadow: var(--zz-raw-day-sheet-shadow);
+  --zz-sheet-shadow: var(--zz-raw-day-paper-shadow-b);
   --zz-sheet-edge: var(--zz-raw-day-sheet-edge);
   --zz-border: var(--zz-raw-day-border);
   --zz-border-strong: var(--zz-raw-day-border-strong);
@@ -66,85 +71,82 @@
   --zz-text-3: var(--zz-raw-day-text3);
   --zz-title: var(--zz-raw-day-title);
 
-  --zz-seal-bg: var(--zz-raw-seal-day);
-  --zz-seal-ink: var(--zz-raw-seal-ink);
+  --zz-decide: var(--zz-raw-decide-day);
+  --zz-decide-hover: var(--zz-raw-decide-day-hover);
+  --zz-decide-fill: var(--zz-raw-decide-day);
+  --zz-on-decide: var(--zz-raw-decide-day-ink);
+  --zz-run: var(--zz-raw-run-day);
+  --zz-ok: var(--zz-raw-ok-day);
+  --zz-warn: var(--zz-raw-warn-day);
+  --zz-bad: var(--zz-raw-bad-day);
+  --zz-focus: var(--zz-text-1);
+  --zz-soft-mix: 11%;
 
-  --zz-decide: var(--zz-raw-jade-700);
-  --zz-decide-hover: var(--zz-raw-jade-800);
-  --zz-decide-fill: var(--zz-raw-jade-700);
-  --zz-on-decide: var(--zz-raw-jade-ink-day);
-  --zz-run: var(--zz-raw-blue-700);
-  --zz-ok: var(--zz-raw-green-700);
-  --zz-warn: var(--zz-raw-yellow-700);
-  --zz-bad: var(--zz-raw-red-700);
-  --zz-focus: var(--zz-raw-jade-700);
-  --zz-soft-mix: 10%;
-
-  --zz-shadow-1: 0 1px 3px var(--zz-raw-day-shadow-1);
-  --zz-shadow-2: 0 10px 28px var(--zz-raw-day-shadow-2);
-  --zz-shadow-3: 0 28px 72px var(--zz-raw-day-shadow-3);
+  --zz-shadow-1: 0 1px 2px var(--zz-raw-day-shadow-1);
+  --zz-shadow-2: 0 8px 24px -6px var(--zz-raw-day-shadow-2);
+  --zz-shadow-3: 0 24px 64px -12px var(--zz-raw-day-shadow-3);
+  --zz-paper-shadow:
+    0 1px 2px var(--zz-raw-day-paper-shadow-a), 0 12px 32px -8px var(--zz-raw-day-paper-shadow-b);
+  --zz-card-shadow:
+    0 1px 2px var(--zz-raw-day-shadow-1), 0 6px 20px -6px var(--zz-raw-day-shadow-2);
+  --zz-decide-inset: var(--zz-raw-decide-inset-day);
 }
 
 :root {
-  /* 状态底色：统一公式 */
-  --zz-decide-soft: color-mix(in srgb, var(--zz-decide) var(--zz-soft-mix), transparent);
-  --zz-run-soft: color-mix(in srgb, var(--zz-run) var(--zz-soft-mix), transparent);
-  --zz-ok-soft: color-mix(in srgb, var(--zz-ok) var(--zz-soft-mix), transparent);
-  --zz-warn-soft: color-mix(in srgb, var(--zz-warn) var(--zz-soft-mix), transparent);
-  --zz-bad-soft: color-mix(in srgb, var(--zz-bad) var(--zz-soft-mix), transparent);
+  /* 状态软底色：color-mix 10%–15% 派生，严格对齐 C2 参考规范 */
+  --zz-decide-soft: color-mix(in srgb, var(--zz-decide) 13%, transparent);
+  --zz-run-soft: color-mix(in srgb, var(--zz-run) 14%, transparent);
+  --zz-ok-soft: color-mix(in srgb, var(--zz-ok) 15%, transparent);
+  --zz-warn-soft: color-mix(in srgb, var(--zz-warn) 14%, transparent);
+  --zz-bad-soft: color-mix(in srgb, var(--zz-bad) 10%, transparent);
+  --zz-decide-glow:
+    0 1px 0 var(--zz-decide-inset) inset,
+    0 6px 14px -4px color-mix(in srgb, var(--zz-decide) 45%, transparent);
 
-  /* 字体（2+1 出版级搭配：Noto Serif SC + Plus Jakarta Sans/Noto Sans SC + JetBrains Mono） */
-  --zz-font-ui:
-    "Plus Jakarta Sans", "Noto Sans SC", "PingFang SC", "Microsoft YaHei UI", system-ui, sans-serif;
+  /* 作品精装小封面 */
+  --zz-cover-bg: linear-gradient(160deg, var(--zz-raw-cover-a), var(--zz-raw-cover-b));
+  --zz-cover-ink: var(--zz-raw-cover-ink);
+  --zz-cover-shadow:
+    inset 3px 0 0 var(--zz-raw-cover-spine), 0 4px 10px -2px var(--zz-raw-cover-drop);
+
+  /* 字体：界面 Inter + Noto Sans SC；正文 Noto Serif SC；数字/耗时 JetBrains Mono */
+  --zz-font-ui: "Inter", "Noto Sans SC", "PingFang SC", "Microsoft YaHei UI", system-ui, sans-serif;
   --zz-font-paper: "Noto Serif SC", "Source Han Serif SC", "Songti SC", Georgia, serif;
   --zz-font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
   --zz-font-body: var(--zz-font-paper);
 
-  /* 字阶（UI） */
-  --zz-text-caption: 0.75rem;
-  --zz-text-meta: 0.8125rem;
-  --zz-text-body: 0.875rem;
-  --zz-text-strong: 0.9375rem;
-  --zz-text-title: 1.1875rem;
-  --zz-text-display: 1.625rem;
-  --zz-leading-caption: 1.125rem;
-  --zz-leading-meta: 1.25rem;
-  --zz-leading-body: 1.45rem;
-  --zz-leading-strong: 1.5rem;
-  --zz-leading-title: 1.7rem;
-  --zz-leading-display: 2.15rem;
+  /* 字阶（界面 13.5px / 行高 1.55；数字 11.5px） */
+  --zz-text-mono: 11.5px;
+  --zz-text-caption: 11.5px;
+  --zz-text-meta: 12.5px;
+  --zz-text-body: 13.5px;
+  --zz-text-strong: 15px;
+  --zz-text-title: 18px;
+  --zz-text-display: 28px;
+  --zz-leading-caption: 1.45;
+  --zz-leading-meta: 1.5;
+  --zz-leading-body: 1.55;
+  --zz-leading-strong: 1.5;
+  --zz-leading-title: 1.45;
+  --zz-leading-display: 1.35;
   --zz-weight-regular: 400;
+  --zz-weight-medium: 500;
   --zz-weight-strong: 600;
 
-  /* 稿纸：字号（外观设置写入）、行长（字数，无单位）、行高、字距 */
-  --zz-body-size: 18px;
+  /* 稿纸：17px 衬线、2.0 行高、首行缩进 2em、两端对齐 */
+  --zz-body-size: 17px;
   --zz-paper-measure: 36;
-  --zz-paper-leading: 1.9;
-  --zz-paper-track: 0.025em;
+  --zz-paper-leading: 2;
+  --zz-paper-track: 0.02em;
   --zz-paper-indent: 2em;
-  --zz-paper-gap: 0;
+  --zz-paper-gap: 0.35em;
   --zz-paper-width: calc(var(--zz-paper-measure) * (1em + var(--zz-paper-track)));
-  /* 纸张：文字列 + 两侧宽裕页边；稿纸区在石案书桌上铺一条带柔和边影的纯棉宣纸 */
   --zz-sheet-font: var(--zz-body-size);
-  --zz-sheet-margin: var(--zz-space-16);
+  --zz-sheet-margin: 56px;
   --zz-sheet-width: calc(
-    var(--zz-paper-measure) * var(--zz-sheet-font) * 1.025 + 2 * var(--zz-sheet-margin)
+    var(--zz-paper-measure) * var(--zz-sheet-font) * 1.02 + 2 * var(--zz-sheet-margin)
   );
-  --zz-sheet-blur: var(--zz-space-6);
-  --zz-sheet-bg:
-    linear-gradient(var(--zz-paper), var(--zz-paper)) 50% 0 / min(100%, var(--zz-sheet-width)) 100%
-      no-repeat,
-    linear-gradient(var(--zz-sheet-edge), var(--zz-sheet-edge)) 50% 0 /
-      min(100%, calc(var(--zz-sheet-width) + 2px)) 100% no-repeat,
-    linear-gradient(
-        90deg,
-        transparent,
-        var(--zz-sheet-shadow) var(--zz-sheet-blur),
-        var(--zz-sheet-shadow) calc(100% - var(--zz-sheet-blur)),
-        transparent
-      )
-      50% 0 / min(100%, calc(var(--zz-sheet-width) + 2 * var(--zz-sheet-blur))) 100% no-repeat,
-    var(--zz-desk);
+  --zz-sheet-bg: var(--zz-bg);
 
   /* 间距（4 基数） */
   --zz-space-half: 2px;
@@ -159,11 +161,11 @@
   --zz-space-12: 48px;
   --zz-space-16: 64px;
 
-  /* 圆角：克制出版感，避免泡泡化 */
-  --zz-radius-xs: 3px;
-  --zz-radius-sm: 6px;
-  --zz-radius-md: 8px;
-  --zz-radius-lg: 12px;
+  /* 圆角：8 / 12 / 18，按钮 10 */
+  --zz-radius-xs: 6px;
+  --zz-radius-sm: 8px;
+  --zz-radius-md: 12px;
+  --zz-radius-lg: 18px;
   --zz-radius-pill: 999px;
 
   /* 层级 */
@@ -174,12 +176,12 @@
   --zz-z-modal: 80;
   --zz-z-toast: 100;
 
-  /* 动效 */
-  --zz-dur-1: 120ms;
+  /* 动效：180ms cubic-bezier(.2,.8,.2,1) */
+  --zz-dur-1: 140ms;
   --zz-dur-2: 180ms;
   --zz-dur-3: 240ms;
-  --zz-dur-flow: 1600ms;
-  --zz-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --zz-dur-flow: 1800ms;
+  --zz-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --zz-ease-exit: cubic-bezier(0.4, 0, 1, 1);
   --zz-flow-play: running;
 }
@@ -190,13 +192,14 @@
 
 :root[data-paragraph="spaced"] {
   --zz-paper-indent: 0;
-  --zz-paper-gap: 0.85em;
+  --zz-paper-gap: 0.9em;
 }
 
 @media (forced-colors: active) {
   :root,
   [data-theme] {
     --zz-bg: Canvas;
+    --zz-surface: Canvas;
     --zz-surface-1: Canvas;
     --zz-surface-2: Canvas;
     --zz-surface-3: Canvas;
@@ -208,8 +211,6 @@
     --zz-text-3: GrayText;
     --zz-title: CanvasText;
     --zz-ink: CanvasText;
-    --zz-seal-bg: Highlight;
-    --zz-seal-ink: HighlightText;
     --zz-border: ButtonBorder;
     --zz-border-strong: ButtonBorder;
     --zz-decide: Highlight;
@@ -223,7 +224,6 @@
   }
 }
 
-/* 全仓唯一一处 reduced-motion：时长归零，进度流光静止为斜纹。 */
 @media (prefers-reduced-motion: reduce) {
   :root {
     --zz-dur-1: 0ms;

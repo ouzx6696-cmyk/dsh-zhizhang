@@ -1,0 +1,390 @@
+/* 柔和纸面 C2：240px 平面左栏 + 中栏静谧面包屑条 + 底部本地保存状态。只用 --zz-* 令牌。 */
+
+/* —— 左栏（直接平铺在 --zz-bg 上，不做外框卡片） —— */
+.zz-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 16px 14px 14px;
+  background: var(--zz-bg);
+}
+
+.zz-rail__brand {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--zz-space-2);
+  padding: 2px 4px 6px;
+}
+
+.zz-rail__logo-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  border: none;
+  border-radius: var(--zz-radius-sm);
+  background: transparent;
+  color: var(--zz-text-1);
+  cursor: pointer;
+}
+
+.zz-rail__wordmark {
+  color: var(--zz-title);
+  font: 700 16px / 1 var(--zz-font-paper);
+  letter-spacing: 0.06em;
+}
+
+.zz-rail__brand-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.zz-model-dot {
+  display: inline-grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  padding: 0;
+  border: none;
+  border-radius: var(--zz-radius-sm);
+  background: transparent;
+  cursor: pointer;
+  transition: background-color var(--zz-dur-1) var(--zz-ease);
+}
+
+.zz-model-dot:hover {
+  background: var(--zz-hover);
+}
+
+.zz-model-dot > span {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--zz-radius-pill);
+  background: var(--zz-warn);
+}
+
+.zz-model-dot[data-ready="true"] > span {
+  background: var(--zz-ok);
+}
+
+/* —— 番茄长篇 / 今日头条 分段控件 —— */
+.zz-rail__mode {
+  display: grid;
+  flex: none;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--zz-btn-radius);
+  background: var(--zz-surface-2);
+}
+
+.zz-rail__mode-btn {
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--zz-radius-sm);
+  background: transparent;
+  color: var(--zz-text-2);
+  font-size: var(--zz-text-meta);
+  font-weight: var(--zz-weight-medium);
+  cursor: pointer;
+  transition:
+    background-color var(--zz-dur-1) var(--zz-ease),
+    color var(--zz-dur-1) var(--zz-ease),
+    box-shadow var(--zz-dur-1) var(--zz-ease);
+}
+
+.zz-rail__mode-btn:hover {
+  color: var(--zz-text-1);
+}
+
+.zz-rail__mode-btn[aria-selected="true"] {
+  background: var(--zz-paper);
+  color: var(--zz-text-1);
+  font-weight: var(--zz-weight-strong);
+  box-shadow: var(--zz-shadow-1);
+}
+
+/* —— 搜索触发框（Ctrl K） —— */
+.zz-rail__search {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  height: 32px;
+  padding: 0 8px 0 10px;
+  border: 1px solid var(--zz-border);
+  border-radius: var(--zz-btn-radius);
+  background: transparent;
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-meta);
+  cursor: pointer;
+  transition:
+    border-color var(--zz-dur-1) var(--zz-ease),
+    background-color var(--zz-dur-1) var(--zz-ease);
+}
+
+.zz-rail__search:hover {
+  border-color: var(--zz-border-strong);
+  background: var(--zz-hover);
+  color: var(--zz-text-2);
+}
+
+.zz-rail__search-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zz-rail__kbd {
+  flex: none;
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: var(--zz-surface-2);
+  color: var(--zz-text-2);
+  font: 500 10.5px / 1 var(--zz-font-mono);
+}
+
+/* —— 当前作品封面与进度 —— */
+.zz-rail__work {
+  position: relative;
+  flex: none;
+  margin-top: 6px;
+}
+
+.zz-rail__work-trigger {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 4px;
+  border: none;
+  border-radius: var(--zz-radius-md);
+  background: transparent;
+  color: var(--zz-text-1);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--zz-dur-1) var(--zz-ease);
+}
+
+.zz-rail__work-trigger:hover:not(:disabled) {
+  background: var(--zz-hover);
+}
+
+.zz-rail__cover {
+  display: grid;
+  flex: none;
+  width: 40px;
+  height: 54px;
+  place-items: center;
+  border-radius: 4px 7px 7px 4px;
+  background: var(--zz-cover-bg);
+  color: var(--zz-cover-ink);
+  box-shadow: var(--zz-cover-shadow);
+  font: 600 10.5px / 1.25 var(--zz-font-paper);
+  letter-spacing: 0.1em;
+  text-align: center;
+}
+
+.zz-rail__work-meta {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.zz-rail__work-title {
+  overflow: hidden;
+  color: var(--zz-title);
+  font: 600 14.5px / 1.3 var(--zz-font-paper);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zz-rail__work-sub {
+  overflow: hidden;
+  color: var(--zz-text-3);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zz-rail__progress {
+  display: block;
+  height: 3px;
+  margin-top: 5px;
+  overflow: hidden;
+  border-radius: var(--zz-radius-pill);
+  background: var(--zz-surface-2);
+}
+
+.zz-rail__progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--zz-text-3);
+}
+
+.zz-rail__chev {
+  flex: none;
+  color: var(--zz-text-3);
+}
+
+.zz-rail__target-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  z-index: var(--zz-z-popover);
+}
+
+.zz-rail__target-menu .zz-menu {
+  display: flex;
+  width: 100%;
+  min-width: 212px;
+}
+
+/* —— 章节 / 文章列表 Portal 槽位 —— */
+.zz-rail__scroll {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.zz-rail__slot {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.zz-rail__slot[data-active="false"] {
+  display: none;
+}
+
+.zz-rail-chapters {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.zz-rail__recent {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.zz-rail__section-head {
+  padding: 8px 10px 4px;
+  color: var(--zz-text-3);
+  font-size: 11px;
+  font-weight: var(--zz-weight-strong);
+  letter-spacing: 0.04em;
+}
+
+.zz-rail__recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.zz-rail__empty {
+  padding: 4px 10px;
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-meta);
+}
+
+/* —— 资料与视图区 —— */
+.zz-rail__resources {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.zz-rail__nav-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--zz-text-2);
+  font-size: var(--zz-text-body);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--zz-dur-1) var(--zz-ease),
+    color var(--zz-dur-1) var(--zz-ease),
+    box-shadow var(--zz-dur-1) var(--zz-ease);
+}
+
+.zz-rail__nav-link:hover {
+  background: var(--zz-hover);
+  color: var(--zz-text-1);
+}
+
+.zz-rail__nav-link[aria-current="page"] {
+  background: var(--zz-paper);
+  color: var(--zz-text-1);
+  font-weight: var(--zz-weight-strong);
+  box-shadow: var(--zz-card-shadow);
+}
+
+.zz-rail__nav-link svg {
+  flex: none;
+  color: var(--zz-text-3);
+}
+
+.zz-rail__nav-link[aria-current="page"] svg {
+  color: var(--zz-text-1);
+}
+
+.zz-rail__nav-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zz-rail__nav-meta {
+  flex: none;
+  color: var(--zz-text-3);
+  font-size: 11px;
+}
+
+.zz-rail__badge-warn {
+  display: inline-grid;
+  min-width: 18px;
+  height: 18px;
+  place-items: center;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--zz-warn-soft);
+  color: var(--zz-warn);
+  font: 700 10.5px / 1 var(--zz-font-ui);
+}

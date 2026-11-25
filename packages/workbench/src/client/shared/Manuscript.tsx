@@ -67,6 +67,8 @@ function renderWithMarks(
 export interface ManuscriptProps {
   text?: string | null;
   emptyText?: string;
+  /** 章眉小字（例如「第 十 二 章」），显示在 28px 衬线标题上方。 */
+  kicker?: string;
   /** 稿纸标题：正文首行是 `# 标题` 时以它为准（章名只出现一次），否则用这里的值。 */
   title?: string;
   query?: string;
@@ -90,6 +92,7 @@ function MetaLine({ items }: { items?: readonly React.ReactNode[] }) {
 function ManuscriptView({
   text,
   emptyText = W.empty,
+  kicker,
   title,
   query = "",
   matchCase = false,
@@ -152,6 +155,7 @@ function ManuscriptView({
   if (!hasContent) {
     return (
       <article ref={articleRef} className="wb-manuscript">
+        {kicker ? <p className="wb-manuscript-kicker">{kicker}</p> : null}
         {title ? <h1 className="wb-manuscript-title">{title}</h1> : null}
         <MetaLine items={meta} />
         <Empty title={emptyText} icon="book" />
@@ -164,6 +168,7 @@ function ManuscriptView({
 
   return (
     <article ref={articleRef} className="wb-manuscript">
+      {leadHeading < 0 && kicker ? <p className="wb-manuscript-kicker">{kicker}</p> : null}
       {leadHeading < 0 && title ? <h1 className="wb-manuscript-title">{title}</h1> : null}
       {leadHeading < 0 ? <MetaLine items={meta} /> : null}
       {lines.map((line, index) => {
@@ -172,6 +177,7 @@ function ManuscriptView({
         if (index === leadHeading)
           return (
             <React.Fragment key={index}>
+              {kicker ? <p className="wb-manuscript-kicker">{kicker}</p> : null}
               <h1 className="wb-manuscript-title" data-line={index}>
                 {content(line)}
               </h1>

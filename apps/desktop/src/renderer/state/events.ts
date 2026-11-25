@@ -172,10 +172,17 @@ export function subscribeDesktopEvents(): () => void {
           selected !== null &&
           (scopeKey(selected) === scopeKey(event.target) ||
             (sameMode && event.target.mode === "toutiao"));
+        const now = new Date().toLocaleTimeString("zh-CN", {
+          hour12: false,
+          hour: "2-digit",
+          minute: "2-digit",
+        });
         if (relevant)
           set((state) => ({
+            lastSavedAt: now,
             revisions: { ...state.revisions, [event.scope]: state.revisions[event.scope] + 1 },
           }));
+        else set({ lastSavedAt: now });
         if (event.scope === "rows" || event.scope === "article") scheduleRefreshTargets();
         return;
       }

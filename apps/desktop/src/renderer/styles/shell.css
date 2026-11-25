@@ -1,4 +1,4 @@
-/* 外壳：根布局、顶栏、全局进度轨、空页面与通用辅助。只用 --zz-* 令牌。 */
+/* 柔和纸面 C2 外壳：左栏 240px + 舞台区；无顶栏、无浮窗 Toast。只用 --zz-* 令牌。 */
 html,
 body,
 #root {
@@ -6,14 +6,29 @@ body,
 }
 
 .zz-desktop {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: var(--zz-nav-width) minmax(0, 1fr);
   height: 100dvh;
   overflow: hidden;
   background: var(--zz-bg);
 }
 
+.zz-desktop[data-zen="on"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.zz-desktop__stage {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--zz-bg);
+}
+
 .zz-startup {
+  display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: var(--zz-space-4);
@@ -34,8 +49,11 @@ body,
   align-items: center;
   justify-content: center;
   gap: var(--zz-space-3);
+  margin: var(--zz-space-5);
   padding: var(--zz-space-8);
+  border-radius: var(--zz-radius-lg);
   background: var(--zz-paper);
+  box-shadow: var(--zz-paper-shadow);
   text-align: center;
 }
 
@@ -81,14 +99,17 @@ body,
   font-size: var(--zz-text-meta);
 }
 
-.zz-hidden-value,
-.zz-visually-hidden {
+.zz-hidden-value {
   position: absolute;
   width: 1px;
   height: 1px;
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+.zz-menu-root {
+  position: relative;
 }
 
 .zz-link {
@@ -152,9 +173,9 @@ body,
 .zz-chip {
   min-height: 26px;
   padding: 0 var(--zz-space-3);
-  border: 1px solid var(--zz-border-strong);
+  border: 1px solid var(--zz-border);
   border-radius: var(--zz-radius-pill);
-  background: transparent;
+  background: var(--zz-surface-2);
   color: var(--zz-text-2);
   font: var(--zz-text-meta) / var(--zz-leading-meta) var(--zz-font-ui);
   white-space: nowrap;
@@ -172,4 +193,73 @@ body,
 .zz-chip:disabled {
   color: var(--zz-text-3);
   cursor: not-allowed;
+}
+
+/* —— 左栏底部：新章节流水线 + 静默本地保存状态 —— */
+.zz-rail__foot {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 6px;
+}
+
+.zz-rail__pipeline-btn {
+  width: 100%;
+}
+
+.zz-rail__status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 6px;
+  color: var(--zz-text-3);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.zz-rail__status-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--zz-ok);
+}
+
+.zz-rail__status[data-tone="bad"] {
+  color: var(--zz-bad);
+}
+
+.zz-rail__status[data-tone="bad"] .zz-rail__status-dot {
+  background: var(--zz-bad);
+}
+
+.zz-rail__status[data-tone="warn"],
+.zz-rail__status--warn {
+  color: var(--zz-warn);
+}
+
+.zz-rail__status[data-tone="warn"] .zz-rail__status-dot {
+  background: var(--zz-warn);
+}
+
+.zz-rail__status-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zz-rail__status-close {
+  display: inline-grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  padding: 0;
+  border: none;
+  border-radius: var(--zz-radius-xs);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
 }

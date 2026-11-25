@@ -114,9 +114,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
     concurrency: { global: 4, perRun: 3 },
   },
   appearance: {
-    theme: "system",
+    theme: "light",
     font: "serif",
-    fontSize: 18,
+    fontSize: 17,
     measureChars: 36,
     paragraphStyle: "indent",
     layout: "fluid",

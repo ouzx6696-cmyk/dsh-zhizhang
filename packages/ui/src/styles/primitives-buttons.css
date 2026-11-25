@@ -1,6 +1,6 @@
 /* @zhizhang/ui 基础控件：按钮、色调、标签、状态胶囊与键帽。只用 --zz-* 令牌。 */
 
-/* —— 按钮 —— */
+/* —— 按钮（decide / soft / ghost / text；高度 36 / sm 30 / xs 28；圆角 10） —— */
 .zz-btn,
 .zz-icon-btn {
   display: inline-flex;
@@ -10,19 +10,20 @@
   gap: var(--zz-space-2);
   box-sizing: border-box;
   min-height: var(--zz-btn-height-md);
-  padding: 0 var(--zz-space-3);
-  border: 1px solid var(--zz-border-strong);
+  padding: 0 14px;
+  border: 1px solid transparent;
   border-radius: var(--zz-btn-radius);
   background: var(--zz-surface-2);
   color: var(--zz-text-1);
-  font: var(--zz-weight-regular) var(--zz-text-body) / var(--zz-leading-body) var(--zz-font-ui);
+  font: var(--zz-weight-medium) var(--zz-text-body) / 1 var(--zz-font-ui);
   white-space: nowrap;
   cursor: pointer;
   transition:
-    background-color var(--zz-dur-1) var(--zz-ease),
-    border-color var(--zz-dur-1) var(--zz-ease),
-    color var(--zz-dur-1) var(--zz-ease),
-    box-shadow var(--zz-dur-1) var(--zz-ease);
+    background-color var(--zz-dur-2) var(--zz-ease),
+    border-color var(--zz-dur-2) var(--zz-ease),
+    color var(--zz-dur-2) var(--zz-ease),
+    box-shadow var(--zz-dur-2) var(--zz-ease),
+    transform var(--zz-dur-1) var(--zz-ease);
 }
 
 .zz-btn svg,
@@ -38,8 +39,8 @@
 .zz-btn--sm,
 .zz-icon-btn--sm {
   min-height: var(--zz-btn-height-sm);
-  gap: var(--zz-space-1);
-  padding: 0 var(--zz-space-2);
+  gap: 6px;
+  padding: 0 12px;
   font-size: var(--zz-text-meta);
 }
 
@@ -48,16 +49,37 @@
   padding: 0;
 }
 
+.zz-btn--xs,
+.zz-icon-btn--xs {
+  min-height: var(--zz-btn-height-xs);
+  gap: 5px;
+  padding: 0 10px;
+  border-radius: var(--zz-radius-sm);
+  font-size: var(--zz-text-caption);
+}
+
+.zz-icon-btn--xs {
+  width: var(--zz-btn-height-xs);
+  padding: 0;
+}
+
 .zz-btn--lg,
 .zz-icon-btn--lg {
   min-height: var(--zz-btn-height-lg);
-  padding: 0 var(--zz-space-4);
+  padding: 0 18px;
   font-size: var(--zz-text-strong);
 }
 
 .zz-icon-btn--lg {
   width: var(--zz-btn-height-lg);
   padding: 0;
+}
+
+.zz-btn--soft,
+.zz-btn--secondary {
+  border-color: var(--zz-border);
+  background: var(--zz-surface-2);
+  color: var(--zz-text-1);
 }
 
 .zz-btn:hover:not(:disabled),
@@ -70,33 +92,36 @@
   background: var(--zz-active);
 }
 
-/* 琥珀：只给作者拍板（定稿、采纳、发送） */
-.zz-btn--primary {
+/* 赭橙：只给作者拍板（采纳候选稿、定稿、交稿），附克制自身色光晕 */
+.zz-btn--decide {
   border-color: transparent;
   background: var(--zz-decide-fill);
   color: var(--zz-on-decide);
   font-weight: var(--zz-weight-strong);
-  box-shadow: var(--zz-shadow-1);
+  box-shadow: var(--zz-decide-glow);
 }
 
-.zz-btn--primary:hover:not(:disabled) {
+.zz-btn--decide:hover:not(:disabled) {
   background: var(--zz-decide-hover);
 }
 
-.zz-btn--primary:active:not(:disabled) {
+.zz-btn--decide:active:not(:disabled) {
   background: var(--zz-decide);
+  box-shadow: none;
 }
 
-/* 墨色实底：非拍板的主操作（编辑态“保存”、发起任务） */
+/* 深墨实底：普通主按钮（新建、保存等非拍板动作，绝不用橙色） */
+.zz-btn--primary,
 .zz-btn--strong {
   border-color: transparent;
-  background: var(--zz-ink);
+  background: var(--zz-text-1);
   color: var(--zz-paper);
   font-weight: var(--zz-weight-strong);
 }
 
+.zz-btn--primary:hover:not(:disabled),
 .zz-btn--strong:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--zz-ink) 86%, var(--zz-paper));
+  background: color-mix(in srgb, var(--zz-text-1) 86%, var(--zz-paper));
 }
 
 .zz-btn--ghost,
@@ -112,22 +137,34 @@
   color: var(--zz-text-1);
 }
 
+.zz-btn--text {
+  border-color: transparent;
+  background: transparent;
+  color: var(--zz-text-2);
+  padding-inline: var(--zz-space-2);
+}
+
+.zz-btn--text:hover:not(:disabled) {
+  background: transparent;
+  color: var(--zz-text-1);
+}
+
 .zz-icon-btn[aria-pressed="true"] {
-  background: var(--zz-active);
+  background: var(--zz-surface-2);
   color: var(--zz-text-1);
 }
 
 .zz-btn--danger {
-  border-color: color-mix(in srgb, var(--zz-bad) 40%, transparent);
+  border-color: color-mix(in srgb, var(--zz-bad) 28%, transparent);
   background: var(--zz-bad-soft);
   color: var(--zz-bad);
 }
 
 .zz-btn--danger:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--zz-bad) 22%, transparent);
+  background: color-mix(in srgb, var(--zz-bad) 20%, transparent);
 }
 
-/* 禁用态一律中性：不保留琥珀，避免“可拍板”与“不可用”混淆 */
+/* 禁用态一律中性，避免与可拍板混淆 */
 .zz-btn:disabled,
 .zz-icon-btn:disabled {
   border-color: transparent;
@@ -138,6 +175,7 @@
 }
 
 .zz-btn--ghost:disabled,
+.zz-btn--text:disabled,
 .zz-icon-btn.zz-btn--ghost:disabled {
   background: transparent;
 }
@@ -170,7 +208,7 @@
 
 .zz-tone-neutral {
   --zz-tone-fg: var(--zz-text-2);
-  --zz-tone-bg: var(--zz-active);
+  --zz-tone-bg: var(--zz-surface-2);
 }
 
 /* —— 标签 / 状态胶囊 / 键帽 —— */
@@ -179,29 +217,35 @@
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: var(--zz-space-1);
-  padding: 0 var(--zz-space-2);
-  background: var(--zz-tone-bg, var(--zz-active));
+  gap: 6px;
+  padding: 0 9px;
+  background: var(--zz-tone-bg, var(--zz-surface-2));
   color: var(--zz-tone-fg, var(--zz-text-2));
-  font: var(--zz-weight-regular) var(--zz-text-caption) / var(--zz-leading-caption)
-    var(--zz-font-ui);
+  font: var(--zz-weight-medium) var(--zz-text-caption) / 1 var(--zz-font-ui);
   white-space: nowrap;
 }
 
 .zz-tag {
+  min-height: 22px;
   border-radius: var(--zz-tag-radius);
 }
 
 .zz-status-chip {
   min-height: 22px;
-  padding: 0 var(--zz-space-2);
   border-radius: var(--zz-chip-radius);
-  font-weight: var(--zz-weight-strong);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
 }
 
 .zz-status-chip__dot {
-  display: none;
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--zz-radius-pill);
+  background: currentColor;
+}
+
+.zz-tone-run .zz-status-chip__dot {
+  animation: zz-breathe 1.8s var(--zz-ease) infinite;
 }
 
 .zz-tag__remove {
@@ -221,10 +265,10 @@
 .zz-kbd {
   display: inline-flex;
   align-items: center;
-  padding: 0 var(--zz-space-1);
+  padding: 2px 5px;
   border: 1px solid var(--zz-border-strong);
   border-radius: var(--zz-radius-xs);
-  background: var(--zz-surface-2);
+  background: var(--zz-paper);
   color: var(--zz-text-2);
-  font: var(--zz-text-caption) / var(--zz-leading-caption) var(--zz-font-mono);
+  font: var(--zz-text-mono) / 1 var(--zz-font-mono);
 }

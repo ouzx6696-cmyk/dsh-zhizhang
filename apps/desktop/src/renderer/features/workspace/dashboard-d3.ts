@@ -13,8 +13,8 @@ function metricFillVar(tone: KernelStageMetric["tone"]): string {
       return "var(--zz-ok)";
     case "run":
       return "var(--zz-run)";
-    case "decide":
-      return "var(--zz-decide)";
+    case "active":
+      return "var(--zz-text-2)";
     default:
       return "var(--zz-border-strong)";
   }
@@ -173,7 +173,7 @@ export function renderPipelineGraphSvg(
     })
     .attr("fill", "none")
     .attr("stroke", (d) =>
-      d.completed ? "var(--zz-ok)" : d.active ? "var(--zz-decide)" : "var(--zz-border-strong)",
+      d.completed ? "var(--zz-ok)" : d.active ? "var(--zz-run)" : "var(--zz-border-strong)",
     )
     .attr("stroke-width", (d) => (d.completed || d.active ? 2 : 1.25))
     .attr("stroke-dasharray", (d) => (d.completed || d.active ? "none" : "4 3"));

@@ -5,7 +5,7 @@ import type { TargetItem } from "../../../shared/views";
 import { openPipeline } from "../../state/controller";
 import { desktop } from "../../state/desktop";
 import { desktopStore, useDesktop } from "../../state/store";
-import { headlineRun } from "../topbar/TopBar";
+import { headlineRun } from "../topbar/LeftRail";
 import { kindLabel, progressGroups, progressIndex, stateLabel } from "../workflow/workflow-model";
 import { renderKernelProgressSvg, renderPipelineGraphSvg } from "./dashboard-d3";
 import { buildStudioDashboardModel } from "./dashboard-model";

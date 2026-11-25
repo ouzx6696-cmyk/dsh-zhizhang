@@ -1,0 +1,163 @@
+/* 柔和纸面 C2 只读助手引用卡、输入框与思考折叠。只用 --zz-* 令牌。 */
+
+/* —— 原文引用卡 —— */
+.zz-cite-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zz-space-2);
+  margin-top: var(--zz-space-2);
+  padding: var(--zz-space-3);
+  border: 1px solid var(--zz-border);
+  border-radius: var(--zz-radius-sm);
+  background: var(--zz-paper);
+}
+
+.zz-cite-card__head {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-caption);
+}
+
+.zz-cite-card__quote {
+  margin: 0;
+  padding-left: var(--zz-space-2);
+  border-left: 2px solid var(--zz-border-strong);
+  color: var(--zz-ink);
+  font: var(--zz-text-meta) / 1.75 var(--zz-font-paper);
+}
+
+.zz-cite-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--zz-space-3);
+}
+
+.zz-cite-card__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--zz-text-2);
+  font-size: var(--zz-text-caption);
+  font-weight: var(--zz-weight-medium);
+  cursor: pointer;
+}
+
+.zz-cite-card__link:hover {
+  color: var(--zz-text-1);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.zz-result-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--zz-space-2);
+  margin-top: var(--zz-space-2);
+  padding: var(--zz-space-2) var(--zz-space-3);
+  border: 1px solid var(--zz-border);
+  border-radius: var(--zz-radius-sm);
+  background: var(--zz-paper);
+}
+
+.zz-result-card__label {
+  color: var(--zz-text-1);
+  font-size: var(--zz-text-caption);
+}
+
+.zz-composer {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--zz-space-1);
+  padding: var(--zz-space-2) var(--zz-space-3);
+  border: 1px solid var(--zz-border-strong);
+  border-radius: var(--zz-radius-md);
+  background: var(--zz-paper);
+  transition:
+    border-color var(--zz-dur-1) var(--zz-ease),
+    box-shadow var(--zz-dur-1) var(--zz-ease);
+}
+
+.zz-composer:focus-within {
+  border-color: var(--zz-focus);
+  box-shadow: 0 0 0 1px var(--zz-focus);
+}
+
+.zz-composer__where {
+  overflow: hidden;
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zz-composer__input {
+  min-height: 38px;
+  max-height: 160px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--zz-text-1);
+  font: var(--zz-text-meta) / 1.55 var(--zz-font-ui);
+  resize: none;
+}
+
+.zz-composer__input:focus-visible {
+  outline: none;
+}
+
+.zz-composer__input::placeholder {
+  color: var(--zz-text-3);
+}
+
+.zz-composer__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--zz-space-2);
+}
+
+.zz-composer__hint {
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-caption);
+}
+
+.zz-context__cache {
+  color: var(--zz-ok);
+  font: var(--zz-text-mono) / 1 var(--zz-font-mono);
+  white-space: nowrap;
+}
+
+.zz-thinking {
+  margin-bottom: var(--zz-space-2);
+  padding: var(--zz-space-2) var(--zz-space-3);
+  border-left: 2px solid var(--zz-border-strong);
+  border-radius: 0 var(--zz-radius-sm) var(--zz-radius-sm) 0;
+  background: var(--zz-surface-2);
+}
+
+.zz-thinking__summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zz-space-1);
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-caption);
+  cursor: pointer;
+  user-select: none;
+}
+
+.zz-thinking__body {
+  margin: var(--zz-space-1) 0 0;
+  color: var(--zz-text-2);
+  font-size: var(--zz-text-caption);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

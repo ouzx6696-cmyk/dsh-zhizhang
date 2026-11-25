@@ -3,14 +3,9 @@
  * 具备看门狗 + 瞬态重试 + 溢出自动压缩恢复 + 思考链流式推送 + 提示词缓存统计。
  */
 import { randomBytes } from "node:crypto";
-import type { Clock } from "@zhizhang/core/clock";
-import { AppError, classify, isAppError } from "@zhizhang/core/errors";
+import { AppError } from "@zhizhang/core/errors";
 import { createSerialRunner } from "@zhizhang/core/lock";
-import { createWatchdog, withRetry, type ModelGateway } from "@zhizhang/core/model";
-import type { ToolCtx, ToolDefinition } from "@zhizhang/core/tool";
-import type { DesktopEvent, SessionEvent } from "../shared/events.js";
-import type { ContextSettings, ThinkingLevel } from "../shared/settings.js";
-import type { TaskState } from "../shared/types.js";
+import type { SessionEvent } from "../shared/events.js";
 import type {
   CompactResult,
   ContextUsageView,
@@ -21,56 +16,20 @@ import type {
   Target,
 } from "../shared/views.js";
 import { compactConversation } from "./compact.js";
-import type { ConversationStore } from "./history.js";
 import { contextTokens, decorateMessage, toChatMessages } from "./projection.js";
 import { systemPrompt, userPrompt } from "./prompt.js";
-import { executeToolBatch, toolSpecs } from "./tools.js";
-import type { AssistantPort, AssistantTurnAnswer, ConversationFile } from "./types.js";
+import {
+  runSessionTurn,
+  type SessionDeps,
+  type TargetState,
+  type TurnRunnerHost,
+} from "./turn-runner.js";
 
 export { toChatMessages } from "./projection.js";
+export type { AssistantBinding, SessionDeps } from "./turn-runner.js";
 
-const MAX_TOOL_ROUNDS = 12;
 const DEFAULT_VIEW_LIMIT = 80;
 const MAX_CACHED_STATES = 16;
-
-export interface AssistantBinding {
-  connection: string;
-  model: string;
-  contextWindow: number;
-  maxTokens: number;
-  thinking?: ThinkingLevel;
-  temperature?: number;
-}
-
-export interface SessionDeps {
-  clock: Clock;
-  store: ConversationStore;
-  gateway(): ModelGateway;
-  port(): AssistantPort;
-  /** 助手角色的连接绑定；未配置时抛 model.auth。 */
-  binding(): AssistantBinding;
-  tools(target: Target): ToolDefinition[];
-  toolCtx(target: Target): ToolCtx;
-  context(): ContextSettings;
-  preferences(): string;
-  readonly(): boolean;
-  title(target: Target): Promise<string | undefined>;
-  emit(event: DesktopEvent): void;
-  /** 助手忙碌状态变化（用于合并“运行中”列表）。 */
-  onBusyChange?(): void;
-}
-
-interface TargetState {
-  target: Target;
-  conversation: ConversationFile;
-  busy: boolean;
-  stream: string;
-  thinkingStream: string;
-  since: string;
-  task?: TaskState;
-  controller?: AbortController;
-  pending?: Promise<void>;
-}
 
 const keyOf = (target: Target) => `${target.mode}:${target.path}`;
 
@@ -169,194 +128,19 @@ export function createSessionManager(deps: SessionDeps) {
     );
   }
 
-  async function invokeRound(
-    state: TargetState,
-    binding: AssistantBinding,
-    system: string,
-    specs: ReturnType<typeof toolSpecs>,
-    signal: AbortSignal,
-  ): Promise<AssistantTurnAnswer> {
-    const scope = keyOf(state.target);
-    const callOnce = () =>
-      withRetry(
-        async () => {
-          state.stream = "";
-          state.thinkingStream = "";
-          const watchdog = createWatchdog(signal);
-          try {
-            return await deps.gateway().session(
-              "assistant",
-              () =>
-                deps.port().turn(
-                  {
-                    connection: binding.connection,
-                    model: binding.model,
-                    system,
-                    messages: state.conversation.messages,
-                    tools: specs,
-                    maxOutput: binding.maxTokens,
-                    ...(binding.thinking ? { thinking: binding.thinking } : {}),
-                    ...(binding.temperature !== undefined
-                      ? { temperature: binding.temperature }
-                      : {}),
-                    sessionId: state.conversation.id,
-                    cacheRetention: "short",
-                  },
-                  watchdog.signal,
-                  (event) => {
-                    watchdog.poke();
-                    if (event.type === "text_delta") {
-                      state.stream += event.delta;
-                      emit(state, { type: "text_delta", delta: event.delta });
-                    } else if (event.type === "thinking_delta") {
-                      state.thinkingStream += event.delta;
-                      emit(state, { type: "thinking_delta", delta: event.delta });
-                    }
-                  },
-                ),
-              { scope, signal: watchdog.signal },
-            );
-          } catch (err) {
-            if (watchdog.signal.aborted && !signal.aborted) {
-              const reason: unknown = watchdog.signal.reason;
-              throw reason instanceof AppError
-                ? reason
-                : new AppError("model.stalled", "模型流式响应超时");
-            }
-            throw err;
-          } finally {
-            watchdog.dispose();
-          }
-        },
-        deps.clock,
-        signal,
-      );
+  const runnerHost: TurnRunnerHost = {
+    deps,
+    keyOf,
+    nextId,
+    emit,
+    setBusy,
+    compactThreshold,
+    buildSystem,
+    runCompact,
+  };
 
-    try {
-      return await callOnce();
-    } catch (err) {
-      if (
-        isAppError(err, "model.context_overflow") &&
-        deps.context().enabled &&
-        state.conversation.messages.length > 2
-      ) {
-        await runCompact(state, system, undefined, signal);
-        return await callOnce();
-      }
-      throw err;
-    }
-  }
-
-  async function runTurn(
-    state: TargetState,
-    send: SessionSend,
-    signal: AbortSignal,
-  ): Promise<void> {
-    const conv = state.conversation;
-    const tools = deps.tools(state.target);
-    const specs = toolSpecs(tools);
-    const ctx = { ...deps.toolCtx(state.target), signal };
-    const task: TaskState = {
-      id: nextId("t"),
-      name: send.intent ?? "chat",
-      completed: [],
-      current: "",
-      waiting: "",
-      tokens: 0,
-      cachedTokens: 0,
-      cost: 0,
-      startedAt: deps.clock.now(),
-    };
-    state.task = task;
-    try {
-      const binding = deps.binding();
-      const system = await buildSystem(state);
-      if (
-        deps.context().enabled &&
-        contextTokens(system, conv.messages) > compactThreshold(binding.contextWindow)
-      ) {
-        await runCompact(state, system, undefined, signal);
-      }
-      for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-        const answer = await invokeRound(state, binding, system, specs, signal);
-        task.tokens += answer.usage.input + answer.usage.output;
-        task.cachedTokens = (task.cachedTokens ?? 0) + answer.usage.cachedInput;
-        task.cost = task.cost === null || answer.cost === null ? null : task.cost + answer.cost;
-        conv.messages.push({
-          role: "assistant",
-          id: nextId("a"),
-          text: answer.text,
-          ...(answer.thinking ? { thinking: answer.thinking } : {}),
-          toolCalls: answer.toolCalls,
-          at: deps.clock.now(),
-          origin: { connection: binding.connection, model: binding.model },
-          ...(answer.raw !== undefined ? { raw: answer.raw } : {}),
-        });
-        state.stream = "";
-        state.thinkingStream = "";
-        if (answer.toolCalls.length === 0) break;
-        await executeToolBatch(tools, answer.toolCalls, ctx, {
-          onBatchStart(names) {
-            task.current = names.join(" / ");
-            emit(state, { type: "task", task: { ...task } });
-          },
-          onToolStart(call) {
-            emit(state, { type: "tool", name: call.name, phase: "start" });
-          },
-          onToolEnd(call, outcome) {
-            conv.messages.push({
-              role: "tool",
-              id: nextId("r"),
-              callId: call.id,
-              name: call.name,
-              text: outcome.text,
-              isError: outcome.isError,
-              at: deps.clock.now(),
-            });
-            if (!outcome.isError) task.completed.push(call.name);
-            emit(state, {
-              type: "tool",
-              name: call.name,
-              phase: "end",
-              isError: outcome.isError,
-            });
-          },
-        });
-        task.current = "";
-        conv.updated = deps.clock.iso();
-        await deps.store.save(conv);
-        signal.throwIfAborted();
-      }
-      task.endedAt = deps.clock.now();
-      conv.updated = deps.clock.iso();
-      await deps.store.save(conv);
-      const view = toChatMessages(conv.messages);
-      const last = view[view.length - 1];
-      if (last && last.role === "assistant")
-        emit(state, { type: "message_end", message: decorateMessage(state.target, last) });
-      emit(state, { type: "task", task: { ...task } });
-      emit(state, { type: "end", reason: "done" });
-    } catch (err) {
-      task.endedAt = deps.clock.now();
-      conv.updated = deps.clock.iso();
-      await deps.store.save(conv);
-      const appErr = classify(err);
-      if (signal.aborted || appErr.code === "run.stopped") {
-        emit(state, { type: "end", reason: "cancelled" });
-      } else {
-        emit(state, {
-          type: "end",
-          reason: "failed",
-          error: { code: appErr.code, message: appErr.message },
-        });
-      }
-    } finally {
-      state.stream = "";
-      state.thinkingStream = "";
-      state.controller = undefined;
-      setBusy(state, false);
-    }
-  }
+  const runTurn = (state: TargetState, send: SessionSend, signal: AbortSignal) =>
+    runSessionTurn(runnerHost, state, send, signal);
 
   return {
     async view(

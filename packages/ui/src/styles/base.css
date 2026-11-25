@@ -41,7 +41,7 @@ small {
 }
 
 ::selection {
-  background: var(--zz-decide-soft);
+  background: var(--zz-run-soft);
 }
 
 ::-webkit-scrollbar {

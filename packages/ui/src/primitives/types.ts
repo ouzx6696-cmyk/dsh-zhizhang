@@ -9,9 +9,10 @@ export function toneClass(tone: SemanticTone): string {
   return `zz-tone-${tone}`;
 }
 
-/** primary = 琥珀（只给拍板）；strong = 墨色实底（编辑态保存等常用但非拍板的主操作）。 */
-export type ButtonVariant = "primary" | "strong" | "secondary" | "ghost" | "danger";
-export type ButtonSize = "sm" | "md" | "lg";
+/** decide/primary = 赭橙（只给作者拍板）；soft/secondary = 暖灰次按钮；ghost = 轻透明；text = 纯文字；strong = 深墨实底。 */
+export type ButtonVariant =
+  "decide" | "primary" | "soft" | "strong" | "secondary" | "ghost" | "text" | "danger";
+export type ButtonSize = "xs" | "sm" | "md" | "lg";
 
 export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> {
   variant?: ButtonVariant;

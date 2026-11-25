@@ -1,6 +1,6 @@
 import React from "react";
 import { Check } from "lucide-react";
-import { DESKTOP_COPY as C } from "@zhizhang/ui/copy";
+import { DESKTOP_COPY as C, formatCost } from "@zhizhang/ui/copy";
 import { Spinner } from "@zhizhang/ui/primitives";
 import type { RunSummary } from "../../../shared/views";
 import {
@@ -90,12 +90,21 @@ function StageList({ run }: { run: RunSummary }) {
   );
 }
 
-/** 分屏（≥1600）时右栏上半只够放进度与决定：任务不在运行时，阶段明细折叠成一行。 */
+/** 柔和纸面 C2：已完成步骤默认折叠成一行「已完成 N 步 · ¥x.xx」，待裁决时保持展开便于审阅。 */
 export function WorkflowStageSection({ run, compact }: { run: RunSummary; compact: boolean }) {
-  if (!compact || run.state === "running") return <StageList run={run} />;
+  const count = stageRows(run.stages).length;
+  if (!compact && run.state === "running") return <StageList run={run} />;
   return (
-    <details className="zz-stage-details" data-testid="workflow-stage-details">
-      <summary>{C.workflow.stagesSummary(stageRows(run.stages).length)}</summary>
+    <details
+      className="zz-stage-details"
+      data-testid="workflow-stage-details"
+      open={run.state === "awaiting-author"}
+    >
+      <summary>
+        {count > 0
+          ? C.rail.completedSteps(count, formatCost(run.usage.cost))
+          : C.workflow.stagesSummary(count)}
+      </summary>
       <StageList run={run} />
     </details>
   );
@@ -119,16 +128,27 @@ export function WorkflowProgressTrack({ run }: { run: RunSummary }) {
       aria-valuenow={Math.min(current, groups.length)}
       aria-valuetext={groups[Math.min(current, groups.length - 1)]}
     >
-      {groups.map((label, index) => (
-        <span
-          key={label}
-          className="zz-track__step"
-          data-state={index < current ? "done" : index === current ? "current" : "todo"}
-        >
-          <i className="zz-track__seg" aria-hidden="true" />
-          <span className="zz-track__label">{label}</span>
-        </span>
-      ))}
+      {groups.map((label, index) => {
+        const done = index < current || run.state === "applied";
+        const isCurrent = !done && index === current;
+        const stepState = done
+          ? "done"
+          : isCurrent
+            ? run.state === "failed"
+              ? "failed"
+              : run.state === "paused"
+                ? "warn"
+                : run.state === "running"
+                  ? "running"
+                  : "current"
+            : "todo";
+        return (
+          <span key={label} className="zz-track__step" data-state={stepState}>
+            <i className="zz-track__seg" aria-hidden="true" />
+            <span className="zz-track__label">{label}</span>
+          </span>
+        );
+      })}
     </div>
   );
 }

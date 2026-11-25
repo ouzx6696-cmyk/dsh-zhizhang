@@ -4,6 +4,7 @@ import { Skeleton } from "@zhizhang/ui/primitives";
 import { PREF, readPref, writePref } from "@zhizhang/workbench/client";
 import type { TargetItem } from "../../../shared/views";
 import { useDesktop } from "../../state/store";
+import { CenterBar } from "../topbar/CenterBar";
 import { RightDock } from "./RightDock";
 import { StudioDashboard } from "./StudioDashboard";
 
@@ -18,16 +19,16 @@ const BibleCenter = lazy(() =>
   import("../bible/BibleCenter").then((m) => ({ default: m.BibleCenter })),
 );
 
-const DOCK_MIN = 320;
-const DOCK_MAX = 560;
-const DOCK_DEFAULT = 380;
+const DOCK_MIN = 312;
+const DOCK_MAX = 520;
+const DOCK_DEFAULT = 344;
 const DOCK_STEP = 16;
 
 function clampDock(value: number): number {
   return Math.round(Math.min(DOCK_MAX, Math.max(DOCK_MIN, value)));
 }
 
-/** 右栏宽度：拖左缘或用方向键调整，限定 320–560，记在本机偏好里。 */
+/** 右栏宽度：默认 344px，拖左缘或用方向键调整，记在本机偏好里。 */
 function useDockWidth(): [number, (next: number) => void] {
   const [width, setWidth] = useState(() => {
     const saved = Number(readPref(PREF.dockWidth));
@@ -95,7 +96,7 @@ function WorkspaceFallback() {
   );
 }
 
-/** 写作台：中栏写作区（番茄/头条按模式，支持设定集中心与专注模式）+ 右栏停靠。 */
+/** 写作台（三栏之中栏 + 344px 右栏双卡）：中栏顶部极简面包屑条 + 可折叠 D3 进度条 + 浮起稿纸区。 */
 export function Studio({ item }: { item: TargetItem }) {
   const dockOpen = useDesktop((state) => state.dockOpen);
   const zenMode = useDesktop((state) => state.zenMode);
@@ -105,15 +106,16 @@ export function Studio({ item }: { item: TargetItem }) {
   const showDock = dockOpen && !zenMode;
   const style = { "--zz-dock-width": `${width}px` } as React.CSSProperties;
   return (
-    <div className="zz-studio-shell">
-      {!zenMode ? <StudioDashboard item={item} /> : null}
-      <div
-        className="zz-studio"
-        data-dock={showDock ? "open" : "closed"}
-        data-zen={zenMode ? "on" : "off"}
-        style={style}
-      >
-        <main className="zz-studio__main" data-testid="workspace" data-mode={item.target.mode}>
+    <div
+      className="zz-studio"
+      data-dock={showDock ? "open" : "closed"}
+      data-zen={zenMode ? "on" : "off"}
+      style={style}
+    >
+      <main className="zz-studio__main" data-testid="workspace" data-mode={item.target.mode}>
+        <CenterBar item={item} />
+        {!zenMode && view === "writing" ? <StudioDashboard item={item} /> : null}
+        <div className="zz-studio__body">
           <Suspense fallback={<WorkspaceFallback />}>
             {view === "bible" && item.target.mode === "fanqie" ? (
               <BibleCenter target={item.target} />
@@ -123,14 +125,14 @@ export function Studio({ item }: { item: TargetItem }) {
               <ToutiaoWorkspace target={item.target} readonly={readonly} />
             )}
           </Suspense>
-        </main>
-        {showDock ? (
-          <div className="zz-studio__dock">
-            <DockHandle width={width} onResize={setWidth} />
-            <RightDock target={item.target} />
-          </div>
-        ) : null}
-      </div>
+        </div>
+      </main>
+      {showDock ? (
+        <div className="zz-studio__dock">
+          <DockHandle width={width} onResize={setWidth} />
+          <RightDock target={item.target} />
+        </div>
+      ) : null}
     </div>
   );
 }

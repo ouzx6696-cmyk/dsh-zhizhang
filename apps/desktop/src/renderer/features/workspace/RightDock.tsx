@@ -11,7 +11,7 @@ import { WorkflowPanel } from "../workflow/WorkflowPanel";
 import { desktopStore, useDesktop, type DockTab } from "../../state/store";
 
 const set = desktopStore.set;
-const WIDE = "(min-width: 1600px)";
+const WIDE = "(min-width: 1180px)";
 
 function isDockTab(value: string): value is DockTab {
   return value === "assistant" || value === "pipeline" || value === "chapter";
@@ -59,8 +59,9 @@ function ChapterPane({ target }: { target: Target }) {
 }
 
 /**
- * 右栏：助手 / 流水线 / 本章。≥1600px 且开启分屏时，流水线在上、助手在下同屏显示，
- * 标签收成“助手 · 流水线”与“本章”两项。
+ * 柔和纸面 C2 右栏（344px，两张静谧 --zz-surface 浮卡）：
+ * 桌面宽屏（≥1180px）默认上下双卡同屏：上方流水线卡 + 下方只读助手卡（占满剩余高度）；
+ * 顶部轻量标签可切换「本章/设定集」参考卡。
  */
 export function RightDock({ target }: { target: Target }) {
   const base = useId();
@@ -108,10 +109,11 @@ export function RightDock({ target }: { target: Target }) {
           {wide ? (
             <IconButton
               label={C.dock.split}
-              size="sm"
+              size="xs"
+              variant="ghost"
               pressed={splitPref}
               data-testid="dock-split"
-              icon={<Rows2 size={15} />}
+              icon={<Rows2 size={14} />}
               onClick={() => {
                 writePref(PREF.dockSplit, splitPref ? "off" : "on");
                 set({ dockSplit: !splitPref });
@@ -120,8 +122,9 @@ export function RightDock({ target }: { target: Target }) {
           ) : null}
           <IconButton
             label={C.dock.close}
-            size="sm"
-            icon={<PanelRightClose size={15} />}
+            size="xs"
+            variant="ghost"
+            icon={<PanelRightClose size={14} />}
             onClick={() => set({ dockOpen: false })}
           />
         </div>
@@ -129,20 +132,18 @@ export function RightDock({ target }: { target: Target }) {
       {split ? (
         <div {...tabPanelProps(base, "assistant", shown)} className="zz-dock__split">
           <section
-            className="zz-dock__pane zz-dock__pane--pipeline"
+            className="zz-dock__card zz-dock__card--pipeline"
             aria-label={C.dock.pipelineHead}
           >
-            <h2 className="zz-dock__pane-head">{C.dock.pipelineHead}</h2>
-            <div className="zz-dock__pane-body">
+            <div className="zz-dock__card-body">
               <WorkflowPanel key={target.path} target={target} compact />
             </div>
           </section>
           <section
-            className="zz-dock__pane zz-dock__pane--assistant"
+            className="zz-dock__card zz-dock__card--assistant"
             aria-label={C.dock.assistantHead}
           >
-            <h2 className="zz-dock__pane-head">{C.dock.assistantHead}</h2>
-            <div className="zz-dock__pane-body">
+            <div className="zz-dock__card-body zz-dock__card-body--fill">
               <AgentPanel target={target} />
             </div>
           </section>
@@ -150,15 +151,31 @@ export function RightDock({ target }: { target: Target }) {
       ) : (
         <>
           <div {...tabPanelProps(base, "assistant", shown)} className="zz-dock__panel">
-            <AgentPanel target={target} />
+            <section className="zz-dock__card zz-dock__card--fill">
+              <div className="zz-dock__card-body zz-dock__card-body--fill">
+                <AgentPanel target={target} />
+              </div>
+            </section>
           </div>
           <div {...tabPanelProps(base, "pipeline", shown)} className="zz-dock__panel">
-            {shown === "pipeline" ? <WorkflowPanel key={target.path} target={target} /> : null}
+            {shown === "pipeline" ? (
+              <section className="zz-dock__card zz-dock__card--fill">
+                <div className="zz-dock__card-body">
+                  <WorkflowPanel key={target.path} target={target} />
+                </div>
+              </section>
+            ) : null}
           </div>
         </>
       )}
       <div {...tabPanelProps(base, "chapter", shown)} className="zz-dock__panel">
-        {shown === "chapter" ? <ChapterPane target={target} /> : null}
+        {shown === "chapter" ? (
+          <section className="zz-dock__card zz-dock__card--fill">
+            <div className="zz-dock__card-body">
+              <ChapterPane target={target} />
+            </div>
+          </section>
+        ) : null}
       </div>
     </aside>
   );

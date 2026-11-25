@@ -54,9 +54,9 @@
 }
 
 .zz-tech-editor__tier[data-tier="l2-craft"] {
-  border-color: color-mix(in srgb, var(--zz-decide) 38%, transparent);
-  background: var(--zz-decide-soft);
-  color: var(--zz-decide);
+  border-color: var(--zz-border-strong);
+  background: var(--zz-surface-2);
+  color: var(--zz-text-1);
 }
 
 .zz-tech-editor__dirty {
@@ -210,8 +210,8 @@
 .zz-md-preview blockquote {
   margin: var(--zz-space-3) 0;
   padding: var(--zz-space-2) var(--zz-space-4);
-  border-left: 1px solid var(--zz-decide);
-  background: var(--zz-surface-1);
+  border-left: 2px solid var(--zz-border-strong);
+  background: var(--zz-surface);
   color: var(--zz-text-2);
   font-family: var(--zz-font-paper);
 }

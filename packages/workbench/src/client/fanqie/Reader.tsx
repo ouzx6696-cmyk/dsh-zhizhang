@@ -120,6 +120,7 @@ export function Reader({
         ) : (
           <Manuscript
             text={state.chapter.body}
+            kicker={W.reader.chapterKicker(ordinal || 1)}
             title={title}
             meta={[statusLabel("fanqie", current.status), W.editor.words(current.wordCount)]}
             emptyText={W.reader.emptyBody}

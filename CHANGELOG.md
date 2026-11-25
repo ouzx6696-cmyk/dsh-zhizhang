@@ -1,5 +1,18 @@
 # 更新日志
 
+## 2.2.0（灵感源全量对齐、柔和纸面 C2 整合、零超行清理与 CI 加固）
+
+### 柔和纸面 C2 视觉体系与交互重构
+- **三层设计令牌与一色一意**：全面落地 `palette.css` → `semantic.css` → `component.css` 暖灰纸面与暗纸双主题（`[data-theme="day"]` / `[data-theme="night"]`），移除旧古风主题与未定义变量（修正 `--zz-radius-btn` → `--zz-btn-radius`）；将 D3 仪表盘节点语义 `decide` 更正为 `active`，删除 `studio-collab.css` 遗留死 diff 类中的 `--zz-decide` 泄漏，确保赭橙严格仅用于作者裁决。
+- **无顶栏三栏工作台**：重构为 240px 平铺左栏（`LeftRail` + `LeftRailParts`）、轻量 `CenterBar` + 浮起衬线稿纸中栏、344px 双浮卡右栏（7 段流水线卡 + 只读助手原文引用卡），移除浮层 Toast 并改以左栏底部静默展示保存状态；柔化 `ProjectHub` 激活态与 `Onboarding` 卡片层级。
+- **决策卡与并排双稿纸逐处采纳**：完整重写 `compare.css` 精准对齐 `DraftCompare` / `CompareSheets` 的所有类名与交互状态，支持行内红删/绿增、左侧圆形编号、逐处局部采纳（Cherry-pick）与采纳后撤回。
+- **创作内核仪表盘与交互式技法仓**：Studio 顶部引入基于 D3 的拆解/整理/填充进度与流水线节点图；`TechniqueWarehouse` 内置交互式技法编辑器与 Markdown 逻辑结构实时预览。
+
+### PI 内核深度整合与全仓模块洁净
+- **PI 内核边界与会话增强**：`pi-adapter.ts` 与纯辅助模块 `pi-helpers.ts` 严格恪守 `[G-pi]` 单文件 SDK 隔离，接入共享 `ModelRuntime`、会话亲和与 Prompt Caching、工具参数纠偏（`validateToolArguments`）、溢出自动压缩重试、思考链流式推送、内置模型目录与配置变更运行时失效机制。
+- **全仓零 `[G-size]` 超行拆分**：拆解全部 11 个超过 400 行的 TS/TSX/CSS 模块（`CompareSheets.tsx`、`LeftRailParts.tsx`、`BibleCenterTabs.tsx`、`ToutiaoLedger.tsx`、`dissect/schemas.ts`、`contract/views.ts`、`book/apply.ts`、`context/retrieval.ts`、`server/http-io.ts`、`session/turn-runner.ts`、`session/pi-helpers.ts` 及 `shell-centerbar.css`、`compare.css`、`dock-agent-compose.css`、`studio-library.css`），全仓 300 个 TS/TSX 与 34 个 CSS 文件零超行告警；`as` 类型断言基线由 `122` 收紧至 `116`。
+- **CI、打包与文档体系重构**：修复 `scripts/stage-desktop.mjs` 在 hoisted `node_modules` 下解析 `@fontsource/noto-serif-sc/LICENSE` 失败的问题，验证 `npm run desktop:build` 全通过；补全 `.gitignore`、`.prettierignore` 与 `eslint.config.mjs` 忽略规则；全面重写 8 份核心文档以对齐五大灵感源与 v2.2 项目架构。
+
 ## 2.1.0（全链路加固、性能优化与文档体系重构）
 
 ### L0 核心引擎（`@zhizhang/core`）
@@ -15,8 +28,7 @@
 ### L1 & L3 双宿主、会话、网络与前端（`@zhizhang/ui` / `@zhizhang/workbench` / `apps/desktop`）
 - **Web 预览安全与可靠性**：静态文件与 `/api/exports/:file` 全面改用 `resolveInsideAsync` 沙箱；`POST /api/rpc/*` 强制校验同源 `Origin` 与 `application/json`；新增安全响应头与静态资源分层 `Cache-Control`；SSE 广播包裹 `safeWriteSse` 自动清理失效连接，前端 `web-bridge.ts` 增加重连状态同步与 RPC 超时。
 - **运行时与会话并发加固**：`SessionManager` 按目标串行化 `send`/`compact`/`newConversation`/`view`，`states` 缓存改为 16 槽 LRU（不淘汰忙碌会话），连续 `readonly: true` 工具自动并发执行，工具返回超 24KB 自动截断；`pi-adapter.ts` 增加 15s 连接测试超时、结构化状态码解析、`structuredClone` 与单次 runtime 查询；`RunStore` 隔离损坏记录并按 200 条终态上限自动裁剪；`ConfigService` 以 `0600` 权限落盘 `secrets.bin` 并支持 `onChange` 退订；`network.ts` 支持 gzip/deflate/br 解压、GB18030 回退与保留段落结构的正文提取。
-- **模块拆分、前端竞态修复与死代码清理**：拆分 `packages/ui/src/copy/desktop.ts` 与 `apps/desktop/src/main/commands.ts`（全仓零超 400 行告警）；`ToutiaoWorkspace` 接入 `useRequestGuard` 防过期响应覆盖且编辑中不被外部刷新打断；修复 `events.ts` 消息计数漂移并防抖刷新目标列表；清除全部死导出（`unusedExports = 0`）并现代化改造 `assets/sources.json` 与 `scripts/assets.mjs`。
-- **文档体系全量重构**：重写 `AGENTS.md`、`README.md`、`docs/ARCHITECTURE.md`、`docs/WRITING.md`、`docs/USER-GUIDE.md`、`docs/STATUS.md`、`docs/plans/v2.md`（替代 `v1.3.md`）与 `CHANGELOG.md`。
+- **模块拆分、前端竞态修复与死代码清理**：拆分 `packages/ui/src/copy/desktop.ts` 与 `apps/desktop/src/main/commands.ts`；`ToutiaoWorkspace` 接入 `useRequestGuard` 防过期响应覆盖且编辑中不被外部刷新打断；修复 `events.ts` 消息计数漂移并防抖刷新目标列表；清除全部死导出（`unusedExports = 0`）并现代化改造 `assets/sources.json` 与 `scripts/assets.mjs`。
 
 ## 2.0.0（双宿主重构与 `zhizhang/2.0` 架构升级）
 

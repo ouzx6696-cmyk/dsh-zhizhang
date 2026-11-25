@@ -106,20 +106,17 @@
   color: var(--zz-paper);
 }
 
-/* —— 品牌章印（朱砂篆印） —— */
+/* —— 品牌标识（反白墨方，绝不用橙色） —— */
 .zz-brand {
   display: inline-grid;
   flex: none;
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   place-items: center;
   border-radius: var(--zz-radius-sm);
-  background: var(--zz-seal-bg);
-  color: var(--zz-seal-ink);
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--zz-seal-ink) 28%, transparent),
-    var(--zz-shadow-1);
-  font: var(--zz-weight-strong) var(--zz-text-strong) / 1 var(--zz-font-paper);
+  background: var(--zz-text-1);
+  color: var(--zz-bg);
+  font: 700 13px / 1 var(--zz-font-paper);
   letter-spacing: 0;
 }
 
@@ -269,5 +266,17 @@
   }
   to {
     background-position: 200% 0;
+  }
+}
+
+@keyframes zz-breathe {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.38;
+    transform: scale(0.84);
   }
 }

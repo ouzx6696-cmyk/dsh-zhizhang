@@ -1,0 +1,122 @@
+/* 柔和纸面 C2 中栏静谧面包屑与视图控制条。只用 --zz-* 令牌。 */
+
+.zz-centerbar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--zz-space-3);
+  height: 44px;
+  padding: 10px 22px 0;
+  background: var(--zz-bg);
+}
+
+.zz-centerbar__crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-meta);
+}
+
+.zz-centerbar__work,
+.zz-centerbar__leaf {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zz-centerbar__leaf {
+  color: var(--zz-text-1);
+  font-weight: var(--zz-weight-strong);
+}
+
+.zz-centerbar__sep {
+  flex: none;
+  color: var(--zz-text-3);
+}
+
+.zz-centerbar__tools {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+}
+
+.zz-centerbar__menu {
+  position: relative;
+}
+
+.zz-centerbar__menu .zz-menu--end {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  display: flex;
+}
+
+.zz-centerbar__seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--zz-btn-radius);
+  background: var(--zz-surface-2);
+}
+
+.zz-centerbar__seg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 11px;
+  border: none;
+  border-radius: var(--zz-radius-sm);
+  background: transparent;
+  color: var(--zz-text-2);
+  font-size: var(--zz-text-meta);
+  font-weight: var(--zz-weight-medium);
+  cursor: pointer;
+  transition:
+    background-color var(--zz-dur-1) var(--zz-ease),
+    color var(--zz-dur-1) var(--zz-ease),
+    box-shadow var(--zz-dur-1) var(--zz-ease);
+}
+
+.zz-centerbar__seg-btn:hover {
+  color: var(--zz-text-1);
+}
+
+.zz-centerbar__seg-btn[aria-selected="true"] {
+  background: var(--zz-paper);
+  color: var(--zz-text-1);
+  font-weight: var(--zz-weight-strong);
+  box-shadow: var(--zz-shadow-1);
+}
+
+.zz-centerbar__decide-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--zz-decide);
+}
+
+.zz-centerbar__undo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: var(--zz-radius-pill);
+  background: var(--zz-ok-soft);
+  color: var(--zz-ok);
+  font-size: var(--zz-text-caption);
+}
+
+.zz-centerbar__kbd {
+  margin-left: 2px;
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: var(--zz-surface-2);
+  color: var(--zz-text-2);
+  font: 500 10.5px / 1 var(--zz-font-mono);
+}

@@ -5,7 +5,6 @@
  *  - 连接测试、PI 内置模型目录与配置变更后的运行时缓存失效。
  * PI 的类型不出本文件；SDK 自带重试一律关闭（maxRetries: 0），由 ModelGateway / SessionManager 统一退避。
  */
-import { createHash } from "node:crypto";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import {
   getSupportedThinkingLevels,
@@ -24,8 +23,21 @@ import {
 } from "@earendil-works/pi-ai";
 import { AppError, classify } from "@zhizhang/core/errors";
 import type { ModelAnswer, ModelPort, ModelRequest, StreamEvent } from "@zhizhang/core/model";
-import type { ModelApi, ThinkingLevel } from "../shared/settings.js";
 import type { ModelCatalogView, ModelTestResult } from "../shared/views.js";
+import {
+  configureSystemProxy,
+  extractStatusCode,
+  extractTextParts,
+  extractThinkingParts,
+  isPlainRecord,
+  providerIdFor,
+  reasoningOf,
+  toJsonObject,
+  ZERO_PI_USAGE,
+  type PiPortOptions,
+  type ResolvedConnection,
+  type RunParams,
+} from "./pi-helpers.js";
 import { repairOrphanedToolCalls, resolvePiProviderId } from "./transcript.js";
 import type {
   AgentMessage,
@@ -36,46 +48,9 @@ import type {
   AssistantTurnRequest,
 } from "./types.js";
 
-export interface ResolvedConnection {
-  id: string;
-  provider: string;
-  api: ModelApi;
-  baseUrl: string;
-  apiKey: string;
-  keyless: boolean;
-  contextWindow: number;
-  maxTokens: number;
-}
-
-export interface PiPortOptions {
-  authPath: string;
-  clock?: { now(): number };
-  resolve(connectionId: string): ResolvedConnection;
-  /** 角色绑定上的思考档位与温度（请求未显式指定时回落采用）。 */
-  defaults?(
-    connectionId: string,
-    model: string,
-  ): { thinking?: ThinkingLevel; temperature?: number } | undefined;
-}
+export type { PiPortOptions, ResolvedConnection } from "./pi-helpers.js";
 
 const catalogStore = new InMemoryModelsStore();
-const LOOPBACK = ["localhost", "127.0.0.1", "::1"];
-let proxyConfigured = false;
-
-async function configureSystemProxy(): Promise<void> {
-  if (proxyConfigured) return;
-  proxyConfigured = true;
-  const proxy =
-    process.env.HTTPS_PROXY ||
-    process.env.https_proxy ||
-    process.env.HTTP_PROXY ||
-    process.env.http_proxy;
-  if (!proxy) return;
-  const { EnvHttpProxyAgent, setGlobalDispatcher } = await import("undici");
-  const declared = process.env.NO_PROXY ?? process.env.no_proxy ?? "";
-  const noProxy = [declared, ...LOOPBACK].filter((value) => value.trim()).join(",");
-  setGlobalDispatcher(new EnvHttpProxyAgent({ noProxy }));
-}
 
 const runtimesByAuth = new Map<string, Promise<ModelRuntime>>();
 
@@ -111,11 +86,7 @@ async function resolveRuntimeModel(
   authPath: string,
 ): Promise<{ runtime: ModelRuntime; model: Model<Api> }> {
   const runtime = await getRuntime(authPath);
-  const sig = createHash("sha256")
-    .update(JSON.stringify([conn, modelId]))
-    .digest("hex")
-    .slice(0, 10);
-  const providerId = `zhizhang-${conn.id}-${sig}`;
+  const providerId = providerIdFor(conn, modelId);
   const existing = runtime.getModel(providerId, modelId);
   if (existing) return { runtime, model: existing };
   const catalog = runtime.getModel(resolvePiProviderId(conn.provider), modelId);
@@ -144,20 +115,7 @@ async function resolveRuntimeModel(
   return { runtime, model };
 }
 
-function reasoningOf(level: ThinkingLevel | undefined): Exclude<ThinkingLevel, "off"> | undefined {
-  return level === undefined || level === "off" ? undefined : level;
-}
-
 /** 把失败的回答映射成错误码；优先看结构化 HTTP 状态码与 PI 判定，不匹配中文文案。 */
-function extractStatusCode(message: AssistantMessage, text: string): number | undefined {
-  const status: unknown = Reflect.get(message, "status");
-  const statusCode: unknown = Reflect.get(message, "statusCode");
-  const direct =
-    typeof status === "number" ? status : typeof statusCode === "number" ? statusCode : undefined;
-  if (direct !== undefined) return direct;
-  const matched = /\b(40[123]|429|50[0234])\b/.exec(text)?.[1];
-  return matched ? Number(matched) : undefined;
-}
 
 function answerError(message: AssistantMessage, contextWindow: number): AppError {
   const text = message.errorMessage ?? "";
@@ -186,24 +144,8 @@ function costOf(message: AssistantMessage, model: Model<Api>): number | null {
   return priced ? message.usage.cost.total : null;
 }
 
-function textOf(message: AssistantMessage): string {
-  return message.content
-    .filter((part): part is { type: "text"; text: string } => part.type === "text")
-    .map((part) => part.text)
-    .join("");
-}
-
-function thinkingOf(message: AssistantMessage): string {
-  return message.content
-    .filter((part): part is { type: "thinking"; thinking: string } => part.type === "thinking")
-    .map((part) => part.thinking)
-    .join("\n\n")
-    .trim();
-}
-
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
+const textOf = (message: AssistantMessage): string => extractTextParts(message.content);
+const thinkingOf = (message: AssistantMessage): string => extractThinkingParts(message.content);
 
 function toolCallsOf(message: AssistantMessage, tools: readonly Tool[]): AgentToolCall[] {
   const byName = new Map(tools.map((tool) => [tool.name, tool]));
@@ -232,26 +174,6 @@ function isPiAssistant(value: unknown): value is AssistantMessage {
     "content" in value &&
     Array.isArray(value.content)
   );
-}
-
-type PiJsonValue =
-  string | number | boolean | null | PiJsonValue[] | { [key: string]: PiJsonValue };
-type PiJsonObject = { [key: string]: PiJsonValue };
-
-function toJsonValue(value: unknown): PiJsonValue {
-  if (value === null || typeof value === "string" || typeof value === "boolean") return value;
-  if (typeof value === "number") return Number.isFinite(value) ? value : null;
-  if (Array.isArray(value)) return value.map((item) => toJsonValue(item));
-  if (typeof value === "object") return toJsonObject(value);
-  return null;
-}
-
-function toJsonObject(value: object): PiJsonObject {
-  const out: PiJsonObject = {};
-  for (const [key, entry] of Object.entries(value)) {
-    if (entry !== undefined) out[key] = toJsonValue(entry);
-  }
-  return out;
 }
 
 function toPiMessages(
@@ -296,28 +218,13 @@ function toPiMessages(
         api: model.api,
         provider: model.provider,
         model: model.id,
-        usage: {
-          input: 0,
-          output: 0,
-          cacheRead: 0,
-          cacheWrite: 0,
-          totalTokens: 0,
-          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-        },
+        usage: ZERO_PI_USAGE,
         stopReason: msg.toolCalls.length > 0 ? "toolUse" : "stop",
         timestamp: msg.at,
       });
     }
   }
   return out;
-}
-
-interface RunParams {
-  maxOutput?: number;
-  thinking?: ThinkingLevel;
-  temperature?: number;
-  sessionId?: string;
-  cacheRetention?: "none" | "short" | "long";
 }
 
 export function createPiPorts(options: PiPortOptions): ModelPort & AssistantPort {

@@ -1,4 +1,5 @@
-import React, { Suspense, lazy, useEffect, useRef, useState } from "react";
+import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Columns2, Plus } from "lucide-react";
 import { COPY, DESKTOP_COPY as C } from "@zhizhang/ui/copy";
 import { Button, Dialog, Empty, IconButton, StatusChip } from "@zhizhang/ui/primitives";
@@ -8,8 +9,9 @@ import type { ChapterRowView } from "@zhizhang/fanqie/view";
 import type { Target } from "../../../shared/views";
 import { canLeave, trackEditor } from "../../state/controller";
 import { desktop } from "../../state/desktop";
-import { desktopStore, useDesktop } from "../../state/store";
+import { desktopStore, sameTarget, useDesktop } from "../../state/store";
 import { notifyError, run } from "../../format";
+import { RAIL_LIST_SLOT_ID } from "../topbar/LeftRail";
 import { ChapterActions } from "./ChapterActions";
 import { SelectionToolbar } from "./SelectionToolbar";
 import { FanqieSplitReference } from "./SplitReferencePane";
@@ -247,45 +249,66 @@ export function FanqieWorkspace({ target, readonly }: { target: Target; readonly
 
   const current = view.current;
   const compare = useDesktop((s) => s.compare);
+  const runs = useDesktop((s) => s.runs);
   const compareKind = useDesktop((s) => s.runs.find((r) => r.id === s.compare?.runId)?.kind);
   const comparing = compare && compare.target.path === target.path ? compare : null;
   const totalWords = view.chapters.reduce((sum, c) => sum + c.wordCount, 0);
-  const hideNav = Boolean(comparing) || zenMode;
+  const [slotEl, setSlotEl] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    setSlotEl(document.getElementById(RAIL_LIST_SLOT_ID));
+  }, [zenMode, mainView]);
+
+  const awaitingIds = useMemo(() => {
+    const ids = new Set<string>();
+    const hasAwaiting = runs.some(
+      (r) => sameTarget(r.target, target) && r.state === "awaiting-author",
+    );
+    if (hasAwaiting && current?.id) ids.add(current.id);
+    if (comparing?.chapter) ids.add(comparing.chapter);
+    return ids;
+  }, [runs, target, current?.id, comparing?.chapter]);
+
+  const chapterNav = (
+    <nav className="zz-rail-chapters" aria-label={C.fanqie.chapters}>
+      <header className="zz-nav-head">
+        <h2>
+          {C.fanqie.chapters}
+          <span className="zz-nav-head__count">{view.chapters.length}</span>
+        </h2>
+        <IconButton
+          size="xs"
+          variant="ghost"
+          label={C.fanqie.newChapter}
+          data-testid="new-chapter"
+          disabled={readonly}
+          icon={<Plus size={14} />}
+          onClick={() => setCreating(true)}
+        />
+      </header>
+      <div className="zz-nav-body">
+        <ChapterList
+          chapters={view.chapters}
+          selectedId={state.chapterId}
+          awaitingIds={awaitingIds}
+          onSelect={selectChapter}
+        />
+      </div>
+      {view.chapters.length ? (
+        <footer className="zz-nav-foot">
+          {C.fanqie.navTotal(view.chapters.length, totalWords)}
+        </footer>
+      ) : null}
+    </nav>
+  );
 
   return (
     <div
       className="zz-workspace zz-workspace--fanqie"
-      data-compare={hideNav ? "on" : "off"}
+      data-compare={comparing ? "on" : "off"}
       data-zen={zenMode ? "on" : "off"}
     >
-      <nav className="zz-workspace__nav" aria-label={C.fanqie.chapters}>
-        <header className="zz-nav-head">
-          <h2>
-            {C.fanqie.chapters}
-            <span className="zz-nav-head__count">{view.chapters.length}</span>
-          </h2>
-          <IconButton
-            size="sm"
-            label={C.fanqie.newChapter}
-            data-testid="new-chapter"
-            disabled={readonly}
-            icon={<Plus size={16} />}
-            onClick={() => setCreating(true)}
-          />
-        </header>
-        <div className="zz-nav-body">
-          <ChapterList
-            chapters={view.chapters}
-            selectedId={state.chapterId}
-            onSelect={selectChapter}
-          />
-        </div>
-        {view.chapters.length ? (
-          <footer className="zz-nav-foot">
-            {C.fanqie.navTotal(view.chapters.length, totalWords)}
-          </footer>
-        ) : null}
-      </nav>
+      {slotEl ? createPortal(chapterNav, slotEl) : null}
       <section className="zz-workspace__center" ref={centerRef}>
         {comparing ? (
           <Suspense fallback={null}>

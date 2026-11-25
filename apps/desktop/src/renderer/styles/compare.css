@@ -1,0 +1,334 @@
+/* 柔和纸面 C2 决策卡 + 并排双稿纸逐处差异对照。仅使用 --zz-* 令牌。 */
+
+.zz-compare {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--zz-space-4);
+  min-height: 0;
+  padding: var(--zz-space-3) var(--zz-space-6) var(--zz-space-6);
+  overflow: hidden;
+  background: var(--zz-bg);
+}
+
+/* —— 浮起决策卡：左侧 3px 赭橙竖条，仅待裁决时出现 —— */
+.zz-decision-card {
+  position: relative;
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--zz-space-3) var(--zz-space-5);
+  padding: 14px 18px 14px 22px;
+  border-radius: var(--zz-radius-lg);
+  background: var(--zz-paper);
+  box-shadow: var(--zz-card-shadow);
+  overflow: hidden;
+  animation: zz-pop-in var(--zz-dur-2) var(--zz-ease);
+}
+
+.zz-decision-card::before {
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  left: 0;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--zz-decide);
+  content: "";
+}
+
+.zz-decision-card__main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 240px;
+}
+
+.zz-decision-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--zz-space-3);
+}
+
+.zz-decision-card__title {
+  margin: 0;
+  color: var(--zz-title);
+  font: var(--zz-weight-strong) 16px / 1.4 var(--zz-font-paper);
+}
+
+.zz-decision-card__nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px;
+  border-radius: var(--zz-radius-pill);
+  background: var(--zz-surface-2);
+}
+
+.zz-decision-card__pos {
+  padding: 0 5px;
+  color: var(--zz-text-2);
+  font: var(--zz-text-mono) / 1 var(--zz-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.zz-decision-card__sub {
+  margin: 0;
+  color: var(--zz-text-2);
+  font-size: var(--zz-text-meta);
+}
+
+.zz-decision-card__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--zz-space-2);
+  margin-top: 2px;
+}
+
+.zz-dchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: var(--zz-radius-pill);
+  background: var(--zz-surface-2);
+  color: var(--zz-text-2);
+  font: var(--zz-text-mono) / 1.4 var(--zz-font-mono);
+}
+
+.zz-dchip--neutral {
+  background: var(--zz-surface-2);
+  color: var(--zz-text-2);
+}
+
+.zz-dchip--ok {
+  background: var(--zz-ok-soft);
+  color: var(--zz-ok);
+}
+
+.zz-dchip--bad {
+  background: var(--zz-bad-soft);
+  color: var(--zz-bad);
+}
+
+.zz-dchip--warn {
+  background: var(--zz-warn-soft);
+  color: var(--zz-warn);
+}
+
+.zz-decision-card__actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--zz-space-2);
+}
+
+.zz-compare__error {
+  padding: var(--zz-space-3) 0;
+}
+
+/* —— 并排双稿纸滚动区 —— */
+.zz-compare-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  padding-bottom: var(--zz-space-8);
+}
+
+.zz-compare-sheets {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--zz-space-4);
+  align-items: start;
+}
+
+.zz-compare-sheet {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--zz-radius-lg);
+  background: var(--zz-paper);
+  box-shadow: var(--zz-paper-shadow);
+  overflow: hidden;
+}
+
+.zz-compare-sheet--candidate {
+  box-shadow: var(--zz-paper-shadow);
+}
+
+.zz-compare-sheet__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--zz-space-2);
+  padding: 16px 28px 0;
+}
+
+.zz-compare-sheet__label {
+  color: var(--zz-text-2);
+  font-size: var(--zz-text-caption);
+  font-weight: var(--zz-weight-strong);
+  letter-spacing: 0.04em;
+}
+
+.zz-compare-sheet__meta {
+  color: var(--zz-text-3);
+  font: var(--zz-text-mono) / 1 var(--zz-font-mono);
+}
+
+.zz-compare-sheet__title {
+  margin: 14px 28px 0;
+  color: var(--zz-title);
+  font: var(--zz-weight-strong) 22px / 1.35 var(--zz-font-paper);
+  letter-spacing: 0.08em;
+}
+
+.zz-compare-sheet__prose {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45em;
+  padding: 18px 34px 30px 48px;
+  color: var(--zz-ink);
+  font: var(--zz-weight-regular) 17px / 2 var(--zz-font-paper);
+  text-align: justify;
+}
+
+/* —— 逐处改动块 + 左边距 18px 圆形编号 —— */
+.zz-hunk-block {
+  position: relative;
+  padding: 4px 8px;
+  border-radius: var(--zz-radius-sm);
+  transition: background-color var(--zz-dur-1) var(--zz-ease);
+}
+
+.zz-hunk-block[data-kind="modified"],
+.zz-hunk-block[data-kind="added"],
+.zz-hunk-block[data-kind="removed"] {
+  cursor: pointer;
+}
+
+.zz-hunk-block[data-active="true"] {
+  background: var(--zz-hover);
+}
+
+.zz-hunk-block[data-pick="official"] {
+  opacity: 0.56;
+}
+
+.zz-sheet-p {
+  margin: 0;
+  text-indent: 2em;
+  white-space: pre-wrap;
+}
+
+.zz-sheet-p--ghost {
+  color: var(--zz-text-3);
+  font-family: var(--zz-font-ui);
+  font-size: var(--zz-text-meta);
+  text-indent: 0;
+}
+
+.zz-hunk-badge {
+  position: absolute;
+  top: 11px;
+  left: -32px;
+  display: inline-grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  padding: 0;
+  border: none;
+  border-radius: var(--zz-radius-pill);
+  background: var(--zz-surface-2);
+  color: var(--zz-text-2);
+  font: 700 10.5px / 1 var(--zz-font-ui);
+  cursor: pointer;
+  transition:
+    background-color var(--zz-dur-1) var(--zz-ease),
+    color var(--zz-dur-1) var(--zz-ease);
+}
+
+.zz-hunk-badge[data-active="true"] {
+  background: var(--zz-text-1);
+  color: var(--zz-paper);
+}
+
+/* —— 行内红删 / 绿增 —— */
+.zz-diff-del {
+  padding: 1px 2px;
+  border-radius: 3px;
+  background: var(--zz-bad-soft);
+  color: var(--zz-text-3);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--zz-bad) 72%, transparent);
+  text-decoration-thickness: 1.5px;
+}
+
+.zz-diff-add {
+  padding: 1px 2px;
+  border-radius: 4px;
+  background: var(--zz-ok-soft);
+  box-shadow: inset 0 -1.5px 0 color-mix(in srgb, var(--zz-ok) 62%, transparent);
+  color: var(--zz-ink);
+  text-decoration: none;
+}
+
+.zz-hunk-block[data-active="true"] .zz-diff-add {
+  background: color-mix(in srgb, var(--zz-ok) 22%, transparent);
+}
+
+/* —— 段落下逐处采纳条：✓ 采纳此处 / 保留原文 —— */
+.zz-hunk-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-family: var(--zz-font-ui);
+}
+
+.zz-hunk-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 9px;
+  border: 1px solid var(--zz-border);
+  border-radius: var(--zz-radius-sm);
+  background: var(--zz-paper);
+  color: var(--zz-text-2);
+  font: var(--zz-weight-medium) var(--zz-text-caption) / 1 var(--zz-font-ui);
+  cursor: pointer;
+  transition:
+    background-color var(--zz-dur-1) var(--zz-ease),
+    border-color var(--zz-dur-1) var(--zz-ease),
+    color var(--zz-dur-1) var(--zz-ease);
+}
+
+.zz-hunk-btn:hover {
+  border-color: var(--zz-border-strong);
+  color: var(--zz-text-1);
+}
+
+.zz-hunk-btn[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--zz-ok) 36%, transparent);
+  background: var(--zz-ok-soft);
+  color: var(--zz-ok);
+  font-weight: var(--zz-weight-strong);
+}
+
+.zz-hunk-btn + .zz-hunk-btn[aria-pressed="true"] {
+  border-color: var(--zz-border-strong);
+  background: var(--zz-surface-2);
+  color: var(--zz-text-1);
+}
+
+@media (max-width: 1100px) {
+  .zz-compare-sheets {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

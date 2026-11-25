@@ -75,7 +75,7 @@ export const DESKTOP_SETTINGS_COPY = {
   },
   appearance: {
     theme: "主题",
-    themes: { system: "跟随系统", light: "晨光", dark: "夜灯" },
+    themes: { system: "跟随系统", light: "柔和浅色", dark: "暖夜深色" },
     paper: "稿纸",
     font: "正文字体",
     fonts: { serif: "思源宋体", sans: "系统黑体" },

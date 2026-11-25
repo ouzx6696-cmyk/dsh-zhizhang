@@ -18,3 +18,9 @@ acceptance-results/
 # 构建产物
 dist/
 *.tsbuildinfo
+
+# 本地预览与辅助工具产物
+.aistudio/
+.playwright-cli/
+.zhizhang-web/
+bun.lock

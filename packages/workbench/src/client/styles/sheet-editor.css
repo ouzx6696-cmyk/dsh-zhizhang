@@ -1,48 +1,42 @@
-/* 编辑态稿纸：源码框、高亮背衬、提示条与查找栏。 */
+/* 编辑态稿纸（柔和纸面 C2）：浮起圆角纸面内的源码框、高亮背衬、提示条与查找栏。 */
 
-/* —— 编辑：同版式的源码框 —— */
 .wb-source-field {
   position: relative;
   flex: 1;
   min-height: 0;
+  padding: var(--zz-space-6) var(--zz-space-6) 0;
+  background: var(--zz-bg);
 }
 
 .wb-source-text,
 .wb-source-backdrop {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  inset: var(--zz-space-6) auto 0 50%;
+  width: min(calc(100% - 48px), 740px);
+  height: calc(100% - var(--zz-space-6));
   margin: 0;
-  padding-top: var(--zz-space-16);
-  padding-right: max(
-    var(--zz-space-8),
-    calc((100% - var(--zz-paper-width) - var(--zz-scrollbar)) / 2)
-  );
-  padding-bottom: 40vh;
-  padding-left: max(
-    var(--zz-space-8),
-    calc((100% - var(--zz-paper-width) - var(--zz-scrollbar)) / 2)
-  );
-  border: none;
+  padding: 48px 56px 32vh;
+  border: 1px solid var(--zz-sheet-edge);
+  border-bottom: none;
+  border-radius: var(--zz-radius-lg) var(--zz-radius-lg) 0 0;
   font-family: var(--zz-font-body);
   font-size: var(--zz-body-size);
   line-height: var(--zz-paper-leading);
   letter-spacing: var(--zz-paper-track);
   text-align: justify;
-  /* Chromium 的 textarea 不支持 each-line（只缩进第一行，且与 div 背衬错位），编辑态统一不缩进。 */
   text-indent: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   scrollbar-gutter: stable;
+  transform: translateX(-50%);
 }
 
 .wb-source-text {
   display: block;
   overflow-y: auto;
   background: transparent;
-  color: var(--zz-text-1);
-  caret-color: var(--zz-decide);
+  color: var(--zz-ink);
+  caret-color: var(--zz-text-1);
   resize: none;
 }
 
@@ -53,7 +47,8 @@
 
 .wb-source-backdrop {
   overflow: hidden;
-  background: var(--zz-sheet-bg);
+  background: var(--zz-paper);
+  box-shadow: var(--zz-paper-shadow);
   color: transparent;
   pointer-events: none;
 }
@@ -65,7 +60,7 @@
 }
 
 .wb-source-backdrop mark[data-current] {
-  background: color-mix(in srgb, var(--zz-warn) 45%, transparent);
+  background: color-mix(in srgb, var(--zz-warn) 42%, transparent);
 }
 
 .wb-source-backdrop ::highlight(wb-editor-find) {
@@ -73,7 +68,7 @@
 }
 
 .wb-source-backdrop ::highlight(wb-editor-find-active) {
-  background-color: color-mix(in srgb, var(--zz-warn) 45%, transparent);
+  background-color: color-mix(in srgb, var(--zz-warn) 42%, transparent);
 }
 
 .wb-source-backdrop ::highlight(wb-editor-issue) {
@@ -121,7 +116,7 @@
   gap: var(--zz-space-2);
   padding: var(--zz-space-2) var(--zz-space-5);
   border-bottom: 1px solid var(--zz-border);
-  background: var(--zz-surface-1);
+  background: var(--zz-surface);
 }
 
 .wb-find-row {
@@ -161,7 +156,7 @@
 
 .wb-find-count {
   color: var(--zz-text-3);
-  font-size: var(--zz-text-caption);
+  font: var(--zz-text-mono) / 1 var(--zz-font-mono);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -173,7 +168,7 @@
   border-radius: var(--zz-radius-sm);
   background: transparent;
   color: var(--zz-text-2);
-  font: var(--zz-text-meta) / 1 var(--zz-font-mono);
+  font: var(--zz-text-mono) / 1 var(--zz-font-mono);
   cursor: pointer;
 }
 
@@ -182,7 +177,7 @@
 }
 
 .wb-find-case-on {
-  background: var(--zz-active);
+  background: var(--zz-surface-2);
   color: var(--zz-text-1);
 }
 
