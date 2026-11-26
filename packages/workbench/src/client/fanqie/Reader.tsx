@@ -21,6 +21,14 @@ export interface ReaderProps {
   actions?: React.ReactNode;
 }
 
+const LEADING_CHAPTER_ORDINAL = /^第\s*[零一二三四五六七八九十百千万\d]+\s*[章回节]\s*/;
+
+function stripChapterPrefix(raw: string): string {
+  const trimmed = raw.trim();
+  const stripped = trimmed.replace(LEADING_CHAPTER_ORDINAL, "").trim();
+  return stripped || trimmed;
+}
+
 /**
  * 章节阅读 / 编辑：同一条章节条、同一列稿纸、同一个状态栏。
  * 编辑态只是把阅读稿纸换成同版式的源码框，文字列的位置与宽度不变。
@@ -46,13 +54,16 @@ export function Reader({
     return <Empty title={W.reader.pick} hint={W.reader.pickHint} icon="book" />;
   }
   const ordinal = view.chapters.findIndex((c) => c.id === current.id) + 1;
-  const title = state.chapter.title || current.title;
+  const title = stripChapterPrefix(state.chapter.title || current.title);
+  const barTitle = current.title ? stripChapterPrefix(current.title) : "";
+  const ordinalText = W.reader.chapterOrdinal(ordinal || 1);
+  const showBarTitle = Boolean(barTitle && barTitle !== ordinalText);
   const lead = (
     <>
       <span className="wb-bar-ordinal" data-testid="chapter-ordinal">
-        {W.reader.chapterOrdinal(ordinal || 1)}
+        {ordinalText}
       </span>
-      {current.title ? <span className="wb-bar-title">{current.title}</span> : null}
+      {showBarTitle ? <span className="wb-bar-title">{barTitle}</span> : null}
     </>
   );
 

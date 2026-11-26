@@ -1,17 +1,30 @@
-/* 头条：文章进度条（五步 + 体裁/驱动） */
+/* 头条：文章进度条（五步 + 体裁/驱动，轻薄单行让稿纸呼吸） */
 .wb-article-progress {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--zz-space-2) var(--zz-space-4);
-  padding: var(--zz-space-2) var(--zz-space-5);
+  min-height: 34px;
+  padding: 5px var(--zz-space-6);
   border-bottom: 1px solid var(--zz-border);
+  background: color-mix(in srgb, var(--zz-surface) 55%, var(--zz-bg));
+}
+
+.wb-article-progress .zz-steps {
+  gap: var(--zz-space-1) var(--zz-space-2);
+  font-size: var(--zz-text-caption);
+}
+
+.wb-article-progress .zz-steps li > span {
+  width: 18px;
+  height: 18px;
 }
 
 .wb-article-meta {
   margin-left: auto;
-  color: var(--zz-text-3);
-  font-size: var(--zz-text-meta);
+  color: var(--zz-text-2);
+  font-size: var(--zz-text-caption);
+  letter-spacing: 0.02em;
 }
 
 .wb-article-progress .wb-callout {

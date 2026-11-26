@@ -166,6 +166,17 @@ function ManuscriptView({
   const content = (line: Line) =>
     customHighlight ? line.text.slice(line.prefix) : renderWithMarks(line, matches, activeMatch);
 
+  const renderLeadHeading = (line: Line) => {
+    if (kicker && !matches.length) {
+      const rawHeading = line.text.slice(line.prefix).trim();
+      const cleaned = rawHeading
+        .replace(/^第\s*[零一二三四五六七八九十百千万\d]+\s*[章回节]\s*/, "")
+        .trim();
+      if (cleaned) return cleaned;
+    }
+    return content(line);
+  };
+
   return (
     <article ref={articleRef} className="wb-manuscript">
       {leadHeading < 0 && kicker ? <p className="wb-manuscript-kicker">{kicker}</p> : null}
@@ -179,7 +190,7 @@ function ManuscriptView({
             <React.Fragment key={index}>
               {kicker ? <p className="wb-manuscript-kicker">{kicker}</p> : null}
               <h1 className="wb-manuscript-title" data-line={index}>
-                {content(line)}
+                {renderLeadHeading(line)}
               </h1>
               <MetaLine items={meta} />
             </React.Fragment>

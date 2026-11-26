@@ -4,16 +4,18 @@
 .zz-studio-dash {
   flex: none;
   margin: var(--zz-space-2) var(--zz-space-6) 0;
-  padding: var(--zz-space-2) var(--zz-space-4);
-  border: 1px solid var(--zz-border);
+  padding: 8px 16px 9px;
+  border: 1px solid var(--zz-sheet-edge);
   border-radius: var(--zz-radius-md);
   background: var(--zz-surface);
+  box-shadow: var(--zz-shadow-1);
 }
 
 .zz-studio-dash[data-collapsed="true"] {
   padding: var(--zz-space-1) var(--zz-space-3);
   border-color: transparent;
   background: transparent;
+  box-shadow: none;
 }
 
 .zz-studio-dash__bar {
@@ -32,10 +34,10 @@
 }
 
 .zz-studio-dash__heading {
-  color: var(--zz-text-2);
+  color: var(--zz-text-1);
   font-size: var(--zz-text-caption);
   font-weight: var(--zz-weight-strong);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   white-space: nowrap;
 }
 
@@ -45,7 +47,7 @@
 
 .zz-studio-dash__status {
   overflow: hidden;
-  color: var(--zz-text-3);
+  color: var(--zz-text-2);
   font-size: var(--zz-text-caption);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -93,7 +95,7 @@
   grid-template-columns: minmax(320px, 1fr) minmax(380px, 1.35fr);
   align-items: center;
   gap: var(--zz-space-5);
-  margin-top: var(--zz-space-1);
+  margin-top: 2px;
 }
 
 .zz-studio-dash__panel {
@@ -108,24 +110,33 @@
 .zz-d3-svg {
   display: block;
   width: 100%;
-  height: 62px;
+  height: 58px;
   overflow: visible;
 }
 
+.zz-d3-metric {
+  transition: opacity var(--zz-dur-1) var(--zz-ease);
+}
+
+.zz-d3-metric:hover .zz-d3-metric__label,
+.zz-d3-node:hover .zz-d3-node__label {
+  fill: var(--zz-title);
+}
+
 .zz-d3-metric__label {
-  fill: var(--zz-text-2);
+  fill: var(--zz-text-1);
   font: var(--zz-weight-strong) 12px / 1 var(--zz-font-ui);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
 }
 
 .zz-d3-metric__value {
   fill: var(--zz-title);
-  font: var(--zz-weight-strong) 13px / 1 var(--zz-font-paper);
+  font: var(--zz-weight-strong) 12.5px / 1 var(--zz-font-mono);
   font-variant-numeric: tabular-nums;
 }
 
 .zz-d3-metric__hint {
-  fill: var(--zz-text-3);
+  fill: var(--zz-text-2);
   font: 11px / 1 var(--zz-font-ui);
 }
 
@@ -139,7 +150,7 @@
 }
 
 .zz-d3-node__label {
-  fill: var(--zz-text-3);
+  fill: var(--zz-text-2);
   font: 11px / 1 var(--zz-font-ui);
 }
 

@@ -348,7 +348,7 @@ export function LeftRail() {
       <footer className="zz-rail__foot">
         {selected ? (
           <Button
-            variant="soft"
+            variant="ghost"
             size="sm"
             className="zz-rail__pipeline-btn"
             data-testid="rail-start-pipeline"

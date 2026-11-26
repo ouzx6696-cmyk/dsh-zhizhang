@@ -202,10 +202,14 @@ export function WorkflowStartForm({
     }
   };
 
-  const chapterOptions = chapters.map((c, index) => ({
-    value: c.id,
-    label: C.workflow.chapterRef(index + 1, c.title && c.title !== c.id ? c.title : ""),
-  }));
+  const chapterOptions = chapters.map((c, index) => {
+    const raw = c.title && c.title !== c.id ? c.title.trim() : "";
+    const clean = raw.replace(/^第[\d一二三四五六七八九十百千万零两〇]+章[\s：:·\-—]+/, "").trim();
+    return {
+      value: c.id,
+      label: C.workflow.chapterRef(index + 1, clean || raw),
+    };
+  });
 
   const showNoteField = kind !== "fanqie.health" && kind !== "fanqie.ledger";
 

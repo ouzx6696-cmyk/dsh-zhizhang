@@ -7,9 +7,13 @@
 .zz-meta-tag {
   display: inline-flex;
   align-items: center;
-  color: var(--zz-text-3);
+  padding: 2px 8px;
+  border-radius: var(--zz-radius-xs);
+  background: var(--zz-surface-2);
+  color: var(--zz-text-2);
   font-size: var(--zz-text-caption);
-  letter-spacing: 0.04em;
+  font-weight: var(--zz-weight-medium);
+  letter-spacing: 0.03em;
   line-height: 1.4;
   white-space: nowrap;
 }
@@ -23,6 +27,9 @@
   background: var(--zz-paper);
   color: var(--zz-text-1);
   font: var(--zz-text-body) / var(--zz-leading-body) var(--zz-font-ui);
+  transition:
+    border-color var(--zz-dur-1) var(--zz-ease),
+    box-shadow var(--zz-dur-1) var(--zz-ease);
 }
 
 .zz-textarea {
@@ -32,7 +39,8 @@
 .zz-input:focus-visible,
 .zz-textarea:focus-visible {
   outline: none;
-  border-color: var(--zz-focus);
+  border-color: var(--zz-text-2);
+  box-shadow: var(--zz-ring);
 }
 
 .zz-center-page,
@@ -156,6 +164,15 @@
   border-radius: var(--zz-radius-sm);
   background: var(--zz-paper);
   color: var(--zz-text-3);
+  box-shadow: var(--zz-shadow-1);
+  transition:
+    border-color var(--zz-dur-1) var(--zz-ease),
+    box-shadow var(--zz-dur-1) var(--zz-ease);
+}
+
+.zz-hub__search:focus-within {
+  border-color: var(--zz-text-2);
+  box-shadow: var(--zz-ring);
 }
 
 .zz-hub__search input {
@@ -193,6 +210,16 @@
     border-color var(--zz-dur-1) var(--zz-ease),
     transform var(--zz-dur-1) var(--zz-ease),
     box-shadow var(--zz-dur-1) var(--zz-ease);
+}
+
+.zz-entity-card:hover {
+  border-color: var(--zz-border-strong);
+  box-shadow: var(--zz-shadow-2);
+}
+
+.zz-entity-card__head strong {
+  color: var(--zz-title);
+  font: var(--zz-weight-strong) 16px / 1.4 var(--zz-font-paper);
 }
 
 button.zz-hub-card {
@@ -265,7 +292,8 @@ button.zz-hub-card[data-active="true"] {
   align-items: flex-start;
   justify-content: center;
   padding-top: 12vh;
-  background: color-mix(in srgb, var(--zz-text-1) 28%, transparent);
+  background: var(--zz-mask);
+  backdrop-filter: blur(4px);
 }
 
 .zz-palette {
@@ -277,7 +305,8 @@ button.zz-hub-card[data-active="true"] {
   border: 1px solid var(--zz-border-strong);
   border-radius: var(--zz-radius-lg);
   background: var(--zz-paper);
-  box-shadow: var(--zz-shadow-1);
+  box-shadow: var(--zz-shadow-3);
+  animation: zz-pop-in var(--zz-dur-2) var(--zz-ease);
 }
 
 .zz-palette__input-row {

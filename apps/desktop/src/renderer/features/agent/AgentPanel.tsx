@@ -130,14 +130,11 @@ export function AgentPanel({ target }: { target: Target }) {
     <div className="zz-agent" data-testid="agent-panel">
       <header className="zz-agent__head">
         <div className="zz-agent__title-bar">
-          <div className="zz-agent__title-group">
-            <strong className="zz-agent__heading">{C.dock.assistantHead}</strong>
-            <span className="zz-readonly-pill" data-testid="agent-readonly-tag">
-              <Eye size={11} aria-hidden="true" />
-              {C.rail.readonlyTag}
-            </span>
-          </div>
-          <span className="zz-agent__readonly-hint">{C.rail.readonlyHint}</span>
+          <strong className="zz-agent__heading">{C.dock.assistantHead}</strong>
+          <span className="zz-agent__readonly-hint" data-testid="agent-readonly-tag">
+            <Eye size={12} aria-hidden="true" />
+            {C.rail.readonlyHint}
+          </span>
         </div>
         <div className="zz-agent__head-row">
           <Select

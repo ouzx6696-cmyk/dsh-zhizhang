@@ -111,7 +111,9 @@ export function ModelsTab({ settings }: { settings: PublicSettings }) {
 
   return (
     <div className="zz-stack" data-testid="settings-models">
-      {!settings.secretsPersisted ? <p className="zz-muted">{C.models.secretsMemory}</p> : null}
+      {!settings.secretsPersisted ? (
+        <p className="zz-muted zz-settings__notice">{C.models.secretsMemory}</p>
+      ) : null}
       <Section title={C.models.connections}>
         <ul className="zz-list">
           {settings.models.connections.map((c) => (
@@ -138,6 +140,11 @@ export function ModelsTab({ settings }: { settings: PublicSettings }) {
         </Button>
       </Section>
       <Section title={C.models.roles}>
+        <div className="zz-role zz-role--head" aria-hidden="true">
+          <span />
+          <span>{C.models.connection}</span>
+          <span>{C.models.model}</span>
+        </div>
         {MODEL_ROLES.map((role) => (
           <RoleRow
             key={role}

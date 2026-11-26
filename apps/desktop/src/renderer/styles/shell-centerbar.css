@@ -7,7 +7,7 @@
   justify-content: space-between;
   gap: var(--zz-space-3);
   height: 44px;
-  padding: 10px 22px 0;
+  padding: 10px var(--zz-space-6) 0;
   background: var(--zz-bg);
 }
 

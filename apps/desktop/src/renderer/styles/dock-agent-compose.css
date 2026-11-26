@@ -75,31 +75,32 @@
   display: flex;
   flex: none;
   flex-direction: column;
-  gap: var(--zz-space-1);
-  padding: var(--zz-space-2) var(--zz-space-3);
+  gap: 6px;
+  padding: 9px 11px;
   border: 1px solid var(--zz-border-strong);
   border-radius: var(--zz-radius-md);
   background: var(--zz-paper);
+  box-shadow: var(--zz-shadow-1);
   transition:
     border-color var(--zz-dur-1) var(--zz-ease),
     box-shadow var(--zz-dur-1) var(--zz-ease);
 }
 
 .zz-composer:focus-within {
-  border-color: var(--zz-focus);
-  box-shadow: 0 0 0 1px var(--zz-focus);
+  border-color: var(--zz-text-2);
+  box-shadow: var(--zz-ring);
 }
 
 .zz-composer__where {
   overflow: hidden;
   color: var(--zz-text-3);
-  font-size: var(--zz-text-caption);
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .zz-composer__input {
-  min-height: 38px;
+  min-height: 36px;
   max-height: 160px;
   padding: 0;
   border: none;
@@ -121,12 +122,28 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--zz-space-2);
+  gap: 6px;
+  padding-top: 2px;
+  border-top: 1px solid var(--zz-border);
+}
+
+.zz-composer__tools {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 2px;
+  min-width: 0;
+}
+
+.zz-composer__tools .zz-btn--xs {
+  padding: 0 7px;
+  min-height: 26px;
 }
 
 .zz-composer__hint {
   color: var(--zz-text-3);
   font-size: var(--zz-text-caption);
+  white-space: nowrap;
 }
 
 .zz-context__cache {

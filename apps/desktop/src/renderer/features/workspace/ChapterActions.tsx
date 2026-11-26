@@ -32,6 +32,7 @@ export function ChapterActions({
   const pipeline = (
     <Button
       size="sm"
+      variant="ghost"
       data-testid="chapter-start-pipeline"
       disabled={readonly}
       onClick={() => openPipeline(chapterId, finalized ? "fanqie.ledger" : "fanqie.chapter")}

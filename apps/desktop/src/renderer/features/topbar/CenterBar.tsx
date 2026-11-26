@@ -87,7 +87,7 @@ export function CenterBar({ item }: { item: TargetItem }) {
     }
   };
 
-  const subCrumb =
+  const rawSubCrumb =
     view === "bible"
       ? C.topbar.viewBible
       : view === "board"
@@ -96,10 +96,18 @@ export function CenterBar({ item }: { item: TargetItem }) {
           : C.topbar.viewBoard
         : focus.title || focus.chapter || focus.article || "";
 
+  const isSameAsLabel = Boolean(rawSubCrumb && rawSubCrumb === item.label);
+  const parentCrumb = isSameAsLabel
+    ? item.target.mode === "toutiao"
+      ? C.rail.modeToutiao
+      : C.rail.modeFanqie
+    : item.label;
+  const subCrumb = rawSubCrumb;
+
   return (
     <header className="zz-centerbar" data-testid="center-bar">
       <div className="zz-centerbar__crumb">
-        <span className="zz-centerbar__work">{item.label}</span>
+        <span className="zz-centerbar__work">{parentCrumb}</span>
         {subCrumb ? (
           <>
             <span className="zz-centerbar__sep" aria-hidden="true">

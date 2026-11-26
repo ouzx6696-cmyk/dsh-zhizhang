@@ -4,82 +4,82 @@
  * 语义层（semantic.css）只引用这里的值；组件与页面只引用 --zz-* 语义令牌。
  */
 :root {
-  /* 柔和浅色（Day）：暖灰底 + 浮起暖白稿纸 + 温润次面 */
-  --zz-raw-day-bg: #f2eee8;
-  --zz-raw-day-desk: #f2eee8;
-  --zz-raw-day-surface: #faf7f2;
-  --zz-raw-day-s1: #faf7f2;
-  --zz-raw-day-s2: #ece6dd;
-  --zz-raw-day-s3: #e3dcd1;
-  --zz-raw-day-paper: #fffdfa;
-  --zz-raw-day-text1: #2b2622;
-  --zz-raw-day-text2: #6a6159;
-  --zz-raw-day-text3: #a0968c;
-  --zz-raw-day-title: #2b2622;
-  --zz-raw-day-ink: #332d28;
-  --zz-raw-day-border: rgba(70, 50, 30, 0.09);
-  --zz-raw-day-border-strong: rgba(70, 50, 30, 0.16);
-  --zz-raw-day-hover: rgba(70, 50, 30, 0.05);
-  --zz-raw-day-active: rgba(70, 50, 30, 0.09);
-  --zz-raw-day-mask: rgba(34, 29, 25, 0.45);
-  --zz-raw-day-shadow-1: rgba(70, 50, 30, 0.05);
-  --zz-raw-day-shadow-2: rgba(70, 50, 30, 0.08);
-  --zz-raw-day-shadow-3: rgba(70, 50, 30, 0.14);
-  --zz-raw-day-paper-shadow-a: rgba(70, 50, 30, 0.05);
-  --zz-raw-day-paper-shadow-b: rgba(70, 50, 30, 0.1);
-  --zz-raw-day-sheet-edge: rgba(70, 50, 30, 0.08);
+  /* 柔和浅色（Day）：温润石纸底 + 丝质浮卡 + 精装暖白稿纸 */
+  --zz-raw-day-bg: #efeae2;
+  --zz-raw-day-desk: #efeae2;
+  --zz-raw-day-surface: #faf7f1;
+  --zz-raw-day-s1: #f7f3ec;
+  --zz-raw-day-s2: #e9e3d9;
+  --zz-raw-day-s3: #dfd8cc;
+  --zz-raw-day-paper: #fffefa;
+  --zz-raw-day-text1: #241f1b;
+  --zz-raw-day-text2: #5d544c;
+  --zz-raw-day-text3: #857b71;
+  --zz-raw-day-title: #1f1a17;
+  --zz-raw-day-ink: #2c2621;
+  --zz-raw-day-border: rgba(68, 48, 28, 0.09);
+  --zz-raw-day-border-strong: rgba(68, 48, 28, 0.17);
+  --zz-raw-day-hover: rgba(68, 48, 28, 0.045);
+  --zz-raw-day-active: rgba(68, 48, 28, 0.085);
+  --zz-raw-day-mask: rgba(30, 25, 21, 0.44);
+  --zz-raw-day-shadow-1: rgba(68, 48, 28, 0.055);
+  --zz-raw-day-shadow-2: rgba(68, 48, 28, 0.095);
+  --zz-raw-day-shadow-3: rgba(68, 48, 28, 0.16);
+  --zz-raw-day-paper-shadow-a: rgba(68, 48, 28, 0.045);
+  --zz-raw-day-paper-shadow-b: rgba(68, 48, 28, 0.11);
+  --zz-raw-day-sheet-edge: rgba(68, 48, 28, 0.085);
 
-  /* 暖夜深色（Night）：深暖咖底 + 抬升暖炭纸面 + 柔米文字 */
-  --zz-raw-night-bg: #181411;
-  --zz-raw-night-desk: #181411;
-  --zz-raw-night-surface: #1f1a16;
-  --zz-raw-night-s1: #1f1a16;
-  --zz-raw-night-s2: #2c2620;
-  --zz-raw-night-s3: #362f28;
-  --zz-raw-night-paper: #221d19;
-  --zz-raw-night-text1: #ede4d8;
-  --zz-raw-night-text2: #b9ac9e;
-  --zz-raw-night-text3: #85796d;
-  --zz-raw-night-title: #ede4d8;
-  --zz-raw-night-ink: #e6dccf;
-  --zz-raw-night-border: rgba(237, 228, 216, 0.07);
-  --zz-raw-night-border-strong: rgba(237, 228, 216, 0.14);
-  --zz-raw-night-hover: rgba(237, 228, 216, 0.05);
-  --zz-raw-night-active: rgba(237, 228, 216, 0.1);
-  --zz-raw-night-mask: rgba(8, 6, 5, 0.72);
-  --zz-raw-night-shadow-1: rgba(0, 0, 0, 0.28);
-  --zz-raw-night-shadow-2: rgba(0, 0, 0, 0.42);
-  --zz-raw-night-shadow-3: rgba(0, 0, 0, 0.62);
-  --zz-raw-night-paper-shadow-a: rgba(0, 0, 0, 0.3);
-  --zz-raw-night-paper-shadow-b: rgba(0, 0, 0, 0.48);
-  --zz-raw-night-sheet-edge: rgba(237, 228, 216, 0.07);
+  /* 暖夜深色（Night）：深暖咖底 + 抬升暖炭浮卡 + 温润夜读稿纸 */
+  --zz-raw-night-bg: #15120f;
+  --zz-raw-night-desk: #15120f;
+  --zz-raw-night-surface: #1d1915;
+  --zz-raw-night-s1: #1e1915;
+  --zz-raw-night-s2: #2a241e;
+  --zz-raw-night-s3: #352e27;
+  --zz-raw-night-paper: #231e19;
+  --zz-raw-night-text1: #f0e8dc;
+  --zz-raw-night-text2: #c2b5a7;
+  --zz-raw-night-text3: #94877b;
+  --zz-raw-night-title: #f5ede2;
+  --zz-raw-night-ink: #e8dfd2;
+  --zz-raw-night-border: rgba(240, 232, 220, 0.08);
+  --zz-raw-night-border-strong: rgba(240, 232, 220, 0.16);
+  --zz-raw-night-hover: rgba(240, 232, 220, 0.055);
+  --zz-raw-night-active: rgba(240, 232, 220, 0.105);
+  --zz-raw-night-mask: rgba(6, 5, 4, 0.74);
+  --zz-raw-night-shadow-1: rgba(0, 0, 0, 0.3);
+  --zz-raw-night-shadow-2: rgba(0, 0, 0, 0.45);
+  --zz-raw-night-shadow-3: rgba(0, 0, 0, 0.66);
+  --zz-raw-night-paper-shadow-a: rgba(0, 0, 0, 0.32);
+  --zz-raw-night-paper-shadow-b: rgba(0, 0, 0, 0.52);
+  --zz-raw-night-sheet-edge: rgba(240, 232, 220, 0.085);
 
   /* 语义状态色：一种颜色一种意思（赭橙=裁决，蓝=运行，绿=完成/新增，红=错误/删除，琥珀=留意） */
-  --zz-raw-decide-day: #c25a2c;
-  --zz-raw-decide-day-hover: #ae4e23;
-  --zz-raw-decide-day-ink: #fffdfa;
-  --zz-raw-decide-night: #e0874f;
-  --zz-raw-decide-night-hover: #ea9864;
-  --zz-raw-decide-night-ink: #181411;
+  --zz-raw-decide-day: #bf5729;
+  --zz-raw-decide-day-hover: #a84920;
+  --zz-raw-decide-day-ink: #fffefa;
+  --zz-raw-decide-night: #e48a52;
+  --zz-raw-decide-night-hover: #ee9c68;
+  --zz-raw-decide-night-ink: #15120f;
 
-  --zz-raw-run-day: #5a7fb5;
-  --zz-raw-run-night: #8eaedc;
+  --zz-raw-run-day: #4e75ad;
+  --zz-raw-run-night: #8fb0df;
 
-  --zz-raw-ok-day: #5b8a63;
-  --zz-raw-ok-night: #8cbf95;
+  --zz-raw-ok-day: #4e8057;
+  --zz-raw-ok-night: #8bc194;
 
-  --zz-raw-bad-day: #b5503e;
-  --zz-raw-bad-night: #e08672;
+  --zz-raw-bad-day: #b64b39;
+  --zz-raw-bad-night: #e38874;
 
-  --zz-raw-warn-day: #b5852b;
-  --zz-raw-warn-night: #dcb465;
+  --zz-raw-warn-day: #b27e22;
+  --zz-raw-warn-night: #e0b768;
 
   /* 作品封面书脊与按钮微光（原始值仅集中于此） */
-  --zz-raw-cover-a: #5b6b63;
-  --zz-raw-cover-b: #36423d;
-  --zz-raw-cover-ink: #f3eee6;
-  --zz-raw-cover-spine: rgba(0, 0, 0, 0.18);
-  --zz-raw-cover-drop: rgba(0, 0, 0, 0.25);
-  --zz-raw-decide-inset-day: rgba(255, 255, 255, 0.25);
-  --zz-raw-decide-inset-night: rgba(255, 255, 255, 0.2);
+  --zz-raw-cover-a: #53665d;
+  --zz-raw-cover-b: #303c37;
+  --zz-raw-cover-ink: #f5f0e8;
+  --zz-raw-cover-spine: rgba(0, 0, 0, 0.22);
+  --zz-raw-cover-drop: rgba(0, 0, 0, 0.26);
+  --zz-raw-decide-inset-day: rgba(255, 255, 255, 0.26);
+  --zz-raw-decide-inset-night: rgba(255, 255, 255, 0.22);
 }

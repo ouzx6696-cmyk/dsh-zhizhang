@@ -109,8 +109,9 @@
   --zz-cover-shadow:
     inset 3px 0 0 var(--zz-raw-cover-spine), 0 4px 10px -2px var(--zz-raw-cover-drop);
 
-  /* 字体：界面 Inter + Noto Sans SC；正文 Noto Serif SC；数字/耗时 JetBrains Mono */
-  --zz-font-ui: "Inter", "Noto Sans SC", "PingFang SC", "Microsoft YaHei UI", system-ui, sans-serif;
+  /* 字体：界面 CJK 柔和无衬线；正文 Noto Serif SC；数字/耗时 JetBrains Mono */
+  --zz-font-ui:
+    "PingFang SC", "Noto Sans SC", "Hiragino Sans GB", "Microsoft YaHei UI", system-ui, sans-serif;
   --zz-font-paper: "Noto Serif SC", "Source Han Serif SC", "Songti SC", Georgia, serif;
   --zz-font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
   --zz-font-body: var(--zz-font-paper);
@@ -176,14 +177,18 @@
   --zz-z-modal: 80;
   --zz-z-toast: 100;
 
-  /* 动效：180ms cubic-bezier(.2,.8,.2,1) */
+  /* 动效：克制丝滑减速曲线 */
   --zz-dur-1: 140ms;
   --zz-dur-2: 180ms;
   --zz-dur-3: 240ms;
   --zz-dur-flow: 1800ms;
-  --zz-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --zz-ease: cubic-bezier(0.16, 1, 0.3, 1);
   --zz-ease-exit: cubic-bezier(0.4, 0, 1, 1);
   --zz-flow-play: running;
+}
+
+[data-theme="night"] {
+  --zz-paper-track: 0.028em;
 }
 
 :root[data-font="sans"] {

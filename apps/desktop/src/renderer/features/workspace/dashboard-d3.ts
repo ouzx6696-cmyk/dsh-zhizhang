@@ -62,14 +62,14 @@ export function renderKernelProgressSvg(
 ): void {
   const svg = d3.select(svgEl);
   const width = 456;
-  const height = 62;
+  const height = 58;
   svg.attr("viewBox", `0 0 ${width} ${height}`).attr("preserveAspectRatio", "xMinYMid meet");
   svg.selectAll("*").remove();
 
   const colWidth = 140;
   const colGap = 18;
   const barWidth = colWidth;
-  const barY = 26;
+  const barY = 24;
   const barHeight = 5;
   const xScale = d3.scaleLinear().domain([0, 100]).range([0, barWidth]);
 
@@ -87,14 +87,14 @@ export function renderKernelProgressSvg(
   groups
     .append("text")
     .attr("x", 0)
-    .attr("y", 16)
+    .attr("y", 15)
     .attr("class", "zz-d3-metric__label")
     .text((d) => d.label);
 
   groups
     .append("text")
     .attr("x", barWidth)
-    .attr("y", 16)
+    .attr("y", 15)
     .attr("text-anchor", "end")
     .attr("class", "zz-d3-metric__value")
     .text((d) => d.countText);
@@ -106,7 +106,7 @@ export function renderKernelProgressSvg(
     .attr("width", barWidth)
     .attr("height", barHeight)
     .attr("rx", 2.5)
-    .attr("fill", "var(--zz-active)");
+    .attr("fill", "var(--zz-surface-2)");
 
   groups
     .append("rect")
@@ -124,7 +124,7 @@ export function renderKernelProgressSvg(
   groups
     .append("text")
     .attr("x", 0)
-    .attr("y", 49)
+    .attr("y", 46)
     .attr("class", "zz-d3-metric__hint")
     .text((d) => (d.hint.length > 18 ? `${d.hint.slice(0, 17)}…` : d.hint));
 }
@@ -139,7 +139,7 @@ export function renderPipelineGraphSvg(
 ): void {
   const svg = d3.select(svgEl);
   const width = 468;
-  const height = 62;
+  const height = 58;
   svg.attr("viewBox", `0 0 ${width} ${height}`).attr("preserveAspectRatio", "xMidYMid meet");
   svg.selectAll("*").remove();
 
@@ -150,7 +150,7 @@ export function renderPipelineGraphSvg(
     .scalePoint<string>()
     .domain(nodes.map((n) => n.id))
     .range([padX, width - padX]);
-  const centerY = 22;
+  const centerY = 20;
   const nodeMap = new Map<string, { x: number; y: number; node: PipelineNode }>();
   for (const node of nodes) {
     nodeMap.set(node.id, { x: xScale(node.id) ?? padX, y: centerY, node });
@@ -170,14 +170,14 @@ export function renderPipelineGraphSvg(
       const src = nodeMap.get(d.source);
       const dst = nodeMap.get(d.target);
       if (!src || !dst) return "";
-      return linkGen({ source: [src.x + 12, src.y], target: [dst.x - 12, dst.y] }) ?? "";
+      return linkGen({ source: [src.x + 12.5, src.y], target: [dst.x - 12.5, dst.y] }) ?? "";
     })
     .attr("fill", "none")
     .attr("stroke", (d) =>
       d.completed ? "var(--zz-ok)" : d.active ? "var(--zz-run)" : "var(--zz-border-strong)",
     )
     .attr("stroke-width", (d) => (d.completed || d.active ? 2 : 1.25))
-    .attr("stroke-dasharray", (d) => (d.completed || d.active ? "none" : "4 3"));
+    .attr("stroke-dasharray", (d) => (d.completed || d.active ? "none" : "3 3"));
 
   const nodeGroups = svg
     .selectAll<SVGGElement, PipelineNode>("g.zz-d3-node")
@@ -193,7 +193,7 @@ export function renderPipelineGraphSvg(
   nodeGroups
     .filter((d) => d.status === "running" || d.status === "awaiting")
     .append("circle")
-    .attr("r", 15)
+    .attr("r", 15.5)
     .attr("fill", "none")
     .attr("stroke", (d) => nodeStrokeVar(d.status))
     .attr("stroke-width", 1.5)
@@ -201,10 +201,10 @@ export function renderPipelineGraphSvg(
 
   nodeGroups
     .append("circle")
-    .attr("r", 10)
+    .attr("r", 10.5)
     .attr("fill", (d) => nodeFillVar(d.status))
     .attr("stroke", (d) => nodeStrokeVar(d.status))
-    .attr("stroke-width", 1.75);
+    .attr("stroke-width", 1.5);
 
   nodeGroups
     .append("text")

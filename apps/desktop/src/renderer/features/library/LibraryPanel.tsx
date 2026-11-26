@@ -316,7 +316,11 @@ export function LibraryPanel({
             ) : null}
           </>
         ) : (
-          <Empty title={C.warehouse.emptySources} />
+          <Empty
+            icon={<BookMarked size={20} aria-hidden="true" />}
+            title={C.warehouse.emptySources}
+            description={C.warehouse.emptySourcesHint}
+          />
         )}
       </div>
     </div>

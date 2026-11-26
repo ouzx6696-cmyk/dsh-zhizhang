@@ -3,9 +3,9 @@
   --zz-topbar-height: 0px;
   --zz-bar-height: 44px;
   --zz-statusbar-height: 32px;
-  --zz-nav-width: 240px;
-  --zz-dock-width: 344px;
-  --zz-dock-min: 312px;
+  --zz-nav-width: 248px;
+  --zz-dock-width: 352px;
+  --zz-dock-min: 320px;
   --zz-dock-max: 520px;
   --zz-dock-handle: 6px;
   --zz-scrollbar: 8px;
@@ -39,7 +39,7 @@
   --zz-rail-height: 4px;
   --zz-global-rail-height: 2px;
   --zz-skeleton-bg: var(--zz-surface-2);
-  --zz-ring: 0 0 0 2px var(--zz-focus);
+  --zz-ring: 0 0 0 3px color-mix(in srgb, var(--zz-focus) 14%, transparent);
 
   /* 设置 › 外观：主题卡片缩略色（固定展示浅色/深色两套纸面主题） */
   --zz-swatch-night-bg: var(--zz-raw-night-bg);

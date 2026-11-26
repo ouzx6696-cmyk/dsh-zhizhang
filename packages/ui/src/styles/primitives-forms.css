@@ -40,14 +40,21 @@
   width: 100%;
   min-height: var(--zz-control-height);
   padding: 0 var(--zz-space-3);
-  border: 1px solid var(--zz-field-border);
+  border: 1px solid var(--zz-border-strong);
   border-radius: var(--zz-field-radius);
   background: var(--zz-field-bg);
   color: var(--zz-text-1);
   font: var(--zz-text-body) / var(--zz-leading-body) var(--zz-font-ui);
+  box-shadow: 0 1px 1px color-mix(in srgb, var(--zz-text-1) 3%, transparent);
   transition:
     border-color var(--zz-dur-1) var(--zz-ease),
+    background-color var(--zz-dur-1) var(--zz-ease),
     box-shadow var(--zz-dur-1) var(--zz-ease);
+}
+
+.zz-select__control {
+  padding-right: var(--zz-space-6);
+  cursor: pointer;
 }
 
 .zz-input--area {
@@ -62,14 +69,75 @@
 
 .zz-input:hover,
 .zz-select__control:hover {
-  border-color: var(--zz-text-3);
+  border-color: color-mix(in srgb, var(--zz-text-2) 55%, transparent);
 }
 
 .zz-input:focus-visible,
 .zz-select__control:focus-visible {
-  border-color: var(--zz-focus);
+  border-color: var(--zz-text-2);
   outline: none;
   box-shadow: var(--zz-ring);
+}
+
+/* —— 柔和纸面范围滑块（取代浏览器默认亮蓝滑块） —— */
+input[type="range"] {
+  height: 18px;
+  margin: 0;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: var(--zz-radius-pill);
+  background: var(--zz-surface-3);
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border: 1.5px solid var(--zz-ink);
+  border-radius: var(--zz-radius-pill);
+  background: var(--zz-paper);
+  box-shadow: var(--zz-shadow-1);
+  appearance: none;
+  -webkit-appearance: none;
+  transition:
+    transform var(--zz-dur-1) var(--zz-ease),
+    background-color var(--zz-dur-1) var(--zz-ease),
+    box-shadow var(--zz-dur-1) var(--zz-ease);
+}
+
+input[type="range"]:hover::-webkit-slider-thumb {
+  transform: scale(1.1);
+  box-shadow: var(--zz-shadow-2);
+}
+
+input[type="range"]:focus-visible {
+  outline: none;
+}
+
+input[type="range"]:focus-visible::-webkit-slider-thumb {
+  box-shadow: var(--zz-ring);
+}
+
+input[type="range"]::-moz-range-track {
+  height: 4px;
+  border: none;
+  border-radius: var(--zz-radius-pill);
+  background: var(--zz-surface-3);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--zz-ink);
+  border-radius: var(--zz-radius-pill);
+  background: var(--zz-paper);
+  box-shadow: var(--zz-shadow-1);
 }
 
 .zz-checkbox,
@@ -83,8 +151,8 @@
 }
 
 .zz-checkbox__box {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
   margin: 0;
   accent-color: var(--zz-ink);
 }

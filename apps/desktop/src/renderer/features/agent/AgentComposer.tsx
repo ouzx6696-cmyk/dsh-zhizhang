@@ -144,25 +144,25 @@ export function AgentComposer({
         }}
       />
       <div className="zz-composer__foot">
-        <div className="zz-row">
+        <div className="zz-composer__tools">
           {target.mode === "fanqie" ? (
             <>
               <Button
-                size="sm"
+                size="xs"
                 variant="ghost"
                 data-testid="agent-mention-btn"
                 onClick={() => setMentionOpen((v) => !v)}
               >
-                <AtSign size={13} aria-hidden="true" />
+                <AtSign size={12} aria-hidden="true" />
                 {C.cowriter.mentionBtn}
               </Button>
               <Button
-                size="sm"
+                size="xs"
                 variant="ghost"
                 data-testid="agent-brief-btn"
                 onClick={onToggleBrief}
               >
-                <ClipboardList size={13} aria-hidden="true" />
+                <ClipboardList size={12} aria-hidden="true" />
                 {C.cowriter.briefBtn}
               </Button>
             </>
@@ -172,23 +172,23 @@ export function AgentComposer({
         </div>
         {busy ? (
           <Button
-            size="sm"
+            size="xs"
             variant="danger"
             data-testid="agent-stop"
             onClick={() => stopAssistant().catch(notifyError)}
           >
-            <Square size={12} aria-hidden="true" fill="currentColor" />
+            <Square size={11} aria-hidden="true" fill="currentColor" />
             {C.agent.stop}
           </Button>
         ) : (
           <Button
-            size="sm"
+            size="xs"
             type="submit"
             variant="primary"
             data-testid="agent-send"
             disabled={!draft.trim() || !ready}
           >
-            <ArrowUp size={14} aria-hidden="true" />
+            <ArrowUp size={13} aria-hidden="true" />
             {C.agent.send}
           </Button>
         )}

@@ -96,11 +96,11 @@
 .zz-menu {
   display: none;
   flex-direction: column;
-  min-width: 200px;
+  min-width: 204px;
   padding: var(--zz-space-1);
   border: 1px solid var(--zz-border-strong);
   border-radius: var(--zz-menu-radius);
-  background: var(--zz-surface-2);
+  background: var(--zz-paper);
   box-shadow: var(--zz-shadow-2);
   z-index: var(--zz-z-popover);
   animation: zz-pop-in var(--zz-dur-2) var(--zz-ease);
@@ -124,6 +124,7 @@
   font: var(--zz-text-body) / var(--zz-leading-body) var(--zz-font-ui);
   text-align: left;
   cursor: pointer;
+  transition: background-color var(--zz-dur-1) var(--zz-ease);
 }
 
 .zz-menu__item:hover:not(:disabled),
@@ -148,8 +149,10 @@
 .zz-menu__heading {
   padding: var(--zz-space-2) var(--zz-space-3) var(--zz-space-1);
   color: var(--zz-text-3);
-  font-size: var(--zz-text-meta);
-  line-height: var(--zz-leading-meta);
+  font-size: var(--zz-text-caption);
+  font-weight: var(--zz-weight-strong);
+  letter-spacing: 0.04em;
+  line-height: var(--zz-leading-caption);
 }
 
 .zz-menu__separator {
@@ -196,7 +199,7 @@
   overflow: auto;
   border: 1px solid var(--zz-border-strong);
   border-radius: var(--zz-dialog-radius);
-  background: var(--zz-surface-2);
+  background: var(--zz-paper);
   color: var(--zz-text-1);
   box-shadow: var(--zz-shadow-3);
   font: var(--zz-text-body) / var(--zz-leading-body) var(--zz-font-ui);
@@ -212,6 +215,7 @@
 
 .zz-dialog::backdrop {
   background: var(--zz-mask);
+  backdrop-filter: blur(4px);
 }
 
 .zz-dialog--sm {

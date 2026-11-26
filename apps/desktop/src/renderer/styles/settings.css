@@ -57,6 +57,22 @@
   line-height: var(--zz-leading-strong);
 }
 
+.zz-settings__section > .zz-btn {
+  align-self: flex-start;
+}
+
+.zz-settings__notice {
+  margin: 0;
+  padding: var(--zz-space-2) var(--zz-space-3);
+  border: 1px solid var(--zz-border);
+  border-left: 2px solid var(--zz-warn);
+  border-radius: var(--zz-radius-sm);
+  background: var(--zz-surface-1);
+  color: var(--zz-text-2);
+  font-size: var(--zz-text-meta);
+  line-height: 1.5;
+}
+
 .zz-settings .zz-row > .zz-field {
   flex: 1 1 180px;
 }
@@ -64,14 +80,34 @@
 .zz-role {
   display: grid;
   grid-template-columns: 64px minmax(0, 1fr) minmax(0, 1fr);
-  align-items: end;
+  align-items: center;
   gap: var(--zz-space-3);
 }
 
+.zz-role--head {
+  padding-bottom: var(--zz-space-1);
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-meta);
+  font-weight: var(--zz-weight-medium);
+}
+
 .zz-role > strong {
-  padding-bottom: var(--zz-space-2);
-  color: var(--zz-text-2);
-  font-weight: var(--zz-weight-regular);
+  color: var(--zz-text-1);
+  font-size: var(--zz-text-body);
+  font-weight: var(--zz-weight-medium);
+}
+
+.zz-role .zz-field {
+  gap: 0;
+}
+
+.zz-role .zz-field__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
 }
 
 .zz-connection-form {

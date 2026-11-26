@@ -57,6 +57,7 @@
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+  border: 1px solid var(--zz-sheet-edge);
   border-radius: var(--zz-radius-lg);
   background: var(--zz-surface);
   box-shadow: var(--zz-card-shadow);
@@ -71,7 +72,7 @@
 .zz-dock__card-body {
   flex: 1;
   min-height: 0;
-  padding: var(--zz-space-3) var(--zz-space-4);
+  padding: 14px var(--zz-space-4);
   overflow-y: auto;
 }
 
@@ -86,7 +87,7 @@
 .zz-workflow {
   display: flex;
   flex-direction: column;
-  gap: var(--zz-space-2);
+  gap: 10px;
 }
 
 .zz-workflow .zz-empty {
@@ -97,7 +98,7 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding-bottom: var(--zz-space-1);
+  padding-bottom: 2px;
 }
 
 .zz-workflow__intro strong {
@@ -117,7 +118,7 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: var(--zz-space-1) 0;
+  padding: 2px 0;
 }
 
 .zz-workflow__opt {
@@ -142,6 +143,7 @@
 
 .zz-workflow .zz-select__control {
   min-height: 32px;
+  border-color: var(--zz-border);
   font-size: var(--zz-text-meta);
 }
 

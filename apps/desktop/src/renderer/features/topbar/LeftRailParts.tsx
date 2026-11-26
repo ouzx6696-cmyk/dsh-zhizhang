@@ -92,7 +92,6 @@ export function QuietFooter() {
 
   return (
     <div className="zz-rail__status" data-testid="local-save-status">
-      <span className="zz-rail__status-dot" aria-hidden="true" />
       <span className="zz-rail__status-text">
         {lastSavedAt ? C.rail.savedLocal(lastSavedAt) : C.rail.localReady}
       </span>

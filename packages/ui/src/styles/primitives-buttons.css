@@ -90,6 +90,7 @@
 .zz-btn:active:not(:disabled),
 .zz-icon-btn:active:not(:disabled) {
   background: var(--zz-active);
+  transform: translateY(0.5px);
 }
 
 /* 赭橙：只给作者拍板（采纳候选稿、定稿、交稿），附克制自身色光晕 */
@@ -103,11 +104,13 @@
 
 .zz-btn--decide:hover:not(:disabled) {
   background: var(--zz-decide-hover);
+  transform: translateY(-0.5px);
 }
 
 .zz-btn--decide:active:not(:disabled) {
   background: var(--zz-decide);
   box-shadow: none;
+  transform: translateY(0.5px);
 }
 
 /* 深墨实底：普通主按钮（新建、保存等非拍板动作，绝不用橙色） */
@@ -117,11 +120,21 @@
   background: var(--zz-text-1);
   color: var(--zz-paper);
   font-weight: var(--zz-weight-strong);
+  box-shadow: var(--zz-shadow-1);
 }
 
 .zz-btn--primary:hover:not(:disabled),
 .zz-btn--strong:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--zz-text-1) 86%, var(--zz-paper));
+  background: color-mix(in srgb, var(--zz-text-1) 88%, var(--zz-paper));
+  box-shadow: var(--zz-shadow-2);
+  transform: translateY(-0.5px);
+}
+
+.zz-btn--primary:active:not(:disabled),
+.zz-btn--strong:active:not(:disabled) {
+  background: var(--zz-text-1);
+  box-shadow: none;
+  transform: translateY(0.5px);
 }
 
 .zz-btn--ghost,

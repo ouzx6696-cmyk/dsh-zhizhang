@@ -18,8 +18,8 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--zz-space-3);
-  min-height: var(--zz-bar-height);
-  padding: 6px var(--zz-space-5);
+  min-height: 40px;
+  padding: 4px var(--zz-space-6);
   border-bottom: 1px solid var(--zz-border);
   background: var(--zz-bg);
 }
@@ -78,10 +78,10 @@
   flex: none;
   align-items: center;
   gap: var(--zz-space-4);
-  min-height: var(--zz-statusbar-height);
-  padding: 0 var(--zz-space-5);
+  min-height: 30px;
+  padding: 0 var(--zz-space-6);
   border-top: 1px solid var(--zz-border);
-  background: var(--zz-bg);
+  background: color-mix(in srgb, var(--zz-surface) 45%, var(--zz-bg));
   color: var(--zz-text-3);
   font: var(--zz-text-mono) / 1 var(--zz-font-mono);
   font-variant-numeric: tabular-nums;
@@ -116,11 +116,11 @@
 .wb-reader-body {
   flex: 1;
   min-height: 0;
-  padding: var(--zz-space-6) var(--zz-space-6) 28vh;
+  padding: var(--zz-space-5) var(--zz-space-6) 24vh;
   background: var(--zz-bg);
   overflow-y: auto;
   scrollbar-gutter: stable;
-  scroll-padding-top: var(--zz-space-6);
+  scroll-padding-top: var(--zz-space-5);
 }
 
 .wb-reader-body:focus-visible {
@@ -129,9 +129,9 @@
 
 .wb-manuscript {
   max-width: min(100%, 740px);
-  min-height: 62vh;
+  min-height: 64vh;
   margin: 0 auto;
-  padding: 52px 60px 64px;
+  padding: 52px 64px 72px;
   border: 1px solid var(--zz-sheet-edge);
   border-radius: var(--zz-radius-lg);
   background: var(--zz-paper);
@@ -155,22 +155,22 @@
   display: none;
 }
 
-/* 章眉小字：「第 十 二 章」，11px，字距 .3em */
+/* 章眉小字：「第 一 章」，11px，字距 .32em */
 .wb-manuscript .wb-manuscript-kicker {
-  margin: 0 0 10px;
+  margin: 0 0 8px;
   color: var(--zz-text-3);
   font: var(--zz-weight-medium) 11px / 1.4 var(--zz-font-ui);
-  letter-spacing: 0.3em;
+  letter-spacing: 0.32em;
   text-align: left;
   text-indent: 0;
 }
 
-/* 章标题：28px 衬线、字距 .12em */
+/* 章标题：26px 衬线、字距 .1em、平衡折行 */
 .wb-manuscript-title {
-  margin: 0 0 24px;
+  margin: 0 0 22px;
   color: var(--zz-title);
-  font: var(--zz-weight-strong) 28px / 1.35 var(--zz-font-paper);
-  letter-spacing: 0.12em;
+  font: var(--zz-weight-strong) 26px / 1.38 var(--zz-font-paper);
+  letter-spacing: 0.08em;
   text-align: left;
   text-indent: 0;
   text-wrap: balance;
@@ -185,7 +185,7 @@
   display: flex;
   align-items: center;
   gap: var(--zz-space-2);
-  margin: 0 0 36px;
+  margin: 0 0 34px;
   padding-bottom: 18px;
   color: var(--zz-text-3);
   font: var(--zz-text-mono) / 1.4 var(--zz-font-mono);
@@ -198,7 +198,7 @@
   position: absolute;
   bottom: 0;
   left: 0;
-  width: 40px;
+  width: 44px;
   height: 1px;
   background: var(--zz-border-strong);
   content: "";

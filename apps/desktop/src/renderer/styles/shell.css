@@ -195,17 +195,28 @@ body,
   cursor: not-allowed;
 }
 
-/* —— 左栏底部：新章节流水线 + 静默本地保存状态 —— */
+/* —— 左栏底部：新章节流水线（轻量化快捷入口）+ 静默本地保存状态 —— */
 .zz-rail__foot {
   display: flex;
   flex: none;
   flex-direction: column;
-  gap: 10px;
-  padding-top: 6px;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--zz-border);
 }
 
 .zz-rail__pipeline-btn {
   width: 100%;
+  border-color: var(--zz-border);
+  background: color-mix(in srgb, var(--zz-surface) 60%, transparent);
+  color: var(--zz-text-2);
+}
+
+.zz-rail__pipeline-btn:hover:not(:disabled) {
+  border-color: var(--zz-border-strong);
+  background: var(--zz-paper);
+  color: var(--zz-text-1);
+  box-shadow: var(--zz-shadow-1);
 }
 
 .zz-rail__status {

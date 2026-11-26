@@ -118,24 +118,25 @@
   display: flex;
   flex: none;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   width: 100%;
   height: 32px;
-  padding: 0 8px 0 10px;
+  padding: 0 7px 0 9px;
   border: 1px solid var(--zz-border);
   border-radius: var(--zz-btn-radius);
-  background: transparent;
+  background: color-mix(in srgb, var(--zz-surface) 65%, transparent);
   color: var(--zz-text-3);
-  font-size: var(--zz-text-meta);
+  font-size: 12px;
   cursor: pointer;
   transition:
     border-color var(--zz-dur-1) var(--zz-ease),
-    background-color var(--zz-dur-1) var(--zz-ease);
+    background-color var(--zz-dur-1) var(--zz-ease),
+    color var(--zz-dur-1) var(--zz-ease);
 }
 
 .zz-rail__search:hover {
   border-color: var(--zz-border-strong);
-  background: var(--zz-hover);
+  background: var(--zz-paper);
   color: var(--zz-text-2);
 }
 
@@ -151,10 +152,11 @@
 .zz-rail__kbd {
   flex: none;
   padding: 2px 5px;
+  border: 1px solid var(--zz-border);
   border-radius: 5px;
   background: var(--zz-surface-2);
   color: var(--zz-text-2);
-  font: 500 10.5px / 1 var(--zz-font-mono);
+  font: 500 10px / 1 var(--zz-font-mono);
 }
 
 /* —— 当前作品封面与进度 —— */
