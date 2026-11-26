@@ -20,8 +20,6 @@ export const ERROR_COPY: Record<ErrorCode, string> = {
   "run.stopped": "任务已停止",
   "run.interrupted": "任务因应用退出中断，可从断点恢复",
   "run.invalid_transition": "内部状态转移异常",
-  "python.unavailable": "未检测到可用的 Python 运行环境",
-  "python.failed": "规则质检脚本执行失败",
   "network.proxy": "网络连接或代理异常",
   "ipc.invalid_args": "内部通信参数错误",
   internal: "发生未预期的内部错误",

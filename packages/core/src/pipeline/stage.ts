@@ -62,7 +62,7 @@ export interface StageSpec<
     ctx: RunCtx<Req, State>,
   ): O | { value: O; notes: string[] } | Promise<O | { value: O; notes: string[] }>;
   retries?: number;
-  fanOut?: { count(ctx: RunCtx<Req, State>): number };
+  fanOut?: { count(ctx: RunCtx<Req, State>): number; allowPartial?: boolean };
 }
 
 export interface StageRunner<

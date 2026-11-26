@@ -51,7 +51,6 @@ import {
 export * from "./schemas.js";
 export * from "./rules.js";
 
-const DEFAULT_SCRIPTS_DIR = path.resolve(import.meta.dirname, "../../../skill/scripts");
 const DEFAULT_PROFILES_ROOT = path.resolve(import.meta.dirname, "../../../profiles");
 const DEFAULT_ARTICLE_BUDGET = 12_000;
 
@@ -89,10 +88,6 @@ function makeArticlePacket(
   }
   const estimate = prefix.reduce((sum, b) => sum + b.tokens, 0);
   return { prefix, suffix: [], omitted, estimate };
-}
-
-function resolveScriptsDir(req: ArticleReq): string {
-  return req.scriptsDir || process.env.ZHIZHANG_TOUTIAO_SCRIPTS_DIR || DEFAULT_SCRIPTS_DIR;
 }
 
 function resolveProfileDir(req: ArticleReq): string {
@@ -142,8 +137,7 @@ export const articlePipeline: PipelineDefinition<
     const clock = ctx.clock ?? systemClock;
     const lock = ctx.lock ?? createLockService(clock);
     const articleDir = ctx.target.path;
-    const scriptsDir = resolveScriptsDir(req);
-    const bridge = createRulesBridge(scriptsDir, { signal: runner.signal });
+    const bridge = createRulesBridge({ signal: runner.signal });
     const inputBudget = ctx.budget?.inputBudget ?? DEFAULT_ARTICLE_BUDGET;
 
     // 1. source: 登记/读取素材来源
@@ -300,7 +294,7 @@ export const articlePipeline: PipelineDefinition<
       cardPacket,
     );
 
-    // 10. qa: Python qa_check ≥ pass_score (84)；临时文件隔离在 .tmp/ 并在结束后清理，不污染 drafts/
+    // 10. qa: 纯 TS 质检 ≥ pass_score (84)；临时文件隔离在 .tmp/ 并在结束后清理，不污染 drafts/
     const runQaOnText = async (stepId: string, text: string): Promise<QaCheckResult> => {
       return runner.local(stepId, async () => {
         const qaDir = path.join(articleDir, ".tmp");

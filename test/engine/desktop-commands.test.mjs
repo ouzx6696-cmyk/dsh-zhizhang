@@ -37,6 +37,7 @@ async function setup() {
       builtin: (mode) => path.join(ROOT, "packages", mode, "profiles"),
       userDir: path.join(base, "state", "profiles"),
     },
+    exportDir: path.join(base, "out"),
     scriptsDir: SCRIPTS,
     workflow: {
       async startAndWait(target, kind, request) {
@@ -202,6 +203,15 @@ test("番茄命令：建书 → 写章 → 候选 → 导出 → 设定集，读
       format: "txt",
       finalOnly: false,
       outPath: "relative.txt",
+    }),
+    "input.invalid",
+  );
+  await expectCode(
+    run(ctx, "fanqie.book.export", {
+      work,
+      format: "txt",
+      finalOnly: false,
+      outPath: path.join(base, "escaped", "book.txt"),
     }),
     "input.invalid",
   );

@@ -12,9 +12,10 @@ export interface CommandCtx {
   locks: LockService;
   /** 把输入路径约束在写作文件夹内，返回规范化的绝对路径。 */
   inside(target: string): string;
+  /** 可选的宿主导出沙箱目录（如 Web 模式的 stateRoot/exports）。 */
+  exportDir?: string;
   roots(): WorkspaceRoots;
   profiles: ProfileDirs;
-  scriptsDir?: string;
   workflow: Pick<WorkflowService, "startAndWait">;
   log?(event: string, data: Record<string, unknown>): void;
 }
@@ -46,12 +47,23 @@ export function workDirName(title: string): string {
   return name;
 }
 
-export function assertOutPath(outPath: string, ext: string): string {
+function isWithinDir(baseDir: string, target: string): boolean {
+  const rel = path.relative(path.resolve(baseDir), path.resolve(target));
+  return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
+}
+
+export function assertOutPath(
+  outPath: string,
+  ext: string,
+  ctx?: Pick<CommandCtx, "inside" | "exportDir">,
+): string {
   const resolved = path.resolve(outPath);
   if (!path.isAbsolute(outPath) || path.extname(resolved).toLowerCase() !== `.${ext}`) {
     throw new AppError("input.invalid", `导出路径须为 .${ext} 文件的绝对路径`, {
       field: "outPath",
     });
   }
-  return resolved;
+  if (!ctx) return resolved;
+  if (ctx.exportDir && isWithinDir(ctx.exportDir, resolved)) return resolved;
+  return ctx.inside(resolved);
 }

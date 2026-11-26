@@ -3,10 +3,13 @@ export {
   dispatchWorkbenchCommand,
   isWorkbenchCommand,
 } from "../../apps/desktop/src/main/commands.js";
+export { createAppRuntime } from "../../apps/desktop/src/main/app-runtime.js";
 export { createRpcHandlers } from "../../apps/desktop/src/main/ipc/handlers.js";
+export { createUpdaterAdapter } from "../../apps/desktop/src/main/updater.js";
 export { createWorkflowService } from "../../apps/desktop/src/main/workflow.js";
 export { createRunStore } from "../../apps/desktop/src/main/services/runs.js";
 export { createConfigService } from "../../apps/desktop/src/main/services/config.js";
+export { createStorageHealth } from "../../apps/desktop/src/main/services/storage-health.js";
 export { createSessionManager, toChatMessages } from "../../apps/desktop/src/session/manager.js";
 export { createConversationStore } from "../../apps/desktop/src/session/history.js";
 export {
@@ -14,7 +17,12 @@ export {
   resolvePiProviderId,
 } from "../../apps/desktop/src/session/transcript.js";
 export { runTool } from "../../apps/desktop/src/session/tools.js";
-export { decodeSourceBytes, extractReadableText } from "../../apps/desktop/src/network.js";
+export {
+  assertPublicEndpoint,
+  decodeSourceBytes,
+  extractReadableText,
+} from "../../apps/desktop/src/network.js";
+export { createWebAuth } from "../../apps/desktop/src/server/auth.js";
 export { startWebPreviewServer } from "../../apps/desktop/src/server/web-server.js";
 export {
   DEFAULT_SETTINGS,

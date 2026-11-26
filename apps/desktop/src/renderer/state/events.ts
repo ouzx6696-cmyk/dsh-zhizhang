@@ -169,9 +169,10 @@ export function subscribeDesktopEvents(): () => void {
       case "workspace.changed": {
         const sameMode = selected?.mode === event.target.mode;
         const relevant =
-          selected !== null &&
-          (scopeKey(selected) === scopeKey(event.target) ||
-            (sameMode && event.target.mode === "toutiao"));
+          event.scope === "library" ||
+          (selected !== null &&
+            (scopeKey(selected) === scopeKey(event.target) ||
+              (sameMode && event.target.mode === "toutiao")));
         const now = new Date().toLocaleTimeString("zh-CN", {
           hour12: false,
           hour: "2-digit",

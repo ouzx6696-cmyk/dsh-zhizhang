@@ -10,7 +10,14 @@ import { createLockService } from "@zhizhang/core/lock";
 import { APP_VERSION } from "@zhizhang/core/version";
 import { commands as fanqie, createLearningStore } from "@zhizhang/fanqie";
 import type { DesktopEvent } from "../shared/events.js";
-import type { Focus, Mode, Target, UpdateStatus, WorkspaceStatus } from "../shared/views.js";
+import type {
+  Focus,
+  Mode,
+  Target,
+  UpdateAction,
+  UpdateStatus,
+  WorkspaceStatus,
+} from "../shared/views.js";
 import { createConversationStore } from "../session/history.js";
 import { createSessionManager } from "../session/manager.js";
 import { formatRunDebrief } from "../session/prompt.js";
@@ -29,7 +36,6 @@ import { createWorkflowService } from "./workflow.js";
 export interface AppRuntimeOptions {
   stateRoot: string;
   builtinProfilesDir(mode: Mode): string;
-  toutiaoScriptsDir: string;
   toutiaoProfileDir: string;
   backupScriptPath: string;
   host: HostPlatform;
@@ -84,6 +90,7 @@ export async function createAppRuntime(opts: AppRuntimeOptions): Promise<AppRunt
     config,
     clock,
     authPath: path.join(opts.stateRoot, "pi", "auth.json"),
+    allowPrivateEndpoints: opts.host.allowPrivateModelEndpoints ?? opts.host.kind !== "web",
   });
   const unbindModels = config.onChange(() => models.rebuild());
 
@@ -132,16 +139,15 @@ export async function createAppRuntime(opts: AppRuntimeOptions): Promise<AppRunt
     },
     prepareRequest(kind, request) {
       if (kind !== "toutiao.article" || !isRecord(request)) return request;
+      const { profileDir: _ignoredProfile, ...safeRequest } = request;
+      const requestedLedger =
+        typeof safeRequest.ledgerPath === "string" && safeRequest.ledgerPath.trim()
+          ? workspace.assertInside(safeRequest.ledgerPath)
+          : path.join(workspace.status().roots.toutiao, "ledger.csv");
       return {
-        ...request,
-        scriptsDir:
-          typeof request.scriptsDir === "string" ? request.scriptsDir : opts.toutiaoScriptsDir,
-        profileDir:
-          typeof request.profileDir === "string" ? request.profileDir : opts.toutiaoProfileDir,
-        ledgerPath:
-          typeof request.ledgerPath === "string"
-            ? request.ledgerPath
-            : path.join(workspace.status().roots.toutiao, "ledger.csv"),
+        ...safeRequest,
+        profileDir: opts.toutiaoProfileDir,
+        ledgerPath: requestedLedger,
       };
     },
   });
@@ -150,9 +156,9 @@ export async function createAppRuntime(opts: AppRuntimeOptions): Promise<AppRunt
     clock,
     locks,
     inside: (target) => workspace.assertInside(target),
+    ...(opts.host.exportDir ? { exportDir: opts.host.exportDir } : {}),
     roots: () => workspace.status().roots,
     profiles: profileDirs,
-    scriptsDir: opts.toutiaoScriptsDir,
     workflow,
     log: (event, data) => diagnostics.write(event, { message: String(data.message ?? "") }),
   };
@@ -220,7 +226,9 @@ export async function createAppRuntime(opts: AppRuntimeOptions): Promise<AppRunt
           controller.signal,
         );
         diagnostics.write("backup_done", {});
-        return { dir, sources: [root] };
+        return opts.host.kind === "web"
+          ? { dir: path.basename(dir), sources: [path.basename(root)] }
+          : { dir, sources: [root] };
       } catch (err) {
         await fs.rm(dir, { recursive: true, force: true }).catch(() => undefined);
         throw err;
@@ -251,11 +259,14 @@ export async function createAppRuntime(opts: AppRuntimeOptions): Promise<AppRunt
     return status;
   }
 
-  const updates = (_action: "status" | "check"): UpdateStatus => ({
-    state: "unavailable",
-    version: APP_VERSION,
-    reason: opts.host.packaged ? "disabled" : "unpacked",
-  });
+  const updates = (action: UpdateAction): Promise<UpdateStatus> | UpdateStatus => {
+    if (opts.host.updater) return opts.host.updater.handle(action);
+    return {
+      state: "unavailable",
+      version: APP_VERSION,
+      reason: opts.host.packaged ? "disabled" : "unpacked",
+    };
+  };
 
   const initialRoot = opts.initialWorkspaceRoot ?? config.settings().workspaceRoot?.trim();
   let startupNotice: DesktopEvent | undefined;

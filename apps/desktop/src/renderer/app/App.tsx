@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect } from "react";
+import React, { Suspense, lazy, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "@zhizhang/ui/components.css";
 import "@zhizhang/workbench/styles.css";
@@ -10,7 +10,9 @@ import { askConfirm } from "../state/confirm";
 import { boot } from "../state/controller";
 import { subscribeDesktopEvents } from "../state/events";
 import { desktopStore, useDesktop } from "../state/store";
+import { checkWebAuthStatus } from "../state/web-bridge";
 import { errorText, notifyError } from "../format";
+import { WebPasscodeGate } from "../features/auth/WebPasscodeGate";
 import { ConfirmDialog } from "../features/confirm/ConfirmDialog";
 import { ProjectHub } from "../features/hub/ProjectHub";
 import { CommandPalette } from "../features/topbar/CommandPalette";
@@ -47,6 +49,8 @@ function StudioFallback() {
   );
 }
 
+type AuthPhase = "checking" | "locked" | "ready";
+
 function App() {
   const bootState = useDesktop((state) => state.boot);
   const bootError = useDesktop((state) => state.bootError);
@@ -57,19 +61,42 @@ function App() {
   const settingsOpen = useDesktop((state) => state.settingsOpen);
   const onboarding = useDesktop((state) => state.onboarding);
   const creating = useDesktop((state) => state.creating);
+  const [authPhase, setAuthPhase] = useState<AuthPhase>(() =>
+    window.zhizhangBridge ? "ready" : "checking",
+  );
   useAppearance(appearance);
   useShortcuts();
   useEffect(() => setConfirm(askConfirm), []);
   useEffect(() => {
+    if (window.zhizhangBridge) return;
+    let active = true;
+    checkWebAuthStatus()
+      .then((status) => {
+        if (!active) return;
+        setAuthPhase(status.required && !status.authenticated ? "locked" : "ready");
+      })
+      .catch(() => {
+        if (active) setAuthPhase("ready");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  useEffect(() => {
+    if (authPhase !== "ready") return;
     const unsubscribe = subscribeDesktopEvents();
     boot().catch((error: unknown) => {
       notifyError(error);
       desktopStore.set({ boot: "error", bootError: errorText(error) });
     });
     return unsubscribe;
-  }, []);
+  }, [authPhase]);
 
-  if (bootState === "loading")
+  if (authPhase === "locked") {
+    return <WebPasscodeGate onUnlocked={() => setAuthPhase("ready")} />;
+  }
+
+  if (authPhase === "checking" || bootState === "loading")
     return (
       <div className="zz-desktop zz-startup" data-testid="startup">
         <Brand label={COPY["app.name"]} />

@@ -3,6 +3,37 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { classify } from "../errors/classify.js";
 
+const RENAME_RETRY_CODES = new Set(["EPERM", "EBUSY", "EACCES"]);
+const RENAME_RETRY_DELAYS_MS = [25, 50, 100, 200, 400];
+
+function errCode(err: unknown): string | undefined {
+  if (typeof err === "object" && err !== null && "code" in err) {
+    const code = Reflect.get(err, "code");
+    return typeof code === "string" ? code : undefined;
+  }
+  return undefined;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function renameWithRetry(src: string, dest: string): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await fs.rename(src, dest);
+      return;
+    } catch (err) {
+      const code = errCode(err);
+      const delay = RENAME_RETRY_DELAYS_MS[attempt];
+      if (!code || !RENAME_RETRY_CODES.has(code) || delay === undefined) {
+        throw err;
+      }
+      await sleep(delay);
+    }
+  }
+}
+
 export interface AtomicWriteOptions {
   onEinval?: (dir: string) => void;
   mode?: number;
@@ -26,7 +57,7 @@ export async function atomicWrite(
     if (opts?.mode !== undefined && process.platform !== "win32") {
       await fs.chmod(tmp, opts.mode).catch(() => undefined);
     }
-    await fs.rename(tmp, file);
+    await renameWithRetry(tmp, file);
     try {
       const dfd = await fs.open(dir, "r");
       try {
@@ -35,7 +66,7 @@ export async function atomicWrite(
         await dfd.close();
       }
     } catch (err) {
-      const code = (err as { code?: string }).code;
+      const code = errCode(err);
       if (code === "EINVAL" || code === "ENOTSUP" || code === "EPERM") {
         opts?.onEinval?.(dir);
       } else {

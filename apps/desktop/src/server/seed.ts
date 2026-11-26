@@ -37,7 +37,6 @@ export async function seedWebPreviewWorkspace(opts: {
   roots: WorkspaceRoots;
   locks: LockService;
   clock: Clock;
-  scriptsDir: string;
 }): Promise<void> {
   const [works, articles] = await Promise.all([
     fanqie.listWorks(opts.roots.fanqie).catch(() => []),
@@ -116,7 +115,6 @@ export async function seedWebPreviewWorkspace(opts: {
         id: "tt-demo-001",
         genre: "短图文",
         driver: "故事型",
-        scriptsDir: opts.scriptsDir,
       },
       opts.locks,
     );

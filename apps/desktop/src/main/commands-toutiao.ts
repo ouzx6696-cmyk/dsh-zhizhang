@@ -16,7 +16,6 @@ export const TOUTIAO_HANDLERS: { [K in CommandGroup<"toutiao">]: CommandHandler<
         root: ctx.inside(input.root),
         genre: input.genre,
         driver: input.driver,
-        ...(ctx.scriptsDir ? { scriptsDir: ctx.scriptsDir } : {}),
       },
       ctx.locks,
     );
@@ -38,7 +37,6 @@ export const TOUTIAO_HANDLERS: { [K in CommandGroup<"toutiao">]: CommandHandler<
         ...(input.expectedRevision !== undefined
           ? { expectedRevision: input.expectedRevision }
           : {}),
-        ...(ctx.scriptsDir ? { scriptsDir: ctx.scriptsDir } : {}),
       },
       ctx.locks,
     );
@@ -48,7 +46,7 @@ export const TOUTIAO_HANDLERS: { [K in CommandGroup<"toutiao">]: CommandHandler<
     const format = input.format ?? "md";
     return toutiao.exportArticleCommand({
       articleDir: ctx.inside(input.articleDir),
-      outPath: assertOutPath(input.outPath, format),
+      outPath: assertOutPath(input.outPath, format, ctx),
       format,
       ...(input.includeDelivery !== undefined ? { includeDelivery: input.includeDelivery } : {}),
     });
@@ -77,7 +75,6 @@ export const TOUTIAO_HANDLERS: { [K in CommandGroup<"toutiao">]: CommandHandler<
     return toutiao.ledgerShowCommand({
       ledgerPath: ctx.inside(input.ledgerPath),
       ...(input.last ? { last: input.last } : {}),
-      ...(ctx.scriptsDir ? { scriptsDir: ctx.scriptsDir } : {}),
     });
   },
   async "toutiao.ledger.add"(input, ctx) {
@@ -85,21 +82,18 @@ export const TOUTIAO_HANDLERS: { [K in CommandGroup<"toutiao">]: CommandHandler<
       ...input,
       cardPath: ctx.inside(input.cardPath),
       ledgerPath: ctx.inside(input.ledgerPath),
-      ...(ctx.scriptsDir ? { scriptsDir: ctx.scriptsDir } : {}),
     });
   },
   async "toutiao.ledger.status"(input, ctx) {
     return toutiao.ledgerStatusCommand({
       ...input,
       ledgerPath: ctx.inside(input.ledgerPath),
-      ...(ctx.scriptsDir ? { scriptsDir: ctx.scriptsDir } : {}),
     });
   },
   async "toutiao.metrics.import"(input, ctx) {
     return toutiao.metricsImportCommand({
       ...input,
       ledgerPath: ctx.inside(input.ledgerPath),
-      ...(ctx.scriptsDir ? { scriptsDir: ctx.scriptsDir } : {}),
     });
   },
 };

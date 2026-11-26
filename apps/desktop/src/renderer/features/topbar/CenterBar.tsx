@@ -6,6 +6,7 @@ import { Button, IconButton, Menu } from "@zhizhang/ui/primitives";
 import type { ExportFormat, TargetItem } from "../../../shared/views";
 import { desktop } from "../../state/desktop";
 import { desktopStore, sameTarget, useDesktop } from "../../state/store";
+import { triggerWebDownload } from "../../state/web-bridge";
 import { notifyError, run } from "../../format";
 import { hasCandidate, requestField } from "../workflow/workflow-model";
 
@@ -16,9 +17,25 @@ async function exportAs(format: ExportFormat) {
   if (!target) return;
   const result = await desktop.exportFile(target, { format });
   if (!result) return;
+  if ("copied" in result) {
+    if (result.content !== undefined) {
+      try {
+        if (!navigator.clipboard?.writeText) throw new Error("clipboard unavailable");
+        await navigator.clipboard.writeText(result.content);
+      } catch {
+        notify({ tone: "warning", text: C.topbar.copyFailed });
+        return;
+      }
+    }
+    notify({ tone: "success", text: C.topbar.copied(result.chars) });
+    return;
+  }
+  if (result.downloadUrl) {
+    triggerWebDownload(result.downloadUrl, result.fileName ?? result.file);
+  }
   notify({
     tone: "success",
-    text: "copied" in result ? C.topbar.copied(result.chars) : C.topbar.exported(result.file),
+    text: C.topbar.exported(result.fileName ?? result.file),
   });
 }
 

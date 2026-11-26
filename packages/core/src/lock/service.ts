@@ -6,6 +6,7 @@ import {
   inspectStaleLocks,
   withWriteLock,
   type AuthorConfirmation,
+  type InspectStaleLocksOptions,
   type ResourceKey,
   type StaleLock,
 } from "./write-lock.js";
@@ -14,7 +15,7 @@ export interface LockService {
   lease(root: string, expectedOwner?: string): Promise<Lease>;
   write<T>(resource: ResourceKey, fn: () => Promise<T>, opts?: { wait?: number }): Promise<T>;
   serial<T>(key: string, fn: () => Promise<T>): Promise<T>;
-  inspectStale(root: string): Promise<StaleLock[]>;
+  inspectStale(root: string, opts?: InspectStaleLocksOptions): Promise<StaleLock[]>;
   clearStale(lock: StaleLock, confirm: AuthorConfirmation): Promise<void>;
 }
 

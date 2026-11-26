@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -10,6 +9,7 @@ const { FIXED_DELIVERY_ENDING, ARTICLE_STATUSES, assertArticleTransition } = awa
   "packages/toutiao/src/domain/status.ts",
 );
 const { extractClaimCandidates } = await importTs("packages/toutiao/src/domain/index.ts");
+const { createRulesBridge } = await importTs("packages/toutiao/src/rules/index.ts");
 const {
   filterChangedParagraphClaims,
   mergeFactResults,
@@ -17,27 +17,6 @@ const {
   selectBestDraftCandidate,
 } = await importTs("packages/toutiao/src/pipelines/article/rules.ts");
 const { isAppError } = await importTs("packages/core/src/errors/index.ts");
-const { resolvePythonBin } = await importTs("packages/core/src/python/index.ts");
-
-const ROOT = process.cwd();
-const PYTHON_BIN = resolvePythonBin();
-const PYTHON_ENV = { ...process.env, PYTHONUTF8: "1", PYTHONIOENCODING: "utf-8" };
-const BRIDGE_PY = path.join(ROOT, "packages/toutiao/skill/scripts/writer_bridge.py");
-const QA_PY = path.join(ROOT, "packages/toutiao/skill/scripts/qa_check.py");
-
-function runQa(filePath) {
-  try {
-    return JSON.parse(
-      execFileSync(PYTHON_BIN, [QA_PY, filePath, "--json"], {
-        encoding: "utf8",
-        env: PYTHON_ENV,
-      }),
-    );
-  } catch (err) {
-    if (err.stdout) return JSON.parse(err.stdout.toString());
-    throw err;
-  }
-}
 
 test("toutiao fixed ending sentence and status state machine enforce transitions", () => {
   assert.equal(FIXED_DELIVERY_ENDING, "——AI 到此止步。是否采用、何时发布由你决定。");
@@ -57,10 +36,9 @@ test("toutiao fixed ending sentence and status state machine enforce transitions
   );
 });
 
-test("toutiao writer_bridge limits and qa_check enforce 34-char title max", async () => {
-  const limits = JSON.parse(
-    execFileSync(PYTHON_BIN, [BRIDGE_PY, "limits"], { encoding: "utf8", env: PYTHON_ENV }),
-  );
+test("toutiao pure-TS rules bridge limits and qa enforce 34-char title max", async () => {
+  const bridge = createRulesBridge();
+  const limits = await bridge.limits();
   assert.equal(limits.ok, true);
   assert.equal(limits.title_max, 34);
   assert.equal(limits.pass_score, 84);
@@ -73,12 +51,12 @@ test("toutiao writer_bridge limits and qa_check enforce 34-char title max", asyn
 
     const okFile = path.join(dir, "ok.md");
     await fs.writeFile(okFile, `# ${okTitle}\n\n${body}${FIXED_DELIVERY_ENDING}\n`, "utf8");
-    const okQa = runQa(okFile);
+    const okQa = await bridge.qa({ file: okFile });
     assert.ok(!okQa.hard_gates.some((g) => g.includes("标题超34字")));
 
     const badFile = path.join(dir, "bad.md");
     await fs.writeFile(badFile, `# ${tooLongTitle}\n\n${body}${FIXED_DELIVERY_ENDING}\n`, "utf8");
-    const badQa = runQa(badFile);
+    const badQa = await bridge.qa({ file: badFile });
     assert.ok(badQa.hard_gates.some((g) => g.includes("标题超34字")));
   } finally {
     await fs.rm(dir, { recursive: true, force: true });

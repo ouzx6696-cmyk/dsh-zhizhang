@@ -31,7 +31,15 @@ await esbuild({
   platform: "node",
   target: "node22",
   nodePaths: [desktopNodeModules],
-  external: ["electron", "@earendil-works/*", "docx", "undici", "typebox", "vite"],
+  external: [
+    "electron",
+    "electron-updater",
+    "@earendil-works/*",
+    "docx",
+    "undici",
+    "typebox",
+    "vite",
+  ],
 });
 
 console.log("织章 Web 预览与工作区构建完成");

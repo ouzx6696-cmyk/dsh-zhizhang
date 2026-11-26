@@ -38,6 +38,30 @@ function publicAddress(address: string): boolean {
   );
 }
 
+/** 校验接口地址仅解析到公网 IP，阻止云端或共享部署访问本机、内网或云元数据地址。 */
+export async function assertPublicEndpoint(baseUrl: string): Promise<void> {
+  let url: URL;
+  try {
+    url = new URL(baseUrl);
+  } catch {
+    throw new AppError("input.invalid", "模型接口地址格式无效", { field: "baseUrl" });
+  }
+  if ((url.protocol !== "https:" && url.protocol !== "http:") || url.username || url.password) {
+    throw new AppError("input.invalid", "模型接口须为不含登录信息的 HTTP(S) 地址", {
+      field: "baseUrl",
+    });
+  }
+  const hostname = url.hostname.replace(/^\[|\]$/g, "");
+  const addresses = isIP(hostname)
+    ? [{ address: hostname, family: isIP(hostname) }]
+    : await lookup(hostname, { all: true }).catch(() => []);
+  if (addresses.length === 0 || addresses.some((item) => !publicAddress(item.address))) {
+    throw new AppError("input.invalid", "当前预览环境禁止连接本机、内网或保留地址的模型端点", {
+      field: "baseUrl",
+    });
+  }
+}
+
 function normalizeCharset(raw: string): string {
   const lower = raw.trim().toLowerCase();
   if (lower === "gb2312" || lower === "gbk" || lower === "gb_2312") return "gb18030";

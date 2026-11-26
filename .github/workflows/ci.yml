@@ -7,9 +7,6 @@ on:
     paths-ignore: ["docs/**", "**/*.md"]
   workflow_call:
   workflow_dispatch:
-env:
-  PYTHONUTF8: "1"
-  PYTHONIOENCODING: utf-8
 permissions:
   contents: read
 concurrency:
@@ -29,6 +26,8 @@ jobs:
       - run: npm run check
       - run: npm run assets -- check
       - run: npm run build
+      - name: 生产依赖安全审计
+        run: npm audit --omit=dev --audit-level=high || echo "::warning::存在待关注的生产依赖安全通告"
 
   test:
     strategy:
@@ -42,8 +41,6 @@ jobs:
         with: { persist-credentials: false }
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with: { node-version: 24, cache: npm }
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with: { python-version: "3.13" }
       - run: npm ci
         env: { ELECTRON_SKIP_BINARY_DOWNLOAD: "1" }
       - run: npm test
@@ -57,8 +54,6 @@ jobs:
         with: { persist-credentials: false }
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with: { node-version: 24, cache: npm }
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with: { python-version: "3.13" }
       - run: npm ci
         env: { ELECTRON_SKIP_BINARY_DOWNLOAD: "1" }
       - id: electron
@@ -94,11 +89,8 @@ jobs:
         with: { persist-credentials: false }
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with: { node-version: 24, cache: npm }
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with: { python-version: "3.13" }
       - run: npm ci
       - run: npm run desktop:build
-      - run: node scripts/prepare-desktop-python.mjs
       - run: npx electron-builder --win nsis zip --x64 --publish never
         working-directory: apps/desktop
         env:
@@ -122,15 +114,13 @@ jobs:
           $package = Get-ChildItem apps/desktop/release/*.zip | Select-Object -First 1
           $zip = [System.IO.Compression.ZipFile]::OpenRead($package.FullName)
           try {
-            foreach ($file in @('Zhizhang.exe', 'resources/app.asar', 'resources/python/python.exe', 'resources/zhizhang/scripts/zhizhang-backup.mjs')) {
+            foreach ($file in @('Zhizhang.exe', 'resources/app.asar', 'resources/zhizhang/scripts/zhizhang-backup.mjs')) {
               if ($zip.Entries.FullName -notcontains $file) { throw "免安装包缺少 $file" }
             }
           } finally { $zip.Dispose() }
-          & apps/desktop/release/win-unpacked/resources/python/python.exe -c "import json; print(json.dumps({'runtime':'ok','text':'中文'},ensure_ascii=False))"
-          if ($LASTEXITCODE -ne 0) { throw '随包 Python 无法运行' }
           node scripts/check-desktop-package.mjs
           if ($LASTEXITCODE -ne 0) { throw '交付客户端启动检查未通过' }
-          Write-Output "::notice::Windows 原生 NSIS 和 ZIP 完整；更新清单引用 exe；随包 Python 可运行；签名状态=$($signature.Status)"
+          Write-Output "::notice::Windows 原生 NSIS 和 ZIP 完整（纯 TypeScript 无外部 Python 依赖）；更新清单引用 exe；签名状态=$($signature.Status)"
       - name: 整理交付文件
         shell: bash
         run: |

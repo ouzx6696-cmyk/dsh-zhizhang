@@ -21,6 +21,7 @@ import {
   type ResolvedConnection,
 } from "../session/pi-adapter.js";
 import type { AssistantPort } from "../session/types.js";
+import { assertPublicEndpoint } from "../network.js";
 import type { ConfigService } from "./services/config.js";
 
 const NOT_CONFIGURED = "请先在设置里为写手配置模型连接";
@@ -52,11 +53,15 @@ export function createModelServices(deps: {
   config: ConfigService;
   clock: Clock;
   authPath: string;
+  allowPrivateEndpoints?: boolean;
 }): ModelServices {
   const { config } = deps;
+  const allowPrivate = deps.allowPrivateEndpoints ?? true;
+  const validateEndpoint = allowPrivate ? undefined : assertPublicEndpoint;
   const ports = createPiPorts({
     authPath: deps.authPath,
     clock: deps.clock,
+    validateEndpoint,
     resolve(id) {
       if (!config.settings().models.connections.some((c) => c.id === id)) {
         throw new AppError("model.auth", NOT_CONFIGURED, { connection: id });
@@ -126,7 +131,7 @@ export function createModelServices(deps: {
       if (!conn.keyless && !conn.apiKey) {
         throw new AppError("model.auth", "请先填写 API Key", { connection: conn.id });
       }
-      return testPiConnection(conn, input.model, deps.authPath, deps.clock);
+      return testPiConnection(conn, input.model, deps.authPath, deps.clock, validateEndpoint);
     },
     async catalog(request) {
       const conn = resolveConnection(config, request.connectionId, request.draft);
@@ -134,6 +139,7 @@ export function createModelServices(deps: {
         const model = bindingFor(config.settings().models.roles, "writer")?.model ?? "default";
         return piModelCatalog(conn, model, deps.authPath);
       }
+      if (validateEndpoint) await validateEndpoint(conn.baseUrl);
       return endpointCatalog(conn);
     },
   };
@@ -148,6 +154,7 @@ async function endpointCatalog(conn: ResolvedConnection): Promise<ModelCatalogVi
   }
   const response = await fetch(`${conn.baseUrl.replace(/\/$/, "")}/models`, {
     headers: conn.apiKey ? { Authorization: `Bearer ${conn.apiKey}` } : {},
+    redirect: "error",
     signal: AbortSignal.timeout(10000),
   });
   if (response.status === 401 || response.status === 403) {

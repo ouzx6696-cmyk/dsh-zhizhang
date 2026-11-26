@@ -1,19 +1,20 @@
 /**
- * export.save：弹出保存对话框后调用写作区导出命令；“复制”把正文放进剪贴板。
- * 对话框与剪贴板由组合根注入（electron），这里不直接依赖 electron。
+ * export.save：弹出保存对话框后导出稿件；“复制”把正文写入宿主剪贴板（Web 模式回传正文交由浏览器写入）。
+ * 桌面端通过系统保存对话框获取受信任的目标路径；Web 端写至受控导出目录并返回下载链接，不暴露宿主机绝对路径。
  */
 import fs from "node:fs/promises";
 import path from "node:path";
 import { AppError } from "@zhizhang/core/errors";
 import { atomicWrite, readJson, readTextIfExists } from "@zhizhang/core/fs";
 import { commands as fanqie } from "@zhizhang/fanqie";
+import { commands as toutiao } from "@zhizhang/toutiao";
 import { ArticleMetaSchema } from "@zhizhang/toutiao/storage";
 import { wordDocument } from "../../exports.js";
 import type { ExportRequest, ExportResult, Target } from "../../shared/views.js";
 import type { CommandCtx } from "../commands.js";
-import { dispatchWorkbenchCommand } from "../commands.js";
 
 export interface ExportHost {
+  kind: "electron" | "web";
   pickSave(defaultName: string, extension: string): Promise<string | null>;
   copy(text: string): void;
 }
@@ -47,6 +48,19 @@ async function readArticleText(
   return { title, text };
 }
 
+function fileResult(host: ExportHost, outPath: string, count: number): Exclude<ExportResult, null> {
+  if (host.kind === "web") {
+    const fileName = path.basename(outPath);
+    return {
+      file: fileName,
+      fileName,
+      count,
+      downloadUrl: `/api/exports/${encodeURIComponent(fileName)}`,
+    };
+  }
+  return { file: outPath, count };
+}
+
 export async function exportTarget(
   target: Target,
   request: ExportRequest,
@@ -59,27 +73,22 @@ export async function exportTarget(
     if (request.format === "copy") {
       const result = await fanqie.exportWorkTxt(work, { onlyFinal: finalOnly });
       host.copy(result.content);
-      return { copied: true, chars: result.content.length };
+      return host.kind === "web"
+        ? { copied: true, chars: result.content.length, content: result.content }
+        : { copied: true, chars: result.content.length };
     }
     if (request.format === "md")
       throw new AppError("input.invalid", "长篇导出支持 TXT 与 DOCX", { field: "format" });
     const meta = await fanqie.getWork(work);
     const outPath = await host.pickSave(meta.title, request.format);
     if (!outPath) return null;
-    const result = await dispatchWorkbenchCommand(
-      {
-        command: "fanqie.book.export",
-        input: { work, format: request.format, finalOnly, outPath },
-      },
-      ctx,
-    );
-    return {
-      file: outPath,
-      count:
-        "chapterCount" in result && typeof result.chapterCount === "number"
-          ? result.chapterCount
-          : 0,
-    };
+    if (request.format === "txt") {
+      const result = await fanqie.exportWorkTxt(work, { onlyFinal: finalOnly, outPath });
+      return fileResult(host, outPath, result.chapterCount);
+    }
+    const result = await fanqie.exportWorkTxt(work, { onlyFinal: finalOnly });
+    await atomicWrite(outPath, await wordDocument(result.title, result.content));
+    return fileResult(host, outPath, result.chapterCount);
   }
 
   const articleDir = ctx.inside(target.path);
@@ -88,21 +97,22 @@ export async function exportTarget(
     const { title, text } = await readArticleText(articleDir, includeDelivery);
     const content = `${title}\n\n${text}`;
     host.copy(content);
-    return { copied: true, chars: content.length };
+    return host.kind === "web"
+      ? { copied: true, chars: content.length, content }
+      : { copied: true, chars: content.length };
   }
   const outPath = await host.pickSave(path.basename(articleDir), request.format);
   if (!outPath) return null;
   if (request.format === "docx") {
     const { title, text } = await readArticleText(articleDir, includeDelivery);
     await atomicWrite(outPath, await wordDocument(title, text));
-    return { file: outPath, count: 1 };
+    return fileResult(host, outPath, 1);
   }
-  await dispatchWorkbenchCommand(
-    {
-      command: "toutiao.article.export",
-      input: { articleDir, outPath, format: request.format, includeDelivery },
-    },
-    ctx,
-  );
-  return { file: outPath, count: 1 };
+  await toutiao.exportArticleCommand({
+    articleDir,
+    outPath,
+    format: request.format,
+    includeDelivery,
+  });
+  return fileResult(host, outPath, 1);
 }

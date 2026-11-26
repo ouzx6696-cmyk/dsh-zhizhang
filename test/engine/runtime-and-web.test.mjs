@@ -14,19 +14,18 @@ const desk = await importBundle("test/support/desktop-entry.ts");
 test("runPythonScript 以 Buffer 拼接 stdout，多字节中文跨 chunk 边界不乱码", async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "zhizhang-py-utf8-"));
   try {
-    const script = path.join(dir, "split_utf8.py");
+    const script = path.join(dir, "split_utf8.mjs");
     await fs.writeFile(
       script,
       [
-        "import sys",
-        "data = '织章中文边界完整性验证'.encode('utf-8')",
-        "for i in range(0, len(data), 2):",
-        "    sys.stdout.buffer.write(data[i:i+2])",
-        "    sys.stdout.buffer.flush()",
+        "const data = Buffer.from('织章中文边界完整性验证', 'utf8');",
+        "for (let i = 0; i < data.length; i += 2) {",
+        "  process.stdout.write(data.subarray(i, i + 2));",
+        "}",
       ].join("\n"),
       "utf8",
     );
-    const res = await runPythonScript(script, []);
+    const res = await runPythonScript(script, [], { pythonBin: process.execPath });
     assert.equal(res.code, 0);
     assert.equal(res.stdout, "织章中文边界完整性验证");
   } finally {
@@ -331,6 +330,14 @@ test("Web 预览服务器拦截跨源 RPC、非 JSON 请求与目录穿越访问
     const okBody = await okRes.json();
     assert.equal(okBody.ok, true);
     assert.equal(okBody.value.platform, process.platform);
+
+    const healthRes = await fetch(`${base}/api/health`);
+    assert.equal(healthRes.status, 200);
+    const healthBody = await healthRes.json();
+    assert.equal(healthBody.ok, true);
+    assert.equal(healthBody.workspaceConfigured, true);
+    assert.equal(healthBody.authRequired, false);
+    assert.equal("workspace" in healthBody, false, "/api/health 不应暴露宿主机绝对路径");
 
     const traversal = await fetch(`${base}/%2e%2e/state/settings.json`);
     const traversalText = await traversal.text();

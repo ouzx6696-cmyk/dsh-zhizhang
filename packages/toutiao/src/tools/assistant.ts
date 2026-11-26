@@ -185,11 +185,9 @@ export function toutiaoAssistantTools(role: Role, target: ModeTarget): ToolDefin
     roles: ["assistant"],
     readonly: true,
     async run(args: Infer<typeof LedgerArgs>) {
-      const scriptsDir = process.env.ZHIZHANG_TOUTIAO_SCRIPTS_DIR?.trim();
       return ledgerShowCommand({
         ledgerPath: path.join(toutiaoRoot, "ledger.csv"),
         last: args.last ?? 10,
-        ...(scriptsDir ? { scriptsDir } : {}),
       });
     },
   });

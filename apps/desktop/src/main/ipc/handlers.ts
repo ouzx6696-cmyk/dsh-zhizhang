@@ -1,6 +1,7 @@
 /**
  * 传输无关的 RPC 分发器：Electron ipcMain 与 Web HTTP+SSE 共用同一套参数校验、只读门禁与服务调用。
  */
+import path from "node:path";
 import type { Clock } from "@zhizhang/core/clock";
 import { AppError, classify, serializeError } from "@zhizhang/core/errors";
 import { COMMAND_POLICY } from "@zhizhang/workbench/contract";
@@ -11,6 +12,7 @@ import type {
   BackupResult,
   LearningView,
   Target,
+  UpdateAction,
   UpdateStatus,
   WorkspaceStatus,
 } from "../../shared/views.js";
@@ -42,7 +44,7 @@ export interface MainServices {
   commands: CommandCtx;
   backup: { start(output: string): Promise<BackupResult>; cancel(): void };
   diagnostics(file: string): Promise<void>;
-  updates(action: "status" | "check"): UpdateStatus;
+  updates(action: UpdateAction): Promise<UpdateStatus> | UpdateStatus;
   learning(target: Target): Promise<LearningView>;
 }
 
@@ -78,7 +80,7 @@ export function createRpcHandlers(s: MainServices): RpcDispatcher {
       settings: s.config.publicSettings(),
       ...(issue ? { settingsIssue: issue } : {}),
       workspace,
-      updates: s.updates("status"),
+      updates: await s.updates("status"),
       recent: workspace.root ? await recentTargets(workspace.roots) : [],
     };
   }
@@ -184,6 +186,7 @@ export function createRpcHandlers(s: MainServices): RpcDispatcher {
 
     "export.save": (target, request) =>
       exportTarget(target, request, s.commands, {
+        kind: s.host.kind,
         pickSave: (defaultName, extension) => s.host.pickSave(defaultName, extension),
         copy: (text) => s.host.copyText(text),
       }),
@@ -204,6 +207,14 @@ export function createRpcHandlers(s: MainServices): RpcDispatcher {
       );
       if (!file) return null;
       await s.diagnostics(file);
+      if (s.host.kind === "web") {
+        const fileName = path.basename(file);
+        return {
+          file: fileName,
+          fileName,
+          downloadUrl: `/api/exports/${encodeURIComponent(fileName)}`,
+        };
+      }
       return { file };
     },
     "storage.health": () => s.storage.inspect(),

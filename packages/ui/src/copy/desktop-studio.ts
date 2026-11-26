@@ -137,6 +137,8 @@ export const DESKTOP_STUDIO_COPY = {
     importSubmit: "导入素材",
     importDone: "已导入拆书库",
     dissectAction: "拆解提取卡片",
+    dissectStarted: "已启动拆书流水线，完成后将自动刷新技法卡",
+    dissectRunning: "正在拆解…",
     dissectDone: (count: number) => `拆解完成，提取 ${count} 张技法卡`,
     sourcesList: "已导入素材",
     emptySources: "拆书库还是空的，可在左侧导入参考正文开始拆解。",

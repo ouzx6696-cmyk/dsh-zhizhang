@@ -94,6 +94,11 @@ for (const file of allTs) {
     );
   }
 
+  // G-runtime: runtime TS code must remain 100% pure TypeScript with zero Python dependency
+  if (/(?:from|import\s*\()\s*["']@zhizhang\/core\/python["']|\bwriter_bridge\.py\b/.test(noComments)) {
+    errors.push(`[G-runtime] Runtime Python dependency found in ${rel}`);
+  }
+
   // G-copy: forbid Chinese text in JSX across all .tsx files (renderer, ui, and workbench/client)
   if (file.endsWith(".tsx")) {
     const jsxChinese = noComments.match(/>[^<>{}]*[\u4e00-\u9fff][^<>{}]*</g) || [];
@@ -103,9 +108,12 @@ for (const file of allTs) {
   }
 
   // G-copy: forbid duplicating PASS_SCORE = 84, TITLE_MAX = 34, or toutiao status constants in TS
-  if (/(?:PASS_SCORE|passScore|TITLE_MAX|titleMax)\s*=\s*(?:84|34)\b/.test(noComments)) {
+  if (
+    rel !== "packages/toutiao/src/rules/constants.ts" &&
+    /(?:PASS_SCORE|passScore|TITLE_MAX|titleMax)\s*=\s*(?:84|34)\b/.test(noComments)
+  ) {
     errors.push(
-      `[G-copy] Hardcoded business constant (84/34) in ${rel}; read from rules.py bridge`,
+      `[G-copy] Hardcoded business constant (84/34) in ${rel}; read from packages/toutiao/src/rules/constants.ts`,
     );
   }
   if (
@@ -269,10 +277,12 @@ if (docFiles.length > 6) {
   errors.push(`[G-docs] Expected <= 6 docs, found ${docFiles.length}`);
 }
 
-// 7. G-rules: rules.py single source PASS_SCORE = 84 & TITLE_MAX = 34
-const rulesPy = fs.readFileSync(path.join(ROOT, "packages/toutiao/skill/scripts/rules.py"), "utf8");
-if (!/PASS_SCORE\s*=\s*84/.test(rulesPy) || !/TITLE_MAX\s*=\s*34/.test(rulesPy)) {
-  errors.push("[G-rules] rules.py missing PASS_SCORE = 84 or TITLE_MAX = 34");
+// 7. G-rules: pure-TS constants.ts single source PASS_SCORE = 84 & TITLE_MAX = 34
+const rulesTs = fs.readFileSync(path.join(ROOT, "packages/toutiao/src/rules/constants.ts"), "utf8");
+if (!/PASS_SCORE\s*=\s*84/.test(rulesTs) || !/TITLE_MAX\s*=\s*34/.test(rulesTs)) {
+  errors.push(
+    "[G-rules] packages/toutiao/src/rules/constants.ts missing PASS_SCORE = 84 or TITLE_MAX = 34",
+  );
 }
 
 // 8. G-css: forbid --ui-/--wb- and hex colors in non-token CSS files

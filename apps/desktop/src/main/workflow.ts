@@ -316,7 +316,18 @@ export function createWorkflowService(deps: WorkflowDeps) {
           }
         }
         const saved = withError(next);
-        await deps.runs.save(saved);
+        let saveErr: unknown;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            await deps.runs.save(saved);
+            saveErr = undefined;
+            break;
+          } catch (err) {
+            saveErr = err;
+            if (attempt < 2) await deps.clock.sleep((attempt + 1) * 50);
+          }
+        }
+        if (saveErr) throw saveErr;
         emitRun(saved);
         deps.emit({
           kind: "workspace.changed",

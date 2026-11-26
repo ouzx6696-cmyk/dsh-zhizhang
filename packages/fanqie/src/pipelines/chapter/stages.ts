@@ -68,6 +68,7 @@ export const draftStage: ChapterStage<
         ctx.request.grade ?? ctx.state.grade ?? "standard",
         ctx.request.golden === "true",
       ),
+    allowPartial: true,
   },
 };
 

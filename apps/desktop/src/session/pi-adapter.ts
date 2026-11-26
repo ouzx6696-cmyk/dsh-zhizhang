@@ -242,6 +242,7 @@ export function createPiPorts(options: PiPortOptions): ModelPort & AssistantPort
     if (!conn.keyless && !conn.apiKey) {
       throw new AppError("model.auth", `连接 ${conn.id} 尚未填写 API Key`, { connection: conn.id });
     }
+    if (options.validateEndpoint) await options.validateEndpoint(conn.baseUrl);
     const { runtime, model } = await resolveRuntimeModel(conn, modelId, options.authPath);
     const context = buildContext(model);
     const preset = options.defaults?.(connectionId, modelId);
@@ -357,8 +358,9 @@ export async function testPiConnection(
   modelId: string,
   authPath: string,
   clock: { now(): number },
+  validateEndpoint?: (baseUrl: string) => Promise<void>,
 ): Promise<ModelTestResult> {
-  const ports = createPiPorts({ authPath, clock, resolve: () => conn });
+  const ports = createPiPorts({ authPath, clock, resolve: () => conn, validateEndpoint });
   const started = clock.now();
   const timeoutSignal = AbortSignal.timeout(TEST_CONNECTION_TIMEOUT_MS);
   try {

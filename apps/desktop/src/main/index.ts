@@ -2,14 +2,13 @@
  * Electron 桌面端入口：装配 Electron HostPlatform，启动共享组合根与主窗口。
  * 状态目录默认 ~/.zhizhang（ZHIZHANG_STATE_ROOT 可覆盖），随包资源在 resources/zhizhang。
  */
-import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, clipboard, dialog, safeStorage, shell, type BrowserWindow } from "electron";
 import { AppError, classify } from "@zhizhang/core/errors";
 import { resolveStateRoot, STATE_ROOT_ENV } from "@zhizhang/core/paths";
-import { APP_ID } from "@zhizhang/core/version";
+import { APP_ID, APP_VERSION } from "@zhizhang/core/version";
 import type { DesktopEvent } from "../shared/events.js";
 import type { Mode } from "../shared/views.js";
 import { createAppRuntime } from "./app-runtime.js";
@@ -18,6 +17,7 @@ import { registerQuitCleanup } from "./exit.js";
 import { registerIpc } from "./ipc/register.js";
 import { decodeTextBuffer, type HostPlatform } from "./platform.js";
 import type { SecretCipher } from "./services/config.js";
+import { createElectronUpdater } from "./updater.js";
 import { createMainWindow } from "./window.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -27,19 +27,7 @@ if (!app.isPackaged && devStateRoot) process.env[STATE_ROOT_ENV] = devStateRoot;
 const resources = app.isPackaged
   ? path.join(process.resourcesPath, "zhizhang")
   : path.resolve(here, "../../resources/zhizhang");
-const pythonRoot = app.isPackaged
-  ? path.join(process.resourcesPath, "python")
-  : path.resolve(here, "../../resources/python");
-const toutiaoScripts = path.join(resources, "skill", "scripts");
 const toutiaoProfile = path.join(resources, "profiles", "toutiao", "default");
-
-process.env.ZHIZHANG_TOUTIAO_SCRIPTS_DIR ??= toutiaoScripts;
-if (!process.env.ZHIZHANG_PYTHON && existsSync(path.join(pythonRoot, "zhizhang-runtime.json"))) {
-  process.env.ZHIZHANG_PYTHON = path.join(
-    pythonRoot,
-    process.platform === "win32" ? "python.exe" : "bin/python3",
-  );
-}
 
 const safeStorageCipher: SecretCipher = {
   available: () =>
@@ -58,12 +46,16 @@ async function bootstrap(): Promise<void> {
     if (window && !window.isDestroyed()) window.webContents.send("zhizhang:event", event);
   };
 
+  const updater = app.isPackaged ? await createElectronUpdater(APP_VERSION, emit) : undefined;
+
   const host: HostPlatform = {
     kind: "electron",
     packaged: app.isPackaged,
     platform: process.platform,
     electronVersion: process.versions.electron,
     cipher: safeStorageCipher,
+    allowPrivateModelEndpoints: true,
+    ...(updater ? { updater } : {}),
     async pickDirectory(title) {
       const win = parentWindow();
       const options = { title, properties: ["openDirectory" as const, "createDirectory" as const] };
@@ -119,7 +111,6 @@ async function bootstrap(): Promise<void> {
   const runtime = await createAppRuntime({
     stateRoot: resolveStateRoot(),
     builtinProfilesDir: (mode: Mode) => path.join(resources, "profiles", mode),
-    toutiaoScriptsDir: toutiaoScripts,
     toutiaoProfileDir: toutiaoProfile,
     backupScriptPath: path.join(resources, "scripts", "zhizhang-backup.mjs"),
     host,

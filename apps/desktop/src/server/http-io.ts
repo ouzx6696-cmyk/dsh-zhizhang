@@ -57,7 +57,10 @@ export function runNodeBackup(script: string, args: string[], signal: AbortSigna
 
 export function isSameOriginRequest(req: IncomingMessage): boolean {
   const origin = req.headers.origin;
-  if (!origin) return true;
+  if (!origin) {
+    const requestedWith = req.headers["x-requested-with"];
+    return typeof requestedWith === "string" && requestedWith.trim().toLowerCase() === "zhizhang";
+  }
   let originHost: string;
   try {
     originHost = new URL(origin).host.toLowerCase();

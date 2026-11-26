@@ -51,9 +51,20 @@ export function createStorageHealth(deps: {
   async function inspect(): Promise<StorageHealth> {
     const status = deps.workspace();
     const lockRoots = status.root ? [status.root, status.roots.fanqie, status.roots.toutiao] : [];
-    const staleLocks = (
+    const innerLocks = (
       await Promise.all(lockRoots.map((dir) => deps.locks.inspectStale(dir)))
     ).flat();
+    let parentLeaseLocks: typeof innerLocks = [];
+    if (status.root) {
+      const resolvedRoot = path.resolve(status.root);
+      const parentDir = path.dirname(resolvedRoot);
+      const leaseLockName = `.zhizhang-lock-work-${path.basename(resolvedRoot)}`;
+      if (parentDir && parentDir !== resolvedRoot) {
+        const found = await deps.locks.inspectStale(parentDir);
+        parentLeaseLocks = found.filter((lock) => path.basename(lock.lockDir) === leaseLockName);
+      }
+    }
+    const staleLocks = [...parentLeaseLocks, ...innerLocks];
     const interruptedRuns = (await deps.runs.listAll())
       .filter(
         (run) =>

@@ -198,6 +198,7 @@ export function buildDraftStage(deps: {
     },
     fanOut: {
       count: (ctx) => ctx.request.draftCount ?? 2,
+      allowPartial: true,
     },
   };
 }

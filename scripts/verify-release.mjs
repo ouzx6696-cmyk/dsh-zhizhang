@@ -13,10 +13,6 @@ if (process.platform !== "win32")
 npm(["run", "check"]);
 npm(["test"]);
 npm(["run", "test:e2e"]);
-execFileSync(process.execPath, ["scripts/prepare-desktop-python.mjs"], {
-  cwd: root,
-  stdio: "inherit",
-});
 execFileSync(
   "npx",
   ["--no-install", "electron-builder", "--win", "nsis", "zip", "--x64", "--publish", "never"],

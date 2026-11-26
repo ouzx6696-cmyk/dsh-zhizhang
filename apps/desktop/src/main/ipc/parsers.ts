@@ -152,7 +152,7 @@ export const IPC_PARSERS: { [K in IpcChannel]: (args: unknown[]) => IpcArgs<K> }
   "diagnostics.export": none,
   "storage.health": none,
   "storage.recover": one(recoverAction),
-  "updates.check": one(lit("status", "check")),
+  "updates.check": one(lit("status", "check", "download", "install")),
   "dialog.openText": one(
     obj({
       title: opt(str({ max: 100 })),

@@ -81,10 +81,18 @@ export interface TargetItem {
   archived?: boolean;
 }
 
+export type UpdateAction = "status" | "check" | "download" | "install";
+
 export type UpdateStatus =
   | { state: "unavailable"; version: string; reason: "unpacked" | "disabled" }
   | { state: "idle" | "checking" | "latest"; version: string }
-  | { state: "available" | "downloading" | "ready"; version: string; next: string; notes?: string }
+  | {
+      state: "available" | "downloading" | "ready";
+      version: string;
+      next: string;
+      notes?: string;
+      percent?: number;
+    }
   | { state: "error"; version: string; code: ErrorCode; message: string };
 
 export interface SettingsIssue {
@@ -217,7 +225,16 @@ export interface ExportRequest {
   includeDelivery?: boolean;
 }
 
-export type ExportResult = { file: string; count: number } | { copied: true; chars: number } | null;
+export type ExportResult =
+  | { file: string; count: number; downloadUrl?: string; fileName?: string }
+  | { copied: true; chars: number; content?: string }
+  | null;
+
+export type DiagnosticsResult = {
+  file: string;
+  downloadUrl?: string;
+  fileName?: string;
+} | null;
 
 export interface BackupResult {
   dir: string;

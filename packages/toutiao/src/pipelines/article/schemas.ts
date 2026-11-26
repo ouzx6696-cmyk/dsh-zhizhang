@@ -22,7 +22,6 @@ export const ArticlePipelineReq = obj({
   sourceText: opt(str()),
   sourceKind: opt(lit("paste", "file", "classic")),
   draftCount: opt(int({ min: 1, max: 5 })),
-  scriptsDir: opt(str()),
   profileDir: opt(str()),
   ledgerPath: opt(str()),
   recentOpenings: opt(arr(str())),

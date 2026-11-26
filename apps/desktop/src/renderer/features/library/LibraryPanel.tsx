@@ -29,6 +29,7 @@ export function LibraryPanel({
   const selected = useDesktop((s) => s.selected);
   const focusChapter = useDesktop((s) => s.focus.chapter ?? "");
   const revision = useDesktop((s) => s.revisions.library);
+  const runs = useDesktop((s) => s.runs);
 
   const [sources, setSources] = useState<SourceRow[] | null>(null);
   const [activeId, setActiveId] = useState("");
@@ -38,6 +39,15 @@ export function LibraryPanel({
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [busy, setBusy] = useState("");
+
+  const activeDissectRun = useMemo(
+    () =>
+      runs.find(
+        (r) =>
+          r.kind === "library.dissect" && r.target.path === libraryRoot && r.state === "running",
+      ) ?? null,
+    [runs, libraryRoot],
+  );
 
   const loadSources = useCallback(async () => {
     if (!libraryRoot) return;
@@ -100,14 +110,14 @@ export function LibraryPanel({
     if (!libraryRoot) return;
     setBusy(`dissect:${source.id}`);
     try {
-      const res = await desktop.workbench("library.dissect", {
-        libraryRoot,
-        sourceId: source.id,
-        title: source.title,
-      });
-      notify({ tone: "success", text: C.warehouse.dissectDone(res.cardCount) });
-      await loadSources();
-      await loadCards();
+      await desktop.startRun(
+        { mode: "fanqie", path: libraryRoot },
+        {
+          kind: "library.dissect",
+          request: { sourceId: source.id, title: source.title },
+        },
+      );
+      notify({ tone: "info", text: C.warehouse.dissectStarted });
     } catch (err) {
       notifyError(err);
     } finally {
@@ -220,12 +230,12 @@ export function LibraryPanel({
               <div className="zz-row">
                 <Button
                   size="sm"
-                  loading={busy === `dissect:${activeSource.id}`}
-                  disabled={readonly || busy !== ""}
+                  loading={busy === `dissect:${activeSource.id}` || Boolean(activeDissectRun)}
+                  disabled={readonly || busy !== "" || Boolean(activeDissectRun)}
                   onClick={() => void dissect(activeSource)}
                 >
                   <Sparkles size={13} aria-hidden="true" />
-                  {C.warehouse.dissectAction}
+                  {activeDissectRun ? C.warehouse.dissectRunning : C.warehouse.dissectAction}
                 </Button>
                 {onOpenEditor ? (
                   <Button

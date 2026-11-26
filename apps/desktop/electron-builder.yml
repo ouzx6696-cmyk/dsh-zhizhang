@@ -10,8 +10,6 @@ files:
 extraResources:
   - from: resources/zhizhang
     to: zhizhang
-  - from: resources/python
-    to: python
 asar: true
 electronFuses:
   runAsNode: false

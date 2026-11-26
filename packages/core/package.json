@@ -14,7 +14,6 @@
     "./pipeline": "./src/pipeline/index.ts",
     "./model": "./src/model/index.ts",
     "./methods": "./src/methods/index.ts",
-    "./python": "./src/python/index.ts",
     "./clock": "./src/clock.ts",
     "./paths": "./src/paths.ts",
     "./version": "./src/version.ts"

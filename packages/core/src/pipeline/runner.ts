@@ -212,6 +212,21 @@ export async function executePipeline<
       );
       const results = await Promise.allSettled(tasks);
       await persistChain;
+      if (spec.fanOut?.allowPartial && !signal.aborted) {
+        const fulfilled: Awaited<(typeof tasks)[number]>[] = [];
+        let firstError: unknown;
+        let hasError = false;
+        for (const result of results) {
+          if (result.status === "fulfilled") {
+            fulfilled.push(result.value);
+          } else if (!hasError) {
+            hasError = true;
+            firstError = result.reason;
+          }
+        }
+        if (fulfilled.length > 0) return fulfilled;
+        if (hasError) throw firstError;
+      }
       return results.map((result) => {
         if (result.status === "rejected") throw result.reason;
         return result.value;
@@ -254,13 +269,13 @@ export async function executePipeline<
     await commit((rec) => transition(rec, "awaiting-author", "deliver", clock.iso()));
     return current;
   } catch (err) {
-    if (isAppError(err) && err.spec.pause) {
-      await commit((rec) => transition(rec, "paused", err.spec.pause ?? "error", clock.iso()));
-      return current;
-    }
     if (signal.aborted) {
       const targetState = signal.reason === "cancelled" ? "cancelled" : "paused";
       await commit((rec) => transition(rec, targetState, "author-stop", clock.iso()));
+      return current;
+    }
+    if (isAppError(err) && err.spec.pause) {
+      await commit((rec) => transition(rec, "paused", err.spec.pause ?? "error", clock.iso()));
       return current;
     }
     await commit((rec) => transition(rec, "failed", "error", clock.iso()));

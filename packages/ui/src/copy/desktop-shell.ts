@@ -56,6 +56,14 @@ export const DESKTOP_SHELL_COPY = {
     takeOverConfirm: (owner: string) =>
       `写作文件夹正由 ${owner} 打开。请确认另一处已经关闭，否则两处写入会互相覆盖。仍要接管吗？`,
   },
+  auth: {
+    title: "输入访问口令",
+    hint: "当前 Web 预览已开启口令保护；验证通过后，凭证仅保存在本页内存中，刷新页面需重新解锁。",
+    placeholder: "请输入访问口令",
+    submit: "解锁进入",
+    invalid: "口令不正确，请重试",
+    required: "请先输入访问口令",
+  },
   confirm: { title: "确认操作", ok: "继续" },
   notice: {
     settingsReset: "设置已恢复默认",
@@ -87,6 +95,7 @@ export const DESKTOP_SHELL_COPY = {
       copy: "复制标题与正文",
     },
     copied: (chars: number) => `已复制 ${chars} 字`,
+    copyFailed: "浏览器未授予剪贴板权限，请改用文件导出",
     exported: (file: string) => `已导出到 ${file}`,
     toggleDock: "显示或收起右栏",
     openPipeline: "打开右栏的流水线",

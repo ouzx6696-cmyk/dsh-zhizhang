@@ -7,9 +7,9 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "node ../../scripts/stage-desktop.mjs && electron-vite build",
-    "pack": "node ../../scripts/prepare-desktop-python.mjs && electron-builder --win nsis --x64 --publish never",
+    "pack": "electron-builder --win nsis --x64 --publish never",
     "predev": "node ../../scripts/stage-desktop.mjs",
-    "pack:portable": "node ../../scripts/prepare-desktop-python.mjs && electron-builder --win zip --x64 --publish never"
+    "pack:portable": "electron-builder --win zip --x64 --publish never"
   },
   "dependencies": {
     "@earendil-works/pi-ai": "1.5.0",

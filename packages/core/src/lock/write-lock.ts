@@ -18,6 +18,11 @@ export interface StaleLock {
   pid: number;
   host: string;
   acquiredAt: string;
+  orphan?: boolean;
+}
+
+export interface InspectStaleLocksOptions {
+  orphanGraceMs?: number;
 }
 
 export interface AuthorConfirmation {
@@ -27,6 +32,7 @@ export interface AuthorConfirmation {
 
 const activeLocks = new AsyncLocalStorage<Set<string>>();
 const LOCK_DIR_NAME = ".zhizhang-lock";
+const DEFAULT_ORPHAN_GRACE_MS = 15_000;
 
 const LockOwnerSchema = obj(
   {
@@ -39,11 +45,12 @@ const LockOwnerSchema = obj(
 );
 
 function isPidAlive(pid: number): boolean {
+  if (pid <= 0) return false;
   try {
     process.kill(pid, 0);
     return true;
   } catch (err) {
-    return (err as NodeJS.ErrnoException)?.code === "EPERM";
+    return typeof err === "object" && err !== null && Reflect.get(err, "code") === "EPERM";
   }
 }
 
@@ -69,7 +76,7 @@ export async function withWriteLock<T>(
       await fs.mkdir(lockDir);
       break;
     } catch (err) {
-      const code = (err as { code?: string }).code;
+      const code = typeof err === "object" && err !== null ? Reflect.get(err, "code") : undefined;
       if (code !== "EEXIST") throw err;
       if (clock.now() >= deadline) {
         throw new AppError("storage.locked", "另一处正在写入该资源，请稍后重试", {
@@ -99,15 +106,41 @@ export async function withWriteLock<T>(
   }
 }
 
-export async function inspectStaleLocks(root: string): Promise<StaleLock[]> {
+async function inspectOrphanLock(
+  lockDir: string,
+  host: string,
+  graceMs: number,
+): Promise<StaleLock | null> {
+  const stat = await fs.stat(lockDir).catch(() => undefined);
+  if (!stat) return null;
+  if (Date.now() - stat.mtimeMs < graceMs) return null;
+  return {
+    lockDir,
+    owner: "orphan",
+    pid: 0,
+    host,
+    acquiredAt: new Date(stat.mtimeMs).toISOString(),
+    orphan: true,
+  };
+}
+
+export async function inspectStaleLocks(
+  root: string,
+  opts?: InspectStaleLocksOptions,
+): Promise<StaleLock[]> {
   const results: StaleLock[] = [];
   const host = os.hostname();
+  const graceMs = opts?.orphanGraceMs ?? DEFAULT_ORPHAN_GRACE_MS;
   const entries = await fs.readdir(root, { withFileTypes: true }).catch(() => []);
   for (const entry of entries) {
     if (!entry.isDirectory() || !entry.name.startsWith(LOCK_DIR_NAME)) continue;
     const lockDir = path.join(root, entry.name);
-    const raw = await fs.readFile(path.join(lockDir, "owner.json"), "utf8").catch(() => undefined);
-    if (!raw) continue;
+    const raw = await fs.readFile(ownerFileLabel(lockDir), "utf8").catch(() => undefined);
+    if (!raw) {
+      const orphan = await inspectOrphanLock(lockDir, host, graceMs);
+      if (orphan) results.push(orphan);
+      continue;
+    }
     try {
       const parsed = LockOwnerSchema(JSON.parse(raw), ownerFileLabel(lockDir));
       if (parsed.host === host && !isPidAlive(parsed.pid)) {
@@ -120,7 +153,8 @@ export async function inspectStaleLocks(root: string): Promise<StaleLock[]> {
         });
       }
     } catch {
-      // ignore malformed owner
+      const orphan = await inspectOrphanLock(lockDir, host, graceMs);
+      if (orphan) results.push(orphan);
     }
   }
   return results;
@@ -134,7 +168,26 @@ export async function clearStaleLock(lock: StaleLock, confirm: AuthorConfirmatio
   if (!confirm.confirmedByAuthor) {
     throw new AppError("gate.denied", "清理遗留写锁需要作者确认");
   }
-  if (lock.host !== os.hostname() || isPidAlive(lock.pid)) {
+  const host = os.hostname();
+  if (lock.orphan && lock.pid === 0 && lock.host === host) {
+    const raw = await fs.readFile(ownerFileLabel(lock.lockDir), "utf8").catch(() => undefined);
+    if (raw) {
+      try {
+        const parsed = LockOwnerSchema(JSON.parse(raw), ownerFileLabel(lock.lockDir));
+        if (parsed.host !== host || isPidAlive(parsed.pid)) {
+          throw new AppError("storage.locked", "该锁目录已被活跃进程占用，已中止清理", {
+            pid: parsed.pid,
+            host: parsed.host,
+          });
+        }
+      } catch (err) {
+        if (err instanceof AppError) throw err;
+      }
+    }
+    await fs.rm(lock.lockDir, { recursive: true, force: true });
+    return;
+  }
+  if (lock.host !== host || isPidAlive(lock.pid)) {
     throw new AppError("storage.locked", "仅允许清理本机且原进程已停止的写锁", {
       pid: lock.pid,
       host: lock.host,

@@ -19,6 +19,8 @@ export interface PiPortOptions {
   authPath: string;
   clock?: { now(): number };
   resolve(connectionId: string): ResolvedConnection;
+  /** 发起网络请求前的端点校验钩子（Web 预览模式下用于阻断本机/内网/云元数据地址）。 */
+  validateEndpoint?(baseUrl: string): Promise<void>;
   /** 角色绑定上的思考档位与温度（请求未显式指定时回落采用）。 */
   defaults?(
     connectionId: string,

@@ -27,8 +27,6 @@ export const CODES = {
   "run.stopped": { kind: "author", retry: false, pause: "author-stop" },
   "run.interrupted": { kind: "transient", retry: false, pause: "interrupted" },
   "run.invalid_transition": { kind: "bug", retry: false },
-  "python.unavailable": { kind: "infra", retry: false },
-  "python.failed": { kind: "infra", retry: false },
   "network.proxy": { kind: "infra", retry: true },
   "ipc.invalid_args": { kind: "bug", retry: false },
   internal: { kind: "bug", retry: false },

@@ -180,7 +180,7 @@ export const FANQIE_HANDLERS: { [K in CommandGroup<"fanqie">]: CommandHandler<K>
   },
   async "fanqie.book.export"(input, ctx) {
     const work = ctx.inside(input.work);
-    const outPath = assertOutPath(input.outPath, input.format);
+    const outPath = assertOutPath(input.outPath, input.format, ctx);
     if (input.format === "txt") {
       const result = await fanqie.exportWorkTxt(work, { onlyFinal: input.finalOnly, outPath });
       return { outPath, chapterCount: result.chapterCount };

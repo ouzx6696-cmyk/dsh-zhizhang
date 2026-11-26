@@ -15,6 +15,7 @@ import { createAppRuntime } from "../main/app-runtime.js";
 import { createRpcHandlers } from "../main/ipc/handlers.js";
 import type { HostPlatform } from "../main/platform.js";
 import type { SecretCipher } from "../main/services/config.js";
+import { createWebAuth } from "./auth.js";
 import {
   isSameOriginRequest,
   readJsonBody,
@@ -39,6 +40,8 @@ export interface WebPreviewOptions {
   stateRoot?: string;
   workspaceRoot?: string;
   staticDir?: string;
+  passcode?: string;
+  allowPrivateModelEndpoints?: boolean;
   middleware?: (req: IncomingMessage, res: ServerResponse, next: () => void) => void;
 }
 
@@ -49,7 +52,11 @@ export async function startWebPreviewServer(opts: WebPreviewOptions = {}) {
   const stateRoot = opts.stateRoot ?? path.join(cacheRoot, "state");
   const workspaceRoot = opts.workspaceRoot ?? path.join(cacheRoot, "workspace");
   const exportDir = path.join(stateRoot, "exports");
+  const backupDir = path.join(stateRoot, "backups");
   const staticDir = opts.staticDir ?? path.join(repoRoot, "apps", "desktop", "out", "web");
+  const auth = createWebAuth(opts.passcode);
+  const allowPrivateModelEndpoints =
+    opts.allowPrivateModelEndpoints ?? process.env.ZHIZHANG_ALLOW_PRIVATE_MODEL_ENDPOINTS === "1";
 
   const sseClients = new Set<ServerResponse>();
   const safeWriteSse = (client: ServerResponse, chunk: string) => {
@@ -75,7 +82,13 @@ export async function startWebPreviewServer(opts: WebPreviewOptions = {}) {
     packaged: false,
     platform: process.platform,
     cipher: noopCipher,
-    async pickDirectory() {
+    exportDir,
+    allowPrivateModelEndpoints,
+    async pickDirectory(title) {
+      if (title.includes("备份")) {
+        await fs.mkdir(backupDir, { recursive: true });
+        return backupDir;
+      }
       return workspaceRoot;
     },
     async pickSave(defaultName, extension) {
@@ -98,14 +111,12 @@ export async function startWebPreviewServer(opts: WebPreviewOptions = {}) {
     runBackup: runNodeBackup,
   };
 
-  const toutiaoScriptsDir = path.join(repoRoot, "packages", "toutiao", "skill", "scripts");
   const toutiaoProfileDir = path.join(repoRoot, "packages", "toutiao", "profiles", "default");
   const backupScriptPath = path.join(repoRoot, "scripts", "backup.mjs");
 
   const runtime = await createAppRuntime({
     stateRoot,
     builtinProfilesDir: (mode: Mode) => path.join(repoRoot, "packages", mode, "profiles"),
-    toutiaoScriptsDir,
     toutiaoProfileDir,
     backupScriptPath,
     host: hostPlatform,
@@ -117,7 +128,6 @@ export async function startWebPreviewServer(opts: WebPreviewOptions = {}) {
     roots: runtime.services.workspace.status().roots,
     locks: runtime.services.commands.locks,
     clock: runtime.services.clock,
-    scriptsDir: toutiaoScriptsDir,
   });
 
   const rpc = createRpcHandlers(runtime.services);
@@ -137,17 +147,75 @@ export async function startWebPreviewServer(opts: WebPreviewOptions = {}) {
         ok: true,
         version: APP_VERSION,
         host: "web",
-        workspace: runtime.services.workspace.status().root,
+        workspaceConfigured: runtime.services.workspace.status().configured,
+        authRequired: auth.required,
       });
       return;
     }
 
+    if (req.method === "GET" && url.pathname === "/api/auth/status") {
+      sendJson(res, 200, {
+        required: auth.required,
+        authenticated: auth.isAuthorized(req, url),
+      });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/auth/login") {
+      try {
+        if (!isSameOriginRequest(req)) {
+          sendJson(res, 403, {
+            ok: false,
+            error: { code: "gate.denied", message: "拒绝跨源登录请求" },
+          });
+          return;
+        }
+        const parsed = await readJsonBody(req);
+        const raw =
+          typeof parsed === "object" &&
+          parsed !== null &&
+          typeof Reflect.get(parsed, "passcode") === "string"
+            ? String(Reflect.get(parsed, "passcode"))
+            : "";
+        const token = auth.verifyPasscode(raw);
+        if (token === null) {
+          sendJson(res, 401, {
+            ok: false,
+            error: { code: "gate.denied", message: "口令不正确" },
+          });
+          return;
+        }
+        sendJson(res, 200, { ok: true, token });
+      } catch (err) {
+        const serialized = serializeError(classify(err));
+        sendJson(res, 400, {
+          ok: false,
+          error: { code: serialized.code, message: serialized.message },
+        });
+      }
+      return;
+    }
+
     if (req.method === "GET" && url.pathname.startsWith("/api/exports/")) {
+      if (!auth.isAuthorized(req, url)) {
+        sendJson(res, 401, {
+          ok: false,
+          error: { code: "gate.denied", message: "需要输入访问口令" },
+        });
+        return;
+      }
       await serveExport(exportDir, url.pathname.slice("/api/exports/".length), res);
       return;
     }
 
     if (req.method === "GET" && url.pathname === "/api/events") {
+      if (!auth.isAuthorized(req, url)) {
+        sendJson(res, 401, {
+          ok: false,
+          error: { code: "gate.denied", message: "需要输入访问口令" },
+        });
+        return;
+      }
       res.writeHead(200, {
         ...SECURITY_HEADERS,
         "Content-Type": "text/event-stream; charset=utf-8",
@@ -170,6 +238,13 @@ export async function startWebPreviewServer(opts: WebPreviewOptions = {}) {
           sendJson(res, 403, {
             ok: false,
             error: { code: "gate.denied", message: "拒绝跨源 RPC 请求" },
+          });
+          return;
+        }
+        if (!auth.isAuthorized(req, url)) {
+          sendJson(res, 401, {
+            ok: false,
+            error: { code: "gate.denied", message: "需要输入访问口令" },
           });
           return;
         }

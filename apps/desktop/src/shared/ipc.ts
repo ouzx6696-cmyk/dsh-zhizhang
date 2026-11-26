@@ -13,6 +13,7 @@ import type {
   CompactResult,
   ContextUsageView,
   ConversationItem,
+  DiagnosticsResult,
   ExportRequest,
   ExportResult,
   FetchedSource,
@@ -31,6 +32,7 @@ import type {
   StorageHealth,
   Target,
   TargetItem,
+  UpdateAction,
   UpdateStatus,
   WorkflowAction,
   WorkflowDecision,
@@ -95,10 +97,10 @@ export interface IpcMap {
   "export.save": { args: [Target, ExportRequest]; result: ExportResult };
   "backup.start": { args: []; result: BackupResult | null };
   "backup.cancel": { args: []; result: void };
-  "diagnostics.export": { args: []; result: { file: string } | null };
+  "diagnostics.export": { args: []; result: DiagnosticsResult };
   "storage.health": { args: []; result: StorageHealth };
   "storage.recover": { args: [RecoverAction]; result: StorageHealth };
-  "updates.check": { args: ["status" | "check"]; result: UpdateStatus };
+  "updates.check": { args: [UpdateAction]; result: UpdateStatus };
   "dialog.openText": {
     args: [{ title?: string; extensions?: string[] }];
     result: OpenedText | null;
@@ -167,10 +169,10 @@ export interface DesktopApi {
   exportFile(target: Target, request: ExportRequest): Promise<ExportResult>;
   backup(): Promise<BackupResult | null>;
   cancelBackup(): Promise<void>;
-  diagnostics(): Promise<{ file: string } | null>;
+  diagnostics(): Promise<DiagnosticsResult>;
   storageHealth(): Promise<StorageHealth>;
   recover(action: RecoverAction): Promise<StorageHealth>;
-  updates(action?: "status" | "check"): Promise<UpdateStatus>;
+  updates(action?: UpdateAction): Promise<UpdateStatus>;
   openText(options?: { title?: string; extensions?: string[] }): Promise<OpenedText | null>;
   fetchSource(url: string): Promise<FetchedSource>;
   learning(target: Target): Promise<LearningView>;

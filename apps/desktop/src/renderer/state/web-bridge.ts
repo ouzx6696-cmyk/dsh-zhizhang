@@ -1,10 +1,79 @@
 /**
  * Web 预览传输桥（DesktopBridge 的浏览器实现）：
  * 当 Electron preload（window.zhizhangBridge）不存在时，通过 HTTP RPC + SSE 连接同源 Node 服务。
+ * 令牌仅保存在模块内存中，绝不写入 localStorage / sessionStorage。
  */
 import type { DesktopEvent } from "../../shared/events.js";
 import type { DesktopBridge, IpcArgs, IpcChannel, IpcResult, Reply } from "../../shared/ipc.js";
 import type { OpenedText } from "../../shared/views.js";
+
+const LONG_CHANNELS = new Set<IpcChannel>(["workbench.call", "models.test", "backup.start"]);
+
+let authToken = "";
+
+export function withWebAuthUrl(url: string): string {
+  if (!authToken) return url;
+  const sep = url.includes("?") ? "&" : "?";
+  return `${url}${sep}token=${encodeURIComponent(authToken)}`;
+}
+
+export function triggerWebDownload(url: string, fileName?: string): void {
+  const link = document.createElement("a");
+  link.href = withWebAuthUrl(url);
+  if (fileName) link.download = fileName;
+  link.rel = "noopener";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+function authHeaders(extra?: Record<string, string>): Record<string, string> {
+  return {
+    "X-Requested-With": "zhizhang",
+    ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+    ...extra,
+  };
+}
+
+export async function checkWebAuthStatus(): Promise<{
+  required: boolean;
+  authenticated: boolean;
+}> {
+  const res = await fetch("/api/auth/status", { headers: authHeaders() });
+  if (!res.ok) return { required: false, authenticated: true };
+  const parsed: unknown = await res.json();
+  if (typeof parsed !== "object" || parsed === null) {
+    return { required: false, authenticated: true };
+  }
+  return {
+    required: Reflect.get(parsed, "required") === true,
+    authenticated: Reflect.get(parsed, "authenticated") === true,
+  };
+}
+
+export async function loginWebPasscode(
+  passcode: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const res = await fetch("/api/auth/login", {
+    method: "POST",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ passcode }),
+  });
+  const body: unknown = await res.json().catch(() => null);
+  if (res.ok && typeof body === "object" && body !== null && Reflect.get(body, "ok") === true) {
+    const token = Reflect.get(body, "token");
+    authToken = typeof token === "string" ? token : "";
+    return { ok: true };
+  }
+  const errObj = typeof body === "object" && body !== null ? Reflect.get(body, "error") : null;
+  const msg =
+    typeof errObj === "object" &&
+    errObj !== null &&
+    typeof Reflect.get(errObj, "message") === "string"
+      ? String(Reflect.get(errObj, "message"))
+      : "";
+  return { ok: false, message: msg };
+}
 
 function decodeFileBytes(bytes: Uint8Array): { content: string; encoding: OpenedText["encoding"] } {
   try {
@@ -59,13 +128,13 @@ export function getWebDesktopBridge(): DesktopBridge {
 
   function ensureStream(): void {
     if (source || typeof EventSource === "undefined") return;
-    source = new EventSource("/api/events");
+    source = new EventSource(withWebAuthUrl("/api/events"));
     source.onopen = () => {
       if (!wasDisconnected) return;
       wasDisconnected = false;
       void fetch("/api/rpc/workspace.status", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ args: [] }),
       })
         .then((res) => (res.ok ? res.json() : null))
@@ -120,11 +189,12 @@ export function getWebDesktopBridge(): DesktopBridge {
         return { ok: true, value: value as IpcResult<K> };
       }
       try {
+        const timeoutMs = LONG_CHANNELS.has(channel) ? 300_000 : 60_000;
         const res = await fetch(`/api/rpc/${encodeURIComponent(channel)}`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: authHeaders({ "Content-Type": "application/json" }),
           body: JSON.stringify({ args }),
-          signal: AbortSignal.timeout(60_000),
+          signal: AbortSignal.timeout(timeoutMs),
         });
         const body = (await res.json()) as Reply<IpcResult<K>>;
         if (!res.ok && body && body.ok !== false) {

@@ -1,4 +1,3 @@
-import path from "node:path";
 import { AppError } from "@zhizhang/core/errors";
 import { int, obj, opt, str, type Infer } from "@zhizhang/core/schema";
 import {
@@ -7,12 +6,9 @@ import {
   type LedgerShowResult,
 } from "../rules/bridge.js";
 
-const DEFAULT_SCRIPTS_DIR = path.resolve(import.meta.dirname, "../../skill/scripts");
-
 export const LedgerShowReq = obj({
   ledgerPath: str({ min: 1 }),
   last: opt(int({ min: 1, max: 200 })),
-  scriptsDir: opt(str()),
 });
 
 export const LedgerAddReq = obj({
@@ -21,7 +17,6 @@ export const LedgerAddReq = obj({
   articleId: opt(str()),
   status: opt(str()),
   date: opt(str()),
-  scriptsDir: opt(str()),
 });
 
 export const LedgerStatusReq = obj({
@@ -29,7 +24,6 @@ export const LedgerStatusReq = obj({
   to: str({ min: 1 }),
   ledgerPath: str({ min: 1 }),
   articleId: opt(str()),
-  scriptsDir: opt(str()),
 });
 
 export const MetricsImportReq = obj({
@@ -37,7 +31,6 @@ export const MetricsImportReq = obj({
   metricsJson: str({ min: 1 }),
   ledgerPath: str({ min: 1 }),
   url: opt(str()),
-  scriptsDir: opt(str()),
 });
 
 export type LedgerShowInput = Infer<typeof LedgerShowReq>;
@@ -58,14 +51,14 @@ function assertBridgeOk<T extends { ok: boolean; code?: string; message?: string
 
 export async function ledgerShowCommand(rawInput: unknown): Promise<LedgerShowResult> {
   const input = LedgerShowReq(rawInput);
-  const bridge = createRulesBridge(input.scriptsDir ?? DEFAULT_SCRIPTS_DIR);
+  const bridge = createRulesBridge();
   const res = await bridge.ledgerShow({ ledger: input.ledgerPath, last: input.last });
   return assertBridgeOk(res);
 }
 
 export async function ledgerAddCommand(rawInput: unknown): Promise<LedgerMutateResult> {
   const input = LedgerAddReq(rawInput);
-  const bridge = createRulesBridge(input.scriptsDir ?? DEFAULT_SCRIPTS_DIR);
+  const bridge = createRulesBridge();
   const res = await bridge.ledgerAdd({
     card: input.cardPath,
     ledger: input.ledgerPath,
@@ -78,7 +71,7 @@ export async function ledgerAddCommand(rawInput: unknown): Promise<LedgerMutateR
 
 export async function ledgerStatusCommand(rawInput: unknown): Promise<LedgerMutateResult> {
   const input = LedgerStatusReq(rawInput);
-  const bridge = createRulesBridge(input.scriptsDir ?? DEFAULT_SCRIPTS_DIR);
+  const bridge = createRulesBridge();
   const res = await bridge.ledgerStatus({
     title: input.title,
     to: input.to,
@@ -90,7 +83,7 @@ export async function ledgerStatusCommand(rawInput: unknown): Promise<LedgerMuta
 
 export async function metricsImportCommand(rawInput: unknown): Promise<LedgerMutateResult> {
   const input = MetricsImportReq(rawInput);
-  const bridge = createRulesBridge(input.scriptsDir ?? DEFAULT_SCRIPTS_DIR);
+  const bridge = createRulesBridge();
   const res = await bridge.metricsImport({
     articleId: input.articleId,
     metricsJson: input.metricsJson,

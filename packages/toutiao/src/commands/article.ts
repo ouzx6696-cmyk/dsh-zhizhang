@@ -17,14 +17,11 @@ import {
 } from "../storage/articles.js";
 import type { ArticleRowView } from "../view/rows.js";
 
-const DEFAULT_SCRIPTS_DIR = path.resolve(import.meta.dirname, "../../skill/scripts");
-
 export const CreateArticleReq = obj({
   root: str({ min: 1 }),
   id: opt(str({ min: 1 })),
   genre: str({ min: 1 }),
   driver: str({ min: 1 }),
-  scriptsDir: opt(str()),
 });
 
 export const TransitionArticleReq = obj({
@@ -39,7 +36,6 @@ export const DeliverArticleReq = obj({
   expectedRevision: opt(str()),
   ledgerPath: opt(str({ min: 1 })),
   cardPath: opt(str({ min: 1 })),
-  scriptsDir: opt(str()),
   date: opt(str()),
 });
 
@@ -62,7 +58,7 @@ export async function createArticleCommand(
   const input = CreateArticleReq(rawInput);
   const id = input.id ?? `tt-${systemClock.now()}`;
   const articleDir = resolveInside(input.root, id);
-  const bridge = createRulesBridge(input.scriptsDir ?? DEFAULT_SCRIPTS_DIR);
+  const bridge = createRulesBridge();
   const limits = await bridge.limits();
   if (!limits.genres.includes(input.genre)) {
     throw new AppError("input.invalid", `不支持的体裁：${input.genre}`, {
@@ -152,7 +148,7 @@ export async function deliverArticleCommand(
     if (cardExists) {
       const ledgerPath =
         input.ledgerPath ?? path.join(path.dirname(input.articleDir), "ledger.csv");
-      const bridge = createRulesBridge(input.scriptsDir ?? DEFAULT_SCRIPTS_DIR);
+      const bridge = createRulesBridge();
       ledger = await bridge.ledgerAdd({
         card: cardPath,
         ledger: ledgerPath,
