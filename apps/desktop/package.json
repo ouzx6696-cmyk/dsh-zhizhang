@@ -12,8 +12,8 @@
     "pack:portable": "electron-builder --win zip --x64 --publish never"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "1.5.0",
-    "@earendil-works/pi-coding-agent": "1.5.0",
+    "@earendil-works/pi-ai": "1.6.0",
+    "@earendil-works/pi-coding-agent": "1.6.0",
     "@zhizhang/core": "*",
     "@zhizhang/fanqie": "*",
     "@zhizhang/toutiao": "*",
@@ -22,7 +22,7 @@
     "docx": "^9.15.3",
     "electron-updater": "^6.8.11",
     "typebox": "^1.4.6",
-    "undici": "8.12.3"
+    "undici": "8.13.1"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",
