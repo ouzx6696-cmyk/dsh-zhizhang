@@ -108,6 +108,7 @@ export function renderKernelProgressSvg(
     .attr("rx", 2.5)
     .attr("fill", "var(--zz-surface-2)");
 
+  const grow = d3.transition().duration(360).ease(d3.easeCubicOut);
   groups
     .append("rect")
     .attr("x", 0)
@@ -116,9 +117,7 @@ export function renderKernelProgressSvg(
     .attr("rx", 2.5)
     .attr("fill", (d) => metricFillVar(d.tone))
     .attr("width", 0)
-    .transition()
-    .duration(360)
-    .ease(d3.easeCubicOut)
+    .transition(grow)
     .attr("width", (d) => Math.max(d.percent > 0 ? 6 : 0, xScale(d.percent)));
 
   groups

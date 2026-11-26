@@ -6,32 +6,8 @@ import test from "node:test";
 import { importBundle } from "../support/bundle.mjs";
 import { createFakeClock } from "../support/clock.mjs";
 import { createFakeModelPort } from "../support/fake-port.mjs";
-import { importTs } from "../support/ts-loader.mjs";
 
-const { runPythonScript } = await importTs("packages/core/src/python/index.ts");
 const desk = await importBundle("test/support/desktop-entry.ts");
-
-test("runPythonScript 以 Buffer 拼接 stdout，多字节中文跨 chunk 边界不乱码", async () => {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "zhizhang-py-utf8-"));
-  try {
-    const script = path.join(dir, "split_utf8.mjs");
-    await fs.writeFile(
-      script,
-      [
-        "const data = Buffer.from('织章中文边界完整性验证', 'utf8');",
-        "for (let i = 0; i < data.length; i += 2) {",
-        "  process.stdout.write(data.subarray(i, i + 2));",
-        "}",
-      ].join("\n"),
-      "utf8",
-    );
-    const res = await runPythonScript(script, [], { pythonBin: process.execPath });
-    assert.equal(res.code, 0);
-    assert.equal(res.stdout, "织章中文边界完整性验证");
-  } finally {
-    await fs.rm(dir, { recursive: true, force: true });
-  }
-});
 
 test("RunStore 隔离损坏记录并按 maxTerminalRuns 裁剪历史终态运行", async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "zhizhang-runs-"));

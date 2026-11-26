@@ -170,7 +170,6 @@ test("Web 预览口令门禁、缺少 Origin 拦截、内网模型端点屏蔽�
           articleId: "demo",
           genre: "短图文",
           driver: "账本型",
-          scriptsDir: "/tmp/evil-scripts",
           ledgerPath: path.join(dir, "outside-ledger.csv"),
         },
       },

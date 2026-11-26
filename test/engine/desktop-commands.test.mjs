@@ -8,7 +8,6 @@ import { createFakeClock } from "../support/clock.mjs";
 
 const ROOT = process.cwd();
 const desk = await importBundle("test/support/desktop-entry.ts");
-const SCRIPTS = path.join(ROOT, "packages/toutiao/skill/scripts");
 
 async function setup() {
   const base = await fs.mkdtemp(path.join(os.tmpdir(), "zz-cmd-"));
@@ -38,7 +37,6 @@ async function setup() {
       userDir: path.join(base, "state", "profiles"),
     },
     exportDir: path.join(base, "out"),
-    scriptsDir: SCRIPTS,
     workflow: {
       async startAndWait(target, kind, request) {
         dissectCalls.push({ target, kind, request });
@@ -304,7 +302,7 @@ test("番茄命令：建书 → 写章 → 候选 → 导出 → 设定集，读
   assert.match(await fs.readFile(path.join(work, "plan", "references.json"), "utf8"), /"k1"/);
 });
 
-test("头条命令：建文章 → 登记来源 → 存稿 → 导出 → 状态流转 → 交稿，台账命令走真实规则脚本", async () => {
+test("头条命令：建文章 → 登记来源 → 存稿 → 导出 → 状态流转 → 交稿，台账命令走真实规则引擎", async () => {
   const { roots, ctx, base } = await setup();
   await expectCode(
     run(ctx, mark("toutiao.article.create"), {

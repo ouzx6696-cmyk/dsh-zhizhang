@@ -2,12 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { importTs } from "../support/ts-loader.mjs";
 
-const { isAppError } = await importTs("packages/core/src/errors/index.ts");
 const { arr, bool, desc, int, lit, nullable, num, obj, opt, record, str, toJsonSchema } =
   await importTs("packages/core/src/schema/index.ts");
 const { defineTool } = await importTs("packages/core/src/tool/index.ts");
 const { methodFor } = await importTs("packages/core/src/methods/index.ts");
-const { runPythonJson, runPythonScript } = await importTs("packages/core/src/python/index.ts");
 
 test("toJsonSchema 导出基本类型、可选字段、nullable、枚举与说明，defineTool 自动附带 jsonSchema", () => {
   const ParamsSchema = obj({
@@ -85,40 +83,4 @@ test("methodFor 支持带 when 条件的动态赛道路由并按匹配项拼接�
     "通用原则\n\n微头条指南",
   );
   assert.equal(methodFor(profile, "toutiao.article.draft", {}).text, "通用原则");
-});
-
-test("PythonRunner 支持可插拔 executor、强制 Schema 校验以及 AbortSignal 立即中止", async () => {
-  const fakeExecutor = {
-    runScript: async () => ({
-      code: 0,
-      stdout: JSON.stringify({ ok: true, count: 3 }),
-      stderr: "",
-    }),
-  };
-
-  const parsed = await runPythonJson("dummy.py", [], obj({ ok: bool, count: int() }), {
-    executor: fakeExecutor,
-  });
-  assert.deepEqual(parsed, { ok: true, count: 3 });
-
-  await assert.rejects(
-    () =>
-      runPythonJson("dummy.py", [], obj({ ok: bool, count: int() }), {
-        executor: {
-          runScript: async () => ({
-            code: 0,
-            stdout: JSON.stringify({ ok: "bad-type" }),
-            stderr: "",
-          }),
-        },
-      }),
-    (err) => isAppError(err, "python.failed"),
-  );
-
-  const ac = new AbortController();
-  ac.abort();
-  await assert.rejects(
-    () => runPythonScript("dummy.py", [], { signal: ac.signal }),
-    (err) => isAppError(err, "run.stopped"),
-  );
 });

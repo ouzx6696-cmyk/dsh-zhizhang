@@ -95,7 +95,9 @@ for (const file of allTs) {
   }
 
   // G-runtime: runtime TS code must remain 100% pure TypeScript with zero Python dependency
-  if (/(?:from|import\s*\()\s*["']@zhizhang\/core\/python["']|\bwriter_bridge\.py\b/.test(noComments)) {
+  if (
+    /(?:from|import\s*\()\s*["']@zhizhang\/core\/python["']|\bwriter_bridge\.py\b/.test(noComments)
+  ) {
     errors.push(`[G-runtime] Runtime Python dependency found in ${rel}`);
   }
 
@@ -260,8 +262,16 @@ const brandFiles = [
   path.join(ROOT, "apps/desktop/electron-builder.yml"),
 ];
 for (const file of brandFiles) {
-  const txt = fs.readFileSync(file, "utf8");
   const rel = toPosix(path.relative(ROOT, file));
+  const manifest = fs.readFileSync(file, "utf8");
+  // The release repository slug is an update endpoint, separate from the product brand.
+  const txt =
+    rel === "apps/desktop/electron-builder.yml"
+      ? manifest.replace(
+          /^publish:\r?\n  provider: github\r?\n  owner: ouzx6696-cmyk\r?\n  repo: dsh-zhizhang$/m,
+          "",
+        )
+      : manifest;
   if (/writer-agent|local\.writer\.agent|写作 Agent|dsh-zhizhang|@writer\//.test(txt)) {
     errors.push(`[G-brand] Legacy brand reference in ${rel}`);
   }

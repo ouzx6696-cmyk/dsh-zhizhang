@@ -70,15 +70,15 @@
 
 ## 4. 今日头条图文内核
 
-- **单真源规则桥**（`packages/toutiao/src/rules/bridge.ts` + `writer_bridge.py`）：
-  - `limits()` 读取 `rules.py` 的字数限制、质检及格线与结构化 `styles`，并按 `rules.py` mtime 缓存；
-  - `checkCard()`、`qa()` 与 `ledger*()` 均经 `runPythonJson` 强制 Schema 校验。
+- **TypeScript 规则引擎**（`packages/toutiao/src/rules/`）：
+  - `limits()` 从 TypeScript 常量提供字数限制、质检及格线与结构化 `styles`；
+  - `checkCard()`、`qa()` 与 `ledger*()` 在应用内完成立项卡校验、质检和台账操作。
 - **文章流水线（`toutiao.article`）**：
   1. 来源登记（本地文本或公开网页正文提取）→ 组装预算受控的 `sourcePacket` / `cardPacket`；
   2. 立项卡（经 `checkCard` 门禁）→ 标题矩阵（≥ 5 条、每条 ≤ 34 字、覆盖 ≥ 3 个母体）→ 蓝图（同赛道开头式/结尾式自动轮换）；
   3. 按赛道（资讯线/故事线 × 长图文/短图文/微头条）`when` 条件动态路由起稿与多路择优；
   4. **原文逐字证据核验**（`domain/claims.ts` + `rules.ts`）：代码抽词对照来源全文核验引文，模型虚构引用降级为 `unlocated`；增量复核同时校验段落文本与来源内容哈希，来源改动即刻失效重验；
-  5. Python 质检（临时文件隔离于 `articleDir/.tmp/` 并在 `finally` 清理），未过 84 分或触发硬闸则定向精修（≤ 2 轮）。
+  5. TypeScript 规则质检，未过 84 分或触发硬闸则定向精修（≤ 2 轮）。
 - **验收修订锁与交稿单**：
   - 晋升「已验收」时记录草稿内容哈希 `acceptedRevision`；若验收后修改草稿，状态自动回退为「初稿待改」并清空 `acceptedRevision`，防止未重验内容被直接交稿；
   - `transition` 禁止绕过交稿单直接切至「已交稿」，必须走 `toutiao.article.deliver` 原子落盘带固定末句的 `delivery.md`、同步 `ledger.csv` 并记录 `deliveredRevision`；进入「已交稿」后草稿锁定只读。

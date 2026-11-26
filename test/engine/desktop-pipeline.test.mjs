@@ -9,7 +9,6 @@ import { createFakeModelPort } from "../support/fake-port.mjs";
 
 const ROOT = process.cwd();
 const desk = await importBundle("test/support/desktop-entry.ts");
-const REAL_SCRIPTS = path.join(ROOT, "packages/toutiao/skill/scripts");
 
 const BODY = "雨落在旧码头的铁皮棚上，林川把手电压低，沿着湿滑的台阶往下走。".repeat(20);
 
@@ -76,7 +75,6 @@ function commandCtx(base, clock) {
       builtin: (m) => path.join(ROOT, "packages", m, "profiles"),
       userDir: path.join(base, "state", "profiles"),
     },
-    scriptsDir: REAL_SCRIPTS,
     workflow: { startAndWait: async () => assert.fail("not used") },
   };
 }
@@ -270,16 +268,7 @@ test("中断与失败：重启时遗留的 running 记录转为可恢复的 paus
   assert.ok(all.some((r) => r.id === "run-stuck"));
 });
 
-async function toutiaoScriptsWithCardShim(base) {
-  const dir = path.join(base, "scripts");
-  await fs.mkdir(dir, { recursive: true });
-  for (const name of ["rules.py", "ledger.py", "writer_bridge.py", "fetch_hot.py", "qa_check.py"]) {
-    await fs.symlink(path.join(REAL_SCRIPTS, name), path.join(dir, name));
-  }
-  return dir;
-}
-
-test("头条文章流水线经 ModelGateway + 假端口跑通：立项卡→标题→蓝图→成稿→审读→修订→真实 Python 质检，草稿交付并转待验收", async () => {
+test("头条文章流水线经 ModelGateway + 假端口跑通：立项卡→标题→蓝图→成稿→审读→修订→TypeScript 规则质检，草稿交付并转待验收", async () => {
   const base = await fs.mkdtemp(path.join(os.tmpdir(), "zz-pipe-tt-"));
   const clock = createFakeClock();
   const ctx = commandCtx(base, clock);
@@ -299,7 +288,6 @@ test("头条文章流水线经 ModelGateway + 假端口跑通：立项卡→标�
     },
     ctx,
   );
-  const scriptsDir = await toutiaoScriptsWithCardShim(base);
   const profileDir = path.join(ROOT, "packages/toutiao/profiles/default");
   const motifs = ["数字反差", "身份点名", "时间坐标"];
   const titles = [
@@ -348,7 +336,6 @@ test("头条文章流水线经 ModelGateway + 假端口跑通：立项卡→标�
   const { workflow } = services(base, port, clock, {
     prepareRequest: (kind, request) => ({
       ...request,
-      scriptsDir,
       profileDir,
       ledgerPath: path.join(toutiaoRoot, "ledger.csv"),
     }),

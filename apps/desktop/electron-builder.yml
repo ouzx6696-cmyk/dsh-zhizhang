@@ -19,7 +19,7 @@ electronFuses:
 publish:
   provider: github
   owner: ouzx6696-cmyk
-  repo: zhizhang
+  repo: dsh-zhizhang
 win:
   target: nsis
   icon: branding/icon.ico

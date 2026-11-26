@@ -247,7 +247,6 @@ test("createRpcHandlers 提供传输无关 RPC 分发并校验只读模式写命
         clock,
         inside: (p) => p,
         profiles: { builtin: () => "", userDir: dir },
-        scriptsDir: () => "",
         workflow: {
           start: async () => ({ target: { mode: "fanqie", path: dir }, runId: "r1" }),
         },

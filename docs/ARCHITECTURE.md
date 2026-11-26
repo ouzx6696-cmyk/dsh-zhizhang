@@ -17,7 +17,7 @@ L2.5 packages/workbench (@zhizhang/workbench)
       └── 跨模式 50 条强类型命令契约（contract/）、稿纸阅读与源码编辑器、原子草稿暂存
          │
 L2  packages/fanqie (@zhizhang/fanqie)    packages/toutiao (@zhizhang/toutiao)
-      └── 番茄长篇领域、设定集、上下文、       └── 头条图文领域、Python 规则桥、
+      └── 番茄长篇领域、设定集、上下文、       └── 头条图文领域、TypeScript 规则引擎、
           流水线、命令、只读工具与视图            文章流水线、命令、只读工具与视图
       （两业务模式严格隔离，严禁互相依赖）
          │                                       │
@@ -28,14 +28,14 @@ L1  packages/ui (@zhizhang/ui)
 L0  packages/core (@zhizhang/core)
       └── 纯机制层：零外部依赖，仅允许 node:* 与包内相对导入，严禁出现业务模式词汇
           （clock / errors / schema / fs / lock / journal / tool / pipeline /
-            model / methods / python / paths / version）
+            model / methods / paths / version）
 ```
 
 ## 2. 核心工程机制
 
 ### 2.1 统一错误模型与边界校验
 - 全仓统一使用 `AppError` 与结构化错误码表（`packages/core/src/errors/codes.ts`），`packages/*/src/`、`apps/desktop/src/main/` 与 `apps/desktop/src/server/` 禁止裸 `throw new Error(`。
-- 磁盘文件、IPC/RPC 参数、Python 子进程输出与模型结构化响应均须经 `@zhizhang/core/schema` 的 `Parser` 校验，禁止裸 `JSON.parse(...) as T`；同一 Schema 通过 `toJsonSchema()` 同步推导工具参数 JSON Schema。
+- 磁盘文件、IPC/RPC 参数与模型结构化响应均须经 `@zhizhang/core/schema` 的 `Parser` 校验，禁止裸 `JSON.parse(...) as T`；同一 Schema 通过 `toJsonSchema()` 同步推导工具参数 JSON Schema。
 - 错误分类通过结构化状态码与 `classify()` 完成，禁止通过正则匹配中文错误文案推导错误码。
 
 ### 2.2 双宿主共享组合根
@@ -54,8 +54,8 @@ L0  packages/core (@zhizhang/core)
 - **并发预算保护**（`BudgetGuard`）：同时守卫单阶段输入上限（`inputBudget`）、单任务总 token 上限（`runBudget`）与金额上限（`moneyCap`），在途并发请求预留预估 token 与金额并在结算或失败时精确回退。
 - **运行记录存储**（`RunStore`）：按目标隔离保存运行记录，损坏 JSON 自动隔离跳过不拖垮列表，终态历史按上限自动裁剪。
 
-### 2.5 Python 跨进程桥接协议
-- 所有 Python 脚本调用统一经 `@zhizhang/core/python` 的 `runPython` / `runPythonScript` / `runPythonJson`：强制注入 `PYTHONUTF8=1` 与 `PYTHONIOENCODING=utf-8`，以 `Buffer[]` 拼接 stdout 彻底杜绝多字节 UTF-8 跨 chunk 乱码，默认 30 秒超时、4 MiB 输出上限与 `AbortSignal` 传播；禁止内联拼接 `python -c`。
+### 2.5 头条规则引擎
+- 字数、立项卡、质检与台账规则由 `packages/toutiao/src/rules/` 在应用内执行。随仓保留的上游方法和脚本供资产维护参考。
 
 ### 2.6 PI 只读助手会话内核
 - SDK 严格隔离在 `apps/desktop/src/session/pi-adapter.ts`（纯辅助函数拆分在 `pi-helpers.ts`）。
@@ -78,9 +78,8 @@ L0  packages/core (@zhizhang/core)
 
 | 测试目录 | 归层职责 | 覆盖范围 |
 | --- | --- | --- |
-| `test/unit/*.test.mjs` | 纯函数、契约与领域模型单元测试 | 工作区契约与版本对齐、Schema/工具/方法路由/Python 执行器、预算与并发金额预留、状态机与门禁、错误分类、内容解码与原子草稿、番茄上下文与设定集审计、番茄续写/存稿/旧书解析、头条状态/规则/事实核验、段落 diff 与对照、仪表盘与阅读状态、PI 辅助逻辑、C2 令牌 |
+| `test/unit/*.test.mjs` | 纯函数、契约与领域模型单元测试 | 工作区契约与版本对齐、Schema/工具/方法路由、预算与并发金额预留、状态机与门禁、错误分类、内容解码与原子草稿、番茄上下文与设定集审计、番茄续写/存稿/旧书解析、头条状态/规则/事实核验、段落 diff 与对照、仪表盘与阅读状态、PI 辅助逻辑、C2 令牌 |
 | `test/engine/*.test.mjs` | 文件系统、并发、流水线与双宿主集成测试 | 原子写入与意图回放、写锁服务、设定集存储与原子提交、流水线 `fanOut` 与 RPC 分发、运行时服务（`RunStore`、`ConfigService`、会话并发、Web 预览安全）、桌面 50 条命令与设置、助手只读工具边界、番茄全流程（规划/续写/去 AI 腔/衍生谱系/三分类沉淀/记账/回查/旧书导入）、头条规则桥与交稿幂等 |
-| `packages/{toutiao,fanqie}/skill/tests/` | Python `unittest` | 头条规则算法、硬闸/评分、台账与桥接 JSON 契约；番茄测绘扫描与引文核验脚本 |
 | `test/desktop/` | Playwright Electron E2E | 桌面冷启动、引导、三栏工作台、流水线对照采纳、助手会话与可访问性检查 |
 
 测试纪律：禁止真实 `sleep` 轮询（统一注入 `test/support/clock.mjs` 与 `test/support/fake-port.mjs`），所有业务行为通过公开导出或 `executeTool` / `executePipeline` 验证。
