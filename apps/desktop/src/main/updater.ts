@@ -156,7 +156,8 @@ export async function createElectronUpdater(
   version: string,
   emit: (event: DesktopEvent) => void,
 ): Promise<UpdaterAdapter> {
-  const pkg = await import("electron-updater");
-  const driver: UpdateDriver = pkg.autoUpdater;
+  // The CommonJS entry exposes autoUpdater through a lazy getter on module.exports.
+  const { default: updater } = await import("electron-updater");
+  const driver: UpdateDriver = updater.autoUpdater;
   return createUpdaterAdapter(version, driver, emit);
 }

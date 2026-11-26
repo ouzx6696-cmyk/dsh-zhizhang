@@ -7,6 +7,7 @@ import { getCurrentFuseWire, flipFuses, FuseVersion, FuseV1Options } from "@elec
 import { mkdtemp, readFile, rm, mkdir, writeFile, copyFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -22,9 +23,20 @@ if (
   fuses[FuseV1Options.OnlyLoadAppFromAsar] !== 0x31
 )
   throw new Error("交付客户端 Fuse 不正确");
-const child = spawn(executable, ["--remote-debugging-port=0", `--user-data-dir=${home}`]);
+const child = spawn(executable, ["--remote-debugging-port=0", `--user-data-dir=${home}`], {
+  env: { ...process.env, ZHIZHANG_STATE_ROOT: path.join(home, "state") },
+});
 let browser;
 let output = "";
+let spawnError;
+child.on("error", (error) => {
+  spawnError = error;
+});
+for (const stream of [child.stdout, child.stderr]) {
+  stream.on("data", (chunk) => {
+    output = (output + chunk.toString()).slice(-12000);
+  });
+}
 const debugExecutable = path.join(path.dirname(executable), "Zhizhang-backup-smoke.exe");
 let backupApp;
 async function hash(file) {
@@ -34,33 +46,33 @@ async function hash(file) {
 }
 const originalHash = await hash(executable);
 async function stopOriginal() {
-  if (child.exitCode !== null || child.signalCode !== null) return;
+  if (spawnError || child.exitCode !== null || child.signalCode !== null) return;
   const exited = new Promise((resolve) => child.once("exit", resolve));
   child.kill("SIGKILL");
   await exited;
 }
+async function waitForDevTools() {
+  const deadline = Date.now() + 30_000;
+  const portFile = path.join(home, "DevToolsActivePort");
+  while (Date.now() < deadline) {
+    if (spawnError) throw spawnError;
+    if (child.exitCode !== null || child.signalCode !== null) {
+      throw new Error(`交付客户端提前退出：${child.exitCode}/${child.signalCode}`);
+    }
+    const info = await readFile(portFile, "utf8").catch((error) => {
+      if (error.code === "ENOENT") return "";
+      throw error;
+    });
+    const [port, socket] = info.trim().split(/\r?\n/);
+    if (/^\d+$/.test(port) && socket?.startsWith("/devtools/browser/")) {
+      return `ws://127.0.0.1:${port}${socket}`;
+    }
+    await delay(100);
+  }
+  throw new Error("交付客户端未开放窗口连接");
+}
 try {
-  const endpoint = await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("交付客户端未开放窗口连接\n" + output)), 30000);
-    child.once("error", (error) => {
-      clearTimeout(timer);
-      reject(error);
-    });
-    child.once("exit", (code, signal) => {
-      clearTimeout(timer);
-      reject(new Error(`交付客户端提前退出：${code}/${signal}\n${output}`));
-    });
-    for (const stream of [child.stdout, child.stderr])
-      stream.on("data", (chunk) => {
-        output = (output + chunk.toString()).slice(-12000);
-        const match = /DevTools listening on (ws:\/\/127\.0\.0\.1:\d+\/\S+)/.exec(output);
-        if (match) {
-          clearTimeout(timer);
-          resolve(match[1]);
-        }
-      });
-  });
-  browser = await chromium.connectOverCDP(endpoint);
+  browser = await chromium.connectOverCDP(await waitForDevTools());
   const context = browser.contexts()[0];
   const page = context.pages()[0] ?? (await context.waitForEvent("page", { timeout: 30000 }));
   await page.locator(".zz-desktop").waitFor({ timeout: 30000 });
@@ -96,6 +108,7 @@ try {
   backupApp = await electron.launch({
     executablePath: debugExecutable,
     args: [`--user-data-dir=${backupHome}`],
+    env: { ...process.env, ZHIZHANG_STATE_ROOT: path.join(backupHome, "state") },
     timeout: 30000,
   });
   const backupPage = await backupApp.firstWindow();
@@ -108,6 +121,13 @@ try {
   );
 } catch (error) {
   console.error(output);
+  if (process.env.GITHUB_ACTIONS === "true") {
+    const message = error.message
+      .replaceAll("%", "%25")
+      .replaceAll("\r", "%0D")
+      .replaceAll("\n", "%0A");
+    console.error(`::error title=Windows 包启动验证失败::${message}`);
+  }
   throw error;
 } finally {
   await backupApp?.close();

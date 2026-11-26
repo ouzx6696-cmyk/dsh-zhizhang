@@ -81,7 +81,7 @@ jobs:
 
   package:
     needs: [check, test]
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -118,9 +118,9 @@ jobs:
               if ($zip.Entries.FullName -notcontains $file) { throw "免安装包缺少 $file" }
             }
           } finally { $zip.Dispose() }
-          node scripts/check-desktop-package.mjs
-          if ($LASTEXITCODE -ne 0) { throw '交付客户端启动检查未通过' }
           Write-Output "::notice::Windows 原生 NSIS 和 ZIP 完整（纯 TypeScript 无外部 Python 依赖）；更新清单引用 exe；签名状态=$($signature.Status)"
+      - name: 验证打包客户端启动
+        run: node scripts/check-desktop-package.mjs
       - name: 整理交付文件
         shell: bash
         run: |

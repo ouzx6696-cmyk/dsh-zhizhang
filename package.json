@@ -1,6 +1,6 @@
 {
   "name": "zhizhang",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "private": true,
   "description": "织章：本地优先的中文写作桌面工作台（番茄长篇与今日头条）",
   "type": "module",

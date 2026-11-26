@@ -1,6 +1,6 @@
 # 项目状态
 
-当前版本：`2.3.0` ｜ 磁盘格式：`zhizhang/2.0`
+当前版本：`2.3.1` ｜ 磁盘格式：`zhizhang/2.0`
 
 ## 1. 本地验证矩阵
 
@@ -40,7 +40,7 @@
   - `check`（Ubuntu，Node 24）：`npm ci` → `npm run check` → `npm run assets -- check` → `npm run build`
   - `test`（Ubuntu + Windows，Node 24）：`npm test`
   - `e2e`（Windows）：Electron 二进制缓存安装 + `npm run test:e2e`
-  - `package`（Windows，tag / 手动触发）：`electron-builder` NSIS/ZIP 打包 + 启动冒烟校验
+  - `package`（Windows，master / tag / 手动触发）：`electron-builder` NSIS/ZIP 打包 + 启动冒烟校验
 - **受容器环境限制、需在 Windows Runner 或真实 API 环境下执行**：
   - Windows 原生 Electron E2E（`npm run test:e2e`）与安装包交付校验（`npm run release:verify`）
   - 真实付费模型端到端成稿质量对比基准（本仓库遵循未经批准不调用付费模型原则，自动化测试全程使用确定性本地桩）
