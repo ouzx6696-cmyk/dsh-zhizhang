@@ -1,105 +1,97 @@
-# 系统架构（v2.3）
+# 系统架构与工程规范
 
-## 1. 分层依赖与架构守卫
+本文档描述织章（Zhizhang）的模块分层、运行机制、视觉令牌、测试架构与工程守卫规范，作为仓库唯一的技术架构参考。
 
-```text
-L3  apps/desktop          共享组合根(app-runtime) · 双宿主(Electron IPC + Web HTTP/SSE) · PI 会话引擎 · 柔和纸面 C2 渲染层
-        │  仅经 package.json exports 门面导入
-L2  @zhizhang/fanqie      @zhizhang/toutiao      ← 各自实现 ModeModule，严禁互引
-        │
-L1  @zhizhang/workbench   @zhizhang/ui           ← 50 条强类型命令契约、TextSurface、--zz-* 三层令牌与 CopyKey
-        │
-L0  @zhizhang/core        clock / errors / schema / fs / lock / journal / tool / pipeline / model / methods / python
-```
+## 1. Monorepo 分层与依赖边界
 
-[scripts/guard.mjs](scripts/guard.mjs) 在 `npm run check` 中静态执行全仓门禁：
-
-| 守卫代号 | 约束内容 |
-| --- | --- |
-| `G-core` | `packages/core` 仅允许导入 `node:` 内置模块与包内模块，严禁出现 `fanqie`/`toutiao` 业务词 |
-| `G-layer` / `G-facade` | 依赖只能向下；`fanqie` 与 `toutiao` 零互引；跨包严禁深导 `packages/*/src/` |
-| `G-app` / `G-pi` | `session/` 与 `renderer/` 严禁导入 `main/`；`@earendil-works/pi-*` 仅限 `session/pi-adapter.ts` |
-| `G-error` | `packages/*/src/`、`apps/desktop/src/main/`、`apps/desktop/src/server/` 零裸 `throw new Error(` |
-| `G-copy` / `G-rules` | 全部 `.tsx` 零 JSX 中文硬编码；`84` / `34` 仅存于 `rules.py`；状态词表与固定末句仅存于 `domain/status.ts` |
-| `G-type` / `G-exports` | `any = 0`、`! = 0`、`!: = 0`、`unusedExports = 0`、`as` 受 `any-baseline.json`（当前 `115`）约束只减不增；校验全部 `package.json` `exports` 存在 |
-| `G-css` / `G-size` / `G-docs` | 非令牌 CSS 禁止十六进制色与旧前缀；单文件严格 `≤ 400` 行；核心文档总数 `≤ 8` 份 |
-
-## 2. 双宿主运行态与传输无关 RPC
+织章采用单向依赖的 npm workspace 分层架构，所有跨包导入必须经 `package.json` `exports` 门面，禁止深层引用 `packages/*/src/*`：
 
 ```text
-                 ┌──────────────────────────┐
-                 │  React Renderer (C2 UI)  │
-                 │  desktop.ts (自动选择桥)   │
-                 └──────┬────────────┬──────┘
-      Electron Preload  │            │  Web Preview (无 preload)
-   window.zhizhangBridge│            │  web-bridge.ts (POST + EventSource)
-                        ▼            ▼
-             ┌───────────────────────────────┐
-             │  createRpcHandlers (传输无关)  │
-             │  IpcMap 校验 + AppError 序列化 │
-             └───────────────┬───────────────┘
-                             ▼
-             ┌───────────────────────────────┐
-             │ createAppRuntime (无 Electron) │
-             │ Config · Workspace · Workflow  │
-             │ Session · Models · Health      │
-             └───────────────┬───────────────┘
-                             ▼
-               HostPlatform (Electron | Web)
+L3  apps/desktop (@zhizhang/desktop)
+      ├── main/       共享组合根（app-runtime）、宿主抽象（platform）、命令分发与 IPC 处理器
+      ├── server/     Web 预览宿主（0.0.0.0:3000 HTTP RPC + SSE + 示例工作区初始化）
+      ├── session/    PI 会话引擎（仅 pi-adapter.ts 导入 @earendil-works/pi-*）
+      └── renderer/   柔和纸面 C2 React 渲染层（IPC / HTTP-SSE 自动桥接）
+         │
+L2.5 packages/workbench (@zhizhang/workbench)
+      └── 跨模式 50 条强类型命令契约（contract/）、稿纸阅读与源码编辑器、原子草稿暂存
+         │
+L2  packages/fanqie (@zhizhang/fanqie)    packages/toutiao (@zhizhang/toutiao)
+      └── 番茄长篇领域、设定集、上下文、       └── 头条图文领域、Python 规则桥、
+          流水线、命令、只读工具与视图            文章流水线、命令、只读工具与视图
+      （两业务模式严格隔离，严禁互相依赖）
+         │                                       │
+L1  packages/ui (@zhizhang/ui)
+      └── 三层 CSS 令牌（palette / semantic / component）、纯 React 无障碍原语、
+          状态词语义与唯一中文文案源（copy/）（严禁依赖业务模式或应用包）
+         │
+L0  packages/core (@zhizhang/core)
+      └── 纯机制层：零外部依赖，仅允许 node:* 与包内相对导入，严禁出现业务模式词汇
+          （clock / errors / schema / fs / lock / journal / tool / pipeline /
+            model / methods / python / paths / version）
 ```
 
-- **宿主抽象**（[apps/desktop/src/main/platform.ts](apps/desktop/src/main/platform.ts)）：隔离原生目录/保存对话框、系统打开、剪贴板、系统密钥库（`safeStorage` / Web 内存回退）与独立进程离线备份。
-- **共享组合根**（[apps/desktop/src/main/app-runtime.ts](apps/desktop/src/main/app-runtime.ts)）：装配 `ConfigService`、`WorkspaceService`、`ModelServices`、`RunStore`、`WorkflowService`、`SessionManager`、`StorageHealth` 与 `CommandCtx`，支持 `dispose()` 有序回收全部订阅、流水线、会话与租约锁。
-- **Electron 主宿主与离线 CSP 合规**（[apps/desktop/src/main/index.ts](apps/desktop/src/main/index.ts)、`csp.ts`）：由 `register.ts` 将 `createRpcHandlers` 注册至 `ipcMain.handle`，`preload.ts` 仅暴露受控 `window.zhizhangBridge`；`index.html` 不包含任何外链字体请求，全部字体走本地打包 `@fontsource/noto-serif-sc` 与系统字体栈；`scripts/stage-desktop.mjs` 统一暂存前端产物与离线思源宋体许可文件（兼容根与工作区 hoisted `node_modules`）。
-- **Web 预览宿主**（`apps/desktop/src/server/{web-server,http-io,seed}.ts`）：默认监听 `0.0.0.0:3000`，提供：
-  - `GET /api/health`：运行态探活；
-  - `POST /api/rpc/:channel`：强制同源 `Origin` 与 `application/json` 校验，25 MiB 请求体上限，白名单通道分派；
-  - `GET /api/events`：SSE 事件流（25s 心跳 + `safeWriteSse` 断线清理，前端重连后自动同步工作区与运行状态）；
-  - `GET /api/exports/:file` 与静态资源：经 `resolveInsideAsync` 沙箱约束，附带 `X-Content-Type-Options: nosniff`、`Referrer-Policy: no-referrer` 与分层 `Cache-Control`。
+## 2. 核心工程机制
 
-## 3. 核心引擎机制（L0 `@zhizhang/core`）
+### 2.1 统一错误模型与边界校验
+- 全仓统一使用 `AppError` 与结构化错误码表（`packages/core/src/errors/codes.ts`），`packages/*/src/`、`apps/desktop/src/main/` 与 `apps/desktop/src/server/` 禁止裸 `throw new Error(`。
+- 磁盘文件、IPC/RPC 参数、Python 子进程输出与模型结构化响应均须经 `@zhizhang/core/schema` 的 `Parser` 校验，禁止裸 `JSON.parse(...) as T`；同一 Schema 通过 `toJsonSchema()` 同步推导工具参数 JSON Schema。
+- 错误分类通过结构化状态码与 `classify()` 完成，禁止通过正则匹配中文错误文案推导错误码。
 
-- **零依赖 Schema 真源**（`schema/`）：`Parser<T>` 支持 `desc()`、`nullable()`、`unknownValue` 与 `toJsonSchema()`；`defineTool()` 自动推导工具参数 JSON Schema；所有磁盘 JSON 与跨进程输出均经 Schema 校验，零裸 `JSON.parse(...) as T`。
-- **文件系统、写锁与原子意图日志**（`fs/`、`lock/`、`journal/`）：
-  - `atomicWrite` 采用同目录临时文件 + `rename`（密钥文件附 `0o600`）；`resolveInside` / `resolveInsideAsync` 校验真实路径边界。
-  - `LockService` 组合跨进程租约（`lease.json`）、按 `resource.kind` 隔离的可重入文件锁（含 `EPERM` 存活判定）与进程内 `createSerialRunner`。
-  - `commitIntent` 在写锁内支持**前置 `beforeHash` 冲突校验**（发现目标文件被并发篡改即抛 `storage.conflict`），随后先落意图日志再逐文件原子提交；崩溃重启恢复时由 `replayPendingIntents` 结合 `allowedRoots` 路径沙箱与写锁安全补写，拒绝任何沙箱越界路径。
-- **流水线引擎、并发预算与上下文包**（`pipeline/`、`model/`、`methods/`）：
-  - `executePipeline` 通过串行落盘链管理 `fanOut` 并发阶段、广播 `PipelineEvent`（`stage.start` / `stage.done` / `stage.failed`），并基于 `signal.reason` 精确区分 `paused` 与 `cancelled`。
-  - `BudgetGuard` 与 `ModelGateway` 除 token 并发预留外，同步执行**在途金额预留与结算（`reserveMoney` / `settleMoney`）**，避免并发起稿穿透单任务费用上限。
-  - `ContextPacket` 统一管理分段预算、token 估算与裁剪审计 `omitted[]`；`stage-map.ts` 确定性直取方法文档原文并记录 SHA-256 哈希。
-- **Python 跨进程协议**（`python/`）：`runPython` / `runPythonJson` 使用 `Buffer[]` 完整拼接后统一 UTF-8 解码，默认注入 `PYTHONUTF8=1` 与 `PYTHONIOENCODING=utf-8`，附带 30s 超时、4 MiB 输出上限、`AbortSignal` 传播与强制 Schema 校验。
+### 2.2 双宿主共享组合根
+- **宿主抽象**（`apps/desktop/src/main/platform.ts`）：收敛文件选择、打开路径、剪贴板与密钥加解密能力；Electron 宿主使用原生对话框与 `safeStorage`，Web 宿主降级为沙箱导出与内存态密钥（绝不落盘明文）。
+- **传输无关 RPC**（`apps/desktop/src/main/ipc/handlers.ts`）：统一承载全部通道分发、只读模式写命令门禁与 Schema 参数解析。Electron 经 `ipcMain.handle("zhizhang:<channel>")` 暴露，Web 经 `POST /api/rpc/<channel>` + `GET /api/events`（SSE）暴露；渲染层通过 `apps/desktop/src/renderer/state/desktop.ts` 自动识别运行宿主。
+- **Web 预览安全边界**（`apps/desktop/src/server/{web-server,http-io}.ts`）：默认监听 `0.0.0.0:3000`；所有 `POST /api/rpc/*` 强制校验同源 `Origin` 与 `application/json`；静态文件与 `/api/exports/:file` 全部走 `resolveInsideAsync` 路径沙箱；输出基础安全响应头且不阻断 iframe 预览。
 
-## 4. PI 内核集成与只读会话引擎（`apps/desktop/src/session/`）
+### 2.3 磁盘格式、并发锁与原子意图
+- 统一磁盘格式为 `FORMAT_VERSION = "zhizhang/2.0"`（定义于 `packages/core/src/version.ts`），遇到无法识别的格式统一抛出 `storage.format_unsupported`。
+- **单文件写入**：统一经 `atomicWrite`（写临时文件 → 刷盘 → 原子重命名），密钥文件强制 `0o600` 权限。
+- **跨文件变更**：设定集提交、全书规划晋升、候选采纳、旧书批量导入与头条交稿均经 `LockService` 加锁并走 `commitIntent` 意图日志：写锁内校验 `beforeHash` 防静默覆盖，启动或手动恢复时通过 `replayIntents` 在 `allowedRoots` 沙箱与写锁保护下回放未完成意图。
+- **工作区单写者保护**：跨进程租约（`.zhizhang/lease.json`）防止多实例并发写入同一写作文件夹；只读窗口允许查阅但拦截全部写操作，作者确认后可主动接管。
 
-- **唯一 SDK 边界**（`pi-adapter.ts` + 纯辅助 `pi-helpers.ts`）：
-  - 统一向流水线（`ModelPort`）与写作助手（`AssistantPort`）提供 `ModelRuntime.streamSimple` 能力，开启会话亲和（`sessionId`）与提示词缓存保留策略（`cacheRetention`）。
-  - 关闭 SDK 内置重试（`maxRetries: 0`），全部退避与预算控制收归 `ModelGateway`；支持 `invalidatePiRuntime()` 在模型配置/密钥变更后立即刷新共享运行时，连接测试强制 15s 超时。
-  - 利用 PI `validateToolArguments` 纠偏工具参数，`isContextOverflow` / `isRecoverableLength` 精确识别上下文溢出并触发自动压缩重试，`piModelCatalog` 暴露内置模型目录与思考档位能力。
-- **只读会话引擎**（`manager.ts` + `turn-runner.ts` + `transcript.ts` + `compact.ts`）：
-  - 按目标串行化 `send`/`compact`/`newConversation`/`view`，内存态保持 16 槽 LRU（不淘汰忙碌会话）。
-  - 实时流式推送正文、思考链（`thinking_delta`）、缓存命中统计与上下文用量；断线孤立工具调用由 `repairOrphanedToolCalls` 自动修复。
-  - 连续 `readonly: true` 工具自动并发批处理（含跨书实体时间线回查 `fanqie_trace_entity`），单次输出超过 24,000 字符自动截断；所有写正文/写设定集工具均不暴露给助手。
+### 2.4 流水线引擎、预算与模型网关
+- **阶段隔离与恢复**（`packages/core/src/pipeline/`）：每次模型调用只看当前阶段必需的预算化 `ContextPacket`；`StageRunner` 支持 `fanOut` 并发分支并串行合并状态、落盘检查点与发射 `PipelineEvent`；支持暂停、取消与异常退出后的断点恢复。
+- **并发预算保护**（`BudgetGuard`）：同时守卫单阶段输入上限（`inputBudget`）、单任务总 token 上限（`runBudget`）与金额上限（`moneyCap`），在途并发请求预留预估 token 与金额并在结算或失败时精确回退。
+- **运行记录存储**（`RunStore`）：按目标隔离保存运行记录，损坏 JSON 自动隔离跳过不拖垮列表，终态历史按上限自动裁剪。
 
-## 5. 柔和纸面 C2 前端架构（`@zhizhang/ui` + `apps/desktop/src/renderer/`）
+### 2.5 Python 跨进程桥接协议
+- 所有 Python 脚本调用统一经 `@zhizhang/core/python` 的 `runPython` / `runPythonScript` / `runPythonJson`：强制注入 `PYTHONUTF8=1` 与 `PYTHONIOENCODING=utf-8`，以 `Buffer[]` 拼接 stdout 彻底杜绝多字节 UTF-8 跨 chunk 乱码，默认 30 秒超时、4 MiB 输出上限与 `AbortSignal` 传播；禁止内联拼接 `python -c`。
 
-- **三层设计令牌**：
-  1. `packages/ui/src/tokens/palette.css`：全仓唯一颜色字面量源，定义浅色暖灰纸面与深色暗纸色阶。
-  2. `packages/ui/src/tokens/semantic.css`：在 `[data-theme="day"]` / `[data-theme="night"]` 下映射为 `--zz-bg`、`--zz-paper`、`--zz-surface`、`--zz-surface-2`、`--zz-text-{1,2,3}`、`--zz-ink`、`--zz-border`、`--zz-decide`、`--zz-run`、`--zz-ok`、`--zz-bad`、`--zz-warn` 及 `color-mix` 派生的软底色与阴影。
-  3. `packages/ui/src/tokens/component.css`：按钮四态（`decide` / `soft` / `ghost` / `text`）、圆角（8/12/18，按钮 10）、动效（`180ms cubic-bezier(.2,.8,.2,1)`）与无障碍焦点环。
-- **无顶栏三栏布局与模块化渲染层**：
-  - **左栏**（`topbar/{LeftRail,LeftRailParts}.tsx` + `styles/shell-rail.css`）：240px 平铺于 `--zz-bg`，承载品牌/日夜主题、模式分段控件、Ctrl+K 检索、作品/文章切换、章节列表、资料入口（含设定集待确认徽标）、新流水线按钮与静默保存状态。
-  - **中栏**（`CenterBar.tsx` + `workspace/{Studio,StudioDashboard,FanqieWorkspace,ToutiaoWorkspace,ToutiaoLedger}.tsx` + `workflow/{DraftCompare,CompareSheets}.tsx`）：面包屑、单稿/对照切换、专注模式（`Ctrl+.`）、D3 创作内核仪表盘与连载存稿缓冲栏、浮起衬线稿纸、候选稿决策卡与并排双稿纸逐处采纳。
-  - **右栏**（`workspace/RightDock.tsx` + `workflow/{WorkflowPanel,WorkflowStartForm}.tsx` + `agent/AgentPanel.tsx`）：344px 双浮卡容器，宽屏默认上下同屏展示 7 段流水线卡（含半章续写、黄金章、前章候选分支与专项去 AI 腔/轻润色入口）与只读助手卡（含原文引用定位卡），并可切至「本章/设定集」视图。
-  - **专项视图**：`ProjectHub`（项目总览）、`NewTargetDialog`（新建长篇 / 导入旧书接管含切章预览 / 新建头条）、`BibleCenter` + `BibleCenterTabs`（含「时间线回查」页签）、`TechniqueWarehouse` + `TechniqueEditor`（技法仓库与交互式 Markdown 预览）、`SettingsDialog`（模型/引擎/外观/写作文件夹/关于）。
+### 2.6 PI 只读助手会话内核
+- SDK 严格隔离在 `apps/desktop/src/session/pi-adapter.ts`（纯辅助函数拆分在 `pi-helpers.ts`）。
+- `SessionManager` 按目标串行化 `send` / `compact` / `newConversation` / `view`；对连续 `readonly: true` 工具由 `turn-runner.ts` 自动并发批处理，非只读工具保持串行；单次工具返回超长自动截断至安全上限。
+- 写作助手（`assistant` 角色）严格遵守**作者是裁判**原则：只拥有只读查阅工具与“发起流水线 / 打开视图”导航工具，严禁直接修改正文或设定集。
 
-## 6. 磁盘格式（`zhizhang/2.0`）
+## 3. 柔和纸面 C2 视觉与前端纪律
 
-统一使用 `FORMAT_VERSION = "zhizhang/2.0"`，遇旧格式统一抛出 `storage.format_unsupported`：
+- **三层 CSS 令牌**：颜色字面量只允许出现在 `packages/ui/src/tokens/palette.css`；`semantic.css` 映射为 `--zz-*` 语义变量（支持 `[data-theme="day"]` 晨纸与 `[data-theme="night"]` 暗纸）；`component.css` 定义组件级令牌。非令牌 CSS 禁止原始十六进制色与旧前缀变量。
+- **一色一意**：
+  - `--zz-decide`（赭橙）：严格仅用于“需要作者裁决”的提示、圆点与主按钮；
+  - `--zz-run`（蓝）：仅用于机器运行态；
+  - `--zz-ok` / `--zz-bad`（绿 / 红）：用于增删差异与通过/失败；
+  - `--zz-warn`（琥珀）：用于存稿缺口、过时分支与存储健康等提醒。
+- **零硬编码文案与轻量化原语**：所有 `.tsx` 禁止出现 JSX 中文硬编码，文案统一收口至 `@zhizhang/ui/copy`；基础交互基于 `@zhizhang/ui/primitives` 自研纯 React 无障碍组件与 `lucide-react` 图标，不引入 Tailwind 或重型 UI 组件库；思源宋体通过 `@fontsource/noto-serif-sc` 本地离线打包，零外链字体请求。
 
-- **应用状态目录**（`~/.zhizhang/` 或 `ZHIZHANG_STATE_ROOT`）：`settings.json`、`secrets.bin`（`0600`）、`runs/<mode>-<hash>/<runId>.json`、`sessions/`、`profiles/`、`logs/main.log`。
-- **本地写作文件夹**：
-  - `.zhizhang/`：`lease.json`、`.zhizhang-lock/`、`intents/`、`drafts/`、`trash/`；
-  - `长篇/<book>/`：`work.json`（含可选 `publishedThrough` / `dailyTargetChars`）、`bible/`（`entities`/`states`/`threads`/`knowledge`/`chapters`/`style`/`pending`/`index.json`）、`plan/`（含 `proposals/<runId>/`）、`chapters/`、`candidates/`（`.meta.json` 含 `derivedFrom` 与 `sourceHash`）、`sources/legacy-import/`（旧书接管原始字节无损备份与 `import-manifest.json`）；
-  - `头条/<article>/`：`meta.json`（含 `acceptedRevision` / `deliveredRevision` 修订绑定）、`sources/`、`drafts/`、`qa/`、`.tmp/`、`delivery.md`、`ledger.csv`；
-  - `拆书库/`：拆书来源与技法卡（支持前端交互式编辑与绑定）。
+## 4. 测试架构
+
+测试脚本由 `scripts/run-tests.mjs` 自动发现并按分层执行：
+
+| 测试目录 | 归层职责 | 覆盖范围 |
+| --- | --- | --- |
+| `test/unit/*.test.mjs` | 纯函数、契约与领域模型单元测试 | 工作区契约与版本对齐、Schema/工具/方法路由/Python 执行器、预算与并发金额预留、状态机与门禁、错误分类、内容解码与原子草稿、番茄上下文与设定集审计、番茄续写/存稿/旧书解析、头条状态/规则/事实核验、段落 diff 与对照、仪表盘与阅读状态、PI 辅助逻辑、C2 令牌 |
+| `test/engine/*.test.mjs` | 文件系统、并发、流水线与双宿主集成测试 | 原子写入与意图回放、写锁服务、设定集存储与原子提交、流水线 `fanOut` 与 RPC 分发、运行时服务（`RunStore`、`ConfigService`、会话并发、Web 预览安全）、桌面 50 条命令与设置、助手只读工具边界、番茄全流程（规划/续写/去 AI 腔/衍生谱系/三分类沉淀/记账/回查/旧书导入）、头条规则桥与交稿幂等 |
+| `packages/{toutiao,fanqie}/skill/tests/` | Python `unittest` | 头条规则算法、硬闸/评分、台账与桥接 JSON 契约；番茄测绘扫描与引文核验脚本 |
+| `test/desktop/` | Playwright Electron E2E | 桌面冷启动、引导、三栏工作台、流水线对照采纳、助手会话与可访问性检查 |
+
+测试纪律：禁止真实 `sleep` 轮询（统一注入 `test/support/clock.mjs` 与 `test/support/fake-port.mjs`），所有业务行为通过公开导出或 `executeTool` / `executePipeline` 验证。
+
+## 5. 静态守卫（`scripts/guard.mjs`）
+
+`npm run check` 依次执行 `tsc -b`、`eslint .`、`prettier --check .` 与 `node scripts/guard.mjs`，后者强制检查：
+
+- **`[G-core]`**：`@zhizhang/core` 仅导入 `node:*` 与包内相对路径，严禁出现 `fanqie` / `toutiao`。
+- **`[G-layer]` / `[G-facade]`**：`fanqie` 与 `toutiao` 严格隔离；`@zhizhang/ui` 不依赖业务模式或应用包；禁止深层 `packages/*/src/*` 导入。
+- **`[G-app]` / `[G-pi]`**：`session/` 与 `renderer/` 禁止导入 `main/`；`@earendil-works/pi-*` 仅允许出现在 `session/pi-adapter.ts`。
+- **`[G-type]` / `[G-error]` / `[G-exports]`**：`any = 0`、`! = 0`、`!: = 0`、`as` 受 `scripts/any-baseline.json` 约束只减不增；核心与服务端裸 `throw new Error(` 为 `0`；非 barrel 死导出 `unusedExports = 0`。
+- **`[G-size]`**：单个 `.ts` / `.tsx` / `.css` 文件严格不超过 400 行。
+- **`[G-copy]` / `[G-css]` / `[G-rules]` / `[G-docs]` / `[G-brand]`**：零 JSX 中文硬编码、TS 侧禁止重复定义 `84`/`34`/状态词表、非令牌 CSS 禁十六进制色、`rules.py` 规则真源完整、核心文档数 ≤ 6 份、无遗留品牌标识。

@@ -96,7 +96,7 @@ const READ_ARGS = {
   fanqie_diff_candidate: { chapterId: "ch-001", candidateId: "c1" },
 };
 
-test("助手工具只读或发起：番茄 10–18 个工具，没有任何写正文/写候选/写设定集的工具（AC-50）", async () => {
+test("助手工具只读或发起：番茄 10–18 个工具，没有任何写正文/写候选/写设定集的工具", async () => {
   const { workPath } = await fanqieWork();
   const tools = desk.fanqieModule.tools("assistant", { mode: "fanqie", path: workPath });
   assert.ok(tools.length >= 10 && tools.length <= 18, `tool count ${tools.length}`);
@@ -235,7 +235,7 @@ test("头条助手工具：读状态/草稿/来源，发起文章流水线时带
   assert.equal(await treeHash(articleDir), before);
 });
 
-test("助手会话：模型请求不存在的写正文工具时只得到错误回执，正文不变；工具调用折叠进回复（AC-50 / AC-N07）", async () => {
+test("助手会话：模型请求不存在的写正文工具时只得到错误回执，正文不变；工具调用折叠进回复", async () => {
   const { base, workPath } = await fanqieWork();
   const clock = createFakeClock();
   const chapterFile = path.join(workPath, "chapters", "ch-001.md");

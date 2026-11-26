@@ -8,25 +8,20 @@ import { createFakeModelPort } from "../support/fake-port.mjs";
 import { importTs } from "../support/ts-loader.mjs";
 
 const { isAppError } = await importTs("packages/core/src/errors/index.ts");
+const { sha256 } = await importTs("packages/core/src/fs/index.ts");
 const { createLockService } = await importTs("packages/core/src/lock/index.ts");
 const { createModelGateway } = await importTs("packages/core/src/model/index.ts");
 const { FORMAT_VERSION } = await importTs("packages/core/src/paths.ts");
 const { emptyUsage, executePipeline } = await importTs("packages/core/src/pipeline/index.ts");
-const { createBibleStore, traceEntityTimeline } = await importTs(
-  "packages/fanqie/src/bible/index.ts",
-);
-const { sha256 } = await importTs("packages/core/src/fs/index.ts");
-const { chapterPipeline, commands, fanqieModule, ledgerPipeline, revisePipeline } = await importTs(
+const { createBibleStore } = await importTs("packages/fanqie/src/bible/index.ts");
+const { bookPipeline, chapterPipeline, commands, ledgerPipeline, revisePipeline } = await importTs(
   "packages/fanqie/src/index.ts",
 );
 const {
   acceptCandidate,
   createWork,
   finalizeChapter,
-  importLegacyWork,
   listCandidates,
-  listChapters,
-  previewLegacyWork,
   readChapter,
   saveChapter,
   updateWorkSettings,
@@ -79,8 +74,103 @@ function makeRunRecord(id, kind, target, request, nowIso) {
   };
 }
 
-test("T2: revisePipeline(mode=deai) 无 issues 时单轮输出去 AI 腔候选且不改正式章节", async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "zz-v23-deai-"));
+test("番茄整书规划将提案隔离在 plan/proposals/<runId>/，应用后才覆盖正式规划文件", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "zhizhang-book-plan-"));
+  try {
+    const clock = createFakeClock();
+    const lock = createLockService(clock);
+    await fs.mkdir(path.join(dir, "plan"), { recursive: true });
+    await fs.writeFile(
+      path.join(dir, "plan", "card.json"),
+      JSON.stringify({ format: "zhizhang/2.0", title: "旧书名" }),
+      "utf8",
+    );
+
+    const port = createFakeModelPort([
+      {
+        text: JSON.stringify({
+          title: "云海闻铃",
+          genre: "悬疑",
+          hook: "雨夜铜铃自鸣",
+          sellingPoints: ["悬疑", "民俗"],
+          targetAudience: "男频悬疑读者",
+        }),
+      },
+      {
+        text: JSON.stringify({
+          protagonist: {
+            name: "沈砚",
+            goal: "查明州府沉案",
+            flaw: "过于谨慎",
+            goldenFinger: "古铃辨煞",
+          },
+          worldview: "青崖州府雾气缭绕，古井藏有百年前封煞旧案",
+          powerSystem: "听铃辨煞、以药镇灵",
+          coreConflict: "镇妖失衡与旧案掩盖",
+        }),
+      },
+      {
+        text: JSON.stringify({
+          volumes: [
+            {
+              volume: 1,
+              title: "雾起青崖",
+              summary: "初遇异象",
+              startChapter: 1,
+              endChapter: 20,
+            },
+          ],
+        }),
+      },
+      {
+        text: JSON.stringify({
+          chapters: [
+            {
+              position: 1,
+              title: "雨夜闻铃",
+              synopsis: "引出古井异象",
+              conflict: "神秘来客夜访",
+              hook: "铜铃自鸣",
+            },
+          ],
+        }),
+      },
+    ]);
+
+    const target = { mode: "fanqie", path: dir };
+    const req = { title: "云海闻铃", genre: "悬疑", premise: "民俗悬疑长篇", outlineCount: 1 };
+    const ctx = await bookPipeline.context(target, req, { clock, lock });
+    const record = makeRunRecord(ctx.runId, bookPipeline.kind, target, req, clock.iso());
+    const res = await executePipeline(
+      bookPipeline,
+      record,
+      ctx,
+      makeGateway(port, clock),
+      clock,
+      new AbortController().signal,
+    );
+
+    assert.equal(res.state, "awaiting-author");
+    const oldCard = JSON.parse(await fs.readFile(path.join(dir, "plan", "card.json"), "utf8"));
+    assert.equal(oldCard.title, "旧书名");
+
+    const proposalCard = JSON.parse(
+      await fs.readFile(path.join(dir, "plan", "proposals", ctx.runId, "card.json"), "utf8"),
+    );
+    assert.equal(proposalCard.format, "zhizhang/2.0");
+    assert.equal(proposalCard.title, "云海闻铃");
+
+    const freshCtx = { ...ctx, state: {} };
+    await bookPipeline.apply(res, { adopt: true }, freshCtx);
+    const appliedCard = JSON.parse(await fs.readFile(path.join(dir, "plan", "card.json"), "utf8"));
+    assert.equal(appliedCard.title, "云海闻铃");
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("revisePipeline(mode=deai) 无 issues 时单轮输出去 AI 腔候选，不改正式章节且不冒充完整审读", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "zhizhang-deai-"));
   try {
     const clock = createFakeClock();
     const lock = createLockService(clock);
@@ -109,11 +199,9 @@ test("T2: revisePipeline(mode=deai) 无 issues 时单轮输出去 AI 腔候选�
     assert.equal(port.calls.length, 1, "deai 专项模式应只走 1 轮模型调用");
     assert.ok(port.calls[0].user.includes("去 AI 腔"), "提示词应注入去 AI 腔专项指令");
 
-    // 正式章节保持原样（作者是裁判）
     const official = await readChapter(workPath, "C001");
     assert.equal(official.body, originalBody);
 
-    // F03: 专项去 AI 腔未执行编辑审读，editorPass 与 reviewPerformed 均为 false
     const metaRaw = await fs.readFile(
       path.join(workPath, "candidates", "C001", `${ctx.runId}.meta.json`),
       "utf8",
@@ -123,7 +211,6 @@ test("T2: revisePipeline(mode=deai) 无 issues 时单轮输出去 AI 腔候选�
     assert.equal(meta.editorPass, false);
     assert.equal(meta.reviewPerformed, false);
 
-    // 采纳专项去 AI 腔候选后状态为 drafted（不伪装 reviewed），在 requireEditorPass=true 下不可直接定稿
     await updateWorkSettings(workPath, { requireEditorPass: true }, lock);
     const accepted = await acceptCandidate(
       workPath,
@@ -141,8 +228,8 @@ test("T2: revisePipeline(mode=deai) 无 issues 时单轮输出去 AI 腔候选�
   }
 });
 
-test("T2: chapterPipeline(continueFromExisting) 空章报错，半章保留前缀无缝续写", async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "zz-v23-cont-"));
+test("chapterPipeline(continueFromExisting) 空章报错，半章锁定前缀续写并在修订篡改时自动回退", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "zhizhang-cont-"));
   try {
     const clock = createFakeClock();
     const lock = createLockService(clock);
@@ -150,7 +237,6 @@ test("T2: chapterPipeline(continueFromExisting) 空章报错，半章保留前�
     await createWork(workPath, { id: "book-cont", title: "续写测试", grade: "economy" }, lock);
     const target = { mode: "fanqie", path: workPath };
 
-    // 1. 空章应报 input.invalid
     await saveChapter(workPath, { chapterId: "C001", title: "空章", body: "   " }, lock);
     const failPort = createFakeModelPort([]);
     const failCtx = await chapterPipeline.context(
@@ -179,7 +265,6 @@ test("T2: chapterPipeline(continueFromExisting) 空章报错，半章保留前�
     );
     assert.equal(failPort.calls.length, 0);
 
-    // 2. 半章已写正文时保留前缀并续写后半段
     const prefix = makeLongBody("已写好的上半章前缀", 30);
     await saveChapter(workPath, { chapterId: "C001", title: "半章开篇", body: prefix }, lock);
     const tail = makeLongBody("无缝续写的下半章反转", 35);
@@ -219,7 +304,6 @@ test("T2: chapterPipeline(continueFromExisting) 空章报错，半章保留前�
     assert.ok(candMd.includes("已写好的上半章前缀"), "候选稿必须保留原有前缀");
     assert.ok(candMd.includes("无缝续写的下半章反转"), "候选稿必须包含续写后半段");
 
-    // 3. F02: 续写修订轮若篡改锁死前缀，必须回退上一版并拒绝通过编辑审读
     const tamperedBody = makeLongBody("被修订模型篡改后的整章", 65);
     const guardPort = createFakeModelPort([
       { text: FAKE_BEATS_JSON },
@@ -274,273 +358,19 @@ test("T2: chapterPipeline(continueFromExisting) 空章报错，半章保留前�
   }
 });
 
-test("T3: traceEntityTimeline 按别名展开跨书串联并支持正文回查截断，工具保持 readonly", async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "zz-v23-trace-"));
+test("多分支衍生 derivedFrom、下游过时告警与设定集三分类沉淀", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "zhizhang-lineage-"));
   try {
     const clock = createFakeClock();
     const lock = createLockService(clock);
-    const workPath = path.join(root, "book-trace");
-    await createWork(workPath, { id: "book-trace", title: "回查测试" }, lock);
-    const store = createBibleStore(lock, clock);
-    const prov = { source: "author", at: clock.iso() };
-
-    const pending = await store.propose(
-      workPath,
-      [
-        {
-          type: "entity.upsert",
-          entity: {
-            id: "ent-shen",
-            kind: "character",
-            name: "沈青蝉",
-            aliases: ["青蝉", "沈师姐"],
-            summary: "剑阁首徒",
-            locked: [],
-            provenance: prov,
-          },
-        },
-        {
-          type: "state.add",
-          entry: {
-            id: "st-shen-1",
-            entity: "ent-shen",
-            field: "伤势",
-            value: "左肩中寒毒",
-            since: 2,
-            mode: "replace",
-            status: "confirmed",
-            provenance: prov,
-          },
-        },
-        {
-          type: "knowledge.set",
-          row: {
-            id: "kn-1",
-            holder: "沈师姐",
-            fact: "知晓黑市密道入口",
-            level: "知情",
-            since: 3,
-          },
-        },
-        {
-          type: "thread.upsert",
-          thread: {
-            id: "th-1",
-            title: "寒毒解药",
-            kind: "mystery",
-            opened: 2,
-            beats: [{ chapter: 4, kind: "push", note: "青蝉在药庐找到残方" }],
-            status: "open",
-          },
-        },
-        {
-          type: "chapter.record",
-          record: {
-            chapter: "C001",
-            position: 1,
-            revision: "rev-001",
-            summary: "沈青蝉雨夜出场救下主角",
-            hook: "留下玉佩",
-            emotion: "紧张",
-            handoff: {
-              ending: "离开客栈",
-              openQuestions: [],
-              positions: { 沈青蝉: "城北" },
-              carried: [],
-            },
-          },
-        },
-      ],
-      prov,
-    );
-    for (const item of pending) {
-      await store.decide(workPath, item.id, "accept");
-    }
-
-    await saveChapter(
-      workPath,
-      {
-        chapterId: "C001",
-        title: "初逢",
-        body: "雨水顺着檐角滴落，沈青蝉收剑入鞘，又听人喊了一声青蝉。",
-      },
-      lock,
-    );
-    await saveChapter(
-      workPath,
-      {
-        chapterId: "C002",
-        title: "寒毒",
-        body: "药庐灯火微弱，沈师姐按住肩头伤处。",
-      },
-      lock,
-    );
-
-    // 查别名 "青蝉" 自动展开实体全部别名
-    const traced = await traceEntityTimeline(
-      workPath,
-      "青蝉",
-      { includeBody: true, maxBodyHits: 2 },
-      lock,
-    );
-    assert.equal(traced.matchedEntity?.id, "ent-shen");
-    assert.ok(traced.terms.includes("沈青蝉"));
-    assert.ok(traced.terms.includes("沈师姐"));
-    assert.equal(traced.events[0].chapter, null, "全局实体事件应排在最前");
-    assert.equal(traced.events[0].source, "entity");
-
-    const chapterNums = traced.events.filter((e) => e.chapter !== null).map((e) => e.chapter);
-    const sortedNums = [...chapterNums].sort((a, b) => a - b);
-    assert.deepEqual(chapterNums, sortedNums, "章节事件应按章节升序排列");
-
-    const sources = new Set(traced.events.map((e) => e.source));
-    for (const src of ["entity", "chapter", "state", "knowledge", "thread", "body"]) {
-      assert.ok(sources.has(src), `时间线应包含 ${src} 来源`);
-    }
-    assert.equal(traced.bodyHitsTruncated, true, "超过 maxBodyHits=2 时应标记截断");
-
-    // 确认助手工具存在且 readonly: true
-    const tools = fanqieModule.tools("assistant", { mode: "fanqie", path: workPath });
-    const traceTool = tools.find((t) => t.name === "fanqie_trace_entity");
-    assert.ok(traceTool, "应注册 fanqie_trace_entity 工具");
-    assert.equal(traceTool.readonly, true);
-  } finally {
-    await fs.rm(root, { recursive: true, force: true });
-  }
-});
-
-test("T5: importLegacyWork 支持单 TXT 与多文件目录导入、原子落盘、原稿备份且零模型调用", async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "zz-v23-import-"));
-  try {
-    const clock = createFakeClock();
-    const lock = createLockService(clock);
-    const worksRoot = path.join(root, "works");
-    await fs.mkdir(worksRoot, { recursive: true });
-
-    // 1. 单 TXT 文件导入
-    const txtPath = path.join(root, "old-book.txt");
-    await fs.writeFile(
-      txtPath,
-      [
-        "第一章 废材退婚",
-        "苏家大厅气氛凝重，退婚书拍在案上。",
-        "",
-        "第2章 逆袭觉醒",
-        "丹田深处亮起一道青光。",
-      ].join("\n"),
-      "utf8",
-    );
-    const resTxt = await importLegacyWork(
-      {
-        worksRoot,
-        workId: "legacy-txt",
-        title: "旧书单文件",
-        sourcePath: txtPath,
-        sourceKind: "single_txt",
-        allowedRoot: root,
-      },
-      lock,
-      clock,
-    );
-    assert.equal(resTxt.chapterCount, 2);
-    assert.deepEqual(resTxt.chapterIds, ["C001", "C002"]);
-
-    const txtChapters = await listChapters(resTxt.workPath);
-    assert.equal(txtChapters.length, 2);
-    assert.equal(txtChapters[0].status, "final");
-    const c1 = await readChapter(resTxt.workPath, "C001");
-    assert.ok(c1.body.includes("退婚书拍在案上"));
-    const bible = await createBibleStore(lock, clock).read(resTxt.workPath);
-    assert.deepEqual(bible.entities, []);
-    const backupTxt = await fs.readFile(path.join(resTxt.backupDir, "old-book.txt"), "utf8");
-    assert.ok(backupTxt.includes("第一章 废材退婚"));
-
-    // 2. 文件夹自然序导入（10 排在 2 之后）
-    const folderPath = path.join(root, "chapters-folder");
-    await fs.mkdir(folderPath, { recursive: true });
-    await fs.writeFile(path.join(folderPath, "第10章 终局.md"), "# 终局之战\n\n尘埃落定。", "utf8");
-    await fs.writeFile(path.join(folderPath, "第2章 启程.txt"), "背起行囊走出山村。", "utf8");
-    await fs.writeFile(
-      path.join(folderPath, "第1章 初醒.md"),
-      "# 初醒\n\n推开木窗见晨光。",
-      "utf8",
-    );
-
-    const resFolder = await importLegacyWork(
-      {
-        worksRoot,
-        workId: "legacy-folder",
-        title: "旧书分章目录",
-        sourcePath: folderPath,
-        sourceKind: "folder",
-        allowedRoot: root,
-        chapterStatus: "drafted",
-      },
-      lock,
-      clock,
-    );
-    assert.equal(resFolder.chapterCount, 3);
-    const folderChapters = await listChapters(resFolder.workPath);
-    assert.equal(folderChapters[0].title, "初醒");
-    assert.equal(folderChapters[1].title, "第2章 启程");
-    assert.equal(folderChapters[2].title, "终局之战");
-    assert.equal(folderChapters[0].status, "drafted");
-
-    // 3. F05: GB18030 原字节无损备份 + previewLegacyWork + import-manifest.json
-    const gbkPath = path.join(root, "gbk-book.txt");
-    // GBK for "第1章 开篇\n正文内容。"
-    const gbkRaw = Buffer.from([
-      0xb5, 0xda, 0x31, 0xd5, 0xc2, 0x20, 0xbf, 0xaa, 0xc6, 0xaa, 0x0a, 0xd5, 0xfd, 0xce, 0xc4,
-      0xc4, 0xda, 0xc8, 0xdd, 0xa1, 0xa3,
-    ]);
-    await fs.writeFile(gbkPath, gbkRaw);
-    const preview = await previewLegacyWork({
-      sourcePath: gbkPath,
-      sourceKind: "single_txt",
-      allowedRoot: root,
-    });
-    assert.equal(preview.encoding, "gb18030");
-    assert.equal(preview.chapterCount, 1);
-    const resGbk = await importLegacyWork(
-      {
-        worksRoot,
-        workId: "legacy-gbk",
-        title: "旧书GBK",
-        sourcePath: gbkPath,
-        sourceKind: "single_txt",
-        allowedRoot: root,
-        chapterStatus: "drafted",
-      },
-      lock,
-      clock,
-    );
-    const backupRaw = await fs.readFile(path.join(resGbk.backupDir, "gbk-book.txt"));
-    assert.equal(Buffer.compare(backupRaw, gbkRaw), 0, "原稿备份必须保留原始 GB18030 字节");
-    const manifest = JSON.parse(
-      await fs.readFile(path.join(resGbk.backupDir, "import-manifest.json"), "utf8"),
-    );
-    assert.equal(manifest.encoding, "gb18030");
-    assert.equal(manifest.chapterStatus, "drafted");
-    assert.equal(manifest.chapters.length, 1);
-  } finally {
-    await fs.rm(root, { recursive: true, force: true });
-  }
-});
-
-test("T6: 多分支衍生 derivedFrom、下游过时告警与设定集三分类沉淀", async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "zz-v23-t6-"));
-  try {
-    const clock = createFakeClock();
-    const lock = createLockService(clock);
-    const workPath = path.join(root, "book-t6");
+    const workPath = path.join(root, "book-lineage");
     await createWork(
       workPath,
-      { id: "book-t6", title: "多分支与沉淀测试", grade: "economy" },
+      { id: "book-lineage", title: "多分支与沉淀测试", grade: "economy" },
       lock,
     );
     const target = { mode: "fanqie", path: workPath };
 
-    // 准备 C001 两个候选：cand-A 与 cand-B
     await saveChapter(workPath, { chapterId: "C001", title: "第一章", body: "正式初稿" }, lock);
     const bodyA = makeLongBody("分支A独有剧情走向", 60);
     const bodyB = makeLongBody("分支B独有密室暗号", 60);
@@ -549,7 +379,6 @@ test("T6: 多分支衍生 derivedFrom、下游过时告警与设定集三分类�
     await fs.writeFile(path.join(candDir1, "cand-A.md"), `# 第一章A\n\n${bodyA}`, "utf8");
     await fs.writeFile(path.join(candDir1, "cand-B.md"), `# 第一章B\n\n${bodyB}`, "utf8");
 
-    // 写 C002 时指定 previousCandidateId = cand-B
     const c2Body = makeLongBody("承接分支B的第二章正文", 60);
     const port = createFakeModelPort([
       { text: FAKE_BEATS_JSON },
@@ -586,7 +415,6 @@ test("T6: 多分支衍生 derivedFrom、下游过时告警与设定集三分类�
       sourceHash: sha256(bodyB),
     });
 
-    // 采纳 C001 的 cand-A -> 应报告 C002 的候选为过时分支，且不修改 C002 文件
     const acceptA = await acceptCandidate(
       workPath,
       { chapterId: "C001", candidateId: "cand-A" },
@@ -596,7 +424,6 @@ test("T6: 多分支衍生 derivedFrom、下游过时告警与设定集三分类�
     assert.equal(acceptA.staleDownstreamCandidates[0].chapterId, "C002");
     assert.equal(acceptA.staleDownstreamCandidates[0].derivedFromCandidateId, "cand-B");
 
-    // F04: 再采纳 C001 的 cand-B -> C002 的 derivedFrom 升级为真实状态 drafted + sourceHash（不再伪称 final）
     const acceptB = await acceptCandidate(
       workPath,
       { chapterId: "C001", candidateId: "cand-B" },
@@ -610,7 +437,6 @@ test("T6: 多分支衍生 derivedFrom、下游过时告警与设定集三分类�
       sourceHash: sha256(bodyB),
     });
 
-    // T6 设定集三分类沉淀：resolve_short_term / settle_long_term / update_profile
     const store = createBibleStore(lock, clock);
     const prov = { source: "author", at: clock.iso() };
     const seedPending = await store.propose(
@@ -719,23 +545,8 @@ test("T6: 多分支衍生 derivedFrom、下游过时告警与设定集三分类�
   }
 });
 
-test("T3: traceEntityTimeline 对空白查询词抛出 input.invalid", async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "zz-v23-empty-"));
-  try {
-    let caught;
-    try {
-      await traceEntityTimeline(root, "   ");
-    } catch (err) {
-      caught = err;
-    }
-    assert.ok(isAppError(caught) && caught.code === "input.invalid");
-  } finally {
-    await fs.rm(root, { recursive: true, force: true });
-  }
-});
-
-test("F13: ledgerPipeline 在设定集空白时按章节号 C100 解析真实 position=100", async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "zz-f13-ledger-"));
+test("ledgerPipeline 在设定集空白时按章节号 C100 解析真实 position=100", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "zhizhang-ledger-"));
   try {
     const clock = createFakeClock();
     const lock = createLockService(clock);

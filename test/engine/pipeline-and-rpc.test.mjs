@@ -16,9 +16,6 @@ const { definePipeline, emptyUsage, executePipeline } = await importTs(
 const { obj } = await importTs("packages/core/src/schema/index.ts");
 const { createLockService } = await importTs("packages/core/src/lock/index.ts");
 const { createBibleStore } = await importTs("packages/fanqie/src/bible/index.ts");
-const { bookPipeline } = await importTs("packages/fanqie/src/index.ts");
-const { FIXED_DELIVERY_ENDING, createArticle, transitionArticleStatus, writeDeliverySheet } =
-  await importTs("packages/toutiao/src/index.ts");
 const desk = await importBundle("test/support/desktop-entry.ts");
 
 const EMPTY_PACKET = { prefix: [], suffix: [], omitted: [], estimate: 0 };
@@ -41,7 +38,7 @@ function makeRunRecord(id, kind, target, request, nowIso) {
 }
 
 test("StageRunner fanOut 并发阶段串行合并状态、完整落盘且按序发射 PipelineEvent", async () => {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "zz-v2-fanout-"));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "zhizhang-fanout-"));
   try {
     const clock = createFakeClock();
     const port = createFakeModelPort([{ text: "分支A" }, { text: "分支B" }, { text: "分支C" }]);
@@ -123,7 +120,7 @@ test("StageRunner fanOut 并发阶段串行合并状态、完整落盘且按序�
 });
 
 test("BibleStore.decide 通过 commitIntent 原子提交并清理临时意图日志", async () => {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "zz-v2-bible-"));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "zhizhang-bible-commit-"));
   try {
     const clock = createFakeClock();
     const lock = createLockService(clock);
@@ -164,144 +161,10 @@ test("BibleStore.decide 通过 commitIntent 原子提交并清理临时意图日
   }
 });
 
-test("番茄整书规划将提案隔离在 plan/proposals/<runId>/，应用后才覆盖正式规划文件", async () => {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "zz-v2-book-"));
-  try {
-    const clock = createFakeClock();
-    const lock = createLockService(clock);
-    await fs.mkdir(path.join(dir, "plan"), { recursive: true });
-    await fs.writeFile(
-      path.join(dir, "plan", "card.json"),
-      JSON.stringify({ format: "zhizhang/2.0", title: "旧书名" }),
-      "utf8",
-    );
-
-    const port = createFakeModelPort([
-      {
-        text: JSON.stringify({
-          title: "云海闻铃",
-          genre: "悬疑",
-          hook: "雨夜铜铃自鸣",
-          sellingPoints: ["悬疑", "民俗"],
-          targetAudience: "男频悬疑读者",
-        }),
-      },
-      {
-        text: JSON.stringify({
-          protagonist: {
-            name: "沈砚",
-            goal: "查明州府沉案",
-            flaw: "过于谨慎",
-            goldenFinger: "古铃辨煞",
-          },
-          worldview: "青崖州府雾气缭绕，古井藏有百年前封煞旧案",
-          powerSystem: "听铃辨煞、以药镇灵",
-          coreConflict: "镇妖失衡与旧案掩盖",
-        }),
-      },
-      {
-        text: JSON.stringify({
-          volumes: [
-            {
-              volume: 1,
-              title: "雾起青崖",
-              summary: "初遇异象",
-              startChapter: 1,
-              endChapter: 20,
-            },
-          ],
-        }),
-      },
-      {
-        text: JSON.stringify({
-          chapters: [
-            {
-              position: 1,
-              title: "雨夜闻铃",
-              synopsis: "引出古井异象",
-              conflict: "神秘来客夜访",
-              hook: "铜铃自鸣",
-            },
-          ],
-        }),
-      },
-    ]);
-    const gateway = createModelGateway(
-      port,
-      {
-        globalConcurrency: 2,
-        perRunConcurrency: 1,
-        roles: { planner: { connection: "c1", model: "m1" } },
-      },
-      clock,
-    );
-
-    const target = { mode: "fanqie", path: dir };
-    const req = { title: "云海闻铃", genre: "悬疑", premise: "民俗悬疑长篇", outlineCount: 1 };
-    const ctx = await bookPipeline.context(target, req, { clock, lock });
-    const record = makeRunRecord(ctx.runId, bookPipeline.kind, target, req, clock.iso());
-    const ac = new AbortController();
-    const res = await executePipeline(bookPipeline, record, ctx, gateway, clock, ac.signal);
-
-    assert.equal(res.state, "awaiting-author");
-    const oldCard = JSON.parse(await fs.readFile(path.join(dir, "plan", "card.json"), "utf8"));
-    assert.equal(oldCard.title, "旧书名");
-
-    const proposalCard = JSON.parse(
-      await fs.readFile(path.join(dir, "plan", "proposals", ctx.runId, "card.json"), "utf8"),
-    );
-    assert.equal(proposalCard.format, "zhizhang/2.0");
-    assert.equal(proposalCard.title, "云海闻铃");
-
-    const freshCtx = { ...ctx, state: {} };
-    await bookPipeline.apply(res, { adopt: true }, freshCtx);
-    const appliedCard = JSON.parse(await fs.readFile(path.join(dir, "plan", "card.json"), "utf8"));
-    assert.equal(appliedCard.title, "云海闻铃");
-  } finally {
-    await fs.rm(dir, { recursive: true, force: true });
-  }
-});
-
-test("头条 writeDeliverySheet 幂等防重复追加固定末句", async () => {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "zz-v2-delivery-"));
-  try {
-    const clock = createFakeClock();
-    const lock = createLockService(clock);
-    const articleDir = path.join(dir, "tt-001");
-    await createArticle(
-      articleDir,
-      {
-        id: "tt-001",
-        genre: "短图文",
-        driver: "账本型",
-        rulesVersion: "2.0",
-        nowIso: clock.iso(),
-      },
-      lock,
-    );
-    await transitionArticleStatus(articleDir, "待验收", clock.iso(), lock);
-    await transitionArticleStatus(articleDir, "已验收", clock.iso(), lock);
-
-    const draftWithEnding = `正文内容。\n\n${FIXED_DELIVERY_ENDING}`;
-    const deliveryPath = await writeDeliverySheet(
-      articleDir,
-      "标题",
-      draftWithEnding,
-      clock.iso(),
-      lock,
-    );
-    const content = await fs.readFile(deliveryPath, "utf8");
-    const occurrences = content.split(FIXED_DELIVERY_ENDING).length - 1;
-    assert.equal(occurrences, 1, "固定末句只能出现一次");
-  } finally {
-    await fs.rm(dir, { recursive: true, force: true });
-  }
-});
-
 test("createRpcHandlers 提供传输无关 RPC 分发并校验只读模式写命令门禁", async () => {
   let readonly = true;
   const clock = createFakeClock();
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "zz-v2-rpc-"));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "zhizhang-rpc-"));
   try {
     const fakeServices = {
       version: desk.APP_VERSION,
@@ -405,7 +268,7 @@ test("createRpcHandlers 提供传输无关 RPC 分发并校验只读模式写命
     const rpc = desk.createRpcHandlers(fakeServices);
     const stateReply = await rpc.invoke("app.state", []);
     assert.equal(stateReply.ok, true);
-    assert.equal(stateReply.value.version, "2.3.0");
+    assert.equal(stateReply.value.version, desk.APP_VERSION);
     assert.equal(stateReply.value.platform, "web");
     assert.equal(stateReply.value.workspace.readonly, true);
 

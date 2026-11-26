@@ -66,7 +66,7 @@ test("budget guard enforces inputBudget, runBudget, and moneyCap boundaries", ()
   );
 });
 
-test("R5 (F18): budget guard tracks inflight estimated money to prevent concurrent overspend", () => {
+test("budget guard tracks inflight estimated money to prevent concurrent overspend", () => {
   const guard = createBudgetGuard({
     inputBudget: 1000,
     runBudget: 5000,

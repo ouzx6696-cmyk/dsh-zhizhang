@@ -377,12 +377,12 @@ test("头条命令：建文章 → 登记来源 → 存稿 → 导出 → 状态
     "待验收",
   );
   await run(ctx, "toutiao.article.transition", { articleDir, to: "已验收" });
-  // F07: 即使已验收也不能经由 transition 直接绕过交稿单变更为已交稿
+  // 即使已验收也不能经由 transition 直接绕过交稿单变更为已交稿
   await expectCode(
     run(ctx, "toutiao.article.transition", { articleDir, to: "已交稿" }),
     "gate.denied",
   );
-  // F07: 已验收后再修改正文必须自动回退为初稿待改并拒绝直接交稿
+  // 已验收后再修改正文必须自动回退为初稿待改并拒绝直接交稿
   const draft3 = await run(ctx, "toutiao.draft.save", {
     articleDir,
     title: "退休金到手多少",
@@ -426,7 +426,7 @@ test("头条命令：建文章 → 登记来源 → 存稿 → 导出 → 状态
     await fs.readFile(delivered.deliveryPath, "utf8"),
     /——AI 到此止步。是否采用、何时发布由你决定。\n$/,
   );
-  // F07: 已交稿文章禁止继续覆盖草稿
+  // 已交稿文章禁止继续覆盖草稿
   await expectCode(
     run(ctx, "toutiao.draft.save", {
       articleDir,

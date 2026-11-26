@@ -1,49 +1,7 @@
 /**
- * 桌面 IPC 契约（单一来源）：通道 id → 参数/结果类型，以及给渲染层直接用的类型化客户端 DesktopApi。
- * 每个通道在主进程以 "zhizhang:<id>" 注册，参数一律由主进程用 core/schema 解析；
- * 回执是 Reply<T>，失败只给错误码、消息与数据，界面文案由渲染层按码取 copy。
- *
- * 1.2 方法名 → v1.3 通道（DesktopApi 方法）
- * ─────────────────────────────────────────────────────────────────────────────
- *  state                 → app.state            (state)
- *  view(target, n, old)  → session.view         (sessionView, 参数 {conversationId?, limit?})
- *  select                → targets.select       (select)
- *  choose(mode)          → 删除：作品/文章在写作文件夹内由 targets.list 列出，直接 select
- *  projects              → targets.list         (targets)
- *  workspace             → workspace.choose     (chooseWorkspace)
- *  takeOverWorkspace     → workspace.takeOver   (takeOverWorkspace)
- *  send(text, t, focus)  → session.send         (send, 参数 {text, focus?, intent?})
- *  stop                  → session.stop         (stop)
- *  running               → workflow.running     (running；流水线与助手合并)
- *  conversations         → session.list         (conversations)
- *  newConversation       → session.new          (newConversation)
- *  export(t, focus, fmt) → export.save          (exportFile)
- *  model                 → models.save          (saveModels：连接列表 + 角色绑定)
- *  testModel             → models.test          (testModel)
- *  modelCatalog          → models.catalog       (modelCatalog)
- *  engine                → settings.save {engine}        (saveSettings)
- *  appearance            → settings.save {appearance}    (saveSettings)
- *  contextSettings       → settings.save {context}       (saveSettings)
- *  preferences / save-preferences → settings.save {assistant.preferences}
- *  writerOptions         → 删除：番茄作品设置走 workbench "fanqie.work.settings"
- *  search / testSearch   → 删除：v1.3 不含联网检索；读链接改为 source.fetch (fetchSource)
- *  learning              → learning.status      (learning；采纳由学习存储在第 3 次重复时自动晋升)
- *  continuity            → 删除：改用 workbench "fanqie.bible.get/view/decide/audit"
- *  contextUsage          → session.usage        (contextUsage)
- *  compact               → session.compact      (compact)
- *  storageHealth         → storage.health       (storageHealth)
- *  libraryStorage        → workbench "library.*"；打开目录用 app.openPath (openPath)
- *  updates               → updates.check        (updates)
- *  backup                → backup.start / backup.cancel  (backup / cancelBackup)
- *  recover               → storage.recover      (recover)
- *  diagnostics           → diagnostics.export   (diagnostics)
- *  newTarget(mode)       → workbench "fanqie.work.create" / "toutiao.article.create"
- *  request(op, opts)     → workbench.call       (workbench)
- *  workflow(t, action)   → workflow.start / control / decide / get / history
- *                          (startRun / controlRun / decideRun / getRun / runHistory)
- *  external              → app.openExternal     (openExternal)
- *  —（新增）             → workspace.status (workspaceStatus)、settings.get/reset、
- *                          dialog.openText (openText)
+ * 桌面 IPC / RPC 契约（单一来源）：通道 id → 参数/结果类型，以及给渲染层直接用的类型化客户端 DesktopApi。
+ * 每个通道在宿主侧经统一 RPC 分发并由 `@zhizhang/core/schema` 校验参数；
+ * 回执为 `Reply<T>`，失败只返回错误码、消息与结构化数据，界面文案由渲染层按码从 `@zhizhang/ui/copy` 读取。
  */
 import { AppError, type ErrorCode } from "@zhizhang/core/errors";
 import type { CommandInput, CommandResult, WorkbenchCommand } from "@zhizhang/workbench/contract";

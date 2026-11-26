@@ -52,7 +52,7 @@ test("commitIntent writes targets and cleans up intent journal", async () => {
     assert.equal(await fs.readFile(target, "utf8"), "v2");
     assert.deepEqual(await fs.readdir(journalDir), []);
 
-    // F06: 目标文件已被修改时 commitIntent 必须抛出 storage.conflict 且不覆写
+    // 目标文件已被修改时 commitIntent 必须抛出 storage.conflict 且不覆写
     await assert.rejects(
       () =>
         commitIntent(

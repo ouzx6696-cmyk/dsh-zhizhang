@@ -145,7 +145,7 @@ test("(c) 番茄：章节流水线 → 阶段进度 → 对照 → 采纳", asyn
   const confirm = tid("confirm-ok");
   if (await confirm.isVisible().catch(() => false)) await confirm.click();
   await expect(run).not.toHaveAttribute("data-state", "awaiting-author", { timeout: 15_000 });
-  // 采纳后候选稿才进入正文（AC-50：流水线只交候选稿，正文由作者决定）。
+  // 采纳后候选稿才进入正文（流水线只交候选稿，正文由作者决定）。
   const works = await readdir(path.join(root, "长篇"));
   const chapters = path.join(root, "长篇", works[0], "chapters");
   const files = await readdir(chapters);

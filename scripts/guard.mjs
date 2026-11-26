@@ -70,6 +70,12 @@ for (const file of allTs) {
   if (rel.startsWith("packages/toutiao/") && /@zhizhang\/fanqie/.test(noComments)) {
     errors.push(`[G-layer] toutiao imports fanqie in ${rel}`);
   }
+  if (
+    rel.startsWith("packages/ui/") &&
+    /@zhizhang\/(?:fanqie|toutiao|workbench|desktop)/.test(noComments)
+  ) {
+    errors.push(`[G-layer] ui must not depend on mode or app packages in ${rel}`);
+  }
 
   // G-app: session/renderer must not import main/
   if (rel.startsWith("apps/desktop/src/session/") || rel.startsWith("apps/desktop/src/renderer/")) {
@@ -239,7 +245,7 @@ if (typeof baseline.unusedExports === "number" && unusedExports.length > baselin
   );
 }
 
-// 5. G-brand: no legacy brand tokens in v1.3 manifests & new modules
+// 5. G-brand: no legacy brand tokens in manifests
 const brandFiles = [
   path.join(ROOT, "package.json"),
   path.join(ROOT, "apps/desktop/package.json"),
@@ -253,15 +259,14 @@ for (const file of brandFiles) {
   }
 }
 
-// 6. G-docs: docs/ directory + root docs limited to 8 target docs
-const docFiles = [
-  ...walk(path.join(ROOT, "docs"), [".md"]),
-  path.join(ROOT, "README.md"),
-  path.join(ROOT, "AGENTS.md"),
-  path.join(ROOT, "CHANGELOG.md"),
-];
-if (docFiles.length > 8) {
-  errors.push(`[G-docs] Expected <= 8 docs, found ${docFiles.length}`);
+// 6. G-docs: root markdown docs + docs/ directory limited to 6 core docs
+const rootDocs = fs
+  .readdirSync(ROOT, { withFileTypes: true })
+  .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+  .map((entry) => path.join(ROOT, entry.name));
+const docFiles = [...walk(path.join(ROOT, "docs"), [".md"]), ...rootDocs];
+if (docFiles.length > 6) {
+  errors.push(`[G-docs] Expected <= 6 docs, found ${docFiles.length}`);
 }
 
 // 7. G-rules: rules.py single source PASS_SCORE = 84 & TITLE_MAX = 34

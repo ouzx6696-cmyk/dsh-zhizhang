@@ -12,7 +12,7 @@ const { runPythonScript } = await importTs("packages/core/src/python/index.ts");
 const desk = await importBundle("test/support/desktop-entry.ts");
 
 test("runPythonScript 以 Buffer 拼接 stdout，多字节中文跨 chunk 边界不乱码", async () => {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "zz-v21-py-utf8-"));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "zhizhang-py-utf8-"));
   try {
     const script = path.join(dir, "split_utf8.py");
     await fs.writeFile(
@@ -35,7 +35,7 @@ test("runPythonScript 以 Buffer 拼接 stdout，多字节中文跨 chunk 边界
 });
 
 test("RunStore 隔离损坏记录并按 maxTerminalRuns 裁剪历史终态运行", async () => {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "zz-v21-runs-"));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "zhizhang-runs-"));
   try {
     const corruptEvents = [];
     const store = desk.createRunStore(dir, {
@@ -63,7 +63,6 @@ test("RunStore 隔离损坏记录并按 maxTerminalRuns 裁剪历史终态运行
     await store.save(makeRec("run-2", "2026-01-01T00:00:02.000Z"));
     await store.save(makeRec("run-3", "2026-01-01T00:00:03.000Z"));
 
-    // 在该目标子目录下写入一条损坏 JSON，确认不会拖垮整个 list()
     const subdirs = await fs.readdir(dir, { withFileTypes: true });
     const targetSub = subdirs.find((d) => d.isDirectory());
     assert.ok(targetSub, "应创建目标运行目录");
@@ -83,7 +82,7 @@ test("RunStore 隔离损坏记录并按 maxTerminalRuns 裁剪历史终态运行
 });
 
 test("ConfigService 为 secrets.bin 设置 0600 权限且 onChange 返回可取消订阅函数", async () => {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "zz-v21-cfg-"));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "zhizhang-cfg-"));
   try {
     const cipher = {
       available: () => true,
@@ -153,7 +152,7 @@ test("runTool 截断超过 24000 字符的工具输出并附带省略提示", as
 });
 
 test("SessionManager 并发执行连续只读工具并串行拦截同目标并发 send", async () => {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "zz-v21-session-"));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "zhizhang-session-"));
   try {
     const clock = createFakeClock();
     const target = { mode: "fanqie", path: dir };
@@ -257,7 +256,6 @@ test("SessionManager 并发执行连续只读工具并串行拦截同目标并�
     const firstSend = manager.send(target, { text: "同时读取两个只读项" });
     await firstTurnEntered;
 
-    // 同一目标在运行中再次 send，应立即被串行状态机拒绝
     await assert.rejects(
       () => manager.send(target, { text: "并发插入消息" }),
       (err) => desk.isAppError(err, "gate.denied"),
@@ -273,7 +271,7 @@ test("SessionManager 并发执行连续只读工具并串行拦截同目标并�
 });
 
 test("Web 预览服务器拦截跨源 RPC、非 JSON 请求与目录穿越访问", async () => {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "zz-v21-web-"));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "zhizhang-web-"));
   const stateRoot = path.join(dir, "state");
   const workspaceRoot = path.join(dir, "workspace");
   const staticDir = path.join(dir, "static");
@@ -298,7 +296,6 @@ test("Web 预览服务器拦截跨源 RPC、非 JSON 请求与目录穿越访问
     const port = typeof addr === "object" && addr ? addr.port : srv.port;
     const base = `http://127.0.0.1:${port}`;
 
-    // 1. 跨源 RPC 返回 HTTP 403
     const crossOrigin = await fetch(`${base}/api/rpc/app.state`, {
       method: "POST",
       headers: {
@@ -310,7 +307,6 @@ test("Web 预览服务器拦截跨源 RPC、非 JSON 请求与目录穿越访问
     assert.equal(crossOrigin.status, 403);
     assert.equal(crossOrigin.headers.get("x-content-type-options"), "nosniff");
 
-    // 2. 同源但非 application/json 被拒绝
     const wrongType = await fetch(`${base}/api/rpc/app.state`, {
       method: "POST",
       headers: {
@@ -323,7 +319,6 @@ test("Web 预览服务器拦截跨源 RPC、非 JSON 请求与目录穿越访问
     assert.equal(wrongBody.ok, false);
     assert.equal(wrongBody.error.code, "ipc.invalid_args");
 
-    // 3. 同源合法 JSON 正常返回
     const okRes = await fetch(`${base}/api/rpc/app.state`, {
       method: "POST",
       headers: {
@@ -337,12 +332,10 @@ test("Web 预览服务器拦截跨源 RPC、非 JSON 请求与目录穿越访问
     assert.equal(okBody.ok, true);
     assert.equal(okBody.value.platform, process.platform);
 
-    // 4. 静态路径穿越不会泄漏外部文件
     const traversal = await fetch(`${base}/%2e%2e/state/settings.json`);
     const traversalText = await traversal.text();
     assert.ok(!traversalText.includes("connections"), "路径穿越不得读取 staticDir 之外的文件");
 
-    // 5. 导出下载目录穿越返回 400 或 403
     const exportTraversal = await fetch(`${base}/api/exports/..%2Fsettings.json`);
     assert.ok(
       exportTraversal.status === 400 || exportTraversal.status === 403,

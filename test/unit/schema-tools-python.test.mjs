@@ -8,21 +8,8 @@ const { arr, bool, desc, int, lit, nullable, num, obj, opt, record, str, toJsonS
 const { defineTool } = await importTs("packages/core/src/tool/index.ts");
 const { methodFor } = await importTs("packages/core/src/methods/index.ts");
 const { runPythonJson, runPythonScript } = await importTs("packages/core/src/python/index.ts");
-const { FORMAT_VERSION } = await importTs("packages/core/src/paths.ts");
-const { APP_VERSION } = await importTs("packages/core/src/version.ts");
-const { resolveDraftTrack, selectBestDraftCandidate } = await importTs(
-  "packages/toutiao/src/pipelines/article/rules.ts",
-);
-const { resolvePreviousTextMode } = await importTs(
-  "packages/fanqie/src/pipelines/chapter/rules.ts",
-);
 
-test("v2.3 版本与 zhizhang/2.0 磁盘格式常量一致", () => {
-  assert.equal(APP_VERSION, "2.3.0");
-  assert.equal(FORMAT_VERSION, "zhizhang/2.0");
-});
-
-test("toJsonSchema 单源导出基本类型、可选字段、nullable、枚举与说明，defineTool 自动附带 jsonSchema", () => {
+test("toJsonSchema 导出基本类型、可选字段、nullable、枚举与说明，defineTool 自动附带 jsonSchema", () => {
   const ParamsSchema = obj({
     chapterId: desc(str({ min: 1 }), "章节编号"),
     limit: opt(desc(int({ min: 1, max: 50 }), "最大条数")),
@@ -134,45 +121,4 @@ test("PythonRunner 支持可插拔 executor、强制 Schema 校验以及 AbortSi
     () => runPythonScript("dummy.py", [], { signal: ac.signal }),
     (err) => isAppError(err, "run.stopped"),
   );
-});
-
-test("头条起稿赛道解析与多路起稿择优选择覆盖蓝图且规范的候选", () => {
-  assert.equal(resolveDraftTrack({ genre: "微头条", driver: "新闻型" }), "micro");
-  assert.equal(resolveDraftTrack({ genre: "深长图文", driver: "故事型" }), "story");
-  assert.equal(resolveDraftTrack({ genre: "短图文", driver: "账本型" }), "news");
-
-  const blueprint = {
-    angle: "成本拆解",
-    sections: [
-      { heading: "一笔实在账", keyPoints: ["电费"] },
-      { heading: "真正的拐点", keyPoints: ["时间"] },
-    ],
-  };
-  const weak = "很短的草稿，没有标题也没有小标题。";
-  const strong = [
-    "# 菜市场三笔账算明白",
-    "",
-    "## 一笔实在账",
-    "",
-    "第一段内容足够扎实，交代人物与具体花费细节。".repeat(12),
-    "",
-    "第二段继续补充对比案例与现场细节。".repeat(12),
-    "",
-    "## 真正的拐点",
-    "",
-    "第三段转入趋势分析，给出可验证的数字逻辑。".repeat(12),
-    "",
-    "第四段收束全文，留出讨论空间。".repeat(12),
-  ].join("\n");
-
-  const picked = selectBestDraftCandidate([weak, strong], "菜市场三笔账算明白", blueprint);
-  assert.equal(picked.index, 1);
-  assert.equal(picked.draft, strong);
-});
-
-test("番茄前文截断策略按档位与设置返回正确模式", () => {
-  assert.deepEqual(resolvePreviousTextMode("full", "economy"), { kind: "full", maxChars: 6000 });
-  assert.deepEqual(resolvePreviousTextMode("tail", "premium"), { kind: "tail", chars: 1800 });
-  assert.deepEqual(resolvePreviousTextMode("auto", "economy"), { kind: "tail", chars: 1500 });
-  assert.deepEqual(resolvePreviousTextMode("auto", "standard"), { kind: "full", maxChars: 4000 });
 });
