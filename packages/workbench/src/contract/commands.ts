@@ -51,7 +51,7 @@ export interface WorkbenchCommandMap {
     access: "write";
   };
   "fanqie.chapter.finalize": {
-    input: { work: string; chapter: string };
+    input: { work: string; chapter: string; base?: string };
     result: { status: "final" };
     access: "write";
   };
@@ -100,6 +100,15 @@ export interface WorkbenchCommandMap {
     result: { workPath: string };
     access: "write";
   };
+  "fanqie.work.previewLegacy": {
+    input: {
+      root: string;
+      sourcePath: string;
+      sourceKind: "single_txt" | "folder";
+    };
+    result: Awaited<ReturnType<typeof fanqieCommands.previewLegacyWork>>;
+    access: "read";
+  };
   "fanqie.work.importLegacy": {
     input: {
       root: string;
@@ -107,6 +116,7 @@ export interface WorkbenchCommandMap {
       sourcePath: string;
       sourceKind: "single_txt" | "folder";
       grade?: "economy" | "standard" | "premium";
+      chapterStatus?: "drafted" | "final";
     };
     result: {
       workPath: string;
@@ -197,7 +207,7 @@ export interface WorkbenchCommandMap {
     access: "write";
   };
   "toutiao.article.deliver": {
-    input: { articleDir: string; title: string; body: string };
+    input: { articleDir: string; title: string; body: string; expectedRevision?: string };
     result: { deliveryPath: string };
     access: "write";
   };

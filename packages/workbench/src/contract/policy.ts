@@ -22,6 +22,7 @@ export const COMMAND_POLICY: { readonly [K in WorkbenchCommand]: CommandPolicy<K
   "fanqie.work.list": { access: "read" },
   "fanqie.work.get": { access: "read" },
   "fanqie.work.create": { access: "write", refresh: "rows" },
+  "fanqie.work.previewLegacy": { access: "read" },
   "fanqie.work.importLegacy": { access: "write", refresh: "rows" },
   "fanqie.work.settings": { access: "write", refresh: "rows" },
   "fanqie.book.export": { access: "read" },

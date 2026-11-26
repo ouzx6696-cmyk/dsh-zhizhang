@@ -9,9 +9,12 @@ import {
   readTextIfExists,
   sha256,
 } from "@zhizhang/core/fs";
-import { bool, int, obj, opt, str } from "@zhizhang/core/schema";
+import { commitIntent } from "@zhizhang/core/journal";
 import { createLockService, type LockService } from "@zhizhang/core/lock";
+import { FORMAT_VERSION } from "@zhizhang/core/paths";
+import { bool, int, lit, obj, opt, str } from "@zhizhang/core/schema";
 import { serializeChapterMarkdown, type ChapterDocument } from "../domain/chapter.js";
+import type { ChapterStatus } from "../domain/status.js";
 import { countChineseWords, parsePlainDraft } from "../pipelines/chapter/rules.js";
 import {
   DerivedFromSchema,
@@ -48,6 +51,8 @@ const CandidateReview = obj(
     editorRejections: int({ min: 0 }),
     review: ReviewResultSchema,
     derivedFrom: opt(DerivedFromSchema),
+    mode: opt(lit("revise", "deai", "polish")),
+    reviewPerformed: opt(bool),
   },
   { strict: false },
 );
@@ -58,10 +63,16 @@ function isEnoent(err: unknown): boolean {
   return typeof err === "object" && err !== null && "code" in err && err.code === "ENOENT";
 }
 
+function toDerivedKind(status: ChapterStatus): "final" | "reviewed" | "drafted" {
+  return status === "final" ? "final" : status === "reviewed" ? "reviewed" : "drafted";
+}
+
 async function reconcileDownstreamCandidates(
   workPath: string,
   acceptedChapterId: string,
   acceptedCandidateId: string,
+  acceptedStatus: ChapterStatus,
+  acceptedBodyHash: string,
 ): Promise<StaleDownstreamCandidate[]> {
   const root = path.join(workPath, "candidates");
   let entries: Array<{ name: string; isDirectory(): boolean }>;
@@ -74,6 +85,7 @@ async function reconcileDownstreamCandidates(
 
   const emptyFiles: string[] = [];
   const stale: StaleDownstreamCandidate[] = [];
+  const promotedKind = toDerivedKind(acceptedStatus);
   for (const entry of entries) {
     if (!entry.isDirectory() || entry.name === acceptedChapterId) continue;
     const cid = entry.name;
@@ -104,20 +116,31 @@ async function reconcileDownstreamCandidates(
         continue;
       }
       const derived = parsedMeta.derivedFrom;
-      if (!derived || derived.kind !== "candidate" || derived.chapterId !== acceptedChapterId) {
-        continue;
-      }
-      if (derived.candidateId === acceptedCandidateId) {
-        const nextMeta = Object.assign({}, parsedUnknown, {
-          derivedFrom: { kind: "final", chapterId: acceptedChapterId },
-        });
-        await atomicWrite(metaPath, JSON.stringify(nextMeta, null, 2));
-      } else if (derived.candidateId) {
+      if (!derived || derived.chapterId !== acceptedChapterId) continue;
+      if (derived.kind === "candidate") {
+        if (derived.candidateId === acceptedCandidateId) {
+          const nextMeta = Object.assign({}, parsedUnknown, {
+            derivedFrom: {
+              kind: promotedKind,
+              chapterId: acceptedChapterId,
+              sourceHash: acceptedBodyHash,
+            },
+          });
+          await atomicWrite(metaPath, JSON.stringify(nextMeta, null, 2));
+        } else if (derived.candidateId) {
+          stale.push({
+            chapterId: cid,
+            candidateId,
+            derivedFromChapterId: acceptedChapterId,
+            derivedFromCandidateId: derived.candidateId,
+          });
+        }
+      } else if (derived.sourceHash && derived.sourceHash !== acceptedBodyHash) {
         stale.push({
           chapterId: cid,
           candidateId,
           derivedFromChapterId: acceptedChapterId,
-          derivedFromCandidateId: derived.candidateId,
+          derivedFromCandidateId: derived.kind,
         });
       }
     }
@@ -178,6 +201,7 @@ export async function listCandidates(
             kind: meta.derivedFrom.kind,
             chapterId: meta.derivedFrom.chapterId,
             ...(meta.derivedFrom.candidateId ? { candidateId: meta.derivedFrom.candidateId } : {}),
+            ...(meta.derivedFrom.sourceHash ? { sourceHash: meta.derivedFrom.sourceHash } : {}),
           }
         : undefined;
       out.push({
@@ -229,6 +253,8 @@ export async function acceptCandidate(
 ): Promise<AcceptCandidateResult> {
   return lock.write({ kind: "work", path: workPath }, async () => {
     const cand = await readCandidate(workPath, input.chapterId, input.candidateId);
+    const chapterPath = resolveResourcePath(workPath, "chapters", `${input.chapterId}.md`);
+    const prevRaw = await readTextIfExists(chapterPath);
     const prev = await readChapter(workPath, input.chapterId).catch(() => undefined);
     if (
       input.expectedRevision !== undefined &&
@@ -248,7 +274,14 @@ export async function acceptCandidate(
     if (reviewed && reviewed.bodyHash !== sha256(cand.body)) {
       throw new AppError("storage.conflict", "候选稿已变更，请重新审读");
     }
-    const review = input.mode === "append" ? undefined : reviewed;
+    const isFormalReview = Boolean(
+      reviewed &&
+      input.mode !== "append" &&
+      reviewed.reviewPerformed !== false &&
+      reviewed.mode !== "deai" &&
+      reviewed.mode !== "polish",
+    );
+    const review = isFormalReview ? reviewed : undefined;
 
     if (prev && prev.body.trim().length > 0) {
       const historyFile = path.join(
@@ -261,13 +294,15 @@ export async function acceptCandidate(
 
     const nextBody =
       input.mode === "append" && prev?.body ? `${prev.body.trimEnd()}\n\n${cand.body}` : cand.body;
+    const nextStatus: ChapterStatus = review ? "reviewed" : "drafted";
+    const nextBodyHash = sha256(nextBody);
 
     const doc: ChapterDocument = {
       meta: {
         id: input.chapterId,
         title: cand.title || prev?.meta.title || input.chapterId,
-        status: review ? "reviewed" : "drafted",
-        revision: `rev-${sha256(nextBody).slice(0, 8)}`,
+        status: nextStatus,
+        revision: `rev-${nextBodyHash.slice(0, 8)}`,
         outline: prev?.meta.outline,
         scenes: prev?.meta.scenes,
         editorPass: review?.editorPass ?? false,
@@ -284,23 +319,49 @@ export async function acceptCandidate(
       body: nextBody,
     };
 
-    await atomicWrite(
-      resolveResourcePath(workPath, "chapters", `${input.chapterId}.md`),
-      serializeChapterMarkdown(doc),
+    const acceptedPath = resolveResourcePath(
+      workPath,
+      "candidates",
+      input.chapterId,
+      `${input.candidateId}.accepted.json`,
     );
-    await atomicWrite(
-      resolveResourcePath(
-        workPath,
-        "candidates",
-        input.chapterId,
-        `${input.candidateId}.accepted.json`,
-      ),
-      JSON.stringify({ acceptedAt: systemClock.iso(), revision: doc.meta.revision }, null, 2),
+    const prevAcceptedRaw = await readTextIfExists(acceptedPath);
+    await commitIntent(
+      path.join(workPath, ".journal"),
+      {
+        format: FORMAT_VERSION,
+        id: `accept-candidate-${input.chapterId}-${input.candidateId}-${systemClock.now()}`,
+        writes: [
+          {
+            path: chapterPath,
+            beforeHash: prevRaw === undefined ? null : sha256(prevRaw),
+            after: serializeChapterMarkdown(doc),
+          },
+          {
+            path: acceptedPath,
+            beforeHash: prevAcceptedRaw === undefined ? null : sha256(prevAcceptedRaw),
+            after: JSON.stringify(
+              { acceptedAt: systemClock.iso(), revision: doc.meta.revision },
+              null,
+              2,
+            ),
+          },
+        ],
+        meta: {
+          operation: "fanqie.candidate.accept",
+          chapterId: input.chapterId,
+          candidateId: input.candidateId,
+        },
+      },
+      lock,
+      { kind: "work", path: workPath },
     );
     const staleDownstreamCandidates = await reconcileDownstreamCandidates(
       workPath,
       input.chapterId,
       input.candidateId,
+      nextStatus,
+      nextBodyHash,
     );
     return { ...doc, staleDownstreamCandidates };
   });

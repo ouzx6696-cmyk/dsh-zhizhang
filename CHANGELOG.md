@@ -12,8 +12,15 @@
 - **旧书大稿零模型批量导入**：新增 `importLegacyWork` 与 `fanqie.work.importLegacy`，支持单 TXT 按中文章号/阿拉伯数字自动切章与多文件目录自然序导入，内置 UTF-8 + GB18030 回退解码、`resolveInsideAsync` 路径沙箱、`LockService` + `commitIntent` 原子落盘与 `sources/legacy-import/` 原稿备份；在 `NewTargetDialog` 新增「导入旧书接管」入口。
 
 ### 多分支衍生谱系与设定集三分类沉淀（T6）
-- **多分支候选谱系追踪**：`fanqie.chapter` 支持 `previousCandidateId` 承接前章未定稿候选，自动在 `.meta.json` 写入 `derivedFrom`；`acceptCandidate` 时自动将匹配分支升级为 `final` 并检测返回未匹配下游过时候选清单（`staleDownstreamCandidates`），绝不静默删改作者草稿。
+- **多分支候选谱系追踪**：`fanqie.chapter` 支持 `previousCandidateId` 承接前章未定稿候选，自动在 `.meta.json` 写入 `derivedFrom`（含 `sourceHash` 与真实来源状态）；`acceptCandidate` 时原子更新并检测返回未匹配下游过时候选清单（`staleDownstreamCandidates`），绝不静默删改作者草稿。
 - **设定集三分类沉淀**：`bible/pending.json` 与 `ledger` 流水线支持 `settlement` 三分类标注（`resolve_short_term` 短期已解决自动为旧状态封口、`settle_long_term` 长期事实确认沉淀、`update_profile` 人物设定更新合并别名与锁定项）；全仓包版本与 `APP_VERSION` 统一升至 `2.3.0`（保持 `FORMAT_VERSION = "zhizhang/2.0"` 不变）。
+
+### 质量、正确性与可靠性全量加固（v2.3.0 优化）
+- **Electron CSP 与零外链离线字体**：移除 `apps/desktop/index.html` 的外部 Google Fonts `<link>`，全面统一使用本地打包 `@fontsource/noto-serif-sc` 与系统字体，消除 Electron 严格 CSP 控制台报错。
+- **半章续写锁前缀与专项精修真实语义**：`continueFromExisting` 全文归一化校验并硬锁定已写前缀，审修轮次如改动已写前缀自动回退至上一合规稿；`revise(deai/polish)` 明确标记 `editorPass: false`、`reviewPerformed: false`，杜绝绕过完整审读误晋升为 `reviewed`。
+- **多分支谱系与原稿接管增强**：`acceptCandidate` 改为 `commitIntent` 原子落盘并补充 `sourceHash` 失配与同章竞争分支过时检测；`fanqie.chapter.finalize` 支持可选 `base` 乐观锁；拆分 `commands/import-parse.ts` 并新增 `fanqie.work.previewLegacy`（总命令数扩展至 50 条），支持卷/章区分、零丢弃序言、原字节无损归档、`import-manifest.json` 清单及前端默认 `drafted` 状态导入与切章预览。
+- **L0 原子意图、沙箱回放与并发预算防护**：`commitIntent` 写锁内增加 `beforeHash` 前置冲突校验；`replayPendingIntents` 增加 `allowedRoots` 路径沙箱与写锁保护；`BudgetGuard` 引入并发在途金额预留（`reserveMoney` / `settleMoney`），防止并发请求穿透金额上限。
+- **上下文、设定集时间片、存稿缺口与头条验收锁**：`computeSerialBuffer` 检测章号跳跃缺口；BM25 分词缓存改用 SHA-256 内容键；`bible.asOf` 补齐付费节点与未来记账实体过滤；`ledgerPipeline` 解析真实章号定位；`context/builder.ts` 拆出 `context/format.ts` 实现 L2/L4/L5/L6 逐项预算裁剪与 `onIncludedCards` 回调；头条补齐原文逐字证据核验与来源哈希失效，`acceptedRevision`/`deliveredRevision` 绑定防止未重验交稿与交稿后篡改草稿；清理裸 `JSON.parse as` 并收紧 `as` 断言基线至 `115`。
 
 ## 2.2.0（灵感源全量对齐、柔和纸面 C2 整合、零超行清理与 CI 加固）
 

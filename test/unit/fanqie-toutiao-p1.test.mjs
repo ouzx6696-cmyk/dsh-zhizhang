@@ -5,8 +5,13 @@ import { importTs } from "../support/ts-loader.mjs";
 const { renderContextPacket } = await importTs("packages/core/src/pipeline/index.ts");
 const { createLockService } = await importTs("packages/core/src/lock/index.ts");
 const { createBibleStore } = await importTs("packages/fanqie/src/bible/index.ts");
-const { buildChapterContext } = await importTs("packages/fanqie/src/context/index.ts");
+const { buildChapterContext, retrieveEarlyChapters } = await importTs(
+  "packages/fanqie/src/context/index.ts",
+);
 const { extractClaimCandidates } = await importTs("packages/toutiao/src/domain/index.ts");
+const { filterChangedParagraphClaims, mergeFactResults } = await importTs(
+  "packages/toutiao/src/pipelines/article/rules.ts",
+);
 
 test("context packet renders L5 retrieval and L6 reference blocks alongside L0-L4 chapter context", () => {
   const bible = {
@@ -219,4 +224,117 @@ test("toutiao extractClaimCandidates extracts date and organization entity claim
   const claims = extractClaimCandidates(draft);
   assert.ok(claims.some((c) => c.kind === "date" && c.text.includes("2026年10月15日")));
   assert.ok(claims.some((c) => c.kind === "entity" && c.text.includes("国家统计局")));
+});
+
+test("R3 (F11): retrieveEarlyChapters invalidates BM25 token cache when equal-length body changes", () => {
+  const docV1 = {
+    chapter: "C003",
+    position: 3,
+    summary: "旧城线索",
+    body: "主角在旧城北门捡到一枚普通铜钱。",
+  };
+  const docV2 = {
+    chapter: "C003",
+    position: 3,
+    summary: "旧城线索",
+    body: "主角在旧城北门捡到一枚玄铁令牌。",
+  };
+  assert.equal(docV1.body.length, docV2.body.length);
+
+  const hits1 = retrieveEarlyChapters("寻找玄铁令牌", [docV1], 3);
+  assert.equal(hits1.length, 0);
+  const hits2 = retrieveEarlyChapters("寻找玄铁令牌", [docV2], 3);
+  assert.equal(hits2.length, 1);
+  assert.equal(hits2[0].doc.chapter, "C003");
+});
+
+test("F15: buildChapterContext trims L2/L4 per item under tight budget and reports included cards", () => {
+  const bible = {
+    entities: [],
+    states: [],
+    threads: [],
+    knowledge: [],
+    chapters: [],
+    style: { contract: "", rules: [], voiceSamples: [] },
+    pending: [],
+  };
+  const includedIds = [];
+  const packet = buildChapterContext({
+    chapterId: "C010",
+    position: 10,
+    outlineText: "主角闯入藏经阁。",
+    previousSummary: "第9章抵达山门。",
+    previousBody: "夜风吹动檐铃。",
+    bible,
+    view: { position: 10, entities: [], states: [], threads: [], knowledge: [] },
+    hits: [],
+    recentSummaries: [
+      { position: 7, summary: "较早摘要".repeat(25) },
+      { position: 8, summary: "中段摘要".repeat(25) },
+      { position: 9, summary: "最新前章摘要" },
+    ],
+    referenceCards: [
+      {
+        id: "craft-1",
+        scope: "chapter",
+        title: "短卡",
+        category: "节奏",
+        pattern: "快切镜头",
+        usage: "开篇",
+      },
+      {
+        id: "craft-2",
+        scope: "chapter",
+        title: "超长卡",
+        category: "情绪",
+        pattern: "超长说明".repeat(200),
+        usage: "高潮",
+      },
+    ],
+    onIncludedCards: (ids) => includedIds.push(...ids),
+    budget: 340,
+    previousTextMode: { kind: "full", maxChars: 200 },
+  });
+
+  const rendered = renderContextPacket(packet);
+  assert.ok(rendered.user.includes("最新前章摘要"), "应优先保留最近一章摘要");
+  assert.deepEqual(includedIds, ["craft-1"], "应只记录真正注入上下文的技法卡 ID");
+});
+
+test("F19: mergeFactResults downgrades fabricated quotes and filterChangedParagraphClaims detects source changes", () => {
+  const draft = "居民消费价格同比上涨1.2%，另一项数据增长5.8%。";
+  const claims = extractClaimCandidates(draft);
+  const c1 = claims.find((c) => c.text === "1.2%");
+  const c2 = claims.find((c) => c.text === "5.8%");
+  assert.ok(c1 && c2);
+  const { merged } = mergeFactResults(
+    [c1, c2],
+    {
+      claims: [
+        {
+          id: c1.id,
+          status: "supported",
+          sourceId: "s1",
+          evidence: "居民消费价格同比上涨1.2%",
+        },
+        {
+          id: c2.id,
+          status: "supported",
+          sourceId: "s1",
+          evidence: "模型编造的不存在引文5.8%",
+        },
+      ],
+    },
+    [{ id: "s1", text: "国家统计局公布居民消费价格同比上涨1.2%。", hash: "hash-s1-v1" }],
+  );
+  assert.equal(merged[0].status, "supported");
+  assert.equal(merged[0].sourceHash, "hash-s1-v1");
+  assert.equal(merged[1].status, "unlocated", "来源中不存在的引文必须降级为 unlocated");
+
+  const reusedCheck = filterChangedParagraphClaims(draft, merged, new Map([["s1", "hash-s1-v1"]]));
+  assert.equal(reusedCheck.reused.length, 1);
+
+  const changedCheck = filterChangedParagraphClaims(draft, merged, new Map([["s1", "hash-s1-v2"]]));
+  assert.equal(changedCheck.reused.length, 0, "来源内容变化后旧 supported 结论必须重新核对");
+  assert.ok(changedCheck.toVerify.length >= 2);
 });

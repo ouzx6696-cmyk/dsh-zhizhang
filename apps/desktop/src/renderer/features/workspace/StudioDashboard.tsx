@@ -106,10 +106,14 @@ export function StudioDashboard({ item }: { item: TargetItem }) {
     const activeIndex = head ? progressIndex(head) : 0;
     const chapterCount = item.chapterCount ?? chapters.length;
     const finalCount = item.finalCount ?? 0;
-    const draftedCount = Math.max(
-      finalCount,
-      chapterCount > 0 ? Math.min(chapterCount, finalCount + 1) : 0,
-    );
+    const realDrafted = chapters.filter(
+      (c) =>
+        c.status === "drafted" ||
+        c.status === "reviewed" ||
+        c.status === "final" ||
+        c.wordCount > 0,
+    ).length;
+    const draftedCount = Math.max(finalCount, chapters.length > 0 ? realDrafted : finalCount);
 
     return buildStudioDashboardModel(
       libraryStats,
@@ -145,7 +149,7 @@ export function StudioDashboard({ item }: { item: TargetItem }) {
     item.finalCount,
     item.status,
     item.qaScore,
-    chapters.length,
+    chapters,
     head,
     stageLabels,
   ]);
@@ -188,6 +192,25 @@ export function StudioDashboard({ item }: { item: TargetItem }) {
           <span className="zz-studio-dash__status" data-state={model.pipelineState}>
             {pipelineBadgeText}
           </span>
+          {item.target.mode === "fanqie" && buffer ? (
+            <span className="zz-studio-dash__buffer" data-testid="serial-buffer-bar">
+              <span className="zz-studio-dash__sep" aria-hidden="true">
+                ·
+              </span>
+              <span className="zz-studio-dash__buffer-metric zz-tabular">
+                {C.dashboard.bufferSummary(
+                  buffer.continuousFinalCount,
+                  buffer.continuousFinalChars,
+                  buffer.publishableDays,
+                )}
+              </span>
+              {buffer.postGapFinalChapters.length > 0 ? (
+                <span className="zz-studio-dash__buffer-warn" data-testid="serial-buffer-warn">
+                  {C.dashboard.bufferPostGapWarn(buffer.postGapFinalChapters)}
+                </span>
+              ) : null}
+            </span>
+          ) : null}
         </div>
         <button
           type="button"
@@ -204,23 +227,6 @@ export function StudioDashboard({ item }: { item: TargetItem }) {
           )}
         </button>
       </div>
-
-      {item.target.mode === "fanqie" && buffer ? (
-        <div className="zz-studio-dash__buffer" data-testid="serial-buffer-bar">
-          <span className="zz-studio-dash__buffer-metric zz-tabular">
-            {C.dashboard.bufferSummary(
-              buffer.continuousFinalCount,
-              buffer.continuousFinalChars,
-              buffer.publishableDays,
-            )}
-          </span>
-          {buffer.postGapFinalChapters.length > 0 ? (
-            <span className="zz-studio-dash__buffer-warn" data-testid="serial-buffer-warn">
-              {C.dashboard.bufferPostGapWarn(buffer.postGapFinalChapters)}
-            </span>
-          ) : null}
-        </div>
-      ) : null}
 
       {!collapsed ? (
         <div className="zz-studio-dash__grid">

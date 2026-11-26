@@ -38,17 +38,22 @@ export function computeSerialBuffer(
   const published = options.publishedThrough?.trim() || null;
 
   let startIndex = 0;
+  let expectedPosition: number | null = null;
   if (published) {
     const exactIndex = sorted.findIndex((row) => row.id === published);
     if (exactIndex !== -1) {
       startIndex = exactIndex + 1;
+      if (sorted[exactIndex].position > 0) expectedPosition = sorted[exactIndex].position + 1;
     } else {
       const pubPos = parsePositionFromId(published);
       if (pubPos !== null) {
         const nextIdx = sorted.findIndex((row) => row.position > pubPos);
         startIndex = nextIdx === -1 ? sorted.length : nextIdx;
+        expectedPosition = pubPos + 1;
       }
     }
+  } else if (sorted.length > 0 && sorted[0].position > 0) {
+    expectedPosition = sorted[0].position;
   }
 
   let continuousFinalCount = 0;
@@ -59,9 +64,15 @@ export function computeSerialBuffer(
   for (let i = startIndex; i < sorted.length; i++) {
     const row = sorted[i];
     if (!gapHit) {
-      if (row.status === "final") {
+      const missingBeforeRow =
+        expectedPosition !== null && row.position > 0 && row.position > expectedPosition;
+      if (missingBeforeRow) {
+        gapHit = true;
+        if (row.status === "final") postGapFinalChapters.push(row.id);
+      } else if (row.status === "final") {
         continuousFinalCount += 1;
         continuousFinalChars += row.wordCount;
+        if (row.position > 0) expectedPosition = row.position + 1;
       } else {
         gapHit = true;
       }

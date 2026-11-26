@@ -227,7 +227,10 @@ function DraftPanel({
                   <Button
                     size="sm"
                     data-testid="draft-edit"
-                    disabled={readonly}
+                    disabled={readonly || status === TOUTIAO_DELIVERED}
+                    title={
+                      status === TOUTIAO_DELIVERED ? C.toutiao.deliveredReadonlyHint : undefined
+                    }
                     onClick={() => {
                       setTitle(draft.title || row.title);
                       setEditing(true);
@@ -338,7 +341,7 @@ export function ToutiaoWorkspace({ target, readonly }: { target: Target; readonl
   return (
     <div
       className="zz-workspace zz-workspace--toutiao"
-      data-compare={zenMode ? "on" : "off"}
+      data-compare="off"
       data-zen={zenMode ? "on" : "off"}
     >
       {slotEl ? createPortal(articleNav, slotEl) : null}

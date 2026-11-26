@@ -130,7 +130,8 @@ export function createModelGateway(
       const binding = resolveBinding(role);
       const key = `${binding.connection}:${binding.model}`;
       const est = estimator.estimate(key, `${req.system}\n${req.user}`);
-      const reservation = opts.budget.reserve(est);
+      const estimatedCost = binding.price ? (est / 1_000_000) * binding.price.inputPer1M : null;
+      const reservation = opts.budget.reserve(est, estimatedCost);
       let release: (() => void) | undefined;
       try {
         release = await acquire(opts.runId, opts.signal);

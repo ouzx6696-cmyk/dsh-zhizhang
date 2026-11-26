@@ -35,6 +35,9 @@ export const TOUTIAO_HANDLERS: { [K in CommandGroup<"toutiao">]: CommandHandler<
         articleDir: ctx.inside(input.articleDir),
         title: input.title,
         body: input.body,
+        ...(input.expectedRevision !== undefined
+          ? { expectedRevision: input.expectedRevision }
+          : {}),
         ...(ctx.scriptsDir ? { scriptsDir: ctx.scriptsDir } : {}),
       },
       ctx.locks,

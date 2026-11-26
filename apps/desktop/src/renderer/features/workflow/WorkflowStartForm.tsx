@@ -9,16 +9,28 @@ import { TextField } from "../workspace/TextField";
 import { kindLabel } from "./workflow-model";
 
 type StartKind =
-  "fanqie.chapter" | "fanqie.review" | "fanqie.revise" | "fanqie.health" | "toutiao.article";
+  | "fanqie.book"
+  | "fanqie.chapter"
+  | "fanqie.review"
+  | "fanqie.revise"
+  | "fanqie.ledger"
+  | "fanqie.health"
+  | "toutiao.article";
 type ReviseMode = "revise" | "deai" | "polish";
 const REVISE_MODES: ReviseMode[] = ["revise", "deai", "polish"];
 
 const FANQIE_KINDS: StartKind[] = [
+  "fanqie.book",
   "fanqie.chapter",
   "fanqie.review",
   "fanqie.revise",
+  "fanqie.ledger",
   "fanqie.health",
 ];
+
+function isFanqieStartKind(value: string): value is StartKind {
+  return FANQIE_KINDS.some((k) => k === value);
+}
 
 export function WorkflowStartForm({
   target,
@@ -29,7 +41,9 @@ export function WorkflowStartForm({
 }) {
   const chapters = useDesktop((s) => s.chapters);
   const preset = useDesktop((s) => s.pipelineChapter);
-  const focusChapter = useDesktop((s) => s.focus.chapter);
+  const presetKind = useDesktop((s) => s.pipelineKind);
+  const focusChapter = useDesktop((s) => s.focus.chapter ?? "");
+  const workTitle = useDesktop((s) => s.selected?.label ?? "");
   const readonly = useDesktop((s) => Boolean(s.workspace?.readonly));
   const root = useDesktop((s) => s.workspace?.roots.toutiao ?? "");
   const [kind, setKind] = useState<StartKind>(
@@ -39,8 +53,18 @@ export function WorkflowStartForm({
   const [note, setNote] = useState("");
   const [reviseMode, setReviseMode] = useState<ReviseMode>("revise");
   const [continueFromExisting, setContinueFromExisting] = useState(false);
+  const [golden, setGolden] = useState(false);
+  const [previousCandidateId, setPreviousCandidateId] = useState("");
+  const [prevCandidates, setPrevCandidates] = useState<
+    Array<{ id: string; title: string; wordCount: number }>
+  >([]);
   const [article, setArticle] = useState<{ genre: string; driver: string } | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const chapterIndex = chapters.findIndex((c) => c.id === chapter);
+  const prevChapterId = chapterIndex > 0 ? (chapters[chapterIndex - 1]?.id ?? "") : "";
+  const needsChapter =
+    target.mode === "fanqie" && kind !== "fanqie.health" && kind !== "fanqie.book";
 
   useEffect(() => {
     if (preset) {
@@ -48,6 +72,52 @@ export function WorkflowStartForm({
       desktopStore.set({ pipelineChapter: "" });
     }
   }, [preset]);
+
+  useEffect(() => {
+    if (!presetKind) return;
+    if (target.mode === "fanqie" && isFanqieStartKind(presetKind)) {
+      setKind(presetKind);
+    } else if (target.mode === "toutiao" && presetKind === "toutiao.article") {
+      setKind("toutiao.article");
+    }
+    desktopStore.set({ pipelineKind: "" });
+  }, [presetKind, target.mode]);
+
+  useEffect(() => {
+    if (target.mode !== "fanqie") return;
+    if (focusChapter && chapters.some((c) => c.id === focusChapter)) {
+      setChapter(focusChapter);
+      return;
+    }
+    setChapter((prev) => {
+      if (prev && chapters.some((c) => c.id === prev)) return prev;
+      return focusChapter || chapters[0]?.id || "";
+    });
+  }, [target.mode, focusChapter, chapters]);
+
+  useEffect(() => {
+    setPreviousCandidateId("");
+    if (target.mode !== "fanqie" || kind !== "fanqie.chapter" || !prevChapterId) {
+      setPrevCandidates([]);
+      return;
+    }
+    let alive = true;
+    desktop
+      .workbench("fanqie.candidate.list", { work: target.path, chapter: prevChapterId })
+      .then(({ candidates }) => {
+        if (!alive) return;
+        const active = candidates
+          .filter((c) => !c.accepted && !c.rejected)
+          .map((c) => ({ id: c.id, title: c.title || c.id, wordCount: c.wordCount }));
+        setPrevCandidates(active);
+      })
+      .catch(() => {
+        if (alive) setPrevCandidates([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [target, kind, prevChapterId]);
 
   useEffect(() => {
     if (target.mode !== "toutiao" || !root) return;
@@ -74,14 +144,23 @@ export function WorkflowStartForm({
           driver: article?.driver ?? "",
           ...extra,
         };
+      case "fanqie.book":
+        return {
+          title: (workTitle || baseName(target.path)).trim(),
+          premise: note.trim(),
+        };
       case "fanqie.health":
         return { upToChapter: Math.max(1, chapters.length) };
+      case "fanqie.ledger":
+        return { chapterId: chapter };
       case "fanqie.revise":
         return { chapterId: chapter, mode: reviseMode, ...extra };
       case "fanqie.chapter":
         return {
           chapterId: chapter,
           ...(continueFromExisting ? { continueFromExisting: true } : {}),
+          ...(golden ? { golden: "true" } : {}),
+          ...(previousCandidateId ? { previousCandidateId } : {}),
           ...extra,
         };
       default:
@@ -95,7 +174,9 @@ export function WorkflowStartForm({
       ? article !== null
       : kind === "fanqie.health"
         ? chapters.length > 0
-        : chapter.trim() !== "");
+        : kind === "fanqie.book"
+          ? note.trim().length > 0
+          : chapter.trim() !== "");
 
   const start = async () => {
     setBusy(true);
@@ -126,6 +207,8 @@ export function WorkflowStartForm({
     label: C.workflow.chapterRef(index + 1, c.title && c.title !== c.id ? c.title : ""),
   }));
 
+  const showNoteField = kind !== "fanqie.health" && kind !== "fanqie.ledger";
+
   return (
     <form
       className="zz-stack"
@@ -144,7 +227,7 @@ export function WorkflowStartForm({
           onChange={setKind}
         />
       ) : null}
-      {target.mode === "fanqie" && kind !== "fanqie.health" ? (
+      {needsChapter ? (
         chapterOptions.length ? (
           <Select
             label={C.workflow.chapter}
@@ -174,24 +257,54 @@ export function WorkflowStartForm({
         />
       ) : null}
       {target.mode === "fanqie" && kind === "fanqie.chapter" ? (
-        <label className="zz-row">
-          <input
-            type="checkbox"
-            data-testid="workflow-continue-existing"
-            checked={continueFromExisting}
-            onChange={(event) => setContinueFromExisting(event.target.checked)}
-          />
-          <span>{C.workflow.continueFromExisting}</span>
-        </label>
+        <>
+          <div className="zz-workflow__opts">
+            <label className="zz-workflow__opt">
+              <input
+                type="checkbox"
+                data-testid="workflow-continue-existing"
+                checked={continueFromExisting}
+                onChange={(event) => setContinueFromExisting(event.target.checked)}
+              />
+              <span>{C.workflow.continueFromExisting}</span>
+            </label>
+            <label className="zz-workflow__opt">
+              <input
+                type="checkbox"
+                data-testid="workflow-golden"
+                checked={golden}
+                onChange={(event) => setGolden(event.target.checked)}
+              />
+              <span>{C.workflow.goldenChapter}</span>
+            </label>
+          </div>
+          {prevCandidates.length > 0 ? (
+            <Select
+              label={C.workflow.previousCandidateLabel}
+              testId="workflow-previous-candidate"
+              value={previousCandidateId}
+              options={[
+                { value: "", label: C.workflow.previousCandidateFormal },
+                ...prevCandidates.map((c) => ({
+                  value: c.id,
+                  label: C.workflow.previousCandidateOption(prevChapterId, c.title, c.wordCount),
+                })),
+              ]}
+              onChange={setPreviousCandidateId}
+            />
+          ) : null}
+        </>
       ) : null}
-      {kind !== "fanqie.health" ? (
+      {showNoteField ? (
         <TextField
-          label={C.workflow.note}
+          label={kind === "fanqie.book" ? C.create.premise : C.workflow.note}
           value={note}
           onChange={setNote}
           testId="workflow-note"
           multiline
-          placeholder={C.workflow.notePlaceholder}
+          placeholder={
+            kind === "fanqie.book" ? C.workflow.bookPremisePlaceholder : C.workflow.notePlaceholder
+          }
         />
       ) : null}
       <Button

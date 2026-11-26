@@ -11,6 +11,7 @@ type RunState = RunSummary["state"];
 /** 阶段 id 前缀 → 显示名键（并行/多轮阶段带序号后缀，如 score-0、review-1）。 */
 const STAGE_PREFIXES: readonly (keyof typeof C.workflow.stage)[] = [
   "prepare",
+  "references",
   "beats",
   "draft",
   "gate",
@@ -22,26 +23,36 @@ const STAGE_PREFIXES: readonly (keyof typeof C.workflow.stage)[] = [
   "source",
   "rules",
   "card",
+  "foundation",
+  "structure",
+  "outline",
   "title",
   "blueprint",
   "claims",
   "qa",
   "antigaming",
   "import",
+  "extract",
   "locate",
   "propose",
   "bible",
+  "plan",
+  "analyze",
+  "cards",
   "deliver",
 ];
 
 /** 不按“前缀-序号”命名的阶段 id → 所属前缀（并行择优、带后缀的审读 / 修订等）。 */
 const STAGE_ALIASES: readonly [RegExp, keyof typeof C.workflow.stage][] = [
+  [/^load-references$/, "references"],
   [/^select-score(?:-|$)/, "score"],
   [/^select-compare(?:-|$)/, "compare"],
   [/^continuity(?:-|$)/, "continuity"],
   [/^(?:editor-)?review(?:-|$)/, "review"],
   [/^qa-revise(?:-|$)/, "revise"],
+  [/^gate-revise(?:-|$)/, "gate"],
   [/^revise(?:-|$)/, "revise"],
+  [/^bible-audit$/, "bible"],
 ];
 
 function stagePrefix(id: string): keyof typeof C.workflow.stage | undefined {
@@ -111,13 +122,48 @@ export function stageGroup(kind: string, id: string): number {
   return (KIND_GROUPS[kind] ?? []).findIndex((g) => g.prefixes.includes(prefix));
 }
 
-/** 各流水线的粗分组（进度轨）：每组列出归属的阶段前缀。 */
+/** 各流水线的粗分组（进度轨）：覆盖番茄全生命周期、拆书与头条全部流水线。 */
 const KIND_GROUPS: Record<string, { label: string; prefixes: string[] }[]> = {
+  "fanqie.book": [
+    { label: C.workflow.group.card, prefixes: ["references", "card"] },
+    { label: C.workflow.group.foundation, prefixes: ["foundation"] },
+    { label: C.workflow.group.structure, prefixes: ["structure"] },
+    { label: C.workflow.group.outline, prefixes: ["outline"] },
+    { label: C.workflow.group.deliver, prefixes: ["deliver"] },
+  ],
   "fanqie.chapter": [
     { label: C.workflow.group.prepare, prefixes: ["prepare"] },
     { label: C.workflow.group.beats, prefixes: ["beats"] },
     { label: C.workflow.group.draft, prefixes: ["draft", "gate", "score", "compare"] },
     { label: C.workflow.group.review, prefixes: ["continuity", "review", "revise"] },
+    { label: C.workflow.group.deliver, prefixes: ["deliver"] },
+  ],
+  "fanqie.review": [
+    { label: C.workflow.group.prepare, prefixes: ["prepare"] },
+    { label: C.workflow.group.review, prefixes: ["continuity", "review"] },
+    { label: C.workflow.group.deliver, prefixes: ["deliver"] },
+  ],
+  "fanqie.revise": [
+    { label: C.workflow.group.prepare, prefixes: ["prepare"] },
+    { label: C.workflow.group.revise, prefixes: ["revise", "gate"] },
+    { label: C.workflow.group.review, prefixes: ["review"] },
+    { label: C.workflow.group.deliver, prefixes: ["deliver"] },
+  ],
+  "fanqie.ledger": [
+    { label: C.workflow.group.prepare, prefixes: ["prepare"] },
+    { label: C.workflow.group.extract, prefixes: ["extract"] },
+    { label: C.workflow.group.propose, prefixes: ["locate", "propose"] },
+    { label: C.workflow.group.deliver, prefixes: ["deliver"] },
+  ],
+  "fanqie.health": [
+    { label: C.workflow.group.audit, prefixes: ["bible"] },
+    { label: C.workflow.group.review, prefixes: ["review"] },
+    { label: C.workflow.group.deliver, prefixes: ["deliver"] },
+  ],
+  "library.dissect": [
+    { label: C.workflow.group.plan, prefixes: ["plan"] },
+    { label: C.workflow.group.analyze, prefixes: ["analyze"] },
+    { label: C.workflow.group.cards, prefixes: ["cards"] },
     { label: C.workflow.group.deliver, prefixes: ["deliver"] },
   ],
   "toutiao.article": [

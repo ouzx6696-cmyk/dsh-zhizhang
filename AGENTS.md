@@ -85,8 +85,8 @@
 
 - `packages/core`：L0 纯机制层（`clock` / `errors` / `schema` / `fs` / `lock` / `journal` / `tool` / `pipeline` / `model` / `methods` / `python` / `paths` / `version`）
 - `packages/ui`：L1 柔和纸面 C2 三层令牌（`tokens/{palette,semantic,component}.css`）、Radix 基础原语组件、状态词语义与 `DESKTOP_COPY` / `WORKBENCH_COPY` / `ERROR_COPY` 唯一文案源
-- `packages/workbench`：L1 强类型命令契约（`contract/{commands,views}.ts`）、稿纸阅读与 `TextSurface` 源码编辑器、草稿原子持久化
-- `packages/fanqie`：L2 番茄长篇模式（`domain` / `bible/{schemas,audit,store}` / `storage` / `context/{builder,retrieval}` / `learning` / `pipelines/{book,chapter,dissect,health,ledger,review,revise}` / `commands` / `tools` / `view` / `profiles` / `skill`）
+- `packages/workbench`：L1 强类型命令契约（`contract/{commands,policy,views}.ts`，共 50 条命令）、稿纸阅读与 `TextSurface` 源码编辑器、草稿原子持久化
+- `packages/fanqie`：L2 番茄长篇模式（`domain` / `bible/{schemas,audit,store,trace}` / `storage` / `context/{builder,format,retrieval}` / `learning` / `pipelines/{book,chapter,dissect,health,ledger,review,revise}` / `commands/{...,import,import-parse}` / `tools` / `view` / `profiles` / `skill`）
 - `packages/toutiao`：L2 头条图文模式（`domain` / `storage` / `rules` / `pipelines` / `commands` / `tools` / `view` / `profiles` / `skill`）
 - `apps/desktop`：L3 共享组合根（`main/app-runtime.ts`）、宿主抽象（`main/platform.ts`）、Electron 主进程（`main/index.ts`）、Web 预览服务（`server/{web-server,http-io,seed}.ts`）、PI 适配与会话引擎（`session/{pi-adapter,pi-helpers,manager,turn-runner,transcript,compact,history,projection,prompt,tools}.ts`）与柔和纸面 C2 React 渲染层（`renderer/`）
 - `assets/`、`scripts/`、`test/`、`docs/`：内置资产清单、守卫/备份/暂存/打包脚本、自动化测试与 8 份核心文档

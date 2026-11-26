@@ -6,6 +6,7 @@ import test from "node:test";
 import { createFakeClock } from "../support/clock.mjs";
 import { importTs } from "../support/ts-loader.mjs";
 
+const { isAppError } = await importTs("packages/core/src/errors/index.ts");
 const { atomicWrite, sha256 } = await importTs("packages/core/src/fs/index.ts");
 const { commitIntent, replayIntents, verifyBeforeHash } = await importTs(
   "packages/core/src/journal/index.ts",
@@ -50,14 +51,34 @@ test("commitIntent writes targets and cleans up intent journal", async () => {
 
     assert.equal(await fs.readFile(target, "utf8"), "v2");
     assert.deepEqual(await fs.readdir(journalDir), []);
+
+    // F06: 目标文件已被修改时 commitIntent 必须抛出 storage.conflict 且不覆写
+    await assert.rejects(
+      () =>
+        commitIntent(
+          journalDir,
+          {
+            format: "zhizhang/2.0",
+            id: "intent-stale",
+            writes: [{ path: target, beforeHash, after: "v3-stale" }],
+            meta: { op: "save" },
+          },
+          lock,
+          { kind: "work", path: dir },
+        ),
+      (err) => isAppError(err, "storage.conflict"),
+    );
+    assert.equal(await fs.readFile(target, "utf8"), "v2");
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
   }
 });
 
-test("replayIntents resumes safe intents and flags externally modified conflicts", async () => {
+test("replayIntents resumes safe intents, flags conflicts, and blocks sandbox escape", async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "zhizhang-replay-"));
+  const outsideFile = path.join(os.tmpdir(), `zz-escape-${Date.now()}.md`);
   try {
+    const lock = createLockService(createFakeClock());
     const journalDir = path.join(dir, "journal");
     await fs.mkdir(journalDir, { recursive: true });
 
@@ -85,12 +106,28 @@ test("replayIntents resumes safe intents and flags externally modified conflicts
       }),
     );
 
-    const res = await replayIntents(journalDir);
+    await atomicWrite(
+      path.join(journalDir, "escape.json"),
+      JSON.stringify({
+        format: "zhizhang/2.0",
+        id: "escape",
+        writes: [{ path: outsideFile, beforeHash: null, after: "pwned" }],
+        meta: {},
+      }),
+    );
+
+    const res = await replayIntents(journalDir, {
+      allowedRoots: [dir],
+      lock,
+      resource: { kind: "work", path: dir },
+    });
     assert.deepEqual(res.resumed, ["ok"]);
-    assert.deepEqual(res.conflicts, ["bad"]);
+    assert.deepEqual(res.conflicts.sort(), ["bad", "escape"]);
     assert.equal(await fs.readFile(safeFile, "utf8"), "new");
     assert.equal(await fs.readFile(conflictFile, "utf8"), "edited-externally");
+    await assert.rejects(() => fs.access(outsideFile));
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
+    await fs.rm(outsideFile, { force: true });
   }
 });

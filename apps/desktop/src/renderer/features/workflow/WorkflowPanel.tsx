@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { DESKTOP_COPY as C } from "@zhizhang/ui/copy";
-import { Empty, Notice } from "@zhizhang/ui/primitives";
+import { Notice } from "@zhizhang/ui/primitives";
 import type { RunDetail, RunSummary, Target, WorkflowAction } from "../../../shared/views";
 import { askConfirm } from "../../state/confirm";
 import { desktop } from "../../state/desktop";
@@ -27,7 +27,7 @@ export function WorkflowPanel({ target, compact = false }: { target: Target; com
         if (!alive) return;
         const sorted = [...list].sort((a, b) => b.created.localeCompare(a.created));
         setRuns(sorted);
-        setCurrent((prev) => prev ?? sorted[0] ?? null);
+        setCurrent(sorted[0] ?? null);
       })
       .catch((err: unknown) => alive && setError(errorText(err)));
     const off = desktop.subscribe((event) => {
@@ -94,11 +94,16 @@ export function WorkflowPanel({ target, compact = false }: { target: Target; com
           compact={compact}
         />
       ) : null}
-      {!current ? <Empty title={C.workflow.empty} description={C.workflow.emptyHint} /> : null}
+      {!current ? (
+        <header className="zz-workflow__intro">
+          <strong>{C.dock.pipelineHead}</strong>
+          <span>{C.workflow.emptyHint}</span>
+        </header>
+      ) : null}
       {!current || !isOpen(current.state) ? (
         <WorkflowStartForm target={target} onStarted={setCurrent} />
       ) : null}
-      <WorkflowHistory runs={runs} currentId={currentId} />
+      <WorkflowHistory runs={runs} currentId={currentId} onSelect={setCurrent} />
     </div>
   );
 }

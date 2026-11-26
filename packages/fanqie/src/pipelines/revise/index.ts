@@ -196,14 +196,14 @@ export const revisePipeline: PipelineDefinition<
       ctx.state.currentDraft = current;
 
       if (specialist) {
-        editorPass = true;
+        editorPass = false;
         latestReview = {
-          verdict: "pass",
+          verdict: "revise",
           issues: [],
           summary:
             mode === "deai"
-              ? "去 AI 腔专项精修完成（已通过门禁，待作者对照裁决）"
-              : "轻润色专项精修完成（已通过门禁，待作者对照裁决）",
+              ? "去 AI 腔专项精修完成（已通过基础门禁，未经过编辑审读，待作者对照裁决）"
+              : "轻润色专项精修完成（已通过基础门禁，未经过编辑审读，待作者对照裁决）",
         };
         break;
       }
@@ -241,11 +241,13 @@ export const revisePipeline: PipelineDefinition<
     }
     const candFile = path.join(outDir, `${ctx.runId}.md`);
     await atomicWrite(candFile, `# ${res.title}\n\n${res.body}`);
+    const reviewPerformed = res.mode === "revise";
     await atomicWrite(
       path.join(outDir, `${ctx.runId}.meta.json`),
       JSON.stringify(
         {
           mode: res.mode,
+          reviewPerformed,
           bodyHash: sha256(res.body),
           editorPass: res.editorPass,
           editorRejections: res.editorRejections,
@@ -258,11 +260,16 @@ export const revisePipeline: PipelineDefinition<
     await atomicWrite(marker, buildDeliveryMarker(ctx.runId, res.body));
     const modeLabel =
       res.mode === "deai" ? "去 AI 腔精修" : res.mode === "polish" ? "轻润色精修" : "修稿";
+    const statusLabel = !reviewPerformed
+      ? "专项精修完成（未经编辑审读，待作者裁决）"
+      : res.editorPass
+        ? "复审通过"
+        : `打回 ${res.editorRejections} 轮待作者裁决`;
     return {
       runId: ctx.runId,
       deliveredPaths: [candFile],
       contentHash: sha256(res.body),
-      summary: `${modeLabel}完成「${res.title}」（${res.gate.wordCount} 字，${res.editorPass ? "复审通过" : `打回 ${res.editorRejections} 轮待作者裁决`}）`,
+      summary: `${modeLabel}完成「${res.title}」（${res.gate.wordCount} 字，${statusLabel}）`,
     };
   },
   async recover(record, ctx) {

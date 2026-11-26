@@ -92,7 +92,7 @@ export async function chooseWorkspace(): Promise<boolean> {
   if (!(await canLeave())) return false;
   const status = await desktop.chooseWorkspace();
   if (!status) return false;
-  set({ workspace: status, selected: null, focus: {} });
+  set({ workspace: status, selected: null, focus: {}, chapters: [] });
   chatStore.set(emptyChat);
   await refreshTargets();
   return true;
@@ -108,8 +108,13 @@ export function openDock(tab: DockTab): void {
   set({ dockTab: tab, dockOpen: true });
 }
 
-export function openPipeline(chapter = ""): void {
-  set({ dockTab: "pipeline", dockOpen: true, pipelineChapter: chapter });
+export function openPipeline(chapter = "", kind = ""): void {
+  set({
+    dockTab: "pipeline",
+    dockOpen: true,
+    pipelineChapter: chapter,
+    ...(kind ? { pipelineKind: kind } : {}),
+  });
 }
 
 export function openSettings(tab = desktopStore.get().settingsTab): void {
@@ -130,7 +135,7 @@ export async function select(target: Target, focus: Focus = {}, guard = true): P
   }
   if (guard && !(await canLeave())) return;
   const item = await desktop.select(target);
-  set({ selected: item, focus, view: "writing", compare: null });
+  set({ selected: item, focus, view: "writing", compare: null, chapters: [] });
   await loadChat(item.target);
 }
 
@@ -147,11 +152,21 @@ export async function createWork(input: {
   await select({ mode: "fanqie", path: workPath });
 }
 
+export async function previewLegacyWork(input: {
+  sourcePath: string;
+  sourceKind: "single_txt" | "folder";
+}) {
+  const root = desktopStore.get().workspace?.roots.fanqie;
+  if (!root) return null;
+  return desktop.workbench("fanqie.work.previewLegacy", { root, ...input });
+}
+
 export async function importLegacyWork(input: {
   title: string;
   sourcePath: string;
   sourceKind: "single_txt" | "folder";
   grade: "economy" | "standard" | "premium";
+  chapterStatus?: "drafted" | "final";
 }) {
   const root = desktopStore.get().workspace?.roots.fanqie;
   if (!root) return;

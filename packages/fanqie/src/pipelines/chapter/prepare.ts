@@ -1,6 +1,6 @@
 import path from "node:path";
 import { AppError } from "@zhizhang/core/errors";
-import { readJson, readTextIfExists, resolveResourcePath } from "@zhizhang/core/fs";
+import { readJson, readTextIfExists, resolveResourcePath, sha256 } from "@zhizhang/core/fs";
 import type { ContextPacket, RunCtx } from "@zhizhang/core/pipeline";
 import { arr, int, obj, opt, str } from "@zhizhang/core/schema";
 import type { createBibleStore } from "../../bible/store.js";
@@ -28,21 +28,42 @@ export interface PreparedChapter {
   derivedFrom?: DerivedFrom;
 }
 
+function normalizeLineEndings(text: string): string {
+  return text.replace(/\r\n?/g, "\n");
+}
+
+export function verifyLockedPrefix(existingPrefix: string, body: string): boolean {
+  const prefix = normalizeLineEndings(existingPrefix).trim();
+  if (!prefix) return true;
+  const candidate = normalizeLineEndings(body).trim();
+  return candidate.startsWith(prefix);
+}
+
 export function stitchContinuation(
   existingPrefix: string,
   draft: DraftOutput,
   fallbackTitle: string,
 ): DraftOutput {
-  const trimmedPrefix = existingPrefix.trim();
-  const trimmedBody = draft.body.trim();
-  const headProbe = trimmedPrefix.slice(0, Math.min(80, trimmedPrefix.length));
+  const trimmedPrefix = normalizeLineEndings(existingPrefix).trim();
+  const trimmedBody = normalizeLineEndings(draft.body).trim();
   const title = draft.title.trim() || fallbackTitle;
-  if (headProbe.length > 0 && trimmedBody.startsWith(headProbe)) {
+  if (!trimmedPrefix) {
     return { title, body: trimmedBody };
   }
+  if (trimmedBody.startsWith(trimmedPrefix)) {
+    return { title, body: trimmedBody };
+  }
+  const tailAnchor =
+    trimmedPrefix.length > CONTINUATION_ANCHOR_CHARS
+      ? trimmedPrefix.slice(-CONTINUATION_ANCHOR_CHARS).trim()
+      : "";
+  const rest =
+    tailAnchor && trimmedBody.startsWith(tailAnchor)
+      ? trimmedBody.slice(tailAnchor.length).trimStart()
+      : trimmedBody;
   return {
     title,
-    body: `${trimmedPrefix}\n\n${trimmedBody}`,
+    body: rest ? `${trimmedPrefix}\n\n${rest}` : trimmedPrefix,
   };
 }
 
@@ -79,12 +100,12 @@ export async function prepareChapterContext(
   const prevRecord = bible.chapters
     .filter((c) => c.position < position)
     .sort((a, b) => b.position - a.position)[0];
-  const hits = bibleStore.match(view, [outlineText, prevRecord?.summary ?? ""]);
 
   const chapters = await listChapters(ctx.target.path);
   const previous = chapters.filter((chapter) => chapter.position < position).at(-1);
   let previousBody: string | undefined;
   let derivedFrom: DerivedFrom | undefined;
+  let useFormalPrevSummary = true;
   if (previous) {
     if (req.previousCandidateId) {
       const prevCand = await readCandidate(ctx.target.path, previous.id, req.previousCandidateId);
@@ -93,12 +114,34 @@ export async function prepareChapterContext(
         kind: "candidate",
         chapterId: previous.id,
         candidateId: req.previousCandidateId,
+        sourceHash: sha256(prevCand.body),
       };
+      useFormalPrevSummary = false;
     } else {
-      previousBody = (await readChapter(ctx.target.path, previous.id)).body;
-      derivedFrom = { kind: "final", chapterId: previous.id };
+      const prevDoc = await readChapter(ctx.target.path, previous.id);
+      previousBody = prevDoc.body;
+      const prevKind: DerivedFrom["kind"] =
+        prevDoc.meta.status === "final"
+          ? "final"
+          : prevDoc.meta.status === "reviewed"
+            ? "reviewed"
+            : "drafted";
+      derivedFrom = {
+        kind: prevKind,
+        chapterId: previous.id,
+        sourceHash: sha256(prevDoc.body),
+      };
     }
   }
+
+  const prevSummary = useFormalPrevSummary ? prevRecord?.summary : undefined;
+  const prevHandoff =
+    useFormalPrevSummary && prevRecord ? JSON.stringify(prevRecord.handoff) : undefined;
+  const hits = bibleStore.match(view, [
+    outlineText,
+    prevSummary ?? "",
+    previousBody?.slice(-600) ?? "",
+  ]);
 
   const foundation = await readJson(
     path.join(ctx.target.path, "plan/foundation.json"),
@@ -157,6 +200,17 @@ export async function prepareChapterContext(
   const grade = req.grade ?? workMeta?.grade ?? "standard";
   const prevModeSetting = workMeta?.settings.previousTextMode ?? "auto";
   const inputBudget = ctx.budget?.inputBudget ?? DEFAULT_INPUT_BUDGET;
+  const continueText = existingPrefix
+    ? [
+        "【半章断点续写指令】",
+        "以下为本章已写前缀的末尾锚点（完整前缀已锁定不可改动）。请紧接最后一句无缝续写后半段，不要复述已有段落，补足冲突推进与章末钩子：",
+        "",
+        existingPrefix.slice(-CONTINUATION_ANCHOR_CHARS),
+      ].join("\n")
+    : undefined;
+  const continueTokens = continueText ? Math.ceil(continueText.length / 2) : 0;
+  const contextBudget = Math.max(800, inputBudget - continueTokens);
+  let appliedCardIds: string[] = [];
 
   const packet = buildChapterContext({
     chapterId: req.chapterId,
@@ -164,7 +218,7 @@ export async function prepareChapterContext(
     outlineText,
     authorNote: req.note,
     brief: req.brief,
-    previousSummary: prevRecord?.summary,
+    previousSummary: prevSummary,
     previousBody,
     bookPlan: {
       title: workMeta?.title,
@@ -172,7 +226,7 @@ export async function prepareChapterContext(
       currentVolume: volume ? { ...volume, summary: volume.summary ?? "" } : undefined,
     },
     referenceCards,
-    previousHandoff: prevRecord ? JSON.stringify(prevRecord.handoff) : undefined,
+    previousHandoff: prevHandoff,
     bible,
     view,
     hits,
@@ -180,28 +234,24 @@ export async function prepareChapterContext(
       .filter((c) => c.position < position)
       .slice(-10)
       .map((c) => ({ position: c.position, summary: c.summary })),
-    budget: inputBudget,
+    budget: contextBudget,
     previousTextMode: resolvePreviousTextMode(prevModeSetting, grade),
+    onIncludedCards: (ids) => {
+      appliedCardIds = ids;
+    },
   });
 
-  if (existingPrefix) {
-    const tailAnchor = existingPrefix.slice(-CONTINUATION_ANCHOR_CHARS);
-    const continueText = [
-      "【半章断点续写指令】",
-      "以下为本章已写前缀的末尾锚点（完整前缀已锁定不可改动）。请紧接最后一句无缝续写后半段，不要复述已有段落，补足冲突推进与章末钩子：",
-      "",
-      tailAnchor,
-    ].join("\n");
+  if (continueText) {
     packet.suffix.push({
       id: "continue-prefix",
       layer: 0,
       text: continueText,
       required: true,
-      tokens: Math.ceil(continueText.length / 2),
+      tokens: continueTokens,
       reason: "半章断点续写末尾锚点",
       source: { kind: "chapter", ref: `${req.chapterId}:tail` },
     });
-    packet.estimate += Math.ceil(continueText.length / 2);
+    packet.estimate += continueTokens;
   }
 
   return {
@@ -210,7 +260,7 @@ export async function prepareChapterContext(
     position,
     outlineText,
     grade,
-    appliedCardIds: referenceCards.map((c) => c.id),
+    appliedCardIds,
     existingPrefix,
     existingTitle: parsedChapter?.meta.title || req.chapterId,
     derivedFrom,

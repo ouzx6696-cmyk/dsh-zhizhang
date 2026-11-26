@@ -13,7 +13,7 @@ import {
 } from "@zhizhang/core/pipeline";
 import { createBibleStore } from "../../bible/store.js";
 import { MAX_EDITOR_REJECTIONS } from "../../domain/status.js";
-import { prepareChapterContext, stitchContinuation } from "./prepare.js";
+import { prepareChapterContext, stitchContinuation, verifyLockedPrefix } from "./prepare.js";
 import { gateDraft } from "./rules.js";
 import {
   ChapterPipelineReq,
@@ -180,6 +180,23 @@ export const chapterPipeline: PipelineDefinition<
       editorRejections = round;
       ctx.state.pendingIssues = combinedIssues;
       const revised = await runner.stage(makeReviseStage(round), packet);
+      if (prepared.existingPrefix && !verifyLockedPrefix(prepared.existingPrefix, revised.body)) {
+        latestReview = {
+          verdict: "reject",
+          issues: [
+            ...combinedIssues,
+            {
+              kind: "continuity",
+              quote: "",
+              issue: `第 ${round} 轮修稿改动了已锁定的半章前缀`,
+              fix: "已回退保留上一版通过门禁的候选稿，请作者审阅并决定是否手工调整",
+            },
+          ],
+          summary: `${latestReview.summary}（第 ${round} 轮修稿改动了已锁定前缀，已回退保留上一版候选稿）`,
+        };
+        editorPass = false;
+        break;
+      }
       const revisedGate = await runner.local(`gate-revise-${round}`, async () =>
         gateDraft(revised, { targetWords: prepared.targetWords }),
       );

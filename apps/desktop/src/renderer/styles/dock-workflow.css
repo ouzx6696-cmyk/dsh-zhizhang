@@ -384,13 +384,7 @@
 }
 
 .zz-history__list li {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: var(--zz-space-2);
-  min-height: 30px;
   border-bottom: 1px solid var(--zz-border);
-  font-size: var(--zz-text-caption);
 }
 
 .zz-history__time {

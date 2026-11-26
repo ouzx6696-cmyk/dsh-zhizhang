@@ -6,6 +6,7 @@ export interface ClaimCandidate {
   kind: "number" | "date" | "quote" | "entity";
   paragraphHash: string;
   sourceId?: string;
+  sourceHash?: string;
   evidence?: string;
   status: "supported" | "unsupported" | "unlocated";
 }

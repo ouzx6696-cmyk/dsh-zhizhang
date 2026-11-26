@@ -36,6 +36,7 @@ export const DeliverArticleReq = obj({
   articleDir: str({ min: 1 }),
   title: str({ min: 1 }),
   body: str({ min: 1 }),
+  expectedRevision: opt(str()),
   ledgerPath: opt(str({ min: 1 })),
   cardPath: opt(str({ min: 1 })),
   scriptsDir: opt(str()),
@@ -88,8 +89,28 @@ export async function transitionArticleCommand(
   lock: LockService = createLockService(systemClock),
 ): Promise<{ status: ArticleStatus; meta: ArticleMeta }> {
   const input = TransitionArticleReq(rawInput);
-  const meta = await transitionArticleStatus(input.articleDir, input.to, systemClock.iso(), lock);
-  return { status: meta.status, meta };
+  if (input.to === "已交稿") {
+    throw new AppError("gate.denied", "请通过「生成交稿单」执行交稿，禁止直接流转到已交稿", {
+      to: input.to,
+    });
+  }
+  return lock.write({ kind: "article", path: input.articleDir }, async () => {
+    let acceptedRevision: string | null | undefined;
+    if (input.to === "已验收") {
+      const latest = await readLatestDraftFile(input.articleDir);
+      acceptedRevision = latest ? sha256(latest.text).slice(0, 12) : undefined;
+    } else {
+      acceptedRevision = null;
+    }
+    const meta = await transitionArticleStatus(
+      input.articleDir,
+      input.to,
+      systemClock.iso(),
+      lock,
+      { acceptedRevision },
+    );
+    return { status: meta.status, meta };
+  });
 }
 
 export async function deliverArticleCommand(
@@ -105,6 +126,20 @@ export async function deliverArticleCommand(
       return { deliveryPath: path.join(input.articleDir, "交稿单.md"), status: meta.status };
     }
     assertArticleTransition(meta.status, "已交稿");
+    const latest = await readLatestDraftFile(input.articleDir);
+    const latestRev = latest ? sha256(latest.text).slice(0, 12) : "";
+    if (input.expectedRevision !== undefined && input.expectedRevision !== latestRev) {
+      throw new AppError("storage.conflict", "草稿版本已变更，请刷新后再交稿", {
+        expected: input.expectedRevision,
+        actual: latestRev,
+      });
+    }
+    if (meta.acceptedRevision && latestRev && meta.acceptedRevision !== latestRev) {
+      throw new AppError("storage.conflict", "草稿在验收后已发生变更，请重新验收后再交稿", {
+        acceptedRevision: meta.acceptedRevision,
+        actualRevision: latestRev,
+      });
+    }
     const cardPath = input.cardPath ?? path.join(input.articleDir, "card.json");
     const cardExists = await fs.access(cardPath).then(
       () => true,
@@ -145,6 +180,7 @@ export async function deliverArticleCommand(
       input.body,
       nowIso,
       lock,
+      latestRev || undefined,
     );
     return { deliveryPath, status: "已交稿", ...(ledger ? { ledger } : {}) };
   });
@@ -166,6 +202,8 @@ export async function registerSourceCommand(
   return { sourceId: input.sourceId };
 }
 
+const CardTitlePreviewSchema = obj({ 主标题: opt(str()) }, { strict: false });
+
 export async function listArticleRowsCommand(root: string): Promise<{ rows: ArticleRowView[] }> {
   const entries = await fs.readdir(root, { withFileTypes: true }).catch(() => []);
   const rows: ArticleRowView[] = [];
@@ -176,17 +214,12 @@ export async function listArticleRowsCommand(root: string): Promise<{ rows: Arti
       () => undefined,
     );
     if (!meta) continue;
-    const cardRaw = await readTextIfExists(path.join(articleDir, "card.json"));
     let title = meta.chosenTitle ?? meta.id;
-    if (!meta.chosenTitle && cardRaw) {
-      try {
-        const card = JSON.parse(cardRaw) as Record<string, unknown>;
-        if (typeof card["主标题"] === "string" && card["主标题"].trim()) {
-          title = card["主标题"].trim();
-        }
-      } catch {
-        // ignore invalid card preview
-      }
+    if (!meta.chosenTitle) {
+      const card = await readJson(path.join(articleDir, "card.json"), CardTitlePreviewSchema).catch(
+        () => undefined,
+      );
+      if (card?.主标题?.trim()) title = card.主标题.trim();
     }
     const updatedAt = meta.history.at(-1)?.at ?? "";
     rows.push({
@@ -249,6 +282,13 @@ export async function saveDraftCommand(
 ): Promise<{ draftPath: string; revision: string; chars: number }> {
   const input = SaveDraftReq(rawInput);
   return lock.write({ kind: "article", path: input.articleDir }, async () => {
+    const metaFile = path.join(input.articleDir, "meta.json");
+    const meta = await readJson(metaFile, ArticleMetaSchema).catch(() => undefined);
+    if (meta?.status === "已交稿") {
+      throw new AppError("gate.denied", "文章已交稿，禁止直接修改交稿前草稿", {
+        status: meta.status,
+      });
+    }
     const latest = await readLatestDraftFile(input.articleDir);
     const latestRevision = latest ? sha256(latest.text).slice(0, 12) : "";
     if (input.revision !== undefined && input.revision !== latestRevision) {
@@ -258,6 +298,7 @@ export async function saveDraftCommand(
       });
     }
     const text = `${input.title?.trim() ? `# ${input.title.trim()}\n\n` : ""}${input.body.trim()}\n`;
+    const nextRevision = sha256(text).slice(0, 12);
     const existing = (
       await fs.readdir(path.join(input.articleDir, "drafts")).catch(() => [])
     ).filter((n) => /^rev-\d{3,}\.md$/.test(n));
@@ -268,9 +309,18 @@ export async function saveDraftCommand(
       `rev-${String(next).padStart(3, "0")}.md`,
     );
     await atomicWrite(draftPath, text);
+    if (meta && meta.status === "已验收" && nextRevision !== latestRevision) {
+      const rolledBack: ArticleMeta = {
+        ...meta,
+        status: "初稿待改",
+        acceptedRevision: undefined,
+        history: [...meta.history, { to: "初稿待改", at: systemClock.iso() }],
+      };
+      await atomicWrite(metaFile, JSON.stringify(rolledBack, null, 2));
+    }
     return {
       draftPath,
-      revision: sha256(text).slice(0, 12),
+      revision: nextRevision,
       chars: text.replace(/\s+/g, "").length,
     };
   });

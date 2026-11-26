@@ -2,7 +2,12 @@ import React, { useState } from "react";
 import { COPY, DESKTOP_COPY as C } from "@zhizhang/ui/copy";
 import { Button, Dialog, Segmented } from "@zhizhang/ui/primitives";
 import type { EngineSettings } from "../../../shared/settings";
-import { createArticle, createWork, importLegacyWork } from "../../state/controller";
+import {
+  createArticle,
+  createWork,
+  importLegacyWork,
+  previewLegacyWork,
+} from "../../state/controller";
 import { desktopStore, useDesktop, type CreateKind } from "../../state/store";
 import { notifyError } from "../../format";
 import { TextField } from "../workspace/TextField";
@@ -10,6 +15,8 @@ import { TextField } from "../workspace/TextField";
 type Grade = EngineSettings["grade"];
 type FanqieCreateMode = "new" | "import";
 type LegacySourceKind = "single_txt" | "folder";
+type LegacyChapterStatus = "drafted" | "final";
+type LegacyPreview = NonNullable<Awaited<ReturnType<typeof previewLegacyWork>>>;
 
 const GRADES: readonly Grade[] = ["economy", "standard", "premium"];
 
@@ -21,6 +28,9 @@ export function NewTargetDialog({ kind }: { kind: CreateKind }) {
   const [premise, setPremise] = useState("");
   const [sourceKind, setSourceKind] = useState<LegacySourceKind>("single_txt");
   const [sourcePath, setSourcePath] = useState("");
+  const [chapterStatus, setChapterStatus] = useState<LegacyChapterStatus>("drafted");
+  const [preview, setPreview] = useState<LegacyPreview | null>(null);
+  const [previewing, setPreviewing] = useState(false);
   const [grade, setGrade] = useState<Grade>(defaultGrade);
   const [genre, setGenre] = useState<string>(C.create.genreDefault);
   const [driver, setDriver] = useState<string>(C.create.driverDefault);
@@ -32,6 +42,19 @@ export function NewTargetDialog({ kind }: { kind: CreateKind }) {
       ? title.trim() !== "" && sourcePath.trim() !== ""
       : title.trim() !== ""
     : genre.trim() !== "" && driver.trim() !== "";
+  const runPreview = async () => {
+    const trimmed = sourcePath.trim();
+    if (!trimmed) return;
+    setPreviewing(true);
+    try {
+      setPreview(await previewLegacyWork({ sourcePath: trimmed, sourceKind }));
+    } catch (error) {
+      setPreview(null);
+      notifyError(error);
+    } finally {
+      setPreviewing(false);
+    }
+  };
   const submit = async () => {
     setBusy(true);
     try {
@@ -41,6 +64,7 @@ export function NewTargetDialog({ kind }: { kind: CreateKind }) {
           sourcePath: sourcePath.trim(),
           sourceKind,
           grade,
+          chapterStatus,
         });
       } else if (fanqie) {
         await createWork({ title: title.trim(), premise, grade });
@@ -112,16 +136,72 @@ export function NewTargetDialog({ kind }: { kind: CreateKind }) {
                   { value: "single_txt", label: C.create.importSingleTxt },
                   { value: "folder", label: C.create.importFolder },
                 ]}
-                onChange={setSourceKind}
+                onChange={(next) => {
+                  setSourceKind(next);
+                  setPreview(null);
+                }}
               />
               <TextField
                 label={C.create.importSourcePath}
                 value={sourcePath}
-                onChange={setSourcePath}
+                onChange={(next) => {
+                  setSourcePath(next);
+                  setPreview(null);
+                }}
                 testId="import-source-path"
                 required
                 placeholder={C.create.importSourcePlaceholder}
+                hint={C.create.importSourceHint}
               />
+              <Segmented<LegacyChapterStatus>
+                label={C.create.importStatusLabel}
+                testId="import-chapter-status"
+                value={chapterStatus}
+                options={[
+                  { value: "drafted", label: C.create.importStatusDrafted },
+                  { value: "final", label: C.create.importStatusFinal },
+                ]}
+                onChange={setChapterStatus}
+              />
+              <div className="zz-row">
+                <Button
+                  size="sm"
+                  data-testid="import-preview-btn"
+                  loading={previewing}
+                  disabled={!sourcePath.trim() || previewing}
+                  onClick={() => void runPreview()}
+                >
+                  {C.create.importPreviewAction}
+                </Button>
+              </div>
+              {preview ? (
+                <div className="zz-stack" data-testid="import-preview-result">
+                  <p className="zz-muted">
+                    {C.create.importPreviewSummary(
+                      preview.chapterCount,
+                      preview.totalWords,
+                      preview.encoding,
+                    )}
+                  </p>
+                  {preview.hasPrelude ? (
+                    <p className="zz-muted">
+                      {C.create.importPreviewPrelude(preview.preludeChars)}
+                    </p>
+                  ) : null}
+                  {preview.emptyHeadings.length > 0 ? (
+                    <p className="zz-muted">
+                      {C.create.importPreviewEmpty(preview.emptyHeadings.length)}
+                    </p>
+                  ) : null}
+                  <ul className="zz-muted">
+                    {preview.chapters.slice(0, 5).map((ch) => (
+                      <li key={ch.chapterId}>
+                        {ch.chapterId} · {ch.title}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </>
           ) : (
             <TextField

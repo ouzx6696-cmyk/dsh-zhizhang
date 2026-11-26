@@ -12,17 +12,19 @@ export type WritingBrief = Infer<typeof WritingBriefSchema>;
 
 export const DerivedFromSchema = obj(
   {
-    kind: lit("final", "candidate"),
+    kind: lit("final", "reviewed", "drafted", "candidate"),
     chapterId: str({ min: 1 }),
     candidateId: opt(str({ min: 1 })),
+    sourceHash: opt(str({ min: 1 })),
   },
   { strict: false },
 );
 
 export interface DerivedFrom {
-  kind: "final" | "candidate";
+  kind: "final" | "reviewed" | "drafted" | "candidate";
   chapterId: string;
   candidateId?: string;
+  sourceHash?: string;
 }
 
 export const ChapterPipelineReq = obj({

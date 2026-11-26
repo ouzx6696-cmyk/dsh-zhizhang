@@ -1,5 +1,5 @@
 /**
- * WorkbenchCommand 输入边界校验表（44 条命令与 WorkbenchCommand 编译期一一对应）。
+ * WorkbenchCommand 输入边界校验表（50 条命令与 WorkbenchCommand 编译期一一对应）。
  */
 import { AppError } from "@zhizhang/core/errors";
 import { arr, bool, int, lit, num, obj, opt, str, type Parser } from "@zhizhang/core/schema";
@@ -79,7 +79,7 @@ export const COMMAND_INPUTS: { [K in WorkbenchCommand]: Parser<CommandInput<K>> 
     body: str({ max: 2_000_000 }),
     title: opt(str({ max: 100, trim: true })),
   }),
-  "fanqie.chapter.finalize": obj({ work: id, chapter: id }),
+  "fanqie.chapter.finalize": obj({ work: id, chapter: id, base: opt(str()) }),
   "fanqie.candidate.list": obj({ work: id, chapter: opt(id) }),
   "fanqie.candidate.get": obj({ work: id, chapter: id, candidateId: id }),
   "fanqie.candidate.accept": obj({ work: id, chapter: id, candidateId: id, base: str() }),
@@ -97,12 +97,18 @@ export const COMMAND_INPUTS: { [K in WorkbenchCommand]: Parser<CommandInput<K>> 
     premise: str({ max: 20000 }),
     grade,
   }),
+  "fanqie.work.previewLegacy": obj({
+    root: id,
+    sourcePath: id,
+    sourceKind: lit("single_txt", "folder"),
+  }),
   "fanqie.work.importLegacy": obj({
     root: id,
     title: str({ min: 1, max: 100, trim: true }),
     sourcePath: id,
     sourceKind: lit("single_txt", "folder"),
     grade: opt(grade),
+    chapterStatus: opt(lit("drafted", "final")),
   }),
   "fanqie.work.settings": obj({
     work: id,
@@ -141,6 +147,7 @@ export const COMMAND_INPUTS: { [K in WorkbenchCommand]: Parser<CommandInput<K>> 
     articleDir: id,
     title: str({ min: 1, max: 200 }),
     body: str({ min: 1, max: 400_000 }),
+    expectedRevision: opt(str()),
   }),
   "toutiao.article.export": obj({
     articleDir: id,

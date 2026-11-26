@@ -21,6 +21,18 @@ function parseChapterPosition(id: string): number {
   return m ? Number.parseInt(m[1], 10) : 0;
 }
 
+export function chapterDocToRow(doc: ChapterDocument, fallbackId = doc.meta.id): ChapterRowView {
+  const id = doc.meta.id || fallbackId;
+  return {
+    id,
+    title: doc.meta.title || id,
+    position: parseChapterPosition(id),
+    status: doc.meta.status,
+    wordCount: countChineseWords(doc.body),
+    revision: doc.meta.revision,
+  };
+}
+
 export async function listChapters(workPath: string): Promise<ChapterRowView[]> {
   const dir = path.join(workPath, "chapters");
   let files: string[];
@@ -37,15 +49,7 @@ export async function listChapters(workPath: string): Promise<ChapterRowView[]> 
     const id = file.slice(0, -3);
     const raw = await readTextIfExists(path.join(dir, file));
     if (raw === undefined) continue;
-    const doc = parseChapterMarkdown(raw);
-    rows.push({
-      id: doc.meta.id || id,
-      title: doc.meta.title || id,
-      position: parseChapterPosition(doc.meta.id || id),
-      status: doc.meta.status,
-      wordCount: countChineseWords(doc.body),
-      revision: doc.meta.revision,
-    });
+    rows.push(chapterDocToRow(parseChapterMarkdown(raw), id));
   }
   return rows.sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
 }

@@ -260,12 +260,20 @@ test("番茄命令：建书 → 写章 → 候选 → 导出 → 设定集，读
 
   const legacyTxt = path.join(roots.fanqie, "old-sample.txt");
   await fs.writeFile(legacyTxt, "第一章 旧书开局\n\n这是导入的第一章正文内容。", "utf8");
+  const previewed = await run(ctx, mark("fanqie.work.previewLegacy"), {
+    root: roots.fanqie,
+    sourcePath: legacyTxt,
+    sourceKind: "single_txt",
+  });
+  assert.equal(previewed.chapterCount, 1);
+  assert.equal(previewed.encoding, "utf-8");
   const imported = await run(ctx, mark("fanqie.work.importLegacy"), {
     root: roots.fanqie,
     title: "旧书导入样本",
     sourcePath: legacyTxt,
     sourceKind: "single_txt",
     grade: "standard",
+    chapterStatus: "drafted",
   });
   assert.equal(imported.chapterCount, 1);
 
@@ -369,6 +377,32 @@ test("头条命令：建文章 → 登记来源 → 存稿 → 导出 → 状态
     "待验收",
   );
   await run(ctx, "toutiao.article.transition", { articleDir, to: "已验收" });
+  // F07: 即使已验收也不能经由 transition 直接绕过交稿单变更为已交稿
+  await expectCode(
+    run(ctx, "toutiao.article.transition", { articleDir, to: "已交稿" }),
+    "gate.denied",
+  );
+  // F07: 已验收后再修改正文必须自动回退为初稿待改并拒绝直接交稿
+  const draft3 = await run(ctx, "toutiao.draft.save", {
+    articleDir,
+    title: "退休金到手多少",
+    body: "终稿正文。",
+    revision: draft2.revision,
+  });
+  assert.equal(
+    JSON.parse(await fs.readFile(path.join(articleDir, "meta.json"), "utf8")).status,
+    "初稿待改",
+  );
+  await expectCode(
+    run(ctx, "toutiao.article.deliver", {
+      articleDir,
+      title: "退休金到手多少",
+      body: "终稿正文。",
+    }),
+    "gate.denied",
+  );
+  await run(ctx, "toutiao.article.transition", { articleDir, to: "待验收" });
+  await run(ctx, "toutiao.article.transition", { articleDir, to: "已验收" });
   await fs.writeFile(path.join(articleDir, "card.json"), "{}");
   await expectCode(
     run(ctx, "toutiao.article.deliver", {
@@ -391,6 +425,15 @@ test("头条命令：建文章 → 登记来源 → 存稿 → 导出 → 状态
   assert.match(
     await fs.readFile(delivered.deliveryPath, "utf8"),
     /——AI 到此止步。是否采用、何时发布由你决定。\n$/,
+  );
+  // F07: 已交稿文章禁止继续覆盖草稿
+  await expectCode(
+    run(ctx, "toutiao.draft.save", {
+      articleDir,
+      body: "交稿后篡改。",
+      revision: draft3.revision,
+    }),
+    "gate.denied",
   );
 
   const ledgerPath = path.join(roots.toutiao, "ledger.csv");
@@ -575,9 +618,9 @@ test("拆书库命令：导入、列出、读卡；拆解经流水线发起，�
   assert.equal(dissectCalls[0].target.path, roots.library);
 });
 
-test("命令分派覆盖契约里的全部 49 条命令，读写策略齐全，未知命令被拒绝", async () => {
+test("命令分派覆盖契约里的全部 50 条命令，读写策略齐全，未知命令被拒绝", async () => {
   const all = Object.keys(desk.COMMAND_POLICY);
-  assert.equal(all.length, 49);
+  assert.equal(all.length, 50);
   for (const command of all) assert.equal(desk.isWorkbenchCommand(command), true, command);
   assert.deepEqual(
     all.filter((c) => !covered.has(c)),

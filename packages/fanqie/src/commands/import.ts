@@ -2,19 +2,35 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { systemClock, type Clock } from "@zhizhang/core/clock";
 import { AppError } from "@zhizhang/core/errors";
-import { readTextIfExists, resolveInsideAsync, sha256 } from "@zhizhang/core/fs";
+import { atomicWrite, readTextIfExists, resolveInsideAsync, sha256 } from "@zhizhang/core/fs";
 import { commitIntent, type IntentWrite } from "@zhizhang/core/journal";
 import { createLockService, type LockService } from "@zhizhang/core/lock";
 import { FORMAT_VERSION } from "@zhizhang/core/paths";
 import { serializeChapterMarkdown, type ChapterDocument } from "../domain/chapter.js";
 import { countChineseWords } from "../pipelines/chapter/rules.js";
 import type { WorkMeta } from "../storage/work.js";
+import {
+  decodeTextBuffer,
+  decodeTextBufferWithEncoding,
+  extractFilenameOrder,
+  extractMarkdownTitleAndBody,
+  formatChapterId,
+  parseChineseNumber,
+  splitLegacyChapters,
+  splitLegacyChaptersDetailed,
+  type LegacyChapterChunk,
+  type LegacyEncoding,
+} from "./import-parse.js";
 
-export interface LegacyChapterChunk {
-  number: number | null;
-  title: string;
-  body: string;
-}
+export {
+  decodeTextBuffer,
+  decodeTextBufferWithEncoding,
+  parseChineseNumber,
+  splitLegacyChapters,
+  splitLegacyChaptersDetailed,
+  type LegacyChapterChunk,
+  type LegacyEncoding,
+};
 
 export interface ImportLegacyWorkInput {
   worksRoot: string;
@@ -28,6 +44,32 @@ export interface ImportLegacyWorkInput {
   chapterStatus?: "final" | "drafted";
 }
 
+export interface PreviewLegacyWorkInput {
+  sourcePath: string;
+  sourceKind: "single_txt" | "folder";
+  allowedRoot?: string;
+}
+
+export interface PreviewLegacyChapterItem {
+  chapterId: string;
+  originalNumber: number | null;
+  volume?: string;
+  title: string;
+  wordCount: number;
+  kind: "prelude" | "chapter";
+}
+
+export interface PreviewLegacyWorkResult {
+  encoding: LegacyEncoding;
+  totalFiles: number;
+  chapterCount: number;
+  totalWords: number;
+  hasPrelude: boolean;
+  preludeChars: number;
+  emptyHeadings: string[];
+  chapters: PreviewLegacyChapterItem[];
+}
+
 export interface ImportLegacyWorkResult {
   workId: string;
   workPath: string;
@@ -36,148 +78,6 @@ export interface ImportLegacyWorkResult {
   totalWords: number;
   backupDir: string;
   chapterIds: string[];
-}
-
-const CN_DIGITS: Record<string, number> = {
-  零: 0,
-  〇: 0,
-  一: 1,
-  二: 2,
-  两: 2,
-  三: 3,
-  四: 4,
-  五: 5,
-  六: 6,
-  七: 7,
-  八: 8,
-  九: 9,
-};
-
-const CN_UNITS: Record<string, number> = {
-  十: 10,
-  百: 100,
-  千: 1000,
-  万: 10000,
-};
-
-const CHAPTER_HEADING_RE =
-  /^\s*(?:第([零〇一二三四五六七八九十百千万两\d]+)[章节回卷部]\s*(.*)|(?:Chapter|CHAPTER)\s+(\d+)\s*[:：.\-]?\s*(.*))$/;
-
-export function decodeTextBuffer(buf: Uint8Array): string {
-  try {
-    const utf8 = new TextDecoder("utf-8", { fatal: true }).decode(buf);
-    return utf8.replace(/^\uFEFF/, "");
-  } catch {
-    return new TextDecoder("gb18030").decode(buf).replace(/^\uFEFF/, "");
-  }
-}
-
-export function parseChineseNumber(raw: string): number | null {
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-  if (/^\d+$/.test(trimmed)) return Number.parseInt(trimmed, 10);
-
-  let total = 0;
-  let section = 0;
-  let current = 0;
-  let sawValid = false;
-
-  for (const ch of trimmed) {
-    if (ch in CN_DIGITS) {
-      current = CN_DIGITS[ch];
-      sawValid = true;
-    } else if (ch in CN_UNITS) {
-      const unit = CN_UNITS[ch];
-      sawValid = true;
-      if (unit === 10000) {
-        section = (section + current) * unit;
-        total += section;
-        section = 0;
-        current = 0;
-      } else {
-        const factor = current === 0 && unit === 10 && section === 0 ? 1 : current;
-        section += factor * unit;
-        current = 0;
-      }
-    } else {
-      return null;
-    }
-  }
-  return sawValid ? total + section + current : null;
-}
-
-export function splitLegacyChapters(rawText: string): LegacyChapterChunk[] {
-  const normalized = rawText.replace(/\r\n?/g, "\n");
-  const lines = normalized.split("\n");
-  const chunks: Array<{ number: number | null; title: string; lines: string[] }> = [];
-  let current: { number: number | null; title: string; lines: string[] } | null = null;
-  const preludeLines: string[] = [];
-
-  for (const line of lines) {
-    const match = CHAPTER_HEADING_RE.exec(line);
-    if (match) {
-      if (current) chunks.push(current);
-      const rawNum = match[1] ?? match[3] ?? "";
-      const parsedNum = parseChineseNumber(rawNum);
-      const heading = line.trim();
-      current = { number: parsedNum, title: heading, lines: [] };
-    } else if (current) {
-      current.lines.push(line);
-    } else {
-      preludeLines.push(line);
-    }
-  }
-  if (current) chunks.push(current);
-
-  const cleaned = chunks
-    .map((chunk) => ({
-      number: chunk.number,
-      title: chunk.title,
-      body: chunk.lines.join("\n").trim(),
-    }))
-    .filter((chunk) => chunk.body.length > 0);
-
-  if (cleaned.length === 0) {
-    const whole = normalized.trim();
-    if (!whole) return [];
-    return [{ number: 1, title: "第1章", body: whole }];
-  }
-
-  const prelude = preludeLines.join("\n").trim();
-  if (prelude.length >= 200) {
-    return [{ number: 0, title: "楔子", body: prelude }, ...cleaned];
-  }
-  return cleaned;
-}
-
-function formatChapterId(index: number): string {
-  return `C${String(index).padStart(3, "0")}`;
-}
-
-function extractFilenameOrder(filename: string): number {
-  const stem = filename.replace(/\.[^.]+$/, "");
-  const cnMatch = /第([零〇一二三四五六七八九十百千万两\d]+)[章节回]/.exec(stem);
-  if (cnMatch) {
-    const parsed = parseChineseNumber(cnMatch[1]);
-    if (parsed !== null) return parsed;
-  }
-  const numMatch = /(\d+)/.exec(stem);
-  return numMatch ? Number.parseInt(numMatch[1], 10) : Number.MAX_SAFE_INTEGER;
-}
-
-function extractMarkdownTitleAndBody(
-  raw: string,
-  fallbackTitle: string,
-): { title: string; body: string } {
-  const normalized = raw.replace(/\r\n?/g, "\n").trim();
-  const firstBreak = normalized.indexOf("\n");
-  const firstLine = (firstBreak === -1 ? normalized : normalized.slice(0, firstBreak)).trim();
-  if (firstLine.startsWith("# ")) {
-    const title = firstLine.slice(2).trim() || fallbackTitle;
-    const body = firstBreak === -1 ? "" : normalized.slice(firstBreak + 1).trim();
-    return { title, body };
-  }
-  return { title: fallbackTitle, body: normalized };
 }
 
 async function makeIntentWrite(filePath: string, after: string): Promise<IntentWrite> {
@@ -189,17 +89,16 @@ async function makeIntentWrite(filePath: string, after: string): Promise<IntentW
   };
 }
 
-export async function importLegacyWork(
-  input: ImportLegacyWorkInput,
-  lock: LockService = createLockService(systemClock),
-  clock: Clock = systemClock,
-): Promise<ImportLegacyWorkResult> {
-  const workId = input.workId.trim();
-  const title = input.title.trim();
-  if (!workId || !title) {
-    throw new AppError("input.invalid", "作品 ID 与书名不能为空", { field: "title" });
-  }
-
+async function loadLegacySource(input: PreviewLegacyWorkInput): Promise<{
+  resolvedSource: string;
+  encoding: LegacyEncoding;
+  totalFiles: number;
+  hasPrelude: boolean;
+  preludeChars: number;
+  emptyHeadings: string[];
+  chapters: LegacyChapterChunk[];
+  rawBackups: Array<{ filename: string; rawBytes: Uint8Array }>;
+}> {
   const resolvedSource = input.allowedRoot
     ? await resolveInsideAsync(
         input.allowedRoot,
@@ -208,18 +107,13 @@ export async function importLegacyWork(
           : input.sourcePath,
       )
     : path.resolve(input.sourcePath);
-  const workPath = await resolveInsideAsync(input.worksRoot, workId);
 
-  const exists = await fs.stat(workPath).then(
-    () => true,
-    () => false,
-  );
-  if (exists) {
-    throw new AppError("input.invalid", `作品已存在：${title}`, { field: "workId" });
-  }
-
-  const backupEntries: Array<{ filename: string; content: string }> = [];
+  const rawBackups: Array<{ filename: string; rawBytes: Uint8Array }> = [];
   let chapters: LegacyChapterChunk[] = [];
+  let encoding: LegacyEncoding = "utf-8";
+  let hasPrelude = false;
+  let preludeChars = 0;
+  let emptyHeadings: string[] = [];
 
   if (input.sourceKind === "single_txt") {
     const rawBuf = await fs.readFile(resolvedSource).catch(() => {
@@ -227,9 +121,14 @@ export async function importLegacyWork(
         sourcePath: resolvedSource,
       });
     });
-    const decoded = decodeTextBuffer(rawBuf);
-    backupEntries.push({ filename: path.basename(resolvedSource), content: decoded });
-    chapters = splitLegacyChapters(decoded);
+    const decoded = decodeTextBufferWithEncoding(rawBuf);
+    encoding = decoded.encoding;
+    rawBackups.push({ filename: path.basename(resolvedSource), rawBytes: rawBuf });
+    const report = splitLegacyChaptersDetailed(decoded.text);
+    chapters = report.chunks.map((c) => ({ ...c, sourceFilename: path.basename(resolvedSource) }));
+    hasPrelude = report.hasPrelude;
+    preludeChars = report.preludeChars;
+    emptyHeadings = report.emptyHeadings;
   } else {
     const entries = await fs.readdir(resolvedSource, { withFileTypes: true }).catch(() => {
       throw new AppError("input.not_found", `未找到待导入目录：${resolvedSource}`, {
@@ -246,19 +145,93 @@ export async function importLegacyWork(
 
     for (const fileName of textFiles) {
       const fullPath = await resolveInsideAsync(resolvedSource, fileName);
-      const decoded = decodeTextBuffer(await fs.readFile(fullPath));
-      backupEntries.push({ filename: fileName, content: decoded });
+      const rawBuf = await fs.readFile(fullPath);
+      const decoded = decodeTextBufferWithEncoding(rawBuf);
+      if (rawBackups.length === 0 || decoded.encoding === "gb18030") {
+        encoding = decoded.encoding;
+      }
+      rawBackups.push({ filename: fileName, rawBytes: rawBuf });
       const stem = fileName.replace(/\.(?:md|txt)$/i, "");
-      const { title: chTitle, body } = extractMarkdownTitleAndBody(decoded, stem);
+      const { title: chTitle, body } = extractMarkdownTitleAndBody(decoded.text, stem);
       if (body.length > 0) {
-        chapters.push({ number: extractFilenameOrder(fileName), title: chTitle, body });
+        chapters.push({
+          number: extractFilenameOrder(fileName),
+          title: chTitle,
+          body,
+          kind: "chapter",
+          sourceFilename: fileName,
+        });
+      } else {
+        emptyHeadings.push(fileName);
       }
     }
   }
 
-  if (chapters.length === 0) {
+  return {
+    resolvedSource,
+    encoding,
+    totalFiles: rawBackups.length,
+    hasPrelude,
+    preludeChars,
+    emptyHeadings,
+    chapters,
+    rawBackups,
+  };
+}
+
+export async function previewLegacyWork(
+  input: PreviewLegacyWorkInput,
+): Promise<PreviewLegacyWorkResult> {
+  const loaded = await loadLegacySource(input);
+  let totalWords = 0;
+  const chapters: PreviewLegacyChapterItem[] = loaded.chapters.map((chunk, i) => {
+    const wordCount = countChineseWords(chunk.body);
+    totalWords += wordCount;
+    return {
+      chapterId: formatChapterId(i + 1),
+      originalNumber: chunk.number,
+      ...(chunk.volume ? { volume: chunk.volume } : {}),
+      title: chunk.title,
+      wordCount,
+      kind: chunk.kind ?? "chapter",
+    };
+  });
+  return {
+    encoding: loaded.encoding,
+    totalFiles: loaded.totalFiles,
+    chapterCount: chapters.length,
+    totalWords,
+    hasPrelude: loaded.hasPrelude,
+    preludeChars: loaded.preludeChars,
+    emptyHeadings: loaded.emptyHeadings,
+    chapters,
+  };
+}
+
+export async function importLegacyWork(
+  input: ImportLegacyWorkInput,
+  lock: LockService = createLockService(systemClock),
+  clock: Clock = systemClock,
+): Promise<ImportLegacyWorkResult> {
+  const workId = input.workId.trim();
+  const title = input.title.trim();
+  if (!workId || !title) {
+    throw new AppError("input.invalid", "作品 ID 与书名不能为空", { field: "title" });
+  }
+
+  const workPath = await resolveInsideAsync(input.worksRoot, workId);
+  const exists = await fs.stat(workPath).then(
+    () => true,
+    () => false,
+  );
+  if (exists) {
+    throw new AppError("input.invalid", `作品已存在：${title}`, { field: "workId" });
+  }
+
+  const loaded = await loadLegacySource(input);
+  if (loaded.chapters.length === 0) {
     throw new AppError("input.invalid", "未在导入源中识别到有效章节正文", {
-      sourcePath: resolvedSource,
+      sourcePath: loaded.resolvedSource,
     });
   }
 
@@ -301,14 +274,18 @@ export async function importLegacyWork(
       fs.mkdir(backupDir, { recursive: true }),
     ]);
 
-    const writes: IntentWrite[] = [];
-    writes.push(
+    for (const entry of loaded.rawBackups) {
+      const backupFile = await resolveInsideAsync(backupDir, path.basename(entry.filename));
+      await atomicWrite(backupFile, entry.rawBytes);
+    }
+
+    const writes: IntentWrite[] = [
       await makeIntentWrite(path.join(workPath, "work.json"), JSON.stringify(meta, null, 2)),
       await makeIntentWrite(
         path.join(workPath, "plan", "structure.json"),
         JSON.stringify([], null, 2),
       ),
-    );
+    ];
 
     const emptyStyle = { contract: "", rules: [], voiceSamples: [] };
     const bibleEmptyFiles: Array<[string, string]> = [
@@ -341,11 +318,22 @@ export async function importLegacyWork(
     );
     writes.push(await makeIntentWrite(path.join(workPath, "bible", "index.json"), indexJson));
 
-    for (let i = 0; i < chapters.length; i++) {
-      const chunk = chapters[i];
+    const manifestChapters: Array<Record<string, unknown>> = [];
+    for (let i = 0; i < loaded.chapters.length; i++) {
+      const chunk = loaded.chapters[i];
       const chapterId = formatChapterId(i + 1);
+      const wordCount = countChineseWords(chunk.body);
       chapterIds.push(chapterId);
-      totalWords += countChineseWords(chunk.body);
+      totalWords += wordCount;
+      manifestChapters.push({
+        chapterId,
+        originalNumber: chunk.number,
+        ...(chunk.volume ? { volume: chunk.volume } : {}),
+        title: chunk.title,
+        wordCount,
+        kind: chunk.kind ?? "chapter",
+        ...(chunk.sourceFilename ? { sourceFilename: chunk.sourceFilename } : {}),
+      });
       const doc: ChapterDocument = {
         meta: {
           id: chapterId,
@@ -364,10 +352,23 @@ export async function importLegacyWork(
       );
     }
 
-    for (const entry of backupEntries) {
-      const backupFile = await resolveInsideAsync(backupDir, path.basename(entry.filename));
-      writes.push(await makeIntentWrite(backupFile, entry.content));
-    }
+    const manifest = {
+      format: FORMAT_VERSION,
+      importedAt: nowIso,
+      sourceKind: input.sourceKind,
+      encoding: loaded.encoding,
+      chapterStatus,
+      hasPrelude: loaded.hasPrelude,
+      preludeChars: loaded.preludeChars,
+      emptyHeadings: loaded.emptyHeadings,
+      chapters: manifestChapters,
+    };
+    writes.push(
+      await makeIntentWrite(
+        path.join(backupDir, "import-manifest.json"),
+        JSON.stringify(manifest, null, 2),
+      ),
+    );
 
     await commitIntent(
       path.join(workPath, ".journal"),
@@ -378,7 +379,7 @@ export async function importLegacyWork(
         meta: {
           operation: "fanqie.work.importLegacy",
           sourceKind: input.sourceKind,
-          chapterCount: String(chapters.length),
+          chapterCount: String(loaded.chapters.length),
         },
       },
       lock,
@@ -390,7 +391,7 @@ export async function importLegacyWork(
     workId,
     workPath,
     title,
-    chapterCount: chapters.length,
+    chapterCount: loaded.chapters.length,
     totalWords,
     backupDir,
     chapterIds,

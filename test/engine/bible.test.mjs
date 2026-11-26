@@ -133,3 +133,67 @@ test("bible store supports propose/decide, asOf windowing, alias matching, and t
     await fs.rm(workDir, { recursive: true, force: true });
   }
 });
+
+test("bible.asOf keeps paid threads open before pay-beat chapter and hides future ledger entities", () => {
+  const clock = createFakeClock();
+  const store = createBibleStore(createLockService(clock));
+  const bible = {
+    entities: [
+      {
+        id: "ent-author",
+        kind: "character",
+        name: "初始角色",
+        aliases: [],
+        summary: "作者设定",
+        locked: [],
+        provenance: { source: "author", at: clock.iso() },
+      },
+      {
+        id: "ent-future",
+        kind: "character",
+        name: "五十章反派",
+        aliases: [],
+        summary: "第50章记账登场",
+        locked: [],
+        provenance: { source: "ledger", chapter: 50, at: clock.iso() },
+      },
+    ],
+    states: [],
+    threads: [
+      {
+        id: "th-long",
+        title: "百年秘钥",
+        kind: "foreshadow",
+        opened: 100,
+        beats: [
+          { chapter: 100, kind: "plant", note: "埋下秘钥" },
+          { chapter: 200, kind: "pay", note: "彻底揭晓" },
+        ],
+        status: "paid",
+      },
+    ],
+    knowledge: [],
+    chapters: [],
+    style: { contract: "", rules: [], voiceSamples: [] },
+    pending: [],
+  };
+
+  const view30 = store.asOf(bible, 30);
+  assert.deepEqual(
+    view30.entities.map((e) => e.id),
+    ["ent-author"],
+  );
+  const view50 = store.asOf(bible, 50);
+  assert.deepEqual(
+    view50.entities.map((e) => e.id),
+    ["ent-author", "ent-future"],
+  );
+
+  const view150 = store.asOf(bible, 150);
+  assert.deepEqual(
+    view150.threads.map((t) => t.id),
+    ["th-long"],
+  );
+  const view200 = store.asOf(bible, 200);
+  assert.deepEqual(view200.threads, []);
+});

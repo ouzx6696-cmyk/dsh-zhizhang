@@ -1,3 +1,5 @@
+import { sha256 } from "@zhizhang/core/fs";
+
 export interface EarlyChapterDoc {
   chapter: string;
   position: number;
@@ -41,7 +43,7 @@ const tokenCache = new Map<string, TokenizedDoc>();
 
 function getTokenizedDoc(doc: EarlyChapterDoc): TokenizedDoc {
   const body = doc.body ?? "";
-  const key = `${doc.chapter}:${doc.position}:${doc.summary.length}:${body.length}:${doc.summary.slice(0, 32)}`;
+  const key = `${doc.chapter}:${doc.position}:${sha256(`${doc.summary}\0${body}`)}`;
   const cached = tokenCache.get(key);
   if (cached) return cached;
   const terms = tokenize2Grams(`${doc.summary}\n${body}`);

@@ -13,6 +13,7 @@ import { buildDeliveryMarker, isAlreadyDelivered } from "@zhizhang/core/pipeline
 import { arr, int, lit, obj, opt, parseJson, str, type Infer } from "@zhizhang/core/schema";
 import { createBibleStore, type ProposeOpMeta } from "../../bible/store.js";
 import type { BibleOp, PendingItem, SettlementKind } from "../../bible/types.js";
+import { listChapters } from "../../commands/chapter.js";
 import { parseChapterMarkdown } from "../../domain/chapter.js";
 
 export const LedgerReq = obj({
@@ -209,7 +210,17 @@ export const ledgerPipeline: PipelineDefinition<LedgerInput, LedgerResult> = {
       const doc = parseChapterMarkdown(raw);
       const bible = await bibleStore.read(ctx.target.path);
       const existing = bible.chapters.find((c) => c.chapter === req.chapterId);
-      const position = req.position ?? existing?.position ?? bible.chapters.length + 1;
+      const listed = existing
+        ? undefined
+        : (await listChapters(ctx.target.path)).find((c) => c.id === req.chapterId);
+      const parsedFromId = Number(/\d+/.exec(req.chapterId)?.[0]);
+      const position =
+        req.position ??
+        existing?.position ??
+        (listed && listed.position > 0 ? listed.position : undefined) ??
+        (Number.isFinite(parsedFromId) && parsedFromId > 0
+          ? parsedFromId
+          : bible.chapters.length + 1);
       return { body: doc.body, title: doc.meta.title || req.chapterId, position };
     });
 

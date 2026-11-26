@@ -42,11 +42,11 @@
   display: none;
 }
 
-/* 双卡同屏：上方流水线卡按内容自适应（最多 46%），下方只读助手卡占满剩余高度。 */
+/* 双卡同屏：上方流水线卡按内容自适应（最多 54%），下方只读助手卡占满剩余高度。 */
 .zz-dock__split {
   display: grid;
   flex: 1;
-  grid-template-rows: fit-content(46%) minmax(0, 1fr);
+  grid-template-rows: fit-content(54%) minmax(0, 1fr);
   grid-template-columns: minmax(0, 1fr);
   gap: var(--zz-space-3);
   min-height: 0;
@@ -71,7 +71,7 @@
 .zz-dock__card-body {
   flex: 1;
   min-height: 0;
-  padding: var(--zz-space-4);
+  padding: var(--zz-space-3) var(--zz-space-4);
   overflow-y: auto;
 }
 
@@ -86,20 +86,84 @@
 .zz-workflow {
   display: flex;
   flex-direction: column;
-  gap: var(--zz-space-3);
+  gap: var(--zz-space-2);
 }
 
 .zz-workflow .zz-empty {
-  padding: var(--zz-space-2) var(--zz-space-1) var(--zz-space-1);
+  padding: var(--zz-space-1) var(--zz-space-1) 0;
+}
+
+.zz-workflow__intro {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: var(--zz-space-1);
+}
+
+.zz-workflow__intro strong {
+  color: var(--zz-title);
+  font-size: var(--zz-text-body);
+  font-weight: var(--zz-weight-strong);
+  line-height: 1.35;
+}
+
+.zz-workflow__intro span {
+  color: var(--zz-text-3);
+  font-size: var(--zz-text-caption);
+  line-height: 1.45;
+}
+
+.zz-workflow__opts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--zz-space-1) 0;
+}
+
+.zz-workflow__opt {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  color: var(--zz-text-2);
+  font-size: var(--zz-text-caption);
+  line-height: 1.45;
+  cursor: pointer;
+}
+
+.zz-workflow__opt input {
+  flex: none;
+  margin-top: 2px;
+  accent-color: var(--zz-text-1);
 }
 
 .zz-workflow .zz-input--area {
-  min-height: 52px;
+  min-height: 44px;
 }
 
 .zz-workflow .zz-select__control {
   min-height: 32px;
   font-size: var(--zz-text-meta);
+}
+
+.zz-history__btn {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--zz-space-2);
+  width: 100%;
+  min-height: 30px;
+  padding: 2px 4px;
+  border: none;
+  border-radius: var(--zz-radius-sm);
+  background: transparent;
+  color: inherit;
+  font-size: var(--zz-text-caption);
+  text-align: left;
+  cursor: pointer;
+}
+
+.zz-history__btn:hover:not(:disabled) {
+  background: var(--zz-hover);
 }
 
 .zz-chapter-pane .zz-facts {

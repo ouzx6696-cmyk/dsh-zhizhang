@@ -61,15 +61,15 @@ export function renderKernelProgressSvg(
   onSelect: (id: KernelStageId) => void,
 ): void {
   const svg = d3.select(svgEl);
-  const width = 540;
-  const height = 74;
+  const width = 456;
+  const height = 62;
   svg.attr("viewBox", `0 0 ${width} ${height}`).attr("preserveAspectRatio", "xMinYMid meet");
   svg.selectAll("*").remove();
 
-  const colWidth = 164;
-  const colGap = 24;
+  const colWidth = 140;
+  const colGap = 18;
   const barWidth = colWidth;
-  const barY = 28;
+  const barY = 26;
   const barHeight = 5;
   const xScale = d3.scaleLinear().domain([0, 100]).range([0, barWidth]);
 
@@ -124,9 +124,9 @@ export function renderKernelProgressSvg(
   groups
     .append("text")
     .attr("x", 0)
-    .attr("y", 52)
+    .attr("y", 49)
     .attr("class", "zz-d3-metric__hint")
-    .text((d) => (d.hint.length > 22 ? `${d.hint.slice(0, 21)}…` : d.hint));
+    .text((d) => (d.hint.length > 18 ? `${d.hint.slice(0, 17)}…` : d.hint));
 }
 
 /** D3 渲染右栏：Agent 流水线有向节点图。 */
@@ -138,21 +138,22 @@ export function renderPipelineGraphSvg(
   onClickNode: () => void,
 ): void {
   const svg = d3.select(svgEl);
-  const width = 560;
-  const height = 74;
+  const width = 468;
+  const height = 62;
   svg.attr("viewBox", `0 0 ${width} ${height}`).attr("preserveAspectRatio", "xMidYMid meet");
   svg.selectAll("*").remove();
 
   if (nodes.length === 0) return;
 
+  const padX = nodes.length <= 3 ? 64 : 36;
   const xScale = d3
     .scalePoint<string>()
     .domain(nodes.map((n) => n.id))
-    .range([42, width - 42]);
-  const centerY = 26;
+    .range([padX, width - padX]);
+  const centerY = 22;
   const nodeMap = new Map<string, { x: number; y: number; node: PipelineNode }>();
   for (const node of nodes) {
-    nodeMap.set(node.id, { x: xScale(node.id) ?? 46, y: centerY, node });
+    nodeMap.set(node.id, { x: xScale(node.id) ?? padX, y: centerY, node });
   }
 
   const linkGen = d3
@@ -218,7 +219,7 @@ export function renderPipelineGraphSvg(
 
   nodeGroups
     .append("text")
-    .attr("y", 27)
+    .attr("y", 25)
     .attr("text-anchor", "middle")
     .attr("class", (d) =>
       d.status === "running" || d.status === "awaiting"

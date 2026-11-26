@@ -229,13 +229,19 @@ export function FanqieWorkspace({ target, readonly }: { target: Target; readonly
   }, [currentChapterId, currentChapterTitle, workTitle]);
 
   useEffect(() => {
-    set({ chapters: view.chapters.map((c) => ({ id: c.id, title: c.title })) });
+    set({
+      chapters: view.chapters.map((c) => ({
+        id: c.id,
+        title: c.title,
+        status: c.status,
+        wordCount: c.wordCount,
+      })),
+    });
   }, [view.chapters]);
 
   useEffect(
     () => () => {
       trackEditor(null);
-      set({ chapters: [] });
     },
     [],
   );
@@ -344,7 +350,7 @@ export function FanqieWorkspace({ target, readonly }: { target: Target; readonly
                       </Button>
                       <ChapterActions
                         chapterId={current.id}
-                        reviewed={current.status === "reviewed"}
+                        status={current.status}
                         readonly={readonly}
                         busy={Boolean(state.busyAction)}
                         onFinalize={() =>

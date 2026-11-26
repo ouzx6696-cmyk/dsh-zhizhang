@@ -86,7 +86,19 @@ export function createStorageHealth(deps: {
         if (!health.pendingIntents.some((i) => i.dir === action.dir)) {
           throw new AppError("input.not_found", "没有待恢复的写入意图", { dir: action.dir });
         }
-        const result = await replayIntents(action.dir);
+        const status = deps.workspace();
+        const resourceRoot = path.dirname(path.resolve(action.dir));
+        const resourceKind =
+          resourceRoot === path.resolve(status.roots.library)
+            ? "library"
+            : resourceRoot.startsWith(path.resolve(status.roots.toutiao) + path.sep)
+              ? "article"
+              : "work";
+        const result = await replayIntents(action.dir, {
+          allowedRoots: [resourceRoot],
+          lock: deps.locks,
+          resource: { kind: resourceKind, path: resourceRoot },
+        });
         if (result.conflicts.length > 0) {
           throw new AppError("storage.conflict", "部分写入意图与当前文件冲突，未自动恢复", {
             conflicts: result.conflicts,

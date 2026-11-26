@@ -8,6 +8,9 @@ import { importTs } from "../support/ts-loader.mjs";
 const { buildPipelineGraph, buildStudioDashboardModel } = await importTs(
   "apps/desktop/src/renderer/features/workspace/dashboard-model.ts",
 );
+const { progressGroups, progressIndex, stageLabel } = await importTs(
+  "apps/desktop/src/renderer/features/workflow/workflow-model.ts",
+);
 const { cardInjectionTier, parseLineList, techniqueCardToMarkdown } = await importTs(
   "apps/desktop/src/renderer/features/library/technique-markdown.ts",
 );
@@ -16,6 +19,35 @@ const { importLibrarySource, readLibraryCards, saveLibraryCards } = await import
 );
 
 describe("Studio D3 仪表盘模型与交互式技法编辑器", () => {
+  it("统一流水线模型 → 覆盖番茄全生命周期、拆书与头条全部 8 条流水线的阶段分组与文案", () => {
+    const kinds = [
+      "fanqie.book",
+      "fanqie.chapter",
+      "fanqie.review",
+      "fanqie.revise",
+      "fanqie.ledger",
+      "fanqie.health",
+      "library.dissect",
+      "toutiao.article",
+    ];
+    for (const kind of kinds) {
+      const groups = progressGroups(kind);
+      assert.ok(groups.length >= 3, `${kind} 应具备完整阶段分组`);
+    }
+    assert.equal(stageLabel("load-references"), "加载参考卡");
+    assert.equal(stageLabel("foundation"), "世界观与主角");
+    assert.equal(stageLabel("extract"), "抽取账本增量");
+    assert.equal(stageLabel("bible-audit"), "设定集巡检");
+    assert.equal(stageLabel("gate-revise-1"), "硬闸检查 · 第 2 轮");
+    assert.equal(
+      progressIndex({ kind: "fanqie.ledger", stages: ["prepare", "extract"], state: "running" }),
+      2,
+    );
+    assert.equal(
+      progressIndex({ kind: "fanqie.book", stages: ["load-references", "card"], state: "running" }),
+      1,
+    );
+  });
   it("拆解/整理/填充三段进度与 Agent 流水线节点图 → 按真实状态准确计算", () => {
     const model = buildStudioDashboardModel(
       { totalSources: 2, dissectedSources: 1, sourcesWithCards: 1, totalCards: 5 },

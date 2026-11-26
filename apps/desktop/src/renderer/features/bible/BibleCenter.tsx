@@ -241,7 +241,9 @@ export function BibleCenter({ target }: { target: Target }) {
                   <article key={entity.id} className="zz-entity-card">
                     <header className="zz-entity-card__head">
                       <strong>{entity.name}</strong>
-                      <span className="zz-meta-tag">{entity.kind}</span>
+                      <span className="zz-meta-tag">
+                        {C.bibleCenter.entityKindLabel(entity.kind)}
+                      </span>
                     </header>
                     {entity.aliases.length ? (
                       <p className="zz-muted">{entity.aliases.join(" / ")}</p>

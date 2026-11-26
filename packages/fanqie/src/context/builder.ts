@@ -1,65 +1,28 @@
 import { estimateTokensRaw } from "@zhizhang/core/model";
 import type { ContextBlock, ContextPacket } from "@zhizhang/core/pipeline";
 import type { Bible, BibleView, EntityHit } from "../bible/types.js";
+import {
+  fitItemsByBudget,
+  formatReferenceCard,
+  isCraftCard,
+  makeBlock,
+  type BookPlanContext,
+  type PreviousTextMode,
+  type ReferenceCardContext,
+} from "./format.js";
 import { retrieveEarlyChapters, type EarlyChapterDoc } from "./retrieval.js";
 
+export {
+  type BookPlanContext,
+  type PreviousTextMode,
+  type ReferenceCardContext,
+} from "./format.js";
 export {
   retrieveEarlyChapters,
   tokenize2Grams,
   type EarlyChapterDoc,
   type RetrievedChapterHit,
 } from "./retrieval.js";
-
-export type PreviousTextMode = { kind: "full"; maxChars: number } | { kind: "tail"; chars: number };
-
-export interface BookPlanContext {
-  title?: string;
-  coreConflict?: string;
-  currentVolume?: {
-    volume: number;
-    title: string;
-    summary: string;
-  };
-}
-
-export interface ReferenceCardContext {
-  id: string;
-  title: string;
-  category: string;
-  pattern: string;
-  usage: string;
-  scope?: "work" | "chapter";
-  layer?: "book" | "arc" | "unit" | "chapter" | "scene" | "line";
-  dimension?: "structure" | "character" | "rhythm" | "hook" | "prose" | "commercial";
-  emotionArc?: string;
-  steps?: string[];
-  transfer?: string;
-  mustNotCopy?: string[];
-  failWhen?: string;
-  bannedDiction?: string[];
-}
-
-function formatReferenceCard(c: ReferenceCardContext): string {
-  const tags = [c.layer, c.dimension, c.category].filter(Boolean).join("/");
-  const lines = [`- [${tags}] ${c.title}：${c.pattern}`];
-  if (c.emotionArc) lines.push(`  情绪曲线：${c.emotionArc}`);
-  if (c.steps && c.steps.length > 0) lines.push(`  实操步骤：${c.steps.join(" → ")}`);
-  if (c.transfer) lines.push(`  迁移重造：${c.transfer}`);
-  if (c.mustNotCopy && c.mustNotCopy.length > 0) {
-    lines.push(`  严禁照搬：${c.mustNotCopy.join("；")}`);
-  }
-  if (c.bannedDiction && c.bannedDiction.length > 0) {
-    lines.push(`  避坑套话：${c.bannedDiction.join("；")}`);
-  }
-  if (c.failWhen) lines.push(`  失效边界：${c.failWhen}`);
-  lines.push(`  用法：${c.usage}`);
-  return lines.join("\n");
-}
-
-function isCraftCard(card: ReferenceCardContext): boolean {
-  if (card.scope === "chapter") return true;
-  return card.layer === "scene" || card.layer === "chapter" || card.layer === "line";
-}
 
 export interface ChapterContextInput {
   chapterId: string;
@@ -85,25 +48,7 @@ export interface ChapterContextInput {
   referenceCards?: ReferenceCardContext[];
   budget: number;
   previousTextMode: PreviousTextMode;
-}
-
-function makeBlock(
-  id: string,
-  layer: ContextBlock["layer"],
-  text: string,
-  required: boolean,
-  reason: string,
-  source: ContextBlock["source"],
-): ContextBlock {
-  return {
-    id,
-    layer,
-    text,
-    required,
-    tokens: estimateTokensRaw(text),
-    reason,
-    source,
-  };
+  onIncludedCards?: (ids: string[]) => void;
 }
 
 export function buildChapterContext(input: ChapterContextInput): ContextPacket {
@@ -243,38 +188,57 @@ export function buildChapterContext(input: ChapterContextInput): ContextPacket {
 
   const craftCards = (input.referenceCards ?? []).filter(isCraftCard);
   const macroCards = (input.referenceCards ?? []).filter((c) => !isCraftCard(c));
+  const includedCardIds: string[] = [];
   if (craftCards.length > 0) {
-    const craftText = `【本章实操技法卡（只迁机制，严禁洗稿）】\n${craftCards.map(formatReferenceCard).join("\n")}`;
-    const craftBlock = makeBlock(
-      "l2-craft",
-      2,
-      craftText,
-      false,
-      "本章绑定实操技法卡与防抄袭红线",
-      {
-        kind: "reference",
-        ref: "craft-cards",
-      },
-    );
-    if (craftBlock.tokens <= remaining) {
+    const header = "【本章实操技法卡（只迁机制，严禁洗稿）】";
+    const fitted = fitItemsByBudget(header, craftCards, formatReferenceCard, remaining);
+    if (fitted.lines.length > 0) {
+      const craftBlock = makeBlock(
+        "l2-craft",
+        2,
+        `${header}\n${fitted.lines.join("\n")}`,
+        false,
+        "本章绑定实操技法卡与防抄袭红线",
+        { kind: "reference", ref: "craft-cards" },
+      );
       suffix.push(craftBlock);
-      remaining -= craftBlock.tokens;
-    } else {
-      omitted.push({ id: craftBlock.id, why: "超出剩余预算" });
+      remaining = Math.max(0, remaining - craftBlock.tokens);
+      includedCardIds.push(...fitted.kept.map((c) => c.id));
+    }
+    if (fitted.dropped > 0) {
+      omitted.push({ id: "l2-craft", why: `超出剩余预算，裁剪 ${fitted.dropped} 张实操技法卡` });
     }
   }
 
-  const l4Text = input.recentSummaries.map((s) => `第${s.position}章：${s.summary}`).join("\n");
-  if (l4Text) {
-    const l4Block = makeBlock("l4-recent", 4, `【近期回顾】\n${l4Text}`, false, "近10章摘要", {
-      kind: "bible",
-      ref: "chapters",
-    });
-    if (l4Block.tokens <= remaining) {
+  if (input.recentSummaries.length > 0) {
+    const header = "【近期回顾】";
+    const newestFirst = [...input.recentSummaries].sort((a, b) => b.position - a.position);
+    const fitted = fitItemsByBudget(
+      header,
+      newestFirst,
+      (s) => `第${s.position}章：${s.summary}`,
+      remaining,
+    );
+    if (fitted.kept.length > 0) {
+      const chronological = [...fitted.kept]
+        .sort((a, b) => a.position - b.position)
+        .map((s) => `第${s.position}章：${s.summary}`);
+      const l4Block = makeBlock(
+        "l4-recent",
+        4,
+        `${header}\n${chronological.join("\n")}`,
+        false,
+        "近10章摘要",
+        {
+          kind: "bible",
+          ref: "chapters",
+        },
+      );
       suffix.push(l4Block);
-      remaining -= l4Block.tokens;
-    } else {
-      omitted.push({ id: l4Block.id, why: "超出剩余预算" });
+      remaining = Math.max(0, remaining - l4Block.tokens);
+    }
+    if (fitted.dropped > 0) {
+      omitted.push({ id: "l4-recent", why: `超出剩余预算，裁剪 ${fitted.dropped} 章较早回顾` });
     }
   }
 
@@ -292,25 +256,30 @@ export function buildChapterContext(input: ChapterContextInput): ContextPacket {
     .join("\n");
   const earlyHits = retrieveEarlyChapters(retrievalQuery, earlyCandidates, input.l5TopK ?? 3);
   if (earlyHits.length > 0) {
-    const l5Text = earlyHits
-      .map((hit) => {
+    const header = "【早期章节检索】";
+    const fitted = fitItemsByBudget(
+      header,
+      earlyHits,
+      (hit) => {
         const excerpt = hit.doc.body ? `；片段：${hit.doc.body.slice(0, 120)}` : "";
         return `第${hit.doc.position}章（${hit.doc.chapter}）：${hit.doc.summary}${excerpt}`;
-      })
-      .join("\n");
-    const l5Block = makeBlock(
-      "l5-retrieval",
-      5,
-      `【早期章节检索】\n${l5Text}`,
-      false,
-      "早期章节 BM25 + 字符 2-gram 检索",
-      { kind: "retrieval", ref: "chapters" },
+      },
+      remaining,
     );
-    if (l5Block.tokens <= remaining) {
+    if (fitted.lines.length > 0) {
+      const l5Block = makeBlock(
+        "l5-retrieval",
+        5,
+        `${header}\n${fitted.lines.join("\n")}`,
+        false,
+        "早期章节 BM25 + 字符 2-gram 检索",
+        { kind: "retrieval", ref: "chapters" },
+      );
       suffix.push(l5Block);
-      remaining -= l5Block.tokens;
-    } else {
-      omitted.push({ id: l5Block.id, why: "超出剩余预算" });
+      remaining = Math.max(0, remaining - l5Block.tokens);
+    }
+    if (fitted.dropped > 0) {
+      omitted.push({ id: "l5-retrieval", why: `超出剩余预算，裁剪 ${fitted.dropped} 条早期检索` });
     }
   }
 
@@ -324,12 +293,33 @@ export function buildChapterContext(input: ChapterContextInput): ContextPacket {
       planLines.push(`第${vol.volume}卷「${vol.title}」：${vol.summary}`);
     }
     if (planLines.length > 0) {
-      l6Parts.push(`【卷/全书规划】\n${planLines.join("\n")}`);
+      const planText = `【卷/全书规划】\n${planLines.join("\n")}`;
+      if (estimateTokensRaw(planText) <= remaining) {
+        l6Parts.push(planText);
+      } else {
+        omitted.push({ id: "l6-plan", why: "超出剩余预算" });
+      }
     }
   }
   if (macroCards.length > 0) {
-    const cardLines = macroCards.map(formatReferenceCard);
-    l6Parts.push(`【全书参考技法卡（参考机制，不复制）】\n${cardLines.join("\n")}`);
+    const planTokens = l6Parts.length > 0 ? estimateTokensRaw(l6Parts[0]) + 2 : 0;
+    const header = "【全书参考技法卡（参考机制，不复制）】";
+    const fitted = fitItemsByBudget(
+      header,
+      macroCards,
+      formatReferenceCard,
+      Math.max(0, remaining - planTokens),
+    );
+    if (fitted.lines.length > 0) {
+      l6Parts.push(`${header}\n${fitted.lines.join("\n")}`);
+      includedCardIds.push(...fitted.kept.map((c) => c.id));
+    }
+    if (fitted.dropped > 0) {
+      omitted.push({
+        id: "l6-plan-reference",
+        why: `超出剩余预算，裁剪 ${fitted.dropped} 张全书参考卡`,
+      });
+    }
   }
   if (l6Parts.length > 0) {
     const l6Block = makeBlock(
@@ -338,19 +328,13 @@ export function buildChapterContext(input: ChapterContextInput): ContextPacket {
       l6Parts.join("\n\n"),
       false,
       "卷/全书规划与全书参考卡（参考机制，不复制）",
-      {
-        kind: macroCards.length > 0 ? "reference" : "plan",
-        ref: "plan-and-cards",
-      },
+      { kind: macroCards.length > 0 ? "reference" : "plan", ref: "plan-and-cards" },
     );
-    if (l6Block.tokens <= remaining) {
-      suffix.push(l6Block);
-      remaining -= l6Block.tokens;
-    } else {
-      omitted.push({ id: l6Block.id, why: "超出剩余预算" });
-    }
+    suffix.push(l6Block);
+    remaining = Math.max(0, remaining - l6Block.tokens);
   }
 
+  input.onIncludedCards?.(includedCardIds);
   const estimate = [...prefix, ...suffix].reduce((sum, b) => sum + b.tokens, 0);
   return { prefix, suffix, omitted, estimate };
 }

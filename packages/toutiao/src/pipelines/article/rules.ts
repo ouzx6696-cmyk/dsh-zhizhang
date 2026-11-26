@@ -61,9 +61,20 @@ export function validateTitleMatrix(
   return { valid, dropped };
 }
 
+export interface RegisteredSourceRef {
+  id: string;
+  text: string;
+  hash: string;
+}
+
+function normalizeForLocate(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
 export function filterChangedParagraphClaims(
   nextDraft: string,
   prevClaims: ClaimCandidate[],
+  currentSourceHashes?: ReadonlyMap<string, string>,
 ): { reused: ClaimCandidate[]; toVerify: ClaimCandidate[] } {
   const fresh = extractClaimCandidates(nextDraft);
   const prevByPara = new Map<string, ClaimCandidate[]>();
@@ -75,9 +86,13 @@ export function filterChangedParagraphClaims(
   const reused: ClaimCandidate[] = [];
   const toVerify: ClaimCandidate[] = [];
   for (const c of fresh) {
-    const matched = prevByPara
-      .get(c.paragraphHash)
-      ?.find((p) => p.text === c.text && p.status === "supported");
+    const matched = prevByPara.get(c.paragraphHash)?.find((p) => {
+      if (p.text !== c.text || p.status !== "supported") return false;
+      if (!currentSourceHashes) return true;
+      return Boolean(
+        p.sourceId && p.sourceHash && currentSourceHashes.get(p.sourceId) === p.sourceHash,
+      );
+    });
     if (matched) reused.push({ ...matched, id: c.id });
     else toVerify.push(c);
   }
@@ -133,15 +148,42 @@ export function pickRotatedStyles(
 export function mergeFactResults(
   candidates: ClaimCandidate[],
   factOut: FactCheckOutput,
+  sources?: readonly RegisteredSourceRef[],
 ): { merged: ClaimCandidate[]; notes: string[] } {
   const byId = new Map(factOut.claims.map((c) => [c.id, c]));
+  const sourceById = sources
+    ? new Map(sources.map((s) => [s.id, { ...s, norm: normalizeForLocate(s.text) }]))
+    : undefined;
   let unlocatedCount = 0;
   let unsupportedCount = 0;
+  let downgradedCount = 0;
   const merged = candidates.map((cand) => {
     const hit = byId.get(cand.id);
     if (!hit) {
       unlocatedCount++;
       return { ...cand, status: "unlocated" as const };
+    }
+    if (hit.status === "supported" && sourceById) {
+      const src = hit.sourceId ? sourceById.get(hit.sourceId) : undefined;
+      const evidenceNorm = hit.evidence ? normalizeForLocate(hit.evidence) : "";
+      const locatedInSource = Boolean(src && evidenceNorm && src.norm.includes(evidenceNorm));
+      if (!locatedInSource) {
+        unlocatedCount++;
+        downgradedCount++;
+        return {
+          ...cand,
+          status: "unlocated" as const,
+          sourceId: hit.sourceId,
+          evidence: hit.evidence,
+        };
+      }
+      return {
+        ...cand,
+        status: "supported" as const,
+        sourceId: hit.sourceId,
+        sourceHash: src?.hash,
+        evidence: hit.evidence,
+      };
     }
     if (hit.status === "unlocated") unlocatedCount++;
     if (hit.status === "unsupported") unsupportedCount++;
@@ -153,6 +195,9 @@ export function mergeFactResults(
     };
   });
   const notes: string[] = [];
+  if (downgradedCount > 0) {
+    notes.push(`有 ${downgradedCount} 条模型标注 supported 但原文未定位到引文，已降级为 unlocated`);
+  }
   if (unlocatedCount > 0) {
     notes.push(`存在 ${unlocatedCount} 条 unlocated 事实待人工核对（不阻断流水线）`);
   }

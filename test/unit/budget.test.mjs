@@ -65,3 +65,22 @@ test("budget guard enforces inputBudget, runBudget, and moneyCap boundaries", ()
     (err) => isAppError(err, "budget.money"),
   );
 });
+
+test("R5 (F18): budget guard tracks inflight estimated money to prevent concurrent overspend", () => {
+  const guard = createBudgetGuard({
+    inputBudget: 1000,
+    runBudget: 5000,
+    moneyCap: 0.1,
+  });
+
+  const r1 = guard.reserve(200, 0.06);
+  assert.throws(
+    () => guard.reserve(200, 0.06),
+    (err) => isAppError(err, "budget.money"),
+  );
+  r1.release();
+
+  const r2 = guard.reserve(200, 0.06);
+  r2.settle({ input: 200, cachedInput: 0, output: 100, cost: 0.04 });
+  assert.equal(guard.snapshot().usedMoney, 0.04);
+});

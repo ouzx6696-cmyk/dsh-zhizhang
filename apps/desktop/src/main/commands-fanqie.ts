@@ -81,12 +81,18 @@ export const FANQIE_HANDLERS: { [K in CommandGroup<"fanqie">]: CommandHandler<K>
           });
         });
     }
-    const row = (await fanqie.listChapters(work)).find((r) => r.id === chapter);
-    if (!row) throw new AppError("storage.io", `章节保存后未能读回：${chapter}`, { chapter });
+    const row = fanqie.chapterDocToRow(doc, chapter);
     return { revision: doc.meta.revision, row };
   },
   async "fanqie.chapter.finalize"(input, ctx) {
-    await fanqie.finalizeChapter(ctx.inside(input.work), { chapterId: input.chapter }, ctx.locks);
+    await fanqie.finalizeChapter(
+      ctx.inside(input.work),
+      {
+        chapterId: input.chapter,
+        ...(input.base ? { expectedRevision: input.base } : {}),
+      },
+      ctx.locks,
+    );
     return { status: "final" };
   },
   async "fanqie.candidate.list"(input, ctx) {
@@ -137,6 +143,14 @@ export const FANQIE_HANDLERS: { [K in CommandGroup<"fanqie">]: CommandHandler<K>
     }
     return { workPath };
   },
+  async "fanqie.work.previewLegacy"(input, ctx) {
+    ctx.inside(input.root);
+    const sourcePath = ctx.inside(input.sourcePath);
+    return fanqie.previewLegacyWork({
+      sourcePath,
+      sourceKind: input.sourceKind,
+    });
+  },
   async "fanqie.work.importLegacy"(input, ctx) {
     const worksRoot = ctx.inside(input.root);
     const sourcePath = ctx.inside(input.sourcePath);
@@ -148,6 +162,7 @@ export const FANQIE_HANDLERS: { [K in CommandGroup<"fanqie">]: CommandHandler<K>
         sourcePath,
         sourceKind: input.sourceKind,
         grade: input.grade,
+        ...(input.chapterStatus ? { chapterStatus: input.chapterStatus } : {}),
       },
       ctx.locks,
       ctx.clock,

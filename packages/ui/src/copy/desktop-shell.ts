@@ -118,7 +118,16 @@ export const DESKTOP_SHELL_COPY = {
     importSingleTxt: "单个 TXT 长文",
     importFolder: "章节文件夹（.md / .txt）",
     importSourcePath: "本地文件或文件夹路径",
-    importSourcePlaceholder: "粘贴本地 TXT 文件或章节目录路径",
+    importSourcePlaceholder: "粘贴写作文件夹内的 TXT 文件或章节目录路径",
+    importSourceHint: "为保障路径安全，请先将待导入文件放在当前写作文件夹内",
+    importStatusLabel: "导入章节初始状态",
+    importStatusDrafted: "草稿（推荐，方便后续复核定稿）",
+    importStatusFinal: "已定稿（已发表旧书）",
+    importPreviewAction: "预览拆章",
+    importPreviewSummary: (chapters: number, words: number, encoding: string) =>
+      `识别到 ${chapters} 章（共 ${words.toLocaleString("zh-CN")} 字 · 编码 ${encoding.toUpperCase()}）`,
+    importPreviewPrelude: (chars: number) => `含楔子/前言（${chars} 字，保留为第 1 条）`,
+    importPreviewEmpty: (count: number) => `跳过 ${count} 个空白章节标题`,
     importSubmit: "导入并接管",
     importDone: (chapters: number, words: number) =>
       `已导入 ${chapters} 章（共 ${words.toLocaleString("zh-CN")} 字），建议运行全书体检或记账补建设定集`,

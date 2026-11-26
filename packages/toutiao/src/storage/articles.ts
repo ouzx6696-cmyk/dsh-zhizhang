@@ -29,6 +29,8 @@ export const ArticleMetaSchema = obj({
   archived: opt(bool),
   status: lit("初稿待改", "待验收", "已验收", "验收退回", "已交稿"),
   chosenTitle: opt(str()),
+  acceptedRevision: opt(str()),
+  deliveredRevision: opt(str()),
   rulesVersion: str({ min: 1 }),
   history: arr(obj({ to: str(), at: str() })),
 });
@@ -64,6 +66,8 @@ export async function createArticle(
       archived: undefined,
       status: "初稿待改",
       chosenTitle: undefined,
+      acceptedRevision: undefined,
+      deliveredRevision: undefined,
       rulesVersion: input.rulesVersion,
       history: [{ to: "初稿待改", at: input.nowIso }],
     };
@@ -97,15 +101,25 @@ export async function transitionArticleStatus(
   to: ArticleStatus,
   nowIso: string,
   lock: LockService,
+  options?: { acceptedRevision?: string | null },
 ): Promise<ArticleMeta> {
   return lock.write({ kind: "article", path: articleDir }, async () => {
     const metaFile = path.join(articleDir, "meta.json");
     const meta = await readJson(metaFile, ArticleMetaSchema);
     if (!meta) throw new AppError("input.not_found", `Article not found: ${articleDir}`);
     assertArticleTransition(meta.status, to);
+    const nextAccepted =
+      options?.acceptedRevision === null
+        ? undefined
+        : options?.acceptedRevision !== undefined
+          ? options.acceptedRevision
+          : to === "已验收"
+            ? meta.acceptedRevision
+            : undefined;
     const next: ArticleMeta = {
       ...meta,
       status: to,
+      acceptedRevision: nextAccepted,
       history: [...meta.history, { to, at: nowIso }],
     };
     await atomicWrite(metaFile, JSON.stringify(next, null, 2));
@@ -119,6 +133,7 @@ export async function writeDeliverySheet(
   body: string,
   nowIso: string,
   lock: LockService,
+  deliveredRevision?: string,
 ): Promise<string> {
   return lock.write({ kind: "article", path: articleDir }, async () => {
     const metaFile = path.join(articleDir, "meta.json");
@@ -136,6 +151,7 @@ export async function writeDeliverySheet(
       ...meta,
       status: "已交稿",
       chosenTitle: title,
+      ...(deliveredRevision ? { deliveredRevision } : {}),
       history: [...meta.history, { to: "已交稿", at: nowIso }],
     };
     const previous = await readTextIfExists(outPath);

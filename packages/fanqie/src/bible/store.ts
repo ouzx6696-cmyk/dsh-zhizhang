@@ -110,6 +110,18 @@ function mergeUniqueStrings(base: string[], extra: string[]): string[] {
   return [...new Set([...base, ...extra].map((item) => item.trim()).filter(Boolean))];
 }
 
+function isThreadOpenAt(thread: Bible["threads"][number], position: number): boolean {
+  if (thread.opened > position) return false;
+  let payChapter: number | undefined;
+  for (const beat of thread.beats) {
+    if (beat.kind === "pay" && (payChapter === undefined || beat.chapter < payChapter)) {
+      payChapter = beat.chapter;
+    }
+  }
+  if (payChapter !== undefined) return position < payChapter;
+  return thread.status === "open";
+}
+
 export function createBibleStore(lock: LockService, clock: Clock = systemClock) {
   const dirOf = (workPath: string) => path.join(workPath, "bible");
   const cache = new Map<string, CachedBible>();
@@ -138,11 +150,16 @@ export function createBibleStore(lock: LockService, clock: Clock = systemClock) 
   function asOf(bible: Bible, position: number): BibleView {
     return {
       position,
-      entities: bible.entities,
+      entities: bible.entities.filter(
+        (e) =>
+          e.provenance.source !== "ledger" ||
+          e.provenance.chapter === undefined ||
+          e.provenance.chapter <= position,
+      ),
       states: bible.states.filter(
         (s) => s.since <= position && (s.until === undefined || position < s.until),
       ),
-      threads: bible.threads.filter((t) => t.opened <= position && t.status === "open"),
+      threads: bible.threads.filter((t) => isThreadOpenAt(t, position)),
       knowledge: bible.knowledge.filter((k) => k.since <= position),
     };
   }

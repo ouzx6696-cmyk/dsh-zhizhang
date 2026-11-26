@@ -163,10 +163,10 @@ export const articlePipeline: PipelineDefinition<
       const entries = await fs.readdir(sourcesDir).catch(() => []);
       const txtFiles = entries.filter((name) => name.endsWith(".txt")).sort();
       const contents = await Promise.all(
-        txtFiles.map(async (file) => ({
-          id: file.replace(/\.txt$/, ""),
-          text: (await readTextIfExists(path.join(sourcesDir, file))) ?? "",
-        })),
+        txtFiles.map(async (file) => {
+          const text = (await readTextIfExists(path.join(sourcesDir, file))) ?? "";
+          return { id: file.replace(/\.txt$/, ""), text, hash: sha256(text) };
+        }),
       );
       return {
         sources: contents,
@@ -280,9 +280,13 @@ export const articlePipeline: PipelineDefinition<
     const claimCandidates = await runner.local("claims", async () =>
       extractClaimCandidates(initialDraft),
     );
+    const sourceHashMap = new Map(sourceData.sources.map((s) => [s.id, s.hash]));
     const runFacts = async (stepId: string, list: ClaimCandidate[]): Promise<ClaimCandidate[]> => {
       if (list.length === 0) return [];
-      return runner.stage(buildFactsStage(stepId, list, sourceData.combinedText), sourcePacket);
+      return runner.stage(
+        buildFactsStage(stepId, list, sourceData.combinedText, sourceData.sources),
+        sourcePacket,
+      );
     };
     let verifiedClaims = await runFacts("facts", claimCandidates);
 
@@ -318,7 +322,7 @@ export const articlePipeline: PipelineDefinition<
 
     const verifyRevision = async (text: string, stepId: string) => {
       const incremental = await runner.local(`${stepId}-claims`, async () =>
-        filterChangedParagraphClaims(text, verifiedClaims),
+        filterChangedParagraphClaims(text, verifiedClaims, sourceHashMap),
       );
       const checked = await runFacts(`${stepId}-facts`, incremental.toVerify);
       verifiedClaims = [...incremental.reused, ...checked];

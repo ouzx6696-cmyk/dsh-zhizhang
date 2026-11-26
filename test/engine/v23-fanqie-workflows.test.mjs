@@ -15,17 +15,21 @@ const { emptyUsage, executePipeline } = await importTs("packages/core/src/pipeli
 const { createBibleStore, traceEntityTimeline } = await importTs(
   "packages/fanqie/src/bible/index.ts",
 );
-const { chapterPipeline, commands, fanqieModule, revisePipeline } = await importTs(
+const { sha256 } = await importTs("packages/core/src/fs/index.ts");
+const { chapterPipeline, commands, fanqieModule, ledgerPipeline, revisePipeline } = await importTs(
   "packages/fanqie/src/index.ts",
 );
 const {
   acceptCandidate,
   createWork,
+  finalizeChapter,
   importLegacyWork,
   listCandidates,
   listChapters,
+  previewLegacyWork,
   readChapter,
   saveChapter,
+  updateWorkSettings,
 } = commands;
 
 function makeLongBody(seed, repeat = 60) {
@@ -109,14 +113,29 @@ test("T2: revisePipeline(mode=deai) 无 issues 时单轮输出去 AI 腔候选�
     const official = await readChapter(workPath, "C001");
     assert.equal(official.body, originalBody);
 
-    // 候选稿与 .meta.json 落盘且标注 mode: "deai"
+    // F03: 专项去 AI 腔未执行编辑审读，editorPass 与 reviewPerformed 均为 false
     const metaRaw = await fs.readFile(
       path.join(workPath, "candidates", "C001", `${ctx.runId}.meta.json`),
       "utf8",
     );
     const meta = JSON.parse(metaRaw);
     assert.equal(meta.mode, "deai");
-    assert.equal(meta.editorPass, true);
+    assert.equal(meta.editorPass, false);
+    assert.equal(meta.reviewPerformed, false);
+
+    // 采纳专项去 AI 腔候选后状态为 drafted（不伪装 reviewed），在 requireEditorPass=true 下不可直接定稿
+    await updateWorkSettings(workPath, { requireEditorPass: true }, lock);
+    const accepted = await acceptCandidate(
+      workPath,
+      { chapterId: "C001", candidateId: ctx.runId },
+      lock,
+    );
+    assert.equal(accepted.meta.status, "drafted");
+    assert.equal(accepted.meta.editorPass, false);
+    await assert.rejects(
+      () => finalizeChapter(workPath, { chapterId: "C001" }, lock),
+      (err) => isAppError(err, "gate.denied"),
+    );
   } finally {
     await fs.rm(root, { recursive: true, force: true });
   }
@@ -199,6 +218,57 @@ test("T2: chapterPipeline(continueFromExisting) 空章报错，半章保留前�
     );
     assert.ok(candMd.includes("已写好的上半章前缀"), "候选稿必须保留原有前缀");
     assert.ok(candMd.includes("无缝续写的下半章反转"), "候选稿必须包含续写后半段");
+
+    // 3. F02: 续写修订轮若篡改锁死前缀，必须回退上一版并拒绝通过编辑审读
+    const tamperedBody = makeLongBody("被修订模型篡改后的整章", 65);
+    const guardPort = createFakeModelPort([
+      { text: FAKE_BEATS_JSON },
+      { text: `# 半章开篇\n\n${tail}\n<<<END>>>` },
+      { text: JSON.stringify({ issues: [] }) },
+      {
+        text: JSON.stringify({
+          verdict: "revise",
+          issues: [{ kind: "reader", quote: "反转", issue: "节奏偏慢", fix: "加快节奏" }],
+          summary: "需要修订",
+        }),
+      },
+      { text: `# 半章开篇\n\n${tamperedBody}\n<<<END>>>` },
+    ]);
+    clock.advance(1000);
+    const guardCtx = await chapterPipeline.context(
+      target,
+      { chapterId: "C001", continueFromExisting: true, grade: "economy" },
+      { clock, lock },
+    );
+    const guardRec = makeRunRecord(
+      guardCtx.runId,
+      chapterPipeline.kind,
+      target,
+      guardCtx.request,
+      clock.iso(),
+    );
+    const guardDone = await executePipeline(
+      chapterPipeline,
+      guardRec,
+      guardCtx,
+      makeGateway(guardPort, clock),
+      clock,
+      new AbortController().signal,
+    );
+    assert.equal(guardDone.state, "awaiting-author");
+    const guardCand = await fs.readFile(
+      path.join(workPath, "candidates", "C001", `${guardCtx.runId}.md`),
+      "utf8",
+    );
+    assert.ok(guardCand.includes("已写好的上半章前缀"), "修订篡改前缀后应回退保留原前缀");
+    assert.ok(!guardCand.includes("被修订模型篡改后的整章"), "篡改前缀的修订稿不得落盘");
+    const guardMeta = JSON.parse(
+      await fs.readFile(
+        path.join(workPath, "candidates", "C001", `${guardCtx.runId}.meta.json`),
+        "utf8",
+      ),
+    );
+    assert.equal(guardMeta.editorPass, false);
   } finally {
     await fs.rm(root, { recursive: true, force: true });
   }
@@ -415,6 +485,43 @@ test("T5: importLegacyWork 支持单 TXT 与多文件目录导入、原子落盘
     assert.equal(folderChapters[1].title, "第2章 启程");
     assert.equal(folderChapters[2].title, "终局之战");
     assert.equal(folderChapters[0].status, "drafted");
+
+    // 3. F05: GB18030 原字节无损备份 + previewLegacyWork + import-manifest.json
+    const gbkPath = path.join(root, "gbk-book.txt");
+    // GBK for "第1章 开篇\n正文内容。"
+    const gbkRaw = Buffer.from([
+      0xb5, 0xda, 0x31, 0xd5, 0xc2, 0x20, 0xbf, 0xaa, 0xc6, 0xaa, 0x0a, 0xd5, 0xfd, 0xce, 0xc4,
+      0xc4, 0xda, 0xc8, 0xdd, 0xa1, 0xa3,
+    ]);
+    await fs.writeFile(gbkPath, gbkRaw);
+    const preview = await previewLegacyWork({
+      sourcePath: gbkPath,
+      sourceKind: "single_txt",
+      allowedRoot: root,
+    });
+    assert.equal(preview.encoding, "gb18030");
+    assert.equal(preview.chapterCount, 1);
+    const resGbk = await importLegacyWork(
+      {
+        worksRoot,
+        workId: "legacy-gbk",
+        title: "旧书GBK",
+        sourcePath: gbkPath,
+        sourceKind: "single_txt",
+        allowedRoot: root,
+        chapterStatus: "drafted",
+      },
+      lock,
+      clock,
+    );
+    const backupRaw = await fs.readFile(path.join(resGbk.backupDir, "gbk-book.txt"));
+    assert.equal(Buffer.compare(backupRaw, gbkRaw), 0, "原稿备份必须保留原始 GB18030 字节");
+    const manifest = JSON.parse(
+      await fs.readFile(path.join(resGbk.backupDir, "import-manifest.json"), "utf8"),
+    );
+    assert.equal(manifest.encoding, "gb18030");
+    assert.equal(manifest.chapterStatus, "drafted");
+    assert.equal(manifest.chapters.length, 1);
   } finally {
     await fs.rm(root, { recursive: true, force: true });
   }
@@ -476,6 +583,7 @@ test("T6: 多分支衍生 derivedFrom、下游过时告警与设定集三分类�
       kind: "candidate",
       chapterId: "C001",
       candidateId: "cand-B",
+      sourceHash: sha256(bodyB),
     });
 
     // 采纳 C001 的 cand-A -> 应报告 C002 的候选为过时分支，且不修改 C002 文件
@@ -488,7 +596,7 @@ test("T6: 多分支衍生 derivedFrom、下游过时告警与设定集三分类�
     assert.equal(acceptA.staleDownstreamCandidates[0].chapterId, "C002");
     assert.equal(acceptA.staleDownstreamCandidates[0].derivedFromCandidateId, "cand-B");
 
-    // 再采纳 C001 的 cand-B -> C002 的 derivedFrom 自动升级为 { kind: "final", chapterId: "C001" }
+    // F04: 再采纳 C001 的 cand-B -> C002 的 derivedFrom 升级为真实状态 drafted + sourceHash（不再伪称 final）
     const acceptB = await acceptCandidate(
       workPath,
       { chapterId: "C001", candidateId: "cand-B" },
@@ -496,7 +604,11 @@ test("T6: 多分支衍生 derivedFrom、下游过时告警与设定集三分类�
     );
     assert.equal(acceptB.staleDownstreamCandidates.length, 0);
     const c2CandsAfter = await listCandidates(workPath, "C002");
-    assert.deepEqual(c2CandsAfter[0].derivedFrom, { kind: "final", chapterId: "C001" });
+    assert.deepEqual(c2CandsAfter[0].derivedFrom, {
+      kind: "drafted",
+      chapterId: "C001",
+      sourceHash: sha256(bodyB),
+    });
 
     // T6 设定集三分类沉淀：resolve_short_term / settle_long_term / update_profile
     const store = createBibleStore(lock, clock);
@@ -617,6 +729,56 @@ test("T3: traceEntityTimeline 对空白查询词抛出 input.invalid", async () 
       caught = err;
     }
     assert.ok(isAppError(caught) && caught.code === "input.invalid");
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+test("F13: ledgerPipeline 在设定集空白时按章节号 C100 解析真实 position=100", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "zz-f13-ledger-"));
+  try {
+    const clock = createFakeClock();
+    const lock = createLockService(clock);
+    const workPath = path.join(root, "book-ledger");
+    await createWork(workPath, { id: "book-ledger", title: "记账章号测试" }, lock);
+    await saveChapter(
+      workPath,
+      { chapterId: "C100", title: "第一百章 决战", body: "林默登上孤峰，剑指苍穹。" },
+      lock,
+    );
+    const target = { mode: "fanqie", path: workPath };
+    const port = createFakeModelPort([
+      {
+        text: JSON.stringify({
+          deltas: [
+            {
+              quote: "林默登上孤峰，剑指苍穹。",
+              kind: "state",
+              targetId: "ent-lin",
+              name: "林默",
+              detail: "登上孤峰迎战",
+              field: "位置",
+              value: "孤峰",
+            },
+          ],
+        }),
+      },
+    ]);
+    const ctx = await ledgerPipeline.context(target, { chapterId: "C100" }, { clock, lock });
+    const rec = makeRunRecord(ctx.runId, ledgerPipeline.kind, target, ctx.request, clock.iso());
+    const done = await executePipeline(
+      ledgerPipeline,
+      rec,
+      ctx,
+      makeGateway(port, clock),
+      clock,
+      new AbortController().signal,
+    );
+    assert.equal(done.state, "awaiting-author");
+    const bible = await createBibleStore(lock, clock).read(workPath);
+    const stOp = bible.pending.find((p) => p.op.type === "state.add")?.op;
+    assert.equal(stOp?.type, "state.add");
+    assert.equal(stOp?.entry.since, 100);
   } finally {
     await fs.rm(root, { recursive: true, force: true });
   }

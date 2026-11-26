@@ -54,8 +54,10 @@ export interface DesktopState {
   jumpChapterId: string;
   /** 流水线面板请求预填的章节（来自写作区“发起流水线”）。 */
   pipelineChapter: string;
-  /** 当前番茄作品的章节（右栏流水线选章、设定集巡检范围用）。 */
-  chapters: { id: string; title: string }[];
+  /** 流水线面板请求预填的任务类型（来自章节快捷操作）。 */
+  pipelineKind: string;
+  /** 当前番茄作品的章节（右栏流水线选章、设定集巡检范围、仪表盘真实填充进度共用）。 */
+  chapters: { id: string; title: string; status: string; wordCount: number }[];
   /** 仍在进行（运行 / 暂停 / 失败可重试 / 等你决定）的流水线，顶栏胶囊与全局进度轨共用。 */
   runs: RunSummary[];
   /** 中栏对照视图：正式稿 vs 候选稿；null 表示关闭。 */
@@ -113,6 +115,7 @@ export const desktopStore = createStore<DesktopState>({
   splitRefOpen: false,
   jumpChapterId: "",
   pipelineChapter: "",
+  pipelineKind: "",
   chapters: [],
   runs: [],
   compare: null,

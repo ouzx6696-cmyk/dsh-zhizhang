@@ -216,7 +216,15 @@ export function WorkflowRunView({
   );
 }
 
-export function WorkflowHistory({ runs, currentId }: { runs: RunSummary[]; currentId: string }) {
+export function WorkflowHistory({
+  runs,
+  currentId,
+  onSelect,
+}: {
+  runs: RunSummary[];
+  currentId: string;
+  onSelect?: (run: RunSummary) => void;
+}) {
   const past = runs.filter((r) => r.id !== currentId);
   if (!past.length) return null;
   return (
@@ -225,17 +233,24 @@ export function WorkflowHistory({ runs, currentId }: { runs: RunSummary[]; curre
       <ul className="zz-history__list">
         {past.map((r) => (
           <li key={r.id} data-testid="workflow-history-item" data-state={r.state}>
-            <span className="zz-history__kind">{kindLabel(r.kind)}</span>
-            <StatusChip tone={stateTone(r.state)} label={stateLabel(r.state)} />
-            <span className="zz-history__time">
-              {new Date(r.created).toLocaleString("zh-CN", {
-                hour12: false,
-                month: "numeric",
-                day: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </span>
+            <button
+              type="button"
+              className="zz-history__btn"
+              onClick={() => onSelect?.(r)}
+              disabled={!onSelect}
+            >
+              <span className="zz-history__kind">{kindLabel(r.kind)}</span>
+              <StatusChip tone={stateTone(r.state)} label={stateLabel(r.state)} />
+              <span className="zz-history__time">
+                {new Date(r.created).toLocaleString("zh-CN", {
+                  hour12: false,
+                  month: "numeric",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </span>
+            </button>
           </li>
         ))}
       </ul>

@@ -5,7 +5,12 @@ import { parseJson } from "@zhizhang/core/schema";
 import type { ClaimCandidate } from "../../domain/claims.js";
 import type { MotifSpec } from "../../domain/motifs.js";
 import type { QaCheckResult, RulesLimits } from "../../rules/bridge.js";
-import { mergeFactResults, resolveDraftTrack, validateTitleMatrix } from "./rules.js";
+import {
+  mergeFactResults,
+  resolveDraftTrack,
+  validateTitleMatrix,
+  type RegisteredSourceRef,
+} from "./rules.js";
 import {
   BlueprintOutputSchema,
   CardOutputSchema,
@@ -201,6 +206,7 @@ export function buildFactsStage(
   stepId: string,
   claims: ClaimCandidate[],
   sourceText: string,
+  sources?: readonly RegisteredSourceRef[],
 ): ArticleStage<{ claims: ClaimCandidate[]; source: string }, ClaimCandidate[]> {
   return {
     id: stepId,
@@ -212,7 +218,7 @@ export function buildFactsStage(
     format: "json",
     parse: (raw): ClaimCandidate[] => {
       const out: FactCheckOutput = parseJson(raw, FactCheckOutputSchema);
-      return mergeFactResults(claims, out).merged;
+      return mergeFactResults(claims, out, sources).merged;
     },
   };
 }

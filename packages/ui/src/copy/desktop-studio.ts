@@ -81,6 +81,17 @@ export const DESKTOP_STUDIO_COPY = {
     searchPlaceholder: "按名称、别名或摘要筛选…",
     asOfLabel: (pos: number) => `截至第 ${pos} 章快照`,
     allChapters: "全书最新状态",
+    entityKindLabel: (kind: string): string =>
+      ({
+        character: "人物",
+        location: "地点",
+        faction: "势力",
+        item: "器物",
+        rule: "规则",
+        concept: "概念",
+        event: "事件",
+        other: "其他",
+      })[kind] ?? kind,
     emptyEntities: "还没有录入实体设定",
     emptyThreads: "当前没有伏笔线索",
     emptyKnowledge: "当前没有知情关系记录",
